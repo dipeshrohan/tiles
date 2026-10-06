@@ -34,6 +34,10 @@ Requires Node 18+. Any static file server works too, since the app is plain ES m
 
 ![Factory physics](docs/physics.png)
 
+## Roadmap
+
+The 6-month plan to take Tiles from demo to a production pilot is in [docs/ROADMAP.md](docs/ROADMAP.md), with the task-by-task breakdown in [docs/TASKS.md](docs/TASKS.md).
+
 ## Data
 
 All plant data is synthetic and generated from fixed seeds (`js/lib/data.js`, `js/lib/physics.js`), so results are reproducible. Ontology commits, design runs, chat history and profile are saved in the browser's `localStorage`. Use **Settings → Reset workspace** to start over.
