@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tiles</title>
+    <meta name="description" content="Tiles — physics fused with live data for industrial R&amp;D and the shopfloor." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='1' width='6' height='6' rx='1' fill='%231f5f5b'/%3E%3Crect x='9' y='1' width='6' height='6' rx='1' fill='%23c0603a'/%3E%3Crect x='1' y='9' width='6' height='6' rx='1' fill='%23c0603a'/%3E%3Crect x='9' y='9' width='6' height='6' rx='1' fill='%231f5f5b'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#/">
+          <span class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span>Tiles</span>
+        </a>
+        <nav id="nav"></nav>
+        <div class="user" id="user"></div>
+      </aside>
+      <div class="main">
+        <header class="topbar">
+          <button class="icon-btn menu" id="menu" aria-label="Toggle navigation">☰</button>
+          <div class="crumbs" id="crumbs"></div>
+          <button class="icon-btn" id="theme" aria-label="Toggle light or dark theme" title="Toggle theme"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
+        </header>
+        <main id="view" tabindex="-1"></main>
+      </div>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="js/app.js"></script>
+  </body>
+</html>

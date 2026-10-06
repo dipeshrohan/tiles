@@ -1,0 +1,59 @@
+# Tiles
+
+**Physics models × live data → agentic workflows, for industrial R&D and the shopfloor.**
+
+Tiles is a zero-dependency web app that pairs first-principles physics with plant data. It has two halves:
+
+| | Tiles Design (R&D) | Tiles Operations (shopfloor) |
+|---|---|---|
+| Who | R&D, simulation and process engineers | Production, quality and maintenance teams |
+| What | Versioned physics models, parameter sweeps, sensitivity, run lineage, audit export | Factory ontology, virtual sensors, correlation finder, predictive maintenance, copilot |
+
+![Home](docs/home.png)
+
+## Run it
+
+```bash
+npm start        # node server.js → http://localhost:5173
+npm test         # node --test (no dependencies to install)
+```
+
+Requires Node 18+. Any static file server works too, since the app is plain ES modules with no build step.
+
+## What's inside
+
+- **Copilot.** Ask a question in plain language. The copilot picks a skill (graph query, correlation analysis, virtual sensor, change detection or health check), runs it on the plant data, and shows each step it took. It runs fully offline.
+- **Ontology builder.** A typed factory graph (Site → Workcenter → Line → Machine, plus processes, materials, PLCs, signals, documents and models). Edits are staged and then committed with a message and author, Git style. Any commit can be reverted. The health check flags orphan nodes, dangling or duplicate relationships, and missing required properties, and offers a one-click fix.
+- **Process & quality.**
+  - *Correlation finder:* ranks process variables by effect size (Cohen's d) between failed and healthy batches. On pooled data nothing stands out. Split by material, it shows that front stock tension runs too high for anode sheets and too low for cathode sheets.
+  - *Predictive maintenance:* welding power as a second tip-wear signal next to the cycle counter.
+- **Factory physics.** A plunger-friction virtual sensor for a die-caster. Friction is solved from the equation of motion `m·a = Ph·Ah − Pm·Am − F` for every shot. Warnings fire against a rolling 200-shot robust baseline. Every seizure stop in the demo data is caught about 2 h ahead.
+- **Design studio.** Cell swelling-force and humanoid-actuator models, each with several versions. Includes live parameter sliders, cross-version comparison, 2-D sweep heatmaps and sensitivity bars. Saved runs record their parent run, model version and exact parameters. Click a run to restore it, or export a JSON audit record.
+
+![Process & quality](docs/quality.png)
+
+![Factory physics](docs/physics.png)
+
+## Data
+
+All plant data is synthetic and generated from fixed seeds (`js/lib/data.js`, `js/lib/physics.js`), so results are reproducible. Ontology commits, design runs, chat history and profile are saved in the browser's `localStorage`. Use **Settings → Reset workspace** to start over.
+
+## Layout
+
+```
+index.html            app shell
+css/styles.css        theme tokens (light + dark) and components
+js/app.js             state, router, navigation
+js/lib/               pure, tested logic
+  ontology.js         graph ops, staging/commit/revert, health check, queries
+  physics.js          shot simulation, friction estimation, alerting
+  analysis.js         correlation finder, wear check
+  design.js           physics model library, sweeps, sensitivity, run lineage
+  copilot.js          skill routing and traceable answers
+  data.js             seeded demo plant
+  stats.js, rng.js    numerics
+  svg.js, dom.js      charts and helpers
+js/views/             one module per page
+test/                 node:test suites
+server.js             zero-dependency static server
+```
