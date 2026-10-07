@@ -6,3 +6,5 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 api/.env
+# Root .env holds docker compose overrides such as TILES_DB_PASSWORD.
+.env

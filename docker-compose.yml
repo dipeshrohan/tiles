@@ -7,7 +7,10 @@
 #   migrate                        applies database migrations, then exits
 #
 # Ports bind to 127.0.0.1 only. Credentials are for local development;
-# override with TILES_DB_PASSWORD in your shell or a root .env file.
+# override with TILES_DB_PASSWORD in your shell or a root .env file (git-ignored).
+# The password is embedded in a connection URL, so use URL-safe characters
+# (letters, digits, - . _ ~). It is applied only when the db volume is first
+# created: after changing it, run `docker compose down -v` (deletes the data).
 
 name: tiles
 
