@@ -183,10 +183,7 @@ function revert(repo, id, { author, date } = {}) {
   const target = repo.history.find((c) => c.id === id);
   if (!target) throw new Error(`Commit ${id} not found`);
   if (repo.staged.length) throw new Error('Commit or discard staged changes first');
-  return commit(
-    { ...repo, staged: target.inverses },
-    { message: `Revert "${target.message}"`, author, date },
-  );
+  return commit({ ...repo, staged: target.inverses }, { message: `Revert "${target.message}"`, author, date });
 }
 
 // ---- Health check -------------------------------------------------------
@@ -199,25 +196,43 @@ function healthCheck(graph) {
   const seen = new Map();
   for (const e of edges) {
     if (!graph.nodes[e.from] || !graph.nodes[e.to]) {
-      issues.push({ level: 'error', kind: 'dangling', ref: e.id, text: `Relationship ${e.id} points at a missing node` });
+      issues.push({
+        level: 'error',
+        kind: 'dangling',
+        ref: e.id,
+        text: `Relationship ${e.id} points at a missing node`,
+      });
       continue;
     }
     degree[e.from]++;
     degree[e.to]++;
     const key = `${e.from}|${e.rel}|${e.to}`;
     if (seen.has(key)) {
-      issues.push({ level: 'warn', kind: 'duplicate', ref: e.id, text: `Duplicate relationship ${graph.nodes[e.from].label} —${e.rel}→ ${graph.nodes[e.to].label} (also ${seen.get(key)})` });
+      issues.push({
+        level: 'warn',
+        kind: 'duplicate',
+        ref: e.id,
+        text: `Duplicate relationship ${graph.nodes[e.from].label} —${e.rel}→ ${graph.nodes[e.to].label} (also ${seen.get(key)})`,
+      });
     } else seen.set(key, e.id);
   }
   for (const n of nodes) {
-    if (degree[n.id] === 0) issues.push({ level: 'warn', kind: 'orphan', ref: n.id, text: `${n.type} "${n.label}" has no relationships` });
+    if (degree[n.id] === 0)
+      issues.push({ level: 'warn', kind: 'orphan', ref: n.id, text: `${n.type} "${n.label}" has no relationships` });
     for (const req of NODE_TYPES[n.type]?.required ?? []) {
       if (n.props?.[req] === undefined || n.props[req] === '') {
-        issues.push({ level: 'info', kind: 'missing-prop', ref: n.id, text: `${n.type} "${n.label}" is missing "${req}"` });
+        issues.push({
+          level: 'info',
+          kind: 'missing-prop',
+          ref: n.id,
+          text: `${n.type} "${n.label}" is missing "${req}"`,
+        });
       }
     }
   }
-  const score = nodes.length ? Math.max(0, Math.round(100 - (issues.filter((i) => i.level !== 'info').length * 100) / nodes.length)) : 100;
+  const score = nodes.length
+    ? Math.max(0, Math.round(100 - (issues.filter((i) => i.level !== 'info').length * 100) / nodes.length))
+    : 100;
   return { issues, score, counts: { nodes: nodes.length, edges: edges.length } };
 }
 
@@ -272,16 +287,16 @@ const E = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${t
 
 function seedOntology() {
   const ops = [
-    N('site-nk', 'Site', 'Northkoping Cell Plant', { location: 'Northkoping, SE', capacityGWh: 16 }),
+    N('site-nk', 'Site', 'Demo Cell Plant', { location: 'Plant A' }),
     N('wc-elec', 'Workcenter', 'Electrode'),
     N('wc-asm', 'Workcenter', 'Cell Assembly'),
     N('wc-cast', 'Workcenter', 'Housing Casting'),
     N('ln-cut1', 'Line', 'Cutting Line 1'),
     N('ln-weld2', 'Line', 'Welding Line 2'),
     N('ln-dc1', 'Line', 'Die-cast Line 1'),
-    N('m-cut01', 'Machine', 'Notching Cutter C-01', { vendor: 'Kestrel', model: 'NX-400' }),
-    N('m-weld03', 'Machine', 'Tab Welder W-03', { vendor: 'Sonora', model: 'US-20k' }),
-    N('m-dc02', 'Machine', 'Die-caster DC-02', { vendor: 'Halvard', model: 'HC-1600' }),
+    N('m-cut01', 'Machine', 'Notching Cutter C-01', { vendor: 'Vendor A', model: 'A-100' }),
+    N('m-weld03', 'Machine', 'Tab Welder W-03', { vendor: 'Vendor B', model: 'B-200' }),
+    N('m-dc02', 'Machine', 'Die-caster DC-02', { vendor: 'Vendor C', model: 'C-300' }),
     N('p-notch', 'Process', 'Electrode notching'),
     N('p-weld', 'Process', 'Ultrasonic tab welding'),
     N('p-shot', 'Process', 'High-pressure die casting'),
@@ -334,12 +349,24 @@ function seedOntology() {
   let repo = createRepo();
   const base = ops.filter((o) => !o.node?.id?.startsWith('mdl-') && !o.edge?.from?.startsWith('mdl-'));
   for (const op of base) repo = stage(repo, op);
-  repo = commit(repo, { message: 'Import site hierarchy from MES', author: 'ingest-agent@tiles', date: '2026-09-02T08:10:00Z' });
+  repo = commit(repo, {
+    message: 'Import site hierarchy from MES',
+    author: 'ingest-agent',
+    date: '2026-09-02T08:10:00Z',
+  });
   for (const op of ops.filter((o) => !base.includes(o))) repo = stage(repo, op);
-  repo = commit(repo, { message: 'Register plunger friction virtual sensor', author: 'lena@tiles.dev', date: '2026-09-18T14:32:00Z' });
+  repo = commit(repo, {
+    message: 'Register plunger friction virtual sensor',
+    author: 'engineer@example.com',
+    date: '2026-09-18T14:32:00Z',
+  });
   // A stray node left behind by an ingest, so the health check has something to find.
   repo = stage(repo, N('sig-legacy', 'Signal', 'TEMP_TAG_0042', {}));
-  repo = commit(repo, { message: 'Agentic ingestion: historian tags batch 7', author: 'ingest-agent@tiles', date: '2026-09-29T06:05:00Z' });
+  repo = commit(repo, {
+    message: 'Agentic ingestion: historian tags batch 7',
+    author: 'ingest-agent',
+    date: '2026-09-29T06:05:00Z',
+  });
   return repo;
 }
 
@@ -452,9 +479,7 @@ function pearson(xs, ys) {
 // Cohen's d between two groups (pooled standard deviation).
 function cohensD(a, b) {
   if (a.length < 2 || b.length < 2) return 0;
-  const pooled = Math.sqrt(
-    ((a.length - 1) * std(a) ** 2 + (b.length - 1) * std(b) ** 2) / (a.length + b.length - 2),
-  );
+  const pooled = Math.sqrt(((a.length - 1) * std(a) ** 2 + (b.length - 1) * std(b) ** 2) / (a.length + b.length - 2));
   return pooled ? (mean(a) - mean(b)) / pooled : 0;
 }
 
@@ -559,7 +584,7 @@ function generateShotHistory({ seed = 7, shots = 1600, cycleSeconds = 95 } = {})
   const downtime = episodes.map((e, k) => ({
     id: `DT-${101 + k}`,
     shot: e.end,
-    code: k === 1 ? 'SHT:LUBE' : 'SHT:SZMON',
+    code: k === 1 ? 'DT-LUBRICATION' : 'DT-SEIZURE',
     durationMin: rng.int(50, 180),
   }));
   const baseline = 1800;
@@ -672,10 +697,15 @@ return { load, save, clearAll };
 // ---- js/lib/dom.js
 __mods["js/lib/dom.js"] = (() => {
 const esc = (v) =>
-  String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+  String(v ?? '').replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
 
 const fmt = (n, digits = 0) =>
-  Number.isFinite(n) ? n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits }) : '–';
+  Number.isFinite(n)
+    ? n.toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits })
+    : '–';
 
 const signed = (n, digits = 0) => `${n >= 0 ? '+' : '−'}${fmt(Math.abs(n), digits)}`;
 
@@ -710,10 +740,8 @@ const MODELS = {
     ],
     versions: {
       '1.0': (p) => p.preload + 0.018 * p.soc * (p.thickness / 100),
-      '1.1': (p) =>
-        p.preload +
-        0.018 * p.soc * (p.thickness / 100) * (1 + 0.004 * (p.temperature - 25)) +
-        0.0011 * p.cycles,
+      1.1: (p) =>
+        p.preload + 0.018 * p.soc * (p.thickness / 100) * (1 + 0.004 * (p.temperature - 25)) + 0.0011 * p.cycles,
       '2.0': (p) => {
         // Graphite expansion with SOC plus SEI growth (√cycles) and a stiffening preload term.
         const intercalation = 0.021 * p.soc * (p.thickness / 100) * (1 + 0.0035 * (p.temperature - 25));
@@ -741,7 +769,7 @@ const MODELS = {
         const loss = 3 * current ** 2 * 0.18;
         return p.ambient + loss * p.rth;
       },
-      '1.1': (p) => {
+      1.1: (p) => {
         const current = p.torque / (p.ratio * 0.85) / p.kt;
         // Copper resistance rises with temperature; iterate to a fixed point.
         let t = p.ambient;
@@ -792,7 +820,15 @@ function sensitivity(modelId, version, base) {
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 }
 
-function makeRun({ modelId, version, params, author, note = '', parent = null, date = new Date().toISOString() }) {
+function makeRun({
+  modelId,
+  version,
+  params,
+  author,
+  note = '',
+  parent = null,
+  date = new Date().toISOString(),
+}) {
   const value = evaluate(modelId, version, params);
   return {
     id: `run-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,
@@ -846,8 +882,18 @@ const __default = {
     const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
 
     const feed = [
-      ...state.repo.history.map((c) => ({ date: c.date, icon: '⎇', text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`, href: '#/ontology' })),
-      ...state.runs.map((r) => ({ date: r.date, icon: '∿', text: `<b>${esc(MODELS[r.modelId].name)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`, href: '#/design' })),
+      ...state.repo.history.map((c) => ({
+        date: c.date,
+        icon: '⎇',
+        text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`,
+        href: '#/ontology',
+      })),
+      ...state.runs.map((r) => ({
+        date: r.date,
+        icon: '∿',
+        text: `<b>${esc(MODELS[r.modelId].name)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`,
+        href: '#/design',
+      })),
     ]
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 6);
@@ -855,21 +901,21 @@ const __default = {
     return `
       <section class="hero">
         <div>
-          <div class="eyebrow" style="color:#a9d6cf">Industrial intelligence</div>
-          <h1>Assembling atoms with bits.</h1>
-          <p>Tiles fuses physics models with live plant data — pointed at the lab for faster design cycles, and at the shopfloor for fewer stops and less scrap. Every answer is traceable to the data, model version and change that produced it.</p>
+          <div class="eyebrow" style="color:#a9d6cf">Tiles</div>
+          <h1>Physics and plant data, in one place.</h1>
+          <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
           <div class="row" style="margin-top:18px">
             <a class="btn primary" href="#/chat" style="background:#fff;color:#173f3c;border-color:#fff">Ask the copilot</a>
             <a class="btn" href="#/physics" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)">See live warnings</a>
           </div>
         </div>
-        <div class="engine" aria-label="The engine">
-          <div class="k">THE ENGINE</div>
+        <div class="engine" aria-label="How it works">
+          <div class="k">HOW IT WORKS</div>
           <div class="pill">Physics models</div>
-          <div class="op">×</div>
+          <div class="op">+</div>
           <div class="pill">Live data</div>
           <div class="op">↓</div>
-          <div class="pill">Agentic workflows</div>
+          <div class="pill">Answers and warnings</div>
         </div>
       </section>
 
@@ -957,7 +1003,10 @@ function correlationFinder(rows, variables, { outcome = 'ng', splitBy = null } =
         ngMean: mean(a),
         okMean: mean(b),
         effect: cohensD(a, b),
-        r: pearson(subset.map((r) => r[v.key]), subset.map((r) => (r[outcome] ? 1 : 0))),
+        r: pearson(
+          subset.map((r) => r[v.key]),
+          subset.map((r) => (r[outcome] ? 1 : 0)),
+        ),
         ngCount: a.length,
         okCount: b.length,
       });
@@ -1018,8 +1067,24 @@ const SKILLS = [
     id: 'lookup',
     match: /^(where|what is|show|find|list)\b/i,
     run(ctx, q) {
-      const words = q.replace(/[?.,]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
-      const stop = new Set(['where', 'what', 'show', 'find', 'which', 'list', 'the', 'and', 'for', 'does', 'are', 'is']);
+      const words = q
+        .replace(/[?.,]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 2);
+      const stop = new Set([
+        'where',
+        'what',
+        'show',
+        'find',
+        'which',
+        'list',
+        'the',
+        'and',
+        'for',
+        'does',
+        'are',
+        'is',
+      ]);
       const hits = new Map();
       for (const w of words) {
         if (stop.has(w.toLowerCase())) continue;
@@ -1028,8 +1093,13 @@ const SKILLS = [
       if (!hits.size) return null;
       const ranked = [...hits.values()].sort((a, b) => b.score - a.score).map((h) => h.node);
       const lines = ranked.slice(0, 6).map((n) => {
-        const path = pathTo(ctx.graph, n.id).map((p) => p.label).join(' → ');
-        const rel = neighbors(ctx.graph, n.id).slice(0, 4).map((x) => `${x.outgoing ? '' : '←'}${x.edge.rel} ${x.node.label}`).join('; ');
+        const path = pathTo(ctx.graph, n.id)
+          .map((p) => p.label)
+          .join(' → ');
+        const rel = neighbors(ctx.graph, n.id)
+          .slice(0, 4)
+          .map((x) => `${x.outgoing ? '' : '←'}${x.edge.rel} ${x.node.label}`)
+          .join('; ');
         return `• ${n.type} ${n.label}${path.includes('→') ? ` — ${path}` : ''}${rel ? ` (${rel})` : ''}`;
       });
       return { steps: [`Graph query → ${hits.size} matching node(s)`], text: lines.join('\n'), link: '#/ontology' };
@@ -1076,7 +1146,10 @@ const SKILLS = [
         ],
         text: [
           `Die-caster DC-02: ${hit.length} of ${scored.length} seizure-related stops were preceded by a friction warning, with ${avg.toFixed(1)} h average lead time.`,
-          ...scored.map((s) => `• ${s.id} (${s.code}, ${s.durationMin} min): ${s.predicted ? `warned ${s.leadHours.toFixed(1)} h ahead` : 'not predicted'}`),
+          ...scored.map(
+            (s) =>
+              `• ${s.id} (${s.code}, ${s.durationMin} min): ${s.predicted ? `warned ${s.leadHours.toFixed(1)} h ahead` : 'not predicted'}`,
+          ),
           `Latest shot friction: ${Math.round(latest.friction)} N.`,
         ].join('\n'),
         link: '#/physics',
@@ -1106,7 +1179,10 @@ const SKILLS = [
       const h = healthCheck(ctx.graph);
       return {
         steps: [`Ontology health check → ${h.counts.nodes} nodes, ${h.counts.edges} relationships`],
-        text: [`Ontology health score ${h.score}/100.`, ...(h.issues.length ? h.issues.map((i) => `• ${i.text}`) : ['No issues found.'])].join('\n'),
+        text: [
+          `Ontology health score ${h.score}/100.`,
+          ...(h.issues.length ? h.issues.map((i) => `• ${i.text}`) : ['No issues found.']),
+        ].join('\n'),
         link: '#/ontology',
       };
     },
@@ -1185,7 +1261,12 @@ const __default = {
     logEl.scrollTop = logEl.scrollHeight;
     const send = (q) => {
       if (!q.trim()) return;
-      const answer = ask(q, { graph: ctx.graph, batches: ctx.state.batches, weld: ctx.state.weld, shots: ctx.state.shots });
+      const answer = ask(q, {
+        graph: ctx.graph,
+        batches: ctx.state.batches,
+        weld: ctx.state.weld,
+        shots: ctx.state.shots,
+      });
       ctx.update((s) => {
         s.chat.push({ role: 'user', text: q.trim() });
         s.chat.push({ role: 'bot', text: answer.text, steps: answer.steps, link: answer.link, skill: answer.skill });
@@ -1207,7 +1288,15 @@ return { default: __default };
 __mods["js/views/ontology.js"] = (() => {
 const { NODE_TYPES, stage, commit, discard, revert, healthCheck, neighbors, pathTo, diffStats } = __mods["js/lib/ontology.js"];
 const { esc, timeAgo } = __mods["js/lib/dom.js"];
-const COLUMNS = [['Site'], ['Workcenter'], ['Line'], ['Machine'], ['Process', 'PLC'], ['Material', 'Signal'], ['Document', 'Model']];
+const COLUMNS = [
+  ['Site'],
+  ['Workcenter'],
+  ['Line'],
+  ['Machine'],
+  ['Process', 'PLC'],
+  ['Material', 'Signal'],
+  ['Document', 'Model'],
+];
 const BOX = { w: 134, h: 28, colGap: 152, rowGap: 38, pad: 16 };
 const RELS = ['contains', 'runs', 'consumes', 'controlledBy', 'emits', 'describes', 'reads', 'monitors', 'feeds'];
 
@@ -1218,7 +1307,9 @@ function layout(graph, hidden) {
     const col = nodes.filter((n) => types.includes(n.type));
     // Order by the average row of already-placed neighbours to reduce crossings.
     const weight = (n) => {
-      const ys = neighbors(graph, n.id).map((x) => pos[x.node?.id]?.y).filter((y) => y !== undefined);
+      const ys = neighbors(graph, n.id)
+        .map((x) => pos[x.node?.id]?.y)
+        .filter((y) => y !== undefined);
       return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : Infinity;
     };
     col
@@ -1236,17 +1327,26 @@ const short = (s, n = 19) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 function describeOp(op, graph) {
   const label = (id) => graph.nodes[id]?.label ?? id;
   switch (op.kind) {
-    case 'addNode': return `+ ${op.node.type} “${op.node.label}”`;
-    case 'removeNode': return `− node ${op.id}`;
-    case 'addEdge': return `+ ${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`;
-    case 'removeEdge': return `− relationship ${op.id}`;
-    case 'setProp': return op.value === undefined ? `− ${label(op.id)}.${op.key}` : `~ ${label(op.id)}.${op.key} = ${op.value}`;
-    default: return op.kind;
+    case 'addNode':
+      return `+ ${op.node.type} “${op.node.label}”`;
+    case 'removeNode':
+      return `− node ${op.id}`;
+    case 'addEdge':
+      return `+ ${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`;
+    case 'removeEdge':
+      return `− relationship ${op.id}`;
+    case 'setProp':
+      return op.value === undefined ? `− ${label(op.id)}.${op.key}` : `~ ${label(op.id)}.${op.key} = ${op.value}`;
+    default:
+      return op.kind;
   }
 }
 
 function statBadges(s) {
-  const b = (n, what) => (n ? `<span class="badge"><span class="${n > 0 ? 'plus' : 'minus'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</span> ${what}</span>` : '');
+  const b = (n, what) =>
+    n
+      ? `<span class="badge"><span class="${n > 0 ? 'plus' : 'minus'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</span> ${what}</span>`
+      : '';
   return b(s.nodes, 'node') + b(s.edges, 'edge') + b(s.props, 'prop');
 }
 
@@ -1274,7 +1374,10 @@ const __default = {
     const tabs = [
       ['canvas', 'Canvas'],
       ['history', `History <span class="badge">${repo.history.length}</span>`],
-      ['health', `Health <span class="badge ${health.issues.some((i) => i.level !== 'info') ? 'bad' : 'good'}">${health.score}</span>`],
+      [
+        'health',
+        `Health <span class="badge ${health.issues.some((i) => i.level !== 'info') ? 'bad' : 'good'}">${health.score}</span>`,
+      ],
     ];
 
     let body = '';
@@ -1299,7 +1402,9 @@ const __default = {
     const hidden = new Set(ui.hidden);
     const pos = layout(graph, hidden);
     const issueIds = new Set(health.issues.filter((i) => i.level !== 'info').map((i) => i.ref));
-    const stagedIds = new Set(ctx.state.repo.staged.flatMap((op) => [op.node?.id, op.id, op.edge?.from, op.edge?.to]).filter(Boolean));
+    const stagedIds = new Set(
+      ctx.state.repo.staged.flatMap((op) => [op.node?.id, op.id, op.edge?.from, op.edge?.to]).filter(Boolean),
+    );
     const ids = Object.keys(pos);
     const width = Math.max(...ids.map((id) => pos[id].x), 0) + BOX.w + BOX.pad;
     const height = Math.max(...ids.map((id) => pos[id].y), 0) + BOX.h + BOX.pad;
@@ -1322,7 +1427,9 @@ const __default = {
       .map((id) => {
         const n = graph.nodes[id];
         const p = pos[id];
-        const cls = ['node', ui.selected === id && 'sel', issueIds.has(id) && 'issue', stagedIds.has(id) && 'staged'].filter(Boolean).join(' ');
+        const cls = ['node', ui.selected === id && 'sel', issueIds.has(id) && 'issue', stagedIds.has(id) && 'staged']
+          .filter(Boolean)
+          .join(' ');
         return `<g class="${cls}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
@@ -1333,7 +1440,10 @@ const __default = {
       .join('');
 
     const legend = Object.entries(NODE_TYPES)
-      .map(([t, def]) => `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? 'opacity:.4' : ''}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`)
+      .map(
+        ([t, def]) =>
+          `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? 'opacity:.4' : ''}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`,
+      )
       .join('');
 
     return `
@@ -1356,7 +1466,9 @@ const __default = {
     const path = pathTo(graph, id);
     const props = Object.entries(n.props ?? {});
     const required = NODE_TYPES[n.type].required.filter((r) => n.props?.[r] === undefined);
-    const others = Object.values(graph.nodes).filter((o) => o.id !== id).sort((a, b) => a.label.localeCompare(b.label));
+    const others = Object.values(graph.nodes)
+      .filter((o) => o.id !== id)
+      .sort((a, b) => a.label.localeCompare(b.label));
     return `
       <div class="card-head">
         <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 style="margin-top:6px">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
@@ -1391,7 +1503,9 @@ const __default = {
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft" style="margin-bottom:12px">Select a node on the canvas to inspect it, or stage a new one here.</p>
       <form class="stack" id="node-form" style="gap:10px;max-width:520px">
-        <label class="field">Type<select name="type">${Object.keys(NODE_TYPES).map((t) => `<option>${t}</option>`).join('')}</select></label>
+        <label class="field">Type<select name="type">${Object.keys(NODE_TYPES)
+          .map((t) => `<option>${t}</option>`)
+          .join('')}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
         <label class="field">Link from (optional)<select name="from"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join('')}</select></label>
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
@@ -1411,7 +1525,10 @@ const __default = {
             <div class="small muted">${esc(c.author)} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
             <div class="stats">${statBadges(c.stats)}</div>
             <details style="margin-top:6px"><summary class="small soft" style="cursor:pointer">${c.ops.length} operation(s)</summary>
-              <div class="diff" style="margin-top:6px">${c.ops.slice(0, 60).map((op) => `<div>${esc(describeOp(op, graph))}</div>`).join('')}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ''}</div>
+              <div class="diff" style="margin-top:6px">${c.ops
+                .slice(0, 60)
+                .map((op) => `<div>${esc(describeOp(op, graph))}</div>`)
+                .join('')}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ''}</div>
             </details>
           </div>
           <button class="btn sm" data-revert="${esc(c.id)}">Revert</button>
@@ -1452,31 +1569,54 @@ const __default = {
     const stageOp = (op, ok) => run((s) => (s.repo = stage(s.repo, op)), ok);
     const on = (sel, ev, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener(ev, (e) => fn(e, el)));
 
-    on('[data-tab]', 'click', (_, el) => { ui.tab = el.dataset.tab; ctx.rerender(); });
+    on('[data-tab]', 'click', (_, el) => {
+      ui.tab = el.dataset.tab;
+      ctx.rerender();
+    });
     const select = (id) => {
       ui.selected = id;
       ctx.rerender();
       const panel = document.getElementById('inspector');
       const r = panel?.getBoundingClientRect();
-      if (r && (r.top > window.innerHeight || r.bottom < 0)) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (r && (r.top > window.innerHeight || r.bottom < 0))
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     on('[data-node]', 'click', (_, el) => select(el.dataset.node));
-    on('[data-node]', 'keydown', (e, el) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(el.dataset.node); } });
-    on('[data-goto]', 'click', (e, el) => { e.preventDefault(); ui.selected = el.dataset.goto; ui.tab = 'canvas'; ctx.rerender(); });
-    on('[data-deselect]', 'click', () => { ui.selected = null; ctx.rerender(); });
+    on('[data-node]', 'keydown', (e, el) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        select(el.dataset.node);
+      }
+    });
+    on('[data-goto]', 'click', (e, el) => {
+      e.preventDefault();
+      ui.selected = el.dataset.goto;
+      ui.tab = 'canvas';
+      ctx.rerender();
+    });
+    on('[data-deselect]', 'click', () => {
+      ui.selected = null;
+      ctx.rerender();
+    });
     on('[data-type]', 'click', (_, el) => {
       const t = el.dataset.type;
       ui.hidden = ui.hidden.includes(t) ? ui.hidden.filter((x) => x !== t) : [...ui.hidden, t];
       ctx.rerender();
     });
-    on('[data-unset]', 'click', (_, el) => stageOp({ kind: 'setProp', id: ui.selected, key: el.dataset.unset, value: undefined }));
-    on('[data-unlink]', 'click', (_, el) => stageOp({ kind: 'removeEdge', id: el.dataset.unlink }, 'Relationship removal staged'));
+    on('[data-unset]', 'click', (_, el) =>
+      stageOp({ kind: 'setProp', id: ui.selected, key: el.dataset.unset, value: undefined }),
+    );
+    on('[data-unlink]', 'click', (_, el) =>
+      stageOp({ kind: 'removeEdge', id: el.dataset.unlink }, 'Relationship removal staged'),
+    );
     on('[data-delete]', 'click', () => {
       const id = ui.selected;
       ui.selected = null;
       stageOp({ kind: 'removeNode', id }, 'Node deletion staged');
     });
-    on('[data-fix-delete]', 'click', (_, el) => stageOp({ kind: 'removeNode', id: el.dataset.fixDelete }, 'Node deletion staged'));
+    on('[data-fix-delete]', 'click', (_, el) =>
+      stageOp({ kind: 'removeNode', id: el.dataset.fixDelete }, 'Node deletion staged'),
+    );
     on('[data-discard]', 'click', () => run((s) => (s.repo = discard(s.repo)), 'Changes discarded'));
     on('[data-revert]', 'click', (_, el) =>
       run((s) => (s.repo = revert(s.repo, el.dataset.revert, { author: s.user.email })), 'Commit reverted'),
@@ -1504,7 +1644,12 @@ const __default = {
       e.preventDefault();
       const f = e.target;
       const label = f.label.value.trim();
-      const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'node';
+      const slug =
+        label
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+          .slice(0, 30) || 'node';
       let id = `${f.type.value.toLowerCase()}-${slug}`;
       for (let k = 2; ctx.graph.nodes[id]; k++) id = `${f.type.value.toLowerCase()}-${slug}-${k}`;
       const from = f.from.value;
@@ -1548,7 +1693,18 @@ function niceStep(raw) {
 
 // series: [{ values: number[] (null = gap), color, label, width }]
 // bands: [{ from, to, color }] in x index units; markers: [{ x, label, color }]
-function lineChart({ series, width = 760, height = 260, bands = [], markers = [], xLabel = '', yLabel = '', xFormat = (i) => i, yMin, yMax }) {
+function lineChart({
+  series,
+  width = 760,
+  height = 260,
+  bands = [],
+  markers = [],
+  xLabel = '',
+  yLabel = '',
+  xFormat = (i) => i,
+  yMin,
+  yMax,
+}) {
   const n = Math.max(...series.map((s) => s.values.length));
   const all = series.flatMap((s) => s.values.filter((v) => v !== null && Number.isFinite(v)));
   const lo = yMin ?? Math.min(...all);
@@ -1627,7 +1783,18 @@ function hbars({ items, width = 520, rowH = 28, format = (v) => fmt(v, 2), left 
 }
 
 // Sequential heatmap for a 2D sweep; low = light, high = accent.
-function heatmap({ xs, ys, grid, min, max, xLabel, yLabel, width = 480, height = 360, format = (v) => fmt(v, 2) }) {
+function heatmap({
+  xs,
+  ys,
+  grid,
+  min,
+  max,
+  xLabel,
+  yLabel,
+  width = 480,
+  height = 360,
+  format = (v) => fmt(v, 2),
+}) {
   const left = 56;
   const bottom = 40;
   const cw = (width - left - 10) / xs.length;
@@ -1892,7 +2059,7 @@ const __default = {
           <h3 style="margin-top:12px">Output</h3>
           <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots above median + 4 robust σ</li></ul>
           <h3 style="margin-top:12px">How it is used</h3>
-          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>SHT:SZMON</code>) and is delivered through the warning workflow.</p>
+          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
         </div>
       </div>
 
@@ -1902,7 +2069,8 @@ const __default = {
           <thead><tr><th>Event</th><th>Code</th><th class="num">At</th><th class="num">Duration</th><th>Predicted</th><th class="num">Lead time</th></tr></thead>
           <tbody>${scored
             .map(
-              (d) => `<tr class="clickable" data-goto="${d.shot - d.leadShots}"><td>${esc(d.id)}</td><td class="mono">${esc(d.code)}</td><td class="num">${fmt(toH(d.shot), 1)} h</td><td class="num">${d.durationMin} min</td><td>${d.predicted ? '<span class="badge good">✓ warned</span>' : '<span class="badge bad">missed</span>'}</td><td class="num">${d.predicted ? `${fmt(d.leadHours, 1)} h` : '–'}</td></tr>`,
+              (d) =>
+                `<tr class="clickable" data-goto="${d.shot - d.leadShots}"><td>${esc(d.id)}</td><td class="mono">${esc(d.code)}</td><td class="num">${fmt(toH(d.shot), 1)} h</td><td class="num">${d.durationMin} min</td><td>${d.predicted ? '<span class="badge good">✓ warned</span>' : '<span class="badge bad">missed</span>'}</td><td class="num">${d.predicted ? `${fmt(d.leadHours, 1)} h` : '–'}</td></tr>`,
             )
             .join('')}</tbody>
         </table></div>
@@ -1916,7 +2084,9 @@ const __default = {
       ctx.rerender();
     };
     root.querySelector('#shot').addEventListener('change', (e) => go(Number(e.target.value)));
-    root.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => go(ui.shot + Number(b.dataset.step))));
+    root
+      .querySelectorAll('[data-step]')
+      .forEach((b) => b.addEventListener('click', () => go(ui.shot + Number(b.dataset.step))));
     root.querySelectorAll('[data-goto]').forEach((r) => r.addEventListener('click', () => go(Number(r.dataset.goto))));
     root.querySelector('#run-chart').addEventListener('click', (e) => {
       const svg = e.currentTarget.querySelector('svg');
@@ -1971,13 +2141,22 @@ const __default = {
           <h1>Design studio</h1>
           <p>Explore physics models from first principles. Every run records the model version and parameters that produced it, so any result can be traced, compared and exported for audit.</p>
         </div>
-        <div class="seg" role="group" aria-label="Model">${Object.values(MODELS).map((m) => `<button data-model="${m.id}" class="${m.id === model.id ? 'active' : ''}">${esc(m.name)}</button>`).join('')}</div>
+        <div class="seg" role="group" aria-label="Model">${Object.values(MODELS)
+          .map(
+            (m) => `<button data-model="${m.id}" class="${m.id === model.id ? 'active' : ''}">${esc(m.name)}</button>`,
+          )
+          .join('')}</div>
       </div>
 
       <div class="grid g3" style="margin-bottom:16px">
         <div class="card">
           <div class="card-head"><div><h2>${esc(model.name)}</h2><p>${esc(model.domain)}</p></div>
-            <select id="version" aria-label="Model version">${Object.keys(model.versions).map((v) => `<option value="${v}" ${v === version ? 'selected' : ''}>v${v}${v === model.latest ? ' (latest)' : ''}</option>`).join('')}</select>
+            <select id="version" aria-label="Model version">${Object.keys(model.versions)
+              .map(
+                (v) =>
+                  `<option value="${v}" ${v === version ? 'selected' : ''}>v${v}${v === model.latest ? ' (latest)' : ''}</option>`,
+              )
+              .join('')}</select>
           </div>
           ${model.params
             .map(
@@ -1996,7 +2175,10 @@ const __default = {
           <div class="small muted" style="margin-bottom:14px">model ${esc(model.id)} v${esc(version)}</div>
           <h3>Across model versions</h3>
           <table style="margin:6px 0 14px"><tbody>${Object.keys(model.versions)
-            .map((v) => `<tr><td>v${v}</td><td class="num"><b>${fmt(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`)
+            .map(
+              (v) =>
+                `<tr><td>v${v}</td><td class="num"><b>${fmt(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`,
+            )
             .join('')}</tbody></table>
           <form id="run-form" class="stack" style="gap:8px">
             <input type="text" name="note" placeholder="Note for this run (optional)" aria-label="Run note" />
@@ -2015,7 +2197,10 @@ const __default = {
             <div class="row">
               <select id="sweep-x" aria-label="X parameter">${model.params.map((p) => `<option value="${p.key}" ${p.key === xKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
               <span class="muted">×</span>
-              <select id="sweep-y" aria-label="Y parameter">${model.params.filter((p) => p.key !== xKey).map((p) => `<option value="${p.key}" ${p.key === yKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
+              <select id="sweep-y" aria-label="Y parameter">${model.params
+                .filter((p) => p.key !== xKey)
+                .map((p) => `<option value="${p.key}" ${p.key === yKey ? 'selected' : ''}>${esc(p.label)}</option>`)
+                .join('')}</select>
             </div>
           </div>
           ${heatmap({ ...sw, xLabel: label(xKey), yLabel: label(yKey), format: (v) => `${fmt(v, 2)} ${unit}` })}
@@ -2044,8 +2229,16 @@ const __default = {
     const ui = ctx.ui('design');
     const model = MODELS[ui.model];
     const params = ui.params[model.id];
-    root.querySelectorAll('[data-model]').forEach((b) => b.addEventListener('click', () => { ui.model = b.dataset.model; ctx.rerender(); }));
-    root.querySelector('#version').addEventListener('change', (e) => { ui.versions[model.id] = e.target.value; ctx.rerender(); });
+    root.querySelectorAll('[data-model]').forEach((b) =>
+      b.addEventListener('click', () => {
+        ui.model = b.dataset.model;
+        ctx.rerender();
+      }),
+    );
+    root.querySelector('#version').addEventListener('change', (e) => {
+      ui.versions[model.id] = e.target.value;
+      ctx.rerender();
+    });
     root.querySelectorAll('[data-param]').forEach((input) => {
       const p = model.params.find((x) => x.key === input.dataset.param);
       input.addEventListener('input', () => {
@@ -2055,15 +2248,33 @@ const __default = {
       });
       input.addEventListener('change', () => ctx.rerender());
     });
-    root.querySelector('[data-reset]').addEventListener('click', () => { ui.params[model.id] = defaults(model); ctx.rerender(); });
-    root.querySelector('#sweep-x').addEventListener('change', (e) => { ui.sweepX = e.target.value; ctx.rerender(); });
-    root.querySelector('#sweep-y').addEventListener('change', (e) => { ui.sweepY = e.target.value; ctx.rerender(); });
+    root.querySelector('[data-reset]').addEventListener('click', () => {
+      ui.params[model.id] = defaults(model);
+      ctx.rerender();
+    });
+    root.querySelector('#sweep-x').addEventListener('change', (e) => {
+      ui.sweepX = e.target.value;
+      ctx.rerender();
+    });
+    root.querySelector('#sweep-y').addEventListener('change', (e) => {
+      ui.sweepY = e.target.value;
+      ctx.rerender();
+    });
     root.querySelector('#run-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const note = e.target.note.value.trim();
       ctx.update((s) => {
         const parent = s.runs.find((r) => r.modelId === model.id) ?? null;
-        s.runs.unshift(makeRun({ modelId: model.id, version: ui.versions[model.id], params, author: s.user.email, note, parent: parent?.id ?? null }));
+        s.runs.unshift(
+          makeRun({
+            modelId: model.id,
+            version: ui.versions[model.id],
+            params,
+            author: s.user.email,
+            note,
+            parent: parent?.id ?? null,
+          }),
+        );
       });
       ctx.toast('Run saved');
     });
@@ -2077,7 +2288,9 @@ const __default = {
       }),
     );
     root.querySelector('[data-export]')?.addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(auditRecord(ctx.state.runs, model.id), null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(auditRecord(ctx.state.runs, model.id), null, 2)], {
+        type: 'application/json',
+      });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `tiles-audit-${model.id}.json`;
@@ -2161,11 +2374,13 @@ function freshState() {
     repo: seedOntology(),
     runs: [],
     chat: [],
-    user: { name: 'Alex Lindqvist', email: 'alex@tiles.dev' },
+    user: { name: 'Demo User', email: 'demo@example.com' },
   };
 }
 
-const persisted = load('state', null);
+// Bump the key when seed data changes so saved copies of the old seed are dropped.
+const STATE_KEY = 'state-v2';
+const persisted = load(STATE_KEY, null);
 const shots = generateShotHistory();
 const detection = detectFrictionAlerts(shots.history);
 
@@ -2182,7 +2397,7 @@ const state = {
 };
 
 function persist() {
-  save('state', { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user });
+  save(STATE_KEY, { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user });
 }
 
 // ---- context passed to views -------------------------------------------
@@ -2236,7 +2451,11 @@ function badgeFor(view) {
 function renderNav(active) {
   $('#nav').innerHTML = NAV.map(
     (g) =>
-      (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === '' ? '<div class="nav-group">&nbsp;</div>' : '') +
+      (g.group
+        ? `<div class="nav-group">${esc(g.group)}</div>`
+        : g.group === ''
+          ? '<div class="nav-group">&nbsp;</div>'
+          : '') +
       g.items
         .map(
           (v) =>
@@ -2250,7 +2469,8 @@ function renderNav(active) {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-  $('#user').innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+  $('#user').innerHTML =
+    `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 }
 
 function render() {

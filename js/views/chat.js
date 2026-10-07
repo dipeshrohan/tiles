@@ -37,7 +37,12 @@ export default {
     logEl.scrollTop = logEl.scrollHeight;
     const send = (q) => {
       if (!q.trim()) return;
-      const answer = ask(q, { graph: ctx.graph, batches: ctx.state.batches, weld: ctx.state.weld, shots: ctx.state.shots });
+      const answer = ask(q, {
+        graph: ctx.graph,
+        batches: ctx.state.batches,
+        weld: ctx.state.weld,
+        shots: ctx.state.shots,
+      });
       ctx.update((s) => {
         s.chat.push({ role: 'user', text: q.trim() });
         s.chat.push({ role: 'bot', text: answer.text, steps: answer.steps, link: answer.link, skill: answer.skill });

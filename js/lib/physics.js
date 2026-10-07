@@ -74,7 +74,7 @@ export function generateShotHistory({ seed = 7, shots = 1600, cycleSeconds = 95 
   const downtime = episodes.map((e, k) => ({
     id: `DT-${101 + k}`,
     shot: e.end,
-    code: k === 1 ? 'SHT:LUBE' : 'SHT:SZMON',
+    code: k === 1 ? 'DT-LUBRICATION' : 'DT-SEIZURE',
     durationMin: rng.int(50, 180),
   }));
   const baseline = 1800;

@@ -17,15 +17,15 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 ## Month 1: Foundations (Nov 2026)
 
 ### Repository and delivery
-- [ ] `T1.01` [#9](https://github.com/dipeshrohan/tiles/issues/9) ★ **Merge PR #1** (Tiles demo) into `main` · TL · 0.5d
+- [x] `T1.01` [#9](https://github.com/dipeshrohan/tiles/issues/9) ★ **Merge PR #1** (Tiles demo) into `main` · TL · 0.5d
   *Done when:* `main` runs with `npm start` and `npm test` passes.
-- [ ] `T1.02` [#15](https://github.com/dipeshrohan/tiles/issues/15) ★ **Automated checks on GitHub Actions:** lint (ESLint), format (Prettier), unit tests on every PR · TL · 1d · T1.01
+- [x] `T1.02` [#15](https://github.com/dipeshrohan/tiles/issues/15) ★ **Automated checks on GitHub Actions:** lint (ESLint), format (Prettier), unit tests on every PR · TL · 1d · T1.01
   *Done when:* PRs show required green checks and `main` is protected.
-- [ ] `T1.03` [#10](https://github.com/dipeshrohan/tiles/issues/10) **Browser smoke test in the automated checks:** Playwright loads every page in light, dark and mobile and fails on console errors or horizontal overflow · FE · 1.5d · T1.02
+- [x] `T1.03` [#10](https://github.com/dipeshrohan/tiles/issues/10) **Browser smoke test in the automated checks:** Playwright loads every page in light, dark and mobile and fails on console errors or horizontal overflow · FE · 1.5d · T1.02
   *Done when:* a deliberately broken view makes the check fail.
-- [ ] `T1.04` [#16](https://github.com/dipeshrohan/tiles/issues/16) **Architecture decision records:** `docs/adr/` with 001 stack, 002 storage, 003 edge agent, 004 auth, 005 AI copilot · TL · 1.5d
+- [x] `T1.04` [#16](https://github.com/dipeshrohan/tiles/issues/16) **Architecture decision records:** `docs/adr/` with 001 stack, 002 storage, 003 edge agent, 004 auth, 005 AI copilot · TL · 1.5d
   *Done when:* five short decision records are merged and reviewed by the team.
-- [ ] `T1.05` [#17](https://github.com/dipeshrohan/tiles/issues/17) **Contributor guide and `CLAUDE.md`:** setup, conventions, how to run tests · TL · 0.5d · T1.04
+- [x] `T1.05` [#17](https://github.com/dipeshrohan/tiles/issues/17) **Contributor guide and `CLAUDE.md`:** setup, conventions, how to run tests · TL · 0.5d · T1.04
 
 ### Frontend migration
 - [ ] `T1.06` [#18](https://github.com/dipeshrohan/tiles/issues/18) ★ **Scaffold Vite + TypeScript** (strict mode) alongside the existing app · FE · 1d · T1.02

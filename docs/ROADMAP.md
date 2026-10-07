@@ -33,7 +33,7 @@ Tiles v1.0 running on one real production line at a design-partner plant. It con
 | Data connectors | Edge agent on site (OPC UA, MQTT, SQL) that only sends data outward | Plant IT approves outbound-only connections; no inbound ports |
 | Login | Single sign-on (OIDC); organisation → site → role permissions | Enterprise requirement from day one |
 | AI | Claude API with tool use, wrapping the existing copilot skills | Answers stay grounded in tool output |
-| Hosting | One managed cloud first; customer-hosted (BYOC) from month 5 | Matches the three hosting options in the reference deck |
+| Hosting | One managed cloud first; customer-hosted (BYOC) from month 5 | Covers cloud, customer-hosted and hybrid installs with one codebase |
 
 ## Monthly plan
 

@@ -1,0 +1,5 @@
+js/tiles.bundle.js
+node_modules
+package-lock.json
+*.pdf
+*.md

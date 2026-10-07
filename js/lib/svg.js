@@ -24,7 +24,18 @@ function niceStep(raw) {
 
 // series: [{ values: number[] (null = gap), color, label, width }]
 // bands: [{ from, to, color }] in x index units; markers: [{ x, label, color }]
-export function lineChart({ series, width = 760, height = 260, bands = [], markers = [], xLabel = '', yLabel = '', xFormat = (i) => i, yMin, yMax }) {
+export function lineChart({
+  series,
+  width = 760,
+  height = 260,
+  bands = [],
+  markers = [],
+  xLabel = '',
+  yLabel = '',
+  xFormat = (i) => i,
+  yMin,
+  yMax,
+}) {
   const n = Math.max(...series.map((s) => s.values.length));
   const all = series.flatMap((s) => s.values.filter((v) => v !== null && Number.isFinite(v)));
   const lo = yMin ?? Math.min(...all);
@@ -103,7 +114,18 @@ export function hbars({ items, width = 520, rowH = 28, format = (v) => fmt(v, 2)
 }
 
 // Sequential heatmap for a 2D sweep; low = light, high = accent.
-export function heatmap({ xs, ys, grid, min, max, xLabel, yLabel, width = 480, height = 360, format = (v) => fmt(v, 2) }) {
+export function heatmap({
+  xs,
+  ys,
+  grid,
+  min,
+  max,
+  xLabel,
+  yLabel,
+  width = 480,
+  height = 360,
+  format = (v) => fmt(v, 2),
+}) {
   const left = 56;
   const bottom = 40;
   const cw = (width - left - 10) / xs.length;

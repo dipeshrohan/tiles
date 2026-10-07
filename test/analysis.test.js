@@ -34,7 +34,12 @@ test('cathode weld power climbs before the swap while anode stays flat', () => {
 });
 
 test('copilot routes each suggestion to the right skill', () => {
-  const ctx = { graph: workingGraph(seedOntology()), batches: generateCutterBatches(), weld: generateWeldPower(), shots: generateShotHistory() };
+  const ctx = {
+    graph: workingGraph(seedOntology()),
+    batches: generateCutterBatches(),
+    weld: generateWeldPower(),
+    shots: generateShotHistory(),
+  };
   const skills = SUGGESTIONS.map((q) => ask(q, ctx).skill);
   assert.deepEqual(skills, ['root-cause', 'friction', 'wear', 'health', 'lookup']);
   assert.match(ask('Where is Tab Welder W-03?', ctx).text, /^• Machine Tab Welder W-03 — .*Welding Line 2/);

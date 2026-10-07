@@ -92,7 +92,7 @@ export default {
           <h3 style="margin-top:12px">Output</h3>
           <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots above median + 4 robust σ</li></ul>
           <h3 style="margin-top:12px">How it is used</h3>
-          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>SHT:SZMON</code>) and is delivered through the warning workflow.</p>
+          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
         </div>
       </div>
 
@@ -102,7 +102,8 @@ export default {
           <thead><tr><th>Event</th><th>Code</th><th class="num">At</th><th class="num">Duration</th><th>Predicted</th><th class="num">Lead time</th></tr></thead>
           <tbody>${scored
             .map(
-              (d) => `<tr class="clickable" data-goto="${d.shot - d.leadShots}"><td>${esc(d.id)}</td><td class="mono">${esc(d.code)}</td><td class="num">${fmt(toH(d.shot), 1)} h</td><td class="num">${d.durationMin} min</td><td>${d.predicted ? '<span class="badge good">✓ warned</span>' : '<span class="badge bad">missed</span>'}</td><td class="num">${d.predicted ? `${fmt(d.leadHours, 1)} h` : '–'}</td></tr>`,
+              (d) =>
+                `<tr class="clickable" data-goto="${d.shot - d.leadShots}"><td>${esc(d.id)}</td><td class="mono">${esc(d.code)}</td><td class="num">${fmt(toH(d.shot), 1)} h</td><td class="num">${d.durationMin} min</td><td>${d.predicted ? '<span class="badge good">✓ warned</span>' : '<span class="badge bad">missed</span>'}</td><td class="num">${d.predicted ? `${fmt(d.leadHours, 1)} h` : '–'}</td></tr>`,
             )
             .join('')}</tbody>
         </table></div>
@@ -116,7 +117,9 @@ export default {
       ctx.rerender();
     };
     root.querySelector('#shot').addEventListener('change', (e) => go(Number(e.target.value)));
-    root.querySelectorAll('[data-step]').forEach((b) => b.addEventListener('click', () => go(ui.shot + Number(b.dataset.step))));
+    root
+      .querySelectorAll('[data-step]')
+      .forEach((b) => b.addEventListener('click', () => go(ui.shot + Number(b.dataset.step))));
     root.querySelectorAll('[data-goto]').forEach((r) => r.addEventListener('click', () => go(Number(r.dataset.goto))));
     root.querySelector('#run-chart').addEventListener('click', (e) => {
       const svg = e.currentTarget.querySelector('svg');

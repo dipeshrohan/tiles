@@ -1,7 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRng } from '../js/lib/rng.js';
-import { simulateShot, estimateFriction, generateShotHistory, detectFrictionAlerts, scoreAlerts } from '../js/lib/physics.js';
+import {
+  simulateShot,
+  estimateFriction,
+  generateShotHistory,
+  detectFrictionAlerts,
+  scoreAlerts,
+} from '../js/lib/physics.js';
 
 test('friction estimate recovers the true friction from a shot payload', () => {
   const rng = createRng(3);

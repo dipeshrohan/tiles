@@ -27,11 +27,13 @@ function freshState() {
     repo: seedOntology(),
     runs: [],
     chat: [],
-    user: { name: 'Alex Lindqvist', email: 'alex@tiles.dev' },
+    user: { name: 'Demo User', email: 'demo@example.com' },
   };
 }
 
-const persisted = load('state', null);
+// Bump the key when seed data changes so saved copies of the old seed are dropped.
+const STATE_KEY = 'state-v2';
+const persisted = load(STATE_KEY, null);
 const shots = generateShotHistory();
 const detection = detectFrictionAlerts(shots.history);
 
@@ -48,7 +50,7 @@ const state = {
 };
 
 function persist() {
-  save('state', { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user });
+  save(STATE_KEY, { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user });
 }
 
 // ---- context passed to views -------------------------------------------
@@ -102,7 +104,11 @@ function badgeFor(view) {
 function renderNav(active) {
   $('#nav').innerHTML = NAV.map(
     (g) =>
-      (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === '' ? '<div class="nav-group">&nbsp;</div>' : '') +
+      (g.group
+        ? `<div class="nav-group">${esc(g.group)}</div>`
+        : g.group === ''
+          ? '<div class="nav-group">&nbsp;</div>'
+          : '') +
       g.items
         .map(
           (v) =>
@@ -116,7 +122,8 @@ function renderNav(active) {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-  $('#user').innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+  $('#user').innerHTML =
+    `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 }
 
 function render() {

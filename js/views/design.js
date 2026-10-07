@@ -36,13 +36,22 @@ export default {
           <h1>Design studio</h1>
           <p>Explore physics models from first principles. Every run records the model version and parameters that produced it, so any result can be traced, compared and exported for audit.</p>
         </div>
-        <div class="seg" role="group" aria-label="Model">${Object.values(MODELS).map((m) => `<button data-model="${m.id}" class="${m.id === model.id ? 'active' : ''}">${esc(m.name)}</button>`).join('')}</div>
+        <div class="seg" role="group" aria-label="Model">${Object.values(MODELS)
+          .map(
+            (m) => `<button data-model="${m.id}" class="${m.id === model.id ? 'active' : ''}">${esc(m.name)}</button>`,
+          )
+          .join('')}</div>
       </div>
 
       <div class="grid g3" style="margin-bottom:16px">
         <div class="card">
           <div class="card-head"><div><h2>${esc(model.name)}</h2><p>${esc(model.domain)}</p></div>
-            <select id="version" aria-label="Model version">${Object.keys(model.versions).map((v) => `<option value="${v}" ${v === version ? 'selected' : ''}>v${v}${v === model.latest ? ' (latest)' : ''}</option>`).join('')}</select>
+            <select id="version" aria-label="Model version">${Object.keys(model.versions)
+              .map(
+                (v) =>
+                  `<option value="${v}" ${v === version ? 'selected' : ''}>v${v}${v === model.latest ? ' (latest)' : ''}</option>`,
+              )
+              .join('')}</select>
           </div>
           ${model.params
             .map(
@@ -61,7 +70,10 @@ export default {
           <div class="small muted" style="margin-bottom:14px">model ${esc(model.id)} v${esc(version)}</div>
           <h3>Across model versions</h3>
           <table style="margin:6px 0 14px"><tbody>${Object.keys(model.versions)
-            .map((v) => `<tr><td>v${v}</td><td class="num"><b>${fmt(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`)
+            .map(
+              (v) =>
+                `<tr><td>v${v}</td><td class="num"><b>${fmt(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`,
+            )
             .join('')}</tbody></table>
           <form id="run-form" class="stack" style="gap:8px">
             <input type="text" name="note" placeholder="Note for this run (optional)" aria-label="Run note" />
@@ -80,7 +92,10 @@ export default {
             <div class="row">
               <select id="sweep-x" aria-label="X parameter">${model.params.map((p) => `<option value="${p.key}" ${p.key === xKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
               <span class="muted">×</span>
-              <select id="sweep-y" aria-label="Y parameter">${model.params.filter((p) => p.key !== xKey).map((p) => `<option value="${p.key}" ${p.key === yKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
+              <select id="sweep-y" aria-label="Y parameter">${model.params
+                .filter((p) => p.key !== xKey)
+                .map((p) => `<option value="${p.key}" ${p.key === yKey ? 'selected' : ''}>${esc(p.label)}</option>`)
+                .join('')}</select>
             </div>
           </div>
           ${heatmap({ ...sw, xLabel: label(xKey), yLabel: label(yKey), format: (v) => `${fmt(v, 2)} ${unit}` })}
@@ -109,8 +124,16 @@ export default {
     const ui = ctx.ui('design');
     const model = MODELS[ui.model];
     const params = ui.params[model.id];
-    root.querySelectorAll('[data-model]').forEach((b) => b.addEventListener('click', () => { ui.model = b.dataset.model; ctx.rerender(); }));
-    root.querySelector('#version').addEventListener('change', (e) => { ui.versions[model.id] = e.target.value; ctx.rerender(); });
+    root.querySelectorAll('[data-model]').forEach((b) =>
+      b.addEventListener('click', () => {
+        ui.model = b.dataset.model;
+        ctx.rerender();
+      }),
+    );
+    root.querySelector('#version').addEventListener('change', (e) => {
+      ui.versions[model.id] = e.target.value;
+      ctx.rerender();
+    });
     root.querySelectorAll('[data-param]').forEach((input) => {
       const p = model.params.find((x) => x.key === input.dataset.param);
       input.addEventListener('input', () => {
@@ -120,15 +143,33 @@ export default {
       });
       input.addEventListener('change', () => ctx.rerender());
     });
-    root.querySelector('[data-reset]').addEventListener('click', () => { ui.params[model.id] = defaults(model); ctx.rerender(); });
-    root.querySelector('#sweep-x').addEventListener('change', (e) => { ui.sweepX = e.target.value; ctx.rerender(); });
-    root.querySelector('#sweep-y').addEventListener('change', (e) => { ui.sweepY = e.target.value; ctx.rerender(); });
+    root.querySelector('[data-reset]').addEventListener('click', () => {
+      ui.params[model.id] = defaults(model);
+      ctx.rerender();
+    });
+    root.querySelector('#sweep-x').addEventListener('change', (e) => {
+      ui.sweepX = e.target.value;
+      ctx.rerender();
+    });
+    root.querySelector('#sweep-y').addEventListener('change', (e) => {
+      ui.sweepY = e.target.value;
+      ctx.rerender();
+    });
     root.querySelector('#run-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const note = e.target.note.value.trim();
       ctx.update((s) => {
         const parent = s.runs.find((r) => r.modelId === model.id) ?? null;
-        s.runs.unshift(makeRun({ modelId: model.id, version: ui.versions[model.id], params, author: s.user.email, note, parent: parent?.id ?? null }));
+        s.runs.unshift(
+          makeRun({
+            modelId: model.id,
+            version: ui.versions[model.id],
+            params,
+            author: s.user.email,
+            note,
+            parent: parent?.id ?? null,
+          }),
+        );
       });
       ctx.toast('Run saved');
     });
@@ -142,7 +183,9 @@ export default {
       }),
     );
     root.querySelector('[data-export]')?.addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(auditRecord(ctx.state.runs, model.id), null, 2)], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(auditRecord(ctx.state.runs, model.id), null, 2)], {
+        type: 'application/json',
+      });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `tiles-audit-${model.id}.json`;

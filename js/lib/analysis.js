@@ -23,7 +23,10 @@ export function correlationFinder(rows, variables, { outcome = 'ng', splitBy = n
         ngMean: mean(a),
         okMean: mean(b),
         effect: cohensD(a, b),
-        r: pearson(subset.map((r) => r[v.key]), subset.map((r) => (r[outcome] ? 1 : 0))),
+        r: pearson(
+          subset.map((r) => r[v.key]),
+          subset.map((r) => (r[outcome] ? 1 : 0)),
+        ),
         ngCount: a.length,
         okCount: b.length,
       });

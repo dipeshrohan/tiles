@@ -14,8 +14,18 @@ export default {
     const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
 
     const feed = [
-      ...state.repo.history.map((c) => ({ date: c.date, icon: '⎇', text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`, href: '#/ontology' })),
-      ...state.runs.map((r) => ({ date: r.date, icon: '∿', text: `<b>${esc(MODELS[r.modelId].name)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`, href: '#/design' })),
+      ...state.repo.history.map((c) => ({
+        date: c.date,
+        icon: '⎇',
+        text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`,
+        href: '#/ontology',
+      })),
+      ...state.runs.map((r) => ({
+        date: r.date,
+        icon: '∿',
+        text: `<b>${esc(MODELS[r.modelId].name)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`,
+        href: '#/design',
+      })),
     ]
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 6);
@@ -23,21 +33,21 @@ export default {
     return `
       <section class="hero">
         <div>
-          <div class="eyebrow" style="color:#a9d6cf">Industrial intelligence</div>
-          <h1>Assembling atoms with bits.</h1>
-          <p>Tiles fuses physics models with live plant data — pointed at the lab for faster design cycles, and at the shopfloor for fewer stops and less scrap. Every answer is traceable to the data, model version and change that produced it.</p>
+          <div class="eyebrow" style="color:#a9d6cf">Tiles</div>
+          <h1>Physics and plant data, in one place.</h1>
+          <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
           <div class="row" style="margin-top:18px">
             <a class="btn primary" href="#/chat" style="background:#fff;color:#173f3c;border-color:#fff">Ask the copilot</a>
             <a class="btn" href="#/physics" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)">See live warnings</a>
           </div>
         </div>
-        <div class="engine" aria-label="The engine">
-          <div class="k">THE ENGINE</div>
+        <div class="engine" aria-label="How it works">
+          <div class="k">HOW IT WORKS</div>
           <div class="pill">Physics models</div>
-          <div class="op">×</div>
+          <div class="op">+</div>
           <div class="pill">Live data</div>
           <div class="op">↓</div>
-          <div class="pill">Agentic workflows</div>
+          <div class="pill">Answers and warnings</div>
         </div>
       </section>
 

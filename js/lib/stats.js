@@ -44,9 +44,7 @@ export function pearson(xs, ys) {
 // Cohen's d between two groups (pooled standard deviation).
 export function cohensD(a, b) {
   if (a.length < 2 || b.length < 2) return 0;
-  const pooled = Math.sqrt(
-    ((a.length - 1) * std(a) ** 2 + (b.length - 1) * std(b) ** 2) / (a.length + b.length - 2),
-  );
+  const pooled = Math.sqrt(((a.length - 1) * std(a) ** 2 + (b.length - 1) * std(b) ** 2) / (a.length + b.length - 2));
   return pooled ? (mean(a) - mean(b)) / pooled : 0;
 }
 
