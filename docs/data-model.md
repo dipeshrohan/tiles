@@ -59,6 +59,15 @@ Required properties are kept short and are only those the health check can't do 
 
 The ontology does not enforce these pairs: any relationship may join any two nodes, and the health check reports structural problems (orphans, dangling and duplicate relationships, missing required properties) rather than modelling rules. Rule checks per relationship are a candidate for the change-approval workflow (T2.12).
 
+## Signals and their readings
+
+A `Signal` node in the ontology is the modelling view of a tag. The readings themselves live outside the ontology, in two tables:
+
+- **`signals`**: one row per tag and site (`tag`, `unit`, `sample_rate_hz`, `source`, and `node_id`, the `Signal` node it is mapped to). An edge agent that sends a tag Tiles hasn't seen adds it here, with `source` = `edge:<agent name>`. Mapping tags to nodes is the signal catalogue (T2.08).
+- **`samples`**: one row per signal and time (a TimescaleDB hypertable, one-day chunks). A reading is a number (`value`), text (`value_text`) or true/false (`value_bool`), with a `quality` of good, uncertain or bad. The primary key `(signal_id, at)` makes a re-sent reading a no-op. Chunks older than 7 days are compressed (column store, segmented by signal); readings older than 5 years are dropped. Both are TimescaleDB policies, changed with SQL (see migration 0004).
+
+Agents post readings to `POST /agent/samples` in batches of up to 10,000, each batch in one statement; a batch with an invalid reading is refused whole (422), and the agent narrows it down to that reading.
+
 ## How this maps to other systems
 
 - **MES equipment model:** import the equipment tree level by level, following the mapping table above. Keep the MES equipment ID as a property (`mes_id`) so events from the MES (T3.10) can be joined to nodes.

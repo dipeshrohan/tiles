@@ -67,7 +67,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T2.05` [#34](https://github.com/dipeshrohan/tiles/issues/34) **SQL connector** for MES and quality databases (polling, watermark column) · BE · 2d · T2.01
 
 ### Ingestion and storage
-- [ ] `T2.06` [#35](https://github.com/dipeshrohan/tiles/issues/35) ★ **Time-series ingest endpoint:** batched writes to TimescaleDB hypertables; compression and retention policies · BE · 3d · T1.12
+- [x] `T2.06` [#35](https://github.com/dipeshrohan/tiles/issues/35) ★ **Time-series ingest endpoint:** batched writes to TimescaleDB hypertables; compression and retention policies · BE · 3d · T1.12
   *Done when:* sustained 5k samples/s on dev hardware.
 - [ ] `T2.07` [#36](https://github.com/dipeshrohan/tiles/issues/36) ★ **CSV and historian bulk import** with column-mapping UI for backfill · BE+FE · 3d · T2.06
 - [ ] `T2.08` [#37](https://github.com/dipeshrohan/tiles/issues/37) **Signal catalogue:** tag, unit, sample rate, source, linked ontology node; browse and search UI · BE+FE · 2.5d · T2.06
