@@ -10,7 +10,7 @@ from tiles_api import audit
 from tiles_api import ontology as o
 from tiles_api import ontology_store as store
 from tiles_api.auth import Principal, authenticate
-from tiles_api.identity import User, ensure_org, resolve_user
+from tiles_api.identity import User, ensure_org, ensure_user, resolve_user
 from tiles_api.store import Conn, DbConn
 
 router = APIRouter()
@@ -191,7 +191,8 @@ def list_sites(conn: DbConn, principal: Auth) -> list[dict[str, Any]]:
     sql = "SELECT s.id, s.slug, s.name, o.slug AS org FROM sites s JOIN orgs o ON o.id = s.org_id"
     if principal.org is None:
         return conn.execute(sql + " ORDER BY o.slug, s.slug").fetchall()
-    ensure_org(conn, principal.org)
+    # First sign-in creates the organisation and the user, even before any site exists.
+    ensure_user(conn, principal, ensure_org(conn, principal.org))
     return conn.execute(sql + " WHERE o.slug = %s ORDER BY s.slug", [principal.org]).fetchall()
 
 
