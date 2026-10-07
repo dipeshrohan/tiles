@@ -8,6 +8,8 @@ import {
   completeSignIn,
   loadSession,
   signOut,
+  SignInError,
+  takeSignOutReturn,
 } from '../js/lib/oidc.ts';
 
 // Vitest runs in Node: give the module a sessionStorage.
@@ -25,7 +27,8 @@ const DISCOVERY = {
   token_endpoint: `${ISSUER}/token`,
   end_session_endpoint: `${ISSUER}/logout`,
 };
-const config = { issuer: ISSUER, clientId: 'tiles-web', redirectUri: 'http://localhost:5173/' };
+const API = 'http://localhost:8000';
+const config = { issuer: ISSUER, clientId: 'tiles-web', redirectUri: 'http://localhost:5173/', apiUrl: API };
 
 // Answers discovery and records token requests.
 function provider(
@@ -67,6 +70,7 @@ test('sign-in sends the browser to the provider with PKCE and returns with a ses
     idToken: 'it',
     issuer: ISSUER,
     clientId: 'tiles-web',
+    apiUrl: API,
   });
   const [call] = p.tokenCalls;
   assert.equal(call.grant_type, 'authorization_code');
@@ -100,30 +104,30 @@ async function signedIn(expiresIn, extra = {}) {
 
 test('access tokens are reused, then refreshed shortly before they expire', async () => {
   await signedIn(300, { refresh_token: 'rt' });
-  assert.equal(await accessToken(provider().fn, 100_000), 'first');
+  assert.equal(await accessToken(API, provider().fn, 100_000), 'first');
   const p = provider({ status: 200, body: { access_token: 'second', expires_in: 300 } });
-  assert.equal(await accessToken(p.fn, 290_000), 'second');
+  assert.equal(await accessToken(API, p.fn, 290_000), 'second');
   assert.deepEqual(p.tokenCalls, [{ grant_type: 'refresh_token', refresh_token: 'rt', client_id: 'tiles-web' }]);
-  assert.equal(loadSession().refreshToken, undefined);
+  assert.equal(loadSession().refreshToken, 'rt'); // not rotated: the old one is kept
 });
 
 test('a session that cannot be renewed is ended', async () => {
   await signedIn(300);
-  assert.equal(await accessToken(provider().fn, 299_000), null);
+  assert.equal(await accessToken(API, provider().fn, 299_000), null);
   assert.equal(loadSession(), null);
   await signedIn(300, { refresh_token: 'rt' });
-  assert.equal(await accessToken(provider({ status: 400, body: {} }).fn, 299_000), null);
+  assert.equal(await accessToken(API, provider({ status: 400, body: {} }).fn, 299_000), null);
   assert.equal(loadSession(), null);
 });
 
 test('sign-out ends the session and returns the provider logout URL', async () => {
   await signedIn(300, { id_token: 'it' });
-  const url = new URL(await signOut('http://localhost:5173/', provider().fn));
+  const url = new URL(await signOut('http://localhost:5173/', '#/', provider().fn));
   assert.equal(url.origin + url.pathname, `${ISSUER}/logout`);
   assert.equal(url.searchParams.get('id_token_hint'), 'it');
   assert.equal(url.searchParams.get('post_logout_redirect_uri'), 'http://localhost:5173/');
   assert.equal(loadSession(), null);
-  assert.equal(await signOut('http://localhost:5173/', provider().fn), null);
+  assert.equal(await signOut('http://localhost:5173/', '#/', provider().fn), null);
 });
 
 test('after a callback the address returns to the page that started sign-in', () => {
@@ -138,4 +142,39 @@ test('after a callback the address returns to the page that started sign-in', ()
     cleanCallbackUrl('http://localhost:5173/?api=x&error=access_denied&state=2#/settings'),
     'http://localhost:5173/?api=x#/settings',
   );
+});
+
+test('a token is only ever sent to the API it was obtained for', async () => {
+  await signedIn(300, { refresh_token: 'rt' });
+  assert.equal(await accessToken(API, provider().fn, 1_000), 'first');
+  // A link like ?api=https://attacker.example must not get our token.
+  assert.equal(await accessToken('https://attacker.example', provider().fn, 1_000), null);
+  assert.equal(loadSession().accessToken, 'first'); // and the session survives
+});
+
+test('concurrent callers share one refresh (rotating refresh tokens stay valid)', async () => {
+  await signedIn(300, { refresh_token: 'rt-1' });
+  const p = provider({ status: 200, body: { access_token: 'second', expires_in: 300, refresh_token: 'rt-2' } });
+  const tokens = await Promise.all([1, 2, 3].map(() => accessToken(API, p.fn, 290_000)));
+  assert.deepEqual(tokens, ['second', 'second', 'second']);
+  assert.equal(p.tokenCalls.length, 1);
+  assert.equal(loadSession().refreshToken, 'rt-2');
+});
+
+test('a failed sign-in still knows the page to return to', async () => {
+  const p = provider({ status: 400, body: { error: 'invalid_grant' } });
+  const q = new URL(await beginSignIn(config, '?api=x#/settings', p.fn)).searchParams;
+  const err = await completeSignIn(`?code=abc&state=${q.get('state')}`, p.fn).catch((e) => e);
+  assert.ok(err instanceof SignInError);
+  assert.equal(err.returnTo, '?api=x#/settings');
+  await beginSignIn(config, '?api=y#/ontology', p.fn);
+  const denied = await completeSignIn('?error=access_denied', p.fn).catch((e) => e);
+  assert.equal(denied.returnTo, '?api=y#/ontology');
+});
+
+test('signing out remembers the page to come back to, once', async () => {
+  await signedIn(300);
+  await signOut('http://localhost:5173/', '?api=x#/settings', provider().fn);
+  assert.equal(takeSignOutReturn(), '?api=x#/settings');
+  assert.equal(takeSignOutReturn(), null);
 });

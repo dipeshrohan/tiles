@@ -171,3 +171,16 @@ test('audit summaries read as sentences', async () => {
   );
   assert.equal(describeAudit(e('site.rename', null, null)), 'site.rename x y');
 });
+
+test('the public sign-in settings are fetched without credentials', async () => {
+  const f = fakeFetch({ body: { enabled: true } });
+  const api = createApiClient({
+    baseUrl: 'http://a',
+    userEmail: 'ana@example.com',
+    getToken: async () => 'secret',
+    fetch: f.fn,
+  });
+  await api.authConfig();
+  assert.equal(f.calls[0].headers.Authorization, undefined);
+  assert.equal(f.calls[0].headers['X-Tiles-User'], undefined);
+});

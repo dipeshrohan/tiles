@@ -12,6 +12,8 @@ export interface SignInConfig {
   issuer: string;
   clientId: string;
   redirectUri: string;
+  // The Tiles API this sign-in is for. Its token is only ever sent there.
+  apiUrl: string;
 }
 
 export interface Session {
@@ -21,6 +23,17 @@ export interface Session {
   idToken?: string;
   issuer: string;
   clientId: string;
+  apiUrl: string;
+}
+
+// A failed sign-in, with the page to go back to (so ?api=… survives).
+export class SignInError extends Error {
+  readonly returnTo: string | undefined;
+  constructor(message: string, returnTo?: string) {
+    super(message);
+    this.name = 'SignInError';
+    this.returnTo = returnTo;
+  }
 }
 
 interface Pending extends SignInConfig {
@@ -32,6 +45,7 @@ interface Pending extends SignInConfig {
 type Fetch = typeof fetch;
 const PENDING_KEY = 'tiles:oidc-pending';
 const SESSION_KEY = 'tiles:oidc-session';
+const AFTER_SIGN_OUT_KEY = 'tiles:oidc-after-sign-out';
 
 // ---- PKCE ------------------------------------------------------------------
 
@@ -108,7 +122,7 @@ interface TokenResponse {
 async function tokenRequest(
   endpoint: string,
   form: Record<string, string>,
-  config: Pick<Session, 'issuer' | 'clientId'>,
+  config: Pick<Session, 'issuer' | 'clientId' | 'apiUrl'>,
   doFetch: Fetch,
   now: number,
 ): Promise<Session> {
@@ -126,6 +140,7 @@ async function tokenRequest(
     idToken: body.id_token,
     issuer: config.issuer,
     clientId: config.clientId,
+    apiUrl: config.apiUrl,
   };
 }
 
@@ -143,22 +158,29 @@ export async function completeSignIn(
   if (!code && !error) return null;
   const pending = read<Pending>(PENDING_KEY);
   write(PENDING_KEY, null);
-  if (error) throw new Error(params.get('error_description') ?? `Sign-in was cancelled (${error})`);
-  if (!pending || !state || pending.state !== state) throw new Error('Sign-in response did not match; try again');
-  const endpoints = await discover(pending.issuer, doFetch);
-  const session = await tokenRequest(
-    endpoints.token_endpoint,
-    {
-      grant_type: 'authorization_code',
-      code: code ?? '',
-      redirect_uri: pending.redirectUri,
-      client_id: pending.clientId,
-      code_verifier: pending.verifier,
-    },
-    pending,
-    doFetch,
-    now,
-  );
+  const returnTo = pending?.returnTo;
+  if (error) throw new SignInError(params.get('error_description') ?? `Sign-in was cancelled (${error})`, returnTo);
+  if (!pending || !state || pending.state !== state)
+    throw new SignInError('Sign-in response did not match; try again', returnTo);
+  let session: Session;
+  try {
+    const endpoints = await discover(pending.issuer, doFetch);
+    session = await tokenRequest(
+      endpoints.token_endpoint,
+      {
+        grant_type: 'authorization_code',
+        code: code ?? '',
+        redirect_uri: pending.redirectUri,
+        client_id: pending.clientId,
+        code_verifier: pending.verifier,
+      },
+      pending,
+      doFetch,
+      now,
+    );
+  } catch (e) {
+    throw new SignInError(e instanceof Error ? e.message : String(e), returnTo);
+  }
   write(SESSION_KEY, session);
   return { session, returnTo: pending.returnTo };
 }
@@ -171,12 +193,24 @@ export function clearSession(): void {
   write(SESSION_KEY, null);
 }
 
-// The access token to send, refreshed when it is about to expire. Null when
-// signed out or the session can't be renewed (then it is cleared).
-export async function accessToken(doFetch: Fetch = fetch, now = Date.now()): Promise<string | null> {
+// The access token to send to `apiUrl`, refreshed when it is about to expire.
+// Null when signed out, when the session belongs to another API (a token is
+// never sent anywhere but the API it was obtained for), or when it can't be
+// renewed (then the session is cleared). Concurrent callers share one refresh,
+// so a provider that rotates refresh tokens sees a single exchange.
+let refreshing: Promise<string | null> | null = null;
+
+export async function accessToken(apiUrl: string, doFetch: Fetch = fetch, now = Date.now()): Promise<string | null> {
   const session = loadSession();
-  if (!session) return null;
+  if (!session || session.apiUrl !== apiUrl) return null;
   if (session.expiresAt - now > 30_000) return session.accessToken;
+  refreshing ??= refresh(session, doFetch, now).finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
+async function refresh(session: Session, doFetch: Fetch, now: number): Promise<string | null> {
   if (!session.refreshToken) {
     clearSession();
     return null;
@@ -190,7 +224,12 @@ export async function accessToken(doFetch: Fetch = fetch, now = Date.now()): Pro
       doFetch,
       now,
     );
-    write(SESSION_KEY, { ...next, idToken: next.idToken ?? session.idToken });
+    // Providers may keep the refresh token (no rotation) or the ID token.
+    write(SESSION_KEY, {
+      ...next,
+      refreshToken: next.refreshToken ?? session.refreshToken,
+      idToken: next.idToken ?? session.idToken,
+    });
     return next.accessToken;
   } catch {
     clearSession();
@@ -199,9 +238,15 @@ export async function accessToken(doFetch: Fetch = fetch, now = Date.now()): Pro
 }
 
 // Ends the session here and returns the provider's sign-out URL, if it has one.
-export async function signOut(postLogoutRedirect: string, doFetch: Fetch = fetch): Promise<string | null> {
+// `returnTo` (query and hash) is restored after the provider sends us back.
+export async function signOut(
+  postLogoutRedirect: string,
+  returnTo: string,
+  doFetch: Fetch = fetch,
+): Promise<string | null> {
   const session = loadSession();
   clearSession();
+  write(AFTER_SIGN_OUT_KEY, returnTo);
   if (!session) return null;
   try {
     const { end_session_endpoint } = await discover(session.issuer, doFetch);
@@ -216,6 +261,13 @@ export async function signOut(postLogoutRedirect: string, doFetch: Fetch = fetch
   } catch {
     return null;
   }
+}
+
+// The page to show after returning from the provider's sign-out, once.
+export function takeSignOutReturn(): string | null {
+  const returnTo = read<string>(AFTER_SIGN_OUT_KEY);
+  write(AFTER_SIGN_OUT_KEY, null);
+  return returnTo;
 }
 
 // The address to show after a callback: the page we left for sign-in

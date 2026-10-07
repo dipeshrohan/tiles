@@ -772,11 +772,11 @@
 	function createApiClient(options) {
 		const base = normalizeBaseUrl(options.baseUrl);
 		const doFetch = options.fetch ?? ((...args) => fetch(...args));
-		async function request(method, path, body) {
+		async function request(method, path, body, { anonymous = false } = {}) {
 			const headers = { Accept: "application/json" };
 			if (body !== void 0) headers["Content-Type"] = "application/json";
-			if (options.userEmail) headers["X-Tiles-User"] = options.userEmail;
-			const token = options.token ?? await options.getToken?.();
+			if (!anonymous && options.userEmail) headers["X-Tiles-User"] = options.userEmail;
+			const token = anonymous ? null : options.token ?? await options.getToken?.();
 			if (token) headers.Authorization = `Bearer ${token}`;
 			let res;
 			try {
@@ -808,7 +808,7 @@
 			baseUrl: base,
 			request,
 			health: () => request("GET", "/health"),
-			authConfig: () => request("GET", "/auth/config"),
+			authConfig: () => request("GET", "/auth/config", void 0, { anonymous: true }),
 			me: () => request("GET", "/me"),
 			sites: () => request("GET", "/sites"),
 			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
@@ -849,8 +849,17 @@
 	}
 	//#endregion
 	//#region js/lib/oidc.ts
+	var SignInError = class extends Error {
+		returnTo;
+		constructor(message, returnTo) {
+			super(message);
+			this.name = "SignInError";
+			this.returnTo = returnTo;
+		}
+	};
 	var PENDING_KEY = "tiles:oidc-pending";
 	var SESSION_KEY = "tiles:oidc-session";
+	var AFTER_SIGN_OUT_KEY = "tiles:oidc-after-sign-out";
 	function base64url(bytes) {
 		let s = "";
 		for (const b of bytes) s += String.fromCharCode(b);
@@ -919,7 +928,8 @@
 			refreshToken: body.refresh_token,
 			idToken: body.id_token,
 			issuer: config.issuer,
-			clientId: config.clientId
+			clientId: config.clientId,
+			apiUrl: config.apiUrl
 		};
 	}
 	async function completeSignIn(search, doFetch = fetch, now = Date.now()) {
@@ -930,15 +940,21 @@
 		if (!code && !error) return null;
 		const pending = read(PENDING_KEY);
 		write(PENDING_KEY, null);
-		if (error) throw new Error(params.get("error_description") ?? `Sign-in was cancelled (${error})`);
-		if (!pending || !state || pending.state !== state) throw new Error("Sign-in response did not match; try again");
-		const session = await tokenRequest((await discover(pending.issuer, doFetch)).token_endpoint, {
-			grant_type: "authorization_code",
-			code: code ?? "",
-			redirect_uri: pending.redirectUri,
-			client_id: pending.clientId,
-			code_verifier: pending.verifier
-		}, pending, doFetch, now);
+		const returnTo = pending?.returnTo;
+		if (error) throw new SignInError(params.get("error_description") ?? `Sign-in was cancelled (${error})`, returnTo);
+		if (!pending || !state || pending.state !== state) throw new SignInError("Sign-in response did not match; try again", returnTo);
+		let session;
+		try {
+			session = await tokenRequest((await discover(pending.issuer, doFetch)).token_endpoint, {
+				grant_type: "authorization_code",
+				code: code ?? "",
+				redirect_uri: pending.redirectUri,
+				client_id: pending.clientId,
+				code_verifier: pending.verifier
+			}, pending, doFetch, now);
+		} catch (e) {
+			throw new SignInError(e instanceof Error ? e.message : String(e), returnTo);
+		}
 		write(SESSION_KEY, session);
 		return {
 			session,
@@ -951,10 +967,17 @@
 	function clearSession() {
 		write(SESSION_KEY, null);
 	}
-	async function accessToken(doFetch = fetch, now = Date.now()) {
+	var refreshing = null;
+	async function accessToken(apiUrl, doFetch = fetch, now = Date.now()) {
 		const session = loadSession();
-		if (!session) return null;
+		if (!session || session.apiUrl !== apiUrl) return null;
 		if (session.expiresAt - now > 3e4) return session.accessToken;
+		refreshing ??= refresh(session, doFetch, now).finally(() => {
+			refreshing = null;
+		});
+		return refreshing;
+	}
+	async function refresh(session, doFetch, now) {
 		if (!session.refreshToken) {
 			clearSession();
 			return null;
@@ -967,6 +990,7 @@
 			}, session, doFetch, now);
 			write(SESSION_KEY, {
 				...next,
+				refreshToken: next.refreshToken ?? session.refreshToken,
 				idToken: next.idToken ?? session.idToken
 			});
 			return next.accessToken;
@@ -975,9 +999,10 @@
 			return null;
 		}
 	}
-	async function signOut(postLogoutRedirect, doFetch = fetch) {
+	async function signOut(postLogoutRedirect, returnTo, doFetch = fetch) {
 		const session = loadSession();
 		clearSession();
+		write(AFTER_SIGN_OUT_KEY, returnTo);
 		if (!session) return null;
 		try {
 			const { end_session_endpoint } = await discover(session.issuer, doFetch);
@@ -992,6 +1017,11 @@
 		} catch {
 			return null;
 		}
+	}
+	function takeSignOutReturn() {
+		const returnTo = read(AFTER_SIGN_OUT_KEY);
+		write(AFTER_SIGN_OUT_KEY, null);
+		return returnTo;
 	}
 	function cleanCallbackUrl(href, returnTo) {
 		const url = new URL(href);
@@ -2961,7 +2991,7 @@
 		state.repo = createRepo();
 		ontologyStatus = "loading";
 		ontologyError = null;
-		render();
+		renderSoon();
 		try {
 			const site = await pickSite(api, dataSource.siteId);
 			const store = remoteStore(api, site);
@@ -2976,7 +3006,7 @@
 			ontologyStatus = "error";
 			ontologyError = e instanceof Error ? e.message : String(e);
 		}
-		render();
+		renderSoon();
 	}
 	var ontologyCtx = {
 		get status() {
@@ -3021,43 +3051,55 @@
 				if (seq !== connectSeq) return;
 				state.repo = repo;
 			} catch {}
-			render();
+			renderSoon();
 		}
 	};
 	function makeApi() {
 		if (dataSource.mode !== "api") return null;
+		const baseUrl = normalizeBaseUrl(dataSource.apiUrl);
 		return createApiClient({
-			baseUrl: dataSource.apiUrl,
+			baseUrl,
 			userEmail: state.user.email,
-			getToken: () => accessToken(),
+			getToken: () => accessToken(baseUrl),
 			onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message)
 		});
 	}
 	var authConfig = null;
+	var sessionForApi = () => api !== null && loadSession()?.apiUrl === api.baseUrl;
 	var canRedirect = () => location.protocol === "http:" || location.protocol === "https:";
 	var redirectUri = () => location.origin + location.pathname;
 	async function finishSignIn() {
 		if (!canRedirect()) return;
 		try {
 			const done = await completeSignIn(location.search);
-			if (!done) return;
-			history.replaceState(null, "", cleanCallbackUrl(location.href, done.returnTo));
-			toast("Signed in");
+			if (done) {
+				history.replaceState(null, "", cleanCallbackUrl(location.href, done.returnTo));
+				toast("Signed in");
+			} else {
+				const back = takeSignOutReturn();
+				if (back !== null) history.replaceState(null, "", cleanCallbackUrl(location.href, back));
+			}
 		} catch (e) {
-			history.replaceState(null, "", cleanCallbackUrl(location.href));
+			history.replaceState(null, "", cleanCallbackUrl(location.href, e instanceof SignInError ? e.returnTo : void 0));
 			toast(e instanceof Error ? e.message : String(e));
 		}
 		dataSource = resolveDataSource(load("datasource", null), location.search);
 		api = makeApi();
 		render();
 	}
+	var authSeq = 0;
 	async function refreshAuth() {
+		const seq = ++authSeq;
 		authConfig = null;
-		if (!api) return;
+		const client = api;
+		if (!client) return;
 		try {
-			authConfig = await api.authConfig();
-			if (loadSession()) {
-				const me = await api.me();
+			const config = await client.authConfig();
+			if (seq !== authSeq) return;
+			authConfig = config;
+			if (sessionForApi()) {
+				const me = await client.me();
+				if (seq !== authSeq) return;
 				if (me.via === "oidc" && (me.email !== state.user.email || me.name !== state.user.name)) {
 					state.user = {
 						name: me.name,
@@ -3067,7 +3109,7 @@
 				}
 			}
 		} catch {}
-		render();
+		renderSoon();
 	}
 	var ctx = {
 		state,
@@ -3120,7 +3162,7 @@
 				return authConfig;
 			},
 			get signedIn() {
-				return loadSession() !== null;
+				return sessionForApi();
 			},
 			async signIn() {
 				if (!authConfig?.enabled || !authConfig.issuer) return toast("This Tiles API has no sign-in configured");
@@ -3129,14 +3171,15 @@
 					location.assign(await beginSignIn({
 						issuer: authConfig.issuer,
 						clientId: authConfig.client_id,
-						redirectUri: redirectUri()
+						redirectUri: redirectUri(),
+						apiUrl: api?.baseUrl ?? ""
 					}, location.search + (location.hash || "#/")));
 				} catch (e) {
 					toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
 				}
 			},
 			async signOut() {
-				const url = await signOut(redirectUri());
+				const url = await signOut(redirectUri(), location.search + location.hash);
 				if (url) location.assign(url);
 				else {
 					toast("Signed out");
@@ -3176,6 +3219,40 @@
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
+	}
+	function renderSoon() {
+		const view = need(document, "#view");
+		const key = (el) => {
+			const form = el.closest("form");
+			const name = el.getAttribute("name");
+			return form?.id && name ? `${form.id}:${name}:${el instanceof HTMLInputElement ? el.type : ""}` : null;
+		};
+		const edited = /* @__PURE__ */ new Map();
+		view.querySelectorAll("input, select, textarea").forEach((el) => {
+			const k = key(el);
+			if (!k) return;
+			if (el instanceof HTMLInputElement && (el.type === "radio" || el.type === "checkbox")) {
+				if (el.checked !== el.defaultChecked) edited.set(`${k}:${el.value}`, el.checked);
+			} else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+				if (el.value !== el.defaultValue) edited.set(k, el.value);
+			} else if (el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected)) edited.set(k, el.value);
+		});
+		const active = document.activeElement;
+		const focused = active && view.contains(active) ? key(active) : null;
+		render();
+		if (!edited.size && !focused) return;
+		view.querySelectorAll("input, select, textarea").forEach((el) => {
+			const k = key(el);
+			if (!k) return;
+			if (el instanceof HTMLInputElement && (el.type === "radio" || el.type === "checkbox")) {
+				const v = edited.get(`${k}:${el.value}`);
+				if (typeof v === "boolean") el.checked = v;
+			} else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+				const v = edited.get(k);
+				if (typeof v === "string") el.value = v;
+			}
+			if (k === focused && el instanceof HTMLElement) el.focus({ preventScroll: true });
+		});
 	}
 	var toastTimer;
 	function toast(message) {
