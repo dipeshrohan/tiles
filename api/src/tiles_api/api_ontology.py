@@ -121,7 +121,7 @@ def site_context(site_id: uuid.UUID, request: Request, conn: DbConn) -> SiteCont
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Site not found")
     settings: Settings = request.app.state.settings
-    return SiteContext(conn, site_id, resolve_user(conn, settings, request, row["org_id"]))
+    return SiteContext(conn, site_id, resolve_user(conn, settings, request, row["org_id"], site_id))
 
 
 Ctx = Annotated[SiteContext, Depends(site_context, scope="function")]

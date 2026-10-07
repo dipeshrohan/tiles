@@ -47,7 +47,7 @@ def api(settings: Settings) -> Iterator[TestClient]:
 def site(settings: Settings) -> str:
     """The demo site, with an empty ontology and no users."""
     with psycopg.connect(settings.database_url) as conn:
-        conn.execute("TRUNCATE ontology_nodes, ontology_edges, commits, staged_ops, users CASCADE")
+        conn.execute("TRUNCATE ontology_nodes, ontology_edges, commits, staged_ops, site_members, users CASCADE")
     return seed(settings)
 
 
@@ -193,3 +193,13 @@ def test_api_matches_the_shared_fixtures(api: TestClient, site: str, case: dict[
     ]
     health = json.loads(json.dumps(o.health_check(working)))
     assert _norm_health(health) == _norm_health(expect["health"])
+
+
+def test_dev_users_become_engineers_on_the_site_they_open(api: TestClient, settings: Settings, site: str) -> None:
+    api.get(url(site, "graph"), headers=ALICE)
+    with psycopg.connect(settings.database_url) as conn:
+        rows = conn.execute(
+            "SELECT u.email, m.role FROM site_members m JOIN users u ON u.id = m.user_id WHERE m.site_id = %s",
+            [site],
+        ).fetchall()
+    assert rows == [("alice@example.com", "engineer")]

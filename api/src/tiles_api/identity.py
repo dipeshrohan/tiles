@@ -25,21 +25,37 @@ class User:
     role: str
 
 
-def resolve_user(conn: Conn, settings: Settings, request: Request, org_id: uuid.UUID) -> User:
+def resolve_user(conn: Conn, settings: Settings, request: Request, org_id: uuid.UUID, site_id: uuid.UUID) -> User:
+    """The requesting user and their role on `site_id`.
+
+    Dev users are created on first sight and made engineers on the site they
+    open. Single sign-on (T1.16) will replace this with real memberships.
+    """
     if settings.env == "production":
         raise HTTPException(401, "Sign-in is not available yet")
     email = (request.headers.get("x-tiles-user") or settings.dev_user_email).strip().lower()
     if not EMAIL.match(email):
         raise HTTPException(400, "X-Tiles-User must be an email address")
     name = settings.dev_user_name if email == settings.dev_user_email.lower() else email.split("@")[0]
-    row = one(
+    user = one(
         conn.execute(
             """
-        INSERT INTO users (org_id, email, name, role) VALUES (%s, %s, %s, 'engineer')
-        ON CONFLICT (org_id, email) DO UPDATE SET last_seen_at = now()
-        RETURNING id, name, email, role
-        """,
+            INSERT INTO users (org_id, email, name) VALUES (%s, %s, %s)
+            ON CONFLICT (org_id, email) DO UPDATE SET last_seen_at = now()
+            RETURNING id, name, email, org_admin
+            """,
             [org_id, email, name],
         ).fetchone()
     )
-    return User(id=row["id"], name=row["name"], email=row["email"], role=row["role"])
+    member = one(
+        conn.execute(
+            """
+            INSERT INTO site_members (site_id, user_id, role) VALUES (%s, %s, 'engineer')
+            ON CONFLICT (site_id, user_id) DO UPDATE SET role = site_members.role
+            RETURNING role
+            """,
+            [site_id, user["id"]],
+        ).fetchone()
+    )
+    role = "admin" if user["org_admin"] else member["role"]
+    return User(id=user["id"], name=user["name"], email=user["email"], role=role)
