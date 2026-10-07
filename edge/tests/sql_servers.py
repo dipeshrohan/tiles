@@ -1,6 +1,6 @@
 """Real PostgreSQL and SQL Server databases for the SQL connector tests, in Docker, with TLS.
 
-Each server gets a certificate for `localhost` from a test CA. The tests are
+Each server gets a certificate from a test CA. The tests are
 skipped when Docker isn't available, except in CI (TILES_EDGE_TEST_DOCKER=1),
 where they must run.
 """
@@ -35,13 +35,11 @@ def make_ca(folder: Path, name: str = "ca") -> tuple[Path, Path]:
     return cert, key
 
 
-def make_server_cert(folder: Path, ca: tuple[Path, Path]) -> tuple[Path, Path]:
-    """For DNS:localhost only, so connecting to 127.0.0.1 fails the host name check."""
+def make_server_cert(folder: Path, ca: tuple[Path, Path], names: str = "DNS:localhost") -> tuple[Path, Path]:
+    """By default for DNS:localhost only, so connecting to 127.0.0.1 fails the host name check."""
     cert, key, csr, ext = folder / "server.pem", folder / "server.key", folder / "server.csr", folder / "server.ext"
     _openssl("req", "-newkey", "rsa:2048", "-nodes", "-subj", "/CN=localhost", "-keyout", str(key), "-out", str(csr))
-    ext.write_text(
-        "subjectAltName=DNS:localhost\nextendedKeyUsage=serverAuth\nkeyUsage=digitalSignature,keyEncipherment\n"
-    )
+    ext.write_text(f"subjectAltName={names}\nextendedKeyUsage=serverAuth\nkeyUsage=digitalSignature,keyEncipherment\n")
     _openssl("x509", "-req", "-in", str(csr), "-CA", str(ca[0]), "-CAkey", str(ca[1]), "-CAcreateserial",
              "-days", "2", "-out", str(cert), "-extfile", str(ext))  # fmt: skip
     for f in (cert, key):
@@ -73,6 +71,7 @@ def free_port() -> int:
 @dataclass
 class Server:
     engine: str
+    host: str  # what the certificate names
     port: int
     ca: Path
     run: Callable[[str], None]  # runs SQL as the admin, in the test database
@@ -135,7 +134,7 @@ def postgres(folder: Path) -> Iterator[Server]:
 
         run(f"CREATE USER tiles_reader PASSWORD '{READER_PASSWORD}'")
         run("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT ON TABLES TO tiles_reader")
-        yield Server("postgresql", port, ca[0], run)
+        yield Server("postgresql", "localhost", port, ca[0], run)
 
 
 @contextmanager
@@ -144,7 +143,10 @@ def sqlserver(folder: Path) -> Iterator[Server]:
     import mssql_python
 
     ca = make_ca(folder)
-    make_server_cert(folder, ca)
+    # By address: where localhost is also ::1 (as on CI runners), the ODBC driver tries only that,
+    # and the container listens on 127.0.0.1. The driver checks the name it connects to against
+    # the certificate's DNS names only, so the address is one of them.
+    make_server_cert(folder, ca, "DNS:127.0.0.1,IP:127.0.0.1")
     (folder / "mssql.conf").write_text(
         "[network]\ntlscert = /certs/server.pem\ntlskey = /certs/server.key\ntlsprotocols = 1.2\nforceencryption = 1\n"
     )
@@ -159,7 +161,7 @@ def sqlserver(folder: Path) -> Iterator[Server]:
 
         def admin(database: str = "mes") -> Any:
             return mssql_python.connect(
-                f"Server=tcp:localhost,{port};Database={database};UID=sa;PWD={ADMIN_PASSWORD};"
+                f"Server=tcp:127.0.0.1,{port};Database={database};UID=sa;PWD={ADMIN_PASSWORD};"
                 "Encrypt=yes;TrustServerCertificate=no",
                 autocommit=True,
             )
@@ -177,4 +179,4 @@ def sqlserver(folder: Path) -> Iterator[Server]:
         run_in("master", f"CREATE LOGIN tiles_reader WITH PASSWORD = '{READER_PASSWORD}'")
         run_in("mes", "CREATE USER tiles_reader FOR LOGIN tiles_reader")
         run_in("mes", "ALTER ROLE db_datareader ADD MEMBER tiles_reader")
-        yield Server("sqlserver", port, ca[0], lambda sql: run_in("mes", sql))
+        yield Server("sqlserver", "127.0.0.1", port, ca[0], lambda sql: run_in("mes", sql))

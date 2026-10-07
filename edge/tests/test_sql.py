@@ -61,7 +61,7 @@ def _network(server: sql_servers.Server, folder: Path, ca: bool) -> str:
     password.write_text(sql_servers.READER_PASSWORD + "\n")
     lines = [
         f'engine = "{server.engine}"',
-        'host = "localhost"',
+        f'host = "{server.host}"',
         f"port = {server.port}",
         'database = "mes"',
         'username = "tiles_reader"',
