@@ -754,7 +754,25 @@
 			year: "numeric"
 		});
 	};
-	var $ = (sel, root = document) => root.querySelector(sel);
+	function need(root, sel) {
+		const el = root.querySelector(sel);
+		if (!el) throw new Error(`Missing element ${sel}`);
+		return el;
+	}
+	function field$1(form, name) {
+		const el = form.elements.namedItem(name);
+		if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) return el.value;
+		throw new Error(`Form has no field ${name}`);
+	}
+	function onAll(root, sel, type, handler) {
+		root.querySelectorAll(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e)));
+	}
+	function onSubmit(root, sel, handler) {
+		root.querySelector(sel)?.addEventListener("submit", (e) => {
+			e.preventDefault();
+			handler(e.currentTarget);
+		});
+	}
 	//#endregion
 	//#region js/lib/design.ts
 	var MODELS = {
@@ -992,8 +1010,8 @@
 		};
 	}
 	//#endregion
-	//#region js/views/home.js
-	var home_default = {
+	//#region js/views/home.ts
+	var view$6 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1011,7 +1029,7 @@
 			})), ...state.runs.map((r) => ({
 				date: r.date,
 				icon: "∿",
-				text: `<b>${esc(MODELS[r.modelId].name)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ""} <span class="muted">· ${esc(r.author)}</span>`,
+				text: `<b>${esc(MODELS[r.modelId]?.name ?? r.modelId)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ""} <span class="muted">· ${esc(r.author)}</span>`,
 				href: "#/design"
 			}))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
 			return `
@@ -1295,8 +1313,8 @@
 		"Where is Tab Welder W-03?"
 	];
 	//#endregion
-	//#region js/views/chat.js
-	var chat_default = {
+	//#region js/views/chat.ts
+	var view$5 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -1320,7 +1338,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const logEl = root.querySelector("#chat-log");
+			const logEl = need(root, "#chat-log");
 			logEl.scrollTop = logEl.scrollHeight;
 			const send = (q) => {
 				if (!q.trim()) return;
@@ -1330,6 +1348,7 @@
 					weld: ctx.state.weld,
 					shots: ctx.state.shots
 				});
+				if (!answer) return;
 				ctx.update((s) => {
 					s.chat.push({
 						role: "user",
@@ -1345,16 +1364,18 @@
 				});
 				document.querySelector("#composer input")?.focus();
 			};
-			root.querySelector("#composer").addEventListener("submit", (e) => {
-				e.preventDefault();
-				send(e.target.q.value);
-			});
-			root.querySelectorAll("[data-q]").forEach((b) => b.addEventListener("click", () => send(b.dataset.q)));
-			root.querySelector("[data-clear]")?.addEventListener("click", () => ctx.update((s) => s.chat = []));
+			onSubmit(root, "#composer", (form) => send(field$1(form, "q")));
+			onAll(root, "[data-q]", "click", (b) => send(b.dataset.q ?? ""));
+			onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 		}
 	};
 	//#endregion
-	//#region js/views/ontology.js
+	//#region js/views/ontology.ts
+	var uiState$3 = (ctx) => ctx.ui("ontology", {
+		tab: "canvas",
+		selected: null,
+		hidden: []
+	});
 	var COLUMNS = [
 		["Site"],
 		["Workcenter"],
@@ -1384,11 +1405,11 @@
 	];
 	function layout(graph, hidden) {
 		const nodes = Object.values(graph.nodes).filter((n) => !hidden.has(n.type));
-		const pos = {};
+		const pos = /* @__PURE__ */ new Map();
 		COLUMNS.forEach((types, c) => {
 			const col = nodes.filter((n) => types.includes(n.type));
 			const weight = (n) => {
-				const ys = neighbors(graph, n.id).map((x) => pos[x.node?.id]?.y).filter((y) => y !== void 0);
+				const ys = neighbors(graph, n.id).map((x) => pos.get(x.node.id)?.y).filter((y) => y !== void 0);
 				return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : Infinity;
 			};
 			col.map((n) => ({
@@ -1396,10 +1417,10 @@
 				w: weight(n),
 				t: types.indexOf(n.type)
 			})).sort((a, b) => a.t - b.t || a.w - b.w || a.n.label.localeCompare(b.n.label)).forEach(({ n }, i) => {
-				pos[n.id] = {
+				pos.set(n.id, {
 					x: BOX.pad + c * BOX.colGap,
 					y: BOX.pad + i * BOX.rowGap
-				};
+				});
 			});
 		});
 		return pos;
@@ -1413,96 +1434,49 @@
 			case "addEdge": return `+ ${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`;
 			case "removeEdge": return `− relationship ${op.id}`;
 			case "setProp": return op.value === void 0 ? `− ${label(op.id)}.${op.key}` : `~ ${label(op.id)}.${op.key} = ${op.value}`;
-			default: return op.kind;
 		}
 	}
 	function statBadges(s) {
 		const b = (n, what) => n ? `<span class="badge"><span class="${n > 0 ? "plus" : "minus"}">${n > 0 ? "+" : "−"}${Math.abs(n)}</span> ${what}</span>` : "";
 		return b(s.nodes, "node") + b(s.edges, "edge") + b(s.props, "prop");
 	}
-	var ontology_default = {
-		id: "ontology",
-		title: "Ontology builder",
-		icon: "⬡",
-		render(ctx) {
-			const ui = ctx.ui("ontology", {
-				tab: "canvas",
-				selected: null,
-				hidden: []
-			});
-			const { repo } = ctx.state;
-			const graph = ctx.graph;
-			const health = healthCheck(graph);
-			if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
-			const stagedBar = repo.staged.length ? `<form class="staged-bar" id="commit-form">
-          <span class="badge warn">${repo.staged.length} uncommitted</span>
-          <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
-          <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
-          <button class="btn primary" type="submit">Commit</button>
-          <button class="btn" type="button" data-discard>Discard</button>
-        </form>` : "";
-			const tabs = [
-				["canvas", "Canvas"],
-				["history", `History <span class="badge">${repo.history.length}</span>`],
-				["health", `Health <span class="badge ${health.issues.some((i) => i.level !== "info") ? "bad" : "good"}">${health.score}</span>`]
-			];
-			let body = "";
-			if (ui.tab === "canvas") body = this.canvas(ctx, graph, health, ui);
-			if (ui.tab === "history") body = this.history(ctx, graph);
-			if (ui.tab === "health") body = this.health(health, graph);
-			return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Ontology</div>
-          <h1>A map of the factory</h1>
-          <p>Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.</p>
-        </div>
-      </div>
-      ${stagedBar}
-      <div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? "active" : ""}" data-tab="${id}" role="tab">${label}</button>`).join("")}</div>
-      ${body}`;
-		},
-		canvas(ctx, graph, health, ui) {
-			const hidden = new Set(ui.hidden);
-			const pos = layout(graph, hidden);
-			const issueIds = new Set(health.issues.filter((i) => i.level !== "info").map((i) => i.ref));
-			const stagedIds = new Set(ctx.state.repo.staged.flatMap((op) => [
-				op.node?.id,
-				op.id,
-				op.edge?.from,
-				op.edge?.to
-			]).filter(Boolean));
-			const ids = Object.keys(pos);
-			const width = Math.max(...ids.map((id) => pos[id].x), 0) + BOX.w + BOX.pad;
-			const height = Math.max(...ids.map((id) => pos[id].y), 0) + BOX.h + BOX.pad;
-			const edges = Object.values(graph.edges).filter((e) => pos[e.from] && pos[e.to]).map((e) => {
-				const a = pos[e.from];
-				const b = pos[e.to];
-				const fwd = b.x >= a.x;
-				const x1 = fwd ? a.x + BOX.w : a.x;
-				const x2 = fwd ? b.x : b.x + BOX.w;
-				const y1 = a.y + BOX.h / 2;
-				const y2 = b.y + BOX.h / 2;
-				const dx = Math.max(40, Math.abs(x2 - x1) / 2) * (fwd ? 1 : -1);
-				return `<path class="edge ${ui.selected && (e.from === ui.selected || e.to === ui.selected) ? "hl" : ""}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}"><title>${esc(graph.nodes[e.from].label)} —${esc(e.rel)}→ ${esc(graph.nodes[e.to].label)}</title></path>`;
-			}).join("");
-			const nodes = ids.map((id) => {
-				const n = graph.nodes[id];
-				const p = pos[id];
-				return `<g class="${[
-					"node",
-					ui.selected === id && "sel",
-					issueIds.has(id) && "issue",
-					stagedIds.has(id) && "staged"
-				].filter(Boolean).join(" ")}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}">
+	function canvas(ctx, graph, health, ui) {
+		const hidden = new Set(ui.hidden);
+		const pos = layout(graph, hidden);
+		const issueIds = new Set(health.issues.filter((i) => i.level !== "info").map((i) => i.ref));
+		const stagedIds = new Set(ctx.state.repo.staged.flatMap(touchedIds));
+		const placed = [...pos.entries()];
+		const width = Math.max(...placed.map(([, p]) => p.x), 0) + BOX.w + BOX.pad;
+		const height = Math.max(...placed.map(([, p]) => p.y), 0) + BOX.h + BOX.pad;
+		const edges = Object.values(graph.edges).map((e) => {
+			const a = pos.get(e.from);
+			const b = pos.get(e.to);
+			if (!a || !b) return "";
+			const fwd = b.x >= a.x;
+			const x1 = fwd ? a.x + BOX.w : a.x;
+			const x2 = fwd ? b.x : b.x + BOX.w;
+			const y1 = a.y + BOX.h / 2;
+			const y2 = b.y + BOX.h / 2;
+			const dx = Math.max(40, Math.abs(x2 - x1) / 2) * (fwd ? 1 : -1);
+			return `<path class="edge ${ui.selected && (e.from === ui.selected || e.to === ui.selected) ? "hl" : ""}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}"><title>${esc(graph.nodes[e.from]?.label)} —${esc(e.rel)}→ ${esc(graph.nodes[e.to]?.label)}</title></path>`;
+		}).join("");
+		const nodes = placed.map(([id, p]) => {
+			const n = graph.nodes[id];
+			if (!n) return "";
+			return `<g class="${[
+				"node",
+				ui.selected === id && "sel",
+				issueIds.has(id) && "issue",
+				stagedIds.has(id) && "staged"
+			].filter(Boolean).join(" ")}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
           <text x="13" y="18">${esc(short(n.label))}</text>
           <title>${esc(n.type)}: ${esc(n.label)}</title>
         </g>`;
-			}).join("");
-			const legend = Object.entries(NODE_TYPES).map(([t, def]) => `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? "opacity:.4" : ""}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`).join("");
-			return `
+		}).join("");
+		const legend = Object.entries(NODE_TYPES).map(([t, def]) => `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? "opacity:.4" : ""}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`).join("");
+		return `
       <div class="onto">
         <div>
           <div class="canvas-wrap"><svg style="width:100%;min-width:${Math.round(width * .8)}px;max-width:${width}px;height:auto" viewBox="0 0 ${width} ${Math.max(height, 200)}">${edges}${nodes}</svg></div>
@@ -1512,17 +1486,18 @@
           </div>
           <div class="chips" style="margin-top:8px">${legend}</div>
         </div>
-        <div class="card" id="inspector">${ui.selected ? this.inspector(ctx, graph, ui.selected) : this.newNodeForm(graph)}</div>
+        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected) : newNodeForm(graph)}</div>
       </div>`;
-		},
-		inspector(ctx, graph, id) {
-			const n = graph.nodes[id];
-			const rels = neighbors(graph, id);
-			const path = pathTo(graph, id);
-			const props = Object.entries(n.props ?? {});
-			const required = NODE_TYPES[n.type].required.filter((r) => n.props?.[r] === void 0);
-			const others = Object.values(graph.nodes).filter((o) => o.id !== id).sort((a, b) => a.label.localeCompare(b.label));
-			return `
+	}
+	function inspector(graph, id) {
+		const n = graph.nodes[id];
+		if (!n) return "";
+		const rels = neighbors(graph, id);
+		const path = pathTo(graph, id);
+		const props = Object.entries(n.props ?? {});
+		const required = NODE_TYPES[n.type].required.filter((r) => n.props?.[r] === void 0);
+		const others = Object.values(graph.nodes).filter((o) => o.id !== id).sort((a, b) => a.label.localeCompare(b.label));
+		return `
       <div class="card-head">
         <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 style="margin-top:6px">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
         <button class="btn sm" data-deselect aria-label="Close">✕</button>
@@ -1548,10 +1523,10 @@
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
-		},
-		newNodeForm(graph) {
-			const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
-			return `
+	}
+	function newNodeForm(graph) {
+		const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
+		return `
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft" style="margin-bottom:12px">Select a node on the canvas to inspect it, or stage a new one here.</p>
       <form class="stack" id="node-form" style="gap:10px;max-width:520px">
@@ -1561,12 +1536,12 @@
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join("")}</select></label>
         <button class="btn primary" type="submit">+ Stage node</button>
       </form>`;
-		},
-		history(ctx, graph) {
-			const { history } = ctx.state.repo;
-			return `<div class="card">${history.map((c, i) => `
+	}
+	function history(ctx, graph) {
+		const { history } = ctx.state.repo;
+		return `<div class="card">${history.map((c, i) => `
         <div class="commit">
-          <span class="avatar" style="background:${i === 0 ? "var(--accent)" : "var(--line-strong)"}">${esc(c.author[0].toUpperCase())}</span>
+          <span class="avatar" style="background:${i === 0 ? "var(--accent)" : "var(--line-strong)"}">${esc((c.author[0] ?? "?").toUpperCase())}</span>
           <div style="flex:1;min-width:0">
             <div><b>${esc(c.message)}</b></div>
             <div class="small muted">${esc(c.author)} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
@@ -1577,15 +1552,15 @@
           </div>
           <button class="btn sm" data-revert="${esc(c.id)}">Revert</button>
         </div>`).join("")}</div>`;
-		},
-		health(health, graph) {
-			const fix = (i) => {
-				if (i.kind === "orphan") return `<button class="btn sm" data-fix-delete="${esc(i.ref)}">Stage delete</button>`;
-				if (i.kind === "duplicate") return `<button class="btn sm" data-unlink="${esc(i.ref)}">Remove duplicate</button>`;
-				if (graph.nodes[i.ref]) return `<button class="btn sm" data-goto="${esc(i.ref)}">Inspect</button>`;
-				return "";
-			};
-			return `
+	}
+	function healthTab(health, graph) {
+		const fix = (i) => {
+			if (i.kind === "orphan") return `<button class="btn sm" data-fix-delete="${esc(i.ref)}">Stage delete</button>`;
+			if (i.kind === "duplicate") return `<button class="btn sm" data-unlink="${esc(i.ref)}">Remove duplicate</button>`;
+			if (graph.nodes[i.ref]) return `<button class="btn sm" data-goto="${esc(i.ref)}">Inspect</button>`;
+			return "";
+		};
+		return `
       <div class="grid g3" style="margin-bottom:16px">
         <div class="card kpi ${health.score === 100 ? "good" : ""}"><div class="label">Health score</div><div class="value">${health.score}</div></div>
         <div class="card kpi"><div class="label">Nodes</div><div class="value">${health.counts.nodes}</div></div>
@@ -1595,128 +1570,186 @@
         <div class="card-head"><h2>Checks</h2><p>Orphan nodes, dangling and duplicate relationships, and required properties per type.</p></div>
         ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === "info" ? "" : "bad"}">${esc(i.kind)}</span><span style="flex:1">${esc(i.text)}</span>${fix(i)}</div>`).join("") || "<div class=\"empty\">All checks pass ✓</div>"}
       </div>`;
+	}
+	function touchedIds(op) {
+		switch (op.kind) {
+			case "addNode": return [op.node.id];
+			case "addEdge": return [op.edge.from, op.edge.to];
+			default: return [op.id];
+		}
+	}
+	var view$4 = {
+		id: "ontology",
+		title: "Ontology builder",
+		icon: "⬡",
+		render(ctx) {
+			const ui = uiState$3(ctx);
+			const { repo } = ctx.state;
+			const graph = ctx.graph;
+			const health = healthCheck(graph);
+			if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
+			const stagedBar = repo.staged.length ? `<form class="staged-bar" id="commit-form">
+          <span class="badge warn">${repo.staged.length} uncommitted</span>
+          <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
+          <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
+          <button class="btn primary" type="submit">Commit</button>
+          <button class="btn" type="button" data-discard>Discard</button>
+        </form>` : "";
+			const tabs = [
+				["canvas", "Canvas"],
+				["history", `History <span class="badge">${repo.history.length}</span>`],
+				["health", `Health <span class="badge ${health.issues.some((i) => i.level !== "info") ? "bad" : "good"}">${health.score}</span>`]
+			];
+			let body = "";
+			if (ui.tab === "canvas") body = canvas(ctx, graph, health, ui);
+			if (ui.tab === "history") body = history(ctx, graph);
+			if (ui.tab === "health") body = healthTab(health, graph);
+			return `
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Operations · Ontology</div>
+          <h1>A map of the factory</h1>
+          <p>Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.</p>
+        </div>
+      </div>
+      ${stagedBar}
+      <div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? "active" : ""}" data-tab="${id}" role="tab">${label}</button>`).join("")}</div>
+      ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = ctx.ui("ontology");
+			const ui = uiState$3(ctx);
 			const run = (fn, ok) => {
 				try {
 					ctx.update(fn);
 					if (ok) ctx.toast(ok);
 				} catch (err) {
-					ctx.toast(err.message);
+					ctx.toast(err instanceof Error ? err.message : String(err));
 				}
 			};
 			const stageOp = (op, ok) => run((s) => s.repo = stage(s.repo, op), ok);
-			const on = (sel, ev, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener(ev, (e) => fn(e, el)));
-			on("[data-tab]", "click", (_, el) => {
-				ui.tab = el.dataset.tab;
+			const selected = () => ui.selected;
+			onAll(root, "[data-tab]", "click", (el) => {
+				const tab = el.dataset.tab;
+				if (tab === "canvas" || tab === "history" || tab === "health") ui.tab = tab;
 				ctx.rerender();
 			});
 			const select = (id) => {
+				if (!id) return;
 				ui.selected = id;
 				ctx.rerender();
 				const panel = document.getElementById("inspector");
 				const r = panel?.getBoundingClientRect();
-				if (r && (r.top > window.innerHeight || r.bottom < 0)) panel.scrollIntoView({
+				if (panel && r && (r.top > window.innerHeight || r.bottom < 0)) panel.scrollIntoView({
 					behavior: "smooth",
 					block: "start"
 				});
 			};
-			on("[data-node]", "click", (_, el) => select(el.dataset.node));
-			on("[data-node]", "keydown", (e, el) => {
+			onAll(root, "[data-node]", "click", (el) => select(el.dataset.node));
+			onAll(root, "[data-node]", "keydown", (el, e) => {
 				if (e.key === "Enter" || e.key === " ") {
 					e.preventDefault();
 					select(el.dataset.node);
 				}
 			});
-			on("[data-goto]", "click", (e, el) => {
+			onAll(root, "[data-goto]", "click", (el, e) => {
 				e.preventDefault();
-				ui.selected = el.dataset.goto;
+				ui.selected = el.dataset.goto ?? null;
 				ui.tab = "canvas";
 				ctx.rerender();
 			});
-			on("[data-deselect]", "click", () => {
+			onAll(root, "[data-deselect]", "click", () => {
 				ui.selected = null;
 				ctx.rerender();
 			});
-			on("[data-type]", "click", (_, el) => {
+			onAll(root, "[data-type]", "click", (el) => {
 				const t = el.dataset.type;
+				if (!t) return;
 				ui.hidden = ui.hidden.includes(t) ? ui.hidden.filter((x) => x !== t) : [...ui.hidden, t];
 				ctx.rerender();
 			});
-			on("[data-unset]", "click", (_, el) => stageOp({
-				kind: "setProp",
-				id: ui.selected,
-				key: el.dataset.unset,
-				value: void 0
-			}));
-			on("[data-unlink]", "click", (_, el) => stageOp({
-				kind: "removeEdge",
-				id: el.dataset.unlink
-			}, "Relationship removal staged"));
-			on("[data-delete]", "click", () => {
-				const id = ui.selected;
+			onAll(root, "[data-unset]", "click", (el) => {
+				const id = selected();
+				if (id && el.dataset.unset) stageOp({
+					kind: "setProp",
+					id,
+					key: el.dataset.unset
+				});
+			});
+			onAll(root, "[data-unlink]", "click", (el) => {
+				if (el.dataset.unlink) stageOp({
+					kind: "removeEdge",
+					id: el.dataset.unlink
+				}, "Relationship removal staged");
+			});
+			onAll(root, "[data-delete]", "click", () => {
+				const id = selected();
+				if (!id) return;
 				ui.selected = null;
 				stageOp({
 					kind: "removeNode",
 					id
 				}, "Node deletion staged");
 			});
-			on("[data-fix-delete]", "click", (_, el) => stageOp({
-				kind: "removeNode",
-				id: el.dataset.fixDelete
-			}, "Node deletion staged"));
-			on("[data-discard]", "click", () => run((s) => s.repo = discard(s.repo), "Changes discarded"));
-			on("[data-revert]", "click", (_, el) => run((s) => s.repo = revert(s.repo, el.dataset.revert, { author: s.user.email }), "Commit reverted"));
-			root.querySelector("#commit-form")?.addEventListener("submit", (e) => {
-				e.preventDefault();
-				const message = e.target.message.value;
+			onAll(root, "[data-fix-delete]", "click", (el) => {
+				if (el.dataset.fixDelete) stageOp({
+					kind: "removeNode",
+					id: el.dataset.fixDelete
+				}, "Node deletion staged");
+			});
+			onAll(root, "[data-discard]", "click", () => run((s) => s.repo = discard(s.repo), "Changes discarded"));
+			onAll(root, "[data-revert]", "click", (el) => {
+				const id = el.dataset.revert;
+				if (id) run((s) => s.repo = revert(s.repo, id, { author: s.user.email }), "Commit reverted");
+			});
+			onSubmit(root, "#commit-form", (form) => {
+				const message = field$1(form, "message");
 				run((s) => s.repo = commit(s.repo, {
 					message,
 					author: s.user.email
 				}), "Committed");
 			});
-			root.querySelector("#prop-form")?.addEventListener("submit", (e) => {
-				e.preventDefault();
-				const key = e.target.key.value.trim();
-				const raw = e.target.value.value.trim();
+			onSubmit(root, "#prop-form", (form) => {
+				const id = selected();
+				if (!id) return;
+				const key = field$1(form, "key").trim();
+				const raw = field$1(form, "value").trim();
 				const value = raw !== "" && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
 				stageOp({
 					kind: "setProp",
-					id: ui.selected,
+					id,
 					key,
 					value
 				});
 			});
-			root.querySelector("#link-form")?.addEventListener("submit", (e) => {
-				e.preventDefault();
-				const rel = e.target.rel.value;
-				const to = e.target.to.value;
+			onSubmit(root, "#link-form", (form) => {
+				const from = selected();
+				if (!from) return;
+				const rel = field$1(form, "rel");
+				const to = field$1(form, "to");
 				stageOp({
 					kind: "addEdge",
 					edge: {
-						id: `${ui.selected}-${rel}-${to}`,
-						from: ui.selected,
+						id: `${from}-${rel}-${to}`,
+						from,
 						rel,
 						to
 					}
 				});
 			});
-			root.querySelector("#node-form")?.addEventListener("submit", (e) => {
-				e.preventDefault();
-				const f = e.target;
-				const label = f.label.value.trim();
+			onSubmit(root, "#node-form", (form) => {
+				const type = field$1(form, "type");
+				const label = field$1(form, "label").trim();
 				const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "node";
-				let id = `${f.type.value.toLowerCase()}-${slug}`;
-				for (let k = 2; ctx.graph.nodes[id]; k++) id = `${f.type.value.toLowerCase()}-${slug}-${k}`;
-				const from = f.from.value;
-				const rel = f.rel.value;
+				let id = `${type.toLowerCase()}-${slug}`;
+				for (let k = 2; ctx.graph.nodes[id]; k++) id = `${type.toLowerCase()}-${slug}-${k}`;
+				const from = field$1(form, "from");
+				const rel = field$1(form, "rel");
 				run((s) => {
 					let repo = stage(s.repo, {
 						kind: "addNode",
 						node: {
 							id,
-							type: f.type.value,
+							type,
 							label,
 							props: {}
 						}
@@ -1859,22 +1892,23 @@
   </svg>`;
 	}
 	//#endregion
-	//#region js/views/quality.js
+	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var quality_default = {
+	var uiState$2 = (ctx) => ctx.ui("quality", {
+		split: true,
+		variable: "tension"
+	});
+	var view$3 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
 		render(ctx) {
-			const ui = ctx.ui("quality", {
-				split: true,
-				variable: "tension"
-			});
+			const ui = uiState$2(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
 			const ng = rows.filter((r) => r.ng).length;
-			const v = CUTTER_VARIABLES.find((x) => x.key === ui.variable);
+			const v = CUTTER_VARIABLES.find((x) => x.key === ui.variable) ?? CUTTER_VARIABLES[0];
 			const dumb = ["anode", "cathode"].map((m) => {
 				const sub = rows.filter((r) => r.material === m);
 				return {
@@ -1985,33 +2019,36 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = ctx.ui("quality");
-			root.querySelectorAll("[data-split]").forEach((b) => b.addEventListener("click", (e) => {
+			const ui = uiState$2(ctx);
+			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
 				ctx.rerender();
-			}));
-			root.querySelector("#variable").addEventListener("change", (e) => {
-				ui.variable = e.target.value;
+			});
+			const select = need(root, "#variable");
+			select.addEventListener("change", () => {
+				const chosen = CUTTER_VARIABLES.find((x) => x.key === select.value);
+				if (chosen) ui.variable = chosen.key;
 				ctx.rerender();
 			});
 		}
 	};
 	//#endregion
-	//#region js/views/physics.js
-	var physics_default = {
+	//#region js/views/physics.ts
+	var uiState$1 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var view$2 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = ctx.ui("physics", { shot: detection.alerts[0]?.firstShot ?? 0 });
+			const ui = uiState$1(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
 			const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
 			const s = hist[ui.shot];
-			const payload = simulateShot(s.trueFriction, createRng(1e3 + ui.shot));
+			const payload = simulateShot(s?.trueFriction ?? s?.friction ?? 0, createRng(1e3 + ui.shot));
 			const est = estimateFriction(payload);
 			const flagged = detection.flags[ui.shot];
 			return `
@@ -2129,17 +2166,19 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = ctx.ui("physics");
+			const ui = uiState$1(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
-				ui.shot = Math.max(0, Math.min(n - 1, i));
+				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
 				ctx.rerender();
 			};
-			root.querySelector("#shot").addEventListener("change", (e) => go(Number(e.target.value)));
-			root.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => go(ui.shot + Number(b.dataset.step))));
-			root.querySelectorAll("[data-goto]").forEach((r) => r.addEventListener("click", () => go(Number(r.dataset.goto))));
-			root.querySelector("#run-chart").addEventListener("click", (e) => {
-				const svg = e.currentTarget.querySelector("svg");
+			const slider = need(root, "#shot");
+			slider.addEventListener("change", () => go(Number(slider.value)));
+			onAll(root, "[data-step]", "click", (b) => go(ui.shot + Number(b.dataset.step)));
+			onAll(root, "[data-goto]", "click", (r) => go(Number(r.dataset.goto)));
+			const chart = need(root, "#run-chart");
+			chart.addEventListener("click", (e) => {
+				const svg = need(chart, "svg");
 				const box = svg.getBoundingClientRect();
 				const vb = svg.viewBox.baseVal;
 				const x = (e.clientX - box.left) / box.width * vb.width;
@@ -2150,36 +2189,43 @@
 		}
 	};
 	//#endregion
-	//#region js/views/design.js
+	//#region js/views/design.ts
 	var defaults = (model) => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var design_default = {
+	var uiState = (ctx) => ctx.ui("design", {
+		model: "swelling",
+		params: {},
+		versions: {},
+		sweepX: null,
+		sweepY: null
+	});
+	function current(ctx) {
+		const ui = uiState(ctx);
+		const model = MODELS[ui.model] ?? getModel("swelling");
+		return {
+			ui,
+			model,
+			params: ui.params[model.id] ??= defaults(model),
+			version: ui.versions[model.id] ??= model.latest
+		};
+	}
+	var view$1 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
 		render(ctx) {
-			const ui = ctx.ui("design", {
-				model: "swelling",
-				params: {},
-				versions: {},
-				sweepX: null,
-				sweepY: null
-			});
-			const model = MODELS[ui.model];
-			ui.params[model.id] ??= defaults(model);
-			ui.versions[model.id] ??= model.latest;
-			const params = ui.params[model.id];
-			const version = ui.versions[model.id];
+			const { ui, model, params, version } = current(ctx);
 			const value = evaluate(model.id, version, params);
-			const xKey = ui.sweepX && model.params.some((p) => p.key === ui.sweepX) ? ui.sweepX : model.params[0].key;
-			let yKey = ui.sweepY && model.params.some((p) => p.key === ui.sweepY) ? ui.sweepY : model.params[1].key;
-			if (yKey === xKey) yKey = model.params.find((p) => p.key !== xKey).key;
+			const keys = model.params.map((p) => p.key);
+			const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0];
+			let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1];
+			if (yKey === xKey) yKey = keys.find((k) => k !== xKey);
 			const sw = sweep(model.id, version, params, xKey, yKey, 14);
 			const sens = sensitivity(model.id, version, params);
 			const runs = ctx.state.runs.filter((r) => r.modelId === model.id);
-			const byId = Object.fromEntries(ctx.state.runs.map((r) => [r.id, r]));
+			const byId = new Map(ctx.state.runs.map((r) => [r.id, r]));
 			const unit = model.output.unit;
 			const label = (k) => model.params.find((p) => p.key === k)?.label ?? k;
 			return `
@@ -2199,8 +2245,8 @@
           </div>
           ${model.params.map((p) => `<div class="param">
                 <span class="name">${esc(p.label)}</span>
-                <span class="val"><span data-val="${p.key}">${fmt$1(params[p.key], digits(p))}</span> <span class="muted">${esc(p.unit)}</span></span>
-                <input type="range" data-param="${p.key}" min="${p.min}" max="${p.max}" step="${stepFor(p)}" value="${params[p.key]}" aria-label="${esc(p.label)}" />
+                <span class="val"><span data-val="${p.key}">${fmt$1(params[p.key] ?? p.default, digits(p))}</span> <span class="muted">${esc(p.unit)}</span></span>
+                <input type="range" data-param="${p.key}" min="${p.min}" max="${p.max}" step="${stepFor(p)}" value="${params[p.key] ?? p.default}" aria-label="${esc(p.label)}" />
               </div>`).join("")}
           <button class="btn sm" data-reset>Reset to defaults</button>
         </div>
@@ -2252,7 +2298,7 @@
           </div>
           ${runs.length ? `<div class="table-wrap"><table><thead><tr><th>Run</th><th>Changed vs parent</th><th class="num">${esc(model.output.label)}</th></tr></thead><tbody>
                 ${runs.map((r) => {
-				const diff = runDiff(r, byId[r.parent]);
+				const diff = runDiff(r, r.parent ? byId.get(r.parent) : null);
 				return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : "<span class=\"muted\">untitled</span>"}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
                       <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join("<br>") || "no change" : "first run"}</td>
                       <td class="num"><b>${fmt$1(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
@@ -2261,46 +2307,47 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = ctx.ui("design");
-			const model = MODELS[ui.model];
-			const params = ui.params[model.id];
-			root.querySelectorAll("[data-model]").forEach((b) => b.addEventListener("click", () => {
-				ui.model = b.dataset.model;
+			const { ui, model, params } = current(ctx);
+			onAll(root, "[data-model]", "click", (b) => {
+				if (b.dataset.model) ui.model = b.dataset.model;
 				ctx.rerender();
-			}));
-			root.querySelector("#version").addEventListener("change", (e) => {
-				ui.versions[model.id] = e.target.value;
+			});
+			const versionSelect = need(root, "#version");
+			versionSelect.addEventListener("change", () => {
+				ui.versions[model.id] = versionSelect.value;
 				ctx.rerender();
 			});
 			root.querySelectorAll("[data-param]").forEach((input) => {
 				const p = model.params.find((x) => x.key === input.dataset.param);
+				if (!p) return;
 				input.addEventListener("input", () => {
 					params[p.key] = Number(input.value);
-					root.querySelector(`[data-val="${p.key}"]`).textContent = fmt$1(params[p.key], digits(p));
-					root.querySelector("#result").textContent = fmt$1(evaluate(model.id, ui.versions[model.id], params), 2);
+					need(root, `[data-val="${p.key}"]`).textContent = fmt$1(params[p.key] ?? p.default, digits(p));
+					need(root, "#result").textContent = fmt$1(evaluate(model.id, ui.versions[model.id] ?? model.latest, params), 2);
 				});
 				input.addEventListener("change", () => ctx.rerender());
 			});
-			root.querySelector("[data-reset]").addEventListener("click", () => {
+			onAll(root, "[data-reset]", "click", () => {
 				ui.params[model.id] = defaults(model);
 				ctx.rerender();
 			});
-			root.querySelector("#sweep-x").addEventListener("change", (e) => {
-				ui.sweepX = e.target.value;
+			const sweepX = need(root, "#sweep-x");
+			sweepX.addEventListener("change", () => {
+				ui.sweepX = sweepX.value;
 				ctx.rerender();
 			});
-			root.querySelector("#sweep-y").addEventListener("change", (e) => {
-				ui.sweepY = e.target.value;
+			const sweepY = need(root, "#sweep-y");
+			sweepY.addEventListener("change", () => {
+				ui.sweepY = sweepY.value;
 				ctx.rerender();
 			});
-			root.querySelector("#run-form").addEventListener("submit", (e) => {
-				e.preventDefault();
-				const note = e.target.note.value.trim();
+			onSubmit(root, "#run-form", (form) => {
+				const note = field$1(form, "note").trim();
 				ctx.update((s) => {
 					const parent = s.runs.find((r) => r.modelId === model.id) ?? null;
 					s.runs.unshift(makeRun({
 						modelId: model.id,
-						version: ui.versions[model.id],
+						version: ui.versions[model.id] ?? model.latest,
 						params,
 						author: s.user.email,
 						note,
@@ -2309,14 +2356,15 @@
 				});
 				ctx.toast("Run saved");
 			});
-			root.querySelectorAll("[data-run]").forEach((row) => row.addEventListener("click", () => {
+			onAll(root, "[data-run]", "click", (row) => {
 				const run = ctx.state.runs.find((r) => r.id === row.dataset.run);
+				if (!run) return;
 				ui.params[model.id] = { ...run.params };
 				ui.versions[model.id] = run.version;
 				ctx.rerender();
 				ctx.toast(`Restored run “${run.note || run.id}”`);
-			}));
-			root.querySelector("[data-export]")?.addEventListener("click", () => {
+			});
+			onAll(root, "[data-export]", "click", () => {
 				const blob = new Blob([JSON.stringify(auditRecord(ctx.state.runs, model.id), null, 2)], { type: "application/json" });
 				const a = document.createElement("a");
 				a.href = URL.createObjectURL(blob);
@@ -2327,8 +2375,8 @@
 		}
 	};
 	//#endregion
-	//#region js/views/settings.js
-	var settings_default = {
+	//#region js/views/settings.ts
+	var view = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -2352,49 +2400,48 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			root.querySelector("#profile").addEventListener("submit", (e) => {
-				e.preventDefault();
-				const name = e.target.name.value.trim();
-				const email = e.target.email.value.trim();
+			onSubmit(root, "#profile", (form) => {
+				const name = field$1(form, "name").trim();
+				const email = field$1(form, "email").trim();
 				ctx.update((s) => s.user = {
 					name,
 					email
 				});
 				ctx.toast("Profile saved");
 			});
-			root.querySelector("[data-reset]").addEventListener("click", () => {
+			onAll(root, "[data-reset]", "click", () => {
 				if (confirm("Reset ontology history, design runs and chat to the demo defaults?")) ctx.reset();
 			});
 		}
 	};
 	//#endregion
-	//#region js/app.js
+	//#region js/app.ts
 	var VIEWS = [
-		home_default,
-		chat_default,
-		ontology_default,
-		quality_default,
-		physics_default,
-		design_default,
-		settings_default
+		view$6,
+		view$5,
+		view$4,
+		view$3,
+		view$2,
+		view$1,
+		view
 	];
 	var NAV = [
-		{ items: [home_default, chat_default] },
+		{ items: [view$6, view$5] },
 		{
 			group: "Operations",
 			items: [
-				ontology_default,
-				quality_default,
-				physics_default
+				view$4,
+				view$3,
+				view$2
 			]
 		},
 		{
 			group: "Design",
-			items: [design_default]
+			items: [view$1]
 		},
 		{
 			group: "",
-			items: [settings_default]
+			items: [view]
 		}
 	];
 	function freshState() {
@@ -2440,7 +2487,7 @@
 			persist();
 			if (rerender) render();
 		},
-		ui(viewId, defaults = {}) {
+		ui(viewId, defaults) {
 			state.ui[viewId] ??= { ...defaults };
 			return state.ui[viewId];
 		},
@@ -2456,7 +2503,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? home_default;
+		return VIEWS.find((v) => v.id === id) ?? view$6;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -2472,22 +2519,22 @@
 		return "";
 	}
 	function renderNav(active) {
-		$("#nav").innerHTML = NAV.map((g) => (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === "" ? "<div class=\"nav-group\">&nbsp;</div>" : "") + g.items.map((v) => `<a class="nav-link ${v === active ? "active" : ""}" href="#/${v.id === "home" ? "" : v.id}"><span class="ico" aria-hidden="true">${v.icon}</span>${esc(v.title)}${badgeFor(v)}</a>`).join("")).join("");
-		const initials = state.user.name.split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase();
-		$("#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+		need(document, "#nav").innerHTML = NAV.map((g) => (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === "" ? "<div class=\"nav-group\">&nbsp;</div>" : "") + g.items.map((v) => `<a class="nav-link ${v === active ? "active" : ""}" href="#/${v.id === "home" ? "" : v.id}"><span class="ico" aria-hidden="true">${v.icon}</span>${esc(v.title)}${badgeFor(v)}</a>`).join("")).join("");
+		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
+		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 	}
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		$("#crumbs").innerHTML = `<span>Home</span>${view === home_default ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === home_default ? "Tiles" : `${view.title} · Tiles`;
-		const root = $("#view");
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$6 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$6 ? "Tiles" : `${view.title} · Tiles`;
+		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
 	}
 	var toastTimer;
 	function toast(message) {
-		const el = $("#toast");
+		const el = need(document, "#toast");
 		el.textContent = message;
 		el.classList.add("show");
 		clearTimeout(toastTimer);
@@ -2498,16 +2545,16 @@
 		else delete document.documentElement.dataset.theme;
 	}
 	applyTheme(load("theme", null));
-	$("#theme").addEventListener("click", () => {
+	need(document, "#theme").addEventListener("click", () => {
 		const next = (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark";
 		applyTheme(next);
 		save("theme", next);
 	});
-	$("#menu").addEventListener("click", () => $("#sidebar").classList.toggle("open"));
-	$("#nav").addEventListener("click", () => $("#sidebar").classList.remove("open"));
+	need(document, "#menu").addEventListener("click", () => need(document, "#sidebar").classList.toggle("open"));
+	need(document, "#nav").addEventListener("click", () => need(document, "#sidebar").classList.remove("open"));
 	window.addEventListener("hashchange", () => {
 		render();
-		$("#view").focus({ preventScroll: true });
+		need(document, "#view").focus({ preventScroll: true });
 		window.scrollTo(0, 0);
 	});
 	render();

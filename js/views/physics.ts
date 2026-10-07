@@ -1,22 +1,26 @@
 import { simulateShot, estimateFriction, PLUNGER } from '../lib/physics.ts';
 import { createRng } from '../lib/rng.ts';
 import { lineChart } from '../lib/svg.ts';
-import { esc, fmt } from '../lib/dom.ts';
+import { esc, fmt, need, onAll } from '../lib/dom.ts';
+import type { Context, View } from './types.ts';
 
-export default {
+const uiState = (ctx: Context) =>
+  ctx.ui<{ shot: number }>('physics', { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+
+const view: View = {
   id: 'physics',
   title: 'Factory physics',
   icon: '∿',
   render(ctx) {
     const { shots, detection, scored } = ctx.state;
-    const ui = ctx.ui('physics', { shot: detection.alerts[0]?.firstShot ?? 0 });
+    const ui = uiState(ctx);
     const hist = shots.history;
-    const toH = (i) => (i * shots.cycleSeconds) / 3600;
+    const toH = (i: number) => (i * shots.cycleSeconds) / 3600;
     const predicted = scored.filter((s) => s.predicted);
     const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
 
     const s = hist[ui.shot];
-    const payload = simulateShot(s.trueFriction, createRng(1000 + ui.shot));
+    const payload = simulateShot(s?.trueFriction ?? s?.friction ?? 0, createRng(1000 + ui.shot));
     const est = estimateFriction(payload);
     const flagged = detection.flags[ui.shot];
 
@@ -110,19 +114,19 @@ export default {
       </div>`;
   },
   bind(root, ctx) {
-    const ui = ctx.ui('physics');
+    const ui = uiState(ctx);
     const n = ctx.state.shots.history.length;
-    const go = (i) => {
-      ui.shot = Math.max(0, Math.min(n - 1, i));
+    const go = (i: number) => {
+      ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
       ctx.rerender();
     };
-    root.querySelector('#shot').addEventListener('change', (e) => go(Number(e.target.value)));
-    root
-      .querySelectorAll('[data-step]')
-      .forEach((b) => b.addEventListener('click', () => go(ui.shot + Number(b.dataset.step))));
-    root.querySelectorAll('[data-goto]').forEach((r) => r.addEventListener('click', () => go(Number(r.dataset.goto))));
-    root.querySelector('#run-chart').addEventListener('click', (e) => {
-      const svg = e.currentTarget.querySelector('svg');
+    const slider = need<HTMLInputElement>(root, '#shot');
+    slider.addEventListener('change', () => go(Number(slider.value)));
+    onAll(root, '[data-step]', 'click', (b) => go(ui.shot + Number(b.dataset.step)));
+    onAll(root, '[data-goto]', 'click', (r) => go(Number(r.dataset.goto)));
+    const chart = need(root, '#run-chart');
+    chart.addEventListener('click', (e) => {
+      const svg = need<SVGSVGElement>(chart, 'svg');
       const box = svg.getBoundingClientRect();
       const vb = svg.viewBox.baseVal;
       const x = ((e.clientX - box.left) / box.width) * vb.width;
@@ -132,3 +136,5 @@ export default {
     });
   },
 };
+
+export default view;

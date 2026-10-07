@@ -1,7 +1,8 @@
 import { ask, SUGGESTIONS } from '../lib/copilot.ts';
-import { esc } from '../lib/dom.ts';
+import { esc, need, onAll, onSubmit, field } from '../lib/dom.ts';
+import type { View } from './types.ts';
 
-export default {
+const view: View = {
   id: 'chat',
   title: 'Copilot',
   icon: '✦',
@@ -33,9 +34,9 @@ export default {
       </div>`;
   },
   bind(root, ctx) {
-    const logEl = root.querySelector('#chat-log');
+    const logEl = need(root, '#chat-log');
     logEl.scrollTop = logEl.scrollHeight;
-    const send = (q) => {
+    const send = (q: string) => {
       if (!q.trim()) return;
       const answer = ask(q, {
         graph: ctx.graph,
@@ -43,17 +44,17 @@ export default {
         weld: ctx.state.weld,
         shots: ctx.state.shots,
       });
+      if (!answer) return;
       ctx.update((s) => {
         s.chat.push({ role: 'user', text: q.trim() });
         s.chat.push({ role: 'bot', text: answer.text, steps: answer.steps, link: answer.link, skill: answer.skill });
       });
-      document.querySelector('#composer input')?.focus();
+      document.querySelector<HTMLInputElement>('#composer input')?.focus();
     };
-    root.querySelector('#composer').addEventListener('submit', (e) => {
-      e.preventDefault();
-      send(e.target.q.value);
-    });
-    root.querySelectorAll('[data-q]').forEach((b) => b.addEventListener('click', () => send(b.dataset.q)));
-    root.querySelector('[data-clear]')?.addEventListener('click', () => ctx.update((s) => (s.chat = [])));
+    onSubmit(root, '#composer', (form) => send(field(form, 'q')));
+    onAll(root, '[data-q]', 'click', (b) => send(b.dataset.q ?? ''));
+    onAll(root, '[data-clear]', 'click', () => ctx.update((s) => (s.chat = [])));
   },
 };
+
+export default view;

@@ -19,3 +19,38 @@ export const $ = <E extends Element = HTMLElement>(sel: string, root: ParentNode
 export const $$ = <E extends Element = HTMLElement>(sel: string, root: ParentNode = document): E[] => [
   ...root.querySelectorAll<E>(sel),
 ];
+
+// Like querySelector, but throws when the element is missing so a broken
+// template fails loudly instead of silently doing nothing.
+export function need<E extends Element = HTMLElement>(root: ParentNode, sel: string): E {
+  const el = root.querySelector<E>(sel);
+  if (!el) throw new Error(`Missing element ${sel}`);
+  return el;
+}
+
+// Value of a named control in a form (input, select or textarea).
+export function field(form: HTMLFormElement, name: string): string {
+  const el = form.elements.namedItem(name);
+  if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
+    return el.value;
+  }
+  throw new Error(`Form has no field ${name}`);
+}
+
+// Attach the same listener to every element matching `sel`.
+export function onAll<K extends keyof HTMLElementEventMap>(
+  root: ParentNode,
+  sel: string,
+  type: K,
+  handler: (el: HTMLElement, event: HTMLElementEventMap[K]) => void,
+): void {
+  root.querySelectorAll<HTMLElement>(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e)));
+}
+
+// Submit handler for a form found by selector, if present.
+export function onSubmit(root: ParentNode, sel: string, handler: (form: HTMLFormElement) => void): void {
+  root.querySelector<HTMLFormElement>(sel)?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    handler(e.currentTarget as HTMLFormElement);
+  });
+}

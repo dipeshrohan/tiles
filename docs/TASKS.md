@@ -31,7 +31,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T1.06` [#18](https://github.com/dipeshrohan/tiles/issues/18) ★ **Scaffold Vite + TypeScript** (strict mode) alongside the existing app · FE · 1d · T1.02
 - [x] `T1.07` [#19](https://github.com/dipeshrohan/tiles/issues/19) ★ **Port `js/lib/*` to TypeScript** with typed models (Graph, Op, Commit, Shot, Run) · FE · 4d · T1.06
   *Done when:* all 19 existing tests pass under Vitest.
-- [ ] `T1.08` [#20](https://github.com/dipeshrohan/tiles/issues/20) **Port views to TypeScript components** (keep the template-string approach or adopt React, per ADR 001) · FE · 5d · T1.07
+- [x] `T1.08` [#20](https://github.com/dipeshrohan/tiles/issues/20) **Port views to TypeScript components** (keep the template-string approach or adopt React, per ADR 001) · FE · 5d · T1.07
   *Done when:* screenshots match the current app; browser smoke test is green.
 - [ ] `T1.09` [#21](https://github.com/dipeshrohan/tiles/issues/21) **API client layer:** a typed fetch wrapper with an auth header and error toasts; feature flag to switch between local and API data · FE · 1.5d · T1.08
 

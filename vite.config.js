@@ -12,7 +12,7 @@ export default defineConfig({
     sourcemap: false,
     target: 'es2022',
     lib: {
-      entry: 'js/app.js',
+      entry: 'js/app.ts',
       formats: ['iife'],
       name: 'Tiles',
       fileName: () => 'tiles.bundle.js',
