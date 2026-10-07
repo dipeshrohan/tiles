@@ -185,9 +185,63 @@ def test_unreachable_provider_is_a_503(database_url: str, site: str) -> None:
         ({}, "viewer"),
         ({"realm_access": {"roles": ["offline_access", "tiles-engineer"]}}, "engineer"),
         ({"realm_access": {"roles": ["tiles-engineer", "tiles-admin"]}}, "admin"),
-        ({"roles": ["engineer"]}, "engineer"),
+        ({"roles": ["tiles-engineer"]}, "engineer"),
+        # Bare names are other applications' roles, not Tiles privileges.
+        ({"realm_access": {"roles": ["admin", "engineer"]}}, "viewer"),
+        ({"roles": ["admin"]}, "viewer"),
         ({"realm_access": "nonsense"}, "viewer"),
     ],
 )
 def test_role_from_claims(claims: dict[str, Any], role: str) -> None:
     assert role_from_claims(claims) == role
+
+
+def test_an_email_bound_to_another_sign_in_is_never_handed_over(prod: TestClient, database_url: str, site: str) -> None:
+    assert prod.get(graph(site), headers=bearer(token(sub="ana-1"))).status_code == 200
+    # Another subject (say, a reused or spoofed email at the provider) claims the same email.
+    res = prod.get(graph(site), headers=bearer(token(sub="intruder-9")))
+    assert (res.status_code, res.json()["detail"]) == (409, "This email already belongs to another sign-in")
+    with psycopg.connect(database_url) as conn:
+        assert conn.execute("SELECT oidc_subject FROM users").fetchall() == [("ana-1",)]
+
+
+def test_a_known_sign_in_with_a_new_organisation_is_refused_not_a_500(prod: TestClient, site: str) -> None:
+    assert prod.get(graph(site), headers=bearer(token())).status_code == 200
+    moved = bearer(token(tiles_org="acme"))
+    assert prod.get("/sites", headers=moved).status_code == 403
+    assert prod.get("/sites", headers=bearer(token())).status_code == 200
+
+
+def test_first_sign_in_creates_the_user_even_before_the_org_has_sites(
+    prod: TestClient, database_url: str, site: str
+) -> None:
+    assert (
+        prod.get("/sites", headers=bearer(token(sub="n-1", email="new@neworg.example", tiles_org="neworg"))).json()
+        == []
+    )
+    with psycopg.connect(database_url) as conn:
+        row = conn.execute(
+            "SELECT o.slug, u.oidc_subject FROM users u JOIN orgs o ON o.id = u.org_id"
+            " WHERE u.email = 'new@neworg.example'"
+        ).fetchone()
+    assert row == ("neworg", "n-1")
+
+
+def test_unknown_signing_key_is_401_and_unreachable_discovery_is_503(database_url: str, site: str) -> None:
+    class NoMatchingKey:
+        def get_signing_key_from_jwt(self, _token: str) -> jwt.PyJWK:
+            raise jwt.PyJWKClientError('Unable to find a signing key that matches: "rogue"')
+
+    settings = Settings(_env_file=None, env="production", database_url=database_url, oidc_issuer=ISSUER)
+    app = create_app(settings)
+    app.state.verifier = TokenVerifier(settings, jwk_client=NoMatchingKey())
+    with TestClient(app) as c:
+        res = c.get("/me", headers=bearer(token()))
+        assert res.status_code == 401
+        assert res.headers["www-authenticate"].startswith("Bearer")
+    # No JWKS URL configured: discovery at an unreachable issuer is a 503, not a 500.
+    unreachable = Settings(
+        _env_file=None, env="production", database_url=database_url, oidc_issuer="http://127.0.0.1:1/realms/x"
+    )
+    with TestClient(create_app(unreachable)) as c:
+        assert c.get("/me", headers=bearer(token(iss="http://127.0.0.1:1/realms/x"))).status_code == 503

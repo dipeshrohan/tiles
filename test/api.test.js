@@ -155,3 +155,16 @@ test('http(s) URL check', () => {
   for (const bad of ['', 'localhost:8000', 'ftp://x', 'http://', 'javascript:alert(1)'])
     assert.equal(isHttpUrl(bad), false);
 });
+
+test('the public sign-in settings are fetched without credentials', async () => {
+  const f = fakeFetch({ body: { enabled: true } });
+  const api = createApiClient({
+    baseUrl: 'http://a',
+    userEmail: 'ana@example.com',
+    getToken: async () => 'secret',
+    fetch: f.fn,
+  });
+  await api.authConfig();
+  assert.equal(f.calls[0].headers.Authorization, undefined);
+  assert.equal(f.calls[0].headers['X-Tiles-User'], undefined);
+});

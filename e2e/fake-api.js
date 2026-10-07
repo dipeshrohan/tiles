@@ -10,11 +10,13 @@ import { applyOp, commit, createRepo, revert, stage, workingGraph, healthCheck }
 // request, checks PKCE, and issues opaque tokens the API accepts. With
 // `requireSignIn`, requests without a token get 401, as in production.
 // `slowWritesMs` delays batch staging, to test answers that arrive late.
+// `slowAuthConfigMs` delays /auth/config, to test background re-renders.
 export function createFakeApi({
   oidc = false,
   requireSignIn = false,
   signedInAs = 'ana@example.com',
   slowWritesMs = 0,
+  slowAuthConfigMs = 0,
 } = {}) {
   let origin = '';
   const codes = new Map(); // code -> { challenge, redirectUri }
@@ -24,6 +26,7 @@ export function createFakeApi({
   let history = [];
   const staged = new Map(); // email -> Op[]
   const requests = [];
+  const bearersSeen = []; // every bearer token sent to this API
 
   const repoFor = (user) => ({ head, history, staged: staged.get(user) ?? [] });
 
@@ -88,10 +91,12 @@ export function createFakeApi({
     // ---- who is calling -------------------------------------------------------
     const auth = req.headers.authorization ?? '';
     const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (bearer) bearersSeen.push(bearer);
     if (bearer && !tokens.has(bearer)) return send(401, { detail: 'Invalid token' });
     if (!bearer && requireSignIn && url.pathname !== '/health' && url.pathname !== '/auth/config')
       return send(401, { detail: 'Sign in to use Tiles' });
     const user = bearer ? signedInAs : (req.headers['x-tiles-user'] ?? 'demo@example.com');
+    if (url.pathname === '/auth/config' && slowAuthConfigMs) await new Promise((r) => setTimeout(r, slowAuthConfigMs));
     if (url.pathname === '/auth/config')
       return send(200, {
         enabled: oidc,
@@ -157,6 +162,7 @@ export function createFakeApi({
   return {
     server,
     requests,
+    bearersSeen,
     // Lets a test act as another user committing directly.
     commitAs(user, ops, message) {
       let repo = { head, history, staged: [] };

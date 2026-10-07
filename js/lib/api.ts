@@ -90,11 +90,12 @@ export function createApiClient(options: ApiOptions) {
   const base = normalizeBaseUrl(options.baseUrl);
   const doFetch = options.fetch ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
 
-  async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  // `anonymous` requests carry no credentials (e.g. the public /auth/config).
+  async function request<T>(method: Method, path: string, body?: unknown, { anonymous = false } = {}): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    if (options.userEmail) headers['X-Tiles-User'] = options.userEmail;
-    const token = options.token ?? (await options.getToken?.());
+    if (!anonymous && options.userEmail) headers['X-Tiles-User'] = options.userEmail;
+    const token = anonymous ? null : (options.token ?? (await options.getToken?.()));
     if (token) headers.Authorization = `Bearer ${token}`;
     let res: Response;
     try {
@@ -129,7 +130,7 @@ export function createApiClient(options: ApiOptions) {
     baseUrl: base,
     request,
     health: () => request<ApiHealth>('GET', '/health'),
-    authConfig: () => request<AuthConfig>('GET', '/auth/config'),
+    authConfig: () => request<AuthConfig>('GET', '/auth/config', undefined, { anonymous: true }),
     me: () => request<Me>('GET', '/me'),
     sites: () => request<Site[]>('GET', '/sites'),
     ontology: {

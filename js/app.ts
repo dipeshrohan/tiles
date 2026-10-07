@@ -5,13 +5,23 @@ import { load, save, clearAll } from './lib/store.ts';
 import {
   ApiError,
   createApiClient,
+  normalizeBaseUrl,
   resolveDataSource,
   type ApiClient,
   type AuthConfig,
   type DataSource,
 } from './lib/api.ts';
 import { createRepo } from './lib/ontology.ts';
-import { accessToken, beginSignIn, cleanCallbackUrl, completeSignIn, loadSession, signOut } from './lib/oidc.ts';
+import {
+  accessToken,
+  beginSignIn,
+  cleanCallbackUrl,
+  completeSignIn,
+  loadSession,
+  SignInError,
+  signOut,
+  takeSignOutReturn,
+} from './lib/oidc.ts';
 import {
   localStore,
   pickSite,
@@ -105,7 +115,7 @@ async function connectOntology(): Promise<void> {
   state.repo = createRepo();
   ontologyStatus = 'loading';
   ontologyError = null;
-  render();
+  renderSoon();
   try {
     const store = remoteStore(api, await pickSite(api, dataSource.siteId));
     const repo = await store.load();
@@ -118,7 +128,7 @@ async function connectOntology(): Promise<void> {
     ontologyStatus = 'error';
     ontologyError = e instanceof Error ? e.message : String(e);
   }
-  render();
+  renderSoon();
 }
 
 const ontologyCtx: OntologyContext = {
@@ -164,16 +174,18 @@ const ontologyCtx: OntologyContext = {
     } catch {
       // the client already showed why
     }
-    render();
+    renderSoon();
   },
 };
 
 function makeApi(): ApiClient | null {
   if (dataSource.mode !== 'api') return null;
+  const baseUrl = normalizeBaseUrl(dataSource.apiUrl);
   return createApiClient({
-    baseUrl: dataSource.apiUrl,
+    baseUrl,
     userEmail: state.user.email,
-    getToken: () => accessToken(),
+    // Only a session obtained for this very API is ever sent to it.
+    getToken: () => accessToken(baseUrl),
     onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message),
   });
 }
@@ -181,6 +193,9 @@ function makeApi(): ApiClient | null {
 // ---- sign-in (API mode) ------------------------------------------------------
 
 let authConfig: AuthConfig | null = null;
+
+// Signed in to the API we are talking to (a session for another API doesn't count).
+const sessionForApi = (): boolean => api !== null && loadSession()?.apiUrl === api.baseUrl;
 
 const canRedirect = (): boolean => location.protocol === 'http:' || location.protocol === 'https:';
 const redirectUri = (): string => location.origin + location.pathname;
@@ -190,11 +205,16 @@ async function finishSignIn(): Promise<void> {
   if (!canRedirect()) return;
   try {
     const done = await completeSignIn(location.search);
-    if (!done) return;
-    history.replaceState(null, '', cleanCallbackUrl(location.href, done.returnTo));
-    toast('Signed in');
+    if (done) {
+      history.replaceState(null, '', cleanCallbackUrl(location.href, done.returnTo));
+      toast('Signed in');
+    } else {
+      // Back from the provider's sign-out: return to the page we left.
+      const back = takeSignOutReturn();
+      if (back !== null) history.replaceState(null, '', cleanCallbackUrl(location.href, back));
+    }
   } catch (e) {
-    history.replaceState(null, '', cleanCallbackUrl(location.href));
+    history.replaceState(null, '', cleanCallbackUrl(location.href, e instanceof SignInError ? e.returnTo : undefined));
     toast(e instanceof Error ? e.message : String(e));
   }
   // The address now carries the page's own query again (e.g. ?api=…).
@@ -204,13 +224,19 @@ async function finishSignIn(): Promise<void> {
 }
 
 // Learns how the API signs people in, and who we are to it.
+let authSeq = 0;
 async function refreshAuth(): Promise<void> {
+  const seq = ++authSeq; // a newer refresh (e.g. after switching API) wins
   authConfig = null;
-  if (!api) return;
+  const client = api;
+  if (!client) return;
   try {
-    authConfig = await api.authConfig();
-    if (loadSession()) {
-      const me = await api.me();
+    const config = await client.authConfig();
+    if (seq !== authSeq) return;
+    authConfig = config;
+    if (sessionForApi()) {
+      const me = await client.me();
+      if (seq !== authSeq) return;
       if (me.via === 'oidc' && (me.email !== state.user.email || me.name !== state.user.name)) {
         state.user = { name: me.name, email: me.email };
         persist();
@@ -219,7 +245,7 @@ async function refreshAuth(): Promise<void> {
   } catch {
     // the client already showed why
   }
-  render();
+  renderSoon();
 }
 
 const authCtx: AuthContext = {
@@ -227,7 +253,7 @@ const authCtx: AuthContext = {
     return authConfig;
   },
   get signedIn() {
-    return loadSession() !== null;
+    return sessionForApi();
   },
   async signIn() {
     if (!authConfig?.enabled || !authConfig.issuer) return toast('This Tiles API has no sign-in configured');
@@ -235,7 +261,12 @@ const authCtx: AuthContext = {
     try {
       location.assign(
         await beginSignIn(
-          { issuer: authConfig.issuer, clientId: authConfig.client_id, redirectUri: redirectUri() },
+          {
+            issuer: authConfig.issuer,
+            clientId: authConfig.client_id,
+            redirectUri: redirectUri(),
+            apiUrl: api?.baseUrl ?? '',
+          },
           location.search + (location.hash || '#/'),
         ),
       );
@@ -244,7 +275,7 @@ const authCtx: AuthContext = {
     }
   },
   async signOut() {
-    const url = await signOut(redirectUri());
+    const url = await signOut(redirectUri(), location.search + location.hash);
     if (url) location.assign(url);
     else {
       toast('Signed out');
@@ -360,6 +391,46 @@ function render(): void {
   const root = need(document, '#view');
   root.innerHTML = view.render(ctx);
   view.bind?.(root, ctx);
+}
+
+// Re-render after something finished in the background (a fetch, a sign-in
+// check). Form fields the user has changed but not submitted keep their values
+// (and focus), so a background update never wipes what they are entering.
+function renderSoon(): void {
+  const view = need(document, '#view');
+  const key = (el: Element) => {
+    const form = el.closest('form');
+    const name = el.getAttribute('name');
+    return form?.id && name ? `${form.id}:${name}:${el instanceof HTMLInputElement ? el.type : ''}` : null;
+  };
+  const edited = new Map<string, string | boolean>();
+  view.querySelectorAll('input, select, textarea').forEach((el) => {
+    const k = key(el);
+    if (!k) return;
+    if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
+      if (el.checked !== el.defaultChecked) edited.set(`${k}:${el.value}`, el.checked);
+    } else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+      if (el.value !== el.defaultValue) edited.set(k, el.value);
+    } else if (el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected)) {
+      edited.set(k, el.value);
+    }
+  });
+  const active = document.activeElement;
+  const focused = active && view.contains(active) ? key(active) : null;
+  render();
+  if (!edited.size && !focused) return;
+  view.querySelectorAll('input, select, textarea').forEach((el) => {
+    const k = key(el);
+    if (!k) return;
+    if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
+      const v = edited.get(`${k}:${el.value}`);
+      if (typeof v === 'boolean') el.checked = v;
+    } else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+      const v = edited.get(k);
+      if (typeof v === 'string') el.value = v;
+    }
+    if (k === focused && el instanceof HTMLElement) el.focus({ preventScroll: true });
+  });
 }
 
 let toastTimer: ReturnType<typeof setTimeout> | undefined;
