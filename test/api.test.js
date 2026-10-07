@@ -47,9 +47,10 @@ test('requests carry JSON, the identity header and a bearer token when given', a
 });
 
 test('every ontology call hits the documented path', async () => {
-  const f = fakeFetch(...Array.from({ length: 10 }, () => ({ body: {} })));
+  const f = fakeFetch(...Array.from({ length: 11 }, () => ({ body: {} })));
   const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
   await api.sites();
+  await api.membership('s');
   await api.ontology.graph('s');
   await api.ontology.graph('s', 'head');
   await api.ontology.staged('s');
@@ -63,6 +64,7 @@ test('every ontology call hits the documented path', async () => {
     f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
     [
       'GET /sites',
+      'GET /sites/s/me',
       'GET /sites/s/ontology/graph?view=working',
       'GET /sites/s/ontology/graph?view=head',
       'GET /sites/s/ontology/staged',
@@ -75,8 +77,8 @@ test('every ontology call hits the documented path', async () => {
     ],
   );
   assert.equal(f.calls[0].headers['X-Tiles-User'], undefined);
-  assert.deepEqual(JSON.parse(f.calls[4].body), [op]);
-  assert.deepEqual(JSON.parse(f.calls[5].body), { message: 'msg' });
+  assert.deepEqual(JSON.parse(f.calls[5].body), [op]);
+  assert.deepEqual(JSON.parse(f.calls[6].body), { message: 'msg' });
 });
 
 test('204 responses resolve to undefined', async () => {

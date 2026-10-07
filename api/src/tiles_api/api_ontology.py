@@ -138,6 +138,26 @@ def site_context(site_id: uuid.UUID, principal: Auth, conn: DbConn) -> SiteConte
 
 Ctx = Annotated[SiteContext, Depends(site_context, scope="function")]
 
+ROLE_RANK = {"viewer": 0, "engineer": 1, "admin": 2}
+
+
+def require_role(minimum: str) -> Any:
+    """Dependency: the site context, if the user's role on the site is at least `minimum`."""
+
+    def check(ctx: Ctx) -> SiteContext:
+        if ROLE_RANK.get(ctx.user.role, -1) < ROLE_RANK[minimum]:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, f"Your role on this site is {ctx.user.role}; this needs {minimum} or above"
+            )
+        return ctx
+
+    return check
+
+
+# Every write endpoint takes one of these instead of Ctx (T1.17).
+Editor = Annotated[SiteContext, Depends(require_role("engineer"), scope="function")]
+Admin = Annotated[SiteContext, Depends(require_role("admin"), scope="function")]
+
 
 def _run(fn: Any, *args: Any) -> Any:
     try:
@@ -204,7 +224,7 @@ def get_staged(ctx: Ctx) -> list[o.Op]:
     status_code=status.HTTP_201_CREATED,
     tags=["ontology"],
 )
-def stage_op(ctx: Ctx, op: OpIn) -> list[o.Op]:
+def stage_op(ctx: Editor, op: OpIn) -> list[o.Op]:
     """Stage one change. It is checked against your working graph; returns all your staged ops."""
     return _run(store.stage, ctx.conn, ctx.site_id, ctx.user, _op_dict(op))  # type: ignore[no-any-return]
 
@@ -215,13 +235,13 @@ def stage_op(ctx: Ctx, op: OpIn) -> list[o.Op]:
     status_code=status.HTTP_201_CREATED,
     tags=["ontology"],
 )
-def stage_ops(ctx: Ctx, ops: Annotated[list[OpIn], Body(min_length=1, max_length=2000)]) -> list[o.Op]:
+def stage_ops(ctx: Editor, ops: Annotated[list[OpIn], Body(min_length=1, max_length=2000)]) -> list[o.Op]:
     """Stage several changes, all or none (e.g. a node and its relationship). Returns all your staged ops."""
     return _run(store.stage, ctx.conn, ctx.site_id, ctx.user, *map(_op_dict, ops))  # type: ignore[no-any-return]
 
 
 @router.delete("/sites/{site_id}/ontology/staged", status_code=status.HTTP_204_NO_CONTENT, tags=["ontology"])
-def discard_staged(ctx: Ctx) -> None:
+def discard_staged(ctx: Editor) -> None:
     store.discard(ctx.conn, ctx.site_id, ctx.user)
 
 
@@ -236,7 +256,7 @@ def get_history(
 @router.post(
     "/sites/{site_id}/ontology/commits", response_model=Commit, status_code=status.HTTP_201_CREATED, tags=["ontology"]
 )
-def commit_staged(ctx: Ctx, body: CommitIn) -> o.Commit:
+def commit_staged(ctx: Editor, body: CommitIn) -> o.Commit:
     """Commit your staged changes."""
     return _run(store.commit, ctx.conn, ctx.site_id, ctx.user, body.message)  # type: ignore[no-any-return]
 
@@ -247,6 +267,6 @@ def commit_staged(ctx: Ctx, body: CommitIn) -> o.Commit:
     status_code=status.HTTP_201_CREATED,
     tags=["ontology"],
 )
-def revert_commit(ctx: Ctx, commit_id: str) -> o.Commit:
+def revert_commit(ctx: Editor, commit_id: str) -> o.Commit:
     """Undo a commit by committing its inverse operations."""
     return _run(store.revert, ctx.conn, ctx.site_id, ctx.user, commit_id)  # type: ignore[no-any-return]

@@ -48,7 +48,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 
 ### Identity and audit
 - [x] `T1.16` [#27](https://github.com/dipeshrohan/tiles/issues/27) ★ **Single sign-on login** (Keycloak in dev; any OIDC provider in production); users and orgs created on first login · BE · 3d · T1.12
-- [ ] `T1.17` [#28](https://github.com/dipeshrohan/tiles/issues/28) **Roles v0:** viewer, engineer, admin, enforced on every write endpoint · BE · 1.5d · T1.16
+- [x] `T1.17` [#28](https://github.com/dipeshrohan/tiles/issues/28) **Roles v0:** viewer, engineer, admin, enforced on every write endpoint · BE · 1.5d · T1.16
 - [ ] `T1.18` [#29](https://github.com/dipeshrohan/tiles/issues/29) **Audit log:** every write recorded with who, what, when and before/after; admin view in the UI · BE+FE · 2d · T1.16
 - [ ] `T1.19` [#12](https://github.com/dipeshrohan/tiles/issues/12) **ISA-95 data model document:** mapping Site/Area/Line/Cell/Equipment to Tiles node types; update `NODE_TYPES` · TL+PM · 1.5d
 

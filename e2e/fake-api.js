@@ -10,11 +10,13 @@ import { applyOp, commit, createRepo, revert, stage, workingGraph, healthCheck }
 // request, checks PKCE, and issues opaque tokens the API accepts. With
 // `requireSignIn`, requests without a token get 401, as in production.
 // `slowWritesMs` delays batch staging, to test answers that arrive late.
+// `roles` maps a user's email to their site role (engineer by default).
 export function createFakeApi({
   oidc = false,
   requireSignIn = false,
   signedInAs = 'ana@example.com',
   slowWritesMs = 0,
+  roles = {},
 } = {}) {
   let origin = '';
   const codes = new Map(); // code -> { challenge, redirectUri }
@@ -110,8 +112,14 @@ export function createFakeApi({
     try {
       if (url.pathname === '/health') return send(200, { status: 'ok', version: 'fake', env: 'test' });
       if (url.pathname === '/sites') return send(200, [site]);
-      if (!url.pathname.startsWith(base)) return send(404, { detail: 'Site not found' });
+      if (!url.pathname.startsWith(base) && url.pathname !== `/sites/${site.id}/me`)
+        return send(404, { detail: 'Site not found' });
+      const role = roles[user] ?? 'engineer';
+      if (url.pathname === `/sites/${site.id}/me`)
+        return send(200, { user_id: user, email: user, name: user, role, site_role: role, org_admin: false });
       const path = url.pathname.slice(base.length);
+      if (role === 'viewer' && req.method !== 'GET')
+        return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
       const repo = repoFor(user);
       if (path === '/graph') return send(200, url.searchParams.get('view') === 'head' ? head : workingGraph(repo));
       if (path === '/health') return send(200, healthCheck(head));

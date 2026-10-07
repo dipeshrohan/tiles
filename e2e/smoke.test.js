@@ -348,3 +348,30 @@ test('API placeholders and late API answers never replace this browser’s ontol
   assert.equal(await page.locator('.commit').count(), localCommits);
   assert.equal(await page.locator('#commit-form').count(), 0); // nothing from the API was staged locally
 });
+
+test('viewers see the shared ontology read-only', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'm1', type: 'Machine', label: 'Press 1', props: {} } }],
+    'add press',
+  );
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.waitForSelector('.source-bar:has-text("View only")');
+  assert.equal(await page.locator('#node-form').count(), 0);
+  assert.match(await page.locator('#inspector').innerText(), /Your role on this site is viewer/);
+  // Inspecting works; editing controls are gone.
+  await page.click('[data-node="m1"]');
+  await page.waitForSelector('#inspector:has-text("Press 1")');
+  for (const sel of ['#prop-form', '#link-form', '[data-delete]', '[data-unset]']) {
+    assert.equal(await page.locator(sel).count(), 0, sel);
+  }
+  await page.click('[data-tab=history]');
+  assert.equal(await page.locator('.commit').count(), 1);
+  assert.equal(await page.locator('[data-revert]').count(), 0);
+  assert.deepEqual(errors, []);
+});
