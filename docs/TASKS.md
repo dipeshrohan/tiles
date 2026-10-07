@@ -60,7 +60,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 
 ### Edge agent
 - [x] `T2.01` [#30](https://github.com/dipeshrohan/tiles/issues/30) ★ **Edge agent skeleton** (Python, single binary or container): config file, outbound-only HTTPS/MQTT-TLS to Tiles, heartbeat · BE · 3d · T1.11
-- [ ] `T2.02` [#31](https://github.com/dipeshrohan/tiles/issues/31) ★ **OPC UA connector:** browse and subscribe to nodes, map to signal IDs, certificate-based security · BE · 4d · T2.01
+- [x] `T2.02` [#31](https://github.com/dipeshrohan/tiles/issues/31) ★ **OPC UA connector:** browse and subscribe to nodes, map to signal IDs, certificate-based security · BE · 4d · T2.01
 - [ ] `T2.03` [#32](https://github.com/dipeshrohan/tiles/issues/32) **MQTT connector:** subscribe to topics, JSON/Sparkplug B payloads · BE · 2.5d · T2.01
 - [ ] `T2.04` [#33](https://github.com/dipeshrohan/tiles/issues/33) ★ **Store-and-forward buffer:** disk queue that survives network loss and backfills in order · BE · 2d · T2.01
   *Done when:* a 1-hour network cut loses no samples.

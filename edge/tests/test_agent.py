@@ -89,3 +89,36 @@ def test_it_stops_when_tiles_rejects_the_agent(tmp_path: Path) -> None:
     agent = Agent(config(tmp_path), client, stop=CountingStop(limit=10))
     assert agent.run() == 3
     assert len(client.posts) == 2
+
+
+class FakeConnector:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.events: list[str] = []
+
+    def start(self) -> None:
+        self.events.append("start")
+
+    def stop(self, timeout: float = 10) -> None:
+        self.events.append("stop")
+
+    def status(self) -> dict[str, str]:
+        return {"name": self.name, "kind": "opcua", "status": "ok", "detail": "subscribed to 2 nodes"}
+
+
+def test_connectors_run_with_the_agent_and_report_in_each_heartbeat(tmp_path: Path) -> None:
+    client = ScriptedClient({}, {})
+    press = FakeConnector("press-line")
+    agent = Agent(config(tmp_path), client, stop=CountingStop(limit=2), connectors=[press])
+    assert agent.run() == 0
+    assert press.events == ["start", "stop"]
+    assert client.posts[0][1]["connectors"] == [
+        {"name": "press-line", "kind": "opcua", "status": "ok", "detail": "subscribed to 2 nodes"}
+    ]
+
+
+def test_connectors_stop_even_when_tiles_rejects_the_agent(tmp_path: Path) -> None:
+    press = FakeConnector("press-line")
+    agent = Agent(config(tmp_path), ScriptedClient(RejectedError("401")), connectors=[press])
+    assert agent.run() == 3
+    assert press.events == ["start", "stop"]

@@ -22,6 +22,21 @@ class Poster(Protocol):
     def post(self, path: str, body: dict[str, Any]) -> dict[str, Any]: ...
 
 
+class Connector(Protocol):
+    """A data source (OPC UA, later MQTT and SQL). It runs on its own thread between start() and stop()."""
+
+    @property
+    def name(self) -> str: ...
+
+    def start(self) -> None: ...
+
+    def stop(self, timeout: float = 10) -> None: ...
+
+    def status(self) -> dict[str, str]:
+        """{name, kind, status: ok | degraded | down, detail}, sent with every heartbeat."""
+        ...
+
+
 @dataclass
 class Agent:
     config: Config
@@ -30,6 +45,7 @@ class Agent:
     started_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     hostname: str = field(default_factory=socket.gethostname)
     jitter: Callable[[], float] = random.random
+    connectors: list[Connector] = field(default_factory=list)
 
     def heartbeat(self) -> dict[str, Any]:
         """Sends one heartbeat. Raises TransientError or RejectedError."""
@@ -40,8 +56,7 @@ class Agent:
                 "hostname": self.hostname,
                 "started_at": self.started_at.isoformat(),
                 "heartbeat_seconds": self.config.heartbeat_seconds,
-                # Connectors (OPC UA, MQTT, SQL) report here from T2.02 on.
-                "connectors": [],
+                "connectors": [c.status() for c in self.connectors],
             },
         )
 
@@ -55,7 +70,24 @@ class Agent:
 
     def run(self) -> int:
         """Runs until stopped (exit code 0) or Tiles rejects the agent (exit code 3)."""
-        log.info("agent started", extra={"tiles_url": self.config.url, "version": __version__})
+        log.info(
+            "agent started",
+            extra={
+                "tiles_url": self.config.url,
+                "version": __version__,
+                "connectors": [c.name for c in self.connectors],
+            },
+        )
+        for connector in self.connectors:
+            connector.start()
+        try:
+            return self._beat()
+        finally:
+            for connector in self.connectors:
+                connector.stop()
+            log.info("agent stopped")
+
+    def _beat(self) -> int:
         failures = 0
         while not self.stop.is_set():
             try:
@@ -74,5 +106,4 @@ class Agent:
             failures = 0
             log.debug("heartbeat", extra={"agent_id": answer.get("agent_id"), "server_time": answer.get("server_time")})
             self.stop.wait(self.config.heartbeat_seconds)
-        log.info("agent stopped")
         return 0

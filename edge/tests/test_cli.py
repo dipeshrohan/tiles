@@ -13,7 +13,7 @@ from tiles_edge.cli import main
 
 def test_check_sends_one_heartbeat(tmp_path: Path, tiles: FakeTiles, capsys: pytest.CaptureFixture[str]) -> None:
     assert main(["check", "-c", str(write_config(tmp_path, tiles.url))]) == 0
-    assert json.loads(capsys.readouterr().out) == {"ok": True, "agent_id": "a-1", "site_id": "s-1"}
+    assert json.loads(capsys.readouterr().out) == {"ok": True, "agent_id": "a-1", "site_id": "s-1", "connectors": {}}
     assert len(tiles.requests) == 1
 
 
@@ -56,3 +56,15 @@ def test_the_single_file_build_keeps_exit_codes(tmp_path: Path) -> None:
     assert version.stdout.strip() == "tiles-edge 0.1.0"
     missing = subprocess.run([sys.executable, str(pyz), "check", "-c", str(tmp_path / "nope.toml")], check=False)  # noqa: S603
     assert missing.returncode == 2
+
+
+def test_opcua_without_the_extra_is_a_config_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from test_config import OPCUA
+
+    path = write_config(tmp_path, "https://tiles.example.com")
+    path.write_text(path.read_text() + OPCUA.format(extra=""))
+    monkeypatch.setitem(sys.modules, "tiles_edge.opcua", None)  # as if asyncua weren't installed
+    assert main(["run", "-c", str(path)]) == 2
+    assert 'pip install "tiles-edge[opcua]"' in capsys.readouterr().err
