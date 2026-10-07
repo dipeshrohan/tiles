@@ -183,6 +183,22 @@ test('a revealed agent token is shown only to the admin, API and site it was mad
   assert.equal(tokenStillShown(null, 'http://a', 's', true, 'dev:ana@example.com'), false);
 });
 
+test('agent connectors show as badges with their detail as a tooltip', async () => {
+  const { connectorList } = await import('../js/views/settings.ts');
+  assert.equal(connectorList({ connectors: [] }), '—');
+  const html = connectorList({
+    connectors: [
+      { name: 'press-line', kind: 'opcua', status: 'ok', detail: 'subscribed to 2 nodes' },
+      { name: 'oven', kind: 'opcua', status: 'down', detail: "the server's certificate <x> is not the pinned one" },
+    ],
+  });
+  assert.match(html, /<span class="badge good" title="opcua: subscribed to 2 nodes">press-line ok<\/span>/);
+  assert.match(
+    html,
+    /<span class="badge bad" title="opcua: the server&#39;s certificate &lt;x&gt; is not the pinned one">oven down<\/span>/,
+  );
+});
+
 test('audit summaries read as sentences', async () => {
   const { describeAudit } = await import('../js/views/settings.ts');
   const e = (action, before, after) => ({ action, before, after, entity_type: 'x', entity_id: 'y' });

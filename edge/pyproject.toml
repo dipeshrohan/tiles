@@ -4,9 +4,13 @@ version = "0.1.0"
 description = "Tiles edge agent: runs on the plant network and sends data out to Tiles"
 readme = "README.md"
 requires-python = ">=3.12"
-# Standard library only, so the agent installs anywhere and also ships as one
-# zipapp file (see README).
+# The core is standard library only, so the agent installs anywhere and also
+# ships as one zipapp file (see README). Connectors that need a protocol
+# library are extras: pip install "tiles-edge[opcua]".
 dependencies = []
+
+[project.optional-dependencies]
+opcua = ["asyncua>=2.1.0"]
 
 [project.scripts]
 tiles-edge = "tiles_edge.cli:main"

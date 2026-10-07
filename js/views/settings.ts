@@ -125,6 +125,18 @@ function agentsCard(admin: boolean): string {
     </div>`;
 }
 
+// Each connector's name and status; the detail (e.g. why it is down) is in the tooltip.
+export function connectorList(a: EdgeAgent): string {
+  if (!a.connectors.length) return '—';
+  const tone = { ok: 'good', degraded: 'warn', down: 'bad' } as const;
+  return a.connectors
+    .map(
+      (c) =>
+        `<span class="badge ${tone[c.status]}" title="${esc(`${c.kind}: ${c.detail}`)}">${esc(c.name)} ${esc(c.status)}</span>`,
+    )
+    .join(' ');
+}
+
 function agentStatus(a: EdgeAgent): string {
   const tone = a.status === 'online' ? 'good' : a.status === 'offline' ? 'bad' : '';
   return `<span class="badge ${tone}">${esc(a.status)}</span>`;
@@ -167,10 +179,10 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
     return;
   }
   box.innerHTML = agents.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${agents
+    ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${agents
         .map(
           (a) =>
-            `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'}</td><td>${esc(a.hostname ?? '—')}</td><td>${esc(a.version ?? '—')}</td>${
+            `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'}</td><td>${esc(a.hostname ?? '—')}</td><td>${esc(a.version ?? '—')}</td><td>${connectorList(a)}</td>${
               admin
                 ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>`
                 : ''

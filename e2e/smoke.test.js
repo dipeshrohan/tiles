@@ -468,10 +468,14 @@ test('site admins register edge agents and see them come online', async (t) => {
   await page.click('[data-token-done]');
   assert.equal(await page.locator('[data-token]').count(), 0);
 
-  fake.heartbeat(token, 'edge-host-7');
+  fake.heartbeat(token, 'edge-host-7', [
+    { name: 'press-line', kind: 'opcua', status: 'down', detail: 'the server certificate is not the pinned one' },
+  ]);
   await page.reload();
   await page.waitForSelector('#agents tbody:has-text("online")');
   assert.match(await page.locator('#agents tbody').innerText(), /edge-host-7/);
+  const connector = page.locator('#agents .badge:has-text("press-line down")');
+  assert.equal(await connector.getAttribute('title'), 'opcua: the server certificate is not the pinned one');
   await page.click('[data-revoke-agent]');
   await page.waitForSelector('#agents:has-text("No agents registered")');
   assert.deepEqual(errors, []);

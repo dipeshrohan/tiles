@@ -16,6 +16,8 @@ jobs:
   lint:
     name: Lint, format and types
     runs-on: ubuntu-latest
+    # A hung step (e.g. a stalled download) fails the job instead of running for hours.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,6 +31,7 @@ jobs:
   test:
     name: Unit tests (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
@@ -45,6 +48,7 @@ jobs:
   e2e:
     name: Browser smoke test
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -58,6 +62,7 @@ jobs:
   api:
     name: API (Python)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: api
@@ -91,7 +96,7 @@ jobs:
       - name: Edge agent checks
         working-directory: edge
         run: |
-          uv sync --locked
+          uv sync --locked --all-extras
           uv run ruff check .
           uv run ruff format --check .
           uv run mypy
@@ -107,6 +112,7 @@ jobs:
   stack:
     name: Docker Compose stack
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - name: Start the stack

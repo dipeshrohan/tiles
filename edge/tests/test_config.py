@@ -93,3 +93,99 @@ def test_an_unreadable_token_file_says_how_to_fix_it(tmp_path: Path, monkeypatch
     monkeypatch.setattr(Path, "read_text", read_text)
     with pytest.raises(ConfigError, match=r"permission denied for this user .* set TILES_EDGE_TOKEN"):
         load(path, env={})
+
+
+OPCUA = """
+[[opcua]]
+name = "press-line"
+endpoint = "opc.tcp://10.0.0.5:4840"
+certificate = "opcua/agent.der"
+private_key = "opcua/agent.pem"
+server_certificate = "opcua/server.der"
+{extra}
+[[opcua.signals]]
+node = "ns=2;s=Press1.Temperature"
+signal = "press1.temperature"
+"""
+
+
+def with_opcua(tmp_path: Path, extra: str = "", body: str | None = None) -> Path:
+    path = write_config(tmp_path, "https://tiles.example.com")
+    path.write_text(path.read_text() + (body if body is not None else OPCUA.format(extra=extra)))
+    return path
+
+
+def test_an_opcua_connector_loads_with_secure_defaults(tmp_path: Path) -> None:
+    [c] = load(with_opcua(tmp_path), env={}).opcua
+    assert (c.name, c.endpoint, c.security, c.secured) == (
+        "press-line",
+        "opc.tcp://10.0.0.5:4840",
+        "Basic256Sha256-SignAndEncrypt",
+        True,
+    )
+    assert (c.certificate, c.server_certificate) == (tmp_path / "opcua/agent.der", tmp_path / "opcua/server.der")
+    assert c.application_uri.startswith("urn:tiles-edge:")
+    assert c.publishing_interval_ms == 1000
+    assert [(s.node, s.signal) for s in c.signals] == [("ns=2;s=Press1.Temperature", "press1.temperature")]
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        ('security = "None"', "set allow_unsecured = true"),
+        ('security = "Basic128Rsa15-Sign"', "security must be one of"),
+        ('username = "tiles"', "set username and password_file together"),
+        ("publishing_interval_ms = 10", "publishing_interval_ms"),
+        ('application_uri = "tiles"', "application_uri must be a URN"),
+        ("speed = 1", r"unknown setting\(s\) in \[\[opcua\]\] press-line: speed"),
+    ],
+)
+def test_opcua_settings_are_checked(tmp_path: Path, extra: str, message: str) -> None:
+    with pytest.raises(ConfigError, match=message):
+        load(with_opcua(tmp_path, extra), env={})
+
+
+def test_a_password_is_never_sent_unsecured(tmp_path: Path) -> None:
+    body = OPCUA.format(
+        extra='security = "None"\nallow_unsecured = true\nusername = "tiles"\npassword_file = "opcua/password"'
+    )
+    with pytest.raises(ConfigError, match="need a secured connection"):
+        load(with_opcua(tmp_path, body=body), env={})
+
+
+def test_unsecured_opcua_needs_saying_so(tmp_path: Path) -> None:
+    body = OPCUA.format(extra='security = "None"\nallow_unsecured = true').replace(
+        'server_certificate = "opcua/server.der"\n', ""
+    )
+    [c] = load(with_opcua(tmp_path, body=body), env={}).opcua
+    assert (c.security, c.secured) == ("None", False)
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (('server_certificate = "opcua/server.der"\n', ""), "server's certificate is pinned"),
+        (('endpoint = "opc.tcp://10.0.0.5:4840"', 'endpoint = "http://10.0.0.5"'), "endpoint must be an opc.tcp://"),
+        (("opc.tcp://10.0.0.5:4840", "opc.tcp://10.0.0.5:port"), "endpoint has an invalid port"),
+        (('signal = "press1.temperature"', 'signal = "Press 1"'), "must be a Tiles signal ID"),
+        (('name = "press-line"', 'name = "press line"'), "each \\[\\[opcua\\]\\] needs a name"),
+        (
+            ('[[opcua.signals]]\nnode = "ns=2;s=Press1.Temperature"\nsignal = "press1.temperature"\n', ""),
+            "list the nodes",
+        ),
+    ],
+)
+def test_opcua_mistakes_are_explained(tmp_path: Path, change: tuple[str, str], message: str) -> None:
+    body = OPCUA.format(extra="")
+    assert change[0] in body
+    with pytest.raises(ConfigError, match=message):
+        load(with_opcua(tmp_path, body=body.replace(*change)), env={})
+
+
+def test_signals_and_connector_names_are_unique(tmp_path: Path) -> None:
+    twice = OPCUA.format(extra="") + OPCUA.format(extra="").replace("press-line", "press-line-2")
+    with pytest.raises(ConfigError, match=r"signal 'press1\.temperature' appears more than once"):
+        load(with_opcua(tmp_path, body=twice), env={})
+    same_name = OPCUA.format(extra="") + OPCUA.format(extra="").replace("press1.temperature", "press1.other")
+    with pytest.raises(ConfigError, match="connector name 'press-line' appears more than once"):
+        load(with_opcua(tmp_path, body=same_name), env={})

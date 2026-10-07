@@ -30,7 +30,7 @@ Requires [uv](https://docs.astral.sh/uv/). From `api/`: `uv sync` once, then `uv
 
 ### Edge agent (`edge/`)
 
-From `edge/`: `uv sync` once, then `uv run pytest -W error`, `uv run mypy`, `uv run ruff check .` and `uv run ruff format .`. The agent uses only the standard library; keep it that way, so it also ships as one zipapp file. See [edge/README.md](edge/README.md).
+From `edge/`: `uv sync --all-extras` once, then `uv run pytest -W error`, `uv run mypy`, `uv run ruff check .` and `uv run ruff format .`. The agent's core uses only the standard library; keep it that way, so it also ships as one zipapp file. A connector that needs a protocol library (like OPC UA's `asyncua`) is an optional extra, imported only when configured. See [edge/README.md](edge/README.md).
 
 ### Full stack
 
