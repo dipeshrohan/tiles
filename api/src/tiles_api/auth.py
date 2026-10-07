@@ -73,24 +73,34 @@ class TokenVerifier:
                 leeway=30,
                 options={"require": ["exp", "iss", "sub", "aud"]},
             )
-        except jwt.PyJWKClientError as e:
+        except jwt.PyJWKClientConnectionError as e:
+            # Fetching the provider's keys failed: not the token's fault.
             raise HTTPException(503, "Sign-in provider is unreachable") from e
-        except jwt.PyJWTError as e:
+        except (jwt.PyJWKClientError, jwt.PyJWTError) as e:
+            # Includes a token signed with a key the provider doesn't have.
             raise unauthorized(f"Invalid token: {e}") from e
         return claims
 
 
 def discover_jwks_url(issuer: str) -> str:
     url = f"{issuer}/.well-known/openid-configuration"
-    with urllib.request.urlopen(url, timeout=5) as res:  # noqa: S310 - configured https/http issuer
-        jwks_uri = json.load(res).get("jwks_uri")
+    try:
+        with urllib.request.urlopen(url, timeout=5) as res:  # noqa: S310 - configured https/http issuer
+            jwks_uri = json.load(res).get("jwks_uri")
+    except (OSError, ValueError) as e:  # URLError, HTTPError and timeouts are OSErrors; bad JSON a ValueError
+        raise jwt.PyJWKClientConnectionError(f"discovery failed: {type(e).__name__}") from e
     if not isinstance(jwks_uri, str):
-        raise jwt.PyJWKClientError("issuer has no jwks_uri")
+        raise jwt.PyJWKClientConnectionError("issuer has no jwks_uri")
     return jwks_uri
 
 
 def role_from_claims(claims: dict[str, Any]) -> Role:
-    """Highest Tiles role among the token's roles (Keycloak realm roles or a `roles` list)."""
+    """Highest Tiles role in the token: tiles-admin or tiles-engineer, otherwise viewer.
+
+    Only the tiles- names count, in Keycloak realm roles or a `roles` claim: realm
+    roles are shared by every application in the realm, so a bare "admin" there
+    says nothing about Tiles.
+    """
     roles: set[str] = set()
     realm = claims.get("realm_access")
     if isinstance(realm, dict) and isinstance(realm.get("roles"), list):
@@ -98,7 +108,7 @@ def role_from_claims(claims: dict[str, Any]) -> Role:
     if isinstance(claims.get("roles"), list):
         roles.update(str(r) for r in claims["roles"])
     for role in ("admin", "engineer"):
-        if f"tiles-{role}" in roles or role in roles:
+        if f"tiles-{role}" in roles:
             return role
     return "viewer"
 
