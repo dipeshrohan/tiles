@@ -1,4 +1,4 @@
-# Tiles edge agent image, with the OPC UA connector:
+# Tiles edge agent image, with the OPC UA and MQTT connectors:
 #   docker build -t tiles-edge edge/
 #   docker run -v /etc/tiles-edge:/etc/tiles-edge:ro tiles-edge
 # It runs as UID 10001: give that user the token file (chown 10001), or pass
@@ -15,12 +15,12 @@ ENV UV_COMPILE_BYTECODE=1 \
 
 WORKDIR /app
 
-# Dependencies first (only the opcua extra's), so code changes don't reinstall them.
+# Dependencies first (only the connector extras), so code changes don't reinstall them.
 COPY pyproject.toml uv.lock README.md ./
-RUN uv sync --locked --no-dev --extra opcua --no-install-project
+RUN uv sync --locked --no-dev --extra opcua --extra mqtt --no-install-project
 
 COPY src ./src
-RUN uv sync --locked --no-dev --extra opcua
+RUN uv sync --locked --no-dev --extra opcua --extra mqtt
 
 RUN useradd --system --uid 10001 tiles-edge
 USER tiles-edge

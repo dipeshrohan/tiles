@@ -11,12 +11,14 @@ dependencies = []
 
 [project.optional-dependencies]
 opcua = ["asyncua>=2.1.0"]
+mqtt = ["paho-mqtt>=2.1.0"]
 
 [project.scripts]
 tiles-edge = "tiles_edge.cli:main"
 
 [dependency-groups]
 dev = [
+    "amqtt>=0.12.1",  # an MQTT broker for the tests
     "mypy>=2.4.0",
     "pytest>=9.1.1",
     "ruff>=0.16.10",
@@ -45,6 +47,10 @@ strict = true
 python_version = "3.12"
 files = ["src", "tests"]
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["amqtt.*"]  # the test broker ships no type information
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

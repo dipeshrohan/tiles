@@ -16,4 +16,13 @@ def build(config: Config, sink: SampleSink) -> list[Connector]:
                 "(the container image includes it; the single-file build does not)"
             ) from None
         connectors += [OpcUaConnector(c, sink) for c in config.opcua]
+    if config.mqtt:
+        try:
+            from tiles_edge.mqtt import MqttConnector
+        except ImportError:
+            raise ConfigError(
+                'the config has [[mqtt]] connectors, which need the mqtt extra: pip install "tiles-edge[mqtt]" '
+                "(the container image includes it; the single-file build does not)"
+            ) from None
+        connectors += [MqttConnector(c, sink) for c in config.mqtt]
     return connectors

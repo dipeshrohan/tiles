@@ -81,8 +81,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "check":
         # Try the connectors first, so the heartbeat reports what was just found
         # rather than replacing the running service's statuses with nothing.
+        kinds = {c.name: "opcua" for c in config.opcua} | {c.name: "mqtt" for c in config.mqtt}
         results = {c.name: _try_connector(c) for c in config.opcua}
-        checked: list[Connector] = [_Checked(name, result) for name, result in results.items()]
+        if config.mqtt:
+            from tiles_edge.mqtt import MqttConnector
+
+            results |= {c.name: MqttConnector(c, MemoryBuffer()).try_once() for c in config.mqtt}
+        checked: list[Connector] = [_Checked(name, kinds[name], result) for name, result in results.items()]
         try:
             answer = Agent(config, agent.client, connectors=checked).heartbeat()
         except TransientError as e:
@@ -108,8 +113,9 @@ def main(argv: list[str] | None = None) -> int:
 class _Checked:
     """A connector's result from `check`, reported in check's heartbeat."""
 
-    def __init__(self, name: str, result: str) -> None:
+    def __init__(self, name: str, kind: str, result: str) -> None:
         self.name = name
+        self.kind = kind
         self.result = result
 
     def start(self) -> None:
@@ -121,7 +127,7 @@ class _Checked:
     def status(self) -> dict[str, str]:
         ok = self.result == "ok"
         detail = "connected (tiles-edge check)" if ok else f"{self.result} (tiles-edge check)"
-        return {"name": self.name, "kind": "opcua", "status": "ok" if ok else "down", "detail": detail[:500]}
+        return {"name": self.name, "kind": self.kind, "status": "ok" if ok else "down", "detail": detail[:500]}
 
 
 def _try_connector(config: OpcUaConfig) -> str:
