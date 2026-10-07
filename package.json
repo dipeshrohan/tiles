@@ -1,0 +1,14 @@
+{
+  "name": "tiles",
+  "version": "0.1.0",
+  "description": "Tiles — industrial intelligence: physics models fused with live plant data for R&D and the shopfloor.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
