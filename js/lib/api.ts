@@ -58,6 +58,14 @@ function errorMessage(body: unknown, status: number): string {
   return `The Tiles API answered ${status}`;
 }
 
+export const isHttpUrl = (url: string): boolean => /^https?:\/\/[^\s/]+/i.test(url);
+
+// A /health answer really from the Tiles API (another service may answer too).
+export function isTilesHealth(body: unknown): body is ApiHealth {
+  const h = body as Partial<ApiHealth> | null;
+  return h?.status === 'ok' && typeof h.version === 'string' && typeof h.env === 'string';
+}
+
 export function normalizeBaseUrl(url: string): string {
   return url.trim().replace(/\/+$/, '');
 }
@@ -143,6 +151,6 @@ export function resolveDataSource(saved: Partial<DataSource> | null, search: str
   if (source.mode !== 'local' && source.mode !== 'api') source.mode = 'local';
   const param = new URLSearchParams(search).get('api');
   if (param === 'local') return { ...source, mode: 'local' };
-  if (param && /^https?:\/\//i.test(param)) return { mode: 'api', apiUrl: normalizeBaseUrl(param) };
+  if (param && isHttpUrl(param)) return { mode: 'api', apiUrl: normalizeBaseUrl(param) };
   return source;
 }
