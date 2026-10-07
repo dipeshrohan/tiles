@@ -2,7 +2,8 @@
 
 import logging
 import time
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from importlib.metadata import version
 from typing import Literal
 
@@ -13,8 +14,10 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from tiles_api import readiness
+from tiles_api.api_ontology import router as ontology_router
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
 from tiles_api.settings import Settings, get_settings
+from tiles_api.store import close_pool
 
 log = logging.getLogger("tiles_api")
 
@@ -36,7 +39,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level)
 
-    app = FastAPI(title="Tiles API", version=VERSION)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        yield
+        close_pool(app.state)
+
+    app = FastAPI(title="Tiles API", version=VERSION, lifespan=lifespan)
+    app.state.settings = settings
+    app.state.pool = None
 
     @app.middleware("http")
     async def request_context(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
@@ -88,6 +98,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body = Ready(status="ok" if ok else "unavailable", checks=checks)
         return JSONResponse(body.model_dump(), status_code=200 if ok else 503)
 
+    app.include_router(ontology_router)
     return app
 
 

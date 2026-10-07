@@ -41,11 +41,12 @@ services:
       timeout: 3s
       retries: 30
 
-  # Applies database migrations, then exits; the API starts only if it succeeds.
+  # Applies database migrations and creates the demo site, then exits; the
+  # API starts only if it succeeds.
   migrate:
     build: ./api
     image: tiles-api:dev
-    command: ['tiles-migrate', 'upgrade']
+    command: ['sh', '-c', 'tiles-migrate upgrade && tiles-seed']
     environment:
       TILES_DATABASE_URL: postgresql://tiles:${TILES_DB_PASSWORD:-tiles-dev}@db:5432/tiles
     depends_on:
