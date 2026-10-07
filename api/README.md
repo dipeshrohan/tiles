@@ -86,8 +86,8 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 
 Each site member is a viewer, engineer or admin; organisation admins (`users.org_admin`) are admins on every site.
 
-- **Viewers** can read the ontology (graph, staged changes, history, health).
-- **Engineers** can also stage, discard, commit and revert. Every write endpoint checks this and answers 403 otherwise.
+- **Viewers** can read the ontology (graph, staged changes, history, health). They can also discard their own staged changes, which matters when an engineer is demoted with work still staged.
+- **Engineers** can also stage, commit and revert. Every other write endpoint checks this and answers 403 otherwise.
 - **Admins** can also change other members' roles.
 
 | Method and path (under `/sites/{site_id}`) | Does |
