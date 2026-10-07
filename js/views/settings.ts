@@ -1,5 +1,12 @@
 import { esc, field, need, onAll, onSubmit } from '../lib/dom.ts';
-import { createApiClient, isHttpUrl, isTilesHealth, normalizeBaseUrl, type AuditEntry } from '../lib/api.ts';
+import {
+  createApiClient,
+  isHttpUrl,
+  isTilesHealth,
+  normalizeBaseUrl,
+  type AuditEntry,
+  type EdgeAgent,
+} from '../lib/api.ts';
 import type { Context, View } from './types.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
@@ -38,6 +45,10 @@ export function describeAudit(e: AuditEntry): string {
       return `Reverted commit ${(e.before as { reverted?: string } | null)?.reverted ?? ''}`;
     case 'member.role':
       return `Changed a member's role from ${role(e.before)} to ${role(e.after)}`;
+    case 'agent.register':
+      return `Registered edge agent ${(e.after as { name?: string } | null)?.name ?? ''}`;
+    case 'agent.revoke':
+      return `Revoked edge agent ${(e.before as { name?: string } | null)?.name ?? ''}`;
     default:
       return `${e.action} ${e.entity_type} ${e.entity_id}`;
   }
@@ -68,6 +79,136 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
   } catch {
     box.innerHTML = '<p class="small soft">The audit log could not be loaded.</p>';
   }
+}
+
+// A just-registered agent's token, shown until dismissed: Tiles never shows it again.
+// It belongs to the API, site and admin it was created for, and is dropped as
+// soon as any of them changes (another API or site, another user, signing out).
+interface Revealed {
+  name: string;
+  token: string;
+  apiUrl: string;
+  siteId: string;
+  user: string;
+}
+let revealed: Revealed | null = null;
+
+// Who is looking: whether they are signed in, and as whom.
+function viewer(ctx: Context): string {
+  return `${ctx.auth.signedIn ? 'signed-in' : 'dev'}:${ctx.state.user.email}`;
+}
+
+export function tokenStillShown(
+  r: Revealed | null,
+  apiUrl: string | undefined,
+  siteId: string | undefined,
+  admin: boolean,
+  user: string,
+): r is Revealed {
+  return !!r && admin && r.apiUrl === apiUrl && r.siteId === siteId && r.user === user;
+}
+
+function agentsCard(admin: boolean): string {
+  return `<div class="card stack" id="agents" style="gap:12px;grid-column:1 / -1">
+      <h2>Edge agents</h2>
+      <p class="small soft">Agents run on the plant network and send data out to Tiles; they open no ports. Each one reports a heartbeat, so you can see whether it is online. See <code>edge/README.md</code> to install one.</p>
+      <div data-agent-token aria-live="polite"></div>
+      <div data-agent-rows aria-live="polite"><p class="small soft">Loading…</p></div>
+      ${
+        admin
+          ? `<form class="row" id="agent-form" style="gap:8px;flex-wrap:wrap">
+          <label class="field" style="flex:1;min-width:200px">New agent name<input type="text" name="name" placeholder="e.g. press-shop-edge" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="Letters, digits, dot, dash or underscore; up to 63" required /></label>
+          <div style="align-self:end"><button class="btn primary" type="submit">Register agent</button></div>
+        </form>`
+          : ''
+      }
+    </div>`;
+}
+
+function agentStatus(a: EdgeAgent): string {
+  const tone = a.status === 'online' ? 'good' : a.status === 'offline' ? 'bad' : '';
+  return `<span class="badge ${tone}">${esc(a.status)}</span>`;
+}
+
+function showToken(root: HTMLElement, ctx: Context): void {
+  const box = root.querySelector('[data-agent-token]');
+  if (!box) return;
+  const admin = ctx.ontology.role === 'admin';
+  if (!tokenStillShown(revealed, ctx.api?.baseUrl, ctx.ontology.site?.id, admin, viewer(ctx))) revealed = null;
+  if (!revealed) {
+    box.innerHTML = '';
+    return;
+  }
+  const config = `[tiles]\nurl = "${revealed.apiUrl}"\ntoken_file = "token"\n\n[agent]\nheartbeat_seconds = 30`;
+  box.innerHTML = `<div class="stack" style="gap:8px">
+      <p><b>Token for ${esc(revealed.name)}.</b> Copy it now: Tiles keeps only its hash and won't show it again. Save it as <code>token</code> next to the agent's config file, readable only by the agent.</p>
+      <pre class="code-block" data-token>${esc(revealed.token)}</pre>
+      <p class="small soft">Config file (<code>tiles-edge.toml</code>):</p>
+      <pre class="code-block">${esc(config)}</pre>
+      <div><button class="btn" type="button" data-token-done>Done, I've saved it</button></div>
+    </div>`;
+  onAll(box, '[data-token-done]', 'click', () => {
+    revealed = null;
+    showToken(root, ctx);
+  });
+}
+
+async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
+  const box = root.querySelector('[data-agent-rows]');
+  const site = ctx.ontology.site;
+  const api = ctx.api;
+  if (!box || !site || !api) return;
+  const admin = ctx.ontology.role === 'admin';
+  let agents: EdgeAgent[];
+  try {
+    agents = await api.agents.list(site.id);
+  } catch {
+    box.innerHTML = '<p class="small soft">The agents could not be loaded.</p>';
+    return;
+  }
+  box.innerHTML = agents.length
+    ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${agents
+        .map(
+          (a) =>
+            `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'}</td><td>${esc(a.hostname ?? '—')}</td><td>${esc(a.version ?? '—')}</td>${
+              admin
+                ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>`
+                : ''
+            }</tr>`,
+        )
+        .join('')}</tbody></table></div>`
+    : '<p class="small soft">No agents registered for this site yet.</p>';
+  onAll(box, '[data-revoke-agent]', 'click', (el) => {
+    const name = el.dataset.agentName ?? '';
+    if (!confirm(`Revoke ${name}? Its token stops working at once.`)) return;
+    api.agents.revoke(site.id, el.dataset.revokeAgent ?? '').then(
+      () => {
+        ctx.toast(`Revoked ${name}`);
+        return fillAgents(root, ctx);
+      },
+      () => undefined, // the client already showed why
+    );
+  });
+}
+
+function bindAgents(root: HTMLElement, ctx: Context): void {
+  const site = ctx.ontology.site;
+  const api = ctx.api;
+  if (!site || !api || !root.querySelector('#agents')) return;
+  showToken(root, ctx);
+  void fillAgents(root, ctx);
+  onSubmit(root, '#agent-form', (form) => {
+    const name = field(form, 'name').trim();
+    api.agents.register(site.id, name).then(
+      ({ token }) => {
+        revealed = { name, token, apiUrl: api.baseUrl, siteId: site.id, user: viewer(ctx) };
+        form.reset();
+        showToken(root, ctx);
+        return fillAgents(root, ctx);
+      },
+      () => undefined, // the client already showed why
+    );
+  });
 }
 
 const view: View = {
@@ -102,6 +243,7 @@ const view: View = {
           <p class="small soft" data-api-status aria-live="polite"></p>
         </form>
         ${ds.mode === 'api' ? accountCard(ctx) : ''}
+        ${ctx.ontology.site ? agentsCard(ctx.ontology.role === 'admin') : ''}
         ${ctx.ontology.role === 'admin' ? auditCard() : ''}
       </div>`;
   },
@@ -137,6 +279,7 @@ const view: View = {
       }
     });
     if (ctx.ontology.role === 'admin') void fillAudit(root, ctx);
+    bindAgents(root, ctx);
     onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());
     onAll(root, '[data-sign-out]', 'click', () => void ctx.auth.signOut());
     onAll(root, '[data-reset]', 'click', () => {

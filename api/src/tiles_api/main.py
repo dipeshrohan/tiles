@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from tiles_api import readiness
+from tiles_api.api_agents import router as agents_router
 from tiles_api.api_auth import router as auth_router
 from tiles_api.api_members import router as members_router
 from tiles_api.api_ontology import router as ontology_router
@@ -103,6 +104,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(ontology_router)
     app.include_router(members_router)
+    app.include_router(agents_router)
     return app
 
 

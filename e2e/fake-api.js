@@ -28,6 +28,7 @@ export function createFakeApi({
   let history = [];
   const staged = new Map(); // email -> Op[]
   const requests = [];
+  const agents = []; // { id, name, token, created_at, last_seen_at, hostname, version }
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
@@ -119,9 +120,45 @@ export function createFakeApi({
     try {
       if (url.pathname === '/health') return send(200, { status: 'ok', version: 'fake', env: 'test' });
       if (url.pathname === '/sites') return send(200, [site]);
-      if (!url.pathname.startsWith(base) && url.pathname !== `/sites/${site.id}/me` && !url.pathname.endsWith('/audit'))
+      const agentsPath = `/sites/${site.id}/agents`;
+      if (
+        !url.pathname.startsWith(base) &&
+        url.pathname !== `/sites/${site.id}/me` &&
+        !url.pathname.endsWith('/audit') &&
+        !url.pathname.startsWith(agentsPath)
+      )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
+      if (url.pathname.startsWith(agentsPath)) {
+        const shown = (a) => ({
+          id: a.id,
+          name: a.name,
+          created_at: a.created_at,
+          last_seen_at: a.last_seen_at,
+          status: a.last_seen_at ? 'online' : 'never seen',
+          version: a.version,
+          hostname: a.hostname,
+          connectors: [],
+        });
+        if (req.method === 'GET') return send(200, agents.map(shown));
+        if (role !== 'admin')
+          return send(403, { detail: `Your role on this site is ${role}; this needs admin or above` });
+        if (req.method === 'POST') {
+          const { name } = await body(req);
+          if (agents.some((a) => a.name === name))
+            return send(409, { detail: `An agent named ${name} already exists` });
+          const agent = { id: randomUUID(), name, token: `tla_${randomUUID()}`, created_at: new Date().toISOString() };
+          Object.assign(agent, { last_seen_at: null, version: null, hostname: null });
+          agents.push(agent);
+          return send(201, { agent: shown(agent), token: agent.token });
+        }
+        const i = agents.findIndex((a) => url.pathname === `${agentsPath}/${a.id}`);
+        if (req.method === 'DELETE' && i >= 0) {
+          agents.splice(i, 1);
+          return send(204);
+        }
+        return send(404, { detail: 'No such agent on this site' });
+      }
       if (url.pathname === `/sites/${site.id}/audit`)
         return role === 'admin'
           ? send(200, audit)
@@ -190,6 +227,12 @@ export function createFakeApi({
     server,
     requests,
     bearersSeen,
+    // Lets a test play an edge agent sending a heartbeat with its token.
+    heartbeat(token, hostname = 'edge-01') {
+      const agent = agents.find((a) => a.token === token);
+      if (!agent) throw new Error('unknown agent token');
+      Object.assign(agent, { last_seen_at: new Date().toISOString(), version: '0.1.0', hostname });
+    },
     // Lets a test change a user's role, as a site admin would.
     setRole(user, role) {
       roles[user] = role;

@@ -25,6 +25,7 @@ TABLES = {
     "models",
     "runs",
     "audit_log",
+    "edge_agents",
 }
 
 
@@ -273,7 +274,7 @@ def test_alembic_config_escapes_percent_in_passwords() -> None:
 
 
 def test_next_revision_id_follows_the_head() -> None:
-    assert next_revision_id(alembic_config(Settings())) == "0003"
+    assert next_revision_id(alembic_config(Settings())) == "0004"
 
 
 def test_migrate_command_upgrades_and_reports(database_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -309,3 +310,22 @@ def test_downgrading_isa95_types_refuses_while_they_are_in_use(database_url: str
         c.execute("DELETE FROM orgs WHERE slug = 'isa'")
     downgrade(settings, "0001")
     upgrade(settings)
+
+
+def test_edge_agents_keep_names_unique_among_active_agents(conn: psycopg.Connection[dict[str, object]]) -> None:
+    org = conn.execute("INSERT INTO orgs (slug, name) VALUES ('ea', 'Ea') RETURNING id").fetchone()
+    assert org
+    site = conn.execute(
+        "INSERT INTO sites (org_id, slug, name) VALUES (%s, 'p', 'P') RETURNING id", [org["id"]]
+    ).fetchone()
+    assert site
+    insert = "INSERT INTO edge_agents (org_id, site_id, name, token_hash) VALUES (%s, %s, %s, %s)"
+    conn.execute(insert, [org["id"], site["id"], "edge-01", b"a" * 32])
+    conn.execute("UPDATE edge_agents SET revoked_at = now()")
+    conn.execute(insert, [org["id"], site["id"], "edge-01", b"b" * 32])  # the revoked one doesn't count
+    with pytest.raises(psycopg.errors.UniqueViolation), conn.transaction():
+        conn.execute(insert, [org["id"], site["id"], "edge-01", b"c" * 32])
+    with pytest.raises(psycopg.errors.CheckViolation), conn.transaction():
+        conn.execute(insert, [org["id"], site["id"], "edge-02", b"short"])
+    with pytest.raises(psycopg.errors.CheckViolation), conn.transaction():
+        conn.execute(insert, [org["id"], site["id"], "bad name", b"d" * 32])
