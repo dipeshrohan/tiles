@@ -9,16 +9,16 @@ const E = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${t
 
 export function seedOntology() {
   const ops = [
-    N('site-nk', 'Site', 'Northkoping Cell Plant', { location: 'Northkoping, SE', capacityGWh: 16 }),
+    N('site-nk', 'Site', 'Demo Cell Plant', { location: 'Plant A' }),
     N('wc-elec', 'Workcenter', 'Electrode'),
     N('wc-asm', 'Workcenter', 'Cell Assembly'),
     N('wc-cast', 'Workcenter', 'Housing Casting'),
     N('ln-cut1', 'Line', 'Cutting Line 1'),
     N('ln-weld2', 'Line', 'Welding Line 2'),
     N('ln-dc1', 'Line', 'Die-cast Line 1'),
-    N('m-cut01', 'Machine', 'Notching Cutter C-01', { vendor: 'Kestrel', model: 'NX-400' }),
-    N('m-weld03', 'Machine', 'Tab Welder W-03', { vendor: 'Sonora', model: 'US-20k' }),
-    N('m-dc02', 'Machine', 'Die-caster DC-02', { vendor: 'Halvard', model: 'HC-1600' }),
+    N('m-cut01', 'Machine', 'Notching Cutter C-01', { vendor: 'Vendor A', model: 'A-100' }),
+    N('m-weld03', 'Machine', 'Tab Welder W-03', { vendor: 'Vendor B', model: 'B-200' }),
+    N('m-dc02', 'Machine', 'Die-caster DC-02', { vendor: 'Vendor C', model: 'C-300' }),
     N('p-notch', 'Process', 'Electrode notching'),
     N('p-weld', 'Process', 'Ultrasonic tab welding'),
     N('p-shot', 'Process', 'High-pressure die casting'),
@@ -73,20 +73,20 @@ export function seedOntology() {
   for (const op of base) repo = stage(repo, op);
   repo = commit(repo, {
     message: 'Import site hierarchy from MES',
-    author: 'ingest-agent@tiles',
+    author: 'ingest-agent',
     date: '2026-09-02T08:10:00Z',
   });
   for (const op of ops.filter((o) => !base.includes(o))) repo = stage(repo, op);
   repo = commit(repo, {
     message: 'Register plunger friction virtual sensor',
-    author: 'lena@tiles.dev',
+    author: 'engineer@example.com',
     date: '2026-09-18T14:32:00Z',
   });
   // A stray node left behind by an ingest, so the health check has something to find.
   repo = stage(repo, N('sig-legacy', 'Signal', 'TEMP_TAG_0042', {}));
   repo = commit(repo, {
     message: 'Agentic ingestion: historian tags batch 7',
-    author: 'ingest-agent@tiles',
+    author: 'ingest-agent',
     date: '2026-09-29T06:05:00Z',
   });
   return repo;

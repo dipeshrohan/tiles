@@ -287,16 +287,16 @@ const E = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${t
 
 function seedOntology() {
   const ops = [
-    N('site-nk', 'Site', 'Northkoping Cell Plant', { location: 'Northkoping, SE', capacityGWh: 16 }),
+    N('site-nk', 'Site', 'Demo Cell Plant', { location: 'Plant A' }),
     N('wc-elec', 'Workcenter', 'Electrode'),
     N('wc-asm', 'Workcenter', 'Cell Assembly'),
     N('wc-cast', 'Workcenter', 'Housing Casting'),
     N('ln-cut1', 'Line', 'Cutting Line 1'),
     N('ln-weld2', 'Line', 'Welding Line 2'),
     N('ln-dc1', 'Line', 'Die-cast Line 1'),
-    N('m-cut01', 'Machine', 'Notching Cutter C-01', { vendor: 'Kestrel', model: 'NX-400' }),
-    N('m-weld03', 'Machine', 'Tab Welder W-03', { vendor: 'Sonora', model: 'US-20k' }),
-    N('m-dc02', 'Machine', 'Die-caster DC-02', { vendor: 'Halvard', model: 'HC-1600' }),
+    N('m-cut01', 'Machine', 'Notching Cutter C-01', { vendor: 'Vendor A', model: 'A-100' }),
+    N('m-weld03', 'Machine', 'Tab Welder W-03', { vendor: 'Vendor B', model: 'B-200' }),
+    N('m-dc02', 'Machine', 'Die-caster DC-02', { vendor: 'Vendor C', model: 'C-300' }),
     N('p-notch', 'Process', 'Electrode notching'),
     N('p-weld', 'Process', 'Ultrasonic tab welding'),
     N('p-shot', 'Process', 'High-pressure die casting'),
@@ -351,20 +351,20 @@ function seedOntology() {
   for (const op of base) repo = stage(repo, op);
   repo = commit(repo, {
     message: 'Import site hierarchy from MES',
-    author: 'ingest-agent@tiles',
+    author: 'ingest-agent',
     date: '2026-09-02T08:10:00Z',
   });
   for (const op of ops.filter((o) => !base.includes(o))) repo = stage(repo, op);
   repo = commit(repo, {
     message: 'Register plunger friction virtual sensor',
-    author: 'lena@tiles.dev',
+    author: 'engineer@example.com',
     date: '2026-09-18T14:32:00Z',
   });
   // A stray node left behind by an ingest, so the health check has something to find.
   repo = stage(repo, N('sig-legacy', 'Signal', 'TEMP_TAG_0042', {}));
   repo = commit(repo, {
     message: 'Agentic ingestion: historian tags batch 7',
-    author: 'ingest-agent@tiles',
+    author: 'ingest-agent',
     date: '2026-09-29T06:05:00Z',
   });
   return repo;
@@ -584,7 +584,7 @@ function generateShotHistory({ seed = 7, shots = 1600, cycleSeconds = 95 } = {})
   const downtime = episodes.map((e, k) => ({
     id: `DT-${101 + k}`,
     shot: e.end,
-    code: k === 1 ? 'SHT:LUBE' : 'SHT:SZMON',
+    code: k === 1 ? 'DT-LUBRICATION' : 'DT-SEIZURE',
     durationMin: rng.int(50, 180),
   }));
   const baseline = 1800;
@@ -901,21 +901,21 @@ const __default = {
     return `
       <section class="hero">
         <div>
-          <div class="eyebrow" style="color:#a9d6cf">Industrial intelligence</div>
-          <h1>Assembling atoms with bits.</h1>
-          <p>Tiles fuses physics models with live plant data — pointed at the lab for faster design cycles, and at the shopfloor for fewer stops and less scrap. Every answer is traceable to the data, model version and change that produced it.</p>
+          <div class="eyebrow" style="color:#a9d6cf">Tiles</div>
+          <h1>Physics and plant data, in one place.</h1>
+          <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
           <div class="row" style="margin-top:18px">
             <a class="btn primary" href="#/chat" style="background:#fff;color:#173f3c;border-color:#fff">Ask the copilot</a>
             <a class="btn" href="#/physics" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)">See live warnings</a>
           </div>
         </div>
-        <div class="engine" aria-label="The engine">
-          <div class="k">THE ENGINE</div>
+        <div class="engine" aria-label="How it works">
+          <div class="k">HOW IT WORKS</div>
           <div class="pill">Physics models</div>
-          <div class="op">×</div>
+          <div class="op">+</div>
           <div class="pill">Live data</div>
           <div class="op">↓</div>
-          <div class="pill">Agentic workflows</div>
+          <div class="pill">Answers and warnings</div>
         </div>
       </section>
 
@@ -2059,7 +2059,7 @@ const __default = {
           <h3 style="margin-top:12px">Output</h3>
           <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots above median + 4 robust σ</li></ul>
           <h3 style="margin-top:12px">How it is used</h3>
-          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>SHT:SZMON</code>) and is delivered through the warning workflow.</p>
+          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
         </div>
       </div>
 
@@ -2374,11 +2374,13 @@ function freshState() {
     repo: seedOntology(),
     runs: [],
     chat: [],
-    user: { name: 'Alex Lindqvist', email: 'alex@tiles.dev' },
+    user: { name: 'Demo User', email: 'demo@example.com' },
   };
 }
 
-const persisted = load('state', null);
+// Bump the key when seed data changes so saved copies of the old seed are dropped.
+const STATE_KEY = 'state-v2';
+const persisted = load(STATE_KEY, null);
 const shots = generateShotHistory();
 const detection = detectFrictionAlerts(shots.history);
 
@@ -2395,7 +2397,7 @@ const state = {
 };
 
 function persist() {
-  save('state', { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user });
+  save(STATE_KEY, { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user });
 }
 
 // ---- context passed to views -------------------------------------------

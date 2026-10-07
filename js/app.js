@@ -27,11 +27,13 @@ function freshState() {
     repo: seedOntology(),
     runs: [],
     chat: [],
-    user: { name: 'Alex Lindqvist', email: 'alex@tiles.dev' },
+    user: { name: 'Demo User', email: 'demo@example.com' },
   };
 }
 
-const persisted = load('state', null);
+// Bump the key when seed data changes so saved copies of the old seed are dropped.
+const STATE_KEY = 'state-v2';
+const persisted = load(STATE_KEY, null);
 const shots = generateShotHistory();
 const detection = detectFrictionAlerts(shots.history);
 
@@ -48,7 +50,7 @@ const state = {
 };
 
 function persist() {
-  save('state', { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user });
+  save(STATE_KEY, { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user });
 }
 
 // ---- context passed to views -------------------------------------------

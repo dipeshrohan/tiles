@@ -1,7 +1,7 @@
 {
   "name": "tiles",
   "version": "0.1.0",
-  "description": "Tiles \u2014 industrial intelligence: physics models fused with live plant data for R&D and the shopfloor.",
+  "description": "Tiles: factory model, virtual sensors, root-cause analysis and design studies for industrial teams.",
   "type": "module",
   "private": true,
   "scripts": {

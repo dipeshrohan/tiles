@@ -92,7 +92,7 @@ export default {
           <h3 style="margin-top:12px">Output</h3>
           <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots above median + 4 robust σ</li></ul>
           <h3 style="margin-top:12px">How it is used</h3>
-          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>SHT:SZMON</code>) and is delivered through the warning workflow.</p>
+          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
         </div>
       </div>
 

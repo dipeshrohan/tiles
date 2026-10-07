@@ -1,6 +1,6 @@
 # Tiles
 
-**Physics models × live data → agentic workflows, for industrial R&D and the shopfloor.**
+**A workspace for industrial R&D and shopfloor teams: factory model, virtual sensors, root-cause analysis and design studies.**
 
 Tiles is a zero-dependency web app that pairs first-principles physics with plant data. It has two halves:
 
