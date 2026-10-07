@@ -891,6 +891,15 @@ tr.selected td {
   color: var(--soft);
   margin-top: 10px;
 }
+.source-bar {
+  display: flex;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
 .staged-bar {
   display: flex;
   gap: 10px;

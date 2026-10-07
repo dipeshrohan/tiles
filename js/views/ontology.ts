@@ -1,14 +1,6 @@
-import {
-  NODE_TYPES,
-  stage,
-  commit,
-  discard,
-  revert,
-  healthCheck,
-  neighbors,
-  pathTo,
-  diffStats,
-} from '../lib/ontology.ts';
+import { NODE_TYPES, healthCheck, neighbors, pathTo, diffStats } from '../lib/ontology.ts';
+import { historyOps } from '../lib/ontology-store.ts';
+import { seedOntology } from '../lib/data.ts';
 import { esc, field, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
@@ -252,6 +244,32 @@ function touchedIds(op: Op): string[] {
   }
 }
 
+function pageHead(): string {
+  return `
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Operations · Ontology</div>
+          <h1>A map of the factory</h1>
+          <p>Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.</p>
+        </div>
+      </div>`;
+}
+
+// Where this ontology lives, shown only in API mode.
+function sourceBar(ctx: Context): string {
+  const o = ctx.ontology;
+  if (o.status === 'local') return '';
+  if (o.status === 'loading')
+    return '<div class="card source-bar" aria-live="polite">Loading the ontology from the Tiles API…</div>';
+  if (o.status === 'error')
+    return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px"><a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
+  const empty = !Object.keys(ctx.state.repo.head.nodes).length && !ctx.state.repo.history.length;
+  return `<div class="card source-bar small" aria-live="polite">
+      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.</span>
+      <span class="row" style="gap:8px">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<button class="btn sm" data-refresh>Refresh</button></span>
+    </div>`;
+}
+
 const view: View = {
   id: 'ontology',
   title: 'Ontology builder',
@@ -260,6 +278,8 @@ const view: View = {
     const ui = uiState(ctx);
     const { repo } = ctx.state;
     const graph = ctx.graph;
+    const source = sourceBar(ctx);
+    if (ctx.ontology.status === 'loading' || ctx.ontology.status === 'error') return pageHead() + source;
     const health = healthCheck(graph);
     if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 
@@ -288,13 +308,8 @@ const view: View = {
     if (ui.tab === 'health') body = healthTab(health, graph);
 
     return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Ontology</div>
-          <h1>A map of the factory</h1>
-          <p>Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.</p>
-        </div>
-      </div>
+      ${pageHead()}
+      ${source}
       ${stagedBar}
       <div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-tab="${id}" role="tab">${label}</button>`).join('')}</div>
       ${body}`;
@@ -302,15 +317,19 @@ const view: View = {
 
   bind(root, ctx) {
     const ui = uiState(ctx);
-    const run = (fn: (s: Context['state']) => void, ok?: string) => {
-      try {
-        ctx.update(fn);
-        if (ok) ctx.toast(ok);
-      } catch (err) {
-        ctx.toast(err instanceof Error ? err.message : String(err));
-      }
-    };
-    const stageOp = (op: Op, ok?: string) => run((s) => (s.repo = stage(s.repo, op)), ok);
+    const author = ctx.state.user.email;
+    const stageOps = (ops: Op[], ok?: string) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
+    const stageOp = (op: Op, ok?: string) => stageOps([op], ok);
+    onAll(root, '[data-refresh]', 'click', () => void ctx.ontology.reload());
+    onAll(root, '[data-import-demo]', 'click', async (el) => {
+      el.setAttribute('disabled', '');
+      const ops = historyOps(seedOntology());
+      if (await stageOps(ops))
+        await ctx.ontology.act(
+          (store, repo) => store.commit(repo, 'Import demo ontology', author),
+          'Demo ontology imported',
+        );
+    });
     const selected = (): string | null => ui.selected;
 
     onAll(root, '[data-tab]', 'click', (el) => {
@@ -366,15 +385,17 @@ const view: View = {
     onAll(root, '[data-fix-delete]', 'click', (el) => {
       if (el.dataset.fixDelete) stageOp({ kind: 'removeNode', id: el.dataset.fixDelete }, 'Node deletion staged');
     });
-    onAll(root, '[data-discard]', 'click', () => run((s) => (s.repo = discard(s.repo)), 'Changes discarded'));
+    onAll(root, '[data-discard]', 'click', () =>
+      ctx.ontology.act((store, repo) => store.discard(repo), 'Changes discarded'),
+    );
     onAll(root, '[data-revert]', 'click', (el) => {
       const id = el.dataset.revert;
-      if (id) run((s) => (s.repo = revert(s.repo, id, { author: s.user.email })), 'Commit reverted');
+      if (id) void ctx.ontology.act((store, repo) => store.revert(repo, id, author), 'Commit reverted');
     });
 
     onSubmit(root, '#commit-form', (form) => {
       const message = field(form, 'message');
-      run((s) => (s.repo = commit(s.repo, { message, author: s.user.email })), 'Committed');
+      void ctx.ontology.act((store, repo) => store.commit(repo, message, author), 'Committed');
     });
     onSubmit(root, '#prop-form', (form) => {
       const id = selected();
@@ -404,12 +425,14 @@ const view: View = {
       for (let k = 2; ctx.graph.nodes[id]; k++) id = `${type.toLowerCase()}-${slug}-${k}`;
       const from = field(form, 'from');
       const rel = field(form, 'rel');
-      run((s) => {
-        let repo = stage(s.repo, { kind: 'addNode', node: { id, type, label, props: {} } });
-        if (from) repo = stage(repo, { kind: 'addEdge', edge: { id: `${from}-${rel}-${id}`, from, rel, to: id } });
-        s.repo = repo;
-        ui.selected = id;
-      }, 'Node staged — commit to save it');
+      const ops: Op[] = [{ kind: 'addNode', node: { id, type, label, props: {} } }];
+      if (from) ops.push({ kind: 'addEdge', edge: { id: `${from}-${rel}-${id}`, from, rel, to: id } });
+      void stageOps(ops, 'Node staged — commit to save it').then((ok) => {
+        if (ok) {
+          ui.selected = id;
+          ctx.rerender();
+        }
+      });
     });
   },
 };

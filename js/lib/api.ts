@@ -132,6 +132,8 @@ export type ApiClient = ReturnType<typeof createApiClient>;
 export interface DataSource {
   mode: 'local' | 'api';
   apiUrl: string;
+  // Site to open in API mode; the first one the API lists if unset or gone.
+  siteId?: string;
 }
 
 export const DEFAULT_DATA_SOURCE: DataSource = { mode: 'local', apiUrl: 'http://localhost:8000' };

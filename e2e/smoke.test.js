@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
+import { createFakeApi } from './fake-api.js';
 
 const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'settings'];
 const VARIANTS = [
@@ -93,20 +94,11 @@ test('ontology change can be staged, committed and reverted', async () => {
   await page.close();
 });
 
-test('settings can switch to the Tiles API and test the connection', async () => {
-  // A stand-in API that only answers /health, with the CORS header the real one sends.
-  const { createServer } = await import('node:http');
-  const fakeApi = createServer((req, res) => {
-    res.setHeader('access-control-allow-origin', '*');
-    if (req.url === '/health') {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', version: '9.9.9', env: 'test' }));
-    } else res.writeHead(404).end();
-  });
-  await new Promise((resolve) => fakeApi.listen(0, '127.0.0.1', resolve));
-  const apiUrl = `http://127.0.0.1:${fakeApi.address().port}`;
-
+test('settings can switch to the Tiles API and test the connection', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
   const { page, errors } = await openPage();
+  t.after(() => Promise.all([page.close(), fake.close()]));
   await page.goto(`${httpBase}#/settings`);
   await page.fill('#datasource [name=apiUrl]', 'http://127.0.0.1:1');
   await page.click('[data-test-api]');
@@ -115,7 +107,7 @@ test('settings can switch to the Tiles API and test the connection', async () =>
 
   await page.fill('#datasource [name=apiUrl]', apiUrl);
   await page.click('[data-test-api]');
-  await page.waitForSelector('[data-api-status]:has-text("Connected: Tiles API 9.9.9 (test)")');
+  await page.waitForSelector('[data-api-status]:has-text("Connected: Tiles API fake (test)")');
   await page.check('#datasource [name=mode][value=api]');
   await page.click('#datasource button[type=submit]');
   await page.reload();
@@ -127,6 +119,70 @@ test('settings can switch to the Tiles API and test the connection', async () =>
     errors.filter((e) => !/Failed to load resource|ERR_CONNECTION_REFUSED|ERR_UNSAFE_PORT/.test(e)),
     [],
   );
-  await page.close();
-  fakeApi.close();
+});
+
+test('ontology page in API mode: import, commit, and see another user’s commits after refresh', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const open = async () => {
+    const { page, errors } = await openPage();
+    t.after(() => page.close());
+    await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+    return { page, errors };
+  };
+
+  const a = await open();
+  await a.page.click('[data-import-demo]');
+  await a.page.waitForSelector('#toast:has-text("Demo ontology imported")');
+  assert.match(await a.page.locator('.source-bar').innerText(), /Shared through the Tiles API · Plant 1/);
+  await a.page.click('[data-tab=history]');
+  assert.match(await a.page.locator('.commit').first().innerText(), /Import demo ontology/);
+
+  // A second browser sees the shared history straight away.
+  const b = await open();
+  await b.page.click('[data-tab=history]');
+  assert.match(await b.page.locator('.commit').first().innerText(), /Import demo ontology/);
+
+  // Browser A stages and commits; staged changes stay private until then.
+  await a.page.click('[data-tab=canvas]');
+  await a.page.fill('#node-form [name=label]', 'Alarm stream DC-02');
+  await a.page.selectOption('#node-form [name=type]', 'Signal');
+  await a.page.click('#node-form button');
+  await a.page.waitForSelector('#commit-form');
+  await b.page.click('[data-refresh]');
+  assert.equal(await b.page.locator('#commit-form').count(), 0);
+  await a.page.fill('#commit-form [name=message]', 'add alarms node');
+  await a.page.click('#commit-form button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("Committed")');
+
+  // Someone else commits through the API too; B refreshes and sees both.
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'doc-x', type: 'Document', label: 'Shift notes', props: {} } }],
+    'add shift notes',
+  );
+  await b.page.click('[data-refresh]');
+  await b.page.click('[data-tab=history]');
+  const messages = await b.page.locator('.commit b').allInnerTexts();
+  assert.deepEqual(messages.slice(0, 3), ['add shift notes', 'add alarms node', 'Import demo ontology']);
+
+  // Revert from B goes through the API and A sees it after a refresh.
+  await b.page.locator('[data-revert]').first().click();
+  await b.page.waitForSelector('#toast:has-text("Commit reverted")');
+  await a.page.click('[data-refresh]');
+  await a.page.click('[data-tab=history]');
+  assert.match(await a.page.locator('.commit').first().innerText(), /Revert "add shift notes"/);
+
+  assert.deepEqual([...a.errors, ...b.errors], []);
+});
+
+test('ontology page explains when the API is unreachable, and local mode is untouched', async (t) => {
+  const { page } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=http://127.0.0.1:1#/ontology`);
+  await page.waitForSelector('.source-bar:has-text("Can\'t load the ontology from the Tiles API")');
+  await page.goto(`${httpBase}?api=local#/ontology`);
+  await page.waitForSelector('#node-form');
+  assert.equal(await page.locator('.source-bar').count(), 0);
 });
