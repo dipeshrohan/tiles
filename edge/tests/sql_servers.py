@@ -88,14 +88,17 @@ def container(name: str, args: list[str]) -> Iterator[None]:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)  # noqa: S603, S607
 
 
-def wait_for(connect: Callable[[], Any], what: str, seconds: float = 120) -> Any:
+def wait_for(connect: Callable[[], Any], what: str, container: str, seconds: float = 180) -> Any:
+    """Connects once the server is up. If it never is, the error carries the container's log."""
     deadline = time.monotonic() + seconds
     while True:
         try:
             return connect()
         except Exception as e:
             if time.monotonic() > deadline:
-                raise AssertionError(f"{what} didn't come up: {e}") from None
+                command = ["docker", "logs", "--tail", "40", container]
+                logs = subprocess.run(command, capture_output=True, text=True, check=False)  # noqa: S603
+                raise AssertionError(f"{what} didn't come up: {e}\n{logs.stdout}{logs.stderr}") from None
             time.sleep(1)
 
 
@@ -124,7 +127,7 @@ def postgres(folder: Path) -> Iterator[Server]:
                 sslmode="verify-full", sslrootcert=str(ca[0]), autocommit=True, connect_timeout=5,
             )  # fmt: skip
 
-        wait_for(lambda: admin().close(), "PostgreSQL")
+        wait_for(lambda: admin().close(), "PostgreSQL", "tiles-edge-test-postgres")
 
         def run(sql: str) -> None:
             with admin() as conn:
@@ -161,7 +164,7 @@ def sqlserver(folder: Path) -> Iterator[Server]:
                 autocommit=True,
             )
 
-        wait_for(lambda: admin("master").close(), "SQL Server")
+        wait_for(lambda: admin("master").close(), "SQL Server", "tiles-edge-test-sqlserver")
 
         def run_in(database: str, sql: str) -> None:
             conn = admin(database)
