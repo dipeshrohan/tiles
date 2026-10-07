@@ -4,16 +4,19 @@ import json
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.rows import dict_row
 
 from tiles_api import ontology as o
 from tiles_api.main import create_app
+from tiles_api.ontology_store import load_head
 from tiles_api.seed import seed
 from tiles_api.settings import Settings
+from tiles_api.store import Conn
 
 FIXTURES = Path(__file__).resolve().parents[2] / "test" / "fixtures" / "ontology-parity.json"
 CASES: list[dict[str, Any]] = json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"]
@@ -243,3 +246,37 @@ def test_null_value_is_refused_but_leaving_it_out_removes_the_property(api: Test
     assert "leave it out" in res.text
     assert api.post(url(site, "staged"), json={"kind": "setProp", "id": "a", "key": "vendor"}).status_code == 201
     assert api.get(url(site, "graph")).json()["nodes"]["a"]["props"] == {}
+
+
+def test_head_graph_is_read_in_one_statement(settings: Settings, site: str) -> None:
+    """Nodes and edges come from one snapshot (see HEAD_SQL), so a commit landing
+    mid-read can't pair old nodes with new edges."""
+
+    class Recording:
+        def __init__(self, conn: Conn) -> None:
+            self.conn = conn
+            self.queries: list[str] = []
+
+        def execute(self, query: Any, params: Any = None) -> Any:
+            self.queries.append(str(query))
+            return self.conn.execute(query, params)
+
+    with psycopg.connect(settings.database_url, row_factory=dict_row) as conn:
+        conn.execute(
+            "INSERT INTO ontology_nodes (site_id, id, type, label)"
+            " VALUES (%s, 'a', 'Line', 'A'), (%s, 'b', 'Line', 'B')",
+            [site, site],
+        )
+        conn.execute(
+            "INSERT INTO ontology_edges (site_id, id, from_id, rel, to_id) VALUES (%s, 'e', 'a', 'feeds', 'b')", [site]
+        )
+        rec = Recording(conn)
+        graph = load_head(cast(Conn, rec), uuid.UUID(site))
+    assert len(rec.queries) == 1
+    assert graph == {
+        "nodes": {
+            "a": {"id": "a", "type": "Line", "label": "A", "props": {}},
+            "b": {"id": "b", "type": "Line", "label": "B", "props": {}},
+        },
+        "edges": {"e": {"id": "e", "from": "a", "rel": "feeds", "to": "b"}},
+    }
