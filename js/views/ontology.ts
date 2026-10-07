@@ -1,5 +1,5 @@
 import { NODE_TYPES, healthCheck, neighbors, pathTo, diffStats } from '../lib/ontology.ts';
-import { historyOps } from '../lib/ontology-store.ts';
+import { historyOps, safeWorkingGraph } from '../lib/ontology-store.ts';
 import { seedOntology } from '../lib/data.ts';
 import { esc, field, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
@@ -263,7 +263,8 @@ function sourceBar(ctx: Context): string {
     return '<div class="card source-bar" aria-live="polite">Loading the ontology from the Tiles API…</div>';
   if (o.status === 'error')
     return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? '<button class="btn sm primary" data-sign-in>Sign in</button>' : ''}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
-  const empty = !Object.keys(ctx.state.repo.head.nodes).length && !ctx.state.repo.history.length;
+  const { head, history, staged } = ctx.state.repo;
+  const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
   return `<div class="card source-bar small" aria-live="polite">
       <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.</span>
       <span class="row" style="gap:8px">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<button class="btn sm" data-refresh>Refresh</button></span>
@@ -283,15 +284,22 @@ const view: View = {
     const health = healthCheck(graph);
     if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 
-    const stagedBar = repo.staged.length
-      ? `<form class="staged-bar" id="commit-form">
+    const { conflict } = safeWorkingGraph(repo);
+    const stagedBar = conflict
+      ? `<div class="staged-bar" role="alert">
+          <span class="badge bad">${repo.staged.length} uncommitted</span>
+          <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
+          <button class="btn" type="button" data-discard>Discard</button>
+        </div>`
+      : repo.staged.length
+        ? `<form class="staged-bar" id="commit-form">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
           <button class="btn primary" type="submit">Commit</button>
           <button class="btn" type="button" data-discard>Discard</button>
         </form>`
-      : '';
+        : '';
 
     const tabs = [
       ['canvas', 'Canvas'],

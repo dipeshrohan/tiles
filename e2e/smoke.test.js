@@ -289,3 +289,62 @@ test('signing in to the Tiles API (OIDC with PKCE), using it, and signing out', 
     [],
   );
 });
+
+test('staged changes invalidated by someone else’s commit can be discarded', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'm1', type: 'Machine', label: 'Press 1', props: {} } }],
+    'add press',
+  );
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.click('[data-node="m1"]');
+  await page.fill('#prop-form [name=key]', 'vendor');
+  await page.fill('#prop-form [name=value]', 'Acme');
+  await page.click('#prop-form button');
+  await page.waitForSelector('#commit-form');
+
+  // Maria deletes the machine; our staged setProp on it no longer applies.
+  fake.commitAs('maria', [{ kind: 'removeNode', id: 'm1' }], 'remove press');
+  await page.click('[data-refresh]');
+  await page.waitForSelector('.staged-bar:has-text("no longer fit")');
+  assert.match(await page.locator('.staged-bar').innerText(), /Node m1 not found/);
+  await page.click('.staged-bar [data-discard]');
+  await page.waitForSelector('#toast:has-text("Changes discarded")');
+  assert.equal(await page.locator('.staged-bar').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('API placeholders and late API answers never replace this browser’s ontology', async (t) => {
+  const fake = createFakeApi({ slowWritesMs: 1500 });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/ontology`);
+  await page.click('[data-tab=history]');
+  const localCommits = await page.locator('.commit').count();
+
+  // 1. Saving the profile while the API is unreachable keeps the local ontology.
+  await page.goto(`${httpBase}?api=http://127.0.0.1:1#/settings`);
+  await page.waitForSelector('#profile');
+  await page.fill('#profile [name=name]', 'Renamed User');
+  await page.click('#profile button[type=submit]');
+
+  // 2. A slow API write that lands after switching back to local is ignored.
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.click('[data-import-demo]'); // answered after 1.5 s
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.check('#datasource [name=mode][value=local]');
+  await page.click('#datasource button[type=submit]');
+  await page.waitForTimeout(2500);
+
+  await page.goto(`${httpBase}?api=local#/ontology`);
+  await page.click('[data-tab=history]');
+  assert.equal(await page.locator('.commit').count(), localCommits);
+  assert.equal(await page.locator('#commit-form').count(), 0); // nothing from the API was staged locally
+});

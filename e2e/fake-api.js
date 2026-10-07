@@ -9,7 +9,13 @@ import { applyOp, commit, createRepo, revert, stage, workingGraph, healthCheck }
 // With `oidc`, it is also a tiny sign-in provider at /idp that approves every
 // request, checks PKCE, and issues opaque tokens the API accepts. With
 // `requireSignIn`, requests without a token get 401, as in production.
-export function createFakeApi({ oidc = false, requireSignIn = false, signedInAs = 'ana@example.com' } = {}) {
+// `slowWritesMs` delays batch staging, to test answers that arrive late.
+export function createFakeApi({
+  oidc = false,
+  requireSignIn = false,
+  signedInAs = 'ana@example.com',
+  slowWritesMs = 0,
+} = {}) {
   let origin = '';
   const codes = new Map(); // code -> { challenge, redirectUri }
   const tokens = new Set();
@@ -110,6 +116,13 @@ export function createFakeApi({ oidc = false, requireSignIn = false, signedInAs 
       if (path === '/graph') return send(200, url.searchParams.get('view') === 'head' ? head : workingGraph(repo));
       if (path === '/health') return send(200, healthCheck(head));
       if (path === '/staged' && req.method === 'GET') return send(200, repo.staged);
+      if (path === '/staged/batch' && req.method === 'POST') {
+        if (slowWritesMs) await new Promise((r) => setTimeout(r, slowWritesMs));
+        let next = repo;
+        for (const op of await body(req)) next = stage(next, op); // throws before anything is kept
+        staged.set(user, next.staged);
+        return send(201, next.staged);
+      }
       if (path === '/staged' && req.method === 'POST') {
         const next = stage(repo, await body(req));
         staged.set(user, next.staged);

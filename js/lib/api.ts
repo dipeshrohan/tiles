@@ -137,6 +137,8 @@ export function createApiClient(options: ApiOptions) {
         request<Graph>('GET', `${site(siteId)}/graph?view=${view}`),
       staged: (siteId: string) => request<Op[]>('GET', `${site(siteId)}/staged`),
       stage: (siteId: string, op: Op) => request<Op[]>('POST', `${site(siteId)}/staged`, op),
+      // All or none: the API stages every op or, if one doesn't fit, none.
+      stageMany: (siteId: string, ops: Op[]) => request<Op[]>('POST', `${site(siteId)}/staged/batch`, ops),
       discard: (siteId: string) => request<void>('DELETE', `${site(siteId)}/staged`),
       commit: (siteId: string, message: string) => request<Commit>('POST', `${site(siteId)}/commits`, { message }),
       history: (siteId: string, { limit = 50, offset = 0 } = {}) =>

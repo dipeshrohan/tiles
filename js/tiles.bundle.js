@@ -807,6 +807,7 @@
 				graph: (siteId, view = "working") => request("GET", `${site(siteId)}/graph?view=${view}`),
 				staged: (siteId) => request("GET", `${site(siteId)}/staged`),
 				stage: (siteId, op) => request("POST", `${site(siteId)}/staged`, op),
+				stageMany: (siteId, ops) => request("POST", `${site(siteId)}/staged/batch`, ops),
 				discard: (siteId) => request("DELETE", `${site(siteId)}/staged`),
 				commit: (siteId, message) => request("POST", `${site(siteId)}/commits`, { message }),
 				history: (siteId, { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/commits?limit=${limit}&offset=${offset}`),
@@ -1028,7 +1029,7 @@
 			load,
 			async stage(repo, ops) {
 				applyOps(workingGraph(repo), ops);
-				for (const op of ops) await o.stage(site.id, op);
+				await o.stageMany(site.id, ops);
 				return load();
 			},
 			async discard() {
@@ -1044,6 +1045,19 @@
 				return load();
 			}
 		};
+	}
+	function safeWorkingGraph(repo) {
+		try {
+			return {
+				graph: workingGraph(repo),
+				conflict: null
+			};
+		} catch (e) {
+			return {
+				graph: repo.head,
+				conflict: e instanceof Error ? e.message : String(e)
+			};
+		}
 	}
 	async function pickSite(api, preferred) {
 		const sites = await api.sites();
@@ -1915,7 +1929,8 @@
 		if (o.status === "local") return "";
 		if (o.status === "loading") return "<div class=\"card source-bar\" aria-live=\"polite\">Loading the ontology from the Tiles API…</div>";
 		if (o.status === "error") return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? "<button class=\"btn sm primary\" data-sign-in>Sign in</button>" : ""}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
-		const empty = !Object.keys(ctx.state.repo.head.nodes).length && !ctx.state.repo.history.length;
+		const { head, history, staged } = ctx.state.repo;
+		const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
 		return `<div class="card source-bar small" aria-live="polite">
       <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.</span>
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<button class="btn sm" data-refresh>Refresh</button></span>
@@ -1933,7 +1948,12 @@
 			if (ctx.ontology.status === "loading" || ctx.ontology.status === "error") return pageHead() + source;
 			const health = healthCheck(graph);
 			if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
-			const stagedBar = repo.staged.length ? `<form class="staged-bar" id="commit-form">
+			const { conflict } = safeWorkingGraph(repo);
+			const stagedBar = conflict ? `<div class="staged-bar" role="alert">
+          <span class="badge bad">${repo.staged.length} uncommitted</span>
+          <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
+          <button class="btn" type="button" data-discard>Discard</button>
+        </div>` : repo.staged.length ? `<form class="staged-bar" id="commit-form">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
@@ -2863,7 +2883,7 @@
 	};
 	function persist() {
 		save(STATE_KEY, {
-			repo: remote ? localRepo : state.repo,
+			repo: ontologyStatus === "local" ? state.repo : localRepo,
 			runs: state.runs,
 			chat: state.chat.slice(-60),
 			user: state.user
@@ -2921,13 +2941,17 @@
 				toast("The ontology is still loading from the Tiles API");
 				return false;
 			}
+			const seq = connectSeq;
 			try {
-				state.repo = await change(store, state.repo);
+				const next = await change(store, state.repo);
+				if (seq !== connectSeq) return false;
+				state.repo = next;
 				persist();
 				render();
 				if (ok) toast(ok);
 				return true;
 			} catch (e) {
+				if (seq !== connectSeq) return false;
 				if (!(e instanceof ApiError)) toast(e instanceof Error ? e.message : String(e));
 				if (remote) await ontologyCtx.reload();
 				return false;
@@ -2935,8 +2959,11 @@
 		},
 		async reload() {
 			if (!remote) return;
+			const seq = connectSeq;
 			try {
-				state.repo = await remote.load();
+				const repo = await remote.load();
+				if (seq !== connectSeq) return;
+				state.repo = repo;
 			} catch {}
 			render();
 		}
@@ -2989,7 +3016,7 @@
 	var ctx = {
 		state,
 		get graph() {
-			return workingGraph(state.repo);
+			return safeWorkingGraph(state.repo).graph;
 		},
 		update(mutate, { rerender = true } = {}) {
 			const email = state.user.email;
