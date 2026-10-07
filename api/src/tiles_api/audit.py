@@ -13,6 +13,9 @@ from tiles_api.logging import request_id_var
 from tiles_api.store import Conn
 
 
+# `at` is clock_timestamp(), when the write happened, rather than the column
+# default now(), which is when the transaction began (possibly before it waited
+# for a lock).
 def record(
     conn: Conn,
     *,
@@ -29,8 +32,8 @@ def record(
     conn.execute(
         """
         INSERT INTO audit_log
-            (org_id, site_id, actor_id, actor_name, action, entity_type, entity_id, before, after, request_id)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (at, org_id, site_id, actor_id, actor_name, action, entity_type, entity_id, before, after, request_id)
+        VALUES (clock_timestamp(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         [
             org_id,
@@ -47,11 +50,13 @@ def record(
     )
 
 
+# Newest first by time, which the (site_id, at DESC) index serves; id breaks ties
+# so paging is stable.
 def entries(conn: Conn, site_id: uuid.UUID, limit: int, offset: int) -> list[dict[str, Any]]:
     return conn.execute(
         """
         SELECT id, at, actor_id, actor_name, action, entity_type, entity_id, before, after, request_id
-        FROM audit_log WHERE site_id = %s ORDER BY id DESC LIMIT %s OFFSET %s
+        FROM audit_log WHERE site_id = %s ORDER BY at DESC, id DESC LIMIT %s OFFSET %s
         """,
         [site_id, limit, offset],
     ).fetchall()
