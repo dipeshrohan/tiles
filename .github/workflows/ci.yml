@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   lint:
-    name: Lint and format
+    name: Lint, format and types
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +24,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npm run typecheck
 
   test:
     name: Unit tests (Node ${{ matrix.node }})
@@ -31,7 +32,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

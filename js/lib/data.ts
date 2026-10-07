@@ -1,14 +1,25 @@
 // Demo factory: a battery cell plant with an electrode cutter, tab welder and
 // a die-cast housing line. All data is synthetic and seeded.
 
-import { createRng } from './rng.js';
-import { createRepo, commit, stage } from './ontology.js';
+import { createRng } from './rng.ts';
+import { createRepo, commit, stage } from './ontology.ts';
+import type { CutterBatch, Material, NodeType, Op, PropValue, Repo, Variable, WeldData, WeldSample } from './types.ts';
 
-const N = (id, type, label, props = {}) => ({ kind: 'addNode', node: { id, type, label, props } });
-const E = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
+const N = (id: string, type: NodeType, label: string, props: Record<string, PropValue> = {}): Op => ({
+  kind: 'addNode',
+  node: { id, type, label, props },
+});
+const E = (from: string, rel: string, to: string): Op => ({
+  kind: 'addEdge',
+  edge: { id: `${from}-${rel}-${to}`, from, rel, to },
+});
 
-export function seedOntology() {
-  const ops = [
+const isModelOp = (op: Op): boolean =>
+  (op.kind === 'addNode' && op.node.id.startsWith('mdl-')) ||
+  (op.kind === 'addEdge' && op.edge.from.startsWith('mdl-'));
+
+export function seedOntology(): Repo {
+  const ops: Op[] = [
     N('site-nk', 'Site', 'Demo Cell Plant', { location: 'Plant A' }),
     N('wc-elec', 'Workcenter', 'Electrode'),
     N('wc-asm', 'Workcenter', 'Cell Assembly'),
@@ -69,14 +80,13 @@ export function seedOntology() {
     E('mdl-friction', 'monitors', 'm-dc02'),
   ];
   let repo = createRepo();
-  const base = ops.filter((o) => !o.node?.id?.startsWith('mdl-') && !o.edge?.from?.startsWith('mdl-'));
-  for (const op of base) repo = stage(repo, op);
+  for (const op of ops.filter((o) => !isModelOp(o))) repo = stage(repo, op);
   repo = commit(repo, {
     message: 'Import site hierarchy from MES',
     author: 'ingest-agent',
     date: '2026-09-02T08:10:00Z',
   });
-  for (const op of ops.filter((o) => !base.includes(o))) repo = stage(repo, op);
+  for (const op of ops.filter(isModelOp)) repo = stage(repo, op);
   repo = commit(repo, {
     message: 'Register plunger friction virtual sensor',
     author: 'engineer@example.com',
@@ -95,7 +105,9 @@ export function seedOntology() {
 // Cutter batches. One setting (front stock tension) fails the two materials in
 // opposite directions: anode stretches when tension is high, cathode tears
 // when it is low. Pooled together the effect almost cancels out.
-export const CUTTER_VARIABLES = [
+export type CutterVariable = 'tension' | 'speed' | 'humidity' | 'bladeAge' | 'rollDiameter';
+
+export const CUTTER_VARIABLES: Variable<CutterVariable>[] = [
   { key: 'tension', label: 'Front stock tension', unit: 'N·10⁻¹' },
   { key: 'speed', label: 'Line speed', unit: 'm/min' },
   { key: 'humidity', label: 'Dry-room dew point', unit: '°C' },
@@ -103,13 +115,13 @@ export const CUTTER_VARIABLES = [
   { key: 'rollDiameter', label: 'Roll diameter', unit: 'mm' },
 ];
 
-export const TENSION_TARGET = { anode: 1006, cathode: 1478 };
+export const TENSION_TARGET: Record<Material, number> = { anode: 1006, cathode: 1478 };
 
-export function generateCutterBatches({ seed = 11, count = 720 } = {}) {
+export function generateCutterBatches({ seed = 11, count = 720 } = {}): CutterBatch[] {
   const rng = createRng(seed);
-  const rows = [];
+  const rows: CutterBatch[] = [];
   for (let i = 0; i < count; i++) {
-    const material = i % 2 ? 'cathode' : 'anode';
+    const material: Material = i % 2 ? 'cathode' : 'anode';
     const target = TENSION_TARGET[material];
     // Operators run one shared tension band, so both materials drift toward the middle.
     const tension = target + (1240 - target) * rng.range(0, 1.1) + rng.normal(0, 45);
@@ -135,9 +147,9 @@ export function generateCutterBatches({ seed = 11, count = 720 } = {}) {
 }
 
 // Welder power over time; the cathode tip wears and power climbs in its last day.
-export function generateWeldPower({ seed = 5, hours = 96 } = {}) {
+export function generateWeldPower({ seed = 5, hours = 96 } = {}): WeldData {
   const rng = createRng(seed);
-  const series = [];
+  const series: WeldSample[] = [];
   const swapAt = 72; // scheduled tip swap (cycle counter)
   const wearStart = 48;
   for (let h = 0; h < hours; h++) {

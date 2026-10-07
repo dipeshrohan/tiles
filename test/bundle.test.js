@@ -1,11 +1,15 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { bundle } from '../build.js';
+import { committedBundle, freshBundle } from '../scripts/check-bundle.js';
 
-test('committed bundle matches the module sources', () => {
-  const committed = readFileSync(new URL('../js/tiles.bundle.js', import.meta.url), 'utf8');
-  assert.equal(committed, bundle(), 'js/tiles.bundle.js is stale: run `npm run build`');
+test('committed bundle matches a fresh build of the sources', async () => {
+  assert.equal(committedBundle(), await freshBundle(), 'js/tiles.bundle.js is stale: run `npm run build`');
+}, 30_000);
+
+test('bundle is a classic script, safe to load from file://', () => {
+  const code = committedBundle();
+  assert.doesNotMatch(code, /^\s*(import|export)\s/m);
 });
 
 test('index.html loads the classic bundle, not a module script', () => {

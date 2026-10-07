@@ -13,4 +13,5 @@ Tiles is a zero-dependency browser app today: plain ES modules, tested pure logi
 ## Consequences
 - Physics, data science and ML code use the Python ecosystem (NumPy, SciPy, pandas).
 - Two languages to maintain; the shared fixture suite keeps them honest.
-- Until the Vite build replaces it, `build.js` keeps producing `js/tiles.bundle.js` so the app still opens from disk.
+- Vite builds a single classic (IIFE) script, `js/tiles.bundle.js`, rather than ES modules, so `index.html` still opens from disk. A test fails if the committed bundle is stale.
+- TypeScript is pinned to 6.0.x until `typescript-eslint` supports TypeScript 7.

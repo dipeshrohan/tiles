@@ -1,8 +1,8 @@
-import { correlationFinder, explain, wearCheck } from '../lib/analysis.js';
-import { CUTTER_VARIABLES } from '../lib/data.js';
-import { mean } from '../lib/stats.js';
-import { dumbbell, hbars, lineChart } from '../lib/svg.js';
-import { esc, fmt, signed } from '../lib/dom.js';
+import { correlationFinder, explain, wearCheck } from '../lib/analysis.ts';
+import { CUTTER_VARIABLES } from '../lib/data.ts';
+import { mean } from '../lib/stats.ts';
+import { dumbbell, hbars, lineChart } from '../lib/svg.ts';
+import { esc, fmt, signed } from '../lib/dom.ts';
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 

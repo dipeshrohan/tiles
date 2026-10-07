@@ -1,6 +1,6 @@
-import { healthCheck } from '../lib/ontology.js';
-import { MODELS } from '../lib/design.js';
-import { esc, fmt, timeAgo } from '../lib/dom.js';
+import { healthCheck } from '../lib/ontology.ts';
+import { MODELS } from '../lib/design.ts';
+import { esc, fmt, timeAgo } from '../lib/dom.ts';
 
 export default {
   id: 'home',

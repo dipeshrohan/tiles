@@ -8,8 +8,8 @@ import {
   neighbors,
   pathTo,
   diffStats,
-} from '../lib/ontology.js';
-import { esc, timeAgo } from '../lib/dom.js';
+} from '../lib/ontology.ts';
+import { esc, timeAgo } from '../lib/dom.ts';
 
 const COLUMNS = [
   ['Site'],

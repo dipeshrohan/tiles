@@ -1,11 +1,11 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { correlationFinder, explain, wearCheck } from '../js/lib/analysis.js';
-import { generateCutterBatches, generateWeldPower, CUTTER_VARIABLES, seedOntology } from '../js/lib/data.js';
-import { generateShotHistory } from '../js/lib/physics.js';
-import { workingGraph } from '../js/lib/ontology.js';
-import { ask, SUGGESTIONS } from '../js/lib/copilot.js';
-import { pearson, median, mad, cohensD } from '../js/lib/stats.js';
+import { correlationFinder, explain, wearCheck } from '../js/lib/analysis.ts';
+import { generateCutterBatches, generateWeldPower, CUTTER_VARIABLES, seedOntology } from '../js/lib/data.ts';
+import { generateShotHistory } from '../js/lib/physics.ts';
+import { workingGraph } from '../js/lib/ontology.ts';
+import { ask, SUGGESTIONS } from '../js/lib/copilot.ts';
+import { pearson, median, mad, cohensD } from '../js/lib/stats.ts';
 
 test('stats basics', () => {
   assert.equal(median([3, 1, 2]), 2);
@@ -45,4 +45,21 @@ test('copilot routes each suggestion to the right skill', () => {
   assert.match(ask('Where is Tab Welder W-03?', ctx).text, /^• Machine Tab Welder W-03 — .*Welding Line 2/);
   assert.equal(ask('hello there', ctx).skill, 'help');
   assert.equal(ask('   ', ctx), null);
+});
+
+test('every copilot evidence link points at a page that exists', async () => {
+  const views = await Promise.all(
+    ['home', 'chat', 'ontology', 'quality', 'physics', 'design', 'settings'].map((v) => import(`../js/views/${v}.js`)),
+  );
+  const routes = new Set(views.map((m) => `#/${m.default.id}`));
+  const ctx = {
+    graph: workingGraph(seedOntology()),
+    batches: generateCutterBatches(),
+    weld: generateWeldPower(),
+    shots: generateShotHistory(),
+  };
+  for (const q of SUGGESTIONS) {
+    const { link } = ask(q, ctx);
+    assert.ok(routes.has(link), `"${q}" links to ${link}, which is not a page`);
+  }
 });

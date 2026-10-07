@@ -2,19 +2,43 @@
 // the factory data and answers with the steps it took, so every answer is
 // traceable to a tool and its inputs. Runs fully offline.
 
-import { correlationFinder, explain, wearCheck } from './analysis.js';
-import { CUTTER_VARIABLES } from './data.js';
-import { detectFrictionAlerts, scoreAlerts } from './physics.js';
-import { healthCheck, findNodes, neighbors, pathTo } from './ontology.js';
+import { correlationFinder, explain, wearCheck } from './analysis.ts';
+import { CUTTER_VARIABLES } from './data.ts';
+import { detectFrictionAlerts, scoreAlerts } from './physics.ts';
+import { healthCheck, findNodes, neighbors, pathTo } from './ontology.ts';
+import type { CutterBatch, Graph, OntologyNode, ShotHistory, WeldData } from './types.ts';
 
-const materialsOf = (graph, processId) =>
+export interface CopilotContext {
+  graph: Graph;
+  batches: CutterBatch[];
+  weld: WeldData;
+  shots: ShotHistory;
+}
+
+export interface SkillResult {
+  steps: string[];
+  text: string;
+  link?: string;
+}
+
+export interface Answer extends SkillResult {
+  skill: string;
+}
+
+interface Skill {
+  id: string;
+  match: RegExp;
+  run(ctx: CopilotContext, question: string): SkillResult | null;
+}
+
+const materialsOf = (graph: Graph, processId: string): string[] =>
   neighbors(graph, processId)
     .filter((n) => n.outgoing && n.edge.rel === 'consumes')
     .map((n) => n.node.label);
 
-const pct = (x) => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}%`;
+const pct = (x: number): string => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}%`;
 
-const SKILLS = [
+const SKILLS: Skill[] = [
   {
     id: 'lookup',
     match: /^(where|what is|show|find|list)\b/i,
@@ -37,7 +61,7 @@ const SKILLS = [
         'are',
         'is',
       ]);
-      const hits = new Map();
+      const hits = new Map<string, { node: OntologyNode; score: number }>();
       for (const w of words) {
         if (stop.has(w.toLowerCase())) continue;
         for (const n of findNodes(ctx.graph, w)) hits.set(n.id, { node: n, score: (hits.get(n.id)?.score ?? 0) + 1 });
@@ -68,7 +92,7 @@ const SKILLS = [
       return {
         steps: [
           `Graph query → Electrode notching consumes ${materialsOf(ctx.graph, 'p-notch').join(' + ') || 'no registered materials'}`,
-          `Correlation analysis (pooled, ${ctx.batches.length} batches) → strongest effect |d| = ${Math.abs(pooled[0].effect).toFixed(2)}, nothing conclusive`,
+          `Correlation analysis (pooled, ${ctx.batches.length} batches) → strongest effect |d| = ${Math.abs(pooled[0]?.effect ?? 0).toFixed(2)}, nothing conclusive`,
           'Correlation analysis split by material → effects appear',
         ],
         text: [
@@ -77,7 +101,7 @@ const SKILLS = [
           ...found.map((f) => `• ${f.text}`),
           'Proposed actions: set material-specific tension limits, track tension per material as a live SPC signal, and re-calibrate on every material change.',
         ].join('\n'),
-        link: '#/correlation',
+        link: '#/quality',
       };
     },
   },
@@ -89,7 +113,7 @@ const SKILLS = [
       const scored = scoreAlerts(alerts, ctx.shots.downtime, ctx.shots.cycleSeconds);
       const hit = scored.filter((s) => s.predicted);
       const avg = hit.reduce((a, s) => a + s.leadHours, 0) / (hit.length || 1);
-      const latest = ctx.shots.history[ctx.shots.history.length - 1];
+      const latest = ctx.shots.history.at(-1);
       return {
         steps: [
           'Virtual sensor → plunger friction from equation of motion (m·a = Ph·Ah − Pm·Am − F)',
@@ -102,7 +126,7 @@ const SKILLS = [
             (s) =>
               `• ${s.id} (${s.code}, ${s.durationMin} min): ${s.predicted ? `warned ${s.leadHours.toFixed(1)} h ahead` : 'not predicted'}`,
           ),
-          `Latest shot friction: ${Math.round(latest.friction)} N.`,
+          latest ? `Latest shot friction: ${Math.round(latest.friction)} N.` : 'No shots recorded yet.',
         ].join('\n'),
         link: '#/physics',
       };
@@ -120,7 +144,7 @@ const SKILLS = [
           `Cathode tip: median welding power ${pct(cat.change)} in the final 24 h before the scheduled swap; anode stayed flat (${pct(an.change)}).`,
           'Power rise is a second wear signal next to the cycle counter. Recommend swapping the tip when power crosses the wear threshold, even if the counter has not reached its swap point.',
         ].join('\n'),
-        link: '#/correlation',
+        link: '#/quality',
       };
     },
   },
@@ -141,7 +165,7 @@ const SKILLS = [
   },
 ];
 
-export function ask(question, ctx) {
+export function ask(question: string, ctx: CopilotContext): Answer | null {
   const q = question.trim();
   if (!q) return null;
   for (const skill of SKILLS) {
@@ -163,7 +187,7 @@ export function ask(question, ctx) {
   };
 }
 
-export const SUGGESTIONS = [
+export const SUGGESTIONS: readonly string[] = [
   'Why are cutter batches failing on tab width?',
   'Is the DC-02 plunger at risk of seizing?',
   'Is the welder tip wearing?',

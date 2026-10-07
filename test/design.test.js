@@ -1,6 +1,6 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { MODELS, evaluate, sweep, sensitivity, makeRun, runDiff, auditRecord } from '../js/lib/design.js';
+import { MODELS, evaluate, sweep, sensitivity, makeRun, runDiff, auditRecord } from '../js/lib/design.ts';
 
 const defaults = (m) => Object.fromEntries(MODELS[m].params.map((p) => [p.key, p.default]));
 

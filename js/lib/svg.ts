@@ -1,22 +1,83 @@
 // Minimal SVG charts. Colors come from CSS variables so charts follow the theme.
 
-import { esc, fmt } from './dom.js';
+import { esc, fmt } from './dom.ts';
+
+export interface Series {
+  values: (number | null)[];
+  color: string;
+  label?: string;
+  width?: number;
+  dash?: string;
+}
+
+export interface Band {
+  from: number;
+  to: number;
+  color: string;
+}
+
+export interface Marker {
+  x: number;
+  label: string;
+  color: string;
+  width?: number;
+  bottom?: boolean;
+}
+
+export interface LineChartOptions {
+  series: Series[];
+  width?: number;
+  height?: number;
+  bands?: Band[];
+  markers?: Marker[];
+  xLabel?: string;
+  yLabel?: string;
+  xFormat?: (i: number) => string | number;
+  yMin?: number;
+  yMax?: number;
+}
+
+export interface DumbbellRow {
+  label: string;
+  sub?: string;
+  a: number;
+  b: number;
+}
+
+export interface BarItem {
+  label: string;
+  value: number;
+  color?: string;
+}
+
+export interface HeatmapOptions {
+  xs: number[];
+  ys: number[];
+  grid: number[][];
+  min: number;
+  max: number;
+  xLabel: string;
+  yLabel: string;
+  width?: number;
+  height?: number;
+  format?: (v: number) => string;
+}
 
 const PAD = { l: 52, r: 16, t: 24, b: 30 };
 
-function scale(d0, d1, r0, r1) {
+function scale(d0: number, d1: number, r0: number, r1: number): (v: number) => number {
   const span = d1 - d0 || 1;
-  return (v) => r0 + ((v - d0) / span) * (r1 - r0);
+  return (v: number) => r0 + ((v - d0) / span) * (r1 - r0);
 }
 
-function ticks(lo, hi, n = 5) {
+function ticks(lo: number, hi: number, n = 5): number[] {
   const step = niceStep((hi - lo) / n);
-  const out = [];
+  const out: number[] = [];
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(v);
   return out;
 }
 
-function niceStep(raw) {
+function niceStep(raw: number): number {
   const p = 10 ** Math.floor(Math.log10(raw || 1));
   const m = raw / p;
   return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
@@ -35,9 +96,9 @@ export function lineChart({
   xFormat = (i) => i,
   yMin,
   yMax,
-}) {
+}: LineChartOptions): string {
   const n = Math.max(...series.map((s) => s.values.length));
-  const all = series.flatMap((s) => s.values.filter((v) => v !== null && Number.isFinite(v)));
+  const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null && Number.isFinite(v)));
   const lo = yMin ?? Math.min(...all);
   const hi = yMax ?? Math.max(...all);
   const x = scale(0, n - 1, PAD.l, width - PAD.r);
@@ -69,7 +130,21 @@ export function lineChart({
 }
 
 // rows: [{ label, sub, a, b, aLabel, bLabel }] — dot "a" (failed) vs "b" (target).
-export function dumbbell({ rows, width = 620, rowH = 64, domain, xLabel = '', left = 240 }) {
+export function dumbbell({
+  rows,
+  width = 620,
+  rowH = 64,
+  domain,
+  xLabel = '',
+  left = 240,
+}: {
+  rows: DumbbellRow[];
+  width?: number;
+  rowH?: number;
+  domain: [number, number];
+  xLabel?: string;
+  left?: number;
+}): string {
   const height = rows.length * rowH + 44;
   const x = scale(domain[0], domain[1], left, width - 20);
   const xt = ticks(domain[0], domain[1], 6);
@@ -92,7 +167,19 @@ export function dumbbell({ rows, width = 620, rowH = 64, domain, xLabel = '', le
 }
 
 // items: [{ label, value, color }] — horizontal bars from zero (supports negatives).
-export function hbars({ items, width = 520, rowH = 28, format = (v) => fmt(v, 2), left = 190 }) {
+export function hbars({
+  items,
+  width = 520,
+  rowH = 28,
+  format = (v: number) => fmt(v, 2),
+  left = 190,
+}: {
+  items: BarItem[];
+  width?: number;
+  rowH?: number;
+  format?: (v: number) => string;
+  left?: number;
+}): string {
   const height = items.length * rowH + 10;
   const maxAbs = Math.max(...items.map((i) => Math.abs(i.value)), 1e-9);
   const hasNeg = items.some((i) => i.value < 0);
@@ -124,17 +211,17 @@ export function heatmap({
   yLabel,
   width = 480,
   height = 360,
-  format = (v) => fmt(v, 2),
-}) {
+  format = (v: number) => fmt(v, 2),
+}: HeatmapOptions): string {
   const left = 56;
   const bottom = 40;
   const cw = (width - left - 10) / xs.length;
   const ch = (height - bottom - 10) / ys.length;
-  const t = (v) => (v - min) / (max - min || 1);
-  const cells = [];
+  const t = (v: number) => (v - min) / (max - min || 1);
+  const cells: string[] = [];
   ys.forEach((yv, j) => {
     xs.forEach((xv, i) => {
-      const v = grid[j][i];
+      const v = grid[j]?.[i] ?? NaN;
       cells.push(
         `<rect x="${left + i * cw}" y="${10 + (ys.length - 1 - j) * ch}" width="${cw + 0.5}" height="${ch + 0.5}" fill="var(--accent)" fill-opacity="${(0.08 + 0.92 * t(v)).toFixed(3)}"><title>${esc(xLabel)} ${fmt(xv, 1)}, ${esc(yLabel)} ${fmt(yv, 1)} → ${format(v)}</title></rect>`,
       );
@@ -144,8 +231,8 @@ export function heatmap({
   const yi = [0, Math.floor(ys.length / 2), ys.length - 1];
   return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Parameter sweep">
     ${cells.join('')}
-    ${xi.map((i) => `<text class="tick" x="${left + (i + 0.5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt(xs[i], 1)}</text>`).join('')}
-    ${yi.map((j) => `<text class="tick" x="${left - 6}" y="${10 + (ys.length - 1 - j + 0.5) * ch + 4}" text-anchor="end">${fmt(ys[j], 1)}</text>`).join('')}
+    ${xi.map((i) => `<text class="tick" x="${left + (i + 0.5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt(xs[i] ?? NaN, 1)}</text>`).join('')}
+    ${yi.map((j) => `<text class="tick" x="${left - 6}" y="${10 + (ys.length - 1 - j + 0.5) * ch + 4}" text-anchor="end">${fmt(ys[j] ?? NaN, 1)}</text>`).join('')}
     <text class="axis" x="${left + (width - left) / 2}" y="${height - 6}" text-anchor="middle">${esc(xLabel)}</text>
     <text class="axis" x="12" y="${10 + (height - bottom) / 2}" transform="rotate(-90 12 ${10 + (height - bottom) / 2})" text-anchor="middle">${esc(yLabel)}</text>
   </svg>`;
