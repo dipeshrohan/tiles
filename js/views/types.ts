@@ -69,6 +69,8 @@ export interface OntologyContext {
   // then "ready", or "error" (with `error`) if the API can't be used.
   readonly status: 'local' | 'loading' | 'ready' | 'error';
   readonly site: Site | null;
+  // Your role on the site in API mode; null in local mode (you can do anything).
+  readonly role: 'viewer' | 'engineer' | 'admin' | null;
   readonly error: string | null;
   // Runs a change against the current store and shows its result. Failures
   // become a toast; resolves to whether the change worked.

@@ -131,7 +131,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
           </div>
           <div class="chips" style="margin-top:8px">${legend}</div>
         </div>
-        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected) : newNodeForm(graph)}</div>
+        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected) : ctx.ontology.role === 'viewer' ? viewOnlyNote() : newNodeForm(graph)}</div>
       </div>`;
 }
 
@@ -171,6 +171,17 @@ function inspector(graph: Graph, id: string): string {
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ''}>Delete node</button>`;
+}
+
+// Controls that change the ontology; removed for viewers (the API refuses
+// their writes anyway, this just keeps the page honest).
+const EDIT_CONTROLS =
+  '#node-form, #prop-form, #link-form, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]';
+
+function viewOnlyNote(): string {
+  return `
+      <div class="card-head"><h2>View only</h2></div>
+      <p class="small soft">Your role on this site is viewer. Select a node on the canvas to inspect it. To make changes, ask a site admin for the engineer role.</p>`;
 }
 
 function newNodeForm(graph: Graph): string {
@@ -266,7 +277,7 @@ function sourceBar(ctx: Context): string {
   const { head, history, staged } = ctx.state.repo;
   const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
   return `<div class="card source-bar small" aria-live="polite">
-      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.</span>
+      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.role === 'viewer' ? ' <span class="badge">View only</span>' : ''}</span>
       <span class="row" style="gap:8px">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 }
@@ -291,15 +302,22 @@ const view: View = {
           <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
           <button class="btn" type="button" data-discard>Discard</button>
         </div>`
-      : repo.staged.length
-        ? `<form class="staged-bar" id="commit-form">
+      : repo.staged.length && ctx.ontology.role === 'viewer'
+        ? // Staged before an admin made them a viewer: they can still throw it away.
+          `<div class="staged-bar" id="viewer-staged">
+          <span class="badge warn">${repo.staged.length} uncommitted</span>
+          <span style="flex:1">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
+          <button class="btn" type="button" data-discard>Discard</button>
+        </div>`
+        : repo.staged.length
+          ? `<form class="staged-bar" id="commit-form">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
           <button class="btn primary" type="submit">Commit</button>
           <button class="btn" type="button" data-discard>Discard</button>
         </form>`
-        : '';
+          : '';
 
     const tabs = [
       ['canvas', 'Canvas'],
@@ -325,6 +343,7 @@ const view: View = {
 
   bind(root, ctx) {
     const ui = uiState(ctx);
+    if (ctx.ontology.role === 'viewer') root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
     const author = ctx.state.user.email;
     const stageOps = (ops: Op[], ok?: string) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
     const stageOp = (op: Op, ok?: string) => stageOps([op], ok);

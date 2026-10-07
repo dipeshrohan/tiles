@@ -80,7 +80,21 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 - `GET /ready`: readiness. 200 when PostgreSQL and Redis answer, otherwise 503 with which check failed (no connection details in the response).
 - `GET /docs`: OpenAPI docs.
 - `GET /auth/config`, `GET /me`: sign-in settings and the current user (see Sign-in).
-- `GET /sites`: sites in your organisation (id, slug, name, org). `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
+- `GET /sites`: sites in your organisation (id, slug, name, org).
+
+### Roles
+
+Each site member is a viewer, engineer or admin; organisation admins (`users.org_admin`) are admins on every site.
+
+- **Viewers** can read the ontology (graph, staged changes, history, health). They can also discard their own staged changes, which matters when an engineer is demoted with work still staged.
+- **Engineers** can also stage, commit and revert. Every other write endpoint checks this and answers 403 otherwise.
+- **Admins** can also change other members' roles.
+
+| Method and path (under `/sites/{site_id}`) | Does |
+|---|---|
+| `GET /me` | your membership and role (joins the site on first visit) |
+| `GET /members` | members and their roles |
+| `PUT /members/{user_id}` | set a member's role: `{"role": "engineer"}` (admins only; not your own role) | `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
 
 ### Ontology
 

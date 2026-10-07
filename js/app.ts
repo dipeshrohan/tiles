@@ -96,6 +96,7 @@ let localRepo = state.repo;
 let remote: RemoteStore | null = null;
 let ontologyStatus: OntologyContext['status'] = 'local';
 let ontologyError: string | null = null;
+let ontologyRole: OntologyContext['role'] = null;
 let connectSeq = 0;
 
 // Switches the ontology between this browser and the API. A slow earlier
@@ -103,6 +104,7 @@ let connectSeq = 0;
 async function connectOntology(): Promise<void> {
   const seq = ++connectSeq;
   // state.repo holds this browser's own repo only while the status is "local".
+  ontologyRole = null;
   if (!api) {
     if (ontologyStatus !== 'local') state.repo = localRepo;
     remote = null;
@@ -117,11 +119,13 @@ async function connectOntology(): Promise<void> {
   ontologyError = null;
   renderSoon();
   try {
-    const store = remoteStore(api, await pickSite(api, dataSource.siteId));
-    const repo = await store.load();
+    const site = await pickSite(api, dataSource.siteId);
+    const store = remoteStore(api, site);
+    const [repo, membership] = await Promise.all([store.load(), api.membership(site.id)]);
     if (seq !== connectSeq) return;
     remote = store;
     state.repo = repo;
+    ontologyRole = membership.role;
     ontologyStatus = 'ready';
   } catch (e) {
     if (seq !== connectSeq) return;
@@ -137,6 +141,9 @@ const ontologyCtx: OntologyContext = {
   },
   get site() {
     return remote?.site ?? null;
+  },
+  get role() {
+    return ontologyRole;
   },
   get error() {
     return ontologyError;
@@ -165,12 +172,14 @@ const ontologyCtx: OntologyContext = {
     }
   },
   async reload() {
-    if (!remote) return;
+    if (!remote || !api) return;
     const seq = connectSeq;
     try {
-      const repo = await remote.load();
+      // The role is fetched again too, so an admin's change to it shows here.
+      const [repo, membership] = await Promise.all([remote.load(), api.membership(remote.site.id)]);
       if (seq !== connectSeq) return;
       state.repo = repo;
+      ontologyRole = membership.role;
     } catch {
       // the client already showed why
     }

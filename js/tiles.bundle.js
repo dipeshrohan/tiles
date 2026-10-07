@@ -803,6 +803,7 @@
 			authConfig: () => request("GET", "/auth/config", void 0, { anonymous: true }),
 			me: () => request("GET", "/me"),
 			sites: () => request("GET", "/sites"),
+			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
 			ontology: {
 				graph: (siteId, view = "working") => request("GET", `${site(siteId)}/graph?view=${view}`),
 				staged: (siteId) => request("GET", `${site(siteId)}/staged`),
@@ -1852,7 +1853,7 @@
           </div>
           <div class="chips" style="margin-top:8px">${legend}</div>
         </div>
-        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected) : newNodeForm(graph)}</div>
+        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected) : ctx.ontology.role === "viewer" ? viewOnlyNote() : newNodeForm(graph)}</div>
       </div>`;
 	}
 	function inspector(graph, id) {
@@ -1889,6 +1890,12 @@
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
+	}
+	var EDIT_CONTROLS = "#node-form, #prop-form, #link-form, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]";
+	function viewOnlyNote() {
+		return `
+      <div class="card-head"><h2>View only</h2></div>
+      <p class="small soft">Your role on this site is viewer. Select a node on the canvas to inspect it. To make changes, ask a site admin for the engineer role.</p>`;
 	}
 	function newNodeForm(graph) {
 		const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
@@ -1962,7 +1969,7 @@
 		const { head, history, staged } = ctx.state.repo;
 		const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
 		return `<div class="card source-bar small" aria-live="polite">
-      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.</span>
+      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.role === "viewer" ? " <span class=\"badge\">View only</span>" : ""}</span>
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
@@ -1982,6 +1989,10 @@
 			const stagedBar = conflict ? `<div class="staged-bar" role="alert">
           <span class="badge bad">${repo.staged.length} uncommitted</span>
           <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
+          <button class="btn" type="button" data-discard>Discard</button>
+        </div>` : repo.staged.length && ctx.ontology.role === "viewer" ? `<div class="staged-bar" id="viewer-staged">
+          <span class="badge warn">${repo.staged.length} uncommitted</span>
+          <span style="flex:1">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
           <button class="btn" type="button" data-discard>Discard</button>
         </div>` : repo.staged.length ? `<form class="staged-bar" id="commit-form">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
@@ -2008,6 +2019,7 @@
 		},
 		bind(root, ctx) {
 			const ui = uiState$3(ctx);
+			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
 			const stageOp = (op, ok) => stageOps([op], ok);
@@ -2925,9 +2937,11 @@
 	var remote = null;
 	var ontologyStatus = "local";
 	var ontologyError = null;
+	var ontologyRole = null;
 	var connectSeq = 0;
 	async function connectOntology() {
 		const seq = ++connectSeq;
+		ontologyRole = null;
 		if (!api) {
 			if (ontologyStatus !== "local") state.repo = localRepo;
 			remote = null;
@@ -2942,11 +2956,13 @@
 		ontologyError = null;
 		renderSoon();
 		try {
-			const store = remoteStore(api, await pickSite(api, dataSource.siteId));
-			const repo = await store.load();
+			const site = await pickSite(api, dataSource.siteId);
+			const store = remoteStore(api, site);
+			const [repo, membership] = await Promise.all([store.load(), api.membership(site.id)]);
 			if (seq !== connectSeq) return;
 			remote = store;
 			state.repo = repo;
+			ontologyRole = membership.role;
 			ontologyStatus = "ready";
 		} catch (e) {
 			if (seq !== connectSeq) return;
@@ -2961,6 +2977,9 @@
 		},
 		get site() {
 			return remote?.site ?? null;
+		},
+		get role() {
+			return ontologyRole;
 		},
 		get error() {
 			return ontologyError;
@@ -2988,12 +3007,13 @@
 			}
 		},
 		async reload() {
-			if (!remote) return;
+			if (!remote || !api) return;
 			const seq = connectSeq;
 			try {
-				const repo = await remote.load();
+				const [repo, membership] = await Promise.all([remote.load(), api.membership(remote.site.id)]);
 				if (seq !== connectSeq) return;
 				state.repo = repo;
+				ontologyRole = membership.role;
 			} catch {}
 			renderSoon();
 		}

@@ -28,6 +28,15 @@ export interface AuthConfig {
   dev_identity: boolean;
 }
 
+export interface Membership {
+  user_id: string;
+  email: string;
+  name: string;
+  role: 'viewer' | 'engineer' | 'admin';
+  site_role: 'viewer' | 'engineer' | 'admin';
+  org_admin: boolean;
+}
+
 export interface Me {
   email: string;
   name: string;
@@ -133,6 +142,8 @@ export function createApiClient(options: ApiOptions) {
     authConfig: () => request<AuthConfig>('GET', '/auth/config', undefined, { anonymous: true }),
     me: () => request<Me>('GET', '/me'),
     sites: () => request<Site[]>('GET', '/sites'),
+    // Your membership (and role) on a site; joins it on first visit.
+    membership: (siteId: string) => request<Membership>('GET', `/sites/${encodeURIComponent(siteId)}/me`),
     ontology: {
       graph: (siteId: string, view: GraphView = 'working') =>
         request<Graph>('GET', `${site(siteId)}/graph?view=${view}`),

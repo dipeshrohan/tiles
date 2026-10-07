@@ -362,6 +362,69 @@ test('API placeholders and late API answers never replace this browser’s ontol
   assert.equal(await page.locator('#commit-form').count(), 0); // nothing from the API was staged locally
 });
 
+test('viewers see the shared ontology read-only', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'm1', type: 'Machine', label: 'Press 1', props: {} } }],
+    'add press',
+  );
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.waitForSelector('.source-bar:has-text("View only")');
+  assert.equal(await page.locator('#node-form').count(), 0);
+  assert.match(await page.locator('#inspector').innerText(), /Your role on this site is viewer/);
+  // Inspecting works; editing controls are gone.
+  await page.click('[data-node="m1"]');
+  await page.waitForSelector('#inspector:has-text("Press 1")');
+  for (const sel of ['#prop-form', '#link-form', '[data-delete]', '[data-unset]']) {
+    assert.equal(await page.locator(sel).count(), 0, sel);
+  }
+  await page.click('[data-tab=history]');
+  assert.equal(await page.locator('.commit').count(), 1);
+  assert.equal(await page.locator('[data-revert]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('a viewer can discard changes staged before their demotion', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.stageAs('demo@example.com', [
+    { kind: 'addNode', node: { id: 'old', type: 'Machine', label: 'Old press', props: {} } },
+  ]);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.waitForSelector('#viewer-staged:has-text("1 uncommitted")');
+  assert.equal(await page.locator('#commit-form').count(), 0);
+  await page.click('#viewer-staged [data-discard]');
+  await page.waitForSelector('#viewer-staged', { state: 'detached' });
+  assert.equal(await page.locator('[data-node="old"]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('Refresh picks up a role change made by an admin', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.waitForSelector('#node-form');
+  fake.setRole('demo@example.com', 'viewer');
+  await page.click('[data-refresh]');
+  await page.waitForSelector('.source-bar:has-text("View only")');
+  assert.equal(await page.locator('#node-form').count(), 0);
+  fake.setRole('demo@example.com', 'engineer');
+  await page.click('[data-refresh]');
+  await page.waitForSelector('#node-form');
+  assert.deepEqual(errors, []);
+});
+
 test('background updates never wipe what the user is typing', async (t) => {
   const fake = createFakeApi({ slowAuthConfigMs: 1500 });
   const apiUrl = await fake.listen();
