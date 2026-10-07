@@ -28,7 +28,13 @@ You can also open `index.html` straight from disk.
 
 Requires [uv](https://docs.astral.sh/uv/). From `api/`: `uv sync` once, then `uv run tiles-api`, `uv run pytest -W error`, `uv run mypy`, `uv run ruff check .` and `uv run ruff format .`. Configuration is via `TILES_*` environment variables; see [api/README.md](api/README.md).
 
-CI runs lint and typecheck, unit tests on Node 22 and 24, the browser tests, and the API checks (ruff, strict mypy, pytest) on every pull request. All must pass before merging.
+### Full stack
+
+`docker compose up --build --wait` starts PostgreSQL + TimescaleDB, Redis, the API and the web server, and waits until all are healthy. `docker compose down -v` stops them and deletes the data volume.
+
+Behind a TLS-intercepting proxy (some corporate networks and sandboxes), the image build can fail at `pip install` with a certificate error. Build the API image from a copy of `api/` with your proxy's CA added (`COPY ca.crt …` plus `SSL_CERT_FILE`/`PIP_CERT`), tag it `tiles-api`, then run `docker compose up --no-build --wait`. Don't commit proxy certificates.
+
+CI runs lint and typecheck, unit tests on Node 22 and 24, the browser tests, the API checks (ruff, strict mypy, pytest) and a full `docker compose up` smoke test on every pull request. All must pass before merging.
 
 ## Conventions
 

@@ -40,13 +40,20 @@ The source lives in `js/`, in strict TypeScript. Browsers block module scripts o
 
 ![Factory physics](docs/physics.png)
 
-## Backend (in progress)
-
-`api/` holds the FastAPI service that the roadmap builds on (Month 1 onwards). So far it serves `/health` with JSON request logs. See [api/README.md](api/README.md):
+## Full stack with Docker
 
 ```bash
-cd api && uv sync && uv run tiles-api   # http://localhost:8000/docs
+docker compose up --build --wait
 ```
+
+| Service | URL | What |
+|---|---|---|
+| web | http://localhost:5173 | the Tiles app |
+| api | http://localhost:8000/docs | FastAPI backend (`/health`, `/ready`) |
+| db | localhost:5432 | PostgreSQL 17 + TimescaleDB 2.30 (user `tiles`, password `tiles-dev`) |
+| redis | localhost:6379 | job queue |
+
+Ports bind to localhost only. `docker compose down -v` stops everything and deletes the database volume. Set `TILES_DB_PASSWORD` to change the database password. The backend is early: so far the API serves health and readiness checks (see [api/README.md](api/README.md)).
 
 ## Roadmap
 
@@ -78,6 +85,7 @@ e2e/                  Playwright browser smoke tests
 docs/adr/             architecture decision records
 server.js             zero-dependency static server
 api/                  FastAPI backend (Python, uv)
+docker-compose.yml    local stack: db, redis, api, web
 vite.config.js        Vite build (classic bundle) and Vitest config
 scripts/              bundle freshness check
 ```

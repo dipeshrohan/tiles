@@ -72,3 +72,23 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest -W error
+
+  stack:
+    name: Docker Compose stack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the stack
+        run: docker compose up --build --wait --wait-timeout 300
+      - name: Check every service
+        run: |
+          curl -fsS http://localhost:8000/health
+          curl -fsS http://localhost:8000/ready | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -fsS -o /dev/null http://localhost:5173/
+          docker compose exec -T db psql -U tiles -d tiles -tAc "CREATE EXTENSION IF NOT EXISTS timescaledb"
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs
+      - name: Tear down
+        if: always()
+        run: docker compose down -v

@@ -12,6 +12,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - `npm test`: Vitest unit tests, including the bundle freshness check.
 - `npm run test:e2e`: Playwright smoke tests. In Claude Code cloud sessions Chromium is preinstalled; do not run `playwright install` there.
 - `npm start`: serve on http://localhost:5173.
+- `docker compose up --build --wait`: full stack (TimescaleDB, Redis, API on 8000, web on 5173); `docker compose down -v` resets it. In cloud sessions Docker Hub may rate-limit and the TLS proxy breaks in-container `pip`; see CONTRIBUTING for the workaround.
 - Backend (`api/`, Python 3.12+, managed with `uv`): `uv sync`, then `uv run tiles-api` (port 8000), `uv run pytest -W error`, `uv run mypy` (strict), `uv run ruff check .` and `uv run ruff format .`. Run them from `api/`.
 
 ## Layout

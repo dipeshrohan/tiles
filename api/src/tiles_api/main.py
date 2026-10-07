@@ -9,8 +9,10 @@ from typing import Literal
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from tiles_api import readiness
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
 from tiles_api.settings import Settings, get_settings
 
@@ -23,6 +25,11 @@ class Health(BaseModel):
     status: Literal["ok"]
     version: str
     env: str
+
+
+class Ready(BaseModel):
+    status: Literal["ok", "unavailable"]
+    checks: dict[str, readiness.CheckResult]
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -65,7 +72,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health", response_model=Health, tags=["meta"])
     def health() -> Health:
+        """Liveness: the process is up. Does not touch dependencies."""
         return Health(status="ok", version=VERSION, env=settings.env)
+
+    @app.get("/ready", response_model=Ready, tags=["meta"], responses={503: {"model": Ready}})
+    def ready() -> JSONResponse:
+        """Readiness: the database and Redis are reachable. 503 if either is not."""
+        checks = readiness.run_checks(settings)
+        ok = all(result == "ok" for result in checks.values())
+        body = Ready(status="ok" if ok else "unavailable", checks=checks)
+        return JSONResponse(body.model_dump(), status_code=200 if ok else 503)
 
     return app
 
