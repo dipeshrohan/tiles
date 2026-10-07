@@ -3,3 +3,6 @@ node_modules
 package-lock.json
 *.pdf
 *.md
+api/.venv
+api/.*_cache
+api/uv.lock

@@ -24,7 +24,11 @@ You can also open `index.html` straight from disk.
 | `npm test` | Vitest unit tests in `test/`, including a check that the bundle is current. |
 | `npm run test:e2e` | Browser smoke tests in `e2e/`: every page in light, dark and phone layouts, over http and `file://`. |
 
-CI runs lint and typecheck, unit tests on Node 22 and 24, and the browser tests on every pull request. All must pass before merging.
+### Backend (`api/`)
+
+Requires [uv](https://docs.astral.sh/uv/). From `api/`: `uv sync` once, then `uv run tiles-api`, `uv run pytest -W error`, `uv run mypy`, `uv run ruff check .` and `uv run ruff format .`. Configuration is via `TILES_*` environment variables; see [api/README.md](api/README.md).
+
+CI runs lint and typecheck, unit tests on Node 22 and 24, the browser tests, and the API checks (ruff, strict mypy, pytest) on every pull request. All must pass before merging.
 
 ## Conventions
 

@@ -3,7 +3,7 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default [
-  { ignores: ['js/tiles.bundle.js', 'node_modules/**'] },
+  { ignores: ['js/tiles.bundle.js', 'node_modules/**', 'api/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended.map((c) => ({ ...c, files: ['**/*.ts'] })),
   {

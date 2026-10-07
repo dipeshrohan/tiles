@@ -40,6 +40,14 @@ The source lives in `js/`, in strict TypeScript. Browsers block module scripts o
 
 ![Factory physics](docs/physics.png)
 
+## Backend (in progress)
+
+`api/` holds the FastAPI service that the roadmap builds on (Month 1 onwards). So far it serves `/health` with JSON request logs. See [api/README.md](api/README.md):
+
+```bash
+cd api && uv sync && uv run tiles-api   # http://localhost:8000/docs
+```
+
 ## Roadmap
 
 The 6-month plan to take Tiles from demo to a production pilot is in [docs/ROADMAP.md](docs/ROADMAP.md), with the task-by-task breakdown in [docs/TASKS.md](docs/TASKS.md).
@@ -69,6 +77,7 @@ test/                 Vitest unit suites
 e2e/                  Playwright browser smoke tests
 docs/adr/             architecture decision records
 server.js             zero-dependency static server
+api/                  FastAPI backend (Python, uv)
 vite.config.js        Vite build (classic bundle) and Vitest config
 scripts/              bundle freshness check
 ```
