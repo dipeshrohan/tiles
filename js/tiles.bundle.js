@@ -1900,7 +1900,7 @@
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
 	}
-	var EDIT_CONTROLS = "#node-form, #prop-form, #link-form, .staged-bar, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]";
+	var EDIT_CONTROLS = "#node-form, #prop-form, #link-form, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]";
 	function viewOnlyNote() {
 		return `
       <div class="card-head"><h2>View only</h2></div>
@@ -1998,6 +1998,10 @@
 			const stagedBar = conflict ? `<div class="staged-bar" role="alert">
           <span class="badge bad">${repo.staged.length} uncommitted</span>
           <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
+          <button class="btn" type="button" data-discard>Discard</button>
+        </div>` : repo.staged.length && ctx.ontology.role === "viewer" ? `<div class="staged-bar" id="viewer-staged">
+          <span class="badge warn">${repo.staged.length} uncommitted</span>
+          <span style="flex:1">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
           <button class="btn" type="button" data-discard>Discard</button>
         </div>` : repo.staged.length ? `<form class="staged-bar" id="commit-form">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
@@ -3044,12 +3048,13 @@
 			}
 		},
 		async reload() {
-			if (!remote) return;
+			if (!remote || !api) return;
 			const seq = connectSeq;
 			try {
-				const repo = await remote.load();
+				const [repo, membership] = await Promise.all([remote.load(), api.membership(remote.site.id)]);
 				if (seq !== connectSeq) return;
 				state.repo = repo;
+				ontologyRole = membership.role;
 			} catch {}
 			renderSoon();
 		}
