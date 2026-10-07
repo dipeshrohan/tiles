@@ -151,6 +151,33 @@ def get_graph(ctx: Ctx, view: Literal["head", "working"] = "working") -> o.Graph
     return _run(store.working, ctx.conn, ctx.site_id, ctx.user)  # type: ignore[no-any-return]
 
 
+class HealthIssue(BaseModel):
+    level: Literal["error", "warn", "info"]
+    kind: Literal["dangling", "duplicate", "orphan", "missing-prop"]
+    ref: str
+    text: str
+
+
+class HealthReport(BaseModel):
+    issues: list[HealthIssue]
+    score: int
+    counts: dict[str, int]
+
+
+@router.get("/sites/{site_id}/ontology/health", response_model=HealthReport, tags=["ontology"])
+def get_health(ctx: Ctx, view: Literal["head", "working"] = "head") -> o.HealthReport:
+    """Health check: dangling or duplicate relationships, orphans and missing required properties.
+
+    Scores the committed graph by default; `view=working` includes your staged changes.
+    """
+    graph = (
+        store.load_head(ctx.conn, ctx.site_id)
+        if view == "head"
+        else _run(store.working, ctx.conn, ctx.site_id, ctx.user)
+    )
+    return o.health_check(graph)
+
+
 @router.get("/sites/{site_id}/ontology/staged", response_model=list[dict[str, Any]], tags=["ontology"])
 def get_staged(ctx: Ctx) -> list[o.Op]:
     return store.load_staged(ctx.conn, ctx.site_id, ctx.user)

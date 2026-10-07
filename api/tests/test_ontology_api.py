@@ -203,3 +203,32 @@ def test_dev_users_become_engineers_on_the_site_they_open(api: TestClient, setti
             [site],
         ).fetchall()
     assert rows == [("alice@example.com", "engineer")]
+
+
+def test_health_scores_head_or_working_graph(api: TestClient, settings: Settings, site: str) -> None:
+    assert api.get(url(site, "health")).json() == {"issues": [], "score": 100, "counts": {"nodes": 0, "edges": 0}}
+    for op in (node("a"), node("b", props={}), edge("a", "feeds", "b")):
+        api.post(url(site, "staged"), json=op)
+    api.post(url(site, "commits"), json={"message": "pair"})
+    api.post(url(site, "staged"), json=node("lonely"))
+
+    head = api.get(url(site, "health")).json()
+    assert head["counts"] == {"nodes": 2, "edges": 1}
+    assert [(i["kind"], i["ref"]) for i in head["issues"]] == [("missing-prop", "b")]
+    assert head["score"] == 100  # info-level issues don't cost points
+
+    working = api.get(url(site, "health?view=working")).json()
+    assert ("orphan", "lonely") in [(i["kind"], i["ref"]) for i in working["issues"]]
+    assert working["score"] == 67  # 1 orphan among 3 nodes
+
+    # Edges stored without their nodes (e.g. by a future bulk import) are reported, not hidden.
+    with psycopg.connect(settings.database_url) as conn:
+        conn.execute(
+            "INSERT INTO ontology_edges (site_id, id, from_id, rel, to_id) VALUES (%s, 'e9', 'a', 'feeds', 'ghost')",
+            [site],
+        )
+    dangling = [i for i in api.get(url(site, "health")).json()["issues"] if i["kind"] == "dangling"]
+    assert dangling == [
+        {"level": "error", "kind": "dangling", "ref": "e9", "text": "Relationship e9 points at a missing node"}
+    ]
+    assert api.get(url(site, "health?view=nope")).status_code == 422
