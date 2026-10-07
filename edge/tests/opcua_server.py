@@ -121,6 +121,16 @@ class TestServer:
         await server.start()
         self._server = server
 
+    def add_variable(self, name: str, value: Any) -> None:
+        """Adds Press1.<name>, e.g. a tag that appears after the agent has connected."""
+        self._call(self._add_variable(name, value))
+
+    async def _add_variable(self, name: str, value: Any) -> None:
+        assert self._server is not None
+        press = self._server.get_node(ua.NodeId.from_string(f"ns={self.ns};s=Press1"))
+        node_id = ua.NodeId.from_string(f"ns={self.ns};s=Press1.{name}")
+        self._vars[name] = await press.add_variable(node_id, name, value)
+
     def write(self, name: str, value: Any) -> None:
         self._call(self._vars[name].write_value(value))
 

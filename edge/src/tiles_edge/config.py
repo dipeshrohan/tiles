@@ -139,7 +139,11 @@ def _token(tiles: dict[str, Any], base: Path, env: dict[str, str]) -> str:
     return token
 
 
-def _opcua(raw: object, base: Path) -> tuple[OpcUaConfig, ...]:
+# The heartbeat reports every connector; the Tiles API takes at most this many.
+MAX_CONNECTORS = 100
+
+
+def _opcua(raw: object, base: Path, need_signals: bool) -> tuple[OpcUaConfig, ...]:
     if raw is None:
         return ()
     if not isinstance(raw, list) or not all(isinstance(t, dict) for t in raw):
@@ -218,7 +222,8 @@ def _opcua(raw: object, base: Path) -> tuple[OpcUaConfig, ...]:
             raise ConfigError(f"{where}: application_uri must be a URN, e.g. urn:tiles-edge:press-line")
 
         raw_signals = table.get("signals", [])
-        if not isinstance(raw_signals, list) or not raw_signals:
+        # Setting up (browsing for node IDs) comes before there is anything to map.
+        if not isinstance(raw_signals, list) or (need_signals and not raw_signals):
             raise ConfigError(f"{where}: list the nodes to read as [[opcua.signals]] with node and signal")
         signals: list[OpcUaSignal] = []
         for s in raw_signals:
@@ -249,6 +254,11 @@ def _opcua(raw: object, base: Path) -> tuple[OpcUaConfig, ...]:
                 signals=tuple(signals),
             )
         )
+    if len(connectors) > MAX_CONNECTORS:
+        raise ConfigError(
+            f"at most {MAX_CONNECTORS} connectors per agent (Tiles takes that many in a heartbeat); "
+            "split them over several agents"
+        )
     _unique([c.name for c in connectors], "connector name")
     _unique([s.signal for c in connectors for s in c.signals], "signal")
     _unique([f"{c.name} {s.node}" for c in connectors for s in c.signals], "node in one connector")
@@ -263,9 +273,9 @@ def _unique(values: list[str], what: str) -> None:
         seen.add(v)
 
 
-def load(path: Path, env: dict[str, str] | None = None, *, need_token: bool = True) -> Config:
-    """Reads and checks the config. need_token=False is for commands that never call Tiles
-    (e.g. browsing an OPC UA server while setting up)."""
+def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) -> Config:
+    """Reads and checks the config. setup=True is for the connector setup commands, which never
+    call Tiles and come before the signal mapping: they need neither the token nor any signals."""
     env = dict(os.environ) if env is None else env
     try:
         data = tomllib.loads(path.read_text())
@@ -298,9 +308,9 @@ def load(path: Path, env: dict[str, str] | None = None, *, need_token: bool = Tr
 
     return Config(
         url=_url(tiles.get("url")),
-        token=_token(tiles, base, env) if need_token else "",
+        token="" if setup else _token(tiles, base, env),
         ca_file=ca_file,
         heartbeat_seconds=heartbeat,
         timeout_seconds=float(timeout),
-        opcua=_opcua(data.get("opcua"), base),
+        opcua=_opcua(data.get("opcua"), base, need_signals=not setup),
     )

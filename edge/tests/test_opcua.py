@@ -58,7 +58,7 @@ def wait_for(check: Callable[[], bool], seconds: float = 15) -> None:
 
 
 def running(config: OpcUaConfig, buffer: MemoryBuffer) -> opcua.OpcUaConnector:
-    connector = opcua.OpcUaConnector(config, buffer, max_retry_seconds=0.5)
+    connector = opcua.OpcUaConnector(config, buffer, max_retry_seconds=0.5, retry_nodes_seconds=0.5)
     connector.start()
     return connector
 
@@ -119,7 +119,33 @@ def test_unknown_nodes_make_the_connector_degraded(server: TestServer, certs: Ce
     connector = running(connector_config(server, certs, signals=signals), MemoryBuffer())
     try:
         wait_for(lambda: connector.status()["status"] == "degraded")
-        assert "subscribed to 1 of 2 nodes; failed: ns=2;s=Nope (BadNodeIdUnknown)" in connector.status()["detail"]
+        assert (
+            "subscribed to 1 of 2 nodes; failed (retrying): ns=2;s=Nope (BadNodeIdUnknown)"
+            in connector.status()["detail"]
+        )
+    finally:
+        connector.stop()
+
+
+def test_a_node_that_appears_later_is_subscribed_then(server: TestServer, certs: Certs) -> None:
+    signals = (OpcUaSignal(server.node("Temperature"), "a"), OpcUaSignal(server.node("Pressure"), "press1.pressure"))
+    buffer = MemoryBuffer()
+    connector = running(connector_config(server, certs, signals=signals), buffer)
+    try:
+        wait_for(lambda: connector.status()["status"] == "degraded")
+        server.add_variable("Pressure", 4.5)
+        wait_for(lambda: connector.status()["status"] == "ok")
+        wait_for(lambda: any(s.signal == "press1.pressure" and s.value == 4.5 for s in list(buffer._samples)))
+    finally:
+        connector.stop()
+
+
+def test_a_connector_with_no_node_subscribed_is_down(server: TestServer, certs: Certs) -> None:
+    signals = (OpcUaSignal("ns=2;s=Nope", "a"), OpcUaSignal("ns=2;s=Nope2", "b"))
+    connector = running(connector_config(server, certs, signals=signals), MemoryBuffer())
+    try:
+        wait_for(lambda: "subscribed to 0 of 2 nodes" in connector.status()["detail"])
+        assert connector.status()["status"] == "down"
     finally:
         connector.stop()
 
@@ -144,8 +170,10 @@ def test_it_reconnects_when_the_server_comes_back(certs: Certs) -> None:
         wait_for(lambda: connector.status()["status"] == "ok")
         server.stop()
         wait_for(lambda: connector.status()["status"] == "down", 20)
+        wait_for(lambda: connector._failures >= 2, 20)  # it kept trying while the server was away
         server = TestServer(certs, port=server.port).start()
         wait_for(lambda: connector.status()["status"] == "ok", 30)
+        assert connector._failures == 0  # the next outage starts its backoff from 1 s again
         buffer.take()
         server.write("Temperature", 99.5)
         wait_for(lambda: any(s.value == 99.5 for s in list(buffer._samples)))
@@ -223,9 +251,17 @@ def test_server_cert_shows_then_pins_the_servers_certificate(
     path = config_file(tmp_path, server, certs)
     expected = opcua.fingerprint(opcua._read_cert(certs.server_cert, ""))
     assert main(["opcua", "server-cert", "-c", str(path)]) == 0
-    assert f"SHA-256 fingerprint: {expected}" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert f"SHA-256 fingerprint: {expected}" in out
+    assert f"--save {expected}" in out  # the command to pin exactly this certificate
     assert not (tmp_path / "server.der").exists()  # shown, not pinned
-    assert main(["opcua", "server-cert", "-c", str(path), "--save"]) == 0
+    # A fingerprint that isn't the server's pins nothing...
+    other = opcua.fingerprint(opcua._read_cert(certs.other_cert, ""))
+    assert main(["opcua", "server-cert", "-c", str(path), "--save", other]) == 4
+    assert "nothing was pinned" in capsys.readouterr().err
+    assert not (tmp_path / "server.der").exists()
+    # ...the checked one does, written with or without colons.
+    assert main(["opcua", "server-cert", "-c", str(path), "--save", expected.replace(":", "").lower()]) == 0
     assert opcua.fingerprint(opcua._read_cert(tmp_path / "server.der", "")) == expected
 
 
@@ -255,6 +291,11 @@ def test_check_tries_each_connector(
     out = json.loads(capsys.readouterr().out)
     assert out["ok"] is False
     assert "not the pinned one" in out["connectors"]["press-line"]
+    # The heartbeat carries what check found, not an empty list over the service's statuses.
+    [beat] = tiles.requests
+    [status] = beat["body"]["connectors"]
+    assert (status["name"], status["kind"], status["status"]) == ("press-line", "opcua", "down")
+    assert "not the pinned one" in status["detail"] and status["detail"].endswith("(tiles-edge check)")
 
 
 def test_the_commands_pick_a_connector_by_name(
@@ -268,6 +309,19 @@ def test_the_commands_pick_a_connector_by_name(
     plain = write_config(tmp_path / "plain", "https://tiles.example.com")
     assert main(["opcua", "browse", "-c", str(plain)]) == 2
     assert "there is no [[opcua]] connector" in capsys.readouterr().err
+
+
+def test_setup_commands_work_before_any_signal_is_mapped(
+    server: TestServer, certs: Certs, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = config_file(tmp_path, server, certs, pin=certs.server_cert)
+    text = path.read_text()
+    path.write_text(text[: text.index("[[opcua.signals]]")])
+    assert main(["opcua", "cert", "-c", str(path)]) == 0
+    capsys.readouterr()
+    assert main(["opcua", "server-cert", "-c", str(path)]) == 0
+    with pytest.raises(ConfigError, match="list the nodes to read"):
+        load(path, env={"TILES_EDGE_TOKEN": "tla_x"})  # but running needs them
 
 
 def test_opcua_commands_dont_need_the_agent_token(server: TestServer, certs: Certs, tmp_path: Path) -> None:

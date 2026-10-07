@@ -22,6 +22,7 @@ import hashlib
 import logging
 import socket
 import threading
+import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -216,10 +217,20 @@ def _value(raw: Any) -> Value | None:
 class OpcUaConnector:
     kind = "opcua"
 
-    def __init__(self, config: OpcUaConfig, sink: SampleSink, *, max_retry_seconds: float = 60) -> None:
+    def __init__(
+        self,
+        config: OpcUaConfig,
+        sink: SampleSink,
+        *,
+        max_retry_seconds: float = 60,
+        retry_nodes_seconds: float = 30,
+    ) -> None:
         self.config = config
         self.sink = sink
         self.max_retry_seconds = max_retry_seconds
+        self.retry_nodes_seconds = retry_nodes_seconds
+        self._failures = 0  # connection attempts failed in a row
+        self._subscribed = 0  # nodes subscribed in the current session
         self.received = 0
         self.skipped = 0  # values of a type Tiles doesn't store (arrays, structures…)
         self._lock = threading.Lock()
@@ -269,20 +280,18 @@ class OpcUaConnector:
     async def _main(self) -> None:
         self._loop = asyncio.get_running_loop()
         self._wake = asyncio.Event()
-        failures = 0
         while not self._stop.is_set():
             try:
                 await self._session()
-                failures = 0
             except ConnectorError as e:
-                failures += 1
+                self._failures += 1
                 self._set("down", str(e))
             except Exception as e:  # network errors, server refusals: retry
-                failures += 1
+                self._failures += 1
                 self._set("down", explain(e))
             if self._stop.is_set():
                 break
-            await self._sleep(min(2.0 ** min(failures - 1, 10), self.max_retry_seconds))
+            await self._sleep(min(2.0 ** min(self._failures - 1, 10), self.max_retry_seconds))
         self._set("down", "stopped")
 
     async def _sleep(self, seconds: float) -> None:
@@ -293,29 +302,49 @@ class OpcUaConnector:
 
     async def _session(self) -> None:
         client = await connect(self.config)
+        self._subscribed = 0
         try:
-            handler = _Handler(self)
-            subscription = await client.create_subscription(self.config.publishing_interval_ms, handler)
-            nodes = [client.get_node(s.node) for s in self.config.signals]
-            results = await subscription.subscribe_data_change(nodes)
-            failed = [
-                f"{node.nodeid.to_string()} ({r.name})"
-                for node, r in zip(nodes, results, strict=True)
-                if isinstance(r, ua.StatusCode)
-            ]
-            ok = len(nodes) - len(failed)
-            if failed:
-                self._set("degraded", f"subscribed to {ok} of {len(nodes)} nodes; failed: {', '.join(failed)}")
-            else:
-                self._set("ok", f"subscribed to {ok} nodes at {self.config.endpoint}")
-            # Until told to stop, or the server goes away (any request then fails).
+            subscription = await client.create_subscription(self.config.publishing_interval_ms, _Handler(self))
+            pending = [client.get_node(s.node) for s in self.config.signals]
+            pending = await self._subscribe(subscription, pending)
+            # Connected and subscribed: a later outage starts its backoff from 1 s again.
+            self._failures = 0
+            last_retry = time.monotonic()
+            # Until told to stop, or the server goes away (any request then fails). Nodes that
+            # couldn't be subscribed (not there yet, access denied…) are tried again now and then.
             while not self._stop.is_set():
                 await self._sleep(1)
                 await client.check_connection()
                 await client.nodes.server_state.read_value()
+                if pending and time.monotonic() - last_retry >= self.retry_nodes_seconds:
+                    pending = await self._subscribe(subscription, pending)
+                    last_retry = time.monotonic()
         finally:
             with contextlib.suppress(Exception):  # already gone
                 await asyncio.wait_for(client.disconnect(), 5)
+
+    async def _subscribe(self, subscription: Any, nodes: list[Node]) -> list[Node]:
+        """Subscribes to `nodes`; returns the ones that failed, and sets the status to match."""
+        results = await subscription.subscribe_data_change(nodes) if nodes else []
+        if not isinstance(results, list):  # asyncua returns a bare handle for a single node
+            results = [results]
+        pending = [n for n, r in zip(nodes, results, strict=True) if isinstance(r, ua.StatusCode)]
+        failed = [
+            f"{n.nodeid.to_string()} ({r.name})"
+            for n, r in zip(nodes, results, strict=True)
+            if isinstance(r, ua.StatusCode)
+        ]
+        self._subscribed += len(nodes) - len(pending)
+        total = len(self.config.signals)
+        if not pending:
+            self._set("ok", f"subscribed to {total} nodes at {self.config.endpoint}")
+        else:
+            # Nothing subscribed means no data at all: that is down, not degraded.
+            state: Status = "degraded" if self._subscribed else "down"
+            self._set(
+                state, f"subscribed to {self._subscribed} of {total} nodes; failed (retrying): {', '.join(failed)}"
+            )
+        return pending
 
     def on_value(self, node: Node, data: Any) -> None:
         signal = self._signals.get(node.nodeid.to_string())

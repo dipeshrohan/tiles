@@ -79,16 +79,16 @@ signal = "press1.temperature"
 
 The server's certificate is pinned. Before each connection the agent compares the certificate the server presents with `server_certificate`, and refuses to connect if they differ. It never simply trusts whatever answers on that address.
 
-**Setting up a connector.** These commands don't need the agent's Tiles token yet:
+**Setting up a connector.** These commands need neither the agent's Tiles token nor any `[[opcua.signals]]` yet, since `browse` is how you find the nodes to map:
 
 1. `tiles-edge opcua cert` creates the agent's certificate and key, and prints the certificate's SHA-256 fingerprint. Running it again keeps the existing pair. Give `agent.der` to the OPC UA server's admin, who adds it to the server's trusted certificates.
-2. `tiles-edge opcua server-cert` shows the server's certificate and fingerprint. Compare the fingerprint with the one the server's admin sees. If they match, run it again with `--save` to pin the certificate.
+2. `tiles-edge opcua server-cert` shows the server's certificate and its fingerprint. Compare the fingerprint with the one the server's admin sees. If they match, pin it with `--save <that fingerprint>`; the command prints the exact line to run. The second run pins the certificate only if the server still presents that same fingerprint. It refuses otherwise, so a certificate swapped in between can't get pinned.
 3. `tiles-edge opcua browse` lists the server's nodes with their IDs, to find the ones to map. `--node` starts lower in the tree; `--depth` sets how many levels to show.
-4. `tiles-edge check` sends a heartbeat and connects to each server once. Its output gives each connector's result.
+4. `tiles-edge check` connects to each server once, then sends a heartbeat that carries those results. Its output gives each connector's result.
 
 With several `[[opcua]]` sections, choose one with `--connector <name>`.
 
-**Running.** Each connector subscribes to its nodes and reports `ok`, `degraded` (some nodes couldn't be subscribed) or `down`, with the reason, in every heartbeat. Tiles shows this under Settings → Edge agents. If the server goes away, the connector reconnects with a growing delay, up to a minute, and checks the pinned certificate again each time.
+**Running.** Each connector subscribes to its nodes and reports `ok`, `degraded` or `down`, with the reason, in every heartbeat. `degraded` means some nodes couldn't be subscribed; those are retried every 30 seconds, so a tag that appears later is picked up. `down` means none could be, or the server can't be reached. An agent takes at most 100 connectors. Tiles shows this under Settings → Edge agents. If the server goes away, the connector reconnects with a growing delay, up to a minute, and checks the pinned certificate again each time.
 
 Numbers, booleans and text become readings, with the server's source timestamp and quality (good, uncertain or bad). Arrays and structures are skipped and counted.
 

@@ -189,3 +189,12 @@ def test_signals_and_connector_names_are_unique(tmp_path: Path) -> None:
     same_name = OPCUA.format(extra="") + OPCUA.format(extra="").replace("press1.temperature", "press1.other")
     with pytest.raises(ConfigError, match="connector name 'press-line' appears more than once"):
         load(with_opcua(tmp_path, body=same_name), env={})
+
+
+def test_at_most_100_connectors(tmp_path: Path) -> None:
+    many = "".join(
+        OPCUA.format(extra="").replace("press-line", f"line-{i}").replace("press1.temperature", f"s{i}")
+        for i in range(101)
+    )
+    with pytest.raises(ConfigError, match="at most 100 connectors"):
+        load(with_opcua(tmp_path, body=many), env={})
