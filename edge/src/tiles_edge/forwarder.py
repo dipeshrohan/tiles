@@ -123,7 +123,7 @@ class Forwarder:
                 return 0
             self._failures += 1
             if e.status == 404:
-                self._set_problem("Tiles doesn't accept samples yet (no ingest endpoint); keeping them")
+                self._set_problem("this Tiles has no ingest endpoint (an older version); keeping the samples")
             else:  # 401/403: the heartbeat reports the token problem; keep the samples meanwhile
                 self._set_problem(str(e))
             return 0

@@ -155,7 +155,7 @@ def test_tiles_without_an_ingest_endpoint_keeps_samples(tmp_path: Path) -> None:
         buffer.put(sample(0))
         assert forwarder.send_once() == 0
         assert len(buffer) == 1
-        assert "doesn't accept samples yet" in forwarder.status()["problem"]
+        assert "has no ingest endpoint" in forwarder.status()["problem"]
         assert forwarder.send_once() == 1  # and once it does, they go
         assert forwarder.status()["problem"] == ""
     finally:

@@ -158,7 +158,33 @@ jobs:
           token=$(curl -fsS -X POST "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \
             -H 'content-type: application/json' -d '{"name":"ci-edge"}' | jq -er .token)
           mkdir -p "$RUNNER_TEMP/edge"
-          printf '[tiles]\nurl = "http://localhost:8000"\n[agent]\nheartbeat_seconds = 30\n' > "$RUNNER_TEMP/edge/tiles-edge.toml"
+          # A small plant database for the SQL connector: three readings that must reach TimescaleDB.
+          python3 -c "
+          import sqlite3
+          db = sqlite3.connect('$RUNNER_TEMP/edge/plant.sqlite')
+          db.execute('CREATE TABLE quality (id INTEGER PRIMARY KEY, at TEXT, temperature REAL)')
+          db.executemany('INSERT INTO quality (at, temperature) VALUES (datetime(\\'now\\', ?), ?)',
+                         [('-3 minutes', 20.5), ('-2 minutes', 21.0), ('-1 minutes', 21.5)])
+          db.commit()
+          "
+          cat > "$RUNNER_TEMP/edge/tiles-edge.toml" <<'TOML'
+          [tiles]
+          url = "http://localhost:8000"
+          [agent]
+          heartbeat_seconds = 30
+          [[sql]]
+          name = "plant-db"
+          engine = "sqlite"
+          path = "plant.sqlite"
+          poll_seconds = 2
+          [[sql.queries]]
+          name = "quality"
+          query = "SELECT id, at, temperature FROM quality WHERE id > :watermark ORDER BY id"
+          watermark = "id"
+          start = 0
+          time = "at"
+          columns = { temperature = "ci.temperature" }
+          TOML
           docker build -t tiles-edge edge
           # The SQL drivers load in the image (a refused connection, not a missing library)
           docker run --rm --entrypoint python tiles-edge -c "
@@ -172,17 +198,24 @@ jobs:
             tiles-edge check -c /etc/tiles-edge/tiles-edge.toml | tee /dev/stderr | jq -e .ok
           curl -fsS "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \
             | tee /dev/stderr | jq -e '.[] | select(.name == "ci-edge") | .status == "online"'
-          # `run` opens its disk buffer in the image's /var/lib/tiles-edge and reports it in the heartbeat.
+          # `run` reads the database into its disk buffer (the image's /var/lib/tiles-edge), sends the
+          # readings to Tiles, and reports the buffer in its heartbeat.
           docker run -d --name ci-edge --network host -e TILES_EDGE_TOKEN="$token" \
             -v "$RUNNER_TEMP/edge:/etc/tiles-edge:ro" tiles-edge
-          for _ in $(seq 30); do
-            curl -fsS "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \
-              | jq -e '.[] | select(.name == "ci-edge") | .buffer.queued == 0' && break
+          stored="SELECT count(*) FROM samples s JOIN signals g ON g.id = s.signal_id WHERE g.tag = 'ci.temperature'"
+          for _ in $(seq 60); do
+            test "$(docker compose exec -T db psql -U tiles -d tiles -tAc "$stored")" = 3 && break
             sleep 1
           done
           docker logs ci-edge
-          curl -fsS "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \
-            | jq -e '.[] | select(.name == "ci-edge") | .buffer.queued == 0'
+          test "$(docker compose exec -T db psql -U tiles -d tiles -tAc "$stored")" = 3
+          for _ in $(seq 40); do  # the next heartbeat (every 30 s) reports them sent
+            curl -fsS "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \
+              | jq -e '.[] | select(.name == "ci-edge") | .buffer | .sent == 3 and .queued == 0' && break
+            sleep 1
+          done
+          curl -fsS "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" | tee /dev/stderr \
+            | jq -e '.[] | select(.name == "ci-edge") | .buffer.sent == 3 and (.connectors[0].status == "ok")'
           docker stop ci-edge
       - name: Logs on failure
         if: failure()

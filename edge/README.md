@@ -4,7 +4,7 @@ A small agent that runs on the plant network and sends data out to Tiles ([ADR 0
 
 It has one config file, the connection to Tiles and a heartbeat, so Tiles can show whether each agent and each of its connectors is working (T2.01). It reads OPC UA servers (T2.02), MQTT brokers, including Sparkplug B (T2.03), and SQL databases such as MES and quality systems (T2.05).
 
-Readings wait in a buffer on disk until Tiles has them, so a network cut or a restart loses nothing (T2.04). Tiles's ingest endpoint (T2.06) comes next; until then the agent keeps its readings and says so in its status.
+Readings wait in a buffer on disk until Tiles has them, so a network cut or a restart loses nothing (T2.04). Tiles stores them in TimescaleDB (T2.06), adding each new signal tag to the site's signals.
 
 The core uses only the Python standard library (3.12 or newer), so it installs anywhere Python runs and can also be shipped as a single file. Each connector that needs a protocol library is an extra: `opcua` (`asyncua`), `mqtt` (`paho-mqtt`), `postgresql` (`psycopg`) and `sqlserver` (Microsoft's `mssql-python`). SQLite needs nothing extra. The container image includes them all.
 
@@ -60,7 +60,7 @@ While running, the agent never gives up on a network problem. It retries with a 
 `tiles-edge run` writes every reading to a SQLite file (`buffer_path`, by default `/var/lib/tiles-edge/buffer.sqlite`) before anything else happens to it. A forwarder sends the oldest readings to Tiles in batches of up to 5,000, in the order they arrived, and deletes a batch only once Tiles has accepted it. So:
 
 - **When the network is cut**, readings pile up on disk and the forwarder retries with a growing delay, up to a minute. When the network is back, the backlog goes out oldest first, then new readings follow.
-- **When the agent restarts** (or the host does), the file is still there and sending resumes where it stopped. A batch that was in flight when the agent stopped is sent again; Tiles keeps one reading per signal and time (T2.06), so nothing is doubled.
+- **When the agent restarts** (or the host does), the file is still there and sending resumes where it stopped. A batch that was in flight when the agent stopped is sent again; Tiles keeps one reading per signal and time, so nothing is doubled.
 - **The file is bounded.** At `buffer_max_samples` readings (20 million by default, a few GB), the oldest make room and are counted as dropped. Size it for the longest outage you want to ride out: one signal a second is 86,400 readings a day.
 - **A reading Tiles can never take** (it answers that it is invalid) is set aside and counted as rejected, so it can't hold up the rest. The forwarder halves a refused batch until the bad reading is alone, so the good ones around it still go; a batch Tiles finds too large is split the same way. If Tiles rejects the agent's token, readings are kept until it is registered again.
 - **If the disk is full or failing**, readings that can't be written are counted as dropped, and the status says why until writing works again. The connectors carry on.

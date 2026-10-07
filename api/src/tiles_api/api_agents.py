@@ -176,19 +176,35 @@ def _unauthorized(detail: str) -> HTTPException:
     return HTTPException(status.HTTP_401_UNAUTHORIZED, detail, headers={"WWW-Authenticate": "Bearer"})
 
 
-@router.post("/agent/heartbeat", response_model=HeartbeatOut)
-def heartbeat(body: HeartbeatIn, conn: DbConn, authorization: Annotated[str, Header()] = "") -> HeartbeatOut:
-    """Called by an edge agent every `heartbeat_seconds`, with its own token."""
+def agent_token(authorization: str) -> bytes:
+    """The hash of the agent token in an Authorization header; 401 if there is none."""
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() != "bearer" or not token.startswith(TOKEN_PREFIX):
         raise _unauthorized("An edge agent token is required")
+    return token_hash(token)
+
+
+def calling_agent(conn: Any, authorization: str) -> dict[str, Any]:
+    """The active agent whose token this is (id, site_id, name); 401 otherwise."""
+    row: dict[str, Any] | None = conn.execute(
+        "SELECT id, site_id, name FROM edge_agents WHERE token_hash = %s AND revoked_at IS NULL",
+        [agent_token(authorization)],
+    ).fetchone()
+    if row is None:
+        raise _unauthorized("Unknown or revoked agent token")
+    return row
+
+
+@router.post("/agent/heartbeat", response_model=HeartbeatOut)
+def heartbeat(body: HeartbeatIn, conn: DbConn, authorization: Annotated[str, Header()] = "") -> HeartbeatOut:
+    """Called by an edge agent every `heartbeat_seconds`, with its own token."""
     row = conn.execute(
         """
         UPDATE edge_agents SET last_seen_at = clock_timestamp(), last_status = %s
         WHERE token_hash = %s AND revoked_at IS NULL
         RETURNING id, site_id, last_seen_at
         """,
-        [Jsonb(body.model_dump(mode="json")), token_hash(token)],
+        [Jsonb(body.model_dump(mode="json")), agent_token(authorization)],
     ).fetchone()
     if row is None:
         raise _unauthorized("Unknown or revoked agent token")
