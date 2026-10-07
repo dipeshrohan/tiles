@@ -33,7 +33,7 @@ class Sender(Protocol):
 
 
 class Connector(Protocol):
-    """A data source (OPC UA, later MQTT and SQL). It runs on its own thread between start() and stop()."""
+    """A data source (OPC UA, MQTT or SQL). It runs on its own thread between start() and stop()."""
 
     @property
     def name(self) -> str: ...

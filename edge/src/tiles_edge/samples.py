@@ -1,9 +1,9 @@
 """Readings from connectors, and where they wait to be sent to Tiles.
 
-Until the store-and-forward buffer (T2.04) and the ingest endpoint (T2.06)
-exist, samples wait in a bounded memory buffer that drops the oldest when
-full and counts what it dropped. Connectors only see the `SampleSink`
-protocol, so the disk buffer can replace it without touching them.
+Connectors only see the `SampleSink` protocol. `tiles-edge run` gives them the
+disk buffer (buffer.py); `tiles-edge check` gives them a `MemoryBuffer`, which
+holds samples in memory, bounded, counting what it dropped. Connectors that
+poll (SQL) also save their position with the samples (`StateSink`).
 """
 
 import threading
@@ -28,6 +28,14 @@ class SampleSink(Protocol):
     def put(self, sample: Sample) -> None: ...
 
 
+class StateSink(SampleSink, Protocol):
+    def put_many(self, samples: list[Sample], *, state: tuple[str, str] | None = None) -> None:
+        """Stores the samples and the (key, value) position together. Raises if it can't."""
+        ...
+
+    def state(self, key: str) -> str | None: ...
+
+
 class MemoryBuffer:
     """Thread-safe, bounded: when full, the oldest sample makes room and is counted as dropped."""
 
@@ -35,12 +43,24 @@ class MemoryBuffer:
         self._samples: deque[Sample] = deque(maxlen=capacity)
         self._lock = threading.Lock()
         self.dropped = 0
+        self._state: dict[str, str] = {}
 
     def put(self, sample: Sample) -> None:
         with self._lock:
             if len(self._samples) == self._samples.maxlen:
                 self.dropped += 1
             self._samples.append(sample)
+
+    def put_many(self, samples: list[Sample], *, state: tuple[str, str] | None = None) -> None:
+        for sample in samples:
+            self.put(sample)
+        if state is not None:
+            with self._lock:
+                self._state[state[0]] = state[1]
+
+    def state(self, key: str) -> str | None:
+        with self._lock:
+            return self._state.get(key)
 
     def take(self, limit: int | None = None) -> list[Sample]:
         """Removes and returns up to `limit` samples, oldest first."""

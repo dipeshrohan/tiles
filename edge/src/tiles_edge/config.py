@@ -20,6 +20,9 @@
     node = "ns=2;s=Press1.Temperature"
     signal = "press1.temperature"
 
+MQTT brokers ([[mqtt]]) and SQL databases ([[sql]]) are configured the same
+way; see README.md.
+
 Relative paths are resolved against the config file's folder.
 """
 
@@ -29,7 +32,9 @@ import re
 import socket
 import ssl
 import tomllib
+import zoneinfo
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -116,6 +121,59 @@ class MqttConfig:
         return [t.signal for t in self.topics if t.signal] + [s for t in self.topics for s in t.metrics.values()]
 
 
+SQL_ENGINES = {"postgresql": 5432, "sqlserver": 1433, "sqlite": 0}  # and their default ports
+# Where a query starts the first time: as the watermark column stores it.
+Watermark = int | str | datetime
+WATERMARK_PARAM = re.compile(r"(?<![:\w]):watermark\b")
+
+
+@dataclass(frozen=True)
+class SqlQuery:
+    """One polled query. Wide rows map columns to signals; long rows (one reading per row) map
+    the values of `signal_column` to signals and read the value from `value_column`."""
+
+    name: str
+    query: str  # a SELECT with :watermark, ordered by the watermark column
+    watermark: str  # the column that increases with every new row
+    start: Watermark
+    time: str  # the column holding each reading's time
+    columns: dict[str, str]  # wide: column -> signal
+    signal_column: str | None  # long
+    value_column: str | None
+    signals: dict[str, str]  # long: value of signal_column -> signal
+
+    @property
+    def mapped(self) -> list[str]:
+        return list(self.columns.values()) + list(self.signals.values())
+
+
+@dataclass(frozen=True)
+class SqlConfig:
+    name: str
+    engine: str  # one of SQL_ENGINES
+    host: str | None
+    port: int
+    database: str | None
+    path: Path | None  # sqlite
+    username: str | None
+    password_file: Path | None
+    tls: bool
+    ca_file: Path | None  # postgresql: trust this CA instead of the system's
+    poll_seconds: int
+    max_rows: int
+    timeout_seconds: int
+    timezone: zoneinfo.ZoneInfo  # for date-times stored without a time zone
+    queries: tuple[SqlQuery, ...]
+
+    @property
+    def signals(self) -> list[str]:
+        return [s for q in self.queries for s in q.mapped]
+
+    @property
+    def source(self) -> str:
+        return str(self.path) if self.engine == "sqlite" else f"{self.engine}://{self.host}:{self.port}/{self.database}"
+
+
 @dataclass(frozen=True)
 class Config:
     url: str
@@ -125,6 +183,7 @@ class Config:
     timeout_seconds: float
     opcua: tuple[OpcUaConfig, ...] = ()
     mqtt: tuple[MqttConfig, ...] = ()
+    sql: tuple[SqlConfig, ...] = ()
     # Where samples wait until Tiles has them (T2.04), and how many it may hold.
     buffer_path: Path = Path("/var/lib/tiles-edge/buffer.sqlite")
     buffer_max_samples: int = 20_000_000
@@ -454,6 +513,211 @@ def _mqtt(raw: object, base: Path, need_topics: bool) -> tuple[MqttConfig, ...]:
     return tuple(connectors)
 
 
+def _int(table: dict[str, Any], key: str, default: int, low: int, high: int, where: str) -> int:
+    value = table.get(key, default)
+    if not isinstance(value, int) or isinstance(value, bool) or not low <= value <= high:
+        raise ConfigError(f"{where}: {key} must be a whole number from {low} to {high}")
+    return value
+
+
+def _column(value: object, key: str, where: str) -> str:
+    if not isinstance(value, str) or not value or len(value) > 128:
+        raise ConfigError(f"{where}: {key} must be a column name")
+    return value
+
+
+def _read_only_query(query: object, where: str) -> str:
+    """One SELECT (or WITH … SELECT) with :watermark once. The agent never writes to plant
+    systems (ADR 003); it also runs every query in a transaction it rolls back."""
+    if not isinstance(query, str) or not query.strip():
+        raise ConfigError(f"{where}: query must be a SELECT, e.g. SELECT … WHERE id > :watermark ORDER BY id")
+    text = query.strip().rstrip(";").strip()
+    first = re.sub(r"^(\s|--[^\n]*\n|/\*.*?\*/)*", "", text, flags=re.S).split(None, 1)[0].upper()
+    if first not in ("SELECT", "WITH"):
+        raise ConfigError(f"{where}: query must be a SELECT (or WITH … SELECT); the agent only reads")
+    if ";" in text:
+        raise ConfigError(f"{where}: query must be a single statement")
+    if len(WATERMARK_PARAM.findall(text)) != 1:
+        raise ConfigError(
+            f"{where}: query must use :watermark exactly once, e.g. WHERE id > :watermark ORDER BY id; "
+            "it is where the previous poll stopped"
+        )
+    return text
+
+
+# An identifier, plain or quoted ("x", [x], `x`), optionally qualified: t.id, "q"."id"
+_IDENT = r'(?:[\w$]+|"[^"]+"|\[[^\]]+\]|`[^`]+`)'
+_ORDER_KEY = re.compile(rf"\s*({_IDENT}(?:\s*\.\s*{_IDENT})*)\s*(\w+)?", re.S)
+
+
+def _ordered_by(query: str, watermark: str, where: str) -> None:
+    """The query's last ORDER BY must start with the watermark column, ascending. Otherwise a batch
+    could end on a large watermark while smaller ones wait beyond it, and those would be skipped."""
+    clean = re.sub(r"--[^\n]*|/\*.*?\*/|'(?:[^']|'')*'", " ", query, flags=re.S)  # comments, text
+    found = list(re.finditer(r"\border\s+by\b", clean, flags=re.I))
+    key = _ORDER_KEY.match(clean, found[-1].end()) if found else None
+    column = re.split(r"\s*\.\s*", key.group(1))[-1].strip('"[]`') if key else ""
+    if column.casefold() != watermark.casefold() or (key and (key.group(2) or "").upper() == "DESC"):
+        raise ConfigError(
+            f"{where}: query must end with ORDER BY {watermark} (ascending, before any other column), "
+            "so no row is skipped"
+        )
+
+
+def _sql_queries(raw: object, where: str, need: bool) -> tuple[SqlQuery, ...]:
+    if not isinstance(raw, list) or (need and not raw) or not all(isinstance(q, dict) for q in raw):
+        raise ConfigError(f"{where}: list what to read as [[sql.queries]] with name, query, watermark and signals")
+    queries: list[SqlQuery] = []
+    for q in raw:
+        name = q.get("name")
+        if not isinstance(name, str) or not NAME_PATTERN.match(name):
+            raise ConfigError(f"{where}: each [[sql.queries]] needs a name: letters, digits, dot, dash or underscore")
+        here = f"{where} query {name}"
+        _known(
+            q,
+            here,
+            {"name", "query", "watermark", "start", "time", "columns", "signal_column", "value_column", "signals"},
+        )
+        watermark = _column(q.get("watermark"), "watermark", here)
+        start = q.get("start")
+        if isinstance(start, bool) or not isinstance(start, int | str | datetime):
+            raise ConfigError(
+                f"{here}: start is where the first poll begins, written as the watermark column holds it: "
+                "a number (start = 0) or a date-time (start = 2026-01-01T00:00:00Z)"
+            )
+        columns = q.get("columns", {})
+        long_keys = [k for k in ("signal_column", "value_column", "signals") if k in q]
+        if not isinstance(columns, dict) or (bool(columns) == bool(long_keys)):
+            raise ConfigError(
+                f'{here}: map columns to signals with columns = {{ temperature = "press1.temperature" }}, '
+                'or rows to signals with signal_column, value_column and signals = { "TT-101" = "press1.temperature" }'
+            )
+        signals = q.get("signals", {})
+        if long_keys and (len(long_keys) != 3 or not isinstance(signals, dict) or not signals):
+            raise ConfigError(f"{here}: set signal_column, value_column and signals together")
+        query = _read_only_query(q.get("query"), here)
+        _ordered_by(query, watermark, here)
+        queries.append(
+            SqlQuery(
+                name=name,
+                query=query,
+                watermark=watermark,
+                start=start,
+                time=_column(q.get("time", watermark), "time", here),
+                columns={_column(k, "columns", here): _signal(v, here) for k, v in columns.items()},
+                signal_column=_column(q["signal_column"], "signal_column", here) if long_keys else None,
+                value_column=_column(q["value_column"], "value_column", here) if long_keys else None,
+                signals={str(k): _signal(v, here) for k, v in signals.items()},
+            )
+        )
+    _unique([q.name for q in queries], f"{where} query name")
+    return tuple(queries)
+
+
+def _sql(raw: object, base: Path, need_queries: bool) -> tuple[SqlConfig, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list) or not all(isinstance(t, dict) for t in raw):
+        raise ConfigError("[[sql]] must be a list of tables (write each database as [[sql]])")
+    keys = {
+        "name",
+        "engine",
+        "host",
+        "port",
+        "database",
+        "path",
+        "username",
+        "password_file",
+        "tls",
+        "allow_unsecured",
+        "ca_file",
+        "poll_seconds",
+        "max_rows",
+        "timeout_seconds",
+        "timezone",
+        "queries",
+    }
+    connectors: list[SqlConfig] = []
+    for table in raw:
+        name = table.get("name")
+        if not isinstance(name, str) or not NAME_PATTERN.match(name):
+            raise ConfigError("each [[sql]] needs a name: letters, digits, dot, dash or underscore; up to 63")
+        where = f"[[sql]] {name}"
+        _known(table, where, keys)
+        engine = table.get("engine")
+        if engine not in SQL_ENGINES:
+            raise ConfigError(f"{where}: engine must be one of {', '.join(SQL_ENGINES)}")
+
+        def path(key: str, table: dict[str, Any] = table, where: str = where) -> Path | None:
+            value = table.get(key)
+            if value is None:
+                return None
+            if not isinstance(value, str) or not value:
+                raise ConfigError(f"{where}: {key} must be a file path")
+            return base / value
+
+        db_path, password_file, ca_file = path("path"), path("password_file"), path("ca_file")
+        host, database, username = table.get("host"), table.get("database"), table.get("username")
+        tls = table.get("tls", True)
+        if not isinstance(tls, bool):
+            raise ConfigError(f"{where}: tls must be true or false")
+        if engine == "sqlite":
+            network = [
+                k for k in ("host", "port", "database", "username", "password_file", "tls", "ca_file") if k in table
+            ]
+            if network:
+                raise ConfigError(f"{where}: a sqlite database is a file: set path, not {', '.join(network)}")
+            if db_path is None:
+                raise ConfigError(f'{where}: path is required for sqlite, e.g. path = "/data/quality.sqlite"')
+        else:
+            if db_path is not None:
+                raise ConfigError(f"{where}: path is for sqlite; a {engine} database has host and database")
+            for key, value in (("host", host), ("database", database), ("username", username)):
+                if not isinstance(value, str) or not value or len(value) > 255:
+                    raise ConfigError(f"{where}: {key} is required")
+            if password_file is None:
+                raise ConfigError(f"{where}: password_file is required (a file holding the database user's password)")
+            if not tls and table.get("allow_unsecured") is not True:
+                raise ConfigError(
+                    f"{where}: tls = false sends plant data and the password unencrypted; "
+                    "set allow_unsecured = true as well if that is really intended"
+                )
+            if ca_file is not None and (engine != "postgresql" or not tls):
+                raise ConfigError(
+                    f"{where}: ca_file applies to postgresql over TLS; for sqlserver, add the CA to the "
+                    "system's trusted certificates (see README)"
+                )
+        port = _int(table, "port", SQL_ENGINES[engine] or 1, 1, 65535, where)
+        timezone = table.get("timezone", "UTC")
+        try:
+            zone = zoneinfo.ZoneInfo(str(timezone))
+        except (zoneinfo.ZoneInfoNotFoundError, ValueError):
+            raise ConfigError(
+                f"{where}: timezone {timezone!r} isn't a known time zone, e.g. UTC or Europe/Berlin "
+                "(if no zone is known at all, install the tzdata package)"
+            ) from None
+        connectors.append(
+            SqlConfig(
+                name=name,
+                engine=engine,
+                host=host if engine != "sqlite" else None,
+                port=port,
+                database=database if engine != "sqlite" else None,
+                path=db_path,
+                username=username if engine != "sqlite" else None,
+                password_file=password_file,
+                tls=tls and engine != "sqlite",
+                ca_file=ca_file,
+                poll_seconds=_int(table, "poll_seconds", 60, 1, 86400, where),
+                max_rows=_int(table, "max_rows", 10000, 10, 1_000_000, where),
+                timeout_seconds=_int(table, "timeout_seconds", 60, 1, 3600, where),
+                timezone=zone,
+                queries=_sql_queries(table.get("queries", []), where, need_queries),
+            )
+        )
+    return tuple(connectors)
+
+
 def _unique(values: list[str], what: str) -> None:
     seen: set[str] = set()
     for v in values:
@@ -472,7 +736,7 @@ def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) 
         raise ConfigError(f"can't read {path}: {e.strerror}") from None
     except tomllib.TOMLDecodeError as e:
         raise ConfigError(f"{path} is not valid TOML: {e}") from None
-    _known(data, "the top level", {"tiles", "agent", "opcua", "mqtt"})
+    _known(data, "the top level", {"tiles", "agent", "opcua", "mqtt", "sql"})
     tiles, agent = _table(data, "tiles"), _table(data, "agent")
     _known(tiles, "[tiles]", {"url", "token_file", "ca_file", "timeout_seconds"})
     _known(agent, "[agent]", {"heartbeat_seconds", "buffer_path", "buffer_max_samples"})
@@ -511,6 +775,7 @@ def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) 
         buffer_max_samples=buffer_max,
         opcua=_opcua(data.get("opcua"), base, need_signals=not setup),
         mqtt=_mqtt(data.get("mqtt"), base, need_topics=not setup),
+        sql=_sql(data.get("sql"), base, need_queries=not setup),
     )
     _connectors(config)
     return config
@@ -518,11 +783,16 @@ def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) 
 
 def _connectors(config: Config) -> None:
     """Checks that hold across all connectors."""
-    names = [c.name for c in config.opcua] + [c.name for c in config.mqtt]
+    names = [c.name for c in config.opcua] + [c.name for c in config.mqtt] + [c.name for c in config.sql]
     if len(names) > MAX_CONNECTORS:
         raise ConfigError(
             f"at most {MAX_CONNECTORS} connectors per agent (Tiles takes that many in a heartbeat); "
             "split them over several agents"
         )
     _unique(names, "connector name")
-    _unique([s.signal for c in config.opcua for s in c.signals] + [s for c in config.mqtt for s in c.signals], "signal")
+    _unique(
+        [s.signal for c in config.opcua for s in c.signals]
+        + [s for c in config.mqtt for s in c.signals]
+        + [s for c in config.sql for s in c.signals],
+        "signal",
+    )

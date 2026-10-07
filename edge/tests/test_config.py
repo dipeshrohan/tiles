@@ -198,3 +198,114 @@ def test_at_most_100_connectors(tmp_path: Path) -> None:
     )
     with pytest.raises(ConfigError, match="at most 100 connectors"):
         load(with_opcua(tmp_path, body=many), env={})
+
+
+SQL = """
+[[sql]]
+name = "mes"
+engine = "postgresql"
+host = "mes-db.plant.local"
+database = "mes"
+username = "tiles_reader"
+password_file = "sql/password"
+{extra}
+[[sql.queries]]
+name = "quality"
+query = "SELECT id, measured_at, temperature FROM quality WHERE id > :watermark ORDER BY id"
+watermark = "id"
+start = 0
+time = "measured_at"
+columns = {{ temperature = "line1.temperature" }}
+"""
+
+
+def with_sql(tmp_path: Path, body: str) -> Path:
+    path = write_config(tmp_path, "https://tiles.example.com")
+    path.write_text(path.read_text() + body)
+    return path
+
+
+def test_a_sql_connector_loads_with_secure_defaults(tmp_path: Path) -> None:
+    [c] = load(with_sql(tmp_path, SQL.format(extra="")), env={}).sql
+    assert (c.engine, c.host, c.port, c.database, c.tls, c.ca_file) == (
+        "postgresql",
+        "mes-db.plant.local",
+        5432,
+        "mes",
+        True,
+        None,
+    )
+    assert (c.poll_seconds, c.max_rows, c.timeout_seconds, str(c.timezone)) == (60, 10000, 60, "UTC")
+    [q] = c.queries
+    assert (q.watermark, q.start, q.time, q.columns) == ("id", 0, "measured_at", {"temperature": "line1.temperature"})
+    assert c.source == "postgresql://mes-db.plant.local:5432/mes"
+
+
+def test_a_sqlite_database_is_a_file(tmp_path: Path) -> None:
+    body = SQL.format(extra="").replace(
+        'engine = "postgresql"\nhost = "mes-db.plant.local"\ndatabase = "mes"\n'
+        'username = "tiles_reader"\npassword_file = "sql/password"\n',
+        'engine = "sqlite"\npath = "data/quality.sqlite"\n',
+    )
+    [c] = load(with_sql(tmp_path, body), env={}).sql
+    assert (c.path, c.host, c.tls, c.source) == (tmp_path / "data/quality.sqlite", None, False, str(c.path))
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (('engine = "postgresql"', 'engine = "oracle"'), "engine must be one of postgresql, sqlserver, sqlite"),
+        (('engine = "postgresql"', 'engine = "sqlite"'), "a sqlite database is a file: set path, not host"),
+        (('host = "mes-db.plant.local"\n', ""), "host is required"),
+        (('password_file = "sql/password"\n', ""), "password_file is required"),
+        (("{extra}", "tls = false"), "set allow_unsecured = true"),
+        (('engine = "postgresql"', 'engine = "sqlserver"\nca_file = "ca.pem"'), "add the CA to the system"),
+        (("{extra}", 'timezone = "Mars/Olympus"'), "isn't a known time zone"),
+        (("{extra}", "max_rows = 5"), "max_rows must be a whole number from 10"),
+        (("SELECT id", "DELETE FROM quality; SELECT id"), "query must be a SELECT"),
+        (("SELECT id", "WITH x AS (SELECT 1) SELECT id"), None),
+        (("ORDER BY id", "ORDER BY id; DROP TABLE quality"), "single statement"),
+        (("id > :watermark", "id > 0"), "use :watermark exactly once"),
+        ((" ORDER BY id", ""), "must end with ORDER BY id"),
+        (("ORDER BY id", "ORDER BY measured_at"), "must end with ORDER BY id"),
+        (("ORDER BY id", "ORDER BY id DESC"), r"ORDER BY id \(ascending"),
+        (("ORDER BY id", "ORDER BY measured_at -- ORDER BY id"), "must end with ORDER BY id"),
+        (("ORDER BY id", "ORDER BY quality.id ASC, measured_at"), None),
+        (("start = 0\n", ""), "start is where the first poll begins"),
+        (("columns = {{ temperature", 'signal_column = "tag"\ncolumns = {{ temperature'), "map columns to signals"),
+        (("columns = {{ temperature", 'signal_column = "tag"\nzz = {{ temperature'), "unknown setting"),
+        (('"line1.temperature"', '"Line 1"'), "must be a Tiles signal ID"),
+        (('name = "quality"', 'name = "quality"\nspeed = 1'), r"unknown setting\(s\) in \[\[sql\]\] mes query quality"),
+    ],
+)
+def test_sql_mistakes_are_explained(tmp_path: Path, change: tuple[str, str], message: str | None) -> None:
+    assert change[0] in SQL
+    body = SQL.replace(*change).format(extra="")
+    if message is None:
+        assert load(with_sql(tmp_path, body), env={}).sql
+        return
+    with pytest.raises(ConfigError, match=message):
+        load(with_sql(tmp_path, body), env={})
+
+
+def test_long_rows_map_signal_values(tmp_path: Path) -> None:
+    body = SQL.format(extra="").replace(
+        'columns = { temperature = "line1.temperature" }',
+        'signal_column = "tag"\nvalue_column = "value"\nsignals = { "TT-101" = "press1.temperature" }',
+    )
+    [q] = load(with_sql(tmp_path, body), env={}).sql[0].queries
+    assert (q.columns, q.signal_column, q.value_column, q.signals) == (
+        {},
+        "tag",
+        "value",
+        {"TT-101": "press1.temperature"},
+    )
+    incomplete = body.replace('value_column = "value"\n', "")
+    with pytest.raises(ConfigError, match="set signal_column, value_column and signals together"):
+        load(with_sql(tmp_path, incomplete), env={})
+
+
+def test_sql_signals_are_unique_across_connectors(tmp_path: Path) -> None:
+    body = SQL.format(extra="") + SQL.format(extra="").replace('name = "mes"', 'name = "mes-2"')
+    with pytest.raises(ConfigError, match=r"signal 'line1\.temperature' appears more than once"):
+        load(with_sql(tmp_path, body), env={})

@@ -12,6 +12,8 @@ dependencies = []
 [project.optional-dependencies]
 opcua = ["asyncua>=2.1.0"]
 mqtt = ["paho-mqtt>=2.1.0"]
+postgresql = ["psycopg[binary]>=3.3.6"]
+sqlserver = ["mssql-python>=1.15.0"]
 
 [project.scripts]
 tiles-edge = "tiles_edge.cli:main"
@@ -40,7 +42,7 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "ASYNC", "S"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106"]
+"tests/**" = ["S101", "S105", "S106", "S608"]  # S608: test SQL is built from constants
 
 [tool.mypy]
 strict = true
