@@ -24,6 +24,7 @@ import logging
 import math
 import sqlite3
 import threading
+import time
 from collections.abc import Sequence
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -276,13 +277,26 @@ class SqlConnector:
         return conn.cursor()
 
     def _execute(self, conn: Any, q: SqlQuery, watermark: Any, limit: int) -> tuple[list[str], list[Sequence[Any]]]:
+        sqlite = self.config.engine == "sqlite"
+        if sqlite:
+            # SQLite's own timeout only covers waiting for locks: stop a query that runs too long.
+            deadline = time.monotonic() + self.config.timeout_seconds
+            conn.set_progress_handler(lambda: time.monotonic() > deadline, 10_000)
         cur = self._cursor(conn)
         try:
             cur.execute(statement(self.config.engine, q.query), bind(self.config.engine, watermark))
             names = [str(d[0]) for d in cur.description or ()]
             rows = list(cur.fetchmany(limit))
+        except sqlite3.OperationalError as e:
+            if sqlite and "interrupted" in str(e):
+                raise ConnectorError(
+                    f"query {q.name} ran longer than timeout_seconds ({self.config.timeout_seconds} s)"
+                ) from None
+            raise
         finally:
             cur.close()
+            if sqlite:
+                conn.set_progress_handler(None, 0)
             conn.rollback()  # the agent never commits
         return names, rows
 
@@ -308,9 +322,9 @@ class SqlConnector:
         """Reads one batch of new rows and stores their samples with the new position.
         Returns whether there may be more rows waiting."""
         before = self.position(q)
-        names, rows = self._execute(conn, q, before, self.config.max_rows)
+        # One row more than a batch, to see whether the batch's last watermark value goes on past it.
+        names, rows = self._execute(conn, q, before, self.config.max_rows + 1)
         col = self._columns(q, names)
-        full = len(rows) == self.config.max_rows
 
         if before is not None and rows:
             # Rows the database finds after the position but Python doesn't were read already: SQL
@@ -320,6 +334,9 @@ class SqlConnector:
                 rows = [r for r in rows if r[col[q.watermark]] is None or r[col[q.watermark]] > before]
         if not rows:
             return False
+        full = len(rows) > self.config.max_rows
+        following = rows[self.config.max_rows][col[q.watermark]] if full else None
+        rows = rows[: self.config.max_rows]
         marks = [row[col[q.watermark]] for row in rows]
         known = [m for m in marks if m is not None]
         try:
@@ -328,8 +345,8 @@ class SqlConnector:
             ordered = False
         if not ordered:
             raise ConnectorError(f"query {q.name}: rows aren't in {q.watermark} order; add ORDER BY {q.watermark}")
-        if full and known:
-            # The last watermark value may continue past this batch: leave its rows for the next poll,
+        if full and known and following == known[-1]:
+            # The last watermark value goes on past this batch: leave its rows for the next poll,
             # which asks for rows after the value before it.
             last = known[-1]
             keep = len(rows)

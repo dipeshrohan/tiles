@@ -198,7 +198,7 @@ For SQLite, set `path = "/data/quality.sqlite"` instead of the host, database an
 
 **The watermark.** Each poll binds `:watermark` to the largest watermark value read so far, and that position is saved with the readings in the agent's buffer, in the same transaction. A restart therefore neither skips rows nor reads them twice. Use `>` with a column that only increases: an identity column or insert sequence is best. A time works too. Rows that share one time are never split across two polls: when a batch ends partway through them, they are left for the next poll. A transaction that commits late with an earlier time would be missed, though, so for a time column, poll a little behind, e.g. `AND measured_at < now() - interval '1 minute'`. Write `start` the way the column holds it: a number, or a TOML date-time (`start = 2026-01-01T00:00:00`). To read a range again, change `start`; the agent then begins there once more.
 
-Queries must `ORDER BY` the watermark column. A poll that gets rows out of order stops with an error instead of skipping rows.
+A query must end with `ORDER BY` the watermark column, ascending, before any other column (`ORDER BY measured_at, id` is fine). A poll that still gets rows out of order stops with an error instead of skipping rows. `timeout_seconds` limits each query on every engine.
 
 **Read only.** A query must be a single `SELECT` (or `WITH … SELECT`). Every poll runs in a transaction that is rolled back, PostgreSQL sessions are read-only, and SQLite files are opened read-only. Still, give the agent a user that can only read.
 

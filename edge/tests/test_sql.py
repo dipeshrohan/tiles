@@ -222,11 +222,41 @@ def test_more_rows_with_one_time_than_a_batch_holds_is_explained(tmp_path: Path)
 def test_rows_out_of_watermark_order_are_refused(tmp_path: Path) -> None:
     db = sqlite_db(tmp_path)
     quality_table(db, [(1, at(10), 1.0, "L1"), (2, at(11), 2.0, "L1")])
+    # Ordered by the table's id, but the result's id column runs the other way.
+    reversed_ids = f"""
+[[sql.queries]]
+name = "quality"
+query = "SELECT -id AS id, measured_at, temperature FROM {db.table} q WHERE -id > :watermark ORDER BY q.id"
+watermark = "id"
+start = -100
+time = "measured_at"
+columns = {{ temperature = "line1.temperature" }}
+"""
     buffer = MemoryBuffer()
-    connector = SqlConnector(sql_config(db, tmp_path, wide(db, order="id DESC")), buffer)
+    connector = SqlConnector(sql_config(db, tmp_path, reversed_ids), buffer)
     with pytest.raises(ConnectorError, match="rows aren't in id order; add ORDER BY id"):
         poll_all(connector)
-    assert len(buffer) == 0 and connector.position(connector.config.queries[0]) == 0
+    assert len(buffer) == 0 and connector.position(connector.config.queries[0]) == -100
+
+
+def test_a_batch_of_rows_that_all_share_a_time_goes_through(tmp_path: Path) -> None:
+    db = sqlite_db(tmp_path)  # exactly max_rows rows with one time, then more
+    quality_table(db, [(i, at(10), float(i), "L1") for i in range(1, 11)] + [(11, at(11), 11.0, "L1")])
+    config = sql_config(db, tmp_path, wide(db, watermark="measured_at", order="measured_at, id"), "max_rows = 10")
+    buffer = MemoryBuffer()
+    poll_all(SqlConnector(config, buffer))
+    assert [s.value for s in buffer.take() if s.signal == "line1.temperature"] == [float(i) for i in range(1, 12)]
+
+
+def test_a_slow_sqlite_query_times_out(tmp_path: Path) -> None:
+    db = sqlite_db(tmp_path)
+    quality_table(db, [(1, at(10), 1.0, "L1")])
+    endless = "(WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n) SELECT count(*) FROM n) > 0"
+    config = sql_config(db, tmp_path, wide(db, where=f"AND {endless}"), "timeout_seconds = 1")
+    started = datetime.now(UTC)
+    status, detail = SqlConnector(config, MemoryBuffer()).try_once()
+    assert (status, detail) == ("down", "query quality ran longer than timeout_seconds (1 s)")
+    assert datetime.now(UTC) - started < timedelta(seconds=10)
 
 
 def test_changing_start_reads_again_from_there(tmp_path: Path) -> None:

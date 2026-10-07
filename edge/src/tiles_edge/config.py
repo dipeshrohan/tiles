@@ -542,9 +542,26 @@ def _read_only_query(query: object, where: str) -> str:
             f"{where}: query must use :watermark exactly once, e.g. WHERE id > :watermark ORDER BY id; "
             "it is where the previous poll stopped"
         )
-    if not re.search(r"\border\s+by\b", text, flags=re.I):
-        raise ConfigError(f"{where}: query must ORDER BY the watermark column, so no row is skipped")
     return text
+
+
+# An identifier, plain or quoted ("x", [x], `x`), optionally qualified: t.id, "q"."id"
+_IDENT = r'(?:[\w$]+|"[^"]+"|\[[^\]]+\]|`[^`]+`)'
+_ORDER_KEY = re.compile(rf"\s*({_IDENT}(?:\s*\.\s*{_IDENT})*)\s*(\w+)?", re.S)
+
+
+def _ordered_by(query: str, watermark: str, where: str) -> None:
+    """The query's last ORDER BY must start with the watermark column, ascending. Otherwise a batch
+    could end on a large watermark while smaller ones wait beyond it, and those would be skipped."""
+    clean = re.sub(r"--[^\n]*|/\*.*?\*/|'(?:[^']|'')*'", " ", query, flags=re.S)  # comments, text
+    found = list(re.finditer(r"\border\s+by\b", clean, flags=re.I))
+    key = _ORDER_KEY.match(clean, found[-1].end()) if found else None
+    column = re.split(r"\s*\.\s*", key.group(1))[-1].strip('"[]`') if key else ""
+    if column.casefold() != watermark.casefold() or (key and (key.group(2) or "").upper() == "DESC"):
+        raise ConfigError(
+            f"{where}: query must end with ORDER BY {watermark} (ascending, before any other column), "
+            "so no row is skipped"
+        )
 
 
 def _sql_queries(raw: object, where: str, need: bool) -> tuple[SqlQuery, ...]:
@@ -578,10 +595,12 @@ def _sql_queries(raw: object, where: str, need: bool) -> tuple[SqlQuery, ...]:
         signals = q.get("signals", {})
         if long_keys and (len(long_keys) != 3 or not isinstance(signals, dict) or not signals):
             raise ConfigError(f"{here}: set signal_column, value_column and signals together")
+        query = _read_only_query(q.get("query"), here)
+        _ordered_by(query, watermark, here)
         queries.append(
             SqlQuery(
                 name=name,
-                query=_read_only_query(q.get("query"), here),
+                query=query,
                 watermark=watermark,
                 start=start,
                 time=_column(q.get("time", watermark), "time", here),
