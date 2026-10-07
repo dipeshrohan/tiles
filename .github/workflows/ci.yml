@@ -88,6 +88,21 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest -W error
+      - name: Edge agent checks
+        working-directory: edge
+        run: |
+          uv sync --locked
+          uv run ruff check .
+          uv run ruff format --check .
+          uv run mypy
+          uv run pytest -W error
+      - name: Edge agent as one file
+        working-directory: edge
+        run: |
+          python3 -m zipapp src -m tiles_edge.cli:entry -p "/usr/bin/env python3" -o "$RUNNER_TEMP/tiles-edge.pyz"
+          "$RUNNER_TEMP/tiles-edge.pyz" --version | grep -q "tiles-edge 0.1.0"
+          set +e; "$RUNNER_TEMP/tiles-edge.pyz" check -c /nonexistent.toml; code=$?; set -e
+          test "$code" = 2  # exit codes survive the zipapp
 
   stack:
     name: Docker Compose stack
@@ -124,6 +139,21 @@ jobs:
           curl -fsS -X POST $api/commits -H 'content-type: application/json' -d '{"message":"ci smoke"}'
           curl -fsS "$api/graph?view=head" | jq -e '.nodes["ci-line"].label == "CI line"'
           curl -fsS $api/commits | jq -e '.[0].message == "ci smoke"'
+      - name: Register an edge agent and run it against the API
+        run: |
+          t=$(curl -fsS -X POST http://localhost:8080/realms/tiles/protocol/openid-connect/token \
+            -d grant_type=password -d client_id=tiles-dev-cli -d scope=openid \
+            -d username=admin -d password=admin | jq -er .access_token)
+          site=$(curl -fsS http://localhost:8000/sites -H "Authorization: Bearer $t" | jq -er '.[0].id')
+          token=$(curl -fsS -X POST "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \
+            -H 'content-type: application/json' -d '{"name":"ci-edge"}' | jq -er .token)
+          mkdir -p "$RUNNER_TEMP/edge"
+          printf '[tiles]\nurl = "http://localhost:8000"\n[agent]\nheartbeat_seconds = 30\n' > "$RUNNER_TEMP/edge/tiles-edge.toml"
+          docker build -t tiles-edge edge
+          docker run --rm --network host -e TILES_EDGE_TOKEN="$token" -v "$RUNNER_TEMP/edge:/etc/tiles-edge:ro" \
+            tiles-edge check -c /etc/tiles-edge/tiles-edge.toml | tee /dev/stderr | jq -e .ok
+          curl -fsS "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \
+            | tee /dev/stderr | jq -e '.[] | select(.name == "ci-edge") | .status == "online"'
       - name: Logs on failure
         if: failure()
         run: docker compose logs

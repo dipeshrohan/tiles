@@ -108,8 +108,23 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `ontology.commit` | the commit | | the commit (message, ops, inverses, stats) |
 | `ontology.revert` | the new commit | `{"reverted": id}` | the new commit |
 | `member.role` | the member | old role | new role |
+| `agent.register` | the edge agent | | `{"name": …}` (never the token) |
+| `agent.revoke` | the edge agent | `{"name": …}` | |
 
 Writes that fail, and no-ops (discarding nothing, setting the same role), leave no entry. The table refuses UPDATE, DELETE and TRUNCATE. New write endpoints should call `ctx.audit(...)`. `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
+
+### Edge agents
+
+Edge agents (`edge/`, [ADR 003](../docs/adr/003-edge-agent.md)) run on the plant network and only call out to the API. Each authenticates with its own token (`tla_…`), not a user's sign-in. The API stores only the token's SHA-256 hash, so the token is shown once, when the agent is registered.
+
+| Method and path | Who | Does |
+|---|---|---|
+| `GET /sites/{site_id}/agents` | members | the site's agents, each `online`, `offline` (three heartbeats missed) or `never seen`, with host, version and connector status |
+| `POST /sites/{site_id}/agents` | admins | register an agent: `{"name": "edge-01"}` → `{"agent": …, "token": "tla_…"}`; names are unique per site |
+| `DELETE /sites/{site_id}/agents/{agent_id}` | admins | revoke it: its token stops working at once, and the name is free again |
+| `POST /agent/heartbeat` | the agent's token | records the heartbeat (version, host, start time, interval, connectors) and answers with the server time and any `commands` for the agent (none yet); works in production without a user token |
+
+Commands for an agent, when there are any, travel back in the heartbeat answer: the agent pulls, and Tiles never connects in.
 
 ### Ontology
 

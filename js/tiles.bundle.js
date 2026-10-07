@@ -813,6 +813,11 @@
 			sites: () => request("GET", "/sites"),
 			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
 			audit: (siteId, { limit = 100, offset = 0 } = {}) => request("GET", `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
+			agents: {
+				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/agents`),
+				register: (siteId, name) => request("POST", `/sites/${encodeURIComponent(siteId)}/agents`, { name }),
+				revoke: (siteId, agentId) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/agents/${encodeURIComponent(agentId)}`)
+			},
 			ontology: {
 				graph: (siteId, view = "working") => request("GET", `${site(siteId)}/graph?view=${view}`),
 				staged: (siteId) => request("GET", `${site(siteId)}/staged`),
@@ -2808,6 +2813,8 @@
 			case "ontology.commit": return `Committed “${e.after?.message ?? ""}”`;
 			case "ontology.revert": return `Reverted commit ${e.before?.reverted ?? ""}`;
 			case "member.role": return `Changed a member's role from ${role(e.before)} to ${role(e.after)}`;
+			case "agent.register": return `Registered edge agent ${e.after?.name ?? ""}`;
+			case "agent.revoke": return `Revoked edge agent ${e.before?.name ?? ""}`;
 			default: return `${e.action} ${e.entity_type} ${e.entity_id}`;
 		}
 	}
@@ -2828,6 +2835,85 @@
 		} catch {
 			box.innerHTML = "<p class=\"small soft\">The audit log could not be loaded.</p>";
 		}
+	}
+	var revealed = null;
+	function agentsCard(admin) {
+		return `<div class="card stack" id="agents" style="gap:12px;grid-column:1 / -1">
+      <h2>Edge agents</h2>
+      <p class="small soft">Agents run on the plant network and send data out to Tiles; they open no ports. Each one reports a heartbeat, so you can see whether it is online. See <code>edge/README.md</code> to install one.</p>
+      <div data-agent-token aria-live="polite"></div>
+      <div data-agent-rows aria-live="polite"><p class="small soft">Loading…</p></div>
+      ${admin ? `<form class="row" id="agent-form" style="gap:8px;flex-wrap:wrap">
+          <label class="field" style="flex:1;min-width:200px">New agent name<input type="text" name="name" placeholder="e.g. press-shop-edge" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="Letters, digits, dot, dash or underscore; up to 63" required /></label>
+          <div style="align-self:end"><button class="btn primary" type="submit">Register agent</button></div>
+        </form>` : ""}
+    </div>`;
+	}
+	function agentStatus(a) {
+		return `<span class="badge ${a.status === "online" ? "good" : a.status === "offline" ? "bad" : ""}">${esc(a.status)}</span>`;
+	}
+	function showToken(root) {
+		const box = root.querySelector("[data-agent-token]");
+		if (!box) return;
+		if (!revealed) {
+			box.innerHTML = "";
+			return;
+		}
+		const config = `[tiles]\nurl = "${revealed.apiUrl}"\ntoken_file = "token"\n\n[agent]\nheartbeat_seconds = 30`;
+		box.innerHTML = `<div class="stack" style="gap:8px">
+      <p><b>Token for ${esc(revealed.name)}.</b> Copy it now: Tiles keeps only its hash and won't show it again. Save it as <code>token</code> next to the agent's config file, readable only by the agent.</p>
+      <pre class="code-block" data-token>${esc(revealed.token)}</pre>
+      <p class="small soft">Config file (<code>tiles-edge.toml</code>):</p>
+      <pre class="code-block">${esc(config)}</pre>
+      <div><button class="btn" type="button" data-token-done>Done, I've saved it</button></div>
+    </div>`;
+		onAll(box, "[data-token-done]", "click", () => {
+			revealed = null;
+			showToken(root);
+		});
+	}
+	async function fillAgents(root, ctx) {
+		const box = root.querySelector("[data-agent-rows]");
+		const site = ctx.ontology.site;
+		const api = ctx.api;
+		if (!box || !site || !api) return;
+		const admin = ctx.ontology.role === "admin";
+		let agents;
+		try {
+			agents = await api.agents.list(site.id);
+		} catch {
+			box.innerHTML = "<p class=\"small soft\">The agents could not be loaded.</p>";
+			return;
+		}
+		box.innerHTML = agents.length ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>${agents.map((a) => `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"}</td><td>${esc(a.hostname ?? "—")}</td><td>${esc(a.version ?? "—")}</td>${admin ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>` : ""}</tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No agents registered for this site yet.</p>";
+		onAll(box, "[data-revoke-agent]", "click", (el) => {
+			const name = el.dataset.agentName ?? "";
+			if (!confirm(`Revoke ${name}? Its token stops working at once.`)) return;
+			api.agents.revoke(site.id, el.dataset.revokeAgent ?? "").then(() => {
+				ctx.toast(`Revoked ${name}`);
+				return fillAgents(root, ctx);
+			}, () => void 0);
+		});
+	}
+	function bindAgents(root, ctx) {
+		const site = ctx.ontology.site;
+		const api = ctx.api;
+		if (!site || !api || !root.querySelector("#agents")) return;
+		showToken(root);
+		fillAgents(root, ctx);
+		onSubmit(root, "#agent-form", (form) => {
+			const name = field$1(form, "name").trim();
+			api.agents.register(site.id, name).then(({ token }) => {
+				revealed = {
+					name,
+					token,
+					apiUrl: api.baseUrl
+				};
+				form.reset();
+				showToken(root);
+				return fillAgents(root, ctx);
+			}, () => void 0);
+		});
 	}
 	var view = {
 		id: "settings",
@@ -2861,6 +2947,7 @@
           <p class="small soft" data-api-status aria-live="polite"></p>
         </form>
         ${ds.mode === "api" ? accountCard(ctx) : ""}
+        ${ctx.ontology.site ? agentsCard(ctx.ontology.role === "admin") : ""}
         ${ctx.ontology.role === "admin" ? auditCard() : ""}
       </div>`;
 		},
@@ -2902,6 +2989,7 @@
 				}
 			});
 			if (ctx.ontology.role === "admin") fillAudit(root, ctx);
+			bindAgents(root, ctx);
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
 			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
 			onAll(root, "[data-reset]", "click", () => {

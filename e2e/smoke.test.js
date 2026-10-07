@@ -448,6 +448,47 @@ test('site admins see the audit log in settings; others do not', async (t) => {
   assert.equal(await page.locator('#audit').count(), 0);
 });
 
+test('site admins register edge agents and see them come online', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  page.on('dialog', (d) => void d.accept());
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  await page.goto(`${home}#/settings`);
+  await page.waitForSelector('#agents:has-text("No agents registered")');
+  await page.fill('#agent-form [name=name]', 'press-shop-edge');
+  await page.click('#agent-form button[type=submit]');
+  // The token is shown once, with a config file to copy.
+  const token = (await page.locator('[data-token]').innerText()).trim();
+  assert.match(token, /^tla_/);
+  assert.match(await page.locator('#agents').innerText(), new RegExp(`url = "${apiUrl}"`));
+  assert.match(await page.locator('#agents tbody').innerText(), /press-shop-edge\s+never seen/);
+  await page.click('[data-token-done]');
+  assert.equal(await page.locator('[data-token]').count(), 0);
+
+  fake.heartbeat(token, 'edge-host-7');
+  await page.reload();
+  await page.waitForSelector('#agents tbody:has-text("online")');
+  assert.match(await page.locator('#agents tbody').innerText(), /edge-host-7/);
+  await page.click('[data-revoke-agent]');
+  await page.waitForSelector('#agents:has-text("No agents registered")');
+  assert.deepEqual(errors, []);
+});
+
+test('non-admins see the edge agents but cannot register them', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
+  await page.waitForSelector('#agents:has-text("No agents registered")');
+  assert.equal(await page.locator('#agent-form').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
 test('background updates never wipe what the user is typing', async (t) => {
   const fake = createFakeApi({ slowAuthConfigMs: 1500 });
   const apiUrl = await fake.listen();

@@ -60,6 +60,10 @@ To point the app at the API, open **Settings → Data source**, choose *Tiles AP
 
 With the API selected, **Settings → Account → Sign in** signs you in through Keycloak (OpenID Connect with PKCE). Your name and email then come from your sign-in, and so does your role on a site the first time you open it. Viewers see the ontology read-only; engineers can change it; admins can also change members' roles and read the site's audit log (Settings → Audit log). In development you can skip signing in and act as the demo user; a production API (`TILES_ENV=production`) refuses requests without a valid token.
 
+## Edge agent
+
+Plant data reaches Tiles through an edge agent that runs on the plant network and only connects out, over TLS. It opens no ports. A site admin registers each agent under **Settings → Edge agents**, which shows its token once along with a config file to copy. The same card shows whether each agent is online. The agent is a small Python program with no dependencies, so it installs with pip, as one file or as a container. So far it sends a heartbeat; the OPC UA, MQTT and SQL connectors come next. See [edge/README.md](edge/README.md).
+
 ## Data model
 
 The ontology's node types and relationships, and how they map to ISA-95 (Enterprise › Site › Area › Line or Cell › Machine), are described in [docs/data-model.md](docs/data-model.md).
@@ -94,6 +98,7 @@ e2e/                  Playwright browser smoke tests
 docs/adr/             architecture decision records
 server.js             zero-dependency static server
 api/                  FastAPI backend (Python, uv)
+edge/                 on-site edge agent (Python, standard library only)
 docker-compose.yml    local stack: db, redis, api, web
 vite.config.js        Vite build (classic bundle) and Vitest config
 scripts/              bundle freshness check

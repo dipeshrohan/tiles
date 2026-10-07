@@ -158,6 +158,19 @@ test('http(s) URL check', () => {
     assert.equal(isHttpUrl(bad), false);
 });
 
+test('edge agent calls hit the documented paths', async () => {
+  const f = fakeFetch({ body: [] }, { status: 201, body: { agent: {}, token: 'tla_x' } }, { status: 204 });
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  assert.deepEqual(await api.agents.list('s'), []);
+  assert.equal((await api.agents.register('s', 'edge-01')).token, 'tla_x');
+  await api.agents.revoke('s', 'a/1');
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    ['GET /sites/s/agents', 'POST /sites/s/agents', 'DELETE /sites/s/agents/a%2F1'],
+  );
+  assert.deepEqual(JSON.parse(f.calls[1].body), { name: 'edge-01' });
+});
+
 test('audit summaries read as sentences', async () => {
   const { describeAudit } = await import('../js/views/settings.ts');
   const e = (action, before, after) => ({ action, before, after, entity_type: 'x', entity_id: 'y' });
@@ -169,6 +182,8 @@ test('audit summaries read as sentences', async () => {
     describeAudit(e('member.role', { role: 'engineer' }, { role: 'viewer' })),
     "Changed a member's role from engineer to viewer",
   );
+  assert.equal(describeAudit(e('agent.register', null, { name: 'edge-01' })), 'Registered edge agent edge-01');
+  assert.equal(describeAudit(e('agent.revoke', { name: 'edge-01' }, null)), 'Revoked edge agent edge-01');
   assert.equal(describeAudit(e('site.rename', null, null)), 'site.rename x y');
 });
 

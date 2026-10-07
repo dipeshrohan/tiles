@@ -50,6 +50,17 @@ export interface AuditEntry {
   request_id: string | null;
 }
 
+export interface EdgeAgent {
+  id: string;
+  name: string;
+  created_at: string;
+  last_seen_at: string | null;
+  status: 'online' | 'offline' | 'never seen';
+  version: string | null;
+  hostname: string | null;
+  connectors: { name: string; kind: string; status: 'ok' | 'degraded' | 'down'; detail: string }[];
+}
+
 export interface Me {
   email: string;
   name: string;
@@ -160,6 +171,15 @@ export function createApiClient(options: ApiOptions) {
     // Every change on a site, newest first (site admins only).
     audit: (siteId: string, { limit = 100, offset = 0 } = {}) =>
       request<AuditEntry[]>('GET', `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
+    // The site's edge agents (T2.01); admins register and revoke them.
+    agents: {
+      list: (siteId: string) => request<EdgeAgent[]>('GET', `/sites/${encodeURIComponent(siteId)}/agents`),
+      // The token is in this answer only: Tiles keeps just its hash.
+      register: (siteId: string, name: string) =>
+        request<{ agent: EdgeAgent; token: string }>('POST', `/sites/${encodeURIComponent(siteId)}/agents`, { name }),
+      revoke: (siteId: string, agentId: string) =>
+        request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/agents/${encodeURIComponent(agentId)}`),
+    },
     ontology: {
       graph: (siteId: string, view: GraphView = 'working') =>
         request<Graph>('GET', `${site(siteId)}/graph?view=${view}`),
