@@ -2701,13 +2701,13 @@
 	async function connectOntology() {
 		const seq = ++connectSeq;
 		if (!api) {
-			if (remote) state.repo = localRepo;
+			if (ontologyStatus !== "local") state.repo = localRepo;
 			remote = null;
 			ontologyStatus = "local";
 			ontologyError = null;
 			return;
 		}
-		if (!remote) localRepo = state.repo;
+		if (ontologyStatus === "local") localRepo = state.repo;
 		remote = null;
 		state.repo = createRepo();
 		ontologyStatus = "loading";

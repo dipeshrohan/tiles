@@ -77,14 +77,15 @@ let connectSeq = 0;
 // connection attempt can't overwrite a newer one (connectSeq).
 async function connectOntology(): Promise<void> {
   const seq = ++connectSeq;
+  // state.repo holds this browser's own repo only while the status is "local".
   if (!api) {
-    if (remote) state.repo = localRepo;
+    if (ontologyStatus !== 'local') state.repo = localRepo;
     remote = null;
     ontologyStatus = 'local';
     ontologyError = null;
     return;
   }
-  if (!remote) localRepo = state.repo;
+  if (ontologyStatus === 'local') localRepo = state.repo;
   remote = null;
   state.repo = createRepo();
   ontologyStatus = 'loading';
@@ -294,5 +295,5 @@ window.addEventListener('hashchange', () => {
   need(document, '#view').focus({ preventScroll: true });
   window.scrollTo(0, 0);
 });
-void connectOntology(); // renders the loading state in API mode
+void connectOntology(); // renders the loading state in API mode, before any local data shows
 render();

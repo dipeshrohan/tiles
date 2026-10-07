@@ -213,3 +213,32 @@ test('ontology page explains when the API is unreachable, and local mode is unto
   await page.waitForSelector('#node-form');
   assert.equal(await page.locator('.source-bar').count(), 0);
 });
+
+test('switching back to local after a failed API connection restores this browser’s ontology', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/ontology`);
+  await page.click('[data-tab=history]');
+  const localCommits = await page.locator('.commit').count();
+  assert.ok(localCommits > 0);
+
+  // Point at an API that isn't there: the page shows the error state...
+  await page.goto(`${httpBase}#/settings`);
+  await page.fill('#datasource [name=apiUrl]', 'http://127.0.0.1:1');
+  await page.check('#datasource [name=mode][value=api]');
+  await page.click('#datasource button[type=submit]');
+  await page.goto(`${httpBase}#/ontology`);
+  await page.waitForSelector('.source-bar:has-text("Can\'t load the ontology")');
+
+  // ...and going back to local shows the local history again, without a reload.
+  await page.goto(`${httpBase}#/settings`);
+  await page.check('#datasource [name=mode][value=local]');
+  await page.click('#datasource button[type=submit]');
+  await page.goto(`${httpBase}#/ontology`);
+  await page.click('[data-tab=history]');
+  assert.equal(await page.locator('.commit').count(), localCommits);
+  assert.deepEqual(
+    errors.filter((e) => !/Failed to load resource|ERR_CONNECTION_REFUSED|ERR_UNSAFE_PORT/.test(e)),
+    [],
+  );
+});
