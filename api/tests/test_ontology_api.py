@@ -4,16 +4,19 @@ import json
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.rows import dict_row
 
 from tiles_api import ontology as o
 from tiles_api.main import create_app
+from tiles_api.ontology_store import load_head
 from tiles_api.seed import seed
 from tiles_api.settings import Settings
+from tiles_api.store import Conn
 
 FIXTURES = Path(__file__).resolve().parents[2] / "test" / "fixtures" / "ontology-parity.json"
 CASES: list[dict[str, Any]] = json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"]
@@ -207,6 +210,35 @@ def test_dev_users_become_engineers_on_the_site_they_open(api: TestClient, setti
     assert rows == [("alice@example.com", "engineer")]
 
 
+def test_health_scores_head_or_working_graph(api: TestClient, settings: Settings, site: str) -> None:
+    assert api.get(url(site, "health")).json() == {"issues": [], "score": 100, "counts": {"nodes": 0, "edges": 0}}
+    for op in (node("a"), node("b", props={}), edge("a", "feeds", "b")):
+        api.post(url(site, "staged"), json=op)
+    api.post(url(site, "commits"), json={"message": "pair"})
+    api.post(url(site, "staged"), json=node("lonely"))
+
+    head = api.get(url(site, "health")).json()
+    assert head["counts"] == {"nodes": 2, "edges": 1}
+    assert [(i["kind"], i["ref"]) for i in head["issues"]] == [("missing-prop", "b")]
+    assert head["score"] == 100  # info-level issues don't cost points
+
+    working = api.get(url(site, "health?view=working")).json()
+    assert ("orphan", "lonely") in [(i["kind"], i["ref"]) for i in working["issues"]]
+    assert working["score"] == 67  # 1 orphan among 3 nodes
+
+    # Edges stored without their nodes (e.g. by a future bulk import) are reported, not hidden.
+    with psycopg.connect(settings.database_url) as conn:
+        conn.execute(
+            "INSERT INTO ontology_edges (site_id, id, from_id, rel, to_id) VALUES (%s, 'e9', 'a', 'feeds', 'ghost')",
+            [site],
+        )
+    dangling = [i for i in api.get(url(site, "health")).json()["issues"] if i["kind"] == "dangling"]
+    assert dangling == [
+        {"level": "error", "kind": "dangling", "ref": "e9", "text": "Relationship e9 points at a missing node"}
+    ]
+    assert api.get(url(site, "health?view=nope")).status_code == 422
+
+
 def test_null_value_is_refused_but_leaving_it_out_removes_the_property(api: TestClient, site: str) -> None:
     api.post(url(site, "staged"), json=node("a"))
     res = api.post(url(site, "staged"), json={"kind": "setProp", "id": "a", "key": "vendor", "value": None})
@@ -214,3 +246,37 @@ def test_null_value_is_refused_but_leaving_it_out_removes_the_property(api: Test
     assert "leave it out" in res.text
     assert api.post(url(site, "staged"), json={"kind": "setProp", "id": "a", "key": "vendor"}).status_code == 201
     assert api.get(url(site, "graph")).json()["nodes"]["a"]["props"] == {}
+
+
+def test_head_graph_is_read_in_one_statement(settings: Settings, site: str) -> None:
+    """Nodes and edges come from one snapshot (see HEAD_SQL), so a commit landing
+    mid-read can't pair old nodes with new edges."""
+
+    class Recording:
+        def __init__(self, conn: Conn) -> None:
+            self.conn = conn
+            self.queries: list[str] = []
+
+        def execute(self, query: Any, params: Any = None) -> Any:
+            self.queries.append(str(query))
+            return self.conn.execute(query, params)
+
+    with psycopg.connect(settings.database_url, row_factory=dict_row) as conn:
+        conn.execute(
+            "INSERT INTO ontology_nodes (site_id, id, type, label)"
+            " VALUES (%s, 'a', 'Line', 'A'), (%s, 'b', 'Line', 'B')",
+            [site, site],
+        )
+        conn.execute(
+            "INSERT INTO ontology_edges (site_id, id, from_id, rel, to_id) VALUES (%s, 'e', 'a', 'feeds', 'b')", [site]
+        )
+        rec = Recording(conn)
+        graph = load_head(cast(Conn, rec), uuid.UUID(site))
+    assert len(rec.queries) == 1
+    assert graph == {
+        "nodes": {
+            "a": {"id": "a", "type": "Line", "label": "A", "props": {}},
+            "b": {"id": "b", "type": "Line", "label": "B", "props": {}},
+        },
+        "edges": {"e": {"id": "e", "from": "a", "rel": "feeds", "to": "b"}},
+    }

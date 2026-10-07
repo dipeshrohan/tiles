@@ -30,16 +30,26 @@ def lock_site(conn: Conn, site_id: uuid.UUID) -> None:
         raise NotFound("Site not found")
 
 
+# Nodes and edges in ONE statement: under READ COMMITTED each statement sees
+# its own snapshot, so two queries could pair old nodes with a newer commit's
+# edges and show a dangling relationship that never existed.
+HEAD_SQL = """
+SELECT 'node' AS kind, id, type, label, props, NULL AS from_id, NULL AS rel, NULL AS to_id
+FROM ontology_nodes WHERE site_id = %(site)s
+UNION ALL
+SELECT 'edge', id, NULL, NULL, NULL, from_id, rel, to_id
+FROM ontology_edges WHERE site_id = %(site)s
+ORDER BY kind DESC, id
+"""
+
+
 def load_head(conn: Conn, site_id: uuid.UUID) -> o.Graph:
     graph = o.empty_graph()
-    for n in conn.execute(
-        "SELECT id, type, label, props FROM ontology_nodes WHERE site_id = %s ORDER BY id", [site_id]
-    ):
-        graph["nodes"][n["id"]] = {"id": n["id"], "type": n["type"], "label": n["label"], "props": n["props"]}
-    for e in conn.execute(
-        "SELECT id, from_id, rel, to_id FROM ontology_edges WHERE site_id = %s ORDER BY id", [site_id]
-    ):
-        graph["edges"][e["id"]] = {"id": e["id"], "from": e["from_id"], "rel": e["rel"], "to": e["to_id"]}
+    for r in conn.execute(HEAD_SQL, {"site": site_id}):
+        if r["kind"] == "node":
+            graph["nodes"][r["id"]] = {"id": r["id"], "type": r["type"], "label": r["label"], "props": r["props"]}
+        else:
+            graph["edges"][r["id"]] = {"id": r["id"], "from": r["from_id"], "rel": r["rel"], "to": r["to_id"]}
     return graph
 
 

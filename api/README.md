@@ -89,6 +89,7 @@ Each site has one committed graph (`head`) and a commit history. Each user stage
 | `POST /commits` | commit your staged ops: `{"message": "..."}` |
 | `GET /commits?limit=50&offset=0` | history, newest first |
 | `POST /commits/{id}/revert` | commit the inverse of a commit |
+| `GET /health?view=head` | health check: dangling and duplicate relationships, orphans, missing required properties, and a 0–100 score (`view=working` includes your staged changes) |
 
 Ops, graphs and commits have the same JSON shape as in the browser (`js/lib/types.ts`). The logic in `tiles_api/ontology.py` is a port of `js/lib/ontology.ts`. Both run the shared fixture suite in `test/fixtures/ontology-parity.json`, and the API tests replay it over HTTP too. After changing the TypeScript behaviour, regenerate the fixtures with `UPDATE_FIXTURES=1 npx vitest run test/ontology-parity.test.js`, then make the Python port pass.
 
