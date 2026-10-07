@@ -4,7 +4,7 @@ A small agent that runs on the plant network and sends data out to Tiles ([ADR 0
 
 It has one config file, the connection to Tiles and a heartbeat, so Tiles can show whether each agent and each of its connectors is working (T2.01). It reads OPC UA servers (T2.02) and MQTT brokers, including Sparkplug B (T2.03); a SQL connector (T2.05) comes next.
 
-Readings are held in memory for now. Sending them to Tiles needs the disk buffer (T2.04) and the ingest endpoint (T2.06), which come next.
+Readings wait in a buffer on disk until Tiles has them, so a network cut or a restart loses nothing (T2.04). Tiles's ingest endpoint (T2.06) comes next; until then the agent keeps its readings and says so in its status.
 
 The core uses only the Python standard library (3.12 or newer), so it installs anywhere Python runs and can also be shipped as a single file. Each connector that needs a protocol library is an extra: `opcua` (`asyncua`) and `mqtt` (`paho-mqtt`). The container image includes both.
 
@@ -31,6 +31,8 @@ The core uses only the Python standard library (3.12 or newer), so it installs a
 
    [agent]
    heartbeat_seconds = 30           # 5 to 3600
+   # buffer_path = "/var/lib/tiles-edge/buffer.sqlite"   # the default; relative paths are from this file
+   # buffer_max_samples = 20000000  # then the oldest make room
    ```
 
    The URL must use `https`. Plain `http` is accepted only for `localhost`, for development. Certificates are always verified, against the system's CAs plus `ca_file`. The agent honours `HTTPS_PROXY` and `NO_PROXY`.
@@ -52,6 +54,21 @@ Tiles lists each site's agents at `GET /sites/<site-id>/agents`, with `online`, 
 | 4 | `check` reached Tiles, but a connector couldn't connect; the output says why |
 
 While running, the agent never gives up on a network problem. It retries with a growing, jittered delay (1 s, 2 s, 4 s … up to the heartbeat interval) and logs each failure.
+
+## The buffer: no readings lost
+
+`tiles-edge run` writes every reading to a SQLite file (`buffer_path`, by default `/var/lib/tiles-edge/buffer.sqlite`) before anything else happens to it. A forwarder sends the oldest readings to Tiles in batches of up to 5,000, in the order they arrived, and deletes a batch only once Tiles has accepted it. So:
+
+- **When the network is cut**, readings pile up on disk and the forwarder retries with a growing delay, up to a minute. When the network is back, the backlog goes out oldest first, then new readings follow.
+- **When the agent restarts** (or the host does), the file is still there and sending resumes where it stopped. A batch that was in flight when the agent stopped is sent again; Tiles keeps one reading per signal and time (T2.06), so nothing is doubled.
+- **The file is bounded.** At `buffer_max_samples` readings (20 million by default, a few GB), the oldest make room and are counted as dropped. Size it for the longest outage you want to ride out: one signal a second is 86,400 readings a day.
+- **A reading Tiles can never take** (it answers that it is invalid) is set aside and counted as rejected, so it can't hold up the rest. The forwarder halves a refused batch until the bad reading is alone, so the good ones around it still go; a batch Tiles finds too large is split the same way. If Tiles rejects the agent's token, readings are kept until it is registered again.
+- **If the disk is full or failing**, readings that can't be written are counted as dropped, and the status says why until writing works again. The connectors carry on.
+- **The file is private**: the agent creates it, and its folder if needed, readable by the agent's user only.
+
+Every heartbeat reports the buffer: readings waiting, the oldest one's time, how many were sent, dropped and rejected, and the current problem, if any. Tiles shows it under Settings → Edge agents. `tiles-edge check` doesn't use the buffer.
+
+The agent's user must be able to write the buffer's folder. The container image has `/var/lib/tiles-edge` for it; mount a volume there so the buffer survives upgrades.
 
 ## Read an OPC UA server
 
@@ -139,9 +156,9 @@ Metrics sent by alias are matched to their names from the edge node's or device'
 - **With pip:** `pip install "./edge[opcua,mqtt]"` installs the `tiles-edge` command with both connectors. Leave out the extras you don't need.
 - **As one file** (core only, no connectors): `python -m zipapp edge/src -m tiles_edge.cli:entry -p "/usr/bin/env python3" -o tiles-edge.pyz` builds `tiles-edge.pyz`, which runs with any Python 3.12+: `./tiles-edge.pyz check -c tiles-edge.toml`.
 - **As a container** (with OPC UA and MQTT): `docker build -t tiles-edge edge`. The image runs as UID 10001, so make the token file that user's before mounting the config folder: `sudo chown 10001 /etc/tiles-edge/token` (keep mode 600), then
-  `docker run -d --restart unless-stopped -v /etc/tiles-edge:/etc/tiles-edge:ro tiles-edge`.
+  `docker run -d --restart unless-stopped -v /etc/tiles-edge:/etc/tiles-edge:ro -v tiles-edge-buffer:/var/lib/tiles-edge tiles-edge`.
   Or leave the file alone and pass the token as a secret environment variable instead: `--env-file` with `TILES_EDGE_TOKEN=tla_…`, and no `token_file` in the config.
 
 ## Develop
 
-From `edge/`: `uv sync --all-extras`, then `uv run pytest -W error`, `uv run mypy` (strict), `uv run ruff check .` and `uv run ruff format .`. The tests run against a fake Tiles server, including over TLS with a throwaway certificate (they need `openssl`). The OPC UA tests run a real `asyncua` server, with its own certificates and trust list. The MQTT tests run a real broker (`amqtt`) over TLS, and the Sparkplug decoder is tested against payloads built byte by byte.
+From `edge/`: `uv sync --all-extras`, then `uv run pytest -W error`, `uv run mypy` (strict), `uv run ruff check .` and `uv run ruff format .`. The tests run against a fake Tiles server, including over TLS with a throwaway certificate (they need `openssl`). The OPC UA tests run a real `asyncua` server, with its own certificates and trust list. The MQTT tests run a real broker (`amqtt`) over TLS, and the Sparkplug decoder is tested against payloads built byte by byte. The buffer tests cut Tiles off for an hour's worth of readings, restart the agent in the middle, and check that every reading arrives in order.

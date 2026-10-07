@@ -137,6 +137,17 @@ export function connectorList(a: EdgeAgent): string {
     .join(' ');
 }
 
+// Readings waiting on the agent's disk for Tiles; the counters and any problem are in the tooltip.
+export function bufferSummary(a: Pick<EdgeAgent, 'buffer'>): string {
+  const b = a.buffer;
+  if (!b) return '—';
+  const tone = b.dropped > 0 ? 'bad' : b.problem ? 'warn' : 'good';
+  const since = b.oldest_at ? `, oldest from ${new Date(b.oldest_at).toLocaleString('en-GB')}` : '';
+  const counts = `${b.sent} sent, ${b.dropped} dropped (buffer full or not writable), ${b.rejected} rejected by Tiles`;
+  const title = `${b.queued} waiting${since}. ${counts}.${b.problem ? ` ${b.problem}` : ''}`;
+  return `<span class="badge ${tone}" title="${esc(title)}">${esc(b.queued.toLocaleString('en-GB'))} queued</span>`;
+}
+
 function agentStatus(a: EdgeAgent): string {
   const tone = a.status === 'online' ? 'good' : a.status === 'offline' ? 'bad' : '';
   return `<span class="badge ${tone}">${esc(a.status)}</span>`;
@@ -179,10 +190,10 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
     return;
   }
   box.innerHTML = agents.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${agents
+    ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${agents
         .map(
           (a) =>
-            `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'}</td><td>${esc(a.hostname ?? '—')}</td><td>${esc(a.version ?? '—')}</td><td>${connectorList(a)}</td>${
+            `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'}</td><td>${esc(a.hostname ?? '—')}</td><td>${esc(a.version ?? '—')}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${
               admin
                 ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>`
                 : ''

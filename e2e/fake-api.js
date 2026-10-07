@@ -139,6 +139,7 @@ export function createFakeApi({
           version: a.version,
           hostname: a.hostname,
           connectors: a.connectors ?? [],
+          buffer: a.buffer ?? null,
         });
         if (req.method === 'GET') return send(200, agents.map(shown));
         if (role !== 'admin')
@@ -228,10 +229,10 @@ export function createFakeApi({
     requests,
     bearersSeen,
     // Lets a test play an edge agent sending a heartbeat with its token.
-    heartbeat(token, hostname = 'edge-01', connectors = []) {
+    heartbeat(token, hostname = 'edge-01', connectors = [], buffer = null) {
       const agent = agents.find((a) => a.token === token);
       if (!agent) throw new Error('unknown agent token');
-      Object.assign(agent, { last_seen_at: new Date().toISOString(), version: '0.1.0', hostname, connectors });
+      Object.assign(agent, { last_seen_at: new Date().toISOString(), version: '0.1.0', hostname, connectors, buffer });
     },
     // Lets a test change a user's role, as a site admin would.
     setRole(user, role) {

@@ -59,6 +59,15 @@ export interface EdgeAgent {
   version: string | null;
   hostname: string | null;
   connectors: { name: string; kind: string; status: 'ok' | 'degraded' | 'down'; detail: string }[];
+  // The agent's store-and-forward buffer; null when it hasn't reported one.
+  buffer: {
+    queued: number;
+    oldest_at: string | null;
+    sent: number;
+    dropped: number;
+    rejected: number;
+    problem: string;
+  } | null;
 }
 
 export interface Me {

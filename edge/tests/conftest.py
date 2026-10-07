@@ -97,5 +97,6 @@ def write_config(folder: Path, url: str, extra: str = "", token: str | None = TO
     if token is not None:
         (folder / "token").write_text(token + "\n")
     path = folder / "tiles-edge.toml"
-    path.write_text(f'[tiles]\nurl = "{url}"\ntoken_file = "token"\n{extra}\n[agent]\nheartbeat_seconds = 5\n')
+    agent = '[agent]\nheartbeat_seconds = 5\nbuffer_path = "buffer.sqlite"\n'
+    path.write_text(f'[tiles]\nurl = "{url}"\ntoken_file = "token"\n{extra}\n{agent}')
     return path

@@ -12,8 +12,10 @@ from typing import NoReturn
 
 from tiles_edge import __version__, connectors, logs
 from tiles_edge.agent import Agent, Connector
+from tiles_edge.buffer import BufferError, DiskBuffer
 from tiles_edge.client import RejectedError, TilesClient, TransientError
 from tiles_edge.config import Config, ConfigError, OpcUaConfig, load
+from tiles_edge.forwarder import Forwarder
 from tiles_edge.samples import MemoryBuffer
 
 DEFAULT_CONFIG = "/etc/tiles-edge/tiles-edge.toml"
@@ -73,9 +75,20 @@ def main(argv: list[str] | None = None) -> int:
         config = load(args.config, setup=args.command == "opcua")
         if args.command == "opcua":
             return _opcua(args, config)
-        buffer = MemoryBuffer()
-        agent = Agent(config, TilesClient(config), connectors=connectors.build(config, buffer))
-    except ConfigError as e:
+        client = TilesClient(config)
+        disk: DiskBuffer | None = None
+        if args.command == "run":
+            # Samples wait on disk until Tiles has them (T2.04).
+            disk = DiskBuffer(config.buffer_path, config.buffer_max_samples)
+            try:
+                built = connectors.build(config, disk)
+            except ConfigError:
+                disk.close()
+                raise
+            agent = Agent(config, client, connectors=built, forwarder=Forwarder(disk, client))
+        else:
+            agent = Agent(config, client, connectors=connectors.build(config, MemoryBuffer()))
+    except (ConfigError, BufferError) as e:
         return _fail(f"{args.config}: {e}", CONFIG)
 
     if args.command == "check":
@@ -111,7 +124,11 @@ def main(argv: list[str] | None = None) -> int:
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
-    return agent.run()
+    try:
+        return agent.run()
+    finally:
+        if disk is not None:
+            disk.close()
 
 
 class _Checked:

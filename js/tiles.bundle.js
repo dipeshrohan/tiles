@@ -2864,6 +2864,14 @@
 		};
 		return a.connectors.map((c) => `<span class="badge ${tone[c.status]}" title="${esc(`${c.kind}: ${c.detail}`)}">${esc(c.name)} ${esc(c.status)}</span>`).join(" ");
 	}
+	function bufferSummary(a) {
+		const b = a.buffer;
+		if (!b) return "—";
+		const tone = b.dropped > 0 ? "bad" : b.problem ? "warn" : "good";
+		const since = b.oldest_at ? `, oldest from ${new Date(b.oldest_at).toLocaleString("en-GB")}` : "";
+		const counts = `${b.sent} sent, ${b.dropped} dropped (buffer full or not writable), ${b.rejected} rejected by Tiles`;
+		return `<span class="badge ${tone}" title="${esc(`${b.queued} waiting${since}. ${counts}.${b.problem ? ` ${b.problem}` : ""}`)}">${esc(b.queued.toLocaleString("en-GB"))} queued</span>`;
+	}
 	function agentStatus(a) {
 		return `<span class="badge ${a.status === "online" ? "good" : a.status === "offline" ? "bad" : ""}">${esc(a.status)}</span>`;
 	}
@@ -2902,7 +2910,7 @@
 			box.innerHTML = "<p class=\"small soft\">The agents could not be loaded.</p>";
 			return;
 		}
-		box.innerHTML = agents.length ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>${agents.map((a) => `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"}</td><td>${esc(a.hostname ?? "—")}</td><td>${esc(a.version ?? "—")}</td><td>${connectorList(a)}</td>${admin ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>` : ""}</tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No agents registered for this site yet.</p>";
+		box.innerHTML = agents.length ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>${agents.map((a) => `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"}</td><td>${esc(a.hostname ?? "—")}</td><td>${esc(a.version ?? "—")}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${admin ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>` : ""}</tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No agents registered for this site yet.</p>";
 		onAll(box, "[data-revoke-agent]", "click", (el) => {
 			const name = el.dataset.agentName ?? "";
 			if (!confirm(`Revoke ${name}? Its token stops working at once.`)) return;

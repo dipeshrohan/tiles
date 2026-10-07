@@ -42,7 +42,7 @@ def test_run_beats_until_sigterm(tmp_path: Path, tiles: FakeTiles) -> None:
             agent.kill()
     assert agent.returncode == 0
     lines = [json.loads(line) for line in stderr.splitlines()]
-    assert [line["message"] for line in lines] == ["agent started", "agent stopped"]
+    assert [line["message"] for line in lines] == ["agent started", "forwarder stopped", "agent stopped"]
     assert lines[0]["tiles_url"] == tiles.url
 
 
