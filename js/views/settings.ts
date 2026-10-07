@@ -1,5 +1,5 @@
 import { esc, field, need, onAll, onSubmit } from '../lib/dom.ts';
-import { createApiClient, isHttpUrl, isTilesHealth, normalizeBaseUrl } from '../lib/api.ts';
+import { createApiClient, isHttpUrl, isTilesHealth, normalizeBaseUrl, type AuditEntry } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
@@ -21,6 +21,53 @@ function accountCard(ctx: Context): string {
     }</p>
       <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>`;
   return `<div class="card stack" id="account" style="gap:12px"><h2>Account</h2>${body}</div>`;
+}
+
+// One line per change: what it did, in words.
+export function describeAudit(e: AuditEntry): string {
+  const ops = (v: unknown) => ((v as { ops?: unknown[] } | null)?.ops ?? []).length;
+  const role = (v: unknown) => (v as { role?: string } | null)?.role ?? '?';
+  switch (e.action) {
+    case 'ontology.stage':
+      return `Staged ${ops(e.after)} change(s)`;
+    case 'ontology.discard':
+      return `Discarded ${ops(e.before)} staged change(s)`;
+    case 'ontology.commit':
+      return `Committed “${(e.after as { message?: string } | null)?.message ?? ''}”`;
+    case 'ontology.revert':
+      return `Reverted commit ${(e.before as { reverted?: string } | null)?.reverted ?? ''}`;
+    case 'member.role':
+      return `Changed a member's role from ${role(e.before)} to ${role(e.after)}`;
+    default:
+      return `${e.action} ${e.entity_type} ${e.entity_id}`;
+  }
+}
+
+function auditCard(): string {
+  return `<div class="card stack" id="audit" style="gap:12px;grid-column:1 / -1">
+      <h2>Audit log</h2>
+      <p class="small soft">Every change on this site: who, what and when. Only site admins see this.</p>
+      <div data-audit-rows aria-live="polite"><p class="small soft">Loading…</p></div>
+    </div>`;
+}
+
+async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
+  const box = root.querySelector('[data-audit-rows]');
+  const site = ctx.ontology.site;
+  if (!box || !site || !ctx.api) return;
+  try {
+    const entries = await ctx.api.audit(site.id, { limit: 50 });
+    box.innerHTML = entries.length
+      ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>${entries
+          .map(
+            (e) =>
+              `<tr><td>${esc(new Date(e.at).toLocaleString('en-GB'))}</td><td>${esc(e.actor_name)}</td><td>${esc(describeAudit(e))}</td></tr>`,
+          )
+          .join('')}</tbody></table></div>`
+      : '<p class="small soft">No changes yet.</p>';
+  } catch {
+    box.innerHTML = '<p class="small soft">The audit log could not be loaded.</p>';
+  }
 }
 
 const view: View = {
@@ -55,6 +102,7 @@ const view: View = {
           <p class="small soft" data-api-status aria-live="polite"></p>
         </form>
         ${ds.mode === 'api' ? accountCard(ctx) : ''}
+        ${ctx.ontology.role === 'admin' ? auditCard() : ''}
       </div>`;
   },
   bind(root, ctx) {
@@ -88,6 +136,7 @@ const view: View = {
         status.textContent = 'Not reachable';
       }
     });
+    if (ctx.ontology.role === 'admin') void fillAudit(root, ctx);
     onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());
     onAll(root, '[data-sign-out]', 'click', () => void ctx.auth.signOut());
     onAll(root, '[data-reset]', 'click', () => {

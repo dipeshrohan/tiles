@@ -6,6 +6,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, model_validator
 
+from tiles_api import audit
 from tiles_api import ontology as o
 from tiles_api import ontology_store as store
 from tiles_api.auth import Principal, authenticate
@@ -118,10 +119,25 @@ def _op_dict(op: AddNode | RemoveNode | AddEdge | RemoveEdge | SetProp) -> o.Op:
 
 
 class SiteContext:
-    def __init__(self, conn: Conn, site_id: uuid.UUID, user: User) -> None:
+    def __init__(self, conn: Conn, site_id: uuid.UUID, org_id: uuid.UUID, user: User) -> None:
         self.conn = conn
         self.site_id = site_id
+        self.org_id = org_id
         self.user = user
+
+    def audit(self, action: str, entity_type: str, entity_id: str, before: Any = None, after: Any = None) -> None:
+        audit.record(
+            self.conn,
+            org_id=self.org_id,
+            site_id=self.site_id,
+            actor_id=self.user.id,
+            actor_name=self.user.name,
+            action=action,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            before=before,
+            after=after,
+        )
 
 
 Auth = Annotated[Principal, Depends(authenticate)]
@@ -133,7 +149,8 @@ def site_context(site_id: uuid.UUID, principal: Auth, conn: DbConn) -> SiteConte
     ).fetchone()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Site not found")
-    return SiteContext(conn, site_id, resolve_user(conn, principal, site_id, row["org_id"], row["slug"]))
+    user = resolve_user(conn, principal, site_id, row["org_id"], row["slug"])
+    return SiteContext(conn, site_id, row["org_id"], user)
 
 
 Ctx = Annotated[SiteContext, Depends(site_context, scope="function")]
@@ -226,7 +243,9 @@ def get_staged(ctx: Ctx) -> list[o.Op]:
 )
 def stage_op(ctx: Editor, op: OpIn) -> list[o.Op]:
     """Stage one change. It is checked against your working graph; returns all your staged ops."""
-    return _run(store.stage, ctx.conn, ctx.site_id, ctx.user, _op_dict(op))  # type: ignore[no-any-return]
+    staged: list[o.Op] = _run(store.stage, ctx.conn, ctx.site_id, ctx.user, _op_dict(op))
+    ctx.audit("ontology.stage", "staged_ops", str(ctx.user.id), after={"ops": [_op_dict(op)]})
+    return staged
 
 
 @router.post(
@@ -237,12 +256,18 @@ def stage_op(ctx: Editor, op: OpIn) -> list[o.Op]:
 )
 def stage_ops(ctx: Editor, ops: Annotated[list[OpIn], Body(min_length=1, max_length=2000)]) -> list[o.Op]:
     """Stage several changes, all or none (e.g. a node and its relationship). Returns all your staged ops."""
-    return _run(store.stage, ctx.conn, ctx.site_id, ctx.user, *map(_op_dict, ops))  # type: ignore[no-any-return]
+    added = [_op_dict(op) for op in ops]
+    staged: list[o.Op] = _run(store.stage, ctx.conn, ctx.site_id, ctx.user, *added)
+    ctx.audit("ontology.stage", "staged_ops", str(ctx.user.id), after={"ops": added})
+    return staged
 
 
 @router.delete("/sites/{site_id}/ontology/staged", status_code=status.HTTP_204_NO_CONTENT, tags=["ontology"])
 def discard_staged(ctx: Editor) -> None:
+    dropped = store.load_staged(ctx.conn, ctx.site_id, ctx.user)
     store.discard(ctx.conn, ctx.site_id, ctx.user)
+    if dropped:
+        ctx.audit("ontology.discard", "staged_ops", str(ctx.user.id), before={"ops": dropped})
 
 
 @router.get("/sites/{site_id}/ontology/commits", response_model=list[Commit], tags=["ontology"])
@@ -258,7 +283,9 @@ def get_history(
 )
 def commit_staged(ctx: Editor, body: CommitIn) -> o.Commit:
     """Commit your staged changes."""
-    return _run(store.commit, ctx.conn, ctx.site_id, ctx.user, body.message)  # type: ignore[no-any-return]
+    entry: o.Commit = _run(store.commit, ctx.conn, ctx.site_id, ctx.user, body.message)
+    ctx.audit("ontology.commit", "commit", entry["id"], after=entry)
+    return entry
 
 
 @router.post(
@@ -269,4 +296,6 @@ def commit_staged(ctx: Editor, body: CommitIn) -> o.Commit:
 )
 def revert_commit(ctx: Editor, commit_id: str) -> o.Commit:
     """Undo a commit by committing its inverse operations."""
-    return _run(store.revert, ctx.conn, ctx.site_id, ctx.user, commit_id)  # type: ignore[no-any-return]
+    entry: o.Commit = _run(store.revert, ctx.conn, ctx.site_id, ctx.user, commit_id)
+    ctx.audit("ontology.revert", "commit", entry["id"], before={"reverted": commit_id}, after=entry)
+    return entry

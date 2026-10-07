@@ -157,3 +157,17 @@ test('http(s) URL check', () => {
   for (const bad of ['', 'localhost:8000', 'ftp://x', 'http://', 'javascript:alert(1)'])
     assert.equal(isHttpUrl(bad), false);
 });
+
+test('audit summaries read as sentences', async () => {
+  const { describeAudit } = await import('../js/views/settings.ts');
+  const e = (action, before, after) => ({ action, before, after, entity_type: 'x', entity_id: 'y' });
+  assert.equal(describeAudit(e('ontology.stage', null, { ops: [1, 2] })), 'Staged 2 change(s)');
+  assert.equal(describeAudit(e('ontology.discard', { ops: [1] }, null)), 'Discarded 1 staged change(s)');
+  assert.equal(describeAudit(e('ontology.commit', null, { message: 'add press' })), 'Committed “add press”');
+  assert.equal(describeAudit(e('ontology.revert', { reverted: 'c1' }, {})), 'Reverted commit c1');
+  assert.equal(
+    describeAudit(e('member.role', { role: 'engineer' }, { role: 'viewer' })),
+    "Changed a member's role from engineer to viewer",
+  );
+  assert.equal(describeAudit(e('site.rename', null, null)), 'site.rename x y');
+});

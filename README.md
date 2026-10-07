@@ -58,7 +58,7 @@ Ports bind to localhost only. `docker compose down -v` stops everything and dele
 
 To point the app at the API, open **Settings → Data source**, choose *Tiles API* and use **Test connection**, or add `?api=http://localhost:8000` to the app's URL. The API accepts browser calls from `http://localhost:5173` (`TILES_CORS_ORIGINS`), so use the served app rather than `index.html` from disk. In API mode the ontology page reads and writes the site's shared history: everyone on the site sees each commit (use **Refresh**, or reload), while staged changes stay private until committed. On an empty site, **Load demo ontology** copies the demo graph in as one commit. Other pages still use this browser's data.
 
-With the API selected, **Settings → Account → Sign in** signs you in through Keycloak (OpenID Connect with PKCE). Your name and email then come from your sign-in, and so does your role on a site the first time you open it. Viewers see the ontology read-only; engineers can change it; admins can also change members' roles. In development you can skip signing in and act as the demo user; a production API (`TILES_ENV=production`) refuses requests without a valid token.
+With the API selected, **Settings → Account → Sign in** signs you in through Keycloak (OpenID Connect with PKCE). Your name and email then come from your sign-in, and so does your role on a site the first time you open it. Viewers see the ontology read-only; engineers can change it; admins can also change members' roles and read the site's audit log (Settings → Audit log). In development you can skip signing in and act as the demo user; a production API (`TILES_ENV=production`) refuses requests without a valid token.
 
 ## Roadmap
 
