@@ -389,6 +389,42 @@ test('viewers see the shared ontology read-only', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test('a viewer can discard changes staged before their demotion', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.stageAs('demo@example.com', [
+    { kind: 'addNode', node: { id: 'old', type: 'Machine', label: 'Old press', props: {} } },
+  ]);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.waitForSelector('#viewer-staged:has-text("1 uncommitted")');
+  assert.equal(await page.locator('#commit-form').count(), 0);
+  await page.click('#viewer-staged [data-discard]');
+  await page.waitForSelector('#viewer-staged', { state: 'detached' });
+  assert.equal(await page.locator('[data-node="old"]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('Refresh picks up a role change made by an admin', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.waitForSelector('#node-form');
+  fake.setRole('demo@example.com', 'viewer');
+  await page.click('[data-refresh]');
+  await page.waitForSelector('.source-bar:has-text("View only")');
+  assert.equal(await page.locator('#node-form').count(), 0);
+  fake.setRole('demo@example.com', 'engineer');
+  await page.click('[data-refresh]');
+  await page.waitForSelector('#node-form');
+  assert.deepEqual(errors, []);
+});
+
 test('background updates never wipe what the user is typing', async (t) => {
   const fake = createFakeApi({ slowAuthConfigMs: 1500 });
   const apiUrl = await fake.listen();

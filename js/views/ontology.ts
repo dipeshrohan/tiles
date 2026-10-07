@@ -176,7 +176,7 @@ function inspector(graph: Graph, id: string): string {
 // Controls that change the ontology; removed for viewers (the API refuses
 // their writes anyway, this just keeps the page honest).
 const EDIT_CONTROLS =
-  '#node-form, #prop-form, #link-form, .staged-bar, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]';
+  '#node-form, #prop-form, #link-form, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]';
 
 function viewOnlyNote(): string {
   return `
@@ -302,15 +302,22 @@ const view: View = {
           <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
           <button class="btn" type="button" data-discard>Discard</button>
         </div>`
-      : repo.staged.length
-        ? `<form class="staged-bar" id="commit-form">
+      : repo.staged.length && ctx.ontology.role === 'viewer'
+        ? // Staged before an admin made them a viewer: they can still throw it away.
+          `<div class="staged-bar" id="viewer-staged">
+          <span class="badge warn">${repo.staged.length} uncommitted</span>
+          <span style="flex:1">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
+          <button class="btn" type="button" data-discard>Discard</button>
+        </div>`
+        : repo.staged.length
+          ? `<form class="staged-bar" id="commit-form">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
           <button class="btn primary" type="submit">Commit</button>
           <button class="btn" type="button" data-discard>Discard</button>
         </form>`
-        : '';
+          : '';
 
     const tabs = [
       ['canvas', 'Canvas'],

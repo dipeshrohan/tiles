@@ -123,7 +123,8 @@ export function createFakeApi({
       if (url.pathname === `/sites/${site.id}/me`)
         return send(200, { user_id: user, email: user, name: user, role, site_role: role, org_admin: false });
       const path = url.pathname.slice(base.length);
-      if (role === 'viewer' && req.method !== 'GET')
+      // Like the real API, anyone may discard their own staged changes.
+      if (role === 'viewer' && req.method !== 'GET' && !(path === '/staged' && req.method === 'DELETE'))
         return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
       const repo = repoFor(user);
       if (path === '/graph') return send(200, url.searchParams.get('view') === 'head' ? head : workingGraph(repo));
@@ -171,6 +172,16 @@ export function createFakeApi({
     server,
     requests,
     bearersSeen,
+    // Lets a test change a user's role, as a site admin would.
+    setRole(user, role) {
+      roles[user] = role;
+    },
+    // Lets a test give a user staged changes, as if made earlier.
+    stageAs(user, ops) {
+      let repo = repoFor(user);
+      for (const op of ops) repo = stage(repo, op);
+      staged.set(user, repo.staged);
+    },
     // Lets a test act as another user committing directly.
     commitAs(user, ops, message) {
       let repo = { head, history, staged: [] };

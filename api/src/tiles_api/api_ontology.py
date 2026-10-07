@@ -242,7 +242,8 @@ def stage_ops(ctx: Editor, ops: Annotated[list[OpIn], Body(min_length=1, max_len
 
 
 @router.delete("/sites/{site_id}/ontology/staged", status_code=status.HTTP_204_NO_CONTENT, tags=["ontology"])
-def discard_staged(ctx: Editor) -> None:
+def discard_staged(ctx: Ctx) -> None:
+    """Throw away your staged changes. Open to every member, so a user demoted to viewer can drop old work."""
     store.discard(ctx.conn, ctx.site_id, ctx.user)
 
 

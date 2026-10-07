@@ -50,7 +50,6 @@ def writes(site: str) -> list[tuple[str, str, Any]]:
     return [
         ("POST", f"{o}/staged", NODE),
         ("POST", f"{o}/staged/batch", [NODE]),
-        ("DELETE", f"{o}/staged", None),
         ("POST", f"{o}/commits", {"message": "m"}),
         ("POST", f"{o}/commits/c-1/revert", None),
     ]
@@ -102,6 +101,17 @@ def test_admins_change_roles_and_the_change_applies_at_once(api: TestClient, sit
     assert api.post(f"/sites/{site}/ontology/staged", json=NODE, headers=ENG).status_code == 403
     api.put(url, json={"role": "engineer"}, headers=ADMIN)
     assert api.post(f"/sites/{site}/ontology/staged", json=NODE, headers=ENG).status_code == 201
+
+
+def test_a_demoted_engineer_can_still_discard_what_they_staged(api: TestClient, site: str) -> None:
+    o = f"/sites/{site}/ontology"
+    assert api.post(f"{o}/staged", json=NODE, headers=ENG).status_code == 201
+    members = {m["email"]: m["user_id"] for m in api.get(f"/sites/{site}/members", headers=ADMIN).json()}
+    api.put(f"/sites/{site}/members/{members['eng@example.com']}", json={"role": "viewer"}, headers=ADMIN)
+    assert api.post(f"{o}/commits", json={"message": "m"}, headers=ENG).status_code == 403
+    assert len(api.get(f"{o}/staged", headers=ENG).json()) == 1
+    assert api.delete(f"{o}/staged", headers=ENG).status_code == 204
+    assert api.get(f"{o}/staged", headers=ENG).json() == []
 
 
 def test_role_changes_are_guarded(api: TestClient, site: str) -> None:

@@ -172,12 +172,14 @@ const ontologyCtx: OntologyContext = {
     }
   },
   async reload() {
-    if (!remote) return;
+    if (!remote || !api) return;
     const seq = connectSeq;
     try {
-      const repo = await remote.load();
+      // The role is fetched again too, so an admin's change to it shows here.
+      const [repo, membership] = await Promise.all([remote.load(), api.membership(remote.site.id)]);
       if (seq !== connectSeq) return;
       state.repo = repo;
+      ontologyRole = membership.role;
     } catch {
       // the client already showed why
     }
