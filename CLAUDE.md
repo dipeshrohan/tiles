@@ -19,6 +19,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - `js/lib/*.ts`: pure logic in strict TypeScript (ontology, physics, analysis, design models, copilot routing, stats, charts). Shared types in `js/lib/types.ts`. Import with the `.ts` extension. Unit-tested in `test/`.
 - `js/views/*.ts`: one module per page; each default-exports a `View` (`{ id, title, icon, render(ctx), bind(root, ctx) }`, see `js/views/types.ts`). Per-page UI state goes through a typed `uiState(ctx)` helper with defaults.
 - `js/app.ts`: state, router, persistence (localStorage via `js/lib/store.ts`).
+- `js/lib/api.ts`: typed client for the Tiles API (`createApiClient`, `ApiError`) and the data-source flag (`local` or `api`, set in Settings or with `?api=<url>`). Views reach it as `ctx.api`, which is null in local mode; failed calls already show a toast.
 - `vite.config.js`: builds the IIFE bundle and configures Vitest. `scripts/check-bundle.js` compares a fresh build with the committed bundle.
 - DOM helpers in `js/lib/dom.ts`: `need()` (querySelector that throws if missing), `field()` (form values), `onAll()` and `onSubmit()` (typed event wiring). Prefer them over raw querySelector in views.
 - `server.js`: static server; exports `createTilesServer()` for tests.

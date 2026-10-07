@@ -2,6 +2,7 @@ import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/da
 import { generateShotHistory, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
 import { workingGraph, healthCheck } from './lib/ontology.ts';
 import { load, save, clearAll } from './lib/store.ts';
+import { createApiClient, resolveDataSource, type ApiClient, type DataSource } from './lib/api.ts';
 import { esc, need } from './lib/dom.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
@@ -55,6 +56,20 @@ function persist(): void {
   save(STATE_KEY, saved);
 }
 
+// ---- data source ---------------------------------------------------------
+
+let dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search);
+let api = makeApi();
+
+function makeApi(): ApiClient | null {
+  if (dataSource.mode !== 'api') return null;
+  return createApiClient({
+    baseUrl: dataSource.apiUrl,
+    userEmail: state.user.email,
+    onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message),
+  });
+}
+
 // ---- context passed to views -------------------------------------------
 
 const ctx: Context = {
@@ -63,7 +78,9 @@ const ctx: Context = {
     return workingGraph(state.repo);
   },
   update(mutate, { rerender = true } = {}) {
+    const email = state.user.email;
     mutate(state);
+    if (state.user.email !== email) api = makeApi();
     persist();
     if (rerender) render();
   },
@@ -79,6 +96,18 @@ const ctx: Context = {
     persist();
     render();
     toast('Demo data reset');
+  },
+  get dataSource() {
+    return dataSource;
+  },
+  get api() {
+    return api;
+  },
+  setDataSource(source) {
+    dataSource = source;
+    save('datasource', source);
+    api = makeApi();
+    render();
   },
 };
 

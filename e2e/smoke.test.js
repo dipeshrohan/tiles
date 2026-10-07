@@ -92,3 +92,41 @@ test('ontology change can be staged, committed and reverted', async () => {
   assert.deepEqual(errors, []);
   await page.close();
 });
+
+test('settings can switch to the Tiles API and test the connection', async () => {
+  // A stand-in API that only answers /health, with the CORS header the real one sends.
+  const { createServer } = await import('node:http');
+  const fakeApi = createServer((req, res) => {
+    res.setHeader('access-control-allow-origin', '*');
+    if (req.url === '/health') {
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', version: '9.9.9', env: 'test' }));
+    } else res.writeHead(404).end();
+  });
+  await new Promise((resolve) => fakeApi.listen(0, '127.0.0.1', resolve));
+  const apiUrl = `http://127.0.0.1:${fakeApi.address().port}`;
+
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/settings`);
+  await page.fill('#datasource [name=apiUrl]', 'http://127.0.0.1:1');
+  await page.click('[data-test-api]');
+  await page.waitForSelector('[data-api-status]:has-text("Not reachable")');
+  assert.match(await page.locator('#toast').innerText(), /Can't reach the Tiles API at http:\/\/127\.0\.0\.1:1/);
+
+  await page.fill('#datasource [name=apiUrl]', apiUrl);
+  await page.click('[data-test-api]');
+  await page.waitForSelector('[data-api-status]:has-text("Connected: Tiles API 9.9.9 (test)")');
+  await page.check('#datasource [name=mode][value=api]');
+  await page.click('#datasource button[type=submit]');
+  await page.reload();
+  assert.equal(await page.locator('#datasource [name=mode][value=api]').isChecked(), true);
+  assert.equal(await page.inputValue('#datasource [name=apiUrl]'), apiUrl);
+
+  // The failed connection test logs a network error in the console; nothing else may.
+  assert.deepEqual(
+    errors.filter((e) => !/Failed to load resource|ERR_CONNECTION_REFUSED|ERR_UNSAFE_PORT/.test(e)),
+    [],
+  );
+  await page.close();
+  fakeApi.close();
+});
