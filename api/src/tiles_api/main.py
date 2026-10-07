@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from tiles_api import readiness
+from tiles_api.api_auth import router as auth_router
 from tiles_api.api_ontology import router as ontology_router
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
 from tiles_api.settings import Settings, get_settings
@@ -98,6 +99,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         body = Ready(status="ok" if ok else "unavailable", checks=checks)
         return JSONResponse(body.model_dump(), status_code=200 if ok else 503)
 
+    app.include_router(auth_router)
     app.include_router(ontology_router)
     return app
 

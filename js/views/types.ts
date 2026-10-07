@@ -1,6 +1,6 @@
 // Types shared by the app shell and the page views.
 
-import type { ApiClient, DataSource, Site } from '../lib/api.ts';
+import type { ApiClient, AuthConfig, DataSource, Site } from '../lib/api.ts';
 import type { OntologyStore } from '../lib/ontology-store.ts';
 import type { CutterBatch, Detection, Graph, Repo, Run, ScoredEvent, ShotHistory, WeldData } from '../lib/types.ts';
 
@@ -50,6 +50,17 @@ export interface Context {
   readonly api: ApiClient | null;
   setDataSource(source: DataSource): void;
   readonly ontology: OntologyContext;
+  readonly auth: AuthContext;
+}
+
+// Signing in to the Tiles API (API mode only).
+export interface AuthContext {
+  // The API's sign-in settings; null in local mode or until fetched.
+  readonly config: AuthConfig | null;
+  readonly signedIn: boolean;
+  // Sends the browser to the sign-in provider; it comes back to this page.
+  signIn(): Promise<void>;
+  signOut(): Promise<void>;
 }
 
 // The ontology repository shown in state.repo, and how to change it.

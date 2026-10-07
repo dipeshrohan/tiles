@@ -2,10 +2,17 @@
 // tests. It runs the same ontology logic as the app (js/lib/ontology.ts,
 // loaded through Node's TypeScript type stripping), with one shared head and
 // history and staged changes per user, like the real API.
+import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { applyOp, commit, createRepo, revert, stage, workingGraph, healthCheck } from '../js/lib/ontology.ts';
 
-export function createFakeApi() {
+// With `oidc`, it is also a tiny sign-in provider at /idp that approves every
+// request, checks PKCE, and issues opaque tokens the API accepts. With
+// `requireSignIn`, requests without a token get 401, as in production.
+export function createFakeApi({ oidc = false, requireSignIn = false, signedInAs = 'ana@example.com' } = {}) {
+  let origin = '';
+  const codes = new Map(); // code -> { challenge, redirectUri }
+  const tokens = new Set();
   const site = { id: '11111111-1111-1111-1111-111111111111', slug: 'plant-1', name: 'Plant 1', org: 'demo' };
   let head = createRepo().head;
   let history = [];
@@ -14,11 +21,15 @@ export function createFakeApi() {
 
   const repoFor = (user) => ({ head, history, staged: staged.get(user) ?? [] });
 
-  async function body(req) {
+  async function rawBody(req) {
     let raw = '';
     for await (const chunk of req) raw += chunk;
-    return raw ? JSON.parse(raw) : undefined;
+    return raw;
   }
+  const body = async (req) => {
+    const raw = await rawBody(req);
+    return raw ? JSON.parse(raw) : undefined;
+  };
 
   const server = createServer(async (req, res) => {
     const send = (status, data) => {
@@ -30,8 +41,65 @@ export function createFakeApi() {
     res.setHeader('access-control-allow-methods', 'GET, POST, DELETE');
     if (req.method === 'OPTIONS') return send(204);
     const url = new URL(req.url, 'http://fake');
-    const user = req.headers['x-tiles-user'] ?? 'demo@example.com';
     requests.push(`${req.method} ${url.pathname}`);
+
+    // ---- the sign-in provider -------------------------------------------------
+    if (url.pathname === '/idp/.well-known/openid-configuration')
+      return send(200, {
+        issuer: `${origin}/idp`,
+        authorization_endpoint: `${origin}/idp/auth`,
+        token_endpoint: `${origin}/idp/token`,
+        end_session_endpoint: `${origin}/idp/logout`,
+      });
+    if (url.pathname === '/idp/auth') {
+      const q = url.searchParams;
+      const code = randomUUID();
+      codes.set(code, { challenge: q.get('code_challenge'), redirectUri: q.get('redirect_uri') });
+      const back = new URL(q.get('redirect_uri'));
+      back.searchParams.set('code', code);
+      back.searchParams.set('state', q.get('state'));
+      res.writeHead(302, { location: back.toString() }).end();
+      return;
+    }
+    if (url.pathname === '/idp/token') {
+      const form = new URLSearchParams(await rawBody(req));
+      const pending = codes.get(form.get('code'));
+      codes.delete(form.get('code'));
+      const challenge = createHash('sha256')
+        .update(form.get('code_verifier') ?? '')
+        .digest('base64url');
+      if (!pending || pending.challenge !== challenge || pending.redirectUri !== form.get('redirect_uri'))
+        return send(400, { error: 'invalid_grant', error_description: 'Bad code or verifier' });
+      const token = `tok-${randomUUID()}`;
+      tokens.add(token);
+      return send(200, { access_token: token, expires_in: 300, id_token: 'id-token' });
+    }
+    if (url.pathname === '/idp/logout') {
+      res.writeHead(302, { location: url.searchParams.get('post_logout_redirect_uri') }).end();
+      return;
+    }
+
+    // ---- who is calling -------------------------------------------------------
+    const auth = req.headers.authorization ?? '';
+    const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : null;
+    if (bearer && !tokens.has(bearer)) return send(401, { detail: 'Invalid token' });
+    if (!bearer && requireSignIn && url.pathname !== '/health' && url.pathname !== '/auth/config')
+      return send(401, { detail: 'Sign in to use Tiles' });
+    const user = bearer ? signedInAs : (req.headers['x-tiles-user'] ?? 'demo@example.com');
+    if (url.pathname === '/auth/config')
+      return send(200, {
+        enabled: oidc,
+        issuer: oidc ? `${origin}/idp` : null,
+        client_id: 'tiles-web',
+        dev_identity: !requireSignIn,
+      });
+    if (url.pathname === '/me')
+      return send(200, {
+        email: user,
+        name: bearer ? 'Ana Lopez' : 'Demo User',
+        org: bearer ? 'demo' : null,
+        via: bearer ? 'oidc' : 'dev',
+      });
     const base = `/sites/${site.id}/ontology`;
     try {
       if (url.pathname === '/health') return send(200, { status: 'ok', version: 'fake', env: 'test' });
@@ -87,7 +155,10 @@ export function createFakeApi() {
     },
     listen: () =>
       new Promise((resolve) =>
-        server.listen(0, '127.0.0.1', () => resolve(`http://127.0.0.1:${server.address().port}`)),
+        server.listen(0, '127.0.0.1', () => {
+          origin = `http://127.0.0.1:${server.address().port}`;
+          resolve(origin);
+        }),
       ),
     close: () =>
       new Promise((resolve) => {

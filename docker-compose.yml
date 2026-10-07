@@ -5,6 +5,8 @@
 #   db     localhost:5432          PostgreSQL 17 + TimescaleDB
 #   redis  localhost:6379          job queue
 #   migrate                        applies database migrations, then exits
+#   keycloak http://localhost:8080  sign-in (realm tiles; users demo/demo,
+#                                  admin/admin, viewer/viewer; console admin/admin-dev)
 #
 # Ports bind to 127.0.0.1 only. Credentials are for local development;
 # override with TILES_DB_PASSWORD in your shell or a root .env file (git-ignored).
@@ -53,11 +55,40 @@ services:
       db:
         condition: service_healthy
 
+  # Single sign-on for development. The realm (keycloak/tiles-realm.json) is
+  # imported on first start; its users and passwords are for local use only.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.4
+    command: ['start-dev', '--import-realm']
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${TILES_KEYCLOAK_ADMIN_PASSWORD:-admin-dev}
+      # Tokens name this issuer whichever address requested them.
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: 'true'
+      KC_HEALTH_ENABLED: 'true'
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - '127.0.0.1:8080:8080'
+    healthcheck:
+      # The image has no curl; ask the management port with bash.
+      test:
+        [
+          'CMD-SHELL',
+          "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && grep -q '200 OK' <&3",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 60
+
   api:
     build: ./api
     image: tiles-api:dev
     environment:
       TILES_ENV: development
+      TILES_OIDC_ISSUER: http://localhost:8080/realms/tiles
+      TILES_OIDC_JWKS_URL: http://keycloak:8080/realms/tiles/protocol/openid-connect/certs
       TILES_DATABASE_URL: postgresql://tiles:${TILES_DB_PASSWORD:-tiles-dev}@db:5432/tiles
       TILES_REDIS_URL: redis://redis:6379/0
       TILES_CORS_ORIGINS: '["http://localhost:5173"]'

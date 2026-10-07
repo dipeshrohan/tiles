@@ -30,9 +30,9 @@ Requires [uv](https://docs.astral.sh/uv/). From `api/`: `uv sync` once, then `uv
 
 ### Full stack
 
-`docker compose up --build --wait` starts PostgreSQL + TimescaleDB, Redis, the API and the web server, applies database migrations, and waits until all are healthy. `docker compose down -v` stops them and deletes the data volume.
+`docker compose up --build --wait` starts PostgreSQL + TimescaleDB, Redis, Keycloak (sign-in; users `demo`/`demo`, `admin`/`admin`, `viewer`/`viewer`), the API and the web server, applies database migrations, and waits until all are healthy. `docker compose down -v` stops them and deletes the data volume.
 
-Behind a TLS-intercepting proxy (some corporate networks and sandboxes), the image build can fail at `pip install` with a certificate error. Build the API image from a copy of `api/` with your proxy's CA added (`COPY ca.crt …` plus `SSL_CERT_FILE`/`PIP_CERT`), tag it `tiles-api:dev`, then run `docker compose up --no-build --wait`. Don't commit proxy certificates.
+Behind a TLS-intercepting proxy (some corporate networks and sandboxes), the image build can fail at `pip install` with a certificate error. Build the API image from a copy of `api/` with your proxy's CA added (`COPY ca.crt …` plus `SSL_CERT_FILE`/`PIP_CERT`), tag it `tiles-api:dev`, then run `docker compose up --no-build --wait`. Don't commit proxy certificates. If quay.io is blocked, pull Keycloak through a mirror and retag it: `docker pull mirror.gcr.io/keycloak/keycloak:26.4 && docker tag mirror.gcr.io/keycloak/keycloak:26.4 quay.io/keycloak/keycloak:26.4`.
 
 CI runs lint and typecheck, unit tests on Node 22 and 24, the browser tests, the API checks (ruff, strict mypy, pytest against a TimescaleDB service) and a full `docker compose up` smoke test on every pull request. All must pass before merging.
 

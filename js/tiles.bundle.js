@@ -768,7 +768,8 @@
 			const headers = { Accept: "application/json" };
 			if (body !== void 0) headers["Content-Type"] = "application/json";
 			if (options.userEmail) headers["X-Tiles-User"] = options.userEmail;
-			if (options.token) headers.Authorization = `Bearer ${options.token}`;
+			const token = options.token ?? await options.getToken?.();
+			if (token) headers.Authorization = `Bearer ${token}`;
 			let res;
 			try {
 				res = await doFetch(base + path, {
@@ -799,6 +800,8 @@
 			baseUrl: base,
 			request,
 			health: () => request("GET", "/health"),
+			authConfig: () => request("GET", "/auth/config"),
+			me: () => request("GET", "/me"),
 			sites: () => request("GET", "/sites"),
 			ontology: {
 				graph: (siteId, view = "working") => request("GET", `${site(siteId)}/graph?view=${view}`),
@@ -832,6 +835,165 @@
 			apiUrl: normalizeBaseUrl(param)
 		};
 		return source;
+	}
+	//#endregion
+	//#region js/lib/oidc.ts
+	var PENDING_KEY = "tiles:oidc-pending";
+	var SESSION_KEY = "tiles:oidc-session";
+	function base64url(bytes) {
+		let s = "";
+		for (const b of bytes) s += String.fromCharCode(b);
+		return btoa(s).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+	}
+	function randomString(bytes = 32) {
+		return base64url(crypto.getRandomValues(new Uint8Array(bytes)));
+	}
+	async function codeChallenge(verifier) {
+		const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+		return base64url(new Uint8Array(digest));
+	}
+	function read(key) {
+		try {
+			const raw = sessionStorage.getItem(key);
+			return raw ? JSON.parse(raw) : null;
+		} catch {
+			return null;
+		}
+	}
+	function write(key, value) {
+		try {
+			if (value === null) sessionStorage.removeItem(key);
+			else sessionStorage.setItem(key, JSON.stringify(value));
+		} catch {}
+	}
+	async function discover(issuer, doFetch = fetch) {
+		const res = await doFetch(`${issuer.replace(/\/+$/, "")}/.well-known/openid-configuration`);
+		if (!res.ok) throw new Error(`Sign-in provider answered ${res.status}`);
+		const body = await res.json();
+		if (!body.authorization_endpoint || !body.token_endpoint) throw new Error("Sign-in provider is misconfigured");
+		return body;
+	}
+	async function beginSignIn(config, returnTo, doFetch = fetch) {
+		const endpoints = await discover(config.issuer, doFetch);
+		const pending = {
+			...config,
+			state: randomString(16),
+			verifier: randomString(32),
+			returnTo
+		};
+		write(PENDING_KEY, pending);
+		const url = new URL(endpoints.authorization_endpoint);
+		url.search = new URLSearchParams({
+			response_type: "code",
+			client_id: config.clientId,
+			redirect_uri: config.redirectUri,
+			scope: "openid email profile",
+			state: pending.state,
+			code_challenge: await codeChallenge(pending.verifier),
+			code_challenge_method: "S256"
+		}).toString();
+		return url.toString();
+	}
+	async function tokenRequest(endpoint, form, config, doFetch, now) {
+		const res = await doFetch(endpoint, {
+			method: "POST",
+			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			body: new URLSearchParams(form).toString()
+		});
+		const body = await res.json().catch(() => ({}));
+		if (!res.ok || !body.access_token) throw new Error(body.error_description ?? `Sign-in failed (${res.status})`);
+		return {
+			accessToken: body.access_token,
+			expiresAt: now + (body.expires_in ?? 300) * 1e3,
+			refreshToken: body.refresh_token,
+			idToken: body.id_token,
+			issuer: config.issuer,
+			clientId: config.clientId
+		};
+	}
+	async function completeSignIn(search, doFetch = fetch, now = Date.now()) {
+		const params = new URLSearchParams(search);
+		const code = params.get("code");
+		const state = params.get("state");
+		const error = params.get("error");
+		if (!code && !error) return null;
+		const pending = read(PENDING_KEY);
+		write(PENDING_KEY, null);
+		if (error) throw new Error(params.get("error_description") ?? `Sign-in was cancelled (${error})`);
+		if (!pending || !state || pending.state !== state) throw new Error("Sign-in response did not match; try again");
+		const session = await tokenRequest((await discover(pending.issuer, doFetch)).token_endpoint, {
+			grant_type: "authorization_code",
+			code: code ?? "",
+			redirect_uri: pending.redirectUri,
+			client_id: pending.clientId,
+			code_verifier: pending.verifier
+		}, pending, doFetch, now);
+		write(SESSION_KEY, session);
+		return {
+			session,
+			returnTo: pending.returnTo
+		};
+	}
+	function loadSession() {
+		return read(SESSION_KEY);
+	}
+	function clearSession() {
+		write(SESSION_KEY, null);
+	}
+	async function accessToken(doFetch = fetch, now = Date.now()) {
+		const session = loadSession();
+		if (!session) return null;
+		if (session.expiresAt - now > 3e4) return session.accessToken;
+		if (!session.refreshToken) {
+			clearSession();
+			return null;
+		}
+		try {
+			const next = await tokenRequest((await discover(session.issuer, doFetch)).token_endpoint, {
+				grant_type: "refresh_token",
+				refresh_token: session.refreshToken,
+				client_id: session.clientId
+			}, session, doFetch, now);
+			write(SESSION_KEY, {
+				...next,
+				idToken: next.idToken ?? session.idToken
+			});
+			return next.accessToken;
+		} catch {
+			clearSession();
+			return null;
+		}
+	}
+	async function signOut(postLogoutRedirect, doFetch = fetch) {
+		const session = loadSession();
+		clearSession();
+		if (!session) return null;
+		try {
+			const { end_session_endpoint } = await discover(session.issuer, doFetch);
+			if (!end_session_endpoint) return null;
+			const url = new URL(end_session_endpoint);
+			url.search = new URLSearchParams({
+				client_id: session.clientId,
+				post_logout_redirect_uri: postLogoutRedirect,
+				...session.idToken ? { id_token_hint: session.idToken } : {}
+			}).toString();
+			return url.toString();
+		} catch {
+			return null;
+		}
+	}
+	function cleanCallbackUrl(href, returnTo) {
+		const url = new URL(href);
+		if (returnTo !== void 0) return new URL(returnTo, url.origin + url.pathname).toString();
+		for (const p of [
+			"code",
+			"state",
+			"session_state",
+			"iss",
+			"error",
+			"error_description"
+		]) url.searchParams.delete(p);
+		return url.toString();
 	}
 	//#endregion
 	//#region js/lib/ontology-store.ts
@@ -1697,7 +1859,7 @@
         <button class="btn primary" type="submit">+ Stage node</button>
       </form>`;
 	}
-	function history(ctx, graph) {
+	function history$1(ctx, graph) {
 		const { history } = ctx.state.repo;
 		return `<div class="card">${history.map((c, i) => `
         <div class="commit">
@@ -1752,7 +1914,7 @@
 		const o = ctx.ontology;
 		if (o.status === "local") return "";
 		if (o.status === "loading") return "<div class=\"card source-bar\" aria-live=\"polite\">Loading the ontology from the Tiles API…</div>";
-		if (o.status === "error") return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px"><a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
+		if (o.status === "error") return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? "<button class=\"btn sm primary\" data-sign-in>Sign in</button>" : ""}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
 		const empty = !Object.keys(ctx.state.repo.head.nodes).length && !ctx.state.repo.history.length;
 		return `<div class="card source-bar small" aria-live="polite">
       <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.</span>
@@ -1785,7 +1947,7 @@
 			];
 			let body = "";
 			if (ui.tab === "canvas") body = canvas(ctx, graph, health, ui);
-			if (ui.tab === "history") body = history(ctx, graph);
+			if (ui.tab === "history") body = history$1(ctx, graph);
 			if (ui.tab === "health") body = healthTab(health, graph);
 			return `
       ${pageHead()}
@@ -1800,6 +1962,7 @@
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
 			const stageOp = (op, ok) => stageOps([op], ok);
 			onAll(root, "[data-refresh]", "click", () => void ctx.ontology.reload());
+			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
 			onAll(root, "[data-import-demo]", "click", async (el) => {
 				el.setAttribute("disabled", "");
 				const ops = historyOps(seedOntology());
@@ -2553,6 +2716,18 @@
 	};
 	//#endregion
 	//#region js/views/settings.ts
+	function accountCard(ctx) {
+		const { config, signedIn } = ctx.auth;
+		const { user } = ctx.state;
+		let body;
+		if (!config) body = "<p class=\"small soft\">Checking how this API signs people in…</p>";
+		else if (!config.enabled) body = "<p class=\"small soft\">This API has no sign-in configured; requests act as the development user.</p>";
+		else if (signedIn) body = `<p>Signed in as <b>${esc(user.name)}</b> <span class="soft">(${esc(user.email)})</span></p>
+      <div><button class="btn" type="button" data-sign-out>Sign out</button></div>`;
+		else body = `<p class="small soft">${config.dev_identity ? "Not signed in: until you sign in, you act as the development user." : "Sign in to use this Tiles API."}</p>
+      <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>`;
+		return `<div class="card stack" id="account" style="gap:12px"><h2>Account</h2>${body}</div>`;
+	}
 	var view = {
 		id: "settings",
 		title: "Settings",
@@ -2584,6 +2759,7 @@
           <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
           <p class="small soft" data-api-status aria-live="polite"></p>
         </form>
+        ${ds.mode === "api" ? accountCard(ctx) : ""}
       </div>`;
 		},
 		bind(root, ctx) {
@@ -2623,6 +2799,8 @@
 					status.textContent = "Not reachable";
 				}
 			});
+			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
+			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
 			onAll(root, "[data-reset]", "click", () => {
 				if (confirm("Reset ontology history, design runs and chat to the demo defaults?")) ctx.reset();
 			});
@@ -2768,8 +2946,45 @@
 		return createApiClient({
 			baseUrl: dataSource.apiUrl,
 			userEmail: state.user.email,
+			getToken: () => accessToken(),
 			onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message)
 		});
+	}
+	var authConfig = null;
+	var canRedirect = () => location.protocol === "http:" || location.protocol === "https:";
+	var redirectUri = () => location.origin + location.pathname;
+	async function finishSignIn() {
+		if (!canRedirect()) return;
+		try {
+			const done = await completeSignIn(location.search);
+			if (!done) return;
+			history.replaceState(null, "", cleanCallbackUrl(location.href, done.returnTo));
+			toast("Signed in");
+		} catch (e) {
+			history.replaceState(null, "", cleanCallbackUrl(location.href));
+			toast(e instanceof Error ? e.message : String(e));
+		}
+		dataSource = resolveDataSource(load("datasource", null), location.search);
+		api = makeApi();
+		render();
+	}
+	async function refreshAuth() {
+		authConfig = null;
+		if (!api) return;
+		try {
+			authConfig = await api.authConfig();
+			if (loadSession()) {
+				const me = await api.me();
+				if (me.via === "oidc" && (me.email !== state.user.email || me.name !== state.user.name)) {
+					state.user = {
+						name: me.name,
+						email: me.email
+					};
+					persist();
+				}
+			}
+		} catch {}
+		render();
 	}
 	var ctx = {
 		state,
@@ -2812,10 +3027,41 @@
 			dataSource = source;
 			save("datasource", source);
 			api = makeApi();
+			refreshAuth();
 			connectOntology();
 			render();
 		},
-		ontology: ontologyCtx
+		ontology: ontologyCtx,
+		auth: {
+			get config() {
+				return authConfig;
+			},
+			get signedIn() {
+				return loadSession() !== null;
+			},
+			async signIn() {
+				if (!authConfig?.enabled || !authConfig.issuer) return toast("This Tiles API has no sign-in configured");
+				if (!canRedirect()) return toast("Open Tiles over http(s) to sign in");
+				try {
+					location.assign(await beginSignIn({
+						issuer: authConfig.issuer,
+						clientId: authConfig.client_id,
+						redirectUri: redirectUri()
+					}, location.search + (location.hash || "#/")));
+				} catch (e) {
+					toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
+				}
+			},
+			async signOut() {
+				const url = await signOut(redirectUri());
+				if (url) location.assign(url);
+				else {
+					toast("Signed out");
+					await refreshAuth();
+					connectOntology();
+				}
+			}
+		}
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
@@ -2873,7 +3119,16 @@
 		need(document, "#view").focus({ preventScroll: true });
 		window.scrollTo(0, 0);
 	});
-	connectOntology();
+	if (api) {
+		localRepo = state.repo;
+		state.repo = createRepo();
+		ontologyStatus = "loading";
+	}
 	render();
+	(async () => {
+		await finishSignIn();
+		await refreshAuth();
+		await connectOntology();
+	})();
 	//#endregion
 })();

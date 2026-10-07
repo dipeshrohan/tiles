@@ -52,10 +52,13 @@ docker compose up --build --wait
 | api | http://localhost:8000/docs | FastAPI backend (`/health`, `/ready`) |
 | db | localhost:5432 | PostgreSQL 17 + TimescaleDB 2.30 (user `tiles`, password `tiles-dev`) |
 | redis | localhost:6379 | job queue |
+| keycloak | http://localhost:8080 | sign-in for development (realm `tiles`; users `demo`/`demo`, `admin`/`admin`, `viewer`/`viewer`) |
 
 Ports bind to localhost only. `docker compose down -v` stops everything and deletes the database volume. Set `TILES_DB_PASSWORD` (in your shell or a git-ignored root `.env`) to change the database password. Use URL-safe characters only (letters, digits, `-._~`), since it goes into a connection URL. The password is applied only when the database volume is created, so run `docker compose down -v` after changing it; that deletes the data. A one-shot `migrate` service applies the database schema and creates a demo site before the API starts. The API so far serves health and readiness checks and the ontology (stage, commit, revert, history); the ontology page uses it when the data source is set to the Tiles API. See [api/README.md](api/README.md).
 
 To point the app at the API, open **Settings → Data source**, choose *Tiles API* and use **Test connection**, or add `?api=http://localhost:8000` to the app's URL. The API accepts browser calls from `http://localhost:5173` (`TILES_CORS_ORIGINS`), so use the served app rather than `index.html` from disk. In API mode the ontology page reads and writes the site's shared history: everyone on the site sees each commit (use **Refresh**, or reload), while staged changes stay private until committed. On an empty site, **Load demo ontology** copies the demo graph in as one commit. Other pages still use this browser's data.
+
+With the API selected, **Settings → Account → Sign in** signs you in through Keycloak (OpenID Connect with PKCE). Your name and email then come from your sign-in, and so do your role on a site the first time you open it. In development you can skip signing in and act as the demo user; a production API (`TILES_ENV=production`) refuses requests without a valid token.
 
 ## Roadmap
 

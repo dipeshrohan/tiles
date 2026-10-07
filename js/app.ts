@@ -2,8 +2,16 @@ import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/da
 import { generateShotHistory, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
 import { workingGraph, healthCheck } from './lib/ontology.ts';
 import { load, save, clearAll } from './lib/store.ts';
-import { ApiError, createApiClient, resolveDataSource, type ApiClient, type DataSource } from './lib/api.ts';
+import {
+  ApiError,
+  createApiClient,
+  resolveDataSource,
+  type ApiClient,
+  type AuthConfig,
+  type DataSource,
+} from './lib/api.ts';
 import { createRepo } from './lib/ontology.ts';
+import { accessToken, beginSignIn, cleanCallbackUrl, completeSignIn, loadSession, signOut } from './lib/oidc.ts';
 import { localStore, pickSite, remoteStore, type OntologyStore, type RemoteStore } from './lib/ontology-store.ts';
 import { esc, need } from './lib/dom.ts';
 import home from './views/home.ts';
@@ -13,7 +21,7 @@ import quality from './views/quality.ts';
 import physics from './views/physics.ts';
 import design from './views/design.ts';
 import settings from './views/settings.ts';
-import type { AppState, Context, OntologyContext, PersistedState, View } from './views/types.ts';
+import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 
 const VIEWS: View[] = [home, chat, ontology, quality, physics, design, settings];
 
@@ -151,9 +159,86 @@ function makeApi(): ApiClient | null {
   return createApiClient({
     baseUrl: dataSource.apiUrl,
     userEmail: state.user.email,
+    getToken: () => accessToken(),
     onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message),
   });
 }
+
+// ---- sign-in (API mode) ------------------------------------------------------
+
+let authConfig: AuthConfig | null = null;
+
+const canRedirect = (): boolean => location.protocol === 'http:' || location.protocol === 'https:';
+const redirectUri = (): string => location.origin + location.pathname;
+
+// Finishes a sign-in redirect (?code&state) before any API call is made.
+async function finishSignIn(): Promise<void> {
+  if (!canRedirect()) return;
+  try {
+    const done = await completeSignIn(location.search);
+    if (!done) return;
+    history.replaceState(null, '', cleanCallbackUrl(location.href, done.returnTo));
+    toast('Signed in');
+  } catch (e) {
+    history.replaceState(null, '', cleanCallbackUrl(location.href));
+    toast(e instanceof Error ? e.message : String(e));
+  }
+  // The address now carries the page's own query again (e.g. ?api=…).
+  dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search);
+  api = makeApi();
+  render();
+}
+
+// Learns how the API signs people in, and who we are to it.
+async function refreshAuth(): Promise<void> {
+  authConfig = null;
+  if (!api) return;
+  try {
+    authConfig = await api.authConfig();
+    if (loadSession()) {
+      const me = await api.me();
+      if (me.via === 'oidc' && (me.email !== state.user.email || me.name !== state.user.name)) {
+        state.user = { name: me.name, email: me.email };
+        persist();
+      }
+    }
+  } catch {
+    // the client already showed why
+  }
+  render();
+}
+
+const authCtx: AuthContext = {
+  get config() {
+    return authConfig;
+  },
+  get signedIn() {
+    return loadSession() !== null;
+  },
+  async signIn() {
+    if (!authConfig?.enabled || !authConfig.issuer) return toast('This Tiles API has no sign-in configured');
+    if (!canRedirect()) return toast('Open Tiles over http(s) to sign in');
+    try {
+      location.assign(
+        await beginSignIn(
+          { issuer: authConfig.issuer, clientId: authConfig.client_id, redirectUri: redirectUri() },
+          location.search + (location.hash || '#/'),
+        ),
+      );
+    } catch (e) {
+      toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  },
+  async signOut() {
+    const url = await signOut(redirectUri());
+    if (url) location.assign(url);
+    else {
+      toast('Signed out');
+      await refreshAuth();
+      void connectOntology();
+    }
+  },
+};
 
 // ---- context passed to views -------------------------------------------
 
@@ -198,10 +283,12 @@ const ctx: Context = {
     dataSource = source;
     save('datasource', source);
     api = makeApi();
+    void refreshAuth();
     void connectOntology();
     render();
   },
   ontology: ontologyCtx,
+  auth: authCtx,
 };
 
 // ---- rendering ----------------------------------------------------------
@@ -295,5 +382,15 @@ window.addEventListener('hashchange', () => {
   need(document, '#view').focus({ preventScroll: true });
   window.scrollTo(0, 0);
 });
-void connectOntology(); // renders the loading state in API mode, before any local data shows
+// In API mode, show the loading state from the first paint (never local data).
+if (api) {
+  localRepo = state.repo;
+  state.repo = createRepo();
+  ontologyStatus = 'loading';
+}
 render();
+void (async () => {
+  await finishSignIn(); // so the first API calls carry the new token
+  await refreshAuth();
+  await connectOntology();
+})();

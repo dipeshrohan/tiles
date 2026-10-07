@@ -1,6 +1,27 @@
 import { esc, field, need, onAll, onSubmit } from '../lib/dom.ts';
 import { createApiClient, isHttpUrl, isTilesHealth, normalizeBaseUrl } from '../lib/api.ts';
-import type { View } from './types.ts';
+import type { Context, View } from './types.ts';
+
+// Sign-in to the Tiles API, shown in API mode.
+function accountCard(ctx: Context): string {
+  const { config, signedIn } = ctx.auth;
+  const { user } = ctx.state;
+  let body: string;
+  if (!config) body = '<p class="small soft">Checking how this API signs people in…</p>';
+  else if (!config.enabled)
+    body = '<p class="small soft">This API has no sign-in configured; requests act as the development user.</p>';
+  else if (signedIn)
+    body = `<p>Signed in as <b>${esc(user.name)}</b> <span class="soft">(${esc(user.email)})</span></p>
+      <div><button class="btn" type="button" data-sign-out>Sign out</button></div>`;
+  else
+    body = `<p class="small soft">${
+      config.dev_identity
+        ? 'Not signed in: until you sign in, you act as the development user.'
+        : 'Sign in to use this Tiles API.'
+    }</p>
+      <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>`;
+  return `<div class="card stack" id="account" style="gap:12px"><h2>Account</h2>${body}</div>`;
+}
 
 const view: View = {
   id: 'settings',
@@ -33,6 +54,7 @@ const view: View = {
           <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
           <p class="small soft" data-api-status aria-live="polite"></p>
         </form>
+        ${ds.mode === 'api' ? accountCard(ctx) : ''}
       </div>`;
   },
   bind(root, ctx) {
@@ -66,6 +88,8 @@ const view: View = {
         status.textContent = 'Not reachable';
       }
     });
+    onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());
+    onAll(root, '[data-sign-out]', 'click', () => void ctx.auth.signOut());
     onAll(root, '[data-reset]', 'click', () => {
       if (confirm('Reset ontology history, design runs and chat to the demo defaults?')) ctx.reset();
     });

@@ -20,6 +20,21 @@ export interface ApiHealth {
 
 export type GraphView = 'head' | 'working';
 
+export interface AuthConfig {
+  enabled: boolean;
+  issuer: string | null;
+  client_id: string;
+  // Outside production, requests without a token act as the development user.
+  dev_identity: boolean;
+}
+
+export interface Me {
+  email: string;
+  name: string;
+  org: string | null;
+  via: 'oidc' | 'dev';
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly requestId: string | null;
@@ -35,8 +50,9 @@ export interface ApiOptions {
   baseUrl: string;
   // Until single sign-on (T1.16) the API identifies users by this header.
   userEmail?: string;
-  // Bearer token, once sign-in exists.
+  // Bearer token, fixed or fetched per request (refreshed when near expiry).
   token?: string;
+  getToken?: () => Promise<string | null>;
   onError?: (error: ApiError) => void;
   fetch?: typeof fetch;
 }
@@ -78,7 +94,8 @@ export function createApiClient(options: ApiOptions) {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (options.userEmail) headers['X-Tiles-User'] = options.userEmail;
-    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+    const token = options.token ?? (await options.getToken?.());
+    if (token) headers.Authorization = `Bearer ${token}`;
     let res: Response;
     try {
       res = await doFetch(base + path, {
@@ -112,6 +129,8 @@ export function createApiClient(options: ApiOptions) {
     baseUrl: base,
     request,
     health: () => request<ApiHealth>('GET', '/health'),
+    authConfig: () => request<AuthConfig>('GET', '/auth/config'),
+    me: () => request<Me>('GET', '/me'),
     sites: () => request<Site[]>('GET', '/sites'),
     ontology: {
       graph: (siteId: string, view: GraphView = 'working') =>

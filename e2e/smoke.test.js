@@ -242,3 +242,50 @@ test('switching back to local after a failed API connection restores this browse
     [],
   );
 });
+
+test('signing in to the Tiles API (OIDC with PKCE), using it, and signing out', async (t) => {
+  const fake = createFakeApi({ oidc: true, requireSignIn: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+
+  // API mode only through ?api=, so the sign-in round trip must bring it back.
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  await page.goto(`${home}#/ontology`);
+  await page.waitForSelector('.source-bar [data-sign-in]'); // the API refuses us until we sign in
+  await page.goto(`${home}#/settings`);
+  await page.waitForSelector('#account:has-text("Sign in to use this Tiles API")');
+  await page.click('#account [data-sign-in]');
+
+  // Off to the provider and back: signed in, on the same page, callback params gone.
+  await page.waitForSelector('#account:has-text("Signed in as Ana Lopez")');
+  const back = new URL(page.url());
+  assert.equal(back.searchParams.get('api'), apiUrl);
+  assert.equal(back.searchParams.get('code'), null);
+  assert.equal(back.hash, '#/settings');
+  assert.match(await page.locator('#user').innerText(), /Ana Lopez/);
+
+  // Requests now carry the token, so the ontology works.
+  await page.goto(`${home}#/ontology`);
+  await page.click('[data-import-demo]');
+  await page.waitForSelector('#toast:has-text("Demo ontology imported")');
+  await page.click('[data-tab=history]');
+  assert.match(await page.locator('.commit').first().innerText(), /ana/);
+  assert.ok(fake.requests.includes('POST /idp/token'));
+
+  // Signing out ends the session (and visits the provider's logout).
+  await page.goto(`${home}#/settings`);
+  const logout = page.waitForRequest((r) => r.url().includes('/idp/logout'));
+  await page.click('#account [data-sign-out]');
+  await logout;
+  await page.waitForURL((u) => !u.pathname.startsWith('/idp'));
+  await page.waitForSelector('#view > *');
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('tiles:oidc-session')), null);
+
+  // Only the expected 401s from before signing in reach the console.
+  assert.deepEqual(
+    errors.filter((e) => !/Failed to load resource: the server responded with a status of 401/.test(e)),
+    [],
+  );
+});

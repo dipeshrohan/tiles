@@ -3,13 +3,13 @@
 import uuid
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, model_validator
 
 from tiles_api import ontology as o
 from tiles_api import ontology_store as store
-from tiles_api.identity import User, require_dev_identity, resolve_user
-from tiles_api.settings import Settings
+from tiles_api.auth import Principal, authenticate
+from tiles_api.identity import User, ensure_org, resolve_user
 from tiles_api.store import Conn, DbConn
 
 router = APIRouter()
@@ -124,12 +124,16 @@ class SiteContext:
         self.user = user
 
 
-def site_context(site_id: uuid.UUID, request: Request, conn: DbConn) -> SiteContext:
-    row = conn.execute("SELECT org_id FROM sites WHERE id = %s", [site_id]).fetchone()
+Auth = Annotated[Principal, Depends(authenticate)]
+
+
+def site_context(site_id: uuid.UUID, principal: Auth, conn: DbConn) -> SiteContext:
+    row = conn.execute(
+        "SELECT s.org_id, o.slug FROM sites s JOIN orgs o ON o.id = s.org_id WHERE s.id = %s", [site_id]
+    ).fetchone()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Site not found")
-    settings: Settings = request.app.state.settings
-    return SiteContext(conn, site_id, resolve_user(conn, settings, request, row["org_id"], site_id))
+    return SiteContext(conn, site_id, resolve_user(conn, principal, site_id, row["org_id"], row["slug"]))
 
 
 Ctx = Annotated[SiteContext, Depends(site_context, scope="function")]
@@ -145,12 +149,13 @@ def _run(fn: Any, *args: Any) -> Any:
 
 
 @router.get("/sites", response_model=list[Site], tags=["sites"])
-def list_sites(conn: DbConn, request: Request) -> list[dict[str, Any]]:
-    settings: Settings = request.app.state.settings
-    require_dev_identity(settings)
-    return conn.execute(
-        "SELECT s.id, s.slug, s.name, o.slug AS org FROM sites s JOIN orgs o ON o.id = s.org_id ORDER BY o.slug, s.slug"
-    ).fetchall()
+def list_sites(conn: DbConn, principal: Auth) -> list[dict[str, Any]]:
+    """Sites in your organisation (every site for the dev identity)."""
+    sql = "SELECT s.id, s.slug, s.name, o.slug AS org FROM sites s JOIN orgs o ON o.id = s.org_id"
+    if principal.org is None:
+        return conn.execute(sql + " ORDER BY o.slug, s.slug").fetchall()
+    ensure_org(conn, principal.org)
+    return conn.execute(sql + " WHERE o.slug = %s ORDER BY s.slug", [principal.org]).fetchall()
 
 
 @router.get("/sites/{site_id}/ontology/graph", response_model=Graph, tags=["ontology"])
