@@ -95,7 +95,11 @@ jobs:
       - run: uv run pytest -W error
       - name: Edge agent checks
         working-directory: edge
+        env:
+          TILES_EDGE_TEST_DOCKER: '1' # the SQL connector tests run PostgreSQL and SQL Server in Docker
         run: |
+          # What the SQL Server driver's bundled ODBC driver loads (as in the container image)
+          sudo apt-get install -y --no-install-recommends libltdl7 libkrb5-3 libgssapi-krb5-2
           uv sync --locked --all-extras
           uv run ruff check .
           uv run ruff format --check .
@@ -156,6 +160,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/edge"
           printf '[tiles]\nurl = "http://localhost:8000"\n[agent]\nheartbeat_seconds = 30\n' > "$RUNNER_TEMP/edge/tiles-edge.toml"
           docker build -t tiles-edge edge
+          # The SQL drivers load in the image (a refused connection, not a missing library)
+          docker run --rm --entrypoint python tiles-edge -c "
+          import psycopg, mssql_python
+          try:
+              mssql_python.connect('Server=tcp:127.0.0.1,1;UID=x;PWD=y;Encrypt=yes', attrs_before={103: 2})
+          except Exception as e:
+              assert 'Failed to load the driver' not in str(e), e
+          "
           docker run --rm --network host -e TILES_EDGE_TOKEN="$token" -v "$RUNNER_TEMP/edge:/etc/tiles-edge:ro" \
             tiles-edge check -c /etc/tiles-edge/tiles-edge.toml | tee /dev/stderr | jq -e .ok
           curl -fsS "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \

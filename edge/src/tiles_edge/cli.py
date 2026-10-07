@@ -94,7 +94,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "check":
         # Try the connectors first, so the heartbeat reports what was just found
         # rather than replacing the running service's statuses with nothing.
-        kinds = {c.name: "opcua" for c in config.opcua} | {c.name: "mqtt" for c in config.mqtt}
+        kinds = (
+            {c.name: "opcua" for c in config.opcua}
+            | {c.name: "mqtt" for c in config.mqtt}
+            | {c.name: "sql" for c in config.sql}
+        )
         found: dict[str, tuple[str, str]] = {}
         for c in config.opcua:
             reason = _try_connector(c)
@@ -103,6 +107,10 @@ def main(argv: list[str] | None = None) -> int:
             from tiles_edge.mqtt import MqttConnector
 
             found |= {c.name: MqttConnector(c, MemoryBuffer()).try_once() for c in config.mqtt}
+        if config.sql:
+            from tiles_edge.sql import SqlConnector
+
+            found |= {c.name: SqlConnector(c, MemoryBuffer()).try_once() for c in config.sql}
         results = {name: "ok" if state == "ok" else detail for name, (state, detail) in found.items()}
         checked: list[Connector] = [_Checked(name, kinds[name], *found[name]) for name in found]
         try:

@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS samples (
     quality TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS counters (name TEXT PRIMARY KEY, value INTEGER NOT NULL);
+-- Where connectors that poll (SQL) got to, saved with the samples they read.
+CREATE TABLE IF NOT EXISTS state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
 
@@ -118,13 +120,26 @@ class DiskBuffer:
             self._add_counter(outcome, self._evicted_in_flight)
         self._in_flight = self._evicted_in_flight = 0
 
-    def put_many(self, samples: list[Sample]) -> None:
-        if not samples:
+    def state(self, key: str) -> str | None:
+        with self._lock:
+            row = self._db.execute("SELECT value FROM state WHERE key = ?", (key,)).fetchone()
+        return str(row[0]) if row else None
+
+    def put_many(self, samples: list[Sample], *, state: tuple[str, str] | None = None) -> None:
+        """Stores the samples and, in the same transaction, `state` (key, value): a polling
+        connector's position, so after a crash it neither skips nor rereads what it stored."""
+        if not samples and state is None:
             return
         rows = [(s.signal, _us(s.at), json.dumps(s.value), s.quality) for s in samples]
         with self._lock:
             try:
                 self._db.execute("BEGIN IMMEDIATE")
+                if state is not None:
+                    self._db.execute(
+                        "INSERT INTO state (key, value) VALUES (?, ?)"
+                        " ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                        state,
+                    )
                 self._db.executemany("INSERT INTO samples (signal, at_us, value, quality) VALUES (?, ?, ?, ?)", rows)
                 self._count += len(rows)
                 over = self._count - self.max_samples

@@ -2,11 +2,11 @@
 
 A small agent that runs on the plant network and sends data out to Tiles ([ADR 003](../docs/adr/003-edge-agent.md)). It only ever connects out, over TLS, and opens no ports. Plant IT approves one outbound rule: the agent's host to the Tiles API on port 443.
 
-It has one config file, the connection to Tiles and a heartbeat, so Tiles can show whether each agent and each of its connectors is working (T2.01). It reads OPC UA servers (T2.02) and MQTT brokers, including Sparkplug B (T2.03); a SQL connector (T2.05) comes next.
+It has one config file, the connection to Tiles and a heartbeat, so Tiles can show whether each agent and each of its connectors is working (T2.01). It reads OPC UA servers (T2.02), MQTT brokers, including Sparkplug B (T2.03), and SQL databases such as MES and quality systems (T2.05).
 
 Readings wait in a buffer on disk until Tiles has them, so a network cut or a restart loses nothing (T2.04). Tiles's ingest endpoint (T2.06) comes next; until then the agent keeps its readings and says so in its status.
 
-The core uses only the Python standard library (3.12 or newer), so it installs anywhere Python runs and can also be shipped as a single file. Each connector that needs a protocol library is an extra: `opcua` (`asyncua`) and `mqtt` (`paho-mqtt`). The container image includes both.
+The core uses only the Python standard library (3.12 or newer), so it installs anywhere Python runs and can also be shipped as a single file. Each connector that needs a protocol library is an extra: `opcua` (`asyncua`), `mqtt` (`paho-mqtt`), `postgresql` (`psycopg`) and `sqlserver` (Microsoft's `mssql-python`). SQLite needs nothing extra. The container image includes them all.
 
 ## Set it up
 
@@ -151,14 +151,71 @@ Metrics sent by alias are matched to their names from the edge node's or device'
 
 **Running.** The connector reports `ok`, `degraded` (the broker refused some subscriptions) or `down` (it can't connect or log in, or its certificate isn't trusted), with the reason. A message that can't be read is skipped and counted, and the status names the last one. If the broker goes away, the connector reconnects with a growing delay, up to a minute. `tiles-edge check` also connects to each broker once.
 
+## Read a SQL database
+
+Each `[[sql]]` section is one database, and each `[[sql.queries]]` is a query the agent runs every `poll_seconds` for rows it hasn't read yet:
+
+```toml
+[[sql]]
+name = "mes"
+engine = "postgresql"                  # postgresql, sqlserver or sqlite
+host = "mes-db.plant.local"
+# port = 5432                          # default: 5432, or 1433 for sqlserver
+database = "mes"
+username = "tiles_reader"              # give this user read access only
+password_file = "sql/password"
+# ca_file = "sql/ca.pem"               # postgresql: trust this CA instead of the system's
+# timezone = "Europe/Berlin"           # for date-times stored without a time zone; default UTC
+# poll_seconds = 60
+# max_rows = 10000                     # per query and poll; more rows follow straight away
+# timeout_seconds = 60                 # per query
+
+[[sql.queries]]                        # one column per signal
+name = "quality"
+query = """
+SELECT id, measured_at, temperature, thickness
+FROM quality_results
+WHERE id > :watermark
+ORDER BY id
+"""
+watermark = "id"                       # increases with every new row
+start = 0                              # where the first poll begins
+time = "measured_at"                   # each reading's time; default: the watermark column
+columns = { temperature = "line1.temperature", thickness = "line1.thickness" }
+
+[[sql.queries]]                        # one reading per row
+name = "historian"
+query = "SELECT seq, at, tag, value FROM readings WHERE seq > :watermark ORDER BY seq"
+watermark = "seq"
+start = 0
+time = "at"
+signal_column = "tag"
+value_column = "value"
+signals = { "TT-101" = "press1.temperature", "PT-7" = "press1.pressure" }
+```
+
+For SQLite, set `path = "/data/quality.sqlite"` instead of the host, database and user settings.
+
+**The watermark.** Each poll binds `:watermark` to the largest watermark value read so far, and that position is saved with the readings in the agent's buffer, in the same transaction. A restart therefore neither skips rows nor reads them twice. Use `>` with a column that only increases: an identity column or insert sequence is best. A time works too. Rows that share one time are never split across two polls: when a batch ends partway through them, they are left for the next poll. A transaction that commits late with an earlier time would be missed, though, so for a time column, poll a little behind, e.g. `AND measured_at < now() - interval '1 minute'`. Write `start` the way the column holds it: a number, or a TOML date-time (`start = 2026-01-01T00:00:00`). To read a range again, change `start`; the agent then begins there once more.
+
+Queries must `ORDER BY` the watermark column. A poll that gets rows out of order stops with an error instead of skipping rows.
+
+**Read only.** A query must be a single `SELECT` (or `WITH … SELECT`). Every poll runs in a transaction that is rolled back, PostgreSQL sessions are read-only, and SQLite files are opened read-only. Still, give the agent a user that can only read.
+
+**Values.** Numbers, booleans and text become readings; date-times become text. NULL is skipped. Values that can't be readings (such as binary data or infinite numbers) are skipped and counted. Rows whose `signal_column` value isn't in `signals` are counted as unmapped. Times stored without a time zone are taken to be in `timezone`.
+
+**Security.** PostgreSQL and SQL Server connections use TLS, and the server's certificate must chain to a trusted CA and name the host. `tls = false` needs `allow_unsecured = true` as well. PostgreSQL trusts the system's CAs, or `ca_file` instead. The SQL Server driver trusts the system's CAs. If the database's certificate comes from the plant's own CA, add that CA to the system's trusted certificates. In the container, mount a bundle of the public CAs plus the plant's (`cat /etc/ssl/certs/ca-certificates.crt plant-ca.pem > bundle.pem`) and set `SSL_CERT_FILE` to it; the connection to Tiles uses the same bundle.
+
+**Running.** The connector reports `ok`, `degraded` (some queries fail; the status says which and why) or `down` (it can't connect, or no query works). If the database goes away, the connector reconnects with a growing delay, up to a minute. `tiles-edge check` connects, runs each query once and checks its columns, without reading any rows.
+
 ## Install
 
-- **With pip:** `pip install "./edge[opcua,mqtt]"` installs the `tiles-edge` command with both connectors. Leave out the extras you don't need.
+- **With pip:** `pip install "./edge[opcua,mqtt,postgresql,sqlserver]"` installs the `tiles-edge` command with every connector. Leave out the extras you don't need. The SQL Server driver also needs `libltdl7`, `libkrb5-3` and `libgssapi-krb5-2` (Debian and Ubuntu package names).
 - **As one file** (core only, no connectors): `python -m zipapp edge/src -m tiles_edge.cli:entry -p "/usr/bin/env python3" -o tiles-edge.pyz` builds `tiles-edge.pyz`, which runs with any Python 3.12+: `./tiles-edge.pyz check -c tiles-edge.toml`.
-- **As a container** (with OPC UA and MQTT): `docker build -t tiles-edge edge`. The image runs as UID 10001, so make the token file that user's before mounting the config folder: `sudo chown 10001 /etc/tiles-edge/token` (keep mode 600), then
+- **As a container** (with every connector): `docker build -t tiles-edge edge`. The image runs as UID 10001, so make the token file that user's before mounting the config folder: `sudo chown 10001 /etc/tiles-edge/token` (keep mode 600), then
   `docker run -d --restart unless-stopped -v /etc/tiles-edge:/etc/tiles-edge:ro -v tiles-edge-buffer:/var/lib/tiles-edge tiles-edge`.
   Or leave the file alone and pass the token as a secret environment variable instead: `--env-file` with `TILES_EDGE_TOKEN=tla_…`, and no `token_file` in the config.
 
 ## Develop
 
-From `edge/`: `uv sync --all-extras`, then `uv run pytest -W error`, `uv run mypy` (strict), `uv run ruff check .` and `uv run ruff format .`. The tests run against a fake Tiles server, including over TLS with a throwaway certificate (they need `openssl`). The OPC UA tests run a real `asyncua` server, with its own certificates and trust list. The MQTT tests run a real broker (`amqtt`) over TLS, and the Sparkplug decoder is tested against payloads built byte by byte. The buffer tests cut Tiles off for an hour's worth of readings, restart the agent in the middle, and check that every reading arrives in order.
+From `edge/`: `uv sync --all-extras`, then `uv run pytest -W error`, `uv run mypy` (strict), `uv run ruff check .` and `uv run ruff format .`. The tests run against a fake Tiles server, including over TLS with a throwaway certificate (they need `openssl`). The OPC UA tests run a real `asyncua` server, with its own certificates and trust list. The MQTT tests run a real broker (`amqtt`) over TLS, and the Sparkplug decoder is tested against payloads built byte by byte. The SQL tests use SQLite, and real PostgreSQL and SQL Server databases in Docker with TLS certificates from a test CA. Without Docker those are skipped, unless `TILES_EDGE_TEST_DOCKER=1` is set (as in CI), which makes them required. The buffer tests cut Tiles off for an hour's worth of readings, restart the agent in the middle, and check that every reading arrives in order.

@@ -1,6 +1,7 @@
 import json
 import os
 import signal
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -68,3 +69,33 @@ def test_opcua_without_the_extra_is_a_config_error(
     monkeypatch.setitem(sys.modules, "tiles_edge.opcua", None)  # as if asyncua weren't installed
     assert main(["run", "-c", str(path)]) == 2
     assert 'pip install "tiles-edge[opcua]"' in capsys.readouterr().err
+
+
+def test_check_tries_each_sql_query(tmp_path: Path, tiles: FakeTiles, capsys: pytest.CaptureFixture[str]) -> None:
+    database = tmp_path / "quality.sqlite"
+    with sqlite3.connect(database) as conn:
+        conn.execute("CREATE TABLE quality (id INTEGER PRIMARY KEY, at TEXT, temperature REAL)")
+    conn.close()
+    sql = f"""
+[[sql]]
+name = "quality-db"
+engine = "sqlite"
+path = "{database}"
+
+[[sql.queries]]
+name = "results"
+query = "SELECT id, at, temperature FROM quality WHERE id > :watermark ORDER BY id"
+watermark = "id"
+start = 0
+time = "{{time}}"
+columns = {{{{ temperature = "line1.temperature" }}}}
+"""
+    assert main(["check", "-c", str(write_config(tmp_path, tiles.url, sql.format(time="at")))]) == 0
+    assert json.loads(capsys.readouterr().out)["connectors"] == {"quality-db": "ok"}
+    [status] = tiles.requests[-1]["body"]["connectors"]
+    assert (status["kind"], status["status"]) == ("sql", "ok")
+
+    assert main(["check", "-c", str(write_config(tmp_path, tiles.url, sql.format(time="ts")))]) == 4
+    assert json.loads(capsys.readouterr().out)["connectors"] == {
+        "quality-db": "query results: the result has no column ts (it has id, at, temperature)"
+    }

@@ -64,7 +64,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T2.03` [#32](https://github.com/dipeshrohan/tiles/issues/32) **MQTT connector:** subscribe to topics, JSON/Sparkplug B payloads · BE · 2.5d · T2.01
 - [x] `T2.04` [#33](https://github.com/dipeshrohan/tiles/issues/33) ★ **Store-and-forward buffer:** disk queue that survives network loss and backfills in order · BE · 2d · T2.01
   *Done when:* a 1-hour network cut loses no samples.
-- [ ] `T2.05` [#34](https://github.com/dipeshrohan/tiles/issues/34) **SQL connector** for MES and quality databases (polling, watermark column) · BE · 2d · T2.01
+- [x] `T2.05` [#34](https://github.com/dipeshrohan/tiles/issues/34) **SQL connector** for MES and quality databases (polling, watermark column) · BE · 2d · T2.01
 
 ### Ingestion and storage
 - [ ] `T2.06` [#35](https://github.com/dipeshrohan/tiles/issues/35) ★ **Time-series ingest endpoint:** batched writes to TimescaleDB hypertables; compression and retention policies · BE · 3d · T1.12
