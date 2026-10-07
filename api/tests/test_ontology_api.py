@@ -133,6 +133,7 @@ def test_commit_conflicting_with_a_newer_commit_is_refused(api: TestClient, site
         {"kind": "addNode", "node": {"id": "a", "type": "Line", "label": "x", "props": {"k": [1]}}},
         {"kind": "addNode", "node": {"id": "a", "type": "Line", "label": "x", "extra": 1}},
         {"kind": "setProp", "id": "a", "key": "k", "value": {"nested": True}},
+        {"kind": "setProp", "id": "a", "key": "k", "value": None},
         {"kind": "addEdge", "edge": {"id": "e", "rel": "feeds", "to": "b"}},
     ],
 )
@@ -154,6 +155,7 @@ def test_errors(api: TestClient, site: str) -> None:
 def test_production_refuses_requests_until_sign_in_exists(database_url: str, site: str) -> None:
     with TestClient(create_app(Settings(_env_file=None, env="production", database_url=database_url))) as prod:
         assert prod.get(url(site, "graph")).status_code == 401
+        assert prod.get("/sites").status_code == 401
 
 
 def _norm_health(report: dict[str, Any]) -> dict[str, Any]:
@@ -203,3 +205,12 @@ def test_dev_users_become_engineers_on_the_site_they_open(api: TestClient, setti
             [site],
         ).fetchall()
     assert rows == [("alice@example.com", "engineer")]
+
+
+def test_null_value_is_refused_but_leaving_it_out_removes_the_property(api: TestClient, site: str) -> None:
+    api.post(url(site, "staged"), json=node("a"))
+    res = api.post(url(site, "staged"), json={"kind": "setProp", "id": "a", "key": "vendor", "value": None})
+    assert res.status_code == 422
+    assert "leave it out" in res.text
+    assert api.post(url(site, "staged"), json={"kind": "setProp", "id": "a", "key": "vendor"}).status_code == 201
+    assert api.get(url(site, "graph")).json()["nodes"]["a"]["props"] == {}

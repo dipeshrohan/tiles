@@ -1,5 +1,6 @@
 """Database access: a connection pool shared by request handlers."""
 
+import threading
 from collections.abc import Iterator
 from typing import Annotated
 
@@ -24,6 +25,9 @@ def open_pool(settings: Settings) -> ConnectionPool[Conn]:
     )
 
 
+_pool_lock = threading.Lock()
+
+
 def get_conn(request: Request) -> Iterator[Conn]:
     """FastAPI dependency: one connection and transaction per request.
 
@@ -33,8 +37,11 @@ def get_conn(request: Request) -> Iterator[Conn]:
     its write straight away.
     """
     state = request.app.state
-    if getattr(state, "pool", None) is None:
-        state.pool = open_pool(state.settings)
+    if state.pool is None:
+        # Sync dependencies run in a thread pool: create the pool only once.
+        with _pool_lock:
+            if state.pool is None:
+                state.pool = open_pool(state.settings)
     pool: ConnectionPool[Conn] = state.pool
     with pool.connection() as conn:
         yield conn

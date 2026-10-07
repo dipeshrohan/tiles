@@ -5,6 +5,7 @@ test/ontology-parity.test.js, so passing here means both implementations agree.
 """
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ import pytest
 from tiles_api import ontology as o
 
 FIXTURES = Path(__file__).resolve().parents[2] / "test" / "fixtures" / "ontology-parity.json"
+NODE: o.Node = {"id": "a", "type": "Line", "label": "A", "props": {}}
 CASES: list[dict[str, Any]] = json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"]
 
 
@@ -79,3 +81,11 @@ def test_score_rounds_halves_up_like_javascript() -> None:
     pairs = [("a", "b"), ("c", "d"), ("e", "a")]
     edges: dict[str, o.Edge] = {f"{f}{t}": {"id": f"{f}{t}", "from": f, "rel": "feeds", "to": t} for f, t in pairs}
     assert o.health_check({"nodes": nodes, "edges": edges})["score"] == 63
+
+
+def test_commits_without_a_date_get_the_current_time() -> None:
+    iso = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z$")
+    repo = o.commit(o.stage(o.create_repo(), {"kind": "addNode", "node": NODE}), {"message": "m", "author": "a"})
+    assert iso.match(repo["history"][0]["date"])
+    repo = o.revert(repo, repo["history"][0]["id"], "a")
+    assert iso.match(repo["history"][0]["date"])

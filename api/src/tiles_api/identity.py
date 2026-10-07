@@ -25,14 +25,19 @@ class User:
     role: str
 
 
+def require_dev_identity(settings: Settings) -> None:
+    """Every data endpoint calls this until sign-in exists: production gets 401."""
+    if settings.env == "production":
+        raise HTTPException(401, "Sign-in is not available yet")
+
+
 def resolve_user(conn: Conn, settings: Settings, request: Request, org_id: uuid.UUID, site_id: uuid.UUID) -> User:
     """The requesting user and their role on `site_id`.
 
     Dev users are created on first sight and made engineers on the site they
     open. Single sign-on (T1.16) will replace this with real memberships.
     """
-    if settings.env == "production":
-        raise HTTPException(401, "Sign-in is not available yet")
+    require_dev_identity(settings)
     email = (request.headers.get("x-tiles-user") or settings.dev_user_email).strip().lower()
     if not EMAIL.match(email):
         raise HTTPException(400, "X-Tiles-User must be an email address")
