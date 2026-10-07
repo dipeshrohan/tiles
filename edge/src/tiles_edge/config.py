@@ -23,6 +23,7 @@
 Relative paths are resolved against the config file's folder.
 """
 
+import hashlib
 import os
 import re
 import socket
@@ -308,6 +309,16 @@ def _signal(value: object, where: str) -> str:
     return value
 
 
+def _topic_filter(topic: str, where: str) -> None:
+    """MQTT wildcards: + stands for one whole level, and # only for the whole last level."""
+    levels = topic.split("/")
+    for i, level in enumerate(levels):
+        if ("+" in level and level != "+") or ("#" in level and (level != "#" or i != len(levels) - 1)):
+            raise ConfigError(
+                f"{where}: topic {topic!r} misplaces a wildcard: + must be a whole level and # the whole last level"
+            )
+
+
 def _mqtt(raw: object, base: Path, need_topics: bool) -> tuple[MqttConfig, ...]:
     if raw is None:
         return ()
@@ -365,11 +376,14 @@ def _mqtt(raw: object, base: Path, need_topics: bool) -> tuple[MqttConfig, ...]:
         if username is not None and (not isinstance(username, str) or not username):
             raise ConfigError(f"{where}: username must be text")
         password_file = path("password_file")
-        if password_file is not None and username is None:
-            raise ConfigError(f"{where}: password_file needs a username")
+        if (username is None) != (password_file is None):
+            raise ConfigError(f"{where}: set username and password_file together")
         if username is not None and not tls:
             raise ConfigError(f"{where}: a username and password need mqtts://; without it they travel in clear")
-        client_id = table.get("client_id", f"tiles-edge-{socket.gethostname()}-{name}")
+        # MQTT 3.1.1 brokers need only accept IDs of 1-23 letters and digits: the default fits, and
+        # stays the same for this host and connector, so the broker recognises a reconnect.
+        default_id = "tiles" + hashlib.sha256(f"{socket.gethostname()}/{name}".encode()).hexdigest()[:18]
+        client_id = table.get("client_id", default_id)
         if not isinstance(client_id, str) or not 1 <= len(client_id) <= 128:
             raise ConfigError(f"{where}: client_id must be text, up to 128 characters")
         qos = table.get("qos", 1)
@@ -389,6 +403,7 @@ def _mqtt(raw: object, base: Path, need_topics: bool) -> tuple[MqttConfig, ...]:
                 raise ConfigError(f'{where}: each topic needs a topic, e.g. topic = "plant/press1/temperature"')
             if fmt not in MQTT_FORMATS:
                 raise ConfigError(f"{where}: format must be one of {', '.join(MQTT_FORMATS)}")
+            _topic_filter(topic, where)
             wildcard = "+" in topic or "#" in topic
             if fmt == "sparkplug":
                 metrics = t.get("metrics")

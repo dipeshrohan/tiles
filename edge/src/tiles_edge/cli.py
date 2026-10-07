@@ -82,12 +82,16 @@ def main(argv: list[str] | None = None) -> int:
         # Try the connectors first, so the heartbeat reports what was just found
         # rather than replacing the running service's statuses with nothing.
         kinds = {c.name: "opcua" for c in config.opcua} | {c.name: "mqtt" for c in config.mqtt}
-        results = {c.name: _try_connector(c) for c in config.opcua}
+        found: dict[str, tuple[str, str]] = {}
+        for c in config.opcua:
+            reason = _try_connector(c)
+            found[c.name] = ("ok", f"connected to {c.endpoint}") if reason == "ok" else ("down", reason)
         if config.mqtt:
             from tiles_edge.mqtt import MqttConnector
 
-            results |= {c.name: MqttConnector(c, MemoryBuffer()).try_once() for c in config.mqtt}
-        checked: list[Connector] = [_Checked(name, kinds[name], result) for name, result in results.items()]
+            found |= {c.name: MqttConnector(c, MemoryBuffer()).try_once() for c in config.mqtt}
+        results = {name: "ok" if state == "ok" else detail for name, (state, detail) in found.items()}
+        checked: list[Connector] = [_Checked(name, kinds[name], *found[name]) for name in found]
         try:
             answer = Agent(config, agent.client, connectors=checked).heartbeat()
         except TransientError as e:
@@ -113,10 +117,11 @@ def main(argv: list[str] | None = None) -> int:
 class _Checked:
     """A connector's result from `check`, reported in check's heartbeat."""
 
-    def __init__(self, name: str, kind: str, result: str) -> None:
+    def __init__(self, name: str, kind: str, state: str, detail: str) -> None:
         self.name = name
         self.kind = kind
-        self.result = result
+        self.state = state
+        self.detail = detail
 
     def start(self) -> None:
         pass
@@ -125,9 +130,8 @@ class _Checked:
         pass
 
     def status(self) -> dict[str, str]:
-        ok = self.result == "ok"
-        detail = "connected (tiles-edge check)" if ok else f"{self.result} (tiles-edge check)"
-        return {"name": self.name, "kind": self.kind, "status": "ok" if ok else "down", "detail": detail[:500]}
+        detail = f"{self.detail} (tiles-edge check)"
+        return {"name": self.name, "kind": self.kind, "status": self.state, "detail": detail[:500]}
 
 
 def _try_connector(config: OpcUaConfig) -> str:

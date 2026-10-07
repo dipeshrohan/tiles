@@ -17,6 +17,7 @@ so `AliasBook` remembers each edge node's and device's aliases.
 """
 
 import struct
+import zlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Literal
@@ -56,8 +57,10 @@ class Topic:
 
 
 def parse_topic(topic: str) -> Topic:
-    """spBv1.0/<group>/<type>/<edge node>[/<device>]"""
+    """spBv1.0/<group>/<type>/<edge node>[/<device>], or a host application's spBv1.0/STATE/<host id>."""
     parts = topic.split("/")
+    if len(parts) == 3 and parts[0] == "spBv1.0" and parts[1] == "STATE":
+        return Topic("", "STATE", parts[2], None)
     if len(parts) not in (4, 5) or parts[0] != "spBv1.0":
         raise SparkplugError(f"not a Sparkplug B topic: {topic}")
     return Topic(parts[1], parts[2], parts[3], parts[4] if len(parts) == 5 else None)
@@ -169,9 +172,38 @@ def _metric(data: bytes, payload_time: datetime | None) -> Metric:
     )
 
 
-def decode(payload: bytes) -> tuple[datetime | None, list[Metric]]:
-    """The payload's timestamp and its metrics. A metric without its own timestamp takes the payload's."""
+COMPRESSED_UUID = b"SPBV1.0_COMPRESSED"
+# A compressed payload may not grow beyond this when unpacked (no zip bombs).
+MAX_UNCOMPRESSED = 16 * 1024 * 1024
+
+
+def _uncompress(body: bytes, algorithm: str) -> bytes:
+    """Sparkplug 3.0 compression: DEFLATE (the default) or GZIP, at most MAX_UNCOMPRESSED bytes."""
+    if algorithm not in ("DEFLATE", "GZIP"):
+        raise SparkplugError(f"unsupported compression {algorithm!r}")
+    unpacker = zlib.decompressobj(zlib.MAX_WBITS | 16 if algorithm == "GZIP" else zlib.MAX_WBITS)
+    try:
+        out = unpacker.decompress(body, MAX_UNCOMPRESSED)
+    except zlib.error as e:
+        raise SparkplugError(f"can't uncompress the payload: {e}") from None
+    if unpacker.unconsumed_tail or not unpacker.eof:
+        raise SparkplugError("the compressed payload is incomplete or larger than 16 MiB unpacked")
+    return out
+
+
+def decode(payload: bytes, *, _nested: bool = False) -> tuple[datetime | None, list[Metric]]:
+    """The payload's timestamp and its metrics. A metric without its own timestamp takes the payload's.
+    A compressed payload (uuid SPBV1.0_COMPRESSED, the real payload in `body`) is unpacked first."""
     fields = _fields(payload)
+    if any(n == 4 and v == COMPRESSED_UUID for n, _, v in fields):
+        if _nested:
+            raise SparkplugError("a compressed payload inside a compressed payload")
+        body = next((v for n, w, v in fields if n == 5 and w == 2 and isinstance(v, bytes)), None)
+        if body is None:
+            raise SparkplugError("a compressed payload without a body")
+        outer = [_metric(v, None) for n, w, v in fields if n == 2 and w == 2 and isinstance(v, bytes)]
+        algorithm = next((m.value for m in outer if m.name == "algorithm"), "DEFLATE")
+        return decode(_uncompress(body, str(algorithm).upper()), _nested=True)
     stamp = next((v for n, w, v in fields if n == 1 and w == 0), None)
     payload_time = _time(stamp) if isinstance(stamp, int) else None
     metrics = [_metric(v, payload_time) for n, w, v in fields if n == 2 and w == 2 and isinstance(v, bytes)]

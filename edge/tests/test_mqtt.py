@@ -181,6 +181,38 @@ def test_plain_values(raw: bytes, value: object) -> None:
     assert type(_plain(raw)) is type(value)
 
 
+def test_aliases_are_forgotten_on_reconnect_until_the_next_birth(certificate: tuple[Path, Path]) -> None:
+    broker = TestBroker(*certificate).start()
+    buffer = MemoryBuffer()
+    connector = running(mqtt_config(broker, certificate[0]), buffer)
+    try:
+        wait_for(lambda: connector.status()["status"] == "ok")
+        broker.publish("spBv1.0/plant/DBIRTH/edge-1/press-1", payload(metric("Press1/Current", alias=3, value=4.0)))
+        wait_for(lambda: values(buffer).get("press1.current") == [4.0])
+        # The node restarts while we're away and gives alias 3 to another metric...
+        broker.stop()
+        wait_for(lambda: connector.status()["status"] == "down", 20)
+        broker = TestBroker(*certificate, port=broker.port).start()
+        wait_for(lambda: connector.status()["status"] == "ok", 30)
+        # ...so data by alias waits for a BIRTH heard on this connection.
+        broker.publish("spBv1.0/plant/DDATA/edge-1/press-1", payload(metric(alias=3, value=99.0)))
+        wait_for(lambda: connector.awaiting_birth == 1)
+        assert "1 metrics by alias awaiting their BIRTH" in connector.status()["detail"]
+        broker.publish("spBv1.0/plant/DBIRTH/edge-1/press-1", payload(metric("Press1/Current", alias=5, value=5.0)))
+        broker.publish("spBv1.0/plant/DDATA/edge-1/press-1", payload(metric(alias=5, value=5.5)))
+        wait_for(lambda: values(buffer).get("press1.current") == [4.0, 5.0, 5.5])
+    finally:
+        connector.stop()
+        broker.stop()
+
+
+def test_a_host_state_message_is_not_unreadable() -> None:
+    config = mqtt_config(TestBroker(Path("c"), Path("k")), None)
+    config = dataclasses.replace(config, topics=(MqttTopic("spBv1.0/#", "sparkplug", None, "value", None, {"a": "b"}),))
+    connector = MqttConnector(config, MemoryBuffer())
+    assert connector.read("spBv1.0/STATE/scada-1", b'{"online": true, "timestamp": 1}') == []
+
+
 def test_sparkplug_ignores_commands_and_unmapped_metrics() -> None:
     connector = MqttConnector(mqtt_config(TestBroker(Path("c"), Path("k")), None), MemoryBuffer())
     assert connector.read("spBv1.0/plant/DCMD/edge-1/press-1", payload(metric("Press1/Current", value=1.0))) == []
@@ -223,7 +255,9 @@ def test_an_mqtt_connector_loads_with_secure_defaults(tmp_path: Path) -> None:
         1,
         "mqtts://broker.plant.local:8883",
     )
-    assert c.client_id.startswith("tiles-edge-") and c.client_id.endswith("-line-2")
+    # MQTT 3.1.1 brokers need only accept 1-23 letters and digits; the default is stable per host and connector.
+    assert len(c.client_id) == 23 and c.client_id.isalnum() and c.client_id.startswith("tiles")
+    assert load(with_mqtt(tmp_path), env={}).mqtt[0].client_id == c.client_id
     assert c.signals == ["press1.temperature"]
 
 
@@ -231,13 +265,14 @@ def test_an_mqtt_connector_loads_with_secure_defaults(tmp_path: Path) -> None:
     ("broker", "extra", "message"),
     [
         ("mqtt://broker", "", "set allow_unsecured = true"),
-        ("mqtt://broker", 'allow_unsecured = true\nusername = "u"', "need mqtts://"),
+        ("mqtt://broker", 'allow_unsecured = true\nusername = "u"\npassword_file = "p"', "need mqtts://"),
         ("mqtt://broker", 'allow_unsecured = true\nca_file = "ca.pem"', "need an mqtts:// broker"),
         ("http://broker", "", "broker must be an mqtts:// address"),
         ("mqtts://broker:x", "", "invalid port"),
         ("mqtts://broker", "qos = 2", "qos must be 0 or 1"),
         ("mqtts://broker", 'client_certificate = "c.pem"', "set client_certificate and client_key together"),
-        ("mqtts://broker", 'password_file = "p"', "password_file needs a username"),
+        ("mqtts://broker", 'password_file = "p"', "set username and password_file together"),
+        ("mqtts://broker", 'username = "u"', "set username and password_file together"),
     ],
 )
 def test_mqtt_settings_are_checked(tmp_path: Path, broker: str, extra: str, message: str) -> None:
@@ -253,6 +288,8 @@ def test_mqtt_settings_are_checked(tmp_path: Path, broker: str, extra: str, mess
         ('topic = "plant/x"\nformat = "value"\nsignal = "a"\nvalue_path = "v"', "json topics only"),
         ('topic = "spBv1.0/plant/#"\nformat = "sparkplug"', "needs metrics"),
         ('topic = "plant/#"\nformat = "sparkplug"\nmetrics = { a = "b" }', "start with spBv1.0/"),
+        ('topic = "spBv1.0/plant/#/edge-1"\nformat = "sparkplug"\nmetrics = { a = "b" }', "misplaces a wildcard"),
+        ('topic = "spBv1.0/plant/D+/edge-1"\nformat = "sparkplug"\nmetrics = { a = "b" }', "misplaces a wildcard"),
         ('topic = "plant/x"\nformat = "json"\nsignal = "Bad Signal"', "must be a Tiles signal ID"),
     ],
 )
@@ -299,3 +336,14 @@ def test_mqtt_without_the_extra_is_a_config_error(
     monkeypatch.setitem(sys.modules, "tiles_edge.mqtt", None)  # as if paho-mqtt weren't installed
     assert main(["run", "-c", str(with_mqtt(tmp_path))]) == 2
     assert 'pip install "tiles-edge[mqtt]"' in capsys.readouterr().err
+
+
+def test_check_reports_a_degraded_broker_as_degraded(
+    tiles: FakeTiles, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    detail = "subscribed to 1 of 2 topics; the broker refused: plant/x (Not authorized)"
+    monkeypatch.setattr(MqttConnector, "try_once", lambda self, timeout=10: ("degraded", detail))
+    assert main(["check", "-c", str(with_mqtt(tmp_path, url=tiles.url))]) == 4
+    assert json.loads(capsys.readouterr().out)["connectors"] == {"line-2": detail}
+    [status] = tiles.requests[0]["body"]["connectors"]
+    assert (status["status"], status["detail"]) == ("degraded", f"{detail} (tiles-edge check)")

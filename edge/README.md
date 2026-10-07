@@ -103,9 +103,9 @@ broker = "mqtts://broker.plant.local:8883"   # mqtts:// with the certificate and
 # ca_file = "mqtt/ca.pem"                    # trust this CA too (e.g. the plant's own)
 # client_certificate = "mqtt/agent.pem"      # if the broker wants a client certificate…
 # client_key = "mqtt/agent.key"
-# username = "tiles"                         # …or a user (needs password_file)
+# username = "tiles"                         # …or a user, with its password file
 # password_file = "mqtt/password"
-# client_id = "tiles-edge-line-2"            # default: tiles-edge-<host name>-<name>
+# client_id = "tiles-edge-line-2"            # default: 23 letters and digits, fixed per host and connector
 # qos = 1                                    # 0 or 1
 
 [[mqtt.topics]]                              # the payload is the value: 21.5, true, "running"
@@ -126,9 +126,9 @@ format = "sparkplug"
 metrics = { "Press1/Current" = "press1.current", "Press1/Running" = "press1.running" }
 ```
 
-`value` and `json` topics carry one signal each, so they can't use wildcards. Sparkplug metrics keep their own timestamps.
+`value` and `json` topics carry one signal each, so they can't use wildcards. In Sparkplug topics, `+` must be a whole level and `#` the whole last level. Sparkplug metrics keep their own timestamps.
 
-Metrics sent by alias are matched to their names from the edge node's or device's BIRTH message, and the aliases are forgotten on its DEATH. Scalar metrics are read: integers, floats, booleans, text and date-times. Datasets and templates are skipped. NCMD, DCMD and STATE messages carry no measurements and are ignored.
+Metrics sent by alias are matched to their names from the edge node's or device's BIRTH message. The aliases are forgotten on its DEATH, and also whenever the agent reconnects to the broker: a node may have restarted with new aliases in the meantime. Until the next BIRTH, metrics sent by alias are counted in the status, not guessed. Compressed payloads (DEFLATE or GZIP) are unpacked, up to 16 MiB. Scalar metrics are read: integers, floats, booleans, text and date-times. Datasets and templates are skipped. NCMD, DCMD and STATE messages carry no measurements and are ignored.
 
 **Security.** `mqtt://` without TLS needs `allow_unsecured = true` as well, and never takes a password.
 

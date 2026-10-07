@@ -1,5 +1,7 @@
 """Sparkplug B decoding (T2.03), against payloads built byte by byte."""
 
+import gzip
+import zlib
 from datetime import UTC, datetime
 
 import pytest
@@ -60,6 +62,8 @@ def test_topics() -> None:
     t = sp.parse_topic("spBv1.0/plant/DDATA/edge-1/press-1")
     assert (t.group, t.message_type, t.edge_node, t.device) == ("plant", "DDATA", "edge-1", "press-1")
     assert sp.parse_topic("spBv1.0/plant/NDATA/edge-1").device is None
+    state = sp.parse_topic("spBv1.0/STATE/scada-1")
+    assert (state.message_type, state.edge_node) == ("STATE", "scada-1")
     for bad in ("spBv1.0/plant", "spAv1.0/a/b/c", "spBv1.0/a/b/c/d/e"):
         with pytest.raises(sp.SparkplugError):
             sp.parse_topic(bad)
@@ -77,3 +81,31 @@ def test_aliases_come_from_the_birth_and_go_with_the_death() -> None:
     assert book.name(other, by_alias) is None  # aliases belong to one device
     book.learn(sp.parse_topic("spBv1.0/plant/DDEATH/edge-1/press-1"), [])
     assert book.name(data, by_alias) is None
+
+
+def compressed(inner: bytes, algorithm: str | None) -> bytes:
+    body = gzip.compress(inner) if algorithm == "GZIP" else zlib.compress(inner)
+    metrics = [metric("algorithm", datatype=sp.STRING, value=algorithm)] if algorithm else []
+    return payload(*metrics) + field(4, 2, sp.COMPRESSED_UUID) + field(5, 2, body)
+
+
+@pytest.mark.parametrize("algorithm", ["GZIP", "DEFLATE", None])  # None: DEFLATE is the default
+def test_compressed_payloads_are_unpacked(algorithm: str | None) -> None:
+    inner = payload(metric("Press1/Current", value=4.5), timestamp_ms=1_000)
+    stamp, [m] = sp.decode(compressed(inner, algorithm))
+    assert (m.name, m.value, stamp) == ("Press1/Current", 4.5, datetime.fromtimestamp(1, UTC))
+
+
+def test_compressed_payloads_are_checked() -> None:
+    with pytest.raises(sp.SparkplugError, match="unsupported compression 'LZ4'"):
+        sp.decode(compressed(payload(), "LZ4"))
+    with pytest.raises(sp.SparkplugError, match="can't uncompress"):
+        sp.decode(payload() + field(4, 2, sp.COMPRESSED_UUID) + field(5, 2, b"not deflate"))
+    with pytest.raises(sp.SparkplugError, match="without a body"):
+        sp.decode(field(4, 2, sp.COMPRESSED_UUID))
+    bomb = zlib.compress(b"\0" * (sp.MAX_UNCOMPRESSED + 1))  # small packed, too big unpacked
+    with pytest.raises(sp.SparkplugError, match="larger than 16 MiB"):
+        sp.decode(payload() + field(4, 2, sp.COMPRESSED_UUID) + field(5, 2, bomb))
+    twice = compressed(compressed(payload(), None), None)
+    with pytest.raises(sp.SparkplugError, match="inside a compressed payload"):
+        sp.decode(twice)

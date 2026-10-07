@@ -305,10 +305,11 @@ class OpcUaConnector:
         self._subscribed = 0
         try:
             subscription = await client.create_subscription(self.config.publishing_interval_ms, _Handler(self))
+            # Connected, with a subscription: a later outage starts its backoff from 1 s again.
+            # (Reset before _subscribe reports the status, so "ok" never shows an old count.)
+            self._failures = 0
             pending = [client.get_node(s.node) for s in self.config.signals]
             pending = await self._subscribe(subscription, pending)
-            # Connected and subscribed: a later outage starts its backoff from 1 s again.
-            self._failures = 0
             last_retry = time.monotonic()
             # Until told to stop, or the server goes away (any request then fails). Nodes that
             # couldn't be subscribed (not there yet, access denied…) are tried again now and then.

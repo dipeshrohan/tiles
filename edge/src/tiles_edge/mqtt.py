@@ -102,6 +102,7 @@ class MqttConnector:
         self.max_retry_seconds = max_retry_seconds
         self.received = 0  # samples
         self.unreadable = 0  # messages that couldn't be read
+        self.awaiting_birth = 0  # Sparkplug metrics sent by an alias whose BIRTH we haven't seen
         self.last_problem = ""
         self._lock = threading.Lock()
         self._state: tuple[Status, str] = ("down", "not started")
@@ -121,6 +122,8 @@ class MqttConnector:
         with self._lock:
             state, detail = self._state
             counts = f"{self.received} samples"
+            if self.awaiting_birth:
+                counts += f", {self.awaiting_birth} metrics by alias awaiting their BIRTH"
             if self.unreadable:
                 counts += f", {self.unreadable} unreadable messages (last: {self.last_problem})"
         return {"name": self.name, "kind": self.kind, "status": state, "detail": f"{detail}; {counts}"[:500]}
@@ -203,6 +206,9 @@ class MqttConnector:
         if reason.is_failure:
             self._refused = f"the broker refused the connection: {reason}"
             return
+        # Aliases from before a disconnect may be stale: a node can restart, and change them, while
+        # we can't hear its BIRTH. Data sent by alias waits for the next BIRTH instead.
+        self._aliases = sparkplug.AliasBook()
         client.subscribe([(t.topic, self.config.qos) for t in self.config.topics])
 
     def _on_subscribe(
@@ -219,8 +225,8 @@ class MqttConnector:
             self._set(state, f"subscribed to {len(topics) - len(refused)} of {len(topics)} topics; "
                              f"the broker refused: {', '.join(refused)}")  # fmt: skip
 
-    def try_once(self, timeout: float = 10) -> str:
-        """Connects, subscribes and disconnects: "ok", or why not. For `tiles-edge check`."""
+    def try_once(self, timeout: float = 10) -> tuple[Status, str]:
+        """Connects, subscribes and disconnects: the status it found and why. For `tiles-edge check`."""
         client: paho.Client | None = None
         try:
             client = self._client()
@@ -229,15 +235,15 @@ class MqttConnector:
             while time.monotonic() < deadline:
                 rc = client.loop(timeout=0.2)
                 if rc != MQTTErrorCode.MQTT_ERR_SUCCESS:
-                    return self._refused or f"connection lost ({paho.error_string(rc)})"
+                    return "down", self._refused or f"connection lost ({paho.error_string(rc)})"
                 state, detail = self._state
                 if detail != "not started":
-                    return "ok" if state == "ok" else detail
-            return "the broker didn't answer the subscription in time"
+                    return state, detail
+            return "down", "the broker didn't answer the subscription in time"
         except ConnectorError as e:
-            return str(e)
+            return "down", str(e)
         except Exception as e:
-            return self._refused or explain(e)
+            return "down", self._refused or explain(e)
         finally:
             if client is not None:
                 with contextlib.suppress(Exception):
@@ -289,7 +295,12 @@ class MqttConnector:
         self._aliases.learn(where, metrics)
         samples = []
         for m in metrics:
-            signal = t.metrics.get(self._aliases.name(where, m) or "")
+            name = self._aliases.name(where, m)
+            if name is None:
+                with self._lock:
+                    self.awaiting_birth += 1
+                continue
+            signal = t.metrics.get(name)
             if signal is None or m.value is None:
                 continue
             samples.append(Sample(signal, m.timestamp or datetime.now(UTC), m.value, "good"))
