@@ -37,7 +37,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 
 ### Backend foundations
 - [x] `T1.10` [#11](https://github.com/dipeshrohan/tiles/issues/11) ★ **Scaffold the FastAPI service:** health endpoint, settings, structured logging, pytest, ruff, mypy · BE · 2d · T1.04
-- [ ] `T1.11` [#22](https://github.com/dipeshrohan/tiles/issues/22) ★ **Docker Compose:** API + Postgres/TimescaleDB + Redis + frontend, started with one command · BE · 1.5d · T1.10
+- [x] `T1.11` [#22](https://github.com/dipeshrohan/tiles/issues/22) ★ **Docker Compose:** API + Postgres/TimescaleDB + Redis + frontend, started with one command · BE · 1.5d · T1.10
   *Done when:* `docker compose up` gives a working stack on a fresh laptop.
 - [ ] `T1.12` [#23](https://github.com/dipeshrohan/tiles/issues/23) ★ **Database schema v1** with migrations: orgs, sites, users, ontology_nodes, ontology_edges, commits, staged_ops, signals, events, models, runs, audit_log · BE · 3d · T1.10
 - [ ] `T1.13` [#24](https://github.com/dipeshrohan/tiles/issues/24) ★ **Ontology API:** stage, discard, commit, revert, history, working graph; port the `ontology.js` logic to Python and check both against the same test fixtures · BE · 5d · T1.12

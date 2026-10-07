@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     cors_origins: list[str] = ["http://localhost:5173"]
+    database_url: str = "postgresql://tiles:tiles-dev@localhost:5432/tiles"
+    redis_url: str = "redis://localhost:6379/0"
+    # Seconds each readiness check may take before it counts as unavailable.
+    ready_timeout: float = 2.0
 
 
 @lru_cache
