@@ -1,6 +1,6 @@
-import { MODELS, evaluate, sweep, sensitivity, makeRun, runDiff, auditRecord } from '../lib/design.js';
-import { heatmap, hbars } from '../lib/svg.js';
-import { esc, fmt, timeAgo } from '../lib/dom.js';
+import { MODELS, evaluate, sweep, sensitivity, makeRun, runDiff, auditRecord } from '../lib/design.ts';
+import { heatmap, hbars } from '../lib/svg.ts';
+import { esc, fmt, timeAgo } from '../lib/dom.ts';
 
 const defaults = (model) => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 const stepFor = (p) => ((p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1);

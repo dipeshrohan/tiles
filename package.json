@@ -6,20 +6,26 @@
   "private": true,
   "scripts": {
     "start": "node server.js",
-    "build": "node build.js",
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "typecheck": "tsc -p .",
     "lint": "eslint . && prettier --check .",
-    "format": "prettier --write . && node build.js",
-    "test": "node build.js --check && node --test test/*.test.js",
+    "format": "prettier --write . && vite build",
+    "test": "vitest run",
     "test:e2e": "node --test --test-concurrency=1 e2e/*.test.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.12"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.12.0",
     "globals": "^17.13.0",
     "playwright": "1.56.1",
-    "prettier": "^3.9.9"
+    "prettier": "^3.9.9",
+    "typescript": "~6.0",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^8.3.3",
+    "vitest": "^5.0.3"
   }
 }

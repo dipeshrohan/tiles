@@ -1,16 +1,24 @@
 // Deterministic pseudo-random numbers so every demo dataset is reproducible.
 
-export function createRng(seed = 1) {
+export interface Rng {
+  next(): number;
+  normal(mu?: number, sigma?: number): number;
+  range(lo: number, hi: number): number;
+  int(lo: number, hi: number): number;
+  pick<T>(arr: readonly T[]): T;
+}
+
+export function createRng(seed = 1): Rng {
   let s = seed >>> 0;
-  const next = () => {
+  const next = (): number => {
     s = (s + 0x6d2b79f5) >>> 0;
     let t = s;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-  let spare = null;
-  const normal = (mu = 0, sigma = 1) => {
+  let spare: number | null = null;
+  const normal = (mu = 0, sigma = 1): number => {
     if (spare !== null) {
       const v = spare;
       spare = null;
@@ -29,6 +37,6 @@ export function createRng(seed = 1) {
     normal,
     range: (lo, hi) => lo + (hi - lo) * next(),
     int: (lo, hi) => Math.floor(lo + (hi - lo + 1) * next()),
-    pick: (arr) => arr[Math.floor(next() * arr.length)],
+    pick: <T>(arr: readonly T[]): T => arr[Math.floor(next() * arr.length)] as T,
   };
 }

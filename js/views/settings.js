@@ -1,4 +1,4 @@
-import { esc } from '../lib/dom.js';
+import { esc } from '../lib/dom.ts';
 
 export default {
   id: 'settings',

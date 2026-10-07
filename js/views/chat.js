@@ -1,5 +1,5 @@
-import { ask, SUGGESTIONS } from '../lib/copilot.js';
-import { esc } from '../lib/dom.js';
+import { ask, SUGGESTIONS } from '../lib/copilot.ts';
+import { esc } from '../lib/dom.ts';
 
 export default {
   id: 'chat',

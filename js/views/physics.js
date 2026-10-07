@@ -1,7 +1,7 @@
-import { simulateShot, estimateFriction, PLUNGER } from '../lib/physics.js';
-import { createRng } from '../lib/rng.js';
-import { lineChart } from '../lib/svg.js';
-import { esc, fmt } from '../lib/dom.js';
+import { simulateShot, estimateFriction, PLUNGER } from '../lib/physics.ts';
+import { createRng } from '../lib/rng.ts';
+import { lineChart } from '../lib/svg.ts';
+import { esc, fmt } from '../lib/dom.ts';
 
 export default {
   id: 'physics',

@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
   createRepo,
@@ -10,8 +10,8 @@ import {
   healthCheck,
   pathTo,
   applyOp,
-} from '../js/lib/ontology.js';
-import { seedOntology } from '../js/lib/data.js';
+} from '../js/lib/ontology.ts';
+import { seedOntology } from '../js/lib/data.ts';
 
 const node = (id, type = 'Machine', props = { vendor: 'x' }) => ({
   kind: 'addNode',

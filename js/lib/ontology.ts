@@ -2,7 +2,20 @@
 // Edits are staged as operations, committed with a message and author,
 // and any commit can be reverted by replaying its inverse operations.
 
-export const NODE_TYPES = {
+import type {
+  Commit,
+  DiffStats,
+  Graph,
+  HealthIssue,
+  HealthReport,
+  Neighbor,
+  NodeType,
+  OntologyNode,
+  Op,
+  Repo,
+} from './types.ts';
+
+export const NODE_TYPES: Record<NodeType, { color: string; required: string[] }> = {
   Site: { color: '#1f5f5b', required: ['location'] },
   Workcenter: { color: '#2f7d6d', required: [] },
   Line: { color: '#4b9b8a', required: [] },
@@ -15,23 +28,25 @@ export const NODE_TYPES = {
   Model: { color: '#a23b5a', required: [] },
 };
 
-export const HIERARCHY = ['Site', 'Workcenter', 'Line', 'Machine'];
+export const HIERARCHY: NodeType[] = ['Site', 'Workcenter', 'Line', 'Machine'];
 
-export function emptyGraph() {
+const isNodeType = (t: string): t is NodeType => Object.prototype.hasOwnProperty.call(NODE_TYPES, t);
+
+export function emptyGraph(): Graph {
   return { nodes: {}, edges: {} };
 }
 
-const clone = (g) => ({ nodes: { ...g.nodes }, edges: { ...g.edges } });
+const clone = (g: Graph): Graph => ({ nodes: { ...g.nodes }, edges: { ...g.edges } });
 
 // Apply one op and return { graph, inverse }. Throws on invalid ops so bad
 // changes never reach a commit.
-export function applyOp(graph, op) {
+export function applyOp(graph: Graph, op: Op): { graph: Graph; inverse: Op } {
   const g = clone(graph);
   switch (op.kind) {
     case 'addNode': {
       if (g.nodes[op.node.id]) throw new Error(`Node ${op.node.id} already exists`);
-      if (!NODE_TYPES[op.node.type]) throw new Error(`Unknown node type ${op.node.type}`);
-      g.nodes[op.node.id] = { props: {}, ...op.node };
+      if (!isNodeType(op.node.type)) throw new Error(`Unknown node type ${op.node.type}`);
+      g.nodes[op.node.id] = { ...op.node, props: op.node.props ?? {} };
       return { graph: g, inverse: { kind: 'removeNode', id: op.node.id } };
     }
     case 'removeNode': {
@@ -63,19 +78,21 @@ export function applyOp(graph, op) {
       if (op.value === undefined) delete props[op.key];
       else props[op.key] = op.value;
       g.nodes[op.id] = { ...node, props };
-      return {
-        graph: g,
-        inverse: { kind: 'setProp', id: op.id, key: op.key, value: had ? node.props[op.key] : undefined },
-      };
+      const inverse: Op = had
+        ? { kind: 'setProp', id: op.id, key: op.key, value: node.props[op.key] }
+        : { kind: 'setProp', id: op.id, key: op.key };
+      return { graph: g, inverse };
     }
-    default:
-      throw new Error(`Unknown op ${op.kind}`);
+    default: {
+      const unknown: { kind?: unknown } = op;
+      throw new Error(`Unknown op ${String(unknown.kind)}`);
+    }
   }
 }
 
-export function applyOps(graph, ops) {
+export function applyOps(graph: Graph, ops: readonly Op[]): { graph: Graph; inverses: Op[] } {
   let g = graph;
-  const inverses = [];
+  const inverses: Op[] = [];
   for (const op of ops) {
     const r = applyOp(g, op);
     g = r.graph;
@@ -84,8 +101,8 @@ export function applyOps(graph, ops) {
   return { graph: g, inverses };
 }
 
-export function diffStats(ops) {
-  const s = { nodes: 0, edges: 0, props: 0 };
+export function diffStats(ops: readonly Op[]): DiffStats {
+  const s: DiffStats = { nodes: 0, edges: 0, props: 0 };
   for (const op of ops) {
     if (op.kind === 'addNode') s.nodes += 1;
     if (op.kind === 'removeNode') s.nodes -= 1;
@@ -97,32 +114,38 @@ export function diffStats(ops) {
 }
 
 // Repository = committed graph + history + staged (uncommitted) ops.
-export function createRepo(graph = emptyGraph()) {
+export function createRepo(graph: Graph = emptyGraph()): Repo {
   return { head: graph, history: [], staged: [] };
 }
 
 // The working graph is head with staged ops applied.
-export function workingGraph(repo) {
+export function workingGraph(repo: Repo): Graph {
   return applyOps(repo.head, repo.staged).graph;
 }
 
-export function stage(repo, op) {
+export function stage(repo: Repo, op: Op): Repo {
   applyOp(workingGraph(repo), op); // validate against the working copy
   return { ...repo, staged: [...repo.staged, op] };
 }
 
-export function discard(repo) {
+export function discard(repo: Repo): Repo {
   return { ...repo, staged: [] };
 }
 
 let counter = 0;
-const commitId = () => `c${Date.now().toString(36)}${(counter++).toString(36)}`;
+const commitId = (): string => `c${Date.now().toString(36)}${(counter++).toString(36)}`;
 
-export function commit(repo, { message, author, date = new Date().toISOString() }) {
+export interface CommitInfo {
+  message: string;
+  author: string;
+  date?: string;
+}
+
+export function commit(repo: Repo, { message, author, date = new Date().toISOString() }: CommitInfo): Repo {
   if (!repo.staged.length) throw new Error('Nothing to commit');
   if (!message || !message.trim()) throw new Error('A commit needs a message');
   const { graph, inverses } = applyOps(repo.head, repo.staged);
-  const entry = {
+  const entry: Commit = {
     id: commitId(),
     message: message.trim(),
     author,
@@ -134,7 +157,7 @@ export function commit(repo, { message, author, date = new Date().toISOString() 
   return { head: graph, history: [entry, ...repo.history], staged: [] };
 }
 
-export function revert(repo, id, { author, date } = {}) {
+export function revert(repo: Repo, id: string, { author, date }: { author: string; date?: string }): Repo {
   const target = repo.history.find((c) => c.id === id);
   if (!target) throw new Error(`Commit ${id} not found`);
   if (repo.staged.length) throw new Error('Commit or discard staged changes first');
@@ -143,14 +166,16 @@ export function revert(repo, id, { author, date } = {}) {
 
 // ---- Health check -------------------------------------------------------
 
-export function healthCheck(graph) {
+export function healthCheck(graph: Graph): HealthReport {
   const nodes = Object.values(graph.nodes);
   const edges = Object.values(graph.edges);
-  const degree = Object.fromEntries(nodes.map((n) => [n.id, 0]));
-  const issues = [];
-  const seen = new Map();
+  const degree = new Map<string, number>(nodes.map((n) => [n.id, 0]));
+  const issues: HealthIssue[] = [];
+  const seen = new Map<string, string>();
   for (const e of edges) {
-    if (!graph.nodes[e.from] || !graph.nodes[e.to]) {
+    const from = graph.nodes[e.from];
+    const to = graph.nodes[e.to];
+    if (!from || !to) {
       issues.push({
         level: 'error',
         kind: 'dangling',
@@ -159,20 +184,21 @@ export function healthCheck(graph) {
       });
       continue;
     }
-    degree[e.from]++;
-    degree[e.to]++;
+    degree.set(e.from, (degree.get(e.from) ?? 0) + 1);
+    degree.set(e.to, (degree.get(e.to) ?? 0) + 1);
     const key = `${e.from}|${e.rel}|${e.to}`;
-    if (seen.has(key)) {
+    const first = seen.get(key);
+    if (first) {
       issues.push({
         level: 'warn',
         kind: 'duplicate',
         ref: e.id,
-        text: `Duplicate relationship ${graph.nodes[e.from].label} —${e.rel}→ ${graph.nodes[e.to].label} (also ${seen.get(key)})`,
+        text: `Duplicate relationship ${from.label} —${e.rel}→ ${to.label} (also ${first})`,
       });
     } else seen.set(key, e.id);
   }
   for (const n of nodes) {
-    if (degree[n.id] === 0)
+    if (degree.get(n.id) === 0)
       issues.push({ level: 'warn', kind: 'orphan', ref: n.id, text: `${n.type} "${n.label}" has no relationships` });
     for (const req of NODE_TYPES[n.type]?.required ?? []) {
       if (n.props?.[req] === undefined || n.props[req] === '') {
@@ -193,35 +219,41 @@ export function healthCheck(graph) {
 
 // ---- Queries -------------------------------------------------------------
 
-export function neighbors(graph, id) {
-  return Object.values(graph.edges)
-    .filter((e) => e.from === id || e.to === id)
-    .map((e) => ({ edge: e, node: graph.nodes[e.from === id ? e.to : e.from], outgoing: e.from === id }));
+export function neighbors(graph: Graph, id: string): Neighbor[] {
+  const out: Neighbor[] = [];
+  for (const e of Object.values(graph.edges)) {
+    if (e.from !== id && e.to !== id) continue;
+    const node = graph.nodes[e.from === id ? e.to : e.from];
+    if (node) out.push({ edge: e, node, outgoing: e.from === id });
+  }
+  return out;
 }
 
-export function children(graph, id) {
+export function children(graph: Graph, id: string): OntologyNode[] {
   return Object.values(graph.edges)
     .filter((e) => e.from === id && e.rel === 'contains')
     .map((e) => graph.nodes[e.to])
-    .filter(Boolean);
+    .filter((n): n is OntologyNode => Boolean(n));
 }
 
 // Path from the site down to a node along "contains" edges.
-export function pathTo(graph, id) {
-  const parent = {};
-  for (const e of Object.values(graph.edges)) if (e.rel === 'contains') parent[e.to] = e.from;
-  const path = [];
-  let cur = id;
-  const guard = new Set();
-  while (cur && graph.nodes[cur] && !guard.has(cur)) {
+export function pathTo(graph: Graph, id: string): OntologyNode[] {
+  const parent = new Map<string, string>();
+  for (const e of Object.values(graph.edges)) if (e.rel === 'contains') parent.set(e.to, e.from);
+  const path: OntologyNode[] = [];
+  let cur: string | undefined = id;
+  const guard = new Set<string>();
+  while (cur && !guard.has(cur)) {
+    const node: OntologyNode | undefined = graph.nodes[cur];
+    if (!node) break;
     guard.add(cur);
-    path.unshift(graph.nodes[cur]);
-    cur = parent[cur];
+    path.unshift(node);
+    cur = parent.get(cur);
   }
   return path;
 }
 
-export function findNodes(graph, text) {
+export function findNodes(graph: Graph, text: string): OntologyNode[] {
   const q = text.toLowerCase();
   return Object.values(graph.nodes).filter(
     (n) => n.label.toLowerCase().includes(q) || n.id.toLowerCase() === q || n.type.toLowerCase() === q,

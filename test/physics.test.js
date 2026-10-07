@@ -1,13 +1,13 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { createRng } from '../js/lib/rng.js';
+import { createRng } from '../js/lib/rng.ts';
 import {
   simulateShot,
   estimateFriction,
   generateShotHistory,
   detectFrictionAlerts,
   scoreAlerts,
-} from '../js/lib/physics.js';
+} from '../js/lib/physics.ts';
 
 test('friction estimate recovers the true friction from a shot payload', () => {
   const rng = createRng(3);

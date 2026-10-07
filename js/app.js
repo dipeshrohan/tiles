@@ -1,8 +1,8 @@
-import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/data.js';
-import { generateShotHistory, detectFrictionAlerts, scoreAlerts } from './lib/physics.js';
-import { workingGraph, healthCheck } from './lib/ontology.js';
-import { load, save, clearAll } from './lib/store.js';
-import { esc, $ } from './lib/dom.js';
+import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/data.ts';
+import { generateShotHistory, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
+import { workingGraph, healthCheck } from './lib/ontology.ts';
+import { load, save, clearAll } from './lib/store.ts';
+import { esc, $ } from './lib/dom.ts';
 import home from './views/home.js';
 import chat from './views/chat.js';
 import ontology from './views/ontology.js';

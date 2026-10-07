@@ -2,7 +2,9 @@
 // and a run log that records exactly which model version and parameters
 // produced each result.
 
-export const MODELS = {
+import type { DesignModel, Params, Run } from './types.ts';
+
+export const MODELS: Record<string, DesignModel> = {
   swelling: {
     id: 'swelling',
     name: 'Cell swelling force',
@@ -16,14 +18,14 @@ export const MODELS = {
       { key: 'thickness', label: 'Anode thickness', unit: 'µm', min: 60, max: 140, default: 95 },
     ],
     versions: {
-      '1.0': (p) => p.preload + 0.018 * p.soc * (p.thickness / 100),
-      1.1: (p) =>
-        p.preload + 0.018 * p.soc * (p.thickness / 100) * (1 + 0.004 * (p.temperature - 25)) + 0.0011 * p.cycles,
+      '1.0': (p) => p.preload! + 0.018 * p.soc! * (p.thickness! / 100),
+      '1.1': (p) =>
+        p.preload! + 0.018 * p.soc! * (p.thickness! / 100) * (1 + 0.004 * (p.temperature! - 25)) + 0.0011 * p.cycles!,
       '2.0': (p) => {
         // Graphite expansion with SOC plus SEI growth (√cycles) and a stiffening preload term.
-        const intercalation = 0.021 * p.soc * (p.thickness / 100) * (1 + 0.0035 * (p.temperature - 25));
-        const sei = 0.045 * Math.sqrt(p.cycles) * (1 + 0.012 * Math.max(0, p.temperature - 25));
-        return p.preload * (1 + 0.04 * intercalation) + intercalation + sei;
+        const intercalation = 0.021 * p.soc! * (p.thickness! / 100) * (1 + 0.0035 * (p.temperature! - 25));
+        const sei = 0.045 * Math.sqrt(p.cycles!) * (1 + 0.012 * Math.max(0, p.temperature! - 25));
+        return p.preload! * (1 + 0.04 * intercalation) + intercalation + sei;
       },
     },
     latest: '2.0',
@@ -42,15 +44,15 @@ export const MODELS = {
     ],
     versions: {
       '1.0': (p) => {
-        const current = p.torque / (p.ratio * 0.85) / p.kt;
+        const current = p.torque! / (p.ratio! * 0.85) / p.kt!;
         const loss = 3 * current ** 2 * 0.18;
-        return p.ambient + loss * p.rth;
+        return p.ambient! + loss * p.rth!;
       },
-      1.1: (p) => {
-        const current = p.torque / (p.ratio * 0.85) / p.kt;
+      '1.1': (p) => {
+        const current = p.torque! / (p.ratio! * 0.85) / p.kt!;
         // Copper resistance rises with temperature; iterate to a fixed point.
-        let t = p.ambient;
-        for (let i = 0; i < 20; i++) t = p.ambient + 3 * current ** 2 * 0.18 * (1 + 0.00393 * (t - 20)) * p.rth;
+        let t = p.ambient!;
+        for (let i = 0; i < 20; i++) t = p.ambient! + 3 * current ** 2 * 0.18 * (1 + 0.00393 * (t - 20)) * p.rth!;
         return t;
       },
     },
@@ -58,25 +60,45 @@ export const MODELS = {
   },
 };
 
-export function evaluate(modelId, version, params) {
+export function getModel(modelId: string): DesignModel {
   const model = MODELS[modelId];
   if (!model) throw new Error(`Unknown model ${modelId}`);
+  return model;
+}
+
+function paramSpec(model: DesignModel, key: string) {
+  const spec = model.params.find((p) => p.key === key);
+  if (!spec) throw new Error(`Model ${model.id} has no parameter ${key}`);
+  return spec;
+}
+
+// Fill in defaults so every model function sees a complete parameter set.
+export function evaluate(modelId: string, version: string, params: Params): number {
+  const model = getModel(modelId);
   const fn = model.versions[version];
   if (!fn) throw new Error(`Model ${modelId} has no version ${version}`);
-  const full = Object.fromEntries(model.params.map((p) => [p.key, params[p.key] ?? p.default]));
+  const full: Params = Object.fromEntries(model.params.map((p) => [p.key, params[p.key] ?? p.default]));
   return fn(full);
 }
 
-export function linspace(lo, hi, n) {
+export function linspace(lo: number, hi: number, n: number): number[] {
   if (n < 2) return [lo];
   return Array.from({ length: n }, (_, i) => lo + ((hi - lo) * i) / (n - 1));
 }
 
+export interface Sweep {
+  xs: number[];
+  ys: number[];
+  grid: number[][];
+  min: number;
+  max: number;
+}
+
 // Full-factorial sweep over two parameters, others held at `base`.
-export function sweep(modelId, version, base, xKey, yKey, steps = 12) {
-  const model = MODELS[modelId];
-  const px = model.params.find((p) => p.key === xKey);
-  const py = model.params.find((p) => p.key === yKey);
+export function sweep(modelId: string, version: string, base: Params, xKey: string, yKey: string, steps = 12): Sweep {
+  const model = getModel(modelId);
+  const px = paramSpec(model, xKey);
+  const py = paramSpec(model, yKey);
   const xs = linspace(px.min, px.max, steps);
   const ys = linspace(py.min, py.max, steps);
   const grid = ys.map((y) => xs.map((x) => evaluate(modelId, version, { ...base, [xKey]: x, [yKey]: y })));
@@ -84,17 +106,34 @@ export function sweep(modelId, version, base, xKey, yKey, steps = 12) {
   return { xs, ys, grid, min: Math.min(...flat), max: Math.max(...flat) };
 }
 
+export interface Sensitivity {
+  key: string;
+  label: string;
+  delta: number;
+}
+
 // One-at-a-time sensitivity: output change when each parameter moves ±10 % of its range.
-export function sensitivity(modelId, version, base) {
-  const model = MODELS[modelId];
+export function sensitivity(modelId: string, version: string, base: Params): Sensitivity[] {
+  const model = getModel(modelId);
   return model.params
     .map((p) => {
       const step = 0.1 * (p.max - p.min);
-      const lo = evaluate(modelId, version, { ...base, [p.key]: Math.max(p.min, base[p.key] - step) });
-      const hi = evaluate(modelId, version, { ...base, [p.key]: Math.min(p.max, base[p.key] + step) });
+      const at = base[p.key] ?? p.default;
+      const lo = evaluate(modelId, version, { ...base, [p.key]: Math.max(p.min, at - step) });
+      const hi = evaluate(modelId, version, { ...base, [p.key]: Math.min(p.max, at + step) });
       return { key: p.key, label: p.label, delta: hi - lo };
     })
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+}
+
+export interface RunInput {
+  modelId: string;
+  version: string;
+  params: Params;
+  author: string;
+  note?: string;
+  parent?: string | null;
+  date?: string;
 }
 
 export function makeRun({
@@ -105,7 +144,7 @@ export function makeRun({
   note = '',
   parent = null,
   date = new Date().toISOString(),
-}) {
+}: RunInput): Run {
   const value = evaluate(modelId, version, params);
   return {
     id: `run-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,
@@ -120,17 +159,24 @@ export function makeRun({
   };
 }
 
-// Which parameters changed between a run and its parent.
-export function runDiff(run, parent) {
-  if (!parent) return [];
-  return Object.keys(run.params)
-    .filter((k) => run.params[k] !== parent.params[k])
-    .map((k) => ({ key: k, from: parent.params[k], to: run.params[k] }))
-    .concat(run.version !== parent.version ? [{ key: 'model version', from: parent.version, to: run.version }] : []);
+export interface RunChange {
+  key: string;
+  from: number | string | undefined;
+  to: number | string | undefined;
 }
 
-export function auditRecord(runs, modelId) {
-  const model = MODELS[modelId];
+// Which parameters changed between a run and its parent.
+export function runDiff(run: Run, parent: Run | null | undefined): RunChange[] {
+  if (!parent) return [];
+  const changes: RunChange[] = Object.keys(run.params)
+    .filter((k) => run.params[k] !== parent.params[k])
+    .map((k) => ({ key: k, from: parent.params[k], to: run.params[k] }));
+  if (run.version !== parent.version) changes.push({ key: 'model version', from: parent.version, to: run.version });
+  return changes;
+}
+
+export function auditRecord(runs: readonly Run[], modelId: string) {
+  const model = getModel(modelId);
   return {
     exportedAt: new Date().toISOString(),
     model: { id: model.id, name: model.name, versions: Object.keys(model.versions) },
