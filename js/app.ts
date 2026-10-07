@@ -1,10 +1,17 @@
 import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/data.ts';
 import { generateShotHistory, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
-import { workingGraph, healthCheck } from './lib/ontology.ts';
+import { healthCheck } from './lib/ontology.ts';
 import { load, save, clearAll } from './lib/store.ts';
 import { ApiError, createApiClient, resolveDataSource, type ApiClient, type DataSource } from './lib/api.ts';
 import { createRepo } from './lib/ontology.ts';
-import { localStore, pickSite, remoteStore, type OntologyStore, type RemoteStore } from './lib/ontology-store.ts';
+import {
+  localStore,
+  pickSite,
+  safeWorkingGraph,
+  remoteStore,
+  type OntologyStore,
+  type RemoteStore,
+} from './lib/ontology-store.ts';
 import { esc, need } from './lib/dom.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
@@ -55,7 +62,7 @@ const state: AppState = {
 
 function persist(): void {
   // In API mode state.repo mirrors the server; the browser's own copy stays in localRepo.
-  const repo = remote ? localRepo : state.repo;
+  const repo = ontologyStatus === 'local' ? state.repo : localRepo;
   const saved: PersistedState = { repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user };
   save(STATE_KEY, saved);
 }
@@ -122,14 +129,18 @@ const ontologyCtx: OntologyContext = {
       toast('The ontology is still loading from the Tiles API');
       return false;
     }
+    const seq = connectSeq; // a data-source switch while we wait makes the result stale
     try {
-      state.repo = await change(store, state.repo);
+      const next = await change(store, state.repo);
+      if (seq !== connectSeq) return false;
+      state.repo = next;
       persist();
       render();
       if (ok) toast(ok);
       return true;
     } catch (e) {
       // ApiErrors were already shown by the client's onError.
+      if (seq !== connectSeq) return false;
       if (!(e instanceof ApiError)) toast(e instanceof Error ? e.message : String(e));
       if (remote) await ontologyCtx.reload(); // show what the server has now
       return false;
@@ -137,8 +148,11 @@ const ontologyCtx: OntologyContext = {
   },
   async reload() {
     if (!remote) return;
+    const seq = connectSeq;
     try {
-      state.repo = await remote.load();
+      const repo = await remote.load();
+      if (seq !== connectSeq) return;
+      state.repo = repo;
     } catch {
       // the client already showed why
     }
@@ -160,7 +174,7 @@ function makeApi(): ApiClient | null {
 const ctx: Context = {
   state,
   get graph() {
-    return workingGraph(state.repo);
+    return safeWorkingGraph(state.repo).graph;
   },
   update(mutate, { rerender = true } = {}) {
     const email = state.user.email;

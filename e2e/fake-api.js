@@ -5,7 +5,8 @@
 import { createServer } from 'node:http';
 import { applyOp, commit, createRepo, revert, stage, workingGraph, healthCheck } from '../js/lib/ontology.ts';
 
-export function createFakeApi() {
+// `slowWritesMs` delays batch staging, to test answers that arrive late.
+export function createFakeApi({ slowWritesMs = 0 } = {}) {
   const site = { id: '11111111-1111-1111-1111-111111111111', slug: 'plant-1', name: 'Plant 1', org: 'demo' };
   let head = createRepo().head;
   let history = [];
@@ -42,6 +43,13 @@ export function createFakeApi() {
       if (path === '/graph') return send(200, url.searchParams.get('view') === 'head' ? head : workingGraph(repo));
       if (path === '/health') return send(200, healthCheck(head));
       if (path === '/staged' && req.method === 'GET') return send(200, repo.staged);
+      if (path === '/staged/batch' && req.method === 'POST') {
+        if (slowWritesMs) await new Promise((r) => setTimeout(r, slowWritesMs));
+        let next = repo;
+        for (const op of await body(req)) next = stage(next, op); // throws before anything is kept
+        staged.set(user, next.staged);
+        return send(201, next.staged);
+      }
       if (path === '/staged' && req.method === 'POST') {
         const next = stage(repo, await body(req));
         staged.set(user, next.staged);

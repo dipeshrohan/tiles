@@ -5,7 +5,7 @@
 
 import { applyOps, commit, createRepo, discard, revert, stage, workingGraph } from './ontology.ts';
 import type { ApiClient, Site } from './api.ts';
-import type { Op, Repo } from './types.ts';
+import type { Graph, Op, Repo } from './types.ts';
 
 export interface OntologyStore {
   readonly kind: 'local' | 'api';
@@ -49,7 +49,7 @@ export function remoteStore(api: ApiClient, site: Site): RemoteStore {
     load,
     async stage(repo, ops) {
       applyOps(workingGraph(repo), ops); // throws before anything is sent
-      for (const op of ops) await o.stage(site.id, op);
+      await o.stageMany(site.id, ops); // one request: all staged or none
       return load();
     },
     async discard() {
@@ -65,6 +65,17 @@ export function remoteStore(api: ApiClient, site: Site): RemoteStore {
       return load();
     },
   };
+}
+
+// The working graph, or, when the staged ops no longer apply (someone else
+// committed a change they conflict with), the head plus the reason. The page
+// then shows the head and offers to discard the staged ops.
+export function safeWorkingGraph(repo: Repo): { graph: Graph; conflict: string | null } {
+  try {
+    return { graph: workingGraph(repo), conflict: null };
+  } catch (e) {
+    return { graph: repo.head, conflict: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 // The site the app works on: the one saved in settings if it still exists,

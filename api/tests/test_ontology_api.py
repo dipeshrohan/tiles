@@ -280,3 +280,14 @@ def test_head_graph_is_read_in_one_statement(settings: Settings, site: str) -> N
         },
         "edges": {"e": {"id": "e", "from": "a", "rel": "feeds", "to": "b"}},
     }
+
+
+def test_batch_staging_is_all_or_nothing(api: TestClient, site: str) -> None:
+    res = api.post(url(site, "staged/batch"), json=[node("a"), node("b"), edge("a", "feeds", "b")])
+    assert res.status_code == 201
+    assert len(res.json()) == 3
+    # The third op clashes with the first: nothing of this batch is kept.
+    res = api.post(url(site, "staged/batch"), json=[node("c"), edge("c", "feeds", "a"), node("c")])
+    assert (res.status_code, res.json()["detail"]) == (409, "Node c already exists")
+    assert len(api.get(url(site, "staged")).json()) == 3
+    assert api.post(url(site, "staged/batch"), json=[]).status_code == 422

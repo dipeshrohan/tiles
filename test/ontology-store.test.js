@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { localStore, remoteStore, pickSite, historyOps } from '../js/lib/ontology-store.ts';
+import { localStore, remoteStore, pickSite, historyOps, safeWorkingGraph } from '../js/lib/ontology-store.ts';
 import { applyOps, createRepo, emptyGraph, stage, workingGraph } from '../js/lib/ontology.ts';
 import { seedOntology } from '../js/lib/data.ts';
 
@@ -24,6 +24,7 @@ function fakeApi(served = { head: emptyGraph(), staged: [], history: [] }, sites
       staged: rec('staged', () => served.staged),
       history: rec('history', () => served.history),
       stage: rec('stage', []),
+      stageMany: rec('stageMany', []),
       discard: rec('discard', undefined),
       commit: rec('commit', {}),
       revert: rec('revert', {}),
@@ -60,10 +61,13 @@ test('remote store checks a whole batch before sending any of it', async () => {
   const api = fakeApi();
   const store = remoteStore(api, site);
   await assert.rejects(store.stage(createRepo(), [node('a'), node('a')]), /already exists/);
-  assert.equal(api.calls.filter((c) => c[0] === 'stage').length, 0);
+  assert.equal(api.calls.filter((c) => c[0] === 'stageMany').length, 0);
   await store.stage(createRepo(), [node('a'), node('b')]);
+  // One all-or-nothing request, so a failure can't leave half a batch staged.
+  const batches = api.calls.filter((c) => c[0] === 'stageMany');
+  assert.equal(batches.length, 1);
   assert.deepEqual(
-    api.calls.filter((c) => c[0] === 'stage').map((c) => c[2].node.id),
+    batches[0][2].map((op) => op.node.id),
     ['a', 'b'],
   );
 });
@@ -94,4 +98,19 @@ test('replaying the demo history rebuilds the demo graph', () => {
   const seed = seedOntology();
   const { graph } = applyOps(emptyGraph(), historyOps(seed));
   assert.deepEqual(graph, seed.head);
+});
+
+test('staged ops that no longer fit the head are reported, not thrown', () => {
+  const head = applyOps(emptyGraph(), [node('a')]).graph;
+  const ok = safeWorkingGraph({ head, history: [], staged: [node('b')] });
+  assert.equal(ok.conflict, null);
+  assert.deepEqual(Object.keys(ok.graph.nodes), ['a', 'b']);
+  // Someone removed node a; our staged setProp on it no longer applies.
+  const stale = safeWorkingGraph({
+    head: emptyGraph(),
+    history: [],
+    staged: [{ kind: 'setProp', id: 'a', key: 'k', value: 1 }],
+  });
+  assert.equal(stale.conflict, 'Node a not found');
+  assert.deepEqual(stale.graph, emptyGraph());
 });

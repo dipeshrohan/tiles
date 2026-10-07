@@ -87,15 +87,20 @@ def history(conn: Conn, site_id: uuid.UUID, limit: int = 50, offset: int = 0) ->
     return [_commit_row(r) for r in rows]
 
 
-def stage(conn: Conn, site_id: uuid.UUID, user: User, op: o.Op) -> list[o.Op]:
+def stage(conn: Conn, site_id: uuid.UUID, user: User, *ops: o.Op) -> list[o.Op]:
+    """Stages ops in order, all or none: each is checked against the working
+    graph including the ones before it, and they are written in one transaction."""
     lock_site(conn, site_id)
     staged = load_staged(conn, site_id, user)
-    o.stage({"head": load_head(conn, site_id), "history": [], "staged": staged}, op)
-    conn.execute(
-        "INSERT INTO staged_ops (site_id, user_id, position, op) VALUES (%s, %s, %s, %s)",
-        [site_id, user.id, len(staged), Jsonb(op)],
-    )
-    return [*staged, op]
+    repo: o.Repo = {"head": load_head(conn, site_id), "history": [], "staged": staged}
+    for op in ops:
+        repo = o.stage(repo, op)
+    with conn.cursor() as cur:
+        cur.executemany(
+            "INSERT INTO staged_ops (site_id, user_id, position, op) VALUES (%s, %s, %s, %s)",
+            [(site_id, user.id, len(staged) + i, Jsonb(op)) for i, op in enumerate(ops)],
+        )
+    return repo["staged"]
 
 
 def discard(conn: Conn, site_id: uuid.UUID, user: User) -> None:
