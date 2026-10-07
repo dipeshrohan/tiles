@@ -94,7 +94,22 @@ Each site member is a viewer, engineer or admin; organisation admins (`users.org
 |---|---|
 | `GET /me` | your membership and role (joins the site on first visit) |
 | `GET /members` | members and their roles |
-| `PUT /members/{user_id}` | set a member's role: `{"role": "engineer"}` (admins only; not your own role) | `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
+| `PUT /members/{user_id}` | set a member's role: `{"role": "engineer"}` (admins only; not your own role) |
+| `GET /audit?limit=100&offset=0` | the site's audit log, newest first (admins only) |
+
+### Audit log
+
+Every write is recorded in `audit_log` in the same transaction as the change, so there is an entry exactly when the change happened. Each entry has the actor, the time, the action, the entity, the before and after values as JSON, and the request ID.
+
+| Action | Entity | Before | After |
+|---|---|---|---|
+| `ontology.stage` | your staged ops | | the ops added |
+| `ontology.discard` | your staged ops | the ops dropped | |
+| `ontology.commit` | the commit | | the commit (message, ops, inverses, stats) |
+| `ontology.revert` | the new commit | `{"reverted": id}` | the new commit |
+| `member.role` | the member | old role | new role |
+
+Writes that fail, and no-ops (discarding nothing, setting the same role), leave no entry. The table refuses UPDATE, DELETE and TRUNCATE. New write endpoints should call `ctx.audit(...)`. `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
 
 ### Ontology
 

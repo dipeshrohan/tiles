@@ -28,6 +28,8 @@ export function createFakeApi({
   let history = [];
   const staged = new Map(); // email -> Op[]
   const requests = [];
+  const audit = []; // newest first, like the API
+  let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
 
   const repoFor = (user) => ({ head, history, staged: staged.get(user) ?? [] });
@@ -117,9 +119,13 @@ export function createFakeApi({
     try {
       if (url.pathname === '/health') return send(200, { status: 'ok', version: 'fake', env: 'test' });
       if (url.pathname === '/sites') return send(200, [site]);
-      if (!url.pathname.startsWith(base) && url.pathname !== `/sites/${site.id}/me`)
+      if (!url.pathname.startsWith(base) && url.pathname !== `/sites/${site.id}/me` && !url.pathname.endsWith('/audit'))
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
+      if (url.pathname === `/sites/${site.id}/audit`)
+        return role === 'admin'
+          ? send(200, audit)
+          : send(403, { detail: 'Your role on this site is engineer; this needs admin or above' });
       if (url.pathname === `/sites/${site.id}/me`)
         return send(200, { user_id: user, email: user, name: user, role, site_role: role, org_admin: false });
       const path = url.pathname.slice(base.length);
@@ -151,6 +157,18 @@ export function createFakeApi({
         const { message } = await body(req);
         const next = commit(repo, { message, author: user.split('@')[0] });
         ({ head, history } = next);
+        audit.unshift({
+          id: ++auditId,
+          at: new Date().toISOString(),
+          actor_id: user,
+          actor_name: user.split('@')[0],
+          action: 'ontology.commit',
+          entity_type: 'commit',
+          entity_id: history[0].id,
+          before: null,
+          after: history[0],
+          request_id: null,
+        });
         staged.delete(user);
         return send(201, history[0]);
       }

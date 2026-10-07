@@ -425,6 +425,29 @@ test('Refresh picks up a role change made by an admin', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test('site admins see the audit log in settings; others do not', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  await page.goto(`${home}#/ontology`);
+  await page.click('[data-import-demo]');
+  await page.waitForSelector('#toast:has-text("Demo ontology imported")');
+  await page.goto(`${home}#/settings`);
+  await page.waitForSelector('#audit table');
+  assert.match(await page.locator('#audit').innerText(), /demo\s+Committed “Import demo ontology”/);
+  assert.deepEqual(errors, []);
+
+  const engineer = createFakeApi();
+  const engineerUrl = await engineer.listen();
+  t.after(() => engineer.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(engineerUrl)}#/settings`);
+  await page.waitForSelector('#account');
+  assert.equal(await page.locator('#audit').count(), 0);
+});
+
 test('background updates never wipe what the user is typing', async (t) => {
   const fake = createFakeApi({ slowAuthConfigMs: 1500 });
   const apiUrl = await fake.listen();

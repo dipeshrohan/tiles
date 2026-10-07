@@ -804,6 +804,7 @@
 			me: () => request("GET", "/me"),
 			sites: () => request("GET", "/sites"),
 			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
+			audit: (siteId, { limit = 100, offset = 0 } = {}) => request("GET", `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
 			ontology: {
 				graph: (siteId, view = "working") => request("GET", `${site(siteId)}/graph?view=${view}`),
 				staged: (siteId) => request("GET", `${site(siteId)}/staged`),
@@ -2790,6 +2791,36 @@
       <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>`;
 		return `<div class="card stack" id="account" style="gap:12px"><h2>Account</h2>${body}</div>`;
 	}
+	function describeAudit(e) {
+		const ops = (v) => (v?.ops ?? []).length;
+		const role = (v) => v?.role ?? "?";
+		switch (e.action) {
+			case "ontology.stage": return `Staged ${ops(e.after)} change(s)`;
+			case "ontology.discard": return `Discarded ${ops(e.before)} staged change(s)`;
+			case "ontology.commit": return `Committed “${e.after?.message ?? ""}”`;
+			case "ontology.revert": return `Reverted commit ${e.before?.reverted ?? ""}`;
+			case "member.role": return `Changed a member's role from ${role(e.before)} to ${role(e.after)}`;
+			default: return `${e.action} ${e.entity_type} ${e.entity_id}`;
+		}
+	}
+	function auditCard() {
+		return `<div class="card stack" id="audit" style="gap:12px;grid-column:1 / -1">
+      <h2>Audit log</h2>
+      <p class="small soft">Every change on this site: who, what and when. Only site admins see this.</p>
+      <div data-audit-rows aria-live="polite"><p class="small soft">Loading…</p></div>
+    </div>`;
+	}
+	async function fillAudit(root, ctx) {
+		const box = root.querySelector("[data-audit-rows]");
+		const site = ctx.ontology.site;
+		if (!box || !site || !ctx.api) return;
+		try {
+			const entries = await ctx.api.audit(site.id, { limit: 50 });
+			box.innerHTML = entries.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>${entries.map((e) => `<tr><td>${esc(new Date(e.at).toLocaleString("en-GB"))}</td><td>${esc(e.actor_name)}</td><td>${esc(describeAudit(e))}</td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No changes yet.</p>";
+		} catch {
+			box.innerHTML = "<p class=\"small soft\">The audit log could not be loaded.</p>";
+		}
+	}
 	var view = {
 		id: "settings",
 		title: "Settings",
@@ -2822,6 +2853,7 @@
           <p class="small soft" data-api-status aria-live="polite"></p>
         </form>
         ${ds.mode === "api" ? accountCard(ctx) : ""}
+        ${ctx.ontology.role === "admin" ? auditCard() : ""}
       </div>`;
 		},
 		bind(root, ctx) {
@@ -2861,6 +2893,7 @@
 					status.textContent = "Not reachable";
 				}
 			});
+			if (ctx.ontology.role === "admin") fillAudit(root, ctx);
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
 			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
 			onAll(root, "[data-reset]", "click", () => {

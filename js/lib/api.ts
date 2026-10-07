@@ -37,6 +37,19 @@ export interface Membership {
   org_admin: boolean;
 }
 
+export interface AuditEntry {
+  id: number;
+  at: string;
+  actor_id: string | null;
+  actor_name: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  before: unknown;
+  after: unknown;
+  request_id: string | null;
+}
+
 export interface Me {
   email: string;
   name: string;
@@ -144,6 +157,9 @@ export function createApiClient(options: ApiOptions) {
     sites: () => request<Site[]>('GET', '/sites'),
     // Your membership (and role) on a site; joins it on first visit.
     membership: (siteId: string) => request<Membership>('GET', `/sites/${encodeURIComponent(siteId)}/me`),
+    // Every change on a site, newest first (site admins only).
+    audit: (siteId: string, { limit = 100, offset = 0 } = {}) =>
+      request<AuditEntry[]>('GET', `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
     ontology: {
       graph: (siteId: string, view: GraphView = 'working') =>
         request<Graph>('GET', `${site(siteId)}/graph?view=${view}`),
