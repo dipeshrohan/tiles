@@ -6,7 +6,8 @@ const defaults = (m) => Object.fromEntries(MODELS[m].params.map((p) => [p.key, p
 
 test('every model version evaluates to a finite number at defaults', () => {
   for (const m of Object.values(MODELS)) {
-    for (const v of Object.keys(m.versions)) assert.ok(Number.isFinite(evaluate(m.id, v, defaults(m.id))), `${m.id} v${v}`);
+    for (const v of Object.keys(m.versions))
+      assert.ok(Number.isFinite(evaluate(m.id, v, defaults(m.id))), `${m.id} v${v}`);
   }
 });
 
@@ -30,7 +31,13 @@ test('sensitivity is sorted by magnitude', () => {
 
 test('runs record lineage and diffs, and audit export includes outputs', () => {
   const a = makeRun({ modelId: 'swelling', version: '1.1', params: defaults('swelling'), author: 't' });
-  const b = makeRun({ modelId: 'swelling', version: '2.0', params: { ...defaults('swelling'), soc: 40 }, author: 't', parent: a.id });
+  const b = makeRun({
+    modelId: 'swelling',
+    version: '2.0',
+    params: { ...defaults('swelling'), soc: 40 },
+    author: 't',
+    parent: a.id,
+  });
   assert.deepEqual(runDiff(b, a), [
     { key: 'soc', from: 80, to: 40 },
     { key: 'model version', from: '1.1', to: '2.0' },

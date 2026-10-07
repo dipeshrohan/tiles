@@ -36,7 +36,10 @@ export function bundle() {
     src = src.replace(IMPORT, (_, named, def, spec) => {
       const dep = JSON.stringify(id(resolve(dirname(file), spec)));
       if (def) return `const ${def} = __mods[${dep}].default;`;
-      const parts = named.split(',').map((s) => s.trim()).filter(Boolean)
+      const parts = named
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
         .map((s) => s.replace(/^(\w+)\s+as\s+(\w+)$/, '$1: $2'));
       return `const { ${parts.join(', ')} } = __mods[${dep}];`;
     });
@@ -59,7 +62,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const code = bundle();
   if (process.argv.includes('--check')) {
     let current = '';
-    try { current = readFileSync(out, 'utf8'); } catch { /* missing */ }
+    try {
+      current = readFileSync(out, 'utf8');
+    } catch {
+      /* missing */
+    }
     if (current !== code) {
       console.error('js/tiles.bundle.js is out of date. Run: npm run build');
       process.exit(1);

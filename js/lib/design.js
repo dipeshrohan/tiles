@@ -17,10 +17,8 @@ export const MODELS = {
     ],
     versions: {
       '1.0': (p) => p.preload + 0.018 * p.soc * (p.thickness / 100),
-      '1.1': (p) =>
-        p.preload +
-        0.018 * p.soc * (p.thickness / 100) * (1 + 0.004 * (p.temperature - 25)) +
-        0.0011 * p.cycles,
+      1.1: (p) =>
+        p.preload + 0.018 * p.soc * (p.thickness / 100) * (1 + 0.004 * (p.temperature - 25)) + 0.0011 * p.cycles,
       '2.0': (p) => {
         // Graphite expansion with SOC plus SEI growth (√cycles) and a stiffening preload term.
         const intercalation = 0.021 * p.soc * (p.thickness / 100) * (1 + 0.0035 * (p.temperature - 25));
@@ -48,7 +46,7 @@ export const MODELS = {
         const loss = 3 * current ** 2 * 0.18;
         return p.ambient + loss * p.rth;
       },
-      '1.1': (p) => {
+      1.1: (p) => {
         const current = p.torque / (p.ratio * 0.85) / p.kt;
         // Copper resistance rises with temperature; iterate to a fixed point.
         let t = p.ambient;
@@ -99,7 +97,15 @@ export function sensitivity(modelId, version, base) {
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
 }
 
-export function makeRun({ modelId, version, params, author, note = '', parent = null, date = new Date().toISOString() }) {
+export function makeRun({
+  modelId,
+  version,
+  params,
+  author,
+  note = '',
+  parent = null,
+  date = new Date().toISOString(),
+}) {
   const value = evaluate(modelId, version, params);
   return {
     id: `run-${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`,

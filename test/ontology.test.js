@@ -1,9 +1,22 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRepo, stage, commit, revert, discard, workingGraph, healthCheck, pathTo, applyOp } from '../js/lib/ontology.js';
+import {
+  createRepo,
+  stage,
+  commit,
+  revert,
+  discard,
+  workingGraph,
+  healthCheck,
+  pathTo,
+  applyOp,
+} from '../js/lib/ontology.js';
 import { seedOntology } from '../js/lib/data.js';
 
-const node = (id, type = 'Machine', props = { vendor: 'x' }) => ({ kind: 'addNode', node: { id, type, label: id, props } });
+const node = (id, type = 'Machine', props = { vendor: 'x' }) => ({
+  kind: 'addNode',
+  node: { id, type, label: id, props },
+});
 const edge = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
 
 test('staged changes are visible in the working graph but not in head', () => {
@@ -42,14 +55,24 @@ test('invalid operations are rejected', () => {
   const repo = stage(createRepo(), node('a'));
   assert.throws(() => stage(repo, node('a')), /already exists/);
   assert.throws(() => stage(repo, edge('a', 'feeds', 'missing')), /missing node/);
-  assert.throws(() => applyOp(workingGraph(stage(stage(repo, node('b')), edge('a', 'feeds', 'b'))), { kind: 'removeNode', id: 'a' }), /relationship/);
+  assert.throws(
+    () =>
+      applyOp(workingGraph(stage(stage(repo, node('b')), edge('a', 'feeds', 'b'))), { kind: 'removeNode', id: 'a' }),
+    /relationship/,
+  );
   assert.throws(() => commit(createRepo(), { message: 'x', author: 't' }), /Nothing to commit/);
   assert.throws(() => commit(repo, { message: '  ', author: 't' }), /message/);
 });
 
 test('health check finds orphans, duplicates and missing props', () => {
   let repo = createRepo();
-  for (const op of [node('a'), node('b', 'Machine', {}), node('lonely'), edge('a', 'feeds', 'b'), { kind: 'addEdge', edge: { id: 'dup', from: 'a', rel: 'feeds', to: 'b' } }]) {
+  for (const op of [
+    node('a'),
+    node('b', 'Machine', {}),
+    node('lonely'),
+    edge('a', 'feeds', 'b'),
+    { kind: 'addEdge', edge: { id: 'dup', from: 'a', rel: 'feeds', to: 'b' } },
+  ]) {
     repo = stage(repo, op);
   }
   const kinds = healthCheck(workingGraph(repo)).issues.map((i) => `${i.kind}:${i.ref}`);
@@ -60,7 +83,13 @@ test('health check finds orphans, duplicates and missing props', () => {
 
 test('seed ontology has a full site hierarchy and one orphan tag', () => {
   const graph = workingGraph(seedOntology());
-  assert.deepEqual(pathTo(graph, 'm-dc02').map((n) => n.type), ['Site', 'Workcenter', 'Line', 'Machine']);
+  assert.deepEqual(
+    pathTo(graph, 'm-dc02').map((n) => n.type),
+    ['Site', 'Workcenter', 'Line', 'Machine'],
+  );
   const orphans = healthCheck(graph).issues.filter((i) => i.kind === 'orphan');
-  assert.deepEqual(orphans.map((o) => o.ref), ['sig-legacy']);
+  assert.deepEqual(
+    orphans.map((o) => o.ref),
+    ['sig-legacy'],
+  );
 });

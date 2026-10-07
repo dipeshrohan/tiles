@@ -19,8 +19,24 @@ const SKILLS = [
     id: 'lookup',
     match: /^(where|what is|show|find|list)\b/i,
     run(ctx, q) {
-      const words = q.replace(/[?.,]/g, ' ').split(/\s+/).filter((w) => w.length > 2);
-      const stop = new Set(['where', 'what', 'show', 'find', 'which', 'list', 'the', 'and', 'for', 'does', 'are', 'is']);
+      const words = q
+        .replace(/[?.,]/g, ' ')
+        .split(/\s+/)
+        .filter((w) => w.length > 2);
+      const stop = new Set([
+        'where',
+        'what',
+        'show',
+        'find',
+        'which',
+        'list',
+        'the',
+        'and',
+        'for',
+        'does',
+        'are',
+        'is',
+      ]);
       const hits = new Map();
       for (const w of words) {
         if (stop.has(w.toLowerCase())) continue;
@@ -29,8 +45,13 @@ const SKILLS = [
       if (!hits.size) return null;
       const ranked = [...hits.values()].sort((a, b) => b.score - a.score).map((h) => h.node);
       const lines = ranked.slice(0, 6).map((n) => {
-        const path = pathTo(ctx.graph, n.id).map((p) => p.label).join(' → ');
-        const rel = neighbors(ctx.graph, n.id).slice(0, 4).map((x) => `${x.outgoing ? '' : '←'}${x.edge.rel} ${x.node.label}`).join('; ');
+        const path = pathTo(ctx.graph, n.id)
+          .map((p) => p.label)
+          .join(' → ');
+        const rel = neighbors(ctx.graph, n.id)
+          .slice(0, 4)
+          .map((x) => `${x.outgoing ? '' : '←'}${x.edge.rel} ${x.node.label}`)
+          .join('; ');
         return `• ${n.type} ${n.label}${path.includes('→') ? ` — ${path}` : ''}${rel ? ` (${rel})` : ''}`;
       });
       return { steps: [`Graph query → ${hits.size} matching node(s)`], text: lines.join('\n'), link: '#/ontology' };
@@ -77,7 +98,10 @@ const SKILLS = [
         ],
         text: [
           `Die-caster DC-02: ${hit.length} of ${scored.length} seizure-related stops were preceded by a friction warning, with ${avg.toFixed(1)} h average lead time.`,
-          ...scored.map((s) => `• ${s.id} (${s.code}, ${s.durationMin} min): ${s.predicted ? `warned ${s.leadHours.toFixed(1)} h ahead` : 'not predicted'}`),
+          ...scored.map(
+            (s) =>
+              `• ${s.id} (${s.code}, ${s.durationMin} min): ${s.predicted ? `warned ${s.leadHours.toFixed(1)} h ahead` : 'not predicted'}`,
+          ),
           `Latest shot friction: ${Math.round(latest.friction)} N.`,
         ].join('\n'),
         link: '#/physics',
@@ -107,7 +131,10 @@ const SKILLS = [
       const h = healthCheck(ctx.graph);
       return {
         steps: [`Ontology health check → ${h.counts.nodes} nodes, ${h.counts.edges} relationships`],
-        text: [`Ontology health score ${h.score}/100.`, ...(h.issues.length ? h.issues.map((i) => `• ${i.text}`) : ['No issues found.'])].join('\n'),
+        text: [
+          `Ontology health score ${h.score}/100.`,
+          ...(h.issues.length ? h.issues.map((i) => `• ${i.text}`) : ['No issues found.']),
+        ].join('\n'),
         link: '#/ontology',
       };
     },

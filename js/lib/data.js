@@ -71,12 +71,24 @@ export function seedOntology() {
   let repo = createRepo();
   const base = ops.filter((o) => !o.node?.id?.startsWith('mdl-') && !o.edge?.from?.startsWith('mdl-'));
   for (const op of base) repo = stage(repo, op);
-  repo = commit(repo, { message: 'Import site hierarchy from MES', author: 'ingest-agent@tiles', date: '2026-09-02T08:10:00Z' });
+  repo = commit(repo, {
+    message: 'Import site hierarchy from MES',
+    author: 'ingest-agent@tiles',
+    date: '2026-09-02T08:10:00Z',
+  });
   for (const op of ops.filter((o) => !base.includes(o))) repo = stage(repo, op);
-  repo = commit(repo, { message: 'Register plunger friction virtual sensor', author: 'lena@tiles.dev', date: '2026-09-18T14:32:00Z' });
+  repo = commit(repo, {
+    message: 'Register plunger friction virtual sensor',
+    author: 'lena@tiles.dev',
+    date: '2026-09-18T14:32:00Z',
+  });
   // A stray node left behind by an ingest, so the health check has something to find.
   repo = stage(repo, N('sig-legacy', 'Signal', 'TEMP_TAG_0042', {}));
-  repo = commit(repo, { message: 'Agentic ingestion: historian tags batch 7', author: 'ingest-agent@tiles', date: '2026-09-29T06:05:00Z' });
+  repo = commit(repo, {
+    message: 'Agentic ingestion: historian tags batch 7',
+    author: 'ingest-agent@tiles',
+    date: '2026-09-29T06:05:00Z',
+  });
   return repo;
 }
 

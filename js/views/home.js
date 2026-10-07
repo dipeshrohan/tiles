@@ -14,8 +14,18 @@ export default {
     const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
 
     const feed = [
-      ...state.repo.history.map((c) => ({ date: c.date, icon: '⎇', text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`, href: '#/ontology' })),
-      ...state.runs.map((r) => ({ date: r.date, icon: '∿', text: `<b>${esc(MODELS[r.modelId].name)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`, href: '#/design' })),
+      ...state.repo.history.map((c) => ({
+        date: c.date,
+        icon: '⎇',
+        text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`,
+        href: '#/ontology',
+      })),
+      ...state.runs.map((r) => ({
+        date: r.date,
+        icon: '∿',
+        text: `<b>${esc(MODELS[r.modelId].name)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`,
+        href: '#/design',
+      })),
     ]
       .sort((a, b) => b.date.localeCompare(a.date))
       .slice(0, 6);

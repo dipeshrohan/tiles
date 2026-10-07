@@ -138,10 +138,7 @@ export function revert(repo, id, { author, date } = {}) {
   const target = repo.history.find((c) => c.id === id);
   if (!target) throw new Error(`Commit ${id} not found`);
   if (repo.staged.length) throw new Error('Commit or discard staged changes first');
-  return commit(
-    { ...repo, staged: target.inverses },
-    { message: `Revert "${target.message}"`, author, date },
-  );
+  return commit({ ...repo, staged: target.inverses }, { message: `Revert "${target.message}"`, author, date });
 }
 
 // ---- Health check -------------------------------------------------------
@@ -154,25 +151,43 @@ export function healthCheck(graph) {
   const seen = new Map();
   for (const e of edges) {
     if (!graph.nodes[e.from] || !graph.nodes[e.to]) {
-      issues.push({ level: 'error', kind: 'dangling', ref: e.id, text: `Relationship ${e.id} points at a missing node` });
+      issues.push({
+        level: 'error',
+        kind: 'dangling',
+        ref: e.id,
+        text: `Relationship ${e.id} points at a missing node`,
+      });
       continue;
     }
     degree[e.from]++;
     degree[e.to]++;
     const key = `${e.from}|${e.rel}|${e.to}`;
     if (seen.has(key)) {
-      issues.push({ level: 'warn', kind: 'duplicate', ref: e.id, text: `Duplicate relationship ${graph.nodes[e.from].label} —${e.rel}→ ${graph.nodes[e.to].label} (also ${seen.get(key)})` });
+      issues.push({
+        level: 'warn',
+        kind: 'duplicate',
+        ref: e.id,
+        text: `Duplicate relationship ${graph.nodes[e.from].label} —${e.rel}→ ${graph.nodes[e.to].label} (also ${seen.get(key)})`,
+      });
     } else seen.set(key, e.id);
   }
   for (const n of nodes) {
-    if (degree[n.id] === 0) issues.push({ level: 'warn', kind: 'orphan', ref: n.id, text: `${n.type} "${n.label}" has no relationships` });
+    if (degree[n.id] === 0)
+      issues.push({ level: 'warn', kind: 'orphan', ref: n.id, text: `${n.type} "${n.label}" has no relationships` });
     for (const req of NODE_TYPES[n.type]?.required ?? []) {
       if (n.props?.[req] === undefined || n.props[req] === '') {
-        issues.push({ level: 'info', kind: 'missing-prop', ref: n.id, text: `${n.type} "${n.label}" is missing "${req}"` });
+        issues.push({
+          level: 'info',
+          kind: 'missing-prop',
+          ref: n.id,
+          text: `${n.type} "${n.label}" is missing "${req}"`,
+        });
       }
     }
   }
-  const score = nodes.length ? Math.max(0, Math.round(100 - (issues.filter((i) => i.level !== 'info').length * 100) / nodes.length)) : 100;
+  const score = nodes.length
+    ? Math.max(0, Math.round(100 - (issues.filter((i) => i.level !== 'info').length * 100) / nodes.length))
+    : 100;
   return { issues, score, counts: { nodes: nodes.length, edges: edges.length } };
 }
 

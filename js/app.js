@@ -102,7 +102,11 @@ function badgeFor(view) {
 function renderNav(active) {
   $('#nav').innerHTML = NAV.map(
     (g) =>
-      (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === '' ? '<div class="nav-group">&nbsp;</div>' : '') +
+      (g.group
+        ? `<div class="nav-group">${esc(g.group)}</div>`
+        : g.group === ''
+          ? '<div class="nav-group">&nbsp;</div>'
+          : '') +
       g.items
         .map(
           (v) =>
@@ -116,7 +120,8 @@ function renderNav(active) {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-  $('#user').innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+  $('#user').innerHTML =
+    `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 }
 
 function render() {

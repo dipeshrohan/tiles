@@ -1,7 +1,25 @@
-import { NODE_TYPES, stage, commit, discard, revert, healthCheck, neighbors, pathTo, diffStats } from '../lib/ontology.js';
+import {
+  NODE_TYPES,
+  stage,
+  commit,
+  discard,
+  revert,
+  healthCheck,
+  neighbors,
+  pathTo,
+  diffStats,
+} from '../lib/ontology.js';
 import { esc, timeAgo } from '../lib/dom.js';
 
-const COLUMNS = [['Site'], ['Workcenter'], ['Line'], ['Machine'], ['Process', 'PLC'], ['Material', 'Signal'], ['Document', 'Model']];
+const COLUMNS = [
+  ['Site'],
+  ['Workcenter'],
+  ['Line'],
+  ['Machine'],
+  ['Process', 'PLC'],
+  ['Material', 'Signal'],
+  ['Document', 'Model'],
+];
 const BOX = { w: 134, h: 28, colGap: 152, rowGap: 38, pad: 16 };
 const RELS = ['contains', 'runs', 'consumes', 'controlledBy', 'emits', 'describes', 'reads', 'monitors', 'feeds'];
 
@@ -12,7 +30,9 @@ function layout(graph, hidden) {
     const col = nodes.filter((n) => types.includes(n.type));
     // Order by the average row of already-placed neighbours to reduce crossings.
     const weight = (n) => {
-      const ys = neighbors(graph, n.id).map((x) => pos[x.node?.id]?.y).filter((y) => y !== undefined);
+      const ys = neighbors(graph, n.id)
+        .map((x) => pos[x.node?.id]?.y)
+        .filter((y) => y !== undefined);
       return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : Infinity;
     };
     col
@@ -30,17 +50,26 @@ const short = (s, n = 19) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 function describeOp(op, graph) {
   const label = (id) => graph.nodes[id]?.label ?? id;
   switch (op.kind) {
-    case 'addNode': return `+ ${op.node.type} “${op.node.label}”`;
-    case 'removeNode': return `− node ${op.id}`;
-    case 'addEdge': return `+ ${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`;
-    case 'removeEdge': return `− relationship ${op.id}`;
-    case 'setProp': return op.value === undefined ? `− ${label(op.id)}.${op.key}` : `~ ${label(op.id)}.${op.key} = ${op.value}`;
-    default: return op.kind;
+    case 'addNode':
+      return `+ ${op.node.type} “${op.node.label}”`;
+    case 'removeNode':
+      return `− node ${op.id}`;
+    case 'addEdge':
+      return `+ ${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`;
+    case 'removeEdge':
+      return `− relationship ${op.id}`;
+    case 'setProp':
+      return op.value === undefined ? `− ${label(op.id)}.${op.key}` : `~ ${label(op.id)}.${op.key} = ${op.value}`;
+    default:
+      return op.kind;
   }
 }
 
 function statBadges(s) {
-  const b = (n, what) => (n ? `<span class="badge"><span class="${n > 0 ? 'plus' : 'minus'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</span> ${what}</span>` : '');
+  const b = (n, what) =>
+    n
+      ? `<span class="badge"><span class="${n > 0 ? 'plus' : 'minus'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</span> ${what}</span>`
+      : '';
   return b(s.nodes, 'node') + b(s.edges, 'edge') + b(s.props, 'prop');
 }
 
@@ -68,7 +97,10 @@ export default {
     const tabs = [
       ['canvas', 'Canvas'],
       ['history', `History <span class="badge">${repo.history.length}</span>`],
-      ['health', `Health <span class="badge ${health.issues.some((i) => i.level !== 'info') ? 'bad' : 'good'}">${health.score}</span>`],
+      [
+        'health',
+        `Health <span class="badge ${health.issues.some((i) => i.level !== 'info') ? 'bad' : 'good'}">${health.score}</span>`,
+      ],
     ];
 
     let body = '';
@@ -93,7 +125,9 @@ export default {
     const hidden = new Set(ui.hidden);
     const pos = layout(graph, hidden);
     const issueIds = new Set(health.issues.filter((i) => i.level !== 'info').map((i) => i.ref));
-    const stagedIds = new Set(ctx.state.repo.staged.flatMap((op) => [op.node?.id, op.id, op.edge?.from, op.edge?.to]).filter(Boolean));
+    const stagedIds = new Set(
+      ctx.state.repo.staged.flatMap((op) => [op.node?.id, op.id, op.edge?.from, op.edge?.to]).filter(Boolean),
+    );
     const ids = Object.keys(pos);
     const width = Math.max(...ids.map((id) => pos[id].x), 0) + BOX.w + BOX.pad;
     const height = Math.max(...ids.map((id) => pos[id].y), 0) + BOX.h + BOX.pad;
@@ -116,7 +150,9 @@ export default {
       .map((id) => {
         const n = graph.nodes[id];
         const p = pos[id];
-        const cls = ['node', ui.selected === id && 'sel', issueIds.has(id) && 'issue', stagedIds.has(id) && 'staged'].filter(Boolean).join(' ');
+        const cls = ['node', ui.selected === id && 'sel', issueIds.has(id) && 'issue', stagedIds.has(id) && 'staged']
+          .filter(Boolean)
+          .join(' ');
         return `<g class="${cls}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
@@ -127,7 +163,10 @@ export default {
       .join('');
 
     const legend = Object.entries(NODE_TYPES)
-      .map(([t, def]) => `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? 'opacity:.4' : ''}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`)
+      .map(
+        ([t, def]) =>
+          `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? 'opacity:.4' : ''}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`,
+      )
       .join('');
 
     return `
@@ -150,7 +189,9 @@ export default {
     const path = pathTo(graph, id);
     const props = Object.entries(n.props ?? {});
     const required = NODE_TYPES[n.type].required.filter((r) => n.props?.[r] === undefined);
-    const others = Object.values(graph.nodes).filter((o) => o.id !== id).sort((a, b) => a.label.localeCompare(b.label));
+    const others = Object.values(graph.nodes)
+      .filter((o) => o.id !== id)
+      .sort((a, b) => a.label.localeCompare(b.label));
     return `
       <div class="card-head">
         <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 style="margin-top:6px">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
@@ -185,7 +226,9 @@ export default {
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft" style="margin-bottom:12px">Select a node on the canvas to inspect it, or stage a new one here.</p>
       <form class="stack" id="node-form" style="gap:10px;max-width:520px">
-        <label class="field">Type<select name="type">${Object.keys(NODE_TYPES).map((t) => `<option>${t}</option>`).join('')}</select></label>
+        <label class="field">Type<select name="type">${Object.keys(NODE_TYPES)
+          .map((t) => `<option>${t}</option>`)
+          .join('')}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
         <label class="field">Link from (optional)<select name="from"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join('')}</select></label>
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
@@ -205,7 +248,10 @@ export default {
             <div class="small muted">${esc(c.author)} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
             <div class="stats">${statBadges(c.stats)}</div>
             <details style="margin-top:6px"><summary class="small soft" style="cursor:pointer">${c.ops.length} operation(s)</summary>
-              <div class="diff" style="margin-top:6px">${c.ops.slice(0, 60).map((op) => `<div>${esc(describeOp(op, graph))}</div>`).join('')}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ''}</div>
+              <div class="diff" style="margin-top:6px">${c.ops
+                .slice(0, 60)
+                .map((op) => `<div>${esc(describeOp(op, graph))}</div>`)
+                .join('')}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ''}</div>
             </details>
           </div>
           <button class="btn sm" data-revert="${esc(c.id)}">Revert</button>
@@ -246,31 +292,54 @@ export default {
     const stageOp = (op, ok) => run((s) => (s.repo = stage(s.repo, op)), ok);
     const on = (sel, ev, fn) => root.querySelectorAll(sel).forEach((el) => el.addEventListener(ev, (e) => fn(e, el)));
 
-    on('[data-tab]', 'click', (_, el) => { ui.tab = el.dataset.tab; ctx.rerender(); });
+    on('[data-tab]', 'click', (_, el) => {
+      ui.tab = el.dataset.tab;
+      ctx.rerender();
+    });
     const select = (id) => {
       ui.selected = id;
       ctx.rerender();
       const panel = document.getElementById('inspector');
       const r = panel?.getBoundingClientRect();
-      if (r && (r.top > window.innerHeight || r.bottom < 0)) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (r && (r.top > window.innerHeight || r.bottom < 0))
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     on('[data-node]', 'click', (_, el) => select(el.dataset.node));
-    on('[data-node]', 'keydown', (e, el) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(el.dataset.node); } });
-    on('[data-goto]', 'click', (e, el) => { e.preventDefault(); ui.selected = el.dataset.goto; ui.tab = 'canvas'; ctx.rerender(); });
-    on('[data-deselect]', 'click', () => { ui.selected = null; ctx.rerender(); });
+    on('[data-node]', 'keydown', (e, el) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        select(el.dataset.node);
+      }
+    });
+    on('[data-goto]', 'click', (e, el) => {
+      e.preventDefault();
+      ui.selected = el.dataset.goto;
+      ui.tab = 'canvas';
+      ctx.rerender();
+    });
+    on('[data-deselect]', 'click', () => {
+      ui.selected = null;
+      ctx.rerender();
+    });
     on('[data-type]', 'click', (_, el) => {
       const t = el.dataset.type;
       ui.hidden = ui.hidden.includes(t) ? ui.hidden.filter((x) => x !== t) : [...ui.hidden, t];
       ctx.rerender();
     });
-    on('[data-unset]', 'click', (_, el) => stageOp({ kind: 'setProp', id: ui.selected, key: el.dataset.unset, value: undefined }));
-    on('[data-unlink]', 'click', (_, el) => stageOp({ kind: 'removeEdge', id: el.dataset.unlink }, 'Relationship removal staged'));
+    on('[data-unset]', 'click', (_, el) =>
+      stageOp({ kind: 'setProp', id: ui.selected, key: el.dataset.unset, value: undefined }),
+    );
+    on('[data-unlink]', 'click', (_, el) =>
+      stageOp({ kind: 'removeEdge', id: el.dataset.unlink }, 'Relationship removal staged'),
+    );
     on('[data-delete]', 'click', () => {
       const id = ui.selected;
       ui.selected = null;
       stageOp({ kind: 'removeNode', id }, 'Node deletion staged');
     });
-    on('[data-fix-delete]', 'click', (_, el) => stageOp({ kind: 'removeNode', id: el.dataset.fixDelete }, 'Node deletion staged'));
+    on('[data-fix-delete]', 'click', (_, el) =>
+      stageOp({ kind: 'removeNode', id: el.dataset.fixDelete }, 'Node deletion staged'),
+    );
     on('[data-discard]', 'click', () => run((s) => (s.repo = discard(s.repo)), 'Changes discarded'));
     on('[data-revert]', 'click', (_, el) =>
       run((s) => (s.repo = revert(s.repo, el.dataset.revert, { author: s.user.email })), 'Commit reverted'),
@@ -298,7 +367,12 @@ export default {
       e.preventDefault();
       const f = e.target;
       const label = f.label.value.trim();
-      const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'node';
+      const slug =
+        label
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-|-$/g, '')
+          .slice(0, 30) || 'node';
       let id = `${f.type.value.toLowerCase()}-${slug}`;
       for (let k = 2; ctx.graph.nodes[id]; k++) id = `${f.type.value.toLowerCase()}-${slug}-${k}`;
       const from = f.from.value;
