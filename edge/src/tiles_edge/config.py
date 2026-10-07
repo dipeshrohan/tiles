@@ -125,6 +125,9 @@ class Config:
     timeout_seconds: float
     opcua: tuple[OpcUaConfig, ...] = ()
     mqtt: tuple[MqttConfig, ...] = ()
+    # Where samples wait until Tiles has them (T2.04), and how many it may hold.
+    buffer_path: Path = Path("/var/lib/tiles-edge/buffer.sqlite")
+    buffer_max_samples: int = 20_000_000
 
 
 def _table(data: dict[str, Any], name: str) -> dict[str, Any]:
@@ -472,7 +475,7 @@ def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) 
     _known(data, "the top level", {"tiles", "agent", "opcua", "mqtt"})
     tiles, agent = _table(data, "tiles"), _table(data, "agent")
     _known(tiles, "[tiles]", {"url", "token_file", "ca_file", "timeout_seconds"})
-    _known(agent, "[agent]", {"heartbeat_seconds"})
+    _known(agent, "[agent]", {"heartbeat_seconds", "buffer_path", "buffer_max_samples"})
     base = path.parent
 
     ca_file = None
@@ -488,6 +491,12 @@ def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) 
     heartbeat = agent.get("heartbeat_seconds", 30)
     if not isinstance(heartbeat, int) or isinstance(heartbeat, bool) or not 5 <= heartbeat <= 3600:
         raise ConfigError("[agent] heartbeat_seconds must be a whole number from 5 to 3600")
+    buffer_path = agent.get("buffer_path", "/var/lib/tiles-edge/buffer.sqlite")
+    if not isinstance(buffer_path, str) or not buffer_path:
+        raise ConfigError("[agent] buffer_path must be a file path")
+    buffer_max = agent.get("buffer_max_samples", 20_000_000)
+    if not isinstance(buffer_max, int) or isinstance(buffer_max, bool) or not 1000 <= buffer_max <= 1_000_000_000:
+        raise ConfigError("[agent] buffer_max_samples must be a whole number from 1000 to 1000000000")
     timeout = tiles.get("timeout_seconds", 10)
     if not isinstance(timeout, int | float) or isinstance(timeout, bool) or not 1 <= timeout <= 120:
         raise ConfigError("[tiles] timeout_seconds must be a number from 1 to 120")
@@ -498,6 +507,8 @@ def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) 
         ca_file=ca_file,
         heartbeat_seconds=heartbeat,
         timeout_seconds=float(timeout),
+        buffer_path=base / buffer_path,
+        buffer_max_samples=buffer_max,
         opcua=_opcua(data.get("opcua"), base, need_signals=not setup),
         mqtt=_mqtt(data.get("mqtt"), base, need_topics=not setup),
     )

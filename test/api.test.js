@@ -199,6 +199,17 @@ test('agent connectors show as badges with their detail as a tooltip', async () 
   );
 });
 
+test("an agent's buffer shows what waits and why", async () => {
+  const { bufferSummary } = await import('../js/views/settings.ts');
+  assert.equal(bufferSummary({ buffer: null }), '—');
+  const buffer = { queued: 0, oldest_at: null, sent: 10, dropped: 0, rejected: 0, problem: '' };
+  assert.match(bufferSummary({ buffer }), /^<span class="badge good" title="0 waiting\. 10 sent, 0 dropped/);
+  const stuck = bufferSummary({ buffer: { ...buffer, queued: 12000, problem: "can't reach <Tiles>" } });
+  assert.match(stuck, /class="badge warn"/);
+  assert.match(stuck, /can&#39;t reach &lt;Tiles&gt;" *>12,000 queued<\/span>$/);
+  assert.match(bufferSummary({ buffer: { ...buffer, dropped: 3 } }), /class="badge bad"/);
+});
+
 test('audit summaries read as sentences', async () => {
   const { describeAudit } = await import('../js/views/settings.ts');
   const e = (action, before, after) => ({ action, before, after, entity_type: 'x', entity_id: 'y' });

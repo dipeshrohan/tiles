@@ -78,6 +78,22 @@ def test_an_admin_registers_an_agent_and_its_heartbeat_marks_it_online(api: Test
     [agent] = api.get(f"/sites/{site}/agents", headers=VIEWER).json()  # every member can see them
     assert (agent["status"], agent["version"], agent["hostname"]) == ("online", "0.1.0", "edge-01")
     assert agent["connectors"] == connectors
+    assert agent["buffer"] is None  # an agent without a buffer, e.g. `check`
+
+
+def test_a_heartbeat_carries_the_buffer_status(api: TestClient, site: str) -> None:
+    token = register(api, site)["token"]
+    buffer = {
+        "queued": 1200,
+        "oldest_at": "2026-10-07T08:00:00+00:00",
+        "sent": 50,
+        "dropped": 0,
+        "rejected": 2,
+        "problem": "can't reach Tiles: Connection refused",
+    }
+    assert api.post("/agent/heartbeat", json=beat(buffer=buffer), headers=agent_auth(token)).status_code == 200
+    [agent] = api.get(f"/sites/{site}/agents", headers=VIEWER).json()
+    assert agent["buffer"] == {**buffer, "oldest_at": "2026-10-07T08:00:00Z"}
 
 
 def test_only_the_token_hash_is_stored(api: TestClient, site: str, database_url: str) -> None:
@@ -116,6 +132,9 @@ def test_heartbeats_are_validated(api: TestClient, site: str) -> None:
         beat(heartbeat_seconds=0),
         beat(connectors=[{"name": "x", "kind": "opcua", "status": "on fire"}]),
         beat(surprise=True),
+        beat(buffer={"queued": -1}),
+        beat(buffer={"queued": 1, "problem": "x" * 301}),
+        beat(buffer={"queued": 1, "surprise": True}),
         {"version": "0.1.0"},
     ):
         assert api.post("/agent/heartbeat", json=bad, headers=agent_auth(token)).status_code == 422, bad

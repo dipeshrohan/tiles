@@ -20,6 +20,10 @@ class TransientError(Exception):
 class RejectedError(Exception):
     """Tiles refused the agent (unknown or revoked token, or a bad request): retrying won't help."""
 
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status  # the HTTP status, when Tiles answered
+
 
 class _NoRedirects(urllib.request.HTTPRedirectHandler):
     """Refuse redirects: urllib would follow them with the Authorization header, sending the agent's
@@ -66,11 +70,12 @@ class TilesClient:
                 where = e.headers.get("Location", "elsewhere")
                 raise RejectedError(
                     f"Tiles answered {e.code}, redirecting to {where}; the agent doesn't follow redirects, "
-                    "so set [tiles] url to the final address"
+                    "so set [tiles] url to the final address",
+                    e.code,
                 ) from None
             if e.code in RETRY_STATUSES or e.code >= 500:
                 raise TransientError(f"Tiles answered {e.code}: {detail}") from None
-            raise RejectedError(f"Tiles answered {e.code}: {detail}") from None
+            raise RejectedError(f"Tiles answered {e.code}: {detail}", e.code) from None
         except (urllib.error.URLError, TimeoutError, ConnectionError, ssl.SSLError) as e:
             reason = getattr(e, "reason", e)
             raise TransientError(f"can't reach {self._config.url}: {reason}") from None

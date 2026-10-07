@@ -48,6 +48,7 @@ class Agent(BaseModel):
     version: str | None
     hostname: str | None
     connectors: list[dict[str, Any]]
+    buffer: dict[str, Any] | None
 
 
 class NewAgent(BaseModel):
@@ -64,6 +65,21 @@ class ConnectorStatus(BaseModel):
     detail: Annotated[str, Field(max_length=500)] = ""
 
 
+Count = Annotated[int, Field(ge=0)]
+
+
+class BufferStatus(BaseModel):
+    """The agent's store-and-forward buffer (T2.04): what waits on its disk for Tiles."""
+
+    model_config = ConfigDict(extra="forbid")
+    queued: Count
+    oldest_at: datetime | None = None
+    sent: Count = 0
+    dropped: Count = 0
+    rejected: Count = 0
+    problem: Annotated[str, Field(max_length=300)] = ""
+
+
 class HeartbeatIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     version: Annotated[str, Field(min_length=1, max_length=50)]
@@ -71,6 +87,7 @@ class HeartbeatIn(BaseModel):
     started_at: datetime
     heartbeat_seconds: Annotated[int, Field(ge=1, le=3600)]
     connectors: Annotated[list[ConnectorStatus], Field(max_length=100)] = []
+    buffer: BufferStatus | None = None
 
 
 class HeartbeatOut(BaseModel):
@@ -104,6 +121,7 @@ def _agent(row: dict[str, Any], now: datetime) -> Agent:
         version=status_.get("version"),
         hostname=status_.get("hostname"),
         connectors=status_.get("connectors", []),
+        buffer=status_.get("buffer"),
     )
 
 

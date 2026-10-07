@@ -22,6 +22,16 @@ class Poster(Protocol):
     def post(self, path: str, body: dict[str, Any]) -> dict[str, Any]: ...
 
 
+class Sender(Protocol):
+    """Sends what the connectors collected (the forwarder). Its status goes out with every heartbeat."""
+
+    def start(self) -> None: ...
+
+    def stop(self, timeout: float = 10) -> None: ...
+
+    def status(self) -> dict[str, Any]: ...
+
+
 class Connector(Protocol):
     """A data source (OPC UA, later MQTT and SQL). It runs on its own thread between start() and stop()."""
 
@@ -46,6 +56,7 @@ class Agent:
     hostname: str = field(default_factory=socket.gethostname)
     jitter: Callable[[], float] = random.random
     connectors: list[Connector] = field(default_factory=list)
+    forwarder: Sender | None = None  # sends buffered samples (T2.04)
 
     def heartbeat(self) -> dict[str, Any]:
         """Sends one heartbeat. Raises TransientError or RejectedError."""
@@ -57,7 +68,8 @@ class Agent:
                 "started_at": self.started_at.isoformat(),
                 "heartbeat_seconds": self.config.heartbeat_seconds,
                 "connectors": [c.status() for c in self.connectors],
-            },
+            }
+            | ({"buffer": self.forwarder.status()} if self.forwarder else {}),
         )
 
     def backoff(self, failures: int) -> float:
@@ -78,6 +90,8 @@ class Agent:
                 "connectors": [c.name for c in self.connectors],
             },
         )
+        if self.forwarder:
+            self.forwarder.start()
         for connector in self.connectors:
             connector.start()
         try:
@@ -85,6 +99,8 @@ class Agent:
         finally:
             for connector in self.connectors:
                 connector.stop()
+            if self.forwarder:  # last, so it can still send what the connectors just put
+                self.forwarder.stop()
             log.info("agent stopped")
 
     def _beat(self) -> int:
