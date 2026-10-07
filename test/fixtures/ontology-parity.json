@@ -1,0 +1,1974 @@
+{
+  "_comment": "Shared ontology parity suite. Inputs are hand-written; every 'expect' is generated from js/lib/ontology.ts (UPDATE_FIXTURES=1 npx vitest run test/ontology-parity.test.js). The TypeScript and Python implementations must both reproduce it.",
+  "cases": [
+    {
+      "name": "stage shows in working graph only",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        }
+      ],
+      "expect": {
+        "errors": [
+          null
+        ],
+        "head": {
+          "nodes": {},
+          "edges": {}
+        },
+        "working": {
+          "nodes": {
+            "a": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          "edges": {}
+        },
+        "staged": [
+          {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        ],
+        "history": [],
+        "health": {
+          "issues": [
+            {
+              "level": "warn",
+              "kind": "orphan",
+              "ref": "a",
+              "text": "Machine \"a\" has no relationships"
+            }
+          ],
+          "score": 0,
+          "counts": {
+            "nodes": 1,
+            "edges": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "discard drops staged ops",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "discard": true
+        }
+      ],
+      "expect": {
+        "errors": [
+          null,
+          null,
+          null
+        ],
+        "head": {
+          "nodes": {},
+          "edges": {}
+        },
+        "working": {
+          "nodes": {},
+          "edges": {}
+        },
+        "staged": [],
+        "history": [],
+        "health": {
+          "issues": [],
+          "score": 100,
+          "counts": {
+            "nodes": 0,
+            "edges": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "commit then revert restores head",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        {
+          "commit": {
+            "message": "first",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "stage": {
+            "kind": "setProp",
+            "id": "a",
+            "key": "vendor",
+            "value": "y"
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "c",
+              "type": "Machine",
+              "label": "c",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "commit": {
+            "message": "second",
+            "author": "Second User",
+            "date": "2026-10-07T13:00:00.000Z"
+          }
+        },
+        {
+          "revert": 0,
+          "author": "Demo User",
+          "date": "2026-10-07T12:00:00.000Z"
+        }
+      ],
+      "expect": {
+        "errors": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "head": {
+          "nodes": {
+            "a": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            },
+            "b": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          "edges": {
+            "a-feeds-b": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        "working": {
+          "nodes": {
+            "a": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            },
+            "b": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          "edges": {
+            "a-feeds-b": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        "staged": [],
+        "history": [
+          {
+            "message": "Revert \"second\"",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "removeNode",
+                "id": "c"
+              },
+              {
+                "kind": "setProp",
+                "id": "a",
+                "key": "vendor",
+                "value": "x"
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "setProp",
+                "id": "a",
+                "key": "vendor",
+                "value": "y"
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "c",
+                  "type": "Machine",
+                  "label": "c",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              }
+            ],
+            "stats": {
+              "nodes": -1,
+              "edges": 0,
+              "props": 1
+            }
+          },
+          {
+            "message": "second",
+            "author": "Second User",
+            "date": "2026-10-07T13:00:00.000Z",
+            "ops": [
+              {
+                "kind": "setProp",
+                "id": "a",
+                "key": "vendor",
+                "value": "y"
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "c",
+                  "type": "Machine",
+                  "label": "c",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeNode",
+                "id": "c"
+              },
+              {
+                "kind": "setProp",
+                "id": "a",
+                "key": "vendor",
+                "value": "x"
+              }
+            ],
+            "stats": {
+              "nodes": 1,
+              "edges": 0,
+              "props": 1
+            }
+          },
+          {
+            "message": "first",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "a",
+                  "type": "Machine",
+                  "label": "a",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "b",
+                  "type": "Machine",
+                  "label": "b",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "a-feeds-b",
+                  "from": "a",
+                  "rel": "feeds",
+                  "to": "b"
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeEdge",
+                "id": "a-feeds-b"
+              },
+              {
+                "kind": "removeNode",
+                "id": "b"
+              },
+              {
+                "kind": "removeNode",
+                "id": "a"
+              }
+            ],
+            "stats": {
+              "nodes": 2,
+              "edges": 1,
+              "props": 0
+            }
+          }
+        ],
+        "health": {
+          "issues": [],
+          "score": 100,
+          "counts": {
+            "nodes": 2,
+            "edges": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "setProp add, change and remove with revert",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "m",
+              "type": "Machine",
+              "label": "m",
+              "props": {
+                "vendor": "Acme",
+                "tonnage": 840
+              }
+            }
+          }
+        },
+        {
+          "commit": {
+            "message": "add m",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "stage": {
+            "kind": "setProp",
+            "id": "m",
+            "key": "note",
+            "value": "hi"
+          }
+        },
+        {
+          "stage": {
+            "kind": "setProp",
+            "id": "m",
+            "key": "tonnage",
+            "value": 900.5
+          }
+        },
+        {
+          "stage": {
+            "kind": "setProp",
+            "id": "m",
+            "key": "vendor"
+          }
+        },
+        {
+          "commit": {
+            "message": "edit m",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "stage": {
+            "kind": "setProp",
+            "id": "m",
+            "key": "active",
+            "value": true
+          }
+        },
+        {
+          "commit": {
+            "message": "flag m",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "revert": 1,
+          "author": "Second User",
+          "date": "2026-10-07T13:00:00.000Z"
+        }
+      ],
+      "expect": {
+        "errors": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "head": {
+          "nodes": {
+            "m": {
+              "id": "m",
+              "type": "Machine",
+              "label": "m",
+              "props": {
+                "tonnage": 840,
+                "active": true,
+                "vendor": "Acme"
+              }
+            }
+          },
+          "edges": {}
+        },
+        "working": {
+          "nodes": {
+            "m": {
+              "id": "m",
+              "type": "Machine",
+              "label": "m",
+              "props": {
+                "tonnage": 840,
+                "active": true,
+                "vendor": "Acme"
+              }
+            }
+          },
+          "edges": {}
+        },
+        "staged": [],
+        "history": [
+          {
+            "message": "Revert \"edit m\"",
+            "author": "Second User",
+            "date": "2026-10-07T13:00:00.000Z",
+            "ops": [
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "vendor",
+                "value": "Acme"
+              },
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "tonnage",
+                "value": 840
+              },
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "note"
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "note",
+                "value": "hi"
+              },
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "tonnage",
+                "value": 900.5
+              },
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "vendor"
+              }
+            ],
+            "stats": {
+              "nodes": 0,
+              "edges": 0,
+              "props": 1
+            }
+          },
+          {
+            "message": "flag m",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "active",
+                "value": true
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "active"
+              }
+            ],
+            "stats": {
+              "nodes": 0,
+              "edges": 0,
+              "props": 1
+            }
+          },
+          {
+            "message": "edit m",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "note",
+                "value": "hi"
+              },
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "tonnage",
+                "value": 900.5
+              },
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "vendor"
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "vendor",
+                "value": "Acme"
+              },
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "tonnage",
+                "value": 840
+              },
+              {
+                "kind": "setProp",
+                "id": "m",
+                "key": "note"
+              }
+            ],
+            "stats": {
+              "nodes": 0,
+              "edges": 0,
+              "props": 1
+            }
+          },
+          {
+            "message": "add m",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "m",
+                  "type": "Machine",
+                  "label": "m",
+                  "props": {
+                    "vendor": "Acme",
+                    "tonnage": 840
+                  }
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeNode",
+                "id": "m"
+              }
+            ],
+            "stats": {
+              "nodes": 1,
+              "edges": 0,
+              "props": 0
+            }
+          }
+        ],
+        "health": {
+          "issues": [
+            {
+              "level": "warn",
+              "kind": "orphan",
+              "ref": "m",
+              "text": "Machine \"m\" has no relationships"
+            }
+          ],
+          "score": 0,
+          "counts": {
+            "nodes": 1,
+            "edges": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "revert an older commit",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "s",
+              "type": "Site",
+              "label": "s",
+              "props": {
+                "location": "Plant 1"
+              }
+            }
+          }
+        },
+        {
+          "commit": {
+            "message": "site",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "l",
+              "type": "Line",
+              "label": "l",
+              "props": {}
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "s-contains-l",
+              "from": "s",
+              "rel": "contains",
+              "to": "l"
+            }
+          }
+        },
+        {
+          "commit": {
+            "message": "line",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "stage": {
+            "kind": "setProp",
+            "id": "s",
+            "key": "location",
+            "value": "Plant 2"
+          }
+        },
+        {
+          "commit": {
+            "message": "move site",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "revert": 2,
+          "author": "Demo User",
+          "date": "2026-10-07T12:00:00.000Z",
+          "error": true
+        },
+        {
+          "revert": 1,
+          "author": "Demo User",
+          "date": "2026-10-07T12:00:00.000Z"
+        },
+        {
+          "revert": 3,
+          "author": "Demo User",
+          "date": "2026-10-07T12:00:00.000Z"
+        }
+      ],
+      "expect": {
+        "errors": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Node s still has 1 relationship(s)",
+          null,
+          null
+        ],
+        "head": {
+          "nodes": {},
+          "edges": {}
+        },
+        "working": {
+          "nodes": {},
+          "edges": {}
+        },
+        "staged": [],
+        "history": [
+          {
+            "message": "Revert \"site\"",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "removeNode",
+                "id": "s"
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "s",
+                  "type": "Site",
+                  "label": "s",
+                  "props": {
+                    "location": "Plant 2"
+                  }
+                }
+              }
+            ],
+            "stats": {
+              "nodes": -1,
+              "edges": 0,
+              "props": 0
+            }
+          },
+          {
+            "message": "Revert \"line\"",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "removeEdge",
+                "id": "s-contains-l"
+              },
+              {
+                "kind": "removeNode",
+                "id": "l"
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "l",
+                  "type": "Line",
+                  "label": "l",
+                  "props": {}
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "s-contains-l",
+                  "from": "s",
+                  "rel": "contains",
+                  "to": "l"
+                }
+              }
+            ],
+            "stats": {
+              "nodes": -1,
+              "edges": -1,
+              "props": 0
+            }
+          },
+          {
+            "message": "move site",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "setProp",
+                "id": "s",
+                "key": "location",
+                "value": "Plant 2"
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "setProp",
+                "id": "s",
+                "key": "location",
+                "value": "Plant 1"
+              }
+            ],
+            "stats": {
+              "nodes": 0,
+              "edges": 0,
+              "props": 1
+            }
+          },
+          {
+            "message": "line",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "l",
+                  "type": "Line",
+                  "label": "l",
+                  "props": {}
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "s-contains-l",
+                  "from": "s",
+                  "rel": "contains",
+                  "to": "l"
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeEdge",
+                "id": "s-contains-l"
+              },
+              {
+                "kind": "removeNode",
+                "id": "l"
+              }
+            ],
+            "stats": {
+              "nodes": 1,
+              "edges": 1,
+              "props": 0
+            }
+          },
+          {
+            "message": "site",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "s",
+                  "type": "Site",
+                  "label": "s",
+                  "props": {
+                    "location": "Plant 1"
+                  }
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeNode",
+                "id": "s"
+              }
+            ],
+            "stats": {
+              "nodes": 1,
+              "edges": 0,
+              "props": 0
+            }
+          }
+        ],
+        "health": {
+          "issues": [],
+          "score": 100,
+          "counts": {
+            "nodes": 0,
+            "edges": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "remove an edge then its node",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        {
+          "commit": {
+            "message": "pair",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "stage": {
+            "kind": "removeEdge",
+            "id": "a-feeds-b"
+          }
+        },
+        {
+          "stage": {
+            "kind": "removeNode",
+            "id": "b"
+          }
+        },
+        {
+          "commit": {
+            "message": "drop b",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "revert": 0,
+          "author": "Demo User",
+          "date": "2026-10-07T12:00:00.000Z"
+        }
+      ],
+      "expect": {
+        "errors": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "head": {
+          "nodes": {
+            "a": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            },
+            "b": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          "edges": {
+            "a-feeds-b": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        "working": {
+          "nodes": {
+            "a": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            },
+            "b": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          "edges": {
+            "a-feeds-b": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        "staged": [],
+        "history": [
+          {
+            "message": "Revert \"drop b\"",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "b",
+                  "type": "Machine",
+                  "label": "b",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "a-feeds-b",
+                  "from": "a",
+                  "rel": "feeds",
+                  "to": "b"
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeEdge",
+                "id": "a-feeds-b"
+              },
+              {
+                "kind": "removeNode",
+                "id": "b"
+              }
+            ],
+            "stats": {
+              "nodes": 1,
+              "edges": 1,
+              "props": 0
+            }
+          },
+          {
+            "message": "drop b",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "removeEdge",
+                "id": "a-feeds-b"
+              },
+              {
+                "kind": "removeNode",
+                "id": "b"
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "b",
+                  "type": "Machine",
+                  "label": "b",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "a-feeds-b",
+                  "from": "a",
+                  "rel": "feeds",
+                  "to": "b"
+                }
+              }
+            ],
+            "stats": {
+              "nodes": -1,
+              "edges": -1,
+              "props": 0
+            }
+          },
+          {
+            "message": "pair",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "a",
+                  "type": "Machine",
+                  "label": "a",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "b",
+                  "type": "Machine",
+                  "label": "b",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "a-feeds-b",
+                  "from": "a",
+                  "rel": "feeds",
+                  "to": "b"
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeEdge",
+                "id": "a-feeds-b"
+              },
+              {
+                "kind": "removeNode",
+                "id": "b"
+              },
+              {
+                "kind": "removeNode",
+                "id": "a"
+              }
+            ],
+            "stats": {
+              "nodes": 2,
+              "edges": 1,
+              "props": 0
+            }
+          }
+        ],
+        "health": {
+          "issues": [],
+          "score": 100,
+          "counts": {
+            "nodes": 2,
+            "edges": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "invalid operations are rejected",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          "error": true
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "x",
+              "type": "Spaceship",
+              "label": "x",
+              "props": {}
+            }
+          },
+          "error": true
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "a-feeds-missing",
+              "from": "a",
+              "rel": "feeds",
+              "to": "missing"
+            }
+          },
+          "error": true
+        },
+        {
+          "stage": {
+            "kind": "removeNode",
+            "id": "ghost"
+          },
+          "error": true
+        },
+        {
+          "stage": {
+            "kind": "removeEdge",
+            "id": "ghost"
+          },
+          "error": true
+        },
+        {
+          "stage": {
+            "kind": "setProp",
+            "id": "ghost",
+            "key": "k",
+            "value": "v"
+          },
+          "error": true
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "removeNode",
+            "id": "a"
+          },
+          "error": true
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "a-feeds-b",
+              "from": "b",
+              "rel": "feeds",
+              "to": "a"
+            }
+          },
+          "error": true
+        },
+        {
+          "commit": {
+            "message": "   ",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          },
+          "error": true
+        },
+        {
+          "commit": {
+            "message": "  trimmed message  ",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "commit": {
+            "message": "again",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          },
+          "error": true
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "z",
+              "type": "Machine",
+              "label": "z",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "revert": 0,
+          "author": "Demo User",
+          "date": "2026-10-07T12:00:00.000Z",
+          "error": true
+        },
+        {
+          "discard": true
+        },
+        {
+          "revert": 5,
+          "author": "Demo User",
+          "date": "2026-10-07T12:00:00.000Z",
+          "error": true
+        }
+      ],
+      "expect": {
+        "errors": [
+          null,
+          "Node a already exists",
+          "Unknown node type Spaceship",
+          "Relationship a-feeds-missing points at a missing node",
+          "Node ghost not found",
+          "Relationship ghost not found",
+          "Node ghost not found",
+          null,
+          null,
+          "Node a still has 1 relationship(s)",
+          "Relationship a-feeds-b already exists",
+          "A commit needs a message",
+          null,
+          "Nothing to commit",
+          null,
+          "Commit or discard staged changes first",
+          null,
+          "Commit missing-5 not found"
+        ],
+        "head": {
+          "nodes": {
+            "a": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            },
+            "b": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          "edges": {
+            "a-feeds-b": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        "working": {
+          "nodes": {
+            "a": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            },
+            "b": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          "edges": {
+            "a-feeds-b": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        "staged": [],
+        "history": [
+          {
+            "message": "trimmed message",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "a",
+                  "type": "Machine",
+                  "label": "a",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "b",
+                  "type": "Machine",
+                  "label": "b",
+                  "props": {
+                    "vendor": "x"
+                  }
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "a-feeds-b",
+                  "from": "a",
+                  "rel": "feeds",
+                  "to": "b"
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeEdge",
+                "id": "a-feeds-b"
+              },
+              {
+                "kind": "removeNode",
+                "id": "b"
+              },
+              {
+                "kind": "removeNode",
+                "id": "a"
+              }
+            ],
+            "stats": {
+              "nodes": 2,
+              "edges": 1,
+              "props": 0
+            }
+          }
+        ],
+        "health": {
+          "issues": [],
+          "score": 100,
+          "counts": {
+            "nodes": 2,
+            "edges": 1
+          }
+        }
+      }
+    },
+    {
+      "name": "health: orphans, duplicates, missing props",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {}
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "lonely",
+              "type": "Machine",
+              "label": "lonely",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "dup",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "p",
+              "type": "PLC",
+              "label": "p",
+              "props": {
+                "protocol": ""
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "sig",
+              "type": "Signal",
+              "label": "sig",
+              "props": {
+                "unit": "bar"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "p-publishes-sig",
+              "from": "p",
+              "rel": "publishes",
+              "to": "sig"
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "site",
+              "type": "Site",
+              "label": "site",
+              "props": {}
+            }
+          }
+        }
+      ],
+      "expect": {
+        "errors": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "head": {
+          "nodes": {},
+          "edges": {}
+        },
+        "working": {
+          "nodes": {
+            "a": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            },
+            "b": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {}
+            },
+            "lonely": {
+              "id": "lonely",
+              "type": "Machine",
+              "label": "lonely",
+              "props": {
+                "vendor": "x"
+              }
+            },
+            "p": {
+              "id": "p",
+              "type": "PLC",
+              "label": "p",
+              "props": {
+                "protocol": ""
+              }
+            },
+            "sig": {
+              "id": "sig",
+              "type": "Signal",
+              "label": "sig",
+              "props": {
+                "unit": "bar"
+              }
+            },
+            "site": {
+              "id": "site",
+              "type": "Site",
+              "label": "site",
+              "props": {}
+            }
+          },
+          "edges": {
+            "a-feeds-b": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            },
+            "dup": {
+              "id": "dup",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            },
+            "p-publishes-sig": {
+              "id": "p-publishes-sig",
+              "from": "p",
+              "rel": "publishes",
+              "to": "sig"
+            }
+          }
+        },
+        "staged": [
+          {
+            "kind": "addNode",
+            "node": {
+              "id": "a",
+              "type": "Machine",
+              "label": "a",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          {
+            "kind": "addNode",
+            "node": {
+              "id": "b",
+              "type": "Machine",
+              "label": "b",
+              "props": {}
+            }
+          },
+          {
+            "kind": "addNode",
+            "node": {
+              "id": "lonely",
+              "type": "Machine",
+              "label": "lonely",
+              "props": {
+                "vendor": "x"
+              }
+            }
+          },
+          {
+            "kind": "addEdge",
+            "edge": {
+              "id": "a-feeds-b",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          },
+          {
+            "kind": "addEdge",
+            "edge": {
+              "id": "dup",
+              "from": "a",
+              "rel": "feeds",
+              "to": "b"
+            }
+          },
+          {
+            "kind": "addNode",
+            "node": {
+              "id": "p",
+              "type": "PLC",
+              "label": "p",
+              "props": {
+                "protocol": ""
+              }
+            }
+          },
+          {
+            "kind": "addNode",
+            "node": {
+              "id": "sig",
+              "type": "Signal",
+              "label": "sig",
+              "props": {
+                "unit": "bar"
+              }
+            }
+          },
+          {
+            "kind": "addEdge",
+            "edge": {
+              "id": "p-publishes-sig",
+              "from": "p",
+              "rel": "publishes",
+              "to": "sig"
+            }
+          },
+          {
+            "kind": "addNode",
+            "node": {
+              "id": "site",
+              "type": "Site",
+              "label": "site",
+              "props": {}
+            }
+          }
+        ],
+        "history": [],
+        "health": {
+          "issues": [
+            {
+              "level": "warn",
+              "kind": "duplicate",
+              "ref": "dup",
+              "text": "Duplicate relationship a —feeds→ b (also a-feeds-b)"
+            },
+            {
+              "level": "info",
+              "kind": "missing-prop",
+              "ref": "b",
+              "text": "Machine \"b\" is missing \"vendor\""
+            },
+            {
+              "level": "warn",
+              "kind": "orphan",
+              "ref": "lonely",
+              "text": "Machine \"lonely\" has no relationships"
+            },
+            {
+              "level": "info",
+              "kind": "missing-prop",
+              "ref": "p",
+              "text": "PLC \"p\" is missing \"protocol\""
+            },
+            {
+              "level": "warn",
+              "kind": "orphan",
+              "ref": "site",
+              "text": "Site \"site\" has no relationships"
+            },
+            {
+              "level": "info",
+              "kind": "missing-prop",
+              "ref": "site",
+              "text": "Site \"site\" is missing \"location\""
+            }
+          ],
+          "score": 50,
+          "counts": {
+            "nodes": 6,
+            "edges": 3
+          }
+        }
+      }
+    },
+    {
+      "name": "health: empty graph",
+      "steps": [],
+      "expect": {
+        "errors": [],
+        "head": {
+          "nodes": {},
+          "edges": {}
+        },
+        "working": {
+          "nodes": {},
+          "edges": {}
+        },
+        "staged": [],
+        "history": [],
+        "health": {
+          "issues": [],
+          "score": 100,
+          "counts": {
+            "nodes": 0,
+            "edges": 0
+          }
+        }
+      }
+    }
+  ]
+}
