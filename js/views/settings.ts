@@ -1,5 +1,5 @@
 import { esc, field, need, onAll, onSubmit } from '../lib/dom.ts';
-import { createApiClient, normalizeBaseUrl } from '../lib/api.ts';
+import { createApiClient, isHttpUrl, isTilesHealth, normalizeBaseUrl } from '../lib/api.ts';
 import type { View } from './types.ts';
 
 const view: View = {
@@ -29,7 +29,7 @@ const view: View = {
           <p class="small soft">Keep data in this browser, or share it through the Tiles API (<code>docker compose up</code> starts one on port 8000). Pages move to the API one at a time.</p>
           <label class="row" style="gap:8px"><input type="radio" name="mode" value="local" ${ds.mode === 'local' ? 'checked' : ''} /> This browser only</label>
           <label class="row" style="gap:8px"><input type="radio" name="mode" value="api" ${ds.mode === 'api' ? 'checked' : ''} /> Tiles API</label>
-          <label class="field">API address<input type="url" name="apiUrl" value="${esc(ds.apiUrl)}" required /></label>
+          <label class="field">API address<input type="url" name="apiUrl" value="${esc(ds.apiUrl)}" placeholder="http://localhost:8000" /></label>
           <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
           <p class="small soft" data-api-status aria-live="polite"></p>
         </form>
@@ -44,7 +44,13 @@ const view: View = {
     });
     onSubmit(root, '#datasource', (form) => {
       const mode = (form.elements.namedItem('mode') as RadioNodeList).value === 'api' ? 'api' : 'local';
-      ctx.setDataSource({ mode, apiUrl: normalizeBaseUrl(field(form, 'apiUrl')) });
+      const apiUrl = normalizeBaseUrl(field(form, 'apiUrl'));
+      // Only API mode needs an address; local mode keeps the last good one.
+      if (mode === 'api' && !isHttpUrl(apiUrl)) {
+        ctx.toast('Enter the API address, e.g. http://localhost:8000');
+        return;
+      }
+      ctx.setDataSource({ mode, apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl });
       ctx.toast(mode === 'api' ? 'Using the Tiles API' : 'Using this browser only');
     });
     onAll(root, '[data-test-api]', 'click', async () => {
@@ -53,7 +59,9 @@ const view: View = {
       status.textContent = 'Checking…';
       try {
         const h = await createApiClient({ baseUrl: url, onError: (e) => ctx.toast(e.message) }).health();
-        status.textContent = `Connected: Tiles API ${h.version} (${h.env})`;
+        status.textContent = isTilesHealth(h)
+          ? `Connected: Tiles API ${h.version} (${h.env})`
+          : 'Something answered there, but it is not the Tiles API';
       } catch {
         status.textContent = 'Not reachable';
       }

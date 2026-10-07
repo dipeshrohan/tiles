@@ -753,6 +753,11 @@
 		}).join("; ");
 		return `The Tiles API answered ${status}`;
 	}
+	var isHttpUrl = (url) => /^https?:\/\/[^\s/]+/i.test(url);
+	function isTilesHealth(body) {
+		const h = body;
+		return h?.status === "ok" && typeof h.version === "string" && typeof h.env === "string";
+	}
 	function normalizeBaseUrl(url) {
 		return url.trim().replace(/\/+$/, "");
 	}
@@ -822,7 +827,7 @@
 			...source,
 			mode: "local"
 		};
-		if (param && /^https?:\/\//i.test(param)) return {
+		if (param && isHttpUrl(param)) return {
 			mode: "api",
 			apiUrl: normalizeBaseUrl(param)
 		};
@@ -2575,7 +2580,7 @@
           <p class="small soft">Keep data in this browser, or share it through the Tiles API (<code>docker compose up</code> starts one on port 8000). Pages move to the API one at a time.</p>
           <label class="row" style="gap:8px"><input type="radio" name="mode" value="local" ${ds.mode === "local" ? "checked" : ""} /> This browser only</label>
           <label class="row" style="gap:8px"><input type="radio" name="mode" value="api" ${ds.mode === "api" ? "checked" : ""} /> Tiles API</label>
-          <label class="field">API address<input type="url" name="apiUrl" value="${esc(ds.apiUrl)}" required /></label>
+          <label class="field">API address<input type="url" name="apiUrl" value="${esc(ds.apiUrl)}" placeholder="http://localhost:8000" /></label>
           <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
           <p class="small soft" data-api-status aria-live="polite"></p>
         </form>
@@ -2593,9 +2598,14 @@
 			});
 			onSubmit(root, "#datasource", (form) => {
 				const mode = form.elements.namedItem("mode").value === "api" ? "api" : "local";
+				const apiUrl = normalizeBaseUrl(field$1(form, "apiUrl"));
+				if (mode === "api" && !isHttpUrl(apiUrl)) {
+					ctx.toast("Enter the API address, e.g. http://localhost:8000");
+					return;
+				}
 				ctx.setDataSource({
 					mode,
-					apiUrl: normalizeBaseUrl(field$1(form, "apiUrl"))
+					apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl
 				});
 				ctx.toast(mode === "api" ? "Using the Tiles API" : "Using this browser only");
 			});
@@ -2608,7 +2618,7 @@
 						baseUrl: url,
 						onError: (e) => ctx.toast(e.message)
 					}).health();
-					status.textContent = `Connected: Tiles API ${h.version} (${h.env})`;
+					status.textContent = isTilesHealth(h) ? `Connected: Tiles API ${h.version} (${h.env})` : "Something answered there, but it is not the Tiles API";
 				} catch {
 					status.textContent = "Not reachable";
 				}
@@ -2784,6 +2794,7 @@
 		toast,
 		reset() {
 			clearAll();
+			save("datasource", dataSource);
 			Object.assign(state, freshState(), { ui: {} });
 			localRepo = state.repo;
 			persist();

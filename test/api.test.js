@@ -1,6 +1,14 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { ApiError, createApiClient, normalizeBaseUrl, resolveDataSource, DEFAULT_DATA_SOURCE } from '../js/lib/api.ts';
+import {
+  ApiError,
+  createApiClient,
+  isHttpUrl,
+  isTilesHealth,
+  normalizeBaseUrl,
+  resolveDataSource,
+  DEFAULT_DATA_SOURCE,
+} from '../js/lib/api.ts';
 
 // A fetch stand-in that records calls and answers from a queue.
 function fakeFetch(...answers) {
@@ -129,4 +137,18 @@ test('data source: saved choice, defaults and the ?api= override', () => {
   // Anything that isn't an http(s) URL is ignored, and a corrupt saved mode falls back to local.
   assert.deepEqual(resolveDataSource(null, '?api=javascript:alert(1)'), DEFAULT_DATA_SOURCE);
   assert.equal(resolveDataSource({ mode: 'cloud' }, '').mode, 'local');
+});
+
+test('only a real Tiles /health answer counts as connected', () => {
+  assert.equal(isTilesHealth({ status: 'ok', version: '0.1.0', env: 'development' }), true);
+  for (const other of [{ ok: true }, { status: 'ok' }, { status: 'up', version: '1', env: 'x' }, null, 'ok']) {
+    assert.equal(isTilesHealth(other), false);
+  }
+});
+
+test('http(s) URL check', () => {
+  assert.equal(isHttpUrl('http://localhost:8000'), true);
+  assert.equal(isHttpUrl('https://tiles.example.com'), true);
+  for (const bad of ['', 'localhost:8000', 'ftp://x', 'http://', 'javascript:alert(1)'])
+    assert.equal(isHttpUrl(bad), false);
 });

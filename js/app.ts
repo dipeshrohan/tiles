@@ -179,6 +179,7 @@ const ctx: Context = {
   toast,
   reset() {
     clearAll();
+    save('datasource', dataSource); // a preference, not workspace data
     Object.assign(state, freshState(), { ui: {} });
     localRepo = state.repo;
     persist();

@@ -5,6 +5,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
 import { createFakeApi } from './fake-api.js';
@@ -112,6 +113,32 @@ test('settings can switch to the Tiles API and test the connection', async (t) =
   await page.click('#datasource button[type=submit]');
   await page.reload();
   assert.equal(await page.locator('#datasource [name=mode][value=api]').isChecked(), true);
+  assert.equal(await page.inputValue('#datasource [name=apiUrl]'), apiUrl);
+
+  // Resetting the workspace keeps the data source.
+  page.once('dialog', (d) => d.accept());
+  await page.click('[data-reset]');
+  await page.reload();
+  assert.equal(await page.locator('#datasource [name=mode][value=api]').isChecked(), true);
+
+  // Something that isn't the Tiles API answering /health is not "Connected".
+  const other = createServer((req, res) => {
+    res.setHeader('access-control-allow-origin', '*');
+    res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}');
+  });
+  await new Promise((resolve) => other.listen(0, '127.0.0.1', resolve));
+  t.after(() => other.close());
+  await page.fill('#datasource [name=apiUrl]', `http://127.0.0.1:${other.address().port}`);
+  await page.click('[data-test-api]');
+  await page.waitForSelector('[data-api-status]:has-text("not the Tiles API")');
+
+  // Local mode can be saved without an API address.
+  await page.fill('#datasource [name=apiUrl]', '');
+  await page.check('#datasource [name=mode][value=local]');
+  await page.click('#datasource button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Using this browser only")');
+  await page.reload();
+  assert.equal(await page.locator('#datasource [name=mode][value=local]').isChecked(), true);
   assert.equal(await page.inputValue('#datasource [name=apiUrl]'), apiUrl);
 
   // The failed connection test logs a network error in the console; nothing else may.
