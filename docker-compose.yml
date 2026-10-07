@@ -28,7 +28,9 @@ services:
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U tiles -d tiles']
+      # Over TCP: on first start the image runs a temporary server on the Unix
+      # socket only, then restarts; checking the socket would report healthy too early.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U tiles -d tiles']
       interval: 2s
       timeout: 3s
       retries: 30
