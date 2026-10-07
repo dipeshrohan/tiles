@@ -4,11 +4,11 @@ import uuid
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, model_validator
 
 from tiles_api import ontology as o
 from tiles_api import ontology_store as store
-from tiles_api.identity import User, resolve_user
+from tiles_api.identity import User, require_dev_identity, resolve_user
 from tiles_api.settings import Settings
 from tiles_api.store import Conn, DbConn
 
@@ -66,6 +66,14 @@ class SetProp(BaseModel):
     id: Id
     key: Annotated[str, Field(min_length=1, max_length=200)]
     value: PropValue | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _no_explicit_null(cls, data: Any) -> Any:
+        # Omitting `value` removes the property; null is not a property value.
+        if isinstance(data, dict) and "value" in data and data["value"] is None:
+            raise ValueError("value must not be null; leave it out to remove the property")
+        return data
 
 
 OpIn = Annotated[AddNode | RemoveNode | AddEdge | RemoveEdge | SetProp, Field(discriminator="kind")]
@@ -137,7 +145,9 @@ def _run(fn: Any, *args: Any) -> Any:
 
 
 @router.get("/sites", response_model=list[Site], tags=["sites"])
-def list_sites(conn: DbConn) -> list[dict[str, Any]]:
+def list_sites(conn: DbConn, request: Request) -> list[dict[str, Any]]:
+    settings: Settings = request.app.state.settings
+    require_dev_identity(settings)
     return conn.execute(
         "SELECT s.id, s.slug, s.name, o.slug AS org FROM sites s JOIN orgs o ON o.id = s.org_id ORDER BY o.slug, s.slug"
     ).fetchall()

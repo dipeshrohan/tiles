@@ -9,6 +9,7 @@ JSON-shaped dicts, exactly as the browser stores them.
 import copy
 import math
 import uuid
+from datetime import UTC, datetime
 from typing import Any, Literal, NotRequired, TypedDict
 
 PropValue = str | int | float | bool
@@ -206,6 +207,11 @@ def discard(repo: Repo) -> Repo:
     return {**repo, "staged": []}
 
 
+def now_iso() -> str:
+    """The browser's new Date().toISOString(): UTC, milliseconds, Z."""
+    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def new_commit_id() -> str:
     return f"c{uuid.uuid4().hex[:12]}"
 
@@ -222,7 +228,7 @@ def make_commit(head: Graph, staged: list[Op], info: CommitInfo, now: str) -> tu
         "id": new_commit_id(),
         "message": message,
         "author": info["author"],
-        "date": info.get("date") or now,
+        "date": info.get("date") or now or now_iso(),
         "ops": copy.deepcopy(staged),
         "inverses": inverses,
         "stats": diff_stats(staged),
