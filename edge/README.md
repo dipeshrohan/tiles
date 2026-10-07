@@ -62,7 +62,9 @@ While running, the agent never gives up on a network problem. It retries with a 
 - **When the network is cut**, readings pile up on disk and the forwarder retries with a growing delay, up to a minute. When the network is back, the backlog goes out oldest first, then new readings follow.
 - **When the agent restarts** (or the host does), the file is still there and sending resumes where it stopped. A batch that was in flight when the agent stopped is sent again; Tiles keeps one reading per signal and time (T2.06), so nothing is doubled.
 - **The file is bounded.** At `buffer_max_samples` readings (20 million by default, a few GB), the oldest make room and are counted as dropped. Size it for the longest outage you want to ride out: one signal a second is 86,400 readings a day.
-- **A batch Tiles can never take** (it answers that the batch is invalid) is set aside and counted, so it can't hold up the rest. If Tiles rejects the agent's token, readings are kept until it is registered again.
+- **A reading Tiles can never take** (it answers that it is invalid) is set aside and counted as rejected, so it can't hold up the rest. The forwarder halves a refused batch until the bad reading is alone, so the good ones around it still go; a batch Tiles finds too large is split the same way. If Tiles rejects the agent's token, readings are kept until it is registered again.
+- **If the disk is full or failing**, readings that can't be written are counted as dropped, and the status says why until writing works again. The connectors carry on.
+- **The file is private**: the agent creates it, and its folder if needed, readable by the agent's user only.
 
 Every heartbeat reports the buffer: readings waiting, the oldest one's time, how many were sent, dropped and rejected, and the current problem, if any. Tiles shows it under Settings → Edge agents. `tiles-edge check` doesn't use the buffer.
 

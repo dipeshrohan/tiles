@@ -2869,7 +2869,7 @@
 		if (!b) return "—";
 		const tone = b.dropped > 0 ? "bad" : b.problem ? "warn" : "good";
 		const since = b.oldest_at ? `, oldest from ${new Date(b.oldest_at).toLocaleString("en-GB")}` : "";
-		const counts = `${b.sent} sent, ${b.dropped} dropped (buffer full), ${b.rejected} rejected by Tiles`;
+		const counts = `${b.sent} sent, ${b.dropped} dropped (buffer full or not writable), ${b.rejected} rejected by Tiles`;
 		return `<span class="badge ${tone}" title="${esc(`${b.queued} waiting${since}. ${counts}.${b.problem ? ` ${b.problem}` : ""}`)}">${esc(b.queued.toLocaleString("en-GB"))} queued</span>`;
 	}
 	function agentStatus(a) {

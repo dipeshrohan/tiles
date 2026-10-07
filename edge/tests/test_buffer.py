@@ -1,5 +1,7 @@
 """Store and forward (T2.04): the disk buffer and the forwarder, including a long outage."""
 
+import os
+import stat
 import threading
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -27,6 +29,8 @@ class FlakyTiles:
         self.errors: list[Exception] = []
         self.received: list[dict[str, Any]] = []
         self.batches = 0
+        self.bad: set[str] = set()  # times of samples Tiles can never take
+        self.max_batch = 1_000_000
 
     def post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         assert path == "/agent/samples"
@@ -34,6 +38,10 @@ class FlakyTiles:
             raise self.errors.pop(0)
         if self.down.is_set():
             raise TransientError("can't reach tiles.example.com: Connection refused")
+        if len(body["samples"]) > self.max_batch:
+            raise RejectedError("Tiles answered 413: Request Entity Too Large", 413)
+        if any(s["at"] in self.bad for s in body["samples"]):
+            raise RejectedError("Tiles answered 422: value must be finite", 422)
         self.received.extend(body["samples"])
         self.batches += 1
         return {"accepted": len(body["samples"])}
@@ -154,18 +162,91 @@ def test_tiles_without_an_ingest_endpoint_keeps_samples(tmp_path: Path) -> None:
         buffer.close()
 
 
-def test_a_batch_tiles_can_never_take_is_set_aside_not_retried_forever(tmp_path: Path) -> None:
+def drain(forwarder: Forwarder, buffer: DiskBuffer) -> None:
+    for _ in range(200):
+        if not len(buffer):
+            return
+        forwarder.send_once()
+    raise AssertionError("the buffer didn't drain")
+
+
+def test_only_the_sample_tiles_can_never_take_is_set_aside(tmp_path: Path) -> None:
     buffer = DiskBuffer(tmp_path / "b.sqlite")
     tiles = FlakyTiles()
-    tiles.errors = [RejectedError("Tiles answered 422: value must be finite", 422)]
-    forwarder = Forwarder(buffer, tiles, batch_size=2)
+    tiles.bad = {sample(6).at.isoformat()}
+    forwarder = Forwarder(buffer, tiles, batch_size=8)
+    try:
+        buffer.put_many([sample(i) for i in range(20)])
+        drain(forwarder, buffer)
+        assert [s["at"] for s in tiles.received] == [sample(i).at.isoformat() for i in range(20) if i != 6]
+        assert (buffer.counter("sent"), buffer.counter("rejected")) == (19, 1)
+        assert forwarder.status()["rejected"] == 1  # the problem itself clears once samples go again
+    finally:
+        buffer.close()
+
+
+def test_a_batch_too_large_is_split_not_dropped(tmp_path: Path) -> None:
+    buffer = DiskBuffer(tmp_path / "b.sqlite")
+    tiles = FlakyTiles()
+    tiles.max_batch = 3
+    forwarder = Forwarder(buffer, tiles, batch_size=10)
+    try:
+        buffer.put_many([sample(i) for i in range(25)])
+        drain(forwarder, buffer)
+        assert [s["at"] for s in tiles.received] == [sample(i).at.isoformat() for i in range(25)]
+        assert (buffer.counter("sent"), buffer.counter("rejected")) == (25, 0)
+    finally:
+        buffer.close()
+
+
+def test_samples_evicted_while_in_flight_count_by_how_the_batch_ends(tmp_path: Path) -> None:
+    buffer = DiskBuffer(tmp_path / "b.sqlite", max_samples=3)
     try:
         buffer.put_many([sample(i) for i in range(3)])
-        assert forwarder.send_once() == 0
-        assert (len(buffer), buffer.counter("rejected")) == (1, 2)
-        assert "was rejected" in forwarder.status()["problem"]
-        assert forwarder.send_once() == 1  # the rest still goes
-        assert [s["at"] for s in tiles.received] == [sample(2).at.isoformat()]
+        batch = buffer.oldest(2)
+        buffer.put_many([sample(3), sample(4)])  # full: evicts the two in flight
+        assert buffer.counter("dropped") == 0
+        buffer.ack(batch[-1].seq)  # Tiles had them after all
+        assert (buffer.counter("sent"), buffer.counter("dropped")) == (2, 0)
+
+        batch = buffer.oldest(2)
+        buffer.put_many([sample(5), sample(6)])
+        buffer.oldest(2)  # that batch never went: those two are lost
+        assert (buffer.counter("sent"), buffer.counter("dropped")) == (2, 2)
+    finally:
+        buffer.close()
+
+
+def test_the_buffer_is_private_to_the_agent(tmp_path: Path) -> None:
+    old = os.umask(0o022)
+    try:
+        path = tmp_path / "new-folder" / "b.sqlite"
+        buffer = DiskBuffer(path)
+        buffer.put(sample(0))
+    finally:
+        os.umask(old)
+    try:
+        assert stat.S_IMODE(path.parent.stat().st_mode) == 0o700
+        for f in (path, path.with_name("b.sqlite-wal")):
+            assert stat.S_IMODE(f.stat().st_mode) == 0o600, f
+    finally:
+        buffer.close()
+
+
+def test_a_reading_that_cant_be_stored_is_counted_not_raised(tmp_path: Path) -> None:
+    buffer = DiskBuffer(tmp_path / "b.sqlite")
+    forwarder = Forwarder(buffer, FlakyTiles())
+    try:
+        pages = buffer._db.execute("PRAGMA page_count").fetchone()[0]
+        buffer._db.execute(f"PRAGMA max_page_count = {pages}")  # the disk is full
+        for i in range(500):
+            buffer.put(Sample("s", T0 + timedelta(seconds=i), "x" * 200, "good"))  # never raises
+        status = forwarder.status()
+        assert status["dropped"] > 0 and status["dropped"] == buffer.lost
+        assert "lost" in status["problem"] and "full" in status["problem"]
+        buffer._db.execute("PRAGMA max_page_count = 1000000")  # space again
+        buffer.put(sample(0))
+        assert buffer.write_problem == "" and forwarder.status()["problem"] == ""
     finally:
         buffer.close()
 

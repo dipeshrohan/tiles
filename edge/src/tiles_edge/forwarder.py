@@ -36,6 +36,8 @@ class Forwarder:
         self.buffer = buffer
         self.client = client
         self.batch_size = batch_size
+        self._limit = batch_size  # smaller while narrowing down a batch Tiles refused
+        self._again = False  # the last batch was split or set aside: carry on without waiting
         self.max_retry_seconds = max_retry_seconds
         self.idle_seconds = idle_seconds
         self.jitter = jitter
@@ -59,11 +61,13 @@ class Forwarder:
         oldest = self.buffer.oldest_time()
         with self._lock:
             problem = self._problem
+        if self.buffer.write_problem:  # readings are being lost: that comes first
+            problem = f"readings can't be stored, so they are lost: {self.buffer.write_problem}"
         return {
             "queued": len(self.buffer),
             "oldest_at": oldest.isoformat() if oldest else None,
             "sent": self.buffer.counter("sent"),
-            "dropped": self.buffer.counter("dropped"),
+            "dropped": self.buffer.counter("dropped") + self.buffer.lost,
             "rejected": self.buffer.counter("rejected"),
             "problem": problem[:300],
         }
@@ -81,7 +85,8 @@ class Forwarder:
 
     def send_once(self) -> int:
         """Sends one batch. Returns how many samples went (0 when there was nothing, or it failed)."""
-        batch = self.buffer.oldest(self.batch_size)
+        self._again = False
+        batch = self.buffer.oldest(self._limit)
         if not batch:
             return 0
         body = {
@@ -102,20 +107,28 @@ class Forwarder:
             self._set_problem(str(e))
             return 0
         except RejectedError as e:
-            self._failures += 1
             if e.status in (400, 413, 422):
-                # Tiles can't take this batch as it is, and never will: set it aside rather than
-                # block everything behind it. It is counted (and logged) as rejected.
+                if len(batch) > 1:
+                    # Too big, or one bad sample among good ones: try halves until the bad one
+                    # is alone, so only it is set aside. No wait: this is not Tiles being away.
+                    self._limit = max(1, len(batch) // 2)
+                    self._again = True
+                    return 0
+                # Tiles can't take this sample, and never will: set it aside rather than block
+                # everything behind it. It is counted (and logged) as rejected.
                 self.buffer.reject(batch[-1].seq)
-                log.error("Tiles rejected a batch of samples", extra={"error": str(e), "samples": len(batch)})
-                self._set_problem(f"a batch of {len(batch)} samples was rejected: {e}")
+                log.error("Tiles rejected a sample", extra={"error": str(e), "signal": batch[0].sample.signal})
+                self._set_problem(f"a sample of {batch[0].sample.signal} was rejected: {e}")
+                self._again = True
                 return 0
+            self._failures += 1
             if e.status == 404:
                 self._set_problem("Tiles doesn't accept samples yet (no ingest endpoint); keeping them")
             else:  # 401/403: the heartbeat reports the token problem; keep the samples meanwhile
                 self._set_problem(str(e))
             return 0
         self.buffer.ack(batch[-1].seq)
+        self._limit = min(self._limit * 2, self.batch_size)  # back to full batches step by step
         self._failures = 0
         self._set_problem("")
         return len(batch)
@@ -128,7 +141,7 @@ class Forwarder:
                 self._failures += 1
                 self._set_problem(f"{type(e).__name__}: {e}")
                 sent = 0
-            if sent:
+            if sent or self._again:
                 continue  # more backlog? go again straight away
             if self._failures:
                 self._wait()

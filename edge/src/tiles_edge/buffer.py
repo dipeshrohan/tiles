@@ -7,9 +7,14 @@ and deleting means the batch goes again (at least once; Tiles keeps one copy
 per signal and time). The file survives restarts. It is bounded: when it holds
 `max_samples`, the oldest make room and are counted as dropped, so a very long
 outage loses its oldest data rather than filling the disk.
+
+The file holds plant data, so it is created readable by the agent's user only
+(SQLite gives its -wal and -shm files the same mode).
 """
 
 import json
+import logging
+import os
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -17,6 +22,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from tiles_edge.samples import Sample
+
+log = logging.getLogger("tiles_edge.buffer")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS samples (
@@ -51,7 +58,9 @@ class DiskBuffer:
         self.path = path
         self.max_samples = max_samples
         try:
-            path.parent.mkdir(parents=True, exist_ok=True)
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            os.close(os.open(path, os.O_CREAT | os.O_WRONLY, 0o600))
+            os.chmod(path, 0o600)  # also an older file made with a looser umask
             self._db = sqlite3.connect(path, check_same_thread=False, isolation_level=None)
             self._db.execute("PRAGMA journal_mode=WAL")
             # NORMAL: each commit is safe from an agent crash; a power cut may lose the last
@@ -61,6 +70,14 @@ class DiskBuffer:
         except (sqlite3.Error, OSError) as e:
             raise BufferError(f"can't open the buffer {path}: {e}") from None
         self._lock = threading.Lock()
+        # Rows the forwarder has taken but Tiles hasn't answered for yet (seq <= _in_flight). If a
+        # full buffer evicts some of them meanwhile, they count as sent, rejected or dropped by
+        # how that batch ends, not as dropped straight away.
+        self._in_flight = 0
+        self._evicted_in_flight = 0
+        # Readings that couldn't be written (disk full, I/O error): counted, and the reason kept.
+        self.lost = 0
+        self.write_problem = ""
         self._count: int = int(self._db.execute("SELECT count(*) FROM samples").fetchone()[0])
 
     def close(self) -> None:
@@ -79,7 +96,27 @@ class DiskBuffer:
         return int(row[0]) if row else 0
 
     def put(self, sample: Sample) -> None:
-        self.put_many([sample])
+        """The connectors' sink. Never raises into their protocol callbacks: a reading that can't
+        be written is counted as lost and the reason shows in the heartbeat until a write works."""
+        try:
+            self.put_many([sample])
+        except BufferError as e:
+            with self._lock:
+                self.lost += 1
+                first = not self.write_problem
+                self.write_problem = str(e)
+            if first:
+                log.error("readings are being lost", extra={"error": str(e)})
+            return
+        if self.write_problem:
+            with self._lock:
+                self.write_problem = ""
+            log.info("the buffer is writable again", extra={"lost": self.lost})
+
+    def _settle_in_flight(self, outcome: str) -> None:
+        if self._evicted_in_flight:
+            self._add_counter(outcome, self._evicted_in_flight)
+        self._in_flight = self._evicted_in_flight = 0
 
     def put_many(self, samples: list[Sample]) -> None:
         if not samples:
@@ -91,24 +128,34 @@ class DiskBuffer:
                 self._db.executemany("INSERT INTO samples (signal, at_us, value, quality) VALUES (?, ?, ?, ?)", rows)
                 self._count += len(rows)
                 over = self._count - self.max_samples
+                in_flight = 0
                 if over > 0:  # full: the oldest make room
+                    in_flight = self._db.execute(
+                        "SELECT count(*) FROM (SELECT seq FROM samples ORDER BY seq LIMIT ?) WHERE seq <= ?",
+                        (over, self._in_flight),
+                    ).fetchone()[0]
                     self._db.execute(
                         "DELETE FROM samples WHERE seq IN (SELECT seq FROM samples ORDER BY seq LIMIT ?)", (over,)
                     )
-                    self._add_counter("dropped", over)
+                    self._add_counter("dropped", over - in_flight)
                     self._count -= over
                 self._db.execute("COMMIT")
+                self._evicted_in_flight += in_flight
             except sqlite3.Error as e:
-                self._db.execute("ROLLBACK")
+                if self._db.in_transaction:
+                    self._db.execute("ROLLBACK")
                 self._count = int(self._db.execute("SELECT count(*) FROM samples").fetchone()[0])
                 raise BufferError(f"can't write to the buffer {self.path}: {e}") from None
 
     def oldest(self, limit: int) -> list[Queued]:
-        """Up to `limit` samples, oldest first; they stay until acked."""
+        """Up to `limit` samples, oldest first; they stay until acked. A batch taken earlier and
+        neither acked nor rejected went nowhere."""
         with self._lock:
+            self._settle_in_flight("dropped")
             rows = self._db.execute(
                 "SELECT seq, signal, at_us, value, quality FROM samples ORDER BY seq LIMIT ?", (limit,)
             ).fetchall()
+            self._in_flight = rows[-1][0] if rows else 0
         return [
             Queued(seq, Sample(signal, datetime.fromtimestamp(at_us / 1_000_000, UTC), json.loads(value), quality))
             for seq, signal, at_us, value, quality in rows
@@ -120,6 +167,7 @@ class DiskBuffer:
             self._db.execute("BEGIN IMMEDIATE")
             deleted = self._db.execute("DELETE FROM samples WHERE seq <= ?", (up_to_seq,)).rowcount
             self._add_counter("sent", deleted)
+            self._settle_in_flight("sent")
             self._db.execute("COMMIT")
             self._count -= deleted
 
@@ -129,6 +177,7 @@ class DiskBuffer:
             self._db.execute("BEGIN IMMEDIATE")
             deleted = self._db.execute("DELETE FROM samples WHERE seq <= ?", (up_to_seq,)).rowcount
             self._add_counter("rejected", deleted)
+            self._settle_in_flight("rejected")
             self._db.execute("COMMIT")
             self._count -= deleted
 

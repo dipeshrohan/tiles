@@ -143,7 +143,7 @@ export function bufferSummary(a: Pick<EdgeAgent, 'buffer'>): string {
   if (!b) return '—';
   const tone = b.dropped > 0 ? 'bad' : b.problem ? 'warn' : 'good';
   const since = b.oldest_at ? `, oldest from ${new Date(b.oldest_at).toLocaleString('en-GB')}` : '';
-  const counts = `${b.sent} sent, ${b.dropped} dropped (buffer full), ${b.rejected} rejected by Tiles`;
+  const counts = `${b.sent} sent, ${b.dropped} dropped (buffer full or not writable), ${b.rejected} rejected by Tiles`;
   const title = `${b.queued} waiting${since}. ${counts}.${b.problem ? ` ${b.problem}` : ''}`;
   return `<span class="badge ${tone}" title="${esc(title)}">${esc(b.queued.toLocaleString('en-GB'))} queued</span>`;
 }
