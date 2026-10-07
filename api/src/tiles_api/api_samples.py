@@ -17,7 +17,7 @@ from datetime import timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Header, HTTPException, status
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, Strict
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, Strict, field_validator
 
 from tiles_api.api_agents import calling_agent
 from tiles_api.store import DbConn, one
@@ -29,10 +29,12 @@ MAX_BATCH = 10_000
 MAX_AHEAD = timedelta(days=1)
 
 SignalTag = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,127}$")]
+# Whole numbers are stored as doubles, which hold every integer up to 2^53 exactly.
+EXACT_INTEGERS = 2**53
 Reading = (
     Annotated[bool, Strict()]  # first, so true/false stay booleans rather than becoming 1/0
     | Annotated[float, Field(allow_inf_nan=False)]
-    | Annotated[str, Field(max_length=1000)]
+    | Annotated[str, Field(max_length=1000, pattern=r"^[^\x00]*$")]  # PostgreSQL text can't hold NUL
 )
 
 
@@ -42,6 +44,15 @@ class SampleIn(BaseModel):
     at: AwareDatetime
     value: Reading
     quality: Literal["good", "uncertain", "bad"] = "good"
+
+    @field_validator("value", mode="before")
+    @classmethod
+    def _exact(cls, value: object) -> object:
+        """Refuse an integer a double would change (e.g. a 64-bit counter past 2^53) rather than store
+        a different number; the agent then sets that one reading aside."""
+        if isinstance(value, int) and not isinstance(value, bool) and abs(value) > EXACT_INTEGERS:
+            raise ValueError(f"{value} is too large to store exactly (the limit is ±2^53)")
+        return value
 
 
 class SamplesIn(BaseModel):

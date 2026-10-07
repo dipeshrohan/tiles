@@ -25,7 +25,8 @@ UPGRADE = """
 CREATE TABLE samples (
     signal_id   uuid NOT NULL REFERENCES signals (id) ON DELETE CASCADE,
     at          timestamptz NOT NULL,
-    value       double precision CHECK (value = value AND value NOT IN ('Infinity', '-Infinity')),
+    -- PostgreSQL counts NaN as equal to itself, so it is excluded by name.
+    value       double precision CHECK (value NOT IN ('NaN', 'Infinity', '-Infinity')),
     value_text  text,
     value_bool  boolean,
     quality     text NOT NULL DEFAULT 'good' CHECK (quality IN ('good', 'uncertain', 'bad')),

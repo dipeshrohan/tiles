@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psycopg
+import pytest
 from fastapi.testclient import TestClient
 from test_agents import ADMIN, agent_auth, api, register, site  # noqa: F401 - api and site are fixtures
 
@@ -80,6 +81,8 @@ def test_a_batch_with_a_bad_reading_stores_nothing(api: TestClient, site: str, d
         {**good, "surprise": 1},
         reading("press1.pressure", datetime.now(UTC) + timedelta(days=2), 1.0),
         reading("press1.pressure", T0, "x" * 1001),
+        reading("press1.pressure", T0, "a\u0000b"),  # PostgreSQL text can't hold NUL
+        reading("press1.pressure", T0, 2**60 + 1),  # a double would store 2^60
     ):
         res = post(api, token, [good, bad])
         assert res.status_code == 422, bad
@@ -98,6 +101,30 @@ def test_a_late_reading_goes_into_a_compressed_chunk(api: TestClient, site: str,
     late = [reading("oven.temperature", old, 180.0), reading("oven.temperature", old + timedelta(seconds=1), 181.0)]
     assert post(api, token, late).json() == {"received": 2, "stored": 1}
     assert [r[1] for r in stored(database_url, "oven.temperature")] == [180.0, 181.0]
+
+
+def test_whole_numbers_up_to_2_53_are_stored_exactly(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    token = register(api, site)["token"]
+    assert (
+        post(
+            api, token, [reading("meter.count", T0, 2**53), reading("meter.count", T0 + timedelta(seconds=1), -7)]
+        ).status_code
+        == 200
+    )
+    assert [r[1] for r in stored(database_url, "meter.count")] == [2.0**53, -7.0]
+
+
+def test_the_table_refuses_numbers_that_arent_finite(site: str, database_url: str) -> None:  # noqa: F811
+    with psycopg.connect(database_url) as conn:
+        signal = conn.execute("INSERT INTO signals (site_id, tag) VALUES (%s, 'checks.finite') RETURNING id", [site])
+        signal_id = signal.fetchone()
+        assert signal_id is not None
+        for bad in ("NaN", "Infinity", "-Infinity"):
+            with pytest.raises(psycopg.errors.CheckViolation), conn.transaction():
+                conn.execute(
+                    "INSERT INTO samples (signal_id, at, value) VALUES (%s, now(), %s::float8)", [signal_id[0], bad]
+                )
+        conn.rollback()
 
 
 def test_policies_compress_after_a_week_and_keep_five_years(database_url: str) -> None:
