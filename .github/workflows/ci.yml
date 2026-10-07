@@ -71,7 +71,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U tiles -d tiles"
+          --health-cmd "pg_isready -h 127.0.0.1 -U tiles -d tiles"
           --health-interval 2s
           --health-timeout 3s
           --health-retries 30
@@ -103,6 +103,18 @@ jobs:
           curl -fsS -o /dev/null http://localhost:5173/
           docker compose exec -T db psql -U tiles -d tiles -tAc "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'" | grep -q .
           docker compose run --rm migrate tiles-migrate current | tee /dev/stderr | grep -q '(head)'
+      - name: Sign in through Keycloak and call the API with the token
+        run: |
+          token() {
+            curl -fsS -X POST http://localhost:8080/realms/tiles/protocol/openid-connect/token \
+              -d grant_type=password -d client_id=tiles-dev-cli -d scope=openid \
+              -d username="$1" -d password="$2" | jq -er .access_token
+          }
+          t=$(token demo demo)
+          curl -fsS http://localhost:8000/me -H "Authorization: Bearer $t" | tee /dev/stderr | jq -e '.via == "oidc" and .email == "demo@example.com"'
+          site=$(curl -fsS http://localhost:8000/sites -H "Authorization: Bearer $t" | jq -er '.[0].id')
+          curl -fsS -o /dev/null "http://localhost:8000/sites/$site/ontology/graph" -H "Authorization: Bearer $t"
+          test "$(curl -sS -o /dev/null -w '%{http_code}' http://localhost:8000/me -H "Authorization: Bearer ${t%?}x")" = 401
       - name: Ontology round trip through the API
         run: |
           site=$(curl -fsS http://localhost:8000/sites | jq -er '.[0].id')

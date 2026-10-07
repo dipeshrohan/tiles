@@ -262,7 +262,7 @@ function sourceBar(ctx: Context): string {
   if (o.status === 'loading')
     return '<div class="card source-bar" aria-live="polite">Loading the ontology from the Tiles API…</div>';
   if (o.status === 'error')
-    return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px"><a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
+    return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? '<button class="btn sm primary" data-sign-in>Sign in</button>' : ''}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
   const { head, history, staged } = ctx.state.repo;
   const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
   return `<div class="card source-bar small" aria-live="polite">
@@ -329,6 +329,7 @@ const view: View = {
     const stageOps = (ops: Op[], ok?: string) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
     const stageOp = (op: Op, ok?: string) => stageOps([op], ok);
     onAll(root, '[data-refresh]', 'click', () => void ctx.ontology.reload());
+    onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());
     onAll(root, '[data-import-demo]', 'click', async (el) => {
       el.setAttribute('disabled', '');
       const ops = historyOps(seedOntology());

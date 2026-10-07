@@ -67,14 +67,20 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_REDIS_URL` | `redis://localhost:6379/0` | Redis connection |
 | `TILES_READY_TIMEOUT` | `2.0` | Seconds each `/ready` check may take |
 | `TILES_DB_POOL_MAX` | `10` | Maximum database connections |
-| `TILES_DEV_USER_EMAIL`, `TILES_DEV_USER_NAME` | `demo@example.com`, `Demo User` | Who requests act as before sign-in exists (not in production) |
+| `TILES_OIDC_ISSUER` | unset (sign-in off) | OpenID Connect issuer; must equal the tokens' `iss` (the address browsers use) |
+| `TILES_OIDC_JWKS_URL` | discovered from the issuer | Where the API fetches signing keys, if it reaches the provider by another address (Compose uses `http://keycloak:8080/…`) |
+| `TILES_OIDC_AUDIENCE` | `tiles-api` | Audience tokens must carry |
+| `TILES_OIDC_CLIENT_ID` | `tiles-web` | Client the browser signs in as (sent to it by `/auth/config`) |
+| `TILES_OIDC_DEFAULT_ORG` | `demo` | Organisation for users whose token has no `tiles_org` claim |
+| `TILES_DEV_USER_EMAIL`, `TILES_DEV_USER_NAME` | `demo@example.com`, `Demo User` | Who requests without a token act as, outside production |
 
 ## Endpoints
 
 - `GET /health`: liveness. Always 200 while the process runs; does not touch dependencies.
 - `GET /ready`: readiness. 200 when PostgreSQL and Redis answer, otherwise 503 with which check failed (no connection details in the response).
 - `GET /docs`: OpenAPI docs.
-- `GET /sites`: sites you can open (id, slug, name, org). `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
+- `GET /auth/config`, `GET /me`: sign-in settings and the current user (see Sign-in).
+- `GET /sites`: sites in your organisation (id, slug, name, org). `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
 
 ### Ontology
 
@@ -94,4 +100,21 @@ Each site has one committed graph (`head`) and a commit history. Each user stage
 
 Ops, graphs and commits have the same JSON shape as in the browser (`js/lib/types.ts`). The logic in `tiles_api/ontology.py` is a port of `js/lib/ontology.ts`. Both run the shared fixture suite in `test/fixtures/ontology-parity.json`, and the API tests replay it over HTTP too. After changing the TypeScript behaviour, regenerate the fixtures with `UPDATE_FIXTURES=1 npx vitest run test/ontology-parity.test.js`, then make the Python port pass.
 
-Until single sign-on lands (T1.16), requests act as `TILES_DEV_USER_EMAIL` (default `demo@example.com`), or as the email in an `X-Tiles-User` header. With `TILES_ENV=production` they are refused with 401.
+### Sign-in
+
+The API accepts OpenID Connect access tokens (`Authorization: Bearer …`) from `TILES_OIDC_ISSUER`. It checks the signature against the issuer's keys, and also the issuer, audience and expiry; a token that fails any check gets 401.
+
+- **First sign-in** creates the user. It also creates their organisation if needed, taken from a `tiles_org` claim or `TILES_OIDC_DEFAULT_ORG`.
+- **Roles:** the first visit to a site makes the user a member, with the highest role their token grants (`tiles-admin`, `tiles-engineer`, otherwise viewer). After that the stored membership counts.
+- **Organisations:** users see only their organisation's sites; another organisation's site is a 403.
+
+`GET /auth/config` (public) tells the browser where and as which client to sign in, and `GET /me` says who you are.
+
+Requests without a token are refused in production. Elsewhere they act as `TILES_DEV_USER_EMAIL` (default `demo@example.com`) or as the email in an `X-Tiles-User` header, so tests and curl need no sign-in.
+
+In Docker Compose, Keycloak runs at http://localhost:8080 with the `tiles` realm from `keycloak/tiles-realm.json`. It has three users: `demo`/`demo` (engineer), `admin`/`admin` (admin) and `viewer`/`viewer` (viewer). For scripts, the dev-only `tiles-dev-cli` client allows the password grant:
+
+```bash
+curl -s -X POST http://localhost:8080/realms/tiles/protocol/openid-connect/token \
+  -d grant_type=password -d client_id=tiles-dev-cli -d username=demo -d password=demo | jq -r .access_token
+```

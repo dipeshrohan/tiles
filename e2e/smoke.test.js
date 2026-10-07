@@ -243,6 +243,66 @@ test('switching back to local after a failed API connection restores this browse
   );
 });
 
+test('signing in to the Tiles API (OIDC with PKCE), using it, and signing out', async (t) => {
+  const fake = createFakeApi({ oidc: true, requireSignIn: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+
+  // API mode only through ?api=, so the sign-in round trip must bring it back.
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  await page.goto(`${home}#/ontology`);
+  await page.waitForSelector('.source-bar [data-sign-in]'); // the API refuses us until we sign in
+  await page.goto(`${home}#/settings`);
+  await page.waitForSelector('#account:has-text("Sign in to use this Tiles API")');
+  await page.click('#account [data-sign-in]');
+
+  // Off to the provider and back: signed in, on the same page, callback params gone.
+  await page.waitForSelector('#account:has-text("Signed in as Ana Lopez")');
+  const back = new URL(page.url());
+  assert.equal(back.searchParams.get('api'), apiUrl);
+  assert.equal(back.searchParams.get('code'), null);
+  assert.equal(back.hash, '#/settings');
+  assert.match(await page.locator('#user').innerText(), /Ana Lopez/);
+
+  // Requests now carry the token, so the ontology works.
+  await page.goto(`${home}#/ontology`);
+  await page.click('[data-import-demo]');
+  await page.waitForSelector('#toast:has-text("Demo ontology imported")');
+  await page.click('[data-tab=history]');
+  assert.match(await page.locator('.commit').first().innerText(), /ana/);
+  assert.ok(fake.requests.includes('POST /idp/token'));
+
+  // A link to another API must not receive our token.
+  const other = createFakeApi();
+  const otherUrl = await other.listen();
+  t.after(() => other.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(otherUrl)}#/ontology`);
+  await page.waitForSelector('.source-bar:has-text("Shared through")');
+  assert.deepEqual(other.bearersSeen, []);
+  assert.ok(fake.bearersSeen.length > 0);
+
+  // Signing out ends the session (and visits the provider's logout).
+  await page.goto(`${home}#/settings`);
+  const logout = page.waitForRequest((r) => r.url().includes('/idp/logout'));
+  await page.click('#account [data-sign-out]');
+  await logout;
+  await page.waitForURL((u) => !u.pathname.startsWith('/idp'));
+  await page.waitForSelector('#account:has-text("Sign in to use this Tiles API")');
+  assert.equal(await page.evaluate(() => sessionStorage.getItem('tiles:oidc-session')), null);
+  // Back on the same page, still pointed at the same API.
+  const after = new URL(page.url());
+  assert.equal(after.searchParams.get('api'), apiUrl);
+  assert.equal(after.hash, '#/settings');
+
+  // Only the expected 401s from before signing in reach the console.
+  assert.deepEqual(
+    errors.filter((e) => !/Failed to load resource: the server responded with a status of 401/.test(e)),
+    [],
+  );
+});
+
 test('staged changes invalidated by someone else’s commit can be discarded', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
@@ -300,4 +360,24 @@ test('API placeholders and late API answers never replace this browser’s ontol
   await page.click('[data-tab=history]');
   assert.equal(await page.locator('.commit').count(), localCommits);
   assert.equal(await page.locator('#commit-form').count(), 0); // nothing from the API was staged locally
+});
+
+test('background updates never wipe what the user is typing', async (t) => {
+  const fake = createFakeApi({ slowAuthConfigMs: 1500 });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
+  await page.waitForSelector('#account:has-text("Checking")');
+  // Edit the form while the sign-in settings are still loading...
+  await page.fill('#datasource [name=apiUrl]', 'http://typed.example:9000');
+  await page.check('#datasource [name=mode][value=local]');
+  await page.focus('#datasource [name=apiUrl]');
+  // ...then the answer arrives and the page re-renders around the edits.
+  await page.waitForSelector('#account:has-text("development user")');
+  assert.equal(await page.inputValue('#datasource [name=apiUrl]'), 'http://typed.example:9000');
+  assert.equal(await page.locator('#datasource [name=mode][value=local]').isChecked(), true);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'apiUrl');
+  assert.deepEqual(errors, []);
 });
