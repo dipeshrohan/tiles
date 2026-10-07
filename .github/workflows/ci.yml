@@ -61,6 +61,22 @@ jobs:
     defaults:
       run:
         working-directory: api
+    services:
+      db:
+        image: timescale/timescaledb:2.30.2-pg17
+        env:
+          POSTGRES_USER: tiles
+          POSTGRES_PASSWORD: tiles-ci
+          POSTGRES_DB: tiles
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tiles -d tiles"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TILES_TEST_DATABASE_URL: postgresql://tiles:tiles-ci@localhost:5432/tiles
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -85,7 +101,8 @@ jobs:
           curl -fsS http://localhost:8000/health
           curl -fsS http://localhost:8000/ready | tee /dev/stderr | grep -q '"status":"ok"'
           curl -fsS -o /dev/null http://localhost:5173/
-          docker compose exec -T db psql -U tiles -d tiles -tAc "CREATE EXTENSION IF NOT EXISTS timescaledb"
+          docker compose exec -T db psql -U tiles -d tiles -tAc "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'" | grep -q .
+          docker compose run --rm migrate tiles-migrate current | tee /dev/stderr | grep -q '(head)'
       - name: Logs on failure
         if: failure()
         run: docker compose logs

@@ -4,6 +4,7 @@
 #   api    http://localhost:8000   FastAPI; /health, /ready, /docs
 #   db     localhost:5432          PostgreSQL 17 + TimescaleDB
 #   redis  localhost:6379          job queue
+#   migrate                        applies database migrations, then exits
 #
 # Ports bind to 127.0.0.1 only. Credentials are for local development;
 # override with TILES_DB_PASSWORD in your shell or a root .env file.
@@ -37,8 +38,20 @@ services:
       timeout: 3s
       retries: 30
 
+  # Applies database migrations, then exits; the API starts only if it succeeds.
+  migrate:
+    build: ./api
+    image: tiles-api:dev
+    command: ['tiles-migrate', 'upgrade']
+    environment:
+      TILES_DATABASE_URL: postgresql://tiles:${TILES_DB_PASSWORD:-tiles-dev}@db:5432/tiles
+    depends_on:
+      db:
+        condition: service_healthy
+
   api:
     build: ./api
+    image: tiles-api:dev
     environment:
       TILES_ENV: development
       TILES_DATABASE_URL: postgresql://tiles:${TILES_DB_PASSWORD:-tiles-dev}@db:5432/tiles
@@ -47,8 +60,8 @@ services:
     ports:
       - '127.0.0.1:8000:8000'
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
 

@@ -53,7 +53,7 @@ docker compose up --build --wait
 | db | localhost:5432 | PostgreSQL 17 + TimescaleDB 2.30 (user `tiles`, password `tiles-dev`) |
 | redis | localhost:6379 | job queue |
 
-Ports bind to localhost only. `docker compose down -v` stops everything and deletes the database volume. Set `TILES_DB_PASSWORD` to change the database password. The backend is early: so far the API serves health and readiness checks (see [api/README.md](api/README.md)).
+Ports bind to localhost only. `docker compose down -v` stops everything and deletes the database volume. Set `TILES_DB_PASSWORD` to change the database password. A one-shot `migrate` service applies the database schema before the API starts. The backend is early: so far the API serves health and readiness checks (see [api/README.md](api/README.md)).
 
 ## Roadmap
 

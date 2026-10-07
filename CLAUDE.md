@@ -13,7 +13,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - `npm run test:e2e`: Playwright smoke tests. In Claude Code cloud sessions Chromium is preinstalled; do not run `playwright install` there.
 - `npm start`: serve on http://localhost:5173.
 - `docker compose up --build --wait`: full stack (TimescaleDB, Redis, API on 8000, web on 5173); `docker compose down -v` resets it. In cloud sessions Docker Hub may rate-limit and the TLS proxy breaks in-container `pip`; see CONTRIBUTING for the workaround.
-- Backend (`api/`, Python 3.12+, managed with `uv`): `uv sync`, then `uv run tiles-api` (port 8000), `uv run pytest -W error`, `uv run mypy` (strict), `uv run ruff check .` and `uv run ruff format .`. Run them from `api/`.
+- Backend (`api/`, Python 3.12+, managed with `uv`): `uv sync`, then `uv run tiles-api` (port 8000), `uv run pytest -W error`, `uv run mypy` (strict), `uv run ruff check .` and `uv run ruff format .`. Run them from `api/`. Database tests need `TILES_TEST_DATABASE_URL` (they are skipped locally without it and fail in CI). Schema changes go in a new migration: `uv run tiles-migrate revision "…"`.
 
 ## Layout
 - `js/lib/*.ts`: pure logic in strict TypeScript (ontology, physics, analysis, design models, copilot routing, stats, charts). Shared types in `js/lib/types.ts`. Import with the `.ts` extension. Unit-tested in `test/`.
@@ -22,7 +22,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - `vite.config.js`: builds the IIFE bundle and configures Vitest. `scripts/check-bundle.js` compares a fresh build with the committed bundle.
 - DOM helpers in `js/lib/dom.ts`: `need()` (querySelector that throws if missing), `field()` (form values), `onAll()` and `onSubmit()` (typed event wiring). Prefer them over raw querySelector in views.
 - `server.js`: static server; exports `createTilesServer()` for tests.
-- `api/src/tiles_api/`: FastAPI service. `main.py` has `create_app(settings)` and the request-ID/JSON-logging middleware; `settings.py` reads `TILES_*` env vars; `logging.py` is the JSON formatter. Tests in `api/tests/` use `TestClient(create_app(settings))`.
+- `api/src/tiles_api/`: FastAPI service. `main.py` has `create_app(settings)` and the request-ID/JSON-logging middleware; `settings.py` reads `TILES_*` env vars; `logging.py` is the JSON formatter; `db.py` runs the Alembic migrations in `migrations/versions/` (plain SQL, no ORM). Tests in `api/tests/` use `TestClient(create_app(settings))`.
 - `docs/`: roadmap, task list and ADRs.
 
 ## Rules
