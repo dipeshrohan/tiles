@@ -1,5 +1,6 @@
 // Types shared by the app shell and the page views.
 
+import type { ApiClient, DataSource } from '../lib/api.ts';
 import type { CutterBatch, Detection, Graph, Repo, Run, ScoredEvent, ShotHistory, WeldData } from '../lib/types.ts';
 
 export interface User {
@@ -42,6 +43,11 @@ export interface Context {
   rerender(): void;
   toast(message: string): void;
   reset(): void;
+  // Where shared data lives; see DataSource in js/lib/api.ts.
+  readonly dataSource: DataSource;
+  // The API client in "api" mode, otherwise null. Failed calls show a toast.
+  readonly api: ApiClient | null;
+  setDataSource(source: DataSource): void;
 }
 
 export interface View {

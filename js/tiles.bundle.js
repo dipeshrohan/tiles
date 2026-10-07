@@ -733,6 +733,107 @@
 		} catch {}
 	}
 	//#endregion
+	//#region js/lib/api.ts
+	var ApiError = class extends Error {
+		status;
+		requestId;
+		constructor(message, status, requestId = null) {
+			super(message);
+			this.name = "ApiError";
+			this.status = status;
+			this.requestId = requestId;
+		}
+	};
+	function errorMessage(body, status) {
+		const detail = body?.detail;
+		if (typeof detail === "string" && detail) return detail;
+		if (Array.isArray(detail) && detail.length) return detail.map((d) => {
+			const where = (d.loc ?? []).filter((p) => p !== "body").join(".");
+			return where ? `${where}: ${d.msg ?? "invalid"}` : d.msg ?? "invalid";
+		}).join("; ");
+		return `The Tiles API answered ${status}`;
+	}
+	var isHttpUrl = (url) => /^https?:\/\/[^\s/]+/i.test(url);
+	function isTilesHealth(body) {
+		const h = body;
+		return h?.status === "ok" && typeof h.version === "string" && typeof h.env === "string";
+	}
+	function normalizeBaseUrl(url) {
+		return url.trim().replace(/\/+$/, "");
+	}
+	function createApiClient(options) {
+		const base = normalizeBaseUrl(options.baseUrl);
+		const doFetch = options.fetch ?? ((...args) => fetch(...args));
+		async function request(method, path, body) {
+			const headers = { Accept: "application/json" };
+			if (body !== void 0) headers["Content-Type"] = "application/json";
+			if (options.userEmail) headers["X-Tiles-User"] = options.userEmail;
+			if (options.token) headers.Authorization = `Bearer ${options.token}`;
+			let res;
+			try {
+				res = await doFetch(base + path, {
+					method,
+					headers,
+					body: body === void 0 ? void 0 : JSON.stringify(body)
+				});
+			} catch {
+				return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
+			}
+			const requestId = res.headers.get("x-request-id");
+			if (res.status === 204) return void 0;
+			let parsed = null;
+			try {
+				parsed = await res.json();
+			} catch {
+				if (res.ok) return fail(new ApiError("The Tiles API sent a response that is not JSON", res.status, requestId));
+			}
+			if (!res.ok) return fail(new ApiError(errorMessage(parsed, res.status), res.status, requestId));
+			return parsed;
+		}
+		function fail(error) {
+			options.onError?.(error);
+			throw error;
+		}
+		const site = (id) => `/sites/${encodeURIComponent(id)}/ontology`;
+		return {
+			baseUrl: base,
+			request,
+			health: () => request("GET", "/health"),
+			sites: () => request("GET", "/sites"),
+			ontology: {
+				graph: (siteId, view = "working") => request("GET", `${site(siteId)}/graph?view=${view}`),
+				staged: (siteId) => request("GET", `${site(siteId)}/staged`),
+				stage: (siteId, op) => request("POST", `${site(siteId)}/staged`, op),
+				discard: (siteId) => request("DELETE", `${site(siteId)}/staged`),
+				commit: (siteId, message) => request("POST", `${site(siteId)}/commits`, { message }),
+				history: (siteId, { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/commits?limit=${limit}&offset=${offset}`),
+				revert: (siteId, commitId) => request("POST", `${site(siteId)}/commits/${encodeURIComponent(commitId)}/revert`),
+				health: (siteId, view = "head") => request("GET", `${site(siteId)}/health?view=${view}`)
+			}
+		};
+	}
+	var DEFAULT_DATA_SOURCE = {
+		mode: "local",
+		apiUrl: "http://localhost:8000"
+	};
+	function resolveDataSource(saved, search) {
+		const source = {
+			...DEFAULT_DATA_SOURCE,
+			...saved ?? {}
+		};
+		if (source.mode !== "local" && source.mode !== "api") source.mode = "local";
+		const param = new URLSearchParams(search).get("api");
+		if (param === "local") return {
+			...source,
+			mode: "local"
+		};
+		if (param && isHttpUrl(param)) return {
+			mode: "api",
+			apiUrl: normalizeBaseUrl(param)
+		};
+		return source;
+	}
+	//#endregion
 	//#region js/lib/dom.ts
 	var ENTITIES = {
 		"&": "&amp;",
@@ -2382,6 +2483,7 @@
 		icon: "⚙",
 		render(ctx) {
 			const { user } = ctx.state;
+			const ds = ctx.dataSource;
 			return `
       <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
       <div class="grid g2">
@@ -2397,6 +2499,15 @@
           <p class="small soft">Plant data (cutter batches, welder power, die-cast shots) is synthetic and regenerated from fixed seeds. Your ontology commits, design runs and chat are saved in this browser.</p>
           <div><button class="btn danger" data-reset>Reset workspace</button></div>
         </div>
+        <form class="card stack" id="datasource" style="gap:12px">
+          <h2>Data source</h2>
+          <p class="small soft">Keep data in this browser, or share it through the Tiles API (<code>docker compose up</code> starts one on port 8000). Pages move to the API one at a time.</p>
+          <label class="row" style="gap:8px"><input type="radio" name="mode" value="local" ${ds.mode === "local" ? "checked" : ""} /> This browser only</label>
+          <label class="row" style="gap:8px"><input type="radio" name="mode" value="api" ${ds.mode === "api" ? "checked" : ""} /> Tiles API</label>
+          <label class="field">API address<input type="url" name="apiUrl" value="${esc(ds.apiUrl)}" placeholder="http://localhost:8000" /></label>
+          <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
+          <p class="small soft" data-api-status aria-live="polite"></p>
+        </form>
       </div>`;
 		},
 		bind(root, ctx) {
@@ -2408,6 +2519,33 @@
 					email
 				});
 				ctx.toast("Profile saved");
+			});
+			onSubmit(root, "#datasource", (form) => {
+				const mode = form.elements.namedItem("mode").value === "api" ? "api" : "local";
+				const apiUrl = normalizeBaseUrl(field$1(form, "apiUrl"));
+				if (mode === "api" && !isHttpUrl(apiUrl)) {
+					ctx.toast("Enter the API address, e.g. http://localhost:8000");
+					return;
+				}
+				ctx.setDataSource({
+					mode,
+					apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl
+				});
+				ctx.toast(mode === "api" ? "Using the Tiles API" : "Using this browser only");
+			});
+			onAll(root, "[data-test-api]", "click", async () => {
+				const status = need(root, "[data-api-status]");
+				const url = field$1(need(root, "#datasource"), "apiUrl");
+				status.textContent = "Checking…";
+				try {
+					const h = await createApiClient({
+						baseUrl: url,
+						onError: (e) => ctx.toast(e.message)
+					}).health();
+					status.textContent = isTilesHealth(h) ? `Connected: Tiles API ${h.version} (${h.env})` : "Something answered there, but it is not the Tiles API";
+				} catch {
+					status.textContent = "Not reachable";
+				}
 			});
 			onAll(root, "[data-reset]", "click", () => {
 				if (confirm("Reset ontology history, design runs and chat to the demo defaults?")) ctx.reset();
@@ -2477,13 +2615,25 @@
 			user: state.user
 		});
 	}
+	var dataSource = resolveDataSource(load("datasource", null), location.search);
+	var api = makeApi();
+	function makeApi() {
+		if (dataSource.mode !== "api") return null;
+		return createApiClient({
+			baseUrl: dataSource.apiUrl,
+			userEmail: state.user.email,
+			onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message)
+		});
+	}
 	var ctx = {
 		state,
 		get graph() {
 			return workingGraph(state.repo);
 		},
 		update(mutate, { rerender = true } = {}) {
+			const email = state.user.email;
 			mutate(state);
+			if (state.user.email !== email) api = makeApi();
 			persist();
 			if (rerender) render();
 		},
@@ -2495,10 +2645,23 @@
 		toast,
 		reset() {
 			clearAll();
+			save("datasource", dataSource);
 			Object.assign(state, freshState(), { ui: {} });
 			persist();
 			render();
 			toast("Demo data reset");
+		},
+		get dataSource() {
+			return dataSource;
+		},
+		get api() {
+			return api;
+		},
+		setDataSource(source) {
+			dataSource = source;
+			save("datasource", source);
+			api = makeApi();
+			render();
 		}
 	};
 	function currentView() {

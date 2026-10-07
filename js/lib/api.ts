@@ -1,0 +1,156 @@
+// Typed client for the Tiles API (api/). Every call goes through `request`,
+// which adds the identity header, sends and parses JSON, and turns any
+// failure into an ApiError that is also passed to `onError` (the app shows
+// it as a toast). Pure apart from `fetch`, which tests replace.
+
+import type { Commit, Graph, HealthReport, Op } from './types.ts';
+
+export interface Site {
+  id: string;
+  slug: string;
+  name: string;
+  org: string;
+}
+
+export interface ApiHealth {
+  status: 'ok';
+  version: string;
+  env: string;
+}
+
+export type GraphView = 'head' | 'working';
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly requestId: string | null;
+  constructor(message: string, status: number, requestId: string | null = null) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.requestId = requestId;
+  }
+}
+
+export interface ApiOptions {
+  baseUrl: string;
+  // Until single sign-on (T1.16) the API identifies users by this header.
+  userEmail?: string;
+  // Bearer token, once sign-in exists.
+  token?: string;
+  onError?: (error: ApiError) => void;
+  fetch?: typeof fetch;
+}
+
+type Method = 'GET' | 'POST' | 'DELETE';
+
+// FastAPI errors are {"detail": "..."} or, for validation, {"detail": [{loc, msg}, ...]}.
+function errorMessage(body: unknown, status: number): string {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+  if (typeof detail === 'string' && detail) return detail;
+  if (Array.isArray(detail) && detail.length) {
+    return detail
+      .map((d: { loc?: unknown[]; msg?: string }) => {
+        const where = (d.loc ?? []).filter((p) => p !== 'body').join('.');
+        return where ? `${where}: ${d.msg ?? 'invalid'}` : (d.msg ?? 'invalid');
+      })
+      .join('; ');
+  }
+  return `The Tiles API answered ${status}`;
+}
+
+export const isHttpUrl = (url: string): boolean => /^https?:\/\/[^\s/]+/i.test(url);
+
+// A /health answer really from the Tiles API (another service may answer too).
+export function isTilesHealth(body: unknown): body is ApiHealth {
+  const h = body as Partial<ApiHealth> | null;
+  return h?.status === 'ok' && typeof h.version === 'string' && typeof h.env === 'string';
+}
+
+export function normalizeBaseUrl(url: string): string {
+  return url.trim().replace(/\/+$/, '');
+}
+
+export function createApiClient(options: ApiOptions) {
+  const base = normalizeBaseUrl(options.baseUrl);
+  const doFetch = options.fetch ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
+
+  async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (options.userEmail) headers['X-Tiles-User'] = options.userEmail;
+    if (options.token) headers.Authorization = `Bearer ${options.token}`;
+    let res: Response;
+    try {
+      res = await doFetch(base + path, {
+        method,
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+    } catch {
+      return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
+    }
+    const requestId = res.headers.get('x-request-id');
+    if (res.status === 204) return undefined as T;
+    let parsed: unknown = null;
+    try {
+      parsed = await res.json();
+    } catch {
+      if (res.ok) return fail(new ApiError('The Tiles API sent a response that is not JSON', res.status, requestId));
+    }
+    if (!res.ok) return fail(new ApiError(errorMessage(parsed, res.status), res.status, requestId));
+    return parsed as T;
+  }
+
+  function fail(error: ApiError): never {
+    options.onError?.(error);
+    throw error;
+  }
+
+  const site = (id: string) => `/sites/${encodeURIComponent(id)}/ontology`;
+
+  return {
+    baseUrl: base,
+    request,
+    health: () => request<ApiHealth>('GET', '/health'),
+    sites: () => request<Site[]>('GET', '/sites'),
+    ontology: {
+      graph: (siteId: string, view: GraphView = 'working') =>
+        request<Graph>('GET', `${site(siteId)}/graph?view=${view}`),
+      staged: (siteId: string) => request<Op[]>('GET', `${site(siteId)}/staged`),
+      stage: (siteId: string, op: Op) => request<Op[]>('POST', `${site(siteId)}/staged`, op),
+      discard: (siteId: string) => request<void>('DELETE', `${site(siteId)}/staged`),
+      commit: (siteId: string, message: string) => request<Commit>('POST', `${site(siteId)}/commits`, { message }),
+      history: (siteId: string, { limit = 50, offset = 0 } = {}) =>
+        request<Commit[]>('GET', `${site(siteId)}/commits?limit=${limit}&offset=${offset}`),
+      revert: (siteId: string, commitId: string) =>
+        request<Commit>('POST', `${site(siteId)}/commits/${encodeURIComponent(commitId)}/revert`),
+      health: (siteId: string, view: GraphView = 'head') =>
+        request<HealthReport>('GET', `${site(siteId)}/health?view=${view}`),
+    },
+  };
+}
+
+export type ApiClient = ReturnType<typeof createApiClient>;
+
+// ---- data source flag ------------------------------------------------------
+// Where the app reads and writes shared data. "local" keeps everything in this
+// browser (the default, and what works from file://); "api" uses the Tiles
+// API. Pages switch over one at a time (the ontology first, T1.15).
+
+export interface DataSource {
+  mode: 'local' | 'api';
+  apiUrl: string;
+}
+
+export const DEFAULT_DATA_SOURCE: DataSource = { mode: 'local', apiUrl: 'http://localhost:8000' };
+
+// A `?api=<url>` query parameter switches to API mode for this visit, which
+// is handy for demos and tests; `?api=local` forces local mode.
+export function resolveDataSource(saved: Partial<DataSource> | null, search: string): DataSource {
+  const source: DataSource = { ...DEFAULT_DATA_SOURCE, ...(saved ?? {}) };
+  if (source.mode !== 'local' && source.mode !== 'api') source.mode = 'local';
+  const param = new URLSearchParams(search).get('api');
+  if (param === 'local') return { ...source, mode: 'local' };
+  if (param && isHttpUrl(param)) return { mode: 'api', apiUrl: normalizeBaseUrl(param) };
+  return source;
+}

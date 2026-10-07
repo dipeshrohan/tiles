@@ -55,6 +55,8 @@ docker compose up --build --wait
 
 Ports bind to localhost only. `docker compose down -v` stops everything and deletes the database volume. Set `TILES_DB_PASSWORD` (in your shell or a git-ignored root `.env`) to change the database password. Use URL-safe characters only (letters, digits, `-._~`), since it goes into a connection URL. The password is applied only when the database volume is created, so run `docker compose down -v` after changing it; that deletes the data. A one-shot `migrate` service applies the database schema and creates a demo site before the API starts. The API so far serves health and readiness checks and the ontology (stage, commit, revert, history); the browser app still keeps its own copy until T1.15 switches it over. See [api/README.md](api/README.md).
 
+To point the app at the API, open **Settings → Data source**, choose *Tiles API* and use **Test connection**, or add `?api=http://localhost:8000` to the app's URL. The API accepts browser calls from `http://localhost:5173` (`TILES_CORS_ORIGINS`), so use the served app rather than `index.html` from disk. Pages switch to the API one at a time, starting with the ontology (T1.15).
+
 ## Roadmap
 
 The 6-month plan to take Tiles from demo to a production pilot is in [docs/ROADMAP.md](docs/ROADMAP.md), with the task-by-task breakdown in [docs/TASKS.md](docs/TASKS.md).

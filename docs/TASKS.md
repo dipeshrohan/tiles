@@ -33,7 +33,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
   *Done when:* all 19 existing tests pass under Vitest.
 - [x] `T1.08` [#20](https://github.com/dipeshrohan/tiles/issues/20) **Port views to TypeScript components** (keep the template-string approach or adopt React, per ADR 001) · FE · 5d · T1.07
   *Done when:* screenshots match the current app; browser smoke test is green.
-- [ ] `T1.09` [#21](https://github.com/dipeshrohan/tiles/issues/21) **API client layer:** a typed fetch wrapper with an auth header and error toasts; feature flag to switch between local and API data · FE · 1.5d · T1.08
+- [x] `T1.09` [#21](https://github.com/dipeshrohan/tiles/issues/21) **API client layer:** a typed fetch wrapper with an auth header and error toasts; feature flag to switch between local and API data · FE · 1.5d · T1.08
 
 ### Backend foundations
 - [x] `T1.10` [#11](https://github.com/dipeshrohan/tiles/issues/11) ★ **Scaffold the FastAPI service:** health endpoint, settings, structured logging, pytest, ruff, mypy · BE · 2d · T1.04
