@@ -1,8 +1,9 @@
 import { healthCheck } from '../lib/ontology.ts';
 import { MODELS } from '../lib/design.ts';
 import { esc, fmt, timeAgo } from '../lib/dom.ts';
+import type { View } from './types.ts';
 
-export default {
+const view: View = {
   id: 'home',
   title: 'Home',
   icon: '⌂',
@@ -23,7 +24,7 @@ export default {
       ...state.runs.map((r) => ({
         date: r.date,
         icon: '∿',
-        text: `<b>${esc(MODELS[r.modelId].name)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`,
+        text: `<b>${esc(MODELS[r.modelId]?.name ?? r.modelId)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`,
         href: '#/design',
       })),
     ]
@@ -106,3 +107,5 @@ export default {
       </div>`;
   },
 };
+
+export default view;

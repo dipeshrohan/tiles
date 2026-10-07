@@ -1,6 +1,7 @@
-import { esc } from '../lib/dom.ts';
+import { esc, field, onAll, onSubmit } from '../lib/dom.ts';
+import type { View } from './types.ts';
 
-export default {
+const view: View = {
   id: 'settings',
   title: 'Settings',
   icon: '⚙',
@@ -24,15 +25,16 @@ export default {
       </div>`;
   },
   bind(root, ctx) {
-    root.querySelector('#profile').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = e.target.name.value.trim();
-      const email = e.target.email.value.trim();
+    onSubmit(root, '#profile', (form) => {
+      const name = field(form, 'name').trim();
+      const email = field(form, 'email').trim();
       ctx.update((s) => (s.user = { name, email }));
       ctx.toast('Profile saved');
     });
-    root.querySelector('[data-reset]').addEventListener('click', () => {
+    onAll(root, '[data-reset]', 'click', () => {
       if (confirm('Reset ontology history, design runs and chat to the demo defaults?')) ctx.reset();
     });
   },
 };
+
+export default view;

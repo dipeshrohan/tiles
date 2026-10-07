@@ -20,7 +20,7 @@ You can also open `index.html` straight from disk.
 | `npm run dev` | Rebuilds the bundle on every save; reload `index.html` to see changes. |
 | `npm run format` | Formats with Prettier, then rebuilds the bundle. |
 | `npm run lint` | ESLint (JavaScript and TypeScript) plus a Prettier check. |
-| `npm run typecheck` | Strict TypeScript check of `js/**/*.ts`. |
+| `npm run typecheck` | Strict TypeScript check of everything in `js/`. |
 | `npm test` | Vitest unit tests in `test/`, including a check that the bundle is current. |
 | `npm run test:e2e` | Browser smoke tests in `e2e/`: every page in light, dark and phone layouts, over http and `file://`. |
 
@@ -28,7 +28,7 @@ CI runs lint and typecheck, unit tests on Node 22 and 24, and the browser tests 
 
 ## Conventions
 
-- **Logic in `js/lib` (TypeScript), rendering in `js/views`.** Library modules are pure, strictly typed and unit-tested; views turn state into HTML and wire up events. Shared types live in `js/lib/types.ts`.
+- **Logic in `js/lib`, rendering in `js/views`, all strict TypeScript.** Library modules are pure and unit-tested; views turn state into HTML and wire up events with the helpers in `js/lib/dom.ts`. Domain types live in `js/lib/types.ts`, app and view types in `js/views/types.ts`.
 - **Every bug fix ships with a regression test.** Never skip or disable a test to get green.
 - **No runtime dependencies** in the browser app. Dev dependencies are fine.
 - **Synthetic data is seeded**, so results are reproducible; keep it that way.

@@ -1,24 +1,33 @@
 import { correlationFinder, explain, wearCheck } from '../lib/analysis.ts';
-import { CUTTER_VARIABLES } from '../lib/data.ts';
+import { CUTTER_VARIABLES, type CutterVariable } from '../lib/data.ts';
 import { mean } from '../lib/stats.ts';
 import { dumbbell, hbars, lineChart } from '../lib/svg.ts';
-import { esc, fmt, signed } from '../lib/dom.ts';
+import { esc, fmt, need, onAll, signed } from '../lib/dom.ts';
+import type { Material } from '../lib/types.ts';
+import type { Context, View } from './types.ts';
 
-const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
-export default {
+interface QualityUi {
+  split: boolean;
+  variable: CutterVariable;
+}
+
+const uiState = (ctx: Context) => ctx.ui<QualityUi>('quality', { split: true, variable: 'tension' });
+
+const view: View = {
   id: 'quality',
   title: 'Process & quality',
   icon: '⌁',
   render(ctx) {
-    const ui = ctx.ui('quality', { split: true, variable: 'tension' });
+    const ui = uiState(ctx);
     const rows = ctx.state.batches;
     const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? 'material' : null });
     const top = explain(findings);
     const ng = rows.filter((r) => r.ng).length;
 
-    const v = CUTTER_VARIABLES.find((x) => x.key === ui.variable);
-    const materials = ['anode', 'cathode'];
+    const v = CUTTER_VARIABLES.find((x) => x.key === ui.variable) ?? CUTTER_VARIABLES[0]!;
+    const materials: Material[] = ['anode', 'cathode'];
     const dumb = materials.map((m) => {
       const sub = rows.filter((r) => r.material === m);
       return {
@@ -122,17 +131,19 @@ export default {
       </div>`;
   },
   bind(root, ctx) {
-    const ui = ctx.ui('quality');
-    root.querySelectorAll('[data-split]').forEach((b) =>
-      b.addEventListener('click', (e) => {
-        e.preventDefault();
-        ui.split = b.dataset.split === '1';
-        ctx.rerender();
-      }),
-    );
-    root.querySelector('#variable').addEventListener('change', (e) => {
-      ui.variable = e.target.value;
+    const ui = uiState(ctx);
+    onAll(root, '[data-split]', 'click', (b, e) => {
+      e.preventDefault();
+      ui.split = b.dataset.split === '1';
+      ctx.rerender();
+    });
+    const select = need<HTMLSelectElement>(root, '#variable');
+    select.addEventListener('change', () => {
+      const chosen = CUTTER_VARIABLES.find((x) => x.key === select.value);
+      if (chosen) ui.variable = chosen.key;
       ctx.rerender();
     });
   },
 };
+
+export default view;

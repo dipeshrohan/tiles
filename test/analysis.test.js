@@ -49,7 +49,7 @@ test('copilot routes each suggestion to the right skill', () => {
 
 test('every copilot evidence link points at a page that exists', async () => {
   const views = await Promise.all(
-    ['home', 'chat', 'ontology', 'quality', 'physics', 'design', 'settings'].map((v) => import(`../js/views/${v}.js`)),
+    ['home', 'chat', 'ontology', 'quality', 'physics', 'design', 'settings'].map((v) => import(`../js/views/${v}.ts`)),
   );
   const routes = new Set(views.map((m) => `#/${m.default.id}`));
   const ctx = {
