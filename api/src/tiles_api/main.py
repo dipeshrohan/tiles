@@ -9,6 +9,7 @@ from typing import Literal
 import uvicorn
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
@@ -30,13 +31,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     configure_logging(settings.log_level)
 
     app = FastAPI(title="Tiles API", version=VERSION)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-        expose_headers=["X-Request-ID"],
-    )
 
     @app.middleware("http")
     async def request_context(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
@@ -46,8 +40,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             response = await call_next(request)
         except Exception:
+            # Answer here rather than re-raising, so a failed request keeps its
+            # request ID header and completion log like any other.
             log.exception("request failed", extra={"method": request.method, "path": request.url.path})
-            raise
+            response = JSONResponse({"detail": "Internal Server Error"}, status_code=500)
         finally:
             request_id_var.reset(token)
         response.headers["X-Request-ID"] = request_id
@@ -62,6 +58,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             },
         )
         return response
+
+    # Added after the request-context middleware so it wraps it and also
+    # decorates the 500 responses produced there.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=["X-Request-ID"],
+    )
 
     @app.get("/health", response_model=Health, tags=["meta"])
     def health() -> Health:

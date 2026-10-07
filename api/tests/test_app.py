@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tiles_api.logging import JsonFormatter, new_request_id, request_id_var
-from tiles_api.main import VERSION
+from tiles_api.main import VERSION, create_app
 from tiles_api.settings import Settings
 
 
@@ -91,3 +91,26 @@ def test_cors_allows_configured_origin_only(client: TestClient) -> None:
     assert ok.headers["access-control-allow-origin"] == "http://localhost:5173"
     other = client.get("/health", headers={"Origin": "https://evil.example.com"})
     assert "access-control-allow-origin" not in other.headers
+
+
+def test_unhandled_error_is_500_with_request_id_cors_and_log(
+    settings: Settings, capsys: pytest.CaptureFixture[str]
+) -> None:
+    app = create_app(settings)
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise RuntimeError("kaput")
+
+    res = TestClient(app).get("/boom", headers={"X-Request-ID": "err-1", "Origin": "http://localhost:5173"})
+    assert res.status_code == 500
+    assert res.json() == {"detail": "Internal Server Error"}
+    assert res.headers["x-request-id"] == "err-1"
+    assert res.headers["access-control-allow-origin"] == "http://localhost:5173"
+    lines = [json.loads(line) for line in capsys.readouterr().out.splitlines() if line.strip()]
+    failed = next(e for e in lines if e.get("message") == "request failed")
+    assert failed["request_id"] == "err-1"
+    assert "RuntimeError: kaput" in failed["exception"]
+    done = next(e for e in lines if e.get("message") == "request")
+    assert done["status"] == 500
+    assert done["request_id"] == "err-1"
