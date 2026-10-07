@@ -103,9 +103,12 @@ def stage(conn: Conn, site_id: uuid.UUID, user: User, *ops: o.Op) -> list[o.Op]:
     return repo["staged"]
 
 
-def discard(conn: Conn, site_id: uuid.UUID, user: User) -> None:
+def discard(conn: Conn, site_id: uuid.UUID, user: User) -> list[o.Op]:
+    """Drops the user's staged ops and returns exactly the ones dropped (read under the site lock)."""
     lock_site(conn, site_id)
+    dropped = load_staged(conn, site_id, user)
     conn.execute("DELETE FROM staged_ops WHERE site_id = %s AND user_id = %s", [site_id, user.id])
+    return dropped
 
 
 def _write_ops(conn: Conn, site_id: uuid.UUID, ops: list[o.Op]) -> None:
