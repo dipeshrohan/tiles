@@ -23,6 +23,7 @@
 Relative paths are resolved against the config file's folder.
 """
 
+import hashlib
 import os
 import re
 import socket
@@ -75,6 +76,46 @@ class OpcUaConfig:
         return self.security != "None"
 
 
+MQTT_FORMATS = ("value", "json", "sparkplug")
+
+
+@dataclass(frozen=True)
+class MqttTopic:
+    """One subscription. `value` and `json` topics carry one signal; `sparkplug` topics carry
+    many metrics, each mapped to a signal."""
+
+    topic: str  # an MQTT topic; sparkplug topics may use + and # wildcards
+    format: str  # one of MQTT_FORMATS
+    signal: str | None  # value and json
+    value_path: str  # json: where the value is, e.g. "value" or "data.temp"
+    time_path: str | None  # json: where the timestamp is (epoch milliseconds or ISO 8601)
+    metrics: dict[str, str]  # sparkplug: metric name -> signal
+
+
+@dataclass(frozen=True)
+class MqttConfig:
+    name: str
+    host: str
+    port: int
+    tls: bool
+    ca_file: Path | None
+    client_certificate: Path | None
+    client_key: Path | None
+    username: str | None
+    password_file: Path | None
+    client_id: str
+    qos: int
+    topics: tuple[MqttTopic, ...]
+
+    @property
+    def broker(self) -> str:
+        return f"{'mqtts' if self.tls else 'mqtt'}://{self.host}:{self.port}"
+
+    @property
+    def signals(self) -> list[str]:
+        return [t.signal for t in self.topics if t.signal] + [s for t in self.topics for s in t.metrics.values()]
+
+
 @dataclass(frozen=True)
 class Config:
     url: str
@@ -83,6 +124,7 @@ class Config:
     heartbeat_seconds: int
     timeout_seconds: float
     opcua: tuple[OpcUaConfig, ...] = ()
+    mqtt: tuple[MqttConfig, ...] = ()
 
 
 def _table(data: dict[str, Any], name: str) -> dict[str, Any]:
@@ -239,6 +281,7 @@ def _opcua(raw: object, base: Path, need_signals: bool) -> tuple[OpcUaConfig, ..
                     "dot, dash or underscore, e.g. press1.temperature"
                 )
             signals.append(OpcUaSignal(node, signal))
+        _unique([s.node for s in signals], f"{where} node")
         connectors.append(
             OpcUaConfig(
                 name=name,
@@ -254,14 +297,157 @@ def _opcua(raw: object, base: Path, need_signals: bool) -> tuple[OpcUaConfig, ..
                 signals=tuple(signals),
             )
         )
-    if len(connectors) > MAX_CONNECTORS:
+    return tuple(connectors)
+
+
+def _signal(value: object, where: str) -> str:
+    if not isinstance(value, str) or not SIGNAL_PATTERN.match(value):
         raise ConfigError(
-            f"at most {MAX_CONNECTORS} connectors per agent (Tiles takes that many in a heartbeat); "
-            "split them over several agents"
+            f"{where}: signal {value!r} must be a Tiles signal ID: lower-case letters, digits, "
+            "dot, dash or underscore, e.g. press1.temperature"
         )
-    _unique([c.name for c in connectors], "connector name")
-    _unique([s.signal for c in connectors for s in c.signals], "signal")
-    _unique([f"{c.name} {s.node}" for c in connectors for s in c.signals], "node in one connector")
+    return value
+
+
+def _topic_filter(topic: str, where: str) -> None:
+    """MQTT wildcards: + stands for one whole level, and # only for the whole last level."""
+    levels = topic.split("/")
+    for i, level in enumerate(levels):
+        if ("+" in level and level != "+") or ("#" in level and (level != "#" or i != len(levels) - 1)):
+            raise ConfigError(
+                f"{where}: topic {topic!r} misplaces a wildcard: + must be a whole level and # the whole last level"
+            )
+
+
+def _mqtt(raw: object, base: Path, need_topics: bool) -> tuple[MqttConfig, ...]:
+    if raw is None:
+        return ()
+    if not isinstance(raw, list) or not all(isinstance(t, dict) for t in raw):
+        raise ConfigError("[[mqtt]] must be a list of tables (write each broker as [[mqtt]])")
+    keys = {
+        "name",
+        "broker",
+        "allow_unsecured",
+        "ca_file",
+        "client_certificate",
+        "client_key",
+        "username",
+        "password_file",
+        "client_id",
+        "qos",
+        "topics",
+    }
+    connectors: list[MqttConfig] = []
+    for table in raw:
+        name = table.get("name")
+        if not isinstance(name, str) or not NAME_PATTERN.match(name):
+            raise ConfigError("each [[mqtt]] needs a name: letters, digits, dot, dash or underscore; up to 63")
+        where = f"[[mqtt]] {name}"
+        _known(table, where, keys)
+        broker = table.get("broker")
+        parts = urlsplit(broker) if isinstance(broker, str) else None
+        if parts is None or parts.scheme not in {"mqtts", "mqtt"} or not parts.hostname:
+            raise ConfigError(f'{where}: broker must be an mqtts:// address, e.g. "mqtts://broker.plant.local:8883"')
+        try:
+            port = parts.port or (8883 if parts.scheme == "mqtts" else 1883)
+        except ValueError:
+            raise ConfigError(f"{where}: broker has an invalid port: {broker!r}") from None
+        tls = parts.scheme == "mqtts"
+        if not tls and table.get("allow_unsecured") is not True:
+            raise ConfigError(
+                f"{where}: mqtt:// sends plant data unencrypted; use mqtts://, "
+                "or set allow_unsecured = true as well if that is really intended"
+            )
+
+        def path(key: str, table: dict[str, Any] = table, where: str = where) -> Path | None:
+            value = table.get(key)
+            if value is None:
+                return None
+            if not isinstance(value, str) or not value:
+                raise ConfigError(f"{where}: {key} must be a file path")
+            return base / value
+
+        ca_file, client_certificate, client_key = path("ca_file"), path("client_certificate"), path("client_key")
+        if (client_certificate is None) != (client_key is None):
+            raise ConfigError(f"{where}: set client_certificate and client_key together")
+        if not tls and (ca_file or client_certificate):
+            raise ConfigError(f"{where}: ca_file and client certificates need an mqtts:// broker")
+        username = table.get("username")
+        if username is not None and (not isinstance(username, str) or not username):
+            raise ConfigError(f"{where}: username must be text")
+        password_file = path("password_file")
+        if (username is None) != (password_file is None):
+            raise ConfigError(f"{where}: set username and password_file together")
+        if username is not None and not tls:
+            raise ConfigError(f"{where}: a username and password need mqtts://; without it they travel in clear")
+        # MQTT 3.1.1 brokers need only accept IDs of 1-23 letters and digits: the default fits, and
+        # stays the same for this host and connector, so the broker recognises a reconnect.
+        default_id = "tiles" + hashlib.sha256(f"{socket.gethostname()}/{name}".encode()).hexdigest()[:18]
+        client_id = table.get("client_id", default_id)
+        if not isinstance(client_id, str) or not 1 <= len(client_id) <= 128:
+            raise ConfigError(f"{where}: client_id must be text, up to 128 characters")
+        qos = table.get("qos", 1)
+        if qos not in (0, 1) or isinstance(qos, bool):
+            raise ConfigError(f"{where}: qos must be 0 or 1")
+
+        raw_topics = table.get("topics", [])
+        if not isinstance(raw_topics, list) or (need_topics and not raw_topics):
+            raise ConfigError(f"{where}: list what to read as [[mqtt.topics]] with topic, format and signal(s)")
+        topics: list[MqttTopic] = []
+        for t in raw_topics:
+            if not isinstance(t, dict):
+                raise ConfigError(f"{where}: each [[mqtt.topics]] must be a table")
+            _known(t, f"{where} [[mqtt.topics]]", {"topic", "format", "signal", "value_path", "time_path", "metrics"})
+            topic, fmt = t.get("topic"), t.get("format", "json")
+            if not isinstance(topic, str) or not topic or len(topic) > 1024 or "\0" in topic:
+                raise ConfigError(f'{where}: each topic needs a topic, e.g. topic = "plant/press1/temperature"')
+            if fmt not in MQTT_FORMATS:
+                raise ConfigError(f"{where}: format must be one of {', '.join(MQTT_FORMATS)}")
+            _topic_filter(topic, where)
+            wildcard = "+" in topic or "#" in topic
+            if fmt == "sparkplug":
+                metrics = t.get("metrics")
+                if not isinstance(metrics, dict) or not metrics:
+                    raise ConfigError(
+                        f'{where}: a sparkplug topic needs metrics = {{ "Press1/Temperature" = "press1.temperature" }}'
+                    )
+                if "signal" in t or "value_path" in t or "time_path" in t:
+                    raise ConfigError(f"{where}: a sparkplug topic maps metrics; signal and paths don't apply")
+                if not topic.startswith("spBv1.0/"):
+                    raise ConfigError(f"{where}: sparkplug topics start with spBv1.0/, e.g. spBv1.0/plant/+/edge-1/#")
+                mapped = {str(k): _signal(v, where) for k, v in metrics.items()}
+                topics.append(MqttTopic(topic, fmt, None, "value", None, mapped))
+                continue
+            if wildcard:
+                raise ConfigError(
+                    f"{where}: topic {topic!r} has a wildcard, but a {fmt} topic carries one signal; "
+                    'list each topic, or use format = "sparkplug"'
+                )
+            if "metrics" in t:
+                raise ConfigError(f"{where}: metrics apply to sparkplug topics only")
+            for key in ("value_path", "time_path"):
+                v = t.get(key)
+                if v is not None and (not isinstance(v, str) or not v or fmt == "value"):
+                    raise ConfigError(f"{where}: {key} must be a dotted key path, e.g. data.temp (json topics only)")
+            value_path, time_path = t.get("value_path", "value"), t.get("time_path")
+            topics.append(MqttTopic(topic, fmt, _signal(t.get("signal"), where), value_path, time_path, {}))
+        _unique([t.topic for t in topics], f"{where} topic")
+        connectors.append(
+            MqttConfig(
+                name=name,
+                host=parts.hostname,
+                port=port,
+                tls=tls,
+                ca_file=ca_file,
+                client_certificate=client_certificate,
+                client_key=client_key,
+                username=username,
+                password_file=password_file,
+                client_id=client_id,
+                qos=qos,
+                topics=tuple(topics),
+            )
+        )
     return tuple(connectors)
 
 
@@ -283,7 +469,7 @@ def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) 
         raise ConfigError(f"can't read {path}: {e.strerror}") from None
     except tomllib.TOMLDecodeError as e:
         raise ConfigError(f"{path} is not valid TOML: {e}") from None
-    _known(data, "the top level", {"tiles", "agent", "opcua"})
+    _known(data, "the top level", {"tiles", "agent", "opcua", "mqtt"})
     tiles, agent = _table(data, "tiles"), _table(data, "agent")
     _known(tiles, "[tiles]", {"url", "token_file", "ca_file", "timeout_seconds"})
     _known(agent, "[agent]", {"heartbeat_seconds"})
@@ -306,11 +492,26 @@ def load(path: Path, env: dict[str, str] | None = None, *, setup: bool = False) 
     if not isinstance(timeout, int | float) or isinstance(timeout, bool) or not 1 <= timeout <= 120:
         raise ConfigError("[tiles] timeout_seconds must be a number from 1 to 120")
 
-    return Config(
+    config = Config(
         url=_url(tiles.get("url")),
         token="" if setup else _token(tiles, base, env),
         ca_file=ca_file,
         heartbeat_seconds=heartbeat,
         timeout_seconds=float(timeout),
         opcua=_opcua(data.get("opcua"), base, need_signals=not setup),
+        mqtt=_mqtt(data.get("mqtt"), base, need_topics=not setup),
     )
+    _connectors(config)
+    return config
+
+
+def _connectors(config: Config) -> None:
+    """Checks that hold across all connectors."""
+    names = [c.name for c in config.opcua] + [c.name for c in config.mqtt]
+    if len(names) > MAX_CONNECTORS:
+        raise ConfigError(
+            f"at most {MAX_CONNECTORS} connectors per agent (Tiles takes that many in a heartbeat); "
+            "split them over several agents"
+        )
+    _unique(names, "connector name")
+    _unique([s.signal for c in config.opcua for s in c.signals] + [s for c in config.mqtt for s in c.signals], "signal")
