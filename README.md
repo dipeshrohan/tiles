@@ -22,7 +22,7 @@ npm start        # node server.js → http://localhost:5173
 npm test         # checks the bundle is current, then runs the unit tests
 ```
 
-Requires Node 18+ for the server and tests.
+Requires Node 20+ for the server and tests. See [CONTRIBUTING.md](CONTRIBUTING.md) for linting, formatting and the browser tests.
 
 The source lives in `js/` as ES modules. Browsers block module scripts on pages opened from disk, so the page loads a single generated file, `js/tiles.bundle.js`. After editing anything in `js/`, run `npm run build` to regenerate it; `npm test` fails if you forget.
 
@@ -65,7 +65,9 @@ js/lib/               pure, tested logic
   stats.js, rng.js    numerics
   svg.js, dom.js      charts and helpers
 js/views/             one module per page
-test/                 node:test suites
+test/                 node:test unit suites
+e2e/                  Playwright browser smoke tests
+docs/adr/             architecture decision records
 server.js             zero-dependency static server
 build.js              zero-dependency bundler for js/ → js/tiles.bundle.js
 ```
