@@ -44,13 +44,24 @@ CREATE TABLE users (
     -- OIDC issuer + subject, filled on first single sign-on login (T1.16).
     oidc_issuer   text,
     oidc_subject  text,
-    role          text NOT NULL DEFAULT 'viewer' CHECK (role IN ('viewer', 'engineer', 'admin')),
+    -- Organisation administrators manage every site; everyone else needs a
+    -- site_members row per site (ADR 004: organisation -> site -> role).
+    org_admin     boolean NOT NULL DEFAULT false,
     created_at    timestamptz NOT NULL DEFAULT now(),
     last_seen_at  timestamptz,
     UNIQUE (org_id, email),
     UNIQUE (oidc_issuer, oidc_subject),
     CHECK ((oidc_issuer IS NULL) = (oidc_subject IS NULL))
 );
+
+CREATE TABLE site_members (
+    site_id     uuid NOT NULL REFERENCES sites (id) ON DELETE CASCADE,
+    user_id     uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    role        text NOT NULL CHECK (role IN ('viewer', 'engineer', 'admin')),
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (site_id, user_id)
+);
+CREATE INDEX site_members_user ON site_members (user_id);
 
 -- Ontology ------------------------------------------------------------------
 -- The working graph per site. Edges are not foreign keys to nodes on purpose:
@@ -128,8 +139,11 @@ CREATE TABLE signals (
 CREATE INDEX signals_node ON signals (site_id, node_id);
 
 -- Downtime, scrap and other plant events (from MES import or entered by hand).
+-- A plain table, not a hypertable: volumes are low (events, not samples) and a
+-- hypertable can't keep `id` unique on its own. `source_ref` is the source
+-- system's own id, so re-importing the same event is a no-op.
 CREATE TABLE events (
-    id          uuid NOT NULL DEFAULT gen_random_uuid(),
+    id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     site_id     uuid NOT NULL REFERENCES sites (id) ON DELETE CASCADE,
     kind        text NOT NULL CHECK (kind IN ('downtime', 'scrap', 'maintenance', 'alarm', 'note')),
     code        text NOT NULL DEFAULT '',
@@ -137,12 +151,12 @@ CREATE TABLE events (
     started_at  timestamptz NOT NULL,
     ended_at    timestamptz,
     source      text NOT NULL DEFAULT 'manual',
+    source_ref  text,
     payload     jsonb NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(payload) = 'object'),
     created_at  timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (id, started_at),
+    UNIQUE (site_id, source, source_ref),
     CHECK (ended_at IS NULL OR ended_at >= started_at)
 );
-SELECT create_hypertable('events', by_range('started_at', INTERVAL '30 days'));
 CREATE INDEX events_site_time ON events (site_id, started_at DESC);
 CREATE INDEX events_node_time ON events (site_id, node_id, started_at DESC);
 
@@ -177,15 +191,39 @@ CREATE TABLE runs (
 CREATE INDEX runs_model ON runs (model_id, created_at DESC);
 CREATE INDEX runs_parent ON runs (parent_id);
 
+-- A parent run must belong to the same organisation and model key (any
+-- version), so lineage never links unrelated parameter schemas.
+CREATE FUNCTION runs_same_lineage() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.parent_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM runs p
+        JOIN models pm ON pm.id = p.model_id
+        JOIN models cm ON cm.id = NEW.model_id
+        WHERE p.id = NEW.parent_id AND pm.org_id = cm.org_id AND pm.key = cm.key
+    ) THEN
+        RAISE EXCEPTION 'parent run % is not a run of the same model', NEW.parent_id
+            USING ERRCODE = 'foreign_key_violation';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER runs_same_lineage
+    BEFORE INSERT OR UPDATE OF parent_id, model_id ON runs
+    FOR EACH ROW EXECUTE FUNCTION runs_same_lineage();
+
 -- Audit log -----------------------------------------------------------------
--- Append-only: a trigger rejects UPDATE and DELETE.
+-- Append-only: a trigger rejects every UPDATE and DELETE. The org, site and
+-- actor ids are deliberately not foreign keys, so deleting those rows never
+-- rewrites history; actor_name keeps the entry readable afterwards.
 
 CREATE TABLE audit_log (
     id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     at           timestamptz NOT NULL DEFAULT now(),
-    org_id       uuid REFERENCES orgs (id) ON DELETE SET NULL,
-    site_id      uuid REFERENCES sites (id) ON DELETE SET NULL,
-    actor_id     uuid REFERENCES users (id) ON DELETE SET NULL,
+    org_id       uuid,
+    site_id      uuid,
+    actor_id     uuid,
     actor_name   text NOT NULL,
     action       text NOT NULL CHECK (action <> ''),
     entity_type  text NOT NULL CHECK (entity_type <> ''),
@@ -197,20 +235,10 @@ CREATE TABLE audit_log (
 CREATE INDEX audit_log_org_time ON audit_log (org_id, at DESC);
 CREATE INDEX audit_log_entity ON audit_log (entity_type, entity_id);
 
+CREATE INDEX audit_log_site_time ON audit_log (site_id, at DESC);
+
 CREATE FUNCTION audit_log_append_only() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    -- Deleting the referenced org/site/user nulls those columns; allow only that.
-    IF TG_OP = 'UPDATE'
-       AND (NEW.id, NEW.at, NEW.actor_name, NEW.action, NEW.entity_type, NEW.entity_id,
-            NEW.before, NEW.after, NEW.request_id)
-           IS NOT DISTINCT FROM
-           (OLD.id, OLD.at, OLD.actor_name, OLD.action, OLD.entity_type, OLD.entity_id,
-            OLD.before, OLD.after, OLD.request_id)
-       AND (NEW.org_id IS NULL OR NEW.org_id = OLD.org_id)
-       AND (NEW.site_id IS NULL OR NEW.site_id = OLD.site_id)
-       AND (NEW.actor_id IS NULL OR NEW.actor_id = OLD.actor_id) THEN
-        RETURN NEW;
-    END IF;
     RAISE EXCEPTION 'audit_log is append-only' USING ERRCODE = 'insufficient_privilege';
 END;
 $$;
@@ -218,12 +246,16 @@ $$;
 CREATE TRIGGER audit_log_append_only
     BEFORE UPDATE OR DELETE ON audit_log
     FOR EACH ROW EXECUTE FUNCTION audit_log_append_only();
+CREATE TRIGGER audit_log_no_truncate
+    BEFORE TRUNCATE ON audit_log
+    FOR EACH STATEMENT EXECUTE FUNCTION audit_log_append_only();
 """
 
 DOWNGRADE = """
 DROP TABLE audit_log;
 DROP FUNCTION audit_log_append_only();
 DROP TABLE runs;
+DROP FUNCTION runs_same_lineage();
 DROP TABLE models;
 DROP TABLE events;
 DROP TABLE signals;
@@ -231,6 +263,7 @@ DROP TABLE staged_ops;
 DROP TABLE commits;
 DROP TABLE ontology_edges;
 DROP TABLE ontology_nodes;
+DROP TABLE site_members;
 DROP TABLE users;
 DROP TABLE sites;
 DROP TABLE orgs;

@@ -46,11 +46,11 @@ Schema v1 (`0001`):
 
 | Area | Tables |
 |---|---|
-| Tenancy | `orgs`, `sites`, `users` (role: viewer, engineer or admin; OIDC issuer + subject) |
+| Tenancy | `orgs`, `sites`, `users` (OIDC issuer + subject; `org_admin` flag), `site_members` (role per site: viewer, engineer or admin) |
 | Ontology | `ontology_nodes`, `ontology_edges` (working graph per site), `commits` (ops, inverses, stats; ordered by `seq`), `staged_ops` (per user and site) |
-| Plant data | `signals` (tag, unit, sample rate, mapped node), `events` (TimescaleDB hypertable: downtime, scrap, maintenance, alarms) |
-| Design | `models` (key + version per org), `runs` (params, outputs, parent run for lineage) |
-| Audit | `audit_log`: append-only, enforced by a trigger |
+| Plant data | `signals` (tag, unit, sample rate, mapped node), `events` (downtime, scrap, maintenance, alarms; `source_ref` makes re-imports idempotent) |
+| Design | `models` (key + version per org), `runs` (params, outputs, parent run for lineage, which must be the same model key) |
+| Audit | `audit_log`: append-only, enforced by triggers; org, site and actor ids are kept even after those rows are deleted |
 
 ## Configuration
 

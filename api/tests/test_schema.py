@@ -15,6 +15,7 @@ TABLES = {
     "orgs",
     "sites",
     "users",
+    "site_members",
     "ontology_nodes",
     "ontology_edges",
     "commits",
@@ -64,9 +65,26 @@ def test_downgrade_drops_everything_and_upgrade_restores_it(database_url: str) -
     assert tables(database_url) == TABLES
 
 
-def test_events_is_a_timescale_hypertable(conn: psycopg.Connection[dict[str, object]]) -> None:
-    row = conn.execute("SELECT hypertable_name FROM timescaledb_information.hypertables").fetchone()
-    assert row == {"hypertable_name": "events"}
+def test_timescaledb_is_installed(conn: psycopg.Connection[dict[str, object]]) -> None:
+    row = conn.execute("SELECT 1 AS ok FROM pg_extension WHERE extname = 'timescaledb'").fetchone()
+    assert row == {"ok": 1}
+
+
+def test_event_ids_are_unique_and_reimports_are_detected(
+    conn: psycopg.Connection[dict[str, object]], site: dict[str, object]
+) -> None:
+    insert = (
+        "INSERT INTO events (id, site_id, kind, started_at, source, source_ref)"
+        " VALUES (%s, %s, 'downtime', %s, 'mes', %s)"
+    )
+    event_id = "00000000-0000-0000-0000-000000000001"
+    conn.execute(insert, [event_id, site["id"], "2026-10-07T08:00Z", "MES-1"])
+    # Same id with a corrected start time: refused, not a second row.
+    with pytest.raises(errors.UniqueViolation), conn.transaction():
+        conn.execute(insert, [event_id, site["id"], "2026-10-07T08:05Z", "MES-2"])
+    # The same MES event imported again under a new id: refused too.
+    with pytest.raises(errors.UniqueViolation), conn.transaction():
+        conn.execute(insert, ["00000000-0000-0000-0000-000000000002", site["id"], "2026-10-07T08:00Z", "MES-1"])
 
 
 def test_ontology_round_trips_nodes_edges_and_commits(
@@ -116,7 +134,8 @@ def test_ontology_round_trips_nodes_edges_and_commits(
         ),
         ("INSERT INTO users (org_id, email, name) VALUES ({org}, 'Upper@Example.com', 'x')", errors.CheckViolation),
         (
-            "INSERT INTO users (org_id, email, name, role) VALUES ({org}, 'a@example.com', 'x', 'root')",
+            "WITH u AS (INSERT INTO users (org_id, email, name) VALUES ({org}, 'a@example.com', 'x') RETURNING id)"
+            " INSERT INTO site_members (site_id, user_id, role) SELECT {site}, id, 'root' FROM u",
             errors.CheckViolation,
         ),
         (
@@ -158,11 +177,15 @@ def test_audit_log_is_append_only(conn: psycopg.Connection[dict[str, object]], s
     with pytest.raises(errors.InsufficientPrivilege), conn.transaction():
         conn.execute("UPDATE audit_log SET action = 'tampered'")
     with pytest.raises(errors.InsufficientPrivilege), conn.transaction():
+        conn.execute("UPDATE audit_log SET org_id = NULL, site_id = NULL, actor_id = NULL")
+    with pytest.raises(errors.InsufficientPrivilege), conn.transaction():
         conn.execute("DELETE FROM audit_log")
-    # Deleting the site keeps the entry and only clears the reference.
+    with pytest.raises(errors.InsufficientPrivilege), conn.transaction():
+        conn.execute("TRUNCATE audit_log")
+    # Deleting the site leaves the entry exactly as written.
     conn.execute("DELETE FROM sites WHERE id = %s", [site["id"]])
     entry = conn.execute("SELECT site_id, org_id, action FROM audit_log").fetchone()
-    assert entry == {"site_id": None, "org_id": site["org_id"], "action": "commit"}
+    assert entry == {"site_id": site["id"], "org_id": site["org_id"], "action": "commit"}
 
 
 def test_runs_keep_lineage_and_models_cannot_be_deleted_under_them(
@@ -183,6 +206,48 @@ def test_runs_keep_lineage_and_models_cannot_be_deleted_under_them(
     )
     with pytest.raises(errors.ForeignKeyViolation), conn.transaction():
         conn.execute("DELETE FROM models WHERE id = %s", [model["id"]])
+
+
+def test_run_parents_must_be_the_same_model(
+    conn: psycopg.Connection[dict[str, object]], site: dict[str, object]
+) -> None:
+    def model(key: str, version: str) -> object:
+        row = conn.execute(
+            "INSERT INTO models (org_id, key, version, name) VALUES (%s, %s, %s, %s) RETURNING id",
+            [site["org_id"], key, version, key],
+        ).fetchone()
+        assert row
+        return row["id"]
+
+    beam_v1, beam_v2, pump = model("beam", "v1"), model("beam", "v2"), model("pump", "v1")
+    parent = conn.execute("INSERT INTO runs (model_id, params) VALUES (%s, '{}') RETURNING id", [beam_v1]).fetchone()
+    assert parent
+    # Another version of the same model may continue the lineage...
+    conn.execute("INSERT INTO runs (model_id, params, parent_id) VALUES (%s, '{}', %s)", [beam_v2, parent["id"]])
+    # ...an unrelated model may not.
+    with pytest.raises(errors.ForeignKeyViolation, match="same model"), conn.transaction():
+        conn.execute("INSERT INTO runs (model_id, params, parent_id) VALUES (%s, '{}', %s)", [pump, parent["id"]])
+
+
+def test_site_roles_are_per_site(conn: psycopg.Connection[dict[str, object]], site: dict[str, object]) -> None:
+    other = conn.execute(
+        "INSERT INTO sites (org_id, slug, name) VALUES (%s, 'plant-2', 'Plant 2') RETURNING id", [site["org_id"]]
+    ).fetchone()
+    user = conn.execute(
+        "INSERT INTO users (org_id, email, name) VALUES (%s, 'eng@example.com', 'Eng') RETURNING id, org_admin",
+        [site["org_id"]],
+    ).fetchone()
+    assert other and user
+    assert user["org_admin"] is False
+    conn.execute(
+        "INSERT INTO site_members (site_id, user_id, role) VALUES (%s, %s, 'engineer'), (%s, %s, 'viewer')",
+        [site["id"], user["id"], other["id"], user["id"]],
+    )
+    roles = conn.execute(
+        "SELECT s.slug, m.role FROM site_members m JOIN sites s ON s.id = m.site_id WHERE m.user_id = %s ORDER BY 1",
+        [user["id"]],
+    ).fetchall()
+    assert roles == [{"slug": "plant-1", "role": "engineer"}, {"slug": "plant-2", "role": "viewer"}]
 
 
 @pytest.mark.parametrize(
