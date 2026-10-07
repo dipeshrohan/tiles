@@ -273,7 +273,7 @@ def test_alembic_config_escapes_percent_in_passwords() -> None:
 
 
 def test_next_revision_id_follows_the_head() -> None:
-    assert next_revision_id(alembic_config(Settings())) == "0002"
+    assert next_revision_id(alembic_config(Settings())) == "0003"
 
 
 def test_migrate_command_upgrades_and_reports(database_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -286,3 +286,26 @@ def test_migrate_command_upgrades_and_reports(database_url: str, monkeypatch: py
         assert tables(database_url) == TABLES
     finally:
         get_settings.cache_clear()
+
+
+def test_isa95_node_types_are_accepted(conn: psycopg.Connection[dict[str, object]], site: dict[str, object]) -> None:
+    for i, t in enumerate(("Enterprise", "Site", "Workcenter", "Line", "Cell", "Machine")):
+        conn.execute(
+            "INSERT INTO ontology_nodes (site_id, id, type, label) VALUES (%s, %s, %s, 'x')", [site["id"], f"n{i}", t]
+        )
+
+
+def test_downgrading_isa95_types_refuses_while_they_are_in_use(database_url: str) -> None:
+    settings = Settings(database_url=database_url)
+    with psycopg.connect(database_url) as c:
+        org = c.execute("INSERT INTO orgs (slug, name) VALUES ('isa', 'Isa') RETURNING id").fetchone()
+        assert org
+        s = c.execute("INSERT INTO sites (org_id, slug, name) VALUES (%s, 'p', 'P') RETURNING id", [org[0]]).fetchone()
+        assert s
+        c.execute("INSERT INTO ontology_nodes (site_id, id, type, label) VALUES (%s, 'c', 'Cell', 'Cell 1')", [s[0]])
+    with pytest.raises(Exception, match="ontology_nodes_type_check"):
+        downgrade(settings, "0001")
+    with psycopg.connect(database_url) as c:
+        c.execute("DELETE FROM orgs WHERE slug = 'isa'")
+    downgrade(settings, "0001")
+    upgrade(settings)

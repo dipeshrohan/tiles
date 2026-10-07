@@ -26,7 +26,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - DOM helpers in `js/lib/dom.ts`: `need()` (querySelector that throws if missing), `field()` (form values), `onAll()` and `onSubmit()` (typed event wiring). Prefer them over raw querySelector in views.
 - `server.js`: static server; exports `createTilesServer()` for tests.
 - `api/src/tiles_api/`: FastAPI service. `main.py` has `create_app(settings)` and the request-ID/JSON-logging middleware; `settings.py` reads `TILES_*` env vars; `logging.py` is the JSON formatter; `auth.py` checks OIDC bearer tokens (dev identity outside production) and `identity.py` turns them into users and site roles; write endpoints take `Editor` (engineer or above) or `Admin` instead of `Ctx`, so a new write endpoint must use one of them and record itself with `ctx.audit(...)` (`audit.py`); `db.py` runs the Alembic migrations in `migrations/versions/` (plain SQL, no ORM); `ontology.py` ports `js/lib/ontology.ts`, `ontology_store.py` persists it and `api_ontology.py` serves it. Both ontology implementations must pass `test/fixtures/ontology-parity.json`; change them together. Tests in `api/tests/` use `TestClient(create_app(settings))`.
-- `docs/`: roadmap, task list and ADRs.
+- `docs/`: roadmap, task list, ADRs, and `data-model.md` (node types and relationships, mapped to ISA-95). Adding a node type means changing `NODE_TYPES` in both `js/lib/ontology.ts` and `api/src/tiles_api/ontology.py` plus a migration for the database check.
 
 ## Rules
 - Add or update tests with every behaviour change; never skip or disable a test.

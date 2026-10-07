@@ -36,6 +36,10 @@
 	//#endregion
 	//#region js/lib/ontology.ts
 	var NODE_TYPES = {
+		Enterprise: {
+			color: "#173f3c",
+			required: []
+		},
 		Site: {
 			color: "#1f5f5b",
 			required: ["location"]
@@ -46,6 +50,10 @@
 		},
 		Line: {
 			color: "#4b9b8a",
+			required: []
+		},
+		Cell: {
+			color: "#5fae9b",
 			required: []
 		},
 		Machine: {
@@ -1715,9 +1723,9 @@
 		hidden: []
 	});
 	var COLUMNS = [
-		["Site"],
+		["Enterprise", "Site"],
 		["Workcenter"],
-		["Line"],
+		["Line", "Cell"],
 		["Machine"],
 		["Process", "PLC"],
 		["Material", "Signal"],

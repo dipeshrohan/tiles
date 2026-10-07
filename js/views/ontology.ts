@@ -14,9 +14,9 @@ interface OntologyUi {
 const uiState = (ctx: Context) => ctx.ui<OntologyUi>('ontology', { tab: 'canvas', selected: null, hidden: [] });
 
 const COLUMNS: NodeType[][] = [
-  ['Site'],
+  ['Enterprise', 'Site'],
   ['Workcenter'],
-  ['Line'],
+  ['Line', 'Cell'],
   ['Machine'],
   ['Process', 'PLC'],
   ['Material', 'Signal'],

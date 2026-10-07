@@ -83,9 +83,11 @@ class OntologyError(ValueError):
 
 # Mirrors NODE_TYPES in js/lib/ontology.ts (required properties per type).
 NODE_TYPES: dict[str, list[str]] = {
+    "Enterprise": [],
     "Site": ["location"],
     "Workcenter": [],
     "Line": [],
+    "Cell": [],
     "Machine": ["vendor"],
     "Process": [],
     "Material": [],

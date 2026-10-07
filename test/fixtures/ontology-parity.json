@@ -1969,6 +1969,496 @@
           }
         }
       }
+    },
+    {
+      "name": "ISA-95 hierarchy: enterprise, site, area, line and cell",
+      "steps": [
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "ent",
+              "type": "Enterprise",
+              "label": "ent",
+              "props": {}
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "site",
+              "type": "Site",
+              "label": "site",
+              "props": {
+                "location": "Plant A"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "area",
+              "type": "Workcenter",
+              "label": "area",
+              "props": {}
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "line",
+              "type": "Line",
+              "label": "line",
+              "props": {}
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "cell",
+              "type": "Cell",
+              "label": "cell",
+              "props": {}
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "m",
+              "type": "Machine",
+              "label": "m",
+              "props": {
+                "vendor": "Acme"
+              }
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "ent-contains-site",
+              "from": "ent",
+              "rel": "contains",
+              "to": "site"
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "site-contains-area",
+              "from": "site",
+              "rel": "contains",
+              "to": "area"
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "area-contains-line",
+              "from": "area",
+              "rel": "contains",
+              "to": "line"
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "area-contains-cell",
+              "from": "area",
+              "rel": "contains",
+              "to": "cell"
+            }
+          }
+        },
+        {
+          "stage": {
+            "kind": "addEdge",
+            "edge": {
+              "id": "cell-contains-m",
+              "from": "cell",
+              "rel": "contains",
+              "to": "m"
+            }
+          }
+        },
+        {
+          "commit": {
+            "message": "isa-95 levels",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z"
+          }
+        },
+        {
+          "stage": {
+            "kind": "addNode",
+            "node": {
+              "id": "x",
+              "type": "Area",
+              "label": "x",
+              "props": {}
+            }
+          },
+          "error": true
+        }
+      ],
+      "expect": {
+        "errors": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          "Unknown node type Area"
+        ],
+        "head": {
+          "nodes": {
+            "ent": {
+              "id": "ent",
+              "type": "Enterprise",
+              "label": "ent",
+              "props": {}
+            },
+            "site": {
+              "id": "site",
+              "type": "Site",
+              "label": "site",
+              "props": {
+                "location": "Plant A"
+              }
+            },
+            "area": {
+              "id": "area",
+              "type": "Workcenter",
+              "label": "area",
+              "props": {}
+            },
+            "line": {
+              "id": "line",
+              "type": "Line",
+              "label": "line",
+              "props": {}
+            },
+            "cell": {
+              "id": "cell",
+              "type": "Cell",
+              "label": "cell",
+              "props": {}
+            },
+            "m": {
+              "id": "m",
+              "type": "Machine",
+              "label": "m",
+              "props": {
+                "vendor": "Acme"
+              }
+            }
+          },
+          "edges": {
+            "ent-contains-site": {
+              "id": "ent-contains-site",
+              "from": "ent",
+              "rel": "contains",
+              "to": "site"
+            },
+            "site-contains-area": {
+              "id": "site-contains-area",
+              "from": "site",
+              "rel": "contains",
+              "to": "area"
+            },
+            "area-contains-line": {
+              "id": "area-contains-line",
+              "from": "area",
+              "rel": "contains",
+              "to": "line"
+            },
+            "area-contains-cell": {
+              "id": "area-contains-cell",
+              "from": "area",
+              "rel": "contains",
+              "to": "cell"
+            },
+            "cell-contains-m": {
+              "id": "cell-contains-m",
+              "from": "cell",
+              "rel": "contains",
+              "to": "m"
+            }
+          }
+        },
+        "working": {
+          "nodes": {
+            "ent": {
+              "id": "ent",
+              "type": "Enterprise",
+              "label": "ent",
+              "props": {}
+            },
+            "site": {
+              "id": "site",
+              "type": "Site",
+              "label": "site",
+              "props": {
+                "location": "Plant A"
+              }
+            },
+            "area": {
+              "id": "area",
+              "type": "Workcenter",
+              "label": "area",
+              "props": {}
+            },
+            "line": {
+              "id": "line",
+              "type": "Line",
+              "label": "line",
+              "props": {}
+            },
+            "cell": {
+              "id": "cell",
+              "type": "Cell",
+              "label": "cell",
+              "props": {}
+            },
+            "m": {
+              "id": "m",
+              "type": "Machine",
+              "label": "m",
+              "props": {
+                "vendor": "Acme"
+              }
+            }
+          },
+          "edges": {
+            "ent-contains-site": {
+              "id": "ent-contains-site",
+              "from": "ent",
+              "rel": "contains",
+              "to": "site"
+            },
+            "site-contains-area": {
+              "id": "site-contains-area",
+              "from": "site",
+              "rel": "contains",
+              "to": "area"
+            },
+            "area-contains-line": {
+              "id": "area-contains-line",
+              "from": "area",
+              "rel": "contains",
+              "to": "line"
+            },
+            "area-contains-cell": {
+              "id": "area-contains-cell",
+              "from": "area",
+              "rel": "contains",
+              "to": "cell"
+            },
+            "cell-contains-m": {
+              "id": "cell-contains-m",
+              "from": "cell",
+              "rel": "contains",
+              "to": "m"
+            }
+          }
+        },
+        "staged": [],
+        "history": [
+          {
+            "message": "isa-95 levels",
+            "author": "Demo User",
+            "date": "2026-10-07T12:00:00.000Z",
+            "ops": [
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "ent",
+                  "type": "Enterprise",
+                  "label": "ent",
+                  "props": {}
+                }
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "site",
+                  "type": "Site",
+                  "label": "site",
+                  "props": {
+                    "location": "Plant A"
+                  }
+                }
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "area",
+                  "type": "Workcenter",
+                  "label": "area",
+                  "props": {}
+                }
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "line",
+                  "type": "Line",
+                  "label": "line",
+                  "props": {}
+                }
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "cell",
+                  "type": "Cell",
+                  "label": "cell",
+                  "props": {}
+                }
+              },
+              {
+                "kind": "addNode",
+                "node": {
+                  "id": "m",
+                  "type": "Machine",
+                  "label": "m",
+                  "props": {
+                    "vendor": "Acme"
+                  }
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "ent-contains-site",
+                  "from": "ent",
+                  "rel": "contains",
+                  "to": "site"
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "site-contains-area",
+                  "from": "site",
+                  "rel": "contains",
+                  "to": "area"
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "area-contains-line",
+                  "from": "area",
+                  "rel": "contains",
+                  "to": "line"
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "area-contains-cell",
+                  "from": "area",
+                  "rel": "contains",
+                  "to": "cell"
+                }
+              },
+              {
+                "kind": "addEdge",
+                "edge": {
+                  "id": "cell-contains-m",
+                  "from": "cell",
+                  "rel": "contains",
+                  "to": "m"
+                }
+              }
+            ],
+            "inverses": [
+              {
+                "kind": "removeEdge",
+                "id": "cell-contains-m"
+              },
+              {
+                "kind": "removeEdge",
+                "id": "area-contains-cell"
+              },
+              {
+                "kind": "removeEdge",
+                "id": "area-contains-line"
+              },
+              {
+                "kind": "removeEdge",
+                "id": "site-contains-area"
+              },
+              {
+                "kind": "removeEdge",
+                "id": "ent-contains-site"
+              },
+              {
+                "kind": "removeNode",
+                "id": "m"
+              },
+              {
+                "kind": "removeNode",
+                "id": "cell"
+              },
+              {
+                "kind": "removeNode",
+                "id": "line"
+              },
+              {
+                "kind": "removeNode",
+                "id": "area"
+              },
+              {
+                "kind": "removeNode",
+                "id": "site"
+              },
+              {
+                "kind": "removeNode",
+                "id": "ent"
+              }
+            ],
+            "stats": {
+              "nodes": 6,
+              "edges": 5,
+              "props": 0
+            }
+          }
+        ],
+        "health": {
+          "issues": [],
+          "score": 100,
+          "counts": {
+            "nodes": 6,
+            "edges": 5
+          }
+        }
+      }
     }
   ]
 }

@@ -2,8 +2,21 @@
 
 // ---- Ontology -------------------------------------------------------------
 
+// Equipment hierarchy aligned with ISA-95 (see docs/data-model.md):
+// Enterprise > Site > Workcenter (ISA-95 Area) > Line | Cell > Machine.
 export type NodeType =
-  'Site' | 'Workcenter' | 'Line' | 'Machine' | 'Process' | 'Material' | 'PLC' | 'Signal' | 'Document' | 'Model';
+  | 'Enterprise'
+  | 'Site'
+  | 'Workcenter'
+  | 'Line'
+  | 'Cell'
+  | 'Machine'
+  | 'Process'
+  | 'Material'
+  | 'PLC'
+  | 'Signal'
+  | 'Document'
+  | 'Model';
 
 export type PropValue = string | number | boolean;
 
