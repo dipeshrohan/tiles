@@ -16,7 +16,12 @@ CheckResult = Literal["ok", "unavailable"]
 
 def check_database(settings: Settings) -> None:
     timeout = max(1, round(settings.ready_timeout))
-    with psycopg.connect(settings.database_url, connect_timeout=timeout) as conn:
+    # connect_timeout only bounds connecting; statement_timeout makes the server
+    # cancel the query too if it accepts the connection but then stalls.
+    statement_ms = max(1, round(settings.ready_timeout * 1000))
+    with psycopg.connect(
+        settings.database_url, connect_timeout=timeout, options=f"-c statement_timeout={statement_ms}"
+    ) as conn:
         conn.execute("SELECT 1")
 
 

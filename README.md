@@ -53,7 +53,7 @@ docker compose up --build --wait
 | db | localhost:5432 | PostgreSQL 17 + TimescaleDB 2.30 (user `tiles`, password `tiles-dev`) |
 | redis | localhost:6379 | job queue |
 
-Ports bind to localhost only. `docker compose down -v` stops everything and deletes the database volume. Set `TILES_DB_PASSWORD` to change the database password. The backend is early: so far the API serves health and readiness checks (see [api/README.md](api/README.md)).
+Ports bind to localhost only. `docker compose down -v` stops everything and deletes the database volume. Set `TILES_DB_PASSWORD` (in your shell or a git-ignored root `.env`) to change the database password. Use URL-safe characters only (letters, digits, `-._~`), since it goes into a connection URL. The password is applied only when the database volume is created, so run `docker compose down -v` after changing it; that deletes the data. The backend is early: so far the API serves health and readiness checks (see [api/README.md](api/README.md)).
 
 ## Roadmap
 
