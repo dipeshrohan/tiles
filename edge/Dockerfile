@@ -1,6 +1,8 @@
 # Tiles edge agent image:
 #   docker build -t tiles-edge edge/
 #   docker run -v /etc/tiles-edge:/etc/tiles-edge:ro tiles-edge
+# It runs as UID 10001: give that user the token file (chown 10001), or pass
+# the token in TILES_EDGE_TOKEN instead. See README.md.
 # The agent uses only the standard library, so nothing is installed.
 FROM python:3.13-slim
 

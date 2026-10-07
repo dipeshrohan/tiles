@@ -68,3 +68,28 @@ def test_unreadable_files_are_explained(tmp_path: Path) -> None:
     (tmp_path / "bad.toml").write_text("[tiles\n")
     with pytest.raises(ConfigError, match="not valid TOML"):
         load(tmp_path / "bad.toml", env={})
+
+
+def test_a_bad_port_is_a_config_error(tmp_path: Path) -> None:
+    with pytest.raises(ConfigError, match="invalid port"):
+        load(write_config(tmp_path, "https://tiles.example.com:abc"), env={})
+
+
+def test_a_ca_file_without_certificates_is_a_config_error(tmp_path: Path) -> None:
+    (tmp_path / "ca.pem").write_text("not a certificate\n")
+    with pytest.raises(ConfigError, match="holds no usable PEM certificate"):
+        load(write_config(tmp_path, "https://tiles.example.com", 'ca_file = "ca.pem"'), env={})
+
+
+def test_an_unreadable_token_file_says_how_to_fix_it(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    path = write_config(tmp_path, "https://tiles.example.com")
+    real = Path.read_text
+
+    def read_text(self: Path, *args: object, **kwargs: object) -> str:
+        if self.name == "token":
+            raise PermissionError(13, "Permission denied")
+        return real(self)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    with pytest.raises(ConfigError, match=r"permission denied for this user .* set TILES_EDGE_TOKEN"):
+        load(path, env={})

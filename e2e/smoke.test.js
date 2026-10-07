@@ -477,6 +477,27 @@ test('site admins register edge agents and see them come online', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test('a revealed agent token never follows you to another API', async (t) => {
+  const first = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const second = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const [a, b] = [await first.listen(), await second.listen()];
+  t.after(() => Promise.all([first.close(), second.close()]));
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(a)}#/settings`);
+  await page.waitForSelector('#agents:has-text("No agents registered")');
+  await page.fill('#agent-form [name=name]', 'edge-01');
+  await page.click('#agent-form button[type=submit]');
+  await page.waitForSelector('[data-token]');
+  // Switch to another API in Settings, in the same page (no reload): the token stays behind.
+  await page.fill('#datasource [name=apiUrl]', b);
+  await page.click('#datasource button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Using the Tiles API")');
+  await page.waitForSelector('#agents:has-text("No agents registered")');
+  assert.equal(await page.locator('[data-token]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
 test('non-admins see the edge agents but cannot register them', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

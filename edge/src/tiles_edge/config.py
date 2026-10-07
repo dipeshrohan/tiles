@@ -12,6 +12,7 @@ Relative paths are resolved against the config file's folder.
 """
 
 import os
+import ssl
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,6 +53,10 @@ def _url(raw: object) -> str:
     if not isinstance(raw, str) or not raw:
         raise ConfigError('[tiles] url is required, e.g. url = "https://tiles.example.com"')
     parts = urlsplit(raw)
+    try:
+        parts.port  # noqa: B018 - urlsplit checks the port only when it is read
+    except ValueError:
+        raise ConfigError(f"[tiles] url has an invalid port: {raw!r}") from None
     if parts.scheme not in {"https", "http"} or not parts.hostname:
         raise ConfigError(f"[tiles] url must be an http(s) URL, not {raw!r}")
     if parts.scheme == "http" and parts.hostname not in LOCAL_HOSTS:
@@ -71,6 +76,11 @@ def _token(tiles: dict[str, Any], base: Path, env: dict[str, str]) -> str:
         path = base / str(tiles["token_file"])
         try:
             token = path.read_text().strip()
+        except PermissionError:
+            raise ConfigError(
+                f"can't read the token file {path}: permission denied for this user (uid {os.getuid()}); "
+                "give it the file (chown) or set TILES_EDGE_TOKEN instead"
+            ) from None
         except OSError as e:
             raise ConfigError(f"can't read the token file {path}: {e.strerror}") from None
     else:
@@ -99,6 +109,10 @@ def load(path: Path, env: dict[str, str] | None = None) -> Config:
         ca_file = base / str(tiles["ca_file"])
         if not ca_file.is_file():
             raise ConfigError(f"[tiles] ca_file {ca_file} doesn't exist")
+        try:
+            ssl.create_default_context().load_verify_locations(cafile=str(ca_file))
+        except (ssl.SSLError, OSError) as e:
+            raise ConfigError(f"[tiles] ca_file {ca_file} holds no usable PEM certificate: {e}") from None
 
     heartbeat = agent.get("heartbeat_seconds", 30)
     if not isinstance(heartbeat, int) or isinstance(heartbeat, bool) or not 5 <= heartbeat <= 3600:

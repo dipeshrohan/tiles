@@ -54,8 +54,9 @@ While running, the agent never gives up on a network problem. It retries with a 
 
 - **With pip:** `pip install ./edge` installs the `tiles-edge` command.
 - **As one file:** `python -m zipapp edge/src -m tiles_edge.cli:entry -p "/usr/bin/env python3" -o tiles-edge.pyz` builds `tiles-edge.pyz`, which runs with any Python 3.12+: `./tiles-edge.pyz check -c tiles-edge.toml`.
-- **As a container:** `docker build -t tiles-edge edge`, then mount the config folder:
-  `docker run -v /etc/tiles-edge:/etc/tiles-edge:ro tiles-edge`.
+- **As a container:** `docker build -t tiles-edge edge`. The image runs as UID 10001, so make the token file that user's before mounting the config folder: `sudo chown 10001 /etc/tiles-edge/token` (keep mode 600), then
+  `docker run -d --restart unless-stopped -v /etc/tiles-edge:/etc/tiles-edge:ro tiles-edge`.
+  Or leave the file alone and pass the token as a secret environment variable instead: `--env-file` with `TILES_EDGE_TOKEN=tla_…`, and no `token_file` in the config.
 
 ## Develop
 

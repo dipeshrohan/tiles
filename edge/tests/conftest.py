@@ -2,7 +2,7 @@ import json
 import ssl
 import subprocess
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator, Iterator
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,25 +19,28 @@ class FakeTiles:
 
     url: str = ""
     requests: list[dict[str, Any]] = field(default_factory=list)
-    # What to answer next: (status, body). The last one repeats.
-    answers: list[tuple[int, Any]] = field(default_factory=lambda: [(200, None)])
+    # What to answer next: (status, body) or (status, body, headers). The last one repeats.
+    answers: list[tuple[Any, ...]] = field(default_factory=lambda: [(200, None)])
     heartbeat_seen: threading.Event = field(default_factory=threading.Event)
 
-    def answer(self) -> tuple[int, Any]:
+    def answer(self) -> tuple[Any, ...]:
         return self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
 
 
-def serve(fake: FakeTiles, context: ssl.SSLContext | None = None) -> Iterator[FakeTiles]:
+def serve(fake: FakeTiles, context: ssl.SSLContext | None = None) -> Generator[FakeTiles]:
     class Handler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:
             body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
             fake.requests.append({"path": self.path, "headers": dict(self.headers), "body": body})
-            status, answer = fake.answer()
+            status, answer, *rest = fake.answer()
+            headers: dict[str, str] = rest[0] if rest else {}
             if answer is None:
                 answer = {"agent_id": "a-1", "site_id": "s-1", "server_time": "2026-10-07T12:00:00Z", "commands": []}
             raw = answer if isinstance(answer, bytes) else json.dumps(answer).encode()
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
+            for name, value in headers.items():
+                self.send_header(name, value)
             self.send_header("Content-Length", str(len(raw)))
             self.end_headers()
             self.wfile.write(raw)

@@ -82,7 +82,31 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
 }
 
 // A just-registered agent's token, shown until dismissed: Tiles never shows it again.
-let revealed: { name: string; token: string; apiUrl: string } | null = null;
+// It belongs to the API, site and admin it was created for, and is dropped as
+// soon as any of them changes (another API or site, another user, signing out).
+interface Revealed {
+  name: string;
+  token: string;
+  apiUrl: string;
+  siteId: string;
+  user: string;
+}
+let revealed: Revealed | null = null;
+
+// Who is looking: whether they are signed in, and as whom.
+function viewer(ctx: Context): string {
+  return `${ctx.auth.signedIn ? 'signed-in' : 'dev'}:${ctx.state.user.email}`;
+}
+
+export function tokenStillShown(
+  r: Revealed | null,
+  apiUrl: string | undefined,
+  siteId: string | undefined,
+  admin: boolean,
+  user: string,
+): r is Revealed {
+  return !!r && admin && r.apiUrl === apiUrl && r.siteId === siteId && r.user === user;
+}
 
 function agentsCard(admin: boolean): string {
   return `<div class="card stack" id="agents" style="gap:12px;grid-column:1 / -1">
@@ -106,9 +130,11 @@ function agentStatus(a: EdgeAgent): string {
   return `<span class="badge ${tone}">${esc(a.status)}</span>`;
 }
 
-function showToken(root: HTMLElement): void {
+function showToken(root: HTMLElement, ctx: Context): void {
   const box = root.querySelector('[data-agent-token]');
   if (!box) return;
+  const admin = ctx.ontology.role === 'admin';
+  if (!tokenStillShown(revealed, ctx.api?.baseUrl, ctx.ontology.site?.id, admin, viewer(ctx))) revealed = null;
   if (!revealed) {
     box.innerHTML = '';
     return;
@@ -123,7 +149,7 @@ function showToken(root: HTMLElement): void {
     </div>`;
   onAll(box, '[data-token-done]', 'click', () => {
     revealed = null;
-    showToken(root);
+    showToken(root, ctx);
   });
 }
 
@@ -169,15 +195,15 @@ function bindAgents(root: HTMLElement, ctx: Context): void {
   const site = ctx.ontology.site;
   const api = ctx.api;
   if (!site || !api || !root.querySelector('#agents')) return;
-  showToken(root);
+  showToken(root, ctx);
   void fillAgents(root, ctx);
   onSubmit(root, '#agent-form', (form) => {
     const name = field(form, 'name').trim();
     api.agents.register(site.id, name).then(
       ({ token }) => {
-        revealed = { name, token, apiUrl: api.baseUrl };
+        revealed = { name, token, apiUrl: api.baseUrl, siteId: site.id, user: viewer(ctx) };
         form.reset();
-        showToken(root);
+        showToken(root, ctx);
         return fillAgents(root, ctx);
       },
       () => undefined, // the client already showed why

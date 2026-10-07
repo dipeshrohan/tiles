@@ -78,6 +78,12 @@ def test_backoff_is_capped_by_the_heartbeat_and_jittered(tmp_path: Path) -> None
     assert agent.backoff(3) == 2  # half the ceiling at the low end
 
 
+def test_backoff_survives_days_of_failures(tmp_path: Path) -> None:
+    agent = Agent(config(tmp_path), ScriptedClient(), jitter=lambda: 1.0)
+    assert agent.backoff(1025) == 5  # 2.0 ** 1024 would overflow
+    assert agent.backoff(10**9) == 5
+
+
 def test_it_stops_when_tiles_rejects_the_agent(tmp_path: Path) -> None:
     client = ScriptedClient({}, RejectedError("Tiles answered 401: Unknown or revoked agent token"))
     agent = Agent(config(tmp_path), client, stop=CountingStop(limit=10))

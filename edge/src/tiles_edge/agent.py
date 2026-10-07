@@ -49,7 +49,8 @@ class Agent:
         """Seconds to wait after `failures` failed heartbeats in a row: doubling from 1 s, at most
         MAX_BACKOFF_SECONDS, never longer than the heartbeat itself, with jitter so a plant full of
         agents doesn't retry in step."""
-        ceiling = min(2.0 ** (failures - 1), MAX_BACKOFF_SECONDS, self.config.heartbeat_seconds)
+        # The exponent is capped first: 2.0 ** 1024 would overflow long before the caps apply.
+        ceiling = min(2.0 ** min(failures - 1, 20), MAX_BACKOFF_SECONDS, self.config.heartbeat_seconds)
         return ceiling * (0.5 + self.jitter() / 2)
 
     def run(self) -> int:

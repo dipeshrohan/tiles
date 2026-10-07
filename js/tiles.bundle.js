@@ -2837,6 +2837,12 @@
 		}
 	}
 	var revealed = null;
+	function viewer(ctx) {
+		return `${ctx.auth.signedIn ? "signed-in" : "dev"}:${ctx.state.user.email}`;
+	}
+	function tokenStillShown(r, apiUrl, siteId, admin, user) {
+		return !!r && admin && r.apiUrl === apiUrl && r.siteId === siteId && r.user === user;
+	}
 	function agentsCard(admin) {
 		return `<div class="card stack" id="agents" style="gap:12px;grid-column:1 / -1">
       <h2>Edge agents</h2>
@@ -2852,9 +2858,11 @@
 	function agentStatus(a) {
 		return `<span class="badge ${a.status === "online" ? "good" : a.status === "offline" ? "bad" : ""}">${esc(a.status)}</span>`;
 	}
-	function showToken(root) {
+	function showToken(root, ctx) {
 		const box = root.querySelector("[data-agent-token]");
 		if (!box) return;
+		const admin = ctx.ontology.role === "admin";
+		if (!tokenStillShown(revealed, ctx.api?.baseUrl, ctx.ontology.site?.id, admin, viewer(ctx))) revealed = null;
 		if (!revealed) {
 			box.innerHTML = "";
 			return;
@@ -2869,7 +2877,7 @@
     </div>`;
 		onAll(box, "[data-token-done]", "click", () => {
 			revealed = null;
-			showToken(root);
+			showToken(root, ctx);
 		});
 	}
 	async function fillAgents(root, ctx) {
@@ -2899,7 +2907,7 @@
 		const site = ctx.ontology.site;
 		const api = ctx.api;
 		if (!site || !api || !root.querySelector("#agents")) return;
-		showToken(root);
+		showToken(root, ctx);
 		fillAgents(root, ctx);
 		onSubmit(root, "#agent-form", (form) => {
 			const name = field$1(form, "name").trim();
@@ -2907,10 +2915,12 @@
 				revealed = {
 					name,
 					token,
-					apiUrl: api.baseUrl
+					apiUrl: api.baseUrl,
+					siteId: site.id,
+					user: viewer(ctx)
 				};
 				form.reset();
-				showToken(root);
+				showToken(root, ctx);
 				return fillAgents(root, ctx);
 			}, () => void 0);
 		});

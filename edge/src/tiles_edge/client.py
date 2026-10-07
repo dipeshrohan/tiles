@@ -9,6 +9,9 @@ from typing import Any
 from tiles_edge import __version__
 from tiles_edge.config import Config
 
+# Answers worth retrying: request timeout (often from a proxy), too many requests, and 5xx.
+RETRY_STATUSES = {408, 429}
+
 
 class TransientError(Exception):
     """Tiles couldn't be reached or is busy: try again later."""
@@ -16,6 +19,14 @@ class TransientError(Exception):
 
 class RejectedError(Exception):
     """Tiles refused the agent (unknown or revoked token, or a bad request): retrying won't help."""
+
+
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    """Refuse redirects: urllib would follow them with the Authorization header, sending the agent's
+    token to whatever host (or plain-http URL) the redirect names. The 3xx surfaces as an HTTPError."""
+
+    def redirect_request(self, *args: Any, **kwargs: Any) -> None:
+        return None
 
 
 def ssl_context(config: Config) -> ssl.SSLContext:
@@ -32,7 +43,7 @@ class TilesClient:
         self._context = ssl_context(config) if config.url.startswith("https:") else None
         # build_opener keeps urllib's proxy support (HTTPS_PROXY, NO_PROXY): a
         # plant's outbound proxy is often the only way out.
-        self._opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=self._context))
+        self._opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=self._context), _NoRedirects)
 
     def post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         request = urllib.request.Request(  # noqa: S310 - the URL's scheme is checked in config (https, or http to localhost)
@@ -48,11 +59,16 @@ class TilesClient:
         )
         try:
             with self._opener.open(request, timeout=self._config.timeout_seconds) as response:
-                answer: dict[str, Any] = json.loads(response.read())
-                return answer
+                answer = json.loads(response.read())
         except urllib.error.HTTPError as e:
             detail = _detail(e)
-            if e.code == 429 or e.code >= 500:
+            if 300 <= e.code < 400:
+                where = e.headers.get("Location", "elsewhere")
+                raise RejectedError(
+                    f"Tiles answered {e.code}, redirecting to {where}; the agent doesn't follow redirects, "
+                    "so set [tiles] url to the final address"
+                ) from None
+            if e.code in RETRY_STATUSES or e.code >= 500:
                 raise TransientError(f"Tiles answered {e.code}: {detail}") from None
             raise RejectedError(f"Tiles answered {e.code}: {detail}") from None
         except (urllib.error.URLError, TimeoutError, ConnectionError, ssl.SSLError) as e:
@@ -60,6 +76,10 @@ class TilesClient:
             raise TransientError(f"can't reach {self._config.url}: {reason}") from None
         except ValueError as e:  # not JSON
             raise TransientError(f"Tiles sent an unreadable answer: {e}") from None
+        if not isinstance(answer, dict):
+            # e.g. a proxy's or a misrouted server's own JSON
+            raise TransientError(f"Tiles sent an unexpected answer: {type(answer).__name__}, not an object")
+        return answer
 
 
 def _detail(e: urllib.error.HTTPError) -> str:

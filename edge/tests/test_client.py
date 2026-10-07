@@ -1,7 +1,9 @@
+import contextlib
+import json
 from pathlib import Path
 
 import pytest
-from conftest import TOKEN, FakeTiles, write_config
+from conftest import TOKEN, FakeTiles, serve, write_config
 
 from tiles_edge import __version__
 from tiles_edge.client import RejectedError, TilesClient, TransientError
@@ -24,7 +26,14 @@ def test_posts_json_with_the_agent_token(tmp_path: Path, tiles: FakeTiles) -> No
 
 @pytest.mark.parametrize(
     ("status", "error"),
-    [(401, RejectedError), (403, RejectedError), (422, RejectedError), (429, TransientError), (503, TransientError)],
+    [
+        (401, RejectedError),
+        (403, RejectedError),
+        (422, RejectedError),
+        (408, TransientError),
+        (429, TransientError),
+        (503, TransientError),
+    ],
 )
 def test_answers_are_sorted_into_retry_or_give_up(tmp_path: Path, tiles: FakeTiles, status: int, error: type) -> None:
     tiles.answers = [(status, {"detail": "nope"})]
@@ -48,3 +57,19 @@ def test_tls_certificates_are_verified(tmp_path: Path, tls_tiles: FakeTiles, cer
     # ...but is once its CA is configured.
     answer = client(tmp_path, tls_tiles.url, f'ca_file = "{certificate[0]}"').post("/agent/heartbeat", {})
     assert answer["agent_id"] == "a-1"
+
+
+@pytest.mark.parametrize("body", [None, "ok", [1, 2]])
+def test_an_answer_that_is_not_an_object_is_transient(tmp_path: Path, tiles: FakeTiles, body: object) -> None:
+    tiles.answers = [(200, json.dumps(body).encode())]
+    with pytest.raises(TransientError, match="unexpected answer"):
+        client(tmp_path, tiles.url).post("/agent/heartbeat", {})
+
+
+def test_redirects_are_refused_so_the_token_never_follows_them(tmp_path: Path, tiles: FakeTiles) -> None:
+    with contextlib.closing(serve(FakeTiles())) as elsewhere:
+        other = next(elsewhere)
+        tiles.answers = [(302, {}, {"Location": other.url + "/agent/heartbeat"})]
+        with pytest.raises(RejectedError, match=r"redirecting to http://localhost:.* doesn't follow redirects"):
+            client(tmp_path, tiles.url).post("/agent/heartbeat", {})
+        assert other.requests == []  # the token went nowhere else

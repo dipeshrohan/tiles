@@ -171,6 +171,18 @@ test('edge agent calls hit the documented paths', async () => {
   assert.deepEqual(JSON.parse(f.calls[1].body), { name: 'edge-01' });
 });
 
+test('a revealed agent token is shown only to the admin, API and site it was made for', async () => {
+  const { tokenStillShown } = await import('../js/views/settings.ts');
+  const r = { name: 'e', token: 'tla_x', apiUrl: 'http://a', siteId: 's', user: 'dev:ana@example.com' };
+  assert.equal(tokenStillShown(r, 'http://a', 's', true, 'dev:ana@example.com'), true);
+  assert.equal(tokenStillShown(r, 'http://b', 's', true, 'dev:ana@example.com'), false);
+  assert.equal(tokenStillShown(r, 'http://a', 't', true, 'dev:ana@example.com'), false);
+  assert.equal(tokenStillShown(r, 'http://a', 's', false, 'dev:ana@example.com'), false);
+  assert.equal(tokenStillShown(r, 'http://a', 's', true, 'signed-in:ana@example.com'), false);
+  assert.equal(tokenStillShown(r, undefined, undefined, true, 'dev:ana@example.com'), false);
+  assert.equal(tokenStillShown(null, 'http://a', 's', true, 'dev:ana@example.com'), false);
+});
+
 test('audit summaries read as sentences', async () => {
   const { describeAudit } = await import('../js/views/settings.ts');
   const e = (action, before, after) => ({ action, before, after, entity_type: 'x', entity_id: 'y' });
