@@ -22,7 +22,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - `vite.config.js`: builds the IIFE bundle and configures Vitest. `scripts/check-bundle.js` compares a fresh build with the committed bundle.
 - DOM helpers in `js/lib/dom.ts`: `need()` (querySelector that throws if missing), `field()` (form values), `onAll()` and `onSubmit()` (typed event wiring). Prefer them over raw querySelector in views.
 - `server.js`: static server; exports `createTilesServer()` for tests.
-- `api/src/tiles_api/`: FastAPI service. `main.py` has `create_app(settings)` and the request-ID/JSON-logging middleware; `settings.py` reads `TILES_*` env vars; `logging.py` is the JSON formatter; `db.py` runs the Alembic migrations in `migrations/versions/` (plain SQL, no ORM). Tests in `api/tests/` use `TestClient(create_app(settings))`.
+- `api/src/tiles_api/`: FastAPI service. `main.py` has `create_app(settings)` and the request-ID/JSON-logging middleware; `settings.py` reads `TILES_*` env vars; `logging.py` is the JSON formatter; `db.py` runs the Alembic migrations in `migrations/versions/` (plain SQL, no ORM); `ontology.py` ports `js/lib/ontology.ts`, `ontology_store.py` persists it and `api_ontology.py` serves it. Both ontology implementations must pass `test/fixtures/ontology-parity.json`; change them together. Tests in `api/tests/` use `TestClient(create_app(settings))`.
 - `docs/`: roadmap, task list and ADRs.
 
 ## Rules

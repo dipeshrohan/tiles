@@ -66,9 +66,30 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_DATABASE_URL` | `postgresql://tiles:tiles-dev@localhost:5432/tiles` | PostgreSQL (TimescaleDB) connection |
 | `TILES_REDIS_URL` | `redis://localhost:6379/0` | Redis connection |
 | `TILES_READY_TIMEOUT` | `2.0` | Seconds each `/ready` check may take |
+| `TILES_DB_POOL_MAX` | `10` | Maximum database connections |
+| `TILES_DEV_USER_EMAIL`, `TILES_DEV_USER_NAME` | `demo@example.com`, `Demo User` | Who requests act as before sign-in exists (not in production) |
 
 ## Endpoints
 
 - `GET /health`: liveness. Always 200 while the process runs; does not touch dependencies.
 - `GET /ready`: readiness. 200 when PostgreSQL and Redis answer, otherwise 503 with which check failed (no connection details in the response).
 - `GET /docs`: OpenAPI docs.
+- `GET /sites`: sites you can open (id, slug, name, org). `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
+
+### Ontology
+
+Each site has one committed graph (`head`) and a commit history. Each user stages their own changes until they commit or discard them. Every change is validated against the graph it applies to; a change that no longer fits (say someone else removed the node) gets a 409 with the same message the browser shows.
+
+| Method and path (under `/sites/{site_id}/ontology`) | Does |
+|---|---|
+| `GET /graph?view=working` | head plus your staged changes (`view=head` for the committed graph) |
+| `GET /staged` | your staged ops, in order |
+| `POST /staged` | stage one op (`addNode`, `removeNode`, `addEdge`, `removeEdge`, `setProp`); returns all your staged ops |
+| `DELETE /staged` | discard your staged ops |
+| `POST /commits` | commit your staged ops: `{"message": "..."}` |
+| `GET /commits?limit=50&offset=0` | history, newest first |
+| `POST /commits/{id}/revert` | commit the inverse of a commit |
+
+Ops, graphs and commits have the same JSON shape as in the browser (`js/lib/types.ts`). The logic in `tiles_api/ontology.py` is a port of `js/lib/ontology.ts`. Both run the shared fixture suite in `test/fixtures/ontology-parity.json`, and the API tests replay it over HTTP too. After changing the TypeScript behaviour, regenerate the fixtures with `UPDATE_FIXTURES=1 npx vitest run test/ontology-parity.test.js`, then make the Python port pass.
+
+Until single sign-on lands (T1.16), requests act as `TILES_DEV_USER_EMAIL` (default `demo@example.com`), or as the email in an `X-Tiles-User` header. With `TILES_ENV=production` they are refused with 401.

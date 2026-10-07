@@ -103,6 +103,15 @@ jobs:
           curl -fsS -o /dev/null http://localhost:5173/
           docker compose exec -T db psql -U tiles -d tiles -tAc "SELECT extversion FROM pg_extension WHERE extname = 'timescaledb'" | grep -q .
           docker compose run --rm migrate tiles-migrate current | tee /dev/stderr | grep -q '(head)'
+      - name: Ontology round trip through the API
+        run: |
+          site=$(curl -fsS http://localhost:8000/sites | jq -er '.[0].id')
+          api=http://localhost:8000/sites/$site/ontology
+          curl -fsS -X POST $api/staged -H 'content-type: application/json' \
+            -d '{"kind":"addNode","node":{"id":"ci-line","type":"Line","label":"CI line","props":{}}}'
+          curl -fsS -X POST $api/commits -H 'content-type: application/json' -d '{"message":"ci smoke"}'
+          curl -fsS "$api/graph?view=head" | jq -e '.nodes["ci-line"].label == "CI line"'
+          curl -fsS $api/commits | jq -e '.[0].message == "ci smoke"'
       - name: Logs on failure
         if: failure()
         run: docker compose logs
