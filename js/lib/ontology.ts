@@ -16,9 +16,11 @@ import type {
 } from './types.ts';
 
 export const NODE_TYPES: Record<NodeType, { color: string; required: string[] }> = {
+  Enterprise: { color: '#173f3c', required: [] },
   Site: { color: '#1f5f5b', required: ['location'] },
   Workcenter: { color: '#2f7d6d', required: [] },
   Line: { color: '#4b9b8a', required: [] },
+  Cell: { color: '#5fae9b', required: [] },
   Machine: { color: '#c0603a', required: ['vendor'] },
   Process: { color: '#7b5ea7', required: [] },
   Material: { color: '#b88a1b', required: [] },
@@ -28,7 +30,8 @@ export const NODE_TYPES: Record<NodeType, { color: string; required: string[] }>
   Model: { color: '#a23b5a', required: [] },
 };
 
-export const HIERARCHY: NodeType[] = ['Site', 'Workcenter', 'Line', 'Machine'];
+// ISA-95 equipment levels, top down (Line and Cell are both work centres).
+export const HIERARCHY: NodeType[] = ['Enterprise', 'Site', 'Workcenter', 'Line', 'Cell', 'Machine'];
 
 const isNodeType = (t: string): t is NodeType => Object.prototype.hasOwnProperty.call(NODE_TYPES, t);
 

@@ -60,6 +60,10 @@ To point the app at the API, open **Settings → Data source**, choose *Tiles AP
 
 With the API selected, **Settings → Account → Sign in** signs you in through Keycloak (OpenID Connect with PKCE). Your name and email then come from your sign-in, and so does your role on a site the first time you open it. Viewers see the ontology read-only; engineers can change it; admins can also change members' roles and read the site's audit log (Settings → Audit log). In development you can skip signing in and act as the demo user; a production API (`TILES_ENV=production`) refuses requests without a valid token.
 
+## Data model
+
+The ontology's node types and relationships, and how they map to ISA-95 (Enterprise › Site › Area › Line or Cell › Machine), are described in [docs/data-model.md](docs/data-model.md).
+
 ## Roadmap
 
 The 6-month plan to take Tiles from demo to a production pilot is in [docs/ROADMAP.md](docs/ROADMAP.md), with the task-by-task breakdown in [docs/TASKS.md](docs/TASKS.md).
