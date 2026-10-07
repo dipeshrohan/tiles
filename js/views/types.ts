@@ -1,6 +1,7 @@
 // Types shared by the app shell and the page views.
 
-import type { ApiClient, DataSource } from '../lib/api.ts';
+import type { ApiClient, DataSource, Site } from '../lib/api.ts';
+import type { OntologyStore } from '../lib/ontology-store.ts';
 import type { CutterBatch, Detection, Graph, Repo, Run, ScoredEvent, ShotHistory, WeldData } from '../lib/types.ts';
 
 export interface User {
@@ -48,6 +49,21 @@ export interface Context {
   // The API client in "api" mode, otherwise null. Failed calls show a toast.
   readonly api: ApiClient | null;
   setDataSource(source: DataSource): void;
+  readonly ontology: OntologyContext;
+}
+
+// The ontology repository shown in state.repo, and how to change it.
+export interface OntologyContext {
+  // "local": this browser. In API mode: "loading" until the first fetch,
+  // then "ready", or "error" (with `error`) if the API can't be used.
+  readonly status: 'local' | 'loading' | 'ready' | 'error';
+  readonly site: Site | null;
+  readonly error: string | null;
+  // Runs a change against the current store and shows its result. Failures
+  // become a toast; resolves to whether the change worked.
+  act(change: (store: OntologyStore, repo: Repo) => Promise<Repo>, ok?: string): Promise<boolean>;
+  // Fetches the latest repository from the API (no-op in local mode).
+  reload(): Promise<void>;
 }
 
 export interface View {

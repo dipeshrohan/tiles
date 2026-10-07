@@ -1,8 +1,17 @@
 import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/data.ts';
 import { generateShotHistory, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
-import { workingGraph, healthCheck } from './lib/ontology.ts';
+import { healthCheck } from './lib/ontology.ts';
 import { load, save, clearAll } from './lib/store.ts';
-import { createApiClient, resolveDataSource, type ApiClient, type DataSource } from './lib/api.ts';
+import { ApiError, createApiClient, resolveDataSource, type ApiClient, type DataSource } from './lib/api.ts';
+import { createRepo } from './lib/ontology.ts';
+import {
+  localStore,
+  pickSite,
+  safeWorkingGraph,
+  remoteStore,
+  type OntologyStore,
+  type RemoteStore,
+} from './lib/ontology-store.ts';
 import { esc, need } from './lib/dom.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
@@ -11,7 +20,7 @@ import quality from './views/quality.ts';
 import physics from './views/physics.ts';
 import design from './views/design.ts';
 import settings from './views/settings.ts';
-import type { AppState, Context, PersistedState, View } from './views/types.ts';
+import type { AppState, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 
 const VIEWS: View[] = [home, chat, ontology, quality, physics, design, settings];
 
@@ -52,7 +61,9 @@ const state: AppState = {
 };
 
 function persist(): void {
-  const saved: PersistedState = { repo: state.repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user };
+  // In API mode state.repo mirrors the server; the browser's own copy stays in localRepo.
+  const repo = ontologyStatus === 'local' ? state.repo : localRepo;
+  const saved: PersistedState = { repo, runs: state.runs, chat: state.chat.slice(-60), user: state.user };
   save(STATE_KEY, saved);
 }
 
@@ -60,6 +71,94 @@ function persist(): void {
 
 let dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search);
 let api = makeApi();
+
+// ---- ontology store (local or API) ------------------------------------------
+
+let localRepo = state.repo;
+let remote: RemoteStore | null = null;
+let ontologyStatus: OntologyContext['status'] = 'local';
+let ontologyError: string | null = null;
+let connectSeq = 0;
+
+// Switches the ontology between this browser and the API. A slow earlier
+// connection attempt can't overwrite a newer one (connectSeq).
+async function connectOntology(): Promise<void> {
+  const seq = ++connectSeq;
+  // state.repo holds this browser's own repo only while the status is "local".
+  if (!api) {
+    if (ontologyStatus !== 'local') state.repo = localRepo;
+    remote = null;
+    ontologyStatus = 'local';
+    ontologyError = null;
+    return;
+  }
+  if (ontologyStatus === 'local') localRepo = state.repo;
+  remote = null;
+  state.repo = createRepo();
+  ontologyStatus = 'loading';
+  ontologyError = null;
+  render();
+  try {
+    const store = remoteStore(api, await pickSite(api, dataSource.siteId));
+    const repo = await store.load();
+    if (seq !== connectSeq) return;
+    remote = store;
+    state.repo = repo;
+    ontologyStatus = 'ready';
+  } catch (e) {
+    if (seq !== connectSeq) return;
+    ontologyStatus = 'error';
+    ontologyError = e instanceof Error ? e.message : String(e);
+  }
+  render();
+}
+
+const ontologyCtx: OntologyContext = {
+  get status() {
+    return ontologyStatus;
+  },
+  get site() {
+    return remote?.site ?? null;
+  },
+  get error() {
+    return ontologyError;
+  },
+  async act(change, ok) {
+    const store: OntologyStore | null = api ? remote : localStore;
+    if (!store) {
+      toast('The ontology is still loading from the Tiles API');
+      return false;
+    }
+    const seq = connectSeq; // a data-source switch while we wait makes the result stale
+    try {
+      const next = await change(store, state.repo);
+      if (seq !== connectSeq) return false;
+      state.repo = next;
+      persist();
+      render();
+      if (ok) toast(ok);
+      return true;
+    } catch (e) {
+      // ApiErrors were already shown by the client's onError.
+      if (seq !== connectSeq) return false;
+      if (!(e instanceof ApiError)) toast(e instanceof Error ? e.message : String(e));
+      if (remote) await ontologyCtx.reload(); // show what the server has now
+      return false;
+    }
+  },
+  async reload() {
+    if (!remote) return;
+    const seq = connectSeq;
+    try {
+      const repo = await remote.load();
+      if (seq !== connectSeq) return;
+      state.repo = repo;
+    } catch {
+      // the client already showed why
+    }
+    render();
+  },
+};
 
 function makeApi(): ApiClient | null {
   if (dataSource.mode !== 'api') return null;
@@ -75,12 +174,15 @@ function makeApi(): ApiClient | null {
 const ctx: Context = {
   state,
   get graph() {
-    return workingGraph(state.repo);
+    return safeWorkingGraph(state.repo).graph;
   },
   update(mutate, { rerender = true } = {}) {
     const email = state.user.email;
     mutate(state);
-    if (state.user.email !== email) api = makeApi();
+    if (state.user.email !== email && api) {
+      api = makeApi();
+      void connectOntology(); // staged changes are per user
+    }
     persist();
     if (rerender) render();
   },
@@ -94,9 +196,11 @@ const ctx: Context = {
     clearAll();
     save('datasource', dataSource); // a preference, not workspace data
     Object.assign(state, freshState(), { ui: {} });
+    localRepo = state.repo;
     persist();
     render();
     toast('Demo data reset');
+    void connectOntology();
   },
   get dataSource() {
     return dataSource;
@@ -108,8 +212,10 @@ const ctx: Context = {
     dataSource = source;
     save('datasource', source);
     api = makeApi();
+    void connectOntology();
     render();
   },
+  ontology: ontologyCtx,
 };
 
 // ---- rendering ----------------------------------------------------------
@@ -203,4 +309,5 @@ window.addEventListener('hashchange', () => {
   need(document, '#view').focus({ preventScroll: true });
   window.scrollTo(0, 0);
 });
+void connectOntology(); // renders the loading state in API mode, before any local data shows
 render();

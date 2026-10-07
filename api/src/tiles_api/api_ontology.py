@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, model_validator
 
 from tiles_api import ontology as o
@@ -202,6 +202,17 @@ def get_staged(ctx: Ctx) -> list[o.Op]:
 def stage_op(ctx: Ctx, op: OpIn) -> list[o.Op]:
     """Stage one change. It is checked against your working graph; returns all your staged ops."""
     return _run(store.stage, ctx.conn, ctx.site_id, ctx.user, _op_dict(op))  # type: ignore[no-any-return]
+
+
+@router.post(
+    "/sites/{site_id}/ontology/staged/batch",
+    response_model=list[dict[str, Any]],
+    status_code=status.HTTP_201_CREATED,
+    tags=["ontology"],
+)
+def stage_ops(ctx: Ctx, ops: Annotated[list[OpIn], Body(min_length=1, max_length=2000)]) -> list[o.Op]:
+    """Stage several changes, all or none (e.g. a node and its relationship). Returns all your staged ops."""
+    return _run(store.stage, ctx.conn, ctx.site_id, ctx.user, *map(_op_dict, ops))  # type: ignore[no-any-return]
 
 
 @router.delete("/sites/{site_id}/ontology/staged", status_code=status.HTTP_204_NO_CONTENT, tags=["ontology"])

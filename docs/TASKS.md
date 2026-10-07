@@ -43,7 +43,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T1.13` [#24](https://github.com/dipeshrohan/tiles/issues/24) ★ **Ontology API:** stage, discard, commit, revert, history, working graph; port the `ontology.js` logic to Python and check both against the same test fixtures · BE · 5d · T1.12
   *Done when:* the TypeScript and Python implementations give identical results on a shared JSON fixture suite.
 - [x] `T1.14` [#25](https://github.com/dipeshrohan/tiles/issues/25) **Server-side health check endpoint** (orphans, dangling, duplicates, missing properties) · BE · 1d · T1.13
-- [ ] `T1.15` [#26](https://github.com/dipeshrohan/tiles/issues/26) ★ **Frontend ontology uses the API** instead of `localStorage` · FE · 2d · T1.09, T1.13
+- [x] `T1.15` [#26](https://github.com/dipeshrohan/tiles/issues/26) ★ **Frontend ontology uses the API** instead of `localStorage` · FE · 2d · T1.09, T1.13
   *Done when:* two browsers see each other's commits after refresh.
 
 ### Identity and audit

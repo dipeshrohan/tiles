@@ -804,6 +804,7 @@
 				graph: (siteId, view = "working") => request("GET", `${site(siteId)}/graph?view=${view}`),
 				staged: (siteId) => request("GET", `${site(siteId)}/staged`),
 				stage: (siteId, op) => request("POST", `${site(siteId)}/staged`, op),
+				stageMany: (siteId, ops) => request("POST", `${site(siteId)}/staged/batch`, ops),
 				discard: (siteId) => request("DELETE", `${site(siteId)}/staged`),
 				commit: (siteId, message) => request("POST", `${site(siteId)}/commits`, { message }),
 				history: (siteId, { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/commits?limit=${limit}&offset=${offset}`),
@@ -832,6 +833,78 @@
 			apiUrl: normalizeBaseUrl(param)
 		};
 		return source;
+	}
+	//#endregion
+	//#region js/lib/ontology-store.ts
+	var localStore = {
+		kind: "local",
+		stage: async (repo, ops) => ops.reduce((r, op) => stage(r, op), repo),
+		discard: async (repo) => discard(repo),
+		commit: async (repo, message, author) => commit(repo, {
+			message,
+			author
+		}),
+		revert: async (repo, id, author) => revert(repo, id, { author })
+	};
+	var HISTORY_LIMIT = 500;
+	function remoteStore(api, site) {
+		const o = api.ontology;
+		const load = async () => {
+			const [head, staged, history] = await Promise.all([
+				o.graph(site.id, "head"),
+				o.staged(site.id),
+				o.history(site.id, { limit: HISTORY_LIMIT })
+			]);
+			return {
+				...createRepo(head),
+				staged,
+				history
+			};
+		};
+		return {
+			kind: "api",
+			site,
+			load,
+			async stage(repo, ops) {
+				applyOps(workingGraph(repo), ops);
+				await o.stageMany(site.id, ops);
+				return load();
+			},
+			async discard() {
+				await o.discard(site.id);
+				return load();
+			},
+			async commit(_repo, message) {
+				await o.commit(site.id, message);
+				return load();
+			},
+			async revert(_repo, commitId) {
+				await o.revert(site.id, commitId);
+				return load();
+			}
+		};
+	}
+	function safeWorkingGraph(repo) {
+		try {
+			return {
+				graph: workingGraph(repo),
+				conflict: null
+			};
+		} catch (e) {
+			return {
+				graph: repo.head,
+				conflict: e instanceof Error ? e.message : String(e)
+			};
+		}
+	}
+	async function pickSite(api, preferred) {
+		const sites = await api.sites();
+		const site = sites.find((s) => s.id === preferred) ?? sites[0];
+		if (!site) throw new Error("The Tiles API has no sites yet. Run `tiles-seed` (Docker Compose does this for you).");
+		return site;
+	}
+	function historyOps(repo) {
+		return [...repo.history].reverse().flatMap((c) => c.ops);
 	}
 	//#endregion
 	//#region js/lib/dom.ts
@@ -1679,6 +1752,28 @@
 			default: return [op.id];
 		}
 	}
+	function pageHead() {
+		return `
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Operations · Ontology</div>
+          <h1>A map of the factory</h1>
+          <p>Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.</p>
+        </div>
+      </div>`;
+	}
+	function sourceBar(ctx) {
+		const o = ctx.ontology;
+		if (o.status === "local") return "";
+		if (o.status === "loading") return "<div class=\"card source-bar\" aria-live=\"polite\">Loading the ontology from the Tiles API…</div>";
+		if (o.status === "error") return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px"><a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
+		const { head, history, staged } = ctx.state.repo;
+		const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
+		return `<div class="card source-bar small" aria-live="polite">
+      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.</span>
+      <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<button class="btn sm" data-refresh>Refresh</button></span>
+    </div>`;
+	}
 	var view$4 = {
 		id: "ontology",
 		title: "Ontology builder",
@@ -1687,9 +1782,16 @@
 			const ui = uiState$3(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
+			const source = sourceBar(ctx);
+			if (ctx.ontology.status === "loading" || ctx.ontology.status === "error") return pageHead() + source;
 			const health = healthCheck(graph);
 			if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
-			const stagedBar = repo.staged.length ? `<form class="staged-bar" id="commit-form">
+			const { conflict } = safeWorkingGraph(repo);
+			const stagedBar = conflict ? `<div class="staged-bar" role="alert">
+          <span class="badge bad">${repo.staged.length} uncommitted</span>
+          <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
+          <button class="btn" type="button" data-discard>Discard</button>
+        </div>` : repo.staged.length ? `<form class="staged-bar" id="commit-form">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
@@ -1706,28 +1808,23 @@
 			if (ui.tab === "history") body = history(ctx, graph);
 			if (ui.tab === "health") body = healthTab(health, graph);
 			return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Ontology</div>
-          <h1>A map of the factory</h1>
-          <p>Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.</p>
-        </div>
-      </div>
+      ${pageHead()}
+      ${source}
       ${stagedBar}
       <div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? "active" : ""}" data-tab="${id}" role="tab">${label}</button>`).join("")}</div>
       ${body}`;
 		},
 		bind(root, ctx) {
 			const ui = uiState$3(ctx);
-			const run = (fn, ok) => {
-				try {
-					ctx.update(fn);
-					if (ok) ctx.toast(ok);
-				} catch (err) {
-					ctx.toast(err instanceof Error ? err.message : String(err));
-				}
-			};
-			const stageOp = (op, ok) => run((s) => s.repo = stage(s.repo, op), ok);
+			const author = ctx.state.user.email;
+			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
+			const stageOp = (op, ok) => stageOps([op], ok);
+			onAll(root, "[data-refresh]", "click", () => void ctx.ontology.reload());
+			onAll(root, "[data-import-demo]", "click", async (el) => {
+				el.setAttribute("disabled", "");
+				const ops = historyOps(seedOntology());
+				if (await stageOps(ops)) await ctx.ontology.act((store, repo) => store.commit(repo, "Import demo ontology", author), "Demo ontology imported");
+			});
 			const selected = () => ui.selected;
 			onAll(root, "[data-tab]", "click", (el) => {
 				const tab = el.dataset.tab;
@@ -1797,17 +1894,14 @@
 					id: el.dataset.fixDelete
 				}, "Node deletion staged");
 			});
-			onAll(root, "[data-discard]", "click", () => run((s) => s.repo = discard(s.repo), "Changes discarded"));
+			onAll(root, "[data-discard]", "click", () => ctx.ontology.act((store, repo) => store.discard(repo), "Changes discarded"));
 			onAll(root, "[data-revert]", "click", (el) => {
 				const id = el.dataset.revert;
-				if (id) run((s) => s.repo = revert(s.repo, id, { author: s.user.email }), "Commit reverted");
+				if (id) ctx.ontology.act((store, repo) => store.revert(repo, id, author), "Commit reverted");
 			});
 			onSubmit(root, "#commit-form", (form) => {
 				const message = field$1(form, "message");
-				run((s) => s.repo = commit(s.repo, {
-					message,
-					author: s.user.email
-				}), "Committed");
+				ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Committed");
 			});
 			onSubmit(root, "#prop-form", (form) => {
 				const id = selected();
@@ -1845,28 +1939,30 @@
 				for (let k = 2; ctx.graph.nodes[id]; k++) id = `${type.toLowerCase()}-${slug}-${k}`;
 				const from = field$1(form, "from");
 				const rel = field$1(form, "rel");
-				run((s) => {
-					let repo = stage(s.repo, {
-						kind: "addNode",
-						node: {
-							id,
-							type,
-							label,
-							props: {}
-						}
-					});
-					if (from) repo = stage(repo, {
-						kind: "addEdge",
-						edge: {
-							id: `${from}-${rel}-${id}`,
-							from,
-							rel,
-							to: id
-						}
-					});
-					s.repo = repo;
-					ui.selected = id;
-				}, "Node staged — commit to save it");
+				const ops = [{
+					kind: "addNode",
+					node: {
+						id,
+						type,
+						label,
+						props: {}
+					}
+				}];
+				if (from) ops.push({
+					kind: "addEdge",
+					edge: {
+						id: `${from}-${rel}-${id}`,
+						from,
+						rel,
+						to: id
+					}
+				});
+				stageOps(ops, "Node staged — commit to save it").then((ok) => {
+					if (ok) {
+						ui.selected = id;
+						ctx.rerender();
+					}
+				});
 			});
 		}
 	};
@@ -2609,7 +2705,7 @@
 	};
 	function persist() {
 		save(STATE_KEY, {
-			repo: state.repo,
+			repo: ontologyStatus === "local" ? state.repo : localRepo,
 			runs: state.runs,
 			chat: state.chat.slice(-60),
 			user: state.user
@@ -2617,6 +2713,83 @@
 	}
 	var dataSource = resolveDataSource(load("datasource", null), location.search);
 	var api = makeApi();
+	var localRepo = state.repo;
+	var remote = null;
+	var ontologyStatus = "local";
+	var ontologyError = null;
+	var connectSeq = 0;
+	async function connectOntology() {
+		const seq = ++connectSeq;
+		if (!api) {
+			if (ontologyStatus !== "local") state.repo = localRepo;
+			remote = null;
+			ontologyStatus = "local";
+			ontologyError = null;
+			return;
+		}
+		if (ontologyStatus === "local") localRepo = state.repo;
+		remote = null;
+		state.repo = createRepo();
+		ontologyStatus = "loading";
+		ontologyError = null;
+		render();
+		try {
+			const store = remoteStore(api, await pickSite(api, dataSource.siteId));
+			const repo = await store.load();
+			if (seq !== connectSeq) return;
+			remote = store;
+			state.repo = repo;
+			ontologyStatus = "ready";
+		} catch (e) {
+			if (seq !== connectSeq) return;
+			ontologyStatus = "error";
+			ontologyError = e instanceof Error ? e.message : String(e);
+		}
+		render();
+	}
+	var ontologyCtx = {
+		get status() {
+			return ontologyStatus;
+		},
+		get site() {
+			return remote?.site ?? null;
+		},
+		get error() {
+			return ontologyError;
+		},
+		async act(change, ok) {
+			const store = api ? remote : localStore;
+			if (!store) {
+				toast("The ontology is still loading from the Tiles API");
+				return false;
+			}
+			const seq = connectSeq;
+			try {
+				const next = await change(store, state.repo);
+				if (seq !== connectSeq) return false;
+				state.repo = next;
+				persist();
+				render();
+				if (ok) toast(ok);
+				return true;
+			} catch (e) {
+				if (seq !== connectSeq) return false;
+				if (!(e instanceof ApiError)) toast(e instanceof Error ? e.message : String(e));
+				if (remote) await ontologyCtx.reload();
+				return false;
+			}
+		},
+		async reload() {
+			if (!remote) return;
+			const seq = connectSeq;
+			try {
+				const repo = await remote.load();
+				if (seq !== connectSeq) return;
+				state.repo = repo;
+			} catch {}
+			render();
+		}
+	};
 	function makeApi() {
 		if (dataSource.mode !== "api") return null;
 		return createApiClient({
@@ -2628,12 +2801,15 @@
 	var ctx = {
 		state,
 		get graph() {
-			return workingGraph(state.repo);
+			return safeWorkingGraph(state.repo).graph;
 		},
 		update(mutate, { rerender = true } = {}) {
 			const email = state.user.email;
 			mutate(state);
-			if (state.user.email !== email) api = makeApi();
+			if (state.user.email !== email && api) {
+				api = makeApi();
+				connectOntology();
+			}
 			persist();
 			if (rerender) render();
 		},
@@ -2647,9 +2823,11 @@
 			clearAll();
 			save("datasource", dataSource);
 			Object.assign(state, freshState(), { ui: {} });
+			localRepo = state.repo;
 			persist();
 			render();
 			toast("Demo data reset");
+			connectOntology();
 		},
 		get dataSource() {
 			return dataSource;
@@ -2661,8 +2839,10 @@
 			dataSource = source;
 			save("datasource", source);
 			api = makeApi();
+			connectOntology();
 			render();
-		}
+		},
+		ontology: ontologyCtx
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
@@ -2720,6 +2900,7 @@
 		need(document, "#view").focus({ preventScroll: true });
 		window.scrollTo(0, 0);
 	});
+	connectOntology();
 	render();
 	//#endregion
 })();

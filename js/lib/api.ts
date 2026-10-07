@@ -118,6 +118,8 @@ export function createApiClient(options: ApiOptions) {
         request<Graph>('GET', `${site(siteId)}/graph?view=${view}`),
       staged: (siteId: string) => request<Op[]>('GET', `${site(siteId)}/staged`),
       stage: (siteId: string, op: Op) => request<Op[]>('POST', `${site(siteId)}/staged`, op),
+      // All or none: the API stages every op or, if one doesn't fit, none.
+      stageMany: (siteId: string, ops: Op[]) => request<Op[]>('POST', `${site(siteId)}/staged/batch`, ops),
       discard: (siteId: string) => request<void>('DELETE', `${site(siteId)}/staged`),
       commit: (siteId: string, message: string) => request<Commit>('POST', `${site(siteId)}/commits`, { message }),
       history: (siteId: string, { limit = 50, offset = 0 } = {}) =>
@@ -140,6 +142,8 @@ export type ApiClient = ReturnType<typeof createApiClient>;
 export interface DataSource {
   mode: 'local' | 'api';
   apiUrl: string;
+  // Site to open in API mode; the first one the API lists if unset or gone.
+  siteId?: string;
 }
 
 export const DEFAULT_DATA_SOURCE: DataSource = { mode: 'local', apiUrl: 'http://localhost:8000' };

@@ -85,6 +85,7 @@ Each site has one committed graph (`head`) and a commit history. Each user stage
 | `GET /graph?view=working` | head plus your staged changes (`view=head` for the committed graph) |
 | `GET /staged` | your staged ops, in order |
 | `POST /staged` | stage one op (`addNode`, `removeNode`, `addEdge`, `removeEdge`, `setProp`); returns all your staged ops |
+| `POST /staged/batch` | stage a list of ops, all or none (one transaction) |
 | `DELETE /staged` | discard your staged ops |
 | `POST /commits` | commit your staged ops: `{"message": "..."}` |
 | `GET /commits?limit=50&offset=0` | history, newest first |
