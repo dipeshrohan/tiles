@@ -3801,7 +3801,7 @@
 			ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
 				saving = null;
 				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
-				ui(ctx).editing = null;
+				if (ui(ctx).editing === sig.id) ui(ctx).editing = null;
 				ctx.toast(`Saved ${updated.tag}`);
 				fill(root, ctx);
 				search(root, ctx);

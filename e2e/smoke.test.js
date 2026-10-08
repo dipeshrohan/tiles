@@ -824,6 +824,28 @@ test('the edit form is locked while its change is saved', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test('a save that finishes late never closes another signal opened meanwhile', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('a.flow');
+  fake.addSignal('b.flow');
+  fake.slowSave(800);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.locator('tr', { hasText: 'a.flow' }).first().locator('[data-edit]').click();
+  await page.fill('#signal-form [name=unit]', 'm³/h');
+  await page.click('#signal-form button[type=submit]');
+  await page.locator('tr', { hasText: 'b.flow' }).first().locator('[data-edit]').click(); // while a.flow saves
+  await page.fill('#signal-form [name=description]', 'Return line');
+  await page.waitForSelector('#toast:has-text("Saved a.flow")');
+  await page.waitForTimeout(300);
+  assert.equal(await page.inputValue('#signal-form [name=description]'), 'Return line');
+  assert.match(await page.locator('[data-signal-results]').innerText(), /m³\/h/);
+  assert.deepEqual(errors, []);
+});
+
 test('changing a filter just before leaving never shows the old results on return', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

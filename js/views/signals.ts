@@ -215,7 +215,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
       (updated) => {
         saving = null;
         if (results) results.signals = results.signals.map((s) => (s.id === updated.id ? updated : s));
-        ui(ctx).editing = null;
+        if (ui(ctx).editing === sig.id) ui(ctx).editing = null; // not another signal opened meanwhile
         ctx.toast(`Saved ${updated.tag}`);
         fill(root, ctx);
         void search(root, ctx); // the change may take it out of (or into) the current search
