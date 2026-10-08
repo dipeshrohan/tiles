@@ -3662,6 +3662,13 @@
 	var failed = false;
 	var checking = false;
 	var latestSearch = 0;
+	var resultsFor = "";
+	var catalogue = (ctx) => [
+		ctx.api?.baseUrl ?? "",
+		ctx.ontology.site?.id ?? "",
+		ctx.state.user.email,
+		ctx.auth.signedIn
+	].join("|");
 	var searchTimer;
 	var ui = (ctx) => ctx.ui("signals", {
 		query: {
@@ -3778,8 +3785,9 @@
 	}
 	async function search(root, ctx) {
 		const site = ctx.ontology.site;
-		if (!ctx.api || !site) return;
+		if (!ctx.api || !site || !root.isConnected) return;
 		const mine = ++latestSearch;
+		const from = catalogue(ctx);
 		let page = null;
 		try {
 			page = await ctx.api.signals.list(site.id, {
@@ -3789,6 +3797,7 @@
 		} catch {}
 		if (mine !== latestSearch) return;
 		results = page;
+		resultsFor = from;
 		failed = page === null;
 		fill(root, ctx);
 	}
@@ -3870,7 +3879,9 @@
 		bind(root, ctx) {
 			const form = root.querySelector("#signal-search");
 			if (!form) return;
-			if (results) fill(root, ctx);
+			clearTimeout(searchTimer);
+			if (results && resultsFor === catalogue(ctx)) fill(root, ctx);
+			else results = null;
 			search(root, ctx);
 			const update = () => {
 				const u = ui(ctx);
