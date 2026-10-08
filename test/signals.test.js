@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { changeFrom, latest, resultsTable, sourceLabel } from '../js/views/signals.ts';
+import { changeFrom, latest, resultsTable, sourceLabel, untouched } from '../js/views/signals.ts';
 import { describeAudit } from '../js/views/settings.ts';
 
 const SIG = {
@@ -70,4 +70,10 @@ test('text fields left as they were are not sent, even when stored with spaces',
   const form = { unit: 'kg ', rate: '20', description: ' Platen ', node: '' };
   assert.deepEqual(changeFrom(form, spaced), { sample_rate_hz: 20 });
   assert.deepEqual(changeFrom({ ...form, unit: ' t ' }, spaced), { unit: 't', sample_rate_hz: 20 });
+});
+
+test('an input still showing what was rendered is untouched, line breaks aside', () => {
+  assert.equal(untouched({ value: 'Zone 1upper', defaultValue: 'Zone 1\nupper' }), true);
+  assert.equal(untouched({ value: 'kg', defaultValue: 'kg' }), true);
+  assert.equal(untouched({ value: 'kg2', defaultValue: 'kg' }), false);
 });

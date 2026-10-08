@@ -3748,11 +3748,12 @@
 		failed = page === null;
 		fill(root, ctx);
 	}
+	var untouched = (el) => el.value === el.defaultValue.replace(/[\r\n]/g, "");
 	function fill(root, ctx) {
 		const box = root.querySelector("[data-signal-results]");
 		if (!box) return;
 		const form = box.querySelector("#signal-form");
-		const changed = form ? [...form.elements].flatMap((el) => el instanceof HTMLInputElement && el.value !== el.defaultValue || el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected) ? [[el.name, el.value]] : []) : [];
+		const changed = form ? [...form.elements].flatMap((el) => el instanceof HTMLInputElement && !untouched(el) || el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected) ? [[el.name, el.value]] : []) : [];
 		const typed = form ? {
 			signal: form.dataset.signal,
 			values: changed
@@ -3785,10 +3786,14 @@
 			const site = ctx.ontology.site;
 			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
 			if (!site || !ctx.api || !sig || saving) return;
+			const text = (name, stored) => {
+				const el = form.elements.namedItem(name);
+				return el instanceof HTMLInputElement && untouched(el) ? stored : field$1(form, name);
+			};
 			const change = changeFrom({
-				unit: field$1(form, "unit"),
+				unit: text("unit", sig.unit ?? ""),
 				rate: field$1(form, "rate"),
-				description: field$1(form, "description"),
+				description: text("description", sig.description),
 				node: field$1(form, "node")
 			}, sig);
 			if (typeof change === "string") {

@@ -804,6 +804,23 @@ test("a refresh keeps only the fields being edited, and another engineer's chang
   assert.deepEqual(errors, []);
 });
 
+test('a description with line breaks is not rewritten by an edit to another field', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const sig = fake.addSignal('oven.temp', { description: 'Zone 1\nupper heater' }); // as the API allows
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=rate]', '5');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Saved oven.temp")');
+  assert.equal(sig.sample_rate_hz, 5);
+  assert.equal(sig.description, 'Zone 1\nupper heater');
+  assert.deepEqual(errors, []);
+});
+
 test('the edit form is locked while its change is saved', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

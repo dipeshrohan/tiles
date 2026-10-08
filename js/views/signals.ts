@@ -147,6 +147,11 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
   fill(root, ctx);
 }
 
+// Whether an input still shows what was rendered into it. A one-line input drops line breaks from
+// its value (HTML's value sanitization), so they don't count as an edit.
+export const untouched = (el: Pick<HTMLInputElement, 'value' | 'defaultValue'>): boolean =>
+  el.value === el.defaultValue.replace(/[\r\n]/g, '');
+
 function fill(root: HTMLElement, ctx: Context): void {
   const box = root.querySelector('[data-signal-results]');
   if (!box) return;
@@ -155,7 +160,7 @@ function fill(root: HTMLElement, ctx: Context): void {
   // Only fields the user changed: the rest show what the refresh brings (another engineer's edit, say).
   const changed = form
     ? [...form.elements].flatMap((el): [string, string][] =>
-        (el instanceof HTMLInputElement && el.value !== el.defaultValue) ||
+        (el instanceof HTMLInputElement && !untouched(el)) ||
         (el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected))
           ? [[el.name, el.value]]
           : [],
@@ -195,11 +200,17 @@ function bindResults(root: HTMLElement, ctx: Context): void {
     const site = ctx.ontology.site;
     const sig = results?.signals.find((s) => s.id === form.dataset.signal);
     if (!site || !ctx.api || !sig || saving) return;
+    // A text field the user didn't touch stands for its stored value: the browser may show it changed
+    // (a one-line input drops line breaks), and that must not count as an edit.
+    const text = (name: string, stored: string) => {
+      const el = form.elements.namedItem(name);
+      return el instanceof HTMLInputElement && untouched(el) ? stored : field(form, name);
+    };
     const change = changeFrom(
       {
-        unit: field(form, 'unit'),
+        unit: text('unit', sig.unit ?? ''),
         rate: field(form, 'rate'),
-        description: field(form, 'description'),
+        description: text('description', sig.description),
         node: field(form, 'node'),
       },
       sig,
