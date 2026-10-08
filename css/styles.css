@@ -474,6 +474,20 @@ main {
 .badge.warn {
   color: var(--warn);
 }
+.explorer-chart {
+  position: relative;
+  cursor: crosshair;
+  touch-action: none;
+  user-select: none;
+}
+.zoom-box {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--accent-soft);
+  opacity: 0.6;
+  pointer-events: none;
+}
 .btn-link {
   background: none;
   border: 0;

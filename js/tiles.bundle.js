@@ -829,7 +829,13 @@
 				checkQuality: (siteId, signalIds, hours) => request("POST", `/sites/${encodeURIComponent(siteId)}/signals/quality`, {
 					...signalIds ? { signal_ids: signalIds } : {},
 					...hours ? { hours } : {}
-				})
+				}),
+				get: (siteId, signalId) => request("GET", `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`),
+				series: (siteId, signalId, from, to, points) => request("GET", `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}/series?${new URLSearchParams({
+					from,
+					to,
+					points: String(points)
+				}).toString()}`)
 			},
 			imports: {
 				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/imports`),
@@ -1411,7 +1417,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$8 = {
+	var view$9 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1714,7 +1720,7 @@
 	];
 	//#endregion
 	//#region js/views/chat.ts
-	var view$7 = {
+	var view$8 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -2006,7 +2012,7 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
@@ -2332,6 +2338,111 @@
     <text class="axis" x="12" y="${10 + (height - bottom) / 2}" transform="rotate(-90 12 ${10 + (height - bottom) / 2})" text-anchor="middle">${esc(yLabel)}</text>
   </svg>`;
 	}
+	var TIME_CHART = {
+		width: 900,
+		height: 220,
+		pad: PAD
+	};
+	var SECOND = 1e3;
+	var MINUTE = 60 * SECOND;
+	var HOUR$1 = 60 * MINUTE;
+	var DAY = 24 * HOUR$1;
+	var STEPS = [
+		SECOND,
+		5 * SECOND,
+		15 * SECOND,
+		30 * SECOND,
+		MINUTE,
+		5 * MINUTE,
+		15 * MINUTE,
+		30 * MINUTE,
+		HOUR$1,
+		3 * HOUR$1,
+		6 * HOUR$1,
+		12 * HOUR$1,
+		DAY,
+		2 * DAY,
+		7 * DAY,
+		14 * DAY,
+		30 * DAY,
+		91 * DAY,
+		182 * DAY,
+		365 * DAY
+	];
+	function timeTicks(from, to, n = 6) {
+		const step = STEPS.find((s) => (to - from) / s <= n) ?? STEPS[STEPS.length - 1];
+		const ticks = [];
+		if (step >= 30 * DAY) {
+			const months = Math.round(step / (30.4 * DAY));
+			const d = new Date(from);
+			const first = new Date(d.getFullYear(), d.getMonth() - d.getMonth() % months, 1);
+			for (let i = 0;; i += months) {
+				const t = new Date(first.getFullYear(), first.getMonth() + i, 1).getTime();
+				if (t > to) break;
+				if (t >= from) ticks.push(t);
+			}
+			return {
+				step,
+				ticks
+			};
+		}
+		const offset = new Date(from).getTimezoneOffset() * MINUTE;
+		for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) {
+			const shifted = step >= HOUR$1 ? t + new Date(t).getTimezoneOffset() * MINUTE - offset : t;
+			if (shifted >= from && shifted <= to) ticks.push(shifted);
+		}
+		return {
+			step,
+			ticks
+		};
+	}
+	function tickLabel(t, step) {
+		const d = new Date(t);
+		const two = (n) => String(n).padStart(2, "0");
+		const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE ? `:${two(d.getSeconds())}` : ""}`;
+		if (step >= 365 * DAY) return String(d.getFullYear());
+		if (step >= 30 * DAY) return d.toLocaleDateString("en-GB", {
+			month: "short",
+			year: "numeric"
+		});
+		const date = d.toLocaleDateString("en-GB", {
+			day: "numeric",
+			month: "short"
+		});
+		if (step >= DAY) return date;
+		return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 ? date : time;
+	}
+	function timeAt(x, from, to, width = TIME_CHART.width) {
+		const left = PAD.l;
+		const right = width - PAD.r;
+		return from + Math.min(1, Math.max(0, (x - left) / (right - left))) * (to - from);
+	}
+	function timeChart({ points, from, to, gap, color = "var(--accent)", width = TIME_CHART.width, height = TIME_CHART.height, yLabel = "" }) {
+		const shown = points.filter((p) => p.t >= from && p.t <= to);
+		if (!shown.length) return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}"><text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
+		let lo = Math.min(...shown.map((p) => p.lo));
+		let hi = Math.max(...shown.map((p) => p.hi));
+		if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
+		const x = scale(from, to, PAD.l, width - PAD.r);
+		const y = scale(lo, hi, height - PAD.b, PAD.t);
+		const runs = [];
+		shown.forEach((p, i) => {
+			const prev = shown[i - 1];
+			if (!prev || p.t - prev.t > gap) runs.push([p]);
+			else runs[runs.length - 1].push(p);
+		});
+		const xy = (t, v) => `${x(t).toFixed(1)},${y(v).toFixed(1)}`;
+		const band = runs.filter((r) => r.some((p) => p.hi > p.lo)).map((r) => `<path d="M${r.map((p) => xy(p.t, p.hi)).join("L")}L${[...r].reverse().map((p) => xy(p.t, p.lo)).join("L")}Z" fill="${color}" fill-opacity="0.18" stroke="none"/>`).join("");
+		const lines = runs.map((r) => r.length === 1 ? `<circle cx="${x(r[0].t).toFixed(1)}" cy="${y(r[0].v).toFixed(1)}" r="2" fill="${color}"/>` : `<path d="M${r.map((p) => xy(p.t, p.v)).join("L")}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>`).join("");
+		const yt = ticks(lo, hi, 4);
+		const { step, ticks: xt } = timeTicks(from, to);
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
+    ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt$1(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join("")}
+    ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join("")}
+    ${band}${lines}
+    ${yLabel ? `<text class="axis" x="4" y="${PAD.t - 10}">${esc(yLabel)}</text>` : ""}
+  </svg>`;
+	}
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -2339,7 +2450,7 @@
 		split: true,
 		variable: "tension"
 	});
-	var view$5 = {
+	var view$6 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
@@ -2477,7 +2588,7 @@
 	//#endregion
 	//#region js/views/physics.ts
 	var uiState$1 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$4 = {
+	var view$5 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
@@ -2652,7 +2763,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -2987,7 +3098,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -3067,6 +3178,639 @@
 			onAll(root, "[data-reset]", "click", () => {
 				if (confirm("Reset ontology history, design runs and chat to the demo defaults?")) ctx.reset();
 			});
+		}
+	};
+	//#endregion
+	//#region js/views/signals.ts
+	var PAGE = 100;
+	var results = null;
+	var failed = false;
+	var checking = false;
+	var latestSearch = 0;
+	var resultsFor = "";
+	var resultsQuery = "";
+	var saving = null;
+	var catalogue = (ctx) => [
+		ctx.api?.baseUrl ?? "",
+		ctx.ontology.site?.id ?? "",
+		ctx.state.user.email,
+		ctx.auth.signedIn
+	].join("|");
+	var searchTimer;
+	var ui$1 = (ctx) => ctx.ui("signals", {
+		query: {
+			q: "",
+			source: "",
+			linked: "",
+			quality: ""
+		},
+		editing: null,
+		open: null
+	});
+	function sourceLabel(source) {
+		const [kind, ...rest] = source.split(":");
+		const name = rest.join(":");
+		if (kind === "edge") return `Edge agent ${name}`;
+		if (kind === "import") return `Import ${name}`;
+		return source === "manual" ? "Entered by hand" : source;
+	}
+	function latest(s) {
+		if (s.last_at === null || s.last_value === null) return "—";
+		const v = s.last_value;
+		return `${typeof v === "number" ? String(+v.toPrecision(6)) : String(v)}${typeof v === "number" && s.unit ? ` ${s.unit}` : ""} · ${new Date(s.last_at).toLocaleString("en-GB")}`;
+	}
+	var QUALITY = {
+		good: ["Good", "good"],
+		warn: ["Warnings", "warn"],
+		bad: ["Problems", "bad"],
+		unknown: ["No data", ""],
+		unchecked: ["Not checked", ""]
+	};
+	function qualityBadge(report) {
+		const [label, tone] = QUALITY[report ? report.badge : "unchecked"];
+		return `<span class="badge ${tone}" title="${esc(report?.issues.length ? report.issues.map((i) => i.message).join("\n") : label)}">${esc(label)}</span>`;
+	}
+	var percent = (x) => `${(Math.floor(x * 1e3) / 10).toFixed(1)}%`;
+	function qualityDetail(report) {
+		const when = new Date(report.checked_at).toLocaleString("en-GB");
+		const facts = [
+			`${fmt$1(report.readings, 0)} reading(s) in the ${+report.window_hours.toPrecision(3)} h up to the latest`,
+			report.period_s === null ? "" : `expected every ${+report.period_s.toPrecision(3)} s`,
+			report.coverage === null ? "" : `${percent(report.coverage)} of the time covered`
+		].filter(Boolean);
+		const issues = report.issues.length ? `<ul class="small">${report.issues.map((i) => `<li><span class="badge ${i.severity}">${i.severity === "bad" ? "problem" : "warning"}</span> ${esc(i.message)}</li>`).join("")}</ul>` : `<p class="small">${report.readings ? "No gaps, stuck values, out-of-range values or unit mismatches found." : "No readings to check."}</p>`;
+		return `<div class="stack" style="gap:6px"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(", "))}.</p>${issues}</div>`;
+	}
+	function number(text) {
+		const t = text.trim().replace(",", ".");
+		if (t === "") return null;
+		const n = Number(t);
+		return Number.isFinite(n) ? n : void 0;
+	}
+	function changeFrom(form, s) {
+		const change = {};
+		if (form.unit !== (s.unit ?? "")) {
+			const unit = form.unit.trim() || null;
+			if (unit !== s.unit) change.unit = unit;
+		}
+		const rate = number(form.rate);
+		if (rate === void 0 || rate !== null && rate <= 0) return "The sample rate is a number of readings per second, above 0.";
+		if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
+		if (form.description !== s.description) {
+			const description = form.description.trim();
+			if (description !== s.description) change.description = description;
+		}
+		const node = form.node || null;
+		if (node !== s.node_id) change.node_id = node;
+		const min = number(form.min ?? "");
+		const max = number(form.max ?? "");
+		if (min === void 0 || max === void 0) return "The expected range is two numbers (either may be blank).";
+		if (min !== null && max !== null && min >= max) return "The expected range's minimum must be below its maximum.";
+		if (min !== s.range_min) change.range_min = min;
+		if (max !== s.range_max) change.range_max = max;
+		const stuck = number(form.stuck ?? "");
+		if (stuck === void 0 || stuck !== null && (stuck <= 0 || stuck > 43200)) return "Stuck after is a number of minutes, above 0 and at most 30 days.";
+		const stuckS = stuck === null ? null : stuck * 60;
+		if (!(stuckS === null || s.stuck_after_s === null ? stuckS === s.stuck_after_s : Math.abs(stuckS - s.stuck_after_s) < 1e-6)) change.stuck_after_s = stuckS;
+		return change;
+	}
+	function linkCell(s) {
+		if (!s.node_id) return "<span class=\"soft\">—</span>";
+		return s.node_label !== null ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
+	}
+	function editRow(ctx, s) {
+		const nodes = Object.values(ctx.state.repo.head.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.label.localeCompare(b.label));
+		const options = [
+			`<option value="">— not linked —</option>`,
+			...s.node_id && !nodes.some((n) => n.id === s.node_id) ? [`<option value="${esc(s.node_id)}" selected>${esc(s.node_id)} (missing)</option>`] : [],
+			...nodes.map((n) => `<option value="${esc(n.id)}" ${n.id === s.node_id ? "selected" : ""}>${esc(n.label)} (${esc(n.id)})</option>`)
+		].join("");
+		const stuck = s.stuck_after_s === null ? "" : String(+(s.stuck_after_s / 60).toPrecision(12));
+		return `<tr class="edit-row"><td colspan="9">
+      <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+        <fieldset style="display:contents" ${saving === s.id ? "disabled" : ""}>
+        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
+        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ""))}" inputmode="decimal" style="width:7em"></label>
+        <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
+        <label class="field">Ontology node<select name="node">${options}</select></label>
+        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ""))}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ""))}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
+        <button class="btn primary" type="submit">${saving === s.id ? "Saving…" : "Save"}</button>
+        <button class="btn" type="button" data-cancel-edit>Cancel</button>
+        </fieldset>
+      </form>
+      ${nodes.length ? "" : "<p class=\"small soft\">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>"}
+    </td></tr>`;
+	}
+	function resultsTable(ctx, page, canEdit) {
+		if (!page.signals.length) return "<p class=\"small soft\">No signals match. Signals appear here once an edge agent or an import sends their readings.</p>";
+		const { editing, open } = ui$1(ctx);
+		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
+		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
+    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a></td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
+            <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
+            <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
+            <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
+            <td>${canEdit && editing !== s.id ? `<button class="btn sm" type="button" data-edit="${esc(s.id)}">Edit</button>` : ""}</td></tr>
+          ${open === s.id && s.quality ? `<tr class="quality-row"><td colspan="9">${qualityDetail(s.quality)}</td></tr>` : ""}
+          ${canEdit && editing === s.id ? editRow(ctx, s) : ""}`).join("")}</tbody></table></div>`;
+	}
+	async function search(root, ctx) {
+		const site = ctx.ontology.site;
+		if (!ctx.api || !site || !root.querySelector("#signal-search")) return;
+		const mine = ++latestSearch;
+		const from = catalogue(ctx);
+		const query = JSON.stringify(ui$1(ctx).query);
+		let page = null;
+		try {
+			page = await ctx.api.signals.list(site.id, {
+				...ui$1(ctx).query,
+				limit: PAGE
+			});
+		} catch {}
+		if (mine !== latestSearch) return;
+		if (!page && results && resultsFor === from && resultsQuery === query) return;
+		results = page;
+		resultsFor = from;
+		resultsQuery = query;
+		failed = page === null;
+		fill(root, ctx);
+	}
+	var untouched = (el) => el.value === el.defaultValue.replace(/[\r\n]/g, "");
+	function fill(root, ctx) {
+		const box = root.querySelector("[data-signal-results]");
+		if (!box) return;
+		const form = box.querySelector("#signal-form");
+		const changed = form ? [...form.elements].flatMap((el) => el instanceof HTMLInputElement && !untouched(el) || el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected) ? [[el.name, el.value]] : []) : [];
+		const typed = form ? {
+			signal: form.dataset.signal,
+			values: changed
+		} : null;
+		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
+		const canEdit = ctx.ontology.role !== "viewer";
+		box.innerHTML = failed ? "<p class=\"small soft\">The signals could not be loaded.</p>" : results ? resultsTable(ctx, results, canEdit) : "<p class=\"small soft\">Loading…</p>";
+		const again = box.querySelector("#signal-form");
+		if (typed && again && again.dataset.signal === typed.signal) {
+			for (const [name, value] of typed.values) {
+				const el = again.elements.namedItem(name);
+				if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
+			}
+			if (focused) again.elements.namedItem(focused)?.focus();
+		}
+		bindResults(root, ctx);
+	}
+	function bindResults(root, ctx) {
+		onAll(root, "[data-quality]", "click", (el) => {
+			const u = ui$1(ctx);
+			u.open = u.open === el.dataset.quality ? null : el.dataset.quality ?? null;
+			fill(root, ctx);
+		});
+		onAll(root, "[data-edit]", "click", (el) => {
+			ui$1(ctx).editing = el.dataset.edit ?? null;
+			fill(root, ctx);
+		});
+		onAll(root, "[data-cancel-edit]", "click", () => {
+			ui$1(ctx).editing = null;
+			fill(root, ctx);
+		});
+		const form = root.querySelector("#signal-form");
+		form?.addEventListener("submit", (e) => {
+			e.preventDefault();
+			const site = ctx.ontology.site;
+			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
+			if (!site || !ctx.api || !sig) return;
+			if (saving) {
+				const other = results?.signals.find((s) => s.id === saving);
+				ctx.toast(`Wait for ${other ? other.tag : "the other change"} to be saved, then save this one`);
+				return;
+			}
+			const text = (name, stored) => {
+				const el = form.elements.namedItem(name);
+				return el instanceof HTMLInputElement && untouched(el) ? stored : field$1(form, name);
+			};
+			const change = changeFrom({
+				unit: text("unit", sig.unit ?? ""),
+				rate: field$1(form, "rate"),
+				description: text("description", sig.description),
+				node: field$1(form, "node"),
+				min: field$1(form, "min"),
+				max: field$1(form, "max"),
+				stuck: field$1(form, "stuck")
+			}, sig);
+			if (typeof change === "string") {
+				ctx.toast(change);
+				return;
+			}
+			if (!Object.keys(change).length) {
+				ui$1(ctx).editing = null;
+				fill(root, ctx);
+				return;
+			}
+			saving = sig.id;
+			fill(root, ctx);
+			ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
+				saving = null;
+				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
+				if (ui$1(ctx).editing === sig.id) ui$1(ctx).editing = null;
+				ctx.toast(`Saved ${updated.tag}`);
+				fill(root, ctx);
+				search(root, ctx);
+			}, () => {
+				saving = null;
+				fill(root, ctx);
+			});
+		});
+	}
+	var view$2 = {
+		id: "signals",
+		title: "Signals",
+		icon: "≋",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
+        <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
+			if (!ctx.api) return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+			if (!ctx.ontology.site) return `${head}<div class="card"><p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p></div>`;
+			const { query } = ui$1(ctx);
+			const opt = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
+			return `${head}<div class="card stack" style="gap:12px">
+        <form id="signal-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
+          <label class="field" style="flex:1;min-width:200px">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
+          <label class="field">Source<select name="source">${opt("", "Any", query.source)}${opt("edge", "Edge agents", query.source)}${opt("import", "Imports", query.source)}${opt("manual", "Entered by hand", query.source)}</select></label>
+          <label class="field">Ontology link<select name="linked">${opt("", "Any", query.linked)}${opt("yes", "Linked", query.linked)}${opt("no", "Not linked", query.linked)}</select></label>
+          <label class="field">Quality<select name="quality">${opt("", "Any", query.quality)}${opt("bad", "Problems", query.quality)}${opt("warn", "Warnings", query.quality)}${opt("good", "Good", query.quality)}${opt("unknown", "No data", query.quality)}${opt("unchecked", "Not checked", query.quality)}</select></label>
+          ${ctx.ontology.role !== "viewer" ? `<button class="btn" type="button" data-check-quality ${checking ? "disabled" : ""} title="Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed">${checking ? "Checking…" : "Check quality"}</button>` : ""}
+        </form>
+        <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
+      </div>`;
+		},
+		bind(root, ctx) {
+			const form = root.querySelector("#signal-search");
+			if (!form) return;
+			clearTimeout(searchTimer);
+			if (results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui$1(ctx).query)) fill(root, ctx);
+			else results = null;
+			search(root, ctx);
+			const update = () => {
+				const u = ui$1(ctx);
+				u.query = {
+					q: field$1(form, "q"),
+					source: field$1(form, "source"),
+					linked: field$1(form, "linked"),
+					quality: field$1(form, "quality")
+				};
+				u.editing = null;
+				clearTimeout(searchTimer);
+				searchTimer = setTimeout(() => void search(root, ctx), 250);
+			};
+			form.addEventListener("input", update);
+			form.addEventListener("change", update);
+			form.addEventListener("submit", (e) => {
+				e.preventDefault();
+				update();
+			});
+			const checkButton = root.querySelector("[data-check-quality]");
+			const setButton = (busy) => {
+				const button = root.querySelector("[data-check-quality]");
+				if (!button) return;
+				button.disabled = busy;
+				button.textContent = busy ? "Checking…" : "Check quality";
+			};
+			checkButton?.addEventListener("click", () => {
+				const site = ctx.ontology.site;
+				if (!ctx.api || !site || checking) return;
+				const current = results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui$1(ctx).query);
+				const ids = current ? results?.signals.map((s) => s.id) ?? [] : [];
+				if (!ids.length) {
+					ctx.toast(current ? "No signals listed to check" : "Wait for the list to load, then check it");
+					return;
+				}
+				checking = true;
+				setButton(true);
+				ctx.api.signals.checkQuality(site.id, ids).then((out) => {
+					const { good, warn, bad, unknown } = out.badges;
+					ctx.toast(`Checked ${out.checked} signal(s): ${good} good, ${warn} with warnings, ${bad} with problems${unknown ? `, ${unknown} without data` : ""}`);
+					search(root, ctx);
+				}, () => void 0).finally(() => {
+					checking = false;
+					setButton(false);
+				});
+			});
+		}
+	};
+	//#endregion
+	//#region js/views/explorer.ts
+	var MAX_SIGNALS = 8;
+	var POINTS = 900;
+	var HOUR = 36e5;
+	var PRESETS = {
+		"1h": HOUR,
+		"24h": 24 * HOUR,
+		"7d": 168 * HOUR,
+		"30d": 720 * HOUR
+	};
+	var ui = (ctx) => ctx.ui("explorer", {
+		picked: [],
+		range: null,
+		catalogue: ""
+	});
+	var latestLoad = 0;
+	var latestFind = 0;
+	var findTimer;
+	var searchText = "";
+	var iso = (t) => new Date(t).toISOString();
+	function presetRange(preset, picked, now) {
+		if (preset !== "data") return {
+			from: iso(now - PRESETS[preset]),
+			to: iso(now)
+		};
+		const last = Math.max(...picked.map((p) => p.last_at ? Date.parse(p.last_at) : -Infinity));
+		const end = Number.isFinite(last) ? last + 1 : now;
+		return {
+			from: iso(end - PRESETS["24h"]),
+			to: iso(end)
+		};
+	}
+	var MAX_SPAN = 43920 * HOUR;
+	function zoomOut(range) {
+		const from = Date.parse(range.from);
+		const to = Date.parse(range.to);
+		const grow = Math.min(to - from, MAX_SPAN - (to - from)) / 2;
+		return {
+			from: iso(from - grow),
+			to: iso(to + grow)
+		};
+	}
+	function pan(range, direction) {
+		const from = Date.parse(range.from);
+		const to = Date.parse(range.to);
+		const shift = (to - from) / 2 * direction;
+		return {
+			from: iso(from + shift),
+			to: iso(to + shift)
+		};
+	}
+	function toPoints(series) {
+		return series.points.filter((p) => p.value !== null).map((p) => ({
+			t: Date.parse(p.at),
+			v: p.value,
+			lo: p.min ?? p.value,
+			hi: p.max ?? p.value
+		}));
+	}
+	function gapFor(series, points) {
+		if (series.bucket_s !== null) return series.bucket_s * 1500;
+		const steps = points.slice(1).map((p, i) => p.t - points[i].t).sort((a, b) => a - b);
+		const median = steps[Math.floor((steps.length - 1) / 2)];
+		return median === void 0 ? Infinity : Math.max(1, median * 5);
+	}
+	function duration(seconds) {
+		if (seconds < 60) return `${+seconds.toPrecision(3)} s`;
+		if (seconds < 3600) return `${+(seconds / 60).toPrecision(3)} min`;
+		if (seconds < 172800) return `${+(seconds / 3600).toPrecision(3)} h`;
+		return `${+(seconds / 86400).toPrecision(3)} d`;
+	}
+	function describe(series) {
+		const readings = series.points.reduce((n, p) => n + p.n, 0);
+		if (!readings) return "No readings in this range";
+		return series.bucket_s === null ? `${fmt$1(readings, 0)} reading(s)` : `${fmt$1(readings, 0)} readings, as ${fmt$1(series.points.length, 0)} averages of ${duration(series.bucket_s)} with their range`;
+	}
+	function textReadings(series) {
+		const texts = series.points.filter((p) => p.text !== null).slice(-20);
+		if (!texts.length) return "";
+		return `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Value</th></tr></thead><tbody>${texts.map((p) => `<tr><td>${esc(new Date(p.at).toLocaleString("en-GB"))}</td><td>${esc(p.text ?? "")}</td></tr>`).join("")}</tbody></table></div><p class="small soft">The latest ${texts.length} text value(s) in the range.</p>`;
+	}
+	function chartFor(series, range) {
+		const points = toPoints(series);
+		const from = Date.parse(range.from);
+		const to = Date.parse(range.to);
+		return `<div class="explorer-chart" data-zoom>${points.length || !series.points.length ? timeChart({
+			points,
+			from,
+			to,
+			gap: gapFor(series, points),
+			yLabel: series.unit ?? "",
+			width: fitWidth(TIME_CHART.width)
+		}) : ""}<div class="zoom-box" hidden></div></div>
+    ${textReadings(series)}
+    <p class="small soft" data-series-note>${esc(describe(series))}</p>`;
+	}
+	var localInput = (isoTime) => {
+		const d = new Date(isoTime);
+		const two = (n) => String(n).padStart(2, "0");
+		return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
+	};
+	function setRange(ctx, range) {
+		ui(ctx).range = range;
+		ctx.rerender();
+	}
+	function add(ctx, s) {
+		const u = ui(ctx);
+		if (u.picked.some((p) => p.id === s.id)) return;
+		if (u.picked.length >= MAX_SIGNALS) {
+			ctx.toast(`Plot at most ${MAX_SIGNALS} signals at once; remove one first`);
+			return;
+		}
+		u.picked = [...u.picked, {
+			id: s.id,
+			tag: s.tag,
+			unit: s.unit,
+			last_at: s.last_at
+		}];
+		const last = s.last_at ? Date.parse(s.last_at) : null;
+		const outside = u.range && last !== null && (last < Date.parse(u.range.from) || last >= Date.parse(u.range.to));
+		if (!u.range || outside) u.range = presetRange("data", [{ ...s }], Date.now());
+		ctx.rerender();
+	}
+	function loadCharts(root, ctx) {
+		const site = ctx.ontology.site;
+		const { picked, range } = ui(ctx);
+		if (!ctx.api || !site || !range) return;
+		const mine = ++latestLoad;
+		for (const p of picked) {
+			const box = root.querySelector(`[data-chart="${CSS.escape(p.id)}"]`);
+			ctx.api.signals.series(site.id, p.id, range.from, range.to, POINTS).then((series) => {
+				if (mine !== latestLoad || !box?.isConnected) return;
+				box.innerHTML = chartFor(series, range);
+				bindZoom(box, ctx, range);
+			}, () => {
+				if (mine === latestLoad && box?.isConnected) box.innerHTML = "<p class=\"small soft\">The readings could not be loaded.</p>";
+			});
+		}
+	}
+	function bindZoom(box, ctx, range) {
+		const area = box.querySelector("[data-zoom]");
+		const svg = area?.querySelector("svg");
+		const marker = area?.querySelector(".zoom-box");
+		if (!area || !svg || !marker) return;
+		const from = Date.parse(range.from);
+		const to = Date.parse(range.to);
+		const width = svg.viewBox.baseVal.width;
+		const units = (clientX) => {
+			const rect = svg.getBoundingClientRect();
+			return (clientX - rect.left) / rect.width * width;
+		};
+		let start = null;
+		const cancel = () => {
+			start = null;
+			marker.hidden = true;
+		};
+		area.addEventListener("pointerdown", (e) => {
+			if (e.button !== 0) return;
+			start = e.clientX;
+			area.setPointerCapture(e.pointerId);
+		});
+		area.addEventListener("pointercancel", cancel);
+		area.addEventListener("lostpointercapture", () => {
+			if (start !== null) cancel();
+		});
+		area.addEventListener("pointermove", (e) => {
+			if (start === null) return;
+			const rect = area.getBoundingClientRect();
+			marker.hidden = false;
+			marker.style.left = `${Math.min(start, e.clientX) - rect.left}px`;
+			marker.style.width = `${Math.abs(e.clientX - start)}px`;
+		});
+		area.addEventListener("pointerup", (e) => {
+			if (start === null) return;
+			const [a, b] = [units(start), units(e.clientX)].sort((p, q) => p - q);
+			cancel();
+			if (b - a < 8) return;
+			const t0 = timeAt(a, from, to, width);
+			const t1 = timeAt(b, from, to, width);
+			if (t1 - t0 >= 1) setRange(ctx, {
+				from: iso(t0),
+				to: iso(t1)
+			});
+		});
+	}
+	function bindSearch(root, ctx) {
+		const input = root.querySelector("#explorer-search [name=q]");
+		const list = root.querySelector("[data-explorer-found]");
+		if (!input || !list) return;
+		const find = async () => {
+			const site = ctx.ontology.site;
+			if (!ctx.api || !site || !root.querySelector("#explorer-search")) return;
+			const mine = ++latestFind;
+			let found = [];
+			try {
+				found = (await ctx.api.signals.list(site.id, {
+					q: input.value,
+					limit: 8
+				})).signals;
+			} catch {}
+			if (mine !== latestFind || !list.isConnected) return;
+			const picked = new Set(ui(ctx).picked.map((p) => p.id));
+			const choices = found.filter((s) => !picked.has(s.id));
+			list.innerHTML = choices.length ? choices.map((s) => `<button class="btn sm" type="button" data-add="${esc(s.id)}">+ ${esc(s.tag)}${s.unit ? ` <span class="soft">${esc(s.unit)}</span>` : ""}</button>`).join("") : "<span class=\"small soft\">No other signals match.</span>";
+			onAll(list, "[data-add]", "click", (el) => {
+				const s = choices.find((c) => c.id === el.dataset.add);
+				if (s) add(ctx, s);
+			});
+		};
+		input.value = searchText;
+		input.addEventListener("input", () => {
+			searchText = input.value;
+			clearTimeout(findTimer);
+			findTimer = setTimeout(() => void find(), 250);
+		});
+		root.querySelector("#explorer-search")?.addEventListener("submit", (e) => {
+			e.preventDefault();
+			find();
+		});
+		find();
+	}
+	function addFromLink(ctx) {
+		const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("signal");
+		const site = ctx.ontology.site;
+		if (!id || !ctx.api || !site) return;
+		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
+		ctx.api.signals.get(site.id, id).then((s) => add(ctx, s), () => void 0);
+	}
+	var view$1 = {
+		id: "explorer",
+		title: "Data explorer",
+		icon: "⌁",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Data explorer</h1>
+        <p class="soft">Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in.</p></div></div>`;
+			if (!ctx.api || !ctx.ontology.site) return `${head}<div class="card"><p class="small soft">Readings are kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+			const u = ui(ctx);
+			if (u.catalogue !== catalogue(ctx)) Object.assign(u, {
+				picked: [],
+				range: null,
+				catalogue: catalogue(ctx)
+			});
+			const { picked, range } = u;
+			const chips = picked.map((p) => `<span class="badge">${esc(p.tag)} <button class="btn-link" type="button" data-remove="${esc(p.id)}" aria-label="Remove ${esc(p.tag)}">×</button></span>`).join(" ");
+			const rangeBar = range ? `<form id="explorer-range" class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
+          ${[
+				"1h",
+				"24h",
+				"7d",
+				"30d"
+			].map((p) => `<button class="btn sm" type="button" data-preset="${p}">Last ${p}</button>`).join("")}
+          <button class="btn sm" type="button" data-preset="data" title="The 24 hours up to the latest reading">Latest data</button>
+          <label class="field">From<input type="datetime-local" name="from" value="${localInput(range.from)}"></label>
+          <label class="field">To<input type="datetime-local" name="to" value="${localInput(range.to)}"></label>
+          <button class="btn sm" type="submit">Show</button>
+          <button class="btn sm" type="button" data-pan="-1" aria-label="Earlier">←</button>
+          <button class="btn sm" type="button" data-zoom-out>Zoom out</button>
+          <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
+        </form>` : "";
+			const charts = picked.map((p) => `<div class="card stack" style="gap:6px">
+          <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? "")}</span></div>
+          <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
+        </div>`).join("");
+			return `${head}<div class="card stack" style="gap:12px">
+        <form id="explorer-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
+          <label class="field" style="flex:1;min-width:200px">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"></label>
+        </form>
+        <div class="row" style="gap:6px;flex-wrap:wrap" data-explorer-found></div>
+        ${picked.length ? `<div class="row" style="gap:6px;flex-wrap:wrap" data-picked>${chips}</div>` : "<p class=\"small soft\">Pick up to eight signals to plot them on one time axis.</p>"}
+        ${rangeBar}
+      </div>
+      <div class="stack" style="gap:12px;margin-top:12px" data-charts>${charts}</div>`;
+		},
+		bind(root, ctx) {
+			clearTimeout(findTimer);
+			addFromLink(ctx);
+			bindSearch(root, ctx);
+			onAll(root, "[data-remove]", "click", (el) => {
+				const u = ui(ctx);
+				u.picked = u.picked.filter((p) => p.id !== el.dataset.remove);
+				if (!u.picked.length) u.range = null;
+				ctx.rerender();
+			});
+			const form = root.querySelector("#explorer-range");
+			const range = ui(ctx).range;
+			if (form && range) {
+				onAll(form, "[data-preset]", "click", (el) => setRange(ctx, presetRange(el.dataset.preset, ui(ctx).picked, Date.now())));
+				onAll(form, "[data-pan]", "click", (el) => setRange(ctx, pan(range, el.dataset.pan === "-1" ? -1 : 1)));
+				onAll(form, "[data-zoom-out]", "click", () => setRange(ctx, zoomOut(range)));
+				form.addEventListener("submit", (e) => {
+					e.preventDefault();
+					const read = (name) => {
+						const typed = field$1(form, name);
+						return typed === localInput(range[name]) ? Date.parse(range[name]) : Date.parse(typed);
+					};
+					const from = read("from");
+					const to = read("to");
+					if (!(Number.isFinite(from) && Number.isFinite(to) && to > from)) {
+						ctx.toast("Choose a start before the end");
+						return;
+					}
+					if (to - from > 158112e6) {
+						ctx.toast("Choose at most five years");
+						return;
+					}
+					setRange(ctx, {
+						from: iso(from),
+						to: iso(to)
+					});
+				});
+			}
+			loadCharts(root, ctx);
 		}
 	};
 	//#endregion
@@ -3611,7 +4355,7 @@
 		ctx.toast(failure || unfinished ? "Import stopped by an error" : state.cancelled ? "Import stopped" : `Imported ${l.fileName}`);
 		ctx.rerender();
 	}
-	var view$1 = {
+	var view = {
 		id: "import",
 		title: "Import data",
 		icon: "⇪",
@@ -3662,357 +4406,44 @@
 		}
 	};
 	//#endregion
-	//#region js/views/signals.ts
-	var PAGE = 100;
-	var results = null;
-	var failed = false;
-	var checking = false;
-	var latestSearch = 0;
-	var resultsFor = "";
-	var resultsQuery = "";
-	var saving = null;
-	var catalogue = (ctx) => [
-		ctx.api?.baseUrl ?? "",
-		ctx.ontology.site?.id ?? "",
-		ctx.state.user.email,
-		ctx.auth.signedIn
-	].join("|");
-	var searchTimer;
-	var ui = (ctx) => ctx.ui("signals", {
-		query: {
-			q: "",
-			source: "",
-			linked: "",
-			quality: ""
-		},
-		editing: null,
-		open: null
-	});
-	function sourceLabel(source) {
-		const [kind, ...rest] = source.split(":");
-		const name = rest.join(":");
-		if (kind === "edge") return `Edge agent ${name}`;
-		if (kind === "import") return `Import ${name}`;
-		return source === "manual" ? "Entered by hand" : source;
-	}
-	function latest(s) {
-		if (s.last_at === null || s.last_value === null) return "—";
-		const v = s.last_value;
-		return `${typeof v === "number" ? String(+v.toPrecision(6)) : String(v)}${typeof v === "number" && s.unit ? ` ${s.unit}` : ""} · ${new Date(s.last_at).toLocaleString("en-GB")}`;
-	}
-	var QUALITY = {
-		good: ["Good", "good"],
-		warn: ["Warnings", "warn"],
-		bad: ["Problems", "bad"],
-		unknown: ["No data", ""],
-		unchecked: ["Not checked", ""]
-	};
-	function qualityBadge(report) {
-		const [label, tone] = QUALITY[report ? report.badge : "unchecked"];
-		return `<span class="badge ${tone}" title="${esc(report?.issues.length ? report.issues.map((i) => i.message).join("\n") : label)}">${esc(label)}</span>`;
-	}
-	var percent = (x) => `${(Math.floor(x * 1e3) / 10).toFixed(1)}%`;
-	function qualityDetail(report) {
-		const when = new Date(report.checked_at).toLocaleString("en-GB");
-		const facts = [
-			`${fmt$1(report.readings, 0)} reading(s) in the ${+report.window_hours.toPrecision(3)} h up to the latest`,
-			report.period_s === null ? "" : `expected every ${+report.period_s.toPrecision(3)} s`,
-			report.coverage === null ? "" : `${percent(report.coverage)} of the time covered`
-		].filter(Boolean);
-		const issues = report.issues.length ? `<ul class="small">${report.issues.map((i) => `<li><span class="badge ${i.severity}">${i.severity === "bad" ? "problem" : "warning"}</span> ${esc(i.message)}</li>`).join("")}</ul>` : `<p class="small">${report.readings ? "No gaps, stuck values, out-of-range values or unit mismatches found." : "No readings to check."}</p>`;
-		return `<div class="stack" style="gap:6px"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(", "))}.</p>${issues}</div>`;
-	}
-	function number(text) {
-		const t = text.trim().replace(",", ".");
-		if (t === "") return null;
-		const n = Number(t);
-		return Number.isFinite(n) ? n : void 0;
-	}
-	function changeFrom(form, s) {
-		const change = {};
-		if (form.unit !== (s.unit ?? "")) {
-			const unit = form.unit.trim() || null;
-			if (unit !== s.unit) change.unit = unit;
-		}
-		const rate = number(form.rate);
-		if (rate === void 0 || rate !== null && rate <= 0) return "The sample rate is a number of readings per second, above 0.";
-		if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
-		if (form.description !== s.description) {
-			const description = form.description.trim();
-			if (description !== s.description) change.description = description;
-		}
-		const node = form.node || null;
-		if (node !== s.node_id) change.node_id = node;
-		const min = number(form.min ?? "");
-		const max = number(form.max ?? "");
-		if (min === void 0 || max === void 0) return "The expected range is two numbers (either may be blank).";
-		if (min !== null && max !== null && min >= max) return "The expected range's minimum must be below its maximum.";
-		if (min !== s.range_min) change.range_min = min;
-		if (max !== s.range_max) change.range_max = max;
-		const stuck = number(form.stuck ?? "");
-		if (stuck === void 0 || stuck !== null && (stuck <= 0 || stuck > 43200)) return "Stuck after is a number of minutes, above 0 and at most 30 days.";
-		const stuckS = stuck === null ? null : stuck * 60;
-		if (!(stuckS === null || s.stuck_after_s === null ? stuckS === s.stuck_after_s : Math.abs(stuckS - s.stuck_after_s) < 1e-6)) change.stuck_after_s = stuckS;
-		return change;
-	}
-	function linkCell(s) {
-		if (!s.node_id) return "<span class=\"soft\">—</span>";
-		return s.node_label !== null ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
-	}
-	function editRow(ctx, s) {
-		const nodes = Object.values(ctx.state.repo.head.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.label.localeCompare(b.label));
-		const options = [
-			`<option value="">— not linked —</option>`,
-			...s.node_id && !nodes.some((n) => n.id === s.node_id) ? [`<option value="${esc(s.node_id)}" selected>${esc(s.node_id)} (missing)</option>`] : [],
-			...nodes.map((n) => `<option value="${esc(n.id)}" ${n.id === s.node_id ? "selected" : ""}>${esc(n.label)} (${esc(n.id)})</option>`)
-		].join("");
-		const stuck = s.stuck_after_s === null ? "" : String(+(s.stuck_after_s / 60).toPrecision(12));
-		return `<tr class="edit-row"><td colspan="9">
-      <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
-        <fieldset style="display:contents" ${saving === s.id ? "disabled" : ""}>
-        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
-        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ""))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
-        <label class="field">Ontology node<select name="node">${options}</select></label>
-        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ""))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ""))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
-        <button class="btn primary" type="submit">${saving === s.id ? "Saving…" : "Save"}</button>
-        <button class="btn" type="button" data-cancel-edit>Cancel</button>
-        </fieldset>
-      </form>
-      ${nodes.length ? "" : "<p class=\"small soft\">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>"}
-    </td></tr>`;
-	}
-	function resultsTable(ctx, page, canEdit) {
-		if (!page.signals.length) return "<p class=\"small soft\">No signals match. Signals appear here once an edge agent or an import sends their readings.</p>";
-		const { editing, open } = ui(ctx);
-		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
-		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
-    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><code>${esc(s.tag)}</code></td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
-            <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
-            <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
-            <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
-            <td>${canEdit && editing !== s.id ? `<button class="btn sm" type="button" data-edit="${esc(s.id)}">Edit</button>` : ""}</td></tr>
-          ${open === s.id && s.quality ? `<tr class="quality-row"><td colspan="9">${qualityDetail(s.quality)}</td></tr>` : ""}
-          ${canEdit && editing === s.id ? editRow(ctx, s) : ""}`).join("")}</tbody></table></div>`;
-	}
-	async function search(root, ctx) {
-		const site = ctx.ontology.site;
-		if (!ctx.api || !site || !root.querySelector("#signal-search")) return;
-		const mine = ++latestSearch;
-		const from = catalogue(ctx);
-		const query = JSON.stringify(ui(ctx).query);
-		let page = null;
-		try {
-			page = await ctx.api.signals.list(site.id, {
-				...ui(ctx).query,
-				limit: PAGE
-			});
-		} catch {}
-		if (mine !== latestSearch) return;
-		if (!page && results && resultsFor === from && resultsQuery === query) return;
-		results = page;
-		resultsFor = from;
-		resultsQuery = query;
-		failed = page === null;
-		fill(root, ctx);
-	}
-	var untouched = (el) => el.value === el.defaultValue.replace(/[\r\n]/g, "");
-	function fill(root, ctx) {
-		const box = root.querySelector("[data-signal-results]");
-		if (!box) return;
-		const form = box.querySelector("#signal-form");
-		const changed = form ? [...form.elements].flatMap((el) => el instanceof HTMLInputElement && !untouched(el) || el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected) ? [[el.name, el.value]] : []) : [];
-		const typed = form ? {
-			signal: form.dataset.signal,
-			values: changed
-		} : null;
-		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
-		const canEdit = ctx.ontology.role !== "viewer";
-		box.innerHTML = failed ? "<p class=\"small soft\">The signals could not be loaded.</p>" : results ? resultsTable(ctx, results, canEdit) : "<p class=\"small soft\">Loading…</p>";
-		const again = box.querySelector("#signal-form");
-		if (typed && again && again.dataset.signal === typed.signal) {
-			for (const [name, value] of typed.values) {
-				const el = again.elements.namedItem(name);
-				if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
-			}
-			if (focused) again.elements.namedItem(focused)?.focus();
-		}
-		bindResults(root, ctx);
-	}
-	function bindResults(root, ctx) {
-		onAll(root, "[data-quality]", "click", (el) => {
-			const u = ui(ctx);
-			u.open = u.open === el.dataset.quality ? null : el.dataset.quality ?? null;
-			fill(root, ctx);
-		});
-		onAll(root, "[data-edit]", "click", (el) => {
-			ui(ctx).editing = el.dataset.edit ?? null;
-			fill(root, ctx);
-		});
-		onAll(root, "[data-cancel-edit]", "click", () => {
-			ui(ctx).editing = null;
-			fill(root, ctx);
-		});
-		const form = root.querySelector("#signal-form");
-		form?.addEventListener("submit", (e) => {
-			e.preventDefault();
-			const site = ctx.ontology.site;
-			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
-			if (!site || !ctx.api || !sig) return;
-			if (saving) {
-				const other = results?.signals.find((s) => s.id === saving);
-				ctx.toast(`Wait for ${other ? other.tag : "the other change"} to be saved, then save this one`);
-				return;
-			}
-			const text = (name, stored) => {
-				const el = form.elements.namedItem(name);
-				return el instanceof HTMLInputElement && untouched(el) ? stored : field$1(form, name);
-			};
-			const change = changeFrom({
-				unit: text("unit", sig.unit ?? ""),
-				rate: field$1(form, "rate"),
-				description: text("description", sig.description),
-				node: field$1(form, "node"),
-				min: field$1(form, "min"),
-				max: field$1(form, "max"),
-				stuck: field$1(form, "stuck")
-			}, sig);
-			if (typeof change === "string") {
-				ctx.toast(change);
-				return;
-			}
-			if (!Object.keys(change).length) {
-				ui(ctx).editing = null;
-				fill(root, ctx);
-				return;
-			}
-			saving = sig.id;
-			fill(root, ctx);
-			ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
-				saving = null;
-				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
-				if (ui(ctx).editing === sig.id) ui(ctx).editing = null;
-				ctx.toast(`Saved ${updated.tag}`);
-				fill(root, ctx);
-				search(root, ctx);
-			}, () => {
-				saving = null;
-				fill(root, ctx);
-			});
-		});
-	}
-	var view = {
-		id: "signals",
-		title: "Signals",
-		icon: "≋",
-		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
-        <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
-			if (!ctx.ontology.site) return `${head}<div class="card"><p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p></div>`;
-			const { query } = ui(ctx);
-			const opt = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
-			return `${head}<div class="card stack" style="gap:12px">
-        <form id="signal-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
-          <label class="field" style="flex:1;min-width:200px">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
-          <label class="field">Source<select name="source">${opt("", "Any", query.source)}${opt("edge", "Edge agents", query.source)}${opt("import", "Imports", query.source)}${opt("manual", "Entered by hand", query.source)}</select></label>
-          <label class="field">Ontology link<select name="linked">${opt("", "Any", query.linked)}${opt("yes", "Linked", query.linked)}${opt("no", "Not linked", query.linked)}</select></label>
-          <label class="field">Quality<select name="quality">${opt("", "Any", query.quality)}${opt("bad", "Problems", query.quality)}${opt("warn", "Warnings", query.quality)}${opt("good", "Good", query.quality)}${opt("unknown", "No data", query.quality)}${opt("unchecked", "Not checked", query.quality)}</select></label>
-          ${ctx.ontology.role !== "viewer" ? `<button class="btn" type="button" data-check-quality ${checking ? "disabled" : ""} title="Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed">${checking ? "Checking…" : "Check quality"}</button>` : ""}
-        </form>
-        <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
-      </div>`;
-		},
-		bind(root, ctx) {
-			const form = root.querySelector("#signal-search");
-			if (!form) return;
-			clearTimeout(searchTimer);
-			if (results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query)) fill(root, ctx);
-			else results = null;
-			search(root, ctx);
-			const update = () => {
-				const u = ui(ctx);
-				u.query = {
-					q: field$1(form, "q"),
-					source: field$1(form, "source"),
-					linked: field$1(form, "linked"),
-					quality: field$1(form, "quality")
-				};
-				u.editing = null;
-				clearTimeout(searchTimer);
-				searchTimer = setTimeout(() => void search(root, ctx), 250);
-			};
-			form.addEventListener("input", update);
-			form.addEventListener("change", update);
-			form.addEventListener("submit", (e) => {
-				e.preventDefault();
-				update();
-			});
-			const checkButton = root.querySelector("[data-check-quality]");
-			const setButton = (busy) => {
-				const button = root.querySelector("[data-check-quality]");
-				if (!button) return;
-				button.disabled = busy;
-				button.textContent = busy ? "Checking…" : "Check quality";
-			};
-			checkButton?.addEventListener("click", () => {
-				const site = ctx.ontology.site;
-				if (!ctx.api || !site || checking) return;
-				const current = results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query);
-				const ids = current ? results?.signals.map((s) => s.id) ?? [] : [];
-				if (!ids.length) {
-					ctx.toast(current ? "No signals listed to check" : "Wait for the list to load, then check it");
-					return;
-				}
-				checking = true;
-				setButton(true);
-				ctx.api.signals.checkQuality(site.id, ids).then((out) => {
-					const { good, warn, bad, unknown } = out.badges;
-					ctx.toast(`Checked ${out.checked} signal(s): ${good} good, ${warn} with warnings, ${bad} with problems${unknown ? `, ${unknown} without data` : ""}`);
-					search(root, ctx);
-				}, () => void 0).finally(() => {
-					checking = false;
-					setButton(false);
-				});
-			});
-		}
-	};
-	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$9,
 		view$8,
 		view$7,
 		view$6,
 		view$5,
 		view$4,
-		view$3,
-		view,
+		view$2,
 		view$1,
-		view$2
+		view,
+		view$3
 	];
 	var NAV = [
-		{ items: [view$8, view$7] },
+		{ items: [view$9, view$8] },
 		{
 			group: "Operations",
 			items: [
+				view$7,
 				view$6,
-				view$5,
-				view$4
+				view$5
 			]
 		},
 		{
 			group: "Data",
-			items: [view, view$1]
+			items: [
+				view$2,
+				view$1,
+				view
+			]
 		},
 		{
 			group: "Design",
-			items: [view$3]
+			items: [view$4]
 		},
 		{
 			group: "",
-			items: [view$2]
+			items: [view$3]
 		}
 	];
 	function freshState() {
@@ -4272,7 +4703,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? view$8;
+		return VIEWS.find((v) => v.id === id) ?? view$9;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -4295,8 +4726,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$8 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$8 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$9 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$9 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);

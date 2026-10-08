@@ -18,7 +18,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 
 ## Layout
 - `js/lib/*.ts`: pure logic in strict TypeScript (ontology, physics, analysis, design models, copilot routing, stats, charts). Shared types in `js/lib/types.ts`. Import with the `.ts` extension. Unit-tested in `test/`.
-- `js/lib/csv.ts` and `js/lib/importer.ts`: the CSV parser and the bulk-import logic (column mapping, time formats and zones via `Intl`, readings in batches) behind the Import data page (`js/views/imports.ts`), which reads the file in the browser and sends it to the API. The Signals page (`js/views/signals.ts`) is the catalogue's browser side.
+- `js/lib/csv.ts` and `js/lib/importer.ts`: the CSV parser and the bulk-import logic (column mapping, time formats and zones via `Intl`, readings in batches) behind the Import data page (`js/views/imports.ts`), which reads the file in the browser and sends it to the API. The Signals page (`js/views/signals.ts`) is the catalogue's browser side; the Data explorer (`js/views/explorer.ts`) plots signals with `timeChart` from `js/lib/svg.ts`, from `api_series.py` (T2.10: raw readings, or `time_bucket` averages with min and max).
 - `js/views/*.ts`: one module per page; each default-exports a `View` (`{ id, title, icon, render(ctx), bind(root, ctx) }`, see `js/views/types.ts`). Per-page UI state goes through a typed `uiState(ctx)` helper with defaults.
 - `js/app.ts`: state, router, persistence (localStorage via `js/lib/store.ts`).
 - `js/lib/api.ts`: typed client for the Tiles API (`createApiClient`, `ApiError`) and the data-source flag (`local` or `api`, set in Settings or with `?api=<url>`). Views reach it as `ctx.api`, which is null in local mode; failed calls already show a toast.

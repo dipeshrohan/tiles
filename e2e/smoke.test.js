@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
 import { createFakeApi } from './fake-api.js';
 
-const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'signals', 'import', 'settings'];
+const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'signals', 'explorer', 'import', 'settings'];
 const VARIANTS = [
   { name: 'light desktop', colorScheme: 'light', viewport: { width: 1360, height: 900 } },
   { name: 'dark desktop', colorScheme: 'dark', viewport: { width: 1360, height: 900 } },
@@ -1015,6 +1015,88 @@ test('a quality check still shows as running after leaving the page and coming b
   await page.waitForSelector('#toast:has-text("Checked 1 signal(s)")');
   await page.waitForSelector('[data-check-quality]:has-text("Check quality")');
   assert.equal(await page.locator('[data-check-quality]').isDisabled(), false);
+  assert.deepEqual(errors, []);
+});
+
+test('the data explorer: plot signals, zoom in by dragging, zoom out into buckets', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const temp = fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge', unit: '°C' });
+  fake.addSignal('oven.temp', { source: 'import:oven.csv', unit: '°C' });
+  // Four days of readings every five minutes, ending 2026-09-05 06:00 UTC.
+  const end = Date.parse('2026-09-05T06:00:00Z');
+  for (let i = 0; i < 1152; i++) {
+    const at = new Date(end - i * 300_000).toISOString().replace('Z', '000Z');
+    fake.samples.set(`press1.temperature|${at}`, 20 + (i % 12));
+  }
+  fake.samples.set('oven.temp|2026-09-05T05:00:00.000000Z', 180);
+  temp.last_at = new Date(end).toISOString();
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  // The Signals page links each tag to the explorer.
+  await page.click('[data-signal-results] a:has-text("press1.temperature")');
+  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")'); // the day up to the latest
+  assert.match(await page.locator('[data-charts] svg').first().innerHTML(), /<path d="M/);
+
+  // Drag across the middle half of the chart: about half a day.
+  const box = await page.locator('[data-zoom] svg').first().boundingBox();
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForFunction(() => {
+    const note = document.querySelector('[data-series-note]')?.textContent ?? '';
+    const n = Number(note.replace(/[^0-9]/g, ''));
+    return /reading\(s\)/.test(note) && n > 80 && n < 200;
+  });
+
+  // More readings than the chart's points: the API averages them.
+  await page.click('[data-preset="data"]');
+  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  for (let i = 0; i < 3; i++) await page.click('[data-zoom-out]'); // eight days, around the same middle
+  await page.waitForSelector('[data-series-note]:has-text("1,152 readings, as")');
+  assert.match(await page.locator('[data-zoom] svg').first().innerHTML(), /fill-opacity/);
+
+  // Add a second signal from the search, then remove it.
+  await page.fill('#explorer-search [name=q]', 'oven');
+  await page.click('[data-explorer-found] [data-add]');
+  await page.waitForSelector('[data-picked] .badge:has-text("oven.temp")');
+  assert.equal(await page.locator('[data-charts] > .card').count(), 2);
+  await page.click('[data-remove]:right-of(:text("oven.temp"))');
+  await page.waitForFunction(() => document.querySelectorAll('[data-charts] > .card').length === 1);
+  assert.deepEqual(errors, []);
+});
+
+test('on a wide screen, drag-zoom keeps the stretch dragged, and search text survives adding', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const temp = fake.addSignal('press1.temperature', { unit: '°C' });
+  fake.addSignal('press1.force');
+  const end = Date.parse('2026-09-05T06:00:00Z');
+  for (let i = 0; i < 288; i++)
+    fake.samples.set(`press1.temperature|${new Date(end - i * 300_000).toISOString()}`, 20 + (i % 12));
+  temp.last_at = new Date(end).toISOString();
+  const { page, errors } = await openPage({ viewport: { width: 2400, height: 1000 } });
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/explorer`);
+  await page.fill('#explorer-search [name=q]', 'press1');
+  await page.click('[data-explorer-found] [data-add]:has-text("press1.temperature")');
+  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  assert.equal(await page.inputValue('#explorer-search [name=q]'), 'press1'); // still there to add the next
+  // Drag over the second fifth of the chart: about a fifth of the day.
+  const box = await page.locator('[data-zoom] svg').first().boundingBox();
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForFunction(() => {
+    const note = document.querySelector('[data-series-note]')?.textContent ?? '';
+    const n = Number(note.replace(/[^0-9]/g, ''));
+    return /reading\(s\)/.test(note) && n > 30 && n < 90;
+  });
   assert.deepEqual(errors, []);
 });
 

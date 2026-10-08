@@ -72,7 +72,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T2.07` [#36](https://github.com/dipeshrohan/tiles/issues/36) ★ **CSV and historian bulk import** with column-mapping UI for backfill · BE+FE · 3d · T2.06
 - [x] `T2.08` [#37](https://github.com/dipeshrohan/tiles/issues/37) **Signal catalogue:** tag, unit, sample rate, source, linked ontology node; browse and search UI · BE+FE · 2.5d · T2.06
 - [x] `T2.09` [#38](https://github.com/dipeshrohan/tiles/issues/38) ★ **Data-quality checks:** gaps, stuck values, out-of-range values, unit mismatch; quality badge per signal · BE · 3d · T2.08
-- [ ] `T2.10` [#39](https://github.com/dipeshrohan/tiles/issues/39) **Data Explorer page:** plot any signals over a time range, with zoom and downsampling · FE · 3d · T2.06
+- [x] `T2.10` [#39](https://github.com/dipeshrohan/tiles/issues/39) **Data Explorer page:** plot any signals over a time range, with zoom and downsampling · FE · 3d · T2.06
 
 ### Ontology at scale
 - [ ] `T2.11` [#40](https://github.com/dipeshrohan/tiles/issues/40) ★ **Agentic ingestion v1:** suggests the ontology node for each unmapped tag, using names, units, PLC paths and similar tags; the suggestion queue becomes staged ops · ML+BE · 4d · T2.08, T1.13

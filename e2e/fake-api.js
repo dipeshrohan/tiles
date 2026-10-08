@@ -298,6 +298,63 @@ export function createFakeApi({
         const checked = Object.values(badges).reduce((a, b) => a + b, 0);
         return send(200, { checked, badges });
       }
+      const plotted = signals.find((x) => url.pathname === `${signalsPath}/${x.id}/series`);
+      if (plotted && req.method === 'GET') {
+        // Like the API: readings in [from, to), as they are or in at most `points` buckets.
+        const from = Date.parse(url.searchParams.get('from') ?? '');
+        const to = Date.parse(url.searchParams.get('to') ?? '');
+        const points = Number(url.searchParams.get('points') ?? 1000);
+        if (!(to > from)) return send(422, { detail: '`to` must be after `from`' });
+        const rows = [...samples.entries()]
+          .filter(([k]) => k.startsWith(`${plotted.tag}|`))
+          .map(([k, v]) => ({ t: Date.parse(k.split('|')[1]), v }))
+          .filter((r) => r.t >= from && r.t < to)
+          .sort((a, b) => a.t - b.t);
+        const num = (v) => (typeof v === 'boolean' ? Number(v) : typeof v === 'number' ? v : null);
+        const text = (v) => (typeof v === 'string' ? v : null);
+        let bucket = null;
+        let out = rows.map((r) => ({
+          at: new Date(r.t).toISOString(),
+          value: num(r.v),
+          min: num(r.v),
+          max: num(r.v),
+          n: 1,
+          text: text(r.v),
+        }));
+        if (rows.length > points) {
+          bucket = Math.ceil((to - from) / points) / 1000; // whole ms, as the API rounds
+          const groups = new Map();
+          for (const r of rows) {
+            const start = from + Math.floor((r.t - from) / (bucket * 1000)) * bucket * 1000;
+            if (!groups.has(start)) groups.set(start, []);
+            groups.get(start).push(r);
+          }
+          out = [...groups.entries()].map(([start, rs]) => {
+            const vs = rs.map((r) => num(r.v)).filter((v) => v !== null);
+            return {
+              at: new Date(start).toISOString(),
+              value: vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null,
+              min: vs.length ? Math.min(...vs) : null,
+              max: vs.length ? Math.max(...vs) : null,
+              n: rs.length,
+              text:
+                rs
+                  .map((r) => text(r.v))
+                  .filter((v) => v !== null)
+                  .at(-1) ?? null,
+            };
+          });
+        }
+        return send(200, {
+          signal_id: plotted.id,
+          tag: plotted.tag,
+          unit: plotted.unit,
+          start: new Date(from).toISOString(),
+          end: new Date(to).toISOString(),
+          bucket_s: bucket,
+          points: out,
+        });
+      }
       const sig = signals.find((x) => url.pathname === `${signalsPath}/${x.id}`);
       if (url.pathname.startsWith(`${signalsPath}/`)) {
         if (!sig) return send(404, { detail: 'No such signal on this site' });
