@@ -2199,6 +2199,12 @@
 		t: 24,
 		b: 30
 	};
+	function fitWidth(design, share = 1) {
+		const main = typeof document === "undefined" ? null : document.querySelector("main");
+		if (!main) return design;
+		const available = (main.clientWidth - 48) * share - 40;
+		return Math.round(Math.min(design * 3, Math.max(design, available)));
+	}
 	function scale(d0, d1, r0, r1) {
 		const span = d1 - d0 || 1;
 		return (v) => r0 + (v - d0) / span * (r1 - r0);
@@ -2236,7 +2242,7 @@
 			});
 			return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ""} stroke-linejoin="round"/>`;
 		});
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(yLabel)}">
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
     ${bands.map((b) => `<rect x="${x(b.from)}" y="${PAD.t}" width="${Math.max(2, x(b.to) - x(b.from))}" height="${height - PAD.t - PAD.b}" fill="${b.color}"/>`).join("")}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt$1(t)}</text>`).join("")}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(xFormat(t))}</text>`).join("")}
@@ -2250,7 +2256,7 @@
 		const height = rows.length * rowH + 44;
 		const x = scale(domain[0], domain[1], left, width - 20);
 		const xt = ticks(domain[0], domain[1], 6);
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(xLabel)}">
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(xLabel)}">
     ${xt.map((t) => `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="8" y2="${height - 30}"/><text class="tick" x="${x(t)}" y="${height - 16}" text-anchor="middle">${fmt$1(t)}</text>`).join("")}
     ${rows.map((r, i) => {
 			const cy = 30 + i * rowH;
@@ -2270,7 +2276,7 @@
 		const maxAbs = Math.max(...items.map((i) => Math.abs(i.value)), 1e-9);
 		const x = scale(items.some((i) => i.value < 0) ? -maxAbs : 0, maxAbs, left, width - 60);
 		const zero = x(0);
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img">
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img">
     <line class="grid" x1="${zero}" x2="${zero}" y1="0" y2="${height}"/>
     ${items.map((it, i) => {
 			const cy = 6 + i * rowH;
@@ -2305,7 +2311,7 @@
 			Math.floor(ys.length / 2),
 			ys.length - 1
 		];
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Parameter sweep">
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="Parameter sweep">
     ${cells.join("")}
     ${xi.map((i) => `<text class="tick" x="${left + (i + .5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt$1(xs[i] ?? NaN, 1)}</text>`).join("")}
     ${yi.map((j) => `<text class="tick" x="50" y="${10 + (ys.length - 1 - j + .5) * ch + 4}" text-anchor="end">${fmt$1(ys[j] ?? NaN, 1)}</text>`).join("")}
@@ -2397,7 +2403,7 @@
         <div class="legend" style="margin-bottom:6px"><span><i class="box" style="background:var(--bad);border-radius:50%"></i>NG (failed) avg</span><span><i class="box" style="background:var(--muted);border-radius:50%"></i>Healthy avg</span></div>
         ${dumbbell({
 				rows: dumb,
-				width: 1040,
+				width: fitWidth(1040),
 				domain: [Math.min(...all) - pad, Math.max(...all) + pad],
 				xLabel: `Average ${v.label.toLowerCase()} (${v.unit})`
 			})}
@@ -2431,7 +2437,7 @@
 				}],
 				xFormat: (h) => `${h}h`,
 				yLabel: "Median welding power (W)",
-				width: 1040,
+				width: fitWidth(1040),
 				height: 260
 			})}
         <div class="grid g2" style="margin-top:12px">
@@ -2524,7 +2530,7 @@
 				}],
 				xFormat: (i) => `${fmt$1(toH(i), 0)}h`,
 				yLabel: "Friction (N)",
-				width: 1040,
+				width: fitWidth(1040),
 				height: 300
 			})}
         </div>
@@ -2548,7 +2554,7 @@
 				}],
 				xFormat: (i) => `${fmt$1(i * PLUNGER.dt * 1e3)}ms`,
 				yLabel: "bar",
-				width: 480,
+				width: fitWidth(480, .5),
 				height: 200,
 				yMin: 0
 			})}
@@ -2560,7 +2566,7 @@
 				}],
 				xFormat: (i) => `${fmt$1(i * PLUNGER.dt * 1e3)}ms`,
 				yLabel: "m/s",
-				width: 480,
+				width: fitWidth(480, .5),
 				height: 150,
 				yMin: 0
 			})}
@@ -4002,6 +4008,17 @@
 	});
 	need(document, "#menu").addEventListener("click", () => need(document, "#sidebar").classList.toggle("open"));
 	need(document, "#nav").addEventListener("click", () => need(document, "#sidebar").classList.remove("open"));
+	var drawnWidth = 0;
+	var resizeTimer;
+	window.addEventListener("resize", () => {
+		clearTimeout(resizeTimer);
+		resizeTimer = setTimeout(() => {
+			const width = need(document, "main").clientWidth;
+			if (Math.abs(width - drawnWidth) < 40 || !document.querySelector("#view svg.chart")) return;
+			drawnWidth = width;
+			renderSoon();
+		}, 200);
+	});
 	window.addEventListener("hashchange", () => {
 		render();
 		need(document, "#view").focus({ preventScroll: true });

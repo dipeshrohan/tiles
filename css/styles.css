@@ -296,10 +296,11 @@ nav {
 .menu {
   display: none;
 }
+/* The content uses the whole width, however wide the screen (ultrawide monitors included). */
 main {
   padding: 24px;
-  max-width: 1440px;
   width: 100%;
+  min-width: 0;
   outline: none;
 }
 
@@ -596,6 +597,7 @@ tr.selected td {
   width: 100%;
   height: auto;
   display: block;
+  margin-inline: auto; /* a chart grows at most 1.5× its drawn size (svg.ts), centred in its card */
   overflow: visible;
 }
 .chart .grid {
