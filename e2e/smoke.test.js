@@ -152,11 +152,34 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
   t.after(() => fake.close());
-  const open = async () => {
+  const open = async (email) => {
     const { page, errors } = await openPage();
     t.after(() => page.close());
-    await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+    if (email) {
+      // Another engineer: staged changes are kept per user.
+      await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
+      await page.waitForSelector('#account:has-text("development user")'); // settled: no re-render mid-typing
+      await page.fill('#profile [name=email]', email);
+      await page.click('#profile button[type=submit]');
+      await page.waitForSelector('#toast:has-text("Profile saved")');
+      assert.equal(await page.inputValue('#profile [name=email]'), email);
+      await page.evaluate(() => (location.hash = '#/ontology'));
+    } else await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+    await page.waitForSelector('.source-bar:has-text("Shared through the Tiles API")'); // loaded
     return { page, errors };
+  };
+  // Refresh, and wait until the page shows what the API answered.
+  const refresh = async (page) => {
+    const answered = (path) =>
+      page.waitForResponse((r) => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith(path));
+    await Promise.all([
+      answered('/ontology/graph'),
+      answered('/ontology/staged'),
+      answered('/ontology/commits'),
+      answered('/me'),
+      page.click('[data-refresh]'),
+    ]);
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   };
 
   const a = await open();
@@ -167,7 +190,7 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   assert.match(await a.page.locator('.commit').first().innerText(), /Import demo ontology/);
 
   // A second browser sees the shared history straight away.
-  const b = await open();
+  const b = await open('eng2@example.com');
   await b.page.click('[data-tab=history]');
   assert.match(await b.page.locator('.commit').first().innerText(), /Import demo ontology/);
 
@@ -175,9 +198,12 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   await a.page.click('[data-tab=canvas]');
   await a.page.fill('#node-form [name=label]', 'Alarm stream DC-02');
   await a.page.selectOption('#node-form [name=type]', 'Signal');
-  await a.page.click('#node-form button');
+  await Promise.all([
+    a.page.waitForResponse((r) => r.request().method() === 'POST' && /\/ontology\/staged/.test(r.url())),
+    a.page.click('#node-form button'),
+  ]);
   await a.page.waitForSelector('#commit-form');
-  await b.page.click('[data-refresh]');
+  await refresh(b.page);
   assert.equal(await b.page.locator('#commit-form').count(), 0);
   await a.page.fill('#commit-form [name=message]', 'add alarms node');
   await a.page.click('#commit-form button[type=submit]');
@@ -189,7 +215,7 @@ test('ontology page in API mode: import, commit, and see another user’s commit
     [{ kind: 'addNode', node: { id: 'doc-x', type: 'Document', label: 'Shift notes', props: {} } }],
     'add shift notes',
   );
-  await b.page.click('[data-refresh]');
+  await refresh(b.page);
   await b.page.click('[data-tab=history]');
   const messages = await b.page.locator('.commit b').allInnerTexts();
   assert.deepEqual(messages.slice(0, 3), ['add shift notes', 'add alarms node', 'Import demo ontology']);
@@ -197,7 +223,7 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   // Revert from B goes through the API and A sees it after a refresh.
   await b.page.locator('[data-revert]').first().click();
   await b.page.waitForSelector('#toast:has-text("Commit reverted")');
-  await a.page.click('[data-refresh]');
+  await refresh(a.page);
   await a.page.click('[data-tab=history]');
   assert.match(await a.page.locator('.commit').first().innerText(), /Revert "add shift notes"/);
 
