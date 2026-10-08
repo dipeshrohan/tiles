@@ -1,23 +1,27 @@
 import { esc, field, fmt, onAll } from '../lib/dom.ts';
-import type { SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
+import type { QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
-// Signal node in the ontology.
+// Signal node in the ontology. Each signal shows the badge of its latest data-quality check
+// (T2.09): gaps, stuck values, out-of-range values, unit mismatches.
 
 const PAGE = 100;
 
 interface Ui {
-  query: Required<Pick<SignalQuery, 'q' | 'source' | 'linked'>>;
+  query: Required<Pick<SignalQuery, 'q' | 'source' | 'linked' | 'quality'>>;
   editing: string | null; // the signal being edited
+  open: string | null; // the signal whose quality report is shown
 }
 
 let results: { total: number; signals: SignalInfo[] } | null = null;
 let failed = false;
+let checking = false;
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
-const ui = (ctx: Context): Ui => ctx.ui<Ui>('signals', { query: { q: '', source: '', linked: '' }, editing: null });
+const ui = (ctx: Context): Ui =>
+  ctx.ui<Ui>('signals', { query: { q: '', source: '', linked: '', quality: '' }, editing: null, open: null });
 
 export function sourceLabel(source: string): string {
   const [kind, ...rest] = source.split(':');
@@ -35,23 +39,79 @@ export function latest(s: Pick<SignalInfo, 'last_value' | 'last_at' | 'unit'>): 
   return `${value}${unit} · ${new Date(s.last_at).toLocaleString('en-GB')}`;
 }
 
+const QUALITY: Record<QualityReport['badge'] | 'unchecked', [string, string]> = {
+  good: ['Good', 'good'],
+  warn: ['Warnings', 'warn'],
+  bad: ['Problems', 'bad'],
+  unknown: ['No data', ''],
+  unchecked: ['Not checked', ''],
+};
+
+export function qualityBadge(report: QualityReport | null): string {
+  const [label, tone] = QUALITY[report ? report.badge : 'unchecked'];
+  const title = report?.issues.length ? report.issues.map((i) => i.message).join('\n') : label;
+  return `<span class="badge ${tone}" title="${esc(title)}">${esc(label)}</span>`;
+}
+
+// Rounded down, as the API does, so a share just below a limit doesn't read as on it.
+const percent = (x: number) => `${(Math.floor(x * 1000) / 10).toFixed(1)}%`;
+
+// The report behind a badge: what was checked and what was found.
+export function qualityDetail(report: QualityReport): string {
+  const when = new Date(report.checked_at).toLocaleString('en-GB');
+  const facts = [
+    `${fmt(report.readings, 0)} reading(s) in the ${+report.window_hours.toPrecision(3)} h up to the latest`,
+    report.period_s === null ? '' : `expected every ${+report.period_s.toPrecision(3)} s`,
+    report.coverage === null ? '' : `${percent(report.coverage)} of the time covered`,
+  ].filter(Boolean);
+  const issues = report.issues.length
+    ? `<ul class="small">${report.issues.map((i) => `<li><span class="badge ${i.severity}">${i.severity === 'bad' ? 'problem' : 'warning'}</span> ${esc(i.message)}</li>`).join('')}</ul>`
+    : `<p class="small">${report.readings ? 'No gaps, stuck values, out-of-range values or unit mismatches found.' : 'No readings to check.'}</p>`;
+  return `<div class="stack" style="gap:6px"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(', '))}.</p>${issues}</div>`;
+}
+
+function number(text: string): number | null | undefined {
+  const t = text.trim().replace(',', '.');
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 // What the edit form changes, as the API takes it: only fields that differ; blanks clear.
 export function changeFrom(
-  form: { unit: string; rate: string; description: string; node: string },
+  form: {
+    unit: string;
+    rate: string;
+    description: string;
+    node: string;
+    min?: string;
+    max?: string;
+    stuck?: string; // minutes
+  },
   s: SignalInfo,
 ): SignalChange | string {
   const change: SignalChange = {};
   const unit = form.unit.trim() || null;
   if (unit !== s.unit) change.unit = unit;
-  const rateText = form.rate.trim().replace(',', '.');
-  const rate = rateText === '' ? null : Number(rateText);
-  if (rate !== null && !(Number.isFinite(rate) && rate > 0))
+  const rate = number(form.rate);
+  if (rate === undefined || (rate !== null && rate <= 0))
     return 'The sample rate is a number of readings per second, above 0.';
   if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
   const description = form.description.trim();
   if (description !== s.description) change.description = description;
   const node = form.node || null;
   if (node !== s.node_id) change.node_id = node;
+  const min = number(form.min ?? '');
+  const max = number(form.max ?? '');
+  if (min === undefined || max === undefined) return 'The expected range is two numbers (either may be blank).';
+  if (min !== null && max !== null && min >= max) return "The expected range's minimum must be below its maximum.";
+  if (min !== s.range_min) change.range_min = min;
+  if (max !== s.range_max) change.range_max = max;
+  const stuck = number(form.stuck ?? '');
+  if (stuck === undefined || (stuck !== null && (stuck <= 0 || stuck > 30 * 24 * 60)))
+    return 'Stuck after is a number of minutes, above 0 and at most 30 days.';
+  const stuckS = stuck === null ? null : stuck * 60;
+  if (stuckS !== s.stuck_after_s) change.stuck_after_s = stuckS;
   return change;
 }
 
@@ -76,12 +136,16 @@ function editRow(ctx: Context, s: SignalInfo): string {
         `<option value="${esc(n.id)}" ${n.id === s.node_id ? 'selected' : ''}>${esc(n.label)} (${esc(n.id)})</option>`,
     ),
   ].join('');
-  return `<tr class="edit-row"><td colspan="8">
+  const stuck = s.stuck_after_s === null ? '' : String(s.stuck_after_s / 60);
+  return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
         <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? '')}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
         <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${s.sample_rate_hz ?? ''}" inputmode="decimal" style="width:7em"></label>
         <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
+        <label class="field">Expected min<input type="text" name="min" value="${s.range_min ?? ''}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Expected max<input type="text" name="max" value="${s.range_max ?? ''}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
         <button class="btn primary" type="submit">Save</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
       </form>
@@ -92,19 +156,21 @@ function editRow(ctx: Context, s: SignalInfo): string {
 export function resultsTable(ctx: Context, page: { total: number; signals: SignalInfo[] }, canEdit: boolean): string {
   if (!page.signals.length)
     return '<p class="small soft">No signals match. Signals appear here once an edge agent or an import sends their readings.</p>';
-  const { editing } = ui(ctx);
+  const { editing, open } = ui(ctx);
   const more =
     page.total > page.signals.length
       ? ` Showing the first ${page.signals.length}; narrow the search to see others.`
       : '';
   return `<p class="small soft" data-signal-count>${esc(fmt(page.total, 0))} signal(s).${esc(more)}</p>
-    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th></th></tr></thead><tbody>${page.signals
+    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals
       .map(
         (s) =>
           `<tr data-row="${esc(s.id)}"><td><code>${esc(s.tag)}</code></td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
             <td>${esc(s.unit ?? '—')}</td><td>${s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
+            <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
             <td>${canEdit && editing !== s.id ? `<button class="btn sm" type="button" data-edit="${esc(s.id)}">Edit</button>` : ''}</td></tr>
+          ${open === s.id && s.quality ? `<tr class="quality-row"><td colspan="9">${qualityDetail(s.quality)}</td></tr>` : ''}
           ${canEdit && editing === s.id ? editRow(ctx, s) : ''}`,
       )
       .join('')}</tbody></table></div>`;
@@ -135,6 +201,11 @@ function fill(root: HTMLElement, ctx: Context): void {
 }
 
 function bindResults(root: HTMLElement, ctx: Context): void {
+  onAll(root, '[data-quality]', 'click', (el) => {
+    const u = ui(ctx);
+    u.open = u.open === el.dataset.quality ? null : (el.dataset.quality ?? null);
+    fill(root, ctx);
+  });
   onAll(root, '[data-edit]', 'click', (el) => {
     ui(ctx).editing = el.dataset.edit ?? null;
     fill(root, ctx);
@@ -155,6 +226,9 @@ function bindResults(root: HTMLElement, ctx: Context): void {
         rate: field(form, 'rate'),
         description: field(form, 'description'),
         node: field(form, 'node'),
+        min: field(form, 'min'),
+        max: field(form, 'max'),
+        stuck: field(form, 'stuck'),
       },
       sig,
     );
@@ -196,6 +270,8 @@ const view: View = {
           <label class="field" style="flex:1;min-width:200px">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
           <label class="field">Source<select name="source">${opt('', 'Any', query.source)}${opt('edge', 'Edge agents', query.source)}${opt('import', 'Imports', query.source)}${opt('manual', 'Entered by hand', query.source)}</select></label>
           <label class="field">Ontology link<select name="linked">${opt('', 'Any', query.linked)}${opt('yes', 'Linked', query.linked)}${opt('no', 'Not linked', query.linked)}</select></label>
+          <label class="field">Quality<select name="quality">${opt('', 'Any', query.quality)}${opt('bad', 'Problems', query.quality)}${opt('warn', 'Warnings', query.quality)}${opt('good', 'Good', query.quality)}${opt('unknown', 'No data', query.quality)}${opt('unchecked', 'Not checked', query.quality)}</select></label>
+          ${ctx.ontology.role !== 'viewer' ? '<button class="btn" type="button" data-check-quality title="Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed">Check quality</button>' : ''}
         </form>
         <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
       </div>`;
@@ -211,6 +287,7 @@ const view: View = {
         q: field(form, 'q'),
         source: field(form, 'source') as Ui['query']['source'],
         linked: field(form, 'linked') as Ui['query']['linked'],
+        quality: field(form, 'quality') as Ui['query']['quality'],
       };
       u.editing = null;
       clearTimeout(searchTimer);
@@ -221,6 +298,32 @@ const view: View = {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       update();
+    });
+    const checkButton = root.querySelector<HTMLButtonElement>('[data-check-quality]');
+    checkButton?.addEventListener('click', () => {
+      const site = ctx.ontology.site;
+      const ids = results?.signals.map((s) => s.id) ?? [];
+      if (!ctx.api || !site || checking || !ids.length) return;
+      checking = true;
+      checkButton.disabled = true;
+      checkButton.textContent = 'Checking…';
+      ctx.api.signals
+        .checkQuality(site.id, ids)
+        .then(
+          (out) => {
+            const { good, warn, bad, unknown } = out.badges;
+            ctx.toast(
+              `Checked ${out.checked} signal(s): ${good} good, ${warn} with warnings, ${bad} with problems${unknown ? `, ${unknown} without data` : ''}`,
+            );
+            void search(root, ctx);
+          },
+          () => undefined, // the client showed why
+        )
+        .finally(() => {
+          checking = false;
+          checkButton.disabled = false;
+          checkButton.textContent = 'Check quality';
+        });
     });
   },
 };

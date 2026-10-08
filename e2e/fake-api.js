@@ -45,6 +45,10 @@ export function createFakeApi({
         source: 'manual',
         description: '',
         node_id: null,
+        range_min: null,
+        range_max: null,
+        stuck_after_s: null,
+        quality: null,
       };
       sig.created_at = new Date().toISOString();
       signals.push(sig);
@@ -53,6 +57,24 @@ export function createFakeApi({
     return Object.assign(sig, extra);
   };
   // Like the API: the node's label (if it's in the committed ontology) and the latest reading.
+  const qualityFound = new Map(); // tag -> the report the next quality check gives it (default: good)
+  const goodReport = (sig) => ({
+    badge: 'good',
+    checked_at: new Date().toISOString(),
+    window_hours: 24,
+    first_at: null,
+    last_at: null,
+    readings: [...samples.keys()].filter((k) => k.startsWith(`${sig.tag}|`)).length,
+    period_s: null,
+    coverage: null,
+    gaps: 0,
+    longest_gap_s: null,
+    stuck_runs: 0,
+    longest_stuck_s: null,
+    out_of_range: 0,
+    source_flagged: 0,
+    issues: [],
+  });
   const signalView = (sig) => {
     const mine = [...samples.entries()].filter(([k]) => k.startsWith(`${sig.tag}|`)).sort();
     const last = mine.at(-1);
@@ -242,17 +264,31 @@ export function createFakeApi({
         const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
         const source = url.searchParams.get('source') ?? '';
         const linked = url.searchParams.get('linked') ?? '';
+        const quality = url.searchParams.get('quality') ?? '';
         const found = signals
           .map(signalView)
           .filter(
             (x) =>
               (!q || [x.tag, x.description, x.node_label ?? ''].some((t) => t.toLowerCase().includes(q))) &&
               (!source || (source === 'manual' ? x.source === 'manual' : x.source.startsWith(`${source}:`))) &&
-              (!linked || (linked === 'yes') === (x.node_id !== null)),
+              (!linked || (linked === 'yes') === (x.node_id !== null)) &&
+              (!quality || (x.quality?.badge ?? 'unchecked') === quality),
           );
         const offset = Number(url.searchParams.get('offset') ?? 0);
         const limit = Number(url.searchParams.get('limit') ?? 100);
         return send(200, { total: found.length, signals: found.slice(offset, offset + limit) });
+      }
+      if (url.pathname === `${signalsPath}/quality` && req.method === 'POST') {
+        if (role === 'viewer')
+          return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+        const { signal_ids: ids } = await body(req);
+        const badges = { good: 0, warn: 0, bad: 0, unknown: 0 };
+        for (const sig of signals.filter((x) => !ids || ids.includes(x.id))) {
+          sig.quality = { ...goodReport(sig), ...qualityFound.get(sig.tag), checked_at: new Date().toISOString() };
+          badges[sig.quality.badge]++;
+        }
+        const checked = Object.values(badges).reduce((a, b) => a + b, 0);
+        return send(200, { checked, badges });
       }
       const sig = signals.find((x) => url.pathname === `${signalsPath}/${x.id}`);
       if (url.pathname.startsWith(`${signalsPath}/`)) {
@@ -351,6 +387,10 @@ export function createFakeApi({
     samples,
     // Adds a signal to the catalogue (or changes one), as an agent or an engineer would.
     addSignal,
+    // Sets what the next quality check finds for a tag (part of a report; the rest as for a good one).
+    qualityWillBe(tag, report) {
+      qualityFound.set(tag, report);
+    },
     // Lets a test change a user's role, as a site admin would.
     setRole(user, role) {
       roles[user] = role;

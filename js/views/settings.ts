@@ -51,7 +51,18 @@ export function describeAudit(e: AuditEntry): string {
       return `Revoked edge agent ${(e.before as { name?: string } | null)?.name ?? ''}`;
     case 'signal.update': {
       const fields = Object.keys((e.after as Record<string, unknown> | null) ?? {}).filter((k) => k !== 'tag');
-      return `Changed ${fields.join(', ').replace('node_id', 'ontology link').replace('sample_rate_hz', 'sample rate')} of signal ${(e.after as { tag?: string } | null)?.tag ?? ''}`;
+      const names: Record<string, string> = {
+        node_id: 'ontology link',
+        sample_rate_hz: 'sample rate',
+        range_min: 'expected minimum',
+        range_max: 'expected maximum',
+        stuck_after_s: 'stuck limit',
+      };
+      return `Changed ${fields.map((f) => names[f] ?? f).join(', ')} of signal ${(e.after as { tag?: string } | null)?.tag ?? ''}`;
+    }
+    case 'signal.quality_check': {
+      const a = e.after as { checked?: number; good?: number; warn?: number; bad?: number } | null;
+      return `Checked the quality of ${a?.checked ?? 0} signal(s): ${a?.good ?? 0} good, ${a?.warn ?? 0} with warnings, ${a?.bad ?? 0} with problems`;
     }
     case 'import.start':
       return `Started importing ${(e.after as { name?: string } | null)?.name ?? ''}`;

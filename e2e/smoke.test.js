@@ -665,6 +665,46 @@ test('the signal catalogue: search, describe a signal and link it to its ontolog
   assert.deepEqual(errors, []);
 });
 
+test('quality badges: check the signals listed, read a report, filter by badge', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge', unit: '°C' });
+  fake.addSignal('press1.force', { source: 'edge:press-shop-edge' });
+  fake.qualityWillBe('press1.force', {
+    badge: 'bad',
+    issues: [{ check: 'silent', severity: 'bad', message: 'No reading for 2.5 h; the edge agent may be down' }],
+  });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  assert.equal(await page.locator('[data-signal-results] .badge:has-text("Not checked")').count(), 2);
+
+  await page.click('[data-check-quality]');
+  await page.waitForSelector('#toast:has-text("Checked 2 signal(s): 1 good, 0 with warnings, 1 with problems")');
+  await page.waitForSelector('[data-signal-results] .badge.bad:has-text("Problems")');
+  await page.locator('tr', { hasText: 'press1.force' }).first().locator('[data-quality]').click();
+  await page.waitForSelector('.quality-row:has-text("No reading for 2.5 h")');
+
+  await page.selectOption('#signal-search [name=quality]', 'good');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  assert.match(await page.locator('[data-signal-results] tbody').innerText(), /press1\.temperature/);
+
+  // The expected range is set in the edit form.
+  await page.selectOption('#signal-search [name=quality]', '');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.locator('tr', { hasText: 'press1.temperature' }).first().locator('[data-edit]').click();
+  await page.fill('#signal-form [name=min]', '5');
+  await page.fill('#signal-form [name=max]', '5');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("The expected range\'s minimum must be below its maximum.")');
+  await page.fill('#signal-form [name=max]', '250');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Saved press1.temperature")');
+  assert.deepEqual(errors, []);
+});
+
 test('viewers browse the signal catalogue but cannot edit it', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
   const apiUrl = await fake.listen();
@@ -675,6 +715,7 @@ test('viewers browse the signal catalogue but cannot edit it', async (t) => {
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
   await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
   assert.equal(await page.locator('[data-edit]').count(), 0);
+  assert.equal(await page.locator('[data-check-quality]').count(), 0);
   assert.deepEqual(errors, []);
 });
 

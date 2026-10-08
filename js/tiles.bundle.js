@@ -825,7 +825,11 @@
 					const qs = params.toString();
 					return request("GET", `/sites/${encodeURIComponent(siteId)}/signals${qs ? `?${qs}` : ""}`);
 				},
-				update: (siteId, signalId, change) => request("PATCH", `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`, change)
+				update: (siteId, signalId, change) => request("PATCH", `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`, change),
+				checkQuality: (siteId, signalIds, hours) => request("POST", `/sites/${encodeURIComponent(siteId)}/signals/quality`, {
+					...signalIds ? { signal_ids: signalIds } : {},
+					...hours ? { hours } : {}
+				})
 			},
 			imports: {
 				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/imports`),
@@ -2830,7 +2834,21 @@
 			case "member.role": return `Changed a member's role from ${role(e.before)} to ${role(e.after)}`;
 			case "agent.register": return `Registered edge agent ${e.after?.name ?? ""}`;
 			case "agent.revoke": return `Revoked edge agent ${e.before?.name ?? ""}`;
-			case "signal.update": return `Changed ${Object.keys(e.after ?? {}).filter((k) => k !== "tag").join(", ").replace("node_id", "ontology link").replace("sample_rate_hz", "sample rate")} of signal ${e.after?.tag ?? ""}`;
+			case "signal.update": {
+				const fields = Object.keys(e.after ?? {}).filter((k) => k !== "tag");
+				const names = {
+					node_id: "ontology link",
+					sample_rate_hz: "sample rate",
+					range_min: "expected minimum",
+					range_max: "expected maximum",
+					stuck_after_s: "stuck limit"
+				};
+				return `Changed ${fields.map((f) => names[f] ?? f).join(", ")} of signal ${e.after?.tag ?? ""}`;
+			}
+			case "signal.quality_check": {
+				const a = e.after;
+				return `Checked the quality of ${a?.checked ?? 0} signal(s): ${a?.good ?? 0} good, ${a?.warn ?? 0} with warnings, ${a?.bad ?? 0} with problems`;
+			}
 			case "import.start": return `Started importing ${e.after?.name ?? ""}`;
 			case "import.finish": {
 				const a = e.after;
@@ -3642,14 +3660,17 @@
 	var PAGE = 100;
 	var results = null;
 	var failed = false;
+	var checking = false;
 	var searchTimer;
 	var ui = (ctx) => ctx.ui("signals", {
 		query: {
 			q: "",
 			source: "",
-			linked: ""
+			linked: "",
+			quality: ""
 		},
-		editing: null
+		editing: null,
+		open: null
 	});
 	function sourceLabel(source) {
 		const [kind, ...rest] = source.split(":");
@@ -3663,18 +3684,55 @@
 		const v = s.last_value;
 		return `${typeof v === "number" ? String(+v.toPrecision(6)) : String(v)}${typeof v === "number" && s.unit ? ` ${s.unit}` : ""} · ${new Date(s.last_at).toLocaleString("en-GB")}`;
 	}
+	var QUALITY = {
+		good: ["Good", "good"],
+		warn: ["Warnings", "warn"],
+		bad: ["Problems", "bad"],
+		unknown: ["No data", ""],
+		unchecked: ["Not checked", ""]
+	};
+	function qualityBadge(report) {
+		const [label, tone] = QUALITY[report ? report.badge : "unchecked"];
+		return `<span class="badge ${tone}" title="${esc(report?.issues.length ? report.issues.map((i) => i.message).join("\n") : label)}">${esc(label)}</span>`;
+	}
+	var percent = (x) => `${(Math.floor(x * 1e3) / 10).toFixed(1)}%`;
+	function qualityDetail(report) {
+		const when = new Date(report.checked_at).toLocaleString("en-GB");
+		const facts = [
+			`${fmt$1(report.readings, 0)} reading(s) in the ${+report.window_hours.toPrecision(3)} h up to the latest`,
+			report.period_s === null ? "" : `expected every ${+report.period_s.toPrecision(3)} s`,
+			report.coverage === null ? "" : `${percent(report.coverage)} of the time covered`
+		].filter(Boolean);
+		const issues = report.issues.length ? `<ul class="small">${report.issues.map((i) => `<li><span class="badge ${i.severity}">${i.severity === "bad" ? "problem" : "warning"}</span> ${esc(i.message)}</li>`).join("")}</ul>` : `<p class="small">${report.readings ? "No gaps, stuck values, out-of-range values or unit mismatches found." : "No readings to check."}</p>`;
+		return `<div class="stack" style="gap:6px"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(", "))}.</p>${issues}</div>`;
+	}
+	function number(text) {
+		const t = text.trim().replace(",", ".");
+		if (t === "") return null;
+		const n = Number(t);
+		return Number.isFinite(n) ? n : void 0;
+	}
 	function changeFrom(form, s) {
 		const change = {};
 		const unit = form.unit.trim() || null;
 		if (unit !== s.unit) change.unit = unit;
-		const rateText = form.rate.trim().replace(",", ".");
-		const rate = rateText === "" ? null : Number(rateText);
-		if (rate !== null && !(Number.isFinite(rate) && rate > 0)) return "The sample rate is a number of readings per second, above 0.";
+		const rate = number(form.rate);
+		if (rate === void 0 || rate !== null && rate <= 0) return "The sample rate is a number of readings per second, above 0.";
 		if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
 		const description = form.description.trim();
 		if (description !== s.description) change.description = description;
 		const node = form.node || null;
 		if (node !== s.node_id) change.node_id = node;
+		const min = number(form.min ?? "");
+		const max = number(form.max ?? "");
+		if (min === void 0 || max === void 0) return "The expected range is two numbers (either may be blank).";
+		if (min !== null && max !== null && min >= max) return "The expected range's minimum must be below its maximum.";
+		if (min !== s.range_min) change.range_min = min;
+		if (max !== s.range_max) change.range_max = max;
+		const stuck = number(form.stuck ?? "");
+		if (stuck === void 0 || stuck !== null && (stuck <= 0 || stuck > 43200)) return "Stuck after is a number of minutes, above 0 and at most 30 days.";
+		const stuckS = stuck === null ? null : stuck * 60;
+		if (stuckS !== s.stuck_after_s) change.stuck_after_s = stuckS;
 		return change;
 	}
 	function linkCell(s) {
@@ -3688,12 +3746,16 @@
 			...s.node_id && !nodes.some((n) => n.id === s.node_id) ? [`<option value="${esc(s.node_id)}" selected>${esc(s.node_id)} (missing)</option>`] : [],
 			...nodes.map((n) => `<option value="${esc(n.id)}" ${n.id === s.node_id ? "selected" : ""}>${esc(n.label)} (${esc(n.id)})</option>`)
 		].join("");
-		return `<tr class="edit-row"><td colspan="8">
+		const stuck = s.stuck_after_s === null ? "" : String(s.stuck_after_s / 60);
+		return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
         <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
         <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${s.sample_rate_hz ?? ""}" inputmode="decimal" style="width:7em"></label>
         <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
+        <label class="field">Expected min<input type="text" name="min" value="${s.range_min ?? ""}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Expected max<input type="text" name="max" value="${s.range_max ?? ""}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
         <button class="btn primary" type="submit">Save</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
       </form>
@@ -3702,13 +3764,15 @@
 	}
 	function resultsTable(ctx, page, canEdit) {
 		if (!page.signals.length) return "<p class=\"small soft\">No signals match. Signals appear here once an edge agent or an import sends their readings.</p>";
-		const { editing } = ui(ctx);
+		const { editing, open } = ui(ctx);
 		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
 		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
-    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><code>${esc(s.tag)}</code></td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
+    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><code>${esc(s.tag)}</code></td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
             <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
+            <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
             <td>${canEdit && editing !== s.id ? `<button class="btn sm" type="button" data-edit="${esc(s.id)}">Edit</button>` : ""}</td></tr>
+          ${open === s.id && s.quality ? `<tr class="quality-row"><td colspan="9">${qualityDetail(s.quality)}</td></tr>` : ""}
           ${canEdit && editing === s.id ? editRow(ctx, s) : ""}`).join("")}</tbody></table></div>`;
 	}
 	async function search(root, ctx) {
@@ -3733,6 +3797,11 @@
 		bindResults(root, ctx);
 	}
 	function bindResults(root, ctx) {
+		onAll(root, "[data-quality]", "click", (el) => {
+			const u = ui(ctx);
+			u.open = u.open === el.dataset.quality ? null : el.dataset.quality ?? null;
+			fill(root, ctx);
+		});
 		onAll(root, "[data-edit]", "click", (el) => {
 			ui(ctx).editing = el.dataset.edit ?? null;
 			fill(root, ctx);
@@ -3751,7 +3820,10 @@
 				unit: field$1(form, "unit"),
 				rate: field$1(form, "rate"),
 				description: field$1(form, "description"),
-				node: field$1(form, "node")
+				node: field$1(form, "node"),
+				min: field$1(form, "min"),
+				max: field$1(form, "max"),
+				stuck: field$1(form, "stuck")
 			}, sig);
 			if (typeof change === "string") {
 				ctx.toast(change);
@@ -3785,6 +3857,8 @@
           <label class="field" style="flex:1;min-width:200px">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
           <label class="field">Source<select name="source">${opt("", "Any", query.source)}${opt("edge", "Edge agents", query.source)}${opt("import", "Imports", query.source)}${opt("manual", "Entered by hand", query.source)}</select></label>
           <label class="field">Ontology link<select name="linked">${opt("", "Any", query.linked)}${opt("yes", "Linked", query.linked)}${opt("no", "Not linked", query.linked)}</select></label>
+          <label class="field">Quality<select name="quality">${opt("", "Any", query.quality)}${opt("bad", "Problems", query.quality)}${opt("warn", "Warnings", query.quality)}${opt("good", "Good", query.quality)}${opt("unknown", "No data", query.quality)}${opt("unchecked", "Not checked", query.quality)}</select></label>
+          ${ctx.ontology.role !== "viewer" ? "<button class=\"btn\" type=\"button\" data-check-quality title=\"Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed\">Check quality</button>" : ""}
         </form>
         <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
       </div>`;
@@ -3799,7 +3873,8 @@
 				u.query = {
 					q: field$1(form, "q"),
 					source: field$1(form, "source"),
-					linked: field$1(form, "linked")
+					linked: field$1(form, "linked"),
+					quality: field$1(form, "quality")
 				};
 				u.editing = null;
 				clearTimeout(searchTimer);
@@ -3810,6 +3885,24 @@
 			form.addEventListener("submit", (e) => {
 				e.preventDefault();
 				update();
+			});
+			const checkButton = root.querySelector("[data-check-quality]");
+			checkButton?.addEventListener("click", () => {
+				const site = ctx.ontology.site;
+				const ids = results?.signals.map((s) => s.id) ?? [];
+				if (!ctx.api || !site || checking || !ids.length) return;
+				checking = true;
+				checkButton.disabled = true;
+				checkButton.textContent = "Checking…";
+				ctx.api.signals.checkQuality(site.id, ids).then((out) => {
+					const { good, warn, bad, unknown } = out.badges;
+					ctx.toast(`Checked ${out.checked} signal(s): ${good} good, ${warn} with warnings, ${bad} with problems${unknown ? `, ${unknown} without data` : ""}`);
+					search(root, ctx);
+				}, () => void 0).finally(() => {
+					checking = false;
+					checkButton.disabled = false;
+					checkButton.textContent = "Check quality";
+				});
 			});
 		}
 	};
