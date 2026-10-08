@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
 import { createFakeApi } from './fake-api.js';
 
-const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'settings'];
+const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'import', 'settings'];
 const VARIANTS = [
   { name: 'light desktop', colorScheme: 'light', viewport: { width: 1360, height: 900 } },
   { name: 'dark desktop', colorScheme: 'dark', viewport: { width: 1360, height: 900 } },
@@ -516,6 +516,108 @@ test('non-admins see the edge agents but cannot register them', async (t) => {
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
   await page.waitForSelector('#agents:has-text("No agents registered")');
   assert.equal(await page.locator('#agent-form').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('an engineer imports a CSV file, mapped to signals, and importing it again adds nothing', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/import`);
+  await page.waitForSelector('[data-import-history]:has-text("No imports on this site yet")');
+  const csv =
+    'Zeitstempel;Presse 1 Temperatur;Presse 1 Druck;Bemerkung\n01.10.2026 08:00;21,5;3,5;ok\n01.10.2026 08:01;22,0;;Bad\n';
+  const file = { name: 'presse-1.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) };
+  await page.setInputFiles('[data-import-file]', file);
+  await page.waitForSelector('#import-mapping');
+  // Suggested: day-first times, decimal comma, the two numeric columns; the comment column left out.
+  assert.equal(await page.inputValue('[name=timeFormat]'), 'dmy');
+  assert.equal(await page.isChecked('[name=decimalComma]'), true);
+  assert.equal(await page.inputValue('[name=tag-1]'), 'presse-1-temperatur');
+  assert.equal(await page.isChecked('[name=use-3]'), false);
+  await page.fill('[name=timeZone]', 'Europe/Berlin');
+  await page.locator('[name=timeZone]').dispatchEvent('change');
+  await page.fill('[name=tag-2]', 'press1.pressure');
+  await page.locator('[name=tag-2]').dispatchEvent('change');
+  assert.match(
+    await page.locator('[data-import-summary]').innerText(),
+    /^3 readings for 2 signal\(s\) in 2 rows from 2026-10-01 06:00:00 to 2026-10-01 06:01:00 UTC\.$/,
+  );
+  await page.click('[data-import-run]');
+  await page.waitForSelector('[data-import-progress]:has-text("Done. 3 new readings stored")');
+  assert.deepEqual([...fake.samples.entries()].sort(), [
+    ['press1.pressure|2026-10-01T06:00:00.000000Z', 3.5],
+    ['presse-1-temperatur|2026-10-01T06:00:00.000000Z', 21.5],
+    ['presse-1-temperatur|2026-10-01T06:01:00.000000Z', 22],
+  ]);
+  await page.waitForSelector('[data-import-history] td:has-text("presse-1.csv")');
+  assert.match(await page.locator('[data-import-history] tbody tr').first().innerText(), /finished/);
+
+  await page.click('[data-import-run]'); // the same file again
+  await page.waitForSelector('[data-import-progress]:has-text("Done. 0 new readings stored (3 sent")');
+  assert.equal(fake.samples.size, 3);
+  assert.deepEqual(errors, []);
+});
+
+test('a historian export with one row per reading maps each row by its tag', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/import`);
+  const csv = 'TagName,TimeStamp,Value\nTT-101,2026-10-01T08:00:00Z,21.5\nPT-7,2026-10-01T08:00:00Z,3.5\n';
+  await page.setInputFiles('[data-import-file]', {
+    name: 'pi-export.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csv),
+  });
+  await page.waitForSelector('#import-mapping');
+  assert.equal(await page.isChecked('[name=shape][value=long]'), true);
+  assert.match(await page.locator('[data-import-summary]').innerText(), /^2 readings for 2 signal\(s\)/);
+  await page.click('[data-import-run]');
+  await page.waitForSelector('[data-import-progress]:has-text("Done. 2 new readings stored")');
+  assert.deepEqual([...fake.samples.keys()].sort(), [
+    'pt-7|2026-10-01T08:00:00.000000Z',
+    'tt-101|2026-10-01T08:00:00.000000Z',
+  ]);
+  assert.deepEqual(errors, []);
+});
+
+test('an import that cannot be marked finished says so, rather than done', async (t) => {
+  const fake = createFakeApi({ failImportFinish: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/import`);
+  const csv = 'time,temp\n2026-10-01T08:00:00Z,21.5\n';
+  await page.setInputFiles('[data-import-file]', { name: 'x.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await page.click('[data-import-run]');
+  await page.waitForSelector('[data-import-progress]:has-text("All readings sent, but not finished")');
+  assert.match(
+    await page.locator('[data-import-progress]').innerText(),
+    /could not be marked finished \(Tiles is restarting\)/,
+  );
+  await page.waitForSelector('[data-import-history] td:has-text("not finished")');
+});
+
+test('viewers see past imports but cannot run one', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const eng = { 'content-type': 'application/json', 'x-tiles-user': 'eng@example.com' };
+  const sites = `${apiUrl}/sites/11111111-1111-1111-1111-111111111111/imports`;
+  const run = await (await fetch(sites, { method: 'POST', headers: eng, body: '{"name":"line-2.csv"}' })).json();
+  await fetch(`${sites}/${run.id}/finish`, { method: 'POST', headers: eng });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/import`);
+  await page.waitForSelector('[data-import-history] td:has-text("line-2.csv")');
+  assert.match(await page.locator('#view').innerText(), /Your role on this site is viewer/);
+  assert.equal(await page.locator('[data-import-file]').count(), 0);
   assert.deepEqual(errors, []);
 });
 

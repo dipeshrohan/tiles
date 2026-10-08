@@ -12,6 +12,7 @@ import { applyOp, commit, createRepo, revert, stage, workingGraph, healthCheck }
 // `slowWritesMs` delays batch staging, to test answers that arrive late.
 // `roles` maps a user's email to their site role (engineer by default).
 // `slowAuthConfigMs` delays /auth/config, to test background re-renders.
+// `failImportFinish` makes finishing an import fail, as a dropped connection would.
 export function createFakeApi({
   oidc = false,
   requireSignIn = false,
@@ -19,6 +20,7 @@ export function createFakeApi({
   slowWritesMs = 0,
   roles = {},
   slowAuthConfigMs = 0,
+  failImportFinish = false,
 } = {}) {
   let origin = '';
   const codes = new Map(); // code -> { challenge, redirectUri }
@@ -29,6 +31,8 @@ export function createFakeApi({
   const staged = new Map(); // email -> Op[]
   const requests = [];
   const agents = []; // { id, name, token, created_at, last_seen_at, hostname, version }
+  const imports = []; // newest first: { id, name, created_by, created_at, received, stored, finished_at }
+  const samples = new Map(); // "signal|at" -> value: readings stored by imports
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
@@ -125,7 +129,8 @@ export function createFakeApi({
         !url.pathname.startsWith(base) &&
         url.pathname !== `/sites/${site.id}/me` &&
         !url.pathname.endsWith('/audit') &&
-        !url.pathname.startsWith(agentsPath)
+        !url.pathname.startsWith(agentsPath) &&
+        !url.pathname.startsWith(`/sites/${site.id}/imports`)
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
@@ -159,6 +164,46 @@ export function createFakeApi({
           return send(204);
         }
         return send(404, { detail: 'No such agent on this site' });
+      }
+      const importsPath = `/sites/${site.id}/imports`;
+      if (url.pathname.startsWith(importsPath)) {
+        if (req.method === 'GET' && url.pathname === importsPath) return send(200, imports);
+        if (role === 'viewer')
+          return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+        if (req.method === 'POST' && url.pathname === importsPath) {
+          const run = {
+            id: randomUUID(),
+            name: (await body(req)).name,
+            created_by: user.split('@')[0],
+            created_at: new Date().toISOString(),
+            received: 0,
+            stored: 0,
+            finished_at: null,
+          };
+          imports.unshift(run);
+          return send(201, run);
+        }
+        const m = url.pathname.slice(importsPath.length).match(/^\/([^/]+)\/(samples|finish)$/);
+        const run = m && imports.find((r) => r.id === m[1]);
+        if (!run) return send(404, { detail: 'No such import on this site' });
+        if (run.finished_at) return send(409, { detail: 'This import is finished; start a new one' });
+        if (m[2] === 'finish' && failImportFinish) return send(503, { detail: 'Tiles is restarting' });
+        if (m[2] === 'finish') {
+          run.finished_at = new Date().toISOString();
+          return send(200, run);
+        }
+        const batch = (await body(req)).samples;
+        let stored = 0;
+        for (const s of batch) {
+          const key = `${s.signal}|${s.at}`;
+          if (!samples.has(key)) {
+            samples.set(key, s.value);
+            stored++;
+          }
+        }
+        run.received += batch.length;
+        run.stored += stored;
+        return send(200, { received: batch.length, stored });
       }
       if (url.pathname === `/sites/${site.id}/audit`)
         return role === 'admin'
@@ -234,6 +279,8 @@ export function createFakeApi({
       if (!agent) throw new Error('unknown agent token');
       Object.assign(agent, { last_seen_at: new Date().toISOString(), version: '0.1.0', hostname, connectors, buffer });
     },
+    // The readings imports have stored, as "signal|at" -> value.
+    samples,
     // Lets a test change a user's role, as a site admin would.
     setRole(user, role) {
       roles[user] = role;
