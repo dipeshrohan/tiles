@@ -7,8 +7,8 @@ event) as a distribution. A warning warns of an event when it started within `ho
 (`at - horizon < started_at <= at`); an event's warning time comes from the earliest such warning,
 as the browser's scoreAlerts does (test/fixtures/friction-detection.json keeps them matched). A
 warning no event followed within `horizon` is false, unless the history ends first: then it is
-pending, and left out of precision. Events outside the replayed history (before the baseline
-filled, or after the last reading) are left out of recall.
+pending, and left out of precision. Only the events within the replayed history (from when the
+baseline filled to the last reading) count, for recall and precision alike.
 
 Each window size's baselines (the rolling median and MAD) are computed once, from a sorted copy of
 the window, and give exactly the numbers detection.step gets; each setting is then replayed with
@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from tiles_api.detection import Alert, Config, Direction, State, judge
+from tiles_api.quality import duration, percent
 
 # What one backtest may do: readings replayed (per setting) and readings baselined (per window size).
 MAX_READINGS = 200_000
@@ -101,6 +102,12 @@ def settings(
     return list(dict.fromkeys(Config(*c) for c in combos))
 
 
+def max_readings(configs: Sequence[Config]) -> int:
+    """The most readings one backtest may replay with `configs`."""
+    windows = len({c.window for c in configs})
+    return min(MAX_READINGS, MAX_REPLAYS // max(1, len(configs)), MAX_BASELINES // max(1, windows))
+
+
 def check_size(readings: int, configs: Sequence[Config]) -> None:
     """Raises ValueError if replaying `readings` with `configs` is more than one backtest may do."""
     windows = len({c.window for c in configs})
@@ -110,7 +117,7 @@ def check_size(readings: int, configs: Sequence[Config]) -> None:
         raise ValueError(f"{len(configs)} settings: at most {MAX_SETTINGS} at once")
     if readings > MAX_READINGS:
         raise ValueError(f"{readings} readings: at most {MAX_READINGS}; choose a shorter period")
-    if readings * len(configs) > MAX_REPLAYS or readings * windows > MAX_BASELINES:
+    if readings > max_readings(configs):
         raise ValueError(
             f"{readings} readings with {len(configs)} settings ({windows} window sizes) is too much at once;"
             " try fewer settings or a shorter period"
@@ -182,14 +189,13 @@ def _spread(seconds: list[float]) -> Spread | None:
 def score(
     config: Config, alerts: list[Alert], events: Sequence[Event], horizon: timedelta, start: datetime, end: datetime
 ) -> Outcome:
-    """Scores warnings (in the order they started) against events, for history judged from
-    `start` to `end`."""
+    """Scores warnings (in the order they started) against events (in time order), for history
+    judged from `start` to `end`. Only the events within it count, for recall and precision alike."""
     starts = [a.started_at for a in alerts]
-    times = sorted(e.at for e in events)
+    inside = [e for e in events if start <= e.at <= end]
+    times = [e.at for e in inside]
     outcomes: list[EventOutcome] = []
-    for e in sorted(events, key=lambda e: e.at):
-        if not start <= e.at <= end:
-            continue
+    for e in inside:
         i = bisect.bisect_right(starts, e.at - horizon)  # the first warning started after at - horizon
         outcomes.append(EventOutcome(e, starts[i] if i < len(starts) and starts[i] <= e.at else None))
     true = false = pending = 0
@@ -197,7 +203,7 @@ def score(
         i = bisect.bisect_left(times, s)  # the first event at or after the warning
         if i < len(times) and times[i] < s + horizon:
             true += 1
-        elif s + horizon > end:
+        elif s + horizon > end:  # an event after the history could still make it true
             pending += 1
         else:
             false += 1
@@ -215,6 +221,7 @@ def replay(
 ) -> list[Outcome]:
     """Replays readings (in time order) through a detector with each setting and scores each."""
     bands = {w: baselines(values, w) for w in dict.fromkeys(c.window for c in configs)}
+    events = sorted(events, key=lambda e: e.at)
     outcomes = []
     for config in configs:
         state, closed, opened = State(), list[Alert](), list[Alert]()
@@ -230,26 +237,22 @@ def replay(
 
 def ranked(outcomes: Sequence[Outcome]) -> list[Outcome]:
     """Best first: most events warned of, then fewest false warnings per day, then the longest
-    median warning time."""
+    median warning time; a setting that judged nothing (its baseline never filled) last."""
 
-    def key(o: Outcome) -> tuple[float, float, float]:
+    def key(o: Outcome) -> tuple[bool, float, float, float]:
         median = o.warning_times.median if o.warning_times else 0.0
-        return (-(o.recall or 0.0), o.false_per_day or 0.0, -median)
+        return (o.days == 0, -(o.recall or 0.0), o.false_per_day or 0.0, -median)
 
     return sorted(outcomes, key=key)
 
 
-def duration(seconds: float) -> str:
-    """A warning time for people: minutes under two hours, hours under two days, else days."""
-    if seconds < 7200:
-        return f"{seconds / 60:.0f} min"
-    if seconds < 172800:
-        return f"{seconds / 3600:.1f} h"
-    return f"{seconds / 86400:.1f} d"
-
-
 def _percent(x: float | None) -> str:
-    return "-" if x is None else f"{100 * x:.0f}%"
+    return "-" if x is None else percent(x)
+
+
+def _cell(text: str) -> str:
+    """Text in a Markdown table cell: on one line, its bars escaped."""
+    return " ".join(text.split()).replace("\\", "\\\\").replace("|", "\\|")
 
 
 def setting(c: Config) -> str:
@@ -267,8 +270,8 @@ def setting(c: Config) -> str:
 def report(title: str, about: dict[str, Any], outcomes: Sequence[Outcome], horizon: timedelta) -> str:
     """The backtest as a Markdown report: the settings ranked, then the best one's events."""
     best = ranked(outcomes)
-    lines = [f"# {title}", ""]
-    lines += [f"- **{k}:** {v}" for k, v in about.items()]
+    lines = [f"# {_cell(title)}", ""]
+    lines += [f"- **{k}:** {_cell(str(v))}" for k, v in about.items()]
     lines += [f"- **Warning horizon:** {duration(horizon.total_seconds())} before an event", ""]
     lines += [
         "## Settings, best first",
@@ -290,7 +293,7 @@ def report(title: str, about: dict[str, Any], outcomes: Sequence[Outcome], horiz
             wt = e.warning_time
             warned = "yes" if wt is not None else "**no**"
             lines.append(
-                f"| {e.event.at.isoformat()} | {e.event.code or '-'} | {warned} |"
+                f"| {e.event.at.isoformat()} | {_cell(e.event.code) or '-'} | {warned} |"
                 f" {'-' if wt is None else duration(wt.total_seconds())} |"
             )
         if top.pending_warnings:

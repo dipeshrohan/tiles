@@ -13,6 +13,7 @@ import pytest
 from tiles_api import backtest
 from tiles_api.backtest import Event, Spread, baselines, check_size, ranked, replay, report, score, settings
 from tiles_api.detection import Alert, Config, State, mad, step
+from tiles_api.quality import duration
 
 FIXTURE = json.loads((Path(__file__).parents[2] / "test" / "fixtures" / "friction-detection.json").read_text())
 T0 = datetime(2026, 8, 1, tzinfo=UTC)
@@ -101,13 +102,11 @@ def test_the_horizon_bounds_and_the_history_ends_are_kept() -> None:
         alert(T0 + timedelta(hours=3)),
         alert(T0 + timedelta(hours=10)),
         alert(T0 + timedelta(hours=20)),  # false
-        alert(end - timedelta(hours=1)),  # its horizon outlasts the history: pending...
+        alert(end - timedelta(hours=1)),  # its horizon outlasts the history: pending
     ]
     o = score(Config(), warnings, events, h, start, end)
     assert [(e.event.code, e.warning_time) for e in o.events] == [("on time", None), ("same reading", timedelta(0))]
-    # ...though an event after the history still makes it true.
-    assert (o.true_warnings, o.false_warnings, o.pending_warnings) == (2, 2, 0)
-    o = score(Config(), warnings, events[:3], h, start, end)
+    # The event after the history counts for neither recall nor precision: that warning stays pending.
     assert (o.true_warnings, o.false_warnings, o.pending_warnings) == (1, 2, 1)
     assert (o.recall, o.precision, o.false_per_day) == (0.5, 1 / 3, 1.0)
     empty = score(Config(), [], [], h, start, start)
@@ -144,23 +143,31 @@ def test_the_report_ranks_the_settings_and_lists_the_best_ones_events() -> None:
     assert text.startswith("# Backtest: dc1.friction\n\n- **Signal:** dc1.friction\n")
     assert "- **Warning horizon:** 7.9 h before an event" in text
     rows = [line for line in text.splitlines() if line.startswith("| window")]
-    assert rows[0].startswith("| window 100, k 4, persist 1 | 17 | 0.00 | 100% (3/3) | 100% |")
+    assert rows[0].startswith("| window 100, k 4, persist 1 | 17 | 0.00 | 100.0% (3/3) | 100.0% |")
     assert rows[1].startswith(
-        "| window 100, k 2.5, persist 1 | 27 | 1.21 | 100% (3/3) | 93% |"
+        "| window 100, k 2.5, persist 1 | 27 | 1.21 | 100.0% (3/3) | 92.5% |"
     )  # 2 in 1,499 shots of 95 s
-    assert rows[2] == "| window 100, k 8, persist 1 | 0 | 0.00 | 0% (0/3) | - | - |"
+    assert rows[2] == "| window 100, k 8, persist 1 | 0 | 0.00 | 0.0% (0/3) | - | - |"
     assert "## Events with the best setting (window 100, k 4, persist 1)" in text
     best = ranked(outcomes)[0].events[0]
     assert best.warning_time is not None
-    lead = backtest.duration(best.warning_time.total_seconds())
+    lead = duration(best.warning_time.total_seconds())
     assert f"| {TIMES[560].isoformat()} | DT-SEIZURE | yes | {lead} |" in text
 
 
-def test_durations_read_well() -> None:
-    assert [backtest.duration(s) for s in (59, 3600, 7200, 90000, 172800)] == [
-        "1 min",
-        "60 min",
-        "2.0 h",
-        "25.0 h",
-        "2.0 d",
+def test_a_setting_that_judged_nothing_ranks_last() -> None:
+    # No events: the window-100 setting can only raise false warnings, yet it ran; 2,000 never did.
+    outcomes = replay(TIMES, FIXTURE["values"], [], settings(window=[2000, 100], k=[2.5], persist=[1]), EVERY)
+    assert [(o.config.window, o.days > 0, o.false_warnings > 0) for o in ranked(outcomes)] == [
+        (100, True, True),
+        (2000, False, False),
     ]
+
+
+def test_the_report_keeps_its_tables_whole_and_its_shares_honest() -> None:
+    events = [Event(TIMES[560], "DT|SEIZURE\nline two")]
+    (o,) = replay(TIMES, FIXTURE["values"], events, [Config()], 300 * EVERY)
+    text = report("Backtest: a|b", {"Signal": "a|b"}, [o], 300 * EVERY)
+    assert text.startswith("# Backtest: a\\|b\n\n- **Signal:** a\\|b\n")
+    assert f"| {TIMES[560].isoformat()} | DT\\|SEIZURE line two | yes |" in text
+    assert backtest._percent(0.9996) == "99.9%"  # just short of all of them doesn't read as 100%

@@ -115,6 +115,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `ontology.review_policy` | the site | `{"required": …}` | `{"required": …}` |
 | `model.bind`, `model.run`, `model.stop` | the model binding | `model.stop`: its name | `model.bind`: its model, inputs, params and outputs; `model.run`: windows run, readings written, `done_until`, error |
 | `detector.create`, `detector.run`, `detector.stop` | the detector | `detector.stop`: its name | `detector.create`: its signal and settings; `detector.run`: readings, warnings raised and ended |
+| `backtest.run` | the signal | | readings replayed, settings tried, events given |
 | `ontology.import` | your staged ops | | the file's name, format, mode and the counts staged |
 | `member.role` | the member | old role | new role |
 | `agent.register` | the edge agent | | `{"name": …}` (never the token) |
@@ -212,13 +213,13 @@ The detector's state (the baseline window, the run of readings out, the open war
 
 ### Backtest (T3.05)
 
-Before a detector goes live, replay the signal's history with the settings you are considering, and score the warnings against the events they should have warned of (downtime or scrap, with their times). For each combination of the values given: **recall** (the share of events with a warning in time), **precision** (the share of warnings an event followed), **false warnings per day**, and the **warning time** from warning to event (its median, 10th and 90th percentile). A warning counts for an event when it started within `horizon_seconds` before it. The event's warning time comes from the earliest such warning, as in the browser. A warning that no event followed within the horizon is false, unless the history ends first: then it is *pending* and left out of precision. Events before the baseline fills, or after the last reading, are left out of recall. The settings come back best first: the most events warned of, then the fewest false warnings per day, then the longest median warning time.
+Before a detector goes live, replay the signal's history with the settings you are considering, and score the warnings against the events they should have warned of (downtime or scrap, with their times). For each combination of the values given: **recall** (the share of events with a warning in time), **precision** (the share of warnings an event followed), **false warnings per day**, and the **warning time** from warning to event (its median, 10th and 90th percentile). A warning counts for an event when it started within `horizon_seconds` before it. The event's warning time comes from the earliest such warning, as in the browser. A warning that no event followed within the horizon is false, unless the history ends first: then it is *pending* and left out of precision. Only the events within the replayed history (from when the baseline fills to the last reading) count, for recall and precision alike. The settings come back best first: the most events warned of, then the fewest false warnings per day, then the longest median warning time.
 
-The replay raises exactly the warnings a detector with that setting would raise (it shares the detector's judgement, and computes the same baselines faster). It runs in the request and changes nothing, so members may run it. One backtest replays at most 200,000 readings, with at most 48 settings, 2 million readings × settings, and 600,000 readings × window sizes. Choose a shorter period or fewer settings when it says so.
+The replay raises exactly the warnings a detector with that setting would raise (it shares the detector's judgement, and computes the same baselines faster). It changes nothing, but it runs in the request and takes seconds, so engineers run it, at most two at a time (a third gets 429). One backtest replays at most 200,000 readings, with at most 48 settings, 2 million readings × settings, and 600,000 readings × window sizes. Choose a shorter period or fewer settings when it says so.
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|
-| `POST /backtest` | members | `{"signal_id", "events": [{"at", "code"?}], "horizon_seconds", "start"?, "end"?, "window"?: [...], "k"?: [...], "persist"?: [...], "direction"?: [...], "cooldown"?: [...], "flat_spread"?: [...]}`: each setting's scores and events, best first, and the Markdown `report` |
+| `POST /backtest` | engineers | `{"signal_id", "events": [{"at", "code"?}], "horizon_seconds", "start"?, "end"?, "window"?: [...], "k"?: [...], "persist"?: [...], "direction"?: [...], "cooldown"?: [...], "flat_spread"?: [...]}`: each setting's scores and events, best first, and the Markdown `report` |
 
 For the report on a machine, put its events in a CSV file (columns `at`, an ISO 8601 time with its offset, and optionally `code`), then:
 

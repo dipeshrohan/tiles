@@ -1,6 +1,6 @@
 """The backtest over HTTP and as a report (T3.05): replay a signal's stored history through detectors
 with each combination of the given settings, and score their warnings against the events given
-(backtest.py). It reads and changes nothing else, so viewers may run it too.
+(backtest.py). It changes nothing but takes seconds of work, so engineers run it, two at a time.
 
 `tiles-backtest` writes the same backtest as a Markdown report, for a machine's events in a CSV
 file (columns `at`, an ISO 8601 time with its offset, and optionally `code`).
@@ -9,6 +9,7 @@ file (columns `at`, an ISO 8601 time with its offset, and optionally `code`).
 import argparse
 import csv
 import sys
+import threading
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timedelta
@@ -22,7 +23,7 @@ from psycopg.rows import dict_row
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from tiles_api import backtest
-from tiles_api.api_ontology import Ctx
+from tiles_api.api_ontology import Editor
 from tiles_api.backtest import Event, Outcome
 from tiles_api.settings import get_settings
 from tiles_api.store import Conn
@@ -30,6 +31,7 @@ from tiles_api.store import Conn
 router = APIRouter(tags=["detection"])
 
 MAX_EVENTS = 1_000
+RUNNING = threading.BoundedSemaphore(2)  # backtests at once, so they can't take every worker
 Values = Field(min_length=1, max_length=8)  # values to try for one setting
 
 
@@ -105,14 +107,18 @@ def run_backtest(conn: Conn, site_id: uuid.UUID, body: BacktestIn) -> dict[str, 
         raise ValueError("The start must be before the end")
     configs = backtest.settings(body.window, body.k, body.persist, body.direction, body.cooldown, body.flat_spread)
     backtest.check_size(0, configs)
+    most = backtest.max_readings(configs)
     # No placeholder for a missing bound, so the planner can skip the chunks outside the period.
     bounds = [(sql.SQL("AND at >= %s"), body.start), (sql.SQL("AND at < %s"), body.end)]
     given = [(clause, value) for clause, value in bounds if value is not None]
     query = sql.SQL(
         "SELECT at, value FROM samples WHERE signal_id = %s AND value IS NOT NULL {} ORDER BY at LIMIT %s"
     ).format(sql.SQL(" ").join(clause for clause, _ in given))
-    rows = conn.execute(query, [body.signal_id, *(value for _, value in given), backtest.MAX_READINGS + 1]).fetchall()
-    backtest.check_size(len(rows), configs)
+    rows = conn.execute(query, [body.signal_id, *(value for _, value in given), most + 1]).fetchall()
+    if len(rows) > most:
+        raise ValueError(
+            f"More than {most} readings with {len(configs)} setting(s): choose a shorter period or fewer settings"
+        )
     times = [r["at"] for r in rows]
     events = [Event(e.at, e.code) for e in body.events]
     horizon = timedelta(seconds=body.horizon_seconds)
@@ -158,13 +164,20 @@ def _setting(o: Outcome) -> dict[str, Any]:
 
 
 @router.post("/sites/{site_id}/backtest", response_model=BacktestOut)
-def run(ctx: Ctx, body: BacktestIn) -> dict[str, Any]:
+def run(ctx: Editor, body: BacktestIn) -> dict[str, Any]:
     """Replay a signal's history with each combination of detection settings and score the warnings
     against the events given: recall, precision, false warnings per day and warning time, best first."""
+    if not RUNNING.acquire(blocking=False):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Other backtests are running: try again shortly")
     try:
-        return run_backtest(ctx.conn, ctx.site_id, body)
+        out = run_backtest(ctx.conn, ctx.site_id, body)
     except ValueError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+    finally:
+        RUNNING.release()
+    after = {"readings": out["readings"], "settings": len(out["settings"]), "events": len(body.events)}
+    ctx.audit("backtest.run", "signal", str(body.signal_id), after=after)
+    return out
 
 
 def read_events(path: Path) -> list[dict[str, str]]:
@@ -194,6 +207,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--persist", type=_list(int), default=[3], help="readings in a row to try, e.g. 1,3")
     parser.add_argument("--direction", type=lambda t: t.split(","), default=["above"], help="above, below, both")
     parser.add_argument("--cooldown", type=_list(int), default=[0], help="readings after a warning, e.g. 0,50")
+    parser.add_argument("--flat-spread", type=_list(float), default=[1.0], help="a flat baseline's spread, e.g. 0.5,1")
     parser.add_argument("--out", type=Path, help="write the report here (default: print it)")
     args = parser.parse_args(argv)
     try:
@@ -220,6 +234,7 @@ def main(argv: list[str] | None = None) -> None:
                     "persist": args.persist,
                     "direction": args.direction,
                     "cooldown": args.cooldown,
+                    "flat_spread": args.flat_spread,
                 }
             )
             result = run_backtest(conn, args.site, body)
