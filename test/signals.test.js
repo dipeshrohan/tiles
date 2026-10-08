@@ -162,3 +162,11 @@ test('an input still showing what was rendered is untouched, line breaks aside',
   assert.equal(untouched({ value: 'kg', defaultValue: 'kg' }), true);
   assert.equal(untouched({ value: 'kg2', defaultValue: 'kg' }), false);
 });
+
+test('a stuck limit read back from minutes is not an edit', () => {
+  const same = { unit: '°C', rate: '10', description: 'Platen, upper', node: '', min: '', max: '' };
+  for (const seconds of [31, 62, 123, 3600]) {
+    const minutes = String(+(seconds / 60).toPrecision(12));
+    assert.deepEqual(changeFrom({ ...same, stuck: minutes }, { ...SIG, stuck_after_s: seconds }), {}, String(seconds));
+  }
+});

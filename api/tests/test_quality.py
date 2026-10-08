@@ -1,5 +1,7 @@
 """Data-quality checks (T2.09): gaps, stuck values, out-of-range values, unit mismatches; a badge per signal."""
 
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -9,7 +11,7 @@ from fastapi.testclient import TestClient
 from test_agents import ENG, VIEWER, agent_auth, api, register, site  # noqa: F401 - api and site are fixtures
 from test_signals import by_tag, commit_nodes, signals
 
-from tiles_api import quality
+from tiles_api import api_signals, quality
 from tiles_api.quality import assess, duration
 from tiles_api.settings import get_settings
 
@@ -208,6 +210,11 @@ def test_an_edge_signal_gone_quiet_is_a_problem(api: TestClient, site: str) -> N
     assert r["badge"] == "bad"
     assert checks(r) == [("silent", "bad")]
     assert r["issues"][0]["message"].startswith("No reading for ")
+    # A state sent only when it changes is quiet when nothing changes: not a problem.
+    states = [{"signal": "press1.state", "at": T0.isoformat(), "value": "running"}]
+    assert api.post("/agent/samples", json={"samples": states}, headers=agent_auth(token)).status_code == 200
+    check(api, site)
+    assert report(api, site, "press1.state")["badge"] == "good"
 
 
 def test_the_command_checks_every_site(
@@ -266,3 +273,71 @@ def test_durations_read_naturally() -> None:
         "3.5 h",
         "3.0 d",
     ]
+
+
+def test_a_check_waits_for_an_edit_in_progress(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    values = wave(100)
+    values[10] = 250.0
+    load(api, site, "oven.temp", every_minute(values))
+    sig = by_tag(api, site, "oven.temp")
+    answers: list[int] = []
+    with psycopg.connect(database_url) as other:
+        # An edit setting the expected range holds the signal and has not committed yet.
+        other.execute("UPDATE signals SET range_max = 200 WHERE id = %s", [sig["id"]])
+        run = threading.Thread(
+            target=lambda: answers.append(api.post(f"/sites/{site}/signals/quality", json={}, headers=ENG).status_code)
+        )
+        run.start()
+        time.sleep(0.3)  # the check waits for the signal
+        other.commit()
+        run.join(10)
+    assert answers == [200]
+    r = report(api, site, "oven.temp")
+    assert (r["badge"], r["out_of_range"]) == ("warn", 1)  # checked with the new range
+
+
+def test_a_whole_site_too_big_for_a_request_is_left_to_the_command(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    load(api, site, "a.flow", every_minute(wave(10)))
+    load(api, site, "b.flow", every_minute(wave(10)))
+    monkeypatch.setattr(api_signals, "MAX_CHECK", 1)
+    res = api.post(f"/sites/{site}/signals/quality", json={}, headers=ENG)
+    assert res.status_code == 422
+    assert res.json()["detail"].endswith("check the whole site with tiles-check-quality")
+    one = [by_tag(api, site, "a.flow")["id"]]
+    assert api.post(f"/sites/{site}/signals/quality", json={"signal_ids": one}, headers=ENG).status_code == 200
+
+
+def test_the_command_keeps_other_sites_checks_when_one_fails(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    load(api, site, "a.flow", every_minute(wave(10)))
+    with psycopg.connect(database_url) as conn:
+        other = conn.execute("SELECT id FROM sites WHERE id <> %s ORDER BY slug LIMIT 1", [site]).fetchone()
+    assert other is not None
+    real = quality.check_site
+
+    def flaky(conn: object, site_id: object, *args: object, **kwargs: object) -> dict[str, int]:
+        if str(site_id) == str(other[0]):
+            raise psycopg.errors.LockNotAvailable("site busy")
+        return real(conn, site_id, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(quality, "check_site", flaky)
+    monkeypatch.setenv("TILES_DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    try:
+        with pytest.raises(SystemExit) as exit_:
+            quality.main([])
+    finally:
+        get_settings.cache_clear()
+    assert exit_.value.code == 1
+    err = capsys.readouterr().err
+    assert f"{other[0]}: not checked (site busy)" in err
+    assert report(api, site, "a.flow")["badge"] == "good"  # the other sites' checks were kept

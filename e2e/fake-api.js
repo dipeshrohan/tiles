@@ -78,6 +78,7 @@ export function createFakeApi({
   const slowSearches = new Map(); // search text -> ms to wait before answering
   const failingSearches = new Set(); // search texts answered with an error
   let slowSaves = 0; // ms before a signal change is answered
+  let slowChecks = 0; // ms before a quality check is answered
   const signalView = (sig) => {
     const mine = [...samples.entries()].filter(([k]) => k.startsWith(`${sig.tag}|`)).sort();
     const last = mine.at(-1);
@@ -288,6 +289,7 @@ export function createFakeApi({
         if (role === 'viewer')
           return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
         const { signal_ids: ids } = await body(req);
+        if (slowChecks) await new Promise((r) => setTimeout(r, slowChecks));
         const badges = { good: 0, warn: 0, bad: 0, unknown: 0 };
         for (const sig of signals.filter((x) => !ids || ids.includes(x.id))) {
           sig.quality = { ...goodReport(sig), ...qualityFound.get(sig.tag), checked_at: new Date().toISOString() };
@@ -401,6 +403,10 @@ export function createFakeApi({
     // Makes the catalogue answer a search for `q` only after `ms`.
     slowSearch(q, ms) {
       slowSearches.set(q, ms);
+    },
+    // Makes quality checks take `ms` to be answered.
+    slowCheck(ms) {
+      slowChecks = ms;
     },
     // Makes signal changes take `ms` to be answered.
     slowSave(ms) {

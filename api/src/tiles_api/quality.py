@@ -25,6 +25,7 @@ schedule with `tiles-check-quality`.
 
 import argparse
 import math
+import sys
 import uuid
 from datetime import UTC, datetime
 from typing import Any, Literal, LiteralString
@@ -230,7 +231,8 @@ def assess(signal: dict[str, Any], stats: dict[str, Any], now: datetime, hours: 
                 )
             )
         quiet = (now - last_at).total_seconds()
-        if signal["source"].startswith("edge:") and quiet > max(SILENT_MIN_S, GAP_PERIODS * (period or 0)):
+        # Without a period (a text or true/false tag sent on change) quiet is normal: not checked.
+        if signal["source"].startswith("edge:") and period and quiet > max(SILENT_MIN_S, GAP_PERIODS * period):
             issues.append(
                 Issue(
                     check="silent",
@@ -297,11 +299,17 @@ def check_site(
 ) -> dict[str, int]:
     """Checks a site's signals (all, or those given) and returns how many got each badge."""
     now: datetime = conn.execute("SELECT clock_timestamp() AS now").fetchone()["now"]
-    query = SIGNAL + " WHERE g.site_id = %s" + (" AND g.id = ANY(%s)" if signal_ids is not None else "")
-    args: list[Any] = [site_id] if signal_ids is None else [site_id, signal_ids]
     counts = {"good": 0, "warn": 0, "bad": 0, "unknown": 0}
-    for signal in conn.execute(query + " ORDER BY g.tag", args).fetchall():
-        counts[check_signal(conn, signal, now, hours).badge] += 1
+    ids = conn.execute(
+        "SELECT id FROM signals WHERE site_id = %s AND (%s::uuid[] IS NULL OR id = ANY(%s::uuid[])) ORDER BY tag",
+        [site_id, signal_ids, signal_ids],
+    ).fetchall()
+    for row in ids:
+        # Each signal is read locked, as an edit locks it: an edit made meanwhile waits, then checks again
+        # with its new settings, rather than this report (from the old ones) landing after it.
+        signal = conn.execute(SIGNAL + " WHERE g.id = %s FOR UPDATE OF g", [row["id"]]).fetchone()
+        if signal is not None:
+            counts[check_signal(conn, signal, now, hours).badge] += 1
     return counts
 
 
@@ -313,9 +321,18 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     if not (math.isfinite(args.hours) and 0 < args.hours <= 720):
         parser.error("--hours must be above 0 and at most 720")
-    with psycopg.connect(get_settings().database_url, row_factory=dict_row) as conn:
+    failed = False
+    # Autocommit, so each site's checks are their own transaction: one site failing keeps the others'.
+    with psycopg.connect(get_settings().database_url, row_factory=dict_row, autocommit=True) as conn:
         sites = [args.site] if args.site else [r["id"] for r in conn.execute("SELECT id FROM sites ORDER BY slug")]
         for site in sites:
-            with conn.transaction():
-                counts = check_site(conn, site, hours=args.hours)
+            try:
+                with conn.transaction():
+                    counts = check_site(conn, site, hours=args.hours)
+            except psycopg.Error as e:
+                failed = True
+                print(f"{site}: not checked ({e})", file=sys.stderr)
+                continue
             print(f"{site}: " + ", ".join(f"{n} {badge}" for badge, n in counts.items()))
+    if failed:
+        raise SystemExit(1)

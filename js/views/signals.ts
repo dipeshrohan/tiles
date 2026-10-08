@@ -124,7 +124,12 @@ export function changeFrom(
   if (stuck === undefined || (stuck !== null && (stuck <= 0 || stuck > 30 * 24 * 60)))
     return 'Stuck after is a number of minutes, above 0 and at most 30 days.';
   const stuckS = stuck === null ? null : stuck * 60;
-  if (stuckS !== s.stuck_after_s) change.stuck_after_s = stuckS;
+  // Minutes shown and read back can differ from the stored seconds in the last digits: not an edit.
+  const sameStuck =
+    stuckS === null || s.stuck_after_s === null
+      ? stuckS === s.stuck_after_s
+      : Math.abs(stuckS - s.stuck_after_s) < 1e-6;
+  if (!sameStuck) change.stuck_after_s = stuckS;
   return change;
 }
 
@@ -149,7 +154,7 @@ function editRow(ctx: Context, s: SignalInfo): string {
         `<option value="${esc(n.id)}" ${n.id === s.node_id ? 'selected' : ''}>${esc(n.label)} (${esc(n.id)})</option>`,
     ),
   ].join('');
-  const stuck = s.stuck_after_s === null ? '' : String(s.stuck_after_s / 60);
+  const stuck = s.stuck_after_s === null ? '' : String(+(s.stuck_after_s / 60).toPrecision(12));
   return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
         <fieldset style="display:contents" ${saving === s.id ? 'disabled' : ''}>
@@ -347,7 +352,7 @@ const view: View = {
           <label class="field">Source<select name="source">${opt('', 'Any', query.source)}${opt('edge', 'Edge agents', query.source)}${opt('import', 'Imports', query.source)}${opt('manual', 'Entered by hand', query.source)}</select></label>
           <label class="field">Ontology link<select name="linked">${opt('', 'Any', query.linked)}${opt('yes', 'Linked', query.linked)}${opt('no', 'Not linked', query.linked)}</select></label>
           <label class="field">Quality<select name="quality">${opt('', 'Any', query.quality)}${opt('bad', 'Problems', query.quality)}${opt('warn', 'Warnings', query.quality)}${opt('good', 'Good', query.quality)}${opt('unknown', 'No data', query.quality)}${opt('unchecked', 'Not checked', query.quality)}</select></label>
-          ${ctx.ontology.role !== 'viewer' ? '<button class="btn" type="button" data-check-quality title="Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed">Check quality</button>' : ''}
+          ${ctx.ontology.role !== 'viewer' ? `<button class="btn" type="button" data-check-quality ${checking ? 'disabled' : ''} title="Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed">${checking ? 'Checking…' : 'Check quality'}</button>` : ''}
         </form>
         <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
       </div>`;
@@ -379,13 +384,25 @@ const view: View = {
       update();
     });
     const checkButton = root.querySelector<HTMLButtonElement>('[data-check-quality]');
+    // The button as it is now: the page may have been left and shown again while a check ran.
+    const setButton = (busy: boolean) => {
+      const button = root.querySelector<HTMLButtonElement>('[data-check-quality]');
+      if (!button) return;
+      button.disabled = busy;
+      button.textContent = busy ? 'Checking…' : 'Check quality';
+    };
     checkButton?.addEventListener('click', () => {
       const site = ctx.ontology.site;
-      const ids = results?.signals.map((s) => s.id) ?? [];
-      if (!ctx.api || !site || checking || !ids.length) return;
+      if (!ctx.api || !site || checking) return;
+      // Only the signals listed for this site and search, not an answer to an earlier one.
+      const current = results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query);
+      const ids = current ? (results?.signals.map((s) => s.id) ?? []) : [];
+      if (!ids.length) {
+        ctx.toast(current ? 'No signals listed to check' : 'Wait for the list to load, then check it');
+        return;
+      }
       checking = true;
-      checkButton.disabled = true;
-      checkButton.textContent = 'Checking…';
+      setButton(true);
       ctx.api.signals
         .checkQuality(site.id, ids)
         .then(
@@ -400,8 +417,7 @@ const view: View = {
         )
         .finally(() => {
           checking = false;
-          checkButton.disabled = false;
-          checkButton.textContent = 'Check quality';
+          setButton(false);
         });
     });
   },

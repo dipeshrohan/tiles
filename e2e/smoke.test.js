@@ -997,6 +997,27 @@ test('quality badges: check the signals listed, read a report, filter by badge',
   assert.deepEqual(errors, []);
 });
 
+test('a quality check still shows as running after leaving the page and coming back', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  fake.slowCheck(1200);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.click('[data-check-quality]');
+  await page.evaluate(() => (location.hash = '#/import'));
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.waitForSelector('[data-check-quality]:has-text("Checking")');
+  assert.equal(await page.locator('[data-check-quality]').isDisabled(), true);
+  await page.waitForSelector('#toast:has-text("Checked 1 signal(s)")');
+  await page.waitForSelector('[data-check-quality]:has-text("Check quality")');
+  assert.equal(await page.locator('[data-check-quality]').isDisabled(), false);
+  assert.deepEqual(errors, []);
+});
+
 test('viewers browse the signal catalogue but cannot edit it', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
   const apiUrl = await fake.listen();

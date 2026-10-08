@@ -23,6 +23,7 @@ from tiles_api.store import one
 
 router = APIRouter(tags=["signals"])
 
+MAX_CHECK = 1000  # signals one request may check (matches QualityCheckIn.signal_ids)
 NO_NUL = r"^[^\x00]*$"  # PostgreSQL text can't hold NUL
 EDITABLE = ("unit", "sample_rate_hz", "description", "node_id", "range_min", "range_max", "stuck_after_s")
 # Changing one of these changes what the quality check finds, so the signal is checked again.
@@ -77,7 +78,7 @@ class SignalPatch(NoBooleans):
 
 class QualityCheckIn(NoBooleans):
     model_config = ConfigDict(extra="forbid")
-    signal_ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=1000)] | None = None  # None: all
+    signal_ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=MAX_CHECK)] | None = None  # None: all
     hours: Annotated[float, Field(gt=0, le=720)] = DEFAULT_HOURS
 
 
@@ -230,7 +231,16 @@ def update_signal(ctx: Editor, signal_id: uuid.UUID, body: SignalPatch) -> Signa
 @router.post("/sites/{site_id}/signals/quality", response_model=QualityCheckOut)
 def check_quality(ctx: Editor, body: QualityCheckIn) -> QualityCheckOut:
     """Checks the quality of the site's signals (all, or those listed) over the `hours` up to each one's
-    latest reading, and stores each report as the signal's latest (engineers and admins). Audited."""
+    latest reading, and stores each report as the signal's latest (engineers and admins). Audited.
+    A site of more than MAX_CHECK signals is checked whole with `tiles-check-quality`, not in a request."""
+    if body.signal_ids is None:
+        count = one(ctx.conn.execute("SELECT count(*) AS n FROM signals WHERE site_id = %s", [ctx.site_id]).fetchone())
+        if count["n"] > MAX_CHECK:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                f"This site has {count['n']} signals: list up to {MAX_CHECK} of them, or check the whole site "
+                "with tiles-check-quality",
+            )
     badges = check_site(ctx.conn, ctx.site_id, body.signal_ids, body.hours)
     checked = sum(badges.values())
     ctx.audit(
