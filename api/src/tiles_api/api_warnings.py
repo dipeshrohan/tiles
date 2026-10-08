@@ -15,7 +15,9 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
+from tiles_api import notify
 from tiles_api.api_ontology import Ctx, Editor, SiteContext, can_edit
+from tiles_api.store import one
 
 router = APIRouter(tags=["warnings"])
 
@@ -209,14 +211,16 @@ def _step(
     note: str = "",
     assignee: uuid.UUID | None = None,
     outcome: str | None = None,
-) -> None:
-    ctx.conn.execute(
+) -> int:
+    """Adds a step to the warning's activity; its id."""
+    row = ctx.conn.execute(
         """
         INSERT INTO warning_activity (warning_id, actor_id, action, assignee_id, outcome, note)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
         """,
         [warning_id, ctx.user.id, action, assignee, outcome, note],
-    )
+    ).fetchone()
+    return int(one(row)["id"])
 
 
 def _acknowledge(ctx: SiteContext, warning: dict[str, Any], note: str = "") -> bool:
@@ -260,7 +264,9 @@ def assign(ctx: Editor, warning_id: uuid.UUID, body: AssignIn) -> dict[str, Any]
     if body.user_id is not None:
         _acknowledge(ctx, warning)
     ctx.conn.execute("UPDATE warnings SET assignee_id = %s WHERE id = %s", [body.user_id, warning_id])
-    _step(ctx, warning_id, "assigned" if body.user_id else "unassigned", body.note, assignee=body.user_id)
+    step = _step(ctx, warning_id, "assigned" if body.user_id else "unassigned", body.note, assignee=body.user_id)
+    if body.user_id is not None:
+        notify.queue_assigned(ctx.conn, warning_id, body.user_id, ctx.user.id, step)
     before = {"assignee_id": str(warning["assignee_id"]) if warning["assignee_id"] else None}
     after = {"assignee_id": str(body.user_id) if body.user_id else None, "note": body.note}
     ctx.audit("warning.assign", "warning", str(warning_id), before=before, after=after)

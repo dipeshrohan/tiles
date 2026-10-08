@@ -164,6 +164,10 @@ export function createFakeApi({
   const members = new Set(); // users who have visited the site
   // Warnings (T3.07), like the API: raised by a test (as a detector would), then worked by people.
   const warnings = []; // newest first: the API's fields, plus `activity`
+  // Notifications (T3.09): each user's preferences, the site's Teams channel, and messages to list.
+  const notifyPrefs = new Map(); // email -> { on_raised, on_assigned }
+  let teams = { url: null, on_raised: true };
+  const deliveries = []; // newest first, as the API lists them
   let failWarningGets = 0; // answer this many reads of one warning with an error
   const audit = []; // newest first, like the API
   let auditId = 0;
@@ -265,7 +269,8 @@ export function createFakeApi({
         !url.pathname.startsWith(agentsPath) &&
         !url.pathname.startsWith(`/sites/${site.id}/imports`) &&
         !url.pathname.startsWith(`/sites/${site.id}/signals`) &&
-        !url.pathname.startsWith(`/sites/${site.id}/warnings`)
+        !url.pathname.startsWith(`/sites/${site.id}/warnings`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/notifications`)
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
@@ -499,6 +504,43 @@ export function createFakeApi({
         return { user_id: who, email: who, name: who.split('@')[0], role: r, site_role: r, org_admin: false };
       };
       members.add(user);
+      const notifyPath = `/sites/${site.id}/notifications`;
+      if (url.pathname.startsWith(notifyPath)) {
+        const sub = url.pathname.slice(notifyPath.length);
+        const forbid = (needs) =>
+          send(403, { detail: `Your role on this site is ${role}; this needs ${needs} or above` });
+        if (sub === '/preferences') {
+          const mine = () => ({ on_raised: false, on_assigned: true, ...notifyPrefs.get(user), email: user });
+          if (req.method === 'GET') return send(200, mine());
+          if (role === 'viewer') return forbid('engineer');
+          const { on_raised: onRaised, on_assigned: onAssigned } = await body(req);
+          notifyPrefs.set(user, { on_raised: onRaised, on_assigned: onAssigned });
+          return send(200, mine());
+        }
+        if (role !== 'admin') return forbid('admin');
+        const shownTeams = () => ({
+          configured: teams.url !== null,
+          host: teams.url ? new URL(teams.url).hostname : null,
+          on_raised: teams.on_raised,
+        });
+        if (sub === '/teams' && req.method === 'GET') return send(200, shownTeams());
+        if (sub === '/teams') {
+          const { webhook_url: hook, on_raised: onRaised } = await body(req);
+          if (
+            hook &&
+            !/^https:\/\/[^/]+\.(webhook\.office\.com|logic\.azure\.com|api\.powerplatform\.com)(:\d+)?\//.test(hook)
+          )
+            return send(422, {
+              detail:
+                'Not a Microsoft Teams webhook: its host must end with .webhook.office.com, .logic.azure.com, .api.powerplatform.com',
+            });
+          // Like the API: left out, the URL stays.
+          teams = { url: hook === undefined ? teams.url : hook || null, on_raised: onRaised ?? true };
+          return send(200, shownTeams());
+        }
+        if (sub === '') return send(200, deliveries.slice(0, Number(url.searchParams.get('limit') ?? 100)));
+        return send(404, { detail: 'Not found' });
+      }
       const warningsPath = `/sites/${site.id}/warnings`;
       if (url.pathname.startsWith(warningsPath))
         return await warningRoute(url, url.pathname.slice(warningsPath.length), user, role, memberOf);
@@ -889,6 +931,23 @@ export function createFakeApi({
       warnings.unshift(w);
       return w.id;
     },
+    // Lets a test add a message to the site's outbox listing, as tiles-notify would leave it.
+    addDelivery(d) {
+      deliveries.unshift({
+        id: deliveries.length + 1,
+        kind: 'warning_raised',
+        channel: 'email',
+        warning_id: randomUUID(),
+        created_at: new Date().toISOString(),
+        sent_at: null,
+        failed_at: null,
+        attempts: 0,
+        last_error: null,
+        ...d,
+      });
+    },
+    // The Teams webhook URL the site was given (a test checks it never comes back to the browser).
+    teamsUrl: () => teams.url,
     // Makes the next `n` reads of a warning fail, as a restarting API would.
     failWarningGets(n = 1) {
       failWarningGets = n;

@@ -349,3 +349,39 @@ test('every warning call hits the documented path with its body', async () => {
     ['POST', 'http://api.test/sites/s/warnings/w1/comments', { note: 'seen' }],
   );
 });
+
+test('every notification call hits the documented path with its body', async () => {
+  const f = fakeFetch(...Array.from({ length: 7 }, () => ({ body: {} })));
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  await api.notifications.preferences('s');
+  await api.notifications.setPreferences('s', { on_raised: true, on_assigned: false });
+  await api.notifications.teams('s');
+  await api.notifications.setTeams('s', 'https://x.webhook.office.com/a', false);
+  await api.notifications.setTeams('s', null);
+  await api.notifications.setTeams('s', undefined, false);
+  await api.notifications.deliveries('s', { state: 'failed', limit: 20 });
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    [
+      'GET /sites/s/notifications/preferences',
+      'PUT /sites/s/notifications/preferences',
+      'GET /sites/s/notifications/teams',
+      'PUT /sites/s/notifications/teams',
+      'PUT /sites/s/notifications/teams',
+      'PUT /sites/s/notifications/teams',
+      'GET /sites/s/notifications?state=failed&limit=20',
+    ],
+  );
+  assert.deepEqual(
+    f.calls.map((c) => (c.body === undefined ? undefined : JSON.parse(c.body))),
+    [
+      undefined,
+      { on_raised: true, on_assigned: false },
+      undefined,
+      { webhook_url: 'https://x.webhook.office.com/a', on_raised: false },
+      { webhook_url: null, on_raised: true },
+      { on_raised: false },
+      undefined,
+    ],
+  );
+});

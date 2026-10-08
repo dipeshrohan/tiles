@@ -34,6 +34,14 @@ class Settings(BaseSettings):
     # the email in an X-Tiles-User header. Never in production.
     dev_user_email: str = "demo@example.com"
     dev_user_name: str = "Demo User"
+    # Notifications (T3.09). Email goes out by SMTP when smtp_host is set; links point at app_url.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_starttls: bool = True
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_from: str = "Tiles <tiles@example.com>"
+    app_url: str = "http://localhost:5173"
 
 
 @lru_cache

@@ -73,6 +73,11 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_OIDC_CLIENT_ID` | `tiles-web` | Client the browser signs in as (sent to it by `/auth/config`) |
 | `TILES_OIDC_DEFAULT_ORG` | `demo` | Organisation for users whose token has no `tiles_org` claim |
 | `TILES_DEV_USER_EMAIL`, `TILES_DEV_USER_NAME` | `demo@example.com`, `Demo User` | Who requests without a token act as, outside production |
+| `TILES_SMTP_HOST`, `TILES_SMTP_PORT` | unset (no email), `587` | The mail server `tiles-notify` sends through |
+| `TILES_SMTP_STARTTLS` | `true` | Upgrade the SMTP connection to TLS before logging in |
+| `TILES_SMTP_USER`, `TILES_SMTP_PASSWORD` | unset | SMTP login, if the server needs one |
+| `TILES_SMTP_FROM` | `Tiles <tiles@example.com>` | The sender of notification emails |
+| `TILES_APP_URL` | `http://localhost:5173` | Where the web app is, for links in notifications |
 
 ## Endpoints
 
@@ -116,6 +121,8 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `model.bind`, `model.run`, `model.stop` | the model binding | `model.stop`: its name | `model.bind`: its model, inputs, params and outputs; `model.run`: windows run, readings written, `done_until`, error |
 | `detector.create`, `detector.run`, `detector.stop` | the detector | `detector.stop`: its name | `detector.create`: its signal and settings; `detector.run`: readings, warnings raised and ended |
 | `backtest.run` | the signal | | readings replayed, settings tried, events given |
+| `notification.preferences` | the user | their choices | their choices |
+| `notification.teams` | the site | the channel's host | the channel's host |
 | `warning.acknowledge`, `warning.assign`, `warning.resolve`, `warning.reopen`, `warning.comment` | the warning | `warning.assign`: the assignee before; `warning.reopen`: the outcome and note it had | the note; `warning.assign`: the assignee; `warning.resolve`: the outcome |
 | `ontology.import` | your staged ops | | the file's name, format, mode and the counts staged |
 | `member.role` | the member | old role | new role |
@@ -232,6 +239,25 @@ The status is separate from `state`, which says whether the signal is still out 
 | `POST /warnings/{id}/resolve` | engineers | `{"outcome", "note"?}` |
 | `POST /warnings/{id}/reopen` | engineers | `{"note"?}` |
 | `POST /warnings/{id}/comments` | engineers | `{"note"}` adds a comment, whatever the status |
+
+### Notifications (T3.09)
+
+Two things are announced:
+
+- **A new warning:** by email to the site's engineers and admins who asked for every new warning, and to the site's Microsoft Teams channel if an admin set one up. Only warnings the detector found within an hour of when it could have (its `lateness_seconds` holds readings back that long): a detector catching up on old history raises old news, not alarms. Someone demoted to viewer, or no longer on the site, gets no more, whatever they chose before.
+- **A warning assigned to you by someone else:** by email to you. This is on until you turn it off.
+
+Messages wait in an outbox, queued in the same transaction as what they announce. `uv run tiles-notify` sends the due ones, e.g. every minute from cron. Each message is sent in its own transaction, at least once (one sent just before the job dies is sent again). A failure is retried after 1, 2, 4, 8 and 16 minutes, then given up, or given up at once when retrying can't help (the channel was removed, or stopped hearing of new warnings); admins see why on the Settings page. Emails go out by SMTP (`TILES_SMTP_*` above). Teams messages are Adaptive Cards posted to the channel's webhook, from Workflows or an incoming webhook.
+
+Only `https` URLs on Microsoft's webhook hosts (`*.webhook.office.com`, `*.logic.azure.com`, `*.api.powerplatform.com`) are accepted, and redirects are not followed, so a site admin can't point Tiles at anything else on the network. Anyone with the webhook URL can post to the channel, so the API never shows it again, and audits only its host.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `GET /notifications/preferences` | members | your choices: `on_raised` (every new warning; off until you choose) and `on_assigned` (on), and your email |
+| `PUT /notifications/preferences` | engineers | `{"on_raised", "on_assigned"}` |
+| `GET /notifications/teams` | admins | whether there is a channel, its host, and whether it hears of new warnings |
+| `PUT /notifications/teams` | admins | `{"webhook_url"?: <url> or null, "on_raised"?}` sets or removes it; with no `webhook_url`, keeps it and changes only `on_raised` |
+| `GET /notifications?state=all\|pending\|sent\|failed&limit` | admins | the messages, newest first: what, to whom, and when sent; pending ones show why the last try failed, if it did; failed ones were given up |
 
 ### Backtest (T3.05)
 

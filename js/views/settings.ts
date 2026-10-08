@@ -5,7 +5,10 @@ import {
   isTilesHealth,
   normalizeBaseUrl,
   type AuditEntry,
+  type Delivery,
   type EdgeAgent,
+  type NotificationPrefs,
+  type TeamsChannel,
 } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
 
@@ -99,6 +102,123 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
       : '<p class="small soft">No changes yet.</p>';
   } catch {
     box.innerHTML = '<p class="small soft">The audit log could not be loaded.</p>';
+  }
+}
+
+function notificationsCard(ctx: Context): string {
+  const role = ctx.ontology.role;
+  const canChoose = role === 'engineer' || role === 'admin';
+  const mine = canChoose
+    ? `<form class="stack" id="notify-prefs" style="gap:8px" aria-live="polite">
+        <p class="small soft" data-notify-email>Loading…</p>
+        <label class="row" style="gap:8px"><input type="checkbox" name="on_assigned" disabled /> A warning someone assigns to me</label>
+        <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" disabled /> Every new warning on this site</label>
+        <div><button class="btn primary" type="submit" disabled>Save</button></div>
+      </form>`
+    : '<p class="small soft">Engineers and admins of the site choose which warnings they hear about.</p>';
+  const teams =
+    role === 'admin'
+      ? `<form class="stack" id="teams-form" style="gap:8px">
+        <h3>Microsoft Teams channel</h3>
+        <p class="small soft" data-teams-status>Loading…</p>
+        <label class="field">Webhook URL (from the channel's Workflows, or an incoming webhook; leave it empty to keep the one set)<input type="url" name="url" placeholder="https://….webhook.office.com/…" autocomplete="off" /></label>
+        <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" checked /> Post every new warning there</label>
+        <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
+      </form>
+      <h3>Recent messages</h3>
+      <div data-deliveries aria-live="polite"><p class="small soft">Loading…</p></div>`
+      : '';
+  return `<div class="card stack" id="notifications" style="gap:12px;grid-column:1 / -1">
+      <h2>Notifications</h2>
+      <p class="small soft">Emails about warnings on this site, sent by the Tiles API's <code>tiles-notify</code> job.</p>
+      ${mine}
+      ${teams}
+    </div>`;
+}
+
+export function deliveryState(d: Pick<Delivery, 'sent_at' | 'failed_at' | 'attempts' | 'last_error'>): string {
+  if (d.sent_at) return '<span class="badge good">Sent</span>';
+  if (d.failed_at) return `<span class="badge bad" title="${esc(d.last_error ?? '')}">Gave up</span>`;
+  if (d.attempts) return `<span class="badge warn" title="${esc(d.last_error ?? '')}">Retrying</span>`;
+  return '<span class="badge">Waiting</span>';
+}
+
+async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void> {
+  const site = ctx.ontology.site;
+  const api = ctx.api;
+  if (!site || !api || !root.querySelector('#notifications')) return;
+  const prefsForm = root.querySelector<HTMLFormElement>('#notify-prefs');
+  if (prefsForm) {
+    const box = (name: string) => need<HTMLInputElement>(prefsForm, `[name=${name}]`);
+    const show = (p: NotificationPrefs) => {
+      need(prefsForm, '[data-notify-email]').textContent = `Emails go to ${p.email}. Send me:`;
+      box('on_raised').checked = p.on_raised;
+      box('on_assigned').checked = p.on_assigned;
+      for (const el of prefsForm.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button'))
+        el.disabled = false;
+    };
+    api.notifications.preferences(site.id).then(show, () => {
+      need(prefsForm, '[data-notify-email]').textContent = 'Your preferences could not be loaded.';
+    });
+    onSubmit(root, '#notify-prefs', () => {
+      const prefs = { on_raised: box('on_raised').checked, on_assigned: box('on_assigned').checked };
+      api.notifications.setPreferences(site.id, prefs).then(
+        (p) => {
+          show(p);
+          ctx.toast('Notification preferences saved');
+        },
+        () => undefined, // the client showed why
+      );
+    });
+  }
+  const teamsForm = root.querySelector<HTMLFormElement>('#teams-form');
+  if (!teamsForm) return;
+  const status = need(teamsForm, '[data-teams-status]');
+  let configured = false;
+  const showTeams = (t: TeamsChannel) => {
+    configured = t.configured;
+    status.textContent = t.configured
+      ? `Connected to a channel at ${t.host}${t.on_raised ? ', which hears of every new warning' : ', posting nothing for now'}. Paste a new URL to change it.`
+      : 'No channel yet.';
+    need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked = t.on_raised;
+  };
+  api.notifications.teams(site.id).then(showTeams, () => (status.textContent = 'The channel could not be loaded.'));
+  const save = (url: string | null | undefined) =>
+    api.notifications.setTeams(site.id, url, need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked).then(
+      (t) => {
+        teamsForm.reset();
+        showTeams(t);
+        ctx.toast(
+          url === undefined ? 'Teams channel updated' : t.configured ? 'Teams channel saved' : 'Teams channel removed',
+        );
+      },
+      () => undefined, // the client showed why
+    );
+  onSubmit(root, '#teams-form', (form) => {
+    const url = field(form, 'url').trim();
+    if (!url && !configured) {
+      ctx.toast('Paste the channel’s webhook URL');
+      return;
+    }
+    void save(url || undefined); // no URL: keep the channel, change only what it hears of
+  });
+  onAll(root, '[data-teams-remove]', 'click', () => {
+    if (confirm('Stop posting warnings to the Teams channel?')) void save(null);
+  });
+  const list = root.querySelector('[data-deliveries]');
+  if (!list) return;
+  try {
+    const rows = await api.notifications.deliveries(site.id, { limit: 20 });
+    list.innerHTML = rows.length
+      ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>What</th><th>To</th><th>State</th><th>Why</th></tr></thead><tbody>${rows
+          .map(
+            (d) =>
+              `<tr><td>${esc(new Date(d.created_at).toLocaleString('en-GB'))}</td><td>${d.kind === 'warning_raised' ? 'New warning' : 'Assigned'} · <span class="mono">${esc(d.signal_tag)}</span></td><td>${esc(d.recipient)}</td><td>${deliveryState(d)}</td><td class="small">${esc(d.sent_at ? '' : (d.last_error ?? ''))}</td></tr>`,
+          )
+          .join('')}</tbody></table></div>`
+      : '<p class="small soft">Nothing sent yet.</p>';
+  } catch {
+    list.innerHTML = '<p class="small soft">The messages could not be loaded.</p>';
   }
 }
 
@@ -292,6 +412,7 @@ const view: View = {
           <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
         ${ds.mode === 'api' ? accountCard(ctx) : ''}
+        ${ctx.ontology.site ? notificationsCard(ctx) : ''}
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === 'admin') : ''}
         ${ctx.ontology.role === 'admin' ? auditCard() : ''}
       </div>`;
@@ -339,6 +460,7 @@ const view: View = {
     });
     if (ctx.ontology.role === 'admin') void fillAudit(root, ctx);
     bindAgents(root, ctx);
+    void fillNotifications(root, ctx);
     onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());
     onAll(root, '[data-sign-out]', 'click', () => void ctx.auth.signOut());
     onAll(root, '[data-reset]', 'click', () => {
