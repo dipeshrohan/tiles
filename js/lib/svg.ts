@@ -267,6 +267,8 @@ export interface TimeChartOptions {
   width?: number;
   height?: number;
   yLabel?: string;
+  levels?: { v: number; label: string }[]; // reference lines (a threshold, a baseline), kept in view
+  spans?: { from: number; to: number }[]; // stretches of time to shade (a warning)
 }
 
 export const TIME_CHART = { width: 900, height: 220, pad: PAD };
@@ -352,12 +354,15 @@ export function timeChart({
   width = TIME_CHART.width,
   height = TIME_CHART.height,
   yLabel = '',
+  levels = [],
+  spans = [],
 }: TimeChartOptions): string {
   const shown = points.filter((p) => p.t >= from && p.t <= to);
   if (!shown.length)
     return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}"><text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
-  let lo = Math.min(...shown.map((p) => p.lo));
-  let hi = Math.max(...shown.map((p) => p.hi));
+  const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
+  let lo = Math.min(...shown.map((p) => p.lo), ...marks);
+  let hi = Math.max(...shown.map((p) => p.hi), ...marks);
   if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
   const x = scale(from, to, PAD.l, width - PAD.r);
   const y = scale(lo, hi, height - PAD.b, PAD.t);
@@ -388,10 +393,25 @@ export function timeChart({
     .join('');
   const yt = ticks(lo, hi, 4);
   const { step, ticks: xt } = timeTicks(from, to);
+  const shade = spans
+    .map((s) => [Math.max(s.from, from), Math.min(s.to, to)] as const)
+    .filter(([a, b]) => b >= a)
+    .map(([a, b]) => {
+      const w = Math.max(2, x(b) - x(a));
+      return `<rect class="span" x="${x(a).toFixed(1)}" y="${PAD.t}" width="${w.toFixed(1)}" height="${height - PAD.b - PAD.t}"/>`;
+    })
+    .join('');
+  const refs = levels
+    .filter((l) => Number.isFinite(l.v))
+    .map(
+      (l) =>
+        `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(l.v).toFixed(1)}" y2="${y(l.v).toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${(y(l.v) - 4).toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`,
+    )
+    .join('');
   return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join('')}
-    ${band}${lines}
+    ${shade}${band}${lines}${refs}
     ${yLabel ? `<text class="axis" x="4" y="${PAD.t - 10}">${esc(yLabel)}</text>` : ''}
   </svg>`;
 }

@@ -162,6 +162,8 @@ export function createFakeApi({
   let reviewRequired = false;
   const reviews = []; // { number, message, author, author_id, reviewer, reviewer_id, status, ops, reverts, ... }
   const members = new Set(); // users who have visited the site
+  // Warnings (T3.07), like the API: raised by a test (as a detector would), then worked by people.
+  const warnings = []; // newest first: the API's fields, plus `activity`
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
@@ -261,7 +263,8 @@ export function createFakeApi({
         !url.pathname.endsWith('/audit') &&
         !url.pathname.startsWith(agentsPath) &&
         !url.pathname.startsWith(`/sites/${site.id}/imports`) &&
-        !url.pathname.startsWith(`/sites/${site.id}/signals`)
+        !url.pathname.startsWith(`/sites/${site.id}/signals`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/warnings`)
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
@@ -495,6 +498,9 @@ export function createFakeApi({
         return { user_id: who, email: who, name: who.split('@')[0], role: r, site_role: r, org_admin: false };
       };
       members.add(user);
+      const warningsPath = `/sites/${site.id}/warnings`;
+      if (url.pathname.startsWith(warningsPath))
+        return await warningRoute(url, url.pathname.slice(warningsPath.length), user, role, memberOf);
       if (url.pathname === `/sites/${site.id}/me`) return send(200, memberOf(user));
       if (url.pathname === `/sites/${site.id}/members`) return send(200, [...members].sort().map(memberOf));
       const path = url.pathname.slice(base.length);
@@ -610,6 +616,103 @@ export function createFakeApi({
       ];
       res.writeHead(200, { 'content-type': 'text/csv' });
       return res.end(rows.map((r) => r.map(q).join(',')).join('\n') + '\n');
+    }
+
+    async function warningRoute(url, path, user, role, memberOf) {
+      const name = (who) => (who ? who.split('@')[0] : null);
+      const shown = (w) => ({
+        ...Object.fromEntries(Object.entries(w).filter(([k]) => k !== 'activity')),
+        status: w.resolved_at ? 'resolved' : w.acknowledged_at ? 'acknowledged' : 'raised',
+        acknowledged_by: name(w.acknowledged_by),
+        assignee: name(w.assignee_id),
+        resolved_by: name(w.resolved_by),
+      });
+      const detail = (w) => ({
+        ...shown(w),
+        detector_config: { window: 200, k: 4, persist: 3, direction: 'above', cooldown: 0, flat_spread: 1 },
+        activity: [
+          { at: w.created_at, action: 'raised', actor: null, assignee: null, outcome: null, note: '' },
+          ...w.activity.map((a) => ({ ...a, actor: name(a.actor), assignee: name(a.assignee) })),
+        ],
+      });
+      if (path === '' && req.method === 'GET') {
+        const q = url.searchParams;
+        const status = q.get('status') ?? 'all';
+        const assignee = q.get('assignee');
+        const state = q.get('state') ?? 'all';
+        const list = warnings
+          .map(shown)
+          .filter(
+            (w) =>
+              (status === 'all' || (status === 'unresolved' ? w.status !== 'resolved' : w.status === status)) &&
+              (state === 'all' || (state === 'open') === (w.ended_at === null)) &&
+              (!assignee ||
+                (assignee === 'none' ? !w.assignee_id : w.assignee_id === (assignee === 'me' ? user : assignee))) &&
+              (!q.get('outcome') || w.outcome === q.get('outcome')),
+          );
+        return send(200, list);
+      }
+      const m = path.match(/^\/([^/]+)(?:\/(acknowledge|assignee|resolve|reopen|comments))?$/);
+      const w = m && warnings.find((x) => x.id === m[1]);
+      if (!w) return send(404, { detail: 'No such warning' });
+      if (!m[2]) return send(200, detail(w));
+      if (role === 'viewer')
+        return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+      const { note = '', user_id: userId, outcome } = await body(req);
+      const step = (action, extra = {}) =>
+        w.activity.push({
+          at: new Date().toISOString(),
+          action,
+          actor: user,
+          assignee: null,
+          outcome: null,
+          note,
+          ...extra,
+        });
+      const acknowledge = (n = '') => {
+        if (w.acknowledged_at) return false;
+        Object.assign(w, { acknowledged_at: new Date().toISOString(), acknowledged_by: user });
+        w.activity.push({
+          at: w.acknowledged_at,
+          action: 'acknowledged',
+          actor: user,
+          assignee: null,
+          outcome: null,
+          note: n,
+        });
+        return true;
+      };
+      if (m[2] === 'comments') {
+        step('commented');
+        return send(201, detail(w));
+      }
+      if (m[2] === 'reopen') {
+        if (!w.resolved_at) return send(409, { detail: 'This warning is not resolved' });
+        Object.assign(w, { resolved_at: null, resolved_by: null, outcome: null, resolution_note: '' });
+        step('reopened');
+        return send(200, detail(w));
+      }
+      if (w.resolved_at) return send(409, { detail: 'This warning is resolved; reopen it first' });
+      if (m[2] === 'acknowledge') {
+        if (!acknowledge(note)) return send(409, { detail: 'This warning is already acknowledged' });
+        return send(200, detail(w));
+      }
+      if (m[2] === 'assignee') {
+        if (userId && (!members.has(userId) || memberOf(userId).role === 'viewer'))
+          return send(422, { detail: 'Not an engineer or admin of this site' });
+        if ((userId ?? null) === w.assignee_id) {
+          if (note.trim()) step('commented');
+          return send(200, detail(w));
+        }
+        if (userId) acknowledge();
+        w.assignee_id = userId ?? null;
+        step(userId ? 'assigned' : 'unassigned', { assignee: userId ?? null });
+        return send(200, detail(w));
+      }
+      acknowledge();
+      Object.assign(w, { resolved_at: new Date().toISOString(), resolved_by: user, outcome, resolution_note: note });
+      step('resolved', { outcome });
+      return send(200, detail(w));
     }
 
     async function reviewRoute(path, user, role, repo) {
@@ -753,6 +856,32 @@ export function createFakeApi({
     // Makes the catalogue answer a search for `q` with an error.
     failSearch(q) {
       failingSearches.add(q);
+    },
+    // Lets a test raise a warning on `tag`, as a detector would, with the readings around it.
+    raiseWarning(tag, readings, warning) {
+      addSignal(tag, { source: 'edge:edge-01' });
+      for (const r of readings) samples.set(`${tag}|${r.at}`, r.value);
+      const w = {
+        id: randomUUID(),
+        detector_id: randomUUID(),
+        detector: `${tag.replace(/[^a-z0-9]+/g, '-')}-detector`,
+        signal_id: signals.find((x) => x.tag === tag).id,
+        signal_tag: tag,
+        side: 'above',
+        ended_at: null,
+        acknowledged_at: null,
+        acknowledged_by: null,
+        assignee_id: null,
+        resolved_at: null,
+        resolved_by: null,
+        outcome: null,
+        resolution_note: '',
+        created_at: new Date().toISOString(),
+        activity: [],
+        ...warning,
+      };
+      warnings.unshift(w);
+      return w.id;
     },
     // Lets a test require (or stop requiring) a review for every change, as a site admin would.
     requireReview(required = true) {

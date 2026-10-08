@@ -865,6 +865,26 @@
 				reviewPolicy: (siteId) => request("GET", `${site(siteId)}/review-policy`),
 				setReviewPolicy: (siteId, required) => request("PUT", `${site(siteId)}/review-policy`, { required })
 			},
+			warnings: {
+				list: (siteId, query = {}) => {
+					const params = new URLSearchParams();
+					for (const [k, v] of Object.entries(query)) if (v !== void 0 && v !== "") params.set(k, String(v));
+					const qs = params.toString();
+					return request("GET", `/sites/${encodeURIComponent(siteId)}/warnings${qs ? `?${qs}` : ""}`);
+				},
+				get: (siteId, id) => request("GET", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}`),
+				acknowledge: (siteId, id, note = "") => request("POST", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/acknowledge`, { note }),
+				assign: (siteId, id, userId, note = "") => request("PUT", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/assignee`, {
+					user_id: userId,
+					note
+				}),
+				resolve: (siteId, id, outcome, note = "") => request("POST", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/resolve`, {
+					outcome,
+					note
+				}),
+				reopen: (siteId, id, note = "") => request("POST", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/reopen`, { note }),
+				comment: (siteId, id, note) => request("POST", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/comments`, { note })
+			},
 			reviews: {
 				list: (siteId, state = "open", { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/reviews?state=${state}&limit=${limit}&offset=${offset}`),
 				get: (siteId, n) => request("GET", `${site(siteId)}/reviews/${n}`),
@@ -1457,7 +1477,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$10 = {
+	var view$11 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1557,7 +1577,7 @@
 	//#endregion
 	//#region js/lib/analysis.ts
 	var field = (row, key) => row[key];
-	var num = (row, key) => Number(field(row, key));
+	var num$1 = (row, key) => Number(field(row, key));
 	function correlationFinder(rows, variables, { outcome = "ng", splitBy = null } = {}) {
 		const segments = splitBy ? [...new Set(rows.map((r) => String(field(r, splitBy))))] : ["all"];
 		const findings = [];
@@ -1566,8 +1586,8 @@
 			const bad = subset.filter((r) => field(r, outcome));
 			const good = subset.filter((r) => !field(r, outcome));
 			for (const v of variables) {
-				const a = bad.map((r) => num(r, v.key));
-				const b = good.map((r) => num(r, v.key));
+				const a = bad.map((r) => num$1(r, v.key));
+				const b = good.map((r) => num$1(r, v.key));
 				findings.push({
 					segment: seg,
 					variable: v.key,
@@ -1576,7 +1596,7 @@
 					ngMean: mean(a),
 					okMean: mean(b),
 					effect: cohensD(a, b),
-					r: pearson(subset.map((r) => num(r, v.key)), subset.map((r) => field(r, outcome) ? 1 : 0)),
+					r: pearson(subset.map((r) => num$1(r, v.key)), subset.map((r) => field(r, outcome) ? 1 : 0)),
 					ngCount: a.length,
 					okCount: b.length
 				});
@@ -1760,7 +1780,7 @@
 	];
 	//#endregion
 	//#region js/views/chat.ts
-	var view$9 = {
+	var view$10 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -2093,7 +2113,7 @@
 	}
 	//#endregion
 	//#region js/views/ontology.ts
-	var uiState$4 = (ctx) => ctx.ui("ontology", {
+	var uiState$5 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
 		hidden: [],
@@ -2104,7 +2124,7 @@
 		match: -1
 	});
 	function showHistory(ctx) {
-		uiState$4(ctx).tab = "history";
+		uiState$5(ctx).tab = "history";
 	}
 	var RELS = [
 		"contains",
@@ -2646,12 +2666,12 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$8 = {
+	var view$9 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
 		render(ctx) {
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
@@ -2692,7 +2712,7 @@
       ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
@@ -3055,22 +3075,22 @@
 		pad: PAD
 	};
 	var SECOND = 1e3;
-	var MINUTE = 60 * SECOND;
-	var HOUR$1 = 60 * MINUTE;
-	var DAY = 24 * HOUR$1;
+	var MINUTE$1 = 60 * SECOND;
+	var HOUR$2 = 60 * MINUTE$1;
+	var DAY = 24 * HOUR$2;
 	var STEPS = [
 		SECOND,
 		5 * SECOND,
 		15 * SECOND,
 		30 * SECOND,
-		MINUTE,
-		5 * MINUTE,
-		15 * MINUTE,
-		30 * MINUTE,
-		HOUR$1,
-		3 * HOUR$1,
-		6 * HOUR$1,
-		12 * HOUR$1,
+		MINUTE$1,
+		5 * MINUTE$1,
+		15 * MINUTE$1,
+		30 * MINUTE$1,
+		HOUR$2,
+		3 * HOUR$2,
+		6 * HOUR$2,
+		12 * HOUR$2,
 		DAY,
 		2 * DAY,
 		7 * DAY,
@@ -3097,9 +3117,9 @@
 				ticks
 			};
 		}
-		const offset = new Date(from).getTimezoneOffset() * MINUTE;
+		const offset = new Date(from).getTimezoneOffset() * MINUTE$1;
 		for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) {
-			const shifted = step >= HOUR$1 ? t + new Date(t).getTimezoneOffset() * MINUTE - offset : t;
+			const shifted = step >= HOUR$2 ? t + new Date(t).getTimezoneOffset() * MINUTE$1 - offset : t;
 			if (shifted >= from && shifted <= to) ticks.push(shifted);
 		}
 		return {
@@ -3110,7 +3130,7 @@
 	function tickLabel(t, step) {
 		const d = new Date(t);
 		const two = (n) => String(n).padStart(2, "0");
-		const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE ? `:${two(d.getSeconds())}` : ""}`;
+		const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE$1 ? `:${two(d.getSeconds())}` : ""}`;
 		if (step >= 365 * DAY) return String(d.getFullYear());
 		if (step >= 30 * DAY) return d.toLocaleDateString("en-GB", {
 			month: "short",
@@ -3128,11 +3148,12 @@
 		const right = width - PAD.r;
 		return from + Math.min(1, Math.max(0, (x - left) / (right - left))) * (to - from);
 	}
-	function timeChart({ points, from, to, gap, color = "var(--accent)", width = TIME_CHART.width, height = TIME_CHART.height, yLabel = "" }) {
+	function timeChart({ points, from, to, gap, color = "var(--accent)", width = TIME_CHART.width, height = TIME_CHART.height, yLabel = "", levels = [], spans = [] }) {
 		const shown = points.filter((p) => p.t >= from && p.t <= to);
 		if (!shown.length) return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}"><text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
-		let lo = Math.min(...shown.map((p) => p.lo));
-		let hi = Math.max(...shown.map((p) => p.hi));
+		const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
+		let lo = Math.min(...shown.map((p) => p.lo), ...marks);
+		let hi = Math.max(...shown.map((p) => p.hi), ...marks);
 		if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
 		const x = scale(from, to, PAD.l, width - PAD.r);
 		const y = scale(lo, hi, height - PAD.b, PAD.t);
@@ -3147,26 +3168,31 @@
 		const lines = runs.map((r) => r.length === 1 ? `<circle cx="${x(r[0].t).toFixed(1)}" cy="${y(r[0].v).toFixed(1)}" r="2" fill="${color}"/>` : `<path d="M${r.map((p) => xy(p.t, p.v)).join("L")}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>`).join("");
 		const yt = ticks(lo, hi, 4);
 		const { step, ticks: xt } = timeTicks(from, to);
+		const shade = spans.map((s) => [Math.max(s.from, from), Math.min(s.to, to)]).filter(([a, b]) => b >= a).map(([a, b]) => {
+			const w = Math.max(2, x(b) - x(a));
+			return `<rect class="span" x="${x(a).toFixed(1)}" y="${PAD.t}" width="${w.toFixed(1)}" height="${height - PAD.b - PAD.t}"/>`;
+		}).join("");
+		const refs = levels.filter((l) => Number.isFinite(l.v)).map((l) => `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(l.v).toFixed(1)}" y2="${y(l.v).toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${(y(l.v) - 4).toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`).join("");
 		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt$1(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join("")}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join("")}
-    ${band}${lines}
+    ${shade}${band}${lines}${refs}
     ${yLabel ? `<text class="axis" x="4" y="${PAD.t - 10}">${esc(yLabel)}</text>` : ""}
   </svg>`;
 	}
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var uiState$3 = (ctx) => ctx.ui("quality", {
+	var uiState$4 = (ctx) => ctx.ui("quality", {
 		split: true,
 		variable: "tension"
 	});
-	var view$7 = {
+	var view$8 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
 		render(ctx) {
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
@@ -3282,7 +3308,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
@@ -3298,14 +3324,14 @@
 	};
 	//#endregion
 	//#region js/views/physics.ts
-	var uiState$2 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$6 = {
+	var uiState$3 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var view$7 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = uiState$2(ctx);
+			const ui = uiState$3(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
@@ -3429,7 +3455,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$2(ctx);
+			const ui = uiState$3(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
 				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
@@ -3457,7 +3483,7 @@
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var uiState$1 = (ctx) => ctx.ui("design", {
+	var uiState$2 = (ctx) => ctx.ui("design", {
 		model: "swelling",
 		params: {},
 		versions: {},
@@ -3465,7 +3491,7 @@
 		sweepY: null
 	});
 	function current(ctx) {
-		const ui = uiState$1(ctx);
+		const ui = uiState$2(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
 			ui,
@@ -3474,7 +3500,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -3811,7 +3837,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -4244,7 +4270,7 @@
 			})();
 		});
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "signals",
 		title: "Signals",
 		icon: "≋",
@@ -4333,12 +4359,12 @@
 	//#region js/views/explorer.ts
 	var MAX_SIGNALS = 8;
 	var POINTS = 900;
-	var HOUR = 36e5;
+	var HOUR$1 = 36e5;
 	var PRESETS = {
-		"1h": HOUR,
-		"24h": 24 * HOUR,
-		"7d": 168 * HOUR,
-		"30d": 720 * HOUR
+		"1h": HOUR$1,
+		"24h": 24 * HOUR$1,
+		"7d": 168 * HOUR$1,
+		"30d": 720 * HOUR$1
 	};
 	var ui = (ctx) => ctx.ui("explorer", {
 		picked: [],
@@ -4362,7 +4388,7 @@
 			to: iso(end)
 		};
 	}
-	var MAX_SPAN = 43920 * HOUR;
+	var MAX_SPAN = 43920 * HOUR$1;
 	function zoomOut(range) {
 		const from = Date.parse(range.from);
 		const to = Date.parse(range.to);
@@ -4558,7 +4584,7 @@
 		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
 		ctx.api.signals.get(site.id, id).then((s) => add(ctx, s), () => void 0);
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "⌁",
@@ -4646,37 +4672,37 @@
 	};
 	//#endregion
 	//#region js/views/reviews.ts
-	var uiState = (ctx) => ctx.ui("reviews", {
+	var uiState$1 = (ctx) => ctx.ui("reviews", {
 		state: "open",
 		selected: null,
 		site: null
 	});
-	var listing = null;
-	var detail = null;
-	var listSeq = 0;
-	var detailSeq = 0;
-	var busy = false;
-	var draft = {
+	var listing$1 = null;
+	var detail$1 = null;
+	var listSeq$1 = 0;
+	var detailSeq$1 = 0;
+	var busy$1 = false;
+	var draft$1 = {
 		key: "",
 		text: ""
 	};
-	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/reviews")) {
-			listing = null;
-			detail = null;
+			listing$1 = null;
+			detail$1 = null;
 		}
 	});
-	var listKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).state}`;
-	var detailKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).selected}`;
-	var STATUS = {
+	var listKey$1 = (ctx) => `${siteId$1(ctx)}|${uiState$1(ctx).state}`;
+	var detailKey$1 = (ctx) => `${siteId$1(ctx)}|${uiState$1(ctx).selected}`;
+	var STATUS$1 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
 		rejected: ["bad", "Rejected"],
 		withdrawn: ["", "Withdrawn"]
 	};
 	function statusBadge(status) {
-		const [cls, text] = STATUS[status];
+		const [cls, text] = STATUS$1[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
 	function stats(s) {
@@ -4691,9 +4717,9 @@
 		if (r.status !== "open" || role === null || role === "viewer" || r.author_id === me) return false;
 		return r.reviewer_id === null || r.reviewer_id === me || role === "admin";
 	}
-	function listCard(ctx, ui) {
+	function listCard$1(ctx, ui) {
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
-		const items = listing?.key === listKey(ctx) ? listing.items : null;
+		const items = listing$1?.key === listKey$1(ctx) ? listing$1.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
           <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
@@ -4701,9 +4727,9 @@
           <span class="small">${stats(r.stats)}</span>
         </button>`).join("") || `<div class="empty">${ui.state === "open" ? "Nothing waits for a review. Send staged changes from the Ontology page." : "No closed change requests yet."}</div>`}</div></div>`;
 	}
-	function detailCard(ctx, ui) {
+	function detailCard$1(ctx, ui) {
 		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a change request to see its changes.</div></div>";
-		const r = detail?.key === detailKey(ctx) ? detail.review : null;
+		const r = detail$1?.key === detailKey$1(ctx) ? detail$1.review : null;
 		if (!r) return "<div class=\"card\" data-review-detail><div class=\"empty\">Loading…</div></div>";
 		const o = ctx.ontology;
 		const open = r.status === "open";
@@ -4718,7 +4744,7 @@
 		const canWrite = o.role !== null && o.role !== "viewer";
 		const decide = mayDecide(r, o.userId, o.role);
 		const mine = r.author_id !== null && r.author_id === o.userId;
-		const outcome = r.status === "approved" && r.commit_id ? `<p class="small">Committed as <a class="mono" href="#/ontology" data-history>${esc(r.commit_id.slice(-7))}</a> by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : r.status !== "open" ? `<p class="small soft">${STATUS[r.status][1]} by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : "";
+		const outcome = r.status === "approved" && r.commit_id ? `<p class="small">Committed as <a class="mono" href="#/ontology" data-history>${esc(r.commit_id.slice(-7))}</a> by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : r.status !== "open" ? `<p class="small soft">${STATUS$1[r.status][1]} by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : "";
 		const waiting = open && !decide && canWrite && !mine && r.reviewer ? `<p class="small soft">Waiting for ${esc(r.reviewer)} (or an admin) to review it.</p>` : "";
 		return `
     <div class="card" data-review-detail>
@@ -4735,8 +4761,8 @@
       <div class="thread">${thread || "<p class=\"small muted\">No comments yet.</p>"}</div>
       ${waiting}
       ${canWrite ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
-        <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft.key === detailKey(ctx) ? esc(draft.text) : ""}</textarea>
-        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy ? "disabled" : ""}>
+        <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$1.key === detailKey$1(ctx) ? esc(draft$1.text) : ""}</textarea>
+        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$1 ? "disabled" : ""}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
           ${reworkButton(r, mine)}
@@ -4755,52 +4781,52 @@
       <span class="row" style="gap:12px">${o.role === "admin" ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? "checked" : ""} /> Require a review for every change</label>` : ""}<button class="btn sm" data-refresh-reviews>Refresh</button></span>
     </div>`;
 	}
-	async function fetchList(ctx) {
-		const site = siteId(ctx);
+	async function fetchList$1(ctx) {
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
-		const key = listKey(ctx);
-		const seq = ++listSeq;
-		listing = {
+		const key = listKey$1(ctx);
+		const seq = ++listSeq$1;
+		listing$1 = {
 			key,
 			items: null
 		};
 		try {
-			const items = await ctx.api.reviews.list(site, uiState(ctx).state);
-			if (seq === listSeq) listing = {
+			const items = await ctx.api.reviews.list(site, uiState$1(ctx).state);
+			if (seq === listSeq$1) listing$1 = {
 				key,
 				items
 			};
 		} catch {
-			if (seq === listSeq) listing = {
+			if (seq === listSeq$1) listing$1 = {
 				key,
 				items: []
 			};
 		}
-		if (seq === listSeq) ctx.rerender();
+		if (seq === listSeq$1) ctx.rerender();
 	}
-	async function fetchDetail(ctx) {
-		const site = siteId(ctx);
-		const n = uiState(ctx).selected;
+	async function fetchDetail$1(ctx) {
+		const site = siteId$1(ctx);
+		const n = uiState$1(ctx).selected;
 		if (!ctx.api || !site || n === null) return;
-		const key = detailKey(ctx);
-		const seq = ++detailSeq;
+		const key = detailKey$1(ctx);
+		const seq = ++detailSeq$1;
 		try {
 			const review = await ctx.api.reviews.get(site, n);
-			if (seq !== detailSeq) return;
-			detail = {
+			if (seq !== detailSeq$1) return;
+			detail$1 = {
 				key,
 				review
 			};
 		} catch {
-			if (seq !== detailSeq) return;
-			uiState(ctx).selected = null;
+			if (seq !== detailSeq$1) return;
+			uiState$1(ctx).selected = null;
 		}
 		ctx.rerender();
 	}
-	async function act(ctx, action, comment) {
-		const site = siteId(ctx);
-		const r = detail?.review;
-		if (!ctx.api || !site || !r || busy) return;
+	async function act$1(ctx, action, comment) {
+		const site = siteId$1(ctx);
+		const r = detail$1?.review;
+		if (!ctx.api || !site || !r || busy$1) return;
 		const reviews = ctx.api.reviews;
 		const call = {
 			comment: () => reviews.comment(site, r.number, comment),
@@ -4809,15 +4835,15 @@
 			rework: () => reviews.rework(site, r.number)
 		}[action];
 		if (!call) return;
-		busy = true;
+		busy$1 = true;
 		ctx.rerender();
 		try {
 			const review = await call();
-			detail = {
+			detail$1 = {
 				key: `${site}|${review.number}`,
 				review
 			};
-			draft = {
+			draft$1 = {
 				key: "",
 				text: ""
 			};
@@ -4825,7 +4851,7 @@
 			if (action === "approve") ctx.toast(`#${r.number} approved and committed`);
 			if (action === "reject") ctx.toast(`#${r.number} rejected`);
 			if (action !== "comment") {
-				listing = null;
+				listing$1 = null;
 				await ctx.ontology.reload();
 			}
 			if (action === "rework" && r.reverts) ctx.toast(`#${r.number} withdrawn`);
@@ -4834,14 +4860,14 @@
 				location.hash = "#/ontology";
 			}
 		} catch {
-			detail = null;
-			listing = null;
+			detail$1 = null;
+			listing$1 = null;
 		} finally {
-			busy = false;
+			busy$1 = false;
 			ctx.rerender();
 		}
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "✓",
@@ -4852,18 +4878,18 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState(ctx);
-			return `${head}${policyCard(ctx)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
+			const ui = uiState$1(ctx);
+			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$1(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState(ctx);
-			if (ui.site !== siteId(ctx)) Object.assign(ui, {
+			const ui = uiState$1(ctx);
+			if (ui.site !== siteId$1(ctx)) Object.assign(ui, {
 				selected: null,
-				site: siteId(ctx)
+				site: siteId$1(ctx)
 			});
-			if (listing?.key !== listKey(ctx)) fetchList(ctx);
-			if (ui.selected !== null && detail?.key !== detailKey(ctx)) fetchDetail(ctx);
+			if (listing$1?.key !== listKey$1(ctx)) fetchList$1(ctx);
+			if (ui.selected !== null && detail$1?.key !== detailKey$1(ctx)) fetchDetail$1(ctx);
 			onAll(root, "[data-state]", "click", (el) => {
 				ui.state = el.dataset.state === "closed" ? "closed" : "open";
 				ctx.rerender();
@@ -4874,19 +4900,19 @@
 			});
 			onAll(root, "[data-history]", "click", () => showHistory(ctx));
 			onAll(root, "[data-refresh-reviews]", "click", () => {
-				listing = null;
-				detail = null;
+				listing$1 = null;
+				detail$1 = null;
 				ctx.ontology.reload();
 				ctx.rerender();
 			});
 			root.querySelector("#review-form textarea")?.addEventListener("input", (e) => {
-				draft = {
-					key: detailKey(ctx),
+				draft$1 = {
+					key: detailKey$1(ctx),
 					text: e.target.value
 				};
 			});
 			onAll(root, "[data-policy]", "change", (el) => {
-				const site = siteId(ctx);
+				const site = siteId$1(ctx);
 				const required = el.checked;
 				if (!ctx.api || !site) return;
 				ctx.api.ontology.setReviewPolicy(site, required).then(() => ctx.toast(required ? "Every change now needs a review" : "Reviews are optional again")).catch(() => void 0).finally(() => void ctx.ontology.reload());
@@ -4901,7 +4927,453 @@
 					box.focus();
 					return;
 				}
-				act(ctx, action, comment);
+				act$1(ctx, action, comment);
+			});
+		}
+	};
+	//#endregion
+	//#region js/lib/warnings.ts
+	var DEFAULT_FILTERS = {
+		show: "unresolved",
+		who: "anyone",
+		signal: "all"
+	};
+	var SHOW_LABELS = {
+		unresolved: "To do",
+		raised: "New",
+		acknowledged: "Acknowledged",
+		resolved: "Resolved",
+		all: "All"
+	};
+	var STATUS = {
+		raised: ["bad", "New"],
+		acknowledged: ["warn", "Acknowledged"],
+		resolved: ["good", "Resolved"]
+	};
+	var OUTCOMES = {
+		true_alarm: "True alarm",
+		false_alarm: "False alarm",
+		unknown: "Unknown"
+	};
+	function queryFor(f) {
+		return {
+			status: f.show,
+			...f.who === "anyone" ? {} : { assignee: f.who },
+			...f.signal === "all" ? {} : { state: f.signal }
+		};
+	}
+	function actionsFor(w, role) {
+		if (role !== "engineer" && role !== "admin") return [];
+		if (w.status === "resolved") return ["reopen", "comment"];
+		return [
+			...w.status === "raised" ? ["acknowledge"] : [],
+			"assign",
+			"resolve",
+			"comment"
+		];
+	}
+	var MINUTE = 6e4;
+	var HOUR = 36e5;
+	function when(iso, now) {
+		const t = Date.parse(iso);
+		const ago = now - t;
+		if (ago >= 0 && ago < MINUTE) return "just now";
+		if (ago >= 0 && ago < HOUR) return `${Math.floor(ago / MINUTE)} min ago`;
+		if (ago >= 0 && ago < 12 * HOUR) return `${Math.floor(ago / HOUR)} h ago`;
+		return new Date(t).toLocaleString("en-GB", {
+			day: "numeric",
+			month: "short",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit"
+		});
+	}
+	function chartRange(w, now) {
+		const start = Date.parse(w.started_at);
+		const end = Date.parse(w.ended_at ?? w.last_at);
+		const pad = Math.max(2 * (end - start), HOUR);
+		return {
+			from: start - pad,
+			to: Math.max(end, Math.min(now, end + pad / 2)),
+			start,
+			end
+		};
+	}
+	var num = (x) => {
+		const abs = Math.abs(x);
+		const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : abs >= 1 ? 2 : 3;
+		return x.toLocaleString("en-GB", { maximumFractionDigits: digits });
+	};
+	function howFar(w) {
+		const allowed = w.threshold - w.baseline;
+		const times = allowed ? (w.peak - w.baseline) / allowed : NaN;
+		const word = w.side === "above" ? "above" : "below";
+		return `Peak ${num(w.peak)}, ${word} the threshold of ${num(w.threshold)} (baseline ${num(w.baseline)}${Number.isFinite(times) ? `; ${times.toLocaleString("en-GB", { maximumFractionDigits: 1 })}× the allowed spread` : ""})`;
+	}
+	function activityText(a) {
+		const who = a.actor ?? "someone";
+		switch (a.action) {
+			case "raised": return "Raised by the detector";
+			case "acknowledged": return `${who} acknowledged it`;
+			case "assigned": return `${who} assigned it to ${a.assignee ?? "someone"}`;
+			case "unassigned": return `${who} unassigned it`;
+			case "resolved": return `${who} resolved it: ${a.outcome ? OUTCOMES[a.outcome].toLowerCase() : "no outcome"}`;
+			case "reopened": return `${who} reopened it`;
+			case "commented": return `${who} commented`;
+		}
+	}
+	function payload(w) {
+		const settings = Object.entries(w.detector_config).map(([k, v]) => [`Detector ${k.replace(/_/g, " ")}`, String(v)]);
+		return [
+			["Signal", w.signal_tag],
+			["Detector", w.detector],
+			["Side", w.side],
+			["Peak", num(w.peak)],
+			["Threshold", num(w.threshold)],
+			["Baseline", num(w.baseline)],
+			["Readings out", String(w.readings)],
+			["Started", w.started_at],
+			["Last out", w.last_at],
+			["Back in", w.ended_at ?? "still out"],
+			...settings
+		];
+	}
+	//#endregion
+	//#region js/views/warnings.ts
+	var uiState = (ctx) => ctx.ui("warnings", {
+		filters: { ...DEFAULT_FILTERS },
+		selected: null,
+		site: null
+	});
+	var listing = null;
+	var detail = null;
+	var series = null;
+	var members = null;
+	var listSeq = 0;
+	var detailSeq = 0;
+	var seriesSeq = 0;
+	var busy = false;
+	var draft = {
+		key: "",
+		text: ""
+	};
+	var ago = (iso) => when(iso, Date.now());
+	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/warnings")) {
+			listing = null;
+			detail = null;
+			series = null;
+		}
+	});
+	var listKey = (ctx) => `${siteId(ctx)}|${JSON.stringify(uiState(ctx).filters)}`;
+	var detailKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).selected}`;
+	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
+	function badge(w) {
+		const [cls, label] = STATUS[w.status];
+		return `<span class="badge ${cls}">${label}</span>`;
+	}
+	var signalState = (w) => w.ended_at ? `back ${ago(w.ended_at)}` : "<b>still out</b>";
+	function filterBar(ctx, f) {
+		const tabs = Object.keys(SHOW_LABELS).map((s) => `<button class="tab ${f.show === s ? "active" : ""}" data-show="${s}" role="tab">${SHOW_LABELS[s]}</button>`).join("");
+		const option = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${label}</option>`;
+		return `<div class="card source-bar small">
+      <div class="tabs" role="tablist" aria-label="Status">${tabs}</div>
+      <span class="row" style="gap:12px;flex-wrap:wrap">
+        <label class="row" style="gap:6px">Assigned to <select data-filter="who">${option("anyone", "anyone", f.who)}${option("me", "me", f.who)}${option("none", "nobody", f.who)}</select></label>
+        <label class="row" style="gap:6px">Signal <select data-filter="signal">${option("all", "out or back", f.signal)}${option("open", "still out", f.signal)}${option("ended", "back in", f.signal)}</select></label>
+        <button class="btn sm" data-refresh-warnings>Refresh</button>
+      </span>
+    </div>`;
+	}
+	function listCard(ctx, ui) {
+		const items = listing?.key === listKey(ctx) ? listing.items : null;
+		const empty = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all" ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
+		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((w) => `
+        <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
+          <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge(w)}</span>
+          <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
+          <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
+        </button>`).join("") || `<div class="empty">${empty}</div>`}</div></div>`;
+	}
+	function chartCard(w) {
+		const s = series?.key === seriesKey(w) ? series.data : void 0;
+		if (s === void 0) return "<div class=\"empty\">Loading the signal…</div>";
+		if (s === null) return "<p class=\"small muted\">The signal’s readings could not be loaded.</p>";
+		const { from, to, start, end } = chartRange(w, Date.now());
+		const points = toPoints(s);
+		return `<div class="explorer-chart">${timeChart({
+			points,
+			from,
+			to,
+			gap: gapFor(s, points),
+			yLabel: s.unit ?? "",
+			width: fitWidth(TIME_CHART.width),
+			levels: [{
+				v: w.threshold,
+				label: "threshold"
+			}, {
+				v: w.baseline,
+				label: "baseline"
+			}],
+			spans: [{
+				from: start,
+				to: end
+			}]
+		})}</div>`;
+	}
+	function actionsForm(ctx, w) {
+		const actions = actionsFor(w, ctx.ontology.role);
+		if (!actions.length) return "";
+		const people = (members?.site === siteId(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
+		const has = (a) => actions.includes(a);
+		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
+        <option value="">nobody</option>
+        ${people.map((m) => `<option value="${esc(m.user_id)}" ${m.user_id === w.assignee_id ? "selected" : ""}>${esc(m.name)}${m.user_id === ctx.ontology.userId ? " (me)" : ""}</option>`).join("")}
+      </select></label><button class="btn" type="button" data-act="assign">Assign</button></span>` : "";
+		const resolve = has("resolve") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Outcome <select name="outcome">
+        ${Object.keys(OUTCOMES).map((o) => `<option value="${o}">${OUTCOMES[o]}</option>`).join("")}
+      </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>` : "";
+		return `<form class="stack" id="warning-form" style="gap:8px;margin-top:10px">
+      <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ""}</textarea>
+      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy ? "disabled" : ""}>
+        ${has("acknowledge") ? "<button class=\"btn primary\" type=\"button\" data-act=\"acknowledge\">Acknowledge</button>" : ""}
+        ${assign}
+        ${resolve}
+        ${has("reopen") ? "<button class=\"btn\" type=\"button\" data-act=\"reopen\">Reopen</button>" : ""}
+        <button class="btn" type="button" data-act="comment">Comment</button>
+      </fieldset>
+    </form>`;
+	}
+	function detailCard(ctx, ui) {
+		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a warning to see its signal and what was done.</div></div>";
+		const w = detail?.key === detailKey(ctx) ? detail.warning : null;
+		if (!w) return "<div class=\"card\" data-warning-detail><div class=\"empty\">Loading…</div></div>";
+		const activity = w.activity.map((a) => `
+      <div class="comment">
+        <div class="small muted"><b>${esc(activityText(a))}</b> · ${ago(a.at)}</div>
+        ${a.note ? `<div class="comment-body">${esc(a.note)}</div>` : ""}
+      </div>`).join("");
+		const rows = payload(w).map(([k, v]) => `<tr><th scope="row">${esc(k)}</th><td class="mono">${esc(v)}</td></tr>`).join("");
+		const resolved = w.status === "resolved" && w.outcome ? `<p class="small">${OUTCOMES[w.outcome]}, resolved by ${esc(w.resolved_by ?? "someone")} ${w.resolved_at ? ago(w.resolved_at) : ""}${w.resolution_note ? `: ${esc(w.resolution_note)}` : "."}</p>` : "";
+		const readOnly = ctx.ontology.role === "viewer" ? "<p class=\"small soft\">Engineers and admins of the site act on warnings.</p>" : "";
+		return `
+    <div class="card" data-warning-detail>
+      <div class="card-head"><div>
+        ${badge(w)} ${w.ended_at ? "" : "<span class=\"badge bad\">Signal still out</span>"}
+        <h2 style="margin-top:6px" class="mono">${esc(w.signal_tag)}</h2>
+        <div class="small muted">${esc(w.detector)} · started ${ago(w.started_at)} · ${w.readings} reading(s) out · ${w.assignee ? `for ${esc(w.assignee)}` : "unassigned"}</div>
+      </div></div>
+      <p class="small" data-how-far>${esc(howFar(w))}</p>
+      ${resolved}
+      ${chartCard(w)}
+      <h3 style="margin:16px 0 6px">Activity</h3>
+      <div class="thread">${activity}</div>
+      ${readOnly}
+      ${actionsForm(ctx, w)}
+      <details style="margin-top:14px"><summary class="small">Payload</summary>
+        <div class="table-wrap"><table class="small"><tbody>${rows}</tbody></table></div>
+      </details>
+    </div>`;
+	}
+	async function fetchList(ctx) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		const key = listKey(ctx);
+		const seq = ++listSeq;
+		listing = {
+			key,
+			items: null
+		};
+		try {
+			const items = await ctx.api.warnings.list(site, {
+				...queryFor(uiState(ctx).filters),
+				limit: 200
+			});
+			if (seq === listSeq) listing = {
+				key,
+				items
+			};
+		} catch {
+			if (seq === listSeq) listing = {
+				key,
+				items: []
+			};
+		}
+		if (seq === listSeq) ctx.rerender();
+	}
+	async function fetchSeries(ctx, w) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		const key = seriesKey(w);
+		const seq = ++seriesSeq;
+		const { from, to } = chartRange(w, Date.now());
+		let data;
+		try {
+			data = await ctx.api.signals.series(site, w.signal_id, new Date(from).toISOString(), new Date(to).toISOString(), 400);
+		} catch {
+			data = null;
+		}
+		if (seq !== seriesSeq) return;
+		series = {
+			key,
+			data
+		};
+		ctx.rerender();
+	}
+	async function fetchDetail(ctx) {
+		const site = siteId(ctx);
+		const id = uiState(ctx).selected;
+		if (!ctx.api || !site || id === null) return;
+		const key = detailKey(ctx);
+		const seq = ++detailSeq;
+		try {
+			const warning = await ctx.api.warnings.get(site, id);
+			if (seq !== detailSeq) return;
+			detail = {
+				key,
+				warning
+			};
+		} catch {
+			if (seq !== detailSeq) return;
+			uiState(ctx).selected = null;
+		}
+		ctx.rerender();
+	}
+	async function fetchMembers(ctx) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		members = {
+			site,
+			people: []
+		};
+		try {
+			const people = await ctx.api.members(site);
+			if (members.site === site) members = {
+				site,
+				people
+			};
+		} catch {}
+		ctx.rerender();
+	}
+	async function act(ctx, action, note, form) {
+		const site = siteId(ctx);
+		const w = detail?.warning;
+		if (!ctx.api || !site || !w || busy) return;
+		const api = ctx.api.warnings;
+		const value = (name) => form.querySelector(`[name="${name}"]`)?.value ?? "";
+		const call = {
+			acknowledge: () => api.acknowledge(site, w.id, note),
+			assign: () => api.assign(site, w.id, value("assignee") || null, note),
+			resolve: () => api.resolve(site, w.id, value("outcome"), note),
+			reopen: () => api.reopen(site, w.id, note),
+			comment: () => api.comment(site, w.id, note)
+		}[action];
+		if (!call) return;
+		busy = true;
+		ctx.rerender();
+		try {
+			const warning = await call();
+			detail = {
+				key: `${site}|${warning.id}`,
+				warning
+			};
+			draft = {
+				key: "",
+				text: ""
+			};
+			const done = {
+				acknowledge: "Acknowledged",
+				assign: warning.assignee ? `Assigned to ${warning.assignee}` : "Unassigned",
+				resolve: `Resolved as ${warning.outcome ? OUTCOMES[warning.outcome].toLowerCase() : "done"}`,
+				reopen: "Reopened",
+				comment: "Comment added"
+			};
+			ctx.toast(done[action] ?? "Done");
+			if (action !== "comment") listing = null;
+		} catch {
+			detail = null;
+			listing = null;
+		} finally {
+			busy = false;
+			ctx.rerender();
+		}
+	}
+	var view$1 = {
+		id: "warnings",
+		title: "Warnings",
+		icon: "⚠",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warnings</h1>
+        <p class="soft">What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be.</p></div></div>`;
+			if (!ctx.api) return `${head}<div class="card"><p>Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			const o = ctx.ontology;
+			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+			const ui = uiState(ctx);
+			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
+		},
+		bind(root, ctx) {
+			if (!ctx.api || ctx.ontology.status !== "ready") return;
+			const ui = uiState(ctx);
+			const site = siteId(ctx);
+			if (ui.site !== site) Object.assign(ui, {
+				selected: null,
+				site
+			});
+			if (listing?.key !== listKey(ctx)) fetchList(ctx);
+			if (ui.selected !== null && detail?.key !== detailKey(ctx)) fetchDetail(ctx);
+			const shown = detail?.key === detailKey(ctx) ? detail.warning : null;
+			if (shown && series?.key !== seriesKey(shown)) {
+				series = {
+					key: seriesKey(shown),
+					data: void 0
+				};
+				fetchSeries(ctx, shown);
+			}
+			if (site && members?.site !== site && actionsFor({ status: "raised" }, ctx.ontology.role).length) fetchMembers(ctx);
+			onAll(root, "[data-show]", "click", (el) => {
+				ui.filters = {
+					...ui.filters,
+					show: el.dataset.show ?? "unresolved"
+				};
+				ctx.rerender();
+			});
+			onAll(root, "[data-filter]", "change", (el) => {
+				const value = el.value;
+				ui.filters = {
+					...ui.filters,
+					[el.dataset.filter ?? ""]: value
+				};
+				ctx.rerender();
+			});
+			onAll(root, "[data-warning]", "click", (el) => {
+				ui.selected = el.dataset.warning ?? null;
+				ctx.rerender();
+			});
+			onAll(root, "[data-refresh-warnings]", "click", () => {
+				listing = null;
+				detail = null;
+				series = null;
+				ctx.rerender();
+			});
+			root.querySelector("#warning-form textarea")?.addEventListener("input", (e) => {
+				draft = {
+					key: detailKey(ctx),
+					text: e.target.value
+				};
+			});
+			onAll(root, "[data-act]", "click", (el) => {
+				const form = need(root, "#warning-form");
+				const box = need(form, "textarea");
+				const action = el.dataset.act ?? "";
+				const note = box.value.trim();
+				if (action === "comment" && !note) {
+					ctx.toast("Write the comment first");
+					box.focus();
+					return;
+				}
+				act(ctx, action, note, form);
 			});
 		}
 	};
@@ -5500,44 +5972,46 @@
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$11,
 		view$10,
 		view$9,
-		view$8,
+		view$2,
 		view$1,
+		view$8,
 		view$7,
 		view$6,
-		view$5,
+		view$4,
 		view$3,
-		view$2,
 		view,
-		view$4
+		view$5
 	];
 	var NAV = [
-		{ items: [view$10, view$9] },
+		{ items: [view$11, view$10] },
 		{
 			group: "Operations",
 			items: [
-				view$8,
+				view$9,
+				view$2,
 				view$1,
-				view$7,
-				view$6
+				view$8,
+				view$7
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$4,
 				view$3,
-				view$2,
 				view
 			]
 		},
 		{
 			group: "Design",
-			items: [view$5]
+			items: [view$6]
 		},
 		{
 			group: "",
-			items: [view$4]
+			items: [view$5]
 		}
 	];
 	function freshState() {
@@ -5830,7 +6304,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? view$10;
+		return VIEWS.find((v) => v.id === id) ?? view$11;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -5853,8 +6327,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$10 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$10 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$11 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$11 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);

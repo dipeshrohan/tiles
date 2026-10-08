@@ -220,6 +220,59 @@ export interface ImportRun {
   finished_at: string | null;
 }
 
+// Warnings a detector raised, and people's work on them (T3.07).
+export type WarningStatus = 'raised' | 'acknowledged' | 'resolved';
+export type WarningOutcome = 'true_alarm' | 'false_alarm' | 'unknown';
+
+export interface WarningInfo {
+  id: string;
+  detector_id: string;
+  detector: string;
+  signal_id: string;
+  signal_tag: string;
+  started_at: string;
+  last_at: string;
+  ended_at: string | null; // when the signal came back; null while it is still out
+  side: 'above' | 'below';
+  peak: number;
+  baseline: number;
+  threshold: number;
+  readings: number;
+  status: WarningStatus;
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  assignee_id: string | null;
+  assignee: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  outcome: WarningOutcome | null;
+  resolution_note: string;
+}
+
+export interface WarningActivity {
+  at: string;
+  action: 'raised' | 'acknowledged' | 'assigned' | 'unassigned' | 'resolved' | 'reopened' | 'commented';
+  actor: string | null;
+  assignee: string | null;
+  outcome: WarningOutcome | null;
+  note: string;
+}
+
+export interface WarningDetail extends WarningInfo {
+  detector_config: Record<string, unknown>;
+  activity: WarningActivity[];
+}
+
+export interface WarningQuery {
+  state?: 'open' | 'ended' | 'all'; // the signal still out, or back
+  status?: WarningStatus | 'unresolved' | 'all';
+  assignee?: string; // me, none, or a user's id
+  outcome?: WarningOutcome;
+  signal_id?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface Me {
   email: string;
   name: string;
@@ -446,6 +499,48 @@ export function createApiClient(options: ApiOptions) {
       reviewPolicy: (siteId: string) => request<{ required: boolean }>('GET', `${site(siteId)}/review-policy`),
       setReviewPolicy: (siteId: string, required: boolean) =>
         request<{ required: boolean }>('PUT', `${site(siteId)}/review-policy`, { required }),
+    },
+    // Warnings and their workflow (T3.07): acknowledge, assign, resolve with an outcome, reopen, comment.
+    warnings: {
+      list: (siteId: string, query: WarningQuery = {}) => {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== '') params.set(k, String(v));
+        const qs = params.toString();
+        return request<WarningInfo[]>('GET', `/sites/${encodeURIComponent(siteId)}/warnings${qs ? `?${qs}` : ''}`);
+      },
+      get: (siteId: string, id: string) =>
+        request<WarningDetail>('GET', `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}`),
+      acknowledge: (siteId: string, id: string, note = '') =>
+        request<WarningDetail>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/acknowledge`,
+          { note },
+        ),
+      // null unassigns.
+      assign: (siteId: string, id: string, userId: string | null, note = '') =>
+        request<WarningDetail>(
+          'PUT',
+          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/assignee`,
+          { user_id: userId, note },
+        ),
+      resolve: (siteId: string, id: string, outcome: WarningOutcome, note = '') =>
+        request<WarningDetail>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/resolve`,
+          { outcome, note },
+        ),
+      reopen: (siteId: string, id: string, note = '') =>
+        request<WarningDetail>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/reopen`,
+          { note },
+        ),
+      comment: (siteId: string, id: string, note: string) =>
+        request<WarningDetail>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/comments`,
+          { note },
+        ),
     },
     // Change requests (T2.12): your staged changes (or a revert) for another engineer to approve or reject.
     reviews: {
