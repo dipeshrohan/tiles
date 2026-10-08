@@ -22,6 +22,66 @@ import {
 // `roles` maps a user's email to their site role (engineer by default).
 // `slowAuthConfigMs` delays /auth/config, to test background re-renders.
 // `failImportFinish` makes finishing an import fail, as a dropped connection would.
+// Like the API's ontology_io.plan: the ops that bring `head` to the file's graph (merge: no removals).
+function planImport(head, file, mode) {
+  const list = (x) => (Array.isArray(x) ? x : Object.values(x ?? {}));
+  const nodes = Object.fromEntries(list(file.nodes).map((n) => [n.id, { props: {}, ...n }]));
+  const edges = Object.fromEntries(list(file.edges).map((e) => [e.id, e]));
+  for (const n of Object.values(nodes)) {
+    const have = head.nodes[n.id];
+    if (have && have.label !== n.label)
+      return { problem: `node ${n.id} is called '${have.label}', not '${n.label}': rename it by hand` };
+  }
+  const triple = (e) => `${e.from}|${e.rel}|${e.to}`;
+  const existing = new Set(Object.values(head.edges).map(triple));
+  const kept = new Set(Object.values(edges).map(triple));
+  const removeEdges = [];
+  const addEdges = [];
+  const duplicates = [];
+  for (const e of Object.values(edges)) {
+    const same = head.edges[e.id];
+    if (same && triple(same) === triple(e)) continue;
+    if (same) removeEdges.push({ kind: 'removeEdge', id: e.id });
+    else if (existing.has(triple(e))) {
+      duplicates.push(e.id);
+      continue;
+    }
+    addEdges.push({ kind: 'addEdge', edge: { id: e.id, from: e.from, rel: e.rel, to: e.to } });
+  }
+  const removeNodes = [];
+  if (mode === 'replace') {
+    for (const e of Object.values(head.edges))
+      if (!edges[e.id] && !kept.has(triple(e))) removeEdges.push({ kind: 'removeEdge', id: e.id });
+    for (const id of Object.keys(head.nodes).sort()) if (!nodes[id]) removeNodes.push({ kind: 'removeNode', id });
+  }
+  const addNodes = [];
+  const setProps = [];
+  for (const n of Object.values(nodes)) {
+    const have = head.nodes[n.id];
+    if (!have) {
+      addNodes.push({ kind: 'addNode', node: { id: n.id, type: n.type, label: n.label, props: { ...n.props } } });
+      continue;
+    }
+    for (const [key, value] of Object.entries(n.props))
+      if (have.props[key] !== value) setProps.push({ kind: 'setProp', id: n.id, key, value });
+    if (mode === 'replace')
+      for (const key of Object.keys(have.props))
+        if (!(key in n.props)) setProps.push({ kind: 'setProp', id: n.id, key });
+  }
+  return {
+    ops: [...removeEdges, ...removeNodes, ...addNodes, ...setProps, ...addEdges],
+    duplicates,
+    counts: {
+      add_nodes: addNodes.length,
+      remove_nodes: removeNodes.length,
+      set_props: setProps.filter((op) => 'value' in op).length,
+      remove_props: setProps.filter((op) => !('value' in op)).length,
+      add_edges: addEdges.length,
+      remove_edges: removeEdges.length,
+    },
+  };
+}
+
 export function createFakeApi({
   oidc = false,
   requireSignIn = false,
@@ -461,6 +521,35 @@ export function createFakeApi({
         staged.delete(user);
         return send(204);
       }
+      if (path === '/export' && req.method === 'GET') return sendExport(url.searchParams.get('format') ?? 'json');
+      if (path === '/import' && req.method === 'POST') {
+        if (repo.staged.length) return send(409, { detail: 'Commit, send or discard your staged changes first' });
+        const given = await body(req);
+        const { content, format, mode = 'merge', dry_run: dryRun = false } = given;
+        const latest = history[0]?.id ?? null;
+        if ('expect_commit' in given && given.expect_commit !== latest)
+          return send(409, { detail: 'The ontology has changed since the preview: check the changes again' });
+        if (format !== 'json') return send(422, { detail: 'The fake API imports JSON only' });
+        let file;
+        try {
+          file = JSON.parse(content);
+        } catch (e) {
+          return send(422, { detail: `The file can't be imported: Not valid JSON: ${e.message}` });
+        }
+        const planned = planImport(head, file, mode);
+        if (planned.problem) return send(422, { detail: `The file can't be imported: ${planned.problem}` });
+        let next = repo;
+        for (const op of planned.ops) next = stage(next, op);
+        const staging = planned.ops.length > 0 && !dryRun;
+        if (staging) staged.set(user, next.staged);
+        return send(200, {
+          ...planned,
+          ops: planned.ops.slice(0, 500),
+          total: planned.ops.length,
+          staged: staging,
+          commit: latest,
+        });
+      }
       if (path === '/review-policy' && req.method === 'GET') return send(200, { required: reviewRequired });
       if (path === '/review-policy' && req.method === 'PUT') {
         if (role !== 'admin')
@@ -503,6 +592,24 @@ export function createFakeApi({
       return send(404, { detail: 'Not Found' });
     } catch (e) {
       return send(409, { detail: e.message });
+    }
+
+    function sendExport(format) {
+      const nodes = Object.values(head.nodes).sort((a, b) => a.id.localeCompare(b.id));
+      const edges = Object.values(head.edges).sort((a, b) => a.id.localeCompare(b.id));
+      if (format === 'json') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        return res.end(JSON.stringify({ format: 'tiles-ontology', version: 1, nodes, edges }, null, 2));
+      }
+      const keys = [...new Set(nodes.flatMap((n) => Object.keys(n.props)))].sort();
+      const q = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replaceAll('"', '""')}"` : String(v));
+      const rows = [
+        ['kind', 'id', 'type', 'label', 'from', 'rel', 'to', ...keys.map((k) => `prop:${k}`)],
+        ...nodes.map((n) => ['node', n.id, n.type, n.label, '', '', '', ...keys.map((k) => n.props[k] ?? '')]),
+        ...edges.map((e) => ['edge', e.id, '', '', e.from, e.rel, e.to, ...keys.map(() => '')]),
+      ];
+      res.writeHead(200, { 'content-type': 'text/csv' });
+      return res.end(rows.map((r) => r.map(q).join(',')).join('\n') + '\n');
     }
 
     async function reviewRoute(path, user, role, repo) {

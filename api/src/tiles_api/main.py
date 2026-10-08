@@ -22,6 +22,7 @@ from tiles_api.api_auth import router as auth_router
 from tiles_api.api_imports import router as imports_router
 from tiles_api.api_members import router as members_router
 from tiles_api.api_ontology import router as ontology_router
+from tiles_api.api_ontology_io import router as ontology_io_router
 from tiles_api.api_reviews import router as reviews_router
 from tiles_api.api_samples import router as samples_router
 from tiles_api.api_series import router as series_router
@@ -128,6 +129,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(ontology_router)
+    app.include_router(ontology_io_router)
     app.include_router(members_router)
     app.include_router(reviews_router)
     app.include_router(agents_router)

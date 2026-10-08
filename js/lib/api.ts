@@ -71,6 +71,23 @@ export interface Review extends ReviewSummary {
   conflict: string | null; // why an open request no longer applies to the committed ontology
 }
 
+// A file turned into the ops that bring the committed ontology to it (T2.13).
+export interface OntologyImport {
+  counts: {
+    add_nodes: number;
+    remove_nodes: number;
+    set_props: number;
+    remove_props: number;
+    add_edges: number;
+    remove_edges: number;
+  };
+  total: number; // ops planned
+  ops: Op[]; // the first 500
+  duplicates: string[]; // relationships already there under another id: skipped
+  staged: boolean;
+  commit: string | null; // the latest commit it was planned against
+}
+
 export interface AuditEntry {
   id: number;
   at: string;
@@ -266,7 +283,13 @@ export function createApiClient(options: ApiOptions) {
   const doFetch = options.fetch ?? ((...args: Parameters<typeof fetch>) => fetch(...args));
 
   // `anonymous` requests carry no credentials (e.g. the public /auth/config).
-  async function request<T>(method: Method, path: string, body?: unknown, { anonymous = false } = {}): Promise<T> {
+  // `text` answers with the body as it is (a file to download), not parsed as JSON.
+  async function request<T>(
+    method: Method,
+    path: string,
+    body?: unknown,
+    { anonymous = false, text = false } = {},
+  ): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (!anonymous && options.userEmail) headers['X-Tiles-User'] = options.userEmail;
@@ -284,6 +307,7 @@ export function createApiClient(options: ApiOptions) {
     }
     const requestId = res.headers.get('x-request-id');
     if (res.status === 204) return undefined as T;
+    if (text && res.ok) return (await res.text()) as T;
     let parsed: unknown = null;
     try {
       parsed = await res.json();
@@ -394,6 +418,30 @@ export function createApiClient(options: ApiOptions) {
         request<Commit>('POST', `${site(siteId)}/commits/${encodeURIComponent(commitId)}/revert`),
       health: (siteId: string, view: GraphView = 'head') =>
         request<HealthReport>('GET', `${site(siteId)}/health?view=${view}`),
+      // The committed ontology as a JSON or CSV file (T2.13).
+      exportFile: (siteId: string, format: 'json' | 'csv') =>
+        request<string>('GET', `${site(siteId)}/export?format=${format}`, undefined, { text: true }),
+      // Plans the ops that bring the committed ontology to the file's and stages them, or only plans (dryRun).
+      importFile: (
+        siteId: string,
+        file: {
+          format: 'json' | 'csv';
+          content: string;
+          name: string;
+          mode: 'merge' | 'replace';
+          dryRun: boolean;
+          // Stage only if the latest commit is still this one (a preview's `commit`).
+          expectCommit?: string | null;
+        },
+      ) =>
+        request<OntologyImport>('POST', `${site(siteId)}/import`, {
+          format: file.format,
+          content: file.content,
+          name: file.name,
+          mode: file.mode,
+          dry_run: file.dryRun,
+          ...(file.expectCommit !== undefined ? { expect_commit: file.expectCommit } : {}),
+        }),
       // Whether every change needs a review (T2.12); admins set it.
       reviewPolicy: (siteId: string) => request<{ required: boolean }>('GET', `${site(siteId)}/review-policy`),
       setReviewPolicy: (siteId: string, required: boolean) =>

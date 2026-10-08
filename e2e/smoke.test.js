@@ -1360,3 +1360,76 @@ test("coming back to change reviews shows others' new requests; a revert request
   assert.equal(await page.locator('#commit-form').count(), 0); // nothing staged
   assert.deepEqual(errors, []);
 });
+
+test('ontology export as JSON and CSV, and import of a file as staged changes', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [
+      { kind: 'addNode', node: { id: 'line-1', type: 'Line', label: 'Line 1', props: {} } },
+      { kind: 'addNode', node: { id: 'old', type: 'Document', label: 'Old manual', props: {} } },
+    ],
+    'add line 1',
+  );
+  const { page, errors } = await openAs(t, apiUrl, null, 'ontology');
+  await page.waitForSelector('[data-export=json]');
+  const saved = async (format) => {
+    const [file] = await Promise.all([page.waitForEvent('download'), page.click(`[data-export=${format}]`)]);
+    assert.equal(file.suggestedFilename(), `plant-1-ontology.${format}`);
+    const chunks = [];
+    for await (const chunk of await file.createReadStream()) chunks.push(chunk);
+    return Buffer.concat(chunks).toString('utf8');
+  };
+  const json = JSON.parse(await saved('json'));
+  assert.deepEqual(
+    json.nodes.map((n) => n.id),
+    ['line-1', 'old'],
+  );
+  assert.match(await saved('csv'), /^kind,id,type,label,from,rel,to\nnode,line-1,Line,Line 1,,,\n/);
+
+  // Import a file: a new machine on line 1 and a property on the line.
+  const file = {
+    nodes: [
+      { id: 'line-1', type: 'Line', label: 'Line 1', props: { shift: 'A' } },
+      { id: 'press-2', type: 'Machine', label: 'Press 2', props: { vendor: 'Acme' } },
+    ],
+    edges: [{ id: 'line-1-contains-press-2', from: 'line-1', rel: 'contains', to: 'press-2' }],
+  };
+  const upload = (name, content) =>
+    page.setInputFiles('[data-import-file]', { name, mimeType: 'application/json', buffer: Buffer.from(content) });
+  await upload('plant.json', JSON.stringify(file));
+  await page.waitForSelector('[data-import-summary]');
+  assert.equal(
+    await page.locator('[data-import-summary]').innerText(),
+    '1 new node, 1 property set, 1 new relationship.',
+  );
+  assert.match(await page.locator('#import-card .review-diff').innerText(), /\+ Machine “Press 2”/);
+  // Replace would also remove what the file doesn't have.
+  await page.selectOption('[data-import-mode]', 'replace');
+  await page.waitForSelector('[data-import-summary]:has-text("1 node removed")');
+  await page.selectOption('[data-import-mode]', 'merge');
+  await page.waitForSelector('[data-import-summary]:not(:has-text("removed"))');
+  // Someone commits after the preview: staging is refused and the preview shows the new plan.
+  fake.commitAs('maria', [{ kind: 'setProp', id: 'line-1', key: 'shift', value: 'A' }], 'shift A');
+  await page.click('[data-import-stage]');
+  await page.waitForSelector('#toast:has-text("changed since the preview")');
+  await page.waitForSelector('[data-import-summary]:has-text("1 new node, 1 new relationship.")');
+  await page.click('[data-import-stage]');
+  await page.waitForSelector('#toast:has-text("Staged the changes from plant.json")');
+  await page.waitForSelector('#commit-form:has-text("2 uncommitted")');
+  assert.equal(await page.locator('#import-card').count(), 0);
+  assert.equal(await page.locator('[data-import-file]').isDisabled(), true); // staged changes first
+
+  // A file that can't be imported says why, and nothing is staged.
+  await page.click('[data-discard]');
+  await page.waitForSelector('#toast:has-text("Changes discarded")');
+  await upload('bad.json', JSON.stringify({ nodes: [{ id: 'line-1', type: 'Line', label: 'Line One' }] }));
+  await page.waitForSelector('#toast:has-text("rename it by hand")');
+  assert.equal(await page.locator('#import-card').count(), 0);
+  assert.deepEqual(
+    errors.filter((e) => !/status of (409|422)/.test(e)), // the browser logs the refused imports
+    [],
+  );
+});

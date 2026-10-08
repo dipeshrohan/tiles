@@ -100,15 +100,15 @@ def stage(conn: Conn, site_id: uuid.UUID, user: User, *ops: o.Op) -> list[o.Op]:
     graph including the ones before it, and they are written in one transaction."""
     lock_site(conn, site_id)
     staged = load_staged(conn, site_id, user)
-    repo: o.Repo = {"head": load_head(conn, site_id), "history": [], "staged": staged}
-    for op in ops:
-        repo = o.stage(repo, op)
+    # One pass: the working graph once, then each op on the graph the ones before it made
+    # (as o.stage does op by op, which would rebuild the working graph for every op).
+    o.apply_ops(o.apply_ops(load_head(conn, site_id), staged)[0], list(ops))
     with conn.cursor() as cur:
         cur.executemany(
             "INSERT INTO staged_ops (site_id, user_id, position, op) VALUES (%s, %s, %s, %s)",
             [(site_id, user.id, len(staged) + i, Jsonb(op)) for i, op in enumerate(ops)],
         )
-    return repo["staged"]
+    return [*staged, *ops]
 
 
 def discard(conn: Conn, site_id: uuid.UUID, user: User) -> list[o.Op]:
