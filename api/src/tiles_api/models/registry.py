@@ -9,6 +9,7 @@ A published version never changes: a new behaviour is a new version, so runs
 (and the derived signals of T3.03) always say which version made them.
 """
 
+import hashlib
 import json
 import math
 import re
@@ -68,6 +69,8 @@ class ModelSpec:
             problems.append(f"key {self.key!r} must be lower-case letters, digits and dashes")
         if not VERSION.match(self.version):
             problems.append(f"version {self.version!r} must be MAJOR.MINOR.PATCH")
+        if self.kind not in ("virtual-sensor", "design"):
+            problems.append(f"kind {self.kind!r} must be virtual-sensor or design")
         if not self.outputs:
             problems.append("a model needs at least one output")
         for group, ports in (("input", self.inputs), ("output", self.outputs), ("param", self.params)):
@@ -92,6 +95,13 @@ class ModelSpec:
             body.pop(k)
         result: dict[str, Any] = json.loads(json.dumps(body))  # as stored: lists, not tuples
         return result
+
+    def fingerprint(self) -> str:
+        """A hash of everything the spec says, for models/published.json (a published version's
+        fingerprint never changes)."""
+        body = {"key": self.key, "version": self.version, "name": self.name, "kind": self.kind}
+        body |= {"domain": self.domain, **self.as_json()}
+        return hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
 def version_key(version: str) -> tuple[int, ...]:
@@ -197,7 +207,10 @@ def evaluate(
     if problems:
         raise ModelError("; ".join(problems))
 
-    out = model.run(series, values_by_name)
+    try:
+        out = model.run(series, values_by_name)
+    except (ArithmeticError, ValueError) as e:  # bad numbers for this model, e.g. a series too short
+        raise ModelError(f"Model {spec.key} {spec.version} can't run on these inputs: {e}") from e
     expected = {p.name for p in spec.outputs}
     if set(out) != expected:
         raise ModelError(f"Model {spec.key} {spec.version} returned {sorted(out)}, not {sorted(expected)}")

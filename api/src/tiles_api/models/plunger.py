@@ -50,7 +50,7 @@ class PlungerFriction:
     def run(self, inputs: Mapping[str, Sequence[float]], params: Mapping[str, float]) -> dict[str, list[float | None]]:
         t, v, ph, pm = inputs["t"], inputs["v"], inputs["ph"], inputs["pm"]
         mass, ah, am = params["mass"], params["hydraulic_area"], params["metal_area"]
-        force: list[float | None] = [None]
+        force: list[float | None] = [None] if t else []  # no acceleration at the first sample
         for i in range(1, len(t)):
             dt = t[i] - t[i - 1]
             if dt <= 0:  # repeated or out-of-order timestamps: no acceleration to speak of
@@ -59,4 +59,4 @@ class PlungerFriction:
             acc = (v[i] - v[i - 1]) / dt
             force.append(ph[i] * BAR * ah - pm[i] * BAR * am - mass * acc)
         known = [f for f in force if f is not None]
-        return {"force": force[: len(t)], "friction": [statistics.median(known) if known else None]}
+        return {"force": force, "friction": [statistics.median(known) if known else None]}

@@ -49,6 +49,7 @@ class Doubler:
         ({"inputs": (Port("x", "m"), Port("x", "s"))}, "input names must be unique"),
         ({"params": (Param("gain", "", 20, 0, 10),)}, "default 20 is outside [0, 10]"),
         ({"params": (Param("Gain", "", 1),)}, "param name 'Gain'"),
+        ({"kind": "ml"}, "kind 'ml' must be virtual-sensor or design"),
     ],
 )
 def test_a_spec_is_checked_when_written(changes: dict[str, Any], problem: str) -> None:
@@ -122,6 +123,15 @@ def test_evaluate_checks_what_a_model_returns() -> None:
     with pytest.raises(ModelError, match="returned 1 values for y, not 2"):
         evaluate(Short(), {"x": [1, 2]})
 
+    class Fragile(Doubler):
+        def run(
+            self, inputs: Mapping[str, Sequence[float]], params: Mapping[str, float]
+        ) -> dict[str, list[float | None]]:
+            return {"y": [1 / x for x in inputs["x"]], "total": [0.0]}
+
+    with pytest.raises(ModelError, match="can't run on these inputs: .*division by zero"):
+        evaluate(Fragile(), {"x": [0.0]})
+
     class Unequal(Doubler):
         spec = spec(inputs=(Port("x", "m"), Port("w", "m")))
 
@@ -161,15 +171,24 @@ def test_the_built_in_models_are_registered() -> None:
 # ---- stored per organisation, and served -----------------------------------------------
 
 
-def test_each_organisation_stores_the_registered_versions_once(database_url: str, site: str) -> None:  # noqa: F811
-    reg = Registry()
-    reg.add(Doubler())
+def test_every_registered_version_is_published_and_unchanged() -> None:
+    # models/published.json pins each published version's spec. A change to a published model
+    # needs a new version; a new version needs its line in the file (copy the fingerprint below).
+    published = json.loads((Path(store.__file__).parent / "published.json").read_text())
+    for model in registry.all():
+        s = model.spec
+        pinned = published.get(s.key, {}).get(s.version)
+        assert pinned is not None, f"add {s.key} {s.version}: {s.fingerprint()} to models/published.json"
+        assert pinned == s.fingerprint(), f"{s.key} {s.version} changed since it was published: give it a new version"
+
+
+def test_an_organisation_stores_a_model_version_once_and_never_rewrites_it(database_url: str, site: str) -> None:  # noqa: F811
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         org = conn.execute("SELECT org_id FROM sites WHERE id = %s", [site]).fetchone()
         assert org is not None
         conn.execute("DELETE FROM models WHERE key = 'doubler'")
-        store.sync(conn, org["org_id"], reg)
-        store.sync(conn, org["org_id"], reg)  # the second time, nothing to add
+        first = store.model_id(conn, org["org_id"], Doubler())
+        assert store.model_id(conn, org["org_id"], Doubler()) == first  # written once
         rows = conn.execute("SELECT key, version, kind, spec FROM models WHERE key = 'doubler'").fetchall()
         assert [(r["key"], r["version"], r["kind"]) for r in rows] == [("doubler", "1.0.0", "virtual-sensor")]
         assert rows[0]["spec"]["params"][0]["default"] == 2
@@ -178,10 +197,8 @@ def test_each_organisation_stores_the_registered_versions_once(database_url: str
         class Changed(Doubler):
             spec = spec(params=(Param("gain", "", 3, 0, 10),))
 
-        changed = Registry()
-        changed.add(Changed())
         with pytest.raises(store.ModelChanged, match=r"doubler 1\.0\.0"):
-            store.sync(conn, org["org_id"], changed)
+            store.model_id(conn, org["org_id"], Changed())
         conn.rollback()
 
 
@@ -200,11 +217,11 @@ def test_the_api_lists_and_evaluates_models(api: TestClient, site: str, database
         "description": plunger["outputs"][1]["description"],
         "per": "window",
     }
-    with psycopg.connect(database_url) as conn:
+    with psycopg.connect(database_url) as conn:  # reading writes nothing
         assert conn.execute(
             "SELECT count(*) FROM models m JOIN sites s ON s.org_id = m.org_id WHERE s.id = %s AND m.key = %s",
             [site, "plunger-friction"],
-        ).fetchone() == (1,)
+        ).fetchone() == (0,)
     assert [v["version"] for v in api.get(f"/sites/{site}/models/plunger-friction", headers=VIEWER).json()] == ["1.0.0"]
     assert api.get(f"/sites/{site}/models/nothing", headers=VIEWER).status_code == 404
 
@@ -220,5 +237,7 @@ def test_the_api_lists_and_evaluates_models(api: TestClient, site: str, database
         f"/sites/{site}/models/plunger-friction/evaluate", json={**body, "params": {"mass": -1}}, headers=VIEWER
     )
     assert (bad.status_code, bad.json()["detail"]) == (422, "param mass = -1 is outside [1, 10000]")
+    for odd in ({"inputs": {"t": [True]}}, {"inputs": {f"x{i}": [1] for i in range(21)}}, {"params": {"mass": "42"}}):
+        assert api.post(f"/sites/{site}/models/plunger-friction/evaluate", json=odd, headers=VIEWER).status_code == 422
     missing = api.post(f"/sites/{site}/models/plunger-friction/evaluate", json={"version": "9.9.9"}, headers=VIEWER)
     assert missing.status_code == 404

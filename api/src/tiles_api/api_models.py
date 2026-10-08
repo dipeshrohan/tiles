@@ -3,13 +3,15 @@
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 from tiles_api.api_ontology import Ctx
 from tiles_api.models import store  # importing the package registers the built-in models
-from tiles_api.models.registry import MAX_POINTS, ModelError, evaluate, registry
+from tiles_api.models.registry import ModelError, evaluate, registry
 
 router = APIRouter(tags=["models"])
+
+MAX_TRY = 100_000  # values per input series in one evaluate request
 
 
 class PortOut(BaseModel):
@@ -43,8 +45,12 @@ class ModelOut(BaseModel):
 class EvaluateIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     version: Annotated[str, Field(max_length=40)] | None = None  # the latest when left out
-    inputs: dict[Annotated[str, Field(max_length=63)], Annotated[list[Any], Field(max_length=MAX_POINTS)]] = {}
-    params: dict[Annotated[str, Field(max_length=63)], Any] = {}
+    # Numbers only, and a bounded amount of them: this is for trying a model, not for bulk runs (T3.03).
+    inputs: Annotated[
+        dict[Annotated[str, Field(max_length=63)], Annotated[list[StrictFloat | StrictInt], Field(max_length=MAX_TRY)]],
+        Field(max_length=20),
+    ] = {}
+    params: Annotated[dict[Annotated[str, Field(max_length=63)], StrictFloat | StrictInt], Field(max_length=50)] = {}
 
 
 class EvaluateOut(BaseModel):
@@ -53,24 +59,15 @@ class EvaluateOut(BaseModel):
     outputs: dict[str, list[float | None]]
 
 
-def _synced(ctx: Ctx) -> None:
-    try:
-        store.sync(ctx.conn, ctx.org_id)
-    except store.ModelChanged as e:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(e)) from e
-
-
 @router.get("/sites/{site_id}/models", response_model=list[ModelOut])
 def list_models(ctx: Ctx) -> list[dict[str, Any]]:
-    """Every registered model version, by key then version. Also records new versions for your organisation."""
-    _synced(ctx)
+    """Every registered model version, by key then version."""
     return [store.describe(m) for m in registry.all()]
 
 
 @router.get("/sites/{site_id}/models/{key}", response_model=list[ModelOut])
 def model_versions(ctx: Ctx, key: str) -> list[dict[str, Any]]:
     """A model's versions, newest first."""
-    _synced(ctx)
     versions = [store.describe(m) for m in reversed(registry.all()) if m.spec.key == key]
     if not versions:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"No model {key}")

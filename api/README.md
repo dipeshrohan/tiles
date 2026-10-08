@@ -175,13 +175,13 @@ Ops, graphs and commits have the same JSON shape as in the browser (`js/lib/type
 
 ### Models (T3.01)
 
-Models are registered in code (`tiles_api/models/`): each declares its key, version (`MAJOR.MINOR.PATCH`), kind (`virtual-sensor` or `design`), input series, outputs (per sample, or one per window such as a shot) and parameters with their unit, default and bounds, and implements `run`. `registry.evaluate` checks inputs and parameters against the spec, fills in defaults and checks what the model returns. A published version never changes: each organisation's `models` rows are synced from the registry, and a registered spec that differs from a stored version is refused (give the change a new version). The first model is `plunger-friction` (T3.02), ported from `js/lib/physics.ts`; `test/fixtures/plunger-shots.json`, made by the browser's model, keeps both giving the same numbers.
+Models are registered in code (`tiles_api/models/`): each declares its key, version (`MAJOR.MINOR.PATCH`), kind (`virtual-sensor` or `design`), input series, outputs (per sample, or one per window such as a shot) and parameters with their unit, default and bounds, and implements `run`. `registry.evaluate` checks inputs and parameters against the spec, fills in defaults and checks what the model returns. A published version never changes: `models/published.json` pins each version's spec fingerprint and a unit test fails if a published spec changes (give the change a new version) or a new version isn't pinned yet (the failure prints the line to add). An organisation's `models` row for a version is written when it is first used (by the model runner, T3.03), never rewritten. Listing and evaluating write nothing. The first model is `plunger-friction` (T3.02), ported from `js/lib/physics.ts`; `test/fixtures/plunger-shots.json`, made by the browser's model, keeps both giving the same numbers.
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|
 | `GET /models` | members | every registered model version with its inputs, outputs and parameters |
 | `GET /models/{key}` | members | a model's versions, newest first |
-| `POST /models/{key}/evaluate` | members | `{"version"?, "inputs": {name: [numbers]}, "params"?: {name: number}}` runs it and answers the outputs; nothing is stored |
+| `POST /models/{key}/evaluate` | members | `{"version"?, "inputs": {name: [numbers]}, "params"?: {name: number}}` (up to 20 inputs of 100,000 numbers) runs it and answers the outputs; nothing is stored |
 
 ### Signals and data quality
 
