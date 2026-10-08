@@ -1269,7 +1269,7 @@ test('change reviews: request a review, reject it, rework it, approve it', async
   await a.page.fill('#prop-form [name=key]', 'name');
   await a.page.fill('#prop-form [name=value]', 'Alarms DC-02');
   await a.page.click('#prop-form button');
-  await a.page.waitForSelector('#commit-form:has-text("2 uncommitted")');
+  await a.page.waitForSelector('#commit-form:has-text("3 uncommitted")');
   await a.page.fill('#commit-form [name=message]', 'add alarms node, named');
   await a.page.click('[data-request-review]');
   await a.page.waitForSelector('#toast:has-text("Sent for review")');
