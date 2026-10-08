@@ -9,6 +9,7 @@ import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
 import { createFakeApi } from './fake-api.js';
+import { largePlantOps } from '../test/fixtures/large-plant.js';
 
 const PAGES = [
   '',
@@ -1432,4 +1433,79 @@ test('ontology export as JSON and CSV, and import of a file as staged changes', 
     errors.filter((e) => !/status of (409|422)/.test(e)), // the browser logs the refused imports
     [],
   );
+});
+
+test('a 2,000-node ontology: folded, zoomed, panned and searched on the canvas', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs('maria', largePlantOps(), 'import the big plant');
+  const { page, errors } = await openPage({ viewport: { width: 1600, height: 1000 } });
+  t.after(() => page.close());
+  const started = Date.now();
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  // Large ontologies open with each PLC's signals folded into it.
+  await page.waitForSelector('.statusbar:has-text("Nodes: 2069 (277 shown)")');
+  assert.ok(Date.now() - started < 8000, `opened in ${Date.now() - started} ms`);
+  assert.equal(await page.locator('[data-fold-level]').inputValue(), 'PLC');
+  assert.equal(await page.locator('[data-node="wc1-line1-m1-plc"] .fold').textContent(), '+14');
+  const viewBox = async () => (await page.getAttribute('svg[data-canvas]', 'viewBox')).split(' ').map(Number);
+
+  // Wheel zooms in where the pointer is; dragging moves the view and selects nothing.
+  const box = await page.locator('svg[data-canvas]').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const before = await viewBox();
+  await page.mouse.wheel(0, -600);
+  const zoomed = await viewBox();
+  assert.ok(zoomed[2] < before[2] / 2, `zoomed in: ${before} → ${zoomed}`);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 - 200, box.y + box.height / 2 - 100, { steps: 5 });
+  await page.mouse.up();
+  const panned = await viewBox();
+  assert.ok(panned[0] > zoomed[0] && panned[1] > zoomed[1], `panned: ${zoomed} → ${panned}`);
+  assert.ok(Math.abs(panned[2] - zoomed[2]) < 0.01, 'panning keeps the zoom'); // view boxes are 32-bit floats
+  assert.equal(await page.locator('#inspector [data-deselect]').count(), 0); // no node selected
+
+  // Zoomed in, opening a PLC keeps it in view, though every PLC moves (columns get a row longer).
+  const inView = async (id) => {
+    const node = await page.locator(`[data-node="${id}"]`).boundingBox();
+    const area = await page.locator('svg[data-canvas]').boundingBox();
+    const [cx, cy] = [node.x + node.width / 2, node.y + node.height / 2]; // its centre is on screen
+    return cx >= area.x && cx <= area.x + area.width && cy >= area.y && cy <= area.y + area.height;
+  };
+  await page.click('[data-zoom=fit]');
+  const plc = await page.locator('[data-node="wc4-line4-m8-plc"]').boundingBox();
+  await page.mouse.move(plc.x + plc.width / 2, plc.y + plc.height / 2);
+  await page.mouse.wheel(0, -900);
+  assert.ok(await inView('wc4-line4-m8-plc'));
+  await page.dblclick('[data-node="wc4-line4-m8-plc"]');
+  await page.waitForSelector('.statusbar:has-text("(291 shown)")');
+  assert.ok(await inView('wc4-line4-m8-plc'), 'the opened PLC is still in view');
+
+  // Search reaches a folded signal: its PLC opens, it is selected and brought into view.
+  await page.fill('[data-onto-search]', 'signal 2.3.4.5');
+  await page.waitForSelector('[data-search-count]:has-text("found (")'); // folded away so far
+  await page.press('[data-onto-search]', 'Enter');
+  await page.waitForSelector('#inspector h2:has-text("Signal 2.3.4.5")');
+  await page.waitForSelector('[data-node="wc2-line3-m4-plc-s5"].sel.match');
+  const centred = await viewBox();
+  assert.ok(centred[2] <= 1400);
+  assert.equal(await page.locator('[data-onto-search]').evaluate((el) => el === document.activeElement), true);
+  await page.waitForSelector('.statusbar:has-text("(305 shown)")'); // that PLC's 14 signals opened too
+
+  // Fold levels, and double-click to open one node.
+  await page.selectOption('[data-fold-level]', 'Line');
+  await page.waitForSelector('.statusbar:has-text("(21 shown)")');
+  // The badge counts all a line holds: 8 machines, their PLCs and 112 signals.
+  assert.equal(await page.locator('[data-node="wc1-line1"] .fold').textContent(), '+128');
+  await page.dblclick('[data-node="wc1-line1"]');
+  // Only the line was folded: its 8 machines, their PLCs and the PLCs' 112 signals show.
+  await page.waitForSelector('.statusbar:has-text("(149 shown)")');
+  await page.selectOption('[data-fold-level]', '');
+  await page.waitForSelector('.statusbar:has-text("Nodes: 2069")');
+  assert.equal(await page.locator('.statusbar:has-text("shown")').count(), 0);
+  assert.equal(await page.locator('svg[data-canvas] [data-node]').count(), 2069);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(overflow <= 0, `page scrolls sideways by ${overflow}px`);
+  assert.deepEqual(errors, []);
 });

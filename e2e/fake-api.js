@@ -793,12 +793,7 @@ export function createFakeApi({
     },
     // Lets a test act as another user committing directly.
     commitAs(user, ops, message) {
-      let repo = { head, history, staged: [] };
-      for (const op of ops) {
-        applyOp(workingGraph(repo), op);
-        repo = stage(repo, op);
-      }
-      ({ head, history } = commit(repo, { message, author: user }));
+      ({ head, history } = commit({ head, history, staged: ops }, { message, author: user })); // validates them all
     },
     listen: () =>
       new Promise((resolve) =>

@@ -883,8 +883,52 @@ tr.selected td {
   background-image: radial-gradient(var(--line) 1px, transparent 1px);
   background-size: 18px 18px;
 }
+.canvas-wrap {
+  /* Height set from the drawing (js/lib/canvas.ts canvasHeight); zoom and pan do the rest. */
+  width: 100%;
+  height: 60vh;
+  overflow: hidden;
+  touch-action: none;
+}
 .canvas-wrap svg {
   display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  user-select: none;
+}
+.canvas-wrap svg.panning {
+  cursor: grabbing;
+}
+.canvas-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.canvas-search {
+  gap: 6px;
+  flex: 1;
+  min-width: 220px;
+}
+.canvas-search input {
+  flex: 1;
+  min-width: 120px;
+  max-width: 360px;
+}
+.node.match rect:first-child {
+  stroke: var(--accent);
+  stroke-width: 3;
+  fill: var(--accent-soft, var(--panel));
+}
+.node .fold {
+  fill: var(--soft);
+  font-size: 11px;
+  font-weight: 650;
+}
+.node.folded rect:first-child {
+  stroke-width: 2;
 }
 .node {
   cursor: pointer;

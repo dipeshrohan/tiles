@@ -1,7 +1,27 @@
 import { NODE_TYPES, healthCheck, neighbors, pathTo, diffStats } from '../lib/ontology.ts';
+import {
+  BOX,
+  MAX_FIT_SCALE,
+  canvasHeight,
+  centerOn,
+  collapsible,
+  fitView,
+  foldedCounts,
+  hiddenByCollapse,
+  hiddenUnder,
+  hierarchy,
+  layout,
+  panBy,
+  revealPath,
+  searchNodes,
+  zoomAt,
+  type Hierarchy,
+  type Layout,
+  type View as ViewBox,
+} from '../lib/canvas.ts';
 import { historyOps, safeWorkingGraph, type RemoteStore } from '../lib/ontology-store.ts';
 import { seedOntology } from '../lib/data.ts';
-import { download, esc, field, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
+import { download, esc, field, need, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
 import { describeChanges } from '../lib/review.ts';
 import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
@@ -11,50 +31,57 @@ interface OntologyUi {
   tab: 'canvas' | 'history' | 'health';
   selected: string | null;
   hidden: NodeType[];
+  collapsed: string[] | null; // null: automatic (signals folded away on large ontologies)
+  view: ViewBox | null; // the part of the canvas shown; null: all of it
+  viewFor: string; // the drawing's size `view` was set on: another size (a fold, a new node) drops it
+  search: string;
+  match: number; // the search result last gone to
 }
 
-const uiState = (ctx: Context) => ctx.ui<OntologyUi>('ontology', { tab: 'canvas', selected: null, hidden: [] });
+const uiState = (ctx: Context) =>
+  ctx.ui<OntologyUi>('ontology', {
+    tab: 'canvas',
+    selected: null,
+    hidden: [],
+    collapsed: null,
+    view: null,
+    viewFor: '',
+    search: '',
+    match: -1,
+  });
 
 // Opens the History tab next time the page shows (the Reviews page links to a commit).
 export function showHistory(ctx: Context): void {
   uiState(ctx).tab = 'history';
 }
 
-const COLUMNS: NodeType[][] = [
-  ['Enterprise', 'Site'],
-  ['Workcenter'],
-  ['Line', 'Cell'],
-  ['Machine'],
-  ['Process', 'PLC'],
-  ['Material', 'Signal'],
-  ['Document', 'Model'],
-];
-const BOX = { w: 134, h: 28, colGap: 152, rowGap: 38, pad: 16 };
 const RELS = ['contains', 'runs', 'consumes', 'controlledBy', 'emits', 'describes', 'reads', 'monitors', 'feeds'];
 
-type Point = { x: number; y: number };
+// Canvas at scale (T2.14): what folding a level does, and when it happens by itself.
+const LEVELS: [string, string, NodeType[]][] = [
+  ['', 'Show everything', []],
+  ['PLC', 'Fold signals into their PLC', ['PLC']],
+  ['Machine', 'Fold into machines', ['Machine']],
+  ['Line', 'Fold into lines', ['Line', 'Cell']],
+  ['Workcenter', 'Fold into workcenters', ['Workcenter']],
+];
+const AUTO_FOLD_ABOVE = 400; // nodes: larger ontologies open with signals folded into their PLC
 
-function layout(graph: Graph, hidden: Set<NodeType>): Map<string, Point> {
-  const nodes = Object.values(graph.nodes).filter((n) => !hidden.has(n.type));
-  const pos = new Map<string, Point>();
-  COLUMNS.forEach((types, c) => {
-    const col = nodes.filter((n) => types.includes(n.type));
-    // Order by the average row of already-placed neighbours to reduce crossings.
-    const weight = (n: { id: string }) => {
-      const ys = neighbors(graph, n.id)
-        .map((x) => pos.get(x.node.id)?.y)
-        .filter((y): y is number => y !== undefined);
-      return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : Infinity;
-    };
-    col
-      .map((n) => ({ n, w: weight(n), t: types.indexOf(n.type) }))
-      .sort((a, b) => a.t - b.t || a.w - b.w || a.n.label.localeCompare(b.n.label))
-      .forEach(({ n }, i) => {
-        pos.set(n.id, { x: BOX.pad + c * BOX.colGap, y: BOX.pad + i * BOX.rowGap });
-      });
+function levelNodes(graph: Graph, h: Hierarchy, types: NodeType[]): string[] {
+  return collapsible(h).filter((id) => {
+    const n = graph.nodes[id];
+    return n !== undefined && types.includes(n.type);
   });
-  return pos;
 }
+
+function collapsedSet(graph: Graph, h: Hierarchy, ui: OntologyUi): Set<string> {
+  if (ui.collapsed) return new Set(ui.collapsed.filter((id) => graph.nodes[id]));
+  return new Set(Object.keys(graph.nodes).length > AUTO_FOLD_ABOVE ? levelNodes(graph, h, ['PLC']) : []);
+}
+
+// The last canvas drawn, for its handlers (zoom limits, where a node is).
+let drawn: (Layout & { graph: Graph }) | null = null;
+let centerAfterRender: string | null = null; // a search result to bring into view once drawn
 
 const short = (s: string, n = 19): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -84,12 +111,24 @@ function statBadges(s: DiffStats): string {
 
 function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi): string {
   const hidden = new Set(ui.hidden);
-  const pos = layout(graph, hidden);
+  const h = hierarchy(graph);
+  const collapsed = collapsedSet(graph, h, ui);
+  const folded = hiddenByCollapse(graph, collapsed, h);
+  const show = (id: string) => {
+    const n = graph.nodes[id];
+    return n !== undefined && !hidden.has(n.type) && !folded.has(id);
+  };
+  const placed = layout(graph, show, h);
+  drawn = { ...placed, graph };
+  const { pos, width, height } = placed;
+  // A view of another drawing (nodes folded, opened or added since) would show the wrong part.
+  const size = `${width}x${height}`;
+  if (ui.viewFor !== size) ui.view = null;
+  ui.viewFor = size;
+  const counts = foldedCounts(collapsed, folded, h);
   const issueIds = new Set(health.issues.filter((i) => i.level !== 'info').map((i) => i.ref));
   const stagedIds = new Set(ctx.state.repo.staged.flatMap(touchedIds));
-  const placed = [...pos.entries()];
-  const width = Math.max(...placed.map(([, p]) => p.x), 0) + BOX.w + BOX.pad;
-  const height = Math.max(...placed.map(([, p]) => p.y), 0) + BOX.h + BOX.pad;
+  const matches = new Set(searchNodes(graph, ui.search));
   const edges = Object.values(graph.edges)
     .map((e) => {
       const a = pos.get(e.from);
@@ -105,18 +144,26 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       return `<path class="edge ${hl ? 'hl' : ''}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}"><title>${esc(graph.nodes[e.from]?.label)} —${esc(e.rel)}→ ${esc(graph.nodes[e.to]?.label)}</title></path>`;
     })
     .join('');
-  const nodes = placed
+  const nodes = [...pos.entries()]
     .map(([id, p]) => {
       const n = graph.nodes[id];
       if (!n) return '';
-      const cls = ['node', ui.selected === id && 'sel', issueIds.has(id) && 'issue', stagedIds.has(id) && 'staged']
+      const fold = counts.get(id) ?? 0; // the hidden nodes below it
+      const cls = [
+        'node',
+        ui.selected === id && 'sel',
+        issueIds.has(id) && 'issue',
+        stagedIds.has(id) && 'staged',
+        matches.has(id) && 'match',
+        fold && 'folded',
+      ]
         .filter(Boolean)
         .join(' ');
-      return `<g class="${cls}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}">
+      return `<g class="${cls}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ''}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
-          <text x="13" y="18">${esc(short(n.label))}</text>
-          <title>${esc(n.type)}: ${esc(n.label)}</title>
+          <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}
+          <title>${esc(n.type)}: ${esc(n.label)}${fold ? ` (${fold} folded: double-click to open)` : ''}</title>
         </g>`;
     })
     .join('');
@@ -127,24 +174,54 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
         `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? 'opacity:.4' : ''}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`,
     )
     .join('');
+  const level = LEVELS.find(([, , types]) => {
+    if (!ui.collapsed && Object.keys(graph.nodes).length > AUTO_FOLD_ABOVE) return types[0] === 'PLC';
+    const nodesAt = levelNodes(graph, h, types);
+    return types.length
+      ? nodesAt.length > 0 && nodesAt.every((id) => collapsed.has(id)) && collapsed.size === nodesAt.length
+      : !collapsed.size;
+  });
+  const total = Object.keys(graph.nodes).length;
+  const view = ui.view ?? { x: 0, y: 0, w: width, h: height };
+  const found = ui.search.trim() ? matches.size : null;
 
   return `
       <div class="onto">
         <div>
-          <div class="canvas-wrap"><svg style="width:100%;min-width:${Math.round(width * 0.8)}px;max-width:${width}px;height:auto" viewBox="0 0 ${width} ${Math.max(height, 200)}">${edges}${nodes}</svg></div>
+          <div class="canvas-tools">
+            <span class="row" style="gap:4px">
+              <button class="btn sm" data-zoom="out" aria-label="Zoom out">−</button>
+              <button class="btn sm" data-zoom="in" aria-label="Zoom in">+</button>
+              <button class="btn sm" data-zoom="fit">Fit</button>
+            </span>
+            <select class="sm" data-fold-level aria-label="Fold the hierarchy">${LEVELS.map(
+              ([value, label]) =>
+                `<option value="${value}" ${level?.[0] === value ? 'selected' : ''}>${label}</option>`,
+            ).join('')}${level ? '' : '<option selected disabled>Folded by hand</option>'}</select>
+            <span class="row canvas-search">
+              <input type="search" data-onto-search value="${esc(ui.search)}" placeholder="Find a node" aria-label="Find a node" />
+              <button class="btn sm" data-search-next ${found ? '' : 'disabled'}>Next</button>
+              <span class="small soft" data-search-count aria-live="polite">${found === null ? '' : `${found} found`}</span>
+            </span>
+          </div>
+          <div class="canvas-wrap">
+            <svg data-canvas viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
+          </div>
           <div class="statusbar">
-            <span>Nodes: ${Object.keys(graph.nodes).length}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
-            <span class="spacer"></span>
+            <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ''}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
+            <span class="spacer"></span><span class="small soft">Scroll to zoom, drag to move, double-click a node to fold or open it</span>
           </div>
           <div class="chips" style="margin-top:8px">${legend}</div>
         </div>
-        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected) : ctx.ontology.role === 'viewer' ? viewOnlyNote() : newNodeForm(graph)}</div>
+        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, counts, h) : ctx.ontology.role === 'viewer' ? viewOnlyNote() : newNodeForm(graph)}</div>
       </div>`;
 }
 
-function inspector(graph: Graph, id: string): string {
+function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hierarchy): string {
   const n = graph.nodes[id];
   if (!n) return '';
+  const isFolded = folded.has(id);
+  const below = isFolded ? (folded.get(id) ?? 0) : h.children.get(id)?.length ? hiddenUnder(graph, id, h) : 0;
   const rels = neighbors(graph, id);
   const path = pathTo(graph, id);
   const props = Object.entries(n.props ?? {});
@@ -158,6 +235,7 @@ function inspector(graph: Graph, id: string): string {
         <button class="btn sm" data-deselect aria-label="Close">✕</button>
       </div>
       ${path.length > 1 ? `<p class="small soft" style="margin-bottom:12px">${path.map((p) => esc(p.label)).join(' → ')}</p>` : ''}
+      ${below || isFolded ? `<p style="margin-bottom:12px"><button class="btn sm" data-fold="${esc(id)}">${isFolded ? `Open (${below} folded)` : `Fold the ${below} below it`}</button></p>` : ''}
       <h3 style="margin-bottom:6px">Properties</h3>
       <div class="kv">
         ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join('') || '<span class="muted small" style="grid-column:span 3">No properties</span>'}
@@ -256,6 +334,197 @@ async function planImport(ctx: Context): Promise<void> {
     pending = null; // the client showed why
   }
   ctx.rerender();
+}
+
+// Makes `id` show on the canvas: opens the folded nodes above it and shows its type.
+function reveal(graph: Graph, ui: OntologyUi, id: string): void {
+  const h = hierarchy(graph);
+  const collapsed = collapsedSet(graph, h, ui);
+  for (const above of revealPath(graph, id, collapsed, h)) collapsed.delete(above);
+  ui.collapsed = [...collapsed];
+  const type = graph.nodes[id]?.type;
+  if (type) ui.hidden = ui.hidden.filter((t) => t !== type);
+}
+
+// Zoom (wheel, buttons), pan (drag), fold (double-click) and search on the canvas. The view box
+// changes in place, without re-rendering, and is kept in the page state for the next render.
+function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
+  const svg = root.querySelector<SVGSVGElement>('svg[data-canvas]');
+  const layoutNow = drawn;
+  const center = centerAfterRender;
+  centerAfterRender = null; // for this render only, drawn or not
+  if (!svg || !layoutNow) return;
+  const limits = { width: layoutNow.width, height: layoutNow.height };
+  const current = (): ViewBox => {
+    const b = svg.viewBox.baseVal;
+    return { x: b.x, y: b.y, w: b.width, h: b.height };
+  };
+  // The view box in the svg's own proportions, so zooming and panning move what is seen.
+  const shaped = (): ViewBox => {
+    const v = current();
+    const aspect = svg.clientWidth / Math.max(1, svg.clientHeight);
+    if (!Number.isFinite(aspect) || aspect <= 0) return v;
+    const fit = fitView(v.w, v.h, aspect);
+    return { x: v.x + fit.x, y: v.y + fit.y, w: fit.w, h: fit.h };
+  };
+  const setView = (v: ViewBox) => {
+    svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
+    ui.view = v;
+  };
+  const toDrawing = (clientX: number, clientY: number) => {
+    const m = svg.getScreenCTM();
+    if (!m) return { x: 0, y: 0 };
+    const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
+  };
+  // The canvas as tall as the drawing needs at its fitted scale, within the window; the whole
+  // drawing shows, never blown up past MAX_FIT_SCALE (text stays the size of the page's).
+  const wrap = svg.parentElement;
+  if (wrap) {
+    const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * 0.75);
+    wrap.style.height = `${tall}px`;
+  }
+  const showAll = () => {
+    const aspect = svg.clientWidth / svg.clientHeight;
+    const v =
+      Number.isFinite(aspect) && aspect > 0 // a canvas not laid out (hidden) shows the whole drawing
+        ? fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE)
+        : { x: 0, y: 0, w: limits.width, h: limits.height };
+    svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); // not kept: the next render fits again
+  };
+  if (!ui.view) showAll();
+  const zoom = (factor: number, at?: { x: number; y: number }) => {
+    const v = shaped();
+    setView(zoomAt(v, factor, at ?? { x: v.x + v.w / 2, y: v.y + v.h / 2 }, limits));
+  };
+
+  if (center) {
+    const p = layoutNow.pos.get(center);
+    if (p) setView(centerOn(shaped(), p));
+  }
+
+  svg.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      zoom(Math.exp(-e.deltaY * 0.0015), toDrawing(e.clientX, e.clientY));
+    },
+    { passive: false },
+  );
+  onAll(root, '[data-zoom]', 'click', (el) => {
+    if (el.dataset.zoom === 'in') zoom(1.5);
+    else if (el.dataset.zoom === 'out') zoom(1 / 1.5);
+    else {
+      ui.view = null;
+      showAll();
+    }
+  });
+
+  // Drag to pan; a drag ends without the click that would select a node.
+  let drag: { x: number; y: number; view: ViewBox; scale: number; moved: boolean; id: number } | null = null;
+  let swallowClick = false;
+  svg.addEventListener('pointerdown', (e) => {
+    swallowClick = false; // a drag the browser cancelled has no click to swallow
+    if (e.button !== 0) return;
+    const view = shaped();
+    const scale = Math.max(view.w / Math.max(1, svg.clientWidth), view.h / Math.max(1, svg.clientHeight));
+    drag = { x: e.clientX, y: e.clientY, view, scale, moved: false, id: e.pointerId };
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    const dy = e.clientY - drag.y;
+    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+    if (!drag.moved) svg.setPointerCapture(e.pointerId);
+    drag.moved = true;
+    svg.classList.add('panning');
+    setView(panBy(drag.view, -dx * drag.scale, -dy * drag.scale));
+  });
+  const endDrag = (e: PointerEvent) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    swallowClick = drag.moved;
+    drag = null;
+    svg.classList.remove('panning');
+  };
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+  svg.addEventListener(
+    'click',
+    (e) => {
+      if (!swallowClick) return;
+      swallowClick = false;
+      e.stopPropagation(); // the end of a drag, not a click on a node
+    },
+    true,
+  );
+
+  // Fold or open a node.
+  const toggleFold = (id: string) => {
+    const h = hierarchy(ctx.graph);
+    const collapsed = collapsedSet(ctx.graph, h, ui);
+    if (collapsed.has(id)) collapsed.delete(id);
+    else if (h.children.get(id)?.length) collapsed.add(id);
+    else return;
+    ui.collapsed = [...collapsed];
+    if (ui.view) centerAfterRender = id; // zoomed in: stay on the node in the new drawing
+    ctx.rerender();
+  };
+  onAll(root, '[data-node]', 'dblclick', (el) => {
+    if (el.dataset.node) toggleFold(el.dataset.node);
+  });
+  onAll(root, '[data-fold]', 'click', (el) => {
+    if (el.dataset.fold) toggleFold(el.dataset.fold);
+  });
+  onAll(root, '[data-fold-level]', 'change', (el) => {
+    const value = (el as HTMLSelectElement).value;
+    const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
+    ui.collapsed = levelNodes(ctx.graph, hierarchy(ctx.graph), types);
+    ui.view = null;
+    ctx.rerender();
+  });
+
+  // Search: matches light up as you type; Enter (or Next) goes to the next one.
+  const input = need<HTMLInputElement>(root, '[data-onto-search]');
+  const count = need(root, '[data-search-count]');
+  const next = need<HTMLButtonElement>(root, '[data-search-next]');
+  const mark = () => {
+    const found = new Set(searchNodes(ctx.graph, ui.search));
+    svg.querySelectorAll<SVGGElement>('[data-node]').forEach((g) => {
+      g.classList.toggle('match', found.has(g.dataset.node ?? ''));
+    });
+    const shownCount = svg.querySelectorAll('.match').length;
+    count.textContent = ui.search.trim()
+      ? `${found.size} found${shownCount < found.size ? ` (${found.size - shownCount} folded or hidden)` : ''}`
+      : '';
+    next.disabled = !found.size;
+  };
+  const goNext = () => {
+    const found = searchNodes(ctx.graph, ui.search);
+    if (!found.length) return;
+    ui.match = (ui.match + 1) % found.length;
+    const id = found[ui.match];
+    if (!id) return;
+    reveal(ctx.graph, ui, id);
+    ui.selected = id;
+    centerAfterRender = id;
+    ctx.rerender();
+    // Keep typing where you were.
+    const again = document.querySelector<HTMLInputElement>('#view [data-onto-search]');
+    again?.focus();
+    again?.setSelectionRange(again.value.length, again.value.length);
+  };
+  onAll(root, '[data-onto-search]', 'input', () => {
+    ui.search = input.value;
+    ui.match = -1;
+    mark();
+  });
+  onAll(root, '[data-onto-search]', 'keydown', (_, e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    goNext();
+  });
+  onAll(root, '[data-search-next]', 'click', goNext);
+  if (ui.search) mark();
 }
 
 // Controls that change the ontology; removed for viewers (the API refuses
@@ -538,10 +807,15 @@ const view: View = {
         select(el.dataset.node);
       }
     });
+    bindCanvas(root, ctx, ui);
     onAll(root, '[data-goto]', 'click', (el, e) => {
       e.preventDefault();
-      ui.selected = el.dataset.goto ?? null;
+      const id = el.dataset.goto;
+      if (!id) return;
+      reveal(ctx.graph, ui, id);
+      ui.selected = id;
       ui.tab = 'canvas';
+      centerAfterRender = id;
       ctx.rerender();
     });
     onAll(root, '[data-deselect]', 'click', () => {
