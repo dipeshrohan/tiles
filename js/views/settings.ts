@@ -49,6 +49,10 @@ export function describeAudit(e: AuditEntry): string {
       return `Registered edge agent ${(e.after as { name?: string } | null)?.name ?? ''}`;
     case 'agent.revoke':
       return `Revoked edge agent ${(e.before as { name?: string } | null)?.name ?? ''}`;
+    case 'signal.update': {
+      const fields = Object.keys((e.after as Record<string, unknown> | null) ?? {}).filter((k) => k !== 'tag');
+      return `Changed ${fields.join(', ').replace('node_id', 'ontology link').replace('sample_rate_hz', 'sample rate')} of signal ${(e.after as { tag?: string } | null)?.tag ?? ''}`;
+    }
     case 'import.start':
       return `Started importing ${(e.after as { name?: string } | null)?.name ?? ''}`;
     case 'import.finish': {

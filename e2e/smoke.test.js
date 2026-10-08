@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
 import { createFakeApi } from './fake-api.js';
 
-const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'import', 'settings'];
+const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'signals', 'import', 'settings'];
 const VARIANTS = [
   { name: 'light desktop', colorScheme: 'light', viewport: { width: 1360, height: 900 } },
   { name: 'dark desktop', colorScheme: 'dark', viewport: { width: 1360, height: 900 } },
@@ -618,6 +618,63 @@ test('viewers see past imports but cannot run one', async (t) => {
   await page.waitForSelector('[data-import-history] td:has-text("line-2.csv")');
   assert.match(await page.locator('#view').innerText(), /Your role on this site is viewer/);
   assert.equal(await page.locator('[data-import-file]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('the signal catalogue: search, describe a signal and link it to its ontology node', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [
+      {
+        kind: 'addNode',
+        node: { id: 'sig-p1-temp', type: 'Signal', label: 'Press 1 temperature', props: { unit: '°C' } },
+      },
+    ],
+    'add signal node',
+  );
+  fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge' });
+  fake.addSignal('press1.force', { source: 'edge:press-shop-edge' });
+  fake.addSignal('oven.temp', { source: 'import:oven.csv' });
+  fake.samples.set('press1.temperature|2026-10-08T06:00:00.000000Z', 21.5);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("3 signal(s)")');
+  await page.fill('#signal-search [name=q]', 'press1');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.selectOption('#signal-search [name=linked]', 'no');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+
+  const row = page.locator('tr', { hasText: 'press1.temperature' }).first();
+  assert.match(await row.innerText(), /Edge agent press-shop-edge/);
+  await row.locator('[data-edit]').click();
+  await page.fill('#signal-form [name=unit]', '°C');
+  await page.fill('#signal-form [name=rate]', '10');
+  await page.fill('#signal-form [name=description]', 'Platen, upper');
+  await page.selectOption('#signal-form [name=node]', 'sig-p1-temp');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('[data-signal-results] a:has-text("Press 1 temperature")');
+  assert.match(await page.locator('tr', { hasText: 'press1.temperature' }).first().innerText(), /21\.5 °C/);
+  assert.equal(await page.locator('#signal-form').count(), 0);
+
+  await page.selectOption('#signal-search [name=linked]', 'yes');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  assert.deepEqual(errors, []);
+});
+
+test('viewers browse the signal catalogue but cannot edit it', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge', unit: '°C' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  assert.equal(await page.locator('[data-edit]').count(), 0);
   assert.deepEqual(errors, []);
 });
 

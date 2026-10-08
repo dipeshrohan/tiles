@@ -818,6 +818,15 @@
 				register: (siteId, name) => request("POST", `/sites/${encodeURIComponent(siteId)}/agents`, { name }),
 				revoke: (siteId, agentId) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/agents/${encodeURIComponent(agentId)}`)
 			},
+			signals: {
+				list: (siteId, query = {}) => {
+					const params = new URLSearchParams();
+					for (const [k, v] of Object.entries(query)) if (v !== void 0 && v !== "") params.set(k, String(v));
+					const qs = params.toString();
+					return request("GET", `/sites/${encodeURIComponent(siteId)}/signals${qs ? `?${qs}` : ""}`);
+				},
+				update: (siteId, signalId, change) => request("PATCH", `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`, change)
+			},
 			imports: {
 				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/imports`),
 				start: (siteId, name) => request("POST", `/sites/${encodeURIComponent(siteId)}/imports`, { name }),
@@ -1398,7 +1407,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$7 = {
+	var view$8 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1701,7 +1710,7 @@
 	];
 	//#endregion
 	//#region js/views/chat.ts
-	var view$6 = {
+	var view$7 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -1993,7 +2002,7 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
@@ -2320,7 +2329,7 @@
 		split: true,
 		variable: "tension"
 	});
-	var view$4 = {
+	var view$5 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
@@ -2458,7 +2467,7 @@
 	//#endregion
 	//#region js/views/physics.ts
 	var uiState$1 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$3 = {
+	var view$4 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
@@ -2633,7 +2642,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -2821,6 +2830,7 @@
 			case "member.role": return `Changed a member's role from ${role(e.before)} to ${role(e.after)}`;
 			case "agent.register": return `Registered edge agent ${e.after?.name ?? ""}`;
 			case "agent.revoke": return `Revoked edge agent ${e.before?.name ?? ""}`;
+			case "signal.update": return `Changed ${Object.keys(e.after ?? {}).filter((k) => k !== "tag").join(", ").replace("node_id", "ontology link").replace("sample_rate_hz", "sample rate")} of signal ${e.after?.tag ?? ""}`;
 			case "import.start": return `Started importing ${e.after?.name ?? ""}`;
 			case "import.finish": {
 				const a = e.after;
@@ -2953,7 +2963,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -3577,7 +3587,7 @@
 		ctx.toast(failure || unfinished ? "Import stopped by an error" : state.cancelled ? "Import stopped" : `Imported ${l.fileName}`);
 		ctx.rerender();
 	}
-	var view = {
+	var view$1 = {
 		id: "import",
 		title: "Import data",
 		icon: "⇪",
@@ -3628,38 +3638,215 @@
 		}
 	};
 	//#endregion
+	//#region js/views/signals.ts
+	var PAGE = 100;
+	var results = null;
+	var failed = false;
+	var searchTimer;
+	var ui = (ctx) => ctx.ui("signals", {
+		query: {
+			q: "",
+			source: "",
+			linked: ""
+		},
+		editing: null
+	});
+	function sourceLabel(source) {
+		const [kind, ...rest] = source.split(":");
+		const name = rest.join(":");
+		if (kind === "edge") return `Edge agent ${name}`;
+		if (kind === "import") return `Import ${name}`;
+		return source === "manual" ? "Entered by hand" : source;
+	}
+	function latest(s) {
+		if (s.last_at === null || s.last_value === null) return "—";
+		const v = s.last_value;
+		return `${typeof v === "number" ? String(+v.toPrecision(6)) : String(v)}${typeof v === "number" && s.unit ? ` ${s.unit}` : ""} · ${new Date(s.last_at).toLocaleString("en-GB")}`;
+	}
+	function changeFrom(form, s) {
+		const change = {};
+		const unit = form.unit.trim() || null;
+		if (unit !== s.unit) change.unit = unit;
+		const rateText = form.rate.trim().replace(",", ".");
+		const rate = rateText === "" ? null : Number(rateText);
+		if (rate !== null && !(Number.isFinite(rate) && rate > 0)) return "The sample rate is a number of readings per second, above 0.";
+		if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
+		const description = form.description.trim();
+		if (description !== s.description) change.description = description;
+		const node = form.node || null;
+		if (node !== s.node_id) change.node_id = node;
+		return change;
+	}
+	function linkCell(s) {
+		if (!s.node_id) return "<span class=\"soft\">—</span>";
+		return s.node_label ? `<a href="#/ontology">${esc(s.node_label)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer in the committed ontology">missing node</span>`;
+	}
+	function editRow(ctx, s) {
+		const nodes = Object.values(ctx.state.repo.head.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.label.localeCompare(b.label));
+		const options = [
+			`<option value="">— not linked —</option>`,
+			...s.node_id && !nodes.some((n) => n.id === s.node_id) ? [`<option value="${esc(s.node_id)}" selected>${esc(s.node_id)} (missing)</option>`] : [],
+			...nodes.map((n) => `<option value="${esc(n.id)}" ${n.id === s.node_id ? "selected" : ""}>${esc(n.label)} (${esc(n.id)})</option>`)
+		].join("");
+		return `<tr class="edit-row"><td colspan="8">
+      <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
+        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${s.sample_rate_hz ?? ""}" inputmode="decimal" style="width:7em"></label>
+        <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
+        <label class="field">Ontology node<select name="node">${options}</select></label>
+        <button class="btn primary" type="submit">Save</button>
+        <button class="btn" type="button" data-cancel-edit>Cancel</button>
+      </form>
+      ${nodes.length ? "" : "<p class=\"small soft\">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>"}
+    </td></tr>`;
+	}
+	function resultsTable(ctx, page, canEdit) {
+		if (!page.signals.length) return "<p class=\"small soft\">No signals match. Signals appear here once an edge agent or an import sends their readings.</p>";
+		const { editing } = ui(ctx);
+		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
+		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
+    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><code>${esc(s.tag)}</code></td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
+            <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
+            <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
+            <td>${canEdit && editing !== s.id ? `<button class="btn sm" type="button" data-edit="${esc(s.id)}">Edit</button>` : ""}</td></tr>
+          ${canEdit && editing === s.id ? editRow(ctx, s) : ""}`).join("")}</tbody></table></div>`;
+	}
+	async function search(root, ctx) {
+		const site = ctx.ontology.site;
+		if (!ctx.api || !site) return;
+		try {
+			results = await ctx.api.signals.list(site.id, {
+				...ui(ctx).query,
+				limit: PAGE
+			});
+			failed = false;
+		} catch {
+			failed = true;
+		}
+		fill(root, ctx);
+	}
+	function fill(root, ctx) {
+		const box = root.querySelector("[data-signal-results]");
+		if (!box) return;
+		const canEdit = ctx.ontology.role !== "viewer";
+		box.innerHTML = failed ? "<p class=\"small soft\">The signals could not be loaded.</p>" : results ? resultsTable(ctx, results, canEdit) : "<p class=\"small soft\">Loading…</p>";
+		bindResults(root, ctx);
+	}
+	function bindResults(root, ctx) {
+		onAll(root, "[data-edit]", "click", (el) => {
+			ui(ctx).editing = el.dataset.edit ?? null;
+			fill(root, ctx);
+		});
+		onAll(root, "[data-cancel-edit]", "click", () => {
+			ui(ctx).editing = null;
+			fill(root, ctx);
+		});
+		const form = root.querySelector("#signal-form");
+		form?.addEventListener("submit", (e) => {
+			e.preventDefault();
+			const site = ctx.ontology.site;
+			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
+			if (!site || !ctx.api || !sig) return;
+			const change = changeFrom({
+				unit: field$1(form, "unit"),
+				rate: field$1(form, "rate"),
+				description: field$1(form, "description"),
+				node: field$1(form, "node")
+			}, sig);
+			if (typeof change === "string") {
+				ctx.toast(change);
+				return;
+			}
+			if (!Object.keys(change).length) {
+				ui(ctx).editing = null;
+				fill(root, ctx);
+				return;
+			}
+			ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
+				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
+				ui(ctx).editing = null;
+				ctx.toast(`Saved ${updated.tag}`);
+				fill(root, ctx);
+			}, () => void 0);
+		});
+	}
+	var view = {
+		id: "signals",
+		title: "Signals",
+		icon: "≋",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
+        <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
+			if (!ctx.api || !ctx.ontology.site) return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+			const { query } = ui(ctx);
+			const opt = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
+			return `${head}<div class="card stack" style="gap:12px">
+        <form id="signal-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
+          <label class="field" style="flex:1;min-width:200px">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
+          <label class="field">Source<select name="source">${opt("", "Any", query.source)}${opt("edge", "Edge agents", query.source)}${opt("import", "Imports", query.source)}${opt("manual", "Entered by hand", query.source)}</select></label>
+          <label class="field">Ontology link<select name="linked">${opt("", "Any", query.linked)}${opt("yes", "Linked", query.linked)}${opt("no", "Not linked", query.linked)}</select></label>
+        </form>
+        <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
+      </div>`;
+		},
+		bind(root, ctx) {
+			const form = root.querySelector("#signal-search");
+			if (!form) return;
+			if (results) fill(root, ctx);
+			search(root, ctx);
+			const update = () => {
+				const u = ui(ctx);
+				u.query = {
+					q: field$1(form, "q"),
+					source: field$1(form, "source"),
+					linked: field$1(form, "linked")
+				};
+				u.editing = null;
+				clearTimeout(searchTimer);
+				searchTimer = setTimeout(() => void search(root, ctx), 250);
+			};
+			form.addEventListener("input", update);
+			form.addEventListener("change", update);
+			form.addEventListener("submit", (e) => {
+				e.preventDefault();
+				update();
+			});
+		}
+	};
+	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$8,
 		view$7,
 		view$6,
 		view$5,
 		view$4,
 		view$3,
-		view$2,
 		view,
-		view$1
+		view$1,
+		view$2
 	];
 	var NAV = [
-		{ items: [view$7, view$6] },
+		{ items: [view$8, view$7] },
 		{
 			group: "Operations",
 			items: [
+				view$6,
 				view$5,
-				view$4,
-				view$3
+				view$4
 			]
 		},
 		{
 			group: "Data",
-			items: [view]
+			items: [view, view$1]
 		},
 		{
 			group: "Design",
-			items: [view$2]
+			items: [view$3]
 		},
 		{
 			group: "",
-			items: [view$1]
+			items: [view$2]
 		}
 	];
 	function freshState() {
@@ -3919,7 +4106,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? view$7;
+		return VIEWS.find((v) => v.id === id) ?? view$8;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -3942,8 +4129,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$7 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$7 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$8 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$8 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);

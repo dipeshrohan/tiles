@@ -1,0 +1,137 @@
+"""Signal catalogue (T2.08): browse and search the site's signals, describe them and link them to the ontology."""
+
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+import psycopg
+from fastapi.testclient import TestClient
+from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
+
+T0 = datetime(2026, 9, 1, 6, 0, tzinfo=UTC)
+
+
+def backfill(api: TestClient, site: str, readings: dict[str, list[Any]]) -> None:  # noqa: F811
+    imp = api.post(f"/sites/{site}/imports", json={"name": "plant.csv"}, headers=ENG).json()
+    samples = [
+        {"signal": tag, "at": (T0 + timedelta(minutes=i)).isoformat(), "value": v}
+        for tag, values in readings.items()
+        for i, v in enumerate(values)
+    ]
+    res = api.post(f"/sites/{site}/imports/{imp['id']}/samples", json={"samples": samples}, headers=ENG)
+    assert res.status_code == 200, res.text
+
+
+def commit_nodes(api: TestClient, site: str, *nodes: dict[str, Any]) -> None:  # noqa: F811
+    base = f"/sites/{site}/ontology"
+    for node in nodes:
+        assert api.post(f"{base}/staged", json={"kind": "addNode", "node": node}, headers=ENG).status_code == 201
+    assert api.post(f"{base}/commits", json={"message": "add nodes"}, headers=ENG).status_code == 201
+
+
+def signals(api: TestClient, site: str, **query: str) -> dict[str, Any]:  # noqa: F811
+    res = api.get(f"/sites/{site}/signals", params=query, headers=VIEWER)
+    assert res.status_code == 200, res.text
+    page: dict[str, Any] = res.json()
+    return page
+
+
+def by_tag(api: TestClient, site: str, tag: str) -> dict[str, Any]:  # noqa: F811
+    found: list[dict[str, Any]] = [s for s in signals(api, site, q=tag)["signals"] if s["tag"] == tag]
+    assert len(found) == 1
+    return found[0]
+
+
+def test_signals_are_listed_with_their_latest_reading(api: TestClient, site: str) -> None:  # noqa: F811
+    backfill(api, site, {"press1.temperature": [20.5, 21.0], "press1.state": ["running"], "oven.temp": [180.0]})
+    page = signals(api, site)
+    assert page["total"] == 3
+    assert [s["tag"] for s in page["signals"]] == ["oven.temp", "press1.state", "press1.temperature"]
+    temp = page["signals"][2]
+    assert (temp["source"], temp["unit"], temp["node_id"], temp["node_label"]) == ("import:plant.csv", None, None, None)
+    assert (temp["last_value"], temp["last_at"]) == (
+        21.0,
+        (T0 + timedelta(minutes=1)).isoformat().replace("+00:00", "Z"),
+    )
+    assert page["signals"][1]["last_value"] == "running"
+
+
+def test_search_and_filters(api: TestClient, site: str) -> None:  # noqa: F811
+    backfill(api, site, {"press1.temperature": [1.0], "press1.force": [2.0], "oven.temp": [3.0]})
+    assert [s["tag"] for s in signals(api, site, q="PRESS1")["signals"]] == ["press1.force", "press1.temperature"]
+    assert signals(api, site, q="%")["total"] == 0  # searched for literally, not as a wildcard
+    assert signals(api, site, source="import")["total"] == 3
+    assert signals(api, site, source="edge")["total"] == 0
+    assert signals(api, site, linked="no")["total"] == 3
+    paged = signals(api, site, limit="2", offset="2")
+    assert (paged["total"], [s["tag"] for s in paged["signals"]]) == (3, ["press1.temperature"])
+    assert api.get(f"/sites/{site}/signals", params={"source": "other"}, headers=VIEWER).status_code == 422
+
+
+def test_engineers_describe_signals_and_each_change_is_audited(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    backfill(api, site, {"press1.temperature": [1.0]})
+    sig = by_tag(api, site, "press1.temperature")
+    path = f"/sites/{site}/signals/{sig['id']}"
+    change = {"unit": "°C", "sample_rate_hz": 10, "description": "Platen temperature, upper"}
+    assert api.patch(path, json=change, headers=VIEWER).status_code == 403
+    res = api.patch(path, json=change, headers=ENG)
+    assert res.status_code == 200, res.text
+    assert {k: res.json()[k] for k in change} == {
+        "unit": "°C",
+        "sample_rate_hz": 10.0,
+        "description": change["description"],
+    }
+    # Only what is given changes; null clears.
+    cleared = api.patch(path, json={"unit": None}, headers=ENG).json()
+    assert (cleared["unit"], cleared["sample_rate_hz"]) == (None, 10.0)
+    assert signals(api, site, q="platen")["total"] == 1  # descriptions are searched too
+    for bad in ({"sample_rate_hz": 0}, {"unit": "x" * 41}, {"tag": "renamed"}):
+        assert api.patch(path, json=bad, headers=ENG).status_code == 422, bad
+    assert (
+        api.patch(f"/sites/{site}/signals/00000000-0000-0000-0000-000000000000", json={}, headers=ENG).status_code
+        == 404
+    )
+    with psycopg.connect(database_url) as conn:
+        audit = conn.execute(
+            "SELECT before, after FROM audit_log WHERE action = 'signal.update' AND entity_id = %s ORDER BY id",
+            [sig["id"]],
+        ).fetchall()
+    assert audit[0][1] == {"tag": "press1.temperature", **change}
+    assert audit[1] == ({"tag": "press1.temperature", "unit": "°C"}, {"tag": "press1.temperature", "unit": None})
+
+
+def test_a_signal_links_to_one_signal_node_of_the_ontology(api: TestClient, site: str) -> None:  # noqa: F811
+    backfill(api, site, {"press1.temperature": [1.0], "press1.temp2": [2.0]})
+    commit_nodes(
+        api,
+        site,
+        {"id": "sig-p1-temp", "type": "Signal", "label": "Press 1 temperature", "props": {"unit": "°C"}},
+        {"id": "press-1", "type": "Machine", "label": "Press 1", "props": {}},
+    )
+    first, second = by_tag(api, site, "press1.temperature"), by_tag(api, site, "press1.temp2")
+    linked = api.patch(f"/sites/{site}/signals/{first['id']}", json={"node_id": "sig-p1-temp"}, headers=ENG)
+    assert (linked.json()["node_id"], linked.json()["node_label"]) == ("sig-p1-temp", "Press 1 temperature")
+    assert [s["tag"] for s in signals(api, site, linked="yes")["signals"]] == ["press1.temperature"]
+    assert signals(api, site, q="press 1 temp")["total"] == 1  # the node's label is searched too
+
+    clash = api.patch(f"/sites/{site}/signals/{second['id']}", json={"node_id": "sig-p1-temp"}, headers=ENG)
+    assert (clash.status_code, clash.json()["detail"]) == (409, "sig-p1-temp is already linked to press1.temperature")
+    for node in ("press-1", "nowhere"):  # a Machine, and no node at all
+        res = api.patch(f"/sites/{site}/signals/{second['id']}", json={"node_id": node}, headers=ENG)
+        assert res.status_code == 422 and "not a Signal node of the committed ontology" in res.json()["detail"], node
+
+    # The node is removed from the ontology later: the link stays, without a label.
+    assert (
+        api.post(
+            f"/sites/{site}/ontology/staged", json={"kind": "removeNode", "id": "sig-p1-temp"}, headers=ENG
+        ).status_code
+        == 201
+    )
+    assert api.post(f"/sites/{site}/ontology/commits", json={"message": "remove"}, headers=ENG).status_code == 201
+    gone = by_tag(api, site, "press1.temperature")
+    assert (gone["node_id"], gone["node_label"]) == ("sig-p1-temp", None)
+    unlinked = api.patch(f"/sites/{site}/signals/{first['id']}", json={"node_id": None}, headers=ENG).json()
+    assert unlinked["node_id"] is None
