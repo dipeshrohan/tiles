@@ -5,6 +5,7 @@ import {
   canvasHeight,
   centerOn,
   fitView,
+  foldedCounts,
   hiddenByCollapse,
   hiddenUnder,
   hierarchy,
@@ -123,4 +124,31 @@ test('a small drawing is never blown up past 1.5×, and the canvas is as tall as
   assert.equal(canvasHeight(1100, 600, 2200, 280, 900), 900); // 600 × 1.5
   assert.equal(canvasHeight(1100, 100, 2200, 280, 900), 280); // never shorter than the minimum
   assert.equal(canvasHeight(3000, 3000, 1500, 280, 900), 900); // nor taller than the window allows
+});
+
+test('a folded node counts everything hidden below it, not just its children', () => {
+  const big = largePlantGraph();
+  const h = hierarchy(big);
+  const lines = Object.values(big.nodes)
+    .filter((n) => n.type === 'Line')
+    .map((n) => n.id);
+  const collapsed = new Set(lines);
+  const counts = foldedCounts(collapsed, hiddenByCollapse(big, collapsed, h), h);
+  assert.equal(counts.get('wc1-line1'), 128); // 8 machines, 8 PLCs, 112 signals
+  // A child another open branch still shows isn't counted.
+  const c = new Set(['plc']);
+  assert.equal(foldedCounts(c, hiddenByCollapse(plant, c), hierarchy(plant)).get('plc'), 1); // sig, not shared
+});
+
+test('the drawing ends at its last node; search has no cap; a visible node needs nothing opened', () => {
+  const lines = g(
+    [
+      ['a', 'Line'],
+      ['b', 'Line'],
+    ],
+    [],
+  );
+  assert.equal(layout(lines, () => true).width, BOX.pad + BOX.w + BOX.pad + 2 * 152); // third column, no blank after
+  assert.equal(searchNodes(largePlantGraph(), 'signal').length, 1792);
+  assert.deepEqual(revealPath(plant, 'shared', new Set(['plc'])), []); // m2 shows it
 });

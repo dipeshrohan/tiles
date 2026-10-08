@@ -6,7 +6,9 @@ import {
   centerOn,
   collapsible,
   fitView,
+  foldedCounts,
   hiddenByCollapse,
+  hiddenUnder,
   hierarchy,
   layout,
   panBy,
@@ -19,7 +21,7 @@ import {
 } from '../lib/canvas.ts';
 import { historyOps, safeWorkingGraph, type RemoteStore } from '../lib/ontology-store.ts';
 import { seedOntology } from '../lib/data.ts';
-import { download, esc, field, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
+import { download, esc, field, need, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
 import { describeChanges } from '../lib/review.ts';
 import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
@@ -31,6 +33,7 @@ interface OntologyUi {
   hidden: NodeType[];
   collapsed: string[] | null; // null: automatic (signals folded away on large ontologies)
   view: ViewBox | null; // the part of the canvas shown; null: all of it
+  viewFor: string; // the drawing's size `view` was set on: another size (a fold, a new node) drops it
   search: string;
   match: number; // the search result last gone to
 }
@@ -42,6 +45,7 @@ const uiState = (ctx: Context) =>
     hidden: [],
     collapsed: null,
     view: null,
+    viewFor: '',
     search: '',
     match: -1,
   });
@@ -117,6 +121,11 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
   const placed = layout(graph, show, h);
   drawn = { ...placed, graph };
   const { pos, width, height } = placed;
+  // A view of another drawing (nodes folded, opened or added since) would show the wrong part.
+  const size = `${width}x${height}`;
+  if (ui.viewFor !== size) ui.view = null;
+  ui.viewFor = size;
+  const counts = foldedCounts(collapsed, folded, h);
   const issueIds = new Set(health.issues.filter((i) => i.level !== 'info').map((i) => i.ref));
   const stagedIds = new Set(ctx.state.repo.staged.flatMap(touchedIds));
   const matches = new Set(searchNodes(graph, ui.search));
@@ -139,7 +148,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
     .map(([id, p]) => {
       const n = graph.nodes[id];
       if (!n) return '';
-      const fold = collapsed.has(id) ? (h.children.get(id)?.length ?? 0) : 0;
+      const fold = counts.get(id) ?? 0; // the hidden nodes below it
       const cls = [
         'node',
         ui.selected === id && 'sel',
@@ -204,14 +213,15 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
           </div>
           <div class="chips" style="margin-top:8px">${legend}</div>
         </div>
-        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, collapsed, h) : ctx.ontology.role === 'viewer' ? viewOnlyNote() : newNodeForm(graph)}</div>
+        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, counts, h) : ctx.ontology.role === 'viewer' ? viewOnlyNote() : newNodeForm(graph)}</div>
       </div>`;
 }
 
-function inspector(graph: Graph, id: string, collapsed: Set<string>, h: Hierarchy): string {
+function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hierarchy): string {
   const n = graph.nodes[id];
   if (!n) return '';
-  const below = h.children.get(id)?.length ?? 0;
+  const isFolded = folded.has(id);
+  const below = isFolded ? (folded.get(id) ?? 0) : h.children.get(id)?.length ? hiddenUnder(graph, id, h) : 0;
   const rels = neighbors(graph, id);
   const path = pathTo(graph, id);
   const props = Object.entries(n.props ?? {});
@@ -225,7 +235,7 @@ function inspector(graph: Graph, id: string, collapsed: Set<string>, h: Hierarch
         <button class="btn sm" data-deselect aria-label="Close">✕</button>
       </div>
       ${path.length > 1 ? `<p class="small soft" style="margin-bottom:12px">${path.map((p) => esc(p.label)).join(' → ')}</p>` : ''}
-      ${below ? `<p style="margin-bottom:12px"><button class="btn sm" data-fold="${esc(id)}">${collapsed.has(id) ? `Open (${below} folded)` : `Fold its ${below}`}</button></p>` : ''}
+      ${below || isFolded ? `<p style="margin-bottom:12px"><button class="btn sm" data-fold="${esc(id)}">${isFolded ? `Open (${below} folded)` : `Fold the ${below} below it`}</button></p>` : ''}
       <h3 style="margin-bottom:6px">Properties</h3>
       <div class="kv">
         ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join('') || '<span class="muted small" style="grid-column:span 3">No properties</span>'}
@@ -341,6 +351,8 @@ function reveal(graph: Graph, ui: OntologyUi, id: string): void {
 function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   const svg = root.querySelector<SVGSVGElement>('svg[data-canvas]');
   const layoutNow = drawn;
+  const center = centerAfterRender;
+  centerAfterRender = null; // for this render only, drawn or not
   if (!svg || !layoutNow) return;
   const limits = { width: layoutNow.width, height: layoutNow.height };
   const current = (): ViewBox => {
@@ -373,8 +385,11 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     wrap.style.height = `${tall}px`;
   }
   const showAll = () => {
-    const aspect = svg.clientWidth / Math.max(1, svg.clientHeight);
-    const v = fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE);
+    const aspect = svg.clientWidth / svg.clientHeight;
+    const v =
+      Number.isFinite(aspect) && aspect > 0 // a canvas not laid out (hidden) shows the whole drawing
+        ? fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE)
+        : { x: 0, y: 0, w: limits.width, h: limits.height };
     svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); // not kept: the next render fits again
   };
   if (!ui.view) showAll();
@@ -383,9 +398,8 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     setView(zoomAt(v, factor, at ?? { x: v.x + v.w / 2, y: v.y + v.h / 2 }, limits));
   };
 
-  if (centerAfterRender) {
-    const p = layoutNow.pos.get(centerAfterRender);
-    centerAfterRender = null;
+  if (center) {
+    const p = layoutNow.pos.get(center);
     if (p) setView(centerOn(shaped(), p));
   }
 
@@ -410,6 +424,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   let drag: { x: number; y: number; view: ViewBox; scale: number; moved: boolean; id: number } | null = null;
   let swallowClick = false;
   svg.addEventListener('pointerdown', (e) => {
+    swallowClick = false; // a drag the browser cancelled has no click to swallow
     if (e.button !== 0) return;
     const view = shaped();
     const scale = Math.max(view.w / Math.max(1, svg.clientWidth), view.h / Math.max(1, svg.clientHeight));
@@ -451,6 +466,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     else if (h.children.get(id)?.length) collapsed.add(id);
     else return;
     ui.collapsed = [...collapsed];
+    if (ui.view) centerAfterRender = id; // zoomed in: stay on the node in the new drawing
     ctx.rerender();
   };
   onAll(root, '[data-node]', 'dblclick', (el) => {
@@ -459,8 +475,8 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   onAll(root, '[data-fold]', 'click', (el) => {
     if (el.dataset.fold) toggleFold(el.dataset.fold);
   });
-  root.querySelector<HTMLSelectElement>('[data-fold-level]')?.addEventListener('change', (e) => {
-    const value = (e.target as HTMLSelectElement).value;
+  onAll(root, '[data-fold-level]', 'change', (el) => {
+    const value = (el as HTMLSelectElement).value;
     const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
     ui.collapsed = levelNodes(ctx.graph, hierarchy(ctx.graph), types);
     ui.view = null;
@@ -468,20 +484,19 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   });
 
   // Search: matches light up as you type; Enter (or Next) goes to the next one.
-  const input = root.querySelector<HTMLInputElement>('[data-onto-search]');
-  const count = root.querySelector<HTMLElement>('[data-search-count]');
-  const next = root.querySelector<HTMLButtonElement>('[data-search-next]');
+  const input = need<HTMLInputElement>(root, '[data-onto-search]');
+  const count = need(root, '[data-search-count]');
+  const next = need<HTMLButtonElement>(root, '[data-search-next]');
   const mark = () => {
     const found = new Set(searchNodes(ctx.graph, ui.search));
     svg.querySelectorAll<SVGGElement>('[data-node]').forEach((g) => {
       g.classList.toggle('match', found.has(g.dataset.node ?? ''));
     });
     const shownCount = svg.querySelectorAll('.match').length;
-    if (count)
-      count.textContent = ui.search.trim()
-        ? `${found.size} found${shownCount < found.size ? ` (${found.size - shownCount} folded or hidden)` : ''}`
-        : '';
-    if (next) next.disabled = !found.size;
+    count.textContent = ui.search.trim()
+      ? `${found.size} found${shownCount < found.size ? ` (${found.size - shownCount} folded or hidden)` : ''}`
+      : '';
+    next.disabled = !found.size;
   };
   const goNext = () => {
     const found = searchNodes(ctx.graph, ui.search);
@@ -498,17 +513,17 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     again?.focus();
     again?.setSelectionRange(again.value.length, again.value.length);
   };
-  input?.addEventListener('input', () => {
+  onAll(root, '[data-onto-search]', 'input', () => {
     ui.search = input.value;
     ui.match = -1;
     mark();
   });
-  input?.addEventListener('keydown', (e) => {
+  onAll(root, '[data-onto-search]', 'keydown', (_, e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     goNext();
   });
-  next?.addEventListener('click', goNext);
+  onAll(root, '[data-search-next]', 'click', goNext);
   if (ui.search) mark();
 }
 

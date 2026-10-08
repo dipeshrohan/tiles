@@ -76,9 +76,30 @@ export function hiddenByCollapse(graph: Graph, collapsed: ReadonlySet<string>, h
   return new Set([...below].filter((id) => !shown(id)));
 }
 
-// How many nodes collapsing `id` hides (what its badge shows).
+// How many nodes collapsing `id` alone would hide (the inspector's "Fold its N").
 export function hiddenUnder(graph: Graph, id: string, h = hierarchy(graph)): number {
   return hiddenByCollapse(graph, new Set([id]), h).size;
+}
+
+// For each collapsed node that shows, how many hidden nodes are below it (its badge).
+export function foldedCounts(
+  collapsed: ReadonlySet<string>,
+  hidden: ReadonlySet<string>,
+  h: Hierarchy,
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const id of collapsed) {
+    if (hidden.has(id)) continue;
+    const seen = new Set<string>();
+    const queue = [...(h.children.get(id) ?? [])];
+    for (let cur = queue.pop(); cur !== undefined; cur = queue.pop())
+      if (hidden.has(cur) && !seen.has(cur)) {
+        seen.add(cur);
+        queue.push(...(h.children.get(cur) ?? []));
+      }
+    counts.set(id, seen.size);
+  }
+  return counts;
 }
 
 // Nodes with children: the ones that can be collapsed.
@@ -106,6 +127,7 @@ export function layout(graph: Graph, show: (id: string) => boolean, h = hierarch
   const visible = Object.values(graph.nodes).filter((n) => show(n.id));
   const rows = rowsPerColumn(visible.length);
   let x = BOX.pad;
+  let maxX = 0;
   let maxY = 0;
   for (const types of COLUMNS) {
     const col = visible.filter((n) => types.includes(n.type));
@@ -132,11 +154,13 @@ export function layout(graph: Graph, show: (id: string) => boolean, h = hierarch
       const sub = Math.floor(i / rows);
       const y = BOX.pad + (i % rows) * BOX.rowGap;
       pos.set(n.id, { x: x + sub * BOX.subGap, y });
+      maxX = Math.max(maxX, x + sub * BOX.subGap);
       maxY = Math.max(maxY, y);
     });
     x += BOX.colGap + (Math.ceil(ordered.length / rows) - 1) * BOX.subGap;
   }
-  return { pos, width: x - BOX.colGap + BOX.w + BOX.pad, height: maxY + BOX.h + BOX.pad };
+  // As wide as the rightmost node: types with no nodes leave no blank strip.
+  return { pos, width: maxX + BOX.w + BOX.pad, height: maxY + BOX.h + BOX.pad };
 }
 
 // ---- the visible part: a view box in drawing coordinates ------------------------
@@ -191,7 +215,7 @@ export function centerOn(view: View, p: Point, readableWidth = 1400): View {
 
 // Nodes whose label or id contains every word of the query, best first: label starts with it,
 // then shorter labels.
-export function searchNodes(graph: Graph, query: string, limit = 500): string[] {
+export function searchNodes(graph: Graph, query: string, limit = Infinity): string[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const q = words.join(' ');
@@ -208,8 +232,10 @@ export function searchNodes(graph: Graph, query: string, limit = 500): string[] 
     .map((hit) => hit.id);
 }
 
-// What to un-collapse so `id` shows: its collapsed ancestors along every hidden path.
+// What to un-collapse so `id` shows: nothing if it shows already, else its collapsed ancestors
+// along every path down to it.
 export function revealPath(graph: Graph, id: string, collapsed: ReadonlySet<string>, h = hierarchy(graph)): string[] {
+  if (!hiddenByCollapse(graph, collapsed, h).has(id)) return [];
   const out = new Set<string>();
   const seen = new Set<string>([id]);
   const queue = [id];

@@ -1466,6 +1466,22 @@ test('a 2,000-node ontology: folded, zoomed, panned and searched on the canvas',
   assert.ok(Math.abs(panned[2] - zoomed[2]) < 0.01, 'panning keeps the zoom'); // view boxes are 32-bit floats
   assert.equal(await page.locator('#inspector [data-deselect]').count(), 0); // no node selected
 
+  // Zoomed in, opening a PLC keeps it in view, though every PLC moves (columns get a row longer).
+  const inView = async (id) => {
+    const node = await page.locator(`[data-node="${id}"]`).boundingBox();
+    const area = await page.locator('svg[data-canvas]').boundingBox();
+    const [cx, cy] = [node.x + node.width / 2, node.y + node.height / 2]; // its centre is on screen
+    return cx >= area.x && cx <= area.x + area.width && cy >= area.y && cy <= area.y + area.height;
+  };
+  await page.click('[data-zoom=fit]');
+  const plc = await page.locator('[data-node="wc4-line4-m8-plc"]').boundingBox();
+  await page.mouse.move(plc.x + plc.width / 2, plc.y + plc.height / 2);
+  await page.mouse.wheel(0, -900);
+  assert.ok(await inView('wc4-line4-m8-plc'));
+  await page.dblclick('[data-node="wc4-line4-m8-plc"]');
+  await page.waitForSelector('.statusbar:has-text("(291 shown)")');
+  assert.ok(await inView('wc4-line4-m8-plc'), 'the opened PLC is still in view');
+
   // Search reaches a folded signal: its PLC opens, it is selected and brought into view.
   await page.fill('[data-onto-search]', 'signal 2.3.4.5');
   await page.waitForSelector('[data-search-count]:has-text("found (")'); // folded away so far
@@ -1475,14 +1491,16 @@ test('a 2,000-node ontology: folded, zoomed, panned and searched on the canvas',
   const centred = await viewBox();
   assert.ok(centred[2] <= 1400);
   assert.equal(await page.locator('[data-onto-search]').evaluate((el) => el === document.activeElement), true);
-  await page.waitForSelector('.statusbar:has-text("(291 shown)")'); // that PLC's 14 signals opened
+  await page.waitForSelector('.statusbar:has-text("(305 shown)")'); // that PLC's 14 signals opened too
 
   // Fold levels, and double-click to open one node.
   await page.selectOption('[data-fold-level]', 'Line');
   await page.waitForSelector('.statusbar:has-text("(21 shown)")');
+  // The badge counts all a line holds: 8 machines, their PLCs and 112 signals.
+  assert.equal(await page.locator('[data-node="wc1-line1"] .fold').textContent(), '+128');
   await page.dblclick('[data-node="wc1-line1"]');
   // Only the line was folded: its 8 machines, their PLCs and the PLCs' 112 signals show.
-  await page.waitForSelector('.statusbar:has-text("(149 shown)")'); // its 8 machines and their 8 PLCs
+  await page.waitForSelector('.statusbar:has-text("(149 shown)")');
   await page.selectOption('[data-fold-level]', '');
   await page.waitForSelector('.statusbar:has-text("Nodes: 2069")');
   assert.equal(await page.locator('.statusbar:has-text("shown")').count(), 0);

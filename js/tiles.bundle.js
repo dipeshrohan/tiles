@@ -1878,6 +1878,23 @@
 		}
 		return new Set([...below].filter((id) => !shown(id)));
 	}
+	function hiddenUnder(graph, id, h = hierarchy(graph)) {
+		return hiddenByCollapse(graph, /* @__PURE__ */ new Set([id]), h).size;
+	}
+	function foldedCounts(collapsed, hidden, h) {
+		const counts = /* @__PURE__ */ new Map();
+		for (const id of collapsed) {
+			if (hidden.has(id)) continue;
+			const seen = /* @__PURE__ */ new Set();
+			const queue = [...h.children.get(id) ?? []];
+			for (let cur = queue.pop(); cur !== void 0; cur = queue.pop()) if (hidden.has(cur) && !seen.has(cur)) {
+				seen.add(cur);
+				queue.push(...h.children.get(cur) ?? []);
+			}
+			counts.set(id, seen.size);
+		}
+		return counts;
+	}
 	function collapsible(h) {
 		return [...h.children.keys()];
 	}
@@ -1889,6 +1906,7 @@
 		const visible = Object.values(graph.nodes).filter((n) => show(n.id));
 		const rows = rowsPerColumn(visible.length);
 		let x = BOX.pad;
+		let maxX = 0;
 		let maxY = 0;
 		for (const types of COLUMNS) {
 			const col = visible.filter((n) => types.includes(n.type));
@@ -1920,13 +1938,14 @@
 					x: x + sub * BOX.subGap,
 					y
 				});
+				maxX = Math.max(maxX, x + sub * BOX.subGap);
 				maxY = Math.max(maxY, y);
 			});
 			x += BOX.colGap + (Math.ceil(ordered.length / rows) - 1) * BOX.subGap;
 		}
 		return {
 			pos,
-			width: x - BOX.colGap + BOX.w + BOX.pad,
+			width: maxX + BOX.w + BOX.pad,
 			height: maxY + BOX.h + BOX.pad
 		};
 	}
@@ -1974,7 +1993,7 @@
 			h
 		};
 	}
-	function searchNodes(graph, query, limit = 500) {
+	function searchNodes(graph, query, limit = Infinity) {
 		const words = query.toLowerCase().split(/\s+/).filter(Boolean);
 		if (!words.length) return [];
 		const q = words.join(" ");
@@ -1992,6 +2011,7 @@
 		return hits.sort((a, b) => a.rank - b.rank || a.label.length - b.label.length || a.label.localeCompare(b.label)).slice(0, limit).map((hit) => hit.id);
 	}
 	function revealPath(graph, id, collapsed, h = hierarchy(graph)) {
+		if (!hiddenByCollapse(graph, collapsed, h).has(id)) return [];
 		const out = /* @__PURE__ */ new Set();
 		const seen = /* @__PURE__ */ new Set([id]);
 		const queue = [id];
@@ -2077,6 +2097,7 @@
 		hidden: [],
 		collapsed: null,
 		view: null,
+		viewFor: "",
 		search: "",
 		match: -1
 	});
@@ -2164,6 +2185,10 @@
 			graph
 		};
 		const { pos, width, height } = placed;
+		const size = `${width}x${height}`;
+		if (ui.viewFor !== size) ui.view = null;
+		ui.viewFor = size;
+		const counts = foldedCounts(collapsed, folded, h);
 		const issueIds = new Set(health.issues.filter((i) => i.level !== "info").map((i) => i.ref));
 		const stagedIds = new Set(ctx.state.repo.staged.flatMap(touchedIds));
 		const matches = new Set(searchNodes(graph, ui.search));
@@ -2182,7 +2207,7 @@
 		const nodes = [...pos.entries()].map(([id, p]) => {
 			const n = graph.nodes[id];
 			if (!n) return "";
-			const fold = collapsed.has(id) ? h.children.get(id)?.length ?? 0 : 0;
+			const fold = counts.get(id) ?? 0;
 			return `<g class="${[
 				"node",
 				ui.selected === id && "sel",
@@ -2236,13 +2261,14 @@
           </div>
           <div class="chips" style="margin-top:8px">${legend}</div>
         </div>
-        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, collapsed, h) : ctx.ontology.role === "viewer" ? viewOnlyNote() : newNodeForm(graph)}</div>
+        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, counts, h) : ctx.ontology.role === "viewer" ? viewOnlyNote() : newNodeForm(graph)}</div>
       </div>`;
 	}
-	function inspector(graph, id, collapsed, h) {
+	function inspector(graph, id, folded, h) {
 		const n = graph.nodes[id];
 		if (!n) return "";
-		const below = h.children.get(id)?.length ?? 0;
+		const isFolded = folded.has(id);
+		const below = isFolded ? folded.get(id) ?? 0 : h.children.get(id)?.length ? hiddenUnder(graph, id, h) : 0;
 		const rels = neighbors(graph, id);
 		const path = pathTo(graph, id);
 		const props = Object.entries(n.props ?? {});
@@ -2254,7 +2280,7 @@
         <button class="btn sm" data-deselect aria-label="Close">✕</button>
       </div>
       ${path.length > 1 ? `<p class="small soft" style="margin-bottom:12px">${path.map((p) => esc(p.label)).join(" → ")}</p>` : ""}
-      ${below ? `<p style="margin-bottom:12px"><button class="btn sm" data-fold="${esc(id)}">${collapsed.has(id) ? `Open (${below} folded)` : `Fold its ${below}`}</button></p>` : ""}
+      ${below || isFolded ? `<p style="margin-bottom:12px"><button class="btn sm" data-fold="${esc(id)}">${isFolded ? `Open (${below} folded)` : `Fold the ${below} below it`}</button></p>` : ""}
       <h3 style="margin-bottom:6px">Properties</h3>
       <div class="kv">
         ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join("") || "<span class=\"muted small\" style=\"grid-column:span 3\">No properties</span>"}
@@ -2342,6 +2368,8 @@
 	function bindCanvas(root, ctx, ui) {
 		const svg = root.querySelector("svg[data-canvas]");
 		const layoutNow = drawn;
+		const center = centerAfterRender;
+		centerAfterRender = null;
 		if (!svg || !layoutNow) return;
 		const limits = {
 			width: layoutNow.width,
@@ -2390,8 +2418,13 @@
 			wrap.style.height = `${tall}px`;
 		}
 		const showAll = () => {
-			const aspect = svg.clientWidth / Math.max(1, svg.clientHeight);
-			const v = fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE);
+			const aspect = svg.clientWidth / svg.clientHeight;
+			const v = Number.isFinite(aspect) && aspect > 0 ? fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE) : {
+				x: 0,
+				y: 0,
+				w: limits.width,
+				h: limits.height
+			};
 			svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
 		};
 		if (!ui.view) showAll();
@@ -2402,9 +2435,8 @@
 				y: v.y + v.h / 2
 			}, limits));
 		};
-		if (centerAfterRender) {
-			const p = layoutNow.pos.get(centerAfterRender);
-			centerAfterRender = null;
+		if (center) {
+			const p = layoutNow.pos.get(center);
 			if (p) setView(centerOn(shaped(), p));
 		}
 		svg.addEventListener("wheel", (e) => {
@@ -2422,6 +2454,7 @@
 		let drag = null;
 		let swallowClick = false;
 		svg.addEventListener("pointerdown", (e) => {
+			swallowClick = false;
 			if (e.button !== 0) return;
 			const view = shaped();
 			const scale = Math.max(view.w / Math.max(1, svg.clientWidth), view.h / Math.max(1, svg.clientHeight));
@@ -2464,6 +2497,7 @@
 			else if (h.children.get(id)?.length) collapsed.add(id);
 			else return;
 			ui.collapsed = [...collapsed];
+			if (ui.view) centerAfterRender = id;
 			ctx.rerender();
 		};
 		onAll(root, "[data-node]", "dblclick", (el) => {
@@ -2472,24 +2506,24 @@
 		onAll(root, "[data-fold]", "click", (el) => {
 			if (el.dataset.fold) toggleFold(el.dataset.fold);
 		});
-		root.querySelector("[data-fold-level]")?.addEventListener("change", (e) => {
-			const value = e.target.value;
+		onAll(root, "[data-fold-level]", "change", (el) => {
+			const value = el.value;
 			const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
 			ui.collapsed = levelNodes(ctx.graph, hierarchy(ctx.graph), types);
 			ui.view = null;
 			ctx.rerender();
 		});
-		const input = root.querySelector("[data-onto-search]");
-		const count = root.querySelector("[data-search-count]");
-		const next = root.querySelector("[data-search-next]");
+		const input = need(root, "[data-onto-search]");
+		const count = need(root, "[data-search-count]");
+		const next = need(root, "[data-search-next]");
 		const mark = () => {
 			const found = new Set(searchNodes(ctx.graph, ui.search));
 			svg.querySelectorAll("[data-node]").forEach((g) => {
 				g.classList.toggle("match", found.has(g.dataset.node ?? ""));
 			});
 			const shownCount = svg.querySelectorAll(".match").length;
-			if (count) count.textContent = ui.search.trim() ? `${found.size} found${shownCount < found.size ? ` (${found.size - shownCount} folded or hidden)` : ""}` : "";
-			if (next) next.disabled = !found.size;
+			count.textContent = ui.search.trim() ? `${found.size} found${shownCount < found.size ? ` (${found.size - shownCount} folded or hidden)` : ""}` : "";
+			next.disabled = !found.size;
 		};
 		const goNext = () => {
 			const found = searchNodes(ctx.graph, ui.search);
@@ -2505,17 +2539,17 @@
 			again?.focus();
 			again?.setSelectionRange(again.value.length, again.value.length);
 		};
-		input?.addEventListener("input", () => {
+		onAll(root, "[data-onto-search]", "input", () => {
 			ui.search = input.value;
 			ui.match = -1;
 			mark();
 		});
-		input?.addEventListener("keydown", (e) => {
+		onAll(root, "[data-onto-search]", "keydown", (_, e) => {
 			if (e.key !== "Enter") return;
 			e.preventDefault();
 			goNext();
 		});
-		next?.addEventListener("click", goNext);
+		onAll(root, "[data-search-next]", "click", goNext);
 		if (ui.search) mark();
 	}
 	var EDIT_CONTROLS = "#node-form, #prop-form, #link-form, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]";
