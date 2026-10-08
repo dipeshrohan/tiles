@@ -154,6 +154,7 @@ Ops, graphs and commits have the same JSON shape as in the browser (`js/lib/type
 | `GET ?q&source&linked&quality&limit&offset` | members | the catalogue in tag order, each signal with its latest reading and its latest quality report; `quality` is `good`, `warn`, `bad`, `unknown` (no readings) or `unchecked` |
 | `GET /{id}` | members | one signal |
 | `PATCH /{id}` | engineers | set `unit`, `sample_rate_hz`, `description`, `node_id`, the expected range (`range_min`, `range_max`) or `stuck_after_s`; a change that affects the quality check checks the signal again |
+| `GET /suggestions?limit` | members | for each tag no node is linked to (the first `limit`, default 100): the Signal node to link, or the one to create with the ontology ops to stage, a score and the reasons (agentic ingestion, `suggest.py`) |
 | `GET /{id}/series?from&to&points` | members | readings from `from` (included) to `to` (excluded, at most five years later): as they are when there are at most `points` (10–5000, default 1000), otherwise in time buckets from `from`, each with its average, minimum, maximum, count and last text; true/false count as 1/0 |
 | `POST /quality` | engineers | check `{"signal_ids": [...]}` (or all the site's signals) over `hours` (default 24) up to each one's latest reading |
 

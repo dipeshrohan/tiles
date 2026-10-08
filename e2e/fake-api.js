@@ -298,6 +298,37 @@ export function createFakeApi({
         const checked = Object.values(badges).reduce((a, b) => a + b, 0);
         return send(200, { checked, badges });
       }
+      if (url.pathname === `${signalsPath}/suggestions` && req.method === 'GET') {
+        // A simple stand-in for the API's suggester: link a Signal node made for the tag, else create one.
+        const unmapped = signals.filter((x) => !x.node_id);
+        const suggestions = unmapped.map((x) => {
+          const made = Object.values(head.nodes).find((n) => n.type === 'Signal' && n.props.tag === x.tag);
+          if (made)
+            return {
+              signal_id: x.id,
+              tag: x.tag,
+              kind: 'link',
+              score: 1,
+              node_id: made.id,
+              node_label: made.label,
+              reasons: [`${made.label} was created for this tag`],
+              ops: [],
+            };
+          const id = `signal-${x.tag.replace(/[^a-z0-9]+/g, '-')}`;
+          const node = { id, type: 'Signal', label: x.tag, props: { tag: x.tag, unit: x.unit ?? 'state' } };
+          return {
+            signal_id: x.id,
+            tag: x.tag,
+            kind: 'create',
+            score: 0.6,
+            node_id: id,
+            node_label: x.tag,
+            reasons: ['no machine or PLC found in the tag'],
+            ops: [{ kind: 'addNode', node }],
+          };
+        });
+        return send(200, { unmapped: unmapped.length, suggestions });
+      }
       const plotted = signals.find((x) => url.pathname === `${signalsPath}/${x.id}/series`);
       if (plotted && req.method === 'GET') {
         // Like the API: readings in [from, to), as they are or in at most `points` buckets.

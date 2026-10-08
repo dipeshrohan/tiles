@@ -7,6 +7,7 @@ import {
   qualityDetail,
   resultsTable,
   sourceLabel,
+  suggestionRow,
   untouched,
 } from '../js/views/signals.ts';
 import { describeAudit } from '../js/views/settings.ts';
@@ -169,4 +170,24 @@ test('a stuck limit read back from minutes is not an edit', () => {
     const minutes = String(+(seconds / 60).toPrecision(12));
     assert.deepEqual(changeFrom({ ...same, stuck: minutes }, { ...SIG, stuck_after_s: seconds }), {}, String(seconds));
   }
+});
+
+test('a mapping suggestion shows what it would do and why, with actions for editors only', () => {
+  const s = {
+    signal_id: 's1',
+    tag: 'press1.temperature',
+    kind: 'create',
+    score: 0.8,
+    node_id: 'signal-press1-temperature',
+    node_label: 'Press 1 <b>temperature</b>',
+    reasons: ['emitted by PLC Press 1: the tag names Press 1 & co'],
+    ops: [],
+  };
+  const row = suggestionRow(s, true);
+  assert.match(row, /New node<\/span> Press 1 &lt;b&gt;temperature&lt;\/b&gt;/);
+  assert.match(row, />80%</);
+  assert.match(row, /<li>emitted by PLC Press 1: the tag names Press 1 &amp; co<\/li>/);
+  assert.match(row, /data-accept="s1">Stage node</);
+  assert.match(suggestionRow({ ...s, kind: 'link' }, true), /Link to<\/span>[\s\S]*>Link</);
+  assert.doesNotMatch(suggestionRow(s, false), /data-accept/);
 });

@@ -1100,6 +1100,49 @@ test('on a wide screen, drag-zoom keeps the stretch dragged, and search text sur
   assert.deepEqual(errors, []);
 });
 
+test('mapping suggestions: stage a new node, commit it, then link its tag', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [
+      {
+        kind: 'addNode',
+        node: { id: 'sig-oven', type: 'Signal', label: 'Oven temperature', props: { unit: '°C', tag: 'oven.temp' } },
+      },
+    ],
+    'add oven signal',
+  );
+  fake.addSignal('oven.temp', { unit: '°C' });
+  fake.addSignal('press1.temperature', { unit: '°C' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.click('[data-suggest]');
+  await page.waitForSelector('[data-suggestion]:has-text("press1.temperature") .badge:has-text("New node")');
+  // Link the tag whose node exists.
+  await page.locator('[data-suggestion]', { hasText: 'oven.temp' }).locator('[data-accept]').click();
+  await page.waitForSelector('#toast:has-text("Linked oven.temp")');
+  await page.waitForSelector('[data-signal-results] a:has-text("Oven temperature")');
+  // Stage the new node for the other; it waits on the Ontology page to be committed.
+  await page.locator('[data-suggestion]', { hasText: 'press1.temperature' }).locator('[data-accept]').click();
+  await page.waitForSelector('#toast:has-text("Staged press1.temperature")');
+  assert.equal(await page.locator('[data-suggestion]').count(), 0);
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.waitForSelector('#commit-form:has-text("1 uncommitted")');
+  await page.fill('#commit-form [name=message]', 'add press1.temperature');
+  await page.click('#commit-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Committed")');
+  // Back on Signals, the tag now links to its node in one step.
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.click('[data-suggest]');
+  await page.waitForSelector('[data-suggestion]:has-text("press1.temperature") .badge:has-text("Link to")');
+  await page.locator('[data-suggestion]').locator('[data-accept]').click();
+  await page.waitForSelector('#toast:has-text("Linked press1.temperature")');
+  assert.deepEqual(errors, []);
+});
+
 test('viewers browse the signal catalogue but cannot edit it', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
   const apiUrl = await fake.listen();

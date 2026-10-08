@@ -145,6 +145,19 @@ export interface SignalSeries {
   }[];
 }
 
+// A suggested ontology node for an unmapped tag (T2.11): link an existing node, or create one by
+// staging `ops`.
+export interface MappingSuggestion {
+  signal_id: string;
+  tag: string;
+  kind: 'link' | 'create';
+  score: number;
+  node_id: string;
+  node_label: string;
+  reasons: string[];
+  ops: Op[];
+}
+
 // One bulk import of readings from a file (T2.07).
 export interface ImportRun {
   id: string;
@@ -298,6 +311,12 @@ export function createApiClient(options: ApiOptions) {
           'POST',
           `/sites/${encodeURIComponent(siteId)}/signals/quality`,
           { ...(signalIds ? { signal_ids: signalIds } : {}), ...(hours ? { hours } : {}) },
+        ),
+      // For each tag no node is linked to: the node to link, or the Signal node to create (T2.11).
+      suggestions: (siteId: string, limit = 100) =>
+        request<{ unmapped: number; suggestions: MappingSuggestion[] }>(
+          'GET',
+          `/sites/${encodeURIComponent(siteId)}/signals/suggestions?limit=${limit}`,
         ),
       get: (siteId: string, signalId: string) =>
         request<SignalInfo>('GET', `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`),
