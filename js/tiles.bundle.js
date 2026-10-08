@@ -772,7 +772,7 @@
 	function createApiClient(options) {
 		const base = normalizeBaseUrl(options.baseUrl);
 		const doFetch = options.fetch ?? ((...args) => fetch(...args));
-		async function request(method, path, body, { anonymous = false } = {}) {
+		async function request(method, path, body, { anonymous = false, text = false } = {}) {
 			const headers = { Accept: "application/json" };
 			if (body !== void 0) headers["Content-Type"] = "application/json";
 			if (!anonymous && options.userEmail) headers["X-Tiles-User"] = options.userEmail;
@@ -790,6 +790,7 @@
 			}
 			const requestId = res.headers.get("x-request-id");
 			if (res.status === 204) return void 0;
+			if (text && res.ok) return await res.text();
 			let parsed = null;
 			try {
 				parsed = await res.json();
@@ -855,6 +856,14 @@
 				history: (siteId, { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/commits?limit=${limit}&offset=${offset}`),
 				revert: (siteId, commitId) => request("POST", `${site(siteId)}/commits/${encodeURIComponent(commitId)}/revert`),
 				health: (siteId, view = "head") => request("GET", `${site(siteId)}/health?view=${view}`),
+				exportFile: (siteId, format) => request("GET", `${site(siteId)}/export?format=${format}`, void 0, { text: true }),
+				importFile: (siteId, file) => request("POST", `${site(siteId)}/import`, {
+					format: file.format,
+					content: file.content,
+					name: file.name,
+					mode: file.mode,
+					dry_run: file.dryRun
+				}),
 				reviewPolicy: (siteId) => request("GET", `${site(siteId)}/review-policy`),
 				setReviewPolicy: (siteId, required) => request("PUT", `${site(siteId)}/review-policy`, { required })
 			},
@@ -1201,6 +1210,16 @@
 			e.preventDefault();
 			handler(e.currentTarget, e.submitter);
 		});
+	}
+	function download(name, text, type) {
+		const url = URL.createObjectURL(new Blob([text], { type }));
+		const a = document.createElement("a");
+		a.href = url;
+		a.download = name;
+		document.body.append(a);
+		a.click();
+		a.remove();
+		setTimeout(() => URL.revokeObjectURL(url), 1e3);
 	}
 	//#endregion
 	//#region js/lib/design.ts
@@ -1799,6 +1818,71 @@
 		}
 	};
 	//#endregion
+	//#region js/lib/review.ts
+	var show$1 = (v) => typeof v === "string" ? `“${v}”` : String(v);
+	function describeChanges(head, ops, { compare = true } = {}) {
+		let graph = head;
+		return ops.map((op) => {
+			const label = (id) => graph.nodes[id]?.label ?? id;
+			const change = describe$1(op, compare ? graph : {
+				nodes: {},
+				edges: {}
+			}, label);
+			if (!compare) return change;
+			try {
+				graph = applyOp(graph, op).graph;
+			} catch (e) {
+				change.problem = e instanceof Error ? e.message : String(e);
+			}
+			return change;
+		});
+	}
+	function describe$1(op, graph, label) {
+		switch (op.kind) {
+			case "addNode": {
+				const props = Object.entries(op.node.props ?? {}).map(([k, v]) => `${k} ${show$1(v)}`);
+				return {
+					sign: "+",
+					text: `${op.node.type} “${op.node.label}”${props.length ? ` (${props.join(", ")})` : ""}`
+				};
+			}
+			case "removeNode": {
+				const node = graph.nodes[op.id];
+				return {
+					sign: "−",
+					text: node ? `${node.type} “${node.label}”` : `node ${label(op.id)}`
+				};
+			}
+			case "addEdge": return {
+				sign: "+",
+				text: `${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`
+			};
+			case "removeEdge": {
+				const edge = graph.edges[op.id];
+				return {
+					sign: "−",
+					text: edge ? `${label(edge.from)} —${edge.rel}→ ${label(edge.to)}` : `relationship ${op.id}`
+				};
+			}
+			case "setProp": {
+				const before = graph.nodes[op.id]?.props?.[op.key];
+				const what = `${label(op.id)} · ${op.key}`;
+				if (op.value === void 0) return {
+					sign: "−",
+					text: before === void 0 ? what : `${what} (was ${show$1(before)})`
+				};
+				if (before === void 0) return {
+					sign: "+",
+					text: `${what} = ${show$1(op.value)}`
+				};
+				return {
+					sign: "~",
+					text: `${what}: ${show$1(before)} → ${show$1(op.value)}`
+				};
+			}
+		}
+	}
+	//#endregion
 	//#region js/views/ontology.ts
 	var uiState$4 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
@@ -1956,6 +2040,58 @@
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
 	}
+	var pending = null;
+	var PREVIEW_LINES = 40;
+	function importSummary(c) {
+		const part = (n, one, many) => n ? `${n} ${n === 1 ? one : many}` : "";
+		const parts = [
+			part(c.add_nodes, "new node", "new nodes"),
+			part(c.remove_nodes, "node removed", "nodes removed"),
+			part(c.set_props, "property set", "properties set"),
+			part(c.remove_props, "property removed", "properties removed"),
+			part(c.add_edges, "new relationship", "new relationships"),
+			part(c.remove_edges, "relationship removed", "relationships removed")
+		].filter(Boolean);
+		return parts.length ? parts.join(", ") : "nothing to change: the ontology already matches the file";
+	}
+	function importCard$1(ctx) {
+		const p = pending;
+		if (!p || p.site !== ctx.ontology.site?.id) return "";
+		const preview = p.preview;
+		const lines = preview ? describeChanges(ctx.state.repo.head, preview.ops.slice(0, PREVIEW_LINES)).map((c) => `<div class="change ${c.sign === "+" ? "plus" : c.sign === "−" ? "minus" : "mod"}"><span class="sign">${c.sign}</span> ${esc(c.text)}</div>`).join("") : "";
+		const more = preview && preview.total > PREVIEW_LINES ? `<div>… ${preview.total - PREVIEW_LINES} more</div>` : "";
+		return `
+    <div class="card" id="import-card" style="margin-bottom:16px">
+      <div class="card-head"><h2>Import ${esc(p.name)}</h2>
+        <label class="row small" style="gap:6px">Mode<select name="import-mode" data-import-mode aria-label="Import mode">
+          <option value="merge" ${p.mode === "merge" ? "selected" : ""}>Merge: add and update</option>
+          <option value="replace" ${p.mode === "replace" ? "selected" : ""}>Replace: the ontology becomes the file</option>
+        </select></label></div>
+      ${preview ? `<p class="small" data-import-summary>${esc(importSummary(preview.counts))}.${preview.duplicates.length ? ` ${preview.duplicates.length} relationship(s) already there under another id are skipped.` : ""}</p>
+      <div class="diff review-diff">${lines}${more}</div>
+      <p class="small soft" style="margin-top:8px">The changes are staged, not committed: you then commit them, or send them for review.</p>
+      <div class="row" style="gap:8px;margin-top:8px">
+        <button class="btn primary" data-import-stage ${preview.total ? "" : "disabled"}>Stage ${preview.total} change(s)</button>
+        <button class="btn" data-import-cancel>Cancel</button>
+      </div>` : "<p class=\"small soft\">Checking the file against the ontology…</p>"}
+    </div>`;
+	}
+	async function planImport(ctx) {
+		const p = pending;
+		if (!p || !ctx.api) return;
+		p.preview = null;
+		ctx.rerender();
+		try {
+			const preview = await ctx.api.ontology.importFile(p.site, {
+				...p,
+				dryRun: true
+			});
+			if (pending === p) p.preview = preview;
+		} catch {
+			if (pending === p) pending = null;
+		}
+		ctx.rerender();
+	}
 	var EDIT_CONTROLS = "#node-form, #prop-form, #link-form, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]";
 	function viewOnlyNote() {
 		return `
@@ -2045,7 +2181,7 @@
 		const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
 		return `<div class="card source-bar small" aria-live="polite">
       <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.reviewRequired ? " Every change needs a review." : ""}${o.role === "viewer" ? " <span class=\"badge\">View only</span>" : ""}</span>
-      <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-refresh>Refresh</button></span>
+      <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
 	var view$8 = {
@@ -2089,6 +2225,7 @@
       ${pageHead()}
       ${source}
       ${stagedBar}
+      ${importCard$1(ctx)}
       <div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? "active" : ""}" data-tab="${id}" role="tab">${label}</button>`).join("")}</div>
       ${body}`;
 		},
@@ -2099,6 +2236,64 @@
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
 			const stageOp = (op, ok) => stageOps([op], ok);
 			onAll(root, "[data-refresh]", "click", () => void ctx.ontology.reload());
+			onAll(root, "[data-export]", "click", async (el) => {
+				const site = ctx.ontology.site;
+				const format = el.dataset.export === "csv" ? "csv" : "json";
+				if (!ctx.api || !site) return;
+				try {
+					const text = await ctx.api.ontology.exportFile(site.id, format);
+					download(`${site.slug}-ontology.${format}`, text, format === "csv" ? "text/csv" : "application/json");
+				} catch {}
+			});
+			root.querySelector("[data-import-file]")?.addEventListener("change", (e) => {
+				const input = e.target;
+				const file = input.files?.[0];
+				const site = ctx.ontology.site;
+				input.value = "";
+				if (!file || !site) return;
+				file.text().then((content) => {
+					const format = /\.csv$/i.test(file.name) || file.type === "text/csv" ? "csv" : "json";
+					pending = {
+						site: site.id,
+						name: file.name,
+						format,
+						content,
+						mode: "merge",
+						preview: null
+					};
+					planImport(ctx);
+				});
+			});
+			root.querySelector("[data-import-mode]")?.addEventListener("change", (e) => {
+				if (!pending) return;
+				pending.mode = e.target.value === "replace" ? "replace" : "merge";
+				planImport(ctx);
+			});
+			onAll(root, "[data-import-cancel]", "click", () => {
+				pending = null;
+				ctx.rerender();
+			});
+			onAll(root, "[data-import-stage]", "click", (el) => {
+				const p = pending;
+				if (!p || !ctx.api) return;
+				el.setAttribute("disabled", "");
+				const api = ctx.api;
+				ctx.ontology.act(async (store) => {
+					const result = await api.ontology.importFile(p.site, {
+						...p,
+						dryRun: false
+					});
+					if (pending === p) pending = null;
+					if (!(store.kind === "api" && "load" in store)) throw new Error("Imports need the Tiles API");
+					if (!result.staged) throw new Error("Nothing to change: the ontology already matches the file");
+					return store.load();
+				}, `Staged the changes from ${p.name}: commit them, or send them for review`).then((ok) => {
+					if (!ok && pending === p) {
+						pending = null;
+						ctx.rerender();
+					}
+				});
+			});
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
 			onAll(root, "[data-import-demo]", "click", async (el) => {
 				el.setAttribute("disabled", "");
@@ -2793,7 +2988,7 @@
 	//#region js/views/design.ts
 	var defaults = (model) => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
-	var show$1 = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
+	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
 	var uiState$1 = (ctx) => ctx.ui("design", {
 		model: "swelling",
@@ -2901,7 +3096,7 @@
                 ${runs.map((r) => {
 				const diff = runDiff(r, r.parent ? byId.get(r.parent) : null);
 				return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : "<span class=\"muted\">untitled</span>"}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
-                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show$1(d.from)} → ${show$1(d.to)}`).join("<br>") || "no change" : "first run"}</td>
+                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join("<br>") || "no change" : "first run"}</td>
                       <td class="num"><b>${fmt$1(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
 			}).join("")}</tbody></table></div>` : "<div class=\"empty\">No runs yet. Adjust parameters and press “Save run”.</div>"}
         </div>
@@ -3739,7 +3934,7 @@
 		if (seconds < 172800) return `${+(seconds / 3600).toPrecision(3)} h`;
 		return `${+(seconds / 86400).toPrecision(3)} d`;
 	}
-	function describe$1(series) {
+	function describe(series) {
 		const readings = series.points.reduce((n, p) => n + p.n, 0);
 		if (!readings) return "No readings in this range";
 		return series.bucket_s === null ? `${fmt$1(readings, 0)} reading(s)` : `${fmt$1(readings, 0)} readings, as ${fmt$1(series.points.length, 0)} averages of ${duration(series.bucket_s)} with their range`;
@@ -3762,7 +3957,7 @@
 			width: fitWidth(TIME_CHART.width)
 		}) : ""}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
-    <p class="small soft" data-series-note>${esc(describe$1(series))}</p>`;
+    <p class="small soft" data-series-note>${esc(describe(series))}</p>`;
 	}
 	var localInput = (isoTime) => {
 		const d = new Date(isoTime);
@@ -3982,71 +4177,6 @@
 			loadCharts(root, ctx);
 		}
 	};
-	//#endregion
-	//#region js/lib/review.ts
-	var show = (v) => typeof v === "string" ? `“${v}”` : String(v);
-	function describeChanges(head, ops, { compare = true } = {}) {
-		let graph = head;
-		return ops.map((op) => {
-			const label = (id) => graph.nodes[id]?.label ?? id;
-			const change = describe(op, compare ? graph : {
-				nodes: {},
-				edges: {}
-			}, label);
-			if (!compare) return change;
-			try {
-				graph = applyOp(graph, op).graph;
-			} catch (e) {
-				change.problem = e instanceof Error ? e.message : String(e);
-			}
-			return change;
-		});
-	}
-	function describe(op, graph, label) {
-		switch (op.kind) {
-			case "addNode": {
-				const props = Object.entries(op.node.props ?? {}).map(([k, v]) => `${k} ${show(v)}`);
-				return {
-					sign: "+",
-					text: `${op.node.type} “${op.node.label}”${props.length ? ` (${props.join(", ")})` : ""}`
-				};
-			}
-			case "removeNode": {
-				const node = graph.nodes[op.id];
-				return {
-					sign: "−",
-					text: node ? `${node.type} “${node.label}”` : `node ${label(op.id)}`
-				};
-			}
-			case "addEdge": return {
-				sign: "+",
-				text: `${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`
-			};
-			case "removeEdge": {
-				const edge = graph.edges[op.id];
-				return {
-					sign: "−",
-					text: edge ? `${label(edge.from)} —${edge.rel}→ ${label(edge.to)}` : `relationship ${op.id}`
-				};
-			}
-			case "setProp": {
-				const before = graph.nodes[op.id]?.props?.[op.key];
-				const what = `${label(op.id)} · ${op.key}`;
-				if (op.value === void 0) return {
-					sign: "−",
-					text: before === void 0 ? what : `${what} (was ${show(before)})`
-				};
-				if (before === void 0) return {
-					sign: "+",
-					text: `${what} = ${show(op.value)}`
-				};
-				return {
-					sign: "~",
-					text: `${what}: ${show(before)} → ${show(op.value)}`
-				};
-			}
-		}
-	}
 	//#endregion
 	//#region js/views/reviews.ts
 	var uiState = (ctx) => ctx.ui("reviews", {

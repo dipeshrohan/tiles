@@ -1,7 +1,9 @@
 import { NODE_TYPES, healthCheck, neighbors, pathTo, diffStats } from '../lib/ontology.ts';
-import { historyOps, safeWorkingGraph } from '../lib/ontology-store.ts';
+import { historyOps, safeWorkingGraph, type RemoteStore } from '../lib/ontology-store.ts';
 import { seedOntology } from '../lib/data.ts';
-import { esc, field, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
+import { download, esc, field, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
+import { describeChanges } from '../lib/review.ts';
+import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 
@@ -178,6 +180,80 @@ function inspector(graph: Graph, id: string): string {
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ''}>Delete node</button>`;
 }
 
+// A file being imported (T2.13, API mode): read here, planned by the API, staged once confirmed.
+interface PendingImport {
+  site: string;
+  name: string;
+  format: 'json' | 'csv';
+  content: string;
+  mode: 'merge' | 'replace';
+  preview: OntologyImport | null; // null while it is planned
+}
+let pending: PendingImport | null = null;
+
+const PREVIEW_LINES = 40;
+
+export function importSummary(c: OntologyImport['counts']): string {
+  const part = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : '');
+  const parts = [
+    part(c.add_nodes, 'new node', 'new nodes'),
+    part(c.remove_nodes, 'node removed', 'nodes removed'),
+    part(c.set_props, 'property set', 'properties set'),
+    part(c.remove_props, 'property removed', 'properties removed'),
+    part(c.add_edges, 'new relationship', 'new relationships'),
+    part(c.remove_edges, 'relationship removed', 'relationships removed'),
+  ].filter(Boolean);
+  return parts.length ? parts.join(', ') : 'nothing to change: the ontology already matches the file';
+}
+
+function importCard(ctx: Context): string {
+  const p = pending;
+  if (!p || p.site !== ctx.ontology.site?.id) return '';
+  const preview = p.preview;
+  const lines = preview
+    ? describeChanges(ctx.state.repo.head, preview.ops.slice(0, PREVIEW_LINES))
+        .map(
+          (c) =>
+            `<div class="change ${c.sign === '+' ? 'plus' : c.sign === '−' ? 'minus' : 'mod'}"><span class="sign">${c.sign}</span> ${esc(c.text)}</div>`,
+        )
+        .join('')
+    : '';
+  const more = preview && preview.total > PREVIEW_LINES ? `<div>… ${preview.total - PREVIEW_LINES} more</div>` : '';
+  return `
+    <div class="card" id="import-card" style="margin-bottom:16px">
+      <div class="card-head"><h2>Import ${esc(p.name)}</h2>
+        <label class="row small" style="gap:6px">Mode<select name="import-mode" data-import-mode aria-label="Import mode">
+          <option value="merge" ${p.mode === 'merge' ? 'selected' : ''}>Merge: add and update</option>
+          <option value="replace" ${p.mode === 'replace' ? 'selected' : ''}>Replace: the ontology becomes the file</option>
+        </select></label></div>
+      ${
+        preview
+          ? `<p class="small" data-import-summary>${esc(importSummary(preview.counts))}.${preview.duplicates.length ? ` ${preview.duplicates.length} relationship(s) already there under another id are skipped.` : ''}</p>
+      <div class="diff review-diff">${lines}${more}</div>
+      <p class="small soft" style="margin-top:8px">The changes are staged, not committed: you then commit them, or send them for review.</p>
+      <div class="row" style="gap:8px;margin-top:8px">
+        <button class="btn primary" data-import-stage ${preview.total ? '' : 'disabled'}>Stage ${preview.total} change(s)</button>
+        <button class="btn" data-import-cancel>Cancel</button>
+      </div>`
+          : '<p class="small soft">Checking the file against the ontology…</p>'
+      }
+    </div>`;
+}
+
+async function planImport(ctx: Context): Promise<void> {
+  const p = pending;
+  if (!p || !ctx.api) return;
+  p.preview = null;
+  ctx.rerender();
+  try {
+    const preview = await ctx.api.ontology.importFile(p.site, { ...p, dryRun: true });
+    if (pending === p) p.preview = preview;
+  } catch {
+    if (pending === p) pending = null; // the client showed why
+  }
+  ctx.rerender();
+}
+
 // Controls that change the ontology; removed for viewers (the API refuses
 // their writes anyway, this just keeps the page honest).
 const EDIT_CONTROLS =
@@ -300,7 +376,7 @@ function sourceBar(ctx: Context): string {
   const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
   return `<div class="card source-bar small" aria-live="polite">
       <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.reviewRequired ? ' Every change needs a review.' : ''}${o.role === 'viewer' ? ' <span class="badge">View only</span>' : ''}</span>
-      <span class="row" style="gap:8px">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-refresh>Refresh</button></span>
+      <span class="row" style="gap:8px">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === 'viewer' ? '' : `<label class="btn sm" ${staged.length ? 'aria-disabled="true" title="Commit or discard your staged changes first"' : ''}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? 'disabled' : ''} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 }
 
@@ -359,6 +435,7 @@ const view: View = {
       ${pageHead()}
       ${source}
       ${stagedBar}
+      ${importCard(ctx)}
       <div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-tab="${id}" role="tab">${label}</button>`).join('')}</div>
       ${body}`;
   },
@@ -370,6 +447,58 @@ const view: View = {
     const stageOps = (ops: Op[], ok?: string) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
     const stageOp = (op: Op, ok?: string) => stageOps([op], ok);
     onAll(root, '[data-refresh]', 'click', () => void ctx.ontology.reload());
+    onAll(root, '[data-export]', 'click', async (el) => {
+      const site = ctx.ontology.site;
+      const format = el.dataset.export === 'csv' ? 'csv' : 'json';
+      if (!ctx.api || !site) return;
+      try {
+        const text = await ctx.api.ontology.exportFile(site.id, format);
+        download(`${site.slug}-ontology.${format}`, text, format === 'csv' ? 'text/csv' : 'application/json');
+      } catch {
+        // the client showed why
+      }
+    });
+    root.querySelector<HTMLInputElement>('[data-import-file]')?.addEventListener('change', (e) => {
+      const input = e.target as HTMLInputElement;
+      const file = input.files?.[0];
+      const site = ctx.ontology.site;
+      input.value = ''; // choosing the same file again still counts
+      if (!file || !site) return;
+      void file.text().then((content) => {
+        const format = /\.csv$/i.test(file.name) || file.type === 'text/csv' ? 'csv' : 'json';
+        pending = { site: site.id, name: file.name, format, content, mode: 'merge', preview: null };
+        void planImport(ctx);
+      });
+    });
+    root.querySelector<HTMLSelectElement>('[data-import-mode]')?.addEventListener('change', (e) => {
+      if (!pending) return;
+      pending.mode = (e.target as HTMLSelectElement).value === 'replace' ? 'replace' : 'merge';
+      void planImport(ctx);
+    });
+    onAll(root, '[data-import-cancel]', 'click', () => {
+      pending = null;
+      ctx.rerender();
+    });
+    onAll(root, '[data-import-stage]', 'click', (el) => {
+      const p = pending;
+      if (!p || !ctx.api) return;
+      el.setAttribute('disabled', '');
+      const api = ctx.api;
+      void ctx.ontology
+        .act(async (store) => {
+          const result = await api.ontology.importFile(p.site, { ...p, dryRun: false });
+          if (pending === p) pending = null;
+          if (!(store.kind === 'api' && 'load' in store)) throw new Error('Imports need the Tiles API');
+          if (!result.staged) throw new Error('Nothing to change: the ontology already matches the file');
+          return (store as RemoteStore).load();
+        }, `Staged the changes from ${p.name}: commit them, or send them for review`)
+        .then((ok) => {
+          if (!ok && pending === p) {
+            pending = null;
+            ctx.rerender();
+          }
+        });
+    });
     onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());
     onAll(root, '[data-import-demo]', 'click', async (el) => {
       el.setAttribute('disabled', '');

@@ -111,6 +111,12 @@ def _clone(g: Graph) -> Graph:
 def apply_op(graph: Graph, op: Op) -> tuple[Graph, Op]:
     """Apply one op; return the new graph and the op that undoes it."""
     g = _clone(graph)
+    return g, _apply(g, op)
+
+
+def _apply(g: Graph, op: Op) -> Op:
+    """Apply one op to `g` in place (a clone the caller owns); return the op that undoes it.
+    Node and edge records are replaced, never changed, so they can be shared with other graphs."""
     kind = op.get("kind")
     if kind == "addNode":
         node = op["node"]
@@ -124,7 +130,7 @@ def apply_op(graph: Graph, op: Op) -> tuple[Graph, Op]:
             "label": node["label"],
             "props": dict(node.get("props") or {}),
         }
-        return g, {"kind": "removeNode", "id": node["id"]}
+        return {"kind": "removeNode", "id": node["id"]}
     if kind == "removeNode":
         existing = g["nodes"].get(op["id"])
         if existing is None:
@@ -133,7 +139,7 @@ def apply_op(graph: Graph, op: Op) -> tuple[Graph, Op]:
         if attached:
             raise OntologyError(f"Node {op['id']} still has {len(attached)} relationship(s)")
         del g["nodes"][op["id"]]
-        return g, {"kind": "addNode", "node": existing}
+        return {"kind": "addNode", "node": existing}
     if kind == "addEdge":
         e = op["edge"]
         if e["id"] in g["edges"]:
@@ -141,13 +147,13 @@ def apply_op(graph: Graph, op: Op) -> tuple[Graph, Op]:
         if e["from"] not in g["nodes"] or e["to"] not in g["nodes"]:
             raise OntologyError(f"Relationship {e['id']} points at a missing node")
         g["edges"][e["id"]] = {"id": e["id"], "from": e["from"], "rel": e["rel"], "to": e["to"]}
-        return g, {"kind": "removeEdge", "id": e["id"]}
+        return {"kind": "removeEdge", "id": e["id"]}
     if kind == "removeEdge":
         edge = g["edges"].get(op["id"])
         if edge is None:
             raise OntologyError(f"Relationship {op['id']} not found")
         del g["edges"][op["id"]]
-        return g, {"kind": "addEdge", "edge": edge}
+        return {"kind": "addEdge", "edge": edge}
     if kind == "setProp":
         target = g["nodes"].get(op["id"])
         if target is None:
@@ -163,17 +169,15 @@ def apply_op(graph: Graph, op: Op) -> tuple[Graph, Op]:
         inverse: Op = {"kind": "setProp", "id": op["id"], "key": key}
         if had:
             inverse["value"] = target["props"][key]
-        return g, inverse
+        return inverse
     raise OntologyError(f"Unknown op {kind}")
 
 
 def apply_ops(graph: Graph, ops: list[Op]) -> tuple[Graph, list[Op]]:
     """Apply ops in order; inverses come back in undo order (last op first)."""
-    g = graph
-    inverses: list[Op] = []
-    for op in ops:
-        g, inverse = apply_op(g, op)
-        inverses.insert(0, inverse)
+    g = _clone(graph)  # once: the ops then change the clone, not `graph`
+    inverses = [_apply(g, op) for op in ops]
+    inverses.reverse()
     return g, inverses
 
 

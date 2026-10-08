@@ -286,3 +286,21 @@ test('every change-review call hits the documented path with its body', async ()
     undefined,
   ]);
 });
+
+test('an ontology export comes back as the file text; an import sends the file and the mode', async () => {
+  const f = fakeFetch({ raw: 'kind,id\n', headers: { 'content-type': 'text/csv' } }, { body: { total: 0 } });
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  assert.equal(await api.ontology.exportFile('s', 'csv'), 'kind,id\n');
+  await api.ontology.importFile('s', { format: 'json', content: '{}', name: 'a.json', mode: 'replace', dryRun: true });
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    ['GET /sites/s/ontology/export?format=csv', 'POST /sites/s/ontology/import'],
+  );
+  assert.deepEqual(JSON.parse(f.calls[1].body), {
+    format: 'json',
+    content: '{}',
+    name: 'a.json',
+    mode: 'replace',
+    dry_run: true,
+  });
+});
