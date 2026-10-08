@@ -64,3 +64,10 @@ test('the ontology link: the node, a node with an empty label, or one that is go
   assert.match(row({ node_id: 'sig-1', node_label: '' }), /<a href="#\/ontology">sig-1<\/a>/);
   assert.match(row({ node_id: 'sig-1', node_label: null }), /missing node/);
 });
+
+test('text fields left as they were are not sent, even when stored with spaces', () => {
+  const spaced = { ...SIG, unit: 'kg ', description: ' Platen ' };
+  const form = { unit: 'kg ', rate: '20', description: ' Platen ', node: '' };
+  assert.deepEqual(changeFrom(form, spaced), { sample_rate_hz: 20 });
+  assert.deepEqual(changeFrom({ ...form, unit: ' t ' }, spaced), { unit: 't', sample_rate_hz: 20 });
+});

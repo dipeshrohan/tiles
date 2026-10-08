@@ -49,15 +49,20 @@ export function changeFrom(
   s: SignalInfo,
 ): SignalChange | string {
   const change: SignalChange = {};
-  const unit = form.unit.trim() || null;
-  if (unit !== s.unit) change.unit = unit;
+  // A text field the user left as it was is not sent, even if stored with spaces around it.
+  if (form.unit !== (s.unit ?? '')) {
+    const unit = form.unit.trim() || null;
+    if (unit !== s.unit) change.unit = unit;
+  }
   const rateText = form.rate.trim().replace(',', '.');
   const rate = rateText === '' ? null : Number(rateText);
   if (rate !== null && !(Number.isFinite(rate) && rate > 0))
     return 'The sample rate is a number of readings per second, above 0.';
   if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
-  const description = form.description.trim();
-  if (description !== s.description) change.description = description;
+  if (form.description !== s.description) {
+    const description = form.description.trim();
+    if (description !== s.description) change.description = description;
+  }
   const node = form.node || null;
   if (node !== s.node_id) change.node_id = node;
   return change;
