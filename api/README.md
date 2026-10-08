@@ -113,6 +113,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `ontology.review.reject` | the change request | | `{"comment": …}`, the reason |
 | `ontology.review.rework` | the change request | | the ops staged again |
 | `ontology.review_policy` | the site | `{"required": …}` | `{"required": …}` |
+| `model.bind`, `model.run`, `model.stop` | the model binding | `model.stop`: its name | `model.bind`: its model, inputs, params and outputs; `model.run`: windows run, readings written, `done_until`, error |
 | `ontology.import` | your staged ops | | the file's name, format, mode and the counts staged |
 | `member.role` | the member | old role | new role |
 | `agent.register` | the edge agent | | `{"name": …}` (never the token) |
@@ -182,6 +183,17 @@ Models are registered in code (`tiles_api/models/`): each declares its key, vers
 | `GET /models` | members | every registered model version with its inputs, outputs and parameters |
 | `GET /models/{key}` | members | a model's versions, newest first |
 | `POST /models/{key}/evaluate` | members | `{"version"?, "inputs": {name: [numbers]}, "params"?: {name: number}}` (up to 20 inputs of 100,000 numbers) runs it and answers the outputs; nothing is stored |
+
+#### Model runner (T3.03)
+
+A **binding** runs a registered model version on a site's signals. Each model input is fed by a signal, or by `@time`, the seconds since the window began. The input signals' readings are joined on their timestamps and cut into **windows**: where the readings pause for longer than the window's seconds (`gap`: a shot, a batch), or every that many seconds (`fixed`). A window runs once it is complete, which means more data follows it or it is older than its seconds, so a shot still being recorded waits. Each output becomes a signal of the site, `<binding>.<output>`, with source `model:<key>@<version>` and the output's unit. Per-sample outputs are written at each sample's time and per-window outputs at the window's last reading. A binding starts with the history already stored, and `done_until` moves past each window run, so later runs take only new data. Writes skip readings already stored, so running again is harmless. A window the model refuses is skipped and its reason kept as `last_error`. Schedule `uv run tiles-run-models` (optionally `--site <id>`) from cron, for example every minute: each binding runs in its own transaction, and the exit code is 1 if one failed.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `GET /model-bindings` | members | the bindings with their inputs, outputs and last run (windows, error, `done_until`) |
+| `POST /model-bindings` | engineers | `{"name", "model", "version"?, "inputs": {input: signal id or "@time"}, "params"?, "window": {"kind": "gap"\|"fixed", "seconds"}}` binds the model (the latest version unless named; pinned from then on) and creates its output signals |
+| `POST /model-bindings/{id}/run` | engineers | runs it on its new data now |
+| `DELETE /model-bindings/{id}` | engineers | stops it; its derived signals and their readings stay |
 
 ### Signals and data quality
 
