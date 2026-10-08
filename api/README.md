@@ -228,7 +228,7 @@ The status is separate from `state`, which says whether the signal is still out 
 | `GET /warnings?state=open\|ended\|all&status=raised\|acknowledged\|resolved\|unresolved\|all&assignee=me\|none\|<user id>&outcome&signal_id&limit&offset` | members | warnings, newest first: when, how far out (peak against baseline and threshold), how many readings, when the signal came back, and their status, assignee and outcome |
 | `GET /warnings/{id}` | members | one warning, with its detector's settings and its activity (oldest first, starting with raised) |
 | `POST /warnings/{id}/acknowledge` | engineers | `{"note"?}`; refused if already acknowledged or resolved |
-| `PUT /warnings/{id}/assignee` | engineers | `{"user_id": <id> or null, "note"?}` assigns it to an engineer or admin of the site (an organisation admin counts even before visiting it), or unassigns it; to the current assignee, it only keeps the note as a comment |
+| `PUT /warnings/{id}/assignee` | engineers | `{"user_id": <id> or null, "note"?}` assigns it to an engineer or admin of the site (an organisation admin counts even before visiting it), or unassigns it; to the current assignee, it only keeps the note as a comment (even if they could no longer be given new ones) |
 | `POST /warnings/{id}/resolve` | engineers | `{"outcome", "note"?}` |
 | `POST /warnings/{id}/reopen` | engineers | `{"note"?}` |
 | `POST /warnings/{id}/comments` | engineers | `{"note"}` adds a comment, whatever the status |

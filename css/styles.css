@@ -628,6 +628,14 @@ tr.selected td {
   stroke: var(--line);
   stroke-width: 1;
 }
+.chart .span {
+  fill: var(--band);
+}
+.chart .level {
+  stroke: var(--soft);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
 .chart .tick {
   fill: var(--muted);
   font-size: 11px;

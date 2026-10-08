@@ -1,5 +1,6 @@
 // Minimal SVG charts. Colors come from CSS variables so charts follow the theme.
 
+import type { SignalSeries } from './api.ts';
 import { esc, fmt } from './dom.ts';
 
 export interface Series {
@@ -267,9 +268,29 @@ export interface TimeChartOptions {
   width?: number;
   height?: number;
   yLabel?: string;
+  levels?: { v: number; label: string }[]; // reference lines (a threshold, a baseline), kept in view
+  spans?: { from: number; to: number }[]; // stretches of time to shade (a warning)
 }
 
 export const TIME_CHART = { width: 900, height: 220, pad: PAD };
+
+// The numeric points to plot (text readings are listed, not plotted).
+export function toPoints(series: SignalSeries): TimePoint[] {
+  return series.points
+    .filter((p) => p.value !== null)
+    .map((p) => ({ t: Date.parse(p.at), v: p.value!, lo: p.min ?? p.value!, hi: p.max ?? p.value! }));
+}
+
+// How far apart two points may be and still be joined: one and a half buckets, or five of the usual steps.
+export function gapFor(series: SignalSeries, points: TimePoint[]): number {
+  if (series.bucket_s !== null) return series.bucket_s * 1500;
+  const steps = points
+    .slice(1)
+    .map((p, i) => p.t - points[i]!.t)
+    .sort((a, b) => a - b);
+  const median = steps[Math.floor((steps.length - 1) / 2)];
+  return median === undefined ? Infinity : Math.max(1, median * 5);
+}
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -352,12 +373,15 @@ export function timeChart({
   width = TIME_CHART.width,
   height = TIME_CHART.height,
   yLabel = '',
+  levels = [],
+  spans = [],
 }: TimeChartOptions): string {
   const shown = points.filter((p) => p.t >= from && p.t <= to);
   if (!shown.length)
     return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}"><text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
-  let lo = Math.min(...shown.map((p) => p.lo));
-  let hi = Math.max(...shown.map((p) => p.hi));
+  const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
+  let lo = Math.min(...shown.map((p) => p.lo), ...marks);
+  let hi = Math.max(...shown.map((p) => p.hi), ...marks);
   if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
   const x = scale(from, to, PAD.l, width - PAD.r);
   const y = scale(lo, hi, height - PAD.b, PAD.t);
@@ -388,10 +412,31 @@ export function timeChart({
     .join('');
   const yt = ticks(lo, hi, 4);
   const { step, ticks: xt } = timeTicks(from, to);
+  const shade = spans
+    .map((s) => [Math.max(s.from, from), Math.min(s.to, to)] as const)
+    .filter(([a, b]) => b >= a)
+    .map(([a, b]) => {
+      const w = Math.max(2, x(b) - x(a));
+      return `<rect class="span" x="${x(a).toFixed(1)}" y="${PAD.t}" width="${w.toFixed(1)}" height="${height - PAD.b - PAD.t}"/>`;
+    })
+    .join('');
+  // Each label sits just above its line; one too close to the label above it goes below its line.
+  let lastLabel = -Infinity;
+  const refs = levels
+    .filter((l) => Number.isFinite(l.v))
+    .map((l) => ({ ...l, at: y(l.v) }))
+    .sort((a, b) => a.at - b.at)
+    .map((l) => {
+      const above = l.at - 4;
+      const labelY = above - lastLabel < 12 ? l.at + 12 : above;
+      lastLabel = labelY;
+      return `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`;
+    })
+    .join('');
   return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join('')}
-    ${band}${lines}
+    ${shade}${band}${lines}${refs}
     ${yLabel ? `<text class="axis" x="4" y="${PAD.t - 10}">${esc(yLabel)}</text>` : ''}
   </svg>`;
 }

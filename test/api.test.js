@@ -304,3 +304,48 @@ test('an ontology export comes back as the file text; an import sends the file a
     dry_run: true,
   });
 });
+
+test('every warning call hits the documented path with its body', async () => {
+  const f = fakeFetch(...Array.from({ length: 8 }, () => ({ body: {} })));
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  await api.warnings.list('s');
+  await api.warnings.list('s', { status: 'unresolved', assignee: 'me', state: 'open', outcome: undefined, limit: 50 });
+  await api.warnings.get('s', 'w 1');
+  await api.warnings.acknowledge('s', 'w1');
+  await api.warnings.assign('s', 'w1', 'u2', 'yours');
+  await api.warnings.assign('s', 'w1', null);
+  await api.warnings.resolve('s', 'w1', 'false_alarm', 'noise');
+  await api.warnings.reopen('s', 'w1');
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    [
+      'GET /sites/s/warnings',
+      'GET /sites/s/warnings?status=unresolved&assignee=me&state=open&limit=50',
+      'GET /sites/s/warnings/w%201',
+      'POST /sites/s/warnings/w1/acknowledge',
+      'PUT /sites/s/warnings/w1/assignee',
+      'PUT /sites/s/warnings/w1/assignee',
+      'POST /sites/s/warnings/w1/resolve',
+      'POST /sites/s/warnings/w1/reopen',
+    ],
+  );
+  assert.deepEqual(
+    f.calls.map((c) => (c.body === undefined ? undefined : JSON.parse(c.body))),
+    [
+      undefined,
+      undefined,
+      undefined,
+      { note: '' },
+      { user_id: 'u2', note: 'yours' },
+      { user_id: null, note: '' },
+      { outcome: 'false_alarm', note: 'noise' },
+      { note: '' },
+    ],
+  );
+  const g = fakeFetch({ status: 201, body: {} });
+  await createApiClient({ baseUrl: 'http://api.test', fetch: g.fn }).warnings.comment('s', 'w1', 'seen');
+  assert.deepEqual(
+    [g.calls[0].method, g.calls[0].url, JSON.parse(g.calls[0].body)],
+    ['POST', 'http://api.test/sites/s/warnings/w1/comments', { note: 'seen' }],
+  );
+});

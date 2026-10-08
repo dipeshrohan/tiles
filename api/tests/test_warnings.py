@@ -170,6 +170,30 @@ def test_an_organisation_admin_can_be_assigned_before_visiting_the_site(
     assert (res.status_code, res.json()["assignee"]) == (200, "boss")
 
 
+def test_a_warning_stays_with_someone_demoted_until_it_is_reassigned(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    first, _, _ = raise_warnings(api, site)
+    eng2 = user_id(api, site, ENG2)
+    path = f"/sites/{site}/warnings/{first}/assignee"
+    assert api.put(path, json={"user_id": eng2}, headers=ENG).status_code == 200
+    with psycopg.connect(database_url) as conn:
+        conn.execute("UPDATE site_members SET role = 'viewer' WHERE site_id = %s AND user_id = %s", [site, eng2])
+    # Confirming it with them (the page's Assign, with them still chosen) changes nothing...
+    same = api.put(path, json={"user_id": eng2, "note": "Still yours?"}, headers=ENG)
+    assert (same.status_code, same.json()["assignee"], same.json()["activity"][-1]["action"]) == (
+        200,
+        "eng2",
+        "commented",
+    )
+    # ...but it can't be given to them anew.
+    assert api.put(path, json={"user_id": None}, headers=ENG).status_code == 200
+    res = api.put(path, json={"user_id": eng2}, headers=ENG)
+    assert (res.status_code, res.json()["detail"]) == (422, "Not an engineer or admin of this site")
+
+
 def test_what_is_asked_is_checked(api: TestClient, site: str) -> None:  # noqa: F811
     first, _, _ = raise_warnings(api, site)
     path = f"/sites/{site}/warnings/{first}"
