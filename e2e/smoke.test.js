@@ -95,6 +95,28 @@ test('ontology change can be staged, committed and reverted', async () => {
   await page.close();
 });
 
+test('on an ultrawide screen the page and its charts use the whole width', async (t) => {
+  const { page, errors } = await openPage({ viewport: { width: 3440, height: 1300 } });
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/physics`);
+  await page.waitForSelector('#run-chart svg');
+  const sizes = () =>
+    page.evaluate(() => ({
+      main: document.querySelector('main').getBoundingClientRect().width,
+      card: document.querySelector('#run-chart').getBoundingClientRect().width,
+      chart: document.querySelector('#run-chart svg').getBoundingClientRect().width,
+      drawn: document.querySelector('#run-chart svg').viewBox.baseVal.width,
+    }));
+  const wide = await sizes();
+  assert.ok(wide.main > 3100, `main is ${wide.main}px wide`);
+  assert.ok(wide.chart > wide.card - 2, 'the run chart fills its card');
+  assert.ok(Math.abs(wide.drawn - wide.chart) < 60, 'drawn at its shown size, so its text is not enlarged');
+  // A narrower window draws it again, narrower.
+  await page.setViewportSize({ width: 1360, height: 900 });
+  await page.waitForFunction(() => document.querySelector('#run-chart svg').viewBox.baseVal.width === 1040);
+  assert.deepEqual(errors, []);
+});
+
 test('settings can switch to the Tiles API and test the connection', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

@@ -1,6 +1,6 @@
 import { simulateShot, estimateFriction, PLUNGER } from '../lib/physics.ts';
 import { createRng } from '../lib/rng.ts';
-import { lineChart } from '../lib/svg.ts';
+import { fitWidth, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 
@@ -58,7 +58,7 @@ const view: View = {
           ],
           xFormat: (i) => `${fmt(toH(i), 0)}h`,
           yLabel: 'Friction (N)',
-          width: 1040,
+          width: fitWidth(1040),
           height: 300,
         })}
         </div>
@@ -79,12 +79,12 @@ const view: View = {
             ],
             xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`,
             yLabel: 'bar',
-            width: 480,
+            width: fitWidth(480, 0.5),
             height: 200,
             yMin: 0,
           })}
           <div class="legend" style="margin:8px 0"><span><i style="background:var(--soft)"></i>Plunger velocity (m/s)</span></div>
-          ${lineChart({ series: [{ values: payload.v, color: 'var(--soft)' }], xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`, yLabel: 'm/s', width: 480, height: 150, yMin: 0 })}
+          ${lineChart({ series: [{ values: payload.v, color: 'var(--soft)' }], xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`, yLabel: 'm/s', width: fitWidth(480, 0.5), height: 150, yMin: 0 })}
         </div>
         <div class="card">
           <div class="card-head"><h2>How it works</h2><span class="badge">model v1.3</span></div>

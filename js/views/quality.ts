@@ -1,7 +1,7 @@
 import { correlationFinder, explain, wearCheck } from '../lib/analysis.ts';
 import { CUTTER_VARIABLES, type CutterVariable } from '../lib/data.ts';
 import { mean } from '../lib/stats.ts';
-import { dumbbell, hbars, lineChart } from '../lib/svg.ts';
+import { dumbbell, fitWidth, hbars, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll, signed } from '../lib/dom.ts';
 import type { Material } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
@@ -102,7 +102,7 @@ const view: View = {
           <select id="variable" aria-label="Variable">${CUTTER_VARIABLES.map((x) => `<option value="${x.key}" ${x.key === ui.variable ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
         </div>
         <div class="legend" style="margin-bottom:6px"><span><i class="box" style="background:var(--bad);border-radius:50%"></i>NG (failed) avg</span><span><i class="box" style="background:var(--muted);border-radius:50%"></i>Healthy avg</span></div>
-        ${dumbbell({ rows: dumb, width: 1040, domain: [Math.min(...all) - pad, Math.max(...all) + pad], xLabel: `Average ${v.label.toLowerCase()} (${v.unit})` })}
+        ${dumbbell({ rows: dumb, width: fitWidth(1040), domain: [Math.min(...all) - pad, Math.max(...all) + pad], xLabel: `Average ${v.label.toLowerCase()} (${v.unit})` })}
       </div>
 
       <div class="card">
@@ -121,7 +121,7 @@ const view: View = {
           markers: [{ x: swapAt, label: 'scheduled swap', color: 'var(--soft)' }],
           xFormat: (h) => `${h}h`,
           yLabel: 'Median welding power (W)',
-          width: 1040,
+          width: fitWidth(1040),
           height: 260,
         })}
         <div class="grid g2" style="margin-top:12px">

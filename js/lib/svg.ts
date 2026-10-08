@@ -65,6 +65,16 @@ export interface HeatmapOptions {
 
 const PAD = { l: 52, r: 16, t: 24, b: 30 };
 
+// The width to draw a chart at so that it fills `share` of the page's content width on this screen,
+// with text at its normal size: never narrower than its design width (smaller screens scale it down),
+// and at most three times wider. Outside a browser it is the design width.
+export function fitWidth(design: number, share = 1): number {
+  const main = typeof document === 'undefined' ? null : document.querySelector('main');
+  if (!main) return design;
+  const available = (main.clientWidth - 48) * share - 40; // the page's and a card's padding
+  return Math.round(Math.min(design * 3, Math.max(design, available)));
+}
+
 function scale(d0: number, d1: number, r0: number, r1: number): (v: number) => number {
   const span = d1 - d0 || 1;
   return (v: number) => r0 + ((v - d0) / span) * (r1 - r0);
@@ -118,7 +128,7 @@ export function lineChart({
     });
     return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ''} stroke-linejoin="round"/>`;
   });
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(yLabel)}">
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
     ${bands.map((b) => `<rect x="${x(b.from)}" y="${PAD.t}" width="${Math.max(2, x(b.to) - x(b.from))}" height="${height - PAD.t - PAD.b}" fill="${b.color}"/>`).join('')}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(xFormat(t))}</text>`).join('')}
@@ -148,7 +158,7 @@ export function dumbbell({
   const height = rows.length * rowH + 44;
   const x = scale(domain[0], domain[1], left, width - 20);
   const xt = ticks(domain[0], domain[1], 6);
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(xLabel)}">
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(xLabel)}">
     ${xt.map((t) => `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="8" y2="${height - 30}"/><text class="tick" x="${x(t)}" y="${height - 16}" text-anchor="middle">${fmt(t)}</text>`).join('')}
     ${rows
       .map((r, i) => {
@@ -185,7 +195,7 @@ export function hbars({
   const hasNeg = items.some((i) => i.value < 0);
   const x = scale(hasNeg ? -maxAbs : 0, maxAbs, left, width - 60);
   const zero = x(0);
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img">
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img">
     <line class="grid" x1="${zero}" x2="${zero}" y1="0" y2="${height}"/>
     ${items
       .map((it, i) => {
@@ -229,7 +239,7 @@ export function heatmap({
   });
   const xi = [0, Math.floor(xs.length / 2), xs.length - 1];
   const yi = [0, Math.floor(ys.length / 2), ys.length - 1];
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Parameter sweep">
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="Parameter sweep">
     ${cells.join('')}
     ${xi.map((i) => `<text class="tick" x="${left + (i + 0.5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt(xs[i] ?? NaN, 1)}</text>`).join('')}
     ${yi.map((j) => `<text class="tick" x="${left - 6}" y="${10 + (ys.length - 1 - j + 0.5) * ch + 4}" text-anchor="end">${fmt(ys[j] ?? NaN, 1)}</text>`).join('')}
