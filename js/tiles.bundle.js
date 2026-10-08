@@ -98,6 +98,17 @@
 	});
 	function applyOp(graph, op) {
 		const g = clone(graph);
+		return {
+			graph: g,
+			inverse: applyInPlace(g, op)
+		};
+	}
+	function degrees(g) {
+		const degree = /* @__PURE__ */ new Map();
+		for (const e of Object.values(g.edges)) for (const end of /* @__PURE__ */ new Set([e.from, e.to])) degree.set(end, (degree.get(end) ?? 0) + 1);
+		return degree;
+	}
+	function applyInPlace(g, op, degree) {
 		switch (op.kind) {
 			case "addNode":
 				if (g.nodes[op.node.id]) throw new Error(`Node ${op.node.id} already exists`);
@@ -107,24 +118,18 @@
 					props: op.node.props ?? {}
 				};
 				return {
-					graph: g,
-					inverse: {
-						kind: "removeNode",
-						id: op.node.id
-					}
+					kind: "removeNode",
+					id: op.node.id
 				};
 			case "removeNode": {
 				const node = g.nodes[op.id];
 				if (!node) throw new Error(`Node ${op.id} not found`);
-				const attached = Object.values(g.edges).filter((e) => e.from === op.id || e.to === op.id);
-				if (attached.length) throw new Error(`Node ${op.id} still has ${attached.length} relationship(s)`);
+				const attached = degree ? degree.get(op.id) ?? 0 : Object.values(g.edges).filter((e) => e.from === op.id || e.to === op.id).length;
+				if (attached) throw new Error(`Node ${op.id} still has ${attached} relationship(s)`);
 				delete g.nodes[op.id];
 				return {
-					graph: g,
-					inverse: {
-						kind: "addNode",
-						node
-					}
+					kind: "addNode",
+					node
 				};
 			}
 			case "addEdge": {
@@ -132,24 +137,20 @@
 				if (g.edges[e.id]) throw new Error(`Relationship ${e.id} already exists`);
 				if (!g.nodes[e.from] || !g.nodes[e.to]) throw new Error(`Relationship ${e.id} points at a missing node`);
 				g.edges[e.id] = { ...e };
+				if (degree) for (const end of /* @__PURE__ */ new Set([e.from, e.to])) degree.set(end, (degree.get(end) ?? 0) + 1);
 				return {
-					graph: g,
-					inverse: {
-						kind: "removeEdge",
-						id: e.id
-					}
+					kind: "removeEdge",
+					id: e.id
 				};
 			}
 			case "removeEdge": {
 				const edge = g.edges[op.id];
 				if (!edge) throw new Error(`Relationship ${op.id} not found`);
 				delete g.edges[op.id];
+				if (degree) for (const end of /* @__PURE__ */ new Set([edge.from, edge.to])) degree.set(end, (degree.get(end) ?? 1) - 1);
 				return {
-					graph: g,
-					inverse: {
-						kind: "addEdge",
-						edge
-					}
+					kind: "addEdge",
+					edge
 				};
 			}
 			case "setProp": {
@@ -163,31 +164,25 @@
 					...node,
 					props
 				};
-				return {
-					graph: g,
-					inverse: had ? {
-						kind: "setProp",
-						id: op.id,
-						key: op.key,
-						value: node.props[op.key]
-					} : {
-						kind: "setProp",
-						id: op.id,
-						key: op.key
-					}
+				return had ? {
+					kind: "setProp",
+					id: op.id,
+					key: op.key,
+					value: node.props[op.key]
+				} : {
+					kind: "setProp",
+					id: op.id,
+					key: op.key
 				};
 			}
 			default: throw new Error(`Unknown op ${String(op.kind)}`);
 		}
 	}
 	function applyOps(graph, ops) {
-		let g = graph;
-		const inverses = [];
-		for (const op of ops) {
-			const r = applyOp(g, op);
-			g = r.graph;
-			inverses.unshift(r.inverse);
-		}
+		const g = clone(graph);
+		const degree = ops.length > 1 ? degrees(g) : void 0;
+		const inverses = ops.map((op) => applyInPlace(g, op, degree));
+		inverses.reverse();
 		return {
 			graph: g,
 			inverses
@@ -1819,6 +1814,197 @@
 		}
 	};
 	//#endregion
+	//#region js/lib/canvas.ts
+	var COLUMNS = [
+		["Enterprise", "Site"],
+		["Workcenter"],
+		["Line", "Cell"],
+		["Machine"],
+		["Process", "PLC"],
+		["Material", "Signal"],
+		["Document", "Model"]
+	];
+	var BOX = {
+		w: 134,
+		h: 28,
+		colGap: 152,
+		subGap: 146,
+		rowGap: 38,
+		pad: 16
+	};
+	var CHILD_RELS = /* @__PURE__ */ new Set([
+		"contains",
+		"controlledBy",
+		"emits"
+	]);
+	function hierarchy(graph) {
+		const parents = /* @__PURE__ */ new Map();
+		const children = /* @__PURE__ */ new Map();
+		const adjacent = /* @__PURE__ */ new Map();
+		const push = (m, k, v) => {
+			const list = m.get(k);
+			if (list) list.push(v);
+			else m.set(k, [v]);
+		};
+		for (const e of Object.values(graph.edges)) {
+			if (!graph.nodes[e.from] || !graph.nodes[e.to] || e.from === e.to) continue;
+			push(adjacent, e.from, e.to);
+			push(adjacent, e.to, e.from);
+			if (CHILD_RELS.has(e.rel)) {
+				push(parents, e.to, e.from);
+				push(children, e.from, e.to);
+			}
+		}
+		return {
+			parents,
+			children,
+			adjacent
+		};
+	}
+	function hiddenByCollapse(graph, collapsed, h = hierarchy(graph)) {
+		if (!collapsed.size) return /* @__PURE__ */ new Set();
+		const below = /* @__PURE__ */ new Set();
+		const queue = [...collapsed];
+		for (let id = queue.pop(); id !== void 0; id = queue.pop()) for (const child of h.children.get(id) ?? []) if (!below.has(child)) {
+			below.add(child);
+			queue.push(child);
+		}
+		const shown = (id) => !below.has(id) || reached.has(id);
+		const reached = /* @__PURE__ */ new Set();
+		const open = [...Object.keys(graph.nodes)].filter((id) => !below.has(id) && !collapsed.has(id));
+		for (let id = open.pop(); id !== void 0; id = open.pop()) for (const child of h.children.get(id) ?? []) if (below.has(child) && !reached.has(child)) {
+			reached.add(child);
+			if (!collapsed.has(child)) open.push(child);
+		}
+		return new Set([...below].filter((id) => !shown(id)));
+	}
+	function collapsible(h) {
+		return [...h.children.keys()];
+	}
+	function rowsPerColumn(visible) {
+		return Math.max(24, Math.ceil(Math.sqrt(visible) * 1.6));
+	}
+	function layout(graph, show, h = hierarchy(graph)) {
+		const pos = /* @__PURE__ */ new Map();
+		const visible = Object.values(graph.nodes).filter((n) => show(n.id));
+		const rows = rowsPerColumn(visible.length);
+		let x = BOX.pad;
+		let maxY = 0;
+		for (const types of COLUMNS) {
+			const col = visible.filter((n) => types.includes(n.type));
+			if (!col.length) {
+				x += BOX.colGap;
+				continue;
+			}
+			const weight = (id) => {
+				let sum = 0;
+				let n = 0;
+				for (const other of h.adjacent.get(id) ?? []) {
+					const p = pos.get(other);
+					if (p) {
+						sum += p.y + p.x / 1e3;
+						n++;
+					}
+				}
+				return n ? sum / n : Infinity;
+			};
+			const ordered = col.map((n) => ({
+				n,
+				w: weight(n.id),
+				t: types.indexOf(n.type)
+			})).sort((a, b) => a.t - b.t || a.w - b.w || a.n.label.localeCompare(b.n.label));
+			ordered.forEach(({ n }, i) => {
+				const sub = Math.floor(i / rows);
+				const y = BOX.pad + i % rows * BOX.rowGap;
+				pos.set(n.id, {
+					x: x + sub * BOX.subGap,
+					y
+				});
+				maxY = Math.max(maxY, y);
+			});
+			x += BOX.colGap + (Math.ceil(ordered.length / rows) - 1) * BOX.subGap;
+		}
+		return {
+			pos,
+			width: x - BOX.colGap + BOX.w + BOX.pad,
+			height: maxY + BOX.h + BOX.pad
+		};
+	}
+	function canvasHeight(width, height, containerWidth, min, max) {
+		const scale = Math.min(MAX_FIT_SCALE, containerWidth / Math.max(1, width));
+		return Math.round(Math.min(max, Math.max(min, height * scale)));
+	}
+	var MAX_FIT_SCALE = 1.5;
+	function fitView(width, height, aspect, minWidth = 240) {
+		const w = Math.max(width, height * aspect, minWidth, 240);
+		const h = w / aspect;
+		return {
+			x: (width - w) / 2,
+			y: (height - h) / 2,
+			w,
+			h
+		};
+	}
+	function zoomAt(view, factor, at, limit) {
+		const most = Math.max(limit.width, limit.height * (view.w / view.h)) * 2;
+		const w = Math.min(most, Math.max(240, view.w / factor));
+		const k = w / view.w;
+		const h = view.h * k;
+		return {
+			x: at.x - (at.x - view.x) * k,
+			y: at.y - (at.y - view.y) * k,
+			w,
+			h
+		};
+	}
+	function panBy(view, dx, dy) {
+		return {
+			...view,
+			x: view.x + dx,
+			y: view.y + dy
+		};
+	}
+	function centerOn(view, p, readableWidth = 1400) {
+		const w = Math.min(view.w, readableWidth);
+		const h = view.h * (w / view.w);
+		return {
+			x: p.x + BOX.w / 2 - w / 2,
+			y: p.y + BOX.h / 2 - h / 2,
+			w,
+			h
+		};
+	}
+	function searchNodes(graph, query, limit = 500) {
+		const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+		if (!words.length) return [];
+		const q = words.join(" ");
+		const hits = [];
+		for (const n of Object.values(graph.nodes)) {
+			const text = `${n.label} ${n.id}`.toLowerCase();
+			if (!words.every((w) => text.includes(w))) continue;
+			const label = n.label.toLowerCase();
+			hits.push({
+				id: n.id,
+				rank: label === q ? 0 : label.startsWith(q) ? 1 : 2,
+				label: n.label
+			});
+		}
+		return hits.sort((a, b) => a.rank - b.rank || a.label.length - b.label.length || a.label.localeCompare(b.label)).slice(0, limit).map((hit) => hit.id);
+	}
+	function revealPath(graph, id, collapsed, h = hierarchy(graph)) {
+		const out = /* @__PURE__ */ new Set();
+		const seen = /* @__PURE__ */ new Set([id]);
+		const queue = [id];
+		for (let cur = queue.pop(); cur !== void 0; cur = queue.pop()) for (const p of h.parents.get(cur) ?? []) {
+			if (collapsed.has(p)) out.add(p);
+			if (!seen.has(p)) {
+				seen.add(p);
+				queue.push(p);
+			}
+		}
+		return [...out];
+	}
+	//#endregion
 	//#region js/lib/review.ts
 	var show$1 = (v) => typeof v === "string" ? `“${v}”` : String(v);
 	function describeChanges(head, ops, { compare = true } = {}) {
@@ -1888,27 +2074,15 @@
 	var uiState$4 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
-		hidden: []
+		hidden: [],
+		collapsed: null,
+		view: null,
+		search: "",
+		match: -1
 	});
 	function showHistory(ctx) {
 		uiState$4(ctx).tab = "history";
 	}
-	var COLUMNS = [
-		["Enterprise", "Site"],
-		["Workcenter"],
-		["Line", "Cell"],
-		["Machine"],
-		["Process", "PLC"],
-		["Material", "Signal"],
-		["Document", "Model"]
-	];
-	var BOX = {
-		w: 134,
-		h: 28,
-		colGap: 152,
-		rowGap: 38,
-		pad: 16
-	};
 	var RELS = [
 		"contains",
 		"runs",
@@ -1920,28 +2094,46 @@
 		"monitors",
 		"feeds"
 	];
-	function layout(graph, hidden) {
-		const nodes = Object.values(graph.nodes).filter((n) => !hidden.has(n.type));
-		const pos = /* @__PURE__ */ new Map();
-		COLUMNS.forEach((types, c) => {
-			const col = nodes.filter((n) => types.includes(n.type));
-			const weight = (n) => {
-				const ys = neighbors(graph, n.id).map((x) => pos.get(x.node.id)?.y).filter((y) => y !== void 0);
-				return ys.length ? ys.reduce((a, b) => a + b, 0) / ys.length : Infinity;
-			};
-			col.map((n) => ({
-				n,
-				w: weight(n),
-				t: types.indexOf(n.type)
-			})).sort((a, b) => a.t - b.t || a.w - b.w || a.n.label.localeCompare(b.n.label)).forEach(({ n }, i) => {
-				pos.set(n.id, {
-					x: BOX.pad + c * BOX.colGap,
-					y: BOX.pad + i * BOX.rowGap
-				});
-			});
+	var LEVELS = [
+		[
+			"",
+			"Show everything",
+			[]
+		],
+		[
+			"PLC",
+			"Fold signals into their PLC",
+			["PLC"]
+		],
+		[
+			"Machine",
+			"Fold into machines",
+			["Machine"]
+		],
+		[
+			"Line",
+			"Fold into lines",
+			["Line", "Cell"]
+		],
+		[
+			"Workcenter",
+			"Fold into workcenters",
+			["Workcenter"]
+		]
+	];
+	var AUTO_FOLD_ABOVE = 400;
+	function levelNodes(graph, h, types) {
+		return collapsible(h).filter((id) => {
+			const n = graph.nodes[id];
+			return n !== void 0 && types.includes(n.type);
 		});
-		return pos;
 	}
+	function collapsedSet(graph, h, ui) {
+		if (ui.collapsed) return new Set(ui.collapsed.filter((id) => graph.nodes[id]));
+		return new Set(Object.keys(graph.nodes).length > AUTO_FOLD_ABOVE ? levelNodes(graph, h, ["PLC"]) : []);
+	}
+	var drawn = null;
+	var centerAfterRender = null;
 	var short = (s, n = 19) => s.length > n ? `${s.slice(0, n - 1)}…` : s;
 	function describeOp(op, graph) {
 		const label = (id) => graph.nodes[id]?.label ?? id;
@@ -1959,12 +2151,22 @@
 	}
 	function canvas(ctx, graph, health, ui) {
 		const hidden = new Set(ui.hidden);
-		const pos = layout(graph, hidden);
+		const h = hierarchy(graph);
+		const collapsed = collapsedSet(graph, h, ui);
+		const folded = hiddenByCollapse(graph, collapsed, h);
+		const show = (id) => {
+			const n = graph.nodes[id];
+			return n !== void 0 && !hidden.has(n.type) && !folded.has(id);
+		};
+		const placed = layout(graph, show, h);
+		drawn = {
+			...placed,
+			graph
+		};
+		const { pos, width, height } = placed;
 		const issueIds = new Set(health.issues.filter((i) => i.level !== "info").map((i) => i.ref));
 		const stagedIds = new Set(ctx.state.repo.staged.flatMap(touchedIds));
-		const placed = [...pos.entries()];
-		const width = Math.max(...placed.map(([, p]) => p.x), 0) + BOX.w + BOX.pad;
-		const height = Math.max(...placed.map(([, p]) => p.y), 0) + BOX.h + BOX.pad;
+		const matches = new Set(searchNodes(graph, ui.search));
 		const edges = Object.values(graph.edges).map((e) => {
 			const a = pos.get(e.from);
 			const b = pos.get(e.to);
@@ -1977,38 +2179,70 @@
 			const dx = Math.max(40, Math.abs(x2 - x1) / 2) * (fwd ? 1 : -1);
 			return `<path class="edge ${ui.selected && (e.from === ui.selected || e.to === ui.selected) ? "hl" : ""}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}"><title>${esc(graph.nodes[e.from]?.label)} —${esc(e.rel)}→ ${esc(graph.nodes[e.to]?.label)}</title></path>`;
 		}).join("");
-		const nodes = placed.map(([id, p]) => {
+		const nodes = [...pos.entries()].map(([id, p]) => {
 			const n = graph.nodes[id];
 			if (!n) return "";
+			const fold = collapsed.has(id) ? h.children.get(id)?.length ?? 0 : 0;
 			return `<g class="${[
 				"node",
 				ui.selected === id && "sel",
 				issueIds.has(id) && "issue",
-				stagedIds.has(id) && "staged"
-			].filter(Boolean).join(" ")}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}">
+				stagedIds.has(id) && "staged",
+				matches.has(id) && "match",
+				fold && "folded"
+			].filter(Boolean).join(" ")}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ""}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
-          <text x="13" y="18">${esc(short(n.label))}</text>
-          <title>${esc(n.type)}: ${esc(n.label)}</title>
+          <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ""}
+          <title>${esc(n.type)}: ${esc(n.label)}${fold ? ` (${fold} folded: double-click to open)` : ""}</title>
         </g>`;
 		}).join("");
 		const legend = Object.entries(NODE_TYPES).map(([t, def]) => `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? "opacity:.4" : ""}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`).join("");
+		const level = LEVELS.find(([, , types]) => {
+			if (!ui.collapsed && Object.keys(graph.nodes).length > AUTO_FOLD_ABOVE) return types[0] === "PLC";
+			const nodesAt = levelNodes(graph, h, types);
+			return types.length ? nodesAt.length > 0 && nodesAt.every((id) => collapsed.has(id)) && collapsed.size === nodesAt.length : !collapsed.size;
+		});
+		const total = Object.keys(graph.nodes).length;
+		const view = ui.view ?? {
+			x: 0,
+			y: 0,
+			w: width,
+			h: height
+		};
+		const found = ui.search.trim() ? matches.size : null;
 		return `
       <div class="onto">
         <div>
-          <div class="canvas-wrap"><svg style="width:100%;min-width:${Math.round(width * .8)}px;max-width:${width}px;height:auto" viewBox="0 0 ${width} ${Math.max(height, 200)}">${edges}${nodes}</svg></div>
+          <div class="canvas-tools">
+            <span class="row" style="gap:4px">
+              <button class="btn sm" data-zoom="out" aria-label="Zoom out">−</button>
+              <button class="btn sm" data-zoom="in" aria-label="Zoom in">+</button>
+              <button class="btn sm" data-zoom="fit">Fit</button>
+            </span>
+            <select class="sm" data-fold-level aria-label="Fold the hierarchy">${LEVELS.map(([value, label]) => `<option value="${value}" ${level?.[0] === value ? "selected" : ""}>${label}</option>`).join("")}${level ? "" : "<option selected disabled>Folded by hand</option>"}</select>
+            <span class="row canvas-search">
+              <input type="search" data-onto-search value="${esc(ui.search)}" placeholder="Find a node" aria-label="Find a node" />
+              <button class="btn sm" data-search-next ${found ? "" : "disabled"}>Next</button>
+              <span class="small soft" data-search-count aria-live="polite">${found === null ? "" : `${found} found`}</span>
+            </span>
+          </div>
+          <div class="canvas-wrap">
+            <svg data-canvas viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
+          </div>
           <div class="statusbar">
-            <span>Nodes: ${Object.keys(graph.nodes).length}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
-            <span class="spacer"></span>
+            <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ""}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
+            <span class="spacer"></span><span class="small soft">Scroll to zoom, drag to move, double-click a node to fold or open it</span>
           </div>
           <div class="chips" style="margin-top:8px">${legend}</div>
         </div>
-        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected) : ctx.ontology.role === "viewer" ? viewOnlyNote() : newNodeForm(graph)}</div>
+        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, collapsed, h) : ctx.ontology.role === "viewer" ? viewOnlyNote() : newNodeForm(graph)}</div>
       </div>`;
 	}
-	function inspector(graph, id) {
+	function inspector(graph, id, collapsed, h) {
 		const n = graph.nodes[id];
 		if (!n) return "";
+		const below = h.children.get(id)?.length ?? 0;
 		const rels = neighbors(graph, id);
 		const path = pathTo(graph, id);
 		const props = Object.entries(n.props ?? {});
@@ -2020,6 +2254,7 @@
         <button class="btn sm" data-deselect aria-label="Close">✕</button>
       </div>
       ${path.length > 1 ? `<p class="small soft" style="margin-bottom:12px">${path.map((p) => esc(p.label)).join(" → ")}</p>` : ""}
+      ${below ? `<p style="margin-bottom:12px"><button class="btn sm" data-fold="${esc(id)}">${collapsed.has(id) ? `Open (${below} folded)` : `Fold its ${below}`}</button></p>` : ""}
       <h3 style="margin-bottom:6px">Properties</h3>
       <div class="kv">
         ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join("") || "<span class=\"muted small\" style=\"grid-column:span 3\">No properties</span>"}
@@ -2095,6 +2330,193 @@
 			pending = null;
 		}
 		ctx.rerender();
+	}
+	function reveal(graph, ui, id) {
+		const h = hierarchy(graph);
+		const collapsed = collapsedSet(graph, h, ui);
+		for (const above of revealPath(graph, id, collapsed, h)) collapsed.delete(above);
+		ui.collapsed = [...collapsed];
+		const type = graph.nodes[id]?.type;
+		if (type) ui.hidden = ui.hidden.filter((t) => t !== type);
+	}
+	function bindCanvas(root, ctx, ui) {
+		const svg = root.querySelector("svg[data-canvas]");
+		const layoutNow = drawn;
+		if (!svg || !layoutNow) return;
+		const limits = {
+			width: layoutNow.width,
+			height: layoutNow.height
+		};
+		const current = () => {
+			const b = svg.viewBox.baseVal;
+			return {
+				x: b.x,
+				y: b.y,
+				w: b.width,
+				h: b.height
+			};
+		};
+		const shaped = () => {
+			const v = current();
+			const aspect = svg.clientWidth / Math.max(1, svg.clientHeight);
+			if (!Number.isFinite(aspect) || aspect <= 0) return v;
+			const fit = fitView(v.w, v.h, aspect);
+			return {
+				x: v.x + fit.x,
+				y: v.y + fit.y,
+				w: fit.w,
+				h: fit.h
+			};
+		};
+		const setView = (v) => {
+			svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
+			ui.view = v;
+		};
+		const toDrawing = (clientX, clientY) => {
+			const m = svg.getScreenCTM();
+			if (!m) return {
+				x: 0,
+				y: 0
+			};
+			const p = new DOMPoint(clientX, clientY).matrixTransform(m.inverse());
+			return {
+				x: p.x,
+				y: p.y
+			};
+		};
+		const wrap = svg.parentElement;
+		if (wrap) {
+			const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * .75);
+			wrap.style.height = `${tall}px`;
+		}
+		const showAll = () => {
+			const aspect = svg.clientWidth / Math.max(1, svg.clientHeight);
+			const v = fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE);
+			svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
+		};
+		if (!ui.view) showAll();
+		const zoom = (factor, at) => {
+			const v = shaped();
+			setView(zoomAt(v, factor, at ?? {
+				x: v.x + v.w / 2,
+				y: v.y + v.h / 2
+			}, limits));
+		};
+		if (centerAfterRender) {
+			const p = layoutNow.pos.get(centerAfterRender);
+			centerAfterRender = null;
+			if (p) setView(centerOn(shaped(), p));
+		}
+		svg.addEventListener("wheel", (e) => {
+			e.preventDefault();
+			zoom(Math.exp(-e.deltaY * .0015), toDrawing(e.clientX, e.clientY));
+		}, { passive: false });
+		onAll(root, "[data-zoom]", "click", (el) => {
+			if (el.dataset.zoom === "in") zoom(1.5);
+			else if (el.dataset.zoom === "out") zoom(1 / 1.5);
+			else {
+				ui.view = null;
+				showAll();
+			}
+		});
+		let drag = null;
+		let swallowClick = false;
+		svg.addEventListener("pointerdown", (e) => {
+			if (e.button !== 0) return;
+			const view = shaped();
+			const scale = Math.max(view.w / Math.max(1, svg.clientWidth), view.h / Math.max(1, svg.clientHeight));
+			drag = {
+				x: e.clientX,
+				y: e.clientY,
+				view,
+				scale,
+				moved: false,
+				id: e.pointerId
+			};
+		});
+		svg.addEventListener("pointermove", (e) => {
+			if (!drag || e.pointerId !== drag.id) return;
+			const dx = e.clientX - drag.x;
+			const dy = e.clientY - drag.y;
+			if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+			if (!drag.moved) svg.setPointerCapture(e.pointerId);
+			drag.moved = true;
+			svg.classList.add("panning");
+			setView(panBy(drag.view, -dx * drag.scale, -dy * drag.scale));
+		});
+		const endDrag = (e) => {
+			if (!drag || e.pointerId !== drag.id) return;
+			swallowClick = drag.moved;
+			drag = null;
+			svg.classList.remove("panning");
+		};
+		svg.addEventListener("pointerup", endDrag);
+		svg.addEventListener("pointercancel", endDrag);
+		svg.addEventListener("click", (e) => {
+			if (!swallowClick) return;
+			swallowClick = false;
+			e.stopPropagation();
+		}, true);
+		const toggleFold = (id) => {
+			const h = hierarchy(ctx.graph);
+			const collapsed = collapsedSet(ctx.graph, h, ui);
+			if (collapsed.has(id)) collapsed.delete(id);
+			else if (h.children.get(id)?.length) collapsed.add(id);
+			else return;
+			ui.collapsed = [...collapsed];
+			ctx.rerender();
+		};
+		onAll(root, "[data-node]", "dblclick", (el) => {
+			if (el.dataset.node) toggleFold(el.dataset.node);
+		});
+		onAll(root, "[data-fold]", "click", (el) => {
+			if (el.dataset.fold) toggleFold(el.dataset.fold);
+		});
+		root.querySelector("[data-fold-level]")?.addEventListener("change", (e) => {
+			const value = e.target.value;
+			const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
+			ui.collapsed = levelNodes(ctx.graph, hierarchy(ctx.graph), types);
+			ui.view = null;
+			ctx.rerender();
+		});
+		const input = root.querySelector("[data-onto-search]");
+		const count = root.querySelector("[data-search-count]");
+		const next = root.querySelector("[data-search-next]");
+		const mark = () => {
+			const found = new Set(searchNodes(ctx.graph, ui.search));
+			svg.querySelectorAll("[data-node]").forEach((g) => {
+				g.classList.toggle("match", found.has(g.dataset.node ?? ""));
+			});
+			const shownCount = svg.querySelectorAll(".match").length;
+			if (count) count.textContent = ui.search.trim() ? `${found.size} found${shownCount < found.size ? ` (${found.size - shownCount} folded or hidden)` : ""}` : "";
+			if (next) next.disabled = !found.size;
+		};
+		const goNext = () => {
+			const found = searchNodes(ctx.graph, ui.search);
+			if (!found.length) return;
+			ui.match = (ui.match + 1) % found.length;
+			const id = found[ui.match];
+			if (!id) return;
+			reveal(ctx.graph, ui, id);
+			ui.selected = id;
+			centerAfterRender = id;
+			ctx.rerender();
+			const again = document.querySelector("#view [data-onto-search]");
+			again?.focus();
+			again?.setSelectionRange(again.value.length, again.value.length);
+		};
+		input?.addEventListener("input", () => {
+			ui.search = input.value;
+			ui.match = -1;
+			mark();
+		});
+		input?.addEventListener("keydown", (e) => {
+			if (e.key !== "Enter") return;
+			e.preventDefault();
+			goNext();
+		});
+		next?.addEventListener("click", goNext);
+		if (ui.search) mark();
 	}
 	var EDIT_CONTROLS = "#node-form, #prop-form, #link-form, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]";
 	function viewOnlyNote() {
@@ -2331,10 +2753,15 @@
 					select(el.dataset.node);
 				}
 			});
+			bindCanvas(root, ctx, ui);
 			onAll(root, "[data-goto]", "click", (el, e) => {
 				e.preventDefault();
-				ui.selected = el.dataset.goto ?? null;
+				const id = el.dataset.goto;
+				if (!id) return;
+				reveal(ctx.graph, ui, id);
+				ui.selected = id;
 				ui.tab = "canvas";
+				centerAfterRender = id;
 				ctx.rerender();
 			});
 			onAll(root, "[data-deselect]", "click", () => {

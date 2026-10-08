@@ -45,33 +45,52 @@ const clone = (g: Graph): Graph => ({ nodes: { ...g.nodes }, edges: { ...g.edges
 // changes never reach a commit.
 export function applyOp(graph: Graph, op: Op): { graph: Graph; inverse: Op } {
   const g = clone(graph);
+  return { graph: g, inverse: applyInPlace(g, op) };
+}
+
+// How many relationships touch each node (a loop counts once).
+function degrees(g: Graph): Map<string, number> {
+  const degree = new Map<string, number>();
+  for (const e of Object.values(g.edges))
+    for (const end of new Set([e.from, e.to])) degree.set(end, (degree.get(end) ?? 0) + 1);
+  return degree;
+}
+
+// Applies one op to `g` itself (a clone the caller owns) and returns its inverse. Node and
+// edge records are replaced, never changed, so clones can share them. `degree` (kept up to
+// date here) saves scanning every relationship on removeNode.
+function applyInPlace(g: Graph, op: Op, degree?: Map<string, number>): Op {
   switch (op.kind) {
     case 'addNode': {
       if (g.nodes[op.node.id]) throw new Error(`Node ${op.node.id} already exists`);
       if (!isNodeType(op.node.type)) throw new Error(`Unknown node type ${op.node.type}`);
       g.nodes[op.node.id] = { ...op.node, props: op.node.props ?? {} };
-      return { graph: g, inverse: { kind: 'removeNode', id: op.node.id } };
+      return { kind: 'removeNode', id: op.node.id };
     }
     case 'removeNode': {
       const node = g.nodes[op.id];
       if (!node) throw new Error(`Node ${op.id} not found`);
-      const attached = Object.values(g.edges).filter((e) => e.from === op.id || e.to === op.id);
-      if (attached.length) throw new Error(`Node ${op.id} still has ${attached.length} relationship(s)`);
+      const attached = degree
+        ? (degree.get(op.id) ?? 0)
+        : Object.values(g.edges).filter((e) => e.from === op.id || e.to === op.id).length;
+      if (attached) throw new Error(`Node ${op.id} still has ${attached} relationship(s)`);
       delete g.nodes[op.id];
-      return { graph: g, inverse: { kind: 'addNode', node } };
+      return { kind: 'addNode', node };
     }
     case 'addEdge': {
       const e = op.edge;
       if (g.edges[e.id]) throw new Error(`Relationship ${e.id} already exists`);
       if (!g.nodes[e.from] || !g.nodes[e.to]) throw new Error(`Relationship ${e.id} points at a missing node`);
       g.edges[e.id] = { ...e };
-      return { graph: g, inverse: { kind: 'removeEdge', id: e.id } };
+      if (degree) for (const end of new Set([e.from, e.to])) degree.set(end, (degree.get(end) ?? 0) + 1);
+      return { kind: 'removeEdge', id: e.id };
     }
     case 'removeEdge': {
       const edge = g.edges[op.id];
       if (!edge) throw new Error(`Relationship ${op.id} not found`);
       delete g.edges[op.id];
-      return { graph: g, inverse: { kind: 'addEdge', edge } };
+      if (degree) for (const end of new Set([edge.from, edge.to])) degree.set(end, (degree.get(end) ?? 1) - 1);
+      return { kind: 'addEdge', edge };
     }
     case 'setProp': {
       const node = g.nodes[op.id];
@@ -81,10 +100,9 @@ export function applyOp(graph: Graph, op: Op): { graph: Graph; inverse: Op } {
       if (op.value === undefined) delete props[op.key];
       else props[op.key] = op.value;
       g.nodes[op.id] = { ...node, props };
-      const inverse: Op = had
+      return had
         ? { kind: 'setProp', id: op.id, key: op.key, value: node.props[op.key] }
         : { kind: 'setProp', id: op.id, key: op.key };
-      return { graph: g, inverse };
     }
     default: {
       const unknown: { kind?: unknown } = op;
@@ -93,14 +111,13 @@ export function applyOp(graph: Graph, op: Op): { graph: Graph; inverse: Op } {
   }
 }
 
+// Applies ops in order; inverses come back in undo order (last op first). The graph is
+// copied once for the batch, so a large batch (an import) stays fast.
 export function applyOps(graph: Graph, ops: readonly Op[]): { graph: Graph; inverses: Op[] } {
-  let g = graph;
-  const inverses: Op[] = [];
-  for (const op of ops) {
-    const r = applyOp(g, op);
-    g = r.graph;
-    inverses.unshift(r.inverse);
-  }
+  const g = clone(graph);
+  const degree = ops.length > 1 ? degrees(g) : undefined;
+  const inverses = ops.map((op) => applyInPlace(g, op, degree));
+  inverses.reverse();
   return { graph: g, inverses };
 }
 
