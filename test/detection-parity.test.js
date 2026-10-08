@@ -1,22 +1,33 @@
 // Detection parity (T3.04): test/fixtures/friction-detection.json holds a friction history and
 // the alerts js/lib/physics.ts raises on it; the API's streaming detector
-// (api/src/tiles_api/detection.py) must raise the same ones (api/tests/test_detection.py).
-// Regenerate: UPDATE_FIXTURES=1 npx vitest run test/detection-parity.test.js
+// (api/src/tiles_api/detection.py) must raise the same ones (api/tests/test_detection.py), and its
+// backtest score them against downtime the same way (api/tests/test_backtest.py).
+// Regenerate: UPDATE_FIXTURES=1 npx vitest run test/detection-parity.test.js, then npm run format.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { detectFrictionAlerts, generateShotHistory } from '../js/lib/physics.ts';
+import { detectFrictionAlerts, generateShotHistory, scoreAlerts } from '../js/lib/physics.ts';
 
 const file = new URL('./fixtures/friction-detection.json', import.meta.url);
 
 function cases() {
-  const { history, cycleSeconds } = generateShotHistory();
+  const { history, cycleSeconds, downtime } = generateShotHistory();
   const values = history.map((s) => s.friction);
+  const { alerts } = detectFrictionAlerts(history);
   return {
     cycleSeconds,
     config: { window: 200, k: 4, persist: 3 },
     values,
-    alerts: detectFrictionAlerts(history).alerts,
+    alerts,
+    // The downtime events and how the browser scores the alerts against them (a warning counts
+    // within 300 shots before an event): the backtest (api/src/tiles_api/backtest.py) must agree.
+    horizonShots: 300,
+    downtime: downtime.map(({ shot, code }) => ({ shot, code })),
+    scored: scoreAlerts(alerts, downtime, cycleSeconds).map(({ shot, predicted, leadShots }) => ({
+      shot,
+      predicted,
+      leadShots,
+    })),
   };
 }
 

@@ -210,6 +210,23 @@ The detector's state (the baseline window, the run of readings out, the open war
 | `DELETE /detectors/{id}` | engineers | stops it; its warnings stay, and one still open ends |
 | `GET /warnings?state=open\|ended\|all&signal_id&limit&offset` | members | warnings, newest first: when, how far out (peak against baseline and threshold), how many readings, and when it ended |
 
+### Backtest (T3.05)
+
+Before a detector goes live, replay the signal's history with the settings you are considering, and score the warnings against the events they should have warned of (downtime or scrap, with their times). For each combination of the values given: **recall** (the share of events with a warning in time), **precision** (the share of warnings an event followed), **false warnings per day**, and the **warning time** from warning to event (its median, 10th and 90th percentile). A warning counts for an event when it started within `horizon_seconds` before it. The event's warning time comes from the earliest such warning, as in the browser. A warning that no event followed within the horizon is false, unless the history ends first: then it is *pending* and left out of precision. Events before the baseline fills, or after the last reading, are left out of recall. The settings come back best first: the most events warned of, then the fewest false warnings per day, then the longest median warning time.
+
+The replay raises exactly the warnings a detector with that setting would raise (it shares the detector's judgement, and computes the same baselines faster). It runs in the request and changes nothing, so members may run it. One backtest replays at most 200,000 readings, with at most 48 settings, 2 million readings × settings, and 600,000 readings × window sizes. Choose a shorter period or fewer settings when it says so.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `POST /backtest` | members | `{"signal_id", "events": [{"at", "code"?}], "horizon_seconds", "start"?, "end"?, "window"?: [...], "k"?: [...], "persist"?: [...], "direction"?: [...], "cooldown"?: [...], "flat_spread"?: [...]}`: each setting's scores and events, best first, and the Markdown `report` |
+
+For the report on a machine, put its events in a CSV file (columns `at`, an ISO 8601 time with its offset, and optionally `code`), then:
+
+```sh
+uv run tiles-backtest --site <id> --signal dc1-plunger.friction --events downtime.csv \
+  --horizon-hours 8 --window 100,200 --k 3,4,5 --persist 1,3 --out report.md
+```
+
 ### Signals and data quality
 
 | Method and path (under `/sites/{site_id}/signals`) | Who | Does |
