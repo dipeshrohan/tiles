@@ -12,21 +12,25 @@ from pydantic import BaseModel, ConfigDict, Field
 from tiles_api import detector_job
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.detection import Config
-from tiles_api.store import one
 
 router = APIRouter(tags=["detection"])
+
+
+DEFAULT = Config()
+SETTINGS = ("window", "k", "persist", "direction", "cooldown", "flat_spread")
 
 
 class DetectorIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9._-]{0,62}$")]
     signal_id: uuid.UUID
-    window: Annotated[int, Field(ge=10, le=10_000)] = 200  # readings in the baseline
-    k: Annotated[float, Field(gt=0, le=50)] = 4  # robust spreads from the baseline
-    persist: Annotated[int, Field(ge=1, le=10_000)] = 3  # readings out in a row to raise a warning
-    direction: Literal["above", "below", "both"] = "above"
-    cooldown: Annotated[int, Field(ge=0, le=1_000_000)] = 0  # readings after a warning before another
-    min_spread: Annotated[float, Field(gt=0, le=1e12)] = 1  # the least spread counted
+    # The detection settings (detection.Config, whose defaults these are).
+    window: Annotated[int, Field(ge=10, le=2_000)] = DEFAULT.window  # readings in the baseline
+    k: Annotated[float, Field(gt=0, le=50)] = DEFAULT.k  # robust spreads from the baseline
+    persist: Annotated[int, Field(ge=1, le=10_000)] = DEFAULT.persist  # readings out in a row
+    direction: Literal["above", "below", "both"] = DEFAULT.direction
+    cooldown: Annotated[int, Field(ge=0, le=1_000_000)] = DEFAULT.cooldown  # readings after a warning
+    flat_spread: Annotated[float, Field(gt=0, le=1e12)] = DEFAULT.flat_spread  # a flat baseline's spread
     lateness_seconds: Annotated[float, Field(ge=0, le=7 * 86400)] = 300  # newer readings wait a run
 
 
@@ -97,27 +101,16 @@ def create_detector(ctx: Editor, body: DetectorIn) -> dict[str, Any]:
         "SELECT 1 FROM signals WHERE site_id = %s AND id = %s", [ctx.site_id, body.signal_id]
     ).fetchone():
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Not a signal of this site")
-    if ctx.conn.execute(
-        "SELECT 1 FROM detectors WHERE site_id = %s AND name = %s", [ctx.site_id, body.name]
-    ).fetchone():
+    config = Config(**body.model_dump(include=set(SETTINGS))).as_json()
+    row = ctx.conn.execute(
+        """
+        INSERT INTO detectors (site_id, signal_id, name, config, lateness_s, created_by)
+        VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT (site_id, name) DO NOTHING RETURNING id
+        """,
+        [ctx.site_id, body.signal_id, body.name, Jsonb(config), body.lateness_seconds, ctx.user.id],
+    ).fetchone()
+    if row is None:  # also when another request took the name a moment ago
         raise HTTPException(status.HTTP_409_CONFLICT, f"A detector is already called {body.name}")
-    config = Config(
-        window=body.window,
-        k=body.k,
-        persist=body.persist,
-        direction=body.direction,
-        cooldown=body.cooldown,
-        min_spread=body.min_spread,
-    ).as_json()
-    row = one(
-        ctx.conn.execute(
-            """
-            INSERT INTO detectors (site_id, signal_id, name, config, lateness_s, created_by)
-            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
-            """,
-            [ctx.site_id, body.signal_id, body.name, Jsonb(config), body.lateness_seconds, ctx.user.id],
-        ).fetchone()
-    )
     after = {"name": body.name, "signal_id": str(body.signal_id), "config": config}
     ctx.audit("detector.create", "detector", str(row["id"]), after=after | {"lateness_s": body.lateness_seconds})
     return _get(ctx, row["id"])
@@ -143,10 +136,15 @@ def run_now(ctx: Editor, detector_id: uuid.UUID) -> dict[str, Any]:
 
 @router.delete("/sites/{site_id}/detectors/{detector_id}", status_code=status.HTTP_204_NO_CONTENT)
 def stop(ctx: Editor, detector_id: uuid.UUID) -> None:
-    """Stop the detector. Its warnings stay."""
+    """Stop the detector. Its warnings stay; one still open ends now, since nothing will update it."""
     detector = _get(ctx, detector_id)
     if detector["enabled"]:
         ctx.conn.execute("UPDATE detectors SET enabled = false WHERE id = %s", [detector_id])
+        ctx.conn.execute(
+            "UPDATE warnings SET ended_at = greatest(now(), last_at + interval '1 microsecond')"
+            " WHERE detector_id = %s AND ended_at IS NULL",
+            [detector_id],
+        )
         ctx.audit("detector.stop", "detector", str(detector_id), before={"name": detector["name"]})
 
 

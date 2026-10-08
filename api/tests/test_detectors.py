@@ -61,7 +61,7 @@ def test_a_detector_raises_the_browsers_warnings_on_the_stored_history(
         "persist": 3,
         "direction": "above",
         "cooldown": 0,
-        "min_spread": 1,
+        "flat_spread": 1,
     }
     path = f"/sites/{site}/detectors/{detector['id']}/run"
     assert api.post(path, headers=VIEWER).status_code == 403
@@ -97,7 +97,9 @@ def test_runs_of_small_batches_give_the_same_warnings_and_keep_one_open_across_r
 ) -> None:
     signal = import_friction(api, site, FIXTURE["values"])
     detector = create(api, site, signal).json()
-    monkeypatch.setattr(detector_job, "BATCH", 37)  # warnings open in one run and close in a later one
+    monkeypatch.setattr(
+        detector_job, "batch_size", lambda window: 37
+    )  # warnings open in one run and close in a later one
     path = f"/sites/{site}/detectors/{detector['id']}/run"
     open_seen = False
     while not (run := api.post(path, headers=ENG).json())["caught_up"] or run["readings"]:
@@ -133,7 +135,15 @@ def test_a_detector_is_checked(api: TestClient, site: str) -> None:  # noqa: F81
     nowhere = "00000000-0000-0000-0000-000000000000"
     bad = create(api, site, nowhere)
     assert (bad.status_code, bad.json()["detail"]) == (422, "Not a signal of this site")
-    for changes in ({"window": 5}, {"k": 0}, {"persist": 0}, {"direction": "up"}, {"min_spread": 0}, {"name": "Bad"}):
+    for changes in (
+        {"window": 5},
+        {"k": 0},
+        {"persist": 0},
+        {"direction": "up"},
+        {"flat_spread": 0},
+        {"window": 2001},
+        {"name": "Bad"},
+    ):
         assert create(api, site, signal, **changes).status_code == 422, changes
     assert create(api, site, signal).status_code == 201
     again = create(api, site, signal)
@@ -162,3 +172,21 @@ def test_the_command_runs_every_enabled_detector(
     finally:
         get_settings.cache_clear()
     assert f"{detector['id']}: 1600 reading(s), 3 warning(s) raised, 3 ended" in capsys.readouterr().out
+
+
+def test_stopping_ends_an_open_warning_and_a_run_ending_exactly_on_a_batch_is_caught_up(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first, last, _ = EXPECTED[0]
+    signal = import_friction(api, site, FIXTURE["values"][: first + 5])  # stops inside the first warning
+    detector = create(api, site, signal).json()
+    monkeypatch.setattr(detector_job, "batch_size", lambda window: first + 5)  # one batch reads them all
+    run = api.post(f"/sites/{site}/detectors/{detector['id']}/run", headers=ENG).json()
+    assert (run["readings"], run["opened"], run["closed"], run["caught_up"]) == (first + 5, 1, 0, True)
+    assert len(found(api, site, state="open")) == 1
+    assert api.delete(f"/sites/{site}/detectors/{detector['id']}", headers=ENG).status_code == 204
+    assert found(api, site, state="open") == []
+    listed = api.get(f"/sites/{site}/detectors", headers=VIEWER).json()
+    assert listed[0]["open_warning"] is False

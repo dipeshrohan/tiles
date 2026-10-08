@@ -69,11 +69,11 @@ def test_direction_and_the_spread_floor() -> None:
     low = flat_then([50.0] * 3)
     assert step(Config(window=20, k=3, persist=3), State(), low)[1] == []  # above only
     _, opened = step(Config(window=20, k=3, persist=3, direction="below"), State(), low)
-    assert [(w.side, w.peak, w.threshold) for w in opened] == [("below", 50.0, 97.0)]  # 100 - 3 x min_spread 1
+    assert [(w.side, w.peak, w.threshold) for w in opened] == [("below", 50.0, 97.0)]  # 100 - 3 x flat_spread 1
     _, opened = step(Config(window=20, k=3, persist=3, direction="both"), State(), flat_then([150.0] * 3))
     assert opened[0].side == "above"
-    # A flat baseline counts as spread min_spread, so a small wobble isn't a warning.
-    assert step(Config(window=20, k=3, persist=1, min_spread=5), State(), flat_then([110.0]))[1] == []
+    # A flat baseline counts as spread flat_spread, so a small wobble isn't a warning.
+    assert step(Config(window=20, k=3, persist=1, flat_spread=5), State(), flat_then([110.0]))[1] == []
 
 
 def test_an_open_warning_survives_a_save_between_runs() -> None:
@@ -87,3 +87,23 @@ def test_an_open_warning_survives_a_save_between_runs() -> None:
     assert len(closed) == 1
     w = closed[0]
     assert (w.peak, w.readings, index(w.started_at, every=1.0), index(w.ended_at, every=1.0)) == (250.0, 3, 21, 24)  # type: ignore[arg-type]
+
+
+def test_a_quiet_signals_spread_is_its_own_as_in_the_browser() -> None:
+    # A baseline wobbling by tenths: MAD well under 1. The browser only stands in 1 for a MAD of 0.
+    wobble = [100.0, 100.2, 100.4, 100.2] * 5
+    center, spread = 100.2, 1.4826 * 0.1  # deviations: half 0, half 0.2
+    _, opened = step(Config(window=20, k=4, persist=1), State(), readings(wobble + [102.0], every=1.0))
+    assert len(opened) == 1
+    assert abs(opened[0].threshold - (center + 4 * spread)) < 1e-9  # 100.79, not 104.2
+
+
+def test_with_both_directions_a_swing_across_ends_one_warning_and_starts_a_run_on_the_other_side() -> None:
+    values = [200.0] * 3 + [0.0] * 3 + [100.0]
+    closed, opened = step(Config(window=20, k=3, persist=2, direction="both"), State(), flat_then(values))
+    assert [(w.side, index(w.started_at, every=1.0), w.peak) for w in opened] == [
+        ("above", 21, 200.0),
+        ("below", 24, 0.0),
+    ]
+    assert [(w.side, index(w.ended_at, every=1.0)) for w in closed] == [("above", 23), ("below", 26)]  # type: ignore[arg-type]
+    assert opened[0].readings == 2 and opened[1].readings == 2  # neither counted the other side's readings

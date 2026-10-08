@@ -1,10 +1,12 @@
 """Streaming detection (T3.04): a signal leaving its own recent behaviour, persistently.
 
 Each reading is compared with a rolling robust baseline of the `window` readings
-before it: the median, and the MAD (scaled to a standard deviation, at least
-`min_spread`). A reading more than `k` spreads above it (or below, or either way,
-by `direction`) counts as out; `persist` readings out in a row raise a warning,
-which stays open while readings stay out and closes at the first one back in.
+before it: the median, and the MAD scaled to a standard deviation (`flat_spread`
+when the baseline is flat, MAD 0, as the browser does). A reading more than `k`
+spreads above it (or below, or either way, by `direction`) counts as out;
+`persist` readings out in a row on one side raise a warning, which stays open
+while readings stay out on that side and closes at the first one that isn't (with
+`direction` both, a swing to the other side ends it and starts a run there).
 After a warning closes, `cooldown` readings must pass before another can open, so
 one rough patch isn't many warnings.
 
@@ -33,10 +35,10 @@ class Config:
     persist: int = 3  # readings out in a row to raise a warning
     direction: Direction = "above"
     cooldown: int = 0  # readings after a warning closes before another can open
-    min_spread: float = 1.0  # above 0: the spread never counts as less (a flat baseline isn't infinitely strict)
+    flat_spread: float = 1.0  # the spread of a flat baseline (MAD 0), which would otherwise flag any change
 
     def as_json(self) -> dict[str, Any]:
-        return {k: getattr(self, k) for k in ("window", "k", "persist", "direction", "cooldown", "min_spread")}
+        return {k: getattr(self, k) for k in ("window", "k", "persist", "direction", "cooldown", "flat_spread")}
 
 
 @dataclass
@@ -55,6 +57,7 @@ class Alert:
 class State:
     baseline: deque[float] = field(default_factory=deque)
     run: int = 0
+    run_side: Literal["above", "below"] | None = None  # the side the run of readings out is on
     open: Alert | None = None
     cooldown_left: int = 0
 
@@ -63,6 +66,7 @@ class State:
         return {
             "baseline": list(self.baseline),
             "run": self.run,
+            "run_side": self.run_side,
             "cooldown_left": self.cooldown_left,
             "open": None
             if w is None
@@ -95,7 +99,13 @@ class State:
                 readings=o["readings"],
             )
         )
-        return cls(deque(data.get("baseline", [])), data.get("run", 0), open_, data.get("cooldown_left", 0))
+        return cls(
+            deque(data.get("baseline", [])),
+            data.get("run", 0),
+            data.get("run_side"),
+            open_,
+            data.get("cooldown_left", 0),
+        )
 
 
 def mad(values: Iterable[float], center: float) -> float:
@@ -112,7 +122,7 @@ def step(config: Config, state: State, readings: Iterable[tuple[datetime, float]
         just_closed = False
         if len(base) >= config.window:
             center = statistics.median(base)
-            spread = max(mad(base, center), config.min_spread)
+            spread = mad(base, center) or config.flat_spread
             upper = center + config.k * spread
             lower = center - config.k * spread
             side: Literal["above", "below"] | None = None
@@ -120,8 +130,18 @@ def step(config: Config, state: State, readings: Iterable[tuple[datetime, float]
                 side = "above"
             elif config.direction in ("below", "both") and value < lower:
                 side = "below"
-            if side is not None:
-                state.run += 1
+            # A reading that isn't out on the open warning's side ends it (back in, or swung across).
+            if state.open is not None and side != state.open.side:
+                state.open.ended_at = at
+                closed.append(state.open)
+                state.open = None
+                state.cooldown_left = config.cooldown
+                just_closed = True
+            if side is None:
+                state.run, state.run_side = 0, None
+            else:
+                state.run = state.run + 1 if side == state.run_side else 1
+                state.run_side = side
                 if state.open is not None:
                     w = state.open
                     w.last_at = at
@@ -138,14 +158,6 @@ def step(config: Config, state: State, readings: Iterable[tuple[datetime, float]
                         readings=1,
                     )
                     opened.append(state.open)
-            else:
-                state.run = 0
-                if state.open is not None:
-                    state.open.ended_at = at
-                    closed.append(state.open)
-                    state.open = None
-                    state.cooldown_left = config.cooldown
-                    just_closed = True
             # The cooldown counts every reading after a warning closes, in or out.
             if state.cooldown_left and state.open is None and not just_closed:
                 state.cooldown_left -= 1

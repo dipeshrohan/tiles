@@ -198,16 +198,16 @@ A **binding** runs a registered model version on a site's signals. Each model in
 
 ### Detection and warnings (T3.04)
 
-A **detector** watches one signal (often a model's derived signal, such as `dc1-plunger.friction`). It compares each reading with a rolling robust baseline of the `window` readings before it: their median, and their MAD scaled to a standard deviation, never counted as less than `min_spread`. A reading more than `k` spreads above it (or below, or either way, set by `direction`) is out. `persist` readings out in a row raise a **warning**, which stays open while readings stay out and ends at the first one back in. After a warning ends, `cooldown` readings must pass before another can open. The defaults (`window` 200, `k` 4, `persist` 3, `cooldown` 0, `direction` above) are the browser's friction detector, and `test/fixtures/friction-detection.json` keeps the two raising the same warnings.
+A **detector** watches one signal (often a model's derived signal, such as `dc1-plunger.friction`). It compares each reading with a rolling robust baseline of the `window` readings before it: their median, and their MAD scaled to a standard deviation (`flat_spread` when the baseline is flat, i.e. its MAD is 0, as in the browser). A reading more than `k` spreads above it (or below, or either way, set by `direction`) is out. `persist` readings out in a row on one side raise a **warning**. It stays open while readings stay out on that side, and ends at the first one that isn't. With `direction` both, a swing to the other side ends it and starts a run there. After a warning ends, `cooldown` readings must pass before another can open. The defaults (`window` 200, `k` 4, `persist` 3, `cooldown` 0, `direction` above) are the browser's friction detector, and `test/fixtures/friction-detection.json` keeps the two raising the same warnings.
 
-The detector's state (the baseline window, the run of readings out, the open warning) is saved after each run, so `uv run tiles-detect` (optionally `--site <id>`), scheduled from cron, takes only new readings. Readings newer than `lateness_seconds` (default 5 minutes) wait for a later run. A warning is written when it opens and updated while it lasts. T3.07 adds acknowledging, assigning and resolving warnings, with an outcome.
+The detector's state (the baseline window, the run of readings out, the open warning) is saved after each run, so `uv run tiles-detect` (optionally `--site <id>`), scheduled from cron, takes only new readings. Readings newer than `lateness_seconds` (default 5 minutes) wait for a later run. Readings that arrive later than that, with a time the detector has already passed, are not fed to it, so set the allowance to cover how late your data can be. The window is at most 2,000 readings, and batches shrink as it grows, so a run stays quick. A warning is written when it opens and updated while it lasts. T3.07 adds acknowledging, assigning and resolving warnings, with an outcome.
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|
 | `GET /detectors` | members | the detectors, their settings, last run, and whether a warning is open |
-| `POST /detectors` | engineers | `{"name", "signal_id", "window"?, "k"?, "persist"?, "direction"?, "cooldown"?, "min_spread"?, "lateness_seconds"?}` starts one, from the signal's stored history |
+| `POST /detectors` | engineers | `{"name", "signal_id", "window"?, "k"?, "persist"?, "direction"?, "cooldown"?, "flat_spread"?, "lateness_seconds"?}` starts one, from the signal's stored history |
 | `POST /detectors/{id}/run` | engineers | runs it on one batch of new readings now (`caught_up` false: there is more); refused once stopped |
-| `DELETE /detectors/{id}` | engineers | stops it; its warnings stay |
+| `DELETE /detectors/{id}` | engineers | stops it; its warnings stay, and one still open ends |
 | `GET /warnings?state=open\|ended\|all&signal_id&limit&offset` | members | warnings, newest first: when, how far out (peak against baseline and threshold), how many readings, and when it ended |
 
 ### Signals and data quality
