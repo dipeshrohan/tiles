@@ -291,7 +291,7 @@ def test_alembic_config_escapes_percent_in_passwords() -> None:
 
 
 def test_next_revision_id_follows_the_head() -> None:
-    assert next_revision_id(alembic_config(Settings())) == "0013"
+    assert next_revision_id(alembic_config(Settings())) == "0014"
 
 
 def test_migrate_command_upgrades_and_reports(database_url: str, monkeypatch: pytest.MonkeyPatch) -> None:

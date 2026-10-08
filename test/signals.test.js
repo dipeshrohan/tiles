@@ -27,6 +27,8 @@ const SIG = {
   range_min: null,
   range_max: null,
   stuck_after_s: null,
+  event_kind: null,
+  asset: null,
   quality: null,
 };
 
@@ -205,4 +207,18 @@ test('a message reads as sent, waiting, retrying or given up, with why', () => {
     deliveryState({ ...d, attempts: 6, failed_at: '2026-10-08T10:00:00Z', last_error: '550' }),
     /badge bad" title="550">Gave up/,
   );
+});
+
+test('the edit form marks an event stream and its asset, sending only what changed', () => {
+  const same = { unit: '°C', rate: '10', description: 'Platen, upper', node: '', events: '', asset: '' };
+  assert.deepEqual(changeFrom(same, SIG), {});
+  assert.deepEqual(changeFrom({ ...same, events: 'downtime', asset: ' DC-01 ' }, SIG), {
+    event_kind: 'downtime',
+    asset: 'DC-01',
+  });
+  const marked = { ...SIG, event_kind: 'scrap', asset: 'DC-01' };
+  assert.deepEqual(changeFrom({ ...same, events: 'scrap', asset: 'DC-01' }, marked), {});
+  assert.deepEqual(changeFrom({ ...same, events: '', asset: '' }, marked), { event_kind: null, asset: null });
+  // Fields the form leaves out are left alone.
+  assert.deepEqual(changeFrom({ unit: '°C', rate: '10', description: 'Platen, upper', node: '' }, marked), {});
 });

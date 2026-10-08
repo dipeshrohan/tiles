@@ -121,6 +121,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `model.bind`, `model.run`, `model.stop` | the model binding | `model.stop`: its name | `model.bind`: its model, inputs, params and outputs; `model.run`: windows run, readings written, `done_until`, error |
 | `detector.create`, `detector.run`, `detector.stop` | the detector | `detector.stop`: its name | `detector.create`: its signal and settings; `detector.run`: readings, warnings raised and ended |
 | `backtest.run` | the signal | | readings replayed, settings tried, events given |
+| `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
 | `notification.teams` | the site | the channel's host | the channel's host |
 | `warning.acknowledge`, `warning.assign`, `warning.resolve`, `warning.reopen`, `warning.comment` | the warning | `warning.assign`: the assignee before; `warning.reopen`: the outcome and note it had | the note; `warning.assign`: the assignee; `warning.resolve`: the outcome |
@@ -258,6 +259,25 @@ Only `https` URLs on Microsoft's webhook hosts (`*.webhook.office.com`, `*.logic
 | `GET /notifications/teams` | admins | whether there is a channel, its host, and whether it hears of new warnings |
 | `PUT /notifications/teams` | admins | `{"webhook_url"?: <url> or null, "on_raised"?}` sets or removes it; with no `webhook_url`, keeps it and changes only `on_raised` |
 | `GET /notifications?state=all\|pending\|sent\|failed&limit` | admins | the messages, newest first: what, to whom, and when sent; pending ones show why the last try failed, if it did; failed ones were given up |
+
+### Events and warning performance (T3.10)
+
+Downtime and scrap from the MES arrive as readings, through the edge agent's SQL connector (see the edge README), MQTT or a file import. A signal becomes an **event stream** when an engineer sets its `event_kind` (`downtime`, `scrap` or `other`) with `PATCH /signals/{id}`. Each reading on it is then an event, and its value is the code. A reading of 0 or false is not an event: it is a count of nothing.
+
+Signals and detectors also name their **asset**: the machine, as the MES names it (`PATCH /signals/{id}` and `PATCH /detectors/{id}`, or `asset` when creating a detector). A detector's warnings are matched to its asset's events.
+
+`GET /performance` scores the real warnings the way the backtest scores a replay:
+
+- an event counts as warned of when a warning started at most `horizon_hours` before it;
+- a warning counts as followed when such an event came after it, and as pending while its horizon runs past now;
+- an asset with several detectors counts an event once, if any of them warned.
+
+Alongside these, it shows what people resolved the warnings as (T3.07). Events of assets no detector watches are counted apart.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `GET /performance?days&horizon_hours&codes` | members | the last `days` (default 30): totals, each detector's scores, unwatched assets, and the latest 200 events with the warning that came first, if any. `codes` (repeatable) counts only those events. At most 20,000 events per period |
+| `PATCH /detectors/{id}` | engineers | `{"asset": <name> or null}` |
 
 ### Backtest (T3.05)
 

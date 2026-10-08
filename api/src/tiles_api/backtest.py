@@ -173,7 +173,7 @@ def baselines(values: Sequence[float], window: int) -> list[tuple[float, float] 
     return out
 
 
-def _spread(seconds: list[float]) -> Spread | None:
+def spread_of(seconds: list[float]) -> Spread | None:
     if not seconds:
         return None
     s = sorted(seconds)
@@ -209,7 +209,7 @@ def score(
             false += 1
     caught = [o.warning_time.total_seconds() for o in outcomes if o.warning_time is not None]
     days = (end - start).total_seconds() / 86400
-    return Outcome(config, alerts, true, false, pending, outcomes, days, _spread(caught))
+    return Outcome(config, alerts, true, false, pending, outcomes, days, spread_of(caught))
 
 
 def replay(

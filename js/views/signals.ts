@@ -101,10 +101,20 @@ export function changeFrom(
     min?: string;
     max?: string;
     stuck?: string; // minutes
+    events?: string; // '' (a measurement), downtime, scrap or other
+    asset?: string;
   },
   s: SignalInfo,
 ): SignalChange | string {
   const change: SignalChange = {};
+  if (form.events !== undefined) {
+    const kind = (form.events || null) as SignalInfo['event_kind'];
+    if (kind !== s.event_kind) change.event_kind = kind;
+  }
+  if (form.asset !== undefined && form.asset !== (s.asset ?? '')) {
+    const asset = form.asset.trim() || null;
+    if (asset !== s.asset) change.asset = asset;
+  }
   // A text field the user left as it was is not sent, even if stored with spaces around it.
   if (form.unit !== (s.unit ?? '')) {
     const unit = form.unit.trim() || null;
@@ -139,6 +149,13 @@ export function changeFrom(
   return change;
 }
 
+// An event stream's kind and asset (T3.10); an asset alone for a measurement that names one.
+function eventBadge(s: SignalInfo): string {
+  if (!s.event_kind && !s.asset) return '';
+  const text = [s.event_kind ? `${s.event_kind} events` : '', s.asset ?? ''].filter(Boolean).join(' · ');
+  return ` <span class="badge" data-event-badge>${esc(text)}</span>`;
+}
+
 function linkCell(s: SignalInfo): string {
   if (!s.node_id) return '<span class="soft">—</span>';
   return s.node_label !== null // a label may be empty: the node is still there
@@ -171,6 +188,17 @@ function editRow(ctx: Context, s: SignalInfo): string {
         <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ''))}" inputmode="decimal" style="width:7em"></label>
         <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ''))}" inputmode="decimal" style="width:7em"></label>
         <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
+        <label class="field" title="Each reading of an event stream is an event: its value is the code">Events<select name="events">${(
+          [
+            ['', 'none: readings'],
+            ['downtime', 'downtime'],
+            ['scrap', 'scrap'],
+            ['other', 'other events'],
+          ] as const
+        )
+          .map(([v, label]) => `<option value="${v}" ${v === (s.event_kind ?? '') ? 'selected' : ''}>${label}</option>`)
+          .join('')}</select></label>
+        <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" style="width:8em"></label>
         <button class="btn primary" type="submit">${saving === s.id ? 'Saving…' : 'Save'}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
         </fieldset>
@@ -191,7 +219,7 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
     <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals
       .map(
         (s) =>
-          `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a></td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
+          `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
             <td>${esc(s.unit ?? '—')}</td><td>${s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
             <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
@@ -302,6 +330,8 @@ function bindResults(root: HTMLElement, ctx: Context): void {
         min: field(form, 'min'),
         max: field(form, 'max'),
         stuck: field(form, 'stuck'),
+        events: field(form, 'events'),
+        asset: text('asset', sig.asset ?? ''),
       },
       sig,
     );

@@ -159,6 +159,8 @@ export interface SignalInfo {
   range_min: number | null; // the values expected
   range_max: number | null;
   stuck_after_s: number | null; // how long one value may repeat (null: an hour)
+  event_kind: 'downtime' | 'scrap' | 'other' | null; // an event stream (T3.10): each reading is an event
+  asset: string | null; // the machine it belongs to, as the MES names it
   created_at: string;
   last_at: string | null;
   last_value: number | string | boolean | null;
@@ -175,7 +177,18 @@ export interface SignalQuery {
 }
 
 export type SignalChange = Partial<
-  Pick<SignalInfo, 'unit' | 'sample_rate_hz' | 'description' | 'node_id' | 'range_min' | 'range_max' | 'stuck_after_s'>
+  Pick<
+    SignalInfo,
+    | 'unit'
+    | 'sample_rate_hz'
+    | 'description'
+    | 'node_id'
+    | 'range_min'
+    | 'range_max'
+    | 'stuck_after_s'
+    | 'event_kind'
+    | 'asset'
+  >
 >;
 
 // A signal's readings over a range (T2.10): as they are (bucket_s null), or bucketed.
@@ -298,6 +311,57 @@ export interface Delivery {
   failed_at: string | null; // given up
   attempts: number;
   last_error: string | null;
+}
+
+// How the warnings did (T3.10): real warnings against the MES's events, per detector and in total.
+export interface Distribution {
+  count: number;
+  min: number;
+  p10: number;
+  median: number;
+  p90: number;
+  max: number;
+}
+
+export interface Scores {
+  warnings: number;
+  true_warnings: number; // an event followed within the horizon
+  false_warnings: number;
+  pending_warnings: number; // the horizon runs past now
+  events: number;
+  caught: number;
+  recall: number | null;
+  precision: number | null;
+  false_per_day: number | null;
+  warning_seconds: Distribution | null;
+  confirmed: { true_alarm: number; false_alarm: number; unknown: number; unresolved: number };
+}
+
+export interface DetectorScores extends Scores {
+  id: string;
+  name: string;
+  signal_tag: string;
+  asset: string | null;
+  matched: boolean; // false: no asset, so its warnings can't be matched to events
+}
+
+export interface PerformanceReport {
+  start: string;
+  end: string;
+  horizon_seconds: number;
+  totals: Scores;
+  detectors: DetectorScores[];
+  unwatched: { asset: string; events: number }[]; // events of assets no detector watches
+  events: {
+    at: string;
+    asset: string;
+    kind: 'downtime' | 'scrap' | 'other';
+    signal_tag: string;
+    code: string;
+    warned_at: string | null;
+    warning_seconds: number | null;
+    detector: string | null;
+  }[];
 }
 
 export interface Me {
@@ -548,6 +612,22 @@ export function createApiClient(options: ApiOptions) {
       comment: (siteId: string, id: string, note: string) =>
         request<WarningDetail>('POST', `${warning(siteId, id)}/comments`, { note }),
     },
+    // The last `days`: each detector's warnings scored against its asset's events (T3.10).
+    performance: (siteId: string, q: { days?: number; horizonHours?: number; codes?: string[] } = {}) => {
+      const params = new URLSearchParams();
+      if (q.days !== undefined) params.set('days', String(q.days));
+      if (q.horizonHours !== undefined) params.set('horizon_hours', String(q.horizonHours));
+      for (const c of q.codes ?? []) params.append('codes', c);
+      const qs = params.toString();
+      return request<PerformanceReport>('GET', `/sites/${encodeURIComponent(siteId)}/performance${qs ? `?${qs}` : ''}`);
+    },
+    // Sets (or clears) the asset a detector watches, which matches its warnings to that asset's events.
+    setDetectorAsset: (siteId: string, detectorId: string, asset: string | null) =>
+      request<{ id: string; asset: string | null }>(
+        'PATCH',
+        `/sites/${encodeURIComponent(siteId)}/detectors/${encodeURIComponent(detectorId)}`,
+        { asset },
+      ),
     notifications: {
       preferences: (siteId: string) =>
         request<NotificationPrefs>('GET', `/sites/${encodeURIComponent(siteId)}/notifications/preferences`),

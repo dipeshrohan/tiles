@@ -202,6 +202,22 @@ A query must end with `ORDER BY` the watermark column, ascending, before any oth
 
 **Read only.** A query must be a single `SELECT` (or `WITH … SELECT`). Every poll runs in a transaction that is rolled back, PostgreSQL sessions are read-only, and SQLite files are opened read-only. Still, give the agent a user that can only read.
 
+**MES events.** Downtime and scrap reach Tiles the same way: as readings whose value is the code (T3.10). One reading per stop, on a signal per machine, for example:
+
+```toml
+[[sql.queries]]
+name = "downtime"
+query = "SELECT id, stopped_at, machine, reason_code FROM downtime WHERE id > :watermark ORDER BY id"
+watermark = "id"
+start = 0
+time = "stopped_at"
+signal_column = "machine"
+value_column = "reason_code"
+signals = { "DC-01" = "mes.dc1.downtime", "DC-02" = "mes.dc2.downtime" }
+```
+
+Then, on the Signals page, mark each such signal as a downtime (or scrap) event stream and name its asset, and give the machine's detectors the same asset. The Warning performance page matches their warnings to the events.
+
 **Values.** Numbers, booleans and text become readings; date-times become text. NULL is skipped. Values that can't be readings (such as binary data or infinite numbers) are skipped and counted. Rows whose `signal_column` value isn't in `signals` are counted as unmapped. Times stored without a time zone are taken to be in `timezone`.
 
 **Security.** PostgreSQL and SQL Server connections use TLS, and the server's certificate must chain to a trusted CA and name the host. `tls = false` needs `allow_unsecured = true` as well. PostgreSQL trusts the system's CAs, or `ca_file` instead. The SQL Server driver trusts the system's CAs and checks `host` against the certificate's DNS names, so give the server's name, not its address. If the database's certificate comes from the plant's own CA, add that CA to the system's trusted certificates. In the container, mount a bundle of the public CAs plus the plant's (`cat /etc/ssl/certs/ca-certificates.crt plant-ca.pem > bundle.pem`) and set `SSL_CERT_FILE` to it; the connection to Tiles uses the same bundle.

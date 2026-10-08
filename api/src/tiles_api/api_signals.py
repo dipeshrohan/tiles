@@ -25,7 +25,17 @@ router = APIRouter(tags=["signals"])
 
 MAX_CHECK = 1000  # signals one request may check (matches QualityCheckIn.signal_ids)
 NO_NUL = r"^[^\x00]*$"  # PostgreSQL text can't hold NUL
-EDITABLE = ("unit", "sample_rate_hz", "description", "node_id", "range_min", "range_max", "stuck_after_s")
+EDITABLE = (
+    "unit",
+    "sample_rate_hz",
+    "description",
+    "node_id",
+    "range_min",
+    "range_max",
+    "stuck_after_s",
+    "event_kind",
+    "asset",
+)
 # Changing one of these changes what the quality check finds, so the signal is checked again.
 CHECKED = {"unit", "sample_rate_hz", "node_id", "range_min", "range_max", "stuck_after_s"}
 
@@ -42,6 +52,8 @@ class Signal(BaseModel):
     range_min: float | None  # the values expected; readings outside are flagged
     range_max: float | None
     stuck_after_s: float | None  # how long one value may repeat (None: an hour)
+    event_kind: Literal["downtime", "scrap", "other"] | None  # an event stream: each reading is an event
+    asset: str | None  # the machine (as the MES names it) the signal belongs to
     created_at: datetime
     last_at: datetime | None  # the latest reading
     last_value: float | str | bool | None
@@ -74,6 +86,8 @@ class SignalPatch(NoBooleans):
     range_min: FiniteFloat | None = None
     range_max: FiniteFloat | None = None
     stuck_after_s: Annotated[float, Field(gt=0, le=30 * 86400)] | None = None
+    event_kind: Literal["downtime", "scrap", "other"] | None = None
+    asset: Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S(.*\S)?$")] | None = None
 
 
 class QualityCheckIn(NoBooleans):
@@ -89,8 +103,9 @@ class QualityCheckOut(BaseModel):
 
 SELECT: LiteralString = """
 SELECT g.id, g.tag, g.unit, g.sample_rate_hz, g.source, g.description, g.node_id, g.range_min, g.range_max,
-       g.stuck_after_s, g.created_at, n.label AS node_label, l.at AS last_at, coalesce(to_jsonb(l.value),
-       to_jsonb(l.value_text), to_jsonb(l.value_bool)) AS last_value, q.report AS quality
+       g.stuck_after_s, g.event_kind, g.asset, g.created_at, n.label AS node_label, l.at AS last_at,
+       coalesce(to_jsonb(l.value), to_jsonb(l.value_text), to_jsonb(l.value_bool)) AS last_value,
+       q.report AS quality
 FROM signals g
 LEFT JOIN ontology_nodes n ON n.site_id = g.site_id AND n.id = g.node_id AND n.type = 'Signal'
 LEFT JOIN signal_quality q ON q.signal_id = g.id

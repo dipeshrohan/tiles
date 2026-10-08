@@ -385,3 +385,20 @@ test('every notification call hits the documented path with its body', async () 
     ],
   );
 });
+
+test('the performance report and a detector asset are asked for as documented', async () => {
+  const f = fakeFetch({ body: {} }, { body: {} }, { body: {} });
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  await api.performance('s');
+  await api.performance('s', { days: 7, horizonHours: 2, codes: ['DT-1', 'DT 2'] });
+  await api.setDetectorAsset('s', 'd 1', null);
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    [
+      'GET /sites/s/performance',
+      'GET /sites/s/performance?days=7&horizon_hours=2&codes=DT-1&codes=DT+2',
+      'PATCH /sites/s/detectors/d%201',
+    ],
+  );
+  assert.deepEqual(JSON.parse(f.calls[2].body), { asset: null });
+});

@@ -143,20 +143,35 @@ export function deliveryState(d: Pick<Delivery, 'sent_at' | 'failed_at' | 'attem
   return '<span class="badge">Waiting</span>';
 }
 
+// Choices made but not yet saved, kept across re-renders (the page re-renders as the API answers),
+// for the site they were made on.
+interface NotifyDraft {
+  site: string;
+  on_raised?: boolean;
+  on_assigned?: boolean;
+  url?: string;
+  teams_on_raised?: boolean;
+}
+let notifyDraft: NotifyDraft = { site: '' };
+
 async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void> {
   const site = ctx.ontology.site;
   const api = ctx.api;
   if (!site || !api || !root.querySelector('#notifications')) return;
+  if (notifyDraft.site !== site.id) notifyDraft = { site: site.id };
+  const draft = notifyDraft;
   const prefsForm = root.querySelector<HTMLFormElement>('#notify-prefs');
   if (prefsForm) {
     const box = (name: string) => need<HTMLInputElement>(prefsForm, `[name=${name}]`);
     const show = (p: NotificationPrefs) => {
       need(prefsForm, '[data-notify-email]').textContent = `Emails go to ${p.email}. Send me:`;
-      box('on_raised').checked = p.on_raised;
-      box('on_assigned').checked = p.on_assigned;
+      box('on_raised').checked = draft.on_raised ?? p.on_raised;
+      box('on_assigned').checked = draft.on_assigned ?? p.on_assigned;
       for (const el of prefsForm.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button'))
         el.disabled = false;
     };
+    for (const name of ['on_raised', 'on_assigned'] as const)
+      box(name).addEventListener('change', () => (draft[name] = box(name).checked));
     api.notifications.preferences(site.id).then(show, () => {
       need(prefsForm, '[data-notify-email]').textContent = 'Your preferences could not be loaded.';
     });
@@ -164,6 +179,8 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
       const prefs = { on_raised: box('on_raised').checked, on_assigned: box('on_assigned').checked };
       api.notifications.setPreferences(site.id, prefs).then(
         (p) => {
+          delete draft.on_raised;
+          delete draft.on_assigned;
           show(p);
           ctx.toast('Notification preferences saved');
         },
@@ -180,12 +197,20 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
     status.textContent = t.configured
       ? `Connected to a channel at ${t.host}${t.on_raised ? ', which hears of every new warning' : ', posting nothing for now'}. Paste a new URL to change it.`
       : 'No channel yet.';
-    need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked = t.on_raised;
+    need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked = draft.teams_on_raised ?? t.on_raised;
   };
+  const urlBox = need<HTMLInputElement>(teamsForm, '[name=url]');
+  const onRaisedBox = need<HTMLInputElement>(teamsForm, '[name=on_raised]');
+  urlBox.value = draft.url ?? '';
+  if (draft.teams_on_raised !== undefined) onRaisedBox.checked = draft.teams_on_raised;
+  urlBox.addEventListener('input', () => (draft.url = urlBox.value));
+  onRaisedBox.addEventListener('change', () => (draft.teams_on_raised = onRaisedBox.checked));
   api.notifications.teams(site.id).then(showTeams, () => (status.textContent = 'The channel could not be loaded.'));
   const save = (url: string | null | undefined) =>
     api.notifications.setTeams(site.id, url, need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked).then(
       (t) => {
+        delete draft.url;
+        delete draft.teams_on_raised;
         teamsForm.reset();
         showTeams(t);
         ctx.toast(
