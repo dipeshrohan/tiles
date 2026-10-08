@@ -160,6 +160,32 @@ def _number(value: Any) -> float | None:
     return number if math.isfinite(number) else None
 
 
+def _params(spec: ModelSpec, params: Mapping[str, Any] | None, problems: list[str]) -> dict[str, float]:
+    given = dict(params or {})
+    unknown = sorted(set(given) - {p.name for p in spec.params})
+    if unknown:
+        problems.append(f"unknown param(s): {', '.join(unknown)}")
+    values_by_name: dict[str, float] = {}
+    for p in spec.params:
+        value = _number(given.get(p.name, p.default))
+        if value is None:
+            problems.append(f"param {p.name} must be a finite number")
+            continue
+        if (p.min is not None and value < p.min) or (p.max is not None and value > p.max):
+            problems.append(f"param {p.name} = {value:g} is outside [{p.min}, {p.max}]")
+        values_by_name[p.name] = value
+    return values_by_name
+
+
+def check_params(spec: ModelSpec, params: Mapping[str, Any] | None) -> dict[str, float]:
+    """The parameters with defaults filled in, or a ModelError naming each one out of place."""
+    problems: list[str] = []
+    values = _params(spec, params, problems)
+    if problems:
+        raise ModelError("; ".join(problems))
+    return values
+
+
 def evaluate(
     model: Model, inputs: Mapping[str, Sequence[Any]], params: Mapping[str, Any] | None = None
 ) -> dict[str, list[float | None]]:
@@ -191,19 +217,7 @@ def evaluate(
     lengths = {len(v) for v in series.values()}
     if len(lengths) > 1:
         problems.append("inputs must all be the same length")
-    given = dict(params or {})
-    unknown = sorted(set(given) - {p.name for p in spec.params})
-    if unknown:
-        problems.append(f"unknown param(s): {', '.join(unknown)}")
-    values_by_name: dict[str, float] = {}
-    for p in spec.params:
-        value = _number(given.get(p.name, p.default))
-        if value is None:
-            problems.append(f"param {p.name} must be a finite number")
-            continue
-        if (p.min is not None and value < p.min) or (p.max is not None and value > p.max):
-            problems.append(f"param {p.name} = {value:g} is outside [{p.min}, {p.max}]")
-        values_by_name[p.name] = value
+    values_by_name = _params(spec, params, problems)
     if problems:
         raise ModelError("; ".join(problems))
 
