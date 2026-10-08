@@ -75,7 +75,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T2.10` [#39](https://github.com/dipeshrohan/tiles/issues/39) **Data Explorer page:** plot any signals over a time range, with zoom and downsampling · FE · 3d · T2.06
 
 ### Ontology at scale
-- [ ] `T2.11` [#40](https://github.com/dipeshrohan/tiles/issues/40) ★ **Agentic ingestion v1:** suggests the ontology node for each unmapped tag, using names, units, PLC paths and similar tags; the suggestion queue becomes staged ops · ML+BE · 4d · T2.08, T1.13
+- [x] `T2.11` [#40](https://github.com/dipeshrohan/tiles/issues/40) ★ **Agentic ingestion v1:** suggests the ontology node for each unmapped tag, using names, units, PLC paths and similar tags; the suggestion queue becomes staged ops · ML+BE · 4d · T2.08, T1.13
   *Done when:* at least 70% of suggestions are accepted on the partner's tag list.
 - [ ] `T2.12` [#41](https://github.com/dipeshrohan/tiles/issues/41) **Change approval workflow:** a commit can require a reviewer; review page with the diff; approve or reject with comments · BE+FE · 3d · T1.13
 - [ ] `T2.13` [#42](https://github.com/dipeshrohan/tiles/issues/42) **Bulk ontology import/export** (JSON and CSV) · BE · 1.5d · T1.13

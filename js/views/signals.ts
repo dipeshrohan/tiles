@@ -1,5 +1,5 @@
 import { esc, field, fmt, onAll } from '../lib/dom.ts';
-import type { QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
+import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
@@ -12,6 +12,7 @@ const PAGE = 100;
 interface Ui {
   query: Required<Pick<SignalQuery, 'q' | 'source' | 'linked' | 'quality'>>;
   editing: string | null; // the signal being edited
+  skipped: string[]; // mapping suggestions skipped (signal ids)
   open: string | null; // the signal whose quality report is shown
 }
 
@@ -29,7 +30,12 @@ export const catalogue = (ctx: Context): string =>
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const ui = (ctx: Context): Ui =>
-  ctx.ui<Ui>('signals', { query: { q: '', source: '', linked: '', quality: '' }, editing: null, open: null });
+  ctx.ui<Ui>('signals', {
+    query: { q: '', source: '', linked: '', quality: '' },
+    editing: null,
+    open: null,
+    skipped: [],
+  });
 
 export function sourceLabel(source: string): string {
   const [kind, ...rest] = source.split(':');
@@ -328,6 +334,127 @@ function bindResults(root: HTMLElement, ctx: Context): void {
   });
 }
 
+// ---- mapping suggestions (T2.11) ------------------------------------------
+
+let mapping: { for: string; unmapped: number; staged: string[]; items: MappingSuggestion[] } | null = null;
+let suggesting = false;
+let linkingAll = false; // while Link all runs, the other buttons wait
+
+export function suggestionRow(s: MappingSuggestion, canEdit: boolean, busy = false): string {
+  const what =
+    s.kind === 'link'
+      ? `<span class="badge good">Link to</span> ${esc(s.node_label)}`
+      : `<span class="badge accent">New node</span> ${esc(s.node_label)}`;
+  return `<div class="suggestion" data-suggestion="${esc(s.signal_id)}">
+      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+        <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
+        <span class="small soft" title="How sure Tiles is">${Math.round(s.score * 100)}%</span>
+        <span style="flex:1"></span>
+        ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}" ${busy ? 'disabled' : ''}>${s.kind === 'link' ? 'Link' : 'Stage node'}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}" ${busy ? 'disabled' : ''}>Skip</button>` : ''}
+      </div>
+      <ul class="small soft" style="margin:4px 0 0 18px">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+    </div>`;
+}
+
+function mappingHtml(ctx: Context): string {
+  if (!mapping || mapping.for !== catalogue(ctx)) return '';
+  const skipped = new Set(ui(ctx).skipped);
+  const items = mapping.items.filter((s) => !skipped.has(s.signal_id));
+  const staged = mapping.staged.length
+    ? `<p class="small">Your staged change adds a node for ${mapping.staged.map((t) => `<code>${esc(t)}</code>`).join(', ')}: commit it on the <a href="#/ontology">Ontology</a> page, then suggest again to link it.</p>`
+    : '';
+  if (!mapping.unmapped) return '<p class="small soft">Every tag is linked to an ontology node.</p>';
+  if (!items.length)
+    return `${staged}<p class="small soft">${skipped.size ? 'No suggestions left here. Suggest again to see the skipped ones.' : 'No suggestions left here.'}</p>`;
+  const canEdit = ctx.ontology.role !== 'viewer';
+  const links = items.filter((s) => s.kind === 'link').length;
+  const shown = mapping.items.length + mapping.staged.length;
+  const more = mapping.unmapped > shown ? ` for ${mapping.items.length} of ${mapping.unmapped} unlinked tags` : '';
+  return `${staged}<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
+    ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links ${linkingAll ? 'disabled' : ''}>Link all ${links}</button></div>` : ''}
+    <div class="stack" style="gap:10px">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join('')}</div>`;
+}
+
+function fillMapping(root: HTMLElement, ctx: Context): void {
+  const box = root.querySelector<HTMLElement>('[data-mapping-results]');
+  if (!box) return;
+  box.innerHTML = mappingHtml(ctx);
+  bindMapping(root, ctx);
+}
+
+async function suggest(root: HTMLElement, ctx: Context): Promise<void> {
+  const site = ctx.ontology.site;
+  if (!ctx.api || !site || suggesting) return;
+  suggesting = true;
+  const from = catalogue(ctx);
+  try {
+    const out = await ctx.api.signals.suggestions(site.id);
+    mapping = { for: from, unmapped: out.unmapped, staged: out.staged, items: out.suggestions };
+    ui(ctx).skipped = [];
+  } catch {
+    // the client showed why
+  } finally {
+    suggesting = false;
+  }
+  if (root.querySelector('[data-mapping]')) fillMapping(root, ctx);
+}
+
+async function accept(root: HTMLElement, ctx: Context, s: MappingSuggestion): Promise<boolean> {
+  const site = ctx.ontology.site;
+  if (!ctx.api || !site) return false;
+  const ok =
+    s.kind === 'link'
+      ? await ctx.api.signals.update(site.id, s.signal_id, { node_id: s.node_id }).then(
+          () => true,
+          () => false, // the client showed why
+        )
+      : await ctx.ontology.act((store, repo) => store.stage(repo, s.ops));
+  if (ok && mapping) {
+    mapping.items = mapping.items.filter((x) => x.signal_id !== s.signal_id);
+    if (s.kind === 'link')
+      mapping.unmapped -= 1; // a staged node leaves its tag unlinked until committed
+    else mapping.staged = [...mapping.staged, s.tag];
+  }
+  return ok;
+}
+
+function bindMapping(root: HTMLElement, ctx: Context): void {
+  const find = (id: string | undefined) => mapping?.items.find((s) => s.signal_id === id);
+  onAll(root, '[data-accept]', 'click', (el) => {
+    const s = find(el.dataset.accept);
+    if (!s || linkingAll) return;
+    el.setAttribute('disabled', '');
+    void accept(root, ctx, s).then((ok) => {
+      if (ok)
+        ctx.toast(s.kind === 'link' ? `Linked ${s.tag}` : `Staged ${s.node_label}: commit it on the Ontology page`);
+      fillMapping(root, ctx);
+      if (ok && s.kind === 'link') void search(root, ctx);
+    });
+  });
+  onAll(root, '[data-skip]', 'click', (el) => {
+    if (el.dataset.skip) ui(ctx).skipped = [...ui(ctx).skipped, el.dataset.skip];
+    fillMapping(root, ctx);
+  });
+  onAll(root, '[data-accept-links]', 'click', () => {
+    if (linkingAll) return;
+    const skipped = new Set(ui(ctx).skipped);
+    const links = (mapping?.items ?? []).filter((s) => s.kind === 'link' && !skipped.has(s.signal_id));
+    linkingAll = true;
+    fillMapping(root, ctx); // every button waits
+    void (async () => {
+      let done = 0;
+      try {
+        for (const s of links) if (await accept(root, ctx, s)) done++;
+      } finally {
+        linkingAll = false;
+      }
+      ctx.toast(`Linked ${done} of ${links.length} tag(s)`);
+      fillMapping(root, ctx);
+      void search(root, ctx);
+    })();
+  });
+}
+
 const view: View = {
   id: 'signals',
   title: 'Signals',
@@ -355,6 +482,13 @@ const view: View = {
           ${ctx.ontology.role !== 'viewer' ? `<button class="btn" type="button" data-check-quality ${checking ? 'disabled' : ''} title="Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed">${checking ? 'Checking…' : 'Check quality'}</button>` : ''}
         </form>
         <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
+      </div>
+      <div class="card stack" style="gap:10px;margin-top:12px" data-mapping>
+        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
+          <button class="btn" type="button" data-suggest>Suggest mappings</button>
+        </div>
+        <div data-mapping-results aria-live="polite">${mappingHtml(ctx)}</div>
       </div>`;
   },
   bind(root, ctx) {
@@ -383,6 +517,8 @@ const view: View = {
       e.preventDefault();
       update();
     });
+    root.querySelector('[data-suggest]')?.addEventListener('click', () => void suggest(root, ctx));
+    bindMapping(root, ctx);
     const checkButton = root.querySelector<HTMLButtonElement>('[data-check-quality]');
     // The button as it is now: the page may have been left and shown again while a check ran.
     const setButton = (busy: boolean) => {

@@ -1,0 +1,54 @@
+{
+  "about": "Agentic ingestion (T2.11) evaluation: a plant ontology, its tags, and the node an engineer would pick for each. The suggester must match at least 70% (the task's acceptance bar).",
+  "graph": {
+    "nodes": [
+      { "id": "site-1", "type": "Site", "label": "Plant 1", "props": { "location": "Hall A" } },
+      { "id": "line-electrode", "type": "Line", "label": "Electrode line", "props": {} },
+      { "id": "machine-c01", "type": "Machine", "label": "Notching Cutter C-01", "props": { "vendor": "Acme" } },
+      { "id": "machine-dc02", "type": "Machine", "label": "Die-caster DC-02", "props": { "vendor": "Acme" } },
+      { "id": "machine-press1", "type": "Machine", "label": "Press 1", "props": { "vendor": "Acme" } },
+      { "id": "machine-oven3", "type": "Machine", "label": "Oven 3", "props": { "vendor": "Acme" } },
+      { "id": "machine-w03", "type": "Machine", "label": "Welder W-03", "props": { "vendor": "Acme" } },
+      { "id": "plc-c01", "type": "PLC", "label": "PLC C-01", "props": { "protocol": "OPC UA" } },
+      { "id": "plc-dc02", "type": "PLC", "label": "PLC DC-02", "props": { "protocol": "OPC UA" } },
+      { "id": "plc-press1", "type": "PLC", "label": "PLC Press 1", "props": { "protocol": "Modbus TCP" } },
+      { "id": "plc-oven3", "type": "PLC", "label": "PLC Oven 3", "props": { "protocol": "OPC UA" } },
+      {
+        "id": "signal-dc02-plunger-velocity",
+        "type": "Signal",
+        "label": "Plunger velocity DC-02",
+        "props": { "unit": "m/s" }
+      },
+      { "id": "signal-oven3-zone1", "type": "Signal", "label": "Oven 3 zone 1 temperature", "props": { "unit": "°C" } },
+      { "id": "signal-c01-tension", "type": "Signal", "label": "Front stock tension C-01", "props": { "unit": "N" } },
+      { "id": "signal-press1-force", "type": "Signal", "label": "Press 1 force", "props": { "unit": "kN" } }
+    ],
+    "edges": [
+      { "from": "machine-c01", "rel": "controlledBy", "to": "plc-c01" },
+      { "from": "machine-dc02", "rel": "controlledBy", "to": "plc-dc02" },
+      { "from": "machine-press1", "rel": "controlledBy", "to": "plc-press1" },
+      { "from": "machine-oven3", "rel": "controlledBy", "to": "plc-oven3" },
+      { "from": "plc-dc02", "rel": "emits", "to": "signal-dc02-plunger-velocity" },
+      { "from": "plc-oven3", "rel": "emits", "to": "signal-oven3-zone1" },
+      { "from": "plc-c01", "rel": "emits", "to": "signal-c01-tension" },
+      { "from": "plc-press1", "rel": "emits", "to": "signal-press1-force" }
+    ]
+  },
+  "mapped": [{ "tag": "press1.force", "unit": "kN", "node_id": "signal-press1-force" }],
+  "cases": [
+    {
+      "tag": "dc02.plunger_vel",
+      "unit": "m/s",
+      "expect": { "kind": "link", "node_id": "signal-dc02-plunger-velocity" }
+    },
+    { "tag": "oven3.zone1_temp", "unit": "°C", "expect": { "kind": "link", "node_id": "signal-oven3-zone1" } },
+    { "tag": "c01/front_stock_tension", "unit": null, "expect": { "kind": "link", "node_id": "signal-c01-tension" } },
+    { "tag": "press1.temperature", "unit": null, "expect": { "kind": "create", "plc": "plc-press1", "unit": "°C" } },
+    { "tag": "dc02.metal_pressure", "unit": "bar", "expect": { "kind": "create", "plc": "plc-dc02", "unit": "bar" } },
+    { "tag": "oven3.zone2_temp", "unit": "°C", "expect": { "kind": "create", "plc": "plc-oven3", "unit": "°C" } },
+    { "tag": "w03.current", "unit": null, "expect": { "kind": "create", "plc": null, "unit": "A" } },
+    { "tag": "line_speed", "unit": null, "expect": { "kind": "create", "plc": null, "unit": "m/s" } },
+    { "tag": "press1.state", "unit": null, "expect": { "kind": "create", "plc": "plc-press1", "unit": "state" } },
+    { "tag": "c01.blade_age", "unit": null, "expect": { "kind": "create", "plc": "plc-c01", "unit": null } }
+  ]
+}

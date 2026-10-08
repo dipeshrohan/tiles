@@ -488,6 +488,10 @@ main {
   opacity: 0.6;
   pointer-events: none;
 }
+.suggestion {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
 .btn-link {
   background: none;
   border: 0;
