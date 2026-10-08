@@ -14,18 +14,16 @@ moves past each window run, so each run takes only new data.
 
 import argparse
 import math
-import sys
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal
 
-import psycopg
 from psycopg import sql
-from psycopg.rows import dict_row, tuple_row
+from psycopg.rows import tuple_row
 
+from tiles_api import jobs
 from tiles_api.models.registry import Model, evaluate, registry
-from tiles_api.settings import get_settings
 from tiles_api.store import Conn
 
 TIME = "@time"  # an input fed with seconds since the window began
@@ -245,11 +243,7 @@ def run(conn: Conn, binding_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunRes
 
 def due(conn: Conn, site_id: uuid.UUID | None = None) -> list[uuid.UUID]:
     """The enabled bindings (of one site, if given), oldest first."""
-    rows = conn.execute(
-        "SELECT id FROM model_bindings WHERE enabled AND (%s::uuid IS NULL OR site_id = %s) ORDER BY created_at",
-        [site_id, site_id],
-    ).fetchall()
-    return [r["id"] for r in rows]
+    return jobs.enabled(conn, "model_bindings", site_id)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -257,21 +251,10 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="tiles-run-models", description=main.__doc__)
     parser.add_argument("--site", type=uuid.UUID, help="only this site's bindings (its id)")
     args = parser.parse_args(argv)
-    failed = False
-    # Autocommit, so each binding's run is its own transaction: one failing keeps the others'.
-    with psycopg.connect(get_settings().database_url, row_factory=dict_row, autocommit=True) as conn:
-        for binding in due(conn, args.site):
-            try:
-                with conn.transaction():
-                    result = run(conn, binding)
-            except Exception as e:
-                failed = True
-                print(f"{binding}: not run ({e})", file=sys.stderr)
-                continue
-            line = (
-                f"{binding}: {result.windows} window(s), {result.failed} refused, {result.written} reading(s) written"
-            )
-            print(line + (f"; {result.error}" if result.error else ""))
-            failed = failed or result.error is not None
-    if failed:
-        raise SystemExit(1)
+
+    def run_one(conn: Conn, binding: uuid.UUID) -> tuple[str, bool]:
+        r = run(conn, binding)
+        line = f"{r.windows} window(s), {r.failed} refused, {r.written} reading(s) written"
+        return line + (f"; {r.error}" if r.error else ""), r.error is None
+
+    jobs.run_each(lambda conn: due(conn, args.site), run_one)
