@@ -20,6 +20,7 @@ from tiles_api.api_ontology import Ctx, Editor
 
 router = APIRouter(tags=["signals"])
 
+NO_NUL = r"^[^\x00]*$"  # PostgreSQL text can't hold NUL
 EDITABLE = ("unit", "sample_rate_hz", "description", "node_id")
 
 
@@ -46,10 +47,10 @@ class SignalPatch(BaseModel):
     """Only the fields given change; null clears one."""
 
     model_config = ConfigDict(extra="forbid")
-    unit: Annotated[str, Field(min_length=1, max_length=40)] | None = None
+    unit: Annotated[str, Field(min_length=1, max_length=40, pattern=NO_NUL)] | None = None
     sample_rate_hz: Annotated[float, Field(gt=0, le=1_000_000)] | None = None
-    description: Annotated[str, Field(max_length=1000)] | None = None
-    node_id: Annotated[str, Field(min_length=1, max_length=200)] | None = None
+    description: Annotated[str, Field(max_length=1000, pattern=NO_NUL)] | None = None
+    node_id: Annotated[str, Field(min_length=1, max_length=200, pattern=NO_NUL)] | None = None
 
 
 SELECT: LiteralString = """
@@ -73,7 +74,7 @@ def _like(text: str) -> str:
 @router.get("/sites/{site_id}/signals", response_model=SignalPage)
 def list_signals(
     ctx: Ctx,
-    q: Annotated[str, Query(max_length=200)] = "",
+    q: Annotated[str, Query(max_length=200, pattern=NO_NUL)] = "",
     source: Literal["", "edge", "import", "manual"] = "",
     linked: Literal["", "yes", "no"] = "",
     limit: Annotated[int, Query(ge=1, le=500)] = 100,

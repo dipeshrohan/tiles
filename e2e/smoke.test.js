@@ -667,6 +667,59 @@ test('the signal catalogue: search, describe a signal and link it to its ontolog
   assert.deepEqual(errors, []);
 });
 
+test("switching to another Tiles API never shows the previous one's signals", async (t) => {
+  const first = createFakeApi();
+  const second = createFakeApi();
+  const [firstUrl, secondUrl] = await Promise.all([first.listen(), second.listen()]);
+  t.after(() => Promise.all([first.close(), second.close()]));
+  first.addSignal('first.tag');
+  second.addSignal('second.tag');
+  second.slowSearch('', 1500);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  const show = (hash) => page.evaluate((h) => (location.hash = h), hash); // the same page, not a reload
+  const useApi = async (url) => {
+    await show('#/settings');
+    await page.waitForSelector('#datasource');
+    await page.fill('#datasource [name=apiUrl]', url);
+    await page.check('#datasource [name=mode][value=api]');
+    await page.click('#datasource button[type=submit]');
+  };
+  await page.goto(`${httpBase}#/settings`);
+  await useApi(firstUrl);
+  await show('#/signals');
+  await page.waitForSelector('[data-signal-results] code:has-text("first.tag")');
+  await useApi(secondUrl);
+  await show('#/signals');
+  await page.waitForSelector('[data-signal-results]:has-text("Loading")');
+  assert.equal(await page.locator('[data-signal-results] code:has-text("first.tag")').count(), 0);
+  await page.waitForSelector('[data-signal-results] code:has-text("second.tag")');
+  assert.deepEqual(errors, []);
+});
+
+test('leaving the signals page mid-search never leaves it loading', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature');
+  fake.addSignal('oven.temp');
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  fake.slowSearch('oven', 600);
+  await page.fill('#signal-search [name=q]', 'oven');
+  // Away and back before the typed search is sent, while the page's own search is still waiting.
+  await page.evaluate(() => {
+    location.hash = '#/import';
+    location.hash = '#/signals';
+  });
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForTimeout(800);
+  assert.match(await page.locator('[data-signal-results]').innerText(), /oven\.temp/);
+  assert.deepEqual(errors, []);
+});
+
 test('a slow answer to an earlier search never replaces the current one', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

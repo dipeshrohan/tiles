@@ -16,6 +16,11 @@ interface Ui {
 let results: { total: number; signals: SignalInfo[] } | null = null;
 let failed = false;
 let latestSearch = 0; // answers to earlier searches are dropped
+let resultsFor = ''; // the catalogue `results` came from: see catalogue()
+
+// Which catalogue is shown: the API, the site and who is asking. Results from another are never shown.
+const catalogue = (ctx: Context): string =>
+  [ctx.api?.baseUrl ?? '', ctx.ontology.site?.id ?? '', ctx.state.user.email, ctx.auth.signedIn].join('|');
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const ui = (ctx: Context): Ui => ctx.ui<Ui>('signals', { query: { q: '', source: '', linked: '' }, editing: null });
@@ -113,8 +118,9 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
 
 async function search(root: HTMLElement, ctx: Context): Promise<void> {
   const site = ctx.ontology.site;
-  if (!ctx.api || !site) return;
+  if (!ctx.api || !site || !root.isConnected) return; // a page that was replaced asks for nothing
   const mine = ++latestSearch;
+  const from = catalogue(ctx);
   let page: typeof results = null;
   try {
     page = await ctx.api.signals.list(site.id, { ...ui(ctx).query, limit: PAGE });
@@ -123,6 +129,7 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
   }
   if (mine !== latestSearch) return;
   results = page;
+  resultsFor = from;
   failed = page === null;
   fill(root, ctx);
 }
@@ -209,7 +216,10 @@ const view: View = {
   bind(root, ctx) {
     const form = root.querySelector<HTMLFormElement>('#signal-search');
     if (!form) return;
-    if (results) fill(root, ctx); // show the last answer at once, then refresh it
+    clearTimeout(searchTimer); // a search typed on the page this one replaces
+    if (results && resultsFor === catalogue(ctx))
+      fill(root, ctx); // show the last answer at once, then refresh it
+    else results = null;
     void search(root, ctx);
     const update = () => {
       const u = ui(ctx);
