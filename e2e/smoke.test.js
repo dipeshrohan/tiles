@@ -168,10 +168,13 @@ test('ontology page in API mode: import, commit, and see another user’s commit
     await page.waitForSelector('.source-bar:has-text("Shared through the Tiles API")'); // loaded
     return { page, errors };
   };
-  // Refresh, and wait until the page shows what the API answered.
+  // Refresh, and wait until the page shows what the API answered: each answer's body has arrived
+  // (a response event fires on its headers), then the page has rendered.
   const refresh = async (page) => {
     const answered = (path) =>
-      page.waitForResponse((r) => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith(path));
+      page
+        .waitForResponse((r) => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith(path))
+        .then((r) => r.finished());
     await Promise.all([
       answered('/ontology/graph'),
       answered('/ontology/staged'),
@@ -217,6 +220,7 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   );
   await refresh(b.page);
   await b.page.click('[data-tab=history]');
+  await b.page.waitForSelector('.commit b:has-text("add shift notes")');
   const messages = await b.page.locator('.commit b').allInnerTexts();
   assert.deepEqual(messages.slice(0, 3), ['add shift notes', 'add alarms node', 'Import demo ontology']);
 
@@ -225,6 +229,7 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   await b.page.waitForSelector('#toast:has-text("Commit reverted")');
   await refresh(a.page);
   await a.page.click('[data-tab=history]');
+  await a.page.waitForSelector('.commit:has-text(\'Revert "add shift notes"\')');
   assert.match(await a.page.locator('.commit').first().innerText(), /Revert "add shift notes"/);
 
   assert.deepEqual([...a.errors, ...b.errors], []);
