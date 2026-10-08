@@ -1042,6 +1042,77 @@ tr.selected td {
   color: var(--soft);
 }
 
+/* ---- change reviews (T2.12) ---- */
+.reviews {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 16px;
+  align-items: start;
+}
+@media (min-width: 960px) {
+  .reviews {
+    grid-template-columns: minmax(280px, 1fr) minmax(0, 2.4fr);
+  }
+}
+.review-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.review-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-align: left;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--panel);
+  color: inherit;
+  font: inherit;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.review-row:hover,
+.review-row.sel {
+  border-color: var(--accent);
+}
+.review-diff .change {
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+.review-diff .sign {
+  display: inline-block;
+  width: 1.2em;
+  font-weight: 700;
+}
+.review-diff .plus .sign {
+  color: var(--good);
+}
+.review-diff .minus .sign {
+  color: var(--bad);
+}
+.review-diff .mod .sign {
+  color: var(--warn);
+}
+.thread .comment {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.comment-body {
+  margin-top: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.alert {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bad-soft);
+  color: var(--ink);
+}
+
 .toast {
   position: fixed;
   bottom: 20px;

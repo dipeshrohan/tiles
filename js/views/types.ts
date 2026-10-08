@@ -1,6 +1,6 @@
 // Types shared by the app shell and the page views.
 
-import type { ApiClient, AuthConfig, DataSource, Site } from '../lib/api.ts';
+import type { ApiClient, AuthConfig, DataSource, Membership, Site } from '../lib/api.ts';
 import type { OntologyStore } from '../lib/ontology-store.ts';
 import type { CutterBatch, Detection, Graph, Repo, Run, ScoredEvent, ShotHistory, WeldData } from '../lib/types.ts';
 
@@ -71,6 +71,10 @@ export interface OntologyContext {
   readonly site: Site | null;
   // Your role on the site in API mode; null in local mode (you can do anything).
   readonly role: 'viewer' | 'engineer' | 'admin' | null;
+  // API mode: your user id, the site's members, and whether every change needs a review (T2.12).
+  readonly userId: string | null;
+  readonly members: Membership[];
+  readonly reviewRequired: boolean;
   readonly error: string | null;
   // Runs a change against the current store and shows its result. Failures
   // become a toast; resolves to whether the change worked.

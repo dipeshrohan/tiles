@@ -812,6 +812,7 @@
 			me: () => request("GET", "/me"),
 			sites: () => request("GET", "/sites"),
 			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
+			members: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/members`),
 			audit: (siteId, { limit = 100, offset = 0 } = {}) => request("GET", `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
 			agents: {
 				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/agents`),
@@ -853,7 +854,18 @@
 				commit: (siteId, message) => request("POST", `${site(siteId)}/commits`, { message }),
 				history: (siteId, { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/commits?limit=${limit}&offset=${offset}`),
 				revert: (siteId, commitId) => request("POST", `${site(siteId)}/commits/${encodeURIComponent(commitId)}/revert`),
-				health: (siteId, view = "head") => request("GET", `${site(siteId)}/health?view=${view}`)
+				health: (siteId, view = "head") => request("GET", `${site(siteId)}/health?view=${view}`),
+				reviewPolicy: (siteId) => request("GET", `${site(siteId)}/review-policy`),
+				setReviewPolicy: (siteId, required) => request("PUT", `${site(siteId)}/review-policy`, { required })
+			},
+			reviews: {
+				list: (siteId, state = "open", { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/reviews?state=${state}&limit=${limit}&offset=${offset}`),
+				get: (siteId, n) => request("GET", `${site(siteId)}/reviews/${n}`),
+				request: (siteId, body) => request("POST", `${site(siteId)}/reviews`, body),
+				comment: (siteId, n, body) => request("POST", `${site(siteId)}/reviews/${n}/comments`, { body }),
+				approve: (siteId, n, comment = "") => request("POST", `${site(siteId)}/reviews/${n}/approve`, { comment }),
+				reject: (siteId, n, comment) => request("POST", `${site(siteId)}/reviews/${n}/reject`, { comment }),
+				rework: (siteId, n) => request("POST", `${site(siteId)}/reviews/${n}/rework`)
 			}
 		};
 	}
@@ -1069,6 +1081,7 @@
 	}
 	//#endregion
 	//#region js/lib/ontology-store.ts
+	var NO_REVIEWS = "Reviews need a shared ontology: connect to the Tiles API in Settings";
 	var localStore = {
 		kind: "local",
 		stage: async (repo, ops) => ops.reduce((r, op) => stage(r, op), repo),
@@ -1077,7 +1090,8 @@
 			message,
 			author
 		}),
-		revert: async (repo, id, author) => revert(repo, id, { author })
+		revert: async (repo, id, author) => revert(repo, id, { author }),
+		requestReview: () => Promise.reject(/* @__PURE__ */ new Error(NO_REVIEWS))
 	};
 	var HISTORY_LIMIT = 500;
 	function remoteStore(api, site) {
@@ -1113,6 +1127,14 @@
 			},
 			async revert(_repo, commitId) {
 				await o.revert(site.id, commitId);
+				return load();
+			},
+			async requestReview(_repo, { message, reviewerId, reverts }) {
+				await api.reviews.request(site.id, {
+					...message ? { message } : {},
+					...reviewerId ? { reviewer_id: reviewerId } : {},
+					...reverts ? { reverts } : {}
+				});
 				return load();
 			}
 		};
@@ -1177,7 +1199,7 @@
 	function onSubmit(root, sel, handler) {
 		root.querySelector(sel)?.addEventListener("submit", (e) => {
 			e.preventDefault();
-			handler(e.currentTarget);
+			handler(e.currentTarget, e.submitter);
 		});
 	}
 	//#endregion
@@ -1418,7 +1440,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$9 = {
+	var view$10 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1721,7 +1743,7 @@
 	];
 	//#endregion
 	//#region js/views/chat.ts
-	var view$8 = {
+	var view$9 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -1778,11 +1800,14 @@
 	};
 	//#endregion
 	//#region js/views/ontology.ts
-	var uiState$3 = (ctx) => ctx.ui("ontology", {
+	var uiState$4 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
 		hidden: []
 	});
+	function showHistory(ctx) {
+		uiState$4(ctx).tab = "history";
+	}
 	var COLUMNS = [
 		["Enterprise", "Site"],
 		["Workcenter"],
@@ -1952,18 +1977,19 @@
 	}
 	function history$1(ctx, graph) {
 		const { history } = ctx.state.repo;
+		const revert = ctx.ontology.status === "ready" && ctx.ontology.reviewRequired ? "Request revert" : "Revert";
 		return `<div class="card">${history.map((c, i) => `
         <div class="commit">
           <span class="avatar" style="background:${i === 0 ? "var(--accent)" : "var(--line-strong)"}">${esc((c.author[0] ?? "?").toUpperCase())}</span>
           <div style="flex:1;min-width:0">
             <div><b>${esc(c.message)}</b></div>
-            <div class="small muted">${esc(c.author)} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
+            <div class="small muted">${esc(c.author)}${c.reviewer ? ` · approved by ${esc(c.reviewer)}` : ""} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
             <div class="stats">${statBadges(c.stats)}</div>
             <details style="margin-top:6px"><summary class="small soft" style="cursor:pointer">${c.ops.length} operation(s)</summary>
               <div class="diff" style="margin-top:6px">${c.ops.slice(0, 60).map((op) => `<div>${esc(describeOp(op, graph))}</div>`).join("")}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ""}</div>
             </details>
           </div>
-          <button class="btn sm" data-revert="${esc(c.id)}">Revert</button>
+          <button class="btn sm" data-revert="${esc(c.id)}">${revert}</button>
         </div>`).join("")}</div>`;
 	}
 	function healthTab(health, graph) {
@@ -1991,6 +2017,15 @@
 			default: return [op.id];
 		}
 	}
+	function reviewControls(ctx) {
+		const o = ctx.ontology;
+		const commit = "<button class=\"btn primary\" type=\"submit\" value=\"commit\">Commit</button>";
+		if (o.status !== "ready") return commit;
+		const reviewers = o.members.filter((m) => m.user_id !== o.userId && m.role !== "viewer").sort((a, b) => a.name.localeCompare(b.name));
+		return `${o.reviewRequired ? "" : commit}
+          <select name="reviewer" aria-label="Reviewer"><option value="">Any engineer</option>${reviewers.map((m) => `<option value="${esc(m.user_id)}">${esc(m.name)}</option>`).join("")}</select>
+          <button class="btn ${o.reviewRequired ? "primary" : ""}" type="submit" value="review" data-request-review>Request review</button>`;
+	}
 	function pageHead() {
 		return `
       <div class="page-head">
@@ -2009,16 +2044,16 @@
 		const { head, history, staged } = ctx.state.repo;
 		const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
 		return `<div class="card source-bar small" aria-live="polite">
-      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.role === "viewer" ? " <span class=\"badge\">View only</span>" : ""}</span>
-      <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<button class="btn sm" data-refresh>Refresh</button></span>
+      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.reviewRequired ? " Every change needs a review." : ""}${o.role === "viewer" ? " <span class=\"badge\">View only</span>" : ""}</span>
+      <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$7 = {
+	var view$8 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
 		render(ctx) {
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
@@ -2038,7 +2073,7 @@
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
-          <button class="btn primary" type="submit">Commit</button>
+          ${reviewControls(ctx)}
           <button class="btn" type="button" data-discard>Discard</button>
         </form>` : "";
 			const tabs = [
@@ -2058,7 +2093,7 @@
       ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
@@ -2068,7 +2103,10 @@
 			onAll(root, "[data-import-demo]", "click", async (el) => {
 				el.setAttribute("disabled", "");
 				const ops = historyOps(seedOntology());
-				if (await stageOps(ops)) await ctx.ontology.act((store, repo) => store.commit(repo, "Import demo ontology", author), "Demo ontology imported");
+				if (!await stageOps(ops)) return;
+				const message = "Import demo ontology";
+				if (ctx.ontology.reviewRequired) await ctx.ontology.act((store, repo) => store.requestReview(repo, { message }), "Demo ontology sent for review");
+				else await ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Demo ontology imported");
 			});
 			const selected = () => ui.selected;
 			onAll(root, "[data-tab]", "click", (el) => {
@@ -2142,11 +2180,21 @@
 			onAll(root, "[data-discard]", "click", () => ctx.ontology.act((store, repo) => store.discard(repo), "Changes discarded"));
 			onAll(root, "[data-revert]", "click", (el) => {
 				const id = el.dataset.revert;
-				if (id) ctx.ontology.act((store, repo) => store.revert(repo, id, author), "Commit reverted");
+				if (!id) return;
+				if (ctx.ontology.status === "ready" && ctx.ontology.reviewRequired) ctx.ontology.act((store, repo) => store.requestReview(repo, { reverts: id }), "Revert sent for review");
+				else ctx.ontology.act((store, repo) => store.revert(repo, id, author), "Commit reverted");
 			});
-			onSubmit(root, "#commit-form", (form) => {
+			onSubmit(root, "#commit-form", (form, submitter) => {
 				const message = field$1(form, "message");
-				ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Committed");
+				if (!(submitter ? submitter.hasAttribute("data-request-review") : !form.querySelector("[value=commit]"))) {
+					ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Committed");
+					return;
+				}
+				const reviewerId = field$1(form, "reviewer") || void 0;
+				ctx.ontology.act((store, repo) => store.requestReview(repo, {
+					message,
+					reviewerId
+				}), "Sent for review");
 			});
 			onSubmit(root, "#prop-form", (form) => {
 				const id = selected();
@@ -2447,16 +2495,16 @@
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var uiState$2 = (ctx) => ctx.ui("quality", {
+	var uiState$3 = (ctx) => ctx.ui("quality", {
 		split: true,
 		variable: "tension"
 	});
-	var view$6 = {
+	var view$7 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
 		render(ctx) {
-			const ui = uiState$2(ctx);
+			const ui = uiState$3(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
@@ -2572,7 +2620,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$2(ctx);
+			const ui = uiState$3(ctx);
 			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
@@ -2588,14 +2636,14 @@
 	};
 	//#endregion
 	//#region js/views/physics.ts
-	var uiState$1 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$5 = {
+	var uiState$2 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var view$6 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = uiState$1(ctx);
+			const ui = uiState$2(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
@@ -2719,7 +2767,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$1(ctx);
+			const ui = uiState$2(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
 				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
@@ -2745,9 +2793,9 @@
 	//#region js/views/design.ts
 	var defaults = (model) => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
-	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
+	var show$1 = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var uiState = (ctx) => ctx.ui("design", {
+	var uiState$1 = (ctx) => ctx.ui("design", {
 		model: "swelling",
 		params: {},
 		versions: {},
@@ -2755,7 +2803,7 @@
 		sweepY: null
 	});
 	function current(ctx) {
-		const ui = uiState(ctx);
+		const ui = uiState$1(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
 			ui,
@@ -2764,7 +2812,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -2853,7 +2901,7 @@
                 ${runs.map((r) => {
 				const diff = runDiff(r, r.parent ? byId.get(r.parent) : null);
 				return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : "<span class=\"muted\">untitled</span>"}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
-                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join("<br>") || "no change" : "first run"}</td>
+                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show$1(d.from)} → ${show$1(d.to)}`).join("<br>") || "no change" : "first run"}</td>
                       <td class="num"><b>${fmt$1(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
 			}).join("")}</tbody></table></div>` : "<div class=\"empty\">No runs yet. Adjust parameters and press “Save run”.</div>"}
         </div>
@@ -3099,7 +3147,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -3525,7 +3573,7 @@
 			})();
 		});
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "signals",
 		title: "Signals",
 		icon: "≋",
@@ -3682,7 +3730,7 @@
 		if (seconds < 172800) return `${+(seconds / 3600).toPrecision(3)} h`;
 		return `${+(seconds / 86400).toPrecision(3)} d`;
 	}
-	function describe(series) {
+	function describe$1(series) {
 		const readings = series.points.reduce((n, p) => n + p.n, 0);
 		if (!readings) return "No readings in this range";
 		return series.bucket_s === null ? `${fmt$1(readings, 0)} reading(s)` : `${fmt$1(readings, 0)} readings, as ${fmt$1(series.points.length, 0)} averages of ${duration(series.bucket_s)} with their range`;
@@ -3705,7 +3753,7 @@
 			width: fitWidth(TIME_CHART.width)
 		}) : ""}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
-    <p class="small soft" data-series-note>${esc(describe(series))}</p>`;
+    <p class="small soft" data-series-note>${esc(describe$1(series))}</p>`;
 	}
 	var localInput = (isoTime) => {
 		const d = new Date(isoTime);
@@ -3839,7 +3887,7 @@
 		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
 		ctx.api.signals.get(site.id, id).then((s) => add(ctx, s), () => void 0);
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "⌁",
@@ -3923,6 +3971,315 @@
 				});
 			}
 			loadCharts(root, ctx);
+		}
+	};
+	//#endregion
+	//#region js/lib/review.ts
+	var show = (v) => typeof v === "string" ? `“${v}”` : String(v);
+	function describeChanges(head, ops, { compare = true } = {}) {
+		let graph = head;
+		return ops.map((op) => {
+			const label = (id) => graph.nodes[id]?.label ?? id;
+			const change = describe(op, compare ? graph : {
+				nodes: {},
+				edges: {}
+			}, label);
+			if (!compare) return change;
+			try {
+				graph = applyOp(graph, op).graph;
+			} catch (e) {
+				change.problem = e instanceof Error ? e.message : String(e);
+			}
+			return change;
+		});
+	}
+	function describe(op, graph, label) {
+		switch (op.kind) {
+			case "addNode": {
+				const props = Object.entries(op.node.props ?? {}).map(([k, v]) => `${k} ${show(v)}`);
+				return {
+					sign: "+",
+					text: `${op.node.type} “${op.node.label}”${props.length ? ` (${props.join(", ")})` : ""}`
+				};
+			}
+			case "removeNode": {
+				const node = graph.nodes[op.id];
+				return {
+					sign: "−",
+					text: node ? `${node.type} “${node.label}”` : `node ${label(op.id)}`
+				};
+			}
+			case "addEdge": return {
+				sign: "+",
+				text: `${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`
+			};
+			case "removeEdge": {
+				const edge = graph.edges[op.id];
+				return {
+					sign: "−",
+					text: edge ? `${label(edge.from)} —${edge.rel}→ ${label(edge.to)}` : `relationship ${op.id}`
+				};
+			}
+			case "setProp": {
+				const before = graph.nodes[op.id]?.props?.[op.key];
+				const what = `${label(op.id)} · ${op.key}`;
+				if (op.value === void 0) return {
+					sign: "−",
+					text: before === void 0 ? what : `${what} (was ${show(before)})`
+				};
+				if (before === void 0) return {
+					sign: "+",
+					text: `${what} = ${show(op.value)}`
+				};
+				return {
+					sign: "~",
+					text: `${what}: ${show(before)} → ${show(op.value)}`
+				};
+			}
+		}
+	}
+	//#endregion
+	//#region js/views/reviews.ts
+	var uiState = (ctx) => ctx.ui("reviews", {
+		state: "open",
+		selected: null
+	});
+	var listing = null;
+	var detail = null;
+	var listSeq = 0;
+	var detailSeq = 0;
+	var busy = false;
+	var draft = {
+		key: "",
+		text: ""
+	};
+	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var listKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).state}`;
+	var detailKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).selected}`;
+	var STATUS = {
+		open: ["warn", "Waiting for review"],
+		approved: ["good", "Approved"],
+		rejected: ["bad", "Rejected"],
+		withdrawn: ["", "Withdrawn"]
+	};
+	function statusBadge(status) {
+		const [cls, text] = STATUS[status];
+		return `<span class="badge ${cls}">${text}</span>`;
+	}
+	function stats(s) {
+		const part = (n, what) => n ? `<span class="${n > 0 ? "plus" : "minus"}">${n > 0 ? "+" : "−"}${Math.abs(n)}</span> ${what}` : "";
+		return [
+			part(s.nodes, "node"),
+			part(s.edges, "edge"),
+			part(s.props, "prop")
+		].filter(Boolean).join(" · ");
+	}
+	function mayDecide(r, me, role) {
+		if (r.status !== "open" || role === null || role === "viewer" || r.author_id === me) return false;
+		return r.reviewer_id === null || r.reviewer_id === me || role === "admin";
+	}
+	function listCard(ctx, ui) {
+		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
+		const items = listing?.key === listKey(ctx) ? listing.items : null;
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((r) => `
+        <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
+          <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
+          <span class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
+          <span class="small">${stats(r.stats)}</span>
+        </button>`).join("") || `<div class="empty">${ui.state === "open" ? "Nothing waits for a review. Send staged changes from the Ontology page." : "No closed change requests yet."}</div>`}</div></div>`;
+	}
+	function detailCard(ctx, ui) {
+		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a change request to see its changes.</div></div>";
+		const r = detail?.key === detailKey(ctx) ? detail.review : null;
+		if (!r) return "<div class=\"card\" data-review-detail><div class=\"empty\">Loading…</div></div>";
+		const o = ctx.ontology;
+		const open = r.status === "open";
+		const changes = describeChanges(ctx.state.repo.head, r.ops, { compare: open });
+		const shown = changes.slice(0, 200);
+		const diff = shown.map((c) => `<div class="change ${c.sign === "+" ? "plus" : c.sign === "−" ? "minus" : "mod"}"><span class="sign">${c.sign}</span> ${esc(c.text)}${c.problem ? ` <span class="badge bad" title="${esc(c.problem)}">doesn't apply</span>` : ""}</div>`).join("");
+		const thread = r.thread.map((c) => `
+      <div class="comment">
+        <div class="small muted"><b>${esc(c.author)}</b> · ${timeAgo(c.created_at)}${c.verdict ? ` ${statusBadge(c.verdict)}` : ""}</div>
+        ${c.body ? `<div class="comment-body">${esc(c.body)}</div>` : ""}
+      </div>`).join("");
+		const canWrite = o.role !== null && o.role !== "viewer";
+		const decide = mayDecide(r, o.userId, o.role);
+		const mine = r.author_id !== null && r.author_id === o.userId;
+		const outcome = r.status === "approved" && r.commit_id ? `<p class="small">Committed as <a class="mono" href="#/ontology" data-history>${esc(r.commit_id.slice(-7))}</a> by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : r.status !== "open" ? `<p class="small soft">${STATUS[r.status][1]} by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : "";
+		const waiting = open && !decide && canWrite && !mine && r.reviewer ? `<p class="small soft">Waiting for ${esc(r.reviewer)} (or an admin) to review it.</p>` : "";
+		return `
+    <div class="card" data-review-detail>
+      <div class="card-head"><div>
+        ${statusBadge(r.status)}
+        <h2 style="margin-top:6px">#${r.number} ${esc(r.message)}</h2>
+        <div class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)} · ${r.reviewer ? `review by ${esc(r.reviewer)}` : "any engineer may review"}${r.reverts ? ` · reverts <span class="mono">${esc(r.reverts.slice(-7))}</span>` : ""}</div>
+      </div></div>
+      ${outcome}
+      ${open && r.conflict ? `<div class="alert" role="alert"><b>This change no longer fits the ontology</b>: ${esc(r.conflict)}. It can't be approved; its author can rework it.</div>` : ""}
+      <h3 style="margin:12px 0 6px">Changes <span class="small soft">${stats(r.stats)}</span></h3>
+      <div class="diff review-diff">${diff}${changes.length > shown.length ? `<div>… ${changes.length - shown.length} more</div>` : ""}</div>
+      <h3 style="margin:16px 0 6px">Discussion</h3>
+      <div class="thread">${thread || "<p class=\"small muted\">No comments yet.</p>"}</div>
+      ${waiting}
+      ${canWrite ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
+        <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft.key === detailKey(ctx) ? esc(draft.text) : ""}</textarea>
+        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy ? "disabled" : ""}>
+          <button class="btn" type="button" data-act="comment">Comment</button>
+          ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
+          ${mine && r.status !== "approved" ? `<button class="btn" type="button" data-act="rework">${open ? "Withdraw and rework" : "Rework"}</button>` : ""}
+        </fieldset>
+      </form>` : ""}
+    </div>`;
+	}
+	function policyCard(ctx) {
+		const o = ctx.ontology;
+		return `<div class="card source-bar small">
+      <span>${o.reviewRequired ? "Every ontology change on this site needs another engineer’s approval before it is committed." : "Engineers commit directly, or ask for a review when they want one."}</span>
+      ${o.role === "admin" ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? "checked" : ""} /> Require a review for every change</label>` : ""}
+    </div>`;
+	}
+	async function fetchList(ctx) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		const key = listKey(ctx);
+		const seq = ++listSeq;
+		listing = {
+			key,
+			items: null
+		};
+		try {
+			const items = await ctx.api.reviews.list(site, uiState(ctx).state);
+			if (seq === listSeq) listing = {
+				key,
+				items
+			};
+		} catch {
+			if (seq === listSeq) listing = {
+				key,
+				items: []
+			};
+		}
+		if (seq === listSeq) ctx.rerender();
+	}
+	async function fetchDetail(ctx) {
+		const site = siteId(ctx);
+		const n = uiState(ctx).selected;
+		if (!ctx.api || !site || n === null) return;
+		const key = detailKey(ctx);
+		const seq = ++detailSeq;
+		try {
+			const review = await ctx.api.reviews.get(site, n);
+			if (seq !== detailSeq) return;
+			detail = {
+				key,
+				review
+			};
+		} catch {
+			if (seq !== detailSeq) return;
+			uiState(ctx).selected = null;
+		}
+		ctx.rerender();
+	}
+	async function act(ctx, action, comment) {
+		const site = siteId(ctx);
+		const r = detail?.review;
+		if (!ctx.api || !site || !r || busy) return;
+		const reviews = ctx.api.reviews;
+		const call = {
+			comment: () => reviews.comment(site, r.number, comment),
+			approve: () => reviews.approve(site, r.number, comment),
+			reject: () => reviews.reject(site, r.number, comment),
+			rework: () => reviews.rework(site, r.number)
+		}[action];
+		if (!call) return;
+		busy = true;
+		ctx.rerender();
+		try {
+			const review = await call();
+			detail = {
+				key: `${site}|${review.number}`,
+				review
+			};
+			draft = {
+				key: "",
+				text: ""
+			};
+			if (action === "comment") ctx.toast("Comment added");
+			if (action === "approve") ctx.toast(`#${r.number} approved and committed`);
+			if (action === "reject") ctx.toast(`#${r.number} rejected`);
+			if (action !== "comment") {
+				listing = null;
+				await ctx.ontology.reload();
+			}
+			if (action === "rework") {
+				ctx.toast("Back in your staged changes: edit them, then send them again");
+				location.hash = "#/ontology";
+			}
+		} catch {
+			detail = null;
+			listing = null;
+		} finally {
+			busy = false;
+			ctx.rerender();
+		}
+	}
+	var view$1 = {
+		id: "reviews",
+		title: "Change reviews",
+		icon: "✓",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Ontology</div><h1>Change reviews</h1>
+        <p class="soft">Ontology changes waiting for a second engineer: read the diff, discuss it, then approve (which commits it) or reject it.</p></div></div>`;
+			if (!ctx.api) return `${head}<div class="card"><p>Change reviews are shared by everyone on a site, so they need the Tiles API. Connect to it in <a href="#/settings">Settings</a>; in this browser’s own ontology you commit directly.</p></div>`;
+			const o = ctx.ontology;
+			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+			const ui = uiState(ctx);
+			return `${head}${policyCard(ctx)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
+		},
+		bind(root, ctx) {
+			if (!ctx.api || ctx.ontology.status !== "ready") return;
+			const ui = uiState(ctx);
+			const linked = Number(new URLSearchParams(location.hash.split("?")[1] ?? "").get("n"));
+			if (Number.isInteger(linked) && linked > 0 && ui.selected !== linked) {
+				ui.selected = linked;
+				history.replaceState(null, "", "#/reviews");
+			}
+			if (listing?.key !== listKey(ctx)) fetchList(ctx);
+			if (ui.selected !== null && detail?.key !== detailKey(ctx)) fetchDetail(ctx);
+			onAll(root, "[data-state]", "click", (el) => {
+				ui.state = el.dataset.state === "closed" ? "closed" : "open";
+				ctx.rerender();
+			});
+			onAll(root, "[data-review]", "click", (el) => {
+				ui.selected = Number(el.dataset.review);
+				ctx.rerender();
+			});
+			onAll(root, "[data-history]", "click", () => showHistory(ctx));
+			root.querySelector("#review-form textarea")?.addEventListener("input", (e) => {
+				draft = {
+					key: detailKey(ctx),
+					text: e.target.value
+				};
+			});
+			onAll(root, "[data-policy]", "change", (el) => {
+				const site = siteId(ctx);
+				const required = el.checked;
+				if (!ctx.api || !site) return;
+				ctx.api.ontology.setReviewPolicy(site, required).then(() => ctx.toast(required ? "Every change now needs a review" : "Reviews are optional again")).catch(() => void 0).finally(() => void ctx.ontology.reload());
+			});
+			onAll(root, "[data-act]", "click", (el) => {
+				const box = need(need(root, "#review-form"), "textarea");
+				const action = el.dataset.act ?? "";
+				const comment = box.value.trim();
+				if (action === "comment" && !comment) return void box.focus();
+				if (action === "reject" && !comment) {
+					ctx.toast("Say why you reject it, so its author knows what to change");
+					box.focus();
+					return;
+				}
+				act(ctx, action, comment);
+			});
 		}
 	};
 	//#endregion
@@ -4520,42 +4877,44 @@
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$10,
 		view$9,
 		view$8,
+		view$1,
 		view$7,
 		view$6,
 		view$5,
-		view$4,
+		view$3,
 		view$2,
-		view$1,
 		view,
-		view$3
+		view$4
 	];
 	var NAV = [
-		{ items: [view$9, view$8] },
+		{ items: [view$10, view$9] },
 		{
 			group: "Operations",
 			items: [
+				view$8,
+				view$1,
 				view$7,
-				view$6,
-				view$5
+				view$6
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$3,
 				view$2,
-				view$1,
 				view
 			]
 		},
 		{
 			group: "Design",
-			items: [view$4]
+			items: [view$5]
 		},
 		{
 			group: "",
-			items: [view$3]
+			items: [view$4]
 		}
 	];
 	function freshState() {
@@ -4598,10 +4957,16 @@
 	var ontologyStatus = "local";
 	var ontologyError = null;
 	var ontologyRole = null;
+	var ontologyUserId = null;
+	var siteMembers = [];
+	var reviewRequired = false;
 	var connectSeq = 0;
 	async function connectOntology() {
 		const seq = ++connectSeq;
 		ontologyRole = null;
+		ontologyUserId = null;
+		siteMembers = [];
+		reviewRequired = false;
 		if (!api) {
 			if (ontologyStatus !== "local") state.repo = localRepo;
 			remote = null;
@@ -4618,11 +4983,11 @@
 		try {
 			const site = await pickSite(api, dataSource.siteId);
 			const store = remoteStore(api, site);
-			const [repo, membership] = await Promise.all([store.load(), api.membership(site.id)]);
+			const [repo, people] = await Promise.all([store.load(), loadPeople(api, site.id)]);
 			if (seq !== connectSeq) return;
 			remote = store;
 			state.repo = repo;
-			ontologyRole = membership.role;
+			setPeople(people);
 			ontologyStatus = "ready";
 		} catch (e) {
 			if (seq !== connectSeq) return;
@@ -4630,6 +4995,24 @@
 			ontologyError = e instanceof Error ? e.message : String(e);
 		}
 		renderSoon();
+	}
+	async function loadPeople(client, siteId) {
+		const [membership, members, policy] = await Promise.all([
+			client.membership(siteId),
+			client.members(siteId),
+			client.ontology.reviewPolicy(siteId)
+		]);
+		return {
+			membership,
+			members,
+			policy
+		};
+	}
+	function setPeople({ membership, members, policy }) {
+		ontologyRole = membership.role;
+		ontologyUserId = membership.user_id;
+		siteMembers = members;
+		reviewRequired = policy.required;
 	}
 	var ontologyCtx = {
 		get status() {
@@ -4640,6 +5023,15 @@
 		},
 		get role() {
 			return ontologyRole;
+		},
+		get userId() {
+			return ontologyUserId;
+		},
+		get members() {
+			return siteMembers;
+		},
+		get reviewRequired() {
+			return reviewRequired;
 		},
 		get error() {
 			return ontologyError;
@@ -4670,10 +5062,10 @@
 			if (!remote || !api) return;
 			const seq = connectSeq;
 			try {
-				const [repo, membership] = await Promise.all([remote.load(), api.membership(remote.site.id)]);
+				const [repo, people] = await Promise.all([remote.load(), loadPeople(api, remote.site.id)]);
 				if (seq !== connectSeq) return;
 				state.repo = repo;
-				ontologyRole = membership.role;
+				setPeople(people);
 			} catch {}
 			renderSoon();
 		}
@@ -4815,7 +5207,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? view$9;
+		return VIEWS.find((v) => v.id === id) ?? view$10;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -4838,8 +5230,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$9 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$9 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$10 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$10 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);

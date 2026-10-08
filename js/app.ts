@@ -10,6 +10,7 @@ import {
   type ApiClient,
   type AuthConfig,
   type DataSource,
+  type Membership,
 } from './lib/api.ts';
 import { createRepo } from './lib/ontology.ts';
 import {
@@ -39,15 +40,16 @@ import physics from './views/physics.ts';
 import design from './views/design.ts';
 import settings from './views/settings.ts';
 import explorer from './views/explorer.ts';
+import reviews from './views/reviews.ts';
 import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 
-const VIEWS: View[] = [home, chat, ontology, quality, physics, design, signals, explorer, imports, settings];
+const VIEWS: View[] = [home, chat, ontology, reviews, quality, physics, design, signals, explorer, imports, settings];
 
 const NAV: { group?: string; items: View[] }[] = [
   { items: [home, chat] },
-  { group: 'Operations', items: [ontology, quality, physics] },
+  { group: 'Operations', items: [ontology, reviews, quality, physics] },
   { group: 'Data', items: [signals, explorer, imports] },
   { group: 'Design', items: [design] },
   { group: '', items: [settings] },
@@ -101,6 +103,9 @@ let remote: RemoteStore | null = null;
 let ontologyStatus: OntologyContext['status'] = 'local';
 let ontologyError: string | null = null;
 let ontologyRole: OntologyContext['role'] = null;
+let ontologyUserId: string | null = null;
+let siteMembers: Membership[] = [];
+let reviewRequired = false;
 let connectSeq = 0;
 
 // Switches the ontology between this browser and the API. A slow earlier
@@ -109,6 +114,9 @@ async function connectOntology(): Promise<void> {
   const seq = ++connectSeq;
   // state.repo holds this browser's own repo only while the status is "local".
   ontologyRole = null;
+  ontologyUserId = null;
+  siteMembers = [];
+  reviewRequired = false;
   if (!api) {
     if (ontologyStatus !== 'local') state.repo = localRepo;
     remote = null;
@@ -125,11 +133,11 @@ async function connectOntology(): Promise<void> {
   try {
     const site = await pickSite(api, dataSource.siteId);
     const store = remoteStore(api, site);
-    const [repo, membership] = await Promise.all([store.load(), api.membership(site.id)]);
+    const [repo, people] = await Promise.all([store.load(), loadPeople(api, site.id)]);
     if (seq !== connectSeq) return;
     remote = store;
     state.repo = repo;
-    ontologyRole = membership.role;
+    setPeople(people);
     ontologyStatus = 'ready';
   } catch (e) {
     if (seq !== connectSeq) return;
@@ -137,6 +145,23 @@ async function connectOntology(): Promise<void> {
     ontologyError = e instanceof Error ? e.message : String(e);
   }
   renderSoon();
+}
+
+// Your membership, the site's members and its review policy: fetched with the ontology.
+async function loadPeople(client: ApiClient, siteId: string) {
+  const [membership, members, policy] = await Promise.all([
+    client.membership(siteId),
+    client.members(siteId),
+    client.ontology.reviewPolicy(siteId),
+  ]);
+  return { membership, members, policy };
+}
+
+function setPeople({ membership, members, policy }: Awaited<ReturnType<typeof loadPeople>>): void {
+  ontologyRole = membership.role;
+  ontologyUserId = membership.user_id;
+  siteMembers = members;
+  reviewRequired = policy.required;
 }
 
 const ontologyCtx: OntologyContext = {
@@ -148,6 +173,15 @@ const ontologyCtx: OntologyContext = {
   },
   get role() {
     return ontologyRole;
+  },
+  get userId() {
+    return ontologyUserId;
+  },
+  get members() {
+    return siteMembers;
+  },
+  get reviewRequired() {
+    return reviewRequired;
   },
   get error() {
     return ontologyError;
@@ -179,11 +213,11 @@ const ontologyCtx: OntologyContext = {
     if (!remote || !api) return;
     const seq = connectSeq;
     try {
-      // The role is fetched again too, so an admin's change to it shows here.
-      const [repo, membership] = await Promise.all([remote.load(), api.membership(remote.site.id)]);
+      // The role and review policy are fetched again too, so an admin's change to them shows here.
+      const [repo, people] = await Promise.all([remote.load(), loadPeople(api, remote.site.id)]);
       if (seq !== connectSeq) return;
       state.repo = repo;
-      ontologyRole = membership.role;
+      setPeople(people);
     } catch {
       // the client already showed why
     }

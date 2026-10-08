@@ -87,8 +87,8 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 Each site member is a viewer, engineer or admin; organisation admins (`users.org_admin`) are admins on every site.
 
 - **Viewers** can read the ontology (graph, staged changes, history, health). They can also discard their own staged changes, which matters when an engineer is demoted with work still staged.
-- **Engineers** can also stage, commit and revert. Every other write endpoint checks this and answers 403 otherwise.
-- **Admins** can also change other members' roles.
+- **Engineers** can also stage, commit and revert, and request, comment on, approve and reject change reviews. Every other write endpoint checks this and answers 403 otherwise.
+- **Admins** can also change other members' roles and require a review for every ontology change.
 
 | Method and path (under `/sites/{site_id}`) | Does |
 |---|---|
@@ -107,6 +107,12 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `ontology.discard` | your staged ops | the ops dropped | |
 | `ontology.commit` | the commit | | the commit (message, ops, inverses, stats) |
 | `ontology.revert` | the new commit | `{"reverted": id}` | the new commit |
+| `ontology.review.request` | the change request (its number) | | message, ops, reviewer and the commit it reverts |
+| `ontology.review.comment` | the change request | | `{"body": …}` |
+| `ontology.review.approve` | the change request | | `{"commit": …}`, the commit it made |
+| `ontology.review.reject` | the change request | | `{"comment": …}`, the reason |
+| `ontology.review.rework` | the change request | | the ops staged again |
+| `ontology.review_policy` | the site | `{"required": …}` | `{"required": …}` |
 | `member.role` | the member | old role | new role |
 | `agent.register` | the edge agent | | `{"name": …}` (never the token) |
 | `agent.revoke` | the edge agent | `{"name": …}` | |
@@ -144,6 +150,21 @@ Each site has one committed graph (`head`) and a commit history. Each user stage
 | `GET /commits?limit=50&offset=0` | history, newest first |
 | `POST /commits/{id}/revert` | commit the inverse of a commit |
 | `GET /health?view=head` | health check: dangling and duplicate relationships, orphans, missing required properties, and a 0–100 score (`view=working` includes your staged changes) |
+
+#### Change reviews (T2.12)
+
+An engineer can send their staged changes to another engineer instead of committing them, optionally naming who should review. The staged ops move into a numbered change request. Another engineer reads the diff, comments, and approves it, which commits the ops with the requester as `author` and the approver as `reviewer`, or rejects it with a reason. The author can take an open request back into their staged changes ("rework"; it is withdrawn) or a rejected one, to change it and send it again. A request whose ops no longer fit the committed graph shows the reason as `conflict` and cannot be approved. A site admin can require a review for every change: `POST /commits` and `POST /commits/{id}/revert` then answer 409, and a revert is requested with `reverts`.
+
+| Method and path (under `/sites/{site_id}/ontology`) | Who | Does |
+|---|---|---|
+| `GET /review-policy`, `PUT /review-policy` | members; admins to change | `{"required": true}`: every change needs a review |
+| `GET /reviews?state=open&limit&offset` | members | change requests, newest first; `state` is `open`, `closed` or `all` |
+| `GET /reviews/{n}` | members | one request with its ops, comment thread and `conflict` |
+| `POST /reviews` | engineers | `{"message", "reviewer_id"?}` sends your staged ops; `{"reverts": commit_id}` asks to revert a commit (with no staged ops) |
+| `POST /reviews/{n}/comments` | engineers | `{"body": …}` |
+| `POST /reviews/{n}/approve` | engineers, not the author; if a reviewer is named, them or an admin | `{"comment"?}`: commits the ops |
+| `POST /reviews/{n}/reject` | as approve | `{"comment": …}`, required |
+| `POST /reviews/{n}/rework` | the author | puts the ops back into your (empty) staged changes; an open request is withdrawn |
 
 Ops, graphs and commits have the same JSON shape as in the browser (`js/lib/types.ts`). The logic in `tiles_api/ontology.py` is a port of `js/lib/ontology.ts`. Both run the shared fixture suite in `test/fixtures/ontology-parity.json`, and the API tests replay it over HTTP too. After changing the TypeScript behaviour, regenerate the fixtures with `UPDATE_FIXTURES=1 npx vitest run test/ontology-parity.test.js`, then make the Python port pass.
 

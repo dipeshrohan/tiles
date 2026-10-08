@@ -3,7 +3,7 @@
 // failure into an ApiError that is also passed to `onError` (the app shows
 // it as a toast). Pure apart from `fetch`, which tests replace.
 
-import type { Commit, Graph, HealthReport, Op } from './types.ts';
+import type { Commit, DiffStats, Graph, HealthReport, Op } from './types.ts';
 
 export interface Site {
   id: string;
@@ -35,6 +35,40 @@ export interface Membership {
   role: 'viewer' | 'engineer' | 'admin';
   site_role: 'viewer' | 'engineer' | 'admin';
   org_admin: boolean;
+}
+
+export type ReviewStatus = 'open' | 'approved' | 'rejected' | 'withdrawn';
+
+// A change request (T2.12): staged ontology changes waiting for another engineer's review.
+export interface ReviewSummary {
+  number: number;
+  message: string;
+  author: string;
+  author_id: string | null;
+  reviewer: string | null; // the engineer asked to review it; null: anyone
+  reviewer_id: string | null;
+  status: ReviewStatus;
+  stats: DiffStats;
+  reverts: string | null; // the commit it reverts
+  created_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  commit_id: string | null; // the commit its approval made
+  comments: number;
+}
+
+export interface ReviewComment {
+  id: number;
+  author: string;
+  body: string;
+  verdict: 'approved' | 'rejected' | 'withdrawn' | null; // the decision this entry records
+  created_at: string;
+}
+
+export interface Review extends ReviewSummary {
+  ops: Op[];
+  thread: ReviewComment[];
+  conflict: string | null; // why an open request no longer applies to the committed ontology
 }
 
 export interface AuditEntry {
@@ -198,7 +232,7 @@ export interface ApiOptions {
   fetch?: typeof fetch;
 }
 
-type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 // FastAPI errors are {"detail": "..."} or, for validation, {"detail": [{loc, msg}, ...]}.
 function errorMessage(body: unknown, status: number): string {
@@ -276,6 +310,7 @@ export function createApiClient(options: ApiOptions) {
     sites: () => request<Site[]>('GET', '/sites'),
     // Your membership (and role) on a site; joins it on first visit.
     membership: (siteId: string) => request<Membership>('GET', `/sites/${encodeURIComponent(siteId)}/me`),
+    members: (siteId: string) => request<Membership[]>('GET', `/sites/${encodeURIComponent(siteId)}/members`),
     // Every change on a site, newest first (site admins only).
     audit: (siteId: string, { limit = 100, offset = 0 } = {}) =>
       request<AuditEntry[]>('GET', `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
@@ -359,6 +394,26 @@ export function createApiClient(options: ApiOptions) {
         request<Commit>('POST', `${site(siteId)}/commits/${encodeURIComponent(commitId)}/revert`),
       health: (siteId: string, view: GraphView = 'head') =>
         request<HealthReport>('GET', `${site(siteId)}/health?view=${view}`),
+      // Whether every change needs a review (T2.12); admins set it.
+      reviewPolicy: (siteId: string) => request<{ required: boolean }>('GET', `${site(siteId)}/review-policy`),
+      setReviewPolicy: (siteId: string, required: boolean) =>
+        request<{ required: boolean }>('PUT', `${site(siteId)}/review-policy`, { required }),
+    },
+    // Change requests (T2.12): your staged changes (or a revert) for another engineer to approve or reject.
+    reviews: {
+      list: (siteId: string, state: 'open' | 'closed' | 'all' = 'open', { limit = 50, offset = 0 } = {}) =>
+        request<ReviewSummary[]>('GET', `${site(siteId)}/reviews?state=${state}&limit=${limit}&offset=${offset}`),
+      get: (siteId: string, n: number) => request<Review>('GET', `${site(siteId)}/reviews/${n}`),
+      request: (siteId: string, body: { message?: string; reviewer_id?: string; reverts?: string }) =>
+        request<Review>('POST', `${site(siteId)}/reviews`, body),
+      comment: (siteId: string, n: number, body: string) =>
+        request<Review>('POST', `${site(siteId)}/reviews/${n}/comments`, { body }),
+      approve: (siteId: string, n: number, comment = '') =>
+        request<Review>('POST', `${site(siteId)}/reviews/${n}/approve`, { comment }),
+      reject: (siteId: string, n: number, comment: string) =>
+        request<Review>('POST', `${site(siteId)}/reviews/${n}/reject`, { comment }),
+      // Back into your staged changes; an open request is withdrawn.
+      rework: (siteId: string, n: number) => request<Review>('POST', `${site(siteId)}/reviews/${n}/rework`),
     },
   };
 }

@@ -57,7 +57,7 @@ Required properties are kept short and are only those the health check can't do 
 | `describes` | Document → any | the document is about this node |
 | `feeds` | Line/Cell/Machine → Line/Cell/Machine | material flows from one to the next |
 
-The ontology does not enforce these pairs: any relationship may join any two nodes, and the health check reports structural problems (orphans, dangling and duplicate relationships, missing required properties) rather than modelling rules. Rule checks per relationship are a candidate for the change-approval workflow (T2.12).
+The ontology does not enforce these pairs: any relationship may join any two nodes, and the health check reports structural problems (orphans, dangling and duplicate relationships, missing required properties) rather than modelling rules. Rule checks per relationship are a candidate for a later addition to change reviews (T2.12), where a second engineer already reads each change before it is committed.
 
 ## Signals and their readings
 

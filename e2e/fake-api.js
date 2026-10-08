@@ -4,7 +4,16 @@
 // history and staged changes per user, like the real API.
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
-import { applyOp, commit, createRepo, revert, stage, workingGraph, healthCheck } from '../js/lib/ontology.ts';
+import {
+  applyOp,
+  commit,
+  createRepo,
+  diffStats,
+  revert,
+  stage,
+  workingGraph,
+  healthCheck,
+} from '../js/lib/ontology.ts';
 
 // With `oidc`, it is also a tiny sign-in provider at /idp that approves every
 // request, checks PKCE, and issues opaque tokens the API accepts. With
@@ -89,6 +98,10 @@ export function createFakeApi({
       last_value: last ? last[1] : null,
     };
   };
+  // Change reviews (T2.12), like the API: requests with their ops and comment thread.
+  let reviewRequired = false;
+  const reviews = []; // { number, message, author, author_id, reviewer, reviewer_id, status, ops, reverts, ... }
+  const members = new Set(); // users who have visited the site
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
@@ -112,7 +125,7 @@ export function createFakeApi({
     };
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'content-type, x-tiles-user, authorization');
-    res.setHeader('access-control-allow-methods', 'GET, POST, PATCH, DELETE');
+    res.setHeader('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE');
     if (req.method === 'OPTIONS') return send(204);
     const url = new URL(req.url, 'http://fake');
     requests.push(`${req.method} ${url.pathname}`);
@@ -184,6 +197,7 @@ export function createFakeApi({
       if (
         !url.pathname.startsWith(base) &&
         url.pathname !== `/sites/${site.id}/me` &&
+        url.pathname !== `/sites/${site.id}/members` &&
         !url.pathname.endsWith('/audit') &&
         !url.pathname.startsWith(agentsPath) &&
         !url.pathname.startsWith(`/sites/${site.id}/imports`) &&
@@ -416,8 +430,13 @@ export function createFakeApi({
         return role === 'admin'
           ? send(200, audit)
           : send(403, { detail: 'Your role on this site is engineer; this needs admin or above' });
-      if (url.pathname === `/sites/${site.id}/me`)
-        return send(200, { user_id: user, email: user, name: user, role, site_role: role, org_admin: false });
+      const memberOf = (who) => {
+        const r = roles[who] ?? 'engineer';
+        return { user_id: who, email: who, name: who.split('@')[0], role: r, site_role: r, org_admin: false };
+      };
+      members.add(user);
+      if (url.pathname === `/sites/${site.id}/me`) return send(200, memberOf(user));
+      if (url.pathname === `/sites/${site.id}/members`) return send(200, [...members].sort().map(memberOf));
       const path = url.pathname.slice(base.length);
       // Like the real API, anyone may discard their own staged changes.
       if (role === 'viewer' && req.method !== 'GET' && !(path === '/staged' && req.method === 'DELETE'))
@@ -442,6 +461,17 @@ export function createFakeApi({
         staged.delete(user);
         return send(204);
       }
+      if (path === '/review-policy' && req.method === 'GET') return send(200, { required: reviewRequired });
+      if (path === '/review-policy' && req.method === 'PUT') {
+        if (role !== 'admin')
+          return send(403, { detail: `Your role on this site is ${role}; this needs admin or above` });
+        reviewRequired = (await body(req)).required;
+        return send(200, { required: reviewRequired });
+      }
+      if (path.startsWith('/reviews')) return await reviewRoute(path, user, role, repo); // await: its errors are caught below
+      const refuse = { detail: 'This site requires a review: request one instead of committing' };
+      if (reviewRequired && req.method === 'POST' && /^\/commits(\/[^/]+\/revert)?$/.test(path))
+        return send(409, refuse);
       if (path === '/commits' && req.method === 'GET') return send(200, history);
       if (path === '/commits' && req.method === 'POST') {
         const { message } = await body(req);
@@ -473,6 +503,105 @@ export function createFakeApi({
       return send(404, { detail: 'Not Found' });
     } catch (e) {
       return send(409, { detail: e.message });
+    }
+
+    async function reviewRoute(path, user, role, repo) {
+      const shown = (r) => {
+        let conflict = null;
+        if (r.status === 'open')
+          try {
+            let g = head;
+            for (const op of r.ops) g = applyOp(g, op).graph;
+          } catch (e) {
+            conflict = e.message;
+          }
+        return { ...r, comments: r.thread.filter((c) => c.body).length, conflict };
+      };
+      const now = () => new Date().toISOString();
+      const name = user.split('@')[0];
+      if (path === '/reviews' && req.method === 'GET') {
+        const state = url.searchParams.get('state') ?? 'open';
+        const list = reviews.filter((r) => state === 'all' || (state === 'open') === (r.status === 'open'));
+        return send(200, list.map(shown).reverse());
+      }
+      if (path === '/reviews' && req.method === 'POST') {
+        const { message = '', reviewer_id = null, reverts = null } = await body(req);
+        let ops = repo.staged;
+        let text = message.trim();
+        if (reverts) {
+          const target = history.find((c) => c.id === reverts);
+          if (!target) return send(404, { detail: `Commit ${reverts} not found` });
+          ops = target.inverses;
+          text ||= `Revert "${target.message}"`;
+        } else if (!ops.length) return send(409, { detail: 'Nothing to review: stage some changes first' });
+        else if (!text) return send(422, { detail: 'A change request needs a message' });
+        let g = head;
+        for (const op of ops) g = applyOp(g, op).graph; // throws: 409
+        const r = {
+          number: reviews.length + 1,
+          message: text,
+          author: name,
+          author_id: user,
+          reviewer: reviewer_id ? reviewer_id.split('@')[0] : null,
+          reviewer_id,
+          status: 'open',
+          stats: diffStats(ops),
+          reverts,
+          created_at: now(),
+          decided_by: null,
+          decided_at: null,
+          commit_id: null,
+          ops,
+          thread: [],
+        };
+        reviews.push(r);
+        if (!reverts) staged.delete(user);
+        return send(201, shown(r));
+      }
+      const m = path.match(/^\/reviews\/(\d+)(?:\/(comments|approve|reject|rework))?$/);
+      const r = m && reviews[Number(m[1]) - 1];
+      if (!r) return send(404, { detail: 'Change request not found' });
+      if (req.method === 'GET' && !m[2]) return send(200, shown(r));
+      if (req.method !== 'POST') return send(404, { detail: 'Not Found' });
+      const note = (text, verdict = null) =>
+        r.thread.push({ id: r.thread.length + 1, author: name, body: text, verdict, created_at: now() });
+      const close = (status) => Object.assign(r, { status, decided_by: name, decided_at: now() });
+      const given = m[2] === 'rework' ? {} : await body(req);
+      if (m[2] === 'comments') {
+        if (!given.body?.trim()) return send(422, { detail: 'Write a comment first' });
+        note(given.body.trim());
+        return send(200, shown(r));
+      }
+      if (m[2] === 'rework') {
+        if (r.author_id !== user) return send(403, { detail: 'Only the author of a change request can rework it' });
+        if (repo.staged.length) return send(409, { detail: 'Commit, send or discard your staged changes first' });
+        let next = repo;
+        for (const op of r.ops) next = stage(next, op);
+        staged.set(user, next.staged);
+        if (r.status === 'open') {
+          close('withdrawn');
+          note('', 'withdrawn');
+        }
+        return send(200, shown(r));
+      }
+      if (r.status !== 'open') return send(409, { detail: `Change request #${r.number} is already ${r.status}` });
+      if (r.author_id === user) return send(403, { detail: "You can't review your own change: ask another engineer" });
+      if (r.reviewer_id && r.reviewer_id !== user && role !== 'admin')
+        return send(403, { detail: `Change request #${r.number} waits for ${r.reviewer} (or an admin)` });
+      const comment = (given.comment ?? '').trim();
+      if (m[2] === 'reject') {
+        if (!comment) return send(422, { detail: 'Say why the change is rejected' });
+        close('rejected');
+        note(comment, 'rejected');
+        return send(200, shown(r));
+      }
+      const next = commit({ head, history, staged: r.ops }, { message: r.message, author: r.author });
+      next.history[0].reviewer = name;
+      ({ head, history } = next);
+      close('approved');
+      r.commit_id = history[0].id;
+      note(comment, 'approved');
+      return send(200, shown(r));
     }
   });
 
@@ -509,6 +638,33 @@ export function createFakeApi({
     // Makes the catalogue answer a search for `q` with an error.
     failSearch(q) {
       failingSearches.add(q);
+    },
+    // Lets a test require (or stop requiring) a review for every change, as a site admin would.
+    requireReview(required = true) {
+      reviewRequired = required;
+    },
+    // Lets a test send staged changes for review as another user.
+    requestReviewAs(user, ops, message, reviewerId = null) {
+      let repo = { head, history, staged: [] };
+      for (const op of ops) repo = stage(repo, op);
+      reviews.push({
+        number: reviews.length + 1,
+        message,
+        author: user.split('@')[0],
+        author_id: user,
+        reviewer: reviewerId ? reviewerId.split('@')[0] : null,
+        reviewer_id: reviewerId,
+        status: 'open',
+        stats: diffStats(ops),
+        reverts: null,
+        created_at: new Date().toISOString(),
+        decided_by: null,
+        decided_at: null,
+        commit_id: null,
+        ops: repo.staged,
+        thread: [],
+      });
+      members.add(user);
     },
     // Lets a test change a user's role, as a site admin would.
     setRole(user, role) {
