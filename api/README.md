@@ -244,20 +244,20 @@ The status is separate from `state`, which says whether the signal is still out 
 
 Two things are announced:
 
-- **A new warning:** by email to the site's people who asked for every new warning, and to the site's Microsoft Teams channel if an admin set one up. Only warnings that started within the hour before the detector found them: a detector catching up on old history raises old news, not alarms.
+- **A new warning:** by email to the site's engineers and admins who asked for every new warning, and to the site's Microsoft Teams channel if an admin set one up. Only warnings the detector found within an hour of when it could have (its `lateness_seconds` holds readings back that long): a detector catching up on old history raises old news, not alarms. Someone demoted to viewer, or no longer on the site, gets no more, whatever they chose before.
 - **A warning assigned to you by someone else:** by email to you. This is on until you turn it off.
 
-Messages wait in an outbox, queued in the same transaction as what they announce. `uv run tiles-notify` sends the due ones, e.g. every minute from cron. Each message is sent once, in its own transaction. A failure is retried after 1, 2, 4, 8 and 16 minutes, then given up; admins see why on the Settings page. Emails go out by SMTP (`TILES_SMTP_*` above). Teams messages are Adaptive Cards posted to the channel's webhook, from Workflows or an incoming webhook.
+Messages wait in an outbox, queued in the same transaction as what they announce. `uv run tiles-notify` sends the due ones, e.g. every minute from cron. Each message is sent in its own transaction, at least once (one sent just before the job dies is sent again). A failure is retried after 1, 2, 4, 8 and 16 minutes, then given up, or given up at once when retrying can't help (the channel was removed, or stopped hearing of new warnings); admins see why on the Settings page. Emails go out by SMTP (`TILES_SMTP_*` above). Teams messages are Adaptive Cards posted to the channel's webhook, from Workflows or an incoming webhook.
 
-Only `https` URLs on Microsoft's webhook hosts (`*.webhook.office.com`, `*.logic.azure.com`, `*.api.powerplatform.com`) are accepted, so a site admin can't point Tiles at anything else on the network. Anyone with the webhook URL can post to the channel, so the API never shows it again, and audits only its host.
+Only `https` URLs on Microsoft's webhook hosts (`*.webhook.office.com`, `*.logic.azure.com`, `*.api.powerplatform.com`) are accepted, and redirects are not followed, so a site admin can't point Tiles at anything else on the network. Anyone with the webhook URL can post to the channel, so the API never shows it again, and audits only its host.
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|
 | `GET /notifications/preferences` | members | your choices: `on_raised` (every new warning; off until you choose) and `on_assigned` (on), and your email |
 | `PUT /notifications/preferences` | engineers | `{"on_raised", "on_assigned"}` |
 | `GET /notifications/teams` | admins | whether there is a channel, its host, and whether it hears of new warnings |
-| `PUT /notifications/teams` | admins | `{"webhook_url": <url> or null, "on_raised"?}` sets or removes it |
-| `GET /notifications?state=all\|pending\|sent\|failed&limit` | admins | the messages, newest first: what, to whom, and when sent, or why not |
+| `PUT /notifications/teams` | admins | `{"webhook_url"?: <url> or null, "on_raised"?}` sets or removes it; with no `webhook_url`, keeps it and changes only `on_raised` |
+| `GET /notifications?state=all\|pending\|sent\|failed&limit` | admins | the messages, newest first: what, to whom, and when sent; pending ones show why the last try failed, if it did; failed ones were given up |
 
 ### Backtest (T3.05)
 

@@ -2,27 +2,32 @@
 
 Two things are announced:
 
-- a warning raised: by email to the site's people who asked for every new warning, and to the
-  site's Teams channel if an admin set one up. Only warnings that started within RECENT of when
-  the detector found them: one catching up on months of history raises old news, not alarms;
+- a warning raised: by email to the site's engineers and admins who asked for every new warning,
+  and to the site's Teams channel if an admin set one up. Only warnings the detector found
+  within RECENT of when it could have (its lateness allowance holds readings back that long):
+  one catching up on months of history raises old news, not alarms;
 - a warning assigned to someone by someone else: by email to them, unless they turned it off.
 
 Messages wait in the `notifications` outbox (migration 0012), queued in the same transaction as
 what they announce. `tiles-notify` (e.g. every minute from cron) sends the due ones, each in its
 own transaction with its row locked, so two runs never send one twice; a failure is retried with
-a growing wait, and given up after MAX_ATTEMPTS. A message reads the warning as it is when sent.
+a growing wait, and given up after MAX_ATTEMPTS (at once if it can't succeed: the channel was
+removed). Delivery is at least once: a message sent just before the run dies is sent again. A
+message reads the warning as it is when sent.
 """
 
 import argparse
+import http.client
 import json
 import smtplib
 import ssl
 import sys
+import urllib.error
 import urllib.request
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 from typing import Any, Protocol
 from urllib.parse import urlsplit
@@ -56,16 +61,23 @@ def teams_url_problem(url: str) -> str | None:
     return None
 
 
-def queue_raised(conn: Conn, warning_id: uuid.UUID, started_at: datetime, found_at: datetime) -> int:
-    """Queues the messages for a warning just raised; how many. None for an old one."""
-    if found_at - started_at > RECENT:
+def queue_raised(
+    conn: Conn, warning_id: uuid.UUID, started_at: datetime, found_at: datetime, lateness: timedelta
+) -> int:
+    """Queues the messages for a warning just raised; how many. None for an old one: found more
+    than RECENT after its detector could first have seen it (`lateness` after the reading)."""
+    if found_at - started_at > lateness + RECENT:
         return 0
     rows = conn.execute(
         """
         INSERT INTO notifications (site_id, warning_id, kind, channel, recipient_id)
         SELECT w.site_id, w.id, 'warning_raised', 'email', p.user_id
-        FROM warnings w JOIN notification_prefs p ON p.site_id = w.site_id AND p.on_raised
-        WHERE w.id = %(w)s
+        FROM warnings w
+        JOIN notification_prefs p ON p.site_id = w.site_id AND p.on_raised
+        JOIN users u ON u.id = p.user_id
+        LEFT JOIN site_members m ON m.site_id = w.site_id AND m.user_id = p.user_id
+        -- Still an engineer or admin of the site: choices outlive a demotion or leaving.
+        WHERE w.id = %(w)s AND (u.org_admin OR m.role IN ('engineer', 'admin'))
         UNION ALL
         SELECT w.site_id, w.id, 'warning_raised', 'teams', NULL
         FROM warnings w JOIN site_notifications s ON s.site_id = w.site_id
@@ -107,6 +119,10 @@ class Message:
     link: str
 
 
+def _utc(t: datetime) -> str:
+    return t.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+
+
 def _num(x: float) -> str:
     return f"{x:,.4g}" if abs(x) < 1000 else f"{x:,.0f}"
 
@@ -116,8 +132,8 @@ def render(n: dict[str, Any], app_url: str) -> Message:
     tag = n["signal_tag"]
     limit = f"the threshold of {_num(n['threshold'])} (baseline {_num(n['baseline'])})"
     out = f"peak {_num(n['peak'])}, {n['side']} {limit}"
-    started = n["started_at"].strftime("%Y-%m-%d %H:%M UTC")
-    state = "still out" if n["ended_at"] is None else "back in since " + n["ended_at"].strftime("%H:%M UTC")
+    started = _utc(n["started_at"])
+    state = "still out" if n["ended_at"] is None else "back in since " + _utc(n["ended_at"])
     link = f"{app_url.rstrip('/')}/#/warnings"
     if n["kind"] == "warning_assigned":
         subject = f"[Tiles] {n['assigner'] or 'Someone'} assigned you a warning on {tag}"
@@ -148,6 +164,10 @@ def teams_card(m: Message) -> dict[str, Any]:
     }
 
 
+class GiveUp(Exception):
+    """A message that can't succeed, however often it is tried."""
+
+
 class Sender(Protocol):
     def email(self, to: str, message: Message) -> None: ...
     def teams(self, url: str, payload: dict[str, Any]) -> None: ...
@@ -168,12 +188,19 @@ class LiveSender:
         mail["To"] = to
         mail["Subject"] = message.subject
         mail.set_content("\n\n".join([*message.lines, f"Open it in Tiles: {message.link}"]))
-        with smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=20) as smtp:
+        smtp = smtplib.SMTP(s.smtp_host, s.smtp_port, timeout=20)
+        try:
             if s.smtp_starttls:
                 smtp.starttls(context=ssl.create_default_context())
             if s.smtp_user:
                 smtp.login(s.smtp_user, s.smtp_password or "")
             smtp.send_message(mail)
+        finally:
+            # Sent is sent: a server that hangs up on QUIT must not make it count as failed (and resent).
+            try:
+                smtp.quit()
+            except (smtplib.SMTPException, OSError):
+                smtp.close()
 
     def teams(self, url: str, payload: dict[str, Any]) -> None:
         problem = teams_url_problem(url)  # checked when set; again here, as it is about to be called
@@ -182,13 +209,30 @@ class LiveSender:
         req = urllib.request.Request(  # noqa: S310 - https to a Teams host, checked above
             url, data=json.dumps(payload).encode(), headers={"Content-Type": "application/json"}, method="POST"
         )
-        with urllib.request.urlopen(req, timeout=20) as res:  # noqa: S310 - as above
+        # Redirects are not followed: they could lead anywhere, past the host check.
+        with _no_redirects.open(req, timeout=20) as res:
             if res.status >= 300:
                 raise RuntimeError(f"Teams answered {res.status}")
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: http.client.HTTPMessage,
+        newurl: str,
+    ) -> None:
+        raise urllib.error.HTTPError(req.full_url, code, f"Teams redirected to another address ({code})", headers, fp)
+
+
+_no_redirects = urllib.request.build_opener(_NoRedirect)
+
+
 DUE = """
-SELECT n.id, n.kind, n.channel, n.attempts, u.email, s.teams_webhook_url, st.name AS site_name,
+SELECT n.id, n.kind, n.channel, n.attempts, u.email, s.teams_webhook_url, s.teams_on_raised, st.name AS site_name,
        w.started_at, w.ended_at, w.peak, w.baseline, w.threshold, w.side, g.tag AS signal_tag,
        d.name AS detector, actor.name AS assigner, a.note
 FROM notifications n
@@ -237,12 +281,14 @@ def send_due(conn: Conn, sender: Sender, app_url: str, limit: int = 200) -> Sent
                 if n["channel"] == "email":
                     sender.email(n["email"], message)
                 elif not n["teams_webhook_url"]:
-                    raise RuntimeError("The site's Teams channel was removed")
+                    raise GiveUp("The site's Teams channel was removed")
+                elif not n["teams_on_raised"]:
+                    raise GiveUp("Posting new warnings to the site's Teams channel was turned off")
                 else:
                     sender.teams(n["teams_webhook_url"], teams_card(message))
             except Exception as e:  # anything the server or network says: kept, and retried
                 attempts = n["attempts"] + 1
-                give_up = attempts >= MAX_ATTEMPTS
+                give_up = attempts >= MAX_ATTEMPTS or isinstance(e, GiveUp)
                 conn.execute(
                     """
                     UPDATE notifications SET attempts = %s, last_error = %s, next_at = now() + %s,

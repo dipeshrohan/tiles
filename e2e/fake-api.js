@@ -534,7 +534,8 @@ export function createFakeApi({
               detail:
                 'Not a Microsoft Teams webhook: its host must end with .webhook.office.com, .logic.azure.com, .api.powerplatform.com',
             });
-          teams = { url: hook || null, on_raised: onRaised ?? true };
+          // Like the API: left out, the URL stays.
+          teams = { url: hook === undefined ? teams.url : hook || null, on_raised: onRaised ?? true };
           return send(200, shownTeams());
         }
         if (sub === '') return send(200, deliveries.slice(0, Number(url.searchParams.get('limit') ?? 100)));

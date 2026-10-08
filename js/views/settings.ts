@@ -121,7 +121,7 @@ function notificationsCard(ctx: Context): string {
       ? `<form class="stack" id="teams-form" style="gap:8px">
         <h3>Microsoft Teams channel</h3>
         <p class="small soft" data-teams-status>Loading…</p>
-        <label class="field">Webhook URL (from the channel's Workflows, or an incoming webhook)<input type="url" name="url" placeholder="https://….webhook.office.com/…" autocomplete="off" /></label>
+        <label class="field">Webhook URL (from the channel's Workflows, or an incoming webhook; leave it empty to keep the one set)<input type="url" name="url" placeholder="https://….webhook.office.com/…" autocomplete="off" /></label>
         <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" checked /> Post every new warning there</label>
         <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
       </form>
@@ -174,29 +174,33 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
   const teamsForm = root.querySelector<HTMLFormElement>('#teams-form');
   if (!teamsForm) return;
   const status = need(teamsForm, '[data-teams-status]');
+  let configured = false;
   const showTeams = (t: TeamsChannel) => {
+    configured = t.configured;
     status.textContent = t.configured
       ? `Connected to a channel at ${t.host}${t.on_raised ? ', which hears of every new warning' : ', posting nothing for now'}. Paste a new URL to change it.`
       : 'No channel yet.';
     need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked = t.on_raised;
   };
   api.notifications.teams(site.id).then(showTeams, () => (status.textContent = 'The channel could not be loaded.'));
-  const save = (url: string | null) =>
+  const save = (url: string | null | undefined) =>
     api.notifications.setTeams(site.id, url, need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked).then(
       (t) => {
         teamsForm.reset();
         showTeams(t);
-        ctx.toast(t.configured ? 'Teams channel saved' : 'Teams channel removed');
+        ctx.toast(
+          url === undefined ? 'Teams channel updated' : t.configured ? 'Teams channel saved' : 'Teams channel removed',
+        );
       },
       () => undefined, // the client showed why
     );
   onSubmit(root, '#teams-form', (form) => {
     const url = field(form, 'url').trim();
-    if (!url) {
+    if (!url && !configured) {
       ctx.toast('Paste the channel’s webhook URL');
       return;
     }
-    void save(url);
+    void save(url || undefined); // no URL: keep the channel, change only what it hears of
   });
   onAll(root, '[data-teams-remove]', 'click', () => {
     if (confirm('Stop posting warnings to the Teams channel?')) void save(null);

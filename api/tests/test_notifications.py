@@ -1,6 +1,10 @@
 """Notifications (T3.09): preferences, the site's Teams channel, the outbox, and sending it."""
 
+import http.server
 import smtplib
+import threading
+import urllib.error
+import urllib.request
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -69,25 +73,35 @@ def test_admins_point_the_site_at_a_teams_channel_whose_url_stays_secret(
     res = api.put(path, json={"webhook_url": f"  {TEAMS} "}, headers=ADMIN)
     assert res.json() == {"configured": True, "host": "acme.webhook.office.com", "on_raised": True}
     assert "webhookb2" not in res.text
+    # Left out, the URL stays: only whether it hears of new warnings changes.
+    paused = api.put(path, json={"on_raised": False}, headers=ADMIN).json()
+    assert paused == {"configured": True, "host": "acme.webhook.office.com", "on_raised": False}
     removed = api.put(path, json={"webhook_url": None}, headers=ADMIN).json()
     assert removed == {"configured": False, "host": None, "on_raised": True}
+    assert api.put(path, json={"on_raised": False}, headers=ADMIN).json()["configured"] is False
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         audited = conn.execute("SELECT before, after FROM audit_log WHERE action = 'notification.teams'").fetchall()
     assert "webhookb2" not in str(audited)
     assert audited[0]["after"]["host"] == "acme.webhook.office.com"
 
 
-def recent_warning(api: TestClient, site: str, tag: str = "dc9.friction") -> str:  # noqa: F811
-    """A detector that raises one warning, ten minutes ago; the signal's id."""
+def recent_warning(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    tag: str = "dc9.friction",
+    ago: timedelta = timedelta(minutes=15),
+    lateness: float = 300,
+) -> str:
+    """A detector that raises one warning, about `ago` ago; the signal's id."""
     now = datetime.now(UTC)
     values = [100.0 + (i % 3) for i in range(250)] + [500.0] * 30
     every = timedelta(seconds=10)
-    first = now - timedelta(minutes=15) - len(values) * every
+    first = now - ago - len(values) * every
     imp = api.post(f"/sites/{site}/imports", json={"name": "recent.csv"}, headers=ENG).json()
     samples = [{"signal": tag, "at": (first + i * every).isoformat(), "value": v} for i, v in enumerate(values)]
     assert api.post(f"/sites/{site}/imports/{imp['id']}/samples", json={"samples": samples}, headers=ENG).is_success
     signal = api.get(f"/sites/{site}/signals", params={"q": tag}, headers=VIEWER).json()["signals"][0]["id"]
-    detector = create(api, site, signal, name=tag.replace(".", "-")).json()
+    detector = create(api, site, signal, name=tag.replace(".", "-"), lateness_seconds=lateness).json()
     assert api.post(f"/sites/{site}/detectors/{detector['id']}/run", headers=ENG).json()["opened"] == 1
     return str(signal)
 
@@ -123,6 +137,16 @@ def test_a_new_warning_is_queued_for_who_asked_and_the_teams_channel(
         ("warning_raised", "email", "eng2@example.com"),
         ("warning_raised", "teams", None),
     ]
+    # A detector that holds readings back two hours finds its warnings later: still news.
+    recent_warning(api, site, "dc8.friction", ago=timedelta(hours=2, minutes=30), lateness=7200)
+    assert len(outbox(database_url)) == 4
+    # Someone demoted to viewer gets no more, whatever they chose before.
+    eng2 = user_id(api, site, ENG2)
+    with psycopg.connect(database_url) as conn:
+        conn.execute("UPDATE site_members SET role = 'viewer' WHERE site_id = %s AND user_id = %s", [site, eng2])
+    recent_warning(api, site, "dc7.friction")
+    assert outbox(database_url)[-1:] == [("warning_raised", "teams", None)]
+    assert len(outbox(database_url)) == 5
 
 
 def test_an_assignment_is_queued_for_the_assignee_unless_they_did_it_or_opted_out(
@@ -177,12 +201,16 @@ def test_due_messages_are_sent_once_and_failures_retried_then_given_up(
         headers=ENG,
     )
     with psycopg.connect(database_url, row_factory=dict_row, autocommit=True) as conn:
+        conn.execute("SET TIME ZONE 'Asia/Kolkata'")  # times are written in UTC whatever the session's zone
         # Down: each is kept and retried later, with why.
         down = send_due(conn, FakeSender(OSError("Connection refused")), "https://tiles.example.com/")
         assert (down.sent, down.failed, down.given_up) == (0, 3, 0)
         rows = conn.execute("SELECT attempts, last_error, next_at > now() AS later FROM notifications").fetchall()
         assert rows == [{"attempts": 1, "last_error": "Connection refused", "later": True}] * 3
         assert send_due(conn, FakeSender(), "https://tiles.example.com/").sent == 0  # not due yet
+        waiting = api.get(f"/sites/{site}/notifications", params={"state": "pending"}, headers=ADMIN).json()
+        assert len(waiting) == 3 and all(d["last_error"] == "Connection refused" for d in waiting)
+        assert api.get(f"/sites/{site}/notifications", params={"state": "failed"}, headers=ADMIN).json() == []
         conn.execute("UPDATE notifications SET next_at = now()")
         sender = FakeSender()
         assert send_due(conn, sender, "https://tiles.example.com/").sent == 3
@@ -193,6 +221,8 @@ def test_due_messages_are_sent_once_and_failures_retried_then_given_up(
         assert raised.subject == "[Tiles] Warning on dc9.friction at Plant 1"
         assert raised.lines[0] == "dc9-friction raised a warning on dc9.friction at Plant 1."
         assert "above the threshold of" in raised.lines[1] and raised.lines[1].endswith("The signal is still out.")
+        started = datetime.fromisoformat(warning["started_at"]).astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
+        assert raised.lines[1].startswith(f"Started {started}: peak")
         assert raised.link == "https://tiles.example.com/#/warnings"
         assigned = next(m for to, m in sender.emails if "assigned" in m.subject)
         assert assigned.subject == "[Tiles] eng assigned you a warning on dc9.friction"
@@ -233,9 +263,16 @@ def test_a_message_for_a_removed_teams_channel_fails_rather_than_going_elsewhere
     sender = FakeSender()
     with psycopg.connect(database_url, row_factory=dict_row, autocommit=True) as conn:
         r = send_due(conn, sender, "https://tiles.example.com")
-        assert (r.sent, r.failed, sender.posts) == (0, 1, [])
-        error = conn.execute("SELECT last_error FROM notifications").fetchone()
-    assert error == {"last_error": "The site's Teams channel was removed"}
+        assert (r.sent, r.given_up, sender.posts) == (0, 1, [])  # at once: retrying can't help
+        error = conn.execute("SELECT last_error, failed_at IS NOT NULL AS gave_up FROM notifications").fetchone()
+    assert error == {"last_error": "The site's Teams channel was removed", "gave_up": True}
+    # Turned off while messages waited: those are given up too, not posted.
+    api.put(f"/sites/{site}/notifications/teams", json={"webhook_url": TEAMS}, headers=ADMIN)
+    recent_warning(api, site, "dc6.friction")
+    api.put(f"/sites/{site}/notifications/teams", json={"on_raised": False}, headers=ADMIN)
+    with psycopg.connect(database_url, row_factory=dict_row, autocommit=True) as conn:
+        assert send_due(conn, sender, "https://tiles.example.com").given_up == 1
+    assert sender.posts == []
 
 
 def test_the_command_sends_what_is_due(
@@ -274,11 +311,13 @@ def test_email_goes_out_by_smtp_with_starttls_and_login(monkeypatch: pytest.Monk
         def __init__(self, host: str, port: int, timeout: float) -> None:
             seen["server"] = (host, port)
 
-        def __enter__(self) -> "FakeSMTP":
-            return self
+        def quit(self) -> None:
+            seen["closed"] = "quit"
+            if seen.get("hang_up"):
+                raise smtplib.SMTPServerDisconnected("Connection unexpectedly closed")
 
-        def __exit__(self, *exc: object) -> None:
-            pass
+        def close(self) -> None:
+            seen["closed"] = "close"
 
         def starttls(self, context: Any) -> None:
             seen["tls"] = True
@@ -302,5 +341,42 @@ def test_email_goes_out_by_smtp_with_starttls_and_login(monkeypatch: pytest.Monk
     assert mail.get_content() == (
         "First line.\n\nSecond line.\n\nOpen it in Tiles: https://tiles.example.com/#/warnings\n"
     )
+    assert seen["closed"] == "quit"
+    # A server that hangs up on QUIT after taking the message: it was sent, so no error (nor resend).
+    seen["hang_up"] = True
+    LiveSender(settings).email("eng@example.com", message)
+    assert seen["closed"] == "close"
     with pytest.raises(RuntimeError, match="Not a Microsoft Teams webhook"):
         LiveSender(settings).teams("https://intranet.example.com/x", {})
+
+
+def test_a_teams_webhook_that_redirects_is_not_followed() -> None:
+    followed: list[str] = []
+
+    class Redirecting(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # the webhook answers with a redirect elsewhere
+            self.send_response(302)
+            self.send_header("Location", "/internal")
+            self.end_headers()
+
+        def do_GET(self) -> None:  # where a redirect would have led
+            followed.append(self.path)
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args: object) -> None:
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Redirecting)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/hook"
+        req = urllib.request.Request(url, data=b"{}", method="POST")
+        with pytest.raises(urllib.error.HTTPError, match="redirected") as refused:
+            notify._no_redirects.open(req, timeout=5)
+        refused.value.close()
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert followed == []

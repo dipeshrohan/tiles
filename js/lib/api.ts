@@ -556,9 +556,10 @@ export function createApiClient(options: ApiOptions) {
       // Admins: the site's Teams channel; a null URL removes it.
       teams: (siteId: string) =>
         request<TeamsChannel>('GET', `/sites/${encodeURIComponent(siteId)}/notifications/teams`),
-      setTeams: (siteId: string, webhookUrl: string | null, onRaised = true) =>
+      // `undefined` keeps the channel and changes only whether it hears of new warnings.
+      setTeams: (siteId: string, webhookUrl: string | null | undefined, onRaised = true) =>
         request<TeamsChannel>('PUT', `/sites/${encodeURIComponent(siteId)}/notifications/teams`, {
-          webhook_url: webhookUrl,
+          ...(webhookUrl === undefined ? {} : { webhook_url: webhookUrl }),
           on_raised: onRaised,
         }),
       deliveries: (siteId: string, q: { state?: 'all' | 'pending' | 'sent' | 'failed'; limit?: number } = {}) =>

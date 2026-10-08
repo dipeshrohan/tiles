@@ -39,7 +39,8 @@ class Teams(BaseModel):
 
 class TeamsIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    webhook_url: Annotated[str, Field(max_length=2000)] | None  # null removes the channel
+    # null removes the channel; left out, the channel stays and only `on_raised` changes
+    webhook_url: Annotated[str, Field(max_length=2000)] | None = None
     on_raised: bool = True
 
 
@@ -67,7 +68,8 @@ def _preferences(ctx: SiteContext) -> dict[str, Any]:
 
 @router.get("/sites/{site_id}/notifications/preferences", response_model=Preferences)
 def get_preferences(ctx: Ctx) -> dict[str, Any]:
-    """Which warnings reach you by email. Until you choose: those assigned to you, not every new one."""
+    """Which warnings reach you by email. Until you choose: those assigned to you, not every new one.
+    Like any change to a site, choosing needs engineer or above, and so does receiving them."""
     return _preferences(ctx)
 
 
@@ -108,8 +110,14 @@ def get_teams(ctx: Admin) -> dict[str, Any]:
 @router.put("/sites/{site_id}/notifications/teams", response_model=Teams)
 def set_teams(ctx: Admin, body: TeamsIn) -> dict[str, Any]:
     """Point the site at a Teams channel's webhook (Workflows, or an incoming webhook), or remove it."""
+    keep = "webhook_url" not in body.model_fields_set
     url = body.webhook_url.strip() if body.webhook_url else None
-    if url:
+    if keep:
+        row = ctx.conn.execute(
+            "SELECT teams_webhook_url FROM site_notifications WHERE site_id = %s", [ctx.site_id]
+        ).fetchone()
+        url = row["teams_webhook_url"] if row else None
+    elif url:
         problem = notify.teams_url_problem(url)
         if problem:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
@@ -134,7 +142,8 @@ def deliveries(
     state: Literal["all", "pending", "sent", "failed"] = "all",
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> list[dict[str, Any]]:
-    """What was sent, what waits, and what failed with why, newest first (admins)."""
+    """What was sent, what waits (to be retried, with why, if it failed), and what was given up,
+    newest first (admins)."""
     return ctx.conn.execute(
         """
         SELECT n.id, n.kind, n.channel, coalesce(u.email, 'Teams channel') AS recipient, g.tag AS signal_tag,
@@ -147,7 +156,7 @@ def deliveries(
           AND CASE %(state)s
                 WHEN 'pending' THEN n.sent_at IS NULL AND n.failed_at IS NULL
                 WHEN 'sent' THEN n.sent_at IS NOT NULL
-                WHEN 'failed' THEN n.failed_at IS NOT NULL OR n.last_error IS NOT NULL
+                WHEN 'failed' THEN n.failed_at IS NOT NULL
                 ELSE true
               END
         ORDER BY n.created_at DESC, n.id DESC LIMIT %(limit)s

@@ -1735,6 +1735,11 @@ test('notifications: people choose their emails; admins set the Teams channel an
   assert.equal(fake.teamsUrl(), hook);
   assert.equal(await a.page.inputValue('#teams-form [name=url]'), '');
   assert.doesNotMatch(await a.page.content(), /secret-part/);
+  // Pausing it needs no URL again: the one set is kept.
+  await a.page.uncheck('#teams-form [name=on_raised]');
+  await a.page.click('#teams-form button[type=submit]');
+  await a.page.waitForSelector('[data-teams-status]:has-text("posting nothing for now")');
+  assert.equal(fake.teamsUrl(), hook);
 
   // What was sent, and what failed with why.
   const rows = a.page.locator('[data-deliveries] tbody tr');

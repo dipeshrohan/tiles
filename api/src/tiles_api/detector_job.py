@@ -99,7 +99,8 @@ def run(conn: Conn, detector_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunRe
         touched = {id(w): w for w in [*opened, *closed, *([state.open] if state.open else [])]}
         ids = _save(conn, detector, list(touched.values()))
         for w in opened:
-            result.notified += notify.queue_raised(conn, ids[id(w)], w.started_at, now)
+            lateness = timedelta(seconds=detector["lateness_s"])
+            result.notified += notify.queue_raised(conn, ids[id(w)], w.started_at, now, lateness)
         result.readings += len(rows)
         result.opened += len(opened)
         result.closed += len(closed)
