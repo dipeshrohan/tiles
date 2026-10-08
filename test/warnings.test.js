@@ -149,3 +149,22 @@ test('times read as minutes or hours ago today, else as a date and time', () => 
   assert.match(when(iso(now - 13 * H), now), /^\d+ Aug 2026, \d\d:\d\d$/);
   assert.match(when(iso(now + H), now), /2026/); // a clock ahead: no "ago"
 });
+
+test('labels of reference levels close together are kept apart', () => {
+  const points = [0, 1].map((i) => ({ t: T0 + i * H, v: 4000 * i, lo: 4000 * i, hi: 4000 * i }));
+  const svg = timeChart({
+    points,
+    from: T0,
+    to: T0 + H,
+    gap: 2 * H,
+    levels: [
+      { v: 1810, label: 'threshold' },
+      { v: 1800, label: 'baseline' },
+    ],
+  });
+  const ys = [
+    ...svg.matchAll(/<text class="axis" x="[\d.]+" y="([\d.]+)" text-anchor="end">(threshold|baseline)</g),
+  ].map((m) => Number(m[1]));
+  assert.equal(ys.length, 2);
+  assert.ok(Math.abs(ys[0] - ys[1]) >= 12, ys.join());
+});

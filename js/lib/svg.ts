@@ -1,5 +1,6 @@
 // Minimal SVG charts. Colors come from CSS variables so charts follow the theme.
 
+import type { SignalSeries } from './api.ts';
 import { esc, fmt } from './dom.ts';
 
 export interface Series {
@@ -273,6 +274,24 @@ export interface TimeChartOptions {
 
 export const TIME_CHART = { width: 900, height: 220, pad: PAD };
 
+// The numeric points to plot (text readings are listed, not plotted).
+export function toPoints(series: SignalSeries): TimePoint[] {
+  return series.points
+    .filter((p) => p.value !== null)
+    .map((p) => ({ t: Date.parse(p.at), v: p.value!, lo: p.min ?? p.value!, hi: p.max ?? p.value! }));
+}
+
+// How far apart two points may be and still be joined: one and a half buckets, or five of the usual steps.
+export function gapFor(series: SignalSeries, points: TimePoint[]): number {
+  if (series.bucket_s !== null) return series.bucket_s * 1500;
+  const steps = points
+    .slice(1)
+    .map((p, i) => p.t - points[i]!.t)
+    .sort((a, b) => a - b);
+  const median = steps[Math.floor((steps.length - 1) / 2)];
+  return median === undefined ? Infinity : Math.max(1, median * 5);
+}
+
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
@@ -401,12 +420,18 @@ export function timeChart({
       return `<rect class="span" x="${x(a).toFixed(1)}" y="${PAD.t}" width="${w.toFixed(1)}" height="${height - PAD.b - PAD.t}"/>`;
     })
     .join('');
+  // Each label sits just above its line; one too close to the label above it goes below its line.
+  let lastLabel = -Infinity;
   const refs = levels
     .filter((l) => Number.isFinite(l.v))
-    .map(
-      (l) =>
-        `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(l.v).toFixed(1)}" y2="${y(l.v).toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${(y(l.v) - 4).toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`,
-    )
+    .map((l) => ({ ...l, at: y(l.v) }))
+    .sort((a, b) => a.at - b.at)
+    .map((l) => {
+      const above = l.at - 4;
+      const labelY = above - lastLabel < 12 ? l.at + 12 : above;
+      lastLabel = labelY;
+      return `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`;
+    })
     .join('');
   return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join('')}

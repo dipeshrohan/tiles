@@ -1,15 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import {
-  MAX_SPAN,
-  describe as describeSeries,
-  gapFor,
-  pan,
-  presetRange,
-  toPoints,
-  zoomOut,
-} from '../js/views/explorer.ts';
-import { tickLabel, timeAt, timeChart, timeTicks, TIME_CHART } from '../js/lib/svg.ts';
+import { MAX_SPAN, describe as describeSeries, pan, presetRange, zoomOut } from '../js/views/explorer.ts';
+import { gapFor, tickLabel, timeAt, timeChart, timeTicks, TIME_CHART, toPoints } from '../js/lib/svg.ts';
 
 const H = 3_600_000;
 const T0 = Date.parse('2026-09-01T06:00:00Z');

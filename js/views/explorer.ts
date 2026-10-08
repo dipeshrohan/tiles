@@ -1,6 +1,6 @@
 import { esc, field, fmt, onAll } from '../lib/dom.ts';
 import type { SignalInfo, SignalSeries } from '../lib/api.ts';
-import { fitWidth, TIME_CHART, timeAt, timeChart, type TimePoint } from '../lib/svg.ts';
+import { fitWidth, gapFor, TIME_CHART, timeAt, timeChart, toPoints } from '../lib/svg.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
 
@@ -66,24 +66,6 @@ export function pan(range: Range, direction: -1 | 1): Range {
   const to = Date.parse(range.to);
   const shift = ((to - from) / 2) * direction;
   return { from: iso(from + shift), to: iso(to + shift) };
-}
-
-// The numeric points to plot (text readings are listed, not plotted).
-export function toPoints(series: SignalSeries): TimePoint[] {
-  return series.points
-    .filter((p) => p.value !== null)
-    .map((p) => ({ t: Date.parse(p.at), v: p.value!, lo: p.min ?? p.value!, hi: p.max ?? p.value! }));
-}
-
-// How far apart two points may be and still be joined: one and a half buckets, or five of the usual steps.
-export function gapFor(series: SignalSeries, points: TimePoint[]): number {
-  if (series.bucket_s !== null) return series.bucket_s * 1500;
-  const steps = points
-    .slice(1)
-    .map((p, i) => p.t - points[i]!.t)
-    .sort((a, b) => a - b);
-  const median = steps[Math.floor((steps.length - 1) / 2)];
-  return median === undefined ? Infinity : Math.max(1, median * 5);
 }
 
 function duration(seconds: number): string {

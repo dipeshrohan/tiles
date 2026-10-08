@@ -250,12 +250,13 @@ def assign(ctx: Editor, warning_id: uuid.UUID, body: AssignIn) -> dict[str, Any]
     """Assign it to an engineer or admin of the site (acknowledging it, if nobody had), or unassign
     it (`user_id` null). Assigning it to whom it is already assigned only keeps the note, as a comment."""
     warning = _lock(ctx, warning_id, resolved=False)
-    if body.user_id is not None and not can_edit(ctx.conn, ctx.site_id, ctx.org_id, body.user_id):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Not an engineer or admin of this site")
+    # Checked first: it stays with whom it is, even if they can no longer be given new ones.
     if body.user_id == warning["assignee_id"]:
         if body.note.strip():
             _comment(ctx, warning_id, body.note)
         return _detail(ctx, warning_id)
+    if body.user_id is not None and not can_edit(ctx.conn, ctx.site_id, ctx.org_id, body.user_id):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Not an engineer or admin of this site")
     if body.user_id is not None:
         _acknowledge(ctx, warning)
     ctx.conn.execute("UPDATE warnings SET assignee_id = %s WHERE id = %s", [body.user_id, warning_id])

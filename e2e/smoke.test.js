@@ -1617,3 +1617,82 @@ test('viewers read warnings but cannot act on them; local mode explains the API 
   await page.waitForSelector('#view:has-text("Warnings come from detectors running on the Tiles API")');
   assert.deepEqual([...v.errors, ...errors], []);
 });
+
+test('assigning never unassigns someone the list of people lacks, and a no-op assign says so', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const id = fake.raiseWarning('dc3.friction', [], {
+    started_at: new Date(Date.now() - 30 * 60_000).toISOString(),
+    last_at: new Date(Date.now() - 60_000).toISOString(),
+    peak: 3000,
+    baseline: 1800,
+    threshold: 2200,
+    readings: 29,
+    acknowledged_at: new Date().toISOString(),
+    acknowledged_by: 'gone@example.com',
+    assignee_id: 'gone@example.com', // someone who has left the site: not among its members
+  });
+  const a = await openAs(t, apiUrl, null, 'warnings');
+  await a.page.click(`[data-warning="${id}"]`);
+  await a.page.waitForSelector('#warning-form [name=assignee]');
+  assert.equal(await a.page.locator('#warning-form [name=assignee]').inputValue(), 'gone@example.com');
+  await a.page.click('[data-act=assign]');
+  await a.page.waitForSelector('#toast:has-text("Already assigned to gone")');
+  assert.match(await a.page.locator('[data-warning-detail]').innerText(), /for gone/);
+  assert.deepEqual(a.errors, []);
+});
+
+test('the inbox pages through older warnings, and a warning that fails to load stays selected', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const ids = Array.from({ length: 105 }, (_, i) =>
+    fake.raiseWarning(`line${String(i).padStart(3, '0')}.friction`, [], {
+      started_at: new Date(Date.now() - (200 - i) * 60_000).toISOString(),
+      last_at: new Date(Date.now() - (199 - i) * 60_000).toISOString(),
+      peak: 3000,
+      baseline: 1800,
+      threshold: 2200,
+      readings: 2,
+    }),
+  );
+  const a = await openAs(t, apiUrl, null, 'warnings');
+  await a.page.waitForSelector('[data-more-warnings]');
+  assert.equal(await a.page.locator('[data-warning-list] [data-warning]').count(), 100);
+  await a.page.click('[data-more-warnings]');
+  await a.page.waitForSelector(`[data-warning="${ids[0]}"]`); // the oldest
+  assert.equal(await a.page.locator('[data-warning-list] [data-warning]').count(), 105);
+  assert.equal(await a.page.locator('[data-more-warnings]').count(), 0);
+
+  fake.failWarningGets(1);
+  await a.page.click(`[data-warning="${ids[0]}"]`);
+  await a.page.waitForSelector('[data-warning-detail]:has-text("could not be loaded")');
+  assert.equal(await a.page.locator(`[data-warning="${ids[0]}"].sel`).count(), 1); // still selected
+  await a.page.click('[data-refresh-warnings]');
+  await a.page.waitForSelector('[data-warning-detail]:has-text("line000.friction")');
+  // The failed read showed a toast; nothing else went wrong.
+  assert.deepEqual(
+    a.errors.filter((e) => !/503/.test(e)),
+    [],
+  );
+});
+
+test('people promoted while you were elsewhere can be assigned when you come back', async (t) => {
+  const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { out } = raiseFrictionWarnings(fake);
+  await openAs(t, apiUrl, 'viewer@example.com', 'warnings'); // a member of the site, as a viewer
+  const a = await openAs(t, apiUrl, null, 'warnings');
+  await a.page.click(`[data-warning="${out}"]`);
+  await a.page.waitForSelector('#warning-form [name=assignee]');
+  assert.equal(await a.page.locator('#warning-form [name=assignee] option[value="viewer@example.com"]').count(), 0);
+  fake.setRole('viewer@example.com', 'engineer');
+  await a.page.evaluate(() => (location.hash = '#/signals'));
+  await a.page.evaluate(() => (location.hash = '#/warnings'));
+  await a.page.waitForSelector('#warning-form [name=assignee] option[value="viewer@example.com"]', {
+    state: 'attached',
+  });
+  assert.deepEqual(a.errors, []);
+});

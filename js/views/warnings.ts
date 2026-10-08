@@ -1,6 +1,13 @@
 import { esc, need, onAll } from '../lib/dom.ts';
-import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
-import type { Membership, SignalSeries, WarningDetail, WarningInfo, WarningOutcome } from '../lib/api.ts';
+import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
+import {
+  ApiError,
+  type Membership,
+  type SignalSeries,
+  type WarningDetail,
+  type WarningInfo,
+  type WarningOutcome,
+} from '../lib/api.ts';
 import {
   actionsFor,
   activityText,
@@ -16,7 +23,6 @@ import {
   type Show,
   when,
 } from '../lib/warnings.ts';
-import { gapFor, toPoints } from './explorer.ts';
 import type { Context, View } from './types.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
@@ -34,15 +40,20 @@ const uiState = (ctx: Context) =>
   ctx.ui<Ui>('warnings', { filters: { ...DEFAULT_FILTERS }, selected: null, site: null });
 
 // Fetched data, for the site and filters (or warning) it was fetched for.
-let listing: { key: string; items: WarningInfo[] | null } | null = null;
+// `more`: the last page was full, so older warnings may follow.
+let listing: { key: string; items: WarningInfo[] | null; more: boolean } | null = null;
 let detail: { key: string; warning: WarningDetail } | null = null;
-let series: { key: string; data: SignalSeries | null | undefined } | null = null; // undefined: loading
+let detailFailed: string | null = null; // the detail key whose fetch failed (not because it is gone)
+// The readings around a warning, and the stretch of time they were fetched for (undefined data: loading).
+let series: { key: string; data: SignalSeries | null | undefined; range: ReturnType<typeof chartRange> } | null = null;
 let members: { site: string; people: Membership[] } | null = null;
 let listSeq = 0;
 let detailSeq = 0;
 let seriesSeq = 0;
 let busy = false; // a step is on its way; the buttons wait
 let draft = { key: '', text: '' }; // the note being written, kept across re-renders
+
+const PAGE = 100;
 
 const ago = (iso: string): string => when(iso, Date.now());
 
@@ -54,7 +65,9 @@ if (typeof window !== 'undefined')
     if (!location.hash.startsWith('#/warnings')) {
       listing = null;
       detail = null;
+      detailFailed = null;
       series = null;
+      members = null; // roles change, and people join
     }
   });
 
@@ -107,14 +120,16 @@ function listCard(ctx: Context, ui: Ui): string {
         </button>`,
           )
           .join('') || `<div class="empty">${empty}</div>`;
-  return `<div class="card"><div class="review-list" data-warning-list>${rows}</div></div>`;
+  const more = items && listing?.more ? '<button class="btn sm" data-more-warnings>Show older warnings</button>' : '';
+  return `<div class="card"><div class="review-list" data-warning-list>${rows}</div>${more}</div>`;
 }
 
 function chartCard(w: WarningDetail): string {
-  const s = series?.key === seriesKey(w) ? series.data : undefined;
-  if (s === undefined) return '<div class="empty">Loading the signal…</div>';
+  const fetched = series?.key === seriesKey(w) ? series : null;
+  const s = fetched?.data;
+  if (!fetched || s === undefined) return '<div class="empty">Loading the signal…</div>';
   if (s === null) return '<p class="small muted">The signal’s readings could not be loaded.</p>';
-  const { from, to, start, end } = chartRange(w, Date.now());
+  const { from, to, start, end } = fetched.range; // the range the readings were fetched for
   const points = toPoints(s);
   return `<div class="explorer-chart">${timeChart({
     points,
@@ -135,10 +150,16 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
   const actions = actionsFor(w, ctx.ontology.role);
   if (!actions.length) return '';
   const people = (members?.site === siteId(ctx) ? members.people : []).filter((m) => m.role !== 'viewer');
+  // The current assignee stays chosen even when not listed (members still loading, or since demoted),
+  // so Assign never unassigns by accident.
+  const current =
+    w.assignee_id && !people.some((m) => m.user_id === w.assignee_id)
+      ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? 'current assignee')}</option>`
+      : '';
   const has = (a: string) => actions.includes(a as never);
   const assign = has('assign')
     ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
-        <option value="">nobody</option>
+        <option value="">nobody</option>${current}
         ${people.map((m) => `<option value="${esc(m.user_id)}" ${m.user_id === w.assignee_id ? 'selected' : ''}>${esc(m.name)}${m.user_id === ctx.ontology.userId ? ' (me)' : ''}</option>`).join('')}
       </select></label><button class="btn" type="button" data-act="assign">Assign</button></span>`
     : '';
@@ -163,6 +184,8 @@ function detailCard(ctx: Context, ui: Ui): string {
   if (ui.selected === null)
     return '<div class="card"><div class="empty">Select a warning to see its signal and what was done.</div></div>';
   const w = detail?.key === detailKey(ctx) ? detail.warning : null;
+  if (!w && detailFailed === detailKey(ctx))
+    return '<div class="card" data-warning-detail><div class="empty">This warning could not be loaded. Refresh to try again.</div></div>';
   if (!w) return '<div class="card" data-warning-detail><div class="empty">Loading…</div></div>';
   const activity = w.activity
     .map(
@@ -207,14 +230,37 @@ async function fetchList(ctx: Context): Promise<void> {
   if (!ctx.api || !site) return;
   const key = listKey(ctx);
   const seq = ++listSeq;
-  listing = { key, items: null };
+  listing = { key, items: null, more: false };
   try {
-    const items = await ctx.api.warnings.list(site, { ...queryFor(uiState(ctx).filters), limit: 200 });
-    if (seq === listSeq) listing = { key, items };
+    const items = await ctx.api.warnings.list(site, { ...queryFor(uiState(ctx).filters), limit: PAGE });
+    if (seq === listSeq) listing = { key, items, more: items.length === PAGE };
   } catch {
-    if (seq === listSeq) listing = { key, items: [] }; // the client showed why
+    if (seq === listSeq) listing = { key, items: [], more: false }; // the client showed why
   }
   if (seq === listSeq) ctx.rerender();
+}
+
+// The next page of the list, after the ones shown.
+async function fetchMore(ctx: Context): Promise<void> {
+  const site = siteId(ctx);
+  const shown = listing;
+  if (!ctx.api || !site || !shown?.items || shown.key !== listKey(ctx)) return;
+  const seq = ++listSeq;
+  try {
+    const query = { ...queryFor(uiState(ctx).filters), limit: PAGE, offset: shown.items.length };
+    const page = await ctx.api.warnings.list(site, query);
+    if (seq !== listSeq) return;
+    const seen = new Set(shown.items.map((w) => w.id)); // one may have moved up meanwhile
+    listing = {
+      key: shown.key,
+      items: [...shown.items, ...page.filter((w) => !seen.has(w.id))],
+      more: page.length === PAGE,
+    };
+  } catch {
+    if (seq !== listSeq) return;
+    listing = { ...shown, more: true }; // the client showed why; try again
+  }
+  ctx.rerender();
 }
 
 async function fetchSeries(ctx: Context, w: WarningDetail): Promise<void> {
@@ -222,7 +268,9 @@ async function fetchSeries(ctx: Context, w: WarningDetail): Promise<void> {
   if (!ctx.api || !site) return;
   const key = seriesKey(w);
   const seq = ++seriesSeq;
-  const { from, to } = chartRange(w, Date.now());
+  const range = chartRange(w, Date.now());
+  series = { key, data: undefined, range };
+  const { from, to } = range;
   let data: SignalSeries | null;
   try {
     data = await ctx.api.signals.series(
@@ -236,7 +284,7 @@ async function fetchSeries(ctx: Context, w: WarningDetail): Promise<void> {
     data = null; // the client showed why
   }
   if (seq !== seriesSeq) return;
-  series = { key, data };
+  series = { key, data, range };
   ctx.rerender();
 }
 
@@ -246,13 +294,16 @@ async function fetchDetail(ctx: Context): Promise<void> {
   if (!ctx.api || !site || id === null) return;
   const key = detailKey(ctx);
   const seq = ++detailSeq;
+  detailFailed = null;
   try {
     const warning = await ctx.api.warnings.get(site, id);
     if (seq !== detailSeq) return;
     detail = { key, warning };
-  } catch {
+  } catch (e) {
     if (seq !== detailSeq) return;
-    uiState(ctx).selected = null; // gone, or another site's
+    // Gone (or another site's): let it go. Otherwise keep it selected, to try again.
+    if (e instanceof ApiError && e.status === 404) uiState(ctx).selected = null;
+    else detailFailed = key;
   }
   ctx.rerender();
 }
@@ -286,20 +337,28 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
   const call = calls[action];
   if (!call) return;
   busy = true;
+  ++detailSeq; // a fetch of the warning started before this step must not replace its result
   ctx.rerender();
   try {
     const warning = await call();
-    detail = { key: `${site}|${warning.id}`, warning };
-    draft = { key: '', text: '' };
+    const key = `${site}|${warning.id}`;
+    detail = { key, warning };
+    if (draft.key === key) draft = { key: '', text: '' };
+    // Assigning it to whom it already was changes nothing (a note is kept as a comment).
+    const same = action === 'assign' && warning.assignee_id === w.assignee_id;
     const done: Record<string, string> = {
       acknowledge: 'Acknowledged',
-      assign: warning.assignee ? `Assigned to ${warning.assignee}` : 'Unassigned',
+      assign: same
+        ? `${warning.assignee ? `Already assigned to ${warning.assignee}` : 'Already unassigned'}${note ? '; your note is kept as a comment' : ''}`
+        : warning.assignee
+          ? `Assigned to ${warning.assignee}`
+          : 'Unassigned',
       resolve: `Resolved as ${warning.outcome ? OUTCOMES[warning.outcome].toLowerCase() : 'done'}`,
       reopen: 'Reopened',
       comment: 'Comment added',
     };
     ctx.toast(done[action] ?? 'Done');
-    if (action !== 'comment') listing = null; // it may have left the list's filters
+    if (action !== 'comment' && !same) listing = null; // it may have left the list's filters
   } catch {
     // The client showed why; show the warning as it is now.
     detail = null;
@@ -332,12 +391,11 @@ const view: View = {
     const site = siteId(ctx);
     if (ui.site !== site) Object.assign(ui, { selected: null, site }); // another site's warning
     if (listing?.key !== listKey(ctx)) void fetchList(ctx);
-    if (ui.selected !== null && detail?.key !== detailKey(ctx)) void fetchDetail(ctx);
+    // A failed fetch waits for Refresh, rather than retrying at every render.
+    if (ui.selected !== null && detail?.key !== detailKey(ctx) && detailFailed !== detailKey(ctx))
+      void fetchDetail(ctx);
     const shown = detail?.key === detailKey(ctx) ? detail.warning : null;
-    if (shown && series?.key !== seriesKey(shown)) {
-      series = { key: seriesKey(shown), data: undefined }; // fetched once per warning
-      void fetchSeries(ctx, shown);
-    }
+    if (shown && series?.key !== seriesKey(shown)) void fetchSeries(ctx, shown); // once per warning
     if (site && members?.site !== site && actionsFor({ status: 'raised' }, ctx.ontology.role).length)
       void fetchMembers(ctx);
 
@@ -355,11 +413,14 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-refresh-warnings]', 'click', () => {
+      if (busy) return; // the step's answer refreshes it
       listing = null;
       detail = null;
+      detailFailed = null;
       series = null;
       ctx.rerender();
     });
+    onAll(root, '[data-more-warnings]', 'click', () => void fetchMore(ctx));
     root.querySelector<HTMLTextAreaElement>('#warning-form textarea')?.addEventListener('input', (e) => {
       draft = { key: detailKey(ctx), text: (e.target as HTMLTextAreaElement).value };
     });

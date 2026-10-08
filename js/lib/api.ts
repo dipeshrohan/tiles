@@ -377,6 +377,15 @@ export function createApiClient(options: ApiOptions) {
   }
 
   const site = (id: string) => `/sites/${encodeURIComponent(id)}/ontology`;
+  const warning = (siteId: string, id = '') =>
+    `/sites/${encodeURIComponent(siteId)}/warnings${id ? `/${encodeURIComponent(id)}` : ''}`;
+  // A query string from the set fields, or nothing.
+  const query = (fields: object): string => {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(fields)) if (v !== undefined && v !== '') params.set(k, String(v));
+    const qs = params.toString();
+    return qs ? `?${qs}` : '';
+  };
 
   return {
     baseUrl: base,
@@ -402,15 +411,11 @@ export function createApiClient(options: ApiOptions) {
     },
     // The signal catalogue (T2.08): search it, describe or link a signal, check its quality (engineers).
     signals: {
-      list: (siteId: string, query: SignalQuery = {}) => {
-        const params = new URLSearchParams();
-        for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== '') params.set(k, String(v));
-        const qs = params.toString();
-        return request<{ total: number; signals: SignalInfo[] }>(
+      list: (siteId: string, q: SignalQuery = {}) =>
+        request<{ total: number; signals: SignalInfo[] }>(
           'GET',
-          `/sites/${encodeURIComponent(siteId)}/signals${qs ? `?${qs}` : ''}`,
-        );
-      },
+          `/sites/${encodeURIComponent(siteId)}/signals${query(q)}`,
+        ),
       update: (siteId: string, signalId: string, change: SignalChange) =>
         request<SignalInfo>(
           'PATCH',
@@ -502,45 +507,19 @@ export function createApiClient(options: ApiOptions) {
     },
     // Warnings and their workflow (T3.07): acknowledge, assign, resolve with an outcome, reopen, comment.
     warnings: {
-      list: (siteId: string, query: WarningQuery = {}) => {
-        const params = new URLSearchParams();
-        for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== '') params.set(k, String(v));
-        const qs = params.toString();
-        return request<WarningInfo[]>('GET', `/sites/${encodeURIComponent(siteId)}/warnings${qs ? `?${qs}` : ''}`);
-      },
-      get: (siteId: string, id: string) =>
-        request<WarningDetail>('GET', `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}`),
+      list: (siteId: string, q: WarningQuery = {}) => request<WarningInfo[]>('GET', `${warning(siteId)}${query(q)}`),
+      get: (siteId: string, id: string) => request<WarningDetail>('GET', warning(siteId, id)),
       acknowledge: (siteId: string, id: string, note = '') =>
-        request<WarningDetail>(
-          'POST',
-          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/acknowledge`,
-          { note },
-        ),
+        request<WarningDetail>('POST', `${warning(siteId, id)}/acknowledge`, { note }),
       // null unassigns.
       assign: (siteId: string, id: string, userId: string | null, note = '') =>
-        request<WarningDetail>(
-          'PUT',
-          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/assignee`,
-          { user_id: userId, note },
-        ),
+        request<WarningDetail>('PUT', `${warning(siteId, id)}/assignee`, { user_id: userId, note }),
       resolve: (siteId: string, id: string, outcome: WarningOutcome, note = '') =>
-        request<WarningDetail>(
-          'POST',
-          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/resolve`,
-          { outcome, note },
-        ),
+        request<WarningDetail>('POST', `${warning(siteId, id)}/resolve`, { outcome, note }),
       reopen: (siteId: string, id: string, note = '') =>
-        request<WarningDetail>(
-          'POST',
-          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/reopen`,
-          { note },
-        ),
+        request<WarningDetail>('POST', `${warning(siteId, id)}/reopen`, { note }),
       comment: (siteId: string, id: string, note: string) =>
-        request<WarningDetail>(
-          'POST',
-          `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/comments`,
-          { note },
-        ),
+        request<WarningDetail>('POST', `${warning(siteId, id)}/comments`, { note }),
     },
     // Change requests (T2.12): your staged changes (or a revert) for another engineer to approve or reject.
     reviews: {

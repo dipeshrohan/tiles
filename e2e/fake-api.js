@@ -164,6 +164,7 @@ export function createFakeApi({
   const members = new Set(); // users who have visited the site
   // Warnings (T3.07), like the API: raised by a test (as a detector would), then worked by people.
   const warnings = []; // newest first: the API's fields, plus `activity`
+  let failWarningGets = 0; // answer this many reads of one warning with an error
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
@@ -650,11 +651,16 @@ export function createFakeApi({
                 (assignee === 'none' ? !w.assignee_id : w.assignee_id === (assignee === 'me' ? user : assignee))) &&
               (!q.get('outcome') || w.outcome === q.get('outcome')),
           );
-        return send(200, list);
+        const offset = Number(q.get('offset') ?? 0);
+        return send(200, list.slice(offset, offset + Number(q.get('limit') ?? 100)));
       }
       const m = path.match(/^\/([^/]+)(?:\/(acknowledge|assignee|resolve|reopen|comments))?$/);
       const w = m && warnings.find((x) => x.id === m[1]);
       if (!w) return send(404, { detail: 'No such warning' });
+      if (!m[2] && failWarningGets > 0) {
+        failWarningGets--;
+        return send(503, { detail: 'Tiles is restarting' });
+      }
       if (!m[2]) return send(200, detail(w));
       if (role === 'viewer')
         return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
@@ -698,12 +704,12 @@ export function createFakeApi({
         return send(200, detail(w));
       }
       if (m[2] === 'assignee') {
-        if (userId && (!members.has(userId) || memberOf(userId).role === 'viewer'))
-          return send(422, { detail: 'Not an engineer or admin of this site' });
         if ((userId ?? null) === w.assignee_id) {
           if (note.trim()) step('commented');
           return send(200, detail(w));
         }
+        if (userId && (!members.has(userId) || memberOf(userId).role === 'viewer'))
+          return send(422, { detail: 'Not an engineer or admin of this site' });
         if (userId) acknowledge();
         w.assignee_id = userId ?? null;
         step(userId ? 'assigned' : 'unassigned', { assignee: userId ?? null });
@@ -882,6 +888,10 @@ export function createFakeApi({
       };
       warnings.unshift(w);
       return w.id;
+    },
+    // Makes the next `n` reads of a warning fail, as a restarting API would.
+    failWarningGets(n = 1) {
+      failWarningGets = n;
     },
     // Lets a test require (or stop requiring) a review for every change, as a site admin would.
     requireReview(required = true) {

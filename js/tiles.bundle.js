@@ -802,6 +802,13 @@
 			throw error;
 		}
 		const site = (id) => `/sites/${encodeURIComponent(id)}/ontology`;
+		const warning = (siteId, id = "") => `/sites/${encodeURIComponent(siteId)}/warnings${id ? `/${encodeURIComponent(id)}` : ""}`;
+		const query = (fields) => {
+			const params = new URLSearchParams();
+			for (const [k, v] of Object.entries(fields)) if (v !== void 0 && v !== "") params.set(k, String(v));
+			const qs = params.toString();
+			return qs ? `?${qs}` : "";
+		};
 		return {
 			baseUrl: base,
 			request,
@@ -818,12 +825,7 @@
 				revoke: (siteId, agentId) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/agents/${encodeURIComponent(agentId)}`)
 			},
 			signals: {
-				list: (siteId, query = {}) => {
-					const params = new URLSearchParams();
-					for (const [k, v] of Object.entries(query)) if (v !== void 0 && v !== "") params.set(k, String(v));
-					const qs = params.toString();
-					return request("GET", `/sites/${encodeURIComponent(siteId)}/signals${qs ? `?${qs}` : ""}`);
-				},
+				list: (siteId, q = {}) => request("GET", `/sites/${encodeURIComponent(siteId)}/signals${query(q)}`),
 				update: (siteId, signalId, change) => request("PATCH", `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`, change),
 				checkQuality: (siteId, signalIds, hours) => request("POST", `/sites/${encodeURIComponent(siteId)}/signals/quality`, {
 					...signalIds ? { signal_ids: signalIds } : {},
@@ -866,24 +868,19 @@
 				setReviewPolicy: (siteId, required) => request("PUT", `${site(siteId)}/review-policy`, { required })
 			},
 			warnings: {
-				list: (siteId, query = {}) => {
-					const params = new URLSearchParams();
-					for (const [k, v] of Object.entries(query)) if (v !== void 0 && v !== "") params.set(k, String(v));
-					const qs = params.toString();
-					return request("GET", `/sites/${encodeURIComponent(siteId)}/warnings${qs ? `?${qs}` : ""}`);
-				},
-				get: (siteId, id) => request("GET", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}`),
-				acknowledge: (siteId, id, note = "") => request("POST", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/acknowledge`, { note }),
-				assign: (siteId, id, userId, note = "") => request("PUT", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/assignee`, {
+				list: (siteId, q = {}) => request("GET", `${warning(siteId)}${query(q)}`),
+				get: (siteId, id) => request("GET", warning(siteId, id)),
+				acknowledge: (siteId, id, note = "") => request("POST", `${warning(siteId, id)}/acknowledge`, { note }),
+				assign: (siteId, id, userId, note = "") => request("PUT", `${warning(siteId, id)}/assignee`, {
 					user_id: userId,
 					note
 				}),
-				resolve: (siteId, id, outcome, note = "") => request("POST", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/resolve`, {
+				resolve: (siteId, id, outcome, note = "") => request("POST", `${warning(siteId, id)}/resolve`, {
 					outcome,
 					note
 				}),
-				reopen: (siteId, id, note = "") => request("POST", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/reopen`, { note }),
-				comment: (siteId, id, note) => request("POST", `/sites/${encodeURIComponent(siteId)}/warnings/${encodeURIComponent(id)}/comments`, { note })
+				reopen: (siteId, id, note = "") => request("POST", `${warning(siteId, id)}/reopen`, { note }),
+				comment: (siteId, id, note) => request("POST", `${warning(siteId, id)}/comments`, { note })
 			},
 			reviews: {
 				list: (siteId, state = "open", { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/reviews?state=${state}&limit=${limit}&offset=${offset}`),
@@ -3074,6 +3071,20 @@
 		height: 220,
 		pad: PAD
 	};
+	function toPoints(series) {
+		return series.points.filter((p) => p.value !== null).map((p) => ({
+			t: Date.parse(p.at),
+			v: p.value,
+			lo: p.min ?? p.value,
+			hi: p.max ?? p.value
+		}));
+	}
+	function gapFor(series, points) {
+		if (series.bucket_s !== null) return series.bucket_s * 1500;
+		const steps = points.slice(1).map((p, i) => p.t - points[i].t).sort((a, b) => a - b);
+		const median = steps[Math.floor((steps.length - 1) / 2)];
+		return median === void 0 ? Infinity : Math.max(1, median * 5);
+	}
 	var SECOND = 1e3;
 	var MINUTE$1 = 60 * SECOND;
 	var HOUR$2 = 60 * MINUTE$1;
@@ -3172,7 +3183,16 @@
 			const w = Math.max(2, x(b) - x(a));
 			return `<rect class="span" x="${x(a).toFixed(1)}" y="${PAD.t}" width="${w.toFixed(1)}" height="${height - PAD.b - PAD.t}"/>`;
 		}).join("");
-		const refs = levels.filter((l) => Number.isFinite(l.v)).map((l) => `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(l.v).toFixed(1)}" y2="${y(l.v).toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${(y(l.v) - 4).toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`).join("");
+		let lastLabel = -Infinity;
+		const refs = levels.filter((l) => Number.isFinite(l.v)).map((l) => ({
+			...l,
+			at: y(l.v)
+		})).sort((a, b) => a.at - b.at).map((l) => {
+			const above = l.at - 4;
+			const labelY = above - lastLabel < 12 ? l.at + 12 : above;
+			lastLabel = labelY;
+			return `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`;
+		}).join("");
 		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt$1(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join("")}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join("")}
@@ -3928,7 +3948,7 @@
 	};
 	//#endregion
 	//#region js/views/signals.ts
-	var PAGE = 100;
+	var PAGE$1 = 100;
 	var results = null;
 	var failed = false;
 	var checking = false;
@@ -4073,7 +4093,7 @@
 		try {
 			page = await ctx.api.signals.list(site.id, {
 				...ui$1(ctx).query,
-				limit: PAGE
+				limit: PAGE$1
 			});
 		} catch {}
 		if (mine !== latestSearch) return;
@@ -4406,20 +4426,6 @@
 			from: iso(from + shift),
 			to: iso(to + shift)
 		};
-	}
-	function toPoints(series) {
-		return series.points.filter((p) => p.value !== null).map((p) => ({
-			t: Date.parse(p.at),
-			v: p.value,
-			lo: p.min ?? p.value,
-			hi: p.max ?? p.value
-		}));
-	}
-	function gapFor(series, points) {
-		if (series.bucket_s !== null) return series.bucket_s * 1500;
-		const steps = points.slice(1).map((p, i) => p.t - points[i].t).sort((a, b) => a - b);
-		const median = steps[Math.floor((steps.length - 1) / 2)];
-		return median === void 0 ? Infinity : Math.max(1, median * 5);
 	}
 	function duration(seconds) {
 		if (seconds < 60) return `${+seconds.toPrecision(3)} s`;
@@ -5047,6 +5053,7 @@
 	});
 	var listing = null;
 	var detail = null;
+	var detailFailed = null;
 	var series = null;
 	var members = null;
 	var listSeq = 0;
@@ -5057,13 +5064,16 @@
 		key: "",
 		text: ""
 	};
+	var PAGE = 100;
 	var ago = (iso) => when(iso, Date.now());
 	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/warnings")) {
 			listing = null;
 			detail = null;
+			detailFailed = null;
 			series = null;
+			members = null;
 		}
 	});
 	var listKey = (ctx) => `${siteId(ctx)}|${JSON.stringify(uiState(ctx).filters)}`;
@@ -5094,13 +5104,14 @@
           <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || `<div class="empty">${empty}</div>`}</div></div>`;
+        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
 	}
 	function chartCard(w) {
-		const s = series?.key === seriesKey(w) ? series.data : void 0;
-		if (s === void 0) return "<div class=\"empty\">Loading the signal…</div>";
+		const fetched = series?.key === seriesKey(w) ? series : null;
+		const s = fetched?.data;
+		if (!fetched || s === void 0) return "<div class=\"empty\">Loading the signal…</div>";
 		if (s === null) return "<p class=\"small muted\">The signal’s readings could not be loaded.</p>";
-		const { from, to, start, end } = chartRange(w, Date.now());
+		const { from, to, start, end } = fetched.range;
 		const points = toPoints(s);
 		return `<div class="explorer-chart">${timeChart({
 			points,
@@ -5126,9 +5137,10 @@
 		const actions = actionsFor(w, ctx.ontology.role);
 		if (!actions.length) return "";
 		const people = (members?.site === siteId(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
+		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
 		const has = (a) => actions.includes(a);
 		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
-        <option value="">nobody</option>
+        <option value="">nobody</option>${current}
         ${people.map((m) => `<option value="${esc(m.user_id)}" ${m.user_id === w.assignee_id ? "selected" : ""}>${esc(m.name)}${m.user_id === ctx.ontology.userId ? " (me)" : ""}</option>`).join("")}
       </select></label><button class="btn" type="button" data-act="assign">Assign</button></span>` : "";
 		const resolve = has("resolve") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Outcome <select name="outcome">
@@ -5148,6 +5160,7 @@
 	function detailCard(ctx, ui) {
 		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a warning to see its signal and what was done.</div></div>";
 		const w = detail?.key === detailKey(ctx) ? detail.warning : null;
+		if (!w && detailFailed === detailKey(ctx)) return "<div class=\"card\" data-warning-detail><div class=\"empty\">This warning could not be loaded. Refresh to try again.</div></div>";
 		if (!w) return "<div class=\"card\" data-warning-detail><div class=\"empty\">Loading…</div></div>";
 		const activity = w.activity.map((a) => `
       <div class="comment">
@@ -5183,31 +5196,68 @@
 		const seq = ++listSeq;
 		listing = {
 			key,
-			items: null
+			items: null,
+			more: false
 		};
 		try {
 			const items = await ctx.api.warnings.list(site, {
 				...queryFor(uiState(ctx).filters),
-				limit: 200
+				limit: PAGE
 			});
 			if (seq === listSeq) listing = {
 				key,
-				items
+				items,
+				more: items.length === PAGE
 			};
 		} catch {
 			if (seq === listSeq) listing = {
 				key,
-				items: []
+				items: [],
+				more: false
 			};
 		}
 		if (seq === listSeq) ctx.rerender();
+	}
+	async function fetchMore(ctx) {
+		const site = siteId(ctx);
+		const shown = listing;
+		if (!ctx.api || !site || !shown?.items || shown.key !== listKey(ctx)) return;
+		const seq = ++listSeq;
+		try {
+			const query = {
+				...queryFor(uiState(ctx).filters),
+				limit: PAGE,
+				offset: shown.items.length
+			};
+			const page = await ctx.api.warnings.list(site, query);
+			if (seq !== listSeq) return;
+			const seen = new Set(shown.items.map((w) => w.id));
+			listing = {
+				key: shown.key,
+				items: [...shown.items, ...page.filter((w) => !seen.has(w.id))],
+				more: page.length === PAGE
+			};
+		} catch {
+			if (seq !== listSeq) return;
+			listing = {
+				...shown,
+				more: true
+			};
+		}
+		ctx.rerender();
 	}
 	async function fetchSeries(ctx, w) {
 		const site = siteId(ctx);
 		if (!ctx.api || !site) return;
 		const key = seriesKey(w);
 		const seq = ++seriesSeq;
-		const { from, to } = chartRange(w, Date.now());
+		const range = chartRange(w, Date.now());
+		series = {
+			key,
+			data: void 0,
+			range
+		};
+		const { from, to } = range;
 		let data;
 		try {
 			data = await ctx.api.signals.series(site, w.signal_id, new Date(from).toISOString(), new Date(to).toISOString(), 400);
@@ -5217,7 +5267,8 @@
 		if (seq !== seriesSeq) return;
 		series = {
 			key,
-			data
+			data,
+			range
 		};
 		ctx.rerender();
 	}
@@ -5227,6 +5278,7 @@
 		if (!ctx.api || !site || id === null) return;
 		const key = detailKey(ctx);
 		const seq = ++detailSeq;
+		detailFailed = null;
 		try {
 			const warning = await ctx.api.warnings.get(site, id);
 			if (seq !== detailSeq) return;
@@ -5234,9 +5286,10 @@
 				key,
 				warning
 			};
-		} catch {
+		} catch (e) {
 			if (seq !== detailSeq) return;
-			uiState(ctx).selected = null;
+			if (e instanceof ApiError && e.status === 404) uiState(ctx).selected = null;
+			else detailFailed = key;
 		}
 		ctx.rerender();
 	}
@@ -5271,26 +5324,29 @@
 		}[action];
 		if (!call) return;
 		busy = true;
+		++detailSeq;
 		ctx.rerender();
 		try {
 			const warning = await call();
+			const key = `${site}|${warning.id}`;
 			detail = {
-				key: `${site}|${warning.id}`,
+				key,
 				warning
 			};
-			draft = {
+			if (draft.key === key) draft = {
 				key: "",
 				text: ""
 			};
+			const same = action === "assign" && warning.assignee_id === w.assignee_id;
 			const done = {
 				acknowledge: "Acknowledged",
-				assign: warning.assignee ? `Assigned to ${warning.assignee}` : "Unassigned",
+				assign: same ? `${warning.assignee ? `Already assigned to ${warning.assignee}` : "Already unassigned"}${note ? "; your note is kept as a comment" : ""}` : warning.assignee ? `Assigned to ${warning.assignee}` : "Unassigned",
 				resolve: `Resolved as ${warning.outcome ? OUTCOMES[warning.outcome].toLowerCase() : "done"}`,
 				reopen: "Reopened",
 				comment: "Comment added"
 			};
 			ctx.toast(done[action] ?? "Done");
-			if (action !== "comment") listing = null;
+			if (action !== "comment" && !same) listing = null;
 		} catch {
 			detail = null;
 			listing = null;
@@ -5322,15 +5378,9 @@
 				site
 			});
 			if (listing?.key !== listKey(ctx)) fetchList(ctx);
-			if (ui.selected !== null && detail?.key !== detailKey(ctx)) fetchDetail(ctx);
+			if (ui.selected !== null && detail?.key !== detailKey(ctx) && detailFailed !== detailKey(ctx)) fetchDetail(ctx);
 			const shown = detail?.key === detailKey(ctx) ? detail.warning : null;
-			if (shown && series?.key !== seriesKey(shown)) {
-				series = {
-					key: seriesKey(shown),
-					data: void 0
-				};
-				fetchSeries(ctx, shown);
-			}
+			if (shown && series?.key !== seriesKey(shown)) fetchSeries(ctx, shown);
 			if (site && members?.site !== site && actionsFor({ status: "raised" }, ctx.ontology.role).length) fetchMembers(ctx);
 			onAll(root, "[data-show]", "click", (el) => {
 				ui.filters = {
@@ -5352,11 +5402,14 @@
 				ctx.rerender();
 			});
 			onAll(root, "[data-refresh-warnings]", "click", () => {
+				if (busy) return;
 				listing = null;
 				detail = null;
+				detailFailed = null;
 				series = null;
 				ctx.rerender();
 			});
+			onAll(root, "[data-more-warnings]", "click", () => void fetchMore(ctx));
 			root.querySelector("#warning-form textarea")?.addEventListener("input", (e) => {
 				draft = {
 					key: detailKey(ctx),
