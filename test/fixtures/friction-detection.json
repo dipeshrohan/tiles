@@ -332,5 +332,37 @@
       "lastShot": 1499,
       "peak": 3893.3176490830037
     }
+  ],
+  "horizonShots": 300,
+  "downtime": [
+    {
+      "shot": 560,
+      "code": "DT-SEIZURE"
+    },
+    {
+      "shot": 1090,
+      "code": "DT-LUBRICATION"
+    },
+    {
+      "shot": 1500,
+      "code": "DT-SEIZURE"
+    }
+  ],
+  "scored": [
+    {
+      "shot": 560,
+      "predicted": true,
+      "leadShots": 82
+    },
+    {
+      "shot": 1090,
+      "predicted": true,
+      "leadShots": 64
+    },
+    {
+      "shot": 1500,
+      "predicted": true,
+      "leadShots": 69
+    }
   ]
 }

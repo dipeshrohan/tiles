@@ -119,49 +119,65 @@ def step(config: Config, state: State, readings: Iterable[tuple[datetime, float]
     opened: list[Alert] = []
     for at, value in readings:
         base = state.baseline
-        just_closed = False
         if len(base) >= config.window:
             center = statistics.median(base)
-            spread = mad(base, center) or config.flat_spread
-            upper = center + config.k * spread
-            lower = center - config.k * spread
-            side: Literal["above", "below"] | None = None
-            if config.direction in ("above", "both") and value > upper:
-                side = "above"
-            elif config.direction in ("below", "both") and value < lower:
-                side = "below"
-            # A reading that isn't out on the open warning's side ends it (back in, or swung across).
-            if state.open is not None and side != state.open.side:
-                state.open.ended_at = at
-                closed.append(state.open)
-                state.open = None
-                state.cooldown_left = config.cooldown
-                just_closed = True
-            if side is None:
-                state.run, state.run_side = 0, None
-            else:
-                state.run = state.run + 1 if side == state.run_side else 1
-                state.run_side = side
-                if state.open is not None:
-                    w = state.open
-                    w.last_at = at
-                    w.readings += 1
-                    w.peak = max(w.peak, value) if w.side == "above" else min(w.peak, value)
-                elif state.run >= config.persist and state.cooldown_left == 0:
-                    state.open = Alert(
-                        started_at=at,
-                        last_at=at,
-                        peak=value,
-                        baseline=center,
-                        threshold=upper if side == "above" else lower,
-                        side=side,
-                        readings=1,
-                    )
-                    opened.append(state.open)
-            # The cooldown counts every reading after a warning closes, in or out.
-            if state.cooldown_left and state.open is None and not just_closed:
-                state.cooldown_left -= 1
+            judge(config, state, at, value, center, mad(base, center), closed, opened)
         base.append(value)
         if len(base) > config.window:
             base.popleft()
     return closed, opened
+
+
+def judge(
+    config: Config,
+    state: State,
+    at: datetime,
+    value: float,
+    center: float,
+    spread: float,
+    closed: list[Alert],
+    opened: list[Alert],
+) -> None:
+    """Judges one reading against its baseline (`center`, and `spread`, the scaled MAD; a flat
+    baseline's 0 becomes `flat_spread`), appending to `closed` and `opened`. The backtest
+    (backtest.py) replays with this too, on baselines it computes faster."""
+    spread = spread or config.flat_spread
+    upper = center + config.k * spread
+    lower = center - config.k * spread
+    side: Literal["above", "below"] | None = None
+    if config.direction in ("above", "both") and value > upper:
+        side = "above"
+    elif config.direction in ("below", "both") and value < lower:
+        side = "below"
+    just_closed = False
+    # A reading that isn't out on the open warning's side ends it (back in, or swung across).
+    if state.open is not None and side != state.open.side:
+        state.open.ended_at = at
+        closed.append(state.open)
+        state.open = None
+        state.cooldown_left = config.cooldown
+        just_closed = True
+    if side is None:
+        state.run, state.run_side = 0, None
+    else:
+        state.run = state.run + 1 if side == state.run_side else 1
+        state.run_side = side
+        if state.open is not None:
+            w = state.open
+            w.last_at = at
+            w.readings += 1
+            w.peak = max(w.peak, value) if w.side == "above" else min(w.peak, value)
+        elif state.run >= config.persist and state.cooldown_left == 0:
+            state.open = Alert(
+                started_at=at,
+                last_at=at,
+                peak=value,
+                baseline=center,
+                threshold=upper if side == "above" else lower,
+                side=side,
+                readings=1,
+            )
+            opened.append(state.open)
+    # The cooldown counts every reading after a warning closes, in or out.
+    if state.cooldown_left and state.open is None and not just_closed:
+        state.cooldown_left -= 1

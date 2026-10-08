@@ -23,6 +23,7 @@ tiles-seed = "tiles_api.seed:main"
 tiles-check-quality = "tiles_api.quality:main"
 tiles-run-models = "tiles_api.models.runner:main"
 tiles-detect = "tiles_api.detector_job:main"
+tiles-backtest = "tiles_api.api_backtest:main"
 
 [dependency-groups]
 dev = [
