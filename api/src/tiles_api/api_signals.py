@@ -36,7 +36,7 @@ class Signal(BaseModel):
     source: str  # edge:<agent>, import:<file> or manual
     description: str
     node_id: str | None
-    node_label: str | None  # None when unlinked, or when the node is no longer in the ontology
+    node_label: str | None  # None when unlinked, or when the ontology no longer has it as a Signal node
     range_min: float | None  # the values expected; readings outside are flagged
     range_max: float | None
     stuck_after_s: float | None  # how long one value may repeat (None: an hour)
@@ -80,7 +80,7 @@ SELECT g.id, g.tag, g.unit, g.sample_rate_hz, g.source, g.description, g.node_id
        g.stuck_after_s, g.created_at, n.label AS node_label, l.at AS last_at, coalesce(to_jsonb(l.value),
        to_jsonb(l.value_text), to_jsonb(l.value_bool)) AS last_value, q.report AS quality
 FROM signals g
-LEFT JOIN ontology_nodes n ON n.site_id = g.site_id AND n.id = g.node_id
+LEFT JOIN ontology_nodes n ON n.site_id = g.site_id AND n.id = g.node_id AND n.type = 'Signal'
 LEFT JOIN signal_quality q ON q.signal_id = g.id
 LEFT JOIN LATERAL (
     SELECT at, value, value_text, value_bool FROM samples s WHERE s.signal_id = g.id ORDER BY at DESC LIMIT 1
@@ -128,7 +128,7 @@ def list_signals(
     total = ctx.conn.execute(
         sql.SQL(
             "SELECT count(*) AS n FROM signals g LEFT JOIN ontology_nodes n ON n.site_id = g.site_id"
-            " AND n.id = g.node_id LEFT JOIN signal_quality q ON q.signal_id = g.id WHERE {}"
+            " AND n.id = g.node_id AND n.type = 'Signal' LEFT JOIN signal_quality q ON q.signal_id = g.id WHERE {}"
         ).format(condition),
         args,
     ).fetchone()
@@ -153,6 +153,8 @@ def get_signal(ctx: Ctx, signal_id: uuid.UUID) -> Signal:
 def update_signal(ctx: Editor, signal_id: uuid.UUID, body: SignalPatch) -> Signal:
     """Sets a signal's unit, sample rate, description or ontology link (engineers and admins).
     A link must name a Signal node of the committed ontology that no other tag is linked to."""
+    # Lock the row first, so that `before` (for the audit log) is what this change replaces.
+    ctx.conn.execute("SELECT 1 FROM signals WHERE id = %s AND site_id = %s FOR UPDATE", [signal_id, ctx.site_id])
     before = _get(ctx, signal_id)
     changes = {k: getattr(body, k) for k in EDITABLE if k in body.model_fields_set}
     if "description" in changes and changes["description"] is None:

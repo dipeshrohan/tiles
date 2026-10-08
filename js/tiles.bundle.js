@@ -3661,6 +3661,7 @@
 	var results = null;
 	var failed = false;
 	var checking = false;
+	var latestSearch = 0;
 	var searchTimer;
 	var ui = (ctx) => ctx.ui("signals", {
 		query: {
@@ -3737,7 +3738,7 @@
 	}
 	function linkCell(s) {
 		if (!s.node_id) return "<span class=\"soft\">—</span>";
-		return s.node_label ? `<a href="#/ontology">${esc(s.node_label)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer in the committed ontology">missing node</span>`;
+		return s.node_label ? `<a href="#/ontology">${esc(s.node_label)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
 	}
 	function editRow(ctx, s) {
 		const nodes = Object.values(ctx.state.repo.head.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.label.localeCompare(b.label));
@@ -3778,15 +3779,17 @@
 	async function search(root, ctx) {
 		const site = ctx.ontology.site;
 		if (!ctx.api || !site) return;
+		const mine = ++latestSearch;
+		let page = null;
 		try {
-			results = await ctx.api.signals.list(site.id, {
+			page = await ctx.api.signals.list(site.id, {
 				...ui(ctx).query,
 				limit: PAGE
 			});
-			failed = false;
-		} catch {
-			failed = true;
-		}
+		} catch {}
+		if (mine !== latestSearch) return;
+		results = page;
+		failed = page === null;
 		fill(root, ctx);
 	}
 	function fill(root, ctx) {
@@ -3839,6 +3842,7 @@
 				ui(ctx).editing = null;
 				ctx.toast(`Saved ${updated.tag}`);
 				fill(root, ctx);
+				search(root, ctx);
 			}, () => void 0);
 		});
 	}

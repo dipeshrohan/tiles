@@ -18,6 +18,7 @@ interface Ui {
 let results: { total: number; signals: SignalInfo[] } | null = null;
 let failed = false;
 let checking = false;
+let latestSearch = 0; // answers to earlier searches are dropped
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const ui = (ctx: Context): Ui =>
@@ -119,7 +120,7 @@ function linkCell(s: SignalInfo): string {
   if (!s.node_id) return '<span class="soft">—</span>';
   return s.node_label
     ? `<a href="#/ontology">${esc(s.node_label)}</a>`
-    : `<span class="badge warn" title="${esc(s.node_id)} is no longer in the committed ontology">missing node</span>`;
+    : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
 }
 
 function editRow(ctx: Context, s: SignalInfo): string {
@@ -179,12 +180,16 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
 async function search(root: HTMLElement, ctx: Context): Promise<void> {
   const site = ctx.ontology.site;
   if (!ctx.api || !site) return;
+  const mine = ++latestSearch;
+  let page: typeof results = null;
   try {
-    results = await ctx.api.signals.list(site.id, { ...ui(ctx).query, limit: PAGE });
-    failed = false;
+    page = await ctx.api.signals.list(site.id, { ...ui(ctx).query, limit: PAGE });
   } catch {
-    failed = true;
+    // shown below, unless a later search has answered
   }
+  if (mine !== latestSearch) return;
+  results = page;
+  failed = page === null;
   fill(root, ctx);
 }
 
@@ -247,6 +252,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
         ui(ctx).editing = null;
         ctx.toast(`Saved ${updated.tag}`);
         fill(root, ctx);
+        void search(root, ctx); // the change may take it out of (or into) the current search
       },
       () => undefined, // the client showed why
     );

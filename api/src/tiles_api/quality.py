@@ -122,7 +122,7 @@ SELECT
 SIGNAL: LiteralString = """
 SELECT g.id, g.site_id, g.tag, g.unit, g.sample_rate_hz, g.source, g.range_min, g.range_max, g.stuck_after_s,
        g.node_id, n.label AS node_label, n.props ->> 'unit' AS node_unit
-FROM signals g LEFT JOIN ontology_nodes n ON n.site_id = g.site_id AND n.id = g.node_id
+FROM signals g LEFT JOIN ontology_nodes n ON n.site_id = g.site_id AND n.id = g.node_id AND n.type = 'Signal'
 """
 
 

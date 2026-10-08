@@ -104,7 +104,7 @@ export interface SignalInfo {
   source: string; // edge:<agent>, import:<file> or manual
   description: string;
   node_id: string | null;
-  node_label: string | null; // null when unlinked, or when the node has left the ontology
+  node_label: string | null; // null when unlinked, or when the ontology no longer has it as a Signal node
   range_min: number | null; // the values expected
   range_max: number | null;
   stuck_after_s: number | null; // how long one value may repeat (null: an hour)

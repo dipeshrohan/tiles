@@ -1,5 +1,7 @@
 """Signal catalogue (T2.08): browse and search the site's signals, describe them and link them to the ontology."""
 
+import threading
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -133,5 +135,37 @@ def test_a_signal_links_to_one_signal_node_of_the_ontology(api: TestClient, site
     assert api.post(f"/sites/{site}/ontology/commits", json={"message": "remove"}, headers=ENG).status_code == 201
     gone = by_tag(api, site, "press1.temperature")
     assert (gone["node_id"], gone["node_label"]) == ("sig-p1-temp", None)
+    # A node of another type that takes the same id later is not a valid link either.
+    commit_nodes(api, site, {"id": "sig-p1-temp", "type": "Machine", "label": "Press 1 again", "props": {}})
+    assert by_tag(api, site, "press1.temperature")["node_label"] is None
+    assert signals(api, site, q="press 1 again")["total"] == 0
     unlinked = api.patch(f"/sites/{site}/signals/{first['id']}", json={"node_id": None}, headers=ENG).json()
     assert unlinked["node_id"] is None
+
+
+def test_concurrent_edits_audit_what_each_replaced(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    backfill(api, site, {"press1.temperature": [1.0]})
+    sig = by_tag(api, site, "press1.temperature")
+    answers: list[int] = []
+    with psycopg.connect(database_url) as other:
+        # Another edit holds the row and has not committed yet.
+        other.execute("UPDATE signals SET unit = 'K' WHERE id = %s", [sig["id"]])
+        patch = threading.Thread(
+            target=lambda: answers.append(
+                api.patch(f"/sites/{site}/signals/{sig['id']}", json={"unit": "°C"}, headers=ENG).status_code
+            )
+        )
+        patch.start()
+        time.sleep(0.3)  # the PATCH waits for the row
+        other.commit()
+        patch.join(10)
+    assert answers == [200]
+    with psycopg.connect(database_url) as conn:
+        before = conn.execute(
+            "SELECT before FROM audit_log WHERE action = 'signal.update' AND entity_id = %s", [sig["id"]]
+        ).fetchone()
+    assert before == ({"tag": "press1.temperature", "unit": "K"},)  # not the value before the other edit

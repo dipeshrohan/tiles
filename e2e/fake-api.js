@@ -75,6 +75,7 @@ export function createFakeApi({
     source_flagged: 0,
     issues: [],
   });
+  const slowSearches = new Map(); // search text -> ms to wait before answering
   const signalView = (sig) => {
     const mine = [...samples.entries()].filter(([k]) => k.startsWith(`${sig.tag}|`)).sort();
     const last = mine.at(-1);
@@ -262,6 +263,8 @@ export function createFakeApi({
       const signalsPath = `/sites/${site.id}/signals`;
       if (url.pathname === signalsPath && req.method === 'GET') {
         const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+        const delay = slowSearches.get(q);
+        if (delay) await new Promise((r) => setTimeout(r, delay));
         const source = url.searchParams.get('source') ?? '';
         const linked = url.searchParams.get('linked') ?? '';
         const quality = url.searchParams.get('quality') ?? '';
@@ -390,6 +393,10 @@ export function createFakeApi({
     // Sets what the next quality check finds for a tag (part of a report; the rest as for a good one).
     qualityWillBe(tag, report) {
       qualityFound.set(tag, report);
+    },
+    // Makes the catalogue answer a search for `q` only after `ms`.
+    slowSearch(q, ms) {
+      slowSearches.set(q, ms);
     },
     // Lets a test change a user's role, as a site admin would.
     setRole(user, role) {
