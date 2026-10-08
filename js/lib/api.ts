@@ -70,6 +70,31 @@ export interface EdgeAgent {
   } | null;
 }
 
+export type QualityBadge = 'good' | 'warn' | 'bad' | 'unknown';
+
+// A signal's latest data-quality check (T2.09), over the hours up to its latest reading.
+export interface QualityReport {
+  badge: QualityBadge;
+  checked_at: string;
+  window_hours: number;
+  first_at: string | null;
+  last_at: string | null;
+  readings: number;
+  period_s: number | null;
+  coverage: number | null;
+  gaps: number;
+  longest_gap_s: number | null;
+  stuck_runs: number;
+  longest_stuck_s: number | null;
+  out_of_range: number;
+  source_flagged: number;
+  issues: {
+    check: 'gaps' | 'stuck' | 'range' | 'source' | 'unit' | 'silent';
+    severity: 'warn' | 'bad';
+    message: string;
+  }[];
+}
+
 // A signal in the catalogue (T2.08): a tag, what is known about it, and its latest reading.
 export interface SignalInfo {
   id: string;
@@ -80,20 +105,27 @@ export interface SignalInfo {
   description: string;
   node_id: string | null;
   node_label: string | null; // null when unlinked, or when the ontology no longer has it as a Signal node
+  range_min: number | null; // the values expected
+  range_max: number | null;
+  stuck_after_s: number | null; // how long one value may repeat (null: an hour)
   created_at: string;
   last_at: string | null;
   last_value: number | string | boolean | null;
+  quality: QualityReport | null; // null until checked
 }
 
 export interface SignalQuery {
   q?: string;
   source?: '' | 'edge' | 'import' | 'manual';
   linked?: '' | 'yes' | 'no';
+  quality?: '' | QualityBadge | 'unchecked';
   limit?: number;
   offset?: number;
 }
 
-export type SignalChange = Partial<Pick<SignalInfo, 'unit' | 'sample_rate_hz' | 'description' | 'node_id'>>;
+export type SignalChange = Partial<
+  Pick<SignalInfo, 'unit' | 'sample_rate_hz' | 'description' | 'node_id' | 'range_min' | 'range_max' | 'stuck_after_s'>
+>;
 
 // One bulk import of readings from a file (T2.07).
 export interface ImportRun {
@@ -225,7 +257,7 @@ export function createApiClient(options: ApiOptions) {
       revoke: (siteId: string, agentId: string) =>
         request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/agents/${encodeURIComponent(agentId)}`),
     },
-    // The signal catalogue (T2.08): search it, and describe or link a signal (engineers).
+    // The signal catalogue (T2.08): search it, describe or link a signal, check its quality (engineers).
     signals: {
       list: (siteId: string, query: SignalQuery = {}) => {
         const params = new URLSearchParams();
@@ -241,6 +273,13 @@ export function createApiClient(options: ApiOptions) {
           'PATCH',
           `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`,
           change,
+        ),
+      // Checks the quality of the listed signals (or all) and stores each report (T2.09).
+      checkQuality: (siteId: string, signalIds?: string[], hours?: number) =>
+        request<{ checked: number; badges: Record<QualityBadge, number> }>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/signals/quality`,
+          { ...(signalIds ? { signal_ids: signalIds } : {}), ...(hours ? { hours } : {}) },
         ),
     },
     // Bulk imports of readings (T2.07): start one, send its readings in batches, finish it.

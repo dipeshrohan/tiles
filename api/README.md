@@ -110,6 +110,9 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `member.role` | the member | old role | new role |
 | `agent.register` | the edge agent | | `{"name": …}` (never the token) |
 | `agent.revoke` | the edge agent | `{"name": …}` | |
+| `import.start`, `import.finish` | the import | | its name; when finished, the counts |
+| `signal.update` | the signal | its tag and the fields' old values | its tag and the fields' new values |
+| `signal.quality_check` | the site | | `{"hours": …, "checked": …}` and how many got each badge |
 
 Writes that fail, and no-ops (discarding nothing, setting the same role), leave no entry. The table refuses UPDATE, DELETE and TRUNCATE. New write endpoints should call `ctx.audit(...)`. `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
 
@@ -143,6 +146,21 @@ Each site has one committed graph (`head`) and a commit history. Each user stage
 | `GET /health?view=head` | health check: dangling and duplicate relationships, orphans, missing required properties, and a 0–100 score (`view=working` includes your staged changes) |
 
 Ops, graphs and commits have the same JSON shape as in the browser (`js/lib/types.ts`). The logic in `tiles_api/ontology.py` is a port of `js/lib/ontology.ts`. Both run the shared fixture suite in `test/fixtures/ontology-parity.json`, and the API tests replay it over HTTP too. After changing the TypeScript behaviour, regenerate the fixtures with `UPDATE_FIXTURES=1 npx vitest run test/ontology-parity.test.js`, then make the Python port pass.
+
+### Signals and data quality
+
+| Method and path (under `/sites/{site_id}/signals`) | Who | Does |
+|---|---|---|
+| `GET ?q&source&linked&quality&limit&offset` | members | the catalogue in tag order, each signal with its latest reading and its latest quality report; `quality` is `good`, `warn`, `bad`, `unknown` (no readings) or `unchecked` |
+| `GET /{id}` | members | one signal |
+| `PATCH /{id}` | engineers | set `unit`, `sample_rate_hz`, `description`, `node_id`, the expected range (`range_min`, `range_max`) or `stuck_after_s`; a change that affects the quality check checks the signal again |
+| `POST /quality` | engineers | check `{"signal_ids": [...]}` (or all the site's signals) over `hours` (default 24) up to each one's latest reading |
+
+A check (`tiles_api/quality.py`) looks for gaps (steps longer than three expected periods: 1 / the sample rate, or the median step), numeric values stuck for longer than `stuck_after_s` (an hour by default) and at least 10 readings, readings outside the expected range, readings the source marked bad or uncertain, a unit that differs from the linked ontology node's `unit`, and edge agent signals that have gone quiet. Each finding is a warning or a problem (less than 90% of the time covered, more than 5% of readings out of range or marked bad, a unit mismatch, a silent tag); the badge is the worst. A day of 1 Hz readings takes about a quarter of a second to check, so check whole sites on a schedule rather than from the page:
+
+```bash
+uv run tiles-check-quality              # every site; --site <id> for one, --hours 72 for a longer window
+```
 
 ### Sign-in
 

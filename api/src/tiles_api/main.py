@@ -1,14 +1,17 @@
 """FastAPI application factory and entry point."""
 
 import logging
+import math
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from importlib.metadata import version
-from typing import Literal
+from typing import Any, Literal
 
 import uvicorn
 from fastapi import FastAPI, Request, Response
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -39,6 +42,17 @@ class Health(BaseModel):
 class Ready(BaseModel):
     status: Literal["ok", "unavailable"]
     checks: dict[str, readiness.CheckResult]
+
+
+def _finite(value: Any) -> Any:
+    """JSON can't carry NaN or infinity: name them instead (a validation error echoes the input)."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return str(value)
+    if isinstance(value, dict):
+        return {k: _finite(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_finite(v) for v in value]
+    return value
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -90,6 +104,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
         expose_headers=["X-Request-ID"],
     )
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, exc: RequestValidationError) -> JSONResponse:
+        """FastAPI's own answer, except that a NaN in the request doesn't turn it into a 500."""
+        return JSONResponse({"detail": _finite(jsonable_encoder(exc.errors()))}, status_code=422)
 
     @app.get("/health", response_model=Health, tags=["meta"])
     def health() -> Health:

@@ -474,6 +474,12 @@ main {
 .badge.warn {
   color: var(--warn);
 }
+.btn-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
 .dot {
   width: 8px;
   height: 8px;

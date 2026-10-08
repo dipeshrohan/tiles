@@ -28,6 +28,7 @@ TABLES = {
     "edge_agents",
     "samples",
     "imports",
+    "signal_quality",
 }
 
 
@@ -161,6 +162,11 @@ def test_ontology_round_trips_nodes_edges_and_commits(
             errors.CheckViolation,
         ),
         ("INSERT INTO signals (site_id, tag, sample_rate_hz) VALUES ({site}, 'DC02.P', 0)", errors.CheckViolation),
+        (
+            "INSERT INTO signals (site_id, tag, range_min, range_max) VALUES ({site}, 'DC02.P', 10, 5)",
+            errors.CheckViolation,
+        ),
+        ("INSERT INTO signals (site_id, tag, stuck_after_s) VALUES ({site}, 'DC02.P', 0)", errors.CheckViolation),
     ],
 )
 def test_constraints_reject_bad_rows(
@@ -276,7 +282,7 @@ def test_alembic_config_escapes_percent_in_passwords() -> None:
 
 
 def test_next_revision_id_follows_the_head() -> None:
-    assert next_revision_id(alembic_config(Settings())) == "0007"
+    assert next_revision_id(alembic_config(Settings())) == "0008"
 
 
 def test_migrate_command_upgrades_and_reports(database_url: str, monkeypatch: pytest.MonkeyPatch) -> None:

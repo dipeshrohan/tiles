@@ -20,6 +20,7 @@ dependencies = [
 tiles-api = "tiles_api.main:run"
 tiles-migrate = "tiles_api.db:main"
 tiles-seed = "tiles_api.seed:main"
+tiles-check-quality = "tiles_api.quality:main"
 
 [dependency-groups]
 dev = [
