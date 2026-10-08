@@ -752,6 +752,66 @@ test('an edit started while the list refreshes survives the refresh, and a faile
   );
 });
 
+test("a refresh keeps only the fields being edited, and another engineer's change shows", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp', { description: 'Zone 1' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.evaluate(() => (location.hash = '#/import'));
+  fake.slowSearch('', 1200);
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.click('[data-edit]');
+  fake.addSignal('oven.temp', { description: 'Zone 1, upper' }); // another engineer, meanwhile
+  await page.fill('#signal-form [name=unit]', '°C');
+  await page.waitForTimeout(1500); // the refresh lands
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), '°C');
+  assert.equal(await page.inputValue('#signal-form [name=description]'), 'Zone 1, upper');
+  assert.deepEqual(errors, []);
+});
+
+test('the edit form is locked while its change is saved', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  fake.slowSave(800);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=unit]', '°C');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#signal-form button[type=submit]:has-text("Saving")');
+  assert.equal(await page.locator('#signal-form [name=description]').isDisabled(), true);
+  await page.locator('#signal-form').evaluate((f) => f.requestSubmit()); // a second submit is ignored
+  await page.waitForSelector('#toast:has-text("Saved oven.temp")');
+  assert.equal(fake.requests.filter((r) => r.startsWith('PATCH ')).length, 1);
+  assert.deepEqual(errors, []);
+});
+
+test('changing a filter just before leaving never shows the old results on return', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp', { source: 'import:oven.csv' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-results] code:has-text("oven.temp")');
+  fake.slowSearch('', 1500);
+  await page.selectOption('#signal-search [name=source]', 'edge');
+  await page.evaluate(() => (location.hash = '#/import')); // within the debounce
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.waitForSelector('[data-signal-results]:has-text("Loading")');
+  assert.equal(await page.locator('[data-signal-results] code:has-text("oven.temp")').count(), 0);
+  await page.waitForSelector('[data-signal-results]:has-text("No signals match")');
+  assert.deepEqual(errors, []);
+});
+
 test('a search typed just before leaving the signals page is never sent', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

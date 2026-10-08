@@ -55,6 +55,7 @@ export function createFakeApi({
   // Like the API: the node's label (if it's in the committed ontology) and the latest reading.
   const slowSearches = new Map(); // search text -> ms to wait before answering
   const failingSearches = new Set(); // search texts answered with an error
+  let slowSaves = 0; // ms before a signal change is answered
   const signalView = (sig) => {
     const mine = [...samples.entries()].filter(([k]) => k.startsWith(`${sig.tag}|`)).sort();
     const last = mine.at(-1);
@@ -266,6 +267,7 @@ export function createFakeApi({
         if (role === 'viewer')
           return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
         const change = await body(req);
+        if (slowSaves) await new Promise((r) => setTimeout(r, slowSaves));
         if (change.node_id) {
           if (head.nodes[change.node_id]?.type !== 'Signal')
             return send(422, {
@@ -359,6 +361,10 @@ export function createFakeApi({
     // Makes the catalogue answer a search for `q` only after `ms`.
     slowSearch(q, ms) {
       slowSearches.set(q, ms);
+    },
+    // Makes signal changes take `ms` to be answered.
+    slowSave(ms) {
+      slowSaves = ms;
     },
     // Makes the catalogue answer a search for `q` with an error.
     failSearch(q) {

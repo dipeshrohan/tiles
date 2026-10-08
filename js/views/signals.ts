@@ -18,6 +18,7 @@ let failed = false;
 let latestSearch = 0; // answers to earlier searches are dropped
 let resultsFor = ''; // the catalogue `results` came from: see catalogue()
 let resultsQuery = ''; // and the search they answer
+let saving: string | null = null; // the signal whose change is being saved
 
 // Which catalogue is shown: the API, the site and who is asking. Results from another are never shown.
 const catalogue = (ctx: Context): string =>
@@ -85,12 +86,14 @@ function editRow(ctx: Context, s: SignalInfo): string {
   ].join('');
   return `<tr class="edit-row"><td colspan="8">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+        <fieldset style="display:contents" ${saving === s.id ? 'disabled' : ''}>
         <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? '')}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
         <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${s.sample_rate_hz ?? ''}" inputmode="decimal" style="width:7em"></label>
         <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
-        <button class="btn primary" type="submit">Save</button>
+        <button class="btn primary" type="submit">${saving === s.id ? 'Saving…' : 'Save'}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
+        </fieldset>
       </form>
       ${nodes.length ? '' : '<p class="small soft">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>'}
     </td></tr>`;
@@ -144,7 +147,16 @@ function fill(root: HTMLElement, ctx: Context): void {
   if (!box) return;
   // An edit in progress survives the refresh: its fields, and where the cursor was.
   const form = box.querySelector<HTMLFormElement>('#signal-form');
-  const typed = form ? { signal: form.dataset.signal, values: [...new FormData(form)] } : null;
+  // Only fields the user changed: the rest show what the refresh brings (another engineer's edit, say).
+  const changed = form
+    ? [...form.elements].flatMap((el): [string, string][] =>
+        (el instanceof HTMLInputElement && el.value !== el.defaultValue) ||
+        (el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected))
+          ? [[el.name, el.value]]
+          : [],
+      )
+    : [];
+  const typed = form ? { signal: form.dataset.signal, values: changed } : null;
   const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute('name') : null;
   const canEdit = ctx.ontology.role !== 'viewer';
   box.innerHTML = failed
@@ -156,8 +168,7 @@ function fill(root: HTMLElement, ctx: Context): void {
   if (typed && again && again.dataset.signal === typed.signal) {
     for (const [name, value] of typed.values) {
       const el = again.elements.namedItem(name);
-      if ((el instanceof HTMLInputElement || el instanceof HTMLSelectElement) && typeof value === 'string')
-        el.value = value;
+      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
     }
     if (focused) (again.elements.namedItem(focused) as HTMLElement | null)?.focus();
   }
@@ -178,7 +189,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
     e.preventDefault();
     const site = ctx.ontology.site;
     const sig = results?.signals.find((s) => s.id === form.dataset.signal);
-    if (!site || !ctx.api || !sig) return;
+    if (!site || !ctx.api || !sig || saving) return;
     const change = changeFrom(
       {
         unit: field(form, 'unit'),
@@ -197,15 +208,22 @@ function bindResults(root: HTMLElement, ctx: Context): void {
       fill(root, ctx);
       return;
     }
+    // The form is locked while the change is saved: nothing typed meanwhile is lost, nothing sent twice.
+    saving = sig.id;
+    fill(root, ctx);
     ctx.api.signals.update(site.id, sig.id, change).then(
       (updated) => {
+        saving = null;
         if (results) results.signals = results.signals.map((s) => (s.id === updated.id ? updated : s));
         ui(ctx).editing = null;
         ctx.toast(`Saved ${updated.tag}`);
         fill(root, ctx);
         void search(root, ctx); // the change may take it out of (or into) the current search
       },
-      () => undefined, // the client showed why
+      () => {
+        saving = null; // the client showed why; the form opens again as it was
+        fill(root, ctx);
+      },
     );
   });
 }
@@ -235,7 +253,7 @@ const view: View = {
     const form = root.querySelector<HTMLFormElement>('#signal-search');
     if (!form) return;
     clearTimeout(searchTimer); // a search typed on the page this one replaces
-    if (results && resultsFor === catalogue(ctx))
+    if (results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query))
       fill(root, ctx); // show the last answer at once, then refresh it
     else results = null;
     void search(root, ctx);

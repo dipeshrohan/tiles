@@ -3645,6 +3645,7 @@
 	var latestSearch = 0;
 	var resultsFor = "";
 	var resultsQuery = "";
+	var saving = null;
 	var catalogue = (ctx) => [
 		ctx.api?.baseUrl ?? "",
 		ctx.ontology.site?.id ?? "",
@@ -3699,12 +3700,14 @@
 		].join("");
 		return `<tr class="edit-row"><td colspan="8">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+        <fieldset style="display:contents" ${saving === s.id ? "disabled" : ""}>
         <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
         <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${s.sample_rate_hz ?? ""}" inputmode="decimal" style="width:7em"></label>
         <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
-        <button class="btn primary" type="submit">Save</button>
+        <button class="btn primary" type="submit">${saving === s.id ? "Saving…" : "Save"}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
+        </fieldset>
       </form>
       ${nodes.length ? "" : "<p class=\"small soft\">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>"}
     </td></tr>`;
@@ -3745,9 +3748,10 @@
 		const box = root.querySelector("[data-signal-results]");
 		if (!box) return;
 		const form = box.querySelector("#signal-form");
+		const changed = form ? [...form.elements].flatMap((el) => el instanceof HTMLInputElement && el.value !== el.defaultValue || el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected) ? [[el.name, el.value]] : []) : [];
 		const typed = form ? {
 			signal: form.dataset.signal,
-			values: [...new FormData(form)]
+			values: changed
 		} : null;
 		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
 		const canEdit = ctx.ontology.role !== "viewer";
@@ -3756,7 +3760,7 @@
 		if (typed && again && again.dataset.signal === typed.signal) {
 			for (const [name, value] of typed.values) {
 				const el = again.elements.namedItem(name);
-				if ((el instanceof HTMLInputElement || el instanceof HTMLSelectElement) && typeof value === "string") el.value = value;
+				if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
 			}
 			if (focused) again.elements.namedItem(focused)?.focus();
 		}
@@ -3776,7 +3780,7 @@
 			e.preventDefault();
 			const site = ctx.ontology.site;
 			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
-			if (!site || !ctx.api || !sig) return;
+			if (!site || !ctx.api || !sig || saving) return;
 			const change = changeFrom({
 				unit: field$1(form, "unit"),
 				rate: field$1(form, "rate"),
@@ -3792,13 +3796,19 @@
 				fill(root, ctx);
 				return;
 			}
+			saving = sig.id;
+			fill(root, ctx);
 			ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
+				saving = null;
 				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
 				ui(ctx).editing = null;
 				ctx.toast(`Saved ${updated.tag}`);
 				fill(root, ctx);
 				search(root, ctx);
-			}, () => void 0);
+			}, () => {
+				saving = null;
+				fill(root, ctx);
+			});
 		});
 	}
 	var view = {
@@ -3824,7 +3834,7 @@
 			const form = root.querySelector("#signal-search");
 			if (!form) return;
 			clearTimeout(searchTimer);
-			if (results && resultsFor === catalogue(ctx)) fill(root, ctx);
+			if (results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query)) fill(root, ctx);
 			else results = null;
 			search(root, ctx);
 			const update = () => {
