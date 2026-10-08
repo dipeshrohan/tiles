@@ -95,6 +95,28 @@ test('ontology change can be staged, committed and reverted', async () => {
   await page.close();
 });
 
+test('on an ultrawide screen the page and its charts use the whole width', async (t) => {
+  const { page, errors } = await openPage({ viewport: { width: 3440, height: 1300 } });
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/physics`);
+  await page.waitForSelector('#run-chart svg');
+  const sizes = () =>
+    page.evaluate(() => ({
+      main: document.querySelector('main').getBoundingClientRect().width,
+      card: document.querySelector('#run-chart').getBoundingClientRect().width,
+      chart: document.querySelector('#run-chart svg').getBoundingClientRect().width,
+      drawn: document.querySelector('#run-chart svg').viewBox.baseVal.width,
+    }));
+  const wide = await sizes();
+  assert.ok(wide.main > 3100, `main is ${wide.main}px wide`);
+  assert.ok(wide.chart > wide.card - 2, 'the run chart fills its card');
+  assert.ok(Math.abs(wide.drawn - wide.chart) < 60, 'drawn at its shown size, so its text is not enlarged');
+  // A narrower window draws it again, narrower.
+  await page.setViewportSize({ width: 1360, height: 900 });
+  await page.waitForFunction(() => document.querySelector('#run-chart svg').viewBox.baseVal.width === 1040);
+  assert.deepEqual(errors, []);
+});
+
 test('settings can switch to the Tiles API and test the connection', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
@@ -152,11 +174,37 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
   t.after(() => fake.close());
-  const open = async () => {
+  const open = async (email) => {
     const { page, errors } = await openPage();
     t.after(() => page.close());
-    await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+    if (email) {
+      // Another engineer: staged changes are kept per user.
+      await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
+      await page.waitForSelector('#account:has-text("development user")'); // settled: no re-render mid-typing
+      await page.fill('#profile [name=email]', email);
+      await page.click('#profile button[type=submit]');
+      await page.waitForSelector('#toast:has-text("Profile saved")');
+      assert.equal(await page.inputValue('#profile [name=email]'), email);
+      await page.evaluate(() => (location.hash = '#/ontology'));
+    } else await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+    await page.waitForSelector('.source-bar:has-text("Shared through the Tiles API")'); // loaded
     return { page, errors };
+  };
+  // Refresh, and wait until the page shows what the API answered: each answer's body has arrived
+  // (a response event fires on its headers), then the page has rendered.
+  const refresh = async (page) => {
+    const answered = (path) =>
+      page
+        .waitForResponse((r) => r.request().method() === 'GET' && new URL(r.url()).pathname.endsWith(path))
+        .then((r) => r.finished());
+    await Promise.all([
+      answered('/ontology/graph'),
+      answered('/ontology/staged'),
+      answered('/ontology/commits'),
+      answered('/me'),
+      page.click('[data-refresh]'),
+    ]);
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   };
 
   const a = await open();
@@ -167,7 +215,7 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   assert.match(await a.page.locator('.commit').first().innerText(), /Import demo ontology/);
 
   // A second browser sees the shared history straight away.
-  const b = await open();
+  const b = await open('eng2@example.com');
   await b.page.click('[data-tab=history]');
   assert.match(await b.page.locator('.commit').first().innerText(), /Import demo ontology/);
 
@@ -175,9 +223,12 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   await a.page.click('[data-tab=canvas]');
   await a.page.fill('#node-form [name=label]', 'Alarm stream DC-02');
   await a.page.selectOption('#node-form [name=type]', 'Signal');
-  await a.page.click('#node-form button');
+  await Promise.all([
+    a.page.waitForResponse((r) => r.request().method() === 'POST' && /\/ontology\/staged/.test(r.url())),
+    a.page.click('#node-form button'),
+  ]);
   await a.page.waitForSelector('#commit-form');
-  await b.page.click('[data-refresh]');
+  await refresh(b.page);
   assert.equal(await b.page.locator('#commit-form').count(), 0);
   await a.page.fill('#commit-form [name=message]', 'add alarms node');
   await a.page.click('#commit-form button[type=submit]');
@@ -189,19 +240,33 @@ test('ontology page in API mode: import, commit, and see another user’s commit
     [{ kind: 'addNode', node: { id: 'doc-x', type: 'Document', label: 'Shift notes', props: {} } }],
     'add shift notes',
   );
-  await b.page.click('[data-refresh]');
+  await refresh(b.page);
   await b.page.click('[data-tab=history]');
+  await b.page.waitForSelector('.commit b:has-text("add shift notes")');
   const messages = await b.page.locator('.commit b').allInnerTexts();
   assert.deepEqual(messages.slice(0, 3), ['add shift notes', 'add alarms node', 'Import demo ontology']);
 
   // Revert from B goes through the API and A sees it after a refresh.
   await b.page.locator('[data-revert]').first().click();
   await b.page.waitForSelector('#toast:has-text("Commit reverted")');
-  await a.page.click('[data-refresh]');
+  await refresh(a.page);
   await a.page.click('[data-tab=history]');
+  await a.page.waitForSelector('.commit:has-text(\'Revert "add shift notes"\')');
   assert.match(await a.page.locator('.commit').first().innerText(), /Revert "add shift notes"/);
 
   assert.deepEqual([...a.errors, ...b.errors], []);
+});
+
+test('the signals page says why it has no site, rather than asking to connect again', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=http://127.0.0.1:1#/signals`);
+  await page.waitForSelector('#view:has-text("The site could not be loaded from the Tiles API: Can\'t reach")');
+  assert.equal(await page.locator('#view a[href="#/settings"]').count(), 0);
+  assert.deepEqual(
+    errors.filter((e) => !/Failed to load resource|ERR_CONNECTION_REFUSED/.test(e)),
+    [],
+  );
 });
 
 test('ontology page explains when the API is unreachable, and local mode is untouched', async (t) => {
@@ -717,6 +782,139 @@ test('leaving the signals page mid-search never leaves it loading', async (t) =>
   await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
   await page.waitForTimeout(800);
   assert.match(await page.locator('[data-signal-results]').innerText(), /oven\.temp/);
+  assert.deepEqual(errors, []);
+});
+
+test('an edit started while the list refreshes survives the refresh, and a failed one', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.evaluate(() => (location.hash = '#/import'));
+  // Back on the page: the last list shows at once while a slow refresh runs.
+  fake.slowSearch('', 1200);
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=unit]', 'bar');
+  await page.waitForTimeout(1500); // the refresh lands
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), 'bar');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'unit');
+  // A refresh that fails keeps the list and the form.
+  fake.failSearch('');
+  await page.evaluate(() => (location.hash = '#/import'));
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.fill('#signal-form [name=unit]', 'kPa'); // the form is still open
+  await page.waitForSelector('#toast:has-text("The catalogue is busy")');
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), 'kPa');
+  assert.match(await page.locator('[data-signal-results]').innerText(), /oven\.temp/);
+  assert.deepEqual(
+    errors.filter((e) => !/status of 503/.test(e)), // the browser logs the failed request
+    [],
+  );
+});
+
+test("a refresh keeps only the fields being edited, and another engineer's change shows", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp', { description: 'Zone 1' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.evaluate(() => (location.hash = '#/import'));
+  fake.slowSearch('', 1200);
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.click('[data-edit]');
+  fake.addSignal('oven.temp', { description: 'Zone 1, upper' }); // another engineer, meanwhile
+  await page.fill('#signal-form [name=unit]', '°C');
+  await page.waitForTimeout(1500); // the refresh lands
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), '°C');
+  assert.equal(await page.inputValue('#signal-form [name=description]'), 'Zone 1, upper');
+  assert.deepEqual(errors, []);
+});
+
+test('a description with line breaks is not rewritten by an edit to another field', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const sig = fake.addSignal('oven.temp', { description: 'Zone 1\nupper heater' }); // as the API allows
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=rate]', '5');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Saved oven.temp")');
+  assert.equal(sig.sample_rate_hz, 5);
+  assert.equal(sig.description, 'Zone 1\nupper heater');
+  assert.deepEqual(errors, []);
+});
+
+test('the edit form is locked while its change is saved', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  fake.slowSave(800);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=unit]', '°C');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#signal-form button[type=submit]:has-text("Saving")');
+  assert.equal(await page.locator('#signal-form [name=description]').isDisabled(), true);
+  await page.locator('#signal-form').evaluate((f) => f.requestSubmit()); // a second submit is ignored
+  await page.waitForSelector('#toast:has-text("Saved oven.temp")');
+  assert.equal(fake.requests.filter((r) => r.startsWith('PATCH ')).length, 1);
+  assert.deepEqual(errors, []);
+});
+
+test('a save that finishes late never closes another signal opened meanwhile', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('a.flow');
+  fake.addSignal('b.flow');
+  fake.slowSave(800);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.locator('tr', { hasText: 'a.flow' }).first().locator('[data-edit]').click();
+  await page.fill('#signal-form [name=unit]', 'm³/h');
+  await page.click('#signal-form button[type=submit]');
+  await page.locator('tr', { hasText: 'b.flow' }).first().locator('[data-edit]').click(); // while a.flow saves
+  await page.fill('#signal-form [name=description]', 'Return line');
+  await page.click('#signal-form button[type=submit]'); // b.flow can't be saved until a.flow is
+  await page.waitForSelector('#toast:has-text("Wait for a.flow to be saved, then save this one")');
+  await page.waitForSelector('#toast:has-text("Saved a.flow")');
+  await page.waitForTimeout(300);
+  assert.equal(await page.inputValue('#signal-form [name=description]'), 'Return line');
+  assert.match(await page.locator('[data-signal-results]').innerText(), /m³\/h/);
+  assert.deepEqual(errors, []);
+});
+
+test('changing a filter just before leaving never shows the old results on return', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp', { source: 'import:oven.csv' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-results] code:has-text("oven.temp")');
+  fake.slowSearch('', 1500);
+  await page.selectOption('#signal-search [name=source]', 'edge');
+  await page.evaluate(() => (location.hash = '#/import')); // within the debounce
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.waitForSelector('[data-signal-results]:has-text("Loading")');
+  assert.equal(await page.locator('[data-signal-results] code:has-text("oven.temp")').count(), 0);
+  await page.waitForSelector('[data-signal-results]:has-text("No signals match")');
   assert.deepEqual(errors, []);
 });
 

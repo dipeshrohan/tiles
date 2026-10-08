@@ -2212,6 +2212,12 @@
 		t: 24,
 		b: 30
 	};
+	function fitWidth(design, share = 1) {
+		const main = typeof document === "undefined" ? null : document.querySelector("main");
+		if (!main) return design;
+		const available = (main.clientWidth - 48) * share - 40;
+		return Math.round(Math.min(design * 3, Math.max(design, available)));
+	}
 	function scale(d0, d1, r0, r1) {
 		const span = d1 - d0 || 1;
 		return (v) => r0 + (v - d0) / span * (r1 - r0);
@@ -2249,7 +2255,7 @@
 			});
 			return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ""} stroke-linejoin="round"/>`;
 		});
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(yLabel)}">
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
     ${bands.map((b) => `<rect x="${x(b.from)}" y="${PAD.t}" width="${Math.max(2, x(b.to) - x(b.from))}" height="${height - PAD.t - PAD.b}" fill="${b.color}"/>`).join("")}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt$1(t)}</text>`).join("")}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(xFormat(t))}</text>`).join("")}
@@ -2263,7 +2269,7 @@
 		const height = rows.length * rowH + 44;
 		const x = scale(domain[0], domain[1], left, width - 20);
 		const xt = ticks(domain[0], domain[1], 6);
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(xLabel)}">
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(xLabel)}">
     ${xt.map((t) => `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="8" y2="${height - 30}"/><text class="tick" x="${x(t)}" y="${height - 16}" text-anchor="middle">${fmt$1(t)}</text>`).join("")}
     ${rows.map((r, i) => {
 			const cy = 30 + i * rowH;
@@ -2283,7 +2289,7 @@
 		const maxAbs = Math.max(...items.map((i) => Math.abs(i.value)), 1e-9);
 		const x = scale(items.some((i) => i.value < 0) ? -maxAbs : 0, maxAbs, left, width - 60);
 		const zero = x(0);
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img">
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img">
     <line class="grid" x1="${zero}" x2="${zero}" y1="0" y2="${height}"/>
     ${items.map((it, i) => {
 			const cy = 6 + i * rowH;
@@ -2318,7 +2324,7 @@
 			Math.floor(ys.length / 2),
 			ys.length - 1
 		];
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Parameter sweep">
+		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="Parameter sweep">
     ${cells.join("")}
     ${xi.map((i) => `<text class="tick" x="${left + (i + .5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt$1(xs[i] ?? NaN, 1)}</text>`).join("")}
     ${yi.map((j) => `<text class="tick" x="50" y="${10 + (ys.length - 1 - j + .5) * ch + 4}" text-anchor="end">${fmt$1(ys[j] ?? NaN, 1)}</text>`).join("")}
@@ -2410,7 +2416,7 @@
         <div class="legend" style="margin-bottom:6px"><span><i class="box" style="background:var(--bad);border-radius:50%"></i>NG (failed) avg</span><span><i class="box" style="background:var(--muted);border-radius:50%"></i>Healthy avg</span></div>
         ${dumbbell({
 				rows: dumb,
-				width: 1040,
+				width: fitWidth(1040),
 				domain: [Math.min(...all) - pad, Math.max(...all) + pad],
 				xLabel: `Average ${v.label.toLowerCase()} (${v.unit})`
 			})}
@@ -2444,7 +2450,7 @@
 				}],
 				xFormat: (h) => `${h}h`,
 				yLabel: "Median welding power (W)",
-				width: 1040,
+				width: fitWidth(1040),
 				height: 260
 			})}
         <div class="grid g2" style="margin-top:12px">
@@ -2537,7 +2543,7 @@
 				}],
 				xFormat: (i) => `${fmt$1(toH(i), 0)}h`,
 				yLabel: "Friction (N)",
-				width: 1040,
+				width: fitWidth(1040),
 				height: 300
 			})}
         </div>
@@ -2561,7 +2567,7 @@
 				}],
 				xFormat: (i) => `${fmt$1(i * PLUNGER.dt * 1e3)}ms`,
 				yLabel: "bar",
-				width: 480,
+				width: fitWidth(480, .5),
 				height: 200,
 				yMin: 0
 			})}
@@ -2573,7 +2579,7 @@
 				}],
 				xFormat: (i) => `${fmt$1(i * PLUNGER.dt * 1e3)}ms`,
 				yLabel: "m/s",
-				width: 480,
+				width: fitWidth(480, .5),
 				height: 150,
 				yMin: 0
 			})}
@@ -3663,6 +3669,8 @@
 	var checking = false;
 	var latestSearch = 0;
 	var resultsFor = "";
+	var resultsQuery = "";
+	var saving = null;
 	var catalogue = (ctx) => [
 		ctx.api?.baseUrl ?? "",
 		ctx.ontology.site?.id ?? "",
@@ -3722,13 +3730,17 @@
 	}
 	function changeFrom(form, s) {
 		const change = {};
-		const unit = form.unit.trim() || null;
-		if (unit !== s.unit) change.unit = unit;
+		if (form.unit !== (s.unit ?? "")) {
+			const unit = form.unit.trim() || null;
+			if (unit !== s.unit) change.unit = unit;
+		}
 		const rate = number(form.rate);
 		if (rate === void 0 || rate !== null && rate <= 0) return "The sample rate is a number of readings per second, above 0.";
 		if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
-		const description = form.description.trim();
-		if (description !== s.description) change.description = description;
+		if (form.description !== s.description) {
+			const description = form.description.trim();
+			if (description !== s.description) change.description = description;
+		}
 		const node = form.node || null;
 		if (node !== s.node_id) change.node_id = node;
 		const min = number(form.min ?? "");
@@ -3757,15 +3769,17 @@
 		const stuck = s.stuck_after_s === null ? "" : String(s.stuck_after_s / 60);
 		return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+        <fieldset style="display:contents" ${saving === s.id ? "disabled" : ""}>
         <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
-        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${s.sample_rate_hz ?? ""}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ""))}" inputmode="decimal" style="width:7em"></label>
         <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
-        <label class="field">Expected min<input type="text" name="min" value="${s.range_min ?? ""}" inputmode="decimal" style="width:7em"></label>
-        <label class="field">Expected max<input type="text" name="max" value="${s.range_max ?? ""}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ""))}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ""))}" inputmode="decimal" style="width:7em"></label>
         <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
-        <button class="btn primary" type="submit">Save</button>
+        <button class="btn primary" type="submit">${saving === s.id ? "Saving…" : "Save"}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
+        </fieldset>
       </form>
       ${nodes.length ? "" : "<p class=\"small soft\">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>"}
     </td></tr>`;
@@ -3788,6 +3802,7 @@
 		if (!ctx.api || !site || !root.querySelector("#signal-search")) return;
 		const mine = ++latestSearch;
 		const from = catalogue(ctx);
+		const query = JSON.stringify(ui(ctx).query);
 		let page = null;
 		try {
 			page = await ctx.api.signals.list(site.id, {
@@ -3796,16 +3811,34 @@
 			});
 		} catch {}
 		if (mine !== latestSearch) return;
+		if (!page && results && resultsFor === from && resultsQuery === query) return;
 		results = page;
 		resultsFor = from;
+		resultsQuery = query;
 		failed = page === null;
 		fill(root, ctx);
 	}
+	var untouched = (el) => el.value === el.defaultValue.replace(/[\r\n]/g, "");
 	function fill(root, ctx) {
 		const box = root.querySelector("[data-signal-results]");
 		if (!box) return;
+		const form = box.querySelector("#signal-form");
+		const changed = form ? [...form.elements].flatMap((el) => el instanceof HTMLInputElement && !untouched(el) || el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected) ? [[el.name, el.value]] : []) : [];
+		const typed = form ? {
+			signal: form.dataset.signal,
+			values: changed
+		} : null;
+		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
 		const canEdit = ctx.ontology.role !== "viewer";
 		box.innerHTML = failed ? "<p class=\"small soft\">The signals could not be loaded.</p>" : results ? resultsTable(ctx, results, canEdit) : "<p class=\"small soft\">Loading…</p>";
+		const again = box.querySelector("#signal-form");
+		if (typed && again && again.dataset.signal === typed.signal) {
+			for (const [name, value] of typed.values) {
+				const el = again.elements.namedItem(name);
+				if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
+			}
+			if (focused) again.elements.namedItem(focused)?.focus();
+		}
 		bindResults(root, ctx);
 	}
 	function bindResults(root, ctx) {
@@ -3828,10 +3861,19 @@
 			const site = ctx.ontology.site;
 			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
 			if (!site || !ctx.api || !sig) return;
+			if (saving) {
+				const other = results?.signals.find((s) => s.id === saving);
+				ctx.toast(`Wait for ${other ? other.tag : "the other change"} to be saved, then save this one`);
+				return;
+			}
+			const text = (name, stored) => {
+				const el = form.elements.namedItem(name);
+				return el instanceof HTMLInputElement && untouched(el) ? stored : field$1(form, name);
+			};
 			const change = changeFrom({
-				unit: field$1(form, "unit"),
+				unit: text("unit", sig.unit ?? ""),
 				rate: field$1(form, "rate"),
-				description: field$1(form, "description"),
+				description: text("description", sig.description),
 				node: field$1(form, "node"),
 				min: field$1(form, "min"),
 				max: field$1(form, "max"),
@@ -3846,13 +3888,19 @@
 				fill(root, ctx);
 				return;
 			}
+			saving = sig.id;
+			fill(root, ctx);
 			ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
+				saving = null;
 				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
-				ui(ctx).editing = null;
+				if (ui(ctx).editing === sig.id) ui(ctx).editing = null;
 				ctx.toast(`Saved ${updated.tag}`);
 				fill(root, ctx);
 				search(root, ctx);
-			}, () => void 0);
+			}, () => {
+				saving = null;
+				fill(root, ctx);
+			});
 		});
 	}
 	var view = {
@@ -3862,7 +3910,8 @@
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
         <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
-			if (!ctx.api || !ctx.ontology.site) return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+			if (!ctx.api) return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+			if (!ctx.ontology.site) return `${head}<div class="card"><p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p></div>`;
 			const { query } = ui(ctx);
 			const opt = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
 			return `${head}<div class="card stack" style="gap:12px">
@@ -3880,7 +3929,7 @@
 			const form = root.querySelector("#signal-search");
 			if (!form) return;
 			clearTimeout(searchTimer);
-			if (results && resultsFor === catalogue(ctx)) fill(root, ctx);
+			if (results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query)) fill(root, ctx);
 			else results = null;
 			search(root, ctx);
 			const update = () => {
@@ -4297,6 +4346,17 @@
 	});
 	need(document, "#menu").addEventListener("click", () => need(document, "#sidebar").classList.toggle("open"));
 	need(document, "#nav").addEventListener("click", () => need(document, "#sidebar").classList.remove("open"));
+	var drawnWidth = 0;
+	var resizeTimer;
+	window.addEventListener("resize", () => {
+		clearTimeout(resizeTimer);
+		resizeTimer = setTimeout(() => {
+			const width = need(document, "main").clientWidth;
+			if (Math.abs(width - drawnWidth) < 40 || !document.querySelector("#view svg.chart")) return;
+			drawnWidth = width;
+			renderSoon();
+		}, 200);
+	});
 	window.addEventListener("hashchange", () => {
 		render();
 		need(document, "#view").focus({ preventScroll: true });

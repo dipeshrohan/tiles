@@ -20,6 +20,8 @@ let failed = false;
 let checking = false;
 let latestSearch = 0; // answers to earlier searches are dropped
 let resultsFor = ''; // the catalogue `results` came from: see catalogue()
+let resultsQuery = ''; // and the search they answer
+let saving: string | null = null; // the signal whose change is being saved
 
 // Which catalogue is shown: the API, the site and who is asking. Results from another are never shown.
 const catalogue = (ctx: Context): string =>
@@ -97,14 +99,19 @@ export function changeFrom(
   s: SignalInfo,
 ): SignalChange | string {
   const change: SignalChange = {};
-  const unit = form.unit.trim() || null;
-  if (unit !== s.unit) change.unit = unit;
+  // A text field the user left as it was is not sent, even if stored with spaces around it.
+  if (form.unit !== (s.unit ?? '')) {
+    const unit = form.unit.trim() || null;
+    if (unit !== s.unit) change.unit = unit;
+  }
   const rate = number(form.rate);
   if (rate === undefined || (rate !== null && rate <= 0))
     return 'The sample rate is a number of readings per second, above 0.';
   if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
-  const description = form.description.trim();
-  if (description !== s.description) change.description = description;
+  if (form.description !== s.description) {
+    const description = form.description.trim();
+    if (description !== s.description) change.description = description;
+  }
   const node = form.node || null;
   if (node !== s.node_id) change.node_id = node;
   const min = number(form.min ?? '');
@@ -145,15 +152,17 @@ function editRow(ctx: Context, s: SignalInfo): string {
   const stuck = s.stuck_after_s === null ? '' : String(s.stuck_after_s / 60);
   return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+        <fieldset style="display:contents" ${saving === s.id ? 'disabled' : ''}>
         <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? '')}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
-        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${s.sample_rate_hz ?? ''}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ''))}" inputmode="decimal" style="width:7em"></label>
         <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
-        <label class="field">Expected min<input type="text" name="min" value="${s.range_min ?? ''}" inputmode="decimal" style="width:7em"></label>
-        <label class="field">Expected max<input type="text" name="max" value="${s.range_max ?? ''}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ''))}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ''))}" inputmode="decimal" style="width:7em"></label>
         <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
-        <button class="btn primary" type="submit">Save</button>
+        <button class="btn primary" type="submit">${saving === s.id ? 'Saving…' : 'Save'}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
+        </fieldset>
       </form>
       ${nodes.length ? '' : '<p class="small soft">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>'}
     </td></tr>`;
@@ -188,6 +197,7 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
   if (!ctx.api || !site || !root.querySelector('#signal-search')) return;
   const mine = ++latestSearch;
   const from = catalogue(ctx);
+  const query = JSON.stringify(ui(ctx).query);
   let page: typeof results = null;
   try {
     page = await ctx.api.signals.list(site.id, { ...ui(ctx).query, limit: PAGE });
@@ -195,21 +205,49 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
     // shown below, unless a later search has answered
   }
   if (mine !== latestSearch) return;
+  if (!page && results && resultsFor === from && resultsQuery === query) return; // keep the last answer to it
   results = page;
   resultsFor = from;
+  resultsQuery = query;
   failed = page === null;
   fill(root, ctx);
 }
 
+// Whether an input still shows what was rendered into it. A one-line input drops line breaks from
+// its value (HTML's value sanitization), so they don't count as an edit.
+export const untouched = (el: Pick<HTMLInputElement, 'value' | 'defaultValue'>): boolean =>
+  el.value === el.defaultValue.replace(/[\r\n]/g, '');
+
 function fill(root: HTMLElement, ctx: Context): void {
   const box = root.querySelector('[data-signal-results]');
   if (!box) return;
+  // An edit in progress survives the refresh: its fields, and where the cursor was.
+  const form = box.querySelector<HTMLFormElement>('#signal-form');
+  // Only fields the user changed: the rest show what the refresh brings (another engineer's edit, say).
+  const changed = form
+    ? [...form.elements].flatMap((el): [string, string][] =>
+        (el instanceof HTMLInputElement && !untouched(el)) ||
+        (el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected))
+          ? [[el.name, el.value]]
+          : [],
+      )
+    : [];
+  const typed = form ? { signal: form.dataset.signal, values: changed } : null;
+  const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute('name') : null;
   const canEdit = ctx.ontology.role !== 'viewer';
   box.innerHTML = failed
     ? '<p class="small soft">The signals could not be loaded.</p>'
     : results
       ? resultsTable(ctx, results, canEdit)
       : '<p class="small soft">Loading…</p>';
+  const again = box.querySelector<HTMLFormElement>('#signal-form');
+  if (typed && again && again.dataset.signal === typed.signal) {
+    for (const [name, value] of typed.values) {
+      const el = again.elements.namedItem(name);
+      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.value = value;
+    }
+    if (focused) (again.elements.namedItem(focused) as HTMLElement | null)?.focus();
+  }
   bindResults(root, ctx);
 }
 
@@ -233,11 +271,22 @@ function bindResults(root: HTMLElement, ctx: Context): void {
     const site = ctx.ontology.site;
     const sig = results?.signals.find((s) => s.id === form.dataset.signal);
     if (!site || !ctx.api || !sig) return;
+    if (saving) {
+      const other = results?.signals.find((s) => s.id === saving);
+      ctx.toast(`Wait for ${other ? other.tag : 'the other change'} to be saved, then save this one`);
+      return;
+    }
+    // A text field the user didn't touch stands for its stored value: the browser may show it changed
+    // (a one-line input drops line breaks), and that must not count as an edit.
+    const text = (name: string, stored: string) => {
+      const el = form.elements.namedItem(name);
+      return el instanceof HTMLInputElement && untouched(el) ? stored : field(form, name);
+    };
     const change = changeFrom(
       {
-        unit: field(form, 'unit'),
+        unit: text('unit', sig.unit ?? ''),
         rate: field(form, 'rate'),
-        description: field(form, 'description'),
+        description: text('description', sig.description),
         node: field(form, 'node'),
         min: field(form, 'min'),
         max: field(form, 'max'),
@@ -254,15 +303,22 @@ function bindResults(root: HTMLElement, ctx: Context): void {
       fill(root, ctx);
       return;
     }
+    // The form is locked while the change is saved: nothing typed meanwhile is lost, nothing sent twice.
+    saving = sig.id;
+    fill(root, ctx);
     ctx.api.signals.update(site.id, sig.id, change).then(
       (updated) => {
+        saving = null;
         if (results) results.signals = results.signals.map((s) => (s.id === updated.id ? updated : s));
-        ui(ctx).editing = null;
+        if (ui(ctx).editing === sig.id) ui(ctx).editing = null; // not another signal opened meanwhile
         ctx.toast(`Saved ${updated.tag}`);
         fill(root, ctx);
         void search(root, ctx); // the change may take it out of (or into) the current search
       },
-      () => undefined, // the client showed why
+      () => {
+        saving = null; // the client showed why; the form opens again as it was
+        fill(root, ctx);
+      },
     );
   });
 }
@@ -274,8 +330,14 @@ const view: View = {
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
         <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
-    if (!ctx.api || !ctx.ontology.site)
+    if (!ctx.api)
       return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+    if (!ctx.ontology.site)
+      return `${head}<div class="card"><p class="small soft">${
+        ctx.ontology.status === 'error'
+          ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}`
+          : 'Loading the site from the Tiles API…'
+      }</p></div>`;
     const { query } = ui(ctx);
     const opt = (value: string, label: string, current: string) =>
       `<option value="${value}" ${value === current ? 'selected' : ''}>${esc(label)}</option>`;
@@ -294,7 +356,7 @@ const view: View = {
     const form = root.querySelector<HTMLFormElement>('#signal-search');
     if (!form) return;
     clearTimeout(searchTimer); // a search typed on the page this one replaces
-    if (results && resultsFor === catalogue(ctx))
+    if (results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query))
       fill(root, ctx); // show the last answer at once, then refresh it
     else results = null;
     void search(root, ctx);

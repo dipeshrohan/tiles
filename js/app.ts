@@ -474,6 +474,19 @@ need(document, '#theme').addEventListener('click', () => {
 need(document, '#menu').addEventListener('click', () => need(document, '#sidebar').classList.toggle('open'));
 need(document, '#nav').addEventListener('click', () => need(document, '#sidebar').classList.remove('open'));
 
+// Charts are drawn to the page's width (fitWidth in svg.ts): draw them again when it changes.
+let drawnWidth = 0;
+let resizeTimer: ReturnType<typeof setTimeout> | undefined;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    const width = need(document, 'main').clientWidth;
+    if (Math.abs(width - drawnWidth) < 40 || !document.querySelector('#view svg.chart')) return;
+    drawnWidth = width;
+    renderSoon();
+  }, 200);
+});
+
 window.addEventListener('hashchange', () => {
   render();
   need(document, '#view').focus({ preventScroll: true });
