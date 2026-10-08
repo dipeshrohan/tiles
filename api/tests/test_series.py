@@ -97,3 +97,11 @@ def test_bad_ranges_and_unknown_signals(api: TestClient, site: str) -> None:  # 
     assert naive.status_code == 422  # times need their zone
     missing = series(api, site, "00000000-0000-0000-0000-000000000000", T0, T0 + MINUTE)
     assert missing.status_code == 404
+
+
+def test_exactly_as_many_readings_as_points_come_back_as_they_are(api: TestClient, site: str) -> None:  # noqa: F811
+    sig = load(api, site, "a.flow", [float(i) for i in range(11)])
+    ten = series(api, site, sig, T0, T0 + 10 * MINUTE, points=10).json()
+    assert (ten["bucket_s"], len(ten["points"])) == (None, 10)
+    eleven = series(api, site, sig, T0, T0 + 11 * MINUTE, points=10).json()
+    assert eleven["bucket_s"] == 66.0 and len(eleven["points"]) <= 10

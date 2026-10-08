@@ -46,7 +46,7 @@ class Series(BaseModel):
 RAW = """
 SELECT at, coalesce(value, value_bool::int) AS value, coalesce(value, value_bool::int) AS min,
        coalesce(value, value_bool::int) AS max, 1 AS n, value_text AS text
-FROM samples WHERE signal_id = %(id)s AND at >= %(start)s AND at < %(end)s ORDER BY at
+FROM samples WHERE signal_id = %(id)s AND at >= %(start)s AND at < %(end)s ORDER BY at LIMIT %(limit)s
 """
 
 BUCKETS = """
@@ -78,18 +78,13 @@ def get_series(
     if signal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such signal on this site")
     args: dict[str, Any] = {"id": signal_id, "start": start, "end": end}
-    counted = ctx.conn.execute(
-        "SELECT count(*) AS n FROM (SELECT 1 FROM samples WHERE signal_id = %(id)s AND at >= %(start)s"
-        " AND at < %(end)s LIMIT %(limit)s) s",
-        {**args, "limit": points + 1},
-    ).fetchone()
+    # The readings as they are, one more than fit: if that one comes back, they are bucketed instead.
+    rows = ctx.conn.execute(RAW, {**args, "limit": points + 1}).fetchall()
     bucket_s: float | None = None
-    if counted is not None and counted["n"] > points:
+    if len(rows) > points:
         # Whole milliseconds, rounded up so that the buckets never outnumber the points.
         bucket_s = math.ceil((end - start).total_seconds() * 1000 / points) / 1000
         rows = ctx.conn.execute(BUCKETS, {**args, "bucket_s": bucket_s}).fetchall()
-    else:
-        rows = ctx.conn.execute(RAW, args).fetchall()
     return Series(
         signal_id=signal_id,
         tag=signal["tag"],

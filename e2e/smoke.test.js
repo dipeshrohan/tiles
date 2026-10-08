@@ -1069,6 +1069,37 @@ test('the data explorer: plot signals, zoom in by dragging, zoom out into bucket
   assert.deepEqual(errors, []);
 });
 
+test('on a wide screen, drag-zoom keeps the stretch dragged, and search text survives adding', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const temp = fake.addSignal('press1.temperature', { unit: '°C' });
+  fake.addSignal('press1.force');
+  const end = Date.parse('2026-09-05T06:00:00Z');
+  for (let i = 0; i < 288; i++)
+    fake.samples.set(`press1.temperature|${new Date(end - i * 300_000).toISOString()}`, 20 + (i % 12));
+  temp.last_at = new Date(end).toISOString();
+  const { page, errors } = await openPage({ viewport: { width: 2400, height: 1000 } });
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/explorer`);
+  await page.fill('#explorer-search [name=q]', 'press1');
+  await page.click('[data-explorer-found] [data-add]:has-text("press1.temperature")');
+  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  assert.equal(await page.inputValue('#explorer-search [name=q]'), 'press1'); // still there to add the next
+  // Drag over the second fifth of the chart: about a fifth of the day.
+  const box = await page.locator('[data-zoom] svg').first().boundingBox();
+  await page.mouse.move(box.x + box.width * 0.2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.4, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForFunction(() => {
+    const note = document.querySelector('[data-series-note]')?.textContent ?? '';
+    const n = Number(note.replace(/[^0-9]/g, ''));
+    return /reading\(s\)/.test(note) && n > 30 && n < 90;
+  });
+  assert.deepEqual(errors, []);
+});
+
 test('viewers browse the signal catalogue but cannot edit it', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
   const apiUrl = await fake.listen();

@@ -2371,9 +2371,26 @@
 	];
 	function timeTicks(from, to, n = 6) {
 		const step = STEPS.find((s) => (to - from) / s <= n) ?? STEPS[STEPS.length - 1];
-		const offset = new Date(from).getTimezoneOffset() * MINUTE;
 		const ticks = [];
-		for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) ticks.push(t);
+		if (step >= 30 * DAY) {
+			const months = Math.round(step / (30.4 * DAY));
+			const d = new Date(from);
+			const first = new Date(d.getFullYear(), d.getMonth() - d.getMonth() % months, 1);
+			for (let i = 0;; i += months) {
+				const t = new Date(first.getFullYear(), first.getMonth() + i, 1).getTime();
+				if (t > to) break;
+				if (t >= from) ticks.push(t);
+			}
+			return {
+				step,
+				ticks
+			};
+		}
+		const offset = new Date(from).getTimezoneOffset() * MINUTE;
+		for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) {
+			const shifted = step >= HOUR$1 ? t + new Date(t).getTimezoneOffset() * MINUTE - offset : t;
+			if (shifted >= from && shifted <= to) ticks.push(shifted);
+		}
 		return {
 			step,
 			ticks
@@ -2383,6 +2400,11 @@
 		const d = new Date(t);
 		const two = (n) => String(n).padStart(2, "0");
 		const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE ? `:${two(d.getSeconds())}` : ""}`;
+		if (step >= 365 * DAY) return String(d.getFullYear());
+		if (step >= 30 * DAY) return d.toLocaleDateString("en-GB", {
+			month: "short",
+			year: "numeric"
+		});
 		const date = d.toLocaleDateString("en-GB", {
 			day: "numeric",
 			month: "short"
@@ -3495,6 +3517,7 @@
 	var latestLoad = 0;
 	var latestFind = 0;
 	var findTimer;
+	var searchText = "";
 	var iso = (t) => new Date(t).toISOString();
 	function presetRange(preset, picked, now) {
 		if (preset !== "data") return {
@@ -3508,13 +3531,14 @@
 			to: iso(end)
 		};
 	}
+	var MAX_SPAN = 43920 * HOUR;
 	function zoomOut(range) {
 		const from = Date.parse(range.from);
 		const to = Date.parse(range.to);
-		const half = to - from;
+		const grow = Math.min(to - from, MAX_SPAN - (to - from)) / 2;
 		return {
-			from: iso(from - half / 2),
-			to: iso(to + half / 2)
+			from: iso(from - grow),
+			to: iso(to + grow)
 		};
 	}
 	function pan(range, direction) {
@@ -3593,7 +3617,9 @@
 			unit: s.unit,
 			last_at: s.last_at
 		}];
-		u.range ??= presetRange("data", u.picked, Date.now());
+		const last = s.last_at ? Date.parse(s.last_at) : null;
+		const outside = u.range && last !== null && (last < Date.parse(u.range.from) || last >= Date.parse(u.range.to));
+		if (!u.range || outside) u.range = presetRange("data", [{ ...s }], Date.now());
 		ctx.rerender();
 	}
 	function loadCharts(root, ctx) {
@@ -3625,9 +3651,18 @@
 			return (clientX - rect.left) / rect.width * width;
 		};
 		let start = null;
+		const cancel = () => {
+			start = null;
+			marker.hidden = true;
+		};
 		area.addEventListener("pointerdown", (e) => {
+			if (e.button !== 0) return;
 			start = e.clientX;
 			area.setPointerCapture(e.pointerId);
+		});
+		area.addEventListener("pointercancel", cancel);
+		area.addEventListener("lostpointercapture", () => {
+			if (start !== null) cancel();
 		});
 		area.addEventListener("pointermove", (e) => {
 			if (start === null) return;
@@ -3639,11 +3674,10 @@
 		area.addEventListener("pointerup", (e) => {
 			if (start === null) return;
 			const [a, b] = [units(start), units(e.clientX)].sort((p, q) => p - q);
-			start = null;
-			marker.hidden = true;
+			cancel();
 			if (b - a < 8) return;
 			const t0 = timeAt(a, from, to, width);
-			const t1 = timeAt(b, from, to);
+			const t1 = timeAt(b, from, to, width);
 			if (t1 - t0 >= 1) setRange(ctx, {
 				from: iso(t0),
 				to: iso(t1)
@@ -3674,7 +3708,9 @@
 				if (s) add(ctx, s);
 			});
 		};
+		input.value = searchText;
 		input.addEventListener("input", () => {
+			searchText = input.value;
 			clearTimeout(findTimer);
 			findTimer = setTimeout(() => void find(), 250);
 		});
@@ -3754,10 +3790,18 @@
 				onAll(form, "[data-zoom-out]", "click", () => setRange(ctx, zoomOut(range)));
 				form.addEventListener("submit", (e) => {
 					e.preventDefault();
-					const from = Date.parse(field$1(form, "from"));
-					const to = Date.parse(field$1(form, "to"));
+					const read = (name) => {
+						const typed = field$1(form, name);
+						return typed === localInput(range[name]) ? Date.parse(range[name]) : Date.parse(typed);
+					};
+					const from = read("from");
+					const to = read("to");
 					if (!(Number.isFinite(from) && Number.isFinite(to) && to > from)) {
 						ctx.toast("Choose a start before the end");
+						return;
+					}
+					if (to - from > 158112e6) {
+						ctx.toast("Choose at most five years");
 						return;
 					}
 					setRange(ctx, {

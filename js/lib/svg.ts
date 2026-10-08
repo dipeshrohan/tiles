@@ -301,10 +301,26 @@ const STEPS = [
 // About `n` tick times between from and to, on round local times (whole minutes, hours, days).
 export function timeTicks(from: number, to: number, n = 6): { step: number; ticks: number[] } {
   const step = STEPS.find((s) => (to - from) / s <= n) ?? STEPS[STEPS.length - 1]!;
-  // Align to local time, so hour and day ticks fall on the hour and at midnight.
-  const offset = new Date(from).getTimezoneOffset() * MINUTE;
   const ticks: number[] = [];
-  for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) ticks.push(t);
+  if (step >= 30 * DAY) {
+    // Months, quarters, half-years and years start on the 1st of a calendar month.
+    const months = Math.round(step / (30.4 * DAY));
+    const d = new Date(from);
+    const first = new Date(d.getFullYear(), d.getMonth() - (d.getMonth() % months), 1);
+    for (let i = 0; ; i += months) {
+      const t = new Date(first.getFullYear(), first.getMonth() + i, 1).getTime();
+      if (t > to) break;
+      if (t >= from) ticks.push(t);
+    }
+    return { step, ticks };
+  }
+  // Align to local time, so hour and day ticks fall on the hour and at midnight, also after a
+  // daylight-saving change within the range (each tick moves by the change in offset since `from`).
+  const offset = new Date(from).getTimezoneOffset() * MINUTE;
+  for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) {
+    const shifted = step >= HOUR ? t + new Date(t).getTimezoneOffset() * MINUTE - offset : t;
+    if (shifted >= from && shifted <= to) ticks.push(shifted);
+  }
   return { step, ticks };
 }
 
@@ -312,6 +328,8 @@ export function tickLabel(t: number, step: number): string {
   const d = new Date(t);
   const two = (n: number) => String(n).padStart(2, '0');
   const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE ? `:${two(d.getSeconds())}` : ''}`;
+  if (step >= 365 * DAY) return String(d.getFullYear());
+  if (step >= 30 * DAY) return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
   const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   if (step >= DAY) return date;
   return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 ? date : time;

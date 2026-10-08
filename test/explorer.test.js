@@ -1,6 +1,14 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { describe as describeSeries, gapFor, pan, presetRange, toPoints, zoomOut } from '../js/views/explorer.ts';
+import {
+  MAX_SPAN,
+  describe as describeSeries,
+  gapFor,
+  pan,
+  presetRange,
+  toPoints,
+  zoomOut,
+} from '../js/views/explorer.ts';
 import { tickLabel, timeAt, timeChart, timeTicks, TIME_CHART } from '../js/lib/svg.ts';
 
 const H = 3_600_000;
@@ -106,4 +114,38 @@ test('the time chart joins near points, breaks at gaps and shades bucket ranges'
     /<circle/, // a lone point is a dot
   );
   assert.match(timeChart({ points: [], from: T0, to: T0 + H, gap: 1 }), /No readings in this range/);
+});
+
+test('zooming out stops at the longest range the API serves', () => {
+  const from = Date.parse('2024-01-01T00:00:00Z');
+  const range = { from: new Date(from).toISOString(), to: new Date(from + MAX_SPAN * 0.8).toISOString() };
+  const out = zoomOut(range);
+  assert.equal(Date.parse(out.to) - Date.parse(out.from), MAX_SPAN);
+  assert.deepEqual(zoomOut(out), out); // already as long as it can be
+});
+
+test('month and year ticks start on the 1st, and their labels say the year', () => {
+  const from = new Date(2025, 0, 15).getTime();
+  const { step, ticks } = timeTicks(from, new Date(2026, 6, 15).getTime());
+  assert.ok(step >= 91 * 24 * H);
+  for (const t of ticks) {
+    assert.equal(new Date(t).getDate(), 1);
+    assert.equal(new Date(t).getHours(), 0);
+  }
+  assert.match(tickLabel(new Date(2025, 3, 1).getTime(), 91 * 24 * H), /^Apr 2025$/);
+  assert.equal(tickLabel(new Date(2025, 0, 1).getTime(), 365 * 24 * H), '2025');
+});
+
+test('hour and day ticks stay on round local times across a daylight-saving change', () => {
+  const tz = process.env.TZ;
+  process.env.TZ = 'Europe/Berlin'; // clocks go back on 25 Oct 2026
+  try {
+    const from = Date.parse('2026-10-22T00:00:00+02:00');
+    const { ticks } = timeTicks(from, Date.parse('2026-10-28T00:00:00+01:00'));
+    assert.ok(ticks.length >= 3);
+    for (const t of ticks) assert.equal(new Date(t).getHours(), 0, new Date(t).toString());
+  } finally {
+    if (tz === undefined) delete process.env.TZ;
+    else process.env.TZ = tz;
+  }
 });

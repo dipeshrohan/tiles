@@ -37,6 +37,7 @@ const ui = (ctx: Context): Ui => ctx.ui<Ui>('explorer', { picked: [], range: nul
 let latestLoad = 0; // charts from an earlier load are dropped
 let latestFind = 0;
 let findTimer: ReturnType<typeof setTimeout> | undefined;
+let searchText = '';
 
 const iso = (t: number) => new Date(t).toISOString();
 
@@ -48,12 +49,15 @@ export function presetRange(preset: Preset, picked: Picked[], now: number): Rang
   return { from: iso(end - PRESETS['24h']), to: iso(end) };
 }
 
-// Twice as long, around the same middle.
+// The longest range the API serves (as long as samples are kept).
+export const MAX_SPAN = 5 * 366 * 24 * HOUR;
+
+// Twice as long, around the same middle; at most MAX_SPAN.
 export function zoomOut(range: Range): Range {
   const from = Date.parse(range.from);
   const to = Date.parse(range.to);
-  const half = to - from;
-  return { from: iso(from - half / 2), to: iso(to + half / 2) };
+  const grow = Math.min(to - from, MAX_SPAN - (to - from)) / 2;
+  return { from: iso(from - grow), to: iso(to + grow) };
 }
 
 // Half a range earlier (-1) or later (+1).
@@ -144,7 +148,10 @@ function add(ctx: Context, s: Pick<SignalInfo, 'id' | 'tag' | 'unit' | 'last_at'
     return;
   }
   u.picked = [...u.picked, { id: s.id, tag: s.tag, unit: s.unit, last_at: s.last_at }];
-  u.range ??= presetRange('data', u.picked, Date.now());
+  // A signal whose readings are all outside the range shown brings the day up to its latest reading.
+  const last = s.last_at ? Date.parse(s.last_at) : null;
+  const outside = u.range && last !== null && (last < Date.parse(u.range.from) || last >= Date.parse(u.range.to));
+  if (!u.range || outside) u.range = presetRange('data', [{ ...s }], Date.now());
   ctx.rerender();
 }
 
@@ -183,9 +190,18 @@ function bindZoom(box: HTMLElement, ctx: Context, range: Range): void {
     return ((clientX - rect.left) / rect.width) * width;
   };
   let start: number | null = null;
+  const cancel = () => {
+    start = null;
+    marker.hidden = true;
+  };
   area.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return; // the main button only
     start = e.clientX;
     area.setPointerCapture(e.pointerId);
+  });
+  area.addEventListener('pointercancel', cancel);
+  area.addEventListener('lostpointercapture', () => {
+    if (start !== null) cancel(); // e.g. a context menu took the pointer
   });
   area.addEventListener('pointermove', (e) => {
     if (start === null) return;
@@ -197,11 +213,10 @@ function bindZoom(box: HTMLElement, ctx: Context, range: Range): void {
   area.addEventListener('pointerup', (e) => {
     if (start === null) return;
     const [a, b] = [units(start), units(e.clientX)].sort((p, q) => p - q) as [number, number];
-    start = null;
-    marker.hidden = true;
+    cancel();
     if (b - a < 8) return; // a click, not a drag
     const t0 = timeAt(a, from, to, width);
-    const t1 = timeAt(b, from, to);
+    const t1 = timeAt(b, from, to, width);
     if (t1 - t0 >= 1) setRange(ctx, { from: iso(t0), to: iso(t1) });
   });
 }
@@ -236,7 +251,9 @@ function bindSearch(root: HTMLElement, ctx: Context): void {
       if (s) add(ctx, s);
     });
   };
+  input.value = searchText; // kept across re-renders (adding a signal re-renders the page)
   input.addEventListener('input', () => {
+    searchText = input.value;
     clearTimeout(findTimer);
     findTimer = setTimeout(() => void find(), 250);
   });
@@ -327,10 +344,19 @@ const view: View = {
       onAll(form, '[data-zoom-out]', 'click', () => setRange(ctx, zoomOut(range)));
       form.addEventListener('submit', (e) => {
         e.preventDefault();
-        const from = Date.parse(field(form, 'from'));
-        const to = Date.parse(field(form, 'to'));
+        // The inputs show whole minutes: one left as shown keeps its exact time.
+        const read = (name: 'from' | 'to') => {
+          const typed = field(form, name);
+          return typed === localInput(range[name]) ? Date.parse(range[name]) : Date.parse(typed);
+        };
+        const from = read('from');
+        const to = read('to');
         if (!(Number.isFinite(from) && Number.isFinite(to) && to > from)) {
           ctx.toast('Choose a start before the end');
+          return;
+        }
+        if (to - from > MAX_SPAN) {
+          ctx.toast('Choose at most five years');
           return;
         }
         setRange(ctx, { from: iso(from), to: iso(to) });
