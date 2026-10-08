@@ -107,7 +107,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T3.07` [#52](https://github.com/dipeshrohan/tiles/issues/52) ★ **Warnings data model and API:** raised, acknowledged, assigned, resolved, with outcome (true alarm, false alarm, unknown) · BE · 2d · T3.04
 - [x] `T3.08` [#53](https://github.com/dipeshrohan/tiles/issues/53) ★ **Warnings inbox UI** with filters, detail view (run chart + payload), acknowledge and assign · FE · 3d · T3.07
 - [x] `T3.09` [#54](https://github.com/dipeshrohan/tiles/issues/54) **Notifications** by email and Microsoft Teams webhook, with per-user preferences · BE · 2d · T3.07
-- [ ] `T3.10` [#55](https://github.com/dipeshrohan/tiles/issues/55) ★ **Event import:** downtime and scrap codes from MES (via T2.05); join to warnings; live precision and warning-time dashboard · BE+FE · 3d · T2.05, T3.07
+- [x] `T3.10` [#55](https://github.com/dipeshrohan/tiles/issues/55) ★ **Event import:** downtime and scrap codes from MES (via T2.05); join to warnings; live precision and warning-time dashboard · BE+FE · 3d · T2.05, T3.07
 
 ### Quality analytics
 - [ ] `T3.11` [#56](https://github.com/dipeshrohan/tiles/issues/56) **Correlation finder v2:** server-side over real batch tables; choose the outcome, variables and split; Cohen's d plus confidence intervals · ML+BE · 3d · T2.06

@@ -17,6 +17,7 @@ const PAGES = [
   'ontology',
   'reviews',
   'warnings',
+  'performance',
   'quality',
   'physics',
   'design',
@@ -1720,6 +1721,10 @@ test('notifications: people choose their emails; admins set the Teams channel an
   assert.equal(await a.page.isChecked('#notify-prefs [name=on_assigned]'), true);
   assert.equal(await a.page.isChecked('#notify-prefs [name=on_raised]'), false);
   await a.page.check('#notify-prefs [name=on_raised]');
+  // The page re-renders as the API answers; a choice not yet saved survives it.
+  await rerender(a.page);
+  await a.page.waitForSelector('#notify-prefs [data-notify-email]:has-text("Emails go to")');
+  assert.equal(await a.page.isChecked('#notify-prefs [name=on_raised]'), true);
   await a.page.click('#notify-prefs button[type=submit]');
   await a.page.waitForSelector('#toast:has-text("Notification preferences saved")');
 
@@ -1730,6 +1735,9 @@ test('notifications: people choose their emails; admins set the Teams channel an
   await a.page.waitForSelector('#toast:has-text("Not a Microsoft Teams webhook")');
   const hook = 'https://acme.webhook.office.com/webhookb2/secret-part/IncomingWebhook/1/2';
   await a.page.fill('#teams-form [name=url]', hook);
+  await rerender(a.page);
+  await a.page.waitForSelector('[data-teams-status]:has-text("No channel yet")');
+  assert.equal(await a.page.inputValue('#teams-form [name=url]'), hook);
   await a.page.click('#teams-form button[type=submit]');
   await a.page.waitForSelector('[data-teams-status]:has-text("Connected to a channel at acme.webhook.office.com")');
   assert.equal(fake.teamsUrl(), hook);
@@ -1762,4 +1770,149 @@ test('notifications: people choose their emails; admins set the Teams channel an
     [...a.errors, ...v.errors].filter((e) => !/422/.test(e)),
     [],
   );
+});
+
+// Re-renders the current page, as the app does when an answer from the API arrives.
+async function rerender(page) {
+  await page.evaluate(() => {
+    document.querySelector('#view').insertAdjacentHTML('beforeend', '<i data-rerender-mark></i>');
+    window.dispatchEvent(new HashChangeEvent('hashchange'));
+  });
+  await page.waitForFunction(() => !document.querySelector('[data-rerender-mark]')); // drawn afresh
+}
+
+function performanceReport() {
+  const now = Date.now();
+  const iso = (minutesAgo) => new Date(now - minutesAgo * 60_000).toISOString();
+  const scores = (extra = {}) => ({
+    warnings: 3,
+    true_warnings: 3,
+    false_warnings: 0,
+    pending_warnings: 0,
+    events: 4,
+    caught: 3,
+    recall: 0.75,
+    precision: 1,
+    false_per_day: 0,
+    warning_seconds: { count: 3, min: 6080, p10: 6175, median: 6555, p90: 7543, max: 7790 },
+    confirmed: { true_alarm: 1, false_alarm: 0, unknown: 0, unresolved: 2 },
+    ...extra,
+  });
+  return {
+    start: iso(30 * 24 * 60),
+    end: iso(0),
+    horizon_seconds: 28_800,
+    totals: scores(),
+    detectors: [
+      { id: 'd1', name: 'dc1-friction', signal_tag: 'dc1.friction', asset: 'DC-01', matched: true, ...scores() },
+      {
+        id: 'd2',
+        name: 'dc2-friction',
+        signal_tag: 'dc2.friction',
+        asset: null,
+        matched: false,
+        ...scores({ warnings: 1, events: 0 }),
+      },
+    ],
+    unwatched: [{ asset: 'DC-02', events: 1 }],
+    events: [
+      {
+        at: iso(30),
+        asset: 'DC-01',
+        kind: 'scrap',
+        signal_tag: 'mes.dc1.scrap',
+        code: '3',
+        warned_at: null,
+        warning_seconds: null,
+        detector: null,
+      },
+      {
+        at: iso(120),
+        asset: 'DC-01',
+        kind: 'downtime',
+        signal_tag: 'mes.dc1.downtime',
+        code: 'DT-SEIZURE',
+        warned_at: iso(229),
+        warning_seconds: 6555,
+        detector: 'dc1-friction',
+      },
+    ],
+  };
+}
+
+test('warning performance: what the warnings caught, per detector, for the codes chosen', async (t) => {
+  const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.setPerformance(performanceReport());
+  const a = await openAs(t, apiUrl, null, 'performance');
+  await a.page.waitForSelector('[data-kpis]');
+  const tiles = await a.page.locator('[data-kpis] .kpi').allInnerTexts();
+  assert.match(tiles[0], /Events warned of\s+75\.0%\s+3 of 4/);
+  assert.match(tiles[1], /Warnings an event followed\s+100\.0%/);
+  assert.match(tiles[2], /Confirmed true by people\s+100\.0%\s+1 true, 0 false, 0 unknown, 2 open/);
+  assert.match(tiles[3], /Warning time \(median\)\s+1\.8 h/);
+  const events = a.page.locator('tbody tr', { hasText: 'DT-SEIZURE' });
+  assert.match(await events.innerText(), /warned\s+1\.8 h ahead, by dc1-friction/);
+  assert.match(await a.page.locator('tbody tr', { hasText: 'scrap' }).innerText(), /missed/);
+  await a.page.waitForSelector('[data-unwatched]:has-text("No detector watches DC-02 (1 event(s))")');
+  assert.match(await a.page.locator('[data-detector-row="d2"]').innerText(), /Set its asset/);
+
+  // Another period, horizon and codes: asked for as such.
+  await a.page.selectOption('#performance-form [name=days]', '7');
+  await a.page.selectOption('#performance-form [name=horizon]', '2');
+  await a.page.fill('#performance-form [name=codes]', 'DT-SEIZURE, DT-LUBRICATION,DT-SEIZURE');
+  await rerender(a.page); // an answer arriving meanwhile keeps what is being typed
+  assert.equal(await a.page.inputValue('#performance-form [name=codes]'), 'DT-SEIZURE, DT-LUBRICATION,DT-SEIZURE');
+  assert.equal(await a.page.inputValue('#performance-form [name=days]'), '7');
+  await a.page.click('#performance-form button[type=submit]');
+  await a.page.waitForSelector('[data-kpis]');
+  assert.equal(fake.performanceQueries().at(-1), 'days=7&horizon_hours=2&codes=DT-SEIZURE&codes=DT-LUBRICATION');
+
+  // Matching the second detector to its asset's events.
+  await a.page.fill('[data-asset-form="d2"] [name=asset]', 'DC-02');
+  await a.page.click('[data-asset-form="d2"] button');
+  await a.page.waitForSelector('#toast:has-text("Matched to DC-02’s events")');
+  await a.page.waitForSelector('[data-detector-row="d2"]:not(:has-text("Set its asset"))');
+
+  const v = await openAs(t, apiUrl, 'viewer@example.com', 'performance');
+  await v.page.waitForSelector('[data-detector-row="d1"]');
+  assert.equal(await v.page.locator('[data-asset-form]').count(), 0);
+  assert.deepEqual([...a.errors, ...v.errors], []);
+});
+
+test('a signal is marked as an MES event stream with its asset', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.raiseWarning('mes.dc1.downtime', [{ at: new Date().toISOString(), value: 'DT-SEIZURE' }], {
+    started_at: new Date().toISOString(),
+    last_at: new Date().toISOString(),
+    peak: 1,
+    baseline: 0,
+    threshold: 0.5,
+    readings: 1,
+  }); // only to create the signal with a reading
+  const a = await openAs(t, apiUrl, null, 'signals');
+  await a.page.click('tr:has-text("mes.dc1.downtime") [data-edit]');
+  await a.page.selectOption('#signal-form [name=events]', 'downtime');
+  await a.page.fill('#signal-form [name=asset]', ' DC-01 ');
+  await a.page.click('#signal-form button[type=submit]');
+  await a.page.waitForSelector(
+    'tr:has-text("mes.dc1.downtime") [data-event-badge]:has-text("downtime events · DC-01")',
+  );
+  assert.deepEqual(a.errors, []);
+});
+
+test('an asset being typed survives a re-render of the performance page', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.setPerformance(performanceReport());
+  const a = await openAs(t, apiUrl, null, 'performance');
+  await a.page.waitForSelector('[data-asset-form="d2"]');
+  await a.page.fill('[data-asset-form="d2"] [name=asset]', 'DC-0');
+  await rerender(a.page);
+  assert.equal(await a.page.inputValue('[data-asset-form="d2"] [name=asset]'), 'DC-0');
+  assert.deepEqual(a.errors, []);
 });

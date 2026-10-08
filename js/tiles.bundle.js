@@ -719,7 +719,7 @@
 	//#endregion
 	//#region js/lib/store.ts
 	var PREFIX = "tiles:";
-	function load$1(key, fallback) {
+	function load$2(key, fallback) {
 		try {
 			const raw = window.localStorage.getItem(PREFIX + key);
 			return raw ? JSON.parse(raw) : fallback;
@@ -882,6 +882,15 @@
 				reopen: (siteId, id, note = "") => request("POST", `${warning(siteId, id)}/reopen`, { note }),
 				comment: (siteId, id, note) => request("POST", `${warning(siteId, id)}/comments`, { note })
 			},
+			performance: (siteId, q = {}) => {
+				const params = new URLSearchParams();
+				if (q.days !== void 0) params.set("days", String(q.days));
+				if (q.horizonHours !== void 0) params.set("horizon_hours", String(q.horizonHours));
+				for (const c of q.codes ?? []) params.append("codes", c);
+				const qs = params.toString();
+				return request("GET", `/sites/${encodeURIComponent(siteId)}/performance${qs ? `?${qs}` : ""}`);
+			},
+			setDetectorAsset: (siteId, detectorId, asset) => request("PATCH", `/sites/${encodeURIComponent(siteId)}/detectors/${encodeURIComponent(detectorId)}`, { asset }),
 			notifications: {
 				preferences: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/notifications/preferences`),
 				setPreferences: (siteId, prefs) => request("PUT", `/sites/${encodeURIComponent(siteId)}/notifications/preferences`, prefs),
@@ -1484,7 +1493,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$11 = {
+	var view$12 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1787,7 +1796,7 @@
 	];
 	//#endregion
 	//#region js/views/chat.ts
-	var view$10 = {
+	var view$11 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -2120,7 +2129,7 @@
 	}
 	//#endregion
 	//#region js/views/ontology.ts
-	var uiState$5 = (ctx) => ctx.ui("ontology", {
+	var uiState$6 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
 		hidden: [],
@@ -2131,7 +2140,7 @@
 		match: -1
 	});
 	function showHistory(ctx) {
-		uiState$5(ctx).tab = "history";
+		uiState$6(ctx).tab = "history";
 	}
 	var RELS = [
 		"contains",
@@ -2331,7 +2340,7 @@
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
 	}
-	var pending = null;
+	var pending$1 = null;
 	var PREVIEW_LINES = 40;
 	function importSummary(c) {
 		const part = (n, one, many) => n ? `${n} ${n === 1 ? one : many}` : "";
@@ -2346,7 +2355,7 @@
 		return parts.length ? parts.join(", ") : "nothing to change: the ontology already matches the file";
 	}
 	function importCard$1(ctx) {
-		const p = pending;
+		const p = pending$1;
 		if (!p || p.site !== ctx.ontology.site?.id) return "";
 		const preview = p.preview;
 		const lines = preview ? describeChanges(ctx.state.repo.head, preview.ops.slice(0, PREVIEW_LINES)).map((c) => `<div class="change ${c.sign === "+" ? "plus" : c.sign === "−" ? "minus" : "mod"}"><span class="sign">${c.sign}</span> ${esc(c.text)}</div>`).join("") : "";
@@ -2368,7 +2377,7 @@
     </div>`;
 	}
 	async function planImport(ctx) {
-		const p = pending;
+		const p = pending$1;
 		if (!p || !ctx.api) return;
 		const plan = ++p.plans;
 		p.preview = null;
@@ -2378,11 +2387,11 @@
 				...p,
 				dryRun: true
 			});
-			if (pending !== p || plan !== p.plans) return;
+			if (pending$1 !== p || plan !== p.plans) return;
 			p.preview = preview;
 		} catch {
-			if (pending !== p || plan !== p.plans) return;
-			pending = null;
+			if (pending$1 !== p || plan !== p.plans) return;
+			pending$1 = null;
 		}
 		ctx.rerender();
 	}
@@ -2673,12 +2682,12 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$9 = {
+	var view$10 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
 		render(ctx) {
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
@@ -2719,7 +2728,7 @@
       ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
@@ -2742,7 +2751,7 @@
 				if (!file || !site) return;
 				file.text().then((content) => {
 					const format = /\.csv$/i.test(file.name) || file.type === "text/csv" ? "csv" : "json";
-					pending = {
+					pending$1 = {
 						site: site.id,
 						name: file.name,
 						format,
@@ -2755,16 +2764,16 @@
 				});
 			});
 			root.querySelector("[data-import-mode]")?.addEventListener("change", (e) => {
-				if (!pending) return;
-				pending.mode = e.target.value === "replace" ? "replace" : "merge";
+				if (!pending$1) return;
+				pending$1.mode = e.target.value === "replace" ? "replace" : "merge";
 				planImport(ctx);
 			});
 			onAll(root, "[data-import-cancel]", "click", () => {
-				pending = null;
+				pending$1 = null;
 				ctx.rerender();
 			});
 			onAll(root, "[data-import-stage]", "click", (el) => {
-				const p = pending;
+				const p = pending$1;
 				const shown = p?.preview;
 				if (!p || !shown || !ctx.api) return;
 				el.setAttribute("disabled", "");
@@ -2775,12 +2784,12 @@
 						dryRun: false,
 						expectCommit: shown.commit
 					});
-					if (pending === p) pending = null;
+					if (pending$1 === p) pending$1 = null;
 					if (!(store.kind === "api" && "load" in store)) throw new Error("Imports need the Tiles API");
 					if (!result.staged) throw new Error("Nothing to change: the ontology already matches the file");
 					return store.load();
 				}, `Staged the changes from ${p.name}: commit them, or send them for review`).then((ok) => {
-					if (!ok && pending === p) planImport(ctx);
+					if (!ok && pending$1 === p) planImport(ctx);
 				});
 			});
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
@@ -3213,16 +3222,16 @@
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var uiState$4 = (ctx) => ctx.ui("quality", {
+	var uiState$5 = (ctx) => ctx.ui("quality", {
 		split: true,
 		variable: "tension"
 	});
-	var view$8 = {
+	var view$9 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
 		render(ctx) {
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
@@ -3338,7 +3347,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
@@ -3354,14 +3363,14 @@
 	};
 	//#endregion
 	//#region js/views/physics.ts
-	var uiState$3 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$7 = {
+	var uiState$4 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var view$8 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
@@ -3485,7 +3494,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
 				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
@@ -3513,7 +3522,7 @@
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var uiState$2 = (ctx) => ctx.ui("design", {
+	var uiState$3 = (ctx) => ctx.ui("design", {
 		model: "swelling",
 		params: {},
 		versions: {},
@@ -3521,7 +3530,7 @@
 		sweepY: null
 	});
 	function current(ctx) {
-		const ui = uiState$2(ctx);
+		const ui = uiState$3(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
 			ui,
@@ -3530,7 +3539,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -3787,19 +3796,27 @@
 		if (d.attempts) return `<span class="badge warn" title="${esc(d.last_error ?? "")}">Retrying</span>`;
 		return "<span class=\"badge\">Waiting</span>";
 	}
+	var notifyDraft = { key: "" };
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/settings")) notifyDraft = { key: "" };
+	});
 	async function fillNotifications(root, ctx) {
 		const site = ctx.ontology.site;
 		const api = ctx.api;
 		if (!site || !api || !root.querySelector("#notifications")) return;
+		const key = `${api.baseUrl}|${site.id}|${viewer(ctx)}`;
+		if (notifyDraft.key !== key) notifyDraft = { key };
+		const draft = notifyDraft;
 		const prefsForm = root.querySelector("#notify-prefs");
 		if (prefsForm) {
 			const box = (name) => need(prefsForm, `[name=${name}]`);
 			const show = (p) => {
 				need(prefsForm, "[data-notify-email]").textContent = `Emails go to ${p.email}. Send me:`;
-				box("on_raised").checked = p.on_raised;
-				box("on_assigned").checked = p.on_assigned;
+				box("on_raised").checked = draft.on_raised ?? p.on_raised;
+				box("on_assigned").checked = draft.on_assigned ?? p.on_assigned;
 				for (const el of prefsForm.querySelectorAll("input, button")) el.disabled = false;
 			};
+			for (const name of ["on_raised", "on_assigned"]) box(name).addEventListener("change", () => draft[name] = box(name).checked);
 			api.notifications.preferences(site.id).then(show, () => {
 				need(prefsForm, "[data-notify-email]").textContent = "Your preferences could not be loaded.";
 			});
@@ -3809,6 +3826,8 @@
 					on_assigned: box("on_assigned").checked
 				};
 				api.notifications.setPreferences(site.id, prefs).then((p) => {
+					delete draft.on_raised;
+					delete draft.on_assigned;
 					show(p);
 					ctx.toast("Notification preferences saved");
 				}, () => void 0);
@@ -3821,10 +3840,18 @@
 		const showTeams = (t) => {
 			configured = t.configured;
 			status.textContent = t.configured ? `Connected to a channel at ${t.host}${t.on_raised ? ", which hears of every new warning" : ", posting nothing for now"}. Paste a new URL to change it.` : "No channel yet.";
-			need(teamsForm, "[name=on_raised]").checked = t.on_raised;
+			need(teamsForm, "[name=on_raised]").checked = draft.teams_on_raised ?? t.on_raised;
 		};
+		const urlBox = need(teamsForm, "[name=url]");
+		const onRaisedBox = need(teamsForm, "[name=on_raised]");
+		urlBox.value = draft.url ?? "";
+		if (draft.teams_on_raised !== void 0) onRaisedBox.checked = draft.teams_on_raised;
+		urlBox.addEventListener("input", () => draft.url = urlBox.value);
+		onRaisedBox.addEventListener("change", () => draft.teams_on_raised = onRaisedBox.checked);
 		api.notifications.teams(site.id).then(showTeams, () => status.textContent = "The channel could not be loaded.");
 		const save = (url) => api.notifications.setTeams(site.id, url, need(teamsForm, "[name=on_raised]").checked).then((t) => {
+			delete draft.url;
+			delete draft.teams_on_raised;
 			teamsForm.reset();
 			showTeams(t);
 			ctx.toast(url === void 0 ? "Teams channel updated" : t.configured ? "Teams channel saved" : "Teams channel removed");
@@ -3957,7 +3984,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -4118,6 +4145,14 @@
 	}
 	function changeFrom(form, s) {
 		const change = {};
+		if (form.events !== void 0) {
+			const kind = form.events || null;
+			if (kind !== s.event_kind) change.event_kind = kind;
+		}
+		if (form.asset !== void 0 && form.asset !== (s.asset ?? "")) {
+			const asset = form.asset.trim() || null;
+			if (asset !== s.asset) change.asset = asset;
+		}
 		if (form.unit !== (s.unit ?? "")) {
 			const unit = form.unit.trim() || null;
 			if (unit !== s.unit) change.unit = unit;
@@ -4143,6 +4178,10 @@
 		if (!(stuckS === null || s.stuck_after_s === null ? stuckS === s.stuck_after_s : Math.abs(stuckS - s.stuck_after_s) < 1e-6)) change.stuck_after_s = stuckS;
 		return change;
 	}
+	function eventBadge(s) {
+		if (!s.event_kind && !s.asset) return "";
+		return ` <span class="badge" data-event-badge>${esc([s.event_kind ? `${s.event_kind} events` : "", s.asset ?? ""].filter(Boolean).join(" · "))}</span>`;
+	}
 	function linkCell(s) {
 		if (!s.node_id) return "<span class=\"soft\">—</span>";
 		return s.node_label !== null ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
@@ -4165,6 +4204,13 @@
         <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ""))}" inputmode="decimal" style="width:7em"></label>
         <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ""))}" inputmode="decimal" style="width:7em"></label>
         <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
+        <label class="field" title="Each reading of an event stream is an event: its value is the code">Events<select name="events">${[
+			["", "none: readings"],
+			["downtime", "downtime"],
+			["scrap", "scrap"],
+			["other", "other events"]
+		].map(([v, label]) => `<option value="${v}" ${v === (s.event_kind ?? "") ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+        <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" style="width:8em"></label>
         <button class="btn primary" type="submit">${saving === s.id ? "Saving…" : "Save"}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
         </fieldset>
@@ -4177,7 +4223,7 @@
 		const { editing, open } = ui$1(ctx);
 		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
 		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
-    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a></td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
+    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
             <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
             <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
@@ -4265,7 +4311,9 @@
 				node: field$1(form, "node"),
 				min: field$1(form, "min"),
 				max: field$1(form, "max"),
-				stuck: field$1(form, "stuck")
+				stuck: field$1(form, "stuck"),
+				events: field$1(form, "events"),
+				asset: text("asset", sig.asset ?? "")
 			}, sig);
 			if (typeof change === "string") {
 				ctx.toast(change);
@@ -4392,7 +4440,7 @@
 			})();
 		});
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "signals",
 		title: "Signals",
 		icon: "≋",
@@ -4529,7 +4577,7 @@
 			to: iso(to + shift)
 		};
 	}
-	function duration(seconds) {
+	function duration$1(seconds) {
 		if (seconds < 60) return `${+seconds.toPrecision(3)} s`;
 		if (seconds < 3600) return `${+(seconds / 60).toPrecision(3)} min`;
 		if (seconds < 172800) return `${+(seconds / 3600).toPrecision(3)} h`;
@@ -4538,7 +4586,7 @@
 	function describe(series) {
 		const readings = series.points.reduce((n, p) => n + p.n, 0);
 		if (!readings) return "No readings in this range";
-		return series.bucket_s === null ? `${fmt$1(readings, 0)} reading(s)` : `${fmt$1(readings, 0)} readings, as ${fmt$1(series.points.length, 0)} averages of ${duration(series.bucket_s)} with their range`;
+		return series.bucket_s === null ? `${fmt$1(readings, 0)} reading(s)` : `${fmt$1(readings, 0)} readings, as ${fmt$1(series.points.length, 0)} averages of ${duration$1(series.bucket_s)} with their range`;
 	}
 	function textReadings(series) {
 		const texts = series.points.filter((p) => p.text !== null).slice(-20);
@@ -4692,7 +4740,7 @@
 		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
 		ctx.api.signals.get(site.id, id).then((s) => add(ctx, s), () => void 0);
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "⌁",
@@ -4780,7 +4828,7 @@
 	};
 	//#endregion
 	//#region js/views/reviews.ts
-	var uiState$1 = (ctx) => ctx.ui("reviews", {
+	var uiState$2 = (ctx) => ctx.ui("reviews", {
 		state: "open",
 		selected: null,
 		site: null
@@ -4794,15 +4842,15 @@
 		key: "",
 		text: ""
 	};
-	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$2 = (ctx) => ctx.ontology.site?.id ?? null;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/reviews")) {
 			listing$1 = null;
 			detail$1 = null;
 		}
 	});
-	var listKey$1 = (ctx) => `${siteId$1(ctx)}|${uiState$1(ctx).state}`;
-	var detailKey$1 = (ctx) => `${siteId$1(ctx)}|${uiState$1(ctx).selected}`;
+	var listKey$1 = (ctx) => `${siteId$2(ctx)}|${uiState$2(ctx).state}`;
+	var detailKey$1 = (ctx) => `${siteId$2(ctx)}|${uiState$2(ctx).selected}`;
 	var STATUS$1 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
@@ -4890,7 +4938,7 @@
     </div>`;
 	}
 	async function fetchList$1(ctx) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		if (!ctx.api || !site) return;
 		const key = listKey$1(ctx);
 		const seq = ++listSeq$1;
@@ -4899,7 +4947,7 @@
 			items: null
 		};
 		try {
-			const items = await ctx.api.reviews.list(site, uiState$1(ctx).state);
+			const items = await ctx.api.reviews.list(site, uiState$2(ctx).state);
 			if (seq === listSeq$1) listing$1 = {
 				key,
 				items
@@ -4913,8 +4961,8 @@
 		if (seq === listSeq$1) ctx.rerender();
 	}
 	async function fetchDetail$1(ctx) {
-		const site = siteId$1(ctx);
-		const n = uiState$1(ctx).selected;
+		const site = siteId$2(ctx);
+		const n = uiState$2(ctx).selected;
 		if (!ctx.api || !site || n === null) return;
 		const key = detailKey$1(ctx);
 		const seq = ++detailSeq$1;
@@ -4927,12 +4975,12 @@
 			};
 		} catch {
 			if (seq !== detailSeq$1) return;
-			uiState$1(ctx).selected = null;
+			uiState$2(ctx).selected = null;
 		}
 		ctx.rerender();
 	}
 	async function act$1(ctx, action, comment) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		const r = detail$1?.review;
 		if (!ctx.api || !site || !r || busy$1) return;
 		const reviews = ctx.api.reviews;
@@ -4975,7 +5023,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "✓",
@@ -4986,15 +5034,15 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$1(ctx);
+			const ui = uiState$2(ctx);
 			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$1(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$1(ctx);
-			if (ui.site !== siteId$1(ctx)) Object.assign(ui, {
+			const ui = uiState$2(ctx);
+			if (ui.site !== siteId$2(ctx)) Object.assign(ui, {
 				selected: null,
-				site: siteId$1(ctx)
+				site: siteId$2(ctx)
 			});
 			if (listing$1?.key !== listKey$1(ctx)) fetchList$1(ctx);
 			if (ui.selected !== null && detail$1?.key !== detailKey$1(ctx)) fetchDetail$1(ctx);
@@ -5020,7 +5068,7 @@
 				};
 			});
 			onAll(root, "[data-policy]", "change", (el) => {
-				const site = siteId$1(ctx);
+				const site = siteId$2(ctx);
 				const required = el.checked;
 				if (!ctx.api || !site) return;
 				ctx.api.ontology.setReviewPolicy(site, required).then(() => ctx.toast(required ? "Every change now needs a review" : "Reviews are optional again")).catch(() => void 0).finally(() => void ctx.ontology.reload());
@@ -5148,7 +5196,7 @@
 	}
 	//#endregion
 	//#region js/views/warnings.ts
-	var uiState = (ctx) => ctx.ui("warnings", {
+	var uiState$1 = (ctx) => ctx.ui("warnings", {
 		filters: { ...DEFAULT_FILTERS },
 		selected: null,
 		site: null
@@ -5168,7 +5216,7 @@
 	};
 	var PAGE = 100;
 	var ago = (iso) => when(iso, Date.now());
-	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/warnings")) {
 			listing = null;
@@ -5178,8 +5226,8 @@
 			members = null;
 		}
 	});
-	var listKey = (ctx) => `${siteId(ctx)}|${JSON.stringify(uiState(ctx).filters)}`;
-	var detailKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).selected}`;
+	var listKey = (ctx) => `${siteId$1(ctx)}|${JSON.stringify(uiState$1(ctx).filters)}`;
+	var detailKey = (ctx) => `${siteId$1(ctx)}|${uiState$1(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function badge(w) {
 		const [cls, label] = STATUS[w.status];
@@ -5238,7 +5286,7 @@
 	function actionsForm(ctx, w) {
 		const actions = actionsFor(w, ctx.ontology.role);
 		if (!actions.length) return "";
-		const people = (members?.site === siteId(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
+		const people = (members?.site === siteId$1(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
 		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
 		const has = (a) => actions.includes(a);
 		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
@@ -5292,7 +5340,7 @@
     </div>`;
 	}
 	async function fetchList(ctx) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
 		const key = listKey(ctx);
 		const seq = ++listSeq;
@@ -5303,7 +5351,7 @@
 		};
 		try {
 			const items = await ctx.api.warnings.list(site, {
-				...queryFor(uiState(ctx).filters),
+				...queryFor(uiState$1(ctx).filters),
 				limit: PAGE
 			});
 			if (seq === listSeq) listing = {
@@ -5321,13 +5369,13 @@
 		if (seq === listSeq) ctx.rerender();
 	}
 	async function fetchMore(ctx) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		const shown = listing;
 		if (!ctx.api || !site || !shown?.items || shown.key !== listKey(ctx)) return;
 		const seq = ++listSeq;
 		try {
 			const query = {
-				...queryFor(uiState(ctx).filters),
+				...queryFor(uiState$1(ctx).filters),
 				limit: PAGE,
 				offset: shown.items.length
 			};
@@ -5349,7 +5397,7 @@
 		ctx.rerender();
 	}
 	async function fetchSeries(ctx, w) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
 		const key = seriesKey(w);
 		const seq = ++seriesSeq;
@@ -5375,8 +5423,8 @@
 		ctx.rerender();
 	}
 	async function fetchDetail(ctx) {
-		const site = siteId(ctx);
-		const id = uiState(ctx).selected;
+		const site = siteId$1(ctx);
+		const id = uiState$1(ctx).selected;
 		if (!ctx.api || !site || id === null) return;
 		const key = detailKey(ctx);
 		const seq = ++detailSeq;
@@ -5390,13 +5438,13 @@
 			};
 		} catch (e) {
 			if (seq !== detailSeq) return;
-			if (e instanceof ApiError && e.status === 404) uiState(ctx).selected = null;
+			if (e instanceof ApiError && e.status === 404) uiState$1(ctx).selected = null;
 			else detailFailed = key;
 		}
 		ctx.rerender();
 	}
 	async function fetchMembers(ctx) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
 		members = {
 			site,
@@ -5412,7 +5460,7 @@
 		ctx.rerender();
 	}
 	async function act(ctx, action, note, form) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		const w = detail?.warning;
 		if (!ctx.api || !site || !w || busy) return;
 		const api = ctx.api.warnings;
@@ -5457,7 +5505,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "⚠",
@@ -5468,13 +5516,13 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState(ctx);
+			const ui = uiState$1(ctx);
 			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState(ctx);
-			const site = siteId(ctx);
+			const ui = uiState$1(ctx);
+			const site = siteId$1(ctx);
 			if (ui.site !== site) Object.assign(ui, {
 				selected: null,
 				site
@@ -5529,6 +5577,216 @@
 					return;
 				}
 				act(ctx, action, note, form);
+			});
+		}
+	};
+	//#endregion
+	//#region js/lib/performance.ts
+	var PERIODS = [
+		1,
+		7,
+		30,
+		90
+	];
+	var HORIZONS = [
+		1,
+		2,
+		4,
+		8,
+		24
+	];
+	function share(x) {
+		return x === null ? "–" : `${(Math.floor(x * 1e3) / 10).toFixed(1)}%`;
+	}
+	function duration(seconds) {
+		if (seconds < 90) return `${Math.round(seconds)} s`;
+		if (seconds < 5400) return `${Math.round(seconds / 60)} min`;
+		if (seconds < 172800) return `${(seconds / 3600).toFixed(1)} h`;
+		return `${(seconds / 86400).toFixed(1)} d`;
+	}
+	function spread(d) {
+		return d ? `${duration(d.median)} (${duration(d.p10)} to ${duration(d.p90)})` : "–";
+	}
+	function parseCodes(text) {
+		return [...new Set(text.split(/[,\n]/).map((c) => c.trim()).filter(Boolean))].slice(0, 50);
+	}
+	function kpis(t) {
+		const judged = t.confirmed.true_alarm + t.confirmed.false_alarm;
+		return [
+			{
+				label: "Events warned of",
+				value: share(t.recall),
+				note: `${t.caught} of ${t.events} downtime or scrap event(s)`,
+				tone: t.recall === null ? "" : t.recall >= .5 ? "good" : "bad"
+			},
+			{
+				label: "Warnings an event followed",
+				value: share(t.precision),
+				note: `${t.true_warnings} of ${t.true_warnings + t.false_warnings}${t.pending_warnings ? `; ${t.pending_warnings} too recent to tell` : ""}`,
+				tone: ""
+			},
+			{
+				label: "Confirmed true by people",
+				value: share(judged ? t.confirmed.true_alarm / judged : null),
+				note: `${t.confirmed.true_alarm} true, ${t.confirmed.false_alarm} false, ${t.confirmed.unknown} unknown, ${t.confirmed.unresolved} open`,
+				tone: ""
+			},
+			{
+				label: "Warning time (median)",
+				value: t.warning_seconds ? duration(t.warning_seconds.median) : "–",
+				note: t.warning_seconds ? `${duration(t.warning_seconds.p10)} to ${duration(t.warning_seconds.p90)} (10th to 90th percentile)` : "no event warned of yet",
+				tone: ""
+			}
+		];
+	}
+	//#endregion
+	//#region js/views/performance.ts
+	var uiState = (ctx) => ctx.ui("performance", {
+		days: 30,
+		horizonHours: 8,
+		codes: ""
+	});
+	var fetched = null;
+	var seq = 0;
+	var pending = null;
+	var assetDrafts = /* @__PURE__ */ new Map();
+	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var keyFor = (ctx) => {
+		const u = uiState(ctx);
+		return `${siteId(ctx)}|${u.days}|${u.horizonHours}|${parseCodes(u.codes).join(",")}`;
+	};
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/performance")) {
+			fetched = null;
+			pending = null;
+			assetDrafts.clear();
+		}
+	});
+	async function load$1(ctx) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		const key = keyFor(ctx);
+		const mine = ++seq;
+		fetched = {
+			key,
+			report: null
+		};
+		const u = uiState(ctx);
+		try {
+			const report = await ctx.api.performance(site, {
+				days: u.days,
+				horizonHours: u.horizonHours,
+				codes: parseCodes(u.codes)
+			});
+			if (mine === seq) fetched = {
+				key,
+				report
+			};
+		} catch {
+			if (mine === seq) fetched = {
+				key: `${key}|failed`,
+				report: null
+			};
+		}
+		if (mine === seq) ctx.rerender();
+	}
+	function controls(shown) {
+		const u = pending ?? shown;
+		const option = (v, label, current) => `<option value="${v}" ${v === current ? "selected" : ""}>${label}</option>`;
+		return `<form class="card source-bar small" id="performance-form">
+      <span class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+        <label class="row" style="gap:6px">Last <select name="days">${PERIODS.map((d) => option(d, d === 1 ? "day" : `${d} days`, u.days)).join("")}</select></label>
+        <label class="row" style="gap:6px" title="A warning counts for an event when it started this long before it, at most">Warned within <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join("")}</select></label>
+        <label class="row" style="gap:6px;flex:1;min-width:220px">Only codes <input type="text" name="codes" value="${esc(u.codes)}" placeholder="all, or e.g. DT-SEIZURE, DT-LUBRICATION" style="flex:1"></label>
+        <button class="btn sm primary" type="submit">Show</button>
+      </span>
+    </form>`;
+	}
+	function detectorsCard(ctx, r) {
+		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
+		const rows = r.detectors.map((d) => {
+			const asset = canEdit ? `<form class="row" data-asset-form="${esc(d.id)}" style="gap:6px;flex-wrap:nowrap"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" style="width:7em"><button class="btn sm" type="submit">Set</button></form>` : esc(d.asset ?? "–");
+			const c = d.confirmed;
+			const scored = d.matched ? `<td>${d.caught} / ${d.events} · ${share(d.recall)}</td><td>${share(d.precision)}${d.pending_warnings ? ` <span class="small soft">(${d.pending_warnings} pending)</span>` : ""}</td><td>${d.false_per_day === null ? "–" : d.false_per_day.toFixed(2)}</td><td>${spread(d.warning_seconds)}</td>` : "<td colspan=\"4\" class=\"small soft\">Set its asset to match its warnings to that asset’s events.</td>";
+			return `<tr data-detector-row="${esc(d.id)}"><td><b>${esc(d.name)}</b><div class="small soft mono">${esc(d.signal_tag)}</div></td><td>${asset}</td><td>${d.warnings}</td>${scored}<td class="small">${c.true_alarm} true · ${c.false_alarm} false · ${c.unknown} unknown · ${c.unresolved} open</td></tr>`;
+		}).join("");
+		const unwatched = r.unwatched.length ? `<p class="small soft" data-unwatched>No detector watches ${r.unwatched.map((u) => `${esc(u.asset)} (${u.events} event(s))`).join(", ")}: set a detector’s asset to count them.</p>` : "";
+		return `<div class="card stack" style="gap:10px">
+      <h2>By detector</h2>
+      ${r.detectors.length ? `<div class="table-wrap"><table><thead><tr><th>Detector</th><th>Asset</th><th>Warnings</th><th>Events warned of</th><th>Followed by an event</th><th>False per day</th><th>Warning time (median, p10 to p90)</th><th>Resolved as</th></tr></thead><tbody>${rows}</tbody></table></div>` : "<p class=\"small soft\">No detectors yet. Detectors are set up through the Tiles API.</p>"}
+      ${unwatched}
+    </div>`;
+	}
+	function eventsCard(r) {
+		const rows = r.events.map((e) => `<tr><td>${esc(when(e.at, Date.now()))}</td><td>${esc(e.asset)}</td><td>${esc(e.kind)}</td><td class="mono">${esc(e.code)}</td><td>${e.warned_at && e.warning_seconds !== null ? `<span class="badge good">warned</span> ${esc(duration(e.warning_seconds))} ahead, by ${esc(e.detector ?? "a detector")}` : "<span class=\"badge bad\">missed</span>"}</td></tr>`).join("");
+		return `<div class="card stack" style="gap:10px">
+      <h2>Events</h2>
+      ${r.events.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Asset</th><th>Kind</th><th>Code</th><th>Warning</th></tr></thead><tbody>${rows}</tbody></table></div>` : "<p class=\"small soft\">No events of watched assets in this period. Events are readings on signals marked as downtime or scrap on the Signals page, with their asset.</p>"}
+    </div>`;
+	}
+	var view$1 = {
+		id: "performance",
+		title: "Warning performance",
+		icon: "◎",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warning performance</h1>
+        <p class="soft">How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead.</p></div></div>`;
+			if (!ctx.api) return `${head}<div class="card"><p>This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			const o = ctx.ontology;
+			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+			const u = uiState(ctx);
+			const key = keyFor(ctx);
+			let body;
+			if (fetched?.key === `${key}|failed`) body = "<div class=\"card\"><p>This could not be loaded.</p></div>";
+			else if (fetched?.key !== key || !fetched.report) body = "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
+			else {
+				const r = fetched.report;
+				body = `<div class="grid g4" data-kpis>${kpis(r.totals).map((k) => `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`).join("")}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
+			}
+			return `${head}${controls(u)}<div class="stack" style="gap:16px;margin-top:16px">${body}</div>`;
+		},
+		bind(root, ctx) {
+			if (!ctx.api || ctx.ontology.status !== "ready") return;
+			const key = keyFor(ctx);
+			if (fetched?.key !== key && fetched?.key !== `${key}|failed`) load$1(ctx);
+			onSubmit(root, "#performance-form", (form) => {
+				const u = uiState(ctx);
+				const data = new FormData(form);
+				u.days = Number(data.get("days")) || 30;
+				u.horizonHours = Number(data.get("horizon")) || 8;
+				u.codes = String(data.get("codes") ?? "");
+				pending = null;
+				fetched = null;
+				ctx.rerender();
+			});
+			const form = root.querySelector("#performance-form");
+			form?.addEventListener("input", () => {
+				const data = new FormData(form);
+				pending = {
+					days: Number(data.get("days")) || 30,
+					horizonHours: Number(data.get("horizon")) || 8,
+					codes: String(data.get("codes") ?? "")
+				};
+			});
+			onAll(root, "[data-asset-form] [name=asset]", "input", (el) => {
+				const id = el.closest("[data-asset-form]")?.dataset.assetForm;
+				if (id) assetDrafts.set(id, el.value);
+			});
+			onAll(root, "[data-asset-form]", "submit", (el, e) => {
+				e.preventDefault();
+				const site = siteId(ctx);
+				const api = ctx.api;
+				const id = el.dataset.assetForm ?? "";
+				const input = el.querySelector("[name=asset]");
+				if (!site || !api || !input) return;
+				const asset = input.value.trim() || null;
+				api.setDetectorAsset(site, id, asset).then(() => {
+					assetDrafts.delete(id);
+					ctx.toast(asset ? `Matched to ${asset}’s events` : "Asset cleared");
+					fetched = null;
+					ctx.rerender();
+				}, () => void 0);
 			});
 		}
 	};
@@ -6127,46 +6385,48 @@
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$12,
 		view$11,
 		view$10,
-		view$9,
+		view$3,
 		view$2,
 		view$1,
+		view$9,
 		view$8,
 		view$7,
-		view$6,
+		view$5,
 		view$4,
-		view$3,
 		view,
-		view$5
+		view$6
 	];
 	var NAV = [
-		{ items: [view$11, view$10] },
+		{ items: [view$12, view$11] },
 		{
 			group: "Operations",
 			items: [
-				view$9,
+				view$10,
+				view$3,
 				view$2,
 				view$1,
-				view$8,
-				view$7
+				view$9,
+				view$8
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$5,
 				view$4,
-				view$3,
 				view
 			]
 		},
 		{
 			group: "Design",
-			items: [view$6]
+			items: [view$7]
 		},
 		{
 			group: "",
-			items: [view$5]
+			items: [view$6]
 		}
 	];
 	function freshState() {
@@ -6181,7 +6441,7 @@
 		};
 	}
 	var STATE_KEY = "state-v2";
-	var persisted = load$1(STATE_KEY, null);
+	var persisted = load$2(STATE_KEY, null);
 	var shots = generateShotHistory();
 	var detection = detectFrictionAlerts(shots.history);
 	var state = {
@@ -6202,7 +6462,7 @@
 			user: state.user
 		});
 	}
-	var dataSource = resolveDataSource(load$1("datasource", null), location.search);
+	var dataSource = resolveDataSource(load$2("datasource", null), location.search);
 	var api = makeApi();
 	var localRepo = state.repo;
 	var remote = null;
@@ -6351,7 +6611,7 @@
 			history.replaceState(null, "", cleanCallbackUrl(location.href, e instanceof SignInError ? e.returnTo : void 0));
 			toast(e instanceof Error ? e.message : String(e));
 		}
-		dataSource = resolveDataSource(load$1("datasource", null), location.search);
+		dataSource = resolveDataSource(load$2("datasource", null), location.search);
 		api = makeApi();
 		render();
 	}
@@ -6459,7 +6719,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? view$11;
+		return VIEWS.find((v) => v.id === id) ?? view$12;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -6482,8 +6742,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$11 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$11 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$12 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$12 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
@@ -6534,7 +6794,7 @@
 		if (theme) document.documentElement.dataset.theme = theme;
 		else delete document.documentElement.dataset.theme;
 	}
-	applyTheme(load$1("theme", null));
+	applyTheme(load$2("theme", null));
 	need(document, "#theme").addEventListener("click", () => {
 		const next = (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark";
 		applyTheme(next);

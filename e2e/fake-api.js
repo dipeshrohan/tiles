@@ -169,6 +169,9 @@ export function createFakeApi({
   let teams = { url: null, on_raised: true };
   const deliveries = []; // newest first, as the API lists them
   let failWarningGets = 0; // answer this many reads of one warning with an error
+  // Warning performance (T3.10): the report a test sets, and the queries the page asked it with.
+  let performanceReport = null;
+  const performanceQueries = [];
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
@@ -270,7 +273,9 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/imports`) &&
         !url.pathname.startsWith(`/sites/${site.id}/signals`) &&
         !url.pathname.startsWith(`/sites/${site.id}/warnings`) &&
-        !url.pathname.startsWith(`/sites/${site.id}/notifications`)
+        !url.pathname.startsWith(`/sites/${site.id}/notifications`) &&
+        url.pathname !== `/sites/${site.id}/performance` &&
+        !url.pathname.startsWith(`/sites/${site.id}/detectors/`)
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
@@ -504,6 +509,19 @@ export function createFakeApi({
         return { user_id: who, email: who, name: who.split('@')[0], role: r, site_role: r, org_admin: false };
       };
       members.add(user);
+      if (url.pathname === `/sites/${site.id}/performance`) {
+        performanceQueries.push(url.searchParams.toString());
+        return performanceReport ? send(200, performanceReport) : send(503, { detail: 'No report set' });
+      }
+      const detector = performanceReport?.detectors.find((d) => url.pathname === `/sites/${site.id}/detectors/${d.id}`);
+      if (url.pathname.startsWith(`/sites/${site.id}/detectors/`)) {
+        if (!detector) return send(404, { detail: 'No such detector' });
+        if (role === 'viewer')
+          return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+        const { asset } = await body(req);
+        Object.assign(detector, { asset, matched: asset !== null });
+        return send(200, { id: detector.id, asset });
+      }
       const notifyPath = `/sites/${site.id}/notifications`;
       if (url.pathname.startsWith(notifyPath)) {
         const sub = url.pathname.slice(notifyPath.length);
@@ -931,6 +949,11 @@ export function createFakeApi({
       warnings.unshift(w);
       return w.id;
     },
+    // Lets a test set what the warning performance page is shown (T3.10).
+    setPerformance(report) {
+      performanceReport = report;
+    },
+    performanceQueries: () => [...performanceQueries],
     // Lets a test add a message to the site's outbox listing, as tiles-notify would leave it.
     addDelivery(d) {
       deliveries.unshift({
