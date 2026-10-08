@@ -720,6 +720,24 @@ test('leaving the signals page mid-search never leaves it loading', async (t) =>
   assert.deepEqual(errors, []);
 });
 
+test('a search typed just before leaving the signals page is never sent', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  const searches = () => fake.requests.filter((r) => /^GET \/sites\/[^/]+\/signals$/.test(r)).length;
+  const before = searches();
+  await page.fill('#signal-search [name=q]', 'oven');
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.waitForTimeout(600); // past the debounce
+  assert.equal(searches(), before);
+  assert.deepEqual(errors, []);
+});
+
 test('a slow answer to an earlier search never replaces the current one', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

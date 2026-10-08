@@ -3687,7 +3687,7 @@
 	}
 	function linkCell(s) {
 		if (!s.node_id) return "<span class=\"soft\">—</span>";
-		return s.node_label ? `<a href="#/ontology">${esc(s.node_label)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
+		return s.node_label !== null ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
 	}
 	function editRow(ctx, s) {
 		const nodes = Object.values(ctx.state.repo.head.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.label.localeCompare(b.label));
@@ -3721,7 +3721,7 @@
 	}
 	async function search(root, ctx) {
 		const site = ctx.ontology.site;
-		if (!ctx.api || !site || !root.isConnected) return;
+		if (!ctx.api || !site || !root.querySelector("#signal-search")) return;
 		const mine = ++latestSearch;
 		const from = catalogue(ctx);
 		let page = null;
