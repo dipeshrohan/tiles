@@ -10,7 +10,19 @@ import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
 import { createFakeApi } from './fake-api.js';
 
-const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'signals', 'explorer', 'import', 'settings'];
+const PAGES = [
+  '',
+  'chat',
+  'ontology',
+  'reviews',
+  'quality',
+  'physics',
+  'design',
+  'signals',
+  'explorer',
+  'import',
+  'settings',
+];
 const VARIANTS = [
   { name: 'light desktop', colorScheme: 'light', viewport: { width: 1360, height: 900 } },
   { name: 'dark desktop', colorScheme: 'dark', viewport: { width: 1360, height: 900 } },
@@ -152,6 +164,10 @@ test('settings can switch to the Tiles API and test the connection', async (t) =
   t.after(() => other.close());
   await page.fill('#datasource [name=apiUrl]', `http://127.0.0.1:${other.address().port}`);
   await page.click('[data-test-api]');
+  await page.waitForSelector('[data-api-status]:has-text("not the Tiles API")');
+  // A re-render (here, leaving and coming back) keeps the answer rather than wiping it.
+  await page.evaluate(() => (location.hash = '#/'));
+  await page.evaluate(() => (location.hash = '#/settings'));
   await page.waitForSelector('[data-api-status]:has-text("not the Tiles API")');
 
   // Local mode can be saved without an API address.
@@ -1180,5 +1196,167 @@ test('background updates never wipe what the user is typing', async (t) => {
   assert.equal(await page.inputValue('#datasource [name=apiUrl]'), 'http://typed.example:9000');
   assert.equal(await page.locator('#datasource [name=mode][value=local]').isChecked(), true);
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'apiUrl');
+  assert.deepEqual(errors, []);
+});
+
+// Opens Tiles on the fake API as `email` (the development user when not given), on `route`.
+async function openAs(t, apiUrl, email, route) {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  if (email) {
+    await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
+    await page.waitForSelector('#account:has-text("development user")'); // settled: no re-render mid-typing
+    await page.fill('#profile [name=email]', email);
+    await page.click('#profile button[type=submit]');
+    await page.waitForSelector('#toast:has-text("Profile saved")');
+    await page.evaluate((r) => (location.hash = r), `#/${route}`);
+  } else await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/${route}`);
+  return { page, errors };
+}
+
+test('change reviews: request a review, reject it, rework it, approve it', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'line-1', type: 'Line', label: 'Line 1', props: {} } }],
+    'add line 1',
+  );
+  const b = await openAs(t, apiUrl, 'eng2@example.com', 'reviews'); // a member, so A can ask them
+  await b.page.waitForSelector('[data-review-list]:has-text("Nothing waits for a review")');
+  fake.requireReview();
+
+  const a = await openAs(t, apiUrl, null, 'ontology');
+  await a.page.waitForSelector('.source-bar:has-text("Every change needs a review")');
+  await a.page.fill('#node-form [name=label]', 'Alarm stream DC-02');
+  await a.page.selectOption('#node-form [name=type]', 'Signal');
+  await a.page.selectOption('#node-form [name=from]', 'line-1');
+  await a.page.click('#node-form button');
+  await a.page.waitForSelector('#commit-form');
+  // The site requires a review: there is no Commit, only Request review.
+  assert.equal(await a.page.locator('#commit-form [value=commit]').count(), 0);
+  await a.page.fill('#commit-form [name=message]', 'add alarms node');
+  await a.page.selectOption('#commit-form [name=reviewer]', 'eng2@example.com');
+  await a.page.press('#commit-form [name=message]', 'Enter');
+  await a.page.waitForSelector('#toast:has-text("Sent for review")');
+  assert.equal(await a.page.locator('#commit-form').count(), 0);
+
+  // B reads the diff and rejects it, saying why.
+  await b.page.click('[data-state=closed]');
+  await b.page.click('[data-state=open]');
+  await b.page.click('[data-review="1"]');
+  await b.page.waitForSelector('[data-review-detail]:has-text("#1 add alarms node")');
+  const diff = await b.page.locator('.review-diff').innerText();
+  assert.match(diff, /\+ Signal “Alarm stream DC-02”/);
+  assert.match(diff, /\+ Line 1 —contains→ Alarm stream DC-02/);
+  await b.page.click('[data-act=reject]');
+  await b.page.waitForSelector('#toast:has-text("Say why you reject it")');
+  await b.page.fill('#review-form textarea', 'Call it Alarms DC-02');
+  await b.page.click('[data-act=reject]');
+  await b.page.waitForSelector('#toast:has-text("#1 rejected")');
+  await b.page.waitForSelector('[data-review-detail] .comment:has-text("Call it Alarms DC-02")');
+
+  // A takes it back into their staged changes, fixes it and sends it again.
+  await a.page.evaluate(() => (location.hash = '#/reviews'));
+  await a.page.click('[data-state=closed]');
+  await a.page.click('[data-review="1"]');
+  await a.page.waitForSelector('[data-review-detail]:has-text("Call it Alarms DC-02")');
+  assert.equal(await a.page.locator('[data-act=approve]').count(), 0); // not your own
+  await a.page.click('[data-act=rework]');
+  await a.page.waitForSelector('#commit-form:has-text("2 uncommitted")');
+  await a.page.click('[data-node="signal-alarm-stream-dc-02"]');
+  await a.page.fill('#prop-form [name=key]', 'name');
+  await a.page.fill('#prop-form [name=value]', 'Alarms DC-02');
+  await a.page.click('#prop-form button');
+  await a.page.waitForSelector('#commit-form:has-text("3 uncommitted")');
+  await a.page.fill('#commit-form [name=message]', 'add alarms node, named');
+  await a.page.click('[data-request-review]');
+  await a.page.waitForSelector('#toast:has-text("Sent for review")');
+
+  // B approves it: it is committed, with A as author and B as reviewer.
+  await b.page.click('[data-state=closed]');
+  await b.page.click('[data-state=open]');
+  await b.page.click('[data-review="2"]');
+  await b.page.waitForSelector('[data-review-detail]:has-text("#2 add alarms node, named")');
+  assert.match(await b.page.locator('.review-diff').innerText(), /\+ Alarm stream DC-02 · name = “Alarms DC-02”/);
+  await b.page.fill('#review-form textarea', 'Good');
+  await b.page.click('[data-act=approve]');
+  await b.page.waitForSelector('#toast:has-text("#2 approved and committed")');
+  await b.page.click('[data-history]');
+  await b.page.waitForSelector('.commit:has-text("add alarms node, named")');
+  assert.match(await b.page.locator('.commit').first().innerText(), /demo · approved by eng2/);
+  // Reverting it goes through a review too.
+  assert.equal(await b.page.locator('[data-revert]').first().innerText(), 'Request revert');
+  await b.page.locator('[data-revert]').first().click();
+  await b.page.waitForSelector('#toast:has-text("Revert sent for review")');
+
+  assert.deepEqual([...a.errors, ...b.errors], []);
+});
+
+test('site admins require reviews; then nobody commits directly', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.stageAs('demo@example.com', [{ kind: 'addNode', node: { id: 'm', type: 'Machine', label: 'M', props: {} } }]);
+  const { page, errors } = await openAs(t, apiUrl, null, 'reviews');
+  await page.check('[data-policy]');
+  await page.waitForSelector('#toast:has-text("Every change now needs a review")');
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.waitForSelector('#commit-form');
+  assert.equal(await page.locator('#commit-form [value=commit]').count(), 0);
+  await page.evaluate(() => (location.hash = '#/reviews'));
+  await page.uncheck('[data-policy]');
+  await page.waitForSelector('#toast:has-text("Reviews are optional again")');
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.waitForSelector('#commit-form [value=commit]');
+  assert.deepEqual(errors, []);
+});
+
+test('in local mode the reviews page explains that reviews need the Tiles API', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/reviews`);
+  await page.waitForSelector('#view:has-text("they need the Tiles API")');
+  assert.deepEqual(errors, []);
+});
+
+test("coming back to change reviews shows others' new requests; a revert request is withdrawn, not staged", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'line-1', type: 'Line', label: 'Line 1', props: {} } }],
+    'add line 1',
+  );
+  const { page, errors } = await openAs(t, apiUrl, null, 'reviews');
+  await page.waitForSelector('[data-review-list]:has-text("Nothing waits for a review")');
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.waitForSelector('.source-bar');
+  fake.requestReviewAs(
+    'maria@example.com',
+    [{ kind: 'addNode', node: { id: 'm', type: 'Machine', label: 'Press 2', props: {} } }],
+    'add press 2',
+  );
+  await page.evaluate(() => (location.hash = '#/reviews'));
+  await page.waitForSelector('[data-review="1"]:has-text("add press 2")');
+
+  // Ask to revert a commit, then think better of it.
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.click('[data-tab=history]');
+  fake.requireReview();
+  await page.click('[data-refresh]');
+  await page.waitForSelector('[data-revert]:has-text("Request revert")');
+  await page.locator('[data-revert]').first().click();
+  await page.waitForSelector('#toast:has-text("Revert sent for review")');
+  await page.evaluate(() => (location.hash = '#/reviews'));
+  await page.click('[data-review="2"]');
+  await page.waitForSelector('[data-review-detail]:has-text(\'#2 Revert "add line 1"\')');
+  await page.click('[data-act=rework]:has-text("Withdraw")');
+  await page.waitForSelector('#toast:has-text("#2 withdrawn")');
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.waitForSelector('.source-bar');
+  assert.equal(await page.locator('#commit-form').count(), 0); // nothing staged
   assert.deepEqual(errors, []);
 });

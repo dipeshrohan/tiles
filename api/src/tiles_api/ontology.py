@@ -50,6 +50,8 @@ class Commit(TypedDict):
     ops: list[Op]
     inverses: list[Op]
     stats: DiffStats
+    # Who approved it, when the site requires a review (API only, T2.12).
+    reviewer: NotRequired[str | None]
 
 
 class Repo(TypedDict):

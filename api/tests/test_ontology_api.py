@@ -192,7 +192,7 @@ def test_api_matches_the_shared_fixtures(api: TestClient, site: str, case: dict[
     assert working == expect["working"]
     assert api.get(url(site, "staged")).json() == expect["staged"]
     history = api.get(url(site, "commits?limit=500")).json()
-    strip = ("id", "date", "author")
+    strip = ("id", "date", "author", "reviewer")  # reviewer: API only (T2.12)
     assert [{k: v for k, v in c.items() if k not in strip} for c in history] == [
         {k: v for k, v in c.items() if k not in strip} for c in expect["history"]
     ]

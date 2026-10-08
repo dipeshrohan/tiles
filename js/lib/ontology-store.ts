@@ -15,7 +15,12 @@ export interface OntologyStore {
   discard(repo: Repo): Promise<Repo>;
   commit(repo: Repo, message: string, author: string): Promise<Repo>;
   revert(repo: Repo, commitId: string, author: string): Promise<Repo>;
+  // Sends the staged changes (or the revert of a commit) for review instead of
+  // committing them (T2.12). Reviews are shared, so only the API store has them.
+  requestReview(repo: Repo, request: { message?: string; reviewerId?: string; reverts?: string }): Promise<Repo>;
 }
+
+const NO_REVIEWS = 'Reviews need a shared ontology: connect to the Tiles API in Settings';
 
 export const localStore: OntologyStore = {
   kind: 'local',
@@ -23,6 +28,7 @@ export const localStore: OntologyStore = {
   discard: async (repo) => discard(repo),
   commit: async (repo, message, author) => commit(repo, { message, author }),
   revert: async (repo, id, author) => revert(repo, id, { author }),
+  requestReview: () => Promise.reject(new Error(NO_REVIEWS)),
 };
 
 // History is fetched in one page; plenty for the pilot, paged later if needed.
@@ -62,6 +68,14 @@ export function remoteStore(api: ApiClient, site: Site): RemoteStore {
     },
     async revert(_repo, commitId) {
       await o.revert(site.id, commitId);
+      return load();
+    },
+    async requestReview(_repo, { message, reviewerId, reverts }) {
+      await api.reviews.request(site.id, {
+        ...(message ? { message } : {}),
+        ...(reviewerId ? { reviewer_id: reviewerId } : {}),
+        ...(reverts ? { reverts } : {}),
+      });
       return load();
     },
   };

@@ -20,14 +20,21 @@ class NotFound(LookupError):
     pass
 
 
+class ReviewRequired(o.OntologyError):
+    """The site requires a review: changes go through a change request (T2.12)."""
+
+
 def iso(ts: datetime) -> str:
     """The browser's Date.toISOString() format: UTC, milliseconds, Z."""
     return ts.astimezone(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
-def lock_site(conn: Conn, site_id: uuid.UUID) -> None:
-    if conn.execute("SELECT 1 FROM sites WHERE id = %s FOR UPDATE", [site_id]).fetchone() is None:
+def lock_site(conn: Conn, site_id: uuid.UUID) -> bool:
+    """Locks the site and returns whether its changes need a review."""
+    row = conn.execute("SELECT review_required FROM sites WHERE id = %s FOR UPDATE", [site_id]).fetchone()
+    if row is None:
         raise NotFound("Site not found")
+    return bool(row["review_required"])
 
 
 # Nodes and edges in ONE statement: under READ COMMITTED each statement sees
@@ -73,13 +80,14 @@ def _commit_row(r: dict[str, Any]) -> o.Commit:
         "ops": r["ops"],
         "inverses": r["inverses"],
         "stats": r["stats"],
+        "reviewer": r["reviewer_name"],
     }
 
 
 def history(conn: Conn, site_id: uuid.UUID, limit: int = 50, offset: int = 0) -> list[o.Commit]:
     rows = conn.execute(
         """
-        SELECT id, message, author_name, created_at, ops, inverses, stats FROM commits
+        SELECT id, message, author_name, created_at, ops, inverses, stats, reviewer_name FROM commits
         WHERE site_id = %s ORDER BY seq DESC LIMIT %s OFFSET %s
         """,
         [site_id, limit, offset],
@@ -146,50 +154,73 @@ def _write_ops(conn: Conn, site_id: uuid.UUID, ops: list[o.Op]) -> None:
             raise o.OntologyError(f"Unknown op {kind}")
 
 
-def _record(conn: Conn, site_id: uuid.UUID, user: User, ops: list[o.Op], message: str, reverts: str | None) -> o.Commit:
-    _, entry = o.make_commit(load_head(conn, site_id), ops, {"message": message, "author": user.name}, "")
+def record(
+    conn: Conn,
+    site_id: uuid.UUID,
+    author: tuple[uuid.UUID | None, str],
+    ops: list[o.Op],
+    message: str,
+    reverts: str | None,
+    reviewer: str | None = None,
+) -> o.Commit:
+    """Validates `ops` on the head, applies them and records the commit. The caller holds the site lock."""
+    author_id, author_name = author
+    _, entry = o.make_commit(load_head(conn, site_id), ops, {"message": message, "author": author_name}, "")
     _write_ops(conn, site_id, entry["ops"])
     row = one(
         conn.execute(
             """
-        INSERT INTO commits (site_id, id, seq, message, author_id, author_name, ops, inverses, stats, reverts)
+        INSERT INTO commits
+            (site_id, id, seq, message, author_id, author_name, ops, inverses, stats, reverts, reviewer_name)
         VALUES (%s, %s, (SELECT coalesce(max(seq), 0) + 1 FROM commits WHERE site_id = %s),
-                %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id, message, author_name, created_at, ops, inverses, stats
+                %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id, message, author_name, created_at, ops, inverses, stats, reviewer_name
         """,
             [
                 site_id,
                 entry["id"],
                 site_id,
                 entry["message"],
-                user.id,
-                user.name,
+                author_id,
+                author_name,
                 Jsonb(entry["ops"]),
                 Jsonb(entry["inverses"]),
                 Jsonb(entry["stats"]),
                 reverts,
+                reviewer,
             ],
         ).fetchone()
     )
     return _commit_row(row)
 
 
+REVIEW_REQUIRED = "This site requires a review: request one instead of committing"
+
+
 def commit(conn: Conn, site_id: uuid.UUID, user: User, message: str) -> o.Commit:
-    lock_site(conn, site_id)
-    entry = _record(conn, site_id, user, load_staged(conn, site_id, user), message, None)
+    if lock_site(conn, site_id):
+        raise ReviewRequired(REVIEW_REQUIRED)
+    entry = record(conn, site_id, (user.id, user.name), load_staged(conn, site_id, user), message, None)
     conn.execute("DELETE FROM staged_ops WHERE site_id = %s AND user_id = %s", [site_id, user.id])
     return entry
 
 
-def revert(conn: Conn, site_id: uuid.UUID, user: User, commit_id: str) -> o.Commit:
-    lock_site(conn, site_id)
+def find_commit(conn: Conn, site_id: uuid.UUID, commit_id: str) -> o.Commit:
     target = conn.execute(
-        "SELECT id, message, author_name, created_at, ops, inverses, stats FROM commits WHERE site_id = %s AND id = %s",
+        "SELECT id, message, author_name, created_at, ops, inverses, stats, reviewer_name FROM commits"
+        " WHERE site_id = %s AND id = %s",
         [site_id, commit_id],
     ).fetchone()
     if target is None:
         raise NotFound(f"Commit {commit_id} not found")
+    return _commit_row(target)
+
+
+def revert(conn: Conn, site_id: uuid.UUID, user: User, commit_id: str) -> o.Commit:
+    if lock_site(conn, site_id):
+        raise ReviewRequired(REVIEW_REQUIRED)
+    target = find_commit(conn, site_id, commit_id)
     if load_staged(conn, site_id, user):
         raise o.OntologyError("Commit or discard staged changes first")
-    info = o.revert_info(_commit_row(target), user.name)
-    return _record(conn, site_id, user, target["inverses"], info["message"], target["id"])
+    info = o.revert_info(target, user.name)
+    return record(conn, site_id, (user.id, user.name), target["inverses"], info["message"], target["id"])

@@ -61,6 +61,8 @@ export interface Commit {
   ops: Op[];
   inverses: Op[];
   stats: DiffStats;
+  // Who approved it, when it went through a review (API only, T2.12).
+  reviewer?: string | null;
 }
 
 export interface Repo {

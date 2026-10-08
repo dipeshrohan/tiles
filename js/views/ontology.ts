@@ -13,6 +13,11 @@ interface OntologyUi {
 
 const uiState = (ctx: Context) => ctx.ui<OntologyUi>('ontology', { tab: 'canvas', selected: null, hidden: [] });
 
+// Opens the History tab next time the page shows (the Reviews page links to a commit).
+export function showHistory(ctx: Context): void {
+  uiState(ctx).tab = 'history';
+}
+
 const COLUMNS: NodeType[][] = [
   ['Enterprise', 'Site'],
   ['Workcenter'],
@@ -202,6 +207,7 @@ function newNodeForm(graph: Graph): string {
 
 function history(ctx: Context, graph: Graph): string {
   const { history } = ctx.state.repo;
+  const revert = ctx.ontology.reviewRequired ? 'Request revert' : 'Revert';
   return `<div class="card">${history
     .map(
       (c, i) => `
@@ -209,7 +215,7 @@ function history(ctx: Context, graph: Graph): string {
           <span class="avatar" style="background:${i === 0 ? 'var(--accent)' : 'var(--line-strong)'}">${esc((c.author[0] ?? '?').toUpperCase())}</span>
           <div style="flex:1;min-width:0">
             <div><b>${esc(c.message)}</b></div>
-            <div class="small muted">${esc(c.author)} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
+            <div class="small muted">${esc(c.author)}${c.reviewer ? ` · approved by ${esc(c.reviewer)}` : ''} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
             <div class="stats">${statBadges(c.stats)}</div>
             <details style="margin-top:6px"><summary class="small soft" style="cursor:pointer">${c.ops.length} operation(s)</summary>
               <div class="diff" style="margin-top:6px">${c.ops
@@ -218,7 +224,7 @@ function history(ctx: Context, graph: Graph): string {
                 .join('')}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ''}</div>
             </details>
           </div>
-          <button class="btn sm" data-revert="${esc(c.id)}">Revert</button>
+          <button class="btn sm" data-revert="${esc(c.id)}">${revert}</button>
         </div>`,
     )
     .join('')}</div>`;
@@ -255,6 +261,22 @@ function touchedIds(op: Op): string[] {
   }
 }
 
+// Commit, or send for review (T2.12): in API mode the staged changes can go to
+// another engineer first; when the site requires that, there is no Commit.
+function reviewControls(ctx: Context): string {
+  const o = ctx.ontology;
+  const commit = '<button class="btn primary" type="submit" value="commit">Commit</button>';
+  if (o.status !== 'ready') return commit;
+  const reviewers = o.members
+    .filter((m) => m.user_id !== o.userId && m.role !== 'viewer')
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return `${o.reviewRequired ? '' : commit}
+          <select name="reviewer" aria-label="Reviewer"><option value="">Any engineer</option>${reviewers
+            .map((m) => `<option value="${esc(m.user_id)}">${esc(m.name)}</option>`)
+            .join('')}</select>
+          <button class="btn ${o.reviewRequired ? 'primary' : ''}" type="submit" value="review" data-request-review>Request review</button>`;
+}
+
 function pageHead(): string {
   return `
       <div class="page-head">
@@ -277,8 +299,8 @@ function sourceBar(ctx: Context): string {
   const { head, history, staged } = ctx.state.repo;
   const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
   return `<div class="card source-bar small" aria-live="polite">
-      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.role === 'viewer' ? ' <span class="badge">View only</span>' : ''}</span>
-      <span class="row" style="gap:8px">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<button class="btn sm" data-refresh>Refresh</button></span>
+      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.reviewRequired ? ' Every change needs a review.' : ''}${o.role === 'viewer' ? ' <span class="badge">View only</span>' : ''}</span>
+      <span class="row" style="gap:8px">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 }
 
@@ -314,7 +336,7 @@ const view: View = {
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
-          <button class="btn primary" type="submit">Commit</button>
+          ${reviewControls(ctx)}
           <button class="btn" type="button" data-discard>Discard</button>
         </form>`
           : '';
@@ -352,11 +374,14 @@ const view: View = {
     onAll(root, '[data-import-demo]', 'click', async (el) => {
       el.setAttribute('disabled', '');
       const ops = historyOps(seedOntology());
-      if (await stageOps(ops))
+      if (!(await stageOps(ops))) return;
+      const message = 'Import demo ontology';
+      if (ctx.ontology.reviewRequired)
         await ctx.ontology.act(
-          (store, repo) => store.commit(repo, 'Import demo ontology', author),
-          'Demo ontology imported',
+          (store, repo) => store.requestReview(repo, { message }),
+          'Demo ontology sent for review',
         );
+      else await ctx.ontology.act((store, repo) => store.commit(repo, message, author), 'Demo ontology imported');
     });
     const selected = (): string | null => ui.selected;
 
@@ -418,12 +443,22 @@ const view: View = {
     );
     onAll(root, '[data-revert]', 'click', (el) => {
       const id = el.dataset.revert;
-      if (id) void ctx.ontology.act((store, repo) => store.revert(repo, id, author), 'Commit reverted');
+      if (!id) return;
+      if (ctx.ontology.reviewRequired)
+        void ctx.ontology.act((store, repo) => store.requestReview(repo, { reverts: id }), 'Revert sent for review');
+      else void ctx.ontology.act((store, repo) => store.revert(repo, id, author), 'Commit reverted');
     });
 
-    onSubmit(root, '#commit-form', (form) => {
+    onSubmit(root, '#commit-form', (form, submitter) => {
       const message = field(form, 'message');
-      void ctx.ontology.act((store, repo) => store.commit(repo, message, author), 'Committed');
+      // Enter in the message field submits with the first button: Commit, or Request review when it's the only one.
+      const review = submitter ? submitter.hasAttribute('data-request-review') : !form.querySelector('[value=commit]');
+      if (!review) {
+        void ctx.ontology.act((store, repo) => store.commit(repo, message, author), 'Committed');
+        return;
+      }
+      const reviewerId = field(form, 'reviewer') || undefined;
+      void ctx.ontology.act((store, repo) => store.requestReview(repo, { message, reviewerId }), 'Sent for review');
     });
     onSubmit(root, '#prop-form', (form) => {
       const id = selected();

@@ -243,3 +243,46 @@ test('the public sign-in settings are fetched without credentials', async () => 
   assert.equal(f.calls[0].headers.Authorization, undefined);
   assert.equal(f.calls[0].headers['X-Tiles-User'], undefined);
 });
+
+test('every change-review call hits the documented path with its body', async () => {
+  const f = fakeFetch(...Array.from({ length: 10 }, () => ({ body: {} })));
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  await api.members('s');
+  await api.ontology.reviewPolicy('s');
+  await api.ontology.setReviewPolicy('s', true);
+  await api.reviews.list('s', 'closed', { limit: 5 });
+  await api.reviews.get('s', 3);
+  await api.reviews.request('s', { message: 'm', reviewer_id: 'u1' });
+  await api.reviews.comment('s', 3, 'hi');
+  await api.reviews.approve('s', 3);
+  await api.reviews.reject('s', 3, 'no');
+  await api.reviews.rework('s', 3);
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    [
+      'GET /sites/s/members',
+      'GET /sites/s/ontology/review-policy',
+      'PUT /sites/s/ontology/review-policy',
+      'GET /sites/s/ontology/reviews?state=closed&limit=5&offset=0',
+      'GET /sites/s/ontology/reviews/3',
+      'POST /sites/s/ontology/reviews',
+      'POST /sites/s/ontology/reviews/3/comments',
+      'POST /sites/s/ontology/reviews/3/approve',
+      'POST /sites/s/ontology/reviews/3/reject',
+      'POST /sites/s/ontology/reviews/3/rework',
+    ],
+  );
+  const bodies = f.calls.map((c) => (c.body === undefined ? undefined : JSON.parse(c.body)));
+  assert.deepEqual(bodies, [
+    undefined,
+    undefined,
+    { required: true },
+    undefined,
+    undefined,
+    { message: 'm', reviewer_id: 'u1' },
+    { body: 'hi' },
+    { comment: '' },
+    { comment: 'no' },
+    undefined,
+  ]);
+});

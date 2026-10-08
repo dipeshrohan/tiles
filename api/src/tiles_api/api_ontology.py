@@ -99,6 +99,7 @@ class Commit(BaseModel):
     ops: list[dict[str, Any]]
     inverses: list[dict[str, Any]]
     stats: DiffStats
+    reviewer: str | None = None  # who approved it, if it went through a review (T2.12)
 
 
 class CommitIn(BaseModel):

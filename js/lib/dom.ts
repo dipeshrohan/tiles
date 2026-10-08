@@ -48,9 +48,14 @@ export function onAll<K extends keyof HTMLElementEventMap>(
 }
 
 // Submit handler for a form found by selector, if present.
-export function onSubmit(root: ParentNode, sel: string, handler: (form: HTMLFormElement) => void): void {
+// The handler also gets the button that submitted the form, when there is one.
+export function onSubmit(
+  root: ParentNode,
+  sel: string,
+  handler: (form: HTMLFormElement, submitter: HTMLElement | null) => void,
+): void {
   root.querySelector<HTMLFormElement>(sel)?.addEventListener('submit', (e) => {
     e.preventDefault();
-    handler(e.currentTarget as HTMLFormElement);
+    handler(e.currentTarget as HTMLFormElement, e.submitter);
   });
 }
