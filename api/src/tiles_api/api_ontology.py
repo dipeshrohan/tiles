@@ -159,6 +159,20 @@ Ctx = Annotated[SiteContext, Depends(site_context, scope="function")]
 ROLE_RANK = {"viewer": 0, "engineer": 1, "admin": 2}
 
 
+def can_edit(conn: Conn, site_id: uuid.UUID, org_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    """Whether a user is an engineer or admin of a site: a member with that role, or an admin of
+    its organisation (who manages every site, whether they have visited it yet or not)."""
+    row = conn.execute(
+        """
+        SELECT CASE WHEN u.org_admin THEN 'admin' ELSE m.role END AS role
+        FROM users u LEFT JOIN site_members m ON m.user_id = u.id AND m.site_id = %s
+        WHERE u.id = %s AND u.org_id = %s
+        """,
+        [site_id, user_id, org_id],
+    ).fetchone()
+    return row is not None and ROLE_RANK.get(row["role"], -1) >= ROLE_RANK["engineer"]
+
+
 def require_role(minimum: str) -> Any:
     """Dependency: the site context, if the user's role on the site is at least `minimum`."""
 

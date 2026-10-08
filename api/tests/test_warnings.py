@@ -66,13 +66,16 @@ def test_a_warning_is_acknowledged_assigned_resolved_and_reopened(
         ("assigned", "eng", "eng2", None, "Your line"),
     ]
     same = api.put(f"{path}/{second}/assignee", json={"user_id": eng2}, headers=ENG).json()
-    assert len(same["activity"]) == 3  # already theirs: nothing changes
+    assert len(same["activity"]) == 3  # already theirs: nothing changes...
+    noted = api.put(f"{path}/{second}/assignee", json={"user_id": eng2, "note": "Today please"}, headers=ENG).json()
+    assert steps(noted)[3:] == [("commented", "eng", None, None, "Today please")]  # ...but the note is kept
     for nobody in (viewer, "00000000-0000-0000-0000-000000000000"):
         res = api.put(f"{path}/{second}/assignee", json={"user_id": nobody}, headers=ENG)
         assert (res.status_code, res.json()["detail"]) == (422, "Not an engineer or admin of this site")
 
     # The inbox's filters.
     assert [w["id"] for w in listed(api, site, ENG2, assignee="me")] == [second]
+    assert "detector_config" not in listed(api, site)[0]  # only in the detail
     assert [w["id"] for w in listed(api, site, assignee=eng2)] == [second]
     assert [w["id"] for w in listed(api, site, assignee="none")] == [third, first]
     assert [w["id"] for w in listed(api, site, status="acknowledged")] == [second, first]
@@ -124,6 +127,8 @@ def test_a_warning_is_acknowledged_assigned_resolved_and_reopened(
     done = api.post(f"{path}/{third}/resolve", json={"outcome": "false_alarm"}, headers=ENG).json()
     assert [a[0] for a in steps(done)] == ["raised", "commented", "acknowledged", "resolved"]
     assert steps(done)[1] == ("commented", "admin", None, None, "Looks like noise")
+    later = api.post(f"{path}/{third}/comments", json={"note": "Checked the log"}, headers=ENG)
+    assert (later.status_code, later.json()["status"]) == (201, "resolved")  # comments go on resolved ones too
 
     detail = api.get(f"{path}/{third}", headers=VIEWER).json()
     assert detail["detector_config"]["window"] == 200 and detail["signal_tag"] == "dc1.friction"
@@ -135,7 +140,34 @@ def test_a_warning_is_acknowledged_assigned_resolved_and_reopened(
                 "SELECT action FROM audit_log WHERE entity_type = 'warning' AND entity_id = %s ORDER BY id", [second]
             )
         ]
-    assert actions == ["warning.assign", "warning.resolve", "warning.reopen", "warning.assign"]
+    assert actions == [
+        "warning.acknowledge",  # on the way to being assigned
+        "warning.assign",
+        "warning.comment",
+        "warning.resolve",
+        "warning.reopen",
+        "warning.assign",
+    ]
+
+
+def test_an_organisation_admin_can_be_assigned_before_visiting_the_site(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    first, _, _ = raise_warnings(api, site)
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        boss = conn.execute(
+            """
+            INSERT INTO users (org_id, email, name, org_admin)
+            SELECT org_id, 'boss@example.com', 'boss', true FROM sites WHERE id = %s
+            RETURNING id
+            """,
+            [site],
+        ).fetchone()
+    assert boss is not None
+    res = api.put(f"/sites/{site}/warnings/{first}/assignee", json={"user_id": str(boss["id"])}, headers=ENG)
+    assert (res.status_code, res.json()["assignee"]) == (200, "boss")
 
 
 def test_what_is_asked_is_checked(api: TestClient, site: str) -> None:  # noqa: F811

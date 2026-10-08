@@ -32,7 +32,7 @@ ALTER TABLE warnings
     ADD CONSTRAINT warnings_resolved_has_outcome CHECK ((resolved_at IS NULL) = (outcome IS NULL)),
     ADD CONSTRAINT warnings_resolved_was_acknowledged CHECK (resolved_at IS NULL OR acknowledged_at IS NOT NULL);
 CREATE INDEX warnings_site_unresolved ON warnings (site_id, started_at DESC) WHERE resolved_at IS NULL;
-CREATE INDEX warnings_assignee ON warnings (assignee_id) WHERE assignee_id IS NOT NULL AND resolved_at IS NULL;
+CREATE INDEX warnings_assignee ON warnings (assignee_id, started_at DESC) WHERE assignee_id IS NOT NULL;
 
 CREATE TABLE warning_activity (
     id           bigserial PRIMARY KEY,

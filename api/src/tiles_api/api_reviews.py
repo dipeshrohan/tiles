@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from tiles_api import ontology as o
 from tiles_api import ontology_store as store
-from tiles_api.api_ontology import ROLE_RANK, Admin, Ctx, DiffStats, Editor, SiteContext
+from tiles_api.api_ontology import Admin, Ctx, DiffStats, Editor, SiteContext, can_edit
 from tiles_api.store import one
 
 router = APIRouter(tags=["reviews"])
@@ -230,16 +230,9 @@ def request_review(ctx: Editor, body: ReviewIn) -> dict[str, Any]:
     except o.OntologyError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
     if body.reviewer_id is not None:
-        member = ctx.conn.execute(
-            """
-            SELECT CASE WHEN u.org_admin THEN 'admin' ELSE m.role END AS role
-            FROM site_members m JOIN users u ON u.id = m.user_id WHERE m.site_id = %s AND m.user_id = %s
-            """,
-            [ctx.site_id, body.reviewer_id],
-        ).fetchone()
         if body.reviewer_id == ctx.user.id:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Ask someone else to review your change")
-        if member is None or ROLE_RANK[member["role"]] < ROLE_RANK["engineer"]:
+        if not can_edit(ctx.conn, ctx.site_id, ctx.org_id, body.reviewer_id):
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT, "The reviewer must be an engineer or admin of this site"
             )

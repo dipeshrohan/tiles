@@ -15,7 +15,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from tiles_api.api_ontology import Ctx, Editor, SiteContext
+from tiles_api.api_ontology import Ctx, Editor, SiteContext, can_edit
 
 router = APIRouter(tags=["warnings"])
 
@@ -52,6 +52,8 @@ class WarningOut(BaseModel):
 class Activity(BaseModel):
     at: datetime
     action: Literal["raised", "acknowledged", "assigned", "unassigned", "resolved", "reopened", "commented"]
+    # Raised is when the detector stored it, for people to see: later than its start when the
+    # detector caught up on history. The others are people's steps.
     actor: str | None  # None for raised: the detector did it
     assignee: str | None
     outcome: Outcome | None
@@ -92,8 +94,7 @@ SELECT w.id, w.detector_id, d.name AS detector, w.signal_id, g.tag AS signal_tag
             WHEN w.acknowledged_at IS NOT NULL THEN 'acknowledged'
             ELSE 'raised' END AS status,
        w.acknowledged_at, ack.name AS acknowledged_by, w.assignee_id, who.name AS assignee,
-       w.resolved_at, res.name AS resolved_by, w.outcome, w.resolution_note, d.config AS detector_config,
-       w.created_at
+       w.resolved_at, res.name AS resolved_by, w.outcome, w.resolution_note{detail}
 FROM warnings w
 JOIN detectors d ON d.id = w.detector_id
 JOIN signals g ON g.id = w.signal_id
@@ -156,12 +157,14 @@ def list_warnings(
         "offset": offset,
     }
     return ctx.conn.execute(
-        WARNINGS + FILTERS + " ORDER BY w.started_at DESC, w.id LIMIT %(limit)s OFFSET %(offset)s", params
+        WARNINGS.format(detail="") + FILTERS + " ORDER BY w.started_at DESC, w.id LIMIT %(limit)s OFFSET %(offset)s",
+        params,
     ).fetchall()
 
 
 def _detail(ctx: SiteContext, warning_id: uuid.UUID) -> dict[str, Any]:
-    row = ctx.conn.execute(WARNINGS + " AND w.id = %(id)s", {"site": ctx.site_id, "id": warning_id}).fetchone()
+    query = WARNINGS.format(detail=", d.config AS detector_config, w.created_at") + " AND w.id = %(id)s"
+    row = ctx.conn.execute(query, {"site": ctx.site_id, "id": warning_id}).fetchone()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such warning")
     steps = ctx.conn.execute(
@@ -184,13 +187,18 @@ def get_warning(ctx: Ctx, warning_id: uuid.UUID) -> dict[str, Any]:
     return _detail(ctx, warning_id)
 
 
-def _lock(ctx: SiteContext, warning_id: uuid.UUID) -> dict[str, Any]:
-    """The warning's row, locked until the change commits, so two people's steps go one at a time."""
+def _lock(ctx: SiteContext, warning_id: uuid.UUID, resolved: bool) -> dict[str, Any]:
+    """The warning's row, locked until the change commits, so two people's steps go one at a time;
+    409 unless it is resolved (or not) as the step needs."""
     row = ctx.conn.execute(
         "SELECT * FROM warnings WHERE site_id = %s AND id = %s FOR UPDATE", [ctx.site_id, warning_id]
     ).fetchone()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such warning")
+    if resolved and row["resolved_at"] is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This warning is not resolved")
+    if not resolved and row["resolved_at"] is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This warning is resolved; reopen it first")
     return row
 
 
@@ -212,50 +220,41 @@ def _step(
 
 
 def _acknowledge(ctx: SiteContext, warning: dict[str, Any], note: str = "") -> bool:
-    """Acknowledges the warning if nobody has yet; True if this did."""
+    """Acknowledges the warning (and audits it) if nobody has yet; True if this did."""
     if warning["acknowledged_at"] is not None:
         return False
     ctx.conn.execute(
         "UPDATE warnings SET acknowledged_at = now(), acknowledged_by = %s WHERE id = %s", [ctx.user.id, warning["id"]]
     )
     _step(ctx, warning["id"], "acknowledged", note)
+    ctx.audit("warning.acknowledge", "warning", str(warning["id"]), after={"note": note})
     return True
 
 
-def _unresolved(warning: dict[str, Any]) -> None:
-    if warning["resolved_at"] is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This warning is resolved; reopen it first")
+def _comment(ctx: SiteContext, warning_id: uuid.UUID, note: str) -> None:
+    _step(ctx, warning_id, "commented", note)
+    ctx.audit("warning.comment", "warning", str(warning_id), after={"note": note})
 
 
 @router.post("/sites/{site_id}/warnings/{warning_id}/acknowledge", response_model=WarningDetail)
 def acknowledge(ctx: Editor, warning_id: uuid.UUID, body: NoteIn) -> dict[str, Any]:
     """Say someone is looking at it."""
-    warning = _lock(ctx, warning_id)
-    _unresolved(warning)
+    warning = _lock(ctx, warning_id, resolved=False)
     if not _acknowledge(ctx, warning, body.note):
         raise HTTPException(status.HTTP_409_CONFLICT, "This warning is already acknowledged")
-    ctx.audit("warning.acknowledge", "warning", str(warning_id), after={"note": body.note})
     return _detail(ctx, warning_id)
 
 
 @router.put("/sites/{site_id}/warnings/{warning_id}/assignee", response_model=WarningDetail)
 def assign(ctx: Editor, warning_id: uuid.UUID, body: AssignIn) -> dict[str, Any]:
     """Assign it to an engineer or admin of the site (acknowledging it, if nobody had), or unassign
-    it (`user_id` null). Assigning it to whom it is already assigned changes nothing."""
-    warning = _lock(ctx, warning_id)
-    _unresolved(warning)
-    if (
-        body.user_id is not None
-        and not ctx.conn.execute(
-            """
-        SELECT 1 FROM site_members m JOIN users u ON u.id = m.user_id
-        WHERE m.site_id = %s AND m.user_id = %s AND (m.role IN ('engineer', 'admin') OR u.org_admin)
-        """,
-            [ctx.site_id, body.user_id],
-        ).fetchone()
-    ):
+    it (`user_id` null). Assigning it to whom it is already assigned only keeps the note, as a comment."""
+    warning = _lock(ctx, warning_id, resolved=False)
+    if body.user_id is not None and not can_edit(ctx.conn, ctx.site_id, ctx.org_id, body.user_id):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Not an engineer or admin of this site")
     if body.user_id == warning["assignee_id"]:
+        if body.note.strip():
+            _comment(ctx, warning_id, body.note)
         return _detail(ctx, warning_id)
     if body.user_id is not None:
         _acknowledge(ctx, warning)
@@ -271,9 +270,7 @@ def assign(ctx: Editor, warning_id: uuid.UUID, body: AssignIn) -> dict[str, Any]
 def resolve(ctx: Editor, warning_id: uuid.UUID, body: ResolveIn) -> dict[str, Any]:
     """Close it with its outcome: a true alarm, a false alarm, or unknown (acknowledging it, if
     nobody had). Its signal may still be out."""
-    warning = _lock(ctx, warning_id)
-    if warning["resolved_at"] is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This warning is already resolved")
+    warning = _lock(ctx, warning_id, resolved=False)
     _acknowledge(ctx, warning)
     ctx.conn.execute(
         """
@@ -290,9 +287,7 @@ def resolve(ctx: Editor, warning_id: uuid.UUID, body: ResolveIn) -> dict[str, An
 @router.post("/sites/{site_id}/warnings/{warning_id}/reopen", response_model=WarningDetail)
 def reopen(ctx: Editor, warning_id: uuid.UUID, body: NoteIn) -> dict[str, Any]:
     """Undo a resolution (it stays acknowledged, and assigned)."""
-    warning = _lock(ctx, warning_id)
-    if warning["resolved_at"] is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This warning is not resolved")
+    warning = _lock(ctx, warning_id, resolved=True)
     ctx.conn.execute(
         """
         UPDATE warnings SET resolved_at = NULL, resolved_by = NULL, outcome = NULL, resolution_note = ''
@@ -312,8 +307,10 @@ def reopen(ctx: Editor, warning_id: uuid.UUID, body: NoteIn) -> dict[str, Any]:
     status_code=status.HTTP_201_CREATED,
 )
 def comment(ctx: Editor, warning_id: uuid.UUID, body: CommentIn) -> dict[str, Any]:
-    """Add a note to its activity, whatever its status."""
-    _lock(ctx, warning_id)
-    _step(ctx, warning_id, "commented", body.note)
-    ctx.audit("warning.comment", "warning", str(warning_id), after={"note": body.note})
+    """Add a note to its activity, whatever its status (without waiting on its other steps)."""
+    if not ctx.conn.execute(
+        "SELECT 1 FROM warnings WHERE site_id = %s AND id = %s", [ctx.site_id, warning_id]
+    ).fetchone():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such warning")
+    _comment(ctx, warning_id, body.note)
     return _detail(ctx, warning_id)
