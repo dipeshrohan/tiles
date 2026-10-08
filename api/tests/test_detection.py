@@ -93,7 +93,7 @@ def test_a_quiet_signals_spread_is_its_own_as_in_the_browser() -> None:
     # A baseline wobbling by tenths: MAD well under 1. The browser only stands in 1 for a MAD of 0.
     wobble = [100.0, 100.2, 100.4, 100.2] * 5
     center, spread = 100.2, 1.4826 * 0.1  # deviations: half 0, half 0.2
-    _, opened = step(Config(window=20, k=4, persist=1), State(), readings(wobble + [102.0], every=1.0))
+    _, opened = step(Config(window=20, k=4, persist=1), State(), readings([*wobble, 102.0], every=1.0))
     assert len(opened) == 1
     assert abs(opened[0].threshold - (center + 4 * spread)) < 1e-9  # 100.79, not 104.2
 

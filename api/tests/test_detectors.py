@@ -179,7 +179,7 @@ def test_stopping_ends_an_open_warning_and_a_run_ending_exactly_on_a_batch_is_ca
     site: str,  # noqa: F811
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    first, last, _ = EXPECTED[0]
+    first, _, _ = EXPECTED[0]
     signal = import_friction(api, site, FIXTURE["values"][: first + 5])  # stops inside the first warning
     detector = create(api, site, signal).json()
     monkeypatch.setattr(detector_job, "batch_size", lambda window: first + 5)  # one batch reads them all
