@@ -882,6 +882,16 @@
 				reopen: (siteId, id, note = "") => request("POST", `${warning(siteId, id)}/reopen`, { note }),
 				comment: (siteId, id, note) => request("POST", `${warning(siteId, id)}/comments`, { note })
 			},
+			notifications: {
+				preferences: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/notifications/preferences`),
+				setPreferences: (siteId, prefs) => request("PUT", `/sites/${encodeURIComponent(siteId)}/notifications/preferences`, prefs),
+				teams: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/notifications/teams`),
+				setTeams: (siteId, webhookUrl, onRaised = true) => request("PUT", `/sites/${encodeURIComponent(siteId)}/notifications/teams`, {
+					webhook_url: webhookUrl,
+					on_raised: onRaised
+				}),
+				deliveries: (siteId, q = {}) => request("GET", `/sites/${encodeURIComponent(siteId)}/notifications${query(q)}`)
+			},
 			reviews: {
 				list: (siteId, state = "open", { limit = 50, offset = 0 } = {}) => request("GET", `${site(siteId)}/reviews?state=${state}&limit=${limit}&offset=${offset}`),
 				get: (siteId, n) => request("GET", `${site(siteId)}/reviews/${n}`),
@@ -3749,6 +3759,94 @@
 			box.innerHTML = "<p class=\"small soft\">The audit log could not be loaded.</p>";
 		}
 	}
+	function notificationsCard(ctx) {
+		const role = ctx.ontology.role;
+		return `<div class="card stack" id="notifications" style="gap:12px;grid-column:1 / -1">
+      <h2>Notifications</h2>
+      <p class="small soft">Emails about warnings on this site, sent by the Tiles API's <code>tiles-notify</code> job.</p>
+      ${role === "engineer" || role === "admin" ? `<form class="stack" id="notify-prefs" style="gap:8px" aria-live="polite">
+        <p class="small soft" data-notify-email>Loading…</p>
+        <label class="row" style="gap:8px"><input type="checkbox" name="on_assigned" disabled /> A warning someone assigns to me</label>
+        <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" disabled /> Every new warning on this site</label>
+        <div><button class="btn primary" type="submit" disabled>Save</button></div>
+      </form>` : "<p class=\"small soft\">Engineers and admins of the site choose which warnings they hear about.</p>"}
+      ${role === "admin" ? `<form class="stack" id="teams-form" style="gap:8px">
+        <h3>Microsoft Teams channel</h3>
+        <p class="small soft" data-teams-status>Loading…</p>
+        <label class="field">Webhook URL (from the channel's Workflows, or an incoming webhook)<input type="url" name="url" placeholder="https://….webhook.office.com/…" autocomplete="off" /></label>
+        <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" checked /> Post every new warning there</label>
+        <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
+      </form>
+      <h3>Recent messages</h3>
+      <div data-deliveries aria-live="polite"><p class="small soft">Loading…</p></div>` : ""}
+    </div>`;
+	}
+	function deliveryState(d) {
+		if (d.sent_at) return "<span class=\"badge good\">Sent</span>";
+		if (d.failed_at) return `<span class="badge bad" title="${esc(d.last_error ?? "")}">Gave up</span>`;
+		if (d.attempts) return `<span class="badge warn" title="${esc(d.last_error ?? "")}">Retrying</span>`;
+		return "<span class=\"badge\">Waiting</span>";
+	}
+	async function fillNotifications(root, ctx) {
+		const site = ctx.ontology.site;
+		const api = ctx.api;
+		if (!site || !api || !root.querySelector("#notifications")) return;
+		const prefsForm = root.querySelector("#notify-prefs");
+		if (prefsForm) {
+			const box = (name) => need(prefsForm, `[name=${name}]`);
+			const show = (p) => {
+				need(prefsForm, "[data-notify-email]").textContent = `Emails go to ${p.email}. Send me:`;
+				box("on_raised").checked = p.on_raised;
+				box("on_assigned").checked = p.on_assigned;
+				for (const el of prefsForm.querySelectorAll("input, button")) el.disabled = false;
+			};
+			api.notifications.preferences(site.id).then(show, () => {
+				need(prefsForm, "[data-notify-email]").textContent = "Your preferences could not be loaded.";
+			});
+			onSubmit(root, "#notify-prefs", () => {
+				const prefs = {
+					on_raised: box("on_raised").checked,
+					on_assigned: box("on_assigned").checked
+				};
+				api.notifications.setPreferences(site.id, prefs).then((p) => {
+					show(p);
+					ctx.toast("Notification preferences saved");
+				}, () => void 0);
+			});
+		}
+		const teamsForm = root.querySelector("#teams-form");
+		if (!teamsForm) return;
+		const status = need(teamsForm, "[data-teams-status]");
+		const showTeams = (t) => {
+			status.textContent = t.configured ? `Connected to a channel at ${t.host}${t.on_raised ? ", which hears of every new warning" : ", posting nothing for now"}. Paste a new URL to change it.` : "No channel yet.";
+			need(teamsForm, "[name=on_raised]").checked = t.on_raised;
+		};
+		api.notifications.teams(site.id).then(showTeams, () => status.textContent = "The channel could not be loaded.");
+		const save = (url) => api.notifications.setTeams(site.id, url, need(teamsForm, "[name=on_raised]").checked).then((t) => {
+			teamsForm.reset();
+			showTeams(t);
+			ctx.toast(t.configured ? "Teams channel saved" : "Teams channel removed");
+		}, () => void 0);
+		onSubmit(root, "#teams-form", (form) => {
+			const url = field$1(form, "url").trim();
+			if (!url) {
+				ctx.toast("Paste the channel’s webhook URL");
+				return;
+			}
+			save(url);
+		});
+		onAll(root, "[data-teams-remove]", "click", () => {
+			if (confirm("Stop posting warnings to the Teams channel?")) save(null);
+		});
+		const list = root.querySelector("[data-deliveries]");
+		if (!list) return;
+		try {
+			const rows = await api.notifications.deliveries(site.id, { limit: 20 });
+			list.innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>What</th><th>To</th><th>State</th><th>Why</th></tr></thead><tbody>${rows.map((d) => `<tr><td>${esc(new Date(d.created_at).toLocaleString("en-GB"))}</td><td>${d.kind === "warning_raised" ? "New warning" : "Assigned"} · <span class="mono">${esc(d.signal_tag)}</span></td><td>${esc(d.recipient)}</td><td>${deliveryState(d)}</td><td class="small">${esc(d.sent_at ? "" : d.last_error ?? "")}</td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">Nothing sent yet.</p>";
+		} catch {
+			list.innerHTML = "<p class=\"small soft\">The messages could not be loaded.</p>";
+		}
+	}
 	var revealed = null;
 	var apiCheck = "";
 	var apiCheckSeq = 0;
@@ -3889,6 +3987,7 @@
           <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
         ${ds.mode === "api" ? accountCard(ctx) : ""}
+        ${ctx.ontology.site ? notificationsCard(ctx) : ""}
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === "admin") : ""}
         ${ctx.ontology.role === "admin" ? auditCard() : ""}
       </div>`;
@@ -3939,6 +4038,7 @@
 			});
 			if (ctx.ontology.role === "admin") fillAudit(root, ctx);
 			bindAgents(root, ctx);
+			fillNotifications(root, ctx);
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
 			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
 			onAll(root, "[data-reset]", "click", () => {

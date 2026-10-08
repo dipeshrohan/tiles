@@ -10,7 +10,7 @@ import {
   suggestionRow,
   untouched,
 } from '../js/views/signals.ts';
-import { describeAudit } from '../js/views/settings.ts';
+import { deliveryState, describeAudit } from '../js/views/settings.ts';
 
 const SIG = {
   id: 's1',
@@ -191,4 +191,18 @@ test('a mapping suggestion shows what it would do and why, with actions for edit
   assert.match(suggestionRow(s, true, true), /data-accept="s1" disabled>/); // while Link all runs
   assert.match(suggestionRow({ ...s, kind: 'link' }, true), /Link to<\/span>[\s\S]*>Link</);
   assert.doesNotMatch(suggestionRow(s, false), /data-accept/);
+});
+
+test('a message reads as sent, waiting, retrying or given up, with why', () => {
+  const d = { sent_at: null, failed_at: null, attempts: 0, last_error: null };
+  assert.match(deliveryState(d), />Waiting</);
+  assert.match(deliveryState({ ...d, sent_at: '2026-10-08T10:00:00Z', attempts: 1 }), /badge good">Sent/);
+  assert.match(
+    deliveryState({ ...d, attempts: 2, last_error: 'timed out <x>' }),
+    /title="timed out &lt;x&gt;">Retrying/,
+  );
+  assert.match(
+    deliveryState({ ...d, attempts: 6, failed_at: '2026-10-08T10:00:00Z', last_error: '550' }),
+    /badge bad" title="550">Gave up/,
+  );
 });

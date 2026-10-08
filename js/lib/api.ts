@@ -273,6 +273,33 @@ export interface WarningQuery {
   offset?: number;
 }
 
+// Notifications (T3.09): your email preferences, the site's Teams channel, and what was sent.
+export interface NotificationPrefs {
+  on_raised: boolean; // every new warning on the site
+  on_assigned: boolean; // a warning someone assigns you
+  email: string;
+}
+
+export interface TeamsChannel {
+  configured: boolean;
+  host: string | null; // the webhook's host; the URL itself is never sent back
+  on_raised: boolean;
+}
+
+export interface Delivery {
+  id: number;
+  kind: 'warning_raised' | 'warning_assigned';
+  channel: 'email' | 'teams';
+  recipient: string;
+  signal_tag: string;
+  warning_id: string;
+  created_at: string;
+  sent_at: string | null;
+  failed_at: string | null; // given up
+  attempts: number;
+  last_error: string | null;
+}
+
 export interface Me {
   email: string;
   name: string;
@@ -520,6 +547,22 @@ export function createApiClient(options: ApiOptions) {
         request<WarningDetail>('POST', `${warning(siteId, id)}/reopen`, { note }),
       comment: (siteId: string, id: string, note: string) =>
         request<WarningDetail>('POST', `${warning(siteId, id)}/comments`, { note }),
+    },
+    notifications: {
+      preferences: (siteId: string) =>
+        request<NotificationPrefs>('GET', `/sites/${encodeURIComponent(siteId)}/notifications/preferences`),
+      setPreferences: (siteId: string, prefs: Pick<NotificationPrefs, 'on_raised' | 'on_assigned'>) =>
+        request<NotificationPrefs>('PUT', `/sites/${encodeURIComponent(siteId)}/notifications/preferences`, prefs),
+      // Admins: the site's Teams channel; a null URL removes it.
+      teams: (siteId: string) =>
+        request<TeamsChannel>('GET', `/sites/${encodeURIComponent(siteId)}/notifications/teams`),
+      setTeams: (siteId: string, webhookUrl: string | null, onRaised = true) =>
+        request<TeamsChannel>('PUT', `/sites/${encodeURIComponent(siteId)}/notifications/teams`, {
+          webhook_url: webhookUrl,
+          on_raised: onRaised,
+        }),
+      deliveries: (siteId: string, q: { state?: 'all' | 'pending' | 'sent' | 'failed'; limit?: number } = {}) =>
+        request<Delivery[]>('GET', `/sites/${encodeURIComponent(siteId)}/notifications${query(q)}`),
     },
     // Change requests (T2.12): your staged changes (or a revert) for another engineer to approve or reject.
     reviews: {

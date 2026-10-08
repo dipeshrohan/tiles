@@ -1696,3 +1696,65 @@ test('people promoted while you were elsewhere can be assigned when you come bac
   });
   assert.deepEqual(a.errors, []);
 });
+
+test('notifications: people choose their emails; admins set the Teams channel and see what failed', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin', 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addDelivery({
+    recipient: 'eng2@example.com',
+    signal_tag: 'dc1.friction',
+    sent_at: new Date().toISOString(),
+    attempts: 1,
+  });
+  fake.addDelivery({
+    channel: 'teams',
+    recipient: 'Teams channel',
+    signal_tag: 'dc1.friction',
+    attempts: 6,
+    failed_at: new Date().toISOString(),
+    last_error: 'Teams answered 404',
+  });
+  const a = await openAs(t, apiUrl, null, 'settings');
+  await a.page.waitForSelector('#notify-prefs [data-notify-email]:has-text("Emails go to demo@example.com")');
+  assert.equal(await a.page.isChecked('#notify-prefs [name=on_assigned]'), true);
+  assert.equal(await a.page.isChecked('#notify-prefs [name=on_raised]'), false);
+  await a.page.check('#notify-prefs [name=on_raised]');
+  await a.page.click('#notify-prefs button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("Notification preferences saved")');
+
+  // The Teams channel: a URL elsewhere is refused; a Teams one is kept, and only its host shown.
+  await a.page.waitForSelector('[data-teams-status]:has-text("No channel yet")');
+  await a.page.fill('#teams-form [name=url]', 'https://intranet.example.com/hook');
+  await a.page.click('#teams-form button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("Not a Microsoft Teams webhook")');
+  const hook = 'https://acme.webhook.office.com/webhookb2/secret-part/IncomingWebhook/1/2';
+  await a.page.fill('#teams-form [name=url]', hook);
+  await a.page.click('#teams-form button[type=submit]');
+  await a.page.waitForSelector('[data-teams-status]:has-text("Connected to a channel at acme.webhook.office.com")');
+  assert.equal(fake.teamsUrl(), hook);
+  assert.equal(await a.page.inputValue('#teams-form [name=url]'), '');
+  assert.doesNotMatch(await a.page.content(), /secret-part/);
+
+  // What was sent, and what failed with why.
+  const rows = a.page.locator('[data-deliveries] tbody tr');
+  await rows.first().waitFor();
+  assert.match(
+    await rows.nth(0).innerText(),
+    /New warning · dc1\.friction\s+Teams channel\s+Gave up\s+Teams answered 404/,
+  );
+  assert.match(await rows.nth(1).innerText(), /eng2@example\.com\s+Sent/);
+
+  // A reload shows the choices saved.
+  await a.page.reload();
+  await a.page.waitForSelector('#notify-prefs [data-notify-email]:has-text("Emails go to")');
+  assert.equal(await a.page.isChecked('#notify-prefs [name=on_raised]'), true);
+
+  const v = await openAs(t, apiUrl, 'viewer@example.com', 'settings');
+  await v.page.waitForSelector('#notifications:has-text("Engineers and admins of the site choose")');
+  assert.equal(await v.page.locator('#teams-form').count(), 0);
+  assert.deepEqual(
+    [...a.errors, ...v.errors].filter((e) => !/422/.test(e)),
+    [],
+  );
+});

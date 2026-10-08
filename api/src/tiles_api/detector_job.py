@@ -5,7 +5,8 @@ A detector reads past its `done_until`, up to `lateness_s` before now (readings
 that may still arrive late are left for the next run), in batches; its state is
 saved with it, so runs pick up where the last one stopped. A warning is written
 when it opens and updated while it lasts: its last reading, peak, how many
-readings were out, and when the signal came back.
+readings were out, and when the signal came back. A new one that is recent
+queues its notifications (notify.py).
 """
 
 import argparse
@@ -17,9 +18,9 @@ from typing import Any
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
-from tiles_api import jobs
+from tiles_api import jobs, notify
 from tiles_api.detection import Alert, Config, State, step
-from tiles_api.store import Conn
+from tiles_api.store import Conn, one
 
 WORK = 5_000_000  # readings x window per batch: each reading costs about its window's size
 MAX_BATCHES = 40  # per run, so one detector can't hold the job forever
@@ -34,14 +35,17 @@ def batch_size(window: int) -> int:
 class RunResult:
     readings: int = 0
     opened: int = 0
+    notified: int = 0  # messages queued about warnings raised
     closed: int = 0
     done_until: datetime | None = None
     caught_up: bool = True
 
 
-def _save(conn: Conn, detector: dict[str, Any], warnings: list[Alert]) -> None:
+def _save(conn: Conn, detector: dict[str, Any], warnings: list[Alert]) -> dict[int, uuid.UUID]:
+    """Writes the warnings; their ids, by id() of the Alert."""
+    ids: dict[int, uuid.UUID] = {}
     for w in warnings:
-        conn.execute(
+        row = conn.execute(
             """
             INSERT INTO warnings (site_id, detector_id, signal_id, started_at, last_at, ended_at, side, peak,
                                   baseline, threshold, readings)
@@ -49,6 +53,7 @@ def _save(conn: Conn, detector: dict[str, Any], warnings: list[Alert]) -> None:
             ON CONFLICT (detector_id, started_at) DO UPDATE
             SET last_at = EXCLUDED.last_at, ended_at = EXCLUDED.ended_at, peak = EXCLUDED.peak,
                 readings = EXCLUDED.readings
+            RETURNING id
             """,
             [
                 detector["site_id"],
@@ -63,7 +68,9 @@ def _save(conn: Conn, detector: dict[str, Any], warnings: list[Alert]) -> None:
                 w.threshold,
                 w.readings,
             ],
-        )
+        ).fetchone()
+        ids[id(w)] = one(row)["id"]
+    return ids
 
 
 def run(conn: Conn, detector_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunResult:
@@ -90,7 +97,9 @@ def run(conn: Conn, detector_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunRe
             break
         closed, opened = step(config, state, [(r["at"], r["value"]) for r in rows])
         touched = {id(w): w for w in [*opened, *closed, *([state.open] if state.open else [])]}
-        _save(conn, detector, list(touched.values()))
+        ids = _save(conn, detector, list(touched.values()))
+        for w in opened:
+            result.notified += notify.queue_raised(conn, ids[id(w)], w.started_at, now)
         result.readings += len(rows)
         result.opened += len(opened)
         result.closed += len(closed)
