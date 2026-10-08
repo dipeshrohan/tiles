@@ -127,6 +127,24 @@ export type SignalChange = Partial<
   Pick<SignalInfo, 'unit' | 'sample_rate_hz' | 'description' | 'node_id' | 'range_min' | 'range_max' | 'stuck_after_s'>
 >;
 
+// A signal's readings over a range (T2.10): as they are (bucket_s null), or bucketed.
+export interface SignalSeries {
+  signal_id: string;
+  tag: string;
+  unit: string | null;
+  start: string;
+  end: string;
+  bucket_s: number | null;
+  points: {
+    at: string; // the reading's time, or the bucket's start
+    value: number | null; // null for text
+    min: number | null;
+    max: number | null;
+    n: number;
+    text: string | null;
+  }[];
+}
+
 // One bulk import of readings from a file (T2.07).
 export interface ImportRun {
   id: string;
@@ -280,6 +298,14 @@ export function createApiClient(options: ApiOptions) {
           'POST',
           `/sites/${encodeURIComponent(siteId)}/signals/quality`,
           { ...(signalIds ? { signal_ids: signalIds } : {}), ...(hours ? { hours } : {}) },
+        ),
+      get: (siteId: string, signalId: string) =>
+        request<SignalInfo>('GET', `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`),
+      // Readings from `from` (included) to `to` (excluded), in at most `points` buckets (T2.10).
+      series: (siteId: string, signalId: string, from: string, to: string, points: number) =>
+        request<SignalSeries>(
+          'GET',
+          `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}/series?${new URLSearchParams({ from, to, points: String(points) }).toString()}`,
         ),
     },
     // Bulk imports of readings (T2.07): start one, send its readings in batches, finish it.

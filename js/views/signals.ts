@@ -24,7 +24,7 @@ let resultsQuery = ''; // and the search they answer
 let saving: string | null = null; // the signal whose change is being saved
 
 // Which catalogue is shown: the API, the site and who is asking. Results from another are never shown.
-const catalogue = (ctx: Context): string =>
+export const catalogue = (ctx: Context): string =>
   [ctx.api?.baseUrl ?? '', ctx.ontology.site?.id ?? '', ctx.state.user.email, ctx.auth.signedIn].join('|');
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -185,7 +185,7 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
     <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals
       .map(
         (s) =>
-          `<tr data-row="${esc(s.id)}"><td><code>${esc(s.tag)}</code></td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
+          `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a></td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
             <td>${esc(s.unit ?? '—')}</td><td>${s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
             <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>

@@ -247,3 +247,133 @@ export function heatmap({
     <text class="axis" x="12" y="${10 + (height - bottom) / 2}" transform="rotate(-90 12 ${10 + (height - bottom) / 2})" text-anchor="middle">${esc(yLabel)}</text>
   </svg>`;
 }
+
+// ---- time series (Data Explorer) ------------------------------------------
+
+// A point at time `t` (ms since 1970); `lo`/`hi` are a bucket's minimum and maximum.
+export interface TimePoint {
+  t: number;
+  v: number;
+  lo: number;
+  hi: number;
+}
+
+export interface TimeChartOptions {
+  points: TimePoint[];
+  from: number; // the x axis, ms since 1970
+  to: number;
+  gap: number; // points further apart than this (ms) are not joined
+  color?: string;
+  width?: number;
+  height?: number;
+  yLabel?: string;
+}
+
+export const TIME_CHART = { width: 900, height: 220, pad: PAD };
+
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const STEPS = [
+  SECOND,
+  5 * SECOND,
+  15 * SECOND,
+  30 * SECOND,
+  MINUTE,
+  5 * MINUTE,
+  15 * MINUTE,
+  30 * MINUTE,
+  HOUR,
+  3 * HOUR,
+  6 * HOUR,
+  12 * HOUR,
+  DAY,
+  2 * DAY,
+  7 * DAY,
+  14 * DAY,
+  30 * DAY,
+  91 * DAY,
+  182 * DAY,
+  365 * DAY,
+];
+
+// About `n` tick times between from and to, on round local times (whole minutes, hours, days).
+export function timeTicks(from: number, to: number, n = 6): { step: number; ticks: number[] } {
+  const step = STEPS.find((s) => (to - from) / s <= n) ?? STEPS[STEPS.length - 1]!;
+  // Align to local time, so hour and day ticks fall on the hour and at midnight.
+  const offset = new Date(from).getTimezoneOffset() * MINUTE;
+  const ticks: number[] = [];
+  for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) ticks.push(t);
+  return { step, ticks };
+}
+
+export function tickLabel(t: number, step: number): string {
+  const d = new Date(t);
+  const two = (n: number) => String(n).padStart(2, '0');
+  const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE ? `:${two(d.getSeconds())}` : ''}`;
+  const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (step >= DAY) return date;
+  return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 ? date : time;
+}
+
+// The time under x (in chart units), kept within the axis.
+export function timeAt(x: number, from: number, to: number, width = TIME_CHART.width): number {
+  const left = PAD.l;
+  const right = width - PAD.r;
+  const share = Math.min(1, Math.max(0, (x - left) / (right - left)));
+  return from + share * (to - from);
+}
+
+export function timeChart({
+  points,
+  from,
+  to,
+  gap,
+  color = 'var(--accent)',
+  width = TIME_CHART.width,
+  height = TIME_CHART.height,
+  yLabel = '',
+}: TimeChartOptions): string {
+  const shown = points.filter((p) => p.t >= from && p.t <= to);
+  if (!shown.length)
+    return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}"><text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
+  let lo = Math.min(...shown.map((p) => p.lo));
+  let hi = Math.max(...shown.map((p) => p.hi));
+  if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
+  const x = scale(from, to, PAD.l, width - PAD.r);
+  const y = scale(lo, hi, height - PAD.b, PAD.t);
+  // Runs of points close enough to join.
+  const runs: TimePoint[][] = [];
+  shown.forEach((p, i) => {
+    const prev = shown[i - 1];
+    if (!prev || p.t - prev.t > gap) runs.push([p]);
+    else runs[runs.length - 1]!.push(p);
+  });
+  const xy = (t: number, v: number) => `${x(t).toFixed(1)},${y(v).toFixed(1)}`;
+  const band = runs
+    .filter((r) => r.some((p) => p.hi > p.lo))
+    .map(
+      (r) =>
+        `<path d="M${r.map((p) => xy(p.t, p.hi)).join('L')}L${[...r]
+          .reverse()
+          .map((p) => xy(p.t, p.lo))
+          .join('L')}Z" fill="${color}" fill-opacity="0.18" stroke="none"/>`,
+    )
+    .join('');
+  const lines = runs
+    .map((r) =>
+      r.length === 1
+        ? `<circle cx="${x(r[0]!.t).toFixed(1)}" cy="${y(r[0]!.v).toFixed(1)}" r="2" fill="${color}"/>`
+        : `<path d="M${r.map((p) => xy(p.t, p.v)).join('L')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>`,
+    )
+    .join('');
+  const yt = ticks(lo, hi, 4);
+  const { step, ticks: xt } = timeTicks(from, to);
+  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
+    ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join('')}
+    ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join('')}
+    ${band}${lines}
+    ${yLabel ? `<text class="axis" x="4" y="${PAD.t - 10}">${esc(yLabel)}</text>` : ''}
+  </svg>`;
+}
