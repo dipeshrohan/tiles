@@ -33,6 +33,39 @@ export function createFakeApi({
   const agents = []; // { id, name, token, created_at, last_seen_at, hostname, version }
   const imports = []; // newest first: { id, name, created_by, created_at, received, stored, finished_at }
   const samples = new Map(); // "signal|at" -> value: readings stored by imports
+  const signals = []; // the catalogue: { id, tag, unit, sample_rate_hz, source, description, node_id, created_at }
+  const addSignal = (tag, extra = {}) => {
+    let sig = signals.find((x) => x.tag === tag);
+    if (!sig) {
+      sig = {
+        id: randomUUID(),
+        tag,
+        unit: null,
+        sample_rate_hz: null,
+        source: 'manual',
+        description: '',
+        node_id: null,
+      };
+      sig.created_at = new Date().toISOString();
+      signals.push(sig);
+      signals.sort((a, b) => a.tag.localeCompare(b.tag));
+    }
+    return Object.assign(sig, extra);
+  };
+  // Like the API: the node's label (if it's in the committed ontology) and the latest reading.
+  const slowSearches = new Map(); // search text -> ms to wait before answering
+  const failingSearches = new Set(); // search texts answered with an error
+  let slowSaves = 0; // ms before a signal change is answered
+  const signalView = (sig) => {
+    const mine = [...samples.entries()].filter(([k]) => k.startsWith(`${sig.tag}|`)).sort();
+    const last = mine.at(-1);
+    return {
+      ...sig,
+      node_label: (sig.node_id && head.nodes[sig.node_id]?.label) || null,
+      last_at: last ? last[0].split('|')[1] : null,
+      last_value: last ? last[1] : null,
+    };
+  };
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
@@ -56,7 +89,7 @@ export function createFakeApi({
     };
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'content-type, x-tiles-user, authorization');
-    res.setHeader('access-control-allow-methods', 'GET, POST, DELETE');
+    res.setHeader('access-control-allow-methods', 'GET, POST, PATCH, DELETE');
     if (req.method === 'OPTIONS') return send(204);
     const url = new URL(req.url, 'http://fake');
     requests.push(`${req.method} ${url.pathname}`);
@@ -130,7 +163,8 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/me` &&
         !url.pathname.endsWith('/audit') &&
         !url.pathname.startsWith(agentsPath) &&
-        !url.pathname.startsWith(`/sites/${site.id}/imports`)
+        !url.pathname.startsWith(`/sites/${site.id}/imports`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/signals`)
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
@@ -195,6 +229,7 @@ export function createFakeApi({
         const batch = (await body(req)).samples;
         let stored = 0;
         for (const s of batch) {
+          if (!signals.some((x) => x.tag === s.signal)) addSignal(s.signal, { source: `import:${run.name}` });
           const key = `${s.signal}|${s.at}`;
           if (!samples.has(key)) {
             samples.set(key, s.value);
@@ -204,6 +239,46 @@ export function createFakeApi({
         run.received += batch.length;
         run.stored += stored;
         return send(200, { received: batch.length, stored });
+      }
+      const signalsPath = `/sites/${site.id}/signals`;
+      if (url.pathname === signalsPath && req.method === 'GET') {
+        const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+        const delay = slowSearches.get(q);
+        if (delay) await new Promise((r) => setTimeout(r, delay));
+        if (failingSearches.has(q)) return send(503, { detail: 'The catalogue is busy' });
+        const source = url.searchParams.get('source') ?? '';
+        const linked = url.searchParams.get('linked') ?? '';
+        const found = signals
+          .map(signalView)
+          .filter(
+            (x) =>
+              (!q || [x.tag, x.description, x.node_label ?? ''].some((t) => t.toLowerCase().includes(q))) &&
+              (!source || (source === 'manual' ? x.source === 'manual' : x.source.startsWith(`${source}:`))) &&
+              (!linked || (linked === 'yes') === (x.node_id !== null)),
+          );
+        const offset = Number(url.searchParams.get('offset') ?? 0);
+        const limit = Number(url.searchParams.get('limit') ?? 100);
+        return send(200, { total: found.length, signals: found.slice(offset, offset + limit) });
+      }
+      const sig = signals.find((x) => url.pathname === `${signalsPath}/${x.id}`);
+      if (url.pathname.startsWith(`${signalsPath}/`)) {
+        if (!sig) return send(404, { detail: 'No such signal on this site' });
+        if (req.method === 'GET') return send(200, signalView(sig));
+        if (role === 'viewer')
+          return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+        const change = await body(req);
+        if (slowSaves) await new Promise((r) => setTimeout(r, slowSaves));
+        if (change.node_id) {
+          if (head.nodes[change.node_id]?.type !== 'Signal')
+            return send(422, {
+              detail: `${change.node_id} is not a Signal node of the committed ontology; commit it there first`,
+            });
+          const other = signals.find((x) => x !== sig && x.node_id === change.node_id);
+          if (other) return send(409, { detail: `${change.node_id} is already linked to ${other.tag}` });
+        }
+        if ('description' in change && change.description === null) change.description = '';
+        Object.assign(sig, change);
+        return send(200, signalView(sig));
       }
       if (url.pathname === `/sites/${site.id}/audit`)
         return role === 'admin'
@@ -281,6 +356,20 @@ export function createFakeApi({
     },
     // The readings imports have stored, as "signal|at" -> value.
     samples,
+    // Adds a signal to the catalogue (or changes one), as an agent or an engineer would.
+    addSignal,
+    // Makes the catalogue answer a search for `q` only after `ms`.
+    slowSearch(q, ms) {
+      slowSearches.set(q, ms);
+    },
+    // Makes signal changes take `ms` to be answered.
+    slowSave(ms) {
+      slowSaves = ms;
+    },
+    // Makes the catalogue answer a search for `q` with an error.
+    failSearch(q) {
+      failingSearches.add(q);
+    },
     // Lets a test change a user's role, as a site admin would.
     setRole(user, role) {
       roles[user] = role;

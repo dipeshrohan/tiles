@@ -10,7 +10,7 @@ import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
 import { createFakeApi } from './fake-api.js';
 
-const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'import', 'settings'];
+const PAGES = ['', 'chat', 'ontology', 'quality', 'physics', 'design', 'signals', 'import', 'settings'];
 const VARIANTS = [
   { name: 'light desktop', colorScheme: 'light', viewport: { width: 1360, height: 900 } },
   { name: 'dark desktop', colorScheme: 'dark', viewport: { width: 1360, height: 900 } },
@@ -255,6 +255,18 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   assert.match(await a.page.locator('.commit').first().innerText(), /Revert "add shift notes"/);
 
   assert.deepEqual([...a.errors, ...b.errors], []);
+});
+
+test('the signals page says why it has no site, rather than asking to connect again', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=http://127.0.0.1:1#/signals`);
+  await page.waitForSelector('#view:has-text("The site could not be loaded from the Tiles API: Can\'t reach")');
+  assert.equal(await page.locator('#view a[href="#/settings"]').count(), 0);
+  assert.deepEqual(
+    errors.filter((e) => !/Failed to load resource|ERR_CONNECTION_REFUSED/.test(e)),
+    [],
+  );
 });
 
 test('ontology page explains when the API is unreachable, and local mode is untouched', async (t) => {
@@ -671,6 +683,290 @@ test('viewers see past imports but cannot run one', async (t) => {
   await page.waitForSelector('[data-import-history] td:has-text("line-2.csv")');
   assert.match(await page.locator('#view').innerText(), /Your role on this site is viewer/);
   assert.equal(await page.locator('[data-import-file]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('the signal catalogue: search, describe a signal and link it to its ontology node', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [
+      {
+        kind: 'addNode',
+        node: { id: 'sig-p1-temp', type: 'Signal', label: 'Press 1 temperature', props: { unit: '°C' } },
+      },
+    ],
+    'add signal node',
+  );
+  fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge' });
+  fake.addSignal('press1.force', { source: 'edge:press-shop-edge' });
+  fake.addSignal('oven.temp', { source: 'import:oven.csv' });
+  fake.samples.set('press1.temperature|2026-10-08T06:00:00.000000Z', 21.5);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("3 signal(s)")');
+  await page.fill('#signal-search [name=q]', 'press1');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.selectOption('#signal-search [name=linked]', 'no');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+
+  const row = page.locator('tr', { hasText: 'press1.temperature' }).first();
+  assert.match(await row.innerText(), /Edge agent press-shop-edge/);
+  await row.locator('[data-edit]').click();
+  await page.fill('#signal-form [name=unit]', '°C');
+  await page.fill('#signal-form [name=rate]', '10');
+  await page.fill('#signal-form [name=description]', 'Platen, upper');
+  await page.selectOption('#signal-form [name=node]', 'sig-p1-temp');
+  await page.click('#signal-form button[type=submit]');
+  // Linked now, it leaves the "Not linked" list.
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  assert.equal(await page.locator('tr', { hasText: 'press1.temperature' }).count(), 0);
+  assert.equal(await page.locator('#signal-form').count(), 0);
+
+  await page.selectOption('#signal-search [name=linked]', 'yes');
+  await page.waitForSelector('[data-signal-results] a:has-text("Press 1 temperature")');
+  assert.match(await page.locator('tr', { hasText: 'press1.temperature' }).first().innerText(), /21\.5 °C/);
+  assert.deepEqual(errors, []);
+});
+
+test("switching to another Tiles API never shows the previous one's signals", async (t) => {
+  const first = createFakeApi();
+  const second = createFakeApi();
+  const [firstUrl, secondUrl] = await Promise.all([first.listen(), second.listen()]);
+  t.after(() => Promise.all([first.close(), second.close()]));
+  first.addSignal('first.tag');
+  second.addSignal('second.tag');
+  second.slowSearch('', 1500);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  const show = (hash) => page.evaluate((h) => (location.hash = h), hash); // the same page, not a reload
+  const useApi = async (url) => {
+    await show('#/settings');
+    await page.waitForSelector('#datasource');
+    await page.fill('#datasource [name=apiUrl]', url);
+    await page.check('#datasource [name=mode][value=api]');
+    await page.click('#datasource button[type=submit]');
+  };
+  await page.goto(`${httpBase}#/settings`);
+  await useApi(firstUrl);
+  await show('#/signals');
+  await page.waitForSelector('[data-signal-results] code:has-text("first.tag")');
+  await useApi(secondUrl);
+  await show('#/signals');
+  await page.waitForSelector('[data-signal-results]:has-text("Loading")');
+  assert.equal(await page.locator('[data-signal-results] code:has-text("first.tag")').count(), 0);
+  await page.waitForSelector('[data-signal-results] code:has-text("second.tag")');
+  assert.deepEqual(errors, []);
+});
+
+test('leaving the signals page mid-search never leaves it loading', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature');
+  fake.addSignal('oven.temp');
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  fake.slowSearch('oven', 600);
+  await page.fill('#signal-search [name=q]', 'oven');
+  // Away and back before the typed search is sent, while the page's own search is still waiting.
+  await page.evaluate(() => {
+    location.hash = '#/import';
+    location.hash = '#/signals';
+  });
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForTimeout(800);
+  assert.match(await page.locator('[data-signal-results]').innerText(), /oven\.temp/);
+  assert.deepEqual(errors, []);
+});
+
+test('an edit started while the list refreshes survives the refresh, and a failed one', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.evaluate(() => (location.hash = '#/import'));
+  // Back on the page: the last list shows at once while a slow refresh runs.
+  fake.slowSearch('', 1200);
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=unit]', 'bar');
+  await page.waitForTimeout(1500); // the refresh lands
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), 'bar');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'unit');
+  // A refresh that fails keeps the list and the form.
+  fake.failSearch('');
+  await page.evaluate(() => (location.hash = '#/import'));
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.fill('#signal-form [name=unit]', 'kPa'); // the form is still open
+  await page.waitForSelector('#toast:has-text("The catalogue is busy")');
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), 'kPa');
+  assert.match(await page.locator('[data-signal-results]').innerText(), /oven\.temp/);
+  assert.deepEqual(
+    errors.filter((e) => !/status of 503/.test(e)), // the browser logs the failed request
+    [],
+  );
+});
+
+test("a refresh keeps only the fields being edited, and another engineer's change shows", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp', { description: 'Zone 1' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.evaluate(() => (location.hash = '#/import'));
+  fake.slowSearch('', 1200);
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.click('[data-edit]');
+  fake.addSignal('oven.temp', { description: 'Zone 1, upper' }); // another engineer, meanwhile
+  await page.fill('#signal-form [name=unit]', '°C');
+  await page.waitForTimeout(1500); // the refresh lands
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), '°C');
+  assert.equal(await page.inputValue('#signal-form [name=description]'), 'Zone 1, upper');
+  assert.deepEqual(errors, []);
+});
+
+test('a description with line breaks is not rewritten by an edit to another field', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const sig = fake.addSignal('oven.temp', { description: 'Zone 1\nupper heater' }); // as the API allows
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=rate]', '5');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Saved oven.temp")');
+  assert.equal(sig.sample_rate_hz, 5);
+  assert.equal(sig.description, 'Zone 1\nupper heater');
+  assert.deepEqual(errors, []);
+});
+
+test('the edit form is locked while its change is saved', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  fake.slowSave(800);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=unit]', '°C');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#signal-form button[type=submit]:has-text("Saving")');
+  assert.equal(await page.locator('#signal-form [name=description]').isDisabled(), true);
+  await page.locator('#signal-form').evaluate((f) => f.requestSubmit()); // a second submit is ignored
+  await page.waitForSelector('#toast:has-text("Saved oven.temp")');
+  assert.equal(fake.requests.filter((r) => r.startsWith('PATCH ')).length, 1);
+  assert.deepEqual(errors, []);
+});
+
+test('a save that finishes late never closes another signal opened meanwhile', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('a.flow');
+  fake.addSignal('b.flow');
+  fake.slowSave(800);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.locator('tr', { hasText: 'a.flow' }).first().locator('[data-edit]').click();
+  await page.fill('#signal-form [name=unit]', 'm³/h');
+  await page.click('#signal-form button[type=submit]');
+  await page.locator('tr', { hasText: 'b.flow' }).first().locator('[data-edit]').click(); // while a.flow saves
+  await page.fill('#signal-form [name=description]', 'Return line');
+  await page.click('#signal-form button[type=submit]'); // b.flow can't be saved until a.flow is
+  await page.waitForSelector('#toast:has-text("Wait for a.flow to be saved, then save this one")');
+  await page.waitForSelector('#toast:has-text("Saved a.flow")');
+  await page.waitForTimeout(300);
+  assert.equal(await page.inputValue('#signal-form [name=description]'), 'Return line');
+  assert.match(await page.locator('[data-signal-results]').innerText(), /m³\/h/);
+  assert.deepEqual(errors, []);
+});
+
+test('changing a filter just before leaving never shows the old results on return', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp', { source: 'import:oven.csv' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-results] code:has-text("oven.temp")');
+  fake.slowSearch('', 1500);
+  await page.selectOption('#signal-search [name=source]', 'edge');
+  await page.evaluate(() => (location.hash = '#/import')); // within the debounce
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.waitForSelector('[data-signal-results]:has-text("Loading")');
+  assert.equal(await page.locator('[data-signal-results] code:has-text("oven.temp")').count(), 0);
+  await page.waitForSelector('[data-signal-results]:has-text("No signals match")');
+  assert.deepEqual(errors, []);
+});
+
+test('a search typed just before leaving the signals page is never sent', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  const searches = () => fake.requests.filter((r) => /^GET \/sites\/[^/]+\/signals$/.test(r)).length;
+  const before = searches();
+  await page.fill('#signal-search [name=q]', 'oven');
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.waitForTimeout(600); // past the debounce
+  assert.equal(searches(), before);
+  assert.deepEqual(errors, []);
+});
+
+test('a slow answer to an earlier search never replaces the current one', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge' });
+  fake.addSignal('oven.temp', { source: 'import:oven.csv' });
+  fake.slowSearch('press', 1500);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.fill('#signal-search [name=q]', 'press');
+  await page.waitForTimeout(400); // the slow search is sent
+  await page.fill('#signal-search [name=q]', 'oven');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForTimeout(1600); // the slow answer arrives, and is dropped
+  assert.match(await page.locator('[data-signal-results] tbody').innerText(), /oven\.temp/);
+  assert.doesNotMatch(await page.locator('[data-signal-results] tbody').innerText(), /press1/);
+  assert.deepEqual(errors, []);
+});
+
+test('viewers browse the signal catalogue but cannot edit it', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge', unit: '°C' });
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  assert.equal(await page.locator('[data-edit]').count(), 0);
   assert.deepEqual(errors, []);
 });
 

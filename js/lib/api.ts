@@ -70,6 +70,31 @@ export interface EdgeAgent {
   } | null;
 }
 
+// A signal in the catalogue (T2.08): a tag, what is known about it, and its latest reading.
+export interface SignalInfo {
+  id: string;
+  tag: string;
+  unit: string | null;
+  sample_rate_hz: number | null;
+  source: string; // edge:<agent>, import:<file> or manual
+  description: string;
+  node_id: string | null;
+  node_label: string | null; // null when unlinked, or when the ontology no longer has it as a Signal node
+  created_at: string;
+  last_at: string | null;
+  last_value: number | string | boolean | null;
+}
+
+export interface SignalQuery {
+  q?: string;
+  source?: '' | 'edge' | 'import' | 'manual';
+  linked?: '' | 'yes' | 'no';
+  limit?: number;
+  offset?: number;
+}
+
+export type SignalChange = Partial<Pick<SignalInfo, 'unit' | 'sample_rate_hz' | 'description' | 'node_id'>>;
+
 // One bulk import of readings from a file (T2.07).
 export interface ImportRun {
   id: string;
@@ -110,7 +135,7 @@ export interface ApiOptions {
   fetch?: typeof fetch;
 }
 
-type Method = 'GET' | 'POST' | 'DELETE';
+type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 // FastAPI errors are {"detail": "..."} or, for validation, {"detail": [{loc, msg}, ...]}.
 function errorMessage(body: unknown, status: number): string {
@@ -199,6 +224,24 @@ export function createApiClient(options: ApiOptions) {
         request<{ agent: EdgeAgent; token: string }>('POST', `/sites/${encodeURIComponent(siteId)}/agents`, { name }),
       revoke: (siteId: string, agentId: string) =>
         request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/agents/${encodeURIComponent(agentId)}`),
+    },
+    // The signal catalogue (T2.08): search it, and describe or link a signal (engineers).
+    signals: {
+      list: (siteId: string, query: SignalQuery = {}) => {
+        const params = new URLSearchParams();
+        for (const [k, v] of Object.entries(query)) if (v !== undefined && v !== '') params.set(k, String(v));
+        const qs = params.toString();
+        return request<{ total: number; signals: SignalInfo[] }>(
+          'GET',
+          `/sites/${encodeURIComponent(siteId)}/signals${qs ? `?${qs}` : ''}`,
+        );
+      },
+      update: (siteId: string, signalId: string, change: SignalChange) =>
+        request<SignalInfo>(
+          'PATCH',
+          `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}`,
+          change,
+        ),
     },
     // Bulk imports of readings (T2.07): start one, send its readings in batches, finish it.
     imports: {
