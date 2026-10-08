@@ -656,12 +656,35 @@ test('the signal catalogue: search, describe a signal and link it to its ontolog
   await page.fill('#signal-form [name=description]', 'Platen, upper');
   await page.selectOption('#signal-form [name=node]', 'sig-p1-temp');
   await page.click('#signal-form button[type=submit]');
-  await page.waitForSelector('[data-signal-results] a:has-text("Press 1 temperature")');
-  assert.match(await page.locator('tr', { hasText: 'press1.temperature' }).first().innerText(), /21\.5 °C/);
+  // Linked now, it leaves the "Not linked" list.
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  assert.equal(await page.locator('tr', { hasText: 'press1.temperature' }).count(), 0);
   assert.equal(await page.locator('#signal-form').count(), 0);
 
   await page.selectOption('#signal-search [name=linked]', 'yes');
+  await page.waitForSelector('[data-signal-results] a:has-text("Press 1 temperature")');
+  assert.match(await page.locator('tr', { hasText: 'press1.temperature' }).first().innerText(), /21\.5 °C/);
+  assert.deepEqual(errors, []);
+});
+
+test('a slow answer to an earlier search never replaces the current one', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge' });
+  fake.addSignal('oven.temp', { source: 'import:oven.csv' });
+  fake.slowSearch('press', 1500);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.fill('#signal-search [name=q]', 'press');
+  await page.waitForTimeout(400); // the slow search is sent
+  await page.fill('#signal-search [name=q]', 'oven');
   await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForTimeout(1600); // the slow answer arrives, and is dropped
+  assert.match(await page.locator('[data-signal-results] tbody').innerText(), /oven\.temp/);
+  assert.doesNotMatch(await page.locator('[data-signal-results] tbody').innerText(), /press1/);
   assert.deepEqual(errors, []);
 });
 
