@@ -37,6 +37,8 @@ export interface ImportStats {
   last: string | null;
   skipped: Record<string, number>;
   examples: { row: number; message: string }[];
+  // long: the raw tag each signal name came from, to catch two tags that become one name
+  tagSources: Map<string, string>;
 }
 
 export const TAG_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
@@ -125,24 +127,36 @@ const ISO =
   /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?\s*(Z|[+-]\d{2}(?::?\d{2})?)?$/i;
 const DAY_MONTH = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?$/;
 
+// Times keep microseconds, the database's own precision: historian exports often have them,
+// and rounding to milliseconds would merge readings. Finer digits are dropped.
 function wallClock(y: number, mo: number, d: number, h: number, mi: number, s: number, frac: string): number | null {
-  const ms = frac ? Math.round(Number(`0.${frac}`) * 1000) : 0;
-  const t = Date.UTC(y, mo - 1, d, h, mi, s, ms);
+  const micros = Number(frac.padEnd(6, '0').slice(0, 6));
+  const t = Date.UTC(y, mo - 1, d, h, mi, s, Math.floor(micros / 1000));
   const back = new Date(t);
   // Reject 31.02. or 25:00, which Date.UTC would quietly roll over.
   if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
   if (h > 23 || mi > 59 || s > 59) return null;
-  return t;
+  return t + (micros % 1000) / 1000;
 }
 
-// A cell as an instant (milliseconds since the epoch, UTC), or null if it isn't a time in this format.
+// An instant (milliseconds, with microseconds as the fraction) as ISO 8601 in UTC, always with
+// six fractional digits, so the strings also sort in time order.
+export function isoTime(t: number): string {
+  let whole = Math.floor(t);
+  let micros = Math.round((t - whole) * 1000);
+  if (micros === 1000) [whole, micros] = [whole + 1, 0];
+  return `${new Date(whole).toISOString().slice(0, -1)}${String(micros).padStart(3, '0')}Z`;
+}
+
+// A cell as an instant (milliseconds since the epoch, UTC, with microseconds as the fraction),
+// or null if it isn't a time in this format.
 export function parseTime(cell: string, format: TimeFormat, zone: string): number | null {
   const s = cell.trim();
   if (format === 'epoch-s' || format === 'epoch-ms') {
     const n = parseNumber(s, false);
     if (n === null) return null;
     const t = format === 'epoch-s' ? n * 1000 : n;
-    return Math.abs(t) < 8.64e15 ? Math.round(t) : null;
+    return Math.abs(t) < 8.64e15 ? Math.round(t * 1000) / 1000 : null;
   }
   if (format === 'iso') {
     const m = ISO.exec(s);
@@ -154,8 +168,9 @@ export function parseTime(cell: string, format: TimeFormat, zone: string): numbe
     if (offset.toUpperCase() === 'Z') return wall;
     const sign = offset.startsWith('-') ? -1 : 1;
     const digits = offset.slice(1).replace(':', '');
-    const minutes = Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2, 4) || 0);
-    return wall - sign * minutes * 60_000;
+    const [hours, minutes] = [Number(digits.slice(0, 2)), Number(digits.slice(2, 4) || 0)];
+    if (hours > 23 || minutes > 59) return null; // +24:00 or +00:99 is no offset
+    return wall - sign * (hours * 60 + minutes) * 60_000;
   }
   const m = DAY_MONTH.exec(s);
   if (!m) return null;
@@ -224,7 +239,9 @@ export function mappingProblems(header: string[], m: ImportMapping): string[] {
   if (!isTimeZone(m.timeZone)) problems.push(`“${m.timeZone}” isn't a time zone, e.g. UTC or Europe/Berlin.`);
   if (m.long) {
     const { tagColumn, valueColumn } = m.long;
-    if (new Set([m.timeColumn, tagColumn, valueColumn]).size < 3)
+    const inFile = (i: number) => i >= 0 && i < header.length;
+    if (!inFile(tagColumn) || !inFile(valueColumn)) problems.push('Choose the tag column and the value column.');
+    else if (new Set([m.timeColumn, tagColumn, valueColumn]).size < 3)
       problems.push('The time, tag and value columns must be three different columns.');
   } else {
     const tags = Object.values(m.columns);
@@ -240,7 +257,16 @@ export function mappingProblems(header: string[], m: ImportMapping): string[] {
 }
 
 function emptyStats(): ImportStats {
-  return { readings: 0, rows: 0, signals: new Set(), first: null, last: null, skipped: {}, examples: [] };
+  return {
+    readings: 0,
+    rows: 0,
+    signals: new Set(),
+    first: null,
+    last: null,
+    skipped: {},
+    examples: [],
+    tagSources: new Map(),
+  };
 }
 
 // The readings in `rows` (data rows, without the header), in file order. `stats` counts what
@@ -273,13 +299,21 @@ export function* readings(
       skip(line, 'time in the future', `“${timeCell}”`);
       continue;
     }
-    const at = new Date(t).toISOString();
+    const at = isoTime(t);
     const cells: [string, string][] = m.long
       ? (() => {
           const raw = row[m.long.tagColumn] ?? '';
           const tag = slugTag(raw);
           if (!tag) {
             skip(line, 'unusable tag', `“${raw}”`);
+            return [];
+          }
+          // TT 101 and TT-101 both become tt-101: the first one seen keeps the name, and the
+          // other is skipped rather than merged into it.
+          const source = stats.tagSources.get(tag);
+          if (source === undefined) stats.tagSources.set(tag, raw);
+          else if (source !== raw) {
+            skip(line, 'tag that clashes with another', `“${raw}” and “${source}” both become ${tag}`);
             return [];
           }
           return [[tag, row[m.long.valueColumn] ?? '']];

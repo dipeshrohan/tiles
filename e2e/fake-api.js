@@ -12,6 +12,7 @@ import { applyOp, commit, createRepo, revert, stage, workingGraph, healthCheck }
 // `slowWritesMs` delays batch staging, to test answers that arrive late.
 // `roles` maps a user's email to their site role (engineer by default).
 // `slowAuthConfigMs` delays /auth/config, to test background re-renders.
+// `failImportFinish` makes finishing an import fail, as a dropped connection would.
 export function createFakeApi({
   oidc = false,
   requireSignIn = false,
@@ -19,6 +20,7 @@ export function createFakeApi({
   slowWritesMs = 0,
   roles = {},
   slowAuthConfigMs = 0,
+  failImportFinish = false,
 } = {}) {
   let origin = '';
   const codes = new Map(); // code -> { challenge, redirectUri }
@@ -185,6 +187,7 @@ export function createFakeApi({
         const run = m && imports.find((r) => r.id === m[1]);
         if (!run) return send(404, { detail: 'No such import on this site' });
         if (run.finished_at) return send(409, { detail: 'This import is finished; start a new one' });
+        if (m[2] === 'finish' && failImportFinish) return send(503, { detail: 'Tiles is restarting' });
         if (m[2] === 'finish') {
           run.finished_at = new Date().toISOString();
           return send(200, run);

@@ -4,19 +4,26 @@
 
 export type Delimiter = ',' | ';' | '\t';
 
-// The delimiter that splits the first line into the most fields (outside quotes).
+// The delimiter that splits the first record into the most fields (outside quotes).
 // European exports often use ';' because ',' is their decimal separator.
 export function detectDelimiter(text: string): Delimiter {
-  const body = text.charCodeAt(0) === 0xfeff ? text.slice(1) : text; // a byte-order mark
-  const firstLine = body.split(/\r?\n/, 1)[0] ?? '';
+  // The first record: up to the first line break outside quotes (a quoted header may span lines).
+  let quoted = false;
+  let end = 0;
+  for (; end < text.length; end++) {
+    const ch = text[end];
+    if (ch === '"') quoted = !quoted;
+    else if ((ch === '\n' || ch === '\r') && !quoted) break;
+  }
+  const first = text.slice(0, end);
   let best: Delimiter = ',';
   let bestCount = 0;
   for (const d of [',', ';', '\t'] as const) {
     let count = 0;
-    let quoted = false;
-    for (const ch of firstLine) {
-      if (ch === '"') quoted = !quoted;
-      else if (ch === d && !quoted) count++;
+    let inside = false;
+    for (const ch of first) {
+      if (ch === '"') inside = !inside;
+      else if (ch === d && !inside) count++;
     }
     if (count > bestCount) [best, bestCount] = [d, count];
   }

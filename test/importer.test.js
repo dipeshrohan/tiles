@@ -4,6 +4,7 @@ import { detectDelimiter, parseCsv } from '../js/lib/csv.ts';
 import {
   guessTimeFormat,
   inBatches,
+  isoTime,
   mappingProblems,
   parseNumber,
   parseTime,
@@ -31,6 +32,7 @@ test('CSV fields may be quoted, hold delimiters, quotes and line breaks', () => 
   assert.equal(detectDelimiter('Zeit;Temp;"a;b"\n'), ';');
   assert.equal(detectDelimiter('time\ttemp\n'), '\t');
   assert.equal(detectDelimiter('"a,b";c\n'), ';'); // commas inside quotes don't count
+  assert.equal(detectDelimiter('"Temp\nin °C";"Druck, bar";Zeit\n1;2;3\n'), ';'); // a header spanning lines
   assert.deepEqual(parseCsv('a,b'), [['a', 'b']]); // no final line break
 });
 
@@ -66,11 +68,44 @@ test('times in each format, with or without an offset', () => {
   assert.equal(at('10/01/2026 08:00:30', 'mdy'), '2026-10-01T08:00:30.000Z');
   assert.equal(at('1790000000', 'epoch-s'), '2026-09-21T14:13:20.000Z');
   assert.equal(at('1790000000123', 'epoch-ms'), '2026-09-21T14:13:20.123Z');
+  // Offsets that aren't offsets are refused, not applied.
+  assert.equal(at('2026-10-01T08:00+24:00', 'iso'), null);
+  assert.equal(at('2026-10-01T08:00+00:99', 'iso'), null);
   // Impossible dates and times are refused, not rolled over.
   assert.equal(at('2026-02-30 08:00', 'iso'), null);
   assert.equal(at('31.04.2026', 'dmy'), null);
   assert.equal(at('2026-10-01 25:00', 'iso'), null);
   assert.equal(at('yesterday', 'iso'), null);
+});
+
+test('times keep microseconds, so close readings stay apart', () => {
+  const t1 = parseTime('2026-10-01T08:00:00.0001Z', 'iso', 'UTC');
+  const t2 = parseTime('2026-10-01T08:00:00.0004Z', 'iso', 'UTC');
+  assert.equal(isoTime(t1), '2026-10-01T08:00:00.000100Z');
+  assert.equal(isoTime(t2), '2026-10-01T08:00:00.000400Z');
+  assert.equal(
+    isoTime(parseTime('01.10.2026 10:00:00.123456789', 'dmy', 'Europe/Berlin')),
+    '2026-10-01T08:00:00.123456Z',
+  );
+  assert.equal(isoTime(parseTime('1790000000.000123', 'epoch-s', 'UTC')), '2026-09-21T14:13:20.000123Z');
+  assert.equal(isoTime(Date.UTC(2026, 9, 1) + 0.9996), '2026-10-01T00:00:00.001000Z'); // rounds up across a millisecond
+  const rows = [
+    ['2026-10-01T08:00:00.0001Z', '1'],
+    ['2026-10-01T08:00:00.0004Z', '2'],
+  ];
+  const m = {
+    timeColumn: 0,
+    timeFormat: 'iso',
+    timeZone: 'UTC',
+    decimalComma: false,
+    keepText: false,
+    columns: { 1: 'v' },
+    long: null,
+  };
+  assert.deepEqual(
+    [...readings(rows, m, undefined, NOW)].map((r) => r.at),
+    ['2026-10-01T08:00:00.000100Z', '2026-10-01T08:00:00.000400Z'],
+  );
 });
 
 test('wall-clock times across daylight-saving changes', () => {
@@ -113,10 +148,10 @@ test('a wide file maps each numeric column to a signal', () => {
   assert.deepEqual(
     [...readings(rows, m, undefined, NOW)],
     [
-      { signal: 'press-1-temp', at: '2026-10-01T06:00:00.000Z', value: 21.5 },
-      { signal: 'press-1-state', at: '2026-10-01T06:00:00.000Z', value: 1 },
-      { signal: 'press-1-temp', at: '2026-10-01T06:01:00.000Z', value: 22 },
-      { signal: 'press-1-state', at: '2026-10-01T06:01:00.000Z', value: 1 },
+      { signal: 'press-1-temp', at: '2026-10-01T06:00:00.000000Z', value: 21.5 },
+      { signal: 'press-1-state', at: '2026-10-01T06:00:00.000000Z', value: 1 },
+      { signal: 'press-1-temp', at: '2026-10-01T06:01:00.000000Z', value: 22 },
+      { signal: 'press-1-state', at: '2026-10-01T06:01:00.000000Z', value: 1 },
     ],
   );
 });
@@ -134,6 +169,29 @@ test('a historian export maps each row by its tag', () => {
   assert.deepEqual(stats.skipped, { 'not a number': 1, 'unusable tag': 1 });
   assert.deepEqual(stats.examples[0], { row: 4, message: 'not a number: “Bad” in tt-101' });
   assert.equal(summarize(rows, { ...m, keepText: true }, NOW).readings, 3); // "Bad" kept as text
+});
+
+test('two historian tags that become one signal name are not merged', () => {
+  const header = ['tag', 'time', 'value'];
+  const rows = [
+    ['TT 101', '2026-10-01T08:00:00Z', '1'],
+    ['TT-101', '2026-10-01T08:00:00Z', '2'],
+    ['TT 101', '2026-10-01T08:01:00Z', '3'],
+  ];
+  const m = suggestMapping(header, rows, 'UTC');
+  const stats = summarize(rows, m, NOW);
+  assert.equal(stats.readings, 2);
+  assert.deepEqual(stats.skipped, { 'tag that clashes with another': 1 });
+  assert.deepEqual(stats.examples[0], {
+    row: 3,
+    message: 'tag that clashes with another: “TT-101” and “TT 101” both become tt-101',
+  });
+  assert.deepEqual(mappingProblems(header, { ...m, long: { tagColumn: 0, valueColumn: -1 } }), [
+    'Choose the tag column and the value column.',
+  ]);
+  assert.deepEqual(mappingProblems(header, { ...m, long: { tagColumn: 0, valueColumn: 3 } }), [
+    'Choose the tag column and the value column.',
+  ]);
 });
 
 test('rows that cannot be read are skipped and counted, not guessed', () => {
@@ -162,7 +220,7 @@ test('rows that cannot be read are skipped and counted, not guessed', () => {
     'time in the future': 1,
     'number too large to store exactly': 1,
   });
-  assert.deepEqual([stats.first, stats.last], ['2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z']);
+  assert.deepEqual([stats.first, stats.last], ['2026-10-01T00:00:00.000000Z', '2026-10-01T00:00:00.000000Z']);
   assert.deepEqual(mappingProblems(header, { ...m, columns: { 1: 'Bad Tag' } }), [
     '“Bad Tag”: signal names use lower-case letters, digits, dot, dash and underscore.',
   ]);

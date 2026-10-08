@@ -77,9 +77,16 @@ def start_import(ctx: Editor, body: ImportIn) -> Import:
 def import_samples(ctx: Editor, import_id: uuid.UUID, body: SamplesIn) -> SamplesOut:
     """One batch of an import's readings (at most 10,000). All or nothing: one invalid reading
     and the batch is refused (422), naming it."""
-    imp = _get(ctx, import_id)
-    if imp.finished_at is not None:
+    # Locks the import's row until this batch is stored, so finishing waits for it (and a batch
+    # that arrives after the finish is refused): the counts the finish records are final.
+    row = ctx.conn.execute(
+        "SELECT finished_at FROM imports WHERE id = %s AND site_id = %s FOR UPDATE", [import_id, ctx.site_id]
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such import on this site")
+    if row["finished_at"] is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "This import is finished; start a new one")
+    imp = _get(ctx, import_id)
     stored = store_samples(ctx.conn, ctx.site_id, f"import:{imp.name}", body.samples)
     ctx.conn.execute(
         "UPDATE imports SET received = received + %s, stored = stored + %s WHERE id = %s",

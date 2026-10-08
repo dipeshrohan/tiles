@@ -548,9 +548,9 @@ test('an engineer imports a CSV file, mapped to signals, and importing it again 
   await page.click('[data-import-run]');
   await page.waitForSelector('[data-import-progress]:has-text("Done. 3 new readings stored")');
   assert.deepEqual([...fake.samples.entries()].sort(), [
-    ['press1.pressure|2026-10-01T06:00:00.000Z', 3.5],
-    ['presse-1-temperatur|2026-10-01T06:00:00.000Z', 21.5],
-    ['presse-1-temperatur|2026-10-01T06:01:00.000Z', 22],
+    ['press1.pressure|2026-10-01T06:00:00.000000Z', 3.5],
+    ['presse-1-temperatur|2026-10-01T06:00:00.000000Z', 21.5],
+    ['presse-1-temperatur|2026-10-01T06:01:00.000000Z', 22],
   ]);
   await page.waitForSelector('[data-import-history] td:has-text("presse-1.csv")');
   assert.match(await page.locator('[data-import-history] tbody tr').first().innerText(), /finished/);
@@ -580,10 +580,28 @@ test('a historian export with one row per reading maps each row by its tag', asy
   await page.click('[data-import-run]');
   await page.waitForSelector('[data-import-progress]:has-text("Done. 2 new readings stored")');
   assert.deepEqual([...fake.samples.keys()].sort(), [
-    'pt-7|2026-10-01T08:00:00.000Z',
-    'tt-101|2026-10-01T08:00:00.000Z',
+    'pt-7|2026-10-01T08:00:00.000000Z',
+    'tt-101|2026-10-01T08:00:00.000000Z',
   ]);
   assert.deepEqual(errors, []);
+});
+
+test('an import that cannot be marked finished says so, rather than done', async (t) => {
+  const fake = createFakeApi({ failImportFinish: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/import`);
+  const csv = 'time,temp\n2026-10-01T08:00:00Z,21.5\n';
+  await page.setInputFiles('[data-import-file]', { name: 'x.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) });
+  await page.click('[data-import-run]');
+  await page.waitForSelector('[data-import-progress]:has-text("All readings sent, but not finished")');
+  assert.match(
+    await page.locator('[data-import-progress]').innerText(),
+    /could not be marked finished \(Tiles is restarting\)/,
+  );
+  await page.waitForSelector('[data-import-history] td:has-text("not finished")');
 });
 
 test('viewers see past imports but cannot run one', async (t) => {

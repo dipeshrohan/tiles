@@ -3038,7 +3038,14 @@
 	//#endregion
 	//#region js/lib/csv.ts
 	function detectDelimiter(text) {
-		const firstLine = (text.charCodeAt(0) === 65279 ? text.slice(1) : text).split(/\r?\n/, 1)[0] ?? "";
+		let quoted = false;
+		let end = 0;
+		for (; end < text.length; end++) {
+			const ch = text[end];
+			if (ch === "\"") quoted = !quoted;
+			else if ((ch === "\n" || ch === "\r") && !quoted) break;
+		}
+		const first = text.slice(0, end);
 		let best = ",";
 		let bestCount = 0;
 		for (const d of [
@@ -3047,9 +3054,9 @@
 			"	"
 		]) {
 			let count = 0;
-			let quoted = false;
-			for (const ch of firstLine) if (ch === "\"") quoted = !quoted;
-			else if (ch === d && !quoted) count++;
+			let inside = false;
+			for (const ch of first) if (ch === "\"") inside = !inside;
+			else if (ch === d && !inside) count++;
 			if (count > bestCount) [best, bestCount] = [d, count];
 		}
 		return best;
@@ -3145,12 +3152,18 @@
 	var ISO = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?\s*(Z|[+-]\d{2}(?::?\d{2})?)?$/i;
 	var DAY_MONTH = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?$/;
 	function wallClock(y, mo, d, h, mi, s, frac) {
-		const ms = frac ? Math.round(Number(`0.${frac}`) * 1e3) : 0;
-		const t = Date.UTC(y, mo - 1, d, h, mi, s, ms);
+		const micros = Number(frac.padEnd(6, "0").slice(0, 6));
+		const t = Date.UTC(y, mo - 1, d, h, mi, s, Math.floor(micros / 1e3));
 		const back = new Date(t);
 		if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
 		if (h > 23 || mi > 59 || s > 59) return null;
-		return t;
+		return t + micros % 1e3 / 1e3;
+	}
+	function isoTime(t) {
+		let whole = Math.floor(t);
+		let micros = Math.round((t - whole) * 1e3);
+		if (micros === 1e3) [whole, micros] = [whole + 1, 0];
+		return `${new Date(whole).toISOString().slice(0, -1)}${String(micros).padStart(3, "0")}Z`;
 	}
 	function parseTime(cell, format, zone) {
 		const s = cell.trim();
@@ -3158,7 +3171,7 @@
 			const n = parseNumber(s, false);
 			if (n === null) return null;
 			const t = format === "epoch-s" ? n * 1e3 : n;
-			return Math.abs(t) < 864e13 ? Math.round(t) : null;
+			return Math.abs(t) < 864e13 ? Math.round(t * 1e3) / 1e3 : null;
 		}
 		if (format === "iso") {
 			const m = ISO.exec(s);
@@ -3170,7 +3183,9 @@
 			if (offset.toUpperCase() === "Z") return wall;
 			const sign = offset.startsWith("-") ? -1 : 1;
 			const digits = offset.slice(1).replace(":", "");
-			return wall - sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2, 4) || 0)) * 6e4;
+			const [hours, minutes] = [Number(digits.slice(0, 2)), Number(digits.slice(2, 4) || 0)];
+			if (hours > 23 || minutes > 59) return null;
+			return wall - sign * (hours * 60 + minutes) * 6e4;
 		}
 		const m = DAY_MONTH.exec(s);
 		if (!m) return null;
@@ -3237,7 +3252,9 @@
 		if (!isTimeZone(m.timeZone)) problems.push(`“${m.timeZone}” isn't a time zone, e.g. UTC or Europe/Berlin.`);
 		if (m.long) {
 			const { tagColumn, valueColumn } = m.long;
-			if ((/* @__PURE__ */ new Set([
+			const inFile = (i) => i >= 0 && i < header.length;
+			if (!inFile(tagColumn) || !inFile(valueColumn)) problems.push("Choose the tag column and the value column.");
+			else if ((/* @__PURE__ */ new Set([
 				m.timeColumn,
 				tagColumn,
 				valueColumn
@@ -3259,7 +3276,8 @@
 			first: null,
 			last: null,
 			skipped: {},
-			examples: []
+			examples: [],
+			tagSources: /* @__PURE__ */ new Map()
 		};
 	}
 	function* readings(rows, m, stats = emptyStats(), now = Date.now()) {
@@ -3288,12 +3306,18 @@
 				skip(line, "time in the future", `“${timeCell}”`);
 				continue;
 			}
-			const at = new Date(t).toISOString();
+			const at = isoTime(t);
 			const cells = m.long ? (() => {
 				const raw = row[m.long.tagColumn] ?? "";
 				const tag = slugTag(raw);
 				if (!tag) {
 					skip(line, "unusable tag", `“${raw}”`);
+					return [];
+				}
+				const source = stats.tagSources.get(tag);
+				if (source === void 0) stats.tagSources.set(tag, raw);
+				else if (source !== raw) {
+					skip(line, "tag that clashes with another", `“${raw}” and “${source}” both become ${tag}`);
 					return [];
 				}
 				return [[tag, row[m.long.valueColumn] ?? ""]];
@@ -3540,13 +3564,17 @@
 			const box = document.querySelector("[data-import-progress]");
 			if (box) box.innerHTML = progress(state);
 		}
+		let unfinished = null;
 		try {
 			await api.imports.finish(site.id, run.id);
-		} catch {}
+		} catch (e) {
+			unfinished = e instanceof Error ? e.message : String(e);
+		}
 		running = null;
 		const what = `${fmt$1(state.stored, 0)} new readings stored (${fmt$1(state.sent, 0)} sent; the rest were already in Tiles).`;
-		lastResult = failure ? `Stopped by an error after ${fmt$1(state.sent, 0)} readings: ${failure}. ${what}` : state.cancelled ? `Stopped. ${what}` : `Done. ${what}`;
-		ctx.toast(failure ? "Import stopped by an error" : state.cancelled ? "Import stopped" : `Imported ${l.fileName}`);
+		const open = unfinished ? ` The import could not be marked finished (${unfinished}); it shows as not finished.` : "";
+		lastResult = failure ? `Stopped by an error after ${fmt$1(state.sent, 0)} readings: ${failure}. ${what}${open}` : state.cancelled ? `Stopped. ${what}${open}` : unfinished ? `All readings sent, but not finished. ${what}${open}` : `Done. ${what}`;
+		ctx.toast(failure || unfinished ? "Import stopped by an error" : state.cancelled ? "Import stopped" : `Imported ${l.fileName}`);
 		ctx.rerender();
 	}
 	var view = {

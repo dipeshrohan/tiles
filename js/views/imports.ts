@@ -272,19 +272,30 @@ async function runImport(ctx: Context): Promise<void> {
     const box = document.querySelector('[data-import-progress]');
     if (box) box.innerHTML = progress(state);
   }
+  let unfinished: string | null = null;
   try {
     await api.imports.finish(site.id, run.id);
-  } catch {
-    // Left unfinished; it shows as such in the list.
+  } catch (e) {
+    // The readings sent are stored, but the import stays open: say so rather than "done".
+    unfinished = e instanceof Error ? e.message : String(e);
   }
   running = null;
   const what = `${fmt(state.stored, 0)} new readings stored (${fmt(state.sent, 0)} sent; the rest were already in Tiles).`;
+  const open = unfinished ? ` The import could not be marked finished (${unfinished}); it shows as not finished.` : '';
   lastResult = failure
-    ? `Stopped by an error after ${fmt(state.sent, 0)} readings: ${failure}. ${what}`
+    ? `Stopped by an error after ${fmt(state.sent, 0)} readings: ${failure}. ${what}${open}`
     : state.cancelled
-      ? `Stopped. ${what}`
-      : `Done. ${what}`;
-  ctx.toast(failure ? 'Import stopped by an error' : state.cancelled ? 'Import stopped' : `Imported ${l.fileName}`);
+      ? `Stopped. ${what}${open}`
+      : unfinished
+        ? `All readings sent, but not finished. ${what}${open}`
+        : `Done. ${what}`;
+  ctx.toast(
+    failure || unfinished
+      ? 'Import stopped by an error'
+      : state.cancelled
+        ? 'Import stopped'
+        : `Imported ${l.fileName}`,
+  );
   ctx.rerender();
 }
 
