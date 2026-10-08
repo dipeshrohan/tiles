@@ -101,6 +101,11 @@ def test_engineers_describe_signals_and_each_change_is_audited(
         api.patch(f"/sites/{site}/signals/00000000-0000-0000-0000-000000000000", json={}, headers=ENG).status_code
         == 404
     )
+    # Setting a field to the value it has changes nothing, and leaves no audit entry.
+    assert (
+        api.patch(path, json={"sample_rate_hz": 10, "description": change["description"]}, headers=ENG).status_code
+        == 200
+    )
     with psycopg.connect(database_url) as conn:
         audit = conn.execute(
             "SELECT before, after FROM audit_log WHERE action = 'signal.update' AND entity_id = %s ORDER BY id",
@@ -108,6 +113,7 @@ def test_engineers_describe_signals_and_each_change_is_audited(
         ).fetchall()
     assert audit[0][1] == {"tag": "press1.temperature", **change}
     assert audit[1] == ({"tag": "press1.temperature", "unit": "°C"}, {"tag": "press1.temperature", "unit": None})
+    assert len(audit) == 2  # the no-op change left none
 
 
 def test_a_signal_links_to_one_signal_node_of_the_ontology(api: TestClient, site: str) -> None:  # noqa: F811
@@ -174,3 +180,29 @@ def test_concurrent_edits_audit_what_each_replaced(
             "SELECT before FROM audit_log WHERE action = 'signal.update' AND entity_id = %s", [sig["id"]]
         ).fetchone()
     assert before == ({"tag": "press1.temperature", "unit": "K"},)  # not the value before the other edit
+
+
+def test_a_link_waits_for_an_ontology_commit_in_progress(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    backfill(api, site, {"press1.temperature": [1.0]})
+    commit_nodes(api, site, {"id": "sig-p1", "type": "Signal", "label": "Press 1", "props": {"unit": "°C"}})
+    sig = by_tag(api, site, "press1.temperature")
+    answers: list[int] = []
+    with psycopg.connect(database_url) as other:
+        # A commit removing the node holds the site, as ontology commits do, and has not committed yet.
+        other.execute("SELECT 1 FROM sites WHERE id = %s FOR UPDATE", [site])
+        other.execute("DELETE FROM ontology_nodes WHERE site_id = %s AND id = 'sig-p1'", [site])
+        patch = threading.Thread(
+            target=lambda: answers.append(
+                api.patch(f"/sites/{site}/signals/{sig['id']}", json={"node_id": "sig-p1"}, headers=ENG).status_code
+            )
+        )
+        patch.start()
+        time.sleep(0.3)  # the PATCH waits for the commit
+        other.commit()
+        patch.join(10)
+    assert answers == [422]  # the node is gone: no link to it
+    assert by_tag(api, site, "press1.temperature")["node_id"] is None

@@ -144,8 +144,12 @@ def update_signal(ctx: Editor, signal_id: uuid.UUID, body: SignalPatch) -> Signa
     changes = {k: getattr(body, k) for k in EDITABLE if k in body.model_fields_set}
     if "description" in changes and changes["description"] is None:
         changes["description"] = ""
+    changes = {k: v for k, v in changes.items() if v != getattr(before, k)}  # only what changes is written and audited
     node_id = changes.get("node_id")
     if node_id is not None:
+        # Hold off ontology commits (they lock the site row) until this change is in, so the node
+        # can't be removed or retyped between this check and the update.
+        ctx.conn.execute("SELECT 1 FROM sites WHERE id = %s FOR SHARE", [ctx.site_id])
         node = ctx.conn.execute(
             "SELECT type FROM ontology_nodes WHERE site_id = %s AND id = %s", [ctx.site_id, node_id]
         ).fetchone()

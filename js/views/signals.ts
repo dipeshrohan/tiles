@@ -93,7 +93,7 @@ function editRow(ctx: Context, s: SignalInfo): string {
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
         <fieldset style="display:contents" ${saving === s.id ? 'disabled' : ''}>
         <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? '')}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
-        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${s.sample_rate_hz ?? ''}" inputmode="decimal" style="width:7em"></label>
+        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ''))}" inputmode="decimal" style="width:7em"></label>
         <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
         <button class="btn primary" type="submit">${saving === s.id ? 'Saving…' : 'Save'}</button>
@@ -199,7 +199,12 @@ function bindResults(root: HTMLElement, ctx: Context): void {
     e.preventDefault();
     const site = ctx.ontology.site;
     const sig = results?.signals.find((s) => s.id === form.dataset.signal);
-    if (!site || !ctx.api || !sig || saving) return;
+    if (!site || !ctx.api || !sig) return;
+    if (saving) {
+      const other = results?.signals.find((s) => s.id === saving);
+      ctx.toast(`Wait for ${other ? other.tag : 'the other change'} to be saved, then save this one`);
+      return;
+    }
     // A text field the user didn't touch stands for its stored value: the browser may show it changed
     // (a one-line input drops line breaks), and that must not count as an edit.
     const text = (name: string, stored: string) => {
@@ -251,8 +256,14 @@ const view: View = {
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
         <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
-    if (!ctx.api || !ctx.ontology.site)
+    if (!ctx.api)
       return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+    if (!ctx.ontology.site)
+      return `${head}<div class="card"><p class="small soft">${
+        ctx.ontology.status === 'error'
+          ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}`
+          : 'Loading the site from the Tiles API…'
+      }</p></div>`;
     const { query } = ui(ctx);
     const opt = (value: string, label: string, current: string) =>
       `<option value="${value}" ${value === current ? 'selected' : ''}>${esc(label)}</option>`;

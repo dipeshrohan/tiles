@@ -235,6 +235,18 @@ test('ontology page in API mode: import, commit, and see another user’s commit
   assert.deepEqual([...a.errors, ...b.errors], []);
 });
 
+test('the signals page says why it has no site, rather than asking to connect again', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=http://127.0.0.1:1#/signals`);
+  await page.waitForSelector('#view:has-text("The site could not be loaded from the Tiles API: Can\'t reach")');
+  assert.equal(await page.locator('#view a[href="#/settings"]').count(), 0);
+  assert.deepEqual(
+    errors.filter((e) => !/Failed to load resource|ERR_CONNECTION_REFUSED/.test(e)),
+    [],
+  );
+});
+
 test('ontology page explains when the API is unreachable, and local mode is untouched', async (t) => {
   const { page } = await openPage();
   t.after(() => page.close());
@@ -856,6 +868,8 @@ test('a save that finishes late never closes another signal opened meanwhile', a
   await page.click('#signal-form button[type=submit]');
   await page.locator('tr', { hasText: 'b.flow' }).first().locator('[data-edit]').click(); // while a.flow saves
   await page.fill('#signal-form [name=description]', 'Return line');
+  await page.click('#signal-form button[type=submit]'); // b.flow can't be saved until a.flow is
+  await page.waitForSelector('#toast:has-text("Wait for a.flow to be saved, then save this one")');
   await page.waitForSelector('#toast:has-text("Saved a.flow")');
   await page.waitForTimeout(300);
   assert.equal(await page.inputValue('#signal-form [name=description]'), 'Return line');
