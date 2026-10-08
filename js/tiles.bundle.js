@@ -3042,6 +3042,8 @@
 		}
 	}
 	var revealed = null;
+	var apiCheck = "";
+	var apiCheckSeq = 0;
 	function viewer(ctx) {
 		return `${ctx.auth.signedIn ? "signed-in" : "dev"}:${ctx.state.user.email}`;
 	}
@@ -3176,7 +3178,7 @@
           <label class="row" style="gap:8px"><input type="radio" name="mode" value="api" ${ds.mode === "api" ? "checked" : ""} /> Tiles API</label>
           <label class="field">API address<input type="url" name="apiUrl" value="${esc(ds.apiUrl)}" placeholder="http://localhost:8000" /></label>
           <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
-          <p class="small soft" data-api-status aria-live="polite"></p>
+          <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
         ${ds.mode === "api" ? accountCard(ctx) : ""}
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === "admin") : ""}
@@ -3200,6 +3202,7 @@
 					ctx.toast("Enter the API address, e.g. http://localhost:8000");
 					return;
 				}
+				apiCheck = "";
 				ctx.setDataSource({
 					mode,
 					apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl
@@ -3207,17 +3210,23 @@
 				ctx.toast(mode === "api" ? "Using the Tiles API" : "Using this browser only");
 			});
 			onAll(root, "[data-test-api]", "click", async () => {
-				const status = need(root, "[data-api-status]");
 				const url = field$1(need(root, "#datasource"), "apiUrl");
-				status.textContent = "Checking…";
+				const seq = ++apiCheckSeq;
+				const show = (text) => {
+					if (seq !== apiCheckSeq) return;
+					apiCheck = text;
+					const status = document.querySelector("#view [data-api-status]");
+					if (status) status.textContent = text;
+				};
+				show("Checking…");
 				try {
 					const h = await createApiClient({
 						baseUrl: url,
 						onError: (e) => ctx.toast(e.message)
 					}).health();
-					status.textContent = isTilesHealth(h) ? `Connected: Tiles API ${h.version} (${h.env})` : "Something answered there, but it is not the Tiles API";
+					show(isTilesHealth(h) ? `Connected: Tiles API ${h.version} (${h.env})` : "Something answered there, but it is not the Tiles API");
 				} catch {
-					status.textContent = "Not reachable";
+					show("Not reachable");
 				}
 			});
 			if (ctx.ontology.role === "admin") fillAudit(root, ctx);

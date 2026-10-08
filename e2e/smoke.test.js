@@ -165,6 +165,10 @@ test('settings can switch to the Tiles API and test the connection', async (t) =
   await page.fill('#datasource [name=apiUrl]', `http://127.0.0.1:${other.address().port}`);
   await page.click('[data-test-api]');
   await page.waitForSelector('[data-api-status]:has-text("not the Tiles API")');
+  // A re-render (here, leaving and coming back) keeps the answer rather than wiping it.
+  await page.evaluate(() => (location.hash = '#/'));
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.waitForSelector('[data-api-status]:has-text("not the Tiles API")');
 
   // Local mode can be saved without an API address.
   await page.fill('#datasource [name=apiUrl]', '');
