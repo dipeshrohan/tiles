@@ -616,7 +616,9 @@
 	function estimateFriction(shot, p = PLUNGER) {
 		const residuals = [];
 		for (let i = 1; i < shot.t.length; i++) {
-			const acc = (shot.v[i] - shot.v[i - 1]) / (shot.t[i] - shot.t[i - 1]);
+			const dt = shot.t[i] - shot.t[i - 1];
+			if (dt <= 0) continue;
+			const acc = (shot.v[i] - shot.v[i - 1]) / dt;
 			const force = shot.ph[i] * BAR * p.hydraulicArea - shot.pm[i] * BAR * p.metalArea - p.mass * acc;
 			residuals.push(force);
 		}

@@ -95,8 +95,8 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 ## Month 3: Operations analytics on real data (Jan 2027)
 
 ### Virtual sensor framework
-- [ ] `T3.01` [#47](https://github.com/dipeshrohan/tiles/issues/47) ★ **Model registry:** register a model in code (inputs, outputs, parameters, version); stored in the `models` table · ML+BE · 3d · T1.12
-- [ ] `T3.02` [#48](https://github.com/dipeshrohan/tiles/issues/48) ★ **Port the plunger-friction model** to the registry, with unit tests carried over from `physics.test.js` · ML · 2d · T3.01
+- [x] `T3.01` [#47](https://github.com/dipeshrohan/tiles/issues/47) ★ **Model registry:** register a model in code (inputs, outputs, parameters, version); stored in the `models` table · ML+BE · 3d · T1.12
+- [x] `T3.02` [#48](https://github.com/dipeshrohan/tiles/issues/48) ★ **Port the plunger-friction model** to the registry, with unit tests carried over from `physics.test.js` · ML · 2d · T3.01
 - [ ] `T3.03` [#49](https://github.com/dipeshrohan/tiles/issues/49) ★ **Model runner:** runs registered models on new data windows and writes derived signals back to TimescaleDB · BE · 3d · T3.01, T2.06
 - [ ] `T3.04` [#50](https://github.com/dipeshrohan/tiles/issues/50) ★ **Streaming detection job:** rolling robust baseline, how long a deviation must persist, cooldown; thresholds stored as config per signal · ML+BE · 3d · T3.03
 - [ ] `T3.05` [#51](https://github.com/dipeshrohan/tiles/issues/51) ★ **Backtest tool:** replay history to get recall, precision and warning-time distribution per threshold setting · ML · 3d · T3.04
