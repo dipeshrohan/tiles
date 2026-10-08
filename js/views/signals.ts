@@ -17,6 +17,7 @@ let results: { total: number; signals: SignalInfo[] } | null = null;
 let failed = false;
 let latestSearch = 0; // answers to earlier searches are dropped
 let resultsFor = ''; // the catalogue `results` came from: see catalogue()
+let resultsQuery = ''; // and the search they answer
 
 // Which catalogue is shown: the API, the site and who is asking. Results from another are never shown.
 const catalogue = (ctx: Context): string =>
@@ -122,6 +123,7 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
   if (!ctx.api || !site || !root.querySelector('#signal-search')) return;
   const mine = ++latestSearch;
   const from = catalogue(ctx);
+  const query = JSON.stringify(ui(ctx).query);
   let page: typeof results = null;
   try {
     page = await ctx.api.signals.list(site.id, { ...ui(ctx).query, limit: PAGE });
@@ -129,8 +131,10 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
     // shown below, unless a later search has answered
   }
   if (mine !== latestSearch) return;
+  if (!page && results && resultsFor === from && resultsQuery === query) return; // keep the last answer to it
   results = page;
   resultsFor = from;
+  resultsQuery = query;
   failed = page === null;
   fill(root, ctx);
 }
@@ -138,12 +142,25 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
 function fill(root: HTMLElement, ctx: Context): void {
   const box = root.querySelector('[data-signal-results]');
   if (!box) return;
+  // An edit in progress survives the refresh: its fields, and where the cursor was.
+  const form = box.querySelector<HTMLFormElement>('#signal-form');
+  const typed = form ? { signal: form.dataset.signal, values: [...new FormData(form)] } : null;
+  const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute('name') : null;
   const canEdit = ctx.ontology.role !== 'viewer';
   box.innerHTML = failed
     ? '<p class="small soft">The signals could not be loaded.</p>'
     : results
       ? resultsTable(ctx, results, canEdit)
       : '<p class="small soft">Loading…</p>';
+  const again = box.querySelector<HTMLFormElement>('#signal-form');
+  if (typed && again && again.dataset.signal === typed.signal) {
+    for (const [name, value] of typed.values) {
+      const el = again.elements.namedItem(name);
+      if ((el instanceof HTMLInputElement || el instanceof HTMLSelectElement) && typeof value === 'string')
+        el.value = value;
+    }
+    if (focused) (again.elements.namedItem(focused) as HTMLElement | null)?.focus();
+  }
   bindResults(root, ctx);
 }
 

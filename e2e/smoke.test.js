@@ -720,6 +720,38 @@ test('leaving the signals page mid-search never leaves it loading', async (t) =>
   assert.deepEqual(errors, []);
 });
 
+test('an edit started while the list refreshes survives the refresh, and a failed one', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.temp');
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.evaluate(() => (location.hash = '#/import'));
+  // Back on the page: the last list shows at once while a slow refresh runs.
+  fake.slowSearch('', 1200);
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.click('[data-edit]');
+  await page.fill('#signal-form [name=unit]', 'bar');
+  await page.waitForTimeout(1500); // the refresh lands
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), 'bar');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'unit');
+  // A refresh that fails keeps the list and the form.
+  fake.failSearch('');
+  await page.evaluate(() => (location.hash = '#/import'));
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.fill('#signal-form [name=unit]', 'kPa'); // the form is still open
+  await page.waitForSelector('#toast:has-text("The catalogue is busy")');
+  assert.equal(await page.inputValue('#signal-form [name=unit]'), 'kPa');
+  assert.match(await page.locator('[data-signal-results]').innerText(), /oven\.temp/);
+  assert.deepEqual(
+    errors.filter((e) => !/status of 503/.test(e)), // the browser logs the failed request
+    [],
+  );
+});
+
 test('a search typed just before leaving the signals page is never sent', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

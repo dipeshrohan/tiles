@@ -3644,6 +3644,7 @@
 	var failed = false;
 	var latestSearch = 0;
 	var resultsFor = "";
+	var resultsQuery = "";
 	var catalogue = (ctx) => [
 		ctx.api?.baseUrl ?? "",
 		ctx.ontology.site?.id ?? "",
@@ -3724,6 +3725,7 @@
 		if (!ctx.api || !site || !root.querySelector("#signal-search")) return;
 		const mine = ++latestSearch;
 		const from = catalogue(ctx);
+		const query = JSON.stringify(ui(ctx).query);
 		let page = null;
 		try {
 			page = await ctx.api.signals.list(site.id, {
@@ -3732,16 +3734,32 @@
 			});
 		} catch {}
 		if (mine !== latestSearch) return;
+		if (!page && results && resultsFor === from && resultsQuery === query) return;
 		results = page;
 		resultsFor = from;
+		resultsQuery = query;
 		failed = page === null;
 		fill(root, ctx);
 	}
 	function fill(root, ctx) {
 		const box = root.querySelector("[data-signal-results]");
 		if (!box) return;
+		const form = box.querySelector("#signal-form");
+		const typed = form ? {
+			signal: form.dataset.signal,
+			values: [...new FormData(form)]
+		} : null;
+		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
 		const canEdit = ctx.ontology.role !== "viewer";
 		box.innerHTML = failed ? "<p class=\"small soft\">The signals could not be loaded.</p>" : results ? resultsTable(ctx, results, canEdit) : "<p class=\"small soft\">Loading…</p>";
+		const again = box.querySelector("#signal-form");
+		if (typed && again && again.dataset.signal === typed.signal) {
+			for (const [name, value] of typed.values) {
+				const el = again.elements.namedItem(name);
+				if ((el instanceof HTMLInputElement || el instanceof HTMLSelectElement) && typeof value === "string") el.value = value;
+			}
+			if (focused) again.elements.namedItem(focused)?.focus();
+		}
 		bindResults(root, ctx);
 	}
 	function bindResults(root, ctx) {

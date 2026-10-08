@@ -108,18 +108,18 @@ def list_signals(
         "FROM signals g LEFT JOIN ontology_nodes n ON n.site_id = g.site_id AND n.id = g.node_id"
         " AND n.type = 'Signal' WHERE {}"
     ).format(condition)
-    # The page and the total in one statement, so both come from the same snapshot.
+    # The page and the total in one statement, so both come from the same snapshot. The outer join
+    # keeps one row (with the total) when the page is empty.
     query = sql.SQL(
-        "WITH page AS (SELECT g.id, count(*) OVER () AS total {} ORDER BY g.tag LIMIT %s OFFSET %s)"
-        " SELECT page.total, s.* FROM page JOIN LATERAL ({} WHERE g.id = page.id) s ON true ORDER BY s.tag"
+        "WITH matched AS (SELECT g.id, g.tag {}),"
+        " page AS (SELECT id FROM matched ORDER BY tag LIMIT %s OFFSET %s)"
+        " SELECT (SELECT count(*) FROM matched) AS total, s.* FROM (SELECT 1) AS one"
+        " LEFT JOIN (page JOIN LATERAL ({} WHERE g.id = page.id) s ON true) ON true ORDER BY s.tag"
     ).format(matching, sql.SQL(SELECT))
     rows = ctx.conn.execute(query, [*args, limit, offset]).fetchall()
-    if rows:
-        total = rows[0]["total"]
-    else:  # past the end (or nothing matches): count on its own
-        counted = ctx.conn.execute(sql.SQL("SELECT count(*) AS n {}").format(matching), args).fetchone()
-        total = counted["n"] if counted else 0
-    return SignalPage(total=total, signals=[Signal(**{k: v for k, v in r.items() if k != "total"}) for r in rows])
+    total = rows[0]["total"] if rows else 0
+    page = [Signal(**{k: v for k, v in r.items() if k != "total"}) for r in rows if r["id"] is not None]
+    return SignalPage(total=total, signals=page)
 
 
 def _get(ctx: Any, signal_id: uuid.UUID) -> Signal:
