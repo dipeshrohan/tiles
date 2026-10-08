@@ -144,21 +144,26 @@ export function deliveryState(d: Pick<Delivery, 'sent_at' | 'failed_at' | 'attem
 }
 
 // Choices made but not yet saved, kept across re-renders (the page re-renders as the API answers),
-// for the site they were made on.
+// for whoever made them, on the site and API they were made on; dropped on leaving the page.
 interface NotifyDraft {
-  site: string;
+  key: string;
   on_raised?: boolean;
   on_assigned?: boolean;
   url?: string;
   teams_on_raised?: boolean;
 }
-let notifyDraft: NotifyDraft = { site: '' };
+let notifyDraft: NotifyDraft = { key: '' };
+if (typeof window !== 'undefined')
+  window.addEventListener('hashchange', () => {
+    if (!location.hash.startsWith('#/settings')) notifyDraft = { key: '' };
+  });
 
 async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void> {
   const site = ctx.ontology.site;
   const api = ctx.api;
   if (!site || !api || !root.querySelector('#notifications')) return;
-  if (notifyDraft.site !== site.id) notifyDraft = { site: site.id };
+  const key = `${api.baseUrl}|${site.id}|${viewer(ctx)}`;
+  if (notifyDraft.key !== key) notifyDraft = { key };
   const draft = notifyDraft;
   const prefsForm = root.querySelector<HTMLFormElement>('#notify-prefs');
   if (prefsForm) {

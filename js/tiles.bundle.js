@@ -3796,12 +3796,16 @@
 		if (d.attempts) return `<span class="badge warn" title="${esc(d.last_error ?? "")}">Retrying</span>`;
 		return "<span class=\"badge\">Waiting</span>";
 	}
-	var notifyDraft = { site: "" };
+	var notifyDraft = { key: "" };
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/settings")) notifyDraft = { key: "" };
+	});
 	async function fillNotifications(root, ctx) {
 		const site = ctx.ontology.site;
 		const api = ctx.api;
 		if (!site || !api || !root.querySelector("#notifications")) return;
-		if (notifyDraft.site !== site.id) notifyDraft = { site: site.id };
+		const key = `${api.baseUrl}|${site.id}|${viewer(ctx)}`;
+		if (notifyDraft.key !== key) notifyDraft = { key };
 		const draft = notifyDraft;
 		const prefsForm = root.querySelector("#notify-prefs");
 		if (prefsForm) {
@@ -5645,6 +5649,7 @@
 	var fetched = null;
 	var seq = 0;
 	var pending = null;
+	var assetDrafts = /* @__PURE__ */ new Map();
 	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
 	var keyFor = (ctx) => {
 		const u = uiState(ctx);
@@ -5654,6 +5659,7 @@
 		if (!location.hash.startsWith("#/performance")) {
 			fetched = null;
 			pending = null;
+			assetDrafts.clear();
 		}
 	});
 	async function load$1(ctx) {
@@ -5699,7 +5705,7 @@
 	function detectorsCard(ctx, r) {
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 		const rows = r.detectors.map((d) => {
-			const asset = canEdit ? `<form class="row" data-asset-form="${esc(d.id)}" style="gap:6px;flex-wrap:nowrap"><input type="text" name="asset" value="${esc(d.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" style="width:7em"><button class="btn sm" type="submit">Set</button></form>` : esc(d.asset ?? "–");
+			const asset = canEdit ? `<form class="row" data-asset-form="${esc(d.id)}" style="gap:6px;flex-wrap:nowrap"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" style="width:7em"><button class="btn sm" type="submit">Set</button></form>` : esc(d.asset ?? "–");
 			const c = d.confirmed;
 			const scored = d.matched ? `<td>${d.caught} / ${d.events} · ${share(d.recall)}</td><td>${share(d.precision)}${d.pending_warnings ? ` <span class="small soft">(${d.pending_warnings} pending)</span>` : ""}</td><td>${d.false_per_day === null ? "–" : d.false_per_day.toFixed(2)}</td><td>${spread(d.warning_seconds)}</td>` : "<td colspan=\"4\" class=\"small soft\">Set its asset to match its warnings to that asset’s events.</td>";
 			return `<tr data-detector-row="${esc(d.id)}"><td><b>${esc(d.name)}</b><div class="small soft mono">${esc(d.signal_tag)}</div></td><td>${asset}</td><td>${d.warnings}</td>${scored}<td class="small">${c.true_alarm} true · ${c.false_alarm} false · ${c.unknown} unknown · ${c.unresolved} open</td></tr>`;
@@ -5763,6 +5769,10 @@
 					codes: String(data.get("codes") ?? "")
 				};
 			});
+			onAll(root, "[data-asset-form] [name=asset]", "input", (el) => {
+				const id = el.closest("[data-asset-form]")?.dataset.assetForm;
+				if (id) assetDrafts.set(id, el.value);
+			});
 			onAll(root, "[data-asset-form]", "submit", (el, e) => {
 				e.preventDefault();
 				const site = siteId(ctx);
@@ -5772,6 +5782,7 @@
 				if (!site || !api || !input) return;
 				const asset = input.value.trim() || null;
 				api.setDetectorAsset(site, id, asset).then(() => {
+					assetDrafts.delete(id);
 					ctx.toast(asset ? `Matched to ${asset}’s events` : "Asset cleared");
 					fetched = null;
 					ctx.rerender();

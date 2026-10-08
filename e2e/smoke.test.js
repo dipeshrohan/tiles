@@ -1903,3 +1903,16 @@ test('a signal is marked as an MES event stream with its asset', async (t) => {
   );
   assert.deepEqual(a.errors, []);
 });
+
+test('an asset being typed survives a re-render of the performance page', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.setPerformance(performanceReport());
+  const a = await openAs(t, apiUrl, null, 'performance');
+  await a.page.waitForSelector('[data-asset-form="d2"]');
+  await a.page.fill('[data-asset-form="d2"] [name=asset]', 'DC-0');
+  await rerender(a.page);
+  assert.equal(await a.page.inputValue('[data-asset-form="d2"] [name=asset]'), 'DC-0');
+  assert.deepEqual(a.errors, []);
+});

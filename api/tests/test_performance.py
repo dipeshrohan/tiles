@@ -160,3 +160,43 @@ def test_too_many_events_ask_for_a_shorter_period(
     )
     assert api.get(f"/sites/{site}/performance", params={"days": 0}, headers=VIEWER).status_code == 422
     assert api.get(f"/sites/{site}/performance", headers=ADMIN).status_code == 422  # still too many
+
+
+def test_only_what_a_detector_judged_counts_and_a_warning_before_the_period_still_warns(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+) -> None:
+    p = plant(api, site)
+    at = p["at"]
+    now = datetime.now(UTC)
+    send(
+        api,
+        site,
+        [
+            # Before the friction history began, and after the detector's last run: neither counts.
+            {"signal": "mes.dc1.downtime", "at": (at[0] - timedelta(days=3)).isoformat(), "value": "DT-OLD"},
+            {"signal": "mes.dc1.downtime", "at": (now - timedelta(minutes=2)).isoformat(), "value": "DT-NEW"},
+            # Another stream on the asset reporting the same code at the same time as the scrap.
+            {"signal": "mes.dc1.rework", "at": at[1360].isoformat(), "value": "3"},
+        ],
+    )
+    api.patch(
+        f"/sites/{site}/signals/{signal_id(api, site, 'mes.dc1.rework')}",
+        json={"event_kind": "other", "asset": "DC-01"},
+        headers=ENG,
+    )
+    out = report(api, site)
+    assert out["totals"]["events"] == 5  # the four, and the rework; not DT-OLD or DT-NEW
+    assert {e["code"] for e in out["events"]} >= {"3"} and not {"DT-OLD", "DT-NEW"} & {e["code"] for e in out["events"]}
+    (row,) = out["detectors"]
+    assert row["judged_from"] == at[0].isoformat().replace("+00:00", "Z")
+    assert row["judged_until"] < (now - timedelta(minutes=5)).isoformat()
+    threes = sorted((e["kind"], e["signal_tag"]) for e in out["events"] if e["code"] == "3")
+    assert threes == [("other", "mes.dc1.rework"), ("scrap", "mes.dc1.scrap")]
+
+    # The last four hours: the warning before it (4.6 h ago) still warned of the downtime in it.
+    recent = report(api, site, days=4 / 24)
+    t = recent["totals"]
+    assert (t["events"], t["caught"], t["warnings"], t["false_warnings"]) == (1, 1, 0, 0)
+    (event,) = recent["events"]
+    assert event["warning_seconds"] == FIXTURE["scored"][2]["leadShots"] * FIXTURE["cycleSeconds"]

@@ -120,6 +120,8 @@ def create_detector(ctx: Editor, body: DetectorIn) -> dict[str, Any]:
 def update_detector(ctx: Editor, detector_id: uuid.UUID, body: DetectorPatch) -> dict[str, Any]:
     """Set (or clear, with null) the asset the detector watches, to match its warnings to that
     asset's events (T3.10)."""
+    # Lock the row first, so that `before` (for the audit log) is what this change replaces.
+    ctx.conn.execute("SELECT 1 FROM detectors WHERE id = %s AND site_id = %s FOR UPDATE", [detector_id, ctx.site_id])
     before = _get(ctx, detector_id)
     if body.asset != before["asset"]:
         ctx.conn.execute("UPDATE detectors SET asset = %s WHERE id = %s", [body.asset, detector_id])

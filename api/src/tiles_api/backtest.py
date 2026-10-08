@@ -190,7 +190,8 @@ def score(
     config: Config, alerts: list[Alert], events: Sequence[Event], horizon: timedelta, start: datetime, end: datetime
 ) -> Outcome:
     """Scores warnings (in the order they started) against events (in time order), for history
-    judged from `start` to `end`. Only the events within it count, for recall and precision alike."""
+    judged from `start` to `end`. Only the events within it count, for recall and precision alike;
+    a warning started before `start` may warn of one, but is not counted itself."""
     starts = [a.started_at for a in alerts]
     inside = [e for e in events if start <= e.at <= end]
     times = [e.at for e in inside]
@@ -199,7 +200,8 @@ def score(
         i = bisect.bisect_right(starts, e.at - horizon)  # the first warning started after at - horizon
         outcomes.append(EventOutcome(e, starts[i] if i < len(starts) and starts[i] <= e.at else None))
     true = false = pending = 0
-    for s in starts:
+    counted = [a for a in alerts if a.started_at >= start]
+    for s in (a.started_at for a in counted):
         i = bisect.bisect_left(times, s)  # the first event at or after the warning
         if i < len(times) and times[i] < s + horizon:
             true += 1
@@ -209,7 +211,7 @@ def score(
             false += 1
     caught = [o.warning_time.total_seconds() for o in outcomes if o.warning_time is not None]
     days = (end - start).total_seconds() / 86400
-    return Outcome(config, alerts, true, false, pending, outcomes, days, spread_of(caught))
+    return Outcome(config, counted, true, false, pending, outcomes, days, spread_of(caught))
 
 
 def replay(

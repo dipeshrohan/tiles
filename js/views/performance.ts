@@ -20,6 +20,7 @@ let fetched: { key: string; report: PerformanceReport | null } | null = null; //
 let seq = 0;
 // The form as being changed, not yet shown: kept when an answer re-renders the page meanwhile.
 let pending: { days: number; horizonHours: number; codes: string } | null = null;
+const assetDrafts = new Map<string, string>(); // detector id -> the asset being typed
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const keyFor = (ctx: Context): string => {
@@ -33,6 +34,7 @@ if (typeof window !== 'undefined')
     if (!location.hash.startsWith('#/performance')) {
       fetched = null;
       pending = null;
+      assetDrafts.clear();
     }
   });
 
@@ -75,7 +77,7 @@ function detectorsCard(ctx: Context, r: PerformanceReport): string {
   const rows = r.detectors
     .map((d) => {
       const asset = canEdit
-        ? `<form class="row" data-asset-form="${esc(d.id)}" style="gap:6px;flex-wrap:nowrap"><input type="text" name="asset" value="${esc(d.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" style="width:7em"><button class="btn sm" type="submit">Set</button></form>`
+        ? `<form class="row" data-asset-form="${esc(d.id)}" style="gap:6px;flex-wrap:nowrap"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" style="width:7em"><button class="btn sm" type="submit">Set</button></form>`
         : esc(d.asset ?? '–');
       const c = d.confirmed;
       const scored = d.matched
@@ -173,6 +175,10 @@ const view: View = {
         codes: String(data.get('codes') ?? ''),
       };
     });
+    onAll(root, '[data-asset-form] [name=asset]', 'input', (el) => {
+      const id = el.closest<HTMLElement>('[data-asset-form]')?.dataset.assetForm;
+      if (id) assetDrafts.set(id, (el as HTMLInputElement).value);
+    });
     onAll(root, '[data-asset-form]', 'submit', (el, e) => {
       e.preventDefault();
       const site = siteId(ctx);
@@ -183,6 +189,7 @@ const view: View = {
       const asset = input.value.trim() || null;
       api.setDetectorAsset(site, id, asset).then(
         () => {
+          assetDrafts.delete(id);
           ctx.toast(asset ? `Matched to ${asset}’s events` : 'Asset cleared');
           fetched = null;
           ctx.rerender();

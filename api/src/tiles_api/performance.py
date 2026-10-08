@@ -7,8 +7,12 @@ number. A detector's warnings count for its asset's events; an asset with severa
 counts an event caught when any of them warned, for the totals. Events of assets no detector
 watches are counted apart (`unwatched`): no detector could have caught them.
 
-Both ends of the period cut: warnings started in it and events in it. A warning whose horizon
-runs past now is pending, as in the backtest.
+Each detector is scored over the part of the period it judged: from its signal's first reading
+to where its runs got to (`done_until`); events outside that couldn't have been warned of, so
+they aren't counted. Warnings started in the period are counted; one started up to a horizon
+before it may still warn of an event in it. A warning whose horizon runs past where the
+detector got to is pending, as in the backtest. The site-wide false warnings per day are over
+the whole period.
 """
 
 import uuid
@@ -81,80 +85,110 @@ def report(
         raise ValueError(f"More than {MAX_EVENTS} events in this period: choose a shorter one, or some codes")
     detectors = conn.execute(
         """
-        SELECT d.id, d.name, d.asset, d.config, g.tag AS signal_tag
+        SELECT d.id, d.name, d.asset, d.config, d.done_until, g.tag AS signal_tag,
+               (SELECT min(at) FROM samples s WHERE s.signal_id = d.signal_id) AS first_at
         FROM detectors d JOIN signals g ON g.id = d.signal_id WHERE d.site_id = %s ORDER BY d.name
         """,
         [site_id],
     ).fetchall()
+    # From a horizon before the period: such a warning may warn of an event in it (it isn't counted).
     warnings = conn.execute(
         """
         SELECT detector_id, started_at, last_at, peak, baseline, threshold, side, readings, outcome
         FROM warnings WHERE site_id = %s AND started_at >= %s AND started_at <= %s ORDER BY started_at
         """,
-        [site_id, start, end],
+        [site_id, start - horizon, end],
     ).fetchall()
     by_detector: dict[uuid.UUID, list[dict[str, Any]]] = {d["id"]: [] for d in detectors}
     for w in warnings:
-        by_detector[w["detector_id"]].append(w)
+        if w["detector_id"] in by_detector:  # not one created since the detectors were read
+            by_detector[w["detector_id"]].append(w)
+    kinds: dict[int, dict[str, Any]] = {}  # each Event's row, by id(), for its kind and signal
     by_asset: dict[str, list[Event]] = {}
-    for e in events:
-        by_asset.setdefault(e["asset"], []).append(Event(e["at"], e["code"]))
+    for row in events:
+        event = Event(row["at"], row["code"])
+        kinds[id(event)] = row
+        by_asset.setdefault(row["asset"], []).append(event)
+
+    def judged(d: dict[str, Any]) -> tuple[datetime, datetime]:
+        """The part of the period the detector has judged: from its signal's first reading to where
+        its runs got to. Events outside it couldn't have been warned of, so they aren't counted."""
+        since = max(start, d["first_at"] or end)
+        until = min(end, d["done_until"] or since)
+        return since, max(since, until)
+
+    def counted(ws: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [w for w in ws if w["started_at"] >= start]
 
     rows = []
     for d in detectors:
         mine = by_detector[d["id"]]
+        since, until = judged(d)
         row = {
             "id": d["id"],
             "name": d["name"],
             "signal_tag": d["signal_tag"],
             "asset": d["asset"],
-            "confirmed": _confirmed(mine),
+            "judged_from": since,
+            "judged_until": until,
+            "confirmed": _confirmed(counted(mine)),
         }
         if d["asset"] is None:  # nothing to match its warnings to
-            row |= {"warnings": len(mine), "events": 0, "matched": False}
+            row |= {"warnings": len(counted(mine)), "events": 0, "matched": False}
         else:
-            outcome = score(
-                Config(**d["config"]), [_alert(w) for w in mine], by_asset.get(d["asset"], []), horizon, start, end
-            )
+            events_of = by_asset.get(d["asset"], [])
+            outcome = score(Config(**d["config"]), [_alert(w) for w in mine], events_of, horizon, since, until)
             row |= _metrics(outcome) | {"matched": True}
         rows.append(row)
 
-    # The totals: per watched asset, every detector's warnings together, so an event counts once.
-    watched = {d["asset"] for d in detectors if d["asset"] is not None}
+    # The totals: per watched asset, every detector's warnings together, so an event counts once,
+    # over the part of the period any of them judged.
+    watched = sorted({d["asset"] for d in detectors if d["asset"] is not None})
     names = {d["id"]: d["name"] for d in detectors}
     totals = {k: 0 for k in ("warnings", "true_warnings", "false_warnings", "pending_warnings", "events", "caught")}
     seconds: list[float] = []
     shown: list[dict[str, Any]] = []
-    for asset in sorted(watched):
-        mine = [w for d in detectors if d["asset"] == asset for w in by_detector[d["id"]]]
-        mine.sort(key=lambda w: w["started_at"])
+    people: list[dict[str, Any]] = []
+    for asset in watched:
+        theirs = [d for d in detectors if d["asset"] == asset]
+        spans = [judged(d) for d in theirs]
+        mine = sorted((w for d in theirs for w in by_detector[d["id"]]), key=lambda w: w["started_at"])
+        people += counted(mine)
         who = {w["started_at"]: names[w["detector_id"]] for w in reversed(mine)}  # the earliest's detector
-        outcome = score(Config(), [_alert(w) for w in mine], by_asset.get(asset, []), horizon, start, end)
+        outcome = score(
+            Config(),
+            [_alert(w) for w in mine],
+            by_asset.get(asset, []),
+            horizon,
+            min(s for s, _ in spans),
+            max(u for _, u in spans),
+        )
+        m = _metrics(outcome)
         for k in totals:
-            totals[k] += _metrics(outcome)[k]
-        seconds += [e.warning_time.total_seconds() for e in outcome.events if e.warning_time is not None]
-        shown += [
-            {
-                "at": e.event.at,
-                "asset": asset,
-                "code": e.event.code,
-                "warned_at": e.warned_at,
-                "warning_seconds": e.warning_time.total_seconds() if e.warning_time else None,
-                "detector": who.get(e.warned_at) if e.warned_at else None,
-            }
-            for e in outcome.events
-        ]
+            totals[k] += m[k]
+        seconds += [o.warning_time.total_seconds() for o in outcome.events if o.warning_time is not None]
+        for o in outcome.events:
+            source = kinds[id(o.event)]
+            shown.append(
+                {
+                    "at": o.event.at,
+                    "asset": asset,
+                    "kind": source["kind"],
+                    "signal_tag": source["signal_tag"],
+                    "code": o.event.code,
+                    "warned_at": o.warned_at,
+                    "warning_seconds": o.warning_time.total_seconds() if o.warning_time else None,
+                    "detector": who.get(o.warned_at) if o.warned_at else None,
+                }
+            )
     days = (end - start).total_seconds() / 86400
-    judged = totals["true_warnings"] + totals["false_warnings"]
+    rated = totals["true_warnings"] + totals["false_warnings"]
     spread = spread_of(seconds)
     unwatched: dict[str, int] = {}
-    for e in events:
-        if e["asset"] not in watched:
-            unwatched[e["asset"]] = unwatched.get(e["asset"], 0) + 1
+    for row in events:
+        if row["asset"] not in watched:
+            unwatched[row["asset"]] = unwatched.get(row["asset"], 0) + 1
     shown.sort(key=lambda e: e["at"], reverse=True)
-    kinds = {(e["asset"], e["at"], e["code"]): (e["kind"], e["signal_tag"]) for e in events}
-    for e in shown:
-        e["kind"], e["signal_tag"] = kinds.get((e["asset"], e["at"], e["code"]), ("other", ""))
     return {
         "start": start,
         "end": end,
@@ -162,10 +196,10 @@ def report(
         "totals": totals
         | {
             "recall": totals["caught"] / totals["events"] if totals["events"] else None,
-            "precision": totals["true_warnings"] / judged if judged else None,
+            "precision": totals["true_warnings"] / rated if rated else None,
             "false_per_day": totals["false_warnings"] / days if days > 0 else None,
             "warning_seconds": asdict(spread) if spread else None,
-            "confirmed": _confirmed([w for d in detectors if d["asset"] in watched for w in by_detector[d["id"]]]),
+            "confirmed": _confirmed(people),
         },
         "detectors": rows,
         "unwatched": [{"asset": a, "events": n} for a, n in sorted(unwatched.items())],

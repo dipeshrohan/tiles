@@ -50,6 +50,8 @@ class DetectorRow(BaseModel):
     signal_tag: str
     asset: str | None
     matched: bool  # False: no asset, so its warnings can't be matched to events
+    judged_from: datetime  # the part of the period it has judged: from its signal's first reading...
+    judged_until: datetime  # ...to where its runs got to
     warnings: int
     true_warnings: int = 0
     false_warnings: int = 0

@@ -168,10 +168,10 @@ export function createFakeApi({
   const notifyPrefs = new Map(); // email -> { on_raised, on_assigned }
   let teams = { url: null, on_raised: true };
   const deliveries = []; // newest first, as the API lists them
-  let failWarningGets = 0;
+  let failWarningGets = 0; // answer this many reads of one warning with an error
   // Warning performance (T3.10): the report a test sets, and the queries the page asked it with.
   let performanceReport = null;
-  const performanceQueries = []; // answer this many reads of one warning with an error
+  const performanceQueries = [];
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API

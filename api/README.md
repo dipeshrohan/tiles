@@ -272,6 +272,8 @@ Signals and detectors also name their **asset**: the machine, as the MES names i
 - a warning counts as followed when such an event came after it, and as pending while its horizon runs past now;
 - an asset with several detectors counts an event once, if any of them warned.
 
+Each detector is scored over the part of the period it has judged: from its signal's first reading to where its runs got to. Events outside that couldn't have been warned of, so they aren't counted as missed. A warning that started up to a horizon before the period can still warn of an event in it, but only warnings that started in the period are counted.
+
 Alongside these, it shows what people resolved the warnings as (T3.07). Events of assets no detector watches are counted apart.
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
