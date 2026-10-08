@@ -70,6 +70,17 @@ export interface EdgeAgent {
   } | null;
 }
 
+// One bulk import of readings from a file (T2.07).
+export interface ImportRun {
+  id: string;
+  name: string;
+  created_by: string | null;
+  created_at: string;
+  received: number;
+  stored: number; // the rest were already stored
+  finished_at: string | null;
+}
+
 export interface Me {
   email: string;
   name: string;
@@ -188,6 +199,23 @@ export function createApiClient(options: ApiOptions) {
         request<{ agent: EdgeAgent; token: string }>('POST', `/sites/${encodeURIComponent(siteId)}/agents`, { name }),
       revoke: (siteId: string, agentId: string) =>
         request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/agents/${encodeURIComponent(agentId)}`),
+    },
+    // Bulk imports of readings (T2.07): start one, send its readings in batches, finish it.
+    imports: {
+      list: (siteId: string) => request<ImportRun[]>('GET', `/sites/${encodeURIComponent(siteId)}/imports`),
+      start: (siteId: string, name: string) =>
+        request<ImportRun>('POST', `/sites/${encodeURIComponent(siteId)}/imports`, { name }),
+      send: (siteId: string, importId: string, samples: { signal: string; at: string; value: number | string }[]) =>
+        request<{ received: number; stored: number }>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/imports/${encodeURIComponent(importId)}/samples`,
+          { samples },
+        ),
+      finish: (siteId: string, importId: string) =>
+        request<ImportRun>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/imports/${encodeURIComponent(importId)}/finish`,
+        ),
     },
     ontology: {
       graph: (siteId: string, view: GraphView = 'working') =>

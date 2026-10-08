@@ -62,7 +62,9 @@ With the API selected, **Settings → Account → Sign in** signs you in through
 
 ## Edge agent
 
-Plant data reaches Tiles through an edge agent that runs on the plant network and only connects out, over TLS. It opens no ports. A site admin registers each agent under **Settings → Edge agents**, which shows its token once along with a config file to copy. The same card shows whether each agent is online. The agent is a small Python program with no dependencies, so it installs with pip, as one file or as a container. It reads OPC UA servers over signed and encrypted sessions, pinning each server's certificate, and MQTT brokers over TLS, including Sparkplug B. Settings shows each connector's status. A SQL connector, and sending the readings on to Tiles, come next. See [edge/README.md](edge/README.md).
+Plant data reaches Tiles through an edge agent that runs on the plant network and only connects out, over TLS. It opens no ports. A site admin registers each agent under **Settings → Edge agents**, which shows its token once along with a config file to copy. The same card shows whether each agent is online. The agent is a small Python program with no dependencies, so it installs with pip, as one file or as a container. It reads OPC UA servers over signed and encrypted sessions, pinning each server's certificate, MQTT brokers over TLS, including Sparkplug B, and SQL databases (PostgreSQL, SQL Server, SQLite), read only. Readings wait in a buffer on disk until Tiles has stored them in TimescaleDB, so a network cut loses nothing. Settings shows each connector's status and the buffer. See [edge/README.md](edge/README.md).
+
+To backfill history, open **Import data** (API mode, engineers and admins). Choose a CSV file or a historian export, check how its columns map to signals (one column per signal, or one row per reading with tag and value columns), the time format and time zone, and import it. The file is read in the browser and sent in batches; readings Tiles already has are skipped, so importing a file twice is safe. Past imports are listed with who ran them and what they stored.
 
 ## Data model
 

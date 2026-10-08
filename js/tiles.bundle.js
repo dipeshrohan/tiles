@@ -722,7 +722,7 @@
 	//#endregion
 	//#region js/lib/store.ts
 	var PREFIX = "tiles:";
-	function load(key, fallback) {
+	function load$1(key, fallback) {
 		try {
 			const raw = window.localStorage.getItem(PREFIX + key);
 			return raw ? JSON.parse(raw) : fallback;
@@ -817,6 +817,12 @@
 				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/agents`),
 				register: (siteId, name) => request("POST", `/sites/${encodeURIComponent(siteId)}/agents`, { name }),
 				revoke: (siteId, agentId) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/agents/${encodeURIComponent(agentId)}`)
+			},
+			imports: {
+				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/imports`),
+				start: (siteId, name) => request("POST", `/sites/${encodeURIComponent(siteId)}/imports`, { name }),
+				send: (siteId, importId, samples) => request("POST", `/sites/${encodeURIComponent(siteId)}/imports/${encodeURIComponent(importId)}/samples`, { samples }),
+				finish: (siteId, importId) => request("POST", `/sites/${encodeURIComponent(siteId)}/imports/${encodeURIComponent(importId)}/finish`)
 			},
 			ontology: {
 				graph: (siteId, view = "working") => request("GET", `${site(siteId)}/graph?view=${view}`),
@@ -1392,7 +1398,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$6 = {
+	var view$7 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1695,7 +1701,7 @@
 	];
 	//#endregion
 	//#region js/views/chat.ts
-	var view$5 = {
+	var view$6 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -1987,7 +1993,7 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
@@ -2314,7 +2320,7 @@
 		split: true,
 		variable: "tension"
 	});
-	var view$3 = {
+	var view$4 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
@@ -2452,7 +2458,7 @@
 	//#endregion
 	//#region js/views/physics.ts
 	var uiState$1 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$2 = {
+	var view$3 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
@@ -2627,7 +2633,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -2815,6 +2821,11 @@
 			case "member.role": return `Changed a member's role from ${role(e.before)} to ${role(e.after)}`;
 			case "agent.register": return `Registered edge agent ${e.after?.name ?? ""}`;
 			case "agent.revoke": return `Revoked edge agent ${e.before?.name ?? ""}`;
+			case "import.start": return `Started importing ${e.after?.name ?? ""}`;
+			case "import.finish": {
+				const a = e.after;
+				return `Finished an import: ${a?.stored ?? 0} new readings of ${a?.received ?? 0} sent`;
+			}
 			default: return `${e.action} ${e.entity_type} ${e.entity_id}`;
 		}
 	}
@@ -2942,7 +2953,7 @@
 			}, () => void 0);
 		});
 	}
-	var view = {
+	var view$1 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -3025,33 +3036,602 @@
 		}
 	};
 	//#endregion
+	//#region js/lib/csv.ts
+	function detectDelimiter(text) {
+		const firstLine = (text.charCodeAt(0) === 65279 ? text.slice(1) : text).split(/\r?\n/, 1)[0] ?? "";
+		let best = ",";
+		let bestCount = 0;
+		for (const d of [
+			",",
+			";",
+			"	"
+		]) {
+			let count = 0;
+			let quoted = false;
+			for (const ch of firstLine) if (ch === "\"") quoted = !quoted;
+			else if (ch === d && !quoted) count++;
+			if (count > bestCount) [best, bestCount] = [d, count];
+		}
+		return best;
+	}
+	function parseCsv(text, delimiter = detectDelimiter(text)) {
+		const rows = [];
+		let row = [];
+		let cell = "";
+		let quoted = false;
+		let i = text.charCodeAt(0) === 65279 ? 1 : 0;
+		const endRow = () => {
+			row.push(cell);
+			if (row.length > 1 || row[0] !== "") rows.push(row);
+			row = [];
+			cell = "";
+		};
+		for (; i < text.length; i++) {
+			const ch = text[i];
+			if (quoted) {
+				if (ch === "\"") {
+					if (text[i + 1] === "\"") {
+						cell += "\"";
+						i++;
+					} else quoted = false;
+				} else cell += ch;
+			} else if (ch === "\"" && cell === "") quoted = true;
+			else if (ch === delimiter) {
+				row.push(cell);
+				cell = "";
+			} else if (ch === "\n" || ch === "\r") {
+				if (ch === "\r" && text[i + 1] === "\n") i++;
+				endRow();
+			} else cell += ch;
+		}
+		if (cell !== "" || row.length) endRow();
+		return rows;
+	}
+	//#endregion
+	//#region js/lib/importer.ts
+	var TAG_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
+	var MAX_TEXT = 1e3;
+	var MAX_AHEAD_MS = 864e5;
+	var MAX_EXAMPLES = 5;
+	function slugTag(name) {
+		const tag = name.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^[^a-z0-9]+/, "").replace(/-+$/, "").slice(0, 128).replace(/-+$/, "");
+		return TAG_PATTERN.test(tag) ? tag : null;
+	}
+	var NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+	var COMMA_NUMBER = /^[+-]?(\d+(,\d*)?|,\d+)([eE][+-]?\d+)?$/;
+	function parseNumber(cell, decimalComma) {
+		const s = cell.trim();
+		if (decimalComma ? !COMMA_NUMBER.test(s) : !NUMBER.test(s)) return null;
+		const n = Number(decimalComma ? s.replace(",", ".") : s);
+		return Number.isFinite(n) ? n : null;
+	}
+	var formatters = /* @__PURE__ */ new Map();
+	function formatter(zone) {
+		let f = formatters.get(zone);
+		if (!f) {
+			f = new Intl.DateTimeFormat("en-US", {
+				timeZone: zone,
+				hourCycle: "h23",
+				year: "numeric",
+				month: "2-digit",
+				day: "2-digit",
+				hour: "2-digit",
+				minute: "2-digit",
+				second: "2-digit"
+			});
+			formatters.set(zone, f);
+		}
+		return f;
+	}
+	function isTimeZone(zone) {
+		try {
+			formatter(zone);
+			return true;
+		} catch {
+			return false;
+		}
+	}
+	function zoneOffset(utcMs, zone) {
+		const parts = {};
+		for (const p of formatter(zone).formatToParts(new Date(utcMs))) if (p.type !== "literal") parts[p.type] = +p.value;
+		return Date.UTC(parts.year ?? 0, (parts.month ?? 1) - 1, parts.day, parts.hour, parts.minute, parts.second) - Math.floor(utcMs / 1e3) * 1e3;
+	}
+	function zonedTime(wall, zone) {
+		const day = 864e5;
+		const offsets = [zoneOffset(wall - day, zone), zoneOffset(wall + day, zone)];
+		const valid = offsets.map((o) => wall - o).filter((t) => wall - zoneOffset(t, zone) === t);
+		return valid.length ? Math.min(...valid) : wall - (offsets[0] ?? 0);
+	}
+	var ISO = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?\s*(Z|[+-]\d{2}(?::?\d{2})?)?$/i;
+	var DAY_MONTH = /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:[.,](\d{1,9}))?)?)?$/;
+	function wallClock(y, mo, d, h, mi, s, frac) {
+		const ms = frac ? Math.round(Number(`0.${frac}`) * 1e3) : 0;
+		const t = Date.UTC(y, mo - 1, d, h, mi, s, ms);
+		const back = new Date(t);
+		if (back.getUTCFullYear() !== y || back.getUTCMonth() !== mo - 1 || back.getUTCDate() !== d) return null;
+		if (h > 23 || mi > 59 || s > 59) return null;
+		return t;
+	}
+	function parseTime(cell, format, zone) {
+		const s = cell.trim();
+		if (format === "epoch-s" || format === "epoch-ms") {
+			const n = parseNumber(s, false);
+			if (n === null) return null;
+			const t = format === "epoch-s" ? n * 1e3 : n;
+			return Math.abs(t) < 864e13 ? Math.round(t) : null;
+		}
+		if (format === "iso") {
+			const m = ISO.exec(s);
+			if (!m) return null;
+			const [, y, mo, d, h = "0", mi = "0", sec = "0", frac = "", offset] = m;
+			const wall = wallClock(+(y ?? 0), +(mo ?? 0), +(d ?? 0), +h, +mi, +sec, frac);
+			if (wall === null) return null;
+			if (!offset) return zonedTime(wall, zone);
+			if (offset.toUpperCase() === "Z") return wall;
+			const sign = offset.startsWith("-") ? -1 : 1;
+			const digits = offset.slice(1).replace(":", "");
+			return wall - sign * (Number(digits.slice(0, 2)) * 60 + Number(digits.slice(2, 4) || 0)) * 6e4;
+		}
+		const m = DAY_MONTH.exec(s);
+		if (!m) return null;
+		const [, a = "", b = "", y = "", h = "0", mi = "0", sec = "0", frac = ""] = m;
+		const [d, mo] = format === "dmy" ? [+a, +b] : [+b, +a];
+		const wall = wallClock(+y, mo, d, +h, +mi, +sec, frac);
+		return wall === null ? null : zonedTime(wall, zone);
+	}
+	function guessTimeFormat(cells) {
+		const filled = cells.map((c) => c.trim()).filter(Boolean);
+		if (!filled.length) return null;
+		const reads = (f) => filled.every((c) => parseTime(c, f, "UTC") !== null);
+		if (reads("iso")) return "iso";
+		if (reads("dmy")) return "dmy";
+		if (reads("mdy")) return "mdy";
+		if (filled.every((c) => /^\d{9,11}(\.\d+)?$/.test(c))) return "epoch-s";
+		if (filled.every((c) => /^\d{12,14}$/.test(c))) return "epoch-ms";
+		return null;
+	}
+	var TAG_NAMES = /^(tag|tagname|tag name|name|signal|point|item|variable)$/i;
+	var VALUE_NAMES = /^(value|val|wert|valeur|reading)$/i;
+	function suggestMapping(header, rows, timeZone) {
+		const sample = rows.slice(0, 50);
+		const column = (i) => sample.map((r) => r[i] ?? "");
+		const formats = header.map((_, i) => guessTimeFormat(column(i)));
+		const dated = formats.findIndex((f) => f === "iso" || f === "dmy" || f === "mdy");
+		const timeColumn = dated >= 0 ? dated : Math.max(0, formats.findIndex((f) => f !== null));
+		const timeFormat = formats[timeColumn] ?? "iso";
+		const commaNumbers = sample.some((r) => r.some((c, i) => i !== timeColumn && /^[+-]?\d+,\d+$/.test(c.trim())));
+		const tagColumn = header.findIndex((h, i) => i !== timeColumn && TAG_NAMES.test(h.trim()));
+		const valueColumn = header.findIndex((h, i) => i !== timeColumn && VALUE_NAMES.test(h.trim()));
+		const base = {
+			timeColumn,
+			timeFormat,
+			timeZone,
+			decimalComma: commaNumbers,
+			keepText: false
+		};
+		if (tagColumn >= 0 && valueColumn >= 0) return {
+			...base,
+			columns: {},
+			long: {
+				tagColumn,
+				valueColumn
+			}
+		};
+		const columns = {};
+		header.forEach((h, i) => {
+			if (i === timeColumn) return;
+			const cells = column(i).filter((c) => c.trim() !== "");
+			const numeric = cells.filter((c) => parseNumber(c, commaNumbers) !== null).length;
+			const tag = slugTag(h);
+			if (tag && cells.length && numeric / cells.length >= .5) columns[i] = tag;
+		});
+		return {
+			...base,
+			columns,
+			long: null
+		};
+	}
+	function mappingProblems(header, m) {
+		const problems = [];
+		if (!(m.timeColumn >= 0 && m.timeColumn < header.length)) problems.push("Choose the column with the times.");
+		if (!isTimeZone(m.timeZone)) problems.push(`“${m.timeZone}” isn't a time zone, e.g. UTC or Europe/Berlin.`);
+		if (m.long) {
+			const { tagColumn, valueColumn } = m.long;
+			if ((/* @__PURE__ */ new Set([
+				m.timeColumn,
+				tagColumn,
+				valueColumn
+			])).size < 3) problems.push("The time, tag and value columns must be three different columns.");
+		} else {
+			const tags = Object.values(m.columns);
+			if (!tags.length) problems.push("Choose at least one column to import.");
+			const bad = tags.filter((t) => !TAG_PATTERN.test(t));
+			if (bad.length) problems.push(`${bad.map((t) => `“${t}”`).join(", ")}: signal names use lower-case letters, digits, dot, dash and underscore.`);
+			if (new Set(tags).size < tags.length) problems.push("Two columns map to the same signal.");
+		}
+		return problems;
+	}
+	function emptyStats() {
+		return {
+			readings: 0,
+			rows: 0,
+			signals: /* @__PURE__ */ new Set(),
+			first: null,
+			last: null,
+			skipped: {},
+			examples: []
+		};
+	}
+	function* readings(rows, m, stats = emptyStats(), now = Date.now()) {
+		const skip = (row, reason, detail) => {
+			stats.skipped[reason] = (stats.skipped[reason] ?? 0) + 1;
+			if (stats.examples.length < MAX_EXAMPLES) stats.examples.push({
+				row,
+				message: `${reason}: ${detail}`
+			});
+		};
+		for (let r = 0; r < rows.length; r++) {
+			const row = rows[r] ?? [];
+			const line = r + 2;
+			stats.rows++;
+			const timeCell = row[m.timeColumn] ?? "";
+			if (!timeCell.trim()) {
+				skip(line, "no time", "the time cell is empty");
+				continue;
+			}
+			const t = parseTime(timeCell, m.timeFormat, m.timeZone);
+			if (t === null) {
+				skip(line, "unreadable time", `“${timeCell}”`);
+				continue;
+			}
+			if (t > now + MAX_AHEAD_MS) {
+				skip(line, "time in the future", `“${timeCell}”`);
+				continue;
+			}
+			const at = new Date(t).toISOString();
+			const cells = m.long ? (() => {
+				const raw = row[m.long.tagColumn] ?? "";
+				const tag = slugTag(raw);
+				if (!tag) {
+					skip(line, "unusable tag", `“${raw}”`);
+					return [];
+				}
+				return [[tag, row[m.long.valueColumn] ?? ""]];
+			})() : Object.entries(m.columns).map(([i, tag]) => [tag, row[+i] ?? ""]);
+			for (const [signal, cell] of cells) {
+				if (cell.trim() === "") continue;
+				let value = parseNumber(cell, m.decimalComma);
+				if (value === null) {
+					if (!m.keepText) {
+						skip(line, "not a number", `“${cell.slice(0, 40)}” in ${signal}`);
+						continue;
+					}
+					value = cell.trim();
+					if (value.length > MAX_TEXT || value.includes("\0")) {
+						skip(line, "text too long or not plain", `in ${signal}`);
+						continue;
+					}
+				} else if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
+					skip(line, "number too large to store exactly", `${cell} in ${signal}`);
+					continue;
+				}
+				stats.readings++;
+				stats.signals.add(signal);
+				if (stats.first === null || at < stats.first) stats.first = at;
+				if (stats.last === null || at > stats.last) stats.last = at;
+				yield {
+					signal,
+					at,
+					value
+				};
+			}
+		}
+		return stats;
+	}
+	function summarize(rows, m, now = Date.now()) {
+		const stats = emptyStats();
+		for (const _ of readings(rows, m, stats, now));
+		return stats;
+	}
+	function* inBatches(items, size) {
+		let batch = [];
+		for (let next = items.next(); !next.done; next = items.next()) {
+			batch.push(next.value);
+			if (batch.length === size) {
+				yield batch;
+				batch = [];
+			}
+		}
+		if (batch.length) yield batch;
+	}
+	//#endregion
+	//#region js/views/imports.ts
+	var BATCH = 5e3;
+	var PREVIEW_ROWS = 5;
+	var loaded = null;
+	var running = null;
+	var lastResult = null;
+	var FORMATS = [
+		["iso", "ISO 8601 (2026-10-01 08:00:00)"],
+		["dmy", "Day first (01.10.2026 08:00)"],
+		["mdy", "Month first (10/01/2026 08:00)"],
+		["epoch-s", "Seconds since 1970"],
+		["epoch-ms", "Milliseconds since 1970"]
+	];
+	function browserZone() {
+		return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+	}
+	function load(fileName, text, zone = browserZone()) {
+		const [header, ...rows] = parseCsv(text, detectDelimiter(text));
+		if (!header || header.length < 2 || !rows.length) return `${fileName} needs a header row and at least one data row, with two or more columns.`;
+		return {
+			fileName,
+			header,
+			rows,
+			mapping: suggestMapping(header, rows, zone)
+		};
+	}
+	function options(header, selected, skip = []) {
+		return header.map((h, i) => skip.includes(i) ? "" : `<option value="${i}" ${i === selected ? "selected" : ""}>${esc(h || `Column ${i + 1}`)}</option>`).join("");
+	}
+	function mappingForm(l) {
+		const m = l.mapping;
+		const long = m.long !== null;
+		const columns = long ? `<div class="row" style="gap:12px;flex-wrap:wrap">
+        <label class="field">Tag column<select name="tagColumn">${options(l.header, m.long?.tagColumn ?? -1, [m.timeColumn])}</select></label>
+        <label class="field">Value column<select name="valueColumn">${options(l.header, m.long?.valueColumn ?? -1, [m.timeColumn])}</select></label>
+      </div>
+      <p class="small soft">Each row is one reading; tags become signal names (TT-101 → tt-101).</p>` : `<div class="table-wrap"><table><thead><tr><th>Import</th><th>Column</th><th>Signal</th></tr></thead><tbody>${l.header.map((h, i) => i === m.timeColumn ? "" : `<tr><td><input type="checkbox" name="use-${i}" ${m.columns[i] ? "checked" : ""} aria-label="Import ${esc(h)}"></td><td>${esc(h)}</td>
+               <td><input type="text" name="tag-${i}" value="${esc(m.columns[i] ?? slugTag(h) ?? "")}" aria-label="Signal for ${esc(h)}" style="width:100%"></td></tr>`).join("")}</tbody></table></div>`;
+		return `<form id="import-mapping" class="stack" style="gap:12px">
+      <fieldset class="row" style="gap:16px;border:0;padding:0">
+        <label><input type="radio" name="shape" value="wide" ${long ? "" : "checked"}> One column per signal</label>
+        <label><input type="radio" name="shape" value="long" ${long ? "checked" : ""}> One row per reading (tag, time, value)</label>
+      </fieldset>
+      <div class="row" style="gap:12px;flex-wrap:wrap">
+        <label class="field">Time column<select name="timeColumn">${options(l.header, m.timeColumn)}</select></label>
+        <label class="field">Time format<select name="timeFormat">${FORMATS.map(([f, label]) => `<option value="${f}" ${f === m.timeFormat ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
+        <label class="field">Time zone (for times without one)<input type="text" name="timeZone" value="${esc(m.timeZone)}"></label>
+      </div>
+      <div class="row" style="gap:16px;flex-wrap:wrap">
+        <label><input type="checkbox" name="decimalComma" ${m.decimalComma ? "checked" : ""}> Decimal comma (21,5)</label>
+        <label><input type="checkbox" name="keepText" ${m.keepText ? "checked" : ""}> Keep text cells as text readings</label>
+      </div>
+      ${columns}
+    </form>`;
+	}
+	function readMapping(form, header, before) {
+		const timeColumn = Number(field$1(form, "timeColumn"));
+		const base = {
+			timeColumn,
+			timeFormat: field$1(form, "timeFormat"),
+			timeZone: field$1(form, "timeZone").trim(),
+			decimalComma: form.elements.namedItem("decimalComma")?.checked ?? false,
+			keepText: form.elements.namedItem("keepText")?.checked ?? false
+		};
+		if ((form.querySelector("input[name=\"shape\"]:checked")?.value ?? "wide") === "long") {
+			const pick = (name, fallback) => {
+				const v = form.elements.namedItem(name);
+				return v instanceof HTMLSelectElement && v.value !== "" ? Number(v.value) : fallback;
+			};
+			const others = header.map((_, i) => i).filter((i) => i !== timeColumn);
+			return {
+				...base,
+				columns: {},
+				long: {
+					tagColumn: pick("tagColumn", before.long?.tagColumn ?? others[0] ?? -1),
+					valueColumn: pick("valueColumn", before.long?.valueColumn ?? others[1] ?? -1)
+				}
+			};
+		}
+		const columns = {};
+		header.forEach((h, i) => {
+			if (i === timeColumn) return;
+			const use = form.elements.namedItem(`use-${i}`);
+			const tag = form.elements.namedItem(`tag-${i}`);
+			if (!(use instanceof HTMLInputElement)) {
+				if (before.long === null && before.columns[i]) columns[i] = before.columns[i] ?? "";
+				return;
+			}
+			if (use.checked) columns[i] = tag instanceof HTMLInputElement ? tag.value.trim() : slugTag(h) ?? "";
+		});
+		return {
+			...base,
+			columns,
+			long: null
+		};
+	}
+	function describeStats(s) {
+		const range = s.first && s.last ? ` from ${s.first.replace("T", " ").slice(0, 19)} to ${s.last.replace("T", " ").slice(0, 19)} UTC` : "";
+		const skipped = Object.entries(s.skipped).map(([reason, n]) => `${fmt$1(n, 0)} ${reason}`).join(", ");
+		return `${fmt$1(s.readings, 0)} readings for ${s.signals.size} signal(s) in ${fmt$1(s.rows, 0)} rows${range}.${skipped ? ` Skipped: ${skipped}.` : ""}`;
+	}
+	function summaryBox(l) {
+		const problems = mappingProblems(l.header, l.mapping);
+		if (problems.length) return `<div class="stack" style="gap:4px">${problems.map((p) => `<p class="small" style="color:var(--bad)">${esc(p)}</p>`).join("")}</div>`;
+		const stats = summarize(l.rows, l.mapping);
+		const examples = stats.examples.length ? `<ul class="small soft">${stats.examples.map((e) => `<li>Line ${e.row}: ${esc(e.message)}</li>`).join("")}</ul>` : "";
+		const signals = [...stats.signals].slice(0, 12).map((t) => `<span class="badge">${esc(t)}</span>`).join(" ");
+		return `<p data-import-summary>${esc(describeStats(stats))}</p>
+    ${signals ? `<p>${signals}${stats.signals.size > 12 ? " …" : ""}</p>` : ""}${examples}`;
+	}
+	function preview(l) {
+		return `<div class="table-wrap"><table><thead><tr>${l.header.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${l.rows.slice(0, PREVIEW_ROWS).map((r) => `<tr>${l.header.map((_, i) => `<td>${esc(r[i] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+	}
+	function importCard(ctx) {
+		if (!ctx.api || !ctx.ontology.site) return `<div class="card stack" style="gap:8px"><h2>Import readings</h2><p class="small soft">Imports go into the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+		if (ctx.ontology.role === "viewer") return `<div class="card stack" style="gap:8px"><h2>Import readings</h2><p class="small soft">Your role on this site is viewer: you can see past imports, but engineers and admins run them.</p></div>`;
+		const l = loaded;
+		const busy = running !== null;
+		return `<div class="card stack" style="gap:12px" id="import-card">
+      <h2>Import readings</h2>
+      <p class="small soft">Backfill history from a CSV file or a historian export. The file is read in this browser; readings Tiles already has (same signal and time) are skipped, so importing a file twice is safe.</p>
+      <label class="field">File<input type="file" accept=".csv,.tsv,.txt,text/csv" data-import-file ${busy ? "disabled" : ""}></label>
+      ${l ? `<p class="small"><b>${esc(l.fileName)}</b>: ${fmt$1(l.rows.length, 0)} rows, ${l.header.length} columns.</p>
+             ${preview(l)}
+             ${mappingForm(l)}
+             <div data-import-check aria-live="polite">${summaryBox(l)}</div>
+             <div class="row" style="gap:8px">
+               <button class="btn primary" type="button" data-import-run ${busy || mappingProblems(l.header, l.mapping).length ? "disabled" : ""}>Import</button>
+               ${busy ? "<button class=\"btn\" type=\"button\" data-import-cancel>Stop</button>" : ""}
+             </div>` : ""}
+      <div data-import-progress aria-live="polite">${running ? progress(running) : lastResult ? `<p>${esc(lastResult)}</p>` : ""}</div>
+    </div>`;
+	}
+	function progress(r) {
+		const pct = r.total ? Math.round(100 * r.sent / r.total) : 0;
+		return `<p>Sent ${fmt$1(r.sent, 0)} of ${fmt$1(r.total, 0)} readings (${pct}%), ${fmt$1(r.stored, 0)} new.</p>
+    <progress max="${r.total}" value="${r.sent}" style="width:100%"></progress>`;
+	}
+	function historyCard() {
+		return `<div class="card stack" style="gap:12px"><h2>Past imports</h2><div data-import-history aria-live="polite"><p class="small soft">Loading…</p></div></div>`;
+	}
+	function historyTable(runs) {
+		if (!runs.length) return "<p class=\"small soft\">No imports on this site yet.</p>";
+		return `<div class="table-wrap"><table><thead><tr><th>File</th><th>By</th><th>Started</th><th>Readings</th><th>New</th><th>Status</th></tr></thead><tbody>${runs.map((r) => `<tr><td>${esc(r.name)}</td><td>${esc(r.created_by ?? "—")}</td><td>${esc(new Date(r.created_at).toLocaleString("en-GB"))}</td><td>${esc(fmt$1(r.received, 0))}</td><td>${esc(fmt$1(r.stored, 0))}</td><td>${r.finished_at ? "<span class=\"badge good\">finished</span>" : "<span class=\"badge warn\">not finished</span>"}</td></tr>`).join("")}</tbody></table></div>`;
+	}
+	async function fillHistory(root, ctx) {
+		const box = root.querySelector("[data-import-history]");
+		const site = ctx.ontology.site;
+		if (!box) return;
+		if (!ctx.api || !site) {
+			box.innerHTML = "<p class=\"small soft\">Past imports are kept in the Tiles API.</p>";
+			return;
+		}
+		try {
+			box.innerHTML = historyTable(await ctx.api.imports.list(site.id));
+		} catch {
+			box.innerHTML = "<p class=\"small soft\">The imports could not be loaded.</p>";
+		}
+	}
+	async function runImport(ctx) {
+		const l = loaded;
+		const site = ctx.ontology.site;
+		const api = ctx.api;
+		if (!l || !site || !api || running) return;
+		const total = summarize(l.rows, l.mapping).readings;
+		let run;
+		try {
+			run = await api.imports.start(site.id, l.fileName);
+		} catch {
+			return;
+		}
+		running = {
+			importId: run.id,
+			sent: 0,
+			stored: 0,
+			total,
+			cancelled: false
+		};
+		lastResult = null;
+		ctx.rerender();
+		const state = running;
+		let failure = null;
+		for (const batch of inBatches(readings(l.rows, l.mapping), BATCH)) {
+			if (state.cancelled) break;
+			try {
+				const answer = await api.imports.send(site.id, run.id, batch);
+				state.sent += answer.received;
+				state.stored += answer.stored;
+			} catch (e) {
+				failure = e instanceof Error ? e.message : String(e);
+				break;
+			}
+			const box = document.querySelector("[data-import-progress]");
+			if (box) box.innerHTML = progress(state);
+		}
+		try {
+			await api.imports.finish(site.id, run.id);
+		} catch {}
+		running = null;
+		const what = `${fmt$1(state.stored, 0)} new readings stored (${fmt$1(state.sent, 0)} sent; the rest were already in Tiles).`;
+		lastResult = failure ? `Stopped by an error after ${fmt$1(state.sent, 0)} readings: ${failure}. ${what}` : state.cancelled ? `Stopped. ${what}` : `Done. ${what}`;
+		ctx.toast(failure ? "Import stopped by an error" : state.cancelled ? "Import stopped" : `Imported ${l.fileName}`);
+		ctx.rerender();
+	}
+	var view = {
+		id: "import",
+		title: "Import data",
+		icon: "⇪",
+		render(ctx) {
+			return `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Import data</h1>
+        <p class="soft">Backfill readings from CSV files and historian exports, mapped to signals.</p></div></div>
+      <div class="stack" style="gap:16px">${importCard(ctx)}${historyCard()}</div>`;
+		},
+		bind(root, ctx) {
+			fillHistory(root, ctx);
+			const input = root.querySelector("[data-import-file]");
+			input?.addEventListener("change", () => {
+				const file = input.files?.[0];
+				if (!file) return;
+				file.text().then((text) => {
+					const result = load(file.name, text);
+					if (typeof result === "string") {
+						ctx.toast(result);
+						return;
+					}
+					loaded = result;
+					lastResult = null;
+					ctx.rerender();
+				});
+			});
+			const form = root.querySelector("#import-mapping");
+			form?.addEventListener("change", (e) => {
+				const l = loaded;
+				if (!l) return;
+				l.mapping = readMapping(form, l.header, l.mapping);
+				const name = e.target?.name ?? "";
+				if (name === "shape" || name === "timeColumn") {
+					if (name === "shape" && l.mapping.long === null && !Object.keys(l.mapping.columns).length) l.mapping = {
+						...suggestMapping(l.header, l.rows, l.mapping.timeZone),
+						timeColumn: l.mapping.timeColumn
+					};
+					ctx.rerender();
+					return;
+				}
+				need(root, "[data-import-check]").innerHTML = summaryBox(l);
+				const run = root.querySelector("[data-import-run]");
+				if (run) run.disabled = running !== null || mappingProblems(l.header, l.mapping).length > 0;
+			});
+			onAll(root, "[data-import-run]", "click", () => void runImport(ctx));
+			onAll(root, "[data-import-cancel]", "click", () => {
+				if (running) running.cancelled = true;
+			});
+		}
+	};
+	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$7,
 		view$6,
 		view$5,
 		view$4,
 		view$3,
 		view$2,
-		view$1,
-		view
+		view,
+		view$1
 	];
 	var NAV = [
-		{ items: [view$6, view$5] },
+		{ items: [view$7, view$6] },
 		{
 			group: "Operations",
 			items: [
+				view$5,
 				view$4,
-				view$3,
-				view$2
+				view$3
 			]
 		},
 		{
+			group: "Data",
+			items: [view]
+		},
+		{
 			group: "Design",
-			items: [view$1]
+			items: [view$2]
 		},
 		{
 			group: "",
-			items: [view]
+			items: [view$1]
 		}
 	];
 	function freshState() {
@@ -3066,7 +3646,7 @@
 		};
 	}
 	var STATE_KEY = "state-v2";
-	var persisted = load(STATE_KEY, null);
+	var persisted = load$1(STATE_KEY, null);
 	var shots = generateShotHistory();
 	var detection = detectFrictionAlerts(shots.history);
 	var state = {
@@ -3087,7 +3667,7 @@
 			user: state.user
 		});
 	}
-	var dataSource = resolveDataSource(load("datasource", null), location.search);
+	var dataSource = resolveDataSource(load$1("datasource", null), location.search);
 	var api = makeApi();
 	var localRepo = state.repo;
 	var remote = null;
@@ -3203,7 +3783,7 @@
 			history.replaceState(null, "", cleanCallbackUrl(location.href, e instanceof SignInError ? e.returnTo : void 0));
 			toast(e instanceof Error ? e.message : String(e));
 		}
-		dataSource = resolveDataSource(load("datasource", null), location.search);
+		dataSource = resolveDataSource(load$1("datasource", null), location.search);
 		api = makeApi();
 		render();
 	}
@@ -3311,7 +3891,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? view$6;
+		return VIEWS.find((v) => v.id === id) ?? view$7;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -3334,8 +3914,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$6 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$6 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$7 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$7 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
@@ -3386,7 +3966,7 @@
 		if (theme) document.documentElement.dataset.theme = theme;
 		else delete document.documentElement.dataset.theme;
 	}
-	applyTheme(load("theme", null));
+	applyTheme(load$1("theme", null));
 	need(document, "#theme").addEventListener("click", () => {
 		const next = (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark";
 		applyTheme(next);

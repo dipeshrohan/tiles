@@ -223,6 +223,11 @@ test('audit summaries read as sentences', async () => {
   );
   assert.equal(describeAudit(e('agent.register', null, { name: 'edge-01' })), 'Registered edge agent edge-01');
   assert.equal(describeAudit(e('agent.revoke', { name: 'edge-01' }, null)), 'Revoked edge agent edge-01');
+  assert.equal(describeAudit(e('import.start', null, { name: 'line-2.csv' })), 'Started importing line-2.csv');
+  assert.equal(
+    describeAudit(e('import.finish', null, { received: 10, stored: 7 })),
+    'Finished an import: 7 new readings of 10 sent',
+  );
   assert.equal(describeAudit(e('site.rename', null, null)), 'site.rename x y');
 });
 

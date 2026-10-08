@@ -66,6 +66,8 @@ A `Signal` node in the ontology is the modelling view of a tag. The readings the
 - **`signals`**: one row per tag and site (`tag`, `unit`, `sample_rate_hz`, `source`, and `node_id`, the `Signal` node it is mapped to). An edge agent that sends a tag Tiles hasn't seen adds it here, with `source` = `edge:<agent name>`. Mapping tags to nodes is the signal catalogue (T2.08).
 - **`samples`**: one row per signal and time (a TimescaleDB hypertable, one-day chunks). A reading is a number (`value`), text (`value_text`) or true/false (`value_bool`), with a `quality` of good, uncertain or bad. The primary key `(signal_id, at)` makes a re-sent reading a no-op. Chunks older than 7 days are compressed (column store, segmented by signal); readings older than 5 years are dropped. Both are TimescaleDB policies, changed with SQL (see migration 0004).
 
+History can also be backfilled from files (T2.07): the Import data page reads a CSV or historian export in the browser, maps its columns to signal tags and sends the readings in batches; each import is a row in **`imports`** (who, when, readings received and new), and its new tags get `source` = `import:<file name>`. Re-importing a file stores nothing new.
+
 Agents post readings to `POST /agent/samples` in batches of up to 10,000, each batch in one statement; a batch with an invalid reading is refused whole (422), and the agent narrows it down to that reading.
 
 ## How this maps to other systems

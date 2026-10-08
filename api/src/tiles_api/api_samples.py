@@ -14,7 +14,7 @@ and sets only that one aside.
 """
 
 from datetime import timedelta
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, Strict, field_validator
@@ -65,37 +65,34 @@ class SamplesOut(BaseModel):
     stored: int  # the rest were already stored
 
 
-@router.post("/agent/samples", response_model=SamplesOut)
-def ingest(body: SamplesIn, conn: DbConn, authorization: Annotated[str, Header()] = "") -> SamplesOut:
-    """Stores a batch of readings from an edge agent (at most 10,000), skipping ones already stored."""
-    agent = calling_agent(conn, authorization)
-    if not body.samples:
-        return SamplesOut(received=0, stored=0)
+def store_samples(conn: Any, site_id: Any, source: str, samples: list[SampleIn]) -> int:
+    """Stores readings for a site and returns how many were new. Tags seen for the first time join
+    the site's signals with `source`. Shared by agents' batches and file imports (T2.07)."""
+    if not samples:
+        return 0
     now = one(conn.execute("SELECT clock_timestamp() AS now").fetchone())["now"]
-    for i, s in enumerate(body.samples):
+    for i, s in enumerate(samples):
         if s.at > now + MAX_AHEAD:
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 f"sample {i} ({s.signal}) is stamped {s.at.isoformat()}, more than a day ahead of Tiles's clock",
             )
 
-    tags = sorted({s.signal for s in body.samples})
+    tags = sorted({s.signal for s in samples})
     conn.execute(
         """
         INSERT INTO signals (site_id, tag, source)
         SELECT %s, tag, %s FROM unnest(%s::text[]) AS tag
         ON CONFLICT (site_id, tag) DO NOTHING
         """,
-        [agent["site_id"], f"edge:{agent['name']}", tags],
+        [site_id, source, tags],
     )
     ids = {
         r["tag"]: r["id"]
-        for r in conn.execute(
-            "SELECT tag, id FROM signals WHERE site_id = %s AND tag = ANY(%s)", [agent["site_id"], tags]
-        )
+        for r in conn.execute("SELECT tag, id FROM signals WHERE site_id = %s AND tag = ANY(%s)", [site_id, tags])
     }
     columns: tuple[list[object], ...] = ([], [], [], [], [], [])
-    for s in body.samples:
+    for s in samples:
         v = s.value
         row = (
             ids[s.signal],
@@ -107,7 +104,7 @@ def ingest(body: SamplesIn, conn: DbConn, authorization: Annotated[str, Header()
         )
         for column, cell in zip(columns, row, strict=True):
             column.append(cell)
-    stored = conn.execute(
+    stored: int = conn.execute(
         """
         INSERT INTO samples (signal_id, at, value, value_text, value_bool, quality)
         SELECT * FROM unnest(%s::uuid[], %s::timestamptz[], %s::float8[], %s::text[], %s::bool[], %s::text[])
@@ -115,4 +112,12 @@ def ingest(body: SamplesIn, conn: DbConn, authorization: Annotated[str, Header()
         """,
         list(columns),
     ).rowcount
+    return stored
+
+
+@router.post("/agent/samples", response_model=SamplesOut)
+def ingest(body: SamplesIn, conn: DbConn, authorization: Annotated[str, Header()] = "") -> SamplesOut:
+    """Stores a batch of readings from an edge agent (at most 10,000), skipping ones already stored."""
+    agent = calling_agent(conn, authorization)
+    stored = store_samples(conn, agent["site_id"], f"edge:{agent['name']}", body.samples)
     return SamplesOut(received=len(body.samples), stored=stored)

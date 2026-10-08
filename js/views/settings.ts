@@ -49,6 +49,12 @@ export function describeAudit(e: AuditEntry): string {
       return `Registered edge agent ${(e.after as { name?: string } | null)?.name ?? ''}`;
     case 'agent.revoke':
       return `Revoked edge agent ${(e.before as { name?: string } | null)?.name ?? ''}`;
+    case 'import.start':
+      return `Started importing ${(e.after as { name?: string } | null)?.name ?? ''}`;
+    case 'import.finish': {
+      const a = e.after as { received?: number; stored?: number } | null;
+      return `Finished an import: ${a?.stored ?? 0} new readings of ${a?.received ?? 0} sent`;
+    }
     default:
       return `${e.action} ${e.entity_type} ${e.entity_id}`;
   }

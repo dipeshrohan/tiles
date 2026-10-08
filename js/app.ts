@@ -38,13 +38,15 @@ import quality from './views/quality.ts';
 import physics from './views/physics.ts';
 import design from './views/design.ts';
 import settings from './views/settings.ts';
+import imports from './views/imports.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 
-const VIEWS: View[] = [home, chat, ontology, quality, physics, design, settings];
+const VIEWS: View[] = [home, chat, ontology, quality, physics, design, imports, settings];
 
 const NAV: { group?: string; items: View[] }[] = [
   { items: [home, chat] },
   { group: 'Operations', items: [ontology, quality, physics] },
+  { group: 'Data', items: [imports] },
   { group: 'Design', items: [design] },
   { group: '', items: [settings] },
 ];
