@@ -57,9 +57,8 @@ QUANTITIES: list[tuple[tuple[str, ...], str, str]] = [
 def tokens(text: str) -> list[str]:
     """A name as lower-case words and numbers: 'DC02_PlungerVel' → ['dc', '2', 'plunger', 'vel']."""
     spaced = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)  # camelCase
-    spaced = re.sub(r"([A-Za-z])(\d)|(\d)([A-Za-z])", lambda m: " ".join(g for g in m.groups() if g), spaced)
-    words = re.split(r"[^a-z0-9]+", spaced.lower())
-    return [str(int(w)) if w.isdigit() else w for w in words if w]
+    words = re.findall(r"[a-z]+|\d+", spaced.lower())  # letters and numbers apart: 'oven3temp' → oven, 3, temp
+    return [str(int(w)) if w.isdigit() else w for w in words]
 
 
 def prefix(tag: str) -> str:
@@ -118,7 +117,7 @@ class Suggestion:
 class Suggester:
     """Suggestions for one site: its committed graph and its signals (dicts with id, tag, unit, node_id)."""
 
-    def __init__(self, graph: o.Graph, signals: list[dict[str, Any]]) -> None:
+    def __init__(self, graph: o.Graph, signals: list[dict[str, Any]], reserved: Iterable[str] = ()) -> None:
         self.graph = graph
         self.nodes = graph["nodes"]
         self.edges = list(graph["edges"].values())
@@ -128,9 +127,18 @@ class Suggester:
         self.signals = signals
         self.emitter = {e["to"]: e["from"] for e in self.edges if e["rel"] == "emits"}
         self.controller = {e["from"]: e["to"] for e in self.edges if e["rel"] == "controlledBy"}
+        self.reserved = set(reserved)  # node ids taken elsewhere (staged, or suggested for another tag)
+        self._tokens = {
+            n["id"]: (set(tokens(n["label"])) | set(tokens(n["id"]))) - {n["type"].lower()} for n in self.nodes.values()
+        }
+        # Mapped tags by prefix, for the sibling rule.
+        self.by_prefix: dict[str, list[dict[str, Any]]] = {}
+        for s in signals:
+            if s.get("node_id"):
+                self.by_prefix.setdefault(prefix(s["tag"]), []).append(s)
 
     def node_tokens(self, node: o.Node) -> set[str]:
-        return set(tokens(node["label"])) | set(tokens(node["id"])) - {node["type"].lower()}
+        return self._tokens[node["id"]]
 
     def plc_for(self, tag: str, tag_tokens: list[str]) -> tuple[str | None, str | None]:
         """The PLC a tag most likely comes from, and why."""
@@ -138,9 +146,9 @@ class Suggester:
         pre = prefix(tag)
         if pre:
             votes: dict[str, int] = {}
-            for s in self.signals:
+            for s in self.by_prefix.get(pre, []):
                 node = s.get("node_id")
-                if node and s["tag"] != tag and prefix(s["tag"]) == pre and node in self.emitter:
+                if node and s["tag"] != tag and node in self.emitter:
                     votes[self.emitter[node]] = votes.get(self.emitter[node], 0) + 1
             if votes:
                 plc = max(sorted(votes), key=lambda p: votes[p])
@@ -172,8 +180,11 @@ class Suggester:
 
     def link_score(self, tag: str, tag_tokens: list[str], unit: str | None, node: o.Node) -> tuple[float, list[str]]:
         reasons: list[str] = []
-        if node["props"].get("tag") == tag:
+        made_for = node["props"].get("tag")
+        if made_for == tag:
             return 1.0, [f"{node['label']} was created for this tag"]
+        if made_for:
+            return 0.0, reasons  # it was created for another tag
         name = self.node_tokens(node)
         words = set(tag_tokens)
         if not name or not words:
@@ -224,10 +235,10 @@ class Suggester:
         else:
             reasons.append("no unit found: set one before committing")
         node_id = f"signal-{slug(tag)}"
-        for k in range(2, 1000):
-            if node_id not in self.nodes:
-                break
+        k = 2
+        while node_id in self.nodes or node_id in self.reserved:
             node_id = f"signal-{slug(tag)}-{k}"
+            k += 1
         label = humanize(tag)
         props: dict[str, o.PropValue] = {"tag": tag}
         if node_unit:
@@ -252,18 +263,23 @@ class Suggester:
         return Suggestion(signal["id"], tag, "create", min(1.0, score), node_id, label, reasons, ops)
 
     def all(self, unmapped: Iterable[dict[str, Any]]) -> list[Suggestion]:
-        """Suggestions for the unmapped signals, each free node suggested for at most one tag: the tags
-        most sure of a link choose first, and a node taken is no longer offered to the others."""
+        """Suggestions for the unmapped signals. Each free node is suggested for at most one tag: the
+        tags most sure of a link choose first, and a node taken is no longer offered to the others. New
+        nodes get distinct ids."""
         pending = list(unmapped)
-        first = {s["id"]: self.suggest(s).score for s in pending}
-        free = self.free
+        first = {s["id"]: self.suggest(s) for s in pending}
+        free, reserved = self.free, set(self.reserved)
         result: list[Suggestion] = []
         try:
-            for signal in sorted(pending, key=lambda s: (-first[s["id"]], s["tag"])):
-                suggestion = self.suggest(signal)
+            for signal in sorted(pending, key=lambda s: (-first[s["id"]].score, s["tag"])):
+                suggestion = first[signal["id"]]
+                # Suggest again only if the first answer was taken by a tag before this one.
+                if suggestion.node_id in self.reserved:
+                    suggestion = self.suggest(signal)
                 if suggestion.kind == "link":
                     self.free = [n for n in self.free if n["id"] != suggestion.node_id]
+                self.reserved.add(suggestion.node_id)
                 result.append(suggestion)
         finally:
-            self.free = free
+            self.free, self.reserved = free, reserved
         return sorted(result, key=lambda s: s.tag)

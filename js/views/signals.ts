@@ -336,10 +336,11 @@ function bindResults(root: HTMLElement, ctx: Context): void {
 
 // ---- mapping suggestions (T2.11) ------------------------------------------
 
-let mapping: { for: string; unmapped: number; items: MappingSuggestion[] } | null = null;
+let mapping: { for: string; unmapped: number; staged: string[]; items: MappingSuggestion[] } | null = null;
 let suggesting = false;
+let linkingAll = false; // while Link all runs, the other buttons wait
 
-export function suggestionRow(s: MappingSuggestion, canEdit: boolean): string {
+export function suggestionRow(s: MappingSuggestion, canEdit: boolean, busy = false): string {
   const what =
     s.kind === 'link'
       ? `<span class="badge good">Link to</span> ${esc(s.node_label)}`
@@ -349,7 +350,7 @@ export function suggestionRow(s: MappingSuggestion, canEdit: boolean): string {
         <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
         <span class="small soft" title="How sure Tiles is">${Math.round(s.score * 100)}%</span>
         <span style="flex:1"></span>
-        ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}">${s.kind === 'link' ? 'Link' : 'Stage node'}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}">Skip</button>` : ''}
+        ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}" ${busy ? 'disabled' : ''}>${s.kind === 'link' ? 'Link' : 'Stage node'}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}" ${busy ? 'disabled' : ''}>Skip</button>` : ''}
       </div>
       <ul class="small soft" style="margin:4px 0 0 18px">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
     </div>`;
@@ -359,18 +360,19 @@ function mappingHtml(ctx: Context): string {
   if (!mapping || mapping.for !== catalogue(ctx)) return '';
   const skipped = new Set(ui(ctx).skipped);
   const items = mapping.items.filter((s) => !skipped.has(s.signal_id));
+  const staged = mapping.staged.length
+    ? `<p class="small">Your staged change adds a node for ${mapping.staged.map((t) => `<code>${esc(t)}</code>`).join(', ')}: commit it on the <a href="#/ontology">Ontology</a> page, then suggest again to link it.</p>`
+    : '';
   if (!mapping.unmapped) return '<p class="small soft">Every tag is linked to an ontology node.</p>';
   if (!items.length)
-    return '<p class="small soft">No suggestions left here. Suggest again to see the skipped ones.</p>';
+    return `${staged}<p class="small soft">${skipped.size ? 'No suggestions left here. Suggest again to see the skipped ones.' : 'No suggestions left here.'}</p>`;
   const canEdit = ctx.ontology.role !== 'viewer';
   const links = items.filter((s) => s.kind === 'link').length;
-  const more =
-    mapping.unmapped > mapping.items.length
-      ? ` (the first ${mapping.items.length} of ${mapping.unmapped} unlinked tags)`
-      : '';
-  return `<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
-    ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links>Link all ${links}</button></div>` : ''}
-    <div class="stack" style="gap:10px">${items.map((s) => suggestionRow(s, canEdit)).join('')}</div>`;
+  const shown = mapping.items.length + mapping.staged.length;
+  const more = mapping.unmapped > shown ? ` for ${mapping.items.length} of ${mapping.unmapped} unlinked tags` : '';
+  return `${staged}<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
+    ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links ${linkingAll ? 'disabled' : ''}>Link all ${links}</button></div>` : ''}
+    <div class="stack" style="gap:10px">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join('')}</div>`;
 }
 
 function fillMapping(root: HTMLElement, ctx: Context): void {
@@ -387,7 +389,7 @@ async function suggest(root: HTMLElement, ctx: Context): Promise<void> {
   const from = catalogue(ctx);
   try {
     const out = await ctx.api.signals.suggestions(site.id);
-    mapping = { for: from, unmapped: out.unmapped, items: out.suggestions };
+    mapping = { for: from, unmapped: out.unmapped, staged: out.staged, items: out.suggestions };
     ui(ctx).skipped = [];
   } catch {
     // the client showed why
@@ -407,7 +409,12 @@ async function accept(root: HTMLElement, ctx: Context, s: MappingSuggestion): Pr
           () => false, // the client showed why
         )
       : await ctx.ontology.act((store, repo) => store.stage(repo, s.ops));
-  if (ok && mapping) mapping.items = mapping.items.filter((x) => x.signal_id !== s.signal_id);
+  if (ok && mapping) {
+    mapping.items = mapping.items.filter((x) => x.signal_id !== s.signal_id);
+    if (s.kind === 'link')
+      mapping.unmapped -= 1; // a staged node leaves its tag unlinked until committed
+    else mapping.staged = [...mapping.staged, s.tag];
+  }
   return ok;
 }
 
@@ -415,7 +422,7 @@ function bindMapping(root: HTMLElement, ctx: Context): void {
   const find = (id: string | undefined) => mapping?.items.find((s) => s.signal_id === id);
   onAll(root, '[data-accept]', 'click', (el) => {
     const s = find(el.dataset.accept);
-    if (!s) return;
+    if (!s || linkingAll) return;
     el.setAttribute('disabled', '');
     void accept(root, ctx, s).then((ok) => {
       if (ok)
@@ -428,13 +435,19 @@ function bindMapping(root: HTMLElement, ctx: Context): void {
     if (el.dataset.skip) ui(ctx).skipped = [...ui(ctx).skipped, el.dataset.skip];
     fillMapping(root, ctx);
   });
-  onAll(root, '[data-accept-links]', 'click', (el) => {
-    el.setAttribute('disabled', '');
+  onAll(root, '[data-accept-links]', 'click', () => {
+    if (linkingAll) return;
     const skipped = new Set(ui(ctx).skipped);
     const links = (mapping?.items ?? []).filter((s) => s.kind === 'link' && !skipped.has(s.signal_id));
+    linkingAll = true;
+    fillMapping(root, ctx); // every button waits
     void (async () => {
       let done = 0;
-      for (const s of links) if (await accept(root, ctx, s)) done++;
+      try {
+        for (const s of links) if (await accept(root, ctx, s)) done++;
+      } finally {
+        linkingAll = false;
+      }
       ctx.toast(`Linked ${done} of ${links.length} tag(s)`);
       fillMapping(root, ctx);
       void search(root, ctx);

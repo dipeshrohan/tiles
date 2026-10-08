@@ -187,7 +187,8 @@ test('a mapping suggestion shows what it would do and why, with actions for edit
   assert.match(row, /New node<\/span> Press 1 &lt;b&gt;temperature&lt;\/b&gt;/);
   assert.match(row, />80%</);
   assert.match(row, /<li>emitted by PLC Press 1: the tag names Press 1 &amp; co<\/li>/);
-  assert.match(row, /data-accept="s1">Stage node</);
+  assert.match(row, /data-accept="s1"\s*>Stage node</);
+  assert.match(suggestionRow(s, true, true), /data-accept="s1" disabled>/); // while Link all runs
   assert.match(suggestionRow({ ...s, kind: 'link' }, true), /Link to<\/span>[\s\S]*>Link</);
   assert.doesNotMatch(suggestionRow(s, false), /data-accept/);
 });

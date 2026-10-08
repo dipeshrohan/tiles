@@ -1129,6 +1129,12 @@ test('mapping suggestions: stage a new node, commit it, then link its tag', asyn
   await page.locator('[data-suggestion]', { hasText: 'press1.temperature' }).locator('[data-accept]').click();
   await page.waitForSelector('#toast:has-text("Staged press1.temperature")');
   assert.equal(await page.locator('[data-suggestion]').count(), 0);
+  // Suggesting again doesn't offer it twice: it waits for the commit.
+  await page.click('[data-suggest]');
+  await page.waitForSelector(
+    '[data-mapping-results]:has-text("Your staged change adds a node for press1.temperature")',
+  );
+  assert.equal(await page.locator('[data-suggestion]').count(), 0);
   await page.evaluate(() => (location.hash = '#/ontology'));
   await page.waitForSelector('#commit-form:has-text("1 uncommitted")');
   await page.fill('#commit-form [name=message]', 'add press1.temperature');

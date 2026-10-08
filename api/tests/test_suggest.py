@@ -42,6 +42,8 @@ def matches(s: Suggestion, expect: dict[str, Any]) -> bool:
 def test_tags_read_as_words_numbers_and_quantities() -> None:
     assert tokens("DC02_PlungerVel") == ["dc", "2", "plunger", "vel"]
     assert tokens("Line2/Oven-3:ZoneTemp") == ["line", "2", "oven", "3", "zone", "temp"]
+    assert tokens("Oven3Temp") == ["oven", "3", "temp"]  # a number between words stands alone
+    assert tokens("zone1b") == ["zone", "1", "b"]
     assert (prefix("line2/press1.temp"), prefix("temp")) == ("line2/press1", "")
     assert humanize("press1.platen_temp") == "Press 1 platen temp"
     assert quantity(tokens("press1.temperature")) == ("°C", "temperature")
@@ -155,12 +157,45 @@ def test_suggest_stage_commit_and_link_through_the_api(api: Any, site: str) -> N
     assert (s["kind"], s["node_id"], s["tag"]) == ("create", "signal-press1-temperature", "press1.temperature")
     assert s["reasons"][0] == "emitted by PLC Press 1: the tag names Press 1, controlled by PLC Press 1"
 
-    # Accept: stage the ops, commit; the tag then links to its new node in one step.
+    # Accept: stage the ops; until committed, the tag waits on it and gets no other suggestion.
     assert api.post(f"{base}/staged/batch", json=s["ops"], headers=ENG).status_code == 201
+    waiting = api.get(f"/sites/{site}/signals/suggestions", headers=ENG).json()
+    assert waiting == {"unmapped": 1, "staged": ["press1.temperature"], "suggestions": []}
+    # Commit; the tag then links to its new node in one step.
     assert api.post(f"{base}/commits", json={"message": "add press1.temperature"}, headers=ENG).status_code == 201
     (link,) = api.get(f"/sites/{site}/signals/suggestions", headers=VIEWER).json()["suggestions"]
     assert (link["kind"], link["node_id"], link["score"]) == ("link", "signal-press1-temperature", 1.0)
     sig = by_tag(api, site, "press1.temperature")
     patched = api.patch(f"/sites/{site}/signals/{sig['id']}", json={"node_id": link["node_id"]}, headers=ENG)
     assert patched.status_code == 200
-    assert api.get(f"/sites/{site}/signals/suggestions", headers=VIEWER).json() == {"unmapped": 0, "suggestions": []}
+    assert api.get(f"/sites/{site}/signals/suggestions", headers=VIEWER).json() == {
+        "unmapped": 0,
+        "staged": [],
+        "suggestions": [],
+    }
+
+
+def test_new_nodes_get_distinct_ids_and_a_node_made_for_another_tag_is_not_offered() -> None:
+    g = plant()
+    g["nodes"]["signal-press1-temp-a"] = {
+        "id": "signal-press1-temp-a",
+        "type": "Signal",
+        "label": "Press 1 temp a",
+        "props": {"tag": "press1.temp_a", "unit": "°C"},
+    }
+    tags = [
+        {"id": "1", "tag": "press1.temp", "unit": None, "node_id": None},
+        {"id": "2", "tag": "Press1/Temp", "unit": None, "node_id": None},  # the same slug
+        {"id": "3", "tag": "press1.temp_b", "unit": "°C", "node_id": None},  # close to the node made for _a
+    ]
+    result = {s.signal_id: s for s in Suggester(g, tags, reserved=["signal-press1-temp-2"]).all(tags)}
+    ids = {result["1"].node_id, result["2"].node_id}
+    assert len(ids) == 2 and "signal-press1-temp-2" not in ids  # distinct, and not a staged id
+    assert result["3"].kind == "create"  # signal-press1-temp-a is for press1.temp_a
+
+
+def test_the_node_type_word_does_not_count_against_a_match() -> None:
+    g = plant()
+    g["nodes"]["signal-x"] = {"id": "signal-x", "type": "Signal", "label": "Signal oven 3 door", "props": {}}
+    s = Suggester(g, [])
+    assert s.node_tokens(g["nodes"]["signal-x"]) == {"oven", "3", "door", "x"}

@@ -314,7 +314,7 @@ export function createApiClient(options: ApiOptions) {
         ),
       // For each tag no node is linked to: the node to link, or the Signal node to create (T2.11).
       suggestions: (siteId: string, limit = 100) =>
-        request<{ unmapped: number; suggestions: MappingSuggestion[] }>(
+        request<{ unmapped: number; staged: string[]; suggestions: MappingSuggestion[] }>(
           'GET',
           `/sites/${encodeURIComponent(siteId)}/signals/suggestions?limit=${limit}`,
         ),

@@ -3426,14 +3426,15 @@
 	}
 	var mapping = null;
 	var suggesting = false;
-	function suggestionRow(s, canEdit) {
+	var linkingAll = false;
+	function suggestionRow(s, canEdit, busy = false) {
 		const what = s.kind === "link" ? `<span class="badge good">Link to</span> ${esc(s.node_label)}` : `<span class="badge accent">New node</span> ${esc(s.node_label)}`;
 		return `<div class="suggestion" data-suggestion="${esc(s.signal_id)}">
       <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
         <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
         <span class="small soft" title="How sure Tiles is">${Math.round(s.score * 100)}%</span>
         <span style="flex:1"></span>
-        ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}">${s.kind === "link" ? "Link" : "Stage node"}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}">Skip</button>` : ""}
+        ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}" ${busy ? "disabled" : ""}>${s.kind === "link" ? "Link" : "Stage node"}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}" ${busy ? "disabled" : ""}>Skip</button>` : ""}
       </div>
       <ul class="small soft" style="margin:4px 0 0 18px">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
     </div>`;
@@ -3442,14 +3443,16 @@
 		if (!mapping || mapping.for !== catalogue(ctx)) return "";
 		const skipped = new Set(ui$1(ctx).skipped);
 		const items = mapping.items.filter((s) => !skipped.has(s.signal_id));
+		const staged = mapping.staged.length ? `<p class="small">Your staged change adds a node for ${mapping.staged.map((t) => `<code>${esc(t)}</code>`).join(", ")}: commit it on the <a href="#/ontology">Ontology</a> page, then suggest again to link it.</p>` : "";
 		if (!mapping.unmapped) return "<p class=\"small soft\">Every tag is linked to an ontology node.</p>";
-		if (!items.length) return "<p class=\"small soft\">No suggestions left here. Suggest again to see the skipped ones.</p>";
+		if (!items.length) return `${staged}<p class="small soft">${skipped.size ? "No suggestions left here. Suggest again to see the skipped ones." : "No suggestions left here."}</p>`;
 		const canEdit = ctx.ontology.role !== "viewer";
 		const links = items.filter((s) => s.kind === "link").length;
-		const more = mapping.unmapped > mapping.items.length ? ` (the first ${mapping.items.length} of ${mapping.unmapped} unlinked tags)` : "";
-		return `<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
-    ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links>Link all ${links}</button></div>` : ""}
-    <div class="stack" style="gap:10px">${items.map((s) => suggestionRow(s, canEdit)).join("")}</div>`;
+		const shown = mapping.items.length + mapping.staged.length;
+		const more = mapping.unmapped > shown ? ` for ${mapping.items.length} of ${mapping.unmapped} unlinked tags` : "";
+		return `${staged}<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
+    ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links ${linkingAll ? "disabled" : ""}>Link all ${links}</button></div>` : ""}
+    <div class="stack" style="gap:10px">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join("")}</div>`;
 	}
 	function fillMapping(root, ctx) {
 		const box = root.querySelector("[data-mapping-results]");
@@ -3467,6 +3470,7 @@
 			mapping = {
 				for: from,
 				unmapped: out.unmapped,
+				staged: out.staged,
 				items: out.suggestions
 			};
 			ui$1(ctx).skipped = [];
@@ -3479,14 +3483,18 @@
 		const site = ctx.ontology.site;
 		if (!ctx.api || !site) return false;
 		const ok = s.kind === "link" ? await ctx.api.signals.update(site.id, s.signal_id, { node_id: s.node_id }).then(() => true, () => false) : await ctx.ontology.act((store, repo) => store.stage(repo, s.ops));
-		if (ok && mapping) mapping.items = mapping.items.filter((x) => x.signal_id !== s.signal_id);
+		if (ok && mapping) {
+			mapping.items = mapping.items.filter((x) => x.signal_id !== s.signal_id);
+			if (s.kind === "link") mapping.unmapped -= 1;
+			else mapping.staged = [...mapping.staged, s.tag];
+		}
 		return ok;
 	}
 	function bindMapping(root, ctx) {
 		const find = (id) => mapping?.items.find((s) => s.signal_id === id);
 		onAll(root, "[data-accept]", "click", (el) => {
 			const s = find(el.dataset.accept);
-			if (!s) return;
+			if (!s || linkingAll) return;
 			el.setAttribute("disabled", "");
 			accept(root, ctx, s).then((ok) => {
 				if (ok) ctx.toast(s.kind === "link" ? `Linked ${s.tag}` : `Staged ${s.node_label}: commit it on the Ontology page`);
@@ -3498,13 +3506,19 @@
 			if (el.dataset.skip) ui$1(ctx).skipped = [...ui$1(ctx).skipped, el.dataset.skip];
 			fillMapping(root, ctx);
 		});
-		onAll(root, "[data-accept-links]", "click", (el) => {
-			el.setAttribute("disabled", "");
+		onAll(root, "[data-accept-links]", "click", () => {
+			if (linkingAll) return;
 			const skipped = new Set(ui$1(ctx).skipped);
 			const links = (mapping?.items ?? []).filter((s) => s.kind === "link" && !skipped.has(s.signal_id));
+			linkingAll = true;
+			fillMapping(root, ctx);
 			(async () => {
 				let done = 0;
-				for (const s of links) if (await accept(root, ctx, s)) done++;
+				try {
+					for (const s of links) if (await accept(root, ctx, s)) done++;
+				} finally {
+					linkingAll = false;
+				}
 				ctx.toast(`Linked ${done} of ${links.length} tag(s)`);
 				fillMapping(root, ctx);
 				search(root, ctx);
