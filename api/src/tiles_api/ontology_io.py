@@ -24,6 +24,7 @@ import csv
 import io
 import json
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -37,6 +38,7 @@ MAX_NODES = 20_000
 MAX_EDGES = 50_000
 MAX_ID = 200
 MAX_LABEL = 500
+MAX_REL = 100  # as the staging API (api_ontology.EdgeIn)
 NODE_COLUMNS = ["kind", "id", "type", "label", "from", "rel", "to"]
 
 
@@ -58,12 +60,28 @@ def to_json(graph: o.Graph, meta: dict[str, Any]) -> str:
     return json.dumps(body, ensure_ascii=False, indent=2) + "\n"
 
 
+# A spreadsheet runs a cell that starts with one of these as a formula.
+FORMULA_START = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _text_cell(text: str) -> str:
+    """Text as a cell that reads back as itself and never runs as a formula: an apostrophe goes
+    in front of text a spreadsheet would run, or that starts with an apostrophe itself."""
+    return "'" + text if text.startswith(("'", *FORMULA_START)) else text
+
+
+def _text_from_cell(cell: str) -> str:
+    return cell[1:] if cell.startswith("'") else cell
+
+
 def _cell(value: o.PropValue) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
-    if isinstance(value, str) and (value.startswith("'") or not isinstance(_read_cell(value), str)):
-        return "'" + value  # text that would read back as a number or true/false (as in spreadsheets)
-    return str(value)
+    if isinstance(value, str):
+        # Text that would read back as a number, true/false or no property gets an apostrophe too.
+        looks_like_value = value == "" or not isinstance(_read_cell(value), str)
+        return "'" + value if looks_like_value else _text_cell(value)
+    return repr(value) if isinstance(value, float) else str(value)
 
 
 def to_csv(graph: o.Graph) -> str:
@@ -74,10 +92,12 @@ def to_csv(graph: o.Graph) -> str:
     for nid in sorted(graph["nodes"]):
         n = graph["nodes"][nid]
         props = n["props"]
-        writer.writerow(["node", n["id"], n["type"], n["label"], "", "", "", *(_safe(props, k) for k in keys)])
+        cells = [_text_cell(n["id"]), n["type"], _text_cell(n["label"]), "", "", ""]
+        writer.writerow(["node", *cells, *(_safe(props, k) for k in keys)])
     for eid in sorted(graph["edges"]):
         e = graph["edges"][eid]
-        writer.writerow(["edge", e["id"], "", "", e["from"], e["rel"], e["to"], *([""] * len(keys))])
+        ends = [_text_cell(e["from"]), _text_cell(e["rel"]), _text_cell(e["to"])]
+        writer.writerow(["edge", _text_cell(e["id"]), "", "", *ends, *([""] * len(keys))])
     return out.getvalue()
 
 
@@ -133,7 +153,7 @@ def _graph(raw_nodes: list[Any], raw_edges: list[Any]) -> o.Graph:
             continue
         nid = _text(n.get("id"), f"{where}: id", problems, limit=MAX_ID)
         ntype = n.get("type")
-        label = _text(n.get("label", ""), f"{where}: label", problems, limit=MAX_LABEL, required=False)
+        label = _text(n.get("label"), f"{where}: label", problems, limit=MAX_LABEL, required=False)
         props = n.get("props") or {}
         if ntype not in o.NODE_TYPES:
             problems.add(f"{where}: unknown type {ntype!r} (one of {', '.join(o.NODE_TYPES)})")
@@ -153,7 +173,8 @@ def _graph(raw_nodes: list[Any], raw_edges: list[Any]) -> o.Graph:
         if not isinstance(e, dict):
             problems.add(f"{where} is not an object")
             continue
-        values = [_text(e.get(k), f"{where}: {k}", problems, limit=MAX_ID) for k in ("id", "from", "rel", "to")]
+        limits = {"id": MAX_ID, "from": MAX_ID, "rel": MAX_REL, "to": MAX_ID}
+        values = [_text(e.get(k), f"{where}: {k}", problems, limit=limit) for k, limit in limits.items()]
         eid, frm, rel, to = values
         if eid is None or frm is None or rel is None or to is None:
             continue
@@ -181,18 +202,22 @@ def from_json(content: str) -> o.Graph:
     return _graph(nodes, edges)
 
 
+INTEGER = re.compile(r"-?[0-9]+")
+DECIMAL = re.compile(r"-?([0-9]+\.?[0-9]*|\.[0-9]+)([eE][-+]?[0-9]+)?")
+
+
 def _read_cell(text: str) -> o.PropValue:
+    """A property cell: text marked with an apostrophe, true/false, a number, or else text."""
     if text.startswith("'"):
-        return text[1:]  # marked as text
+        return text[1:]
     if text in ("true", "false"):
         return text == "true"
-    try:
+    if INTEGER.fullmatch(text):
+        return int(text)  # exactly, however long
+    if DECIMAL.fullmatch(text):
         number = float(text)
-    except ValueError:
-        return text
-    if not math.isfinite(number):
-        return text
-    return int(number) if number.is_integer() and "." not in text and "e" not in text.lower() else number
+        return number if math.isfinite(number) else text
+    return text
 
 
 def from_csv(content: str) -> o.Graph:
@@ -215,9 +240,16 @@ def from_csv(content: str) -> o.Graph:
         kind = cell["kind"].strip()
         if kind == "node":
             props = {key: _read_cell(row[i]) for i, key in prop_cols if i < len(row) and row[i] != ""}
-            nodes.append({"id": cell["id"], "type": cell["type"].strip(), "label": cell["label"], "props": props})
+            nodes.append(
+                {
+                    "id": _text_from_cell(cell["id"]),
+                    "type": cell["type"].strip(),
+                    "label": _text_from_cell(cell["label"]),
+                    "props": props,
+                }
+            )
         elif kind == "edge":
-            edges.append({k: cell[k] for k in ("id", "from", "rel", "to")})
+            edges.append({k: _text_from_cell(cell[k]) for k in ("id", "from", "rel", "to")})
         else:
             problems.add(f"line {line}: kind must be node or edge, not {kind!r}")
     problems.raise_if_any()
@@ -260,16 +292,21 @@ def plan(head: o.Graph, target: o.Graph, mode: Mode) -> Plan:
     remove_edges: list[o.Op] = []
     add_edges: list[o.Op] = []
     result = Plan()
-    existing = {(e["from"], e["rel"], e["to"]): eid for eid, e in head["edges"].items()}
-    for eid, e in target["edges"].items():
-        same_id = head["edges"].get(eid)
-        if same_id == e:
+    # What the relationships join, once this plan has replaced the ones the file gives another meaning.
+    replaced = {eid for eid, e in target["edges"].items() if eid in head["edges"] and head["edges"][eid] != e}
+    joined = {(e["from"], e["rel"], e["to"]) for eid, e in head["edges"].items() if eid not in replaced}
+    joined |= {(e["from"], e["rel"], e["to"]) for eid, e in target["edges"].items() if head["edges"].get(eid) == e}
+    for eid in sorted(target["edges"]):
+        e = target["edges"][eid]
+        if head["edges"].get(eid) == e:
             continue
-        if same_id is not None:  # same id, another relationship: it is replaced
-            remove_edges.append({"kind": "removeEdge", "id": eid})
-        elif (e["from"], e["rel"], e["to"]) in existing:
+        triple = (e["from"], e["rel"], e["to"])
+        if triple in joined:  # already there (in the ontology or earlier in the file) under another id
             result.duplicates.append(eid)
             continue
+        joined.add(triple)
+        if eid in replaced:
+            remove_edges.append({"kind": "removeEdge", "id": eid})
         add_edges.append({"kind": "addEdge", "edge": dict(e)})
     remove_nodes: list[o.Op] = []
     if mode == "replace":

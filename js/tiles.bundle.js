@@ -862,7 +862,8 @@
 					content: file.content,
 					name: file.name,
 					mode: file.mode,
-					dry_run: file.dryRun
+					dry_run: file.dryRun,
+					...file.expectCommit !== void 0 ? { expect_commit: file.expectCommit } : {}
 				}),
 				reviewPolicy: (siteId) => request("GET", `${site(siteId)}/review-policy`),
 				setReviewPolicy: (siteId, required) => request("PUT", `${site(siteId)}/review-policy`, { required })
@@ -2079,6 +2080,7 @@
 	async function planImport(ctx) {
 		const p = pending;
 		if (!p || !ctx.api) return;
+		const plan = ++p.plans;
 		p.preview = null;
 		ctx.rerender();
 		try {
@@ -2086,9 +2088,11 @@
 				...p,
 				dryRun: true
 			});
-			if (pending === p) p.preview = preview;
+			if (pending !== p || plan !== p.plans) return;
+			p.preview = preview;
 		} catch {
-			if (pending === p) pending = null;
+			if (pending !== p || plan !== p.plans) return;
+			pending = null;
 		}
 		ctx.rerender();
 	}
@@ -2259,7 +2263,8 @@
 						format,
 						content,
 						mode: "merge",
-						preview: null
+						preview: null,
+						plans: 0
 					};
 					planImport(ctx);
 				});
@@ -2275,23 +2280,22 @@
 			});
 			onAll(root, "[data-import-stage]", "click", (el) => {
 				const p = pending;
-				if (!p || !ctx.api) return;
+				const shown = p?.preview;
+				if (!p || !shown || !ctx.api) return;
 				el.setAttribute("disabled", "");
 				const api = ctx.api;
 				ctx.ontology.act(async (store) => {
 					const result = await api.ontology.importFile(p.site, {
 						...p,
-						dryRun: false
+						dryRun: false,
+						expectCommit: shown.commit
 					});
 					if (pending === p) pending = null;
 					if (!(store.kind === "api" && "load" in store)) throw new Error("Imports need the Tiles API");
 					if (!result.staged) throw new Error("Nothing to change: the ontology already matches the file");
 					return store.load();
 				}, `Staged the changes from ${p.name}: commit them, or send them for review`).then((ok) => {
-					if (!ok && pending === p) {
-						pending = null;
-						ctx.rerender();
-					}
+					if (!ok && pending === p) planImport(ctx);
 				});
 			});
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());

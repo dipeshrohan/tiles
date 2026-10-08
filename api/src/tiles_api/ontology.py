@@ -114,9 +114,19 @@ def apply_op(graph: Graph, op: Op) -> tuple[Graph, Op]:
     return g, _apply(g, op)
 
 
-def _apply(g: Graph, op: Op) -> Op:
+def _degrees(g: Graph) -> dict[str, int]:
+    """How many relationships touch each node (a loop counts once)."""
+    degree: dict[str, int] = {}
+    for e in g["edges"].values():
+        for end in {e["from"], e["to"]}:
+            degree[end] = degree.get(end, 0) + 1
+    return degree
+
+
+def _apply(g: Graph, op: Op, degree: dict[str, int] | None = None) -> Op:
     """Apply one op to `g` in place (a clone the caller owns); return the op that undoes it.
-    Node and edge records are replaced, never changed, so they can be shared with other graphs."""
+    Node and edge records are replaced, never changed, so they can be shared with other graphs.
+    `degree` (from _degrees, kept up to date here) saves scanning every edge on removeNode."""
     kind = op.get("kind")
     if kind == "addNode":
         node = op["node"]
@@ -135,9 +145,12 @@ def _apply(g: Graph, op: Op) -> Op:
         existing = g["nodes"].get(op["id"])
         if existing is None:
             raise OntologyError(f"Node {op['id']} not found")
-        attached = [e for e in g["edges"].values() if op["id"] in (e["from"], e["to"])]
+        if degree is None:
+            attached = sum(1 for e in g["edges"].values() if op["id"] in (e["from"], e["to"]))
+        else:
+            attached = degree.get(op["id"], 0)
         if attached:
-            raise OntologyError(f"Node {op['id']} still has {len(attached)} relationship(s)")
+            raise OntologyError(f"Node {op['id']} still has {attached} relationship(s)")
         del g["nodes"][op["id"]]
         return {"kind": "addNode", "node": existing}
     if kind == "addEdge":
@@ -147,12 +160,18 @@ def _apply(g: Graph, op: Op) -> Op:
         if e["from"] not in g["nodes"] or e["to"] not in g["nodes"]:
             raise OntologyError(f"Relationship {e['id']} points at a missing node")
         g["edges"][e["id"]] = {"id": e["id"], "from": e["from"], "rel": e["rel"], "to": e["to"]}
+        if degree is not None:
+            for end in {e["from"], e["to"]}:
+                degree[end] = degree.get(end, 0) + 1
         return {"kind": "removeEdge", "id": e["id"]}
     if kind == "removeEdge":
         edge = g["edges"].get(op["id"])
         if edge is None:
             raise OntologyError(f"Relationship {op['id']} not found")
         del g["edges"][op["id"]]
+        if degree is not None:
+            for end in {edge["from"], edge["to"]}:
+                degree[end] -= 1
         return {"kind": "addEdge", "edge": edge}
     if kind == "setProp":
         target = g["nodes"].get(op["id"])
@@ -176,7 +195,8 @@ def _apply(g: Graph, op: Op) -> Op:
 def apply_ops(graph: Graph, ops: list[Op]) -> tuple[Graph, list[Op]]:
     """Apply ops in order; inverses come back in undo order (last op first)."""
     g = _clone(graph)  # once: the ops then change the clone, not `graph`
-    inverses = [_apply(g, op) for op in ops]
+    degree = _degrees(g) if len(ops) > 1 else None
+    inverses = [_apply(g, op, degree) for op in ops]
     inverses.reverse()
     return g, inverses
 

@@ -85,6 +85,7 @@ export interface OntologyImport {
   ops: Op[]; // the first 500
   duplicates: string[]; // relationships already there under another id: skipped
   staged: boolean;
+  commit: string | null; // the latest commit it was planned against
 }
 
 export interface AuditEntry {
@@ -423,7 +424,15 @@ export function createApiClient(options: ApiOptions) {
       // Plans the ops that bring the committed ontology to the file's and stages them, or only plans (dryRun).
       importFile: (
         siteId: string,
-        file: { format: 'json' | 'csv'; content: string; name: string; mode: 'merge' | 'replace'; dryRun: boolean },
+        file: {
+          format: 'json' | 'csv';
+          content: string;
+          name: string;
+          mode: 'merge' | 'replace';
+          dryRun: boolean;
+          // Stage only if the latest commit is still this one (a preview's `commit`).
+          expectCommit?: string | null;
+        },
       ) =>
         request<OntologyImport>('POST', `${site(siteId)}/import`, {
           format: file.format,
@@ -431,6 +440,7 @@ export function createApiClient(options: ApiOptions) {
           name: file.name,
           mode: file.mode,
           dry_run: file.dryRun,
+          ...(file.expectCommit !== undefined ? { expect_commit: file.expectCommit } : {}),
         }),
       // Whether every change needs a review (T2.12); admins set it.
       reviewPolicy: (siteId: string) => request<{ required: boolean }>('GET', `${site(siteId)}/review-policy`),

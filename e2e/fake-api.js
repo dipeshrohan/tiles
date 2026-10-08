@@ -524,7 +524,11 @@ export function createFakeApi({
       if (path === '/export' && req.method === 'GET') return sendExport(url.searchParams.get('format') ?? 'json');
       if (path === '/import' && req.method === 'POST') {
         if (repo.staged.length) return send(409, { detail: 'Commit, send or discard your staged changes first' });
-        const { content, format, mode = 'merge', dry_run: dryRun = false } = await body(req);
+        const given = await body(req);
+        const { content, format, mode = 'merge', dry_run: dryRun = false } = given;
+        const latest = history[0]?.id ?? null;
+        if ('expect_commit' in given && given.expect_commit !== latest)
+          return send(409, { detail: 'The ontology has changed since the preview: check the changes again' });
         if (format !== 'json') return send(422, { detail: 'The fake API imports JSON only' });
         let file;
         try {
@@ -538,7 +542,13 @@ export function createFakeApi({
         for (const op of planned.ops) next = stage(next, op);
         const staging = planned.ops.length > 0 && !dryRun;
         if (staging) staged.set(user, next.staged);
-        return send(200, { ...planned, ops: planned.ops.slice(0, 500), total: planned.ops.length, staged: staging });
+        return send(200, {
+          ...planned,
+          ops: planned.ops.slice(0, 500),
+          total: planned.ops.length,
+          staged: staging,
+          commit: latest,
+        });
       }
       if (path === '/review-policy' && req.method === 'GET') return send(200, { required: reviewRequired });
       if (path === '/review-policy' && req.method === 'PUT') {

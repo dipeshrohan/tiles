@@ -188,6 +188,7 @@ interface PendingImport {
   content: string;
   mode: 'merge' | 'replace';
   preview: OntologyImport | null; // null while it is planned
+  plans: number; // the latest plan asked for: an older answer (another mode) is dropped
 }
 let pending: PendingImport | null = null;
 
@@ -243,13 +244,16 @@ function importCard(ctx: Context): string {
 async function planImport(ctx: Context): Promise<void> {
   const p = pending;
   if (!p || !ctx.api) return;
+  const plan = ++p.plans;
   p.preview = null;
   ctx.rerender();
   try {
     const preview = await ctx.api.ontology.importFile(p.site, { ...p, dryRun: true });
-    if (pending === p) p.preview = preview;
+    if (pending !== p || plan !== p.plans) return;
+    p.preview = preview;
   } catch {
-    if (pending === p) pending = null; // the client showed why
+    if (pending !== p || plan !== p.plans) return;
+    pending = null; // the client showed why
   }
   ctx.rerender();
 }
@@ -466,7 +470,7 @@ const view: View = {
       if (!file || !site) return;
       void file.text().then((content) => {
         const format = /\.csv$/i.test(file.name) || file.type === 'text/csv' ? 'csv' : 'json';
-        pending = { site: site.id, name: file.name, format, content, mode: 'merge', preview: null };
+        pending = { site: site.id, name: file.name, format, content, mode: 'merge', preview: null, plans: 0 };
         void planImport(ctx);
       });
     });
@@ -481,22 +485,21 @@ const view: View = {
     });
     onAll(root, '[data-import-stage]', 'click', (el) => {
       const p = pending;
-      if (!p || !ctx.api) return;
+      const shown = p?.preview;
+      if (!p || !shown || !ctx.api) return;
       el.setAttribute('disabled', '');
       const api = ctx.api;
       void ctx.ontology
         .act(async (store) => {
-          const result = await api.ontology.importFile(p.site, { ...p, dryRun: false });
+          // Only what the preview showed: refused if someone committed since.
+          const result = await api.ontology.importFile(p.site, { ...p, dryRun: false, expectCommit: shown.commit });
           if (pending === p) pending = null;
           if (!(store.kind === 'api' && 'load' in store)) throw new Error('Imports need the Tiles API');
           if (!result.staged) throw new Error('Nothing to change: the ontology already matches the file');
           return (store as RemoteStore).load();
         }, `Staged the changes from ${p.name}: commit them, or send them for review`)
         .then((ok) => {
-          if (!ok && pending === p) {
-            pending = null;
-            ctx.rerender();
-          }
+          if (!ok && pending === p) void planImport(ctx); // show what it would change now
         });
     });
     onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());

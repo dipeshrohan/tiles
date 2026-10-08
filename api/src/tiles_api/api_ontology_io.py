@@ -26,6 +26,8 @@ class ImportIn(BaseModel):
     mode: io_.Mode = "merge"
     name: Annotated[str, Field(max_length=200, pattern=r"^[^\x00]*$")] = ""  # the file's name, for the audit log
     dry_run: bool = False  # only plan: nothing is staged
+    # Stage only if the latest commit is still this one (the one a preview was planned on).
+    expect_commit: Annotated[str, Field(max_length=200)] | None = None
 
 
 class ImportOut(BaseModel):
@@ -34,6 +36,7 @@ class ImportOut(BaseModel):
     ops: list[dict[str, Any]]  # the first PREVIEW_OPS of them
     duplicates: list[str]  # relationships in the file already in the ontology under another id: skipped
     staged: bool
+    commit: str | None  # the latest commit the plan was made against (None: no commits yet)
 
 
 @router.get("/sites/{site_id}/ontology/export")
@@ -63,10 +66,19 @@ def import_file(ctx: Editor, body: ImportIn) -> dict[str, Any]:
 
     `merge` adds and sets; `replace` also removes what the file doesn't have. You then commit
     them, or send them for review, like any staged change. Needs no staged changes of your own.
+    Pass the preview's `commit` as `expect_commit` to stage only what the preview showed.
     """
     store.lock_site(ctx.conn, ctx.site_id)
     if store.load_staged(ctx.conn, ctx.site_id, ctx.user):
         raise HTTPException(status.HTTP_409_CONFLICT, "Commit, send or discard your staged changes first")
+    latest = ctx.conn.execute(
+        "SELECT id FROM commits WHERE site_id = %s ORDER BY seq DESC LIMIT 1", [ctx.site_id]
+    ).fetchone()
+    commit = latest["id"] if latest else None
+    if "expect_commit" in body.model_fields_set and body.expect_commit != commit:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "The ontology has changed since the preview: check the changes again"
+        )
     try:
         target = io_.read(body.content, body.format)
         planned = io_.plan(store.load_head(ctx.conn, ctx.site_id), target, body.mode)
@@ -89,4 +101,5 @@ def import_file(ctx: Editor, body: ImportIn) -> dict[str, Any]:
         "ops": planned.ops[:PREVIEW_OPS],
         "duplicates": planned.duplicates,
         "staged": staged,
+        "commit": commit,
     }

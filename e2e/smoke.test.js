@@ -1269,7 +1269,7 @@ test('change reviews: request a review, reject it, rework it, approve it', async
   await a.page.fill('#prop-form [name=key]', 'name');
   await a.page.fill('#prop-form [name=value]', 'Alarms DC-02');
   await a.page.click('#prop-form button');
-  await a.page.waitForSelector('#commit-form:has-text("3 uncommitted")');
+  await a.page.waitForSelector('#commit-form:has-text("2 uncommitted")');
   await a.page.fill('#commit-form [name=message]', 'add alarms node, named');
   await a.page.click('[data-request-review]');
   await a.page.waitForSelector('#toast:has-text("Sent for review")');
@@ -1411,9 +1411,14 @@ test('ontology export as JSON and CSV, and import of a file as staged changes', 
   await page.waitForSelector('[data-import-summary]:has-text("1 node removed")');
   await page.selectOption('[data-import-mode]', 'merge');
   await page.waitForSelector('[data-import-summary]:not(:has-text("removed"))');
+  // Someone commits after the preview: staging is refused and the preview shows the new plan.
+  fake.commitAs('maria', [{ kind: 'setProp', id: 'line-1', key: 'shift', value: 'A' }], 'shift A');
+  await page.click('[data-import-stage]');
+  await page.waitForSelector('#toast:has-text("changed since the preview")');
+  await page.waitForSelector('[data-import-summary]:has-text("1 new node, 1 new relationship.")');
   await page.click('[data-import-stage]');
   await page.waitForSelector('#toast:has-text("Staged the changes from plant.json")');
-  await page.waitForSelector('#commit-form:has-text("3 uncommitted")');
+  await page.waitForSelector('#commit-form:has-text("2 uncommitted")');
   assert.equal(await page.locator('#import-card').count(), 0);
   assert.equal(await page.locator('[data-import-file]').isDisabled(), true); // staged changes first
 
@@ -1424,7 +1429,7 @@ test('ontology export as JSON and CSV, and import of a file as staged changes', 
   await page.waitForSelector('#toast:has-text("rename it by hand")');
   assert.equal(await page.locator('#import-card').count(), 0);
   assert.deepEqual(
-    errors.filter((e) => !/status of 422/.test(e)), // the browser logs the refused import
+    errors.filter((e) => !/status of (409|422)/.test(e)), // the browser logs the refused imports
     [],
   );
 });

@@ -66,7 +66,11 @@ def test_json_from_the_api_graph_reads_too() -> None:
         ('{"nodes": [{"id": "a", "type": "Robot", "label": "A"}]}', "json", "node 1: unknown type 'Robot'"),
         ('{"nodes": [{"id": "", "type": "Line", "label": "A"}]}', "json", "node 1: id must be text"),
         ('{"nodes": [{"id": "a", "type": "Line", "label": "A", "props": {"x": [1]}}]}', "json", "props must map"),
-        ('{"nodes": [{"id": "a", "type": "Line", "label": "A"}, {"id": "a", "type": "Line"}]}', "json", "twice"),
+        (
+            '{"nodes": [{"id": "a", "type": "Line", "label": "A"}, {"id": "a", "type": "Line", "label": "B"}]}',
+            "json",
+            "twice",
+        ),
         ("kind,id,type,label\n", "csv", "Missing column(s): from, rel, to"),
         ("kind,id,type,label,from,rel,to\nthing,a,,,,,\n", "csv", "line 2: kind must be node or edge"),
     ],
@@ -199,3 +203,95 @@ def test_a_bad_import_is_explained(api: TestClient, site: str) -> None:  # noqa:
     assert res.status_code == 422
     assert res.json()["detail"].startswith("The file can't be imported: node 1: unknown type 'Robot'")
     assert api.post(f"{base(site)}/import", json={**bad, "format": "xml"}, headers=ENG).status_code == 422
+
+
+def test_a_relationship_the_file_moves_frees_what_it_joined() -> None:
+    # e1 now joins other nodes; the file's new e2 joins what e1 did: it is not a duplicate.
+    moved = {**CONTAINS, "rel": "feeds", "to": "force"}
+    again = {**CONTAINS, "id": "contains-again"}
+    planned = io_.plan(HEAD, graph([PRESS, FORCE, LINE], [EMITS, moved, again]), "replace")
+    assert planned.duplicates == []
+    after = o.apply_ops(HEAD, planned.ops)[0]
+    assert {(e["from"], e["rel"], e["to"]) for e in after["edges"].values()} == {
+        ("press", "emits", "force"),
+        ("line", "feeds", "force"),
+        ("line", "contains", "press"),
+    }
+
+
+def test_a_relationship_twice_in_the_file_is_added_once() -> None:
+    twin = {**EMITS, "id": "emits-2"}
+    planned = io_.plan(graph([PRESS, FORCE], []), graph([PRESS, FORCE], [EMITS, twin]), "merge")
+    assert [op["edge"]["id"] for op in planned.ops] == ["emits-2"]  # the first in id order
+    assert planned.duplicates == ["press-emits-force"]
+
+
+def test_csv_keeps_every_value_exactly_and_never_runs_as_a_formula() -> None:
+    tricky = {
+        "big": 12345678901234567890,
+        "empty": "",
+        "formula": '=HYPERLINK("http://example.com","x")',
+        "minus": "-5 text",
+        "negative": -5,
+        "underscored": "1_000",
+        "tiny": 1e-7,
+    }
+    nodes = [{"id": "=id", "type": "Line", "label": "+label", "props": tricky}, {**LINE, "label": "@line"}]
+    g = graph(nodes, [{"id": "-e", "from": "=id", "rel": "=rel", "to": "line"}])
+    text = io_.to_csv(g)
+    assert io_.from_csv(text) == g
+    assert io_.plan(g, io_.from_csv(text), "replace").ops == []
+    for row in text.splitlines()[1:]:
+        for cell in row.split(","):
+            assert not cell.startswith(("=", "+", "@")), cell  # a spreadsheet would run it
+    assert ",-5," in text  # a negative number stays a number
+
+
+def test_a_node_without_a_label_or_a_long_relationship_name_is_refused() -> None:
+    with pytest.raises(io_.FileProblems) as e:
+        io_.from_json('{"nodes": [{"id": "a", "type": "Line"}]}')
+    assert e.value.problems == ["node 1: label must be text"]
+    rel = "r" * 101
+    edge = {"id": "e", "from": "a", "rel": rel, "to": "a"}
+    with pytest.raises(io_.FileProblems) as e:
+        io_.from_json(json.dumps({"nodes": [{**LINE, "id": "a"}], "edges": [edge]}))
+    assert e.value.problems == ["relationship 1: rel is too long or has a NUL character"]
+
+
+def test_replacing_keeps_many_relationships_and_removes_many_nodes_quickly() -> None:
+    # Each node removal checks the node has no relationships left: not by scanning them all.
+    chain = [{"id": f"n{i}", "type": "Line", "label": f"N{i}", "props": {}} for i in range(5000)]
+    spare = [{"id": f"x{i}", "type": "Line", "label": f"X{i}", "props": {}} for i in range(5000)]
+    edges = [{"id": f"e{i}", "from": f"n{i}", "rel": "feeds", "to": f"n{i + 1}"} for i in range(4999)]
+    head = io_.from_json(json.dumps({"nodes": chain + spare, "edges": edges}))
+    target = io_.from_json(json.dumps({"nodes": chain, "edges": edges}))
+    start = time.perf_counter()
+    planned = io_.plan(head, target, "replace")
+    o.apply_ops(head, planned.ops)
+    assert planned.counts == {**planned.counts, "remove_nodes": 5000, "remove_edges": 0}
+    assert time.perf_counter() - start < 2
+
+
+def test_staging_waits_for_the_ontology_the_preview_showed(api: TestClient, site: str) -> None:  # noqa: F811
+    body = {"format": "json", "content": io_.to_json(graph([LINE], []), {}), "dry_run": True}
+    preview = api.post(f"{base(site)}/import", json=body, headers=ENG).json()
+    assert preview["commit"] is None  # no commits yet
+    # Someone commits meanwhile: the preview is out of date.
+    other = {"X-Tiles-User": "eng2@example.com"}
+    assert api.post(f"{base(site)}/staged", json={"kind": "addNode", "node": PRESS}, headers=other).status_code == 201
+    assert api.post(f"{base(site)}/commits", json={"message": "press"}, headers=other).status_code == 201
+    stale = api.post(
+        f"{base(site)}/import", json={**body, "dry_run": False, "expect_commit": preview["commit"]}, headers=ENG
+    )
+    assert (stale.status_code, stale.json()["detail"]) == (
+        409,
+        "The ontology has changed since the preview: check the changes again",
+    )
+    fresh = api.post(f"{base(site)}/import", json={**body, "mode": "replace"}, headers=ENG).json()
+    assert fresh["counts"]["remove_nodes"] == 1  # the new press, which the first preview didn't show
+    staged = api.post(
+        f"{base(site)}/import",
+        json={**body, "mode": "replace", "dry_run": False, "expect_commit": fresh["commit"]},
+        headers=ENG,
+    )
+    assert staged.json()["staged"] is True
