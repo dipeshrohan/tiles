@@ -129,7 +129,7 @@ def test_evaluate_checks_what_a_model_returns() -> None:
         ) -> dict[str, list[float | None]]:
             return {"y": [1 / x for x in inputs["x"]], "total": [0.0]}
 
-    with pytest.raises(ModelError, match="can't run on these inputs: .*division by zero"):
+    with pytest.raises(ModelError, match=r"can't run on these inputs: .*division by zero"):
         evaluate(Fragile(), {"x": [0.0]})
 
     class Unequal(Doubler):
