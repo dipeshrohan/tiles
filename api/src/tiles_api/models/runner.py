@@ -24,7 +24,7 @@ import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row, tuple_row
 
-from tiles_api.models.registry import Model, ModelError, evaluate, registry
+from tiles_api.models.registry import Model, evaluate, registry
 from tiles_api.settings import get_settings
 from tiles_api.store import Conn
 
@@ -37,10 +37,15 @@ WindowKind = Literal["gap", "fixed"]
 
 @dataclass
 class RunResult:
-    windows: int = 0
+    windows: int = 0  # windows run (including those the model refused)
+    failed: int = 0  # windows the model refused: skipped, the first reason in `error`
     written: int = 0
     done_until: datetime | None = None
     error: str | None = None
+    caught_up: bool = True  # False: stopped at the batch limit with more to run
+
+    def note(self, problem: str) -> None:
+        self.error = self.error or problem
 
 
 def cut(times: list[datetime], kind: WindowKind, size_s: float) -> list[tuple[int, int]]:
@@ -65,58 +70,100 @@ def _bucket(t: datetime, size_s: float) -> int:
     return math.floor(t.timestamp() / size_s)
 
 
-def complete(window_last: datetime, is_last: bool, kind: WindowKind, size_s: float, now: datetime) -> bool:
-    """A window is complete once later data follows it, or once no reading can still join it."""
+def complete(
+    window_last: datetime, is_last: bool, kind: WindowKind, size_s: float, now: datetime, lateness_s: float = 0
+) -> bool:
+    """A window is complete once later data follows it, or once no reading can still join it,
+    allowing `lateness_s` for readings that arrive late (an edge agent's backlog)."""
     if not is_last:
         return True
     if kind == "gap":
-        return (now - window_last).total_seconds() > size_s
-    return now >= datetime.fromtimestamp((_bucket(window_last, size_s) + 1) * size_s, tz=window_last.tzinfo)
+        return (now - window_last).total_seconds() > size_s + lateness_s
+    end = (_bucket(window_last, size_s) + 1) * size_s
+    return now.timestamp() >= end + lateness_s
 
 
-def _read(conn: Conn, inputs: dict[str, str], after: datetime | None, limit: int) -> list[tuple[Any, ...]]:
-    """Readings of the input signals joined on their timestamps: (at, value per signal input)."""
-    signals = [(name, sig) for name, sig in inputs.items() if sig != TIME]
-    first = signals[0][1]
-    joins = sql.SQL(" ").join(
-        sql.SQL("JOIN samples {a} ON {a}.signal_id = {sig} AND {a}.at = s0.at AND {a}.value IS NOT NULL").format(
-            a=sql.Identifier(f"s{i}"), sig=sql.Literal(sig)
-        )
-        for i, (_, sig) in enumerate(signals[1:], 1)
-    )
+def _read(
+    conn: Conn, inputs: dict[str, str], after: datetime | None, limit: int, align_s: float = 0
+) -> list[tuple[Any, ...]]:
+    """Readings of the input signals joined on time: (at, value per signal input), on the first
+    signal's clock. With `align_s` 0, the other signals need a reading at the same instant; above
+    0, each takes its latest reading at most `align_s` seconds before."""
+    signals = [sig for sig in inputs.values() if sig != TIME]
+    joins = []
+    for i, sig in enumerate(signals[1:], 1):
+        a = sql.Identifier(f"s{i}")
+        if align_s > 0:
+            joins.append(
+                sql.SQL(
+                    "JOIN LATERAL (SELECT value FROM samples x WHERE x.signal_id = {sig} AND x.value IS NOT NULL"
+                    " AND x.at <= s0.at AND x.at >= s0.at - make_interval(secs => {align})"
+                    " ORDER BY x.at DESC LIMIT 1) {a} ON true"
+                ).format(sig=sql.Literal(sig), align=sql.Literal(align_s), a=a)
+            )
+        else:
+            joins.append(
+                sql.SQL(
+                    "JOIN samples {a} ON {a}.signal_id = {sig} AND {a}.at = s0.at AND {a}.value IS NOT NULL"
+                ).format(a=a, sig=sql.Literal(sig))
+            )
     columns = sql.SQL(", ").join(sql.SQL("{}.value").format(sql.Identifier(f"s{i}")) for i in range(len(signals)))
+    # Without a placeholder for a missing bound, so the planner can skip older chunks.
+    since = sql.SQL("AND s0.at > %s") if after is not None else sql.SQL("")
     query = sql.SQL(
-        "SELECT s0.at, {columns} FROM samples s0 {joins} "
-        "WHERE s0.signal_id = %s AND s0.value IS NOT NULL AND (%s::timestamptz IS NULL OR s0.at > %s) "
+        "SELECT s0.at, {columns} FROM samples s0 {joins} WHERE s0.signal_id = %s AND s0.value IS NOT NULL {since} "
         "ORDER BY s0.at LIMIT %s"
-    ).format(columns=columns, joins=joins)
+    ).format(columns=columns, joins=sql.SQL(" ").join(joins), since=since)
+    params: list[Any] = [signals[0], *([after] if after is not None else []), limit]
     cur = conn.cursor(row_factory=tuple_row)  # plain tuples, whatever the connection's rows
-    return list(cur.execute(query, [first, after, after, limit]))
+    return list(cur.execute(query, params))
 
 
-def run_binding(conn: Conn, binding: dict[str, Any], model: Model, now: datetime) -> RunResult:
+def _first_reading_after(conn: Conn, signal: str, after: datetime | None) -> bool:
+    since = sql.SQL("AND at > %s") if after is not None else sql.SQL("")
+    query = sql.SQL("SELECT 1 FROM samples WHERE signal_id = %s AND value IS NOT NULL {since} LIMIT 1").format(
+        since=since
+    )
+    return conn.execute(query, [signal, *([after] if after is not None else [])]).fetchone() is not None
+
+
+def run_binding(
+    conn: Conn, binding: dict[str, Any], model: Model, now: datetime, batches: int = MAX_BATCHES
+) -> RunResult:
     """Runs one binding on its new complete windows (the caller holds its row lock)."""
     inputs: dict[str, str] = binding["inputs"]
     outputs: dict[str, str] = binding["outputs"]
     kind: WindowKind = binding["window_kind"]
     size: float = binding["window_s"]
+    lateness: float = binding.get("lateness_s", 0)
+    align: float = binding.get("align_s", 0)
     names = [name for name, sig in inputs.items() if sig != TIME]
     result = RunResult(done_until=binding["done_until"])
     per = {p.name: p.per for p in model.spec.outputs}
-    for _ in range(MAX_BATCHES):
-        rows = _read(conn, inputs, result.done_until, MAX_ROWS)
+    for batch in range(batches):
+        rows = _read(conn, inputs, result.done_until, MAX_ROWS, align)
         if not rows:
+            first = next(sig for sig in inputs.values() if sig != TIME)
+            if len(names) > 1 and _first_reading_after(conn, first, result.done_until):
+                result.note(
+                    "the input signals have no readings at the same instants: "
+                    + ("widen align_seconds" if align else "set align_seconds to join readings a little apart")
+                )
             break
         times: list[datetime] = [r[0] for r in rows]
         windows = cut(times, kind, size)
         full = len(rows) == MAX_ROWS
-        if full and len(windows) > 1:
+        if full:
+            if len(windows) == 1:
+                # One window larger than a batch can't be run whole: stop here rather than run pieces.
+                result.note(f"a window has more than {MAX_ROWS} readings: use shorter windows")
+                break
             windows = windows[:-1]  # it may go on past this batch: the next batch reads it whole
         written: list[tuple[str, datetime, float]] = []
         ran = 0
         for n, (start, end) in enumerate(windows):
             last = n == len(windows) - 1
-            if not complete(times[end - 1], last and not full, kind, size, now):
+            if not complete(times[end - 1], last and not full, kind, size, now, lateness):
                 break
             series: dict[str, list[float]] = {name: [r[i + 1] for r in rows[start:end]] for i, name in enumerate(names)}
             for name, sig in inputs.items():
@@ -124,8 +171,9 @@ def run_binding(conn: Conn, binding: dict[str, Any], model: Model, now: datetime
                     series[name] = [(t - times[start]).total_seconds() for t in times[start:end]]
             try:
                 out = evaluate(model, series, binding["params"])
-            except ModelError as e:
-                result.error = f"window ending {times[end - 1].isoformat()}: {e}"
+            except Exception as e:
+                result.failed += 1
+                result.note(f"window ending {times[end - 1].isoformat()}: {e}")
             else:
                 for port, values in out.items():
                     signal = outputs[port]
@@ -142,6 +190,8 @@ def run_binding(conn: Conn, binding: dict[str, Any], model: Model, now: datetime
         result.written += _write(conn, written)
         if not ran or not full:
             break
+        if batch == batches - 1:
+            result.caught_up = False
     return result
 
 
@@ -163,8 +213,9 @@ def _write(conn: Conn, readings: list[tuple[str, datetime, float]]) -> int:
     return stored
 
 
-def run(conn: Conn, binding_id: uuid.UUID) -> RunResult:
-    """Runs a binding now: locks it, runs its new windows and records the outcome."""
+def run(conn: Conn, binding_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunResult:
+    """Runs a binding now: locks it, runs its new windows (at most `batches` batches) and records
+    the outcome."""
     binding = conn.execute(
         """
         SELECT b.*, m.key AS model_key, m.version AS model_version FROM model_bindings b
@@ -180,13 +231,14 @@ def run(conn: Conn, binding_id: uuid.UUID) -> RunResult:
     except KeyError:
         result = RunResult(done_until=binding["done_until"], error="the model version is no longer registered")
     else:
-        result = run_binding(conn, binding, model, now)
+        result = run_binding(conn, binding, model, now, batches)
     conn.execute(
         """
-        UPDATE model_bindings SET done_until = %s, last_run_at = %s, last_windows = %s, last_error = %s
+        UPDATE model_bindings SET done_until = %s, last_run_at = %s, last_windows = %s, last_failed = %s,
+               last_error = %s
         WHERE id = %s
         """,
-        [result.done_until, now, result.windows, result.error, binding_id],
+        [result.done_until, now, result.windows, result.failed, result.error, binding_id],
     )
     return result
 
@@ -212,11 +264,13 @@ def main(argv: list[str] | None = None) -> None:
             try:
                 with conn.transaction():
                     result = run(conn, binding)
-            except psycopg.Error as e:
+            except Exception as e:
                 failed = True
                 print(f"{binding}: not run ({e})", file=sys.stderr)
                 continue
-            line = f"{binding}: {result.windows} window(s), {result.written} reading(s) written"
+            line = (
+                f"{binding}: {result.windows} window(s), {result.failed} refused, {result.written} reading(s) written"
+            )
             print(line + (f"; {result.error}" if result.error else ""))
             failed = failed or result.error is not None
     if failed:

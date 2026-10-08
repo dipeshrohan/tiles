@@ -173,8 +173,13 @@ def test_a_shot_still_being_recorded_waits_for_the_next_run(
         # One second after the second shot's last reading: it may still be going on.
         result = runner.run_binding(conn, row, PlungerFriction(), now=last + timedelta(seconds=1))
         assert (result.windows, result.done_until) == (1, T0 + timedelta(seconds=SHOTS[0]["payload"]["t"][-1]))
+        # Past the 2 s gap but within the 5 minutes allowed for late readings: it still waits.
+        held = runner.run_binding(
+            conn, row | {"done_until": result.done_until}, PlungerFriction(), now=last + timedelta(seconds=60)
+        )
+        assert held.windows == 0
         later = runner.run_binding(
-            conn, row | {"done_until": result.done_until}, PlungerFriction(), now=last + timedelta(seconds=3)
+            conn, row | {"done_until": result.done_until}, PlungerFriction(), now=last + timedelta(seconds=303)
         )
         assert (later.windows, later.done_until) == (1, last)
 
@@ -235,3 +240,160 @@ def test_the_command_runs_every_enabled_binding(
     assert f"{binding['id']}: 2 window(s)" in capsys.readouterr().out
     assert len(readings(database_url, site, "dc1-plunger.friction")) == 2
     assert all(math.isfinite(v) for _, v in readings(database_url, site, "dc1-plunger.force"))
+
+
+def test_a_window_larger_than_a_batch_stops_the_run_rather_than_running_in_pieces(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import_shots(api, site, SHOTS[:1])
+    binding = bind(api, site, window={"kind": "fixed", "seconds": 3600}).json()
+    monkeypatch.setattr(runner, "MAX_ROWS", 50)  # a shot has 80 readings: more than a batch
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        result = runner.run(conn, binding["id"])
+        assert (result.windows, result.done_until, result.written) == (0, None, 0)
+        assert result.error == "a window has more than 50 readings: use shorter windows"
+
+
+def test_windows_the_model_refuses_are_counted_and_the_first_reason_kept(database_url: str, site: str) -> None:  # noqa: F811
+    class Picky:
+        spec = PlungerFriction.spec
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def run(self, inputs: Any, params: Any) -> Any:
+            self.calls += 1
+            if self.calls == 2:
+                raise IndexError("second window: no such sample")
+            if self.calls == 3:
+                raise KeyError("third")
+            return PlungerFriction().run(inputs, params)
+
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        ids = {}
+        for tag in ("v", "ph", "pm", "force", "friction"):
+            ids[tag] = str(
+                conn.execute(
+                    "INSERT INTO signals (site_id, tag, source) VALUES (%s, %s, 'manual') RETURNING id",
+                    [site, f"x.{tag}"],
+                ).fetchone()["id"]  # type: ignore[index]
+            )
+        for n, shot in enumerate(SHOTS[:4]):
+            p = shot["payload"]
+            for key in ("v", "ph", "pm"):
+                conn.execute(
+                    "INSERT INTO samples (signal_id, at, value)"
+                    " SELECT %s, unnest(%s::timestamptz[]), unnest(%s::float8[])",
+                    [ids[key], [T0 + n * CYCLE + timedelta(seconds=t) for t in p["t"]], [float(x) for x in p[key]]],
+                )
+        binding = {
+            "inputs": {"t": "@time", "v": ids["v"], "ph": ids["ph"], "pm": ids["pm"]},
+            "outputs": {"force": ids["force"], "friction": ids["friction"]},
+            "params": {},
+            "window_kind": "gap",
+            "window_s": 2.0,
+            "done_until": None,
+        }
+        result = runner.run_binding(conn, binding, Picky(), now=T0 + timedelta(days=1))  # type: ignore[arg-type]
+        assert (result.windows, result.failed) == (4, 2)  # skipped, not stopping the run
+        assert result.error is not None and "second window: no such sample" in result.error
+        frictions = conn.execute("SELECT count(*) AS n FROM samples WHERE signal_id = %s", [ids["friction"]]).fetchone()
+        assert frictions == {"n": 2}
+        conn.rollback()
+
+
+def test_inputs_recorded_apart_join_within_the_alignment_allowed(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    # dc1.ph comes 1 ms after dc1.v and dc1.pm, as from another subscription.
+    imp = api.post(f"/sites/{site}/imports", json={"name": "apart.csv"}, headers=ENG).json()
+    p = SHOTS[0]["payload"]
+    samples = []
+    for i, t in enumerate(p["t"]):
+        for tag, key, lag in (("dc1.v", "v", 0), ("dc1.ph", "ph", 0.001), ("dc1.pm", "pm", 0)):
+            samples.append({"signal": tag, "at": (T0 + timedelta(seconds=t + lag)).isoformat(), "value": p[key][i]})
+    assert (
+        api.post(f"/sites/{site}/imports/{imp['id']}/samples", json={"samples": samples}, headers=ENG).status_code
+        == 200
+    )
+    exact = bind(api, site).json()
+    res = api.post(f"/sites/{site}/model-bindings/{exact['id']}/run", headers=ENG).json()
+    assert (res["windows"], res["error"]) == (
+        0,
+        "the input signals have no readings at the same instants: set align_seconds to join readings a little apart",
+    )
+    # dc1.v drives the clock; each other input takes its latest reading at most 2 ms before. pm joins
+    # exactly; ph's reading 1 ms later joins the next sample, so the shot runs on 79 aligned samples.
+    aligned = bind(
+        api,
+        site,
+        name="dc1-aligned",
+        inputs={**exact_inputs(api, site), "v": signal_id(api, site, "dc1.ph"), "ph": signal_id(api, site, "dc1.v")},
+        align_seconds=0.002,
+    ).json()
+    assert aligned["align_seconds"] == 0.002
+    ran = api.post(f"/sites/{site}/model-bindings/{aligned['id']}/run", headers=ENG).json()
+    assert (ran["windows"], ran["failed"], ran["error"]) == (1, 0, None)
+
+
+def exact_inputs(api: TestClient, site: str) -> dict[str, str]:  # noqa: F811
+    return {
+        "t": "@time",
+        "v": signal_id(api, site, "dc1.v"),
+        "ph": signal_id(api, site, "dc1.ph"),
+        "pm": signal_id(api, site, "dc1.pm"),
+    }
+
+
+def test_only_the_runner_writes_a_derived_signal_and_run_now_is_bounded(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    binding = None
+    import_shots(api, site, SHOTS[:1])
+    binding = bind(api, site).json()
+    path = f"/sites/{site}/model-bindings/{binding['id']}/run"
+    # An import sending the derived signal's tag: its reading is left out.
+    imp = api.post(f"/sites/{site}/imports", json={"name": "sneaky.csv"}, headers=ENG).json()
+    sneaky = {"signal": "dc1-plunger.friction", "at": T0.isoformat(), "value": 1.0}
+    res = api.post(f"/sites/{site}/imports/{imp['id']}/samples", json={"samples": [sneaky]}, headers=ENG)
+    assert res.json()["stored"] == 0
+    assert readings(database_url, site, "dc1-plunger.friction") == []
+
+    # One batch per request: with batches of 100 readings, one shot (80) at a time.
+    import_shots(api, site, SHOTS[1:3], first=1)
+    monkeypatch.setattr(runner, "MAX_ROWS", 100)
+    first = api.post(path, headers=ENG).json()
+    assert (first["windows"], first["caught_up"]) == (1, False)
+    while not api.post(path, headers=ENG).json()["caught_up"]:
+        pass
+    assert len(readings(database_url, site, "dc1-plunger.friction")) == 3
+
+    assert api.delete(f"/sites/{site}/model-bindings/{binding['id']}", headers=ENG).status_code == 204
+    stopped = api.post(path, headers=ENG)
+    assert (stopped.status_code, stopped.json()["detail"]) == (409, "This model binding is stopped")
+
+
+def test_a_run_with_nothing_to_do_records_no_end(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    # A shot recorded just now: it may still be going on, so nothing runs yet.
+    imp = api.post(f"/sites/{site}/imports", json={"name": "now.csv"}, headers=ENG).json()
+    start = datetime.now(UTC) - timedelta(seconds=1)
+    samples = shot_readings(SHOTS[0], start)
+    assert (
+        api.post(f"/sites/{site}/imports/{imp['id']}/samples", json={"samples": samples}, headers=ENG).status_code
+        == 200
+    )
+    binding = bind(api, site).json()
+    assert api.post(f"/sites/{site}/model-bindings/{binding['id']}/run", headers=ENG).json()["done_until"] is None
+    with psycopg.connect(database_url) as conn:
+        audit = conn.execute(
+            "SELECT after FROM audit_log WHERE entity_id = %s AND action = 'model.run'", [binding["id"]]
+        ).fetchone()
+    assert audit is not None and audit[0]["done_until"] is None

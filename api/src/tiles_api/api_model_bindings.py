@@ -34,6 +34,10 @@ class BindingIn(BaseModel):
     inputs: Annotated[dict[Annotated[str, Field(max_length=63)], uuid.UUID | Literal["@time"]], Field(max_length=50)]
     params: Annotated[dict[Annotated[str, Field(max_length=63)], StrictFloat | StrictInt], Field(max_length=50)] = {}
     window: WindowIn
+    # How late readings may arrive: a window runs once this much older than complete (default 5 min).
+    lateness_seconds: Annotated[float, Field(ge=0, le=7 * 86400)] = 300
+    # 0: inputs join at equal timestamps; above 0: other inputs' latest reading this close before.
+    align_seconds: Annotated[float, Field(ge=0, le=3600)] = 0
 
 
 class Endpoint(BaseModel):
@@ -51,24 +55,30 @@ class Binding(BaseModel):
     outputs: list[Endpoint]
     params: dict[str, float]
     window: WindowIn
+    lateness_seconds: float
+    align_seconds: float
     enabled: bool
     done_until: datetime | None  # the end of the last window run
     last_run_at: datetime | None
     last_windows: int  # windows the last run ran
-    last_error: str | None
+    last_failed: int  # of those, windows the model refused (skipped)
+    last_error: str | None  # the first problem of the last run
     created_at: datetime
 
 
 class RunOut(BaseModel):
     windows: int
+    failed: int
     written: int
     done_until: datetime | None
     error: str | None
+    caught_up: bool  # False: there is more to run (run again, or leave it to the scheduled runs)
 
 
 SELECT = """
 SELECT b.id, b.name, m.key AS model, m.version, b.inputs, b.outputs, b.params, b.window_kind, b.window_s,
-       b.enabled, b.done_until, b.last_run_at, b.last_windows, b.last_error, b.created_at
+       b.lateness_s AS lateness_seconds, b.align_s AS align_seconds, b.enabled, b.done_until, b.last_run_at,
+       b.last_windows, b.last_failed, b.last_error, b.created_at
 FROM model_bindings b JOIN models m ON m.id = b.model_id
 WHERE b.site_id = %s
 """
@@ -169,8 +179,9 @@ def bind(ctx: Editor, body: BindingIn) -> dict[str, Any]:
     inputs = {k: str(v) for k, v in body.inputs.items()}
     binding_id = ctx.conn.execute(
         """
-        INSERT INTO model_bindings (site_id, name, model_id, inputs, params, outputs, window_kind, window_s, created_by)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+        INSERT INTO model_bindings (site_id, name, model_id, inputs, params, outputs, window_kind, window_s,
+                                    lateness_s, align_s, created_by)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
         """,
         [
             ctx.site_id,
@@ -181,6 +192,8 @@ def bind(ctx: Editor, body: BindingIn) -> dict[str, Any]:
             Jsonb(outputs),
             body.window.kind,
             body.window.seconds,
+            body.lateness_seconds,
+            body.align_seconds,
             ctx.user.id,
         ],
     ).fetchone()["id"]  # type: ignore[index]
@@ -195,11 +208,21 @@ def bind(ctx: Editor, body: BindingIn) -> dict[str, Any]:
 
 @router.post("/sites/{site_id}/model-bindings/{binding_id}/run", response_model=RunOut)
 def run_now(ctx: Editor, binding_id: uuid.UUID) -> dict[str, Any]:
-    """Run the binding on its new data now, rather than waiting for the next scheduled run."""
-    _get(ctx, binding_id)
-    result = runner.run(ctx.conn, binding_id)
-    out = {"windows": result.windows, "written": result.written, "done_until": result.done_until, "error": result.error}
-    ctx.audit("model.run", "model_binding", str(binding_id), after=out | {"done_until": str(result.done_until)})
+    """Run the binding on its new data now (one batch of readings: `caught_up` says whether more
+    is left, for the next call or the scheduled runs)."""
+    if not _get(ctx, binding_id)["enabled"]:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This model binding is stopped")
+    result = runner.run(ctx.conn, binding_id, batches=1)
+    out = {
+        "windows": result.windows,
+        "failed": result.failed,
+        "written": result.written,
+        "done_until": result.done_until,
+        "error": result.error,
+        "caught_up": result.caught_up,
+    }
+    done = result.done_until.isoformat() if result.done_until else None
+    ctx.audit("model.run", "model_binding", str(binding_id), after=out | {"done_until": done})
     return out
 
 

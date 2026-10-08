@@ -32,10 +32,17 @@ CREATE TABLE model_bindings (
     -- A window ends where readings pause for gap_s (a shot, a batch), or after window_s.
     window_kind   text NOT NULL CHECK (window_kind IN ('gap', 'fixed')),
     window_s      double precision NOT NULL CHECK (window_s > 0),
+    -- How late readings may arrive (an edge agent's backlog): a window runs once it is this much
+    -- older than complete, so late readings still join it.
+    lateness_s    double precision NOT NULL DEFAULT 300 CHECK (lateness_s >= 0),
+    -- 0: inputs join on equal timestamps; above 0: each other input's latest reading at most this
+    -- many seconds before the first input's.
+    align_s       double precision NOT NULL DEFAULT 0 CHECK (align_s >= 0),
     enabled       boolean NOT NULL DEFAULT true,
     done_until    timestamptz,
     last_run_at   timestamptz,
     last_windows  integer NOT NULL DEFAULT 0,
+    last_failed   integer NOT NULL DEFAULT 0,  -- of those, windows the model refused (skipped)
     last_error    text,
     created_by    uuid REFERENCES users (id) ON DELETE SET NULL,
     created_at    timestamptz NOT NULL DEFAULT now(),

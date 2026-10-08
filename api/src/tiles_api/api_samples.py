@@ -67,7 +67,8 @@ class SamplesOut(BaseModel):
 
 def store_samples(conn: Any, site_id: Any, source: str, samples: list[SampleIn]) -> int:
     """Stores readings for a site and returns how many were new. Tags seen for the first time join
-    the site's signals with `source`. Shared by agents' batches and file imports (T2.07)."""
+    the site's signals with `source`. Shared by agents' batches and file imports (T2.07). Readings
+    for a model's derived signals are left out (only the model runner writes those)."""
     if not samples:
         return 0
     now = one(conn.execute("SELECT clock_timestamp() AS now").fetchone())["now"]
@@ -87,12 +88,19 @@ def store_samples(conn: Any, site_id: Any, source: str, samples: list[SampleIn])
         """,
         [site_id, source, tags],
     )
+    # A model's derived signals (T3.03) are written by the model runner only: readings sent under
+    # their tags are left out, not mixed in with what the model computed.
     ids = {
         r["tag"]: r["id"]
-        for r in conn.execute("SELECT tag, id FROM signals WHERE site_id = %s AND tag = ANY(%s)", [site_id, tags])
+        for r in conn.execute(
+            "SELECT tag, id FROM signals WHERE site_id = %s AND tag = ANY(%s) AND source NOT LIKE 'model:%%'",
+            [site_id, tags],
+        )
     }
     columns: tuple[list[object], ...] = ([], [], [], [], [], [])
     for s in samples:
+        if s.signal not in ids:
+            continue
         v = s.value
         row = (
             ids[s.signal],
