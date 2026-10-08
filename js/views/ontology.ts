@@ -207,7 +207,7 @@ function newNodeForm(graph: Graph): string {
 
 function history(ctx: Context, graph: Graph): string {
   const { history } = ctx.state.repo;
-  const revert = ctx.ontology.status === 'ready' && ctx.ontology.reviewRequired ? 'Request revert' : 'Revert';
+  const revert = ctx.ontology.reviewRequired ? 'Request revert' : 'Revert';
   return `<div class="card">${history
     .map(
       (c, i) => `
@@ -444,7 +444,7 @@ const view: View = {
     onAll(root, '[data-revert]', 'click', (el) => {
       const id = el.dataset.revert;
       if (!id) return;
-      if (ctx.ontology.status === 'ready' && ctx.ontology.reviewRequired)
+      if (ctx.ontology.reviewRequired)
         void ctx.ontology.act((store, repo) => store.requestReview(repo, { reverts: id }), 'Revert sent for review');
       else void ctx.ontology.act((store, repo) => store.revert(repo, id, author), 'Commit reverted');
     });

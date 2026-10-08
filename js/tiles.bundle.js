@@ -1977,7 +1977,7 @@
 	}
 	function history$1(ctx, graph) {
 		const { history } = ctx.state.repo;
-		const revert = ctx.ontology.status === "ready" && ctx.ontology.reviewRequired ? "Request revert" : "Revert";
+		const revert = ctx.ontology.reviewRequired ? "Request revert" : "Revert";
 		return `<div class="card">${history.map((c, i) => `
         <div class="commit">
           <span class="avatar" style="background:${i === 0 ? "var(--accent)" : "var(--line-strong)"}">${esc((c.author[0] ?? "?").toUpperCase())}</span>
@@ -2181,7 +2181,7 @@
 			onAll(root, "[data-revert]", "click", (el) => {
 				const id = el.dataset.revert;
 				if (!id) return;
-				if (ctx.ontology.status === "ready" && ctx.ontology.reviewRequired) ctx.ontology.act((store, repo) => store.requestReview(repo, { reverts: id }), "Revert sent for review");
+				if (ctx.ontology.reviewRequired) ctx.ontology.act((store, repo) => store.requestReview(repo, { reverts: id }), "Revert sent for review");
 				else ctx.ontology.act((store, repo) => store.revert(repo, id, author), "Commit reverted");
 			});
 			onSubmit(root, "#commit-form", (form, submitter) => {
@@ -4042,7 +4042,8 @@
 	//#region js/views/reviews.ts
 	var uiState = (ctx) => ctx.ui("reviews", {
 		state: "open",
-		selected: null
+		selected: null,
+		site: null
 	});
 	var listing = null;
 	var detail = null;
@@ -4054,6 +4055,12 @@
 		text: ""
 	};
 	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/reviews")) {
+			listing = null;
+			detail = null;
+		}
+	});
 	var listKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).state}`;
 	var detailKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).selected}`;
 	var STATUS = {
@@ -4126,16 +4133,20 @@
         <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy ? "disabled" : ""}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
-          ${mine && r.status !== "approved" ? `<button class="btn" type="button" data-act="rework">${open ? "Withdraw and rework" : "Rework"}</button>` : ""}
+          ${reworkButton(r, mine)}
         </fieldset>
       </form>` : ""}
     </div>`;
+	}
+	function reworkButton(r, mine) {
+		if (!mine || r.status === "approved" || r.reverts && r.status !== "open") return "";
+		return `<button class="btn" type="button" data-act="rework">${r.reverts ? "Withdraw" : r.status === "open" ? "Withdraw and rework" : "Rework"}</button>`;
 	}
 	function policyCard(ctx) {
 		const o = ctx.ontology;
 		return `<div class="card source-bar small">
       <span>${o.reviewRequired ? "Every ontology change on this site needs another engineer’s approval before it is committed." : "Engineers commit directly, or ask for a review when they want one."}</span>
-      ${o.role === "admin" ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? "checked" : ""} /> Require a review for every change</label>` : ""}
+      <span class="row" style="gap:12px">${o.role === "admin" ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? "checked" : ""} /> Require a review for every change</label>` : ""}<button class="btn sm" data-refresh-reviews>Refresh</button></span>
     </div>`;
 	}
 	async function fetchList(ctx) {
@@ -4211,7 +4222,8 @@
 				listing = null;
 				await ctx.ontology.reload();
 			}
-			if (action === "rework") {
+			if (action === "rework" && r.reverts) ctx.toast(`#${r.number} withdrawn`);
+			else if (action === "rework") {
 				ctx.toast("Back in your staged changes: edit them, then send them again");
 				location.hash = "#/ontology";
 			}
@@ -4240,11 +4252,10 @@
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
 			const ui = uiState(ctx);
-			const linked = Number(new URLSearchParams(location.hash.split("?")[1] ?? "").get("n"));
-			if (Number.isInteger(linked) && linked > 0 && ui.selected !== linked) {
-				ui.selected = linked;
-				history.replaceState(null, "", "#/reviews");
-			}
+			if (ui.site !== siteId(ctx)) Object.assign(ui, {
+				selected: null,
+				site: siteId(ctx)
+			});
 			if (listing?.key !== listKey(ctx)) fetchList(ctx);
 			if (ui.selected !== null && detail?.key !== detailKey(ctx)) fetchDetail(ctx);
 			onAll(root, "[data-state]", "click", (el) => {
@@ -4256,6 +4267,12 @@
 				ctx.rerender();
 			});
 			onAll(root, "[data-history]", "click", () => showHistory(ctx));
+			onAll(root, "[data-refresh-reviews]", "click", () => {
+				listing = null;
+				detail = null;
+				ctx.ontology.reload();
+				ctx.rerender();
+			});
 			root.querySelector("#review-form textarea")?.addEventListener("input", (e) => {
 				draft = {
 					key: detailKey(ctx),
@@ -4999,8 +5016,8 @@
 	async function loadPeople(client, siteId) {
 		const [membership, members, policy] = await Promise.all([
 			client.membership(siteId),
-			client.members(siteId),
-			client.ontology.reviewPolicy(siteId)
+			client.members(siteId).catch(() => []),
+			client.ontology.reviewPolicy(siteId).catch(() => ({ required: false }))
 		]);
 		return {
 			membership,

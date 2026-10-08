@@ -91,24 +91,31 @@ class DecisionIn(BaseModel):
 
 SUMMARY = """
 SELECT r.number, r.message, r.author_name AS author, r.author_id, ru.name AS reviewer, r.reviewer_id, r.status,
-       r.stats, r.reverts, r.created_at, r.decided_by_name AS decided_by, r.decided_at, r.commit_id, r.ops,
-       (SELECT count(*) FROM change_request_comments c WHERE c.site_id = r.site_id AND c.number = r.number)
-           AS comments
+       r.stats, r.reverts, r.created_at, r.decided_by_name AS decided_by, r.decided_at, r.commit_id,
+       (SELECT count(*) FROM change_request_comments c
+        WHERE c.site_id = r.site_id AND c.number = r.number AND c.body <> '') AS comments
 FROM change_requests r LEFT JOIN users ru ON ru.id = r.reviewer_id
 WHERE r.site_id = %s
 """
 
 
 def _find(ctx: SiteContext, number: int, *, lock: bool = False) -> dict[str, Any]:
+    """A change request with its ops (the list leaves them out: they can be thousands)."""
     row = ctx.conn.execute(
         SUMMARY + " AND r.number = %s" + (" FOR UPDATE OF r" if lock else ""), [ctx.site_id, number]
     ).fetchone()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Change request #{number} not found")
-    return row
+    ops = one(
+        ctx.conn.execute(
+            "SELECT ops FROM change_requests WHERE site_id = %s AND number = %s", [ctx.site_id, number]
+        ).fetchone()
+    )
+    return {**row, "ops": ops["ops"]}
 
 
-def _review(ctx: SiteContext, number: int) -> dict[str, Any]:
+def _review(ctx: SiteContext, number: int, *, fits: bool = False) -> dict[str, Any]:
+    """The request as the API shows it; `fits`: its ops were just checked against the head."""
     row = _find(ctx, number)
     thread = ctx.conn.execute(
         """
@@ -118,7 +125,7 @@ def _review(ctx: SiteContext, number: int) -> dict[str, Any]:
         [ctx.site_id, number],
     ).fetchall()
     conflict = None
-    if row["status"] == "open":
+    if row["status"] == "open" and not fits:
         try:
             o.apply_ops(store.load_head(ctx.conn, ctx.site_id), row["ops"])
         except o.OntologyError as e:
@@ -262,7 +269,7 @@ def request_review(ctx: Editor, body: ReviewIn) -> dict[str, Any]:
         ctx.conn.execute("DELETE FROM staged_ops WHERE site_id = %s AND user_id = %s", [ctx.site_id, ctx.user.id])
     after = {"message": message, "ops": ops, "reviewer_id": body.reviewer_id and str(body.reviewer_id)}
     ctx.audit("ontology.review.request", "change_request", str(number), after=after | {"reverts": body.reverts})
-    return _review(ctx, number)
+    return _review(ctx, number, fits=True)
 
 
 @router.post("/sites/{site_id}/ontology/reviews/{number}/comments", response_model=Review)
@@ -320,7 +327,9 @@ def reject(ctx: Editor, number: int, body: DecisionIn) -> dict[str, Any]:
 def rework(ctx: Editor, number: int) -> dict[str, Any]:
     """Take your change request back into your staged changes, to change and send again.
 
-    An open request is withdrawn; a rejected or withdrawn one stays as it is.
+    An open request is withdrawn; a rejected or withdrawn one stays as it is. A revert
+    is not staged (sent again it would no longer be a revert): an open one is only
+    withdrawn, and a closed one is requested again from the history.
     """
     store.lock_site(ctx.conn, ctx.site_id)
     req = _find(ctx, number, lock=True)
@@ -328,6 +337,13 @@ def rework(ctx: Editor, number: int) -> dict[str, Any]:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the author of a change request can rework it")
     if req["status"] == "approved":
         raise HTTPException(status.HTTP_409_CONFLICT, f"Change request #{number} is already committed")
+    if req["reverts"] is not None:
+        if req["status"] != "open":
+            raise HTTPException(status.HTTP_409_CONFLICT, "Request the revert again from the history")
+        _close(ctx, number, "withdrawn")
+        _note(ctx, number, "", "withdrawn")
+        ctx.audit("ontology.review.rework", "change_request", str(number), after={"ops": []})
+        return _review(ctx, number)
     if store.load_staged(ctx.conn, ctx.site_id, ctx.user):
         raise HTTPException(status.HTTP_409_CONFLICT, "Commit, send or discard your staged changes first")
     try:

@@ -529,6 +529,7 @@ export function createFakeApi({
         let ops = repo.staged;
         let text = message.trim();
         if (reverts) {
+          if (ops.length) return send(409, { detail: 'Request a review of your staged changes or discard them first' });
           const target = history.find((c) => c.id === reverts);
           if (!target) return send(404, { detail: `Commit ${reverts} not found` });
           ops = target.inverses;
@@ -574,6 +575,13 @@ export function createFakeApi({
       }
       if (m[2] === 'rework') {
         if (r.author_id !== user) return send(403, { detail: 'Only the author of a change request can rework it' });
+        if (r.status === 'approved') return send(409, { detail: `Change request #${r.number} is already committed` });
+        if (r.reverts) {
+          if (r.status !== 'open') return send(409, { detail: 'Request the revert again from the history' });
+          close('withdrawn');
+          note('', 'withdrawn');
+          return send(200, shown(r));
+        }
         if (repo.staged.length) return send(409, { detail: 'Commit, send or discard your staged changes first' });
         let next = repo;
         for (const op of r.ops) next = stage(next, op);

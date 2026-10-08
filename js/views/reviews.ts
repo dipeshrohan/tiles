@@ -13,9 +13,10 @@ import type { Context, View } from './types.ts';
 interface Ui {
   state: 'open' | 'closed';
   selected: number | null;
+  site: string | null; // the site `selected` is a request of
 }
 
-const uiState = (ctx: Context) => ctx.ui<Ui>('reviews', { state: 'open', selected: null });
+const uiState = (ctx: Context) => ctx.ui<Ui>('reviews', { state: 'open', selected: null, site: null });
 
 // Fetched lists and the selected request, for the site and tab they were fetched for.
 let listing: { key: string; items: ReviewSummary[] | null } | null = null;
@@ -26,6 +27,15 @@ let busy = false; // an action is on its way; the buttons wait
 let draft = { key: '', text: '' }; // the comment being written, kept across re-renders
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
+
+// Others request, approve and reject while you are elsewhere: each visit to the page fetches afresh.
+if (typeof window !== 'undefined')
+  window.addEventListener('hashchange', () => {
+    if (!location.hash.startsWith('#/reviews')) {
+      listing = null;
+      detail = null;
+    }
+  });
 const listKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).state}`;
 const detailKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).selected}`;
 
@@ -140,12 +150,19 @@ function detailCard(ctx: Context, ui: Ui): string {
         <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy ? 'disabled' : ''}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? '<button class="btn primary" type="button" data-act="approve" ' + (r.conflict ? 'disabled title="It no longer fits the ontology"' : '') + '>Approve and commit</button><button class="btn danger" type="button" data-act="reject">Reject</button>' : ''}
-          ${mine && r.status !== 'approved' ? `<button class="btn" type="button" data-act="rework">${open ? 'Withdraw and rework' : 'Rework'}</button>` : ''}
+          ${reworkButton(r, mine)}
         </fieldset>
       </form>`
           : ''
       }
     </div>`;
+}
+
+// The author takes a request back: into their staged changes, or (a revert) just withdrawn.
+function reworkButton(r: Review, mine: boolean): string {
+  if (!mine || r.status === 'approved' || (r.reverts && r.status !== 'open')) return '';
+  const label = r.reverts ? 'Withdraw' : r.status === 'open' ? 'Withdraw and rework' : 'Rework';
+  return `<button class="btn" type="button" data-act="rework">${label}</button>`;
 }
 
 function policyCard(ctx: Context): string {
@@ -155,7 +172,7 @@ function policyCard(ctx: Context): string {
     : 'Engineers commit directly, or ask for a review when they want one.';
   return `<div class="card source-bar small">
       <span>${text}</span>
-      ${o.role === 'admin' ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? 'checked' : ''} /> Require a review for every change</label>` : ''}
+      <span class="row" style="gap:12px">${o.role === 'admin' ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? 'checked' : ''} /> Require a review for every change</label>` : ''}<button class="btn sm" data-refresh-reviews>Refresh</button></span>
     </div>`;
 }
 
@@ -217,7 +234,8 @@ async function act(ctx: Context, action: string, comment: string): Promise<void>
       listing = null; // it moved between the tabs
       await ctx.ontology.reload(); // a new commit, or the changes back in your staged ones
     }
-    if (action === 'rework') {
+    if (action === 'rework' && r.reverts) ctx.toast(`#${r.number} withdrawn`);
+    else if (action === 'rework') {
       ctx.toast('Back in your staged changes: edit them, then send them again');
       location.hash = '#/ontology';
     }
@@ -250,12 +268,7 @@ const view: View = {
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
     const ui = uiState(ctx);
-    // `#/reviews?n=3` opens change request #3.
-    const linked = Number(new URLSearchParams(location.hash.split('?')[1] ?? '').get('n'));
-    if (Number.isInteger(linked) && linked > 0 && ui.selected !== linked) {
-      ui.selected = linked;
-      history.replaceState(null, '', '#/reviews');
-    }
+    if (ui.site !== siteId(ctx)) Object.assign(ui, { selected: null, site: siteId(ctx) }); // another site's number
     if (listing?.key !== listKey(ctx)) void fetchList(ctx);
     if (ui.selected !== null && detail?.key !== detailKey(ctx)) void fetchDetail(ctx);
 
@@ -268,6 +281,12 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-history]', 'click', () => showHistory(ctx));
+    onAll(root, '[data-refresh-reviews]', 'click', () => {
+      listing = null;
+      detail = null;
+      void ctx.ontology.reload();
+      ctx.rerender();
+    });
     root.querySelector<HTMLTextAreaElement>('#review-form textarea')?.addEventListener('input', (e) => {
       draft = { key: detailKey(ctx), text: (e.target as HTMLTextAreaElement).value };
     });

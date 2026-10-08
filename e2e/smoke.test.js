@@ -1316,3 +1316,43 @@ test('in local mode the reviews page explains that reviews need the Tiles API', 
   await page.waitForSelector('#view:has-text("they need the Tiles API")');
   assert.deepEqual(errors, []);
 });
+
+test("coming back to change reviews shows others' new requests; a revert request is withdrawn, not staged", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'line-1', type: 'Line', label: 'Line 1', props: {} } }],
+    'add line 1',
+  );
+  const { page, errors } = await openAs(t, apiUrl, null, 'reviews');
+  await page.waitForSelector('[data-review-list]:has-text("Nothing waits for a review")');
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.waitForSelector('.source-bar');
+  fake.requestReviewAs(
+    'maria@example.com',
+    [{ kind: 'addNode', node: { id: 'm', type: 'Machine', label: 'Press 2', props: {} } }],
+    'add press 2',
+  );
+  await page.evaluate(() => (location.hash = '#/reviews'));
+  await page.waitForSelector('[data-review="1"]:has-text("add press 2")');
+
+  // Ask to revert a commit, then think better of it.
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.click('[data-tab=history]');
+  fake.requireReview();
+  await page.click('[data-refresh]');
+  await page.waitForSelector('[data-revert]:has-text("Request revert")');
+  await page.locator('[data-revert]').first().click();
+  await page.waitForSelector('#toast:has-text("Revert sent for review")');
+  await page.evaluate(() => (location.hash = '#/reviews'));
+  await page.click('[data-review="2"]');
+  await page.waitForSelector('[data-review-detail]:has-text(\'#2 Revert "add line 1"\')');
+  await page.click('[data-act=rework]:has-text("Withdraw")');
+  await page.waitForSelector('#toast:has-text("#2 withdrawn")');
+  await page.evaluate(() => (location.hash = '#/ontology'));
+  await page.waitForSelector('.source-bar');
+  assert.equal(await page.locator('#commit-form').count(), 0); // nothing staged
+  assert.deepEqual(errors, []);
+});

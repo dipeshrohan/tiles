@@ -147,12 +147,14 @@ async function connectOntology(): Promise<void> {
   renderSoon();
 }
 
-// Your membership, the site's members and its review policy: fetched with the ontology.
+// Your membership, the site's members and its review policy: fetched with the ontology. Only the
+// membership is needed to show it; without the other two, reviews just can't name a reviewer or
+// show the policy (the client already said why).
 async function loadPeople(client: ApiClient, siteId: string) {
   const [membership, members, policy] = await Promise.all([
     client.membership(siteId),
-    client.members(siteId),
-    client.ontology.reviewPolicy(siteId),
+    client.members(siteId).catch((): Membership[] => []),
+    client.ontology.reviewPolicy(siteId).catch(() => ({ required: false })),
   ]);
   return { membership, members, policy };
 }

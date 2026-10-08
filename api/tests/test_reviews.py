@@ -134,6 +134,25 @@ def test_withdrawing_an_open_request_returns_it_to_the_author(api: TestClient, s
     )
     assert api.get(f"{base(site)}/staged", headers=ENG).json() == [{"kind": "addNode", "node": NODE}]
     assert api.post(f"{base(site)}/reviews/1/approve", json={}, headers=ADMIN).status_code == 409
+    # The withdrawal is in the thread, but it is not a comment.
+    listed = api.get(f"{base(site)}/reviews?state=closed", headers=VIEWER).json()
+    assert [(r["number"], r["comments"]) for r in listed] == [(1, 0)]
+    assert "ops" not in listed[0]  # the list leaves them out
+
+
+def test_a_revert_request_is_withdrawn_not_staged(api: TestClient, site: str) -> None:  # noqa: F811
+    member(api, site, ENG2)
+    stage(api, site, {"kind": "addNode", "node": NODE})
+    assert api.post(f"{base(site)}/commits", json={"message": "Add press 9"}, headers=ENG).status_code == 201
+    commit_id = api.get(f"{base(site)}/commits", headers=VIEWER).json()[0]["id"]
+    ask(api, site, reverts=commit_id)
+    withdrawn = api.post(f"{base(site)}/reviews/1/rework", headers=ENG).json()
+    assert withdrawn["status"] == "withdrawn"
+    assert api.get(f"{base(site)}/staged", headers=ENG).json() == []  # not a plain change to send again
+    ask(api, site, reverts=commit_id)
+    assert api.post(f"{base(site)}/reviews/2/reject", json={"comment": "keep it"}, headers=ENG2).status_code == 200
+    again = api.post(f"{base(site)}/reviews/2/rework", headers=ENG)
+    assert (again.status_code, again.json()["detail"]) == (409, "Request the revert again from the history")
 
 
 def test_a_change_that_no_longer_fits_cannot_be_approved(api: TestClient, site: str) -> None:  # noqa: F811
