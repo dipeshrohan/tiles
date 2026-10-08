@@ -1,11 +1,11 @@
-"""Detectors and their warnings over HTTP (T3.04). The detection itself is detection.py; the job
-that feeds detectors new readings is detector_job.py (`tiles-detect`)."""
+"""Detectors over HTTP (T3.04). The detection itself is detection.py; the job that feeds detectors
+new readings is detector_job.py (`tiles-detect`); their warnings are served by api_warnings.py."""
 
 import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -47,21 +47,6 @@ class Detector(BaseModel):
     last_readings: int
     open_warning: bool
     created_at: datetime
-
-
-class WarningOut(BaseModel):
-    id: uuid.UUID
-    detector: str
-    signal_id: uuid.UUID
-    signal_tag: str
-    started_at: datetime
-    last_at: datetime
-    ended_at: datetime | None
-    side: Literal["above", "below"]
-    peak: float
-    baseline: float
-    threshold: float
-    readings: int
 
 
 class RunOut(BaseModel):
@@ -146,25 +131,3 @@ def stop(ctx: Editor, detector_id: uuid.UUID) -> None:
             [detector_id],
         )
         ctx.audit("detector.stop", "detector", str(detector_id), before={"name": detector["name"]})
-
-
-@router.get("/sites/{site_id}/warnings", response_model=list[WarningOut])
-def list_warnings(
-    ctx: Ctx,
-    state: Literal["open", "ended", "all"] = "all",
-    signal_id: uuid.UUID | None = None,
-    limit: Annotated[int, Query(ge=1, le=500)] = 100,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> list[dict[str, Any]]:
-    """The site's warnings, newest first: still open (the signal is still out), ended, or all."""
-    return ctx.conn.execute(
-        """
-        SELECT w.id, d.name AS detector, w.signal_id, g.tag AS signal_tag, w.started_at, w.last_at, w.ended_at,
-               w.side, w.peak, w.baseline, w.threshold, w.readings
-        FROM warnings w JOIN detectors d ON d.id = w.detector_id JOIN signals g ON g.id = w.signal_id
-        WHERE w.site_id = %s AND (%s::uuid IS NULL OR w.signal_id = %s)
-          AND (%s = 'all' OR (%s = 'open') = (w.ended_at IS NULL))
-        ORDER BY w.started_at DESC LIMIT %s OFFSET %s
-        """,
-        [ctx.site_id, signal_id, signal_id, state, state, limit, offset],
-    ).fetchall()

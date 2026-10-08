@@ -32,6 +32,7 @@ from tiles_api.api_samples import router as samples_router
 from tiles_api.api_series import router as series_router
 from tiles_api.api_signals import router as signals_router
 from tiles_api.api_suggest import router as suggest_router
+from tiles_api.api_warnings import router as warnings_router
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
 from tiles_api.settings import Settings, get_settings
 from tiles_api.store import close_pool
@@ -139,6 +140,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(bindings_router)
     app.include_router(detectors_router)
     app.include_router(backtest_router)
+    app.include_router(warnings_router)
     app.include_router(reviews_router)
     app.include_router(agents_router)
     app.include_router(samples_router)

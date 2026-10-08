@@ -116,6 +116,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `model.bind`, `model.run`, `model.stop` | the model binding | `model.stop`: its name | `model.bind`: its model, inputs, params and outputs; `model.run`: windows run, readings written, `done_until`, error |
 | `detector.create`, `detector.run`, `detector.stop` | the detector | `detector.stop`: its name | `detector.create`: its signal and settings; `detector.run`: readings, warnings raised and ended |
 | `backtest.run` | the signal | | readings replayed, settings tried, events given |
+| `warning.acknowledge`, `warning.assign`, `warning.resolve`, `warning.reopen`, `warning.comment` | the warning | `warning.assign`: the assignee before; `warning.reopen`: the outcome and note it had | the note; `warning.assign`: the assignee; `warning.resolve`: the outcome |
 | `ontology.import` | your staged ops | | the file's name, format, mode and the counts staged |
 | `member.role` | the member | old role | new role |
 | `agent.register` | the edge agent | | `{"name": …}` (never the token) |
@@ -201,7 +202,7 @@ A **binding** runs a registered model version on a site's signals. Each model in
 
 A **detector** watches one signal (often a model's derived signal, such as `dc1-plunger.friction`). It compares each reading with a rolling robust baseline of the `window` readings before it: their median, and their MAD scaled to a standard deviation (`flat_spread` when the baseline is flat, i.e. its MAD is 0, as in the browser). A reading more than `k` spreads above it (or below, or either way, set by `direction`) is out. `persist` readings out in a row on one side raise a **warning**. It stays open while readings stay out on that side, and ends at the first one that isn't. With `direction` both, a swing to the other side ends it and starts a run there. After a warning ends, `cooldown` readings must pass before another can open. The defaults (`window` 200, `k` 4, `persist` 3, `cooldown` 0, `direction` above) are the browser's friction detector, and `test/fixtures/friction-detection.json` keeps the two raising the same warnings.
 
-The detector's state (the baseline window, the run of readings out, the open warning) is saved after each run, so `uv run tiles-detect` (optionally `--site <id>`), scheduled from cron, takes only new readings. Readings newer than `lateness_seconds` (default 5 minutes) wait for a later run. Readings that arrive later than that, with a time the detector has already passed, are not fed to it, so set the allowance to cover how late your data can be. The window is at most 2,000 readings, and batches shrink as it grows, so a run stays quick. A warning is written when it opens and updated while it lasts. T3.07 adds acknowledging, assigning and resolving warnings, with an outcome.
+The detector's state (the baseline window, the run of readings out, the open warning) is saved after each run, so `uv run tiles-detect` (optionally `--site <id>`), scheduled from cron, takes only new readings. Readings newer than `lateness_seconds` (default 5 minutes) wait for a later run. Readings that arrive later than that, with a time the detector has already passed, are not fed to it, so set the allowance to cover how late your data can be. The window is at most 2,000 readings, and batches shrink as it grows, so a run stays quick. A warning is written when it opens and updated while it lasts; people then work it (below).
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|
@@ -209,7 +210,28 @@ The detector's state (the baseline window, the run of readings out, the open war
 | `POST /detectors` | engineers | `{"name", "signal_id", "window"?, "k"?, "persist"?, "direction"?, "cooldown"?, "flat_spread"?, "lateness_seconds"?}` starts one, from the signal's stored history |
 | `POST /detectors/{id}/run` | engineers | runs it on one batch of new readings now (`caught_up` false: there is more); refused once stopped |
 | `DELETE /detectors/{id}` | engineers | stops it; its warnings stay, and one still open ends |
-| `GET /warnings?state=open\|ended\|all&signal_id&limit&offset` | members | warnings, newest first: when, how far out (peak against baseline and threshold), how many readings, and when it ended |
+
+### The warning workflow (T3.07)
+
+People work a warning through three statuses:
+
+1. **Raised:** the detector raised it and nobody has looked yet.
+2. **Acknowledged:** someone is looking. It may be assigned to an engineer or admin of the site.
+3. **Resolved:** closed with an **outcome**: `true_alarm`, `false_alarm` or `unknown`, and a note.
+
+Assigning or resolving a warning that nobody had acknowledged acknowledges it on the way. A resolved warning can be reopened: it goes back to acknowledged, and keeps its assignee. Every step and every comment is kept in the warning's activity, with who did it and when, and is audited.
+
+The status is separate from `state`, which says whether the signal is still out (`open`) or back (`ended`). A warning can be resolved while its signal is still out, and the detector keeps updating its last reading, peak and end without touching the people's side.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `GET /warnings?state=open\|ended\|all&status=raised\|acknowledged\|resolved\|unresolved\|all&assignee=me\|none\|<user id>&outcome&signal_id&limit&offset` | members | warnings, newest first: when, how far out (peak against baseline and threshold), how many readings, when the signal came back, and their status, assignee and outcome |
+| `GET /warnings/{id}` | members | one warning, with its detector's settings and its activity (oldest first, starting with raised) |
+| `POST /warnings/{id}/acknowledge` | engineers | `{"note"?}`; refused if already acknowledged or resolved |
+| `PUT /warnings/{id}/assignee` | engineers | `{"user_id": <id> or null, "note"?}` assigns it to an engineer or admin of the site, or unassigns it |
+| `POST /warnings/{id}/resolve` | engineers | `{"outcome", "note"?}` |
+| `POST /warnings/{id}/reopen` | engineers | `{"note"?}` |
+| `POST /warnings/{id}/comments` | engineers | `{"note"}` adds a comment, whatever the status |
 
 ### Backtest (T3.05)
 
