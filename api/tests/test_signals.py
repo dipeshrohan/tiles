@@ -66,6 +66,8 @@ def test_search_and_filters(api: TestClient, site: str) -> None:  # noqa: F811
     assert signals(api, site, linked="no")["total"] == 3
     paged = signals(api, site, limit="2", offset="2")
     assert (paged["total"], [s["tag"] for s in paged["signals"]]) == (3, ["press1.temperature"])
+    assert signals(api, site, offset="5") == {"total": 3, "signals": []}  # past the end, still counted
+    assert signals(api, site, q="nothing") == {"total": 0, "signals": []}
     assert api.get(f"/sites/{site}/signals", params={"source": "other"}, headers=VIEWER).status_code == 422
     assert api.get(f"/sites/{site}/signals", params={"q": "press\x00"}, headers=VIEWER).status_code == 422
 
@@ -92,7 +94,8 @@ def test_engineers_describe_signals_and_each_change_is_audited(
     assert (cleared["unit"], cleared["sample_rate_hz"]) == (None, 10.0)
     assert signals(api, site, q="platen")["total"] == 1  # descriptions are searched too
     nul = ({"unit": "a\x00"}, {"description": "a\x00b"}, {"node_id": "sig\x00"})  # PostgreSQL text can't hold NUL
-    for bad in ({"sample_rate_hz": 0}, {"unit": "x" * 41}, {"tag": "renamed"}, *nul):
+    booleans = ({"sample_rate_hz": True}, {"unit": True}, {"description": False})  # not 1.0, nor "True"
+    for bad in ({"sample_rate_hz": 0}, {"unit": "x" * 41}, {"tag": "renamed"}, *nul, *booleans):
         assert api.patch(path, json=bad, headers=ENG).status_code == 422, bad
     assert (
         api.patch(f"/sites/{site}/signals/00000000-0000-0000-0000-000000000000", json={}, headers=ENG).status_code

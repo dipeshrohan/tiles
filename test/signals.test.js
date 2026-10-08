@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { changeFrom, latest, qualityBadge, qualityDetail, sourceLabel } from '../js/views/signals.ts';
+import { changeFrom, latest, qualityBadge, qualityDetail, resultsTable, sourceLabel } from '../js/views/signals.ts';
 import { describeAudit } from '../js/views/settings.ts';
 
 const SIG = {
@@ -132,4 +132,12 @@ test('signal changes read as sentences in the audit log', () => {
     }),
     'Checked the quality of 5 signal(s): 3 good, 1 with warnings, 1 with problems',
   );
+});
+
+test('the ontology link: the node, a node with an empty label, or one that is gone', () => {
+  const ctx = { ui: (_id, defaults) => defaults, state: { repo: { head: { nodes: {} } } } };
+  const row = (extra) => resultsTable(ctx, { total: 1, signals: [{ ...SIG, ...extra }] }, false);
+  assert.match(row({ node_id: 'sig-1', node_label: 'Platen <b>' }), /<a href="#\/ontology">Platen &lt;b&gt;<\/a>/);
+  assert.match(row({ node_id: 'sig-1', node_label: '' }), /<a href="#\/ontology">sig-1<\/a>/);
+  assert.match(row({ node_id: 'sig-1', node_label: null }), /missing node/);
 });

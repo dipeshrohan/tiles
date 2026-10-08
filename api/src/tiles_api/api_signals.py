@@ -15,7 +15,7 @@ from typing import Annotated, Any, Literal, LiteralString
 
 from fastapi import APIRouter, HTTPException, Query, status
 from psycopg import errors, sql
-from pydantic import BaseModel, ConfigDict, Field, FiniteFloat
+from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator
 
 from tiles_api.api_ontology import Ctx, Editor
 from tiles_api.quality import DEFAULT_HOURS, SIGNAL, Badge, Report, check_signal, check_site
@@ -52,7 +52,17 @@ class SignalPage(BaseModel):
     signals: list[Signal]
 
 
-class SignalPatch(BaseModel):
+class NoBooleans(BaseModel):
+    @field_validator("*", mode="before")
+    @classmethod
+    def _no_booleans(cls, value: object) -> object:
+        """true and false are not numbers (Pydantic would read true as 1.0) nor text."""
+        if isinstance(value, bool):
+            raise ValueError("must not be true or false")
+        return value
+
+
+class SignalPatch(NoBooleans):
     """Only the fields given change; null clears one."""
 
     model_config = ConfigDict(extra="forbid")
@@ -65,7 +75,7 @@ class SignalPatch(BaseModel):
     stuck_after_s: Annotated[float, Field(gt=0, le=30 * 86400)] | None = None
 
 
-class QualityCheckIn(BaseModel):
+class QualityCheckIn(NoBooleans):
     model_config = ConfigDict(extra="forbid")
     signal_ids: Annotated[list[uuid.UUID], Field(min_length=1, max_length=1000)] | None = None  # None: all
     hours: Annotated[float, Field(gt=0, le=720)] = DEFAULT_HOURS
@@ -126,16 +136,22 @@ def list_signals(
         where.append("q.badge = %s")
         args.append(quality)
     condition = sql.SQL(" AND ").join(sql.SQL(w) for w in where)
-    total = ctx.conn.execute(
-        sql.SQL(
-            "SELECT count(*) AS n FROM signals g LEFT JOIN ontology_nodes n ON n.site_id = g.site_id"
-            " AND n.id = g.node_id AND n.type = 'Signal' LEFT JOIN signal_quality q ON q.signal_id = g.id WHERE {}"
-        ).format(condition),
-        args,
-    ).fetchone()
-    query = sql.SQL("{} WHERE {} ORDER BY g.tag LIMIT %s OFFSET %s").format(sql.SQL(SELECT), condition)
-    rows = ctx.conn.execute(query, [*args, limit, offset])
-    return SignalPage(total=total["n"] if total else 0, signals=[Signal(**r) for r in rows])
+    matching = sql.SQL(
+        "FROM signals g LEFT JOIN ontology_nodes n ON n.site_id = g.site_id AND n.id = g.node_id"
+        " AND n.type = 'Signal' LEFT JOIN signal_quality q ON q.signal_id = g.id WHERE {}"
+    ).format(condition)
+    # The page and the total in one statement, so both come from the same snapshot.
+    query = sql.SQL(
+        "WITH page AS (SELECT g.id, count(*) OVER () AS total {} ORDER BY g.tag LIMIT %s OFFSET %s)"
+        " SELECT page.total, s.* FROM page JOIN LATERAL ({} WHERE g.id = page.id) s ON true ORDER BY s.tag"
+    ).format(matching, sql.SQL(SELECT))
+    rows = ctx.conn.execute(query, [*args, limit, offset]).fetchall()
+    if rows:
+        total = rows[0]["total"]
+    else:  # past the end (or nothing matches): count on its own
+        counted = ctx.conn.execute(sql.SQL("SELECT count(*) AS n {}").format(matching), args).fetchone()
+        total = counted["n"] if counted else 0
+    return SignalPage(total=total, signals=[Signal(**{k: v for k, v in r.items() if k != "total"}) for r in rows])
 
 
 def _get(ctx: Any, signal_id: uuid.UUID) -> Signal:

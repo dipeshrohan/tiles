@@ -123,8 +123,8 @@ export function changeFrom(
 
 function linkCell(s: SignalInfo): string {
   if (!s.node_id) return '<span class="soft">—</span>';
-  return s.node_label
-    ? `<a href="#/ontology">${esc(s.node_label)}</a>`
+  return s.node_label !== null // a label may be empty: the node is still there
+    ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>`
     : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
 }
 
@@ -184,7 +184,8 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
 
 async function search(root: HTMLElement, ctx: Context): Promise<void> {
   const site = ctx.ontology.site;
-  if (!ctx.api || !site || !root.isConnected) return; // a page that was replaced asks for nothing
+  // A search typed on a page that has since been left asks for nothing (`root` stays, its content changes).
+  if (!ctx.api || !site || !root.querySelector('#signal-search')) return;
   const mine = ++latestSearch;
   const from = catalogue(ctx);
   let page: typeof results = null;

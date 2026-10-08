@@ -187,6 +187,7 @@ def test_only_listed_signals_are_checked_and_checks_are_audited(
     assert check(api, site, signal_ids=[a["id"]])["checked"] == 1
     assert by_tag(api, site, "b.flow")["quality"] is None
     assert api.post(f"/sites/{site}/signals/quality", json={"hours": 0}, headers=ENG).status_code == 422
+    assert api.post(f"/sites/{site}/signals/quality", json={"hours": True}, headers=ENG).status_code == 422
     with psycopg.connect(database_url) as conn:
         rows = conn.execute(
             "SELECT entity_type, after FROM audit_log WHERE action = 'signal.quality_check' AND site_id = %s",
