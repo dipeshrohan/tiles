@@ -308,6 +308,23 @@ Results are ranked by |d|. The numbers match the browser's finder: `test/fixture
 | `DELETE /datasets/{id}` | engineers | removes it |
 | `POST /datasets/{id}/correlate?min_effect` | members | `{"outcome", "ng_values"?, "variables"?, "split"?}`: the findings, largest effect first, and the explanations; at most 2 million rows × variables, and 50 segments |
 
+### Wear check (T3.13)
+
+The demo copilot's welder check, for any signal. A wearing tool moves a signal's level: a welder tip's power climbs before its swap, a spindle's current or a cutter's force drifts.
+
+The readings are cut into equal buckets, each kept as its median. The **baseline** is the median of the buckets in `baseline_hours` before the recent window. The **recent level** is the median of the last `last` buckets (4 by default) of the last `recent_hours`, so one odd bucket doesn't decide. The check also gives:
+- the **change**: (recent − baseline) / |baseline|, so a fall is negative whatever the sign. It is **wearing** when the change reaches `threshold` (5% by default) in `direction` (`up`, `down` or `either`), and **stable** otherwise. It says **not enough data** below 6 baseline buckets, below `last` recent ones, or when the baseline is 0;
+- the **slope** in the recent window, as the median of the slopes between every two buckets (Theil–Sen), so one spike can't tilt it;
+- given a `limit`, about how long until the level reaches it at that pace.
+
+On hourly buckets this is the browser's `wearCheck`; `test/fixtures/wear-check.json` (the demo welder) keeps the two matched.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `POST /signals/{id}/wear-check` | members | `{"end"?, "recent_hours"? (24), "baseline_hours"? (72), "bucket_minutes"? (60), "direction"?, "threshold"?, "limit"?, "last"?}`: the verdict, baseline, recent level, change, slope per day, hours to the limit, a sentence, and the bucket medians. `end` defaults to just after the latest reading. Both windows are whole buckets; at most 120 days, 5,000 buckets, and 500 in the recent window |
+
+The Data explorer runs it on each chart over the range shown. The recent window is the last day, or a quarter of a shorter range, and the buckets are the shortest that keep the range to 400.
+
 ### Saved insights (T3.12)
 
 An **insight** is a finding worth keeping: a title, a summary, the actions it proposes, the query that found it and the evidence the query gave. Engineers save one from the Correlation finder (a correlation of a dataset) or the Data explorer (up to 8 signals over a time range). The API computes the evidence from the query itself, so it can't be made up. It is kept as it was when saved, so the insight still shows what was seen after the data changes or the dataset is deleted. A correlation keeps its 60 largest effects and every effect its explanations name; a signal keeps at most 1,000 points.

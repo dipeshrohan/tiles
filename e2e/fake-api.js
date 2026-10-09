@@ -4,6 +4,7 @@
 // history and staged changes per user, like the real API.
 import { createHash, randomUUID } from 'node:crypto';
 import { correlationFinder } from '../js/lib/analysis.ts';
+import { median } from '../js/lib/stats.ts';
 import { createServer } from 'node:http';
 import {
   applyOp,
@@ -174,6 +175,7 @@ export function createFakeApi({
   let performanceReport = null;
   const correlations = []; // each correlate request's body
   const insights = []; // saved insights, as the API returns them, with `evidence`
+  const wearChecks = []; // each wear-check request's body
   let datasetRowsFail = null; // a detail: the next rows batch is refused with it
   // Batch tables (T3.11): like the API, the correlation finder ranks with the browser's own.
   const datasets = []; // { id, name, description, columns, rows, created_by, created_at }
@@ -527,6 +529,62 @@ export function createFakeApi({
             };
           });
         return send(200, { unmapped: unmapped.length, staged: waiting, suggestions });
+      }
+      const worn = signals.find((x) => url.pathname === `${signalsPath}/${x.id}/wear-check`);
+      if (worn && req.method === 'POST') {
+        // Like the API, in short: bucket medians, the baseline and recent level, a verdict.
+        const q = await body(req);
+        wearChecks.push(q);
+        const [recentH, baseH, step] = [
+          q.recent_hours ?? 24,
+          q.baseline_hours ?? 72,
+          (q.bucket_minutes ?? 60) * 60_000,
+        ];
+        const end = Date.parse(q.end);
+        const recentFrom = end - recentH * 3_600_000;
+        const start = recentFrom - baseH * 3_600_000;
+        const groups = new Map();
+        for (const [k, v] of samples) {
+          const [tag, at] = k.split('|');
+          const t = Date.parse(at);
+          if (tag !== worn.tag || typeof v !== 'number' || t < start || t >= end) continue;
+          const b = start + Math.floor((t - start) / step) * step;
+          groups.set(b, [...(groups.get(b) ?? []), v]);
+        }
+        const buckets = [...groups.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([b, vs]) => ({ t: b, v: median(vs), n: vs.length }));
+        const base = buckets.filter((b) => b.t < recentFrom);
+        const recent = buckets.filter((b) => b.t >= recentFrom);
+        const enough = base.length >= 6 && recent.length >= 4;
+        const baseline = enough ? median(base.map((b) => b.v)) : null;
+        const last = enough ? median(recent.slice(-4).map((b) => b.v)) : null;
+        const change = enough && baseline ? (last - baseline) / Math.abs(baseline) : null;
+        const moved =
+          change !== null &&
+          (q.direction === 'down' ? change <= -0.05 : q.direction === 'up' ? change >= 0.05 : Math.abs(change) >= 0.05);
+        const verdict = change === null ? 'not_enough_data' : moved ? 'wearing' : 'stable';
+        return send(200, {
+          signal_id: worn.id,
+          tag: worn.tag,
+          unit: worn.unit,
+          start: new Date(start).toISOString(),
+          recent_from: new Date(recentFrom).toISOString(),
+          end: new Date(end).toISOString(),
+          verdict,
+          baseline,
+          last,
+          change,
+          slope_per_day: null,
+          hours_to_limit: null,
+          baseline_buckets: base.length,
+          recent_buckets: recent.length,
+          text:
+            change === null
+              ? 'Not enough readings.'
+              : `${verdict === 'wearing' ? 'Wearing' : 'Stable'}: ${(change * 100).toFixed(1)}% from the baseline.`,
+          buckets: buckets.map((b) => ({ at: new Date(b.t).toISOString(), value: b.v, n: b.n })),
+        });
       }
       const plotted = signals.find((x) => url.pathname === `${signalsPath}/${x.id}/series`);
       if (plotted && req.method === 'GET') {
@@ -1085,6 +1143,7 @@ export function createFakeApi({
     datasets,
     correlations,
     insights,
+    wearChecks,
     // Refuses the next batch of dataset rows, as the API does a value of the wrong kind.
     failDatasetRows(detail) {
       datasetRowsFail = detail;

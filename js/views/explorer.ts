@@ -2,6 +2,8 @@ import { esc, field, fmt, onAll, onSubmit } from '../lib/dom.ts';
 import type { SignalInfo, SignalSeries } from '../lib/api.ts';
 import { fitWidth, gapFor, TIME_CHART, timeAt, timeChart, toPoints } from '../lib/svg.ts';
 import { bindDraft, draftForm, insightLink, readDraft, seriesDraft, type DraftText } from '../lib/insights.ts';
+import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
+import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
 
@@ -41,6 +43,88 @@ let findTimer: ReturnType<typeof setTimeout> | undefined;
 let searchText = '';
 let saving: { key: string; text: DraftText } | null = null; // the insight being saved from the charts
 let savingBusy = false; // its POST is on its way
+// Each picked chart's wear check (T3.13): the choices typed, and the result for the range and
+// choices it ran with. Running one redraws only its own section, not the charts.
+interface WearState {
+  direction: 'either' | 'up' | 'down';
+  limit: string;
+  busy: boolean;
+  result: { key: string; data: WearCheckResult; limit: number | null } | null;
+}
+const wearStates = new Map<string, WearState>();
+const wearOf = (id: string): WearState => {
+  let w = wearStates.get(id);
+  if (!w) wearStates.set(id, (w = { direction: 'either', limit: '', busy: false, result: null }));
+  return w;
+};
+const wearKey = (id: string, range: Range | null, w: WearState): string =>
+  JSON.stringify([id, range, w.direction, w.limit.trim()]);
+
+function wearForm(id: string): string {
+  const w = wearOf(id);
+  const option = (v: WearState['direction'], text: string) =>
+    `<option value="${v}" ${w.direction === v ? 'selected' : ''}>${text}</option>`;
+  return `<form class="row" style="gap:8px;flex-wrap:wrap;align-items:end" data-wear-form="${esc(id)}">
+      <label class="field">Wear moves it<select name="direction">${option('either', 'either way')}${option('up', 'up')}${option('down', 'down')}</select></label>
+      <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" style="width:8em"></label>
+      <button class="btn sm" type="submit">Check for wear</button>
+    </form>
+    <div data-wear-out></div>`;
+}
+
+// The answer to the question the form asks now, if there is one, and whether one is on its way.
+function showWear(box: HTMLElement, ctx: Context): void {
+  const w = wearOf(box.dataset.wear ?? '');
+  const r = w.result?.key === wearKey(box.dataset.wear ?? '', ui(ctx).range, w) ? w.result : null;
+  const out = box.querySelector<HTMLElement>('[data-wear-out]');
+  if (out) out.innerHTML = r ? wearBlock(r.data, r.limit, fitWidth(TIME_CHART.width)) : '';
+  const button = box.querySelector<HTMLButtonElement>('button[type=submit]');
+  if (button) button.disabled = w.busy;
+}
+
+// The form is drawn once per render; choosing and checking only redraw the answer under it.
+function drawWear(box: HTMLElement, ctx: Context): void {
+  const id = box.dataset.wear ?? '';
+  box.innerHTML = wearForm(id);
+  const form = box.querySelector<HTMLFormElement>('form');
+  if (!form) return;
+  const w = wearOf(id);
+  form.addEventListener('input', () => {
+    w.limit = field(form, 'limit');
+  });
+  form.addEventListener('change', () => {
+    w.direction = field(form, 'direction') as WearState['direction'];
+    w.limit = field(form, 'limit');
+    showWear(box, ctx); // an answer to another question goes, or comes back
+  });
+  onSubmit(box, 'form', () => void checkWear(ctx, box));
+  showWear(box, ctx);
+}
+
+async function checkWear(ctx: Context, box: HTMLElement): Promise<void> {
+  const site = ctx.ontology.site;
+  const { range } = ui(ctx);
+  const id = box.dataset.wear ?? '';
+  const w = wearOf(id);
+  if (w.busy) return;
+  if (!ctx.api || !site || !range) return void ctx.toast('Choose a range first');
+  const plan = wearPlan(range);
+  if (typeof plan === 'string') return void ctx.toast(plan);
+  const limit = parseLimit(w.limit);
+  if (typeof limit === 'string') return void ctx.toast(limit);
+  const key = wearKey(id, range, w);
+  const query = { ...plan, direction: w.direction, limit };
+  w.busy = true;
+  showWear(box, ctx);
+  try {
+    w.result = { key, data: await ctx.api.signals.wearCheck(site.id, id, query), limit };
+  } catch {
+    // the client showed why
+  } finally {
+    w.busy = false;
+    if (box.isConnected) showWear(box, ctx);
+  }
+}
 
 const iso = (t: number) => new Date(t).toISOString();
 
@@ -329,6 +413,7 @@ const view: View = {
       return `${head}<div class="card"><p class="small soft">Readings are kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
     const u = ui(ctx);
     if (u.catalogue !== catalogue(ctx)) Object.assign(u, { picked: [], range: null, catalogue: catalogue(ctx) });
+    for (const id of wearStates.keys()) if (!u.picked.some((p) => p.id === id)) wearStates.delete(id);
     const { picked, range } = u;
     const canSave = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
     const chips = picked
@@ -356,6 +441,7 @@ const view: View = {
         (p) => `<div class="card stack" style="gap:6px">
           <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? '')}</span></div>
           <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
+          <div data-wear="${esc(p.id)}"></div>
         </div>`,
       )
       .join('');
@@ -429,6 +515,7 @@ const view: View = {
       });
       onSubmit(root, '#insight-save', () => void saveInsight(ctx));
     }
+    root.querySelectorAll<HTMLElement>('[data-wear]').forEach((box) => drawWear(box, ctx));
     loadCharts(root, ctx);
   },
 };

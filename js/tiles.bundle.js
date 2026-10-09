@@ -837,7 +837,8 @@
 					from,
 					to,
 					points: String(points)
-				}).toString()}`)
+				}).toString()}`),
+				wearCheck: (siteId, signalId, q) => request("POST", `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}/wear-check`, q)
 			},
 			imports: {
 				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/imports`),
@@ -3136,9 +3137,9 @@
 	}
 	var SECOND = 1e3;
 	var MINUTE$1 = 60 * SECOND;
-	var HOUR$2 = 60 * MINUTE$1;
-	var DAY = 24 * HOUR$2;
-	var STEPS = [
+	var HOUR$3 = 60 * MINUTE$1;
+	var DAY = 24 * HOUR$3;
+	var STEPS$1 = [
 		SECOND,
 		5 * SECOND,
 		15 * SECOND,
@@ -3147,10 +3148,10 @@
 		5 * MINUTE$1,
 		15 * MINUTE$1,
 		30 * MINUTE$1,
-		HOUR$2,
-		3 * HOUR$2,
-		6 * HOUR$2,
-		12 * HOUR$2,
+		HOUR$3,
+		3 * HOUR$3,
+		6 * HOUR$3,
+		12 * HOUR$3,
 		DAY,
 		2 * DAY,
 		7 * DAY,
@@ -3161,7 +3162,7 @@
 		365 * DAY
 	];
 	function timeTicks(from, to, n = 6) {
-		const step = STEPS.find((s) => (to - from) / s <= n) ?? STEPS[STEPS.length - 1];
+		const step = STEPS$1.find((s) => (to - from) / s <= n) ?? STEPS$1[STEPS$1.length - 1];
 		const ticks = [];
 		if (step >= 30 * DAY) {
 			const months = Math.round(step / (30.4 * DAY));
@@ -3179,7 +3180,7 @@
 		}
 		const offset = new Date(from).getTimezoneOffset() * MINUTE$1;
 		for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) {
-			const shifted = step >= HOUR$2 ? t + new Date(t).getTimezoneOffset() * MINUTE$1 - offset : t;
+			const shifted = step >= HOUR$3 ? t + new Date(t).getTimezoneOffset() * MINUTE$1 - offset : t;
 			if (shifted >= from && shifted <= to) ticks.push(shifted);
 		}
 		return {
@@ -4218,6 +4219,85 @@
 		};
 	}
 	//#endregion
+	//#region js/lib/wear.ts
+	var HOUR$2 = 36e5;
+	var STEPS = [
+		1,
+		5,
+		15,
+		30,
+		60,
+		120,
+		240,
+		360,
+		720,
+		1440
+	];
+	var MAX_BUCKETS = 400;
+	var MAX_SPAN_HOURS = 2880;
+	function wearPlan(range) {
+		const to = Date.parse(range.to);
+		const spanHours = (to - Date.parse(range.from)) / HOUR$2;
+		if (!(spanHours > 0)) return "Choose a range first";
+		if (spanHours > MAX_SPAN_HOURS) return "Check at most 120 days at once: zoom in";
+		const step = STEPS.find((m) => spanHours * 60 / m <= MAX_BUCKETS) ?? 1440;
+		const buckets = Math.floor(spanHours * 60 / step);
+		const recent = Math.max(4, Math.min(Math.floor(1440 / step), Math.floor(buckets / 4)));
+		if (recent < 4 || buckets - recent < 6) return "The range is too short to check for wear: zoom out";
+		return {
+			end: new Date(to).toISOString(),
+			recent_hours: recent * step / 60,
+			baseline_hours: (buckets - recent) * step / 60,
+			bucket_minutes: step
+		};
+	}
+	function parseLimit(text) {
+		const t = text.trim();
+		if (!t) return null;
+		const n = Number(t.replace(/[,\s]/g, ""));
+		return Number.isFinite(n) ? n : "The limit is a number";
+	}
+	var VERDICT = {
+		wearing: ["bad", "Wearing"],
+		stable: ["good", "Stable"],
+		not_enough_data: ["", "Not enough data"]
+	};
+	function wearBlock(r, limit, width = TIME_CHART.width) {
+		const [cls, label] = VERDICT[r.verdict];
+		const levels = [...r.baseline !== null ? [{
+			v: r.baseline,
+			label: "baseline"
+		}] : [], ...limit !== null ? [{
+			v: limit,
+			label: "limit"
+		}] : []];
+		const points = r.buckets.map((b) => ({
+			t: Date.parse(b.at),
+			v: b.value,
+			lo: b.value,
+			hi: b.value
+		}));
+		const bucketMs = points.length > 1 ? Math.min(...points.slice(1).map((p, i) => p.t - points[i].t)) : HOUR$2;
+		const chart = timeChart({
+			points,
+			from: Date.parse(r.start),
+			to: Date.parse(r.end),
+			gap: bucketMs * 1.5,
+			yLabel: r.unit ?? "",
+			levels,
+			spans: [{
+				from: Date.parse(r.recent_from),
+				to: Date.parse(r.end)
+			}],
+			width
+		});
+		return `<div class="stack" style="gap:6px" data-wear-result>
+      <p><span class="badge ${cls}">${label}</span> ${esc(r.text)}</p>
+      ${chart}
+      <p class="small soft">Medians of ${esc(String(r.baseline_buckets + r.recent_buckets))} bucket(s); the shaded part is the recent window.</p>
+    </div>`;
+	}
+	//#endregion
 	//#region js/views/signals.ts
 	var PAGE$1 = 100;
 	var results = null;
@@ -4689,6 +4769,88 @@
 	var searchText = "";
 	var saving$1 = null;
 	var savingBusy = false;
+	var wearStates = /* @__PURE__ */ new Map();
+	var wearOf = (id) => {
+		let w = wearStates.get(id);
+		if (!w) wearStates.set(id, w = {
+			direction: "either",
+			limit: "",
+			busy: false,
+			result: null
+		});
+		return w;
+	};
+	var wearKey = (id, range, w) => JSON.stringify([
+		id,
+		range,
+		w.direction,
+		w.limit.trim()
+	]);
+	function wearForm(id) {
+		const w = wearOf(id);
+		const option = (v, text) => `<option value="${v}" ${w.direction === v ? "selected" : ""}>${text}</option>`;
+		return `<form class="row" style="gap:8px;flex-wrap:wrap;align-items:end" data-wear-form="${esc(id)}">
+      <label class="field">Wear moves it<select name="direction">${option("either", "either way")}${option("up", "up")}${option("down", "down")}</select></label>
+      <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" style="width:8em"></label>
+      <button class="btn sm" type="submit">Check for wear</button>
+    </form>
+    <div data-wear-out></div>`;
+	}
+	function showWear(box, ctx) {
+		const w = wearOf(box.dataset.wear ?? "");
+		const r = w.result?.key === wearKey(box.dataset.wear ?? "", ui(ctx).range, w) ? w.result : null;
+		const out = box.querySelector("[data-wear-out]");
+		if (out) out.innerHTML = r ? wearBlock(r.data, r.limit, fitWidth(TIME_CHART.width)) : "";
+		const button = box.querySelector("button[type=submit]");
+		if (button) button.disabled = w.busy;
+	}
+	function drawWear(box, ctx) {
+		const id = box.dataset.wear ?? "";
+		box.innerHTML = wearForm(id);
+		const form = box.querySelector("form");
+		if (!form) return;
+		const w = wearOf(id);
+		form.addEventListener("input", () => {
+			w.limit = field$1(form, "limit");
+		});
+		form.addEventListener("change", () => {
+			w.direction = field$1(form, "direction");
+			w.limit = field$1(form, "limit");
+			showWear(box, ctx);
+		});
+		onSubmit(box, "form", () => void checkWear(ctx, box));
+		showWear(box, ctx);
+	}
+	async function checkWear(ctx, box) {
+		const site = ctx.ontology.site;
+		const { range } = ui(ctx);
+		const id = box.dataset.wear ?? "";
+		const w = wearOf(id);
+		if (w.busy) return;
+		if (!ctx.api || !site || !range) return void ctx.toast("Choose a range first");
+		const plan = wearPlan(range);
+		if (typeof plan === "string") return void ctx.toast(plan);
+		const limit = parseLimit(w.limit);
+		if (typeof limit === "string") return void ctx.toast(limit);
+		const key = wearKey(id, range, w);
+		const query = {
+			...plan,
+			direction: w.direction,
+			limit
+		};
+		w.busy = true;
+		showWear(box, ctx);
+		try {
+			w.result = {
+				key,
+				data: await ctx.api.signals.wearCheck(site.id, id, query),
+				limit
+			};
+		} catch {} finally {
+			w.busy = false;
+			if (box.isConnected) showWear(box, ctx);
+		}
+	}
 	var iso = (t) => new Date(t).toISOString();
 	function presetRange(preset, picked, now) {
 		if (preset !== "data") return {
@@ -4954,6 +5116,7 @@
 				range: null,
 				catalogue: catalogue(ctx)
 			});
+			for (const id of wearStates.keys()) if (!u.picked.some((p) => p.id === id)) wearStates.delete(id);
 			const { picked, range } = u;
 			const canSave = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 			const chips = picked.map((p) => `<span class="badge">${esc(p.tag)} <button class="btn-link" type="button" data-remove="${esc(p.id)}" aria-label="Remove ${esc(p.tag)}">×</button></span>`).join(" ");
@@ -4977,6 +5140,7 @@
 			const charts = picked.map((p) => `<div class="card stack" style="gap:6px">
           <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? "")}</span></div>
           <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
+          <div data-wear="${esc(p.id)}"></div>
         </div>`).join("");
 			return `${head}<div class="card stack" style="gap:12px">
         <form id="explorer-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
@@ -5044,6 +5208,7 @@
 				});
 				onSubmit(root, "#insight-save", () => void saveInsight$1(ctx));
 			}
+			root.querySelectorAll("[data-wear]").forEach((box) => drawWear(box, ctx));
 			loadCharts(root, ctx);
 		}
 	};

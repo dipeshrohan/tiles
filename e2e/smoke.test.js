@@ -2148,3 +2148,59 @@ test('saved insights: signals over a range, kept as plotted and opened again in 
   assert.equal(await a.page.inputValue('#explorer-range [name=from]').then(Boolean), true);
   assert.deepEqual(a.errors, []);
 });
+
+test('the wear check: a welder tip climbing in its last day, with a limit', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const power = fake.addSignal('w03.cathode_power', { source: 'edge:edge-01', unit: 'W' });
+  const end = Date.parse('2026-09-05T06:00:00Z');
+  for (let h = 0; h < 96; h++) {
+    const wear = h >= 72 ? 0.12 * ((h - 72) / 24) : 0;
+    fake.samples.set(
+      `w03.cathode_power|${new Date(end - (96 - h) * 3_600_000).toISOString()}`,
+      1620 * (1 + wear) + (h % 3),
+    );
+  }
+  const from = new Date(end - 96 * 3_600_000).toISOString();
+  const to = new Date(end).toISOString();
+  const a = await openAs(t, apiUrl, null, `explorer?signals=${power.id}&from=${from}&to=${to}`);
+  await a.page.waitForSelector('[data-chart] svg');
+  const form = `[data-wear-form="${power.id}"]`;
+  await a.page.selectOption(`${form} [name=direction]`, 'up');
+  await a.page.fill(`${form} [name=limit]`, '1900');
+  await rerender(a.page); // the choices survive
+  assert.equal(await a.page.inputValue(`${form} [name=limit]`), '1900');
+  assert.equal(await a.page.inputValue(`${form} [name=direction]`), 'up');
+  const loads = () => fake.requests.filter((r) => r.endsWith('/series')).length;
+  const before = loads();
+  await a.page.click(`${form} button[type=submit]`);
+  await a.page.waitForSelector('[data-wear-result]:has-text("Wearing")');
+  assert.equal(loads(), before); // only its own section is redrawn, not the charts
+  // The last day against the three before it, in 15-minute buckets.
+  assert.deepEqual(fake.wearChecks.at(-1), {
+    end: to,
+    recent_hours: 24,
+    baseline_hours: 72,
+    bucket_minutes: 15,
+    direction: 'up',
+    limit: 1900,
+  });
+  assert.equal((await a.page.locator('[data-wear-result] svg .level').count()) >= 2, true); // baseline and limit
+  // Another question: the answer to the old one goes.
+  await a.page.selectOption(`${form} [name=direction]`, 'down');
+  await a.page.waitForSelector('[data-wear-result]', { state: 'detached' });
+  await a.page.selectOption(`${form} [name=direction]`, 'up');
+  await a.page.waitForSelector('[data-wear-result]:has-text("Wearing")'); // the same question again
+  await a.page.fill(`${form} [name=limit]`, 'high');
+  await a.page.click(`${form} button[type=submit]`);
+  await a.page.waitForSelector('#toast:has-text("The limit is a number")');
+  // A different range is a different question: its answer goes.
+  await a.page.fill(`${form} [name=limit]`, '1,900');
+  await a.page.click(`${form} button[type=submit]`);
+  await a.page.waitForSelector('[data-wear-result]:has-text("Wearing")');
+  assert.equal(fake.wearChecks.at(-1).limit, 1900);
+  await a.page.click('[data-preset="24h"]');
+  await a.page.waitForSelector('[data-wear-result]', { state: 'detached' });
+  assert.deepEqual(a.errors, []);
+});
