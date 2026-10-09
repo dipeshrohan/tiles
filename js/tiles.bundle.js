@@ -1020,6 +1020,13 @@
 					})}`)
 				};
 			})(),
+			designProjects: {
+				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/design-projects`),
+				create: (siteId, name, description = "") => request("POST", `/sites/${encodeURIComponent(siteId)}/design-projects`, {
+					name,
+					description
+				})
+			},
 			insights: (() => {
 				const base = (siteId) => `/sites/${encodeURIComponent(siteId)}/insights`;
 				const one = (siteId, n) => `${base(siteId)}/${n}`;
@@ -4130,6 +4137,39 @@
 		}
 	};
 	//#endregion
+	//#region js/lib/design-runs.ts
+	var API_MODEL = {
+		swelling: "cell-swelling",
+		actuator: "joint-actuator"
+	};
+	var browserModel = (key) => Object.entries(API_MODEL).find(([, k]) => k === key)?.[0] ?? key;
+	var browserVersion = (version) => version.replace(/^(\d+\.\d+)\.0$/, "$1");
+	function asRun(r) {
+		return {
+			id: String(r.number),
+			modelId: browserModel(r.model),
+			version: browserVersion(r.version),
+			params: { ...r.params },
+			value: Object.values(r.output)[0] ?? NaN,
+			author: r.author.name,
+			note: r.note,
+			parent: r.parent === null ? null : String(r.parent),
+			date: r.created_at
+		};
+	}
+	var headOf = (runs, model) => runs.find((r) => browserModel(r.model) === model)?.number ?? null;
+	function changesOf(r) {
+		return r.changes.map((c) => c.key === "version" ? {
+			key: "model version",
+			from: browserVersion(String(c.before)),
+			to: browserVersion(String(c.after))
+		} : {
+			key: c.key,
+			from: c.before ?? void 0,
+			to: c.after ?? void 0
+		});
+	}
+	//#endregion
 	//#region js/views/design.ts
 	var defaults = (model) => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
@@ -4140,8 +4180,89 @@
 		params: {},
 		versions: {},
 		sweepX: null,
-		sweepY: null
+		sweepY: null,
+		project: null,
+		projectSite: null
 	});
+	var projects = null;
+	var projectsFetching = null;
+	var apiRuns = null;
+	var saving$3 = false;
+	var visit = 0;
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "design") {
+			projects = null;
+			projectsFetching = null;
+			apiRuns = null;
+			visit += 1;
+		}
+	});
+	var siteOf = (ctx) => ctx.api && ctx.ontology.status === "ready" ? ctx.ontology.site?.id ?? null : null;
+	var apiWaiting = (ctx) => ctx.api !== null && siteOf(ctx) === null;
+	function projectOf(ctx, site) {
+		const ui = uiState$5(ctx);
+		const items = projects?.site === site ? projects.items : [];
+		if (ui.projectSite !== site) Object.assign(ui, {
+			project: null,
+			projectSite: site
+		});
+		return items.find((p) => p.id === ui.project) ?? items[0] ?? null;
+	}
+	var runsKey = (site, project, model) => `${site}|${project}|${model}`;
+	async function fetchProjects(ctx, site) {
+		if (projectsFetching === site) return;
+		projectsFetching = site;
+		const at = visit;
+		let items = [];
+		try {
+			items = await ctx.api.designProjects.list(site);
+		} catch {}
+		if (at !== visit || projectsFetching !== site) return;
+		projectsFetching = null;
+		projects = {
+			site,
+			items
+		};
+		ctx.rerender();
+	}
+	async function fetchRuns(ctx, site, project, model) {
+		const key = runsKey(site, project, model);
+		if (apiRuns?.key === key) return;
+		apiRuns = {
+			key,
+			items: [],
+			loaded: false
+		};
+		const at = visit;
+		try {
+			const page = await ctx.api.runs.list(site, {
+				project,
+				model: API_MODEL[model] ?? model,
+				limit: 200
+			});
+			if (at === visit && apiRuns?.key === key) apiRuns = {
+				key,
+				items: page.runs,
+				loaded: true
+			};
+		} catch {
+			if (at === visit && apiRuns?.key === key) apiRuns = null;
+			return;
+		}
+		if (at === visit) ctx.rerender();
+	}
+	function projectBar(ctx, site) {
+		const items = projects?.site === site ? projects.items : null;
+		const shown = projectOf(ctx, site);
+		const canWrite = ctx.ontology.role !== null && ctx.ontology.role !== "viewer";
+		const choose = items === null ? "<span class=\"small soft\">Loading projects…</span>" : items.length ? `<label class="row" style="gap:8px">Project <select id="project" aria-label="Design project">${items.map((p) => `<option value="${esc(p.id)}" ${p.id === shown?.id ? "selected" : ""}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? "" : "s"})</option>`).join("")}</select></label>` : "<span class=\"small soft\">No projects yet on this site.</span>";
+		const create = canWrite ? `<form id="new-project" class="row" style="gap:8px"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>` : "";
+		return `<div class="card row" data-projects style="gap:16px;flex-wrap:wrap;justify-content:space-between;margin-bottom:16px">
+      <div class="row" style="gap:16px;flex-wrap:wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ""}</div>
+      ${create}
+      <span class="small soft" style="flex-basis:100%">Runs in a project are stored on the site and shared with everyone on it.</span>
+    </div>`;
+	}
 	function current(ctx) {
 		const ui = uiState$5(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
@@ -4165,8 +4286,16 @@
 			if (yKey === xKey) yKey = keys.find((k) => k !== xKey);
 			const sw = sweep(model.id, version, params, xKey, yKey, 14);
 			const sens = sensitivity(model.id, version, params);
-			const runs = ctx.state.runs.filter((r) => r.modelId === model.id);
+			const site = siteOf(ctx);
+			const project = site ? projectOf(ctx, site) : null;
+			const fetched = site && project && apiRuns?.key === runsKey(site, project.id, model.id) ? apiRuns : null;
+			const stored = fetched?.items ?? [];
+			const remote = site !== null || apiWaiting(ctx);
+			const runs = remote ? stored.map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
 			const byId = new Map(ctx.state.runs.map((r) => [r.id, r]));
+			const apiChanges = new Map(stored.map((r) => [String(r.number), changesOf(r)]));
+			const diffOf = (r) => apiChanges.get(r.id) ?? runDiff(r, r.parent ? byId.get(r.parent) : null);
+			const canSave = remote ? Boolean(fetched?.loaded) && ctx.ontology.role !== null && ctx.ontology.role !== "viewer" : true;
 			const unit = model.output.unit;
 			const label = (k) => model.params.find((p) => p.key === k)?.label ?? k;
 			return `
@@ -4178,6 +4307,7 @@
         </div>
         <div class="seg" role="group" aria-label="Model">${Object.values(MODELS).map((m) => `<button data-model="${m.id}" class="${m.id === model.id ? "active" : ""}">${esc(m.name)}</button>`).join("")}</div>
       </div>
+      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card" data-projects style="margin-bottom:16px"><span class="small soft">${ctx.ontology.status === "error" ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : "Connecting to the Tiles API…"}</span></div>` : ""}
 
       <div class="grid g3" style="margin-bottom:16px">
         <div class="card">
@@ -4198,8 +4328,9 @@
           <h3>Across model versions</h3>
           <table style="margin:6px 0 14px"><tbody>${Object.keys(model.versions).map((v) => `<tr><td>v${v}</td><td class="num"><b>${fmt$1(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`).join("")}</tbody></table>
           <form id="run-form" class="stack" style="gap:8px">
-            <input type="text" name="note" placeholder="Note for this run (optional)" aria-label="Run note" />
-            <button class="btn primary" type="submit">Save run</button>
+            <input type="text" name="note" maxlength="500" placeholder="Note for this run (optional)" aria-label="Run note" />
+            <button class="btn primary" type="submit" ${canSave && !saving$3 ? "" : "disabled"}>Save run${site && project ? ` to ${esc(project.name)}` : ""}</button>
+            ${site && !project ? "<span class=\"small soft\">Create a project to save runs on the site.</span>" : ""}
           </form>
         </div>
         <div class="card">
@@ -4239,16 +4370,38 @@
           </div>
           ${runs.length ? `<div class="table-wrap"><table><thead><tr><th>Run</th><th>Changed vs parent</th><th class="num">${esc(model.output.label)}</th></tr></thead><tbody>
                 ${runs.map((r) => {
-				const diff = runDiff(r, r.parent ? byId.get(r.parent) : null);
+				const diff = diffOf(r);
 				return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : "<span class=\"muted\">untitled</span>"}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
                       <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join("<br>") || "no change" : "first run"}</td>
                       <td class="num"><b>${fmt$1(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
-			}).join("")}</tbody></table></div>` : "<div class=\"empty\">No runs yet. Adjust parameters and press “Save run”.</div>"}
+			}).join("")}</tbody></table></div>` : `<div class="empty">${site && !project ? "Pick or create a project to see its runs." : site && !fetched?.loaded ? "Loading runs…" : remote && !site ? "" : "No runs yet. Adjust parameters and press “Save run”."}</div>`}
         </div>
       </div>`;
 		},
 		bind(root, ctx) {
 			const { ui, model, params } = current(ctx);
+			const site = siteOf(ctx);
+			if (site && projects?.site !== site) fetchProjects(ctx, site);
+			const project = site ? projectOf(ctx, site) : null;
+			if (site && project && apiRuns?.key !== runsKey(site, project.id, model.id)) fetchRuns(ctx, site, project.id, model.id);
+			root.querySelector("#project")?.addEventListener("change", (e) => {
+				ui.project = e.target.value;
+				ctx.rerender();
+			});
+			onSubmit(root, "#new-project", async (form) => {
+				const name = field$1(form, "name").trim();
+				if (!site || !ctx.api || !name) return;
+				try {
+					const created = await ctx.api.designProjects.create(site, name);
+					ui.project = created.id;
+					projects = {
+						site,
+						items: [created, ...projects?.site === site ? projects.items : []]
+					};
+					ctx.toast(`Project “${created.name}” created`);
+					ctx.rerender();
+				} catch {}
+			});
 			onAll(root, "[data-model]", "click", (b) => {
 				if (b.dataset.model) ui.model = b.dataset.model;
 				ctx.rerender();
@@ -4282,8 +4435,43 @@
 				ui.sweepY = sweepY.value;
 				ctx.rerender();
 			});
-			onSubmit(root, "#run-form", (form) => {
+			onSubmit(root, "#run-form", async (form) => {
 				const note = field$1(form, "note").trim();
+				if (site) {
+					const key = runsKey(site, project?.id ?? "", model.id);
+					if (!ctx.api || !project || saving$3 || apiRuns?.key !== key || !apiRuns.loaded) return;
+					const items = apiRuns.items;
+					saving$3 = true;
+					ctx.rerender();
+					try {
+						const created = await ctx.api.runs.create(site, {
+							model: API_MODEL[model.id] ?? model.id,
+							version: ui.versions[model.id] ?? model.latest,
+							params,
+							note,
+							parent: headOf(items, model.id),
+							project: project.id
+						});
+						ctx.toast(`Run saved to ${project.name}`);
+						if (apiRuns?.key === key) apiRuns = {
+							key,
+							items: [created, ...items],
+							loaded: true
+						};
+						if (projects?.site === site) projects = {
+							site,
+							items: projects.items.map((p) => p.id === project.id ? {
+								...p,
+								runs: p.runs + 1,
+								last_run_at: created.created_at
+							} : p)
+						};
+					} catch {} finally {
+						saving$3 = false;
+						ctx.rerender();
+					}
+					return;
+				}
 				ctx.update((s) => {
 					const parent = s.runs.find((r) => r.modelId === model.id) ?? null;
 					s.runs.unshift(makeRun({
@@ -4297,16 +4485,30 @@
 				});
 				ctx.toast("Run saved");
 			});
+			const shownRuns = () => {
+				if (!site && !apiWaiting(ctx)) return ctx.state.runs.filter((r) => r.modelId === model.id);
+				const key = site && project ? runsKey(site, project.id, model.id) : null;
+				return apiRuns?.key === key ? apiRuns.items.map(asRun) : [];
+			};
 			onAll(root, "[data-run]", "click", (row) => {
-				const run = ctx.state.runs.find((r) => r.id === row.dataset.run);
+				const run = shownRuns().find((r) => r.id === row.dataset.run);
 				if (!run) return;
 				ui.params[model.id] = { ...run.params };
 				ui.versions[model.id] = run.version;
 				ctx.rerender();
-				ctx.toast(`Restored run “${run.note || run.id}”`);
+				ctx.toast(`Restored run “${run.note || (site ? `#${run.id}` : run.id)}”`);
 			});
 			onAll(root, "[data-export]", "click", () => {
-				const blob = new Blob([JSON.stringify(auditRecord(ctx.state.runs, model.id), null, 2)], { type: "application/json" });
+				const record = auditRecord(shownRuns(), model.id);
+				const body = site && project ? {
+					...record,
+					site,
+					project: {
+						id: project.id,
+						name: project.name
+					}
+				} : record;
+				const blob = new Blob([JSON.stringify(body, null, 2)], { type: "application/json" });
 				const a = document.createElement("a");
 				a.href = URL.createObjectURL(blob);
 				a.download = `tiles-audit-${model.id}.json`;

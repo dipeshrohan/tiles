@@ -4,6 +4,7 @@
 // history and staged changes per user, like the real API.
 import { createHash, randomUUID } from 'node:crypto';
 import { correlationFinder } from '../js/lib/analysis.ts';
+import { evaluate as evaluateDesign, getModel as getDesignModel } from '../js/lib/design.ts';
 import { median } from '../js/lib/stats.ts';
 import { createServer } from 'node:http';
 import {
@@ -176,6 +177,10 @@ export function createFakeApi({
   let performanceReport = null;
   const correlations = []; // each correlate request's body
   const insights = []; // saved insights, as the API returns them, with `evidence`
+  // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
+  const designProjects = [];
+  const designRuns = []; // latest last
+  let designRunsDelayMs = 0; // before a list of runs answers
   // The copilot: conversations by id ({ id, user, title, created_at, updated_at, history }) and
   // the answers to give next, each { tools: [{ name, input, result }], drafts: [{ text, reason }],
   // answer, grounding? }; with none scripted, it asks back.
@@ -406,6 +411,8 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
         !url.pathname.startsWith(`/sites/${site.id}/copilot`) &&
+        url.pathname !== `/sites/${site.id}/design-projects` &&
+        url.pathname !== `/sites/${site.id}/runs` &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`)
       )
         return send(404, { detail: 'Site not found' });
@@ -955,6 +962,83 @@ export function createFakeApi({
         if (sub === '') return send(200, deliveries.slice(0, Number(url.searchParams.get('limit') ?? 100)));
         return send(404, { detail: 'Not found' });
       }
+      const designPath = `/sites/${site.id}/design-projects`;
+      if (url.pathname === designPath) {
+        if (req.method === 'GET')
+          return send(
+            200,
+            designProjects.map((p) => {
+              const runs = designRuns.filter((r) => r.project === p.id);
+              return { ...p, runs: runs.length, last_run_at: runs.at(-1)?.created_at ?? null };
+            }),
+          );
+        if (role === 'viewer')
+          return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+        const { name: projectName = '', description = '' } = await body(req);
+        const trimmed = projectName.trim();
+        if (designProjects.some((p) => p.name.toLowerCase() === trimmed.toLowerCase()))
+          return send(409, { detail: `There is already a project called '${trimmed}'` });
+        const p = {
+          id: randomUUID(),
+          name: trimmed,
+          description,
+          created_by: user.split('@')[0],
+          created_at: new Date().toISOString(),
+        };
+        designProjects.unshift(p);
+        return send(201, { ...p, runs: 0, last_run_at: null });
+      }
+      const runsPath = `/sites/${site.id}/runs`;
+      if (url.pathname === runsPath) {
+        if (req.method === 'GET') {
+          if (designRunsDelayMs) await new Promise((r) => setTimeout(r, designRunsDelayMs));
+          const model = url.searchParams.get('model');
+          const project = url.searchParams.get('project');
+          const list = designRuns
+            .filter((r) => (!model || r.model === model) && (!project || r.project === project))
+            .reverse();
+          return send(200, { runs: list, total: list.length });
+        }
+        if (role === 'viewer')
+          return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+        const { model, version, params = {}, note = '', parent = null, project = null } = await body(req);
+        const id = Object.entries({ swelling: 'cell-swelling', actuator: 'joint-actuator' }).find(
+          ([, k]) => k === model,
+        )?.[0];
+        if (!id) return send(404, { detail: `No model ${model}` });
+        const spec = getDesignModel(id);
+        const v = version ?? spec.latest;
+        const full = Object.fromEntries(spec.params.map((p) => [p.key, params[p.key] ?? p.default]));
+        const before = parent === null ? null : designRuns.find((r) => r.number === parent);
+        if (parent !== null && (!before || before.project !== project))
+          return send(422, { detail: `Run ${parent} is in another project` });
+        const changes = before
+          ? [
+              ...(before.version !== `${v}.0` ? [{ key: 'version', before: before.version, after: `${v}.0` }] : []),
+              ...Object.keys(full)
+                .filter((k) => full[k] !== before.params[k])
+                .map((k) => ({ key: k, before: before.params[k], after: full[k] })),
+            ]
+          : [];
+        const r = {
+          number: designRuns.length + 1,
+          model,
+          version: `${v}.0`,
+          model_name: spec.name,
+          params: full,
+          output: { [spec.output.key]: evaluateDesign(id, v, full) },
+          units: { [spec.output.key]: spec.output.unit },
+          parent,
+          restored_from: null,
+          project,
+          note,
+          author: { name: user.split('@')[0], email: user },
+          created_at: new Date().toISOString(),
+          changes,
+        };
+        designRuns.push(r);
+        return send(201, { ...r, lineage: [] });
+      }
       const warningsPath = `/sites/${site.id}/warnings`;
       if (url.pathname.startsWith(warningsPath))
         return await warningRoute(url, url.pathname.slice(warningsPath.length), user, role, memberOf);
@@ -1297,6 +1381,12 @@ export function createFakeApi({
     copilotQuestions,
     copilotFeedback: feedback,
     copilotUsage,
+    // Design runs stored on the site (T4.11), latest last.
+    designRuns,
+    // Slows the list of runs, so a test can see the page wait for it.
+    slowDesignRuns(ms) {
+      designRunsDelayMs = ms;
+    },
     // Slows the copilot's streamed events, so a test can see an answer arrive.
     slowCopilot(ms) {
       copilotDelayMs = ms;

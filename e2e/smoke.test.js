@@ -2457,3 +2457,62 @@ test('the copilot proposes an ontology change, which waits for another engineer'
   assert.equal(await detail.locator('[data-act="approve"]').count(), 0);
   assert.deepEqual(a.errors, []);
 });
+
+test('design studio with the API: runs are stored in shared projects', async (t) => {
+  const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, null, 'design');
+  await a.page.waitForSelector('[data-projects]:has-text("No projects yet")');
+  assert.equal(await a.page.locator('#run-form button[type=submit]').isDisabled(), true); // no project yet
+  await a.page.fill('#new-project [name=name]', 'Pack B');
+  await a.page.click('#new-project button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("Project “Pack B” created")');
+  await a.page.fill('#run-form [name=note]', 'Baseline');
+  await a.page.click('#run-form button[type=submit]:has-text("Save run to Pack B")');
+  await a.page.waitForSelector('#toast:has-text("Run saved to Pack B")');
+  await a.page.waitForSelector('[data-run="1"]:has-text("Baseline")');
+  assert.equal(fake.designRuns[0].model, 'cell-swelling');
+  assert.equal(fake.designRuns[0].version, '2.0.0');
+  assert.equal(fake.designRuns[0].parent, null);
+
+  // Someone else on the site sees it, changes the design and saves after it.
+  const b = await openAs(t, apiUrl, 'eng2@example.com', 'design');
+  await b.page.waitForSelector('#project option:has-text("Pack B (1 run)")', { state: 'attached' });
+  await b.page.waitForSelector('[data-run="1"]:has-text("Baseline")');
+  await b.page.locator('[data-param="soc"]').fill('60');
+  await b.page.fill('#run-form [name=note]', 'Lower charge');
+  await b.page.click('#run-form button[type=submit]');
+  await b.page.waitForSelector('[data-run="2"]:has-text("Lower charge")');
+  assert.match(await b.page.locator('[data-run="2"]').innerText(), /State of charge: 80\.00 → 60\.00/);
+  assert.equal(fake.designRuns[1].parent, 1);
+  assert.equal(fake.designRuns[1].params.soc, 60);
+  await b.page.waitForSelector('#project option:has-text("Pack B (2 runs)")', { state: 'attached' }); // counted in place
+  // A run's parameters come back with a click.
+  await b.page.click('[data-run="1"]');
+  await b.page.waitForSelector('#toast:has-text("Restored run “Baseline”")');
+  assert.equal(await b.page.locator('[data-param="soc"]').inputValue(), '80');
+
+  // Viewers read the runs but don't make projects or runs.
+  const v = await openAs(t, apiUrl, 'viewer@example.com', 'design');
+  await v.page.waitForSelector('[data-run="2"]');
+  assert.equal(await v.page.locator('#new-project').count(), 0);
+  assert.equal(await v.page.locator('#run-form button[type=submit]').isDisabled(), true);
+  for (const p of [a, b, v]) assert.deepEqual(p.errors, []);
+
+  // A run isn't saved before the project's history is known: it would lose its parent.
+  fake.slowDesignRuns(1500);
+  const c = await openAs(t, apiUrl, 'eng3@example.com', 'design');
+  await c.page.waitForSelector('.empty:has-text("Loading runs…")');
+  assert.equal(await c.page.locator('#run-form button[type=submit]').isDisabled(), true);
+  await c.page.waitForSelector('[data-run="2"]');
+  assert.equal(await c.page.locator('#run-form button[type=submit]').isDisabled(), false);
+  fake.slowDesignRuns(0);
+});
+
+test("design studio: with the API unreachable, runs aren't kept in the browser instead", async (t) => {
+  const a = await openAs(t, 'http://127.0.0.1:1', null, 'design');
+  await a.page.waitForSelector('[data-projects]:has-text("Can\'t reach the Tiles API")');
+  assert.equal(await a.page.locator('#run-form button[type=submit]').isDisabled(), true);
+  assert.equal(await a.page.locator('[data-run]').count(), 0);
+});

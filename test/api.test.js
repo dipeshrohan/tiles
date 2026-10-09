@@ -469,6 +469,23 @@ test('every design run call hits the documented path with its body', async () =>
   assert.deepEqual(JSON.parse(f.calls[5].body), { note: 'Back' });
 });
 
+test('design projects are listed and created as documented', async () => {
+  const f = fakeFetch({ body: [] }, { body: {} }, { body: {} });
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  await api.designProjects.list('s');
+  await api.designProjects.create('s', 'Pack B', 'Swelling');
+  await api.runs.list('s', { model: 'cell-swelling', project: 'p1' });
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    [
+      'GET /sites/s/design-projects',
+      'POST /sites/s/design-projects',
+      'GET /sites/s/runs?model=cell-swelling&project=p1',
+    ],
+  );
+  assert.deepEqual(JSON.parse(f.calls[1].body), { name: 'Pack B', description: 'Swelling' });
+});
+
 test('every insight call hits the documented path with its body', async () => {
   const f = fakeFetch(...Array.from({ length: 7 }, () => ({ body: {} })));
   const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
