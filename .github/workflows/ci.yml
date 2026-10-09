@@ -139,7 +139,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      TRIVY_IMAGE: aquasec/trivy:0.56.2
+      TRIVY_IMAGE: mirror.gcr.io/aquasec/trivy:0.56.2
       # Trivy's vulnerability database from Google's mirror, which rate-limits CI less than ghcr.io.
       TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db:2
     steps:
