@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +43,12 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from: str = "Tiles <tiles@example.com>"
     app_url: str = "http://localhost:5173"
+    # The copilot (T4.01): Claude through the Anthropic API. Off until both are set; the model is a
+    # current Claude model ID from Anthropic's documentation.
+    anthropic_api_key: SecretStr | None = None
+    copilot_model: str | None = None
+    copilot_max_tokens: int = 2048  # per model call
+    copilot_max_rounds: int = 8  # model calls per question (each tool round is one)
 
 
 @lru_cache

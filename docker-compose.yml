@@ -94,6 +94,9 @@ services:
       TILES_DATABASE_URL: postgresql://tiles:${TILES_DB_PASSWORD:-tiles-dev}@db:5432/tiles
       TILES_REDIS_URL: redis://redis:6379/0
       TILES_CORS_ORIGINS: '["http://localhost:5173"]'
+      # The copilot (T4.01) stays off unless both are set in your shell or the root .env file.
+      TILES_ANTHROPIC_API_KEY: ${TILES_ANTHROPIC_API_KEY:-}
+      TILES_COPILOT_MODEL: ${TILES_COPILOT_MODEL:-}
     ports:
       - '127.0.0.1:8000:8000'
     depends_on:
