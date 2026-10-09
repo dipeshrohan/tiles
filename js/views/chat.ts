@@ -11,7 +11,7 @@ import {
   type Exchange,
 } from '../lib/copilot-chat.ts';
 import type { CopilotConversation } from '../lib/api.ts';
-import { esc, need, onAll, onSubmit, field } from '../lib/dom.ts';
+import { esc, need, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
@@ -43,13 +43,12 @@ let failure: { key: string; question: string; error: string } | null = null;
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const threadKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).conversation}`;
 
-if (typeof window !== 'undefined')
-  window.addEventListener('hashchange', () => {
-    if (!location.hash.startsWith('#/chat')) {
-      remote = null;
-      thread = null;
-    }
-  });
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'chat') {
+    remote = null;
+    thread = null;
+  }
+});
 
 async function loadRemote(ctx: Context): Promise<void> {
   const site = siteId(ctx);

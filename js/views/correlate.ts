@@ -1,4 +1,4 @@
-import { esc, fmt, onAll, onSubmit } from '../lib/dom.ts';
+import { esc, fmt, onAll, onSubmit, onNavigate, routeOf } from '../lib/dom.ts';
 import { detectDelimiter, parseCsv } from '../lib/csv.ts';
 import { forestPlot, inferColumns, parseNgValues, typedRows } from '../lib/datasets.ts';
 import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '../lib/api.ts';
@@ -34,13 +34,12 @@ let chosen: { file: File | null; name: string } = { file: null, name: '' };
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const resultKey = (ctx: Context): string => JSON.stringify({ site: siteId(ctx), ...uiState(ctx) });
 
-if (typeof window !== 'undefined')
-  window.addEventListener('hashchange', () => {
-    if (!location.hash.startsWith('#/correlate')) {
-      listing = null;
-      detail = null;
-    }
-  });
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'correlate') {
+    listing = null;
+    detail = null;
+  }
+});
 
 async function loadList(ctx: Context): Promise<void> {
   const site = siteId(ctx);

@@ -1700,8 +1700,11 @@ test('people promoted while you were elsewhere can be assigned when you come bac
   await a.page.waitForSelector('#warning-form [name=assignee]');
   assert.equal(await a.page.locator('#warning-form [name=assignee] option[value="viewer@example.com"]').count(), 0);
   fake.setRole('viewer@example.com', 'engineer');
-  await a.page.evaluate(() => (location.hash = '#/signals'));
-  await a.page.evaluate(() => (location.hash = '#/warnings'));
+  // Away and straight back: both navigations' events run once the hash is back on Warnings.
+  await a.page.evaluate(() => {
+    location.hash = '#/signals';
+    location.hash = '#/warnings';
+  });
   await a.page.waitForSelector('#warning-form [name=assignee] option[value="viewer@example.com"]', {
     state: 'attached',
   });

@@ -31,7 +31,7 @@ import {
   type OntologyStore,
   type RemoteStore,
 } from './lib/ontology-store.ts';
-import { esc, need } from './lib/dom.ts';
+import { esc, need, routeOf } from './lib/dom.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
 import ontology from './views/ontology.ts';
@@ -408,7 +408,7 @@ const ctx: Context = {
 // ---- rendering ----------------------------------------------------------
 
 function currentView(): View {
-  const id = (location.hash.replace(/^#\/?/, '').split(/[/?]/)[0] || 'home').toLowerCase();
+  const id = routeOf(location.hash);
   return VIEWS.find((v) => v.id === id) ?? home;
 }
 

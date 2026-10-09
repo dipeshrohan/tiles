@@ -1389,6 +1389,15 @@
 		a.remove();
 		setTimeout(() => URL.revokeObjectURL(url), 1e3);
 	}
+	/** The page a hash names, as the router reads it: "#/Warnings?x=1" is "warnings". */
+	var routeOf = (hash) => (hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
+	/** Calls `fn` with the hash of every navigation. Each event carries its own URL: by the time the
+	* events of two quick navigations run (away and straight back), `location.hash` already reads the
+	* second, so a page reading it would miss that you left. An event made by code has no URL: it
+	* stays on the current page. */
+	function onNavigate(fn) {
+		if (typeof window !== "undefined") window.addEventListener("hashchange", (e) => fn(e.newURL ? new URL(e.newURL).hash : location.hash));
+	}
 	//#endregion
 	//#region js/lib/design.ts
 	var MODELS = {
@@ -2130,8 +2139,8 @@
 	var failure = null;
 	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
 	var threadKey = (ctx) => `${siteId$5(ctx)}|${uiState$9(ctx).conversation}`;
-	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/chat")) {
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "chat") {
 			remote$1 = null;
 			thread = null;
 		}
@@ -4380,8 +4389,8 @@
 		return "<span class=\"badge\">Waiting</span>";
 	}
 	var notifyDraft = { key: "" };
-	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (location.hash.toLowerCase().startsWith("#/settings")) return;
+	onNavigate((hash) => {
+		if (routeOf(hash) === "settings") return;
 		notifyDraft = { key: "" };
 		sourceDraft = null;
 	});
@@ -5812,8 +5821,8 @@
 		text: ""
 	};
 	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
-	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/reviews")) {
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "reviews") {
 			listing$3 = null;
 			detail$3 = null;
 		}
@@ -6186,8 +6195,8 @@
 	var PAGE = 100;
 	var ago = (iso) => when(iso, Date.now());
 	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
-	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/warnings")) {
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "warnings") {
 			listing$2 = null;
 			detail$2 = null;
 			detailFailed = null;
@@ -6624,8 +6633,8 @@
 		const u = uiState$2(ctx);
 		return `${siteId$2(ctx)}|${u.days}|${u.horizonHours}|${parseCodes(u.codes).join(",")}`;
 	};
-	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/performance")) {
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "performance") {
 			fetched = null;
 			pending = null;
 			assetDrafts.clear();
@@ -7181,8 +7190,8 @@
 		site: siteId$1(ctx),
 		...uiState$1(ctx)
 	});
-	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/correlate")) {
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "correlate") {
 			listing$1 = null;
 			detail$1 = null;
 		}
@@ -7534,8 +7543,8 @@
 	var listKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).status}`;
 	var selected = () => typeof location === "undefined" ? null : numberFromHash(location.hash);
 	var detailKey = (ctx) => `${siteId(ctx)}|${selected()}`;
-	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/insights") || numberFromHash(location.hash) === null) {
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "insights" || numberFromHash(hash) === null) {
 			listing = null;
 			detail = null;
 			editing = null;
@@ -8347,7 +8356,7 @@
 		}
 	};
 	function currentView() {
-		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
+		const id = routeOf(location.hash);
 		return VIEWS.find((v) => v.id === id) ?? view$14;
 	}
 	function badgeFor(view) {

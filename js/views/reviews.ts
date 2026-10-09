@@ -1,4 +1,4 @@
-import { esc, need, onAll, timeAgo } from '../lib/dom.ts';
+import { esc, need, onAll, timeAgo, onNavigate, routeOf } from '../lib/dom.ts';
 import { describeChanges } from '../lib/review.ts';
 import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
@@ -29,13 +29,12 @@ let draft = { key: '', text: '' }; // the comment being written, kept across re-
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 
 // Others request, approve and reject while you are elsewhere: each visit to the page fetches afresh.
-if (typeof window !== 'undefined')
-  window.addEventListener('hashchange', () => {
-    if (!location.hash.startsWith('#/reviews')) {
-      listing = null;
-      detail = null;
-    }
-  });
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'reviews') {
+    listing = null;
+    detail = null;
+  }
+});
 const listKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).state}`;
 const detailKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).selected}`;
 

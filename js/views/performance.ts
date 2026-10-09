@@ -1,4 +1,4 @@
-import { esc, onAll, onSubmit } from '../lib/dom.ts';
+import { esc, onAll, onSubmit, onNavigate, routeOf } from '../lib/dom.ts';
 import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
@@ -29,14 +29,13 @@ const keyFor = (ctx: Context): string => {
 };
 
 // Warnings and events come in all the time: each visit fetches afresh.
-if (typeof window !== 'undefined')
-  window.addEventListener('hashchange', () => {
-    if (!location.hash.startsWith('#/performance')) {
-      fetched = null;
-      pending = null;
-      assetDrafts.clear();
-    }
-  });
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'performance') {
+    fetched = null;
+    pending = null;
+    assetDrafts.clear();
+  }
+});
 
 async function load(ctx: Context): Promise<void> {
   const site = siteId(ctx);
