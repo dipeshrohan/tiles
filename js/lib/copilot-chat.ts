@@ -150,15 +150,16 @@ export function applyEvent(a: Answer, event: string, data: Record<string, unknow
   }
 }
 
-// An answer's text as HTML: escaped; `code`, **bold** and line breaks; [n] linked to its tool.
-export function answerHtml(text: string, tools: ToolTrace[], key: string): string {
+// An answer's text as HTML: escaped; `code`, **bold** and line breaks; [n] linked to its tool
+// result (numbered through the conversation, so an answer may cite an earlier one's).
+export function answerHtml(text: string, tools: ToolTrace[]): string {
   const known = new Set(tools.map((t) => t.n).filter((n) => n !== null));
   return esc(text)
     .replace(/`([^`\n]+)`/g, '<code>$1</code>')
     .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
     .replace(/\[(\d+)\]/g, (whole, n: string) =>
       known.has(Number(n))
-        ? `<a class="cite" href="#" data-cite="${esc(key)}-${n}" title="The tool result this rests on">[${n}]</a>`
+        ? `<a class="cite" href="#" data-cite="${n}" title="The tool result this rests on">[${n}]</a>`
         : whole,
     )
     .replace(/\n/g, '<br>');

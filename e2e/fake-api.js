@@ -723,6 +723,12 @@ export function createFakeApi({
             })),
           );
         }
+        if (script.error) {
+          // As the API ends an answer that failed: the error is sent, not stored.
+          await emit('error', { detail: script.error });
+          res.end();
+          return;
+        }
         const words = script.answer.split(/(?<= )/);
         for (const w of words) await emit('text', { text: w });
         const grounding = script.grounding ?? {

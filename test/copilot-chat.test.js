@@ -20,12 +20,15 @@ test('events are read in whatever pieces they arrive', () => {
   p.feed('ta: {"text":"a"}\r\n\r\n: a comment\n\nevent: done\ndata: {"x":');
   assert.equal(got.length, 1);
   p.feed('1}\n\ndata: plain\ndata: two\n\n');
-  p.feed('event: last\ndata: {}');
+  p.feed('event: crlf\r');
+  p.feed('\ndata: {"split":true}\r\n\r');
+  p.feed('\nevent: last\ndata: {}');
   p.end();
   assert.deepEqual(got, [
     { event: 'text', data: { text: 'a' } },
     { event: 'done', data: { x: 1 } },
     { event: 'message', data: 'plain\ntwo' },
+    { event: 'crlf', data: { split: true } }, // "\r" and "\n" in two pieces are one line end
     { event: 'last', data: {} },
   ]);
 });
@@ -113,8 +116,8 @@ test('an answer builds up from its events', () => {
 test('an answer is shown escaped, with its names, emphasis and citations linked to known tools', () => {
   const tools = [{ n: 1, name: 'x', input: {}, id: 't', isError: false, preview: '' }];
   assert.equal(
-    answerHtml('`p<9>` is **hot** [1], see [2].\nok', tools, 'k'),
-    '<code>p&lt;9&gt;</code> is <b>hot</b> <a class="cite" href="#" data-cite="k-1" title="The tool result this rests on">[1]</a>, see [2].<br>ok',
+    answerHtml('`p<9>` is **hot** [1], see [2].\nok', tools),
+    '<code>p&lt;9&gt;</code> is <b>hot</b> <a class="cite" href="#" data-cite="1" title="The tool result this rests on">[1]</a>, see [2].<br>ok',
   );
 });
 

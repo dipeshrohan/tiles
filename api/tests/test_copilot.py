@@ -239,8 +239,16 @@ def test_answers_are_rated_and_admins_read_the_ratings(
     assert (res.status_code, res.json()) == (200, {"rating": "down", "comment": "Should have checked press 9"})
     history = api.get(f"/sites/{site}/copilot/conversations/{conversation}", headers=ENG).json()["history"]
     assert [m["feedback"] for m in history] == [None, {"rating": "down", "comment": "Should have checked press 9"}]
-    # Only your own answers: not a question, not another user's conversation.
+    # Only your own final answers: not a question, not a note before tool calls, not another user's.
     assert api.put(f"{path}/0/feedback", json={"rating": "up"}, headers=ENG).status_code == 404
+    model.script += [
+        (["Looking."], Turn([text("Looking."), call("site_overview", {})], "tool_use")),
+        (["Which line?"], Turn([text("Which line?")], "end_turn")),
+    ]
+    ask(api, site, conversation, "And the site?")
+    assert api.put(f"{path}/3/feedback", json={"rating": "up"}, headers=ENG).status_code == 404  # "Looking."
+    assert api.put(f"{path}/5/feedback", json={"rating": "up"}, headers=ENG).status_code == 200
+    assert api.delete(f"{path}/5/feedback", headers=ENG).status_code == 204
     assert api.put(f"{path}/1/feedback", json={"rating": "up"}, headers=VIEWER).status_code == 404
     assert api.put(f"{path}/1/feedback", json={"rating": "meh"}, headers=ENG).status_code == 422
     # Admins read them, with the question.
@@ -258,4 +266,9 @@ def test_answers_are_rated_and_admins_read_the_ratings(
             r["action"]
             for r in conn.execute("SELECT action FROM audit_log WHERE entity_id = %s ORDER BY id", [conversation])
         ]
-    assert actions[-2:] == ["copilot.feedback", "copilot.feedback.delete"]
+    assert [a for a in actions if a.startswith("copilot.feedback")] == [
+        "copilot.feedback",  # the thumbs down on 1
+        "copilot.feedback",  # the thumbs up on 5
+        "copilot.feedback.delete",
+        "copilot.feedback.delete",
+    ]

@@ -9,6 +9,7 @@ export interface SseEvent {
 
 export function sseParser(onEvent: (e: SseEvent) => void): { feed(chunk: string): void; end(): void } {
   let buffer = '';
+  let pending = ''; // a trailing "\r" waits: its "\n" may come in the next piece
   const emit = (block: string) => {
     let event = 'message';
     const data: string[] = [];
@@ -31,7 +32,10 @@ export function sseParser(onEvent: (e: SseEvent) => void): { feed(chunk: string)
   };
   return {
     feed(chunk) {
-      buffer += chunk.replace(/\r\n?/g, '\n');
+      const raw = pending + chunk;
+      const cut = raw.endsWith('\r') ? raw.length - 1 : raw.length;
+      pending = raw.slice(cut);
+      buffer += raw.slice(0, cut).replace(/\r\n?/g, '\n');
       let end = buffer.indexOf('\n\n');
       while (end >= 0) {
         emit(buffer.slice(0, end));
@@ -40,6 +44,8 @@ export function sseParser(onEvent: (e: SseEvent) => void): { feed(chunk: string)
       }
     },
     end() {
+      buffer += pending.replace(/\r/g, '\n');
+      pending = '';
       if (buffer.trim()) emit(buffer);
       buffer = '';
     },

@@ -647,9 +647,14 @@ export function createApiClient(options: ApiOptions) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      parser.feed(decoder.decode(value, { stream: true }));
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch {
+        return fail(new ApiError('The answer was cut off: the connection to the Tiles API dropped', 0));
+      }
+      if (chunk.done) break;
+      parser.feed(decoder.decode(chunk.value, { stream: true }));
     }
     parser.feed(decoder.decode());
     parser.end();

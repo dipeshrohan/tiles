@@ -37,6 +37,8 @@ let live: { key: string; question: string; answer: Answer } | null = null;
 let busy = false;
 let draft = ''; // the question being typed, kept across re-renders
 let rating: { key: string; comment: string } | null = null; // a thumbs-down comment being written
+// An answer that failed (the error isn't stored), shown after the conversation reloads.
+let failure: { key: string; question: string; error: string } | null = null;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const threadKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).conversation}`;
@@ -79,13 +81,14 @@ async function loadThread(ctx: Context, id: string): Promise<void> {
   ctx.rerender();
 }
 
-function answerBody(a: Answer, key: string, conversation: string | null): string {
+// `cited`: every tool result of the conversation so far, which an answer may cite.
+function answerBody(a: Answer, cited: Answer['tools'], conversation: string | null): string {
   const tools = a.tools.length
     ? `<details class="trace" data-trace><summary>Used ${a.tools.length} tool${a.tools.length === 1 ? '' : 's'}</summary><ol class="stack" style="gap:6px;margin:6px 0 0;padding-left:18px">${a.tools
         .map((t) => {
           const link = evidenceLink(t);
           const state = t.isError === null ? '…' : t.isError ? '✗' : '✓';
-          return `<li id="cite-${esc(key)}-${t.n ?? ''}" data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ''}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? 'bad' : 'soft'}">${state}</span>${
+          return `<li ${t.n !== null ? `id="cite-${t.n}"` : ''} data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ''}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? 'bad' : 'soft'}">${state}</span>${
             t.preview
               ? `<pre class="small soft" style="white-space:pre-wrap;margin:4px 0 0">${esc(t.preview)}</pre>`
               : ''
@@ -110,7 +113,7 @@ function answerBody(a: Answer, key: string, conversation: string | null): string
             : ''
         }`
       : '';
-  return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, a.tools, key)}${a.done ? '' : '<span class="soft"> …</span>'}</div>${
+  return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? '' : '<span class="soft"> …</span>'}</div>${
     warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn)">⚠ ${esc(warning)}</p>` : ''
   }${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ''}${feedback}`;
 }
@@ -129,14 +132,22 @@ function remoteRender(ctx: Context): string {
           .join('') || '<div class="empty">No conversations yet.</div>';
   const key = threadKey(ctx);
   const shown = ui.conversation && thread?.key === key ? thread.exchanges : [];
+  const last = shown.at(-1);
+  if (failure?.key === key && last && last.question === failure.question && !last.answer?.text) {
+    last.answer = { ...(last.answer ?? emptyAnswer()), error: failure.error, done: true };
+  }
+  const cited: Answer['tools'] = [];
   const log = [
-    ...shown.map(
-      (e, i) =>
-        `<div class="msg user">${esc(e.question)}</div>${e.answer ? `<div class="msg bot copilot-answer">${answerBody(e.answer, `${i}`, ui.conversation)}</div>` : ''}`,
-    ),
+    ...shown.map((e) => {
+      cited.push(...(e.answer?.tools ?? []));
+      const body = e.answer
+        ? answerBody(e.answer, [...cited], ui.conversation)
+        : '<p class="small soft">No answer was kept for this question.</p>';
+      return `<div class="msg user">${esc(e.question)}</div><div class="msg bot copilot-answer">${body}</div>`;
+    }),
     ...(live && live.key === key
       ? [
-          `<div class="msg user">${esc(live.question)}</div><div class="msg bot copilot-answer" data-live>${answerBody(live.answer, 'live', null)}</div>`,
+          `<div class="msg user">${esc(live.question)}</div><div class="msg bot copilot-answer" data-live>${answerBody(live.answer, [...cited, ...live.answer.tools], null)}</div>`,
         ]
       : []),
   ].join('');
@@ -160,6 +171,7 @@ function remoteRender(ctx: Context): string {
             <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Ask</button>
             ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy ? 'disabled' : ''}>Delete</button>` : ''}
           </form>
+          <p class="small soft" style="margin-top:6px">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
         </div>
       </div>
     </div>`;
@@ -168,7 +180,8 @@ function remoteRender(ctx: Context): string {
 function drawLive(): void {
   const el = document.querySelector<HTMLElement>('[data-live]');
   if (!el || !live) return;
-  el.innerHTML = answerBody(live.answer, 'live', null);
+  const before = thread?.key === live.key ? thread.exchanges.flatMap((e) => e.answer?.tools ?? []) : [];
+  el.innerHTML = answerBody(live.answer, [...before, ...live.answer.tools], null);
   const log = document.querySelector<HTMLElement>('#chat-log');
   if (log) log.scrollTop = log.scrollHeight;
 }
@@ -180,7 +193,9 @@ async function send(ctx: Context, question: string): Promise<void> {
   if (!api || !site || !text || busy) return;
   busy = true;
   draft = '';
+  failure = null;
   const ui = uiState(ctx);
+  let sent = false; // the question reached the API (it is stored, so it isn't asked again)
   try {
     if (!ui.conversation) {
       const created = await api.copilot.create(site);
@@ -191,14 +206,18 @@ async function send(ctx: Context, question: string): Promise<void> {
     live = { key: threadKey(ctx), question: text, answer: emptyAnswer() };
     ctx.rerender();
     await api.copilot.ask(site, id, text, (e) => {
+      sent = true;
       if (!live) return;
       live.answer = applyEvent(live.answer, e.event, (e.data ?? {}) as Record<string, unknown>);
       drawLive();
     });
-  } catch {
-    draft = text; // the client showed why; the question can be asked again
+  } catch (e) {
+    // The client showed why. Not sent: the question can be asked again; cut off: say so.
+    if (!sent) draft = text;
+    else if (live) live.answer = { ...live.answer, error: e instanceof Error ? e.message : 'The answer was cut off' };
   } finally {
     busy = false;
+    if (live?.answer.error) failure = { key: live.key, question: text, error: live.answer.error };
     live = null;
     if (ui.conversation) await loadThread(ctx, ui.conversation);
     void loadRemote(ctx);
@@ -209,16 +228,19 @@ async function rate(ctx: Context, seq: number, value: 'up' | 'down', comment: st
   const site = siteId(ctx);
   const id = uiState(ctx).conversation;
   if (!ctx.api || !site || !id) return;
+  const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
   try {
-    const current = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer?.feedback;
+    const current = answer?.feedback;
+    let saved: Answer['feedback'] = null;
     if (current?.rating === value && !comment) await ctx.api.copilot.unrate(site, id, seq);
-    else await ctx.api.copilot.rate(site, id, seq, value, comment);
+    else saved = await ctx.api.copilot.rate(site, id, seq, value, comment);
+    if (answer) answer.feedback = saved; // as stored; no need to fetch the conversation again
     rating = value === 'down' && !comment && current?.rating !== 'down' ? { key: `${id}|${seq}`, comment: '' } : null;
     if (comment) ctx.toast('Thanks: your site’s admins will see it');
   } catch {
     // the client showed why
   }
-  await loadThread(ctx, id);
+  ctx.rerender();
 }
 
 function remoteBind(root: HTMLElement, ctx: Context): void {
@@ -257,7 +279,7 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
   });
   onAll(root, '[data-cite]', 'click', (el, e) => {
     e.preventDefault();
-    const target = document.getElementById(`cite-${el.dataset.cite ?? ''}`);
+    const target = [...document.querySelectorAll<HTMLElement>(`[id="cite-${el.dataset.cite ?? ''}"]`)].at(-1);
     const details = target?.closest('details');
     if (details) details.open = true;
     target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });

@@ -131,6 +131,15 @@ def _own(ctx: SiteContext, conversation_id: uuid.UUID, *, lock: bool = False) ->
 
 def _history(conn: Conn, conversation_id: uuid.UUID) -> list[dict[str, Any]]:
     return conn.execute(
+        "SELECT seq, role, content, meta, created_at FROM conversation_messages"
+        " WHERE conversation_id = %s ORDER BY seq",
+        [conversation_id],
+    ).fetchall()
+
+
+def _shown_history(conn: Conn, conversation_id: uuid.UUID) -> list[dict[str, Any]]:
+    """The stored messages with your rating of each answer, as the page shows them."""
+    return conn.execute(
         """
         SELECT m.seq, m.role, m.content, m.meta, m.created_at,
                CASE WHEN f.rating IS NULL THEN NULL
@@ -169,7 +178,7 @@ def create_conversation(ctx: Ctx, body: ConversationIn) -> dict[str, Any]:
 
 @router.get("/sites/{site_id}/copilot/conversations/{conversation_id}", response_model=ConversationDetail)
 def get_conversation(ctx: Ctx, conversation_id: uuid.UUID) -> dict[str, Any]:
-    return _own(ctx, conversation_id) | {"history": _history(ctx.conn, conversation_id)}
+    return _own(ctx, conversation_id) | {"history": _shown_history(ctx.conn, conversation_id)}
 
 
 @router.delete("/sites/{site_id}/copilot/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -311,7 +320,8 @@ def _answer(ctx: SiteContext, conversation_id: uuid.UUID, seq: int) -> None:
         "SELECT role, content FROM conversation_messages WHERE conversation_id = %s AND seq = %s",
         [conversation_id, seq],
     ).fetchone()
-    if row is None or row["role"] != "assistant" or not grounding.text_of(row).strip():
+    final = row is not None and not any(b.get("type") == "tool_use" for b in row["content"])
+    if row is None or row["role"] != "assistant" or not final or not grounding.text_of(row).strip():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such answer in this conversation")
 
 

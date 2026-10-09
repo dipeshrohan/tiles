@@ -510,3 +510,27 @@ test('the copilot calls hit their paths, and an answer streams in as events', as
   assert.deepEqual(JSON.parse(f.calls[2].body), { text: 'Hi?' });
   assert.deepEqual(JSON.parse(f.calls[3].body), { rating: 'down', comment: 'x' });
 });
+
+test('an answer cut off mid-stream is reported, not silently dropped', async () => {
+  const encoder = new TextEncoder();
+  let reads = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      if (reads++ === 0) controller.enqueue(encoder.encode('event: text\ndata: {"text":"Par"}\n\n'));
+      else controller.error(new TypeError('network error'));
+    },
+  });
+  const errors = [];
+  const api = createApiClient({
+    baseUrl: 'http://api.test',
+    fetch: async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    onError: (e) => errors.push(e.message),
+  });
+  const events = [];
+  await assert.rejects(
+    api.copilot.ask('s', 'c', 'Hi?', (e) => events.push(e)),
+    /cut off/,
+  );
+  assert.deepEqual(events, [{ event: 'text', data: { text: 'Par' } }]);
+  assert.deepEqual(errors, ['The answer was cut off: the connection to the Tiles API dropped']);
+});

@@ -2265,6 +2265,42 @@ test('the copilot: a streamed answer with its tools, citations, a withdrawn draf
   );
   assert.equal(await a.page.locator('[data-rate="down"]').getAttribute('aria-pressed'), 'true');
 
+  // Rating updates the answer as stored, without fetching the conversation again.
+  const reads = () => fake.requests.filter((r) => /^GET .*\/copilot\/conversations\/[^/]+$/.test(r)).length;
+  const before = reads();
+  await answer.locator('[data-rate="up"]').click();
+  await a.page.waitForSelector('[data-rate="up"][aria-pressed="true"]');
+  assert.equal(reads(), before);
+  await answer.locator('[data-rate="down"]').click(); // back to the thumbs down
+  await a.page.waitForSelector('[data-rate-form]');
+  await a.page.fill('[data-rate-form] [name=comment]', 'It should say which press');
+  await a.page.click('[data-rate-form] button[type=submit]');
+  await a.page.waitForSelector('[data-feedback]:has-text("It should say which press")');
+
+  // A later answer can cite an earlier one's result; its link opens that result.
+  fake.copilotScripts.push({ answer: 'As before, `press9.oil_temp` reads 42 °C [1].' });
+  await a.page.fill('#composer [name=q]', 'Still 42?');
+  await a.page.press('#composer [name=q]', 'Enter');
+  await a.page.waitForSelector('[data-answer-text]:has-text("As before")');
+  await a.page.locator('.copilot-answer').last().locator('a.cite').click();
+  assert.equal(
+    await a.page
+      .locator('details[data-trace]')
+      .first()
+      .evaluate((d) => d.open),
+    true,
+  );
+
+  // An answer that fails says so, and still does after the conversation reloads.
+  fake.copilotScripts.push({ error: 'Stopped after 8 rounds of tool calls without an answer' });
+  await a.page.fill('#composer [name=q]', 'Dig deeper');
+  await a.page.press('#composer [name=q]', 'Enter');
+  await a.page.waitForSelector('.copilot-answer [role=alert]:has-text("Stopped after 8 rounds")');
+  await a.page.waitForSelector('[data-live]', { state: 'detached' });
+  await rerender(a.page);
+  assert.match(await a.page.locator('.copilot-answer').last().innerText(), /Stopped after 8 rounds/);
+  assert.equal(await a.page.inputValue('#composer [name=q]'), ''); // it was sent: not put back to ask again
+
   // An answer that still states what no tool returned is shown with a warning.
   fake.copilotScripts.push({
     answer: 'It will reach 1,900 W tomorrow.',
@@ -2291,7 +2327,7 @@ test('the copilot: a streamed answer with its tools, citations, a withdrawn draf
   await a.page.evaluate(() => (location.hash = '#/chat'));
   await a.page.click('[data-conversation]');
   await a.page.waitForSelector('[data-answer-text]:has-text("reads 42 °C")');
-  assert.equal(await a.page.locator('.copilot-answer').count(), 2);
+  assert.equal(await a.page.locator('.copilot-answer').count(), 4);
   assert.equal(await a.page.locator('[data-rate="down"]').first().getAttribute('aria-pressed'), 'true');
   await a.page.click('[data-new-conversation]');
   await a.page.waitForSelector('#chat-log:has-text("Ask about your plant")');

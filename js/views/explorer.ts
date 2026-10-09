@@ -357,9 +357,11 @@ function addFromLink(ctx: Context): void {
   if ((!id && !tag && !ids.length) || !api || !site) return;
   history.replaceState(null, '', `${location.pathname}${location.search}#/explorer`);
   if (tag) {
-    api.signals.list(site.id, { q: tag, limit: 25 }).then(
+    api.signals.list(site.id, { q: tag, limit: 500 }).then(
       (page) => {
-        const s = page.signals.find((x) => x.tag === tag);
+        const s =
+          page.signals.find((x) => x.tag === tag) ??
+          page.signals.find((x) => x.tag.toLowerCase() === tag.toLowerCase());
         if (s) add(ctx, s);
         else ctx.toast(`No signal tagged ${tag}`);
       },

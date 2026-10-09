@@ -741,6 +741,7 @@
 	//#region js/lib/sse.ts
 	function sseParser(onEvent) {
 		let buffer = "";
+		let pending = "";
 		const emit = (block) => {
 			let event = "message";
 			const data = [];
@@ -764,7 +765,10 @@
 		};
 		return {
 			feed(chunk) {
-				buffer += chunk.replace(/\r\n?/g, "\n");
+				const raw = pending + chunk;
+				const cut = raw.endsWith("\r") ? raw.length - 1 : raw.length;
+				pending = raw.slice(cut);
+				buffer += raw.slice(0, cut).replace(/\r\n?/g, "\n");
 				let end = buffer.indexOf("\n\n");
 				while (end >= 0) {
 					emit(buffer.slice(0, end));
@@ -773,6 +777,8 @@
 				}
 			},
 			end() {
+				buffer += pending.replace(/\r/g, "\n");
+				pending = "";
 				if (buffer.trim()) emit(buffer);
 				buffer = "";
 			}
@@ -869,9 +875,14 @@
 			const reader = res.body.getReader();
 			const decoder = new TextDecoder();
 			for (;;) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				parser.feed(decoder.decode(value, { stream: true }));
+				let chunk;
+				try {
+					chunk = await reader.read();
+				} catch {
+					return fail(new ApiError("The answer was cut off: the connection to the Tiles API dropped", 0));
+				}
+				if (chunk.done) break;
+				parser.feed(decoder.decode(chunk.value, { stream: true }));
 			}
 			parser.feed(decoder.decode());
 			parser.end();
@@ -2049,9 +2060,9 @@
 			default: return a;
 		}
 	}
-	function answerHtml(text, tools, key) {
+	function answerHtml(text, tools) {
 		const known = new Set(tools.map((t) => t.n).filter((n) => n !== null));
-		return esc(text).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/\[(\d+)\]/g, (whole, n) => known.has(Number(n)) ? `<a class="cite" href="#" data-cite="${esc(key)}-${n}" title="The tool result this rests on">[${n}]</a>` : whole).replace(/\n/g, "<br>");
+		return esc(text).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/\[(\d+)\]/g, (whole, n) => known.has(Number(n)) ? `<a class="cite" href="#" data-cite="${n}" title="The tool result this rests on">[${n}]</a>` : whole).replace(/\n/g, "<br>");
 	}
 	function evidenceLink(t) {
 		const tag = typeof t.input.tag === "string" ? t.input.tag : "";
@@ -2116,6 +2127,7 @@
 	var busy$4 = false;
 	var draft$2 = "";
 	var rating = null;
+	var failure = null;
 	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
 	var threadKey = (ctx) => `${siteId$5(ctx)}|${uiState$9(ctx).conversation}`;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
@@ -2167,18 +2179,18 @@
 		}
 		ctx.rerender();
 	}
-	function answerBody(a, key, conversation) {
+	function answerBody(a, cited, conversation) {
 		const tools = a.tools.length ? `<details class="trace" data-trace><summary>Used ${a.tools.length} tool${a.tools.length === 1 ? "" : "s"}</summary><ol class="stack" style="gap:6px;margin:6px 0 0;padding-left:18px">${a.tools.map((t) => {
 			const link = evidenceLink(t);
 			const state = t.isError === null ? "…" : t.isError ? "✗" : "✓";
-			return `<li id="cite-${esc(key)}-${t.n ?? ""}" data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ""}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? "bad" : "soft"}">${state}</span>${t.preview ? `<pre class="small soft" style="white-space:pre-wrap;margin:4px 0 0">${esc(t.preview)}</pre>` : ""}${link ? ` <a href="${esc(link.href)}">${esc(link.text)} →</a>` : ""}</li>`;
+			return `<li ${t.n !== null ? `id="cite-${t.n}"` : ""} data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ""}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? "bad" : "soft"}">${state}</span>${t.preview ? `<pre class="small soft" style="white-space:pre-wrap;margin:4px 0 0">${esc(t.preview)}</pre>` : ""}${link ? ` <a href="${esc(link.href)}">${esc(link.text)} →</a>` : ""}</li>`;
 		}).join("")}</ol></details>` : "";
 		const withdrawn = a.retracted.map((r) => `<p class="small soft" data-retracted>A first draft was withdrawn: ${esc(r.reason)}.</p>`).join("");
 		const warning = groundingWarning(a.grounding);
 		const vote = (r, label) => `<button class="btn sm ${a.feedback?.rating === r ? "primary" : ""}" type="button" data-rate="${r}" data-seq="${a.seq}" aria-pressed="${a.feedback?.rating === r}" title="${r === "up" ? "Helpful" : "Not helpful"}">${label}</button>`;
 		const rateKey = `${conversation}|${a.seq}`;
 		const feedback = a.done && a.seq !== null && conversation ? `<div class="row" style="gap:6px;margin-top:8px;align-items:center" data-feedback>${vote("up", "👍")}${vote("down", "👎")}${a.feedback?.comment ? `<span class="small soft">“${esc(a.feedback.comment)}”</span>` : ""}</div>${rating?.key === rateKey ? `<form class="row" style="gap:6px;margin-top:6px" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="What was wrong? (goes to your site's admins with this answer)" value="${esc(rating.comment)}" style="flex:1"><button class="btn sm" type="submit">Send</button></form>` : ""}` : "";
-		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, a.tools, key)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn)">⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ""}${feedback}`;
+		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn)">⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ""}${feedback}`;
 	}
 	function remoteRender(ctx) {
 		const ui = uiState$9(ctx);
@@ -2188,7 +2200,19 @@
 			timeStyle: "short"
 		})}</span></button>`).join("") || "<div class=\"empty\">No conversations yet.</div>";
 		const key = threadKey(ctx);
-		const log = [...(ui.conversation && thread?.key === key ? thread.exchanges : []).map((e, i) => `<div class="msg user">${esc(e.question)}</div>${e.answer ? `<div class="msg bot copilot-answer">${answerBody(e.answer, `${i}`, ui.conversation)}</div>` : ""}`), ...live && live.key === key ? [`<div class="msg user">${esc(live.question)}</div><div class="msg bot copilot-answer" data-live>${answerBody(live.answer, "live", null)}</div>`] : []].join("");
+		const shown = ui.conversation && thread?.key === key ? thread.exchanges : [];
+		const last = shown.at(-1);
+		if (failure?.key === key && last && last.question === failure.question && !last.answer?.text) last.answer = {
+			...last.answer ?? emptyAnswer(),
+			error: failure.error,
+			done: true
+		};
+		const cited = [];
+		const log = [...shown.map((e) => {
+			cited.push(...e.answer?.tools ?? []);
+			const body = e.answer ? answerBody(e.answer, [...cited], ui.conversation) : "<p class=\"small soft\">No answer was kept for this question.</p>";
+			return `<div class="msg user">${esc(e.question)}</div><div class="msg bot copilot-answer">${body}</div>`;
+		}), ...live && live.key === key ? [`<div class="msg user">${esc(live.question)}</div><div class="msg bot copilot-answer" data-live>${answerBody(live.answer, [...cited, ...live.answer.tools], null)}</div>`] : []].join("");
 		return `<div class="copilot">
       <div class="card stack" style="gap:8px">
         <button class="btn primary" type="button" data-new-conversation>New conversation</button>
@@ -2203,6 +2227,7 @@
             <button class="btn primary" type="submit" ${busy$4 ? "disabled" : ""}>Ask</button>
             ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$4 ? "disabled" : ""}>Delete</button>` : ""}
           </form>
+          <p class="small soft" style="margin-top:6px">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
         </div>
       </div>
     </div>`;
@@ -2210,7 +2235,8 @@
 	function drawLive() {
 		const el = document.querySelector("[data-live]");
 		if (!el || !live) return;
-		el.innerHTML = answerBody(live.answer, "live", null);
+		const before = thread?.key === live.key ? thread.exchanges.flatMap((e) => e.answer?.tools ?? []) : [];
+		el.innerHTML = answerBody(live.answer, [...before, ...live.answer.tools], null);
 		const log = document.querySelector("#chat-log");
 		if (log) log.scrollTop = log.scrollHeight;
 	}
@@ -2221,7 +2247,9 @@
 		if (!api || !site || !text || busy$4) return;
 		busy$4 = true;
 		draft$2 = "";
+		failure = null;
 		const ui = uiState$9(ctx);
+		let sent = false;
 		try {
 			if (!ui.conversation) {
 				ui.conversation = (await api.copilot.create(site)).id;
@@ -2238,14 +2266,24 @@
 			};
 			ctx.rerender();
 			await api.copilot.ask(site, id, text, (e) => {
+				sent = true;
 				if (!live) return;
 				live.answer = applyEvent(live.answer, e.event, e.data ?? {});
 				drawLive();
 			});
-		} catch {
-			draft$2 = text;
+		} catch (e) {
+			if (!sent) draft$2 = text;
+			else if (live) live.answer = {
+				...live.answer,
+				error: e instanceof Error ? e.message : "The answer was cut off"
+			};
 		} finally {
 			busy$4 = false;
+			if (live?.answer.error) failure = {
+				key: live.key,
+				question: text,
+				error: live.answer.error
+			};
 			live = null;
 			if (ui.conversation) await loadThread(ctx, ui.conversation);
 			loadRemote(ctx);
@@ -2255,17 +2293,20 @@
 		const site = siteId$5(ctx);
 		const id = uiState$9(ctx).conversation;
 		if (!ctx.api || !site || !id) return;
+		const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
 		try {
-			const current = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer?.feedback;
+			const current = answer?.feedback;
+			let saved = null;
 			if (current?.rating === value && !comment) await ctx.api.copilot.unrate(site, id, seq);
-			else await ctx.api.copilot.rate(site, id, seq, value, comment);
+			else saved = await ctx.api.copilot.rate(site, id, seq, value, comment);
+			if (answer) answer.feedback = saved;
 			rating = value === "down" && !comment && current?.rating !== "down" ? {
 				key: `${id}|${seq}`,
 				comment: ""
 			} : null;
 			if (comment) ctx.toast("Thanks: your site’s admins will see it");
 		} catch {}
-		await loadThread(ctx, id);
+		ctx.rerender();
 	}
 	function remoteBind(root, ctx) {
 		const ui = uiState$9(ctx);
@@ -2300,7 +2341,7 @@
 		});
 		onAll(root, "[data-cite]", "click", (el, e) => {
 			e.preventDefault();
-			const target = document.getElementById(`cite-${el.dataset.cite ?? ""}`);
+			const target = [...document.querySelectorAll(`[id="cite-${el.dataset.cite ?? ""}"]`)].at(-1);
 			const details = target?.closest("details");
 			if (details) details.open = true;
 			target?.scrollIntoView({
@@ -5585,9 +5626,9 @@
 		if (tag) {
 			api.signals.list(site.id, {
 				q: tag,
-				limit: 25
+				limit: 500
 			}).then((page) => {
-				const s = page.signals.find((x) => x.tag === tag);
+				const s = page.signals.find((x) => x.tag === tag) ?? page.signals.find((x) => x.tag.toLowerCase() === tag.toLowerCase());
 				if (s) add(ctx, s);
 				else ctx.toast(`No signal tagged ${tag}`);
 			}, () => void 0);
