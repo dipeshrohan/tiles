@@ -5,8 +5,11 @@
 # Build js/tiles.bundle.js first (`npm run build`; CI checks the committed one is fresh).
 FROM node:22-alpine
 
-# The base image's security updates (T5.08), as for the API image.
-RUN apk upgrade --no-cache
+# The base image's security updates (T5.08), as for the API image. npm, corepack and yarn go:
+# the server needs node alone, and their bundled packages are only something more to patch.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+      /usr/local/bin/yarn /usr/local/bin/yarnpkg /opt/yarn-*
 
 WORKDIR /app
 # Only what the browser loads, so the server can't hand out anything else in the repository.
