@@ -26,6 +26,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - streaming detectors, with backtests;
   - a warnings inbox with acknowledgement, assignment and outcomes;
   - a shopfloor view for tablets on the line: warnings first on their machines, large type, buttons big enough for gloves, a board of every machine, and a full view without the menu (T5.16);
+  - a plant navigator from the site to its lines and machines, built from the ontology's hierarchy, with open warnings on every place and a page per machine: its signals with their latest readings, controllers, processes, models, documents and neighbours (T5.17);
   - e-mail and Teams notifications;
   - warning performance against downtime and scrap events.
 - **Analysis:**

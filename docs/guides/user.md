@@ -20,14 +20,15 @@ Other guides:
 7. [Data explorer](#data-explorer)
 8. [Warnings](#warnings)
 9. [Shopfloor](#shopfloor)
-10. [Warning performance](#warning-performance)
-11. [Factory physics and Process & quality (demo pages)](#factory-physics-and-process--quality-demo-pages)
-12. [Correlation finder](#correlation-finder)
-13. [Insights](#insights)
-14. [Design studio](#design-studio)
-15. [Copilot](#copilot)
-16. [Settings](#settings)
-17. [Glossary](#glossary)
+10. [Plant](#plant)
+11. [Warning performance](#warning-performance)
+12. [Factory physics and Process & quality (demo pages)](#factory-physics-and-process--quality-demo-pages)
+13. [Correlation finder](#correlation-finder)
+14. [Insights](#insights)
+15. [Design studio](#design-studio)
+16. [Copilot](#copilot)
+17. [Settings](#settings)
+18. [Glossary](#glossary)
 
 ---
 
@@ -446,6 +447,23 @@ The Shopfloor page is the warnings page for a tablet on the line: large type, re
 - **Full view** hides the menu and the top bar, for a tablet mounted on a machine. **Show navigation** brings them back.
 
 Viewers see the same page without the buttons. In local mode, the page shows the demo plunger-friction detector's warnings on Die-caster DC-02, read-only.
+
+---
+
+## Plant
+
+The Plant page walks the site the way it is laid out: site, workcenters, lines and cells, machines. It is built from the ontology's hierarchy (the `contains` relationships between them), so it changes when the ontology does.
+
+- **Places.** Each place shows the places in it as cards, with how many machines they hold and their open warnings: red when a signal is out or nobody has taken a warning, amber while someone handles it, green when there are none. Its open warnings are listed below the cards.
+- **The trail** under the title shows where you are; each step is a link back up. With one site, the page opens on it.
+- **A machine** shows:
+  - its open warnings, with **Details** to open each on the Warnings page;
+  - its properties (vendor, model and so on);
+  - its signals: those its PLCs emit, and any it contains. In API mode each has its tag and latest reading, and **Plot** opens it in the Data explorer, once its tag is linked to the signal on the Signals page;
+  - its controllers, the processes it runs and their materials, the models that watch it, its documents;
+  - the machines that feed it and that it feeds, as links.
+- **Find a line or machine** searches the places by name, for every word you type. **Enter** opens the best match.
+- Each place has its own address (`#/plant/<node id>`), so you can bookmark a line or put a machine's page on a tablet beside it.
 
 ---
 

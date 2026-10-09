@@ -1748,6 +1748,10 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
 
   // The machines: DC-01 has its warning, DC-02 is fine.
   await page.waitForSelector('.floor-tile.s-out:has-text("Die-caster DC-01")');
+  assert.notEqual(
+    await page.$eval('.floor-tile.s-out', (el) => getComputedStyle(el).borderLeftColor),
+    await page.$eval('.floor-tile.s-ok', (el) => getComputedStyle(el).borderLeftColor),
+  );
   await page.waitForSelector('.floor-tile.s-ok:has-text("Die-caster DC-02")');
 
   // Full view hides the navigation, and gives it back.
@@ -1779,6 +1783,127 @@ test("the shopfloor view in local mode shows the demo detector's warnings, read-
   await page.waitForSelector('.floor-card:has-text("Connect to the Tiles API in Settings")');
   await page.waitForSelector('.floor-tile.s-new:has-text("Die-caster DC-02")');
   await page.waitForSelector('.floor-tile.s-ok:has-text("Notching Cutter C-01")');
+  assert.deepEqual(errors, []);
+});
+
+test('the plant navigator: drill from the workcenter to a machine, with its warnings and signals', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = (id, type, label, props = {}) => ({ kind: 'addNode', node: { id, type, label, props } });
+  const edge = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
+  fake.commitAs(
+    'maria',
+    [
+      node('wc-cast', 'Workcenter', 'Casting'),
+      node('ln-dc', 'Line', 'DC line 1'),
+      node('m-dc1', 'Machine', 'Die-caster DC-01', { vendor: 'Vendor C' }),
+      node('m-dc2', 'Machine', 'Die-caster DC-02'),
+      node('plc-dc1', 'PLC', 'PLC DC-01', { protocol: 'OPC UA' }),
+      node('sig-fr', 'Signal', 'Plunger friction', { unit: 'N' }),
+      node('doc-dc1', 'Document', 'DC-01 manual'),
+      edge('wc-cast', 'contains', 'ln-dc'),
+      edge('ln-dc', 'contains', 'm-dc1'),
+      edge('ln-dc', 'contains', 'm-dc2'),
+      edge('m-dc1', 'controlledBy', 'plc-dc1'),
+      edge('plc-dc1', 'emits', 'sig-fr'),
+      edge('doc-dc1', 'describes', 'm-dc1'),
+      edge('m-dc1', 'feeds', 'm-dc2'),
+    ],
+    'the casting line',
+  );
+  const { out } = raiseFrictionWarnings(fake);
+  // The friction tag is linked to its Signal node in the catalogue, as an engineer would on the Signals page.
+  const eng = { 'content-type': 'application/json', 'x-tiles-user': 'eng@example.com' };
+  const signals = `${apiUrl}/sites/11111111-1111-1111-1111-111111111111/signals`;
+  const [friction] = (await (await fetch(`${signals}?q=dc1.friction`, { headers: eng })).json()).signals;
+  const linked = await fetch(`${signals}/${friction.id}`, {
+    method: 'PATCH',
+    headers: eng,
+    body: JSON.stringify({ node_id: 'sig-fr' }),
+  });
+  assert.equal(linked.status, 200);
+
+  const { page, errors } = await openAs(t, apiUrl, null, 'plant');
+  // One place at the top: the page opens on it.
+  await page.waitForSelector('.page-head h1:has-text("Casting")');
+  await page.waitForSelector('.place-card:has-text("DC line 1"):has-text("1 warning")');
+  await page.click('.place-card:has-text("DC line 1")');
+  await page.waitForSelector('.plant-trail:has-text("Casting")');
+  assert.match(await page.evaluate(() => location.hash), /^#\/plant\/ln-dc$/);
+  await page.waitForSelector('.place-card.s-out:has-text("Die-caster DC-01")');
+  await page.waitForSelector('.place-card.s-ok:has-text("Die-caster DC-02")');
+  // The state shows as the card's colour, not only in its badge.
+  const border = (sel) => page.$eval(sel, (el) => getComputedStyle(el).borderLeftColor);
+  const bad = await page.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement('i'));
+    probe.style.color = 'var(--bad)';
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  assert.equal(await border('.place-card.s-out'), bad);
+  assert.notEqual(await border('.place-card.s-ok'), bad);
+
+  // The machine: its warning, its signal with the latest reading and a link to plot it, what it has.
+  await page.click('.place-card:has-text("Die-caster DC-01")');
+  await page.waitForSelector('.page-head h1:has-text("Die-caster DC-01")');
+  await page.waitForSelector('.plant-warning:has-text("dc1.friction")');
+  const signalRow = page.locator('tr:has-text("Plunger friction")');
+  await page.waitForSelector('tr:has-text("Plunger friction"):has-text("dc1.friction"):has-text("N")');
+  assert.match(await signalRow.innerText(), /\d/); // the latest reading
+  assert.equal(
+    await signalRow.locator('a:has-text("Plot")').getAttribute('href'),
+    `#/explorer?signal=${encodeURIComponent(friction.id)}`,
+  );
+  const sheet = await page.locator('.plant-sheet').innerText();
+  for (const text of ['Vendor C', 'PLC DC-01', 'OPC UA', 'DC-01 manual', 'Die-caster DC-02'])
+    assert.ok(sheet.includes(text), `${text} missing`);
+
+  // Back up the trail, and on to the next machine through what it feeds.
+  await page.click('.plant-trail a:has-text("DC line 1")');
+  await page.waitForSelector('.place-grid');
+  await page.goBack();
+  await page.click('.plant-sheet a:has-text("Die-caster DC-02")');
+  await page.waitForSelector('.page-head h1:has-text("Die-caster DC-02")');
+
+  // Finding a place: typing carries on while the list renders; Enter goes to the best match.
+  await page.click('[data-plant-search] input');
+  await page.keyboard.type('dc');
+  await page.waitForSelector('[data-plant-results] a:has-text("Die-caster DC-02")');
+  await page.keyboard.type('-01');
+  assert.equal(await page.inputValue('[data-plant-search] input'), 'dc-01');
+  await page.waitForSelector('[data-plant-results]:not(:has-text("Die-caster DC-02"))');
+  await page.waitForSelector('[data-plant-results] a:has-text("Die-caster DC-01")');
+  await page.press('[data-plant-search] input', 'Enter');
+  await page.waitForSelector('.page-head h1:has-text("Die-caster DC-01")');
+  assert.equal(await page.locator('[data-plant-results]').count(), 0);
+  await page.fill('[data-plant-search] input', 'kiln');
+  await page.waitForSelector('[data-plant-results]:has-text("No place is called")');
+
+  // Details: the warning on the Warnings page.
+  await page.click(`[data-open-warning="${out}"]`);
+  await page.waitForSelector('[data-warning-detail]:has-text("dc1.friction")');
+
+  // A link to a place the ontology no longer has.
+  await page.evaluate(() => (location.hash = '#/plant/gone'));
+  await page.waitForSelector('[role=alert]:has-text("isn’t in the ontology any more")');
+  assert.deepEqual(errors, []);
+});
+
+test('the plant navigator in local mode walks the demo plant', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/plant`);
+  await page.waitForSelector('.page-head h1:has-text("Demo Cell Plant")');
+  await page.waitForSelector('.place-card:has-text("Housing Casting"):has-text("3 warnings")');
+  await page.click('.place-card:has-text("Housing Casting")');
+  await page.click('.place-card:has-text("Die-cast Line 1")');
+  await page.click('.place-card:has-text("Die-caster DC-02")');
+  await page.waitForSelector('tr:has-text("Plunger velocity"):has-text("m/s")');
+  await page.waitForSelector('.plant-sheet:has-text("Plunger friction virtual sensor")');
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(overflow <= 0, `page scrolls sideways by ${overflow}px`);
   assert.deepEqual(errors, []);
 });
 

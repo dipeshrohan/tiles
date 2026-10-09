@@ -3,6 +3,7 @@
 // machines with the worst state of each, and the line that says how things stand.
 
 import type { WarningInfo } from './api.ts';
+import { incoming, outgoing, signalByLabel, signalByTag } from './graph-index.ts';
 import type { Graph, OntologyNode } from './types.ts';
 
 // How a warning stands on the floor, worst first.
@@ -23,48 +24,6 @@ export interface FloorItem {
   assigneeId: string | null;
   detail: string; // how far out it went, in words
 }
-
-// The graph's edges by relationship and end, built once per graph (each render has its own):
-// lookups are then constant time, however many machines and warnings the page shows. Graphs are
-// never changed in place (applyOp makes a new one), so a cached index stays true.
-interface Index {
-  to: Map<string, string[]>; // `${rel}|${to}` → the nodes it comes from, sorted
-  from: Map<string, string[]>; // `${rel}|${from}` → the nodes it goes to, sorted
-  byTag: Map<string, string>; // a Signal node's `tag` property → its id (the first by id)
-  byLabel: Map<string, string>; // a Signal node's label → its id (the first by id)
-}
-
-const indexes = new WeakMap<Graph, Index>();
-
-function indexOf(graph: Graph): Index {
-  const cached = indexes.get(graph);
-  if (cached) return cached;
-  const add = (map: Map<string, string[]>, key: string, id: string) => {
-    const list = map.get(key);
-    if (list) list.push(id);
-    else map.set(key, [id]);
-  };
-  const index: Index = { to: new Map(), from: new Map(), byTag: new Map(), byLabel: new Map() };
-  for (const e of Object.values(graph.edges)) {
-    if (!graph.nodes[e.from] || !graph.nodes[e.to]) continue; // dangling: the health check's business
-    add(index.to, `${e.rel}|${e.to}`, e.from);
-    add(index.from, `${e.rel}|${e.from}`, e.to);
-  }
-  for (const list of [...index.to.values(), ...index.from.values()]) list.sort();
-  const signals = Object.values(graph.nodes)
-    .filter((n) => n.type === 'Signal')
-    .sort((a, b) => a.id.localeCompare(b.id));
-  for (const n of signals) {
-    const tag = n.props['tag'];
-    if (typeof tag === 'string' && !index.byTag.has(tag)) index.byTag.set(tag, n.id);
-    if (!index.byLabel.has(n.label)) index.byLabel.set(n.label, n.id);
-  }
-  indexes.set(graph, index);
-  return index;
-}
-
-const incoming = (graph: Graph, to: string, rel: string): string[] => indexOf(graph).to.get(`${rel}|${to}`) ?? [];
-const outgoing = (graph: Graph, from: string, rel: string): string[] => indexOf(graph).from.get(`${rel}|${from}`) ?? [];
 
 const isMachine = (graph: Graph, id: string): boolean => graph.nodes[id]?.type === 'Machine';
 
@@ -118,8 +77,7 @@ export function pathOf(graph: Graph, id: string): string[] {
 export function nodeForTag(graph: Graph, tag: string, links: ReadonlyMap<string, string>): string | null {
   const linked = links.get(tag);
   if (linked && graph.nodes[linked]) return linked;
-  const index = indexOf(graph);
-  return index.byTag.get(tag) ?? index.byLabel.get(tag) ?? null;
+  return signalByTag(graph, tag) ?? signalByLabel(graph, tag) ?? null;
 }
 
 export function stateOf(w: Pick<WarningInfo, 'status' | 'ended_at'>): FloorState {
