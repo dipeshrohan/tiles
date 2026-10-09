@@ -238,7 +238,7 @@ const view: View = {
           <div class="card-head"><div><h2>Run history</h2><p>Click a run to restore its exact parameters.</p></div>
             ${
               site
-                ? `<div class="row" style="gap:6px"><button class="btn sm" data-audit="json" ${runs.length ? '' : 'disabled'} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? '' : 'disabled'}>Audit report (PDF)</button></div>`
+                ? `<div class="row" style="gap:6px"><button class="btn sm" data-audit="json" ${runs.length ? '' : 'disabled'} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? '' : 'disabled'}>Audit report (PDF)</button><button class="btn sm" data-export ${runs.length ? '' : 'disabled'} title="Every run of this model in the project, branches too">All runs (JSON)</button></div>`
                 : `<button class="btn sm" data-export ${runs.length ? '' : 'disabled'}>Export audit record</button>`
             }
           </div>

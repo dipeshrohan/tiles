@@ -40,6 +40,12 @@ def test_long_text_wraps_and_fills_pages() -> None:
     assert b"page 4 of" in doc
 
 
+def test_lines_stay_inside_the_margins() -> None:
+    # Courier is 0.6 of its size wide: a full mono line fits the text width.
+    assert pdf.CHARS["mono"] * pdf.SIZE["mono"] * 0.6 <= pdf.WIDTH - 2 * pdf.MARGIN
+    assert pdf.CHARS["title"] < pdf.CHARS["heading"] < pdf.CHARS["text"]
+
+
 def test_what_the_font_lacks_and_long_words() -> None:
     assert pdf._wrap("a" * 250, 100) == ["a" * 100, "a" * 100, "a" * 50]
     assert pdf._wrap("one two\nthree", 7) == ["one two", "three"]

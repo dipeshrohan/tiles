@@ -12,8 +12,10 @@ MARGIN = 56
 LEADING = {"title": 22, "heading": 17, "text": 13, "mono": 12}
 SIZE = {"title": 16, "heading": 12, "text": 9.5, "mono": 8.5}
 FONT = {"title": "F2", "heading": "F2", "text": "F1", "mono": "F3"}
-# Characters per line before wrapping, roughly, at each size (Helvetica's average width).
-CHARS = {"title": 60, "heading": 80, "text": 105, "mono": 100}
+# Characters per line before wrapping: the text width over each font's average character width
+# (Helvetica about half its size, bold a little more, Courier 0.6), so lines stay in the margins.
+AVERAGE = {"title": 0.56, "heading": 0.56, "text": 0.5, "mono": 0.6}
+CHARS = {style: int((WIDTH - 2 * MARGIN) / (SIZE[style] * AVERAGE[style])) for style in SIZE}
 
 
 def _escape(text: str) -> bytes:

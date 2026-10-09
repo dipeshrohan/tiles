@@ -36,7 +36,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 from tiles_api import pdf
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.models import design, store
-from tiles_api.models.registry import Model, ModelError, evaluate, registry
+from tiles_api.models.registry import Model, ModelError, evaluate, registry, version_key
 from tiles_api.store import one
 
 router = APIRouter(tags=["runs"])
@@ -467,48 +467,57 @@ def create_project(ctx: Editor, body: ProjectIn) -> dict[str, Any]:
 MAX_AUDIT_RUNS = 5000  # the lineage and the runs it restored, in one record
 
 
-def _digest(runs: list[dict[str, Any]]) -> str:
-    """SHA-256 of the runs as canonical JSON (keys sorted, no spaces): anyone can recompute it from
-    the record's `runs` to check they weren't changed after the export."""
-    body = json.dumps(runs, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
+def _digest(record: dict[str, Any]) -> str:
+    """SHA-256 of the record without its digest, as canonical JSON (keys sorted, no spaces, as
+    Python's json writes it): recomputed from the exported file, it shows nothing in it changed."""
+    body = json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
     return hashlib.sha256(body.encode()).hexdigest()
+
+
+def _utc(t: datetime) -> str:
+    """A time as ISO 8601 in UTC, whatever the database session's time zone."""
+    return t.astimezone(UTC).isoformat()
 
 
 def audit_record(ctx: SiteContext, number: int) -> dict[str, Any]:
     """Run `number` with its lineage (its parent, that run's parent, … back to the first run) and
     the runs any of them restored, newest first; the spec of every model version they ran."""
     row = _row(ctx, number)
+    # Each run once (UNION drops a row already reached by another path); the most recent kept, the
+    # exported run first among them (its parent and the run it restored are older).
     ids = ctx.conn.execute(
         """
-        WITH RECURSIVE chain (id, parent_id, restored_from, depth) AS (
-            SELECT id, parent_id, restored_from, 0 FROM design_runs WHERE id = %(id)s
+        WITH RECURSIVE chain (id, parent_id, restored_from) AS (
+            SELECT id, parent_id, restored_from FROM design_runs WHERE id = %(id)s
           UNION
-            SELECT r.id, r.parent_id, r.restored_from, chain.depth + 1 FROM design_runs r
+            SELECT r.id, r.parent_id, r.restored_from FROM design_runs r
             JOIN chain ON r.id = chain.parent_id OR r.id = chain.restored_from
-            WHERE chain.depth < %(max)s
         )
-        SELECT DISTINCT id FROM chain LIMIT %(limit)s
+        SELECT chain.id FROM chain JOIN design_runs r USING (id) ORDER BY r.number DESC LIMIT %(limit)s
         """,
-        {"id": row["id"], "max": MAX_AUDIT_RUNS, "limit": MAX_AUDIT_RUNS + 1},
+        {"id": row["id"], "limit": MAX_AUDIT_RUNS + 1},
     ).fetchall()
     complete = len(ids) <= MAX_AUDIT_RUNS
     rows = ctx.conn.execute(
         RUNS + " AND r.id = ANY(%(ids)s) ORDER BY r.number DESC",
         {"site": ctx.site_id, "ids": [r["id"] for r in ids[:MAX_AUDIT_RUNS]]},
     ).fetchall()
-    runs = [_shown(r) for r in rows]
+    runs = [_shown(r) | {"created_at": _utc(r["created_at"])} for r in rows]
     lineage = [number]
     by_number = {r["number"]: r for r in runs}
     while (parent := by_number[lineage[-1]]["parent"]) is not None and parent in by_number:
         lineage.append(parent)
-    models = ctx.conn.execute(
-        """
-        SELECT DISTINCT m.key, m.version, m.name, m.kind, m.domain, m.spec
-        FROM design_runs r JOIN models m ON m.id = r.model_id
-        WHERE r.site_id = %(site)s AND r.id = ANY(%(ids)s) ORDER BY m.key, m.version
-        """,
-        {"site": ctx.site_id, "ids": [r["id"] for r in ids[:MAX_AUDIT_RUNS]]},
-    ).fetchall()
+    models = sorted(
+        ctx.conn.execute(
+            """
+            SELECT DISTINCT m.key, m.version, m.name, m.kind, m.domain, m.spec
+            FROM design_runs r JOIN models m ON m.id = r.model_id
+            WHERE r.site_id = %(site)s AND r.id = ANY(%(ids)s)
+            """,
+            {"site": ctx.site_id, "ids": [r["id"] for r in ids[:MAX_AUDIT_RUNS]]},
+        ).fetchall(),
+        key=lambda m: (m["key"], version_key(m["version"])),
+    )
     names = one(
         ctx.conn.execute(
             "SELECT s.name AS site, o.name AS org FROM sites s JOIN orgs o ON o.id = s.org_id WHERE s.id = %s",
@@ -520,32 +529,47 @@ def audit_record(ctx: SiteContext, number: int) -> dict[str, Any]:
         if row["project"]
         else None
     )
-    return {
+    record = {
         "format": "tiles-design-audit/1",
-        "exported_at": datetime.now(UTC),
+        "exported_at": _utc(datetime.now(UTC)),
         "exported_by": {"name": ctx.user.name, "email": ctx.user.email},
         "organisation": names["org"],
-        "site": {"id": ctx.site_id, "name": names["site"]},
-        "project": project,
+        "site": {"id": str(ctx.site_id), "name": names["site"]},
+        "project": project and {"id": str(project["id"]), "name": project["name"]},
         "run": number,
         "lineage": lineage,  # run numbers, the exported run first, back to the first run
         "complete": complete and lineage[-1] in by_number and by_number[lineage[-1]]["parent"] is None,
         "runs": runs,
         "models": models,
-        "digest": {"algorithm": "sha256", "of": "runs", "value": _digest(runs)},
     }
+    return record | {"digest": {"algorithm": "sha256", "of": "the record without its digest", "value": _digest(record)}}
 
 
 @router.get("/sites/{site_id}/runs/{number}/audit")
 def get_audit_record(ctx: Ctx, number: int) -> Response:
     """Run `number`'s audit record, as JSON to keep (T4.13)."""
     record = audit_record(ctx, number)
+    _audit_export(ctx, number, "json", record)
     body = json.dumps(record, indent=2, ensure_ascii=False, default=str)
     return Response(
         body,
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="tiles-run-{number}-audit.json"'},
     )
+
+
+def _audit_export(ctx: SiteContext, number: int, kind: str, record: dict[str, Any]) -> None:
+    """An export is recorded too: who took which run's lineage out, and the digest they got."""
+    ctx.audit(
+        "run.audit_export",
+        "design_run",
+        str(number),
+        after={"format": kind, "runs": len(record["runs"]), "digest": record["digest"]["value"]},
+    )
+
+
+def _when(iso: str) -> str:
+    return datetime.fromisoformat(iso).astimezone(UTC).strftime("%Y-%m-%d %H:%M")
 
 
 def _value(v: Any, unit: str = "") -> str:
@@ -565,7 +589,7 @@ def audit_pdf(record: dict[str, Any]) -> bytes:
         f"{record['organisation']} · {record['site']['name']}" + (f" · project {project['name']}" if project else "")
     )
     report.add(
-        f"Exported {record['exported_at']:%Y-%m-%d %H:%M} UTC by {record['exported_by']['name']}"
+        f"Exported {_when(record['exported_at'])} UTC by {record['exported_by']['name']}"
         f" ({record['exported_by']['email']})"
     )
     report.add(
@@ -573,11 +597,12 @@ def audit_pdf(record: dict[str, Any]) -> bytes:
         + " <- ".join(f"#{n}" for n in record["lineage"])
         + ("" if record["complete"] else " (cut: the record holds the most recent runs only)")
     )
-    report.add(f"SHA-256 of the runs (as canonical JSON): {digest}", "mono").space()
+    report.add("SHA-256 of the JSON record without its digest (keys sorted, no spaces):")
+    report.add(digest, "mono").space()
     for run in record["runs"]:
         units = run["units"]
         report.add(
-            f"Run {run['number']} · {run['model_name']} {run['version']} · {run['created_at']:%Y-%m-%d %H:%M} UTC",
+            f"Run {run['number']} · {run['model_name']} {run['version']} · {_when(run['created_at'])} UTC",
             "heading",
         )
         report.add(
@@ -600,7 +625,16 @@ def audit_pdf(record: dict[str, Any]) -> bytes:
         if m["spec"].get("description"):
             report.add(m["spec"]["description"])
         for p in m["spec"].get("params", []):
-            bounds = f", {_value(p.get('min'))} to {_value(p.get('max'))}" if p.get("min") is not None else ""
+            low, high = p.get("min"), p.get("max")
+            bounds = (
+                f", {_value(low)} to {_value(high)}"
+                if low is not None and high is not None
+                else f", at least {_value(low)}"
+                if low is not None
+                else f", at most {_value(high)}"
+                if high is not None
+                else ""
+            )
             report.add(
                 f"  {p['name']}: {p.get('description', '')}"
                 f" ({p.get('unit', '')}; default {_value(p['default'])}{bounds})",
@@ -613,8 +647,10 @@ def audit_pdf(record: dict[str, Any]) -> bytes:
 @router.get("/sites/{site_id}/runs/{number}/audit.pdf")
 def get_audit_pdf(ctx: Ctx, number: int) -> Response:
     """Run `number`'s audit record as a PDF report (T4.13)."""
+    record = audit_record(ctx, number)
+    _audit_export(ctx, number, "pdf", record)
     return Response(
-        audit_pdf(audit_record(ctx, number)),
+        audit_pdf(record),
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="tiles-run-{number}-audit.pdf"'},
     )

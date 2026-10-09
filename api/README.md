@@ -132,6 +132,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `copilot.feedback`, `copilot.feedback.delete` | the conversation | | the answer's `seq` and the rating |
 | `run.create`, `run.restore` | the run's number | | its model, version, parent and project; the run restored and the parent |
 | `design_project.create` | the project | | its name |
+| `run.audit_export` | the run's number | | the format (json or pdf), the runs in it and its digest |
 | `insight.create`, `insight.update`, `insight.review`, `insight.reopen`, `insight.delete` | the insight's number | `insight.update`: the fields changed; `insight.reopen`: its status; `insight.delete`: its title and status | its title and kind; the fields changed; the decision and note |
 | `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
@@ -233,10 +234,14 @@ A run's model is named by the registry's key (`cell-swelling`) or the browser's 
 - the run, its lineage back to the first run, and the runs any of them restored, newest first, each in full (parameters, output, units, note, author, time, changes from its parent);
 - the spec of every model version they ran, as stored in the organisation's `models` rows;
 - the site, organisation and project;
-- who exported it, and when;
-- a SHA-256 digest of `runs` as canonical JSON (keys sorted, no spaces), so anyone can check the runs weren't changed after the export.
+- who exported it, and when (times are UTC);
+- a SHA-256 digest of the record without its digest, as canonical JSON: keys sorted, no spaces, non-ASCII as it is, as Python's `json` writes it. Recomputed from the file, it shows nothing in it changed after the export:
 
-The record holds at most 5,000 runs; `complete` is false if it was cut. The PDF report has the same content: a header with the lineage and the digest, a section per run, then the model versions with their parameters and bounds. `pdf.py` writes it with the standard library only (Helvetica, WinAnsi text). In the Design Studio, with the API, **Audit record (JSON)** and **Audit report (PDF)** export the latest run's record.
+  ```
+  python -c "import hashlib,json,sys; r=json.load(open(sys.argv[1])); d=r.pop('digest'); print(hashlib.sha256(json.dumps(r,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()==d['value'])" tiles-run-4-audit.json
+  ```
+
+The record holds at most 5,000 runs, the most recent; `complete` is false if it was cut. Each export is recorded in the audit log (`run.audit_export`) with its format, run count and digest. Since the record names when it was taken, each export has its own digest. The PDF report has the same content: a header with the lineage and the digest, a section per run, then the model versions with their parameters and bounds. `pdf.py` writes it with the standard library only (Helvetica, WinAnsi text). In the Design Studio, with the API, **Audit record (JSON)** and **Audit report (PDF)** export the latest run's record. **All runs (JSON)** exports every run of the model in the project, branches too.
 
 **Comparing** two runs of a model gives:
 - what changed: the version first, then each parameter;
