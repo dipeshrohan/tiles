@@ -283,6 +283,8 @@ const view: View = {
     if (wanted !== null) {
       ui.selected = wanted;
       wanted = null;
+      // Picked once: a reload or Back mustn't take the page back to it after you choose another.
+      history.replaceState(history.state, '', `${location.pathname}${location.search}#/reviews`);
     }
     if (listing?.key !== listKey(ctx)) void fetchList(ctx);
     if (ui.selected !== null && detail?.key !== detailKey(ctx)) void fetchDetail(ctx);

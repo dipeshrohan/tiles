@@ -121,11 +121,11 @@ def test_a_proposal_that_does_not_fit_says_why(
 
 
 @pytest.fixture
-def propose(api: TestClient, site: str, database_url: str) -> Any:  # noqa: F811
-    """Calls the tool directly as a user with the given role."""
+def question(api: TestClient, site: str, database_url: str) -> Any:  # noqa: F811
+    """The tools of one question, as the engineer, in a conversation: its propose tool."""
 
-    def run(role: str, **args: Any) -> Any:
-        user = User(uuid.UUID(member(api, site, ENG)), "eng", "eng@example.com", role)
+    def tools(conversation: str | None = None) -> Any:
+        user = User(uuid.UUID(member(api, site, ENG)), "eng", "eng@example.com", "engineer")
 
         @contextmanager
         def open_ctx() -> Iterator[SiteContext]:
@@ -134,30 +134,75 @@ def propose(api: TestClient, site: str, database_url: str) -> Any:  # noqa: F811
                 assert org
                 yield SiteContext(conn, uuid.UUID(site), org["org_id"], user)
 
-        tools = {t.name: t for t in copilot_tools.tools_for(open_ctx, can_propose=True)}
-        return tools["propose_ontology_change"].run(args)
+        cid = uuid.UUID(conversation) if conversation else None
+        made = copilot_tools.tools_for(open_ctx, can_propose=True, conversation_id=cid)
+        return lambda **args: {t.name: t for t in made}["propose_ontology_change"].run(args)
 
-    return run
+    return tools
 
 
-def test_what_a_proposal_may_be(api: TestClient, site: str, propose: Any) -> None:  # noqa: F811
+def refused(propose: Any, **args: Any) -> str:
+    with pytest.raises(ToolError) as e:
+        propose(**args)
+    return str(e.value)
+
+
+def test_what_a_proposal_may_be(api: TestClient, site: str, question: Any, database_url: str) -> None:  # noqa: F811
     committed_plant(api, site)
-
-    def refused(role: str = "engineer", **args: Any) -> str:
-        with pytest.raises(ToolError) as e:
-            propose(role, **args)
-        return str(e.value)
-
-    # Demoted since the question was asked: refused when the tool runs.
-    assert refused("viewer", message="m", ops=[LINE]) == (
-        "Only engineers and admins of the site can propose ontology changes"
-    )
-    assert refused(ops=[LINE]).startswith("Give the change request a message")
-    assert refused(message="m").startswith("Give `ops`")
-    assert refused(message="m", ops=[LINE] * 201) == "At most 200 changes in one proposal: split it"
-    assert "kind" in refused(message="m", ops=[{"kind": "paint", "id": "plant"}])
-    assert "type" in refused(message="m", ops=[{"kind": "addNode", "node": {"id": "x", "label": "X"}}])
+    propose = question()
+    assert refused(propose, ops=[LINE]).startswith("Give the change request a message")
+    assert refused(propose, message="m" * 2001, ops=[LINE]) == "The message has 2001 characters; keep it to 2000"
+    assert refused(propose, message="m").startswith("Give `ops`")
+    assert refused(propose, message="m", ops=[LINE] * 201) == "At most 200 changes in one proposal: split it"
+    assert "kind" in refused(propose, message="m", ops=[{"kind": "paint", "id": "plant"}])
+    assert "type" in refused(propose, message="m", ops=[{"kind": "addNode", "node": {"id": "x", "label": "X"}}])
     assert api.get(f"{base(site)}/reviews", headers=ENG).json() == []
     # Even where changes needn't be reviewed, a proposal is a request, never a commit.
-    assert propose("admin", message="Add line 3", ops=[LINE])["change_request"] == 1
+    require_review(api, site, False)
+    assert propose(message="Add line 3", ops=[LINE])["change_request"] == 1
     assert list(head(api, site)) == ["plant"]
+    # One proposal per question: a second call (a withdrawn answer tried again) opens nothing.
+    assert refused(propose, message="Add line 3", ops=[LINE]) == (
+        "This question already proposed change request #1: refer to it"
+    )
+    assert len(api.get(f"{base(site)}/reviews", headers=ENG).json()) == 1
+
+
+def test_a_demoted_engineer_cannot_propose(api: TestClient, site: str, question: Any, database_url: str) -> None:  # noqa: F811
+    committed_plant(api, site)
+    propose = question()  # asked as an engineer
+    with psycopg.connect(database_url) as conn:  # demoted while the answer runs
+        conn.execute(
+            "UPDATE site_members SET role = 'viewer' WHERE site_id = %s AND user_id = %s",
+            [site, member(api, site, ENG)],
+        )
+    assert refused(propose, message="m", ops=[LINE]) == (
+        "Only engineers and admins of the site can propose ontology changes"
+    )
+
+
+def test_the_same_proposal_asked_again_is_the_same_request(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    question: Any,
+    database_url: str,
+) -> None:
+    committed_plant(api, site)
+    conversation = start(api, site)
+    first = question(conversation)(message="Add line 3", ops=[LINE])
+    # The answer broke off before it was stored; the person asks again in the conversation.
+    again = question(conversation)(message="Add line 3, please", ops=[LINE])
+    assert again["change_request"] == first["change_request"] == 1
+    other = question(conversation)(message="Add line 3 and its link", ops=[LINE, EDGE])
+    assert other["change_request"] == 2  # other changes are another request
+    elsewhere = question(start(api, site))(message="Add line 3", ops=[LINE])
+    assert elsewhere["change_request"] == 3  # and so is another conversation
+    with psycopg.connect(database_url) as conn:
+        audited = conn.execute(
+            "SELECT count(*) FROM audit_log WHERE action = 'ontology.review.request' AND site_id = %s", [site]
+        ).fetchone()
+    assert audited == (3,)
+    # A deleted conversation leaves its requests.
+    assert api.delete(f"/sites/{site}/copilot/conversations/{conversation}", headers=ENG).status_code == 204
+    review = api.get(f"{base(site)}/reviews/1", headers=ENG).json()
+    assert (review["status"], review["source"]) == ("open", "copilot")

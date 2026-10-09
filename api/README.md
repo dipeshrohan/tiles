@@ -118,7 +118,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `ontology.discard` | your staged ops | the ops dropped | |
 | `ontology.commit` | the commit | | the commit (message, ops, inverses, stats) |
 | `ontology.revert` | the new commit | `{"reverted": id}` | the new commit |
-| `ontology.review.request` | the change request (its number) | | message, ops, reviewer and the commit it reverts; from the copilot, also `source` and `conversation_id` (T4.09) |
+| `ontology.review.request` | the change request (its number) | | message, ops, reviewer, the commit it reverts, `source` (person or copilot) and, from the copilot, `conversation_id` (T4.09) |
 | `ontology.review.comment` | the change request | | `{"body": …}` |
 | `ontology.review.approve` | the change request | | `{"commit": …}`, the commit it made |
 | `ontology.review.reject` | the change request | | `{"comment": …}`, the reason |
@@ -424,13 +424,14 @@ The tools (T4.02) are the browser copilot's skills on the site's real data:
 A tool that can't answer says why in words the model can act on: the close signal tags or node labels, the datasets or columns there are, what was wrong with an input (the API's own checks become these messages). Each runs in its own read-only transaction.
 
 **Proposing ontology changes (T4.09).** Engineers and admins also get `propose_ontology_change`, the one tool that writes. The system prompt tells the model to change nothing unless the user asks. The tool takes a message and up to 200 ops (`addNode`, `addEdge`, `setProp`, `removeEdge`, `removeNode`, as staged changes are written). It opens a change request (T2.12) with them:
-- the request is in the name of the person who asked, with `source` "copilot" and the conversation it came from (migration 0021);
+- the request is in the name of the person who asked, with `source` "copilot" and the conversation it came from (migration 0021; kept, without it, when the conversation is deleted);
+- one question opens at most one request, and the same changes proposed again in the conversation while that request is open (an answer cut off, asked again) give that request rather than another;
 - that person can't approve it, so another engineer (or an admin) must, as with any request; only their approval commits it;
 - this holds even where the site doesn't require reviews: the copilot never commits anything itself;
 - ops that don't fit the committed ontology are refused, with why, and nothing is opened;
 - the person's own staged changes are left alone.
 
-The role is checked again when the tool runs, so a person demoted during a conversation can't propose. The request is audited as `ontology.review.request`, with `source` and `conversation_id`. If the person who asked reworks the request, its ops become their own staged changes, which they then commit or send for review like any other change. The Change reviews page marks these requests "Proposed by the copilot", and the copilot's answer links to them (`#/reviews/<number>`).
+The role is read again when the tool runs, so a person demoted while an answer runs can't propose. A message over 2,000 characters is refused rather than cut. The request is audited as `ontology.review.request`, with `source` and `conversation_id`. If the person who asked reworks the request, its ops become their own staged changes, which they then commit or send for review like any other change. The Change reviews page marks these requests "Proposed by the copilot", and the copilot's answer links to them (`#/reviews/<number>`).
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|

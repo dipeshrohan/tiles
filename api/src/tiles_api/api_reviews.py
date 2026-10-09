@@ -233,8 +233,7 @@ def request_review(ctx: Editor, body: ReviewIn) -> dict[str, Any]:
     number = open_request(ctx, ops, message, body.reviewer_id, body.reverts)
     if body.reverts is None:
         ctx.conn.execute("DELETE FROM staged_ops WHERE site_id = %s AND user_id = %s", [ctx.site_id, ctx.user.id])
-    after = {"message": message, "ops": ops, "reviewer_id": body.reviewer_id and str(body.reviewer_id)}
-    ctx.audit("ontology.review.request", "change_request", str(number), after=after | {"reverts": body.reverts})
+    audit_request(ctx, number, message, ops, body.reviewer_id, body.reverts)
     return _review(ctx, number, fits=True)
 
 
@@ -285,6 +284,28 @@ def open_request(
         ).fetchone()
     )["number"]
     return number
+
+
+def audit_request(
+    ctx: SiteContext,
+    number: int,
+    message: str,
+    ops: list[o.Op],
+    reviewer_id: uuid.UUID | None = None,
+    reverts: str | None = None,
+    source: Literal["person", "copilot"] = "person",
+    conversation_id: uuid.UUID | None = None,
+) -> None:
+    """The audit entry of an opened change request, the same whoever opened it."""
+    after = {
+        "message": message,
+        "ops": ops,
+        "reviewer_id": reviewer_id and str(reviewer_id),
+        "reverts": reverts,
+        "source": source,
+        "conversation_id": conversation_id and str(conversation_id),
+    }
+    ctx.audit("ontology.review.request", "change_request", str(number), after=after)
 
 
 @router.post("/sites/{site_id}/ontology/reviews/{number}/comments", response_model=Review)

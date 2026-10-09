@@ -1365,7 +1365,7 @@ export function createFakeApi({
     },
     // A change request the copilot proposed for `author` (T4.09), as propose_ontology_change opens it.
     addCopilotProposal({ message, ops, author }) {
-      const number = reviews.length + 1;
+      const number = Math.max(0, ...reviews.map((r) => r.number)) + 1;
       reviews.push({
         number,
         message,

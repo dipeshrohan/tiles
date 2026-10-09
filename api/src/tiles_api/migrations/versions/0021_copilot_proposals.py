@@ -19,10 +19,13 @@ depends_on: str | Sequence[str] | None = None
 UPGRADE = """
 ALTER TABLE change_requests
     ADD COLUMN source text NOT NULL DEFAULT 'person' CHECK (source IN ('person', 'copilot')),
-    ADD COLUMN conversation_id uuid;
+    ADD COLUMN conversation_id uuid REFERENCES conversations (id) ON DELETE SET NULL;
+
+CREATE INDEX change_requests_conversation ON change_requests (conversation_id) WHERE conversation_id IS NOT NULL;
 """
 
 DOWNGRADE = """
+DROP INDEX change_requests_conversation;
 ALTER TABLE change_requests DROP COLUMN conversation_id, DROP COLUMN source;
 """
 

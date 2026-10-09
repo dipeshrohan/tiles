@@ -2449,6 +2449,7 @@ test('the copilot proposes an ontology change, which waits for another engineer'
   assert.equal(await link.getAttribute('href'), '#/reviews/1');
   await link.click();
   await a.page.waitForSelector('[data-review-detail]:has-text("Add Assembly Line 3")');
+  assert.equal(await a.page.evaluate(() => location.hash), '#/reviews'); // picked once
   const detail = a.page.locator('[data-review-detail]');
   assert.match(await detail.innerText(), /Proposed by the copilot/);
   assert.match(await a.page.locator('[data-review="1"]').innerText(), /Proposed by the copilot/);

@@ -6135,6 +6135,7 @@
 			if (wanted !== null) {
 				ui.selected = wanted;
 				wanted = null;
+				history.replaceState(history.state, "", `${location.pathname}${location.search}#/reviews`);
 			}
 			if (listing$3?.key !== listKey$2(ctx)) fetchList$1(ctx);
 			if (ui.selected !== null && detail$3?.key !== detailKey$2(ctx)) fetchDetail$1(ctx);
