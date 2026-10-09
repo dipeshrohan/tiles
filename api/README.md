@@ -78,6 +78,9 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_SMTP_USER`, `TILES_SMTP_PASSWORD` | unset | SMTP login, if the server needs one |
 | `TILES_SMTP_FROM` | `Tiles <tiles@example.com>` | The sender of notification emails |
 | `TILES_APP_URL` | `http://localhost:5173` | Where the web app is, for links in notifications |
+| `TILES_ANTHROPIC_API_KEY` | unset (copilot off) | The Anthropic API key the copilot calls Claude with; keep it in a secret store, never in the repository |
+| `TILES_COPILOT_MODEL` | unset (copilot off) | The Claude model ID to answer with: a current one from Anthropic's model documentation |
+| `TILES_COPILOT_MAX_TOKENS`, `TILES_COPILOT_MAX_ROUNDS` | `2048`, `8` | The most the model writes per call, and the most calls (tool rounds) per question |
 
 ## Endpoints
 
@@ -122,6 +125,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `detector.create`, `detector.run`, `detector.stop` | the detector | `detector.stop`: its name | `detector.create`: its signal and settings; `detector.run`: readings, warnings raised and ended |
 | `backtest.run` | the signal | | readings replayed, settings tried, events given |
 | `dataset.create`, `dataset.rows`, `dataset.delete` | the dataset | `dataset.delete`: its name and rows | its name and columns; the rows added and the total |
+| `copilot.conversation.create`, `copilot.ask`, `copilot.conversation.delete` | the conversation | | `copilot.ask`: the question's length (not its text: conversations are private) |
 | `insight.create`, `insight.update`, `insight.review`, `insight.reopen`, `insight.delete` | the insight's number | `insight.update`: the fields changed; `insight.reopen`: its status; `insight.delete`: its title and status | its title and kind; the fields changed; the decision and note |
 | `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
@@ -307,6 +311,41 @@ Results are ranked by |d|. The numbers match the browser's finder: `test/fixture
 | `GET /datasets/{id}` | members | the dataset, with its first 20 rows |
 | `DELETE /datasets/{id}` | engineers | removes it |
 | `POST /datasets/{id}/correlate?min_effect` | members | `{"outcome", "ng_values"?, "variables"?, "split"?}`: the findings, largest effect first, and the explanations; at most 2 million rows × variables, and 50 segments |
+
+### Copilot (T4.01)
+
+The copilot answers questions about the site with Claude (the Anthropic API) and tools that read the site's own data, as the user who asked. It is off until `TILES_ANTHROPIC_API_KEY` and `TILES_COPILOT_MODEL` are set.
+
+An answer streams back as server-sent events:
+- `text`: a piece of the answer as the model writes it;
+- `tool_use`: a tool the model called, with its input;
+- `tool_result`: whether the tool answered;
+- `done`, with the tokens used, or `error`.
+
+Every message of the exchange (the question, the answer, the tool calls and their results) is stored as it completes, so the next question carries the whole conversation. A tool call whose results were never stored is left out of what goes to the model.
+
+Limits on each question:
+- at most `TILES_COPILOT_MAX_ROUNDS` model calls;
+- a tool result is cut at 20,000 characters;
+- one answer at a time per conversation (a question still answering after 5 minutes counts as lost);
+- 200 messages per conversation.
+
+Conversations are private to their user. Anyone on the site may use the copilot, because its tools only read.
+
+Tools so far:
+- `site_overview`: node counts by type, signals, open warnings;
+- `find_signals`: the signal catalogue's search, with each signal's latest reading and quality.
+
+T4.02 adds the rest.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `GET /copilot` | members | `{"configured"}`: whether the copilot is on |
+| `GET /copilot/conversations` | members | your conversations, latest first, with their message and token counts |
+| `POST /copilot/conversations` | members | `{"title"?}` starts one (titled by its first question otherwise) |
+| `GET /copilot/conversations/{id}` | its user | with `history`: every stored message, as Messages API content blocks |
+| `DELETE /copilot/conversations/{id}` | its user | removes it |
+| `POST /copilot/conversations/{id}/messages` | its user | `{"text"}` asks; the answer streams back (`text/event-stream`); 503 while the copilot is off, 409 while it is still answering |
 
 ### Wear check (T3.13)
 

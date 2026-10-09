@@ -20,6 +20,7 @@ from tiles_api import readiness
 from tiles_api.api_agents import router as agents_router
 from tiles_api.api_auth import router as auth_router
 from tiles_api.api_backtest import router as backtest_router
+from tiles_api.api_copilot import router as copilot_router
 from tiles_api.api_datasets import router as datasets_router
 from tiles_api.api_detectors import router as detectors_router
 from tiles_api.api_imports import router as imports_router
@@ -81,6 +82,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Tiles API", version=VERSION, lifespan=lifespan)
     app.state.settings = settings
     app.state.pool = None
+    app.state.copilot_model = None  # tests set a stand-in for Claude
+    app.state.copilot_client = None
 
     @app.middleware("http")
     async def request_context(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
@@ -158,6 +161,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(series_router)
     app.include_router(wear_router)
     app.include_router(insights_router)
+    app.include_router(copilot_router)
     return app
 
 

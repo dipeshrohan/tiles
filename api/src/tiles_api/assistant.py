@@ -1,0 +1,172 @@
+"""The copilot's conversation loop (T4.01): Claude with tool use, streamed.
+
+A turn sends the conversation so far, the system prompt and the tools to the model, and streams
+its text back as it comes. When the model asks for tools, they run (read-only, as the user who
+asked) and their results go back to it; this repeats until it answers, at most `max_rounds`
+times. Every message of the exchange (the answer, the tool calls and their results) is returned,
+so the next question carries the whole conversation.
+
+The model is behind `Model`, so the loop is tested without the network; `AnthropicModel` is the
+real one (the official SDK's streaming helper).
+"""
+
+import json
+import logging
+from collections.abc import Callable, Iterator, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Literal, Protocol
+
+log = logging.getLogger("tiles_api.copilot")
+
+MAX_TOOL_OUTPUT = 20_000  # characters of a tool's result sent back to the model
+
+SYSTEM = """You are the Tiles copilot for {site}, a site of {org}. Tiles holds the plant's ontology
+(machines, lines, PLCs, signals and how they connect), its signals' readings, warnings and
+analyses. Engineers and operators ask you about their plant.
+
+Answer from what the tools return, and only from that: name the tool and inputs a fact comes from.
+If the tools give nothing that answers the question, say so plainly instead of guessing. Keep
+answers short and concrete, with units. Times are UTC unless the user says otherwise."""
+
+
+@dataclass(frozen=True)
+class Turn:
+    """What the model said in one call: its content blocks (text and tool_use, as the Messages
+    API takes them back), why it stopped, and the tokens it used."""
+
+    content: list[dict[str, Any]]
+    stop_reason: str | None
+    usage: dict[str, int] = field(default_factory=dict)
+
+
+class Model(Protocol):
+    def stream(
+        self, *, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> Iterator[str | Turn]:
+        """Text deltas as they come, then the whole Turn."""
+        ...
+
+
+@dataclass(frozen=True)
+class Tool:
+    name: str
+    description: str
+    input_schema: dict[str, Any]
+    run: Callable[[dict[str, Any]], Any]  # its input -> a JSON-able result; raises ToolError
+
+    def spec(self) -> dict[str, Any]:
+        return {"name": self.name, "description": self.description, "input_schema": self.input_schema}
+
+
+class ToolError(Exception):
+    """A tool could not answer (bad input, nothing found): the model is told why."""
+
+
+EventKind = Literal["text", "tool_use", "tool_result", "message", "done", "error"]
+
+
+@dataclass(frozen=True)
+class Event:
+    kind: EventKind
+    data: dict[str, Any]
+
+
+def _blocks(content: Any) -> list[dict[str, Any]]:
+    return content if isinstance(content, list) else [{"type": "text", "text": str(content)}]
+
+
+def _result(tool: Tool | None, name: str, args: dict[str, Any]) -> tuple[str, bool]:
+    """A tool's result as the model reads it, and whether it failed."""
+    if tool is None:
+        return f"No tool called {name}", True
+    try:
+        out = json.dumps(tool.run(args), default=str, ensure_ascii=False)
+    except ToolError as e:
+        return str(e), True
+    except Exception:
+        log.exception("copilot tool failed", extra={"tool": name})
+        return f"{name} failed: the input may not fit it", True
+    if len(out) > MAX_TOOL_OUTPUT:
+        out = out[:MAX_TOOL_OUTPUT] + f"… (cut at {MAX_TOOL_OUTPUT} characters: ask for less)"
+    return out, False
+
+
+def respond(
+    model: Model,
+    system: str,
+    history: Sequence[dict[str, Any]],
+    tools: Sequence[Tool],
+    max_rounds: int = 8,
+) -> Iterator[Event]:
+    """Streams the answer to the conversation `history` (ending with the user's question).
+    `message` events carry each new message to store, in order; `done` (or `error`) comes last."""
+    messages = [dict(m) for m in history]
+    by_name = {t.name: t for t in tools}
+    specs = [t.spec() for t in tools]
+    usage: dict[str, int] = {}
+    for _ in range(max_rounds):
+        turn: Turn | None = None
+        for item in model.stream(system=system, messages=messages, tools=specs):
+            if isinstance(item, Turn):
+                turn = item
+            elif item:
+                yield Event("text", {"text": item})
+        if turn is None:
+            yield Event("error", {"detail": "The model returned no message", "usage": usage})
+            return
+        for k, v in turn.usage.items():
+            usage[k] = usage.get(k, 0) + v
+        content = _blocks(turn.content)
+        answer: dict[str, Any] = {"role": "assistant", "content": content}
+        messages.append(answer)
+        yield Event("message", answer)
+        calls = [b for b in content if b.get("type") == "tool_use"]
+        if turn.stop_reason != "tool_use" or not calls:
+            yield Event("done", {"stop_reason": turn.stop_reason, "usage": usage})
+            return
+        results = []
+        for call in calls:
+            yield Event("tool_use", {"id": call["id"], "name": call["name"], "input": call.get("input", {})})
+            out, failed = _result(by_name.get(call["name"]), call["name"], call.get("input") or {})
+            yield Event("tool_result", {"id": call["id"], "name": call["name"], "is_error": failed, "chars": len(out)})
+            results.append({"type": "tool_result", "tool_use_id": call["id"], "content": out, "is_error": failed})
+        reply = {"role": "user", "content": results}
+        messages.append(reply)
+        yield Event("message", reply)
+    yield Event(
+        "error", {"detail": f"Stopped after {max_rounds} rounds of tool calls without an answer", "usage": usage}
+    )
+
+
+def _plain(block: Any) -> dict[str, Any]:
+    """A response content block as the Messages API takes it back (only the fields it accepts)."""
+    if block.type == "text":
+        return {"type": "text", "text": block.text}
+    if block.type == "tool_use":
+        return {"type": "tool_use", "id": block.id, "name": block.name, "input": block.input}
+    out: dict[str, Any] = block.model_dump(exclude_none=True)
+    return out
+
+
+class AnthropicModel:
+    """The real model: the Messages API, streamed with the official SDK."""
+
+    def __init__(self, client: Any, model: str, max_tokens: int) -> None:
+        self.client = client
+        self.model = model
+        self.max_tokens = max_tokens
+
+    def stream(
+        self, *, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
+    ) -> Iterator[str | Turn]:
+        with self.client.messages.stream(
+            model=self.model, max_tokens=self.max_tokens, system=system, messages=messages, tools=tools
+        ) as s:
+            yield from s.text_stream
+            final = s.get_final_message()
+        usage = {
+            k: v
+            for k, v in final.usage.model_dump().items()
+            if isinstance(v, int) and k in ("input_tokens", "output_tokens")
+        }
+        yield Turn([_plain(b) for b in final.content], final.stop_reason, usage)
