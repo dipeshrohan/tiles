@@ -1,19 +1,87 @@
 {
   "swelling": {
+    "name": "Cell swelling force",
+    "domain": "Electrochemical · Mechanical",
     "latest": "2.0",
     "params": [
-      { "key": "soc", "unit": "%", "min": 0, "max": 100, "default": 80 },
-      { "key": "temperature", "unit": "°C", "min": -10, "max": 60, "default": 25 },
-      { "key": "preload", "unit": "kN", "min": 0.5, "max": 6, "default": 2 },
-      { "key": "cycles", "unit": "", "min": 0, "max": 2000, "default": 300 },
-      { "key": "thickness", "unit": "µm", "min": 60, "max": 140, "default": 95 }
+      {
+        "key": "soc",
+        "label": "State of charge",
+        "unit": "%",
+        "min": 0,
+        "max": 100,
+        "default": 80
+      },
+      {
+        "key": "temperature",
+        "label": "Temperature",
+        "unit": "°C",
+        "min": -10,
+        "max": 60,
+        "default": 25
+      },
+      {
+        "key": "preload",
+        "label": "Stack preload",
+        "unit": "kN",
+        "min": 0.5,
+        "max": 6,
+        "default": 2
+      },
+      {
+        "key": "cycles",
+        "label": "Cycle count",
+        "unit": "",
+        "min": 0,
+        "max": 2000,
+        "default": 300
+      },
+      {
+        "key": "thickness",
+        "label": "Anode thickness",
+        "unit": "µm",
+        "min": 60,
+        "max": 140,
+        "default": 95
+      }
     ],
-    "output": { "key": "force", "label": "Swelling force", "unit": "kN" },
+    "output": {
+      "key": "force",
+      "label": "Swelling force",
+      "unit": "kN"
+    },
     "versions": {
       "1.0": [
-        { "params": { "soc": 80, "temperature": 25, "preload": 2, "cycles": 300, "thickness": 95 }, "value": 3.368 },
-        { "params": { "soc": 0, "temperature": -10, "preload": 0.5, "cycles": 0, "thickness": 60 }, "value": 0.5 },
-        { "params": { "soc": 100, "temperature": 60, "preload": 6, "cycles": 2000, "thickness": 140 }, "value": 8.52 },
+        {
+          "params": {
+            "soc": 80,
+            "temperature": 25,
+            "preload": 2,
+            "cycles": 300,
+            "thickness": 95
+          },
+          "value": 3.368
+        },
+        {
+          "params": {
+            "soc": 0,
+            "temperature": -10,
+            "preload": 0.5,
+            "cycles": 0,
+            "thickness": 60
+          },
+          "value": 0.5
+        },
+        {
+          "params": {
+            "soc": 100,
+            "temperature": 60,
+            "preload": 6,
+            "cycles": 2000,
+            "thickness": 140
+          },
+          "value": 8.52
+        },
         {
           "params": {
             "soc": 51.158704864792526,
@@ -136,10 +204,34 @@
         }
       ],
       "1.1": [
-        { "params": { "soc": 80, "temperature": 25, "preload": 2, "cycles": 300, "thickness": 95 }, "value": 3.698 },
-        { "params": { "soc": 0, "temperature": -10, "preload": 0.5, "cycles": 0, "thickness": 60 }, "value": 0.5 },
         {
-          "params": { "soc": 100, "temperature": 60, "preload": 6, "cycles": 2000, "thickness": 140 },
+          "params": {
+            "soc": 80,
+            "temperature": 25,
+            "preload": 2,
+            "cycles": 300,
+            "thickness": 95
+          },
+          "value": 3.698
+        },
+        {
+          "params": {
+            "soc": 0,
+            "temperature": -10,
+            "preload": 0.5,
+            "cycles": 0,
+            "thickness": 60
+          },
+          "value": 0.5
+        },
+        {
+          "params": {
+            "soc": 100,
+            "temperature": 60,
+            "preload": 6,
+            "cycles": 2000,
+            "thickness": 140
+          },
           "value": 11.0728
         },
         {
@@ -265,12 +357,33 @@
       ],
       "2.0": [
         {
-          "params": { "soc": 80, "temperature": 25, "preload": 2, "cycles": 300, "thickness": 95 },
+          "params": {
+            "soc": 80,
+            "temperature": 25,
+            "preload": 2,
+            "cycles": 300,
+            "thickness": 95
+          },
           "value": 4.503102863405995
         },
-        { "params": { "soc": 0, "temperature": -10, "preload": 0.5, "cycles": 0, "thickness": 60 }, "value": 0.5 },
         {
-          "params": { "soc": 100, "temperature": 60, "preload": 6, "cycles": 2000, "thickness": 140 },
+          "params": {
+            "soc": 0,
+            "temperature": -10,
+            "preload": 0.5,
+            "cycles": 0,
+            "thickness": 60
+          },
+          "value": 0.5
+        },
+        {
+          "params": {
+            "soc": 100,
+            "temperature": 60,
+            "preload": 6,
+            "cycles": 2000,
+            "thickness": 140
+          },
           "value": 12.94988087524473
         },
         {
@@ -397,20 +510,88 @@
     }
   },
   "actuator": {
+    "name": "Humanoid joint actuator",
+    "domain": "Electromechanical · Thermal",
     "latest": "1.1",
     "params": [
-      { "key": "torque", "unit": "N·m", "min": 5, "max": 120, "default": 40 },
-      { "key": "ratio", "unit": ":1", "min": 6, "max": 100, "default": 30 },
-      { "key": "kt", "unit": "N·m/A", "min": 0.05, "max": 0.4, "default": 0.12 },
-      { "key": "rth", "unit": "K/W", "min": 0.5, "max": 4, "default": 1.6 },
-      { "key": "ambient", "unit": "°C", "min": 0, "max": 45, "default": 25 }
+      {
+        "key": "torque",
+        "label": "Continuous torque",
+        "unit": "N·m",
+        "min": 5,
+        "max": 120,
+        "default": 40
+      },
+      {
+        "key": "ratio",
+        "label": "Gear ratio",
+        "unit": ":1",
+        "min": 6,
+        "max": 100,
+        "default": 30
+      },
+      {
+        "key": "kt",
+        "label": "Torque constant",
+        "unit": "N·m/A",
+        "min": 0.05,
+        "max": 0.4,
+        "default": 0.12
+      },
+      {
+        "key": "rth",
+        "label": "Thermal resistance",
+        "unit": "K/W",
+        "min": 0.5,
+        "max": 4,
+        "default": 1.6
+      },
+      {
+        "key": "ambient",
+        "label": "Ambient",
+        "unit": "°C",
+        "min": 0,
+        "max": 45,
+        "default": 25
+      }
     ],
-    "output": { "key": "temp", "label": "Winding temperature", "unit": "°C" },
+    "output": {
+      "key": "temp",
+      "label": "Winding temperature",
+      "unit": "°C"
+    },
     "versions": {
       "1.0": [
-        { "params": { "torque": 40, "ratio": 30, "kt": 0.12, "rth": 1.6, "ambient": 25 }, "value": 172.63552479815456 },
-        { "params": { "torque": 5, "ratio": 6, "kt": 0.05, "rth": 0.5, "ambient": 0 }, "value": 103.80622837370245 },
-        { "params": { "torque": 120, "ratio": 100, "kt": 0.4, "rth": 4, "ambient": 45 }, "value": 71.90657439446366 },
+        {
+          "params": {
+            "torque": 40,
+            "ratio": 30,
+            "kt": 0.12,
+            "rth": 1.6,
+            "ambient": 25
+          },
+          "value": 172.63552479815456
+        },
+        {
+          "params": {
+            "torque": 5,
+            "ratio": 6,
+            "kt": 0.05,
+            "rth": 0.5,
+            "ambient": 0
+          },
+          "value": 103.80622837370245
+        },
+        {
+          "params": {
+            "torque": 120,
+            "ratio": 100,
+            "kt": 0.4,
+            "rth": 4,
+            "ambient": 45
+          },
+          "value": 71.90657439446366
+        },
         {
           "params": {
             "torque": 58.60993494163267,
@@ -533,9 +714,36 @@
         }
       ],
       "1.1": [
-        { "params": { "torque": 40, "ratio": 30, "kt": 0.12, "rth": 1.6, "ambient": 25 }, "value": 383.59094499027464 },
-        { "params": { "torque": 5, "ratio": 6, "kt": 0.05, "rth": 0.5, "ambient": 0 }, "value": 161.5546437714718 },
-        { "params": { "torque": 120, "ratio": 100, "kt": 0.4, "rth": 4, "ambient": 45 }, "value": 78.04434849794335 },
+        {
+          "params": {
+            "torque": 40,
+            "ratio": 30,
+            "kt": 0.12,
+            "rth": 1.6,
+            "ambient": 25
+          },
+          "value": 383.59094499027464
+        },
+        {
+          "params": {
+            "torque": 5,
+            "ratio": 6,
+            "kt": 0.05,
+            "rth": 0.5,
+            "ambient": 0
+          },
+          "value": 161.5546437714718
+        },
+        {
+          "params": {
+            "torque": 120,
+            "ratio": 100,
+            "kt": 0.4,
+            "rth": 4,
+            "ambient": 45
+          },
+          "value": 78.04434849794335
+        },
         {
           "params": {
             "torque": 58.60993494163267,

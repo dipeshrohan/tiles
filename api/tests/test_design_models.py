@@ -7,21 +7,15 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from test_agents import VIEWER, api, site  # noqa: F401 - api and site are fixtures
+from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 
 from tiles_api.models import registry as r
+from tiles_api.models.design import from_browser
 from tiles_api.models.registry import ModelError, evaluate
 
 FIXTURE: dict[str, Any] = json.loads(
     (Path(__file__).resolve().parents[2] / "test" / "fixtures" / "design-models.json").read_text()
 )
-KEYS = {"swelling": "cell-swelling", "actuator": "joint-actuator"}  # the browser's ids, the registry's keys
-
-
-def semver(v: str) -> str:
-    return f"{v}.0"
-
-
 CASES = [
     (browser_id, version, case)
     for browser_id, model in FIXTURE.items()
@@ -32,7 +26,7 @@ CASES = [
 
 @pytest.mark.parametrize(("browser_id", "version", "case"), CASES)
 def test_each_version_gives_the_browsers_number(browser_id: str, version: str, case: dict[str, Any]) -> None:
-    model = r.registry.get(KEYS[browser_id], semver(version))
+    model = r.registry.get(*from_browser(browser_id, version))
     out = evaluate(model, {}, case["params"])
     [value] = next(iter(out.values()))
     assert value is not None
@@ -40,18 +34,33 @@ def test_each_version_gives_the_browsers_number(browser_id: str, version: str, c
 
 
 @pytest.mark.parametrize("browser_id", sorted(FIXTURE))
-def test_the_specs_are_the_browsers(browser_id: str) -> None:
+def test_every_versions_spec_is_the_browsers_word_for_word(browser_id: str) -> None:
     browser = FIXTURE[browser_id]
-    versions = sorted(r.version_key(m.spec.version) for m in r.registry.all() if m.spec.key == KEYS[browser_id])
-    assert versions == sorted(r.version_key(semver(v)) for v in browser["versions"])
-    latest = r.registry.get(KEYS[browser_id])
-    assert latest.spec.version == semver(browser["latest"])
-    assert latest.spec.kind == "design"
-    assert [(p.name, p.unit, p.min, p.max, p.default) for p in latest.spec.params] == [
-        (p["key"], p["unit"], p["min"], p["max"], p["default"]) for p in browser["params"]
-    ]
-    [out] = latest.spec.outputs
-    assert (out.name, out.unit) == (browser["output"]["key"], browser["output"]["unit"])
+    key, latest_version = from_browser(browser_id, browser["latest"])
+    versions = [m for m in r.registry.all() if m.spec.key == key]
+    assert sorted(m.spec.version for m in versions) == sorted(
+        from_browser(browser_id, v)[1] for v in browser["versions"]
+    )
+    assert r.registry.get(key).spec.version == latest_version
+    for m in versions:
+        s = m.spec
+        assert (s.kind, s.name, s.domain, s.inputs) == ("design", browser["name"], browser["domain"], ()), s.version
+        assert [(p.name, p.description, p.unit, p.min, p.max, p.default) for p in s.params] == [
+            (p["key"], p["label"], p["unit"], p["min"], p["max"], p["default"]) for p in browser["params"]
+        ], s.version
+        [out] = s.outputs
+        assert (out.name, out.description, out.unit) == (
+            browser["output"]["key"],
+            browser["output"]["label"],
+            browser["output"]["unit"],
+        ), s.version
+
+
+def test_browser_ids_and_versions_map_to_the_registry() -> None:
+    assert from_browser("swelling", "2.0") == ("cell-swelling", "2.0.0")
+    assert from_browser("actuator", "1.1.0") == ("joint-actuator", "1.1.0")
+    with pytest.raises(KeyError):
+        from_browser("gearbox", "1.0")
 
 
 def test_parameters_outside_their_bounds_are_refused() -> None:
@@ -72,3 +81,13 @@ def test_a_design_model_runs_through_the_api(api: TestClient, site: str) -> None
     assert res.status_code == 200, res.text
     expected = FIXTURE["swelling"]["versions"]["2.0"][0]["value"]  # the defaults (soc 80 is the default)
     assert res.json()["outputs"]["force"][0] == pytest.approx(expected, rel=1e-12)
+    # A design model takes no signals: binding one says so.
+    res = api.post(
+        f"/sites/{site}/model-bindings",
+        json={"name": "swell", "model": "cell-swelling", "inputs": {}, "window": {"kind": "gap", "seconds": 2}},
+        headers=ENG,
+    )
+    assert (res.status_code, res.json()["detail"]) == (
+        422,
+        "cell-swelling is a design model: it takes no signals, so it is run with evaluate, not bound",
+    )

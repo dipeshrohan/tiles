@@ -23,8 +23,17 @@ function cases() {
       ),
     ];
     out[model.id] = {
+      name: model.name,
+      domain: model.domain,
       latest: model.latest,
-      params: model.params.map((p) => ({ key: p.key, unit: p.unit, min: p.min, max: p.max, default: p.default })),
+      params: model.params.map((p) => ({
+        key: p.key,
+        label: p.label,
+        unit: p.unit,
+        min: p.min,
+        max: p.max,
+        default: p.default,
+      })),
       output: model.output,
       versions: Object.fromEntries(
         Object.keys(model.versions).map((v) => [
@@ -37,22 +46,10 @@ function cases() {
   return out;
 }
 
-function assertClose(actual, expected, path = '$') {
-  if (typeof expected === 'number' && typeof actual === 'number') {
-    assert.ok(
-      Math.abs(actual - expected) <= 1e-12 * Math.max(1, Math.abs(expected)),
-      `${path}: ${actual} != ${expected}`,
-    );
-  } else if (expected && typeof expected === 'object') {
-    assert.deepEqual(Object.keys(actual ?? {}), Object.keys(expected), path);
-    for (const key of Object.keys(expected)) assertClose(actual[key], expected[key], `${path}.${key}`);
-  } else {
-    assert.equal(actual, expected, path);
-  }
-}
-
+// These models use only + - * / and Math.sqrt, which IEEE 754 makes exact on every engine: the
+// fixture is matched exactly, to the bit.
 test('the design-model fixture matches these models', () => {
   const fresh = cases();
-  if (process.env.UPDATE_FIXTURES) writeFileSync(file, JSON.stringify(fresh));
-  assertClose(fresh, JSON.parse(readFileSync(file, 'utf8')));
+  if (process.env.UPDATE_FIXTURES === '1') writeFileSync(file, `${JSON.stringify(fresh, null, 2)}\n`);
+  assert.deepEqual(fresh, JSON.parse(readFileSync(file, 'utf8')));
 });

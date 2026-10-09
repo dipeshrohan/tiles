@@ -6,7 +6,11 @@ A design model has no input series: its parameters are the design, and it gives 
 version is its own class and, once published (models/published.json), never changes; a new
 behaviour is a new version. test/fixtures/design-models.json, made by the browser's models
 (test/design-parity.test.js), keeps the two giving the same numbers: the arithmetic is written in
-the same order as the browser's so the results agree to the last bit.
+the same order as the browser's so the results agree to the last bit. Names, domains and labels
+are the browser's, word for word.
+
+Each version keeps its own formula even where versions share a term: a published version must not
+change when a later one is written, so nothing a version computes is shared with another.
 """
 
 import math
@@ -15,23 +19,34 @@ from typing import ClassVar
 
 from tiles_api.models.registry import ModelSpec, Param, Port, register
 
+# The browser's model ids (js/lib/design.ts, and the Design Studio's runs) and the registry's keys.
+BROWSER_KEYS = {"swelling": "cell-swelling", "actuator": "joint-actuator"}
+
+
+def from_browser(model_id: str, version: str) -> tuple[str, str]:
+    """A browser model id and version ("swelling", "2.0") as the registry's ("cell-swelling", "2.0.0")."""
+    if model_id not in BROWSER_KEYS:
+        raise KeyError(f"No design model {model_id}")
+    return BROWSER_KEYS[model_id], version if version.count(".") == 2 else f"{version}.0"
+
+
 SWELLING_PARAMS = (
-    Param("soc", "%", 80, 0, 100, "state of charge"),
-    Param("temperature", "°C", 25, -10, 60, "cell temperature"),
-    Param("preload", "kN", 2, 0.5, 6, "stack preload"),
-    Param("cycles", "", 300, 0, 2000, "cycle count"),
-    Param("thickness", "µm", 95, 60, 140, "anode thickness"),
+    Param("soc", "%", 80, 0, 100, "State of charge"),
+    Param("temperature", "°C", 25, -10, 60, "Temperature"),
+    Param("preload", "kN", 2, 0.5, 6, "Stack preload"),
+    Param("cycles", "", 300, 0, 2000, "Cycle count"),
+    Param("thickness", "µm", 95, 60, 140, "Anode thickness"),
 )
-SWELLING_OUT = (Port("force", "kN", "swelling force", per="window"),)
+SWELLING_OUT = (Port("force", "kN", "Swelling force", per="window"),)
 
 ACTUATOR_PARAMS = (
-    Param("torque", "N·m", 40, 5, 120, "continuous torque"),
-    Param("ratio", ":1", 30, 6, 100, "gear ratio"),
-    Param("kt", "N·m/A", 0.12, 0.05, 0.4, "torque constant"),
-    Param("rth", "K/W", 1.6, 0.5, 4, "thermal resistance"),
-    Param("ambient", "°C", 25, 0, 45, "ambient temperature"),
+    Param("torque", "N·m", 40, 5, 120, "Continuous torque"),
+    Param("ratio", ":1", 30, 6, 100, "Gear ratio"),
+    Param("kt", "N·m/A", 0.12, 0.05, 0.4, "Torque constant"),
+    Param("rth", "K/W", 1.6, 0.5, 4, "Thermal resistance"),
+    Param("ambient", "°C", 25, 0, 45, "Ambient"),
 )
-ACTUATOR_OUT = (Port("temp", "°C", "winding temperature", per="window"),)
+ACTUATOR_OUT = (Port("temp", "°C", "Winding temperature", per="window"),)
 
 
 def _swelling(version: str, description: str) -> ModelSpec:
@@ -40,7 +55,7 @@ def _swelling(version: str, description: str) -> ModelSpec:
         version=version,
         name="Cell swelling force",
         kind="design",
-        domain="electrochemical · mechanical",
+        domain="Electrochemical · Mechanical",
         description=description,
         outputs=SWELLING_OUT,
         params=SWELLING_PARAMS,
@@ -53,7 +68,7 @@ def _actuator(version: str, description: str) -> ModelSpec:
         version=version,
         name="Humanoid joint actuator",
         kind="design",
-        domain="electromechanical · thermal",
+        domain="Electromechanical · Thermal",
         description=description,
         outputs=ACTUATOR_OUT,
         params=ACTUATOR_PARAMS,

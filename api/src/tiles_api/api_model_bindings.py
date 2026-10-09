@@ -130,6 +130,11 @@ def bind(ctx: Editor, body: BindingIn) -> dict[str, Any]:
     except KeyError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, e.args[0]) from e
     spec = model.spec
+    if spec.kind == "design":
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            f"{spec.key} is a design model: it takes no signals, so it is run with evaluate, not bound",
+        )
     problems = []
     wanted = {p.name for p in spec.inputs}
     if set(body.inputs) != wanted:
