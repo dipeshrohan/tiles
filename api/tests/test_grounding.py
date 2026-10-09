@@ -129,3 +129,53 @@ def test_an_unsupported_answer_is_withdrawn_and_answered_again_once() -> None:
     last = [e.data for e in events if e.kind == "message"][-1]
     assert last["meta"]["grounding"]["unsupported_numbers"] == ["1,950"]
     assert events[-1].data["grounded"] is False
+
+
+def test_review_cases_values_signs_rounding_and_ranges() -> None:
+    # A unit right after a number doesn't hide it; a range's end is checked.
+    assert check("Power is 1900W [1].").unsupported_numbers == ["1900"]
+    assert check("It reaches it in 18h [1].").grounded
+    assert check("Between 7-11 signals [1].").unsupported_numbers == ["7", "11"]
+    # A minus sign must be in the result; a fraction isn't a hundredth of a fact; "about" stays close.
+    assert check("It changed by -1,785 W [1].").unsupported_numbers == ["-1,785"]
+    assert check("It is 0.18 [1].").unsupported_numbers == ["0.18"]
+    assert check("About 1,700 W [1].").unsupported_numbers == ["1,700"]  # 1,619.6 and 1,784.5 round elsewhere
+    assert check("About 1,800 W [1].").grounded
+    # Rounded half up, as people round.
+    half = grounding.check("About 17 h [1], 2.68 [1].", "?", conversation(json.dumps({"hours": 16.5, "x": 2.675})))
+    assert half.grounded, half.unsupported_numbers
+
+
+def test_review_cases_a_result_number_isnt_a_fact_and_lines_starting_with_values() -> None:
+    labelled = grounding.label(3, "events", {"kind": "warnings"}, json.dumps({"warnings": [{"id": "a"}]}))
+    three = [{"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t3", "content": labelled}]}]
+    # Citing [3] doesn't make 3 a fact; the result holds one warning.
+    assert grounding.check("3 warnings are open [3].", "?", three).unsupported_numbers == ["3"]
+    assert grounding.check("1 warning is open [3].", "?", three).grounded
+    # A wrapped line that starts with a value is still checked (only short list numbers are markers).
+    assert check("Oil temperature is\n1900. That is high [1].").unsupported_numbers == ["1900"]
+
+
+def test_review_cases_names_are_whole_and_asking_back_states_nothing() -> None:
+    assert check("`w03.cathode` is wearing [1].").unsupported_names == ["w03.cathode"]
+    assert check("`w03.cathode_power` is wearing [1].").grounded
+    tag = grounding.check("`PLC1\\Temp` is 41 [1].", "?", conversation(json.dumps({"tag": "PLC1\\Temp", "v": 41})))
+    assert tag.grounded, tag.unsupported_names
+    # A question back is one short sentence; claims before a question still need citations.
+    assert not check("Press 9 is overheating because its filter is clogged. Want me to check the others?").grounded
+    # A decline starts with the phrase; mentioning it later doesn't excuse the rest.
+    assert not check("The welder is failing; I can't answer that from the site's data.").grounded
+
+
+def test_a_withdrawn_last_round_still_gets_its_second_try() -> None:
+    class Model:
+        def __init__(self) -> None:
+            self.answers = ["It is at 1,900 W.", "I can't answer that from the site's data."]
+
+        def stream(self, *, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]) -> Any:
+            text = self.answers.pop(0)
+            yield Turn([{"type": "text", "text": text}], "end_turn")
+
+    events = list(assistant.respond(Model(), "s", [{"role": "user", "content": "Is it wearing?"}], [], max_rounds=1))
+    assert [e.kind for e in events] == ["usage", "retract", "usage", "message", "grounding", "done"]
+    assert events[-1].data["grounded"] is True

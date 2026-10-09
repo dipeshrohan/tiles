@@ -325,12 +325,12 @@ An answer streams back as server-sent events:
 - `done`, with the tokens used and whether the answer is grounded, or `error`.
 
 **Grounding (T4.03).** An answer may only state what the tools returned. Each tool result reaches the model numbered, with its tool and input (`[3] wear_check {"tag": …}`), and the model cites the results a fact rests on as `[3]`. `grounding.py` then holds the answer to them:
-- it cites at least one result, unless it declines ("I can't answer that from the site's data") or only asks the user something back;
+- it cites at least one result, unless it declines (starts with "I can't answer that from the site's data") or is only a short question back (one sentence, no numbers or names);
 - every result it cites exists;
-- every number in it is in a cited result (as given, rounded to the digits shown, as a percentage of a fraction, or as the count of a list) or in the question;
-- every `code` span (a tag, node or dataset name) appears in a cited result or the question.
+- every number in it, with or without a unit after it, is in a cited result or in the question. It may appear as given, rounded half up to the digits shown, rounded to its trailing zeros when that is within 5% ("about 1,800"), as a percentage of a fraction, or as the count of a list. A minus sign must be in the result too;
+- every `code` span (a tag, node or dataset name) is a value or key in a cited result, a whole word of one, or in the question.
 
-An answer that fails is withdrawn and the model is told why and asked once more. If the second answer fails too, it is kept with its report, which names the numbers and names nothing supports, so the page can warn. The report is stored with the answer (`meta.grounding`, migration 0017). The check can't tell whether a sentence with no number or name says what its result says. It catches values, counts, times, tags and every uncited answer, and T4.06 measures the rest on the evaluation set.
+An answer that fails is withdrawn and the model is told why and asked once more. The second try doesn't count against `TILES_COPILOT_MAX_ROUNDS`. If the second answer fails too, it is kept with its report, which names the numbers and names nothing supports, so the page can warn. The report is stored with the answer (`meta.grounding`, migration 0017). The check can't tell whether a sentence with no number or name says what its result says. It catches values, counts, times, tags and every uncited answer, and T4.06 measures the rest on the evaluation set.
 
 Every message of the exchange (the question, the answer, the tool calls and their results) is stored as it completes, so the next question carries the whole conversation. Whatever broke off while it was stored is repaired before it goes to the model, wherever it broke: a tool call without its results, a result without its call, an empty message. A turn cut short in the middle of a tool call keeps only its text, and an empty answer isn't stored.
 

@@ -155,7 +155,9 @@ def respond(
         (grounding.text_of(m) for m in reversed(messages) if m["role"] == "user" and grounding.text_of(m)), ""
     )
     repaired_once = False
-    for _ in range(max_rounds):
+    calls_left = max_rounds + 1  # one more for a withdrawn answer's second try
+    while calls_left > (0 if repaired_once else 1):
+        calls_left -= 1
         turn: Turn | None = None
         for item in model.stream(system=system, messages=messages, tools=specs):
             if isinstance(item, Turn):
