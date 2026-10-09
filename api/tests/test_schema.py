@@ -1,6 +1,9 @@
 """Schema v1: migrations apply and reverse cleanly; constraints hold."""
 
 import json
+import os
+import subprocess
+import sys
 import threading
 from collections.abc import Iterator
 
@@ -375,6 +378,15 @@ def test_migrators_take_turns(database_url: str) -> None:
         worker = threading.Thread(target=migrate)
         worker.start()
         assert not done.wait(1.5), "the second migrator didn't wait"
+        # Reading the revision changes nothing, so it doesn't wait (nor grant).
+        current = subprocess.run(  # its own process: Alembic's context is one per process
+            [sys.executable, "-c", "from tiles_api.db import main; main(['current'])"],
+            env={**os.environ, "TILES_DATABASE_URL": database_url},
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        assert "(head)" in current.stdout, current.stderr
         holder.execute("SELECT pg_advisory_unlock(%s)", [MIGRATION_LOCK])
         worker.join(30)
     assert done.is_set()

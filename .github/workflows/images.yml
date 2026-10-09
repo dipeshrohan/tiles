@@ -1,24 +1,31 @@
 # Publishes the images the Helm chart installs (T5.09) to GitHub's container registry:
-# ghcr.io/<owner>/tiles-api, tiles-web and tiles-edge. Main gets `main` and `sha-<commit>`;
-# a version tag v1.2.3 gets `1.2.3` and `1.2`. Pull requests' CI has already checked the committed
-# bundle the web image copies.
+# ghcr.io/<owner>/tiles-api, tiles-web and tiles-edge.
+# - main, once CI has passed on the commit: `main` and `sha-<commit>`;
+# - a version tag v1.2.3: `1.2.3` and `1.2` (tag a commit whose CI passed).
 name: Images
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
     branches: [main]
+  push:
     tags: ['v*']
 
 permissions:
   contents: read
 
 concurrency:
-  group: images-${{ github.ref }}
+  group: images-${{ github.event.workflow_run.head_sha || github.ref }}
   cancel-in-progress: false
 
 jobs:
   publish:
     name: Publish ${{ matrix.image }}
+    # A CI run on a push to main that passed (not one for a pull request from a branch named main).
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -30,8 +37,12 @@ jobs:
           - { image: tiles-api, context: api }
           - { image: tiles-web, context: . }
           - { image: tiles-edge, context: edge }
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }} # the commit CI checked, not whatever main is now
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -43,8 +54,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}
           tags: |
-            type=ref,event=branch
-            type=sha
+            type=raw,value=main,enable=${{ github.event_name == 'workflow_run' }}
+            type=raw,value=sha-${{ env.SHA }},enable=${{ github.event_name == 'workflow_run' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
       - uses: docker/build-push-action@v6

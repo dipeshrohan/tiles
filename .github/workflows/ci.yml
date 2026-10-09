@@ -250,6 +250,11 @@ jobs:
           helm upgrade tiles "$CHART" $VALUES --set api.replicas=3 --wait --timeout 10m
           test "$before" = "$(kubectl get secret tiles-generated -o jsonpath='{.data}')"
           kubectl rollout status deploy/tiles-api
+      - name: A lost Secret is refused, not replaced, while the database volume is there
+        run: |
+          kubectl delete secret tiles-generated
+          ! helm upgrade tiles "$CHART" $VALUES 2> err.txt
+          grep 'holding its password is gone' err.txt
       - name: State on failure
         if: failure()
         run: |

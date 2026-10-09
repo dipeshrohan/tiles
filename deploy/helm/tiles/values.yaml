@@ -8,14 +8,16 @@
 images:
   api:
     repository: ghcr.io/dipeshrohan/tiles-api
-    # Published by the Images workflow: `main` follows the main branch; in production pin a
-    # release (`1.2.3`) or a commit (`sha-…`). Empty: the chart's appVersion, once released.
+    # Published by the Images workflow once CI passes: `main` follows the main branch (pulled
+    # again whenever a pod starts, so set pullPolicy IfNotPresent with a pinned tag). In
+    # production pin a release (`1.2.3`) or a commit (`sha-<full commit>`): `helm upgrade` then rolls the pods
+    # to it. Empty: the chart's appVersion, once released.
     tag: main
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
   web:
     repository: ghcr.io/dipeshrohan/tiles-web
     tag: main
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 imagePullSecrets: []
 
 # development | test | production. Production refuses the dev identity and requires data keys.
@@ -45,7 +47,7 @@ secrets:
   # the date) in the same `helm upgrade` to restart it. The jobs read them on every run.
   revision: ''
   # A data key generated in the cluster when your Secret has no tiles_data_keys (turn this off when
-  # it has: the generated one would hide it). Back the Secret up: without it, sealed credentials
+  # it has: both are mounted at the same path, and which one is used isn't defined). Back the Secret up: without it, sealed credentials
   # can't be opened. Generated values are kept by reading them back at upgrade (`lookup`), which
   # `helm template` and GitOps tools (Argo CD) can't do: there, give every secret in your own
   # Secret and use an external database.
@@ -124,7 +126,10 @@ redis:
 ingress:
   enabled: false
   className: ''
-  annotations: {}
+  # Edge agents post up to 10,000 readings at once, and imports send batches of rows: raise your
+  # controller's request body limit (nginx's default is 1 MB). Other controllers ignore this.
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 16m
   # TLS for both hosts (taken from url and apiUrl); with cert-manager, set its annotation instead.
   tlsSecret: ''
 

@@ -7,7 +7,7 @@ The chart installs Tiles on Kubernetes 1.27 or later (T5.09):
 - the web app;
 - for evaluation, a database and Redis.
 
-The images come from GitHub's container registry. The [Images workflow](../../../.github/workflows/images.yml) publishes `ghcr.io/dipeshrohan/tiles-api`, `tiles-web` and `tiles-edge` on every push to `main` (tags `main` and `sha-…`) and for every version tag (`1.2.3`). The chart installs `main` by default; in production, pin a release or a commit (`images.api.tag`, `images.web.tag`).
+The images come from GitHub's container registry. The [Images workflow](../../../.github/workflows/images.yml) publishes `ghcr.io/dipeshrohan/tiles-api`, `tiles-web` and `tiles-edge` for each commit to `main` once CI has passed on it (tags `main` and `sha-<full commit>`), and for every version tag (`1.2.3`). The chart installs `main` by default, pulled again whenever a pod starts. In production, pin a release or a commit (`images.api.tag`, `images.web.tag`, with `pullPolicy: IfNotPresent`), so that `helm upgrade` rolls the pods to it.
 
 ## Try it
 
@@ -48,7 +48,7 @@ The bundled database is one pod with one volume. It has no replica, no point-in-
 
 The API and the jobs read the Secret as files (`TILES_SECRETS_DIR`), never as environment variables. Values in `values.yaml` aren't secret.
 
-- **When your Secret has `tiles_data_keys`:** set `secrets.generateDataKey=false`. Otherwise the generated key is mounted at the same path, and one of the two hides the other.
+- **When your Secret has `tiles_data_keys`:** set `secrets.generateDataKey=false`. Otherwise both keys are mounted at the same path, and which one the API reads isn't defined.
 - **After changing the Secret** (a new database password, a new data key to rotate to): change `secrets.revision` in the same `helm upgrade` to restart the API, which reads its settings once, at start. The jobs read them on every run.
 - **With `helm template` or a GitOps tool (Argo CD, Flux's post-rendering):** the generated Secret can't work, because it keeps its values by reading itself back at upgrade (`lookup`), and those tools render without the cluster. Every render would make a new password and data key. Use your own Secret for everything (`secrets.generateDataKey=false`) and an external database.
 
@@ -67,6 +67,7 @@ The API and the jobs read the Secret as files (`TILES_SECRETS_DIR`), never as en
   - it is made once, and an upgrade reads it back;
   - uninstalling keeps it, as it keeps the database volume;
   - **back it up**: without the data key, sealed credentials can't be opened.
+- **Request size:** the ingress raises nginx's body limit to 16 MB (`ingress.annotations`), since edge agents post up to 10,000 readings at once.
 - **Rollouts:** the API restarts when its settings change. With more than one replica, the API and the web app each have a PodDisruptionBudget.
 
 ## Jobs

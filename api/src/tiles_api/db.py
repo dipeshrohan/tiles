@@ -33,12 +33,19 @@ def alembic_config(settings: Settings | None = None) -> Config:
     return cfg
 
 
+def migrating(cfg: Config) -> Config:
+    """Marks a config as changing the schema: migrations/env.py then holds the migration lock and
+    grants tiles_app after."""
+    cfg.attributes["migrating"] = True
+    return cfg
+
+
 def upgrade(settings: Settings | None = None, revision: str = "head") -> None:
-    command.upgrade(alembic_config(settings), revision)  # then grants tiles_app (migrations/env.py)
+    command.upgrade(migrating(alembic_config(settings)), revision)
 
 
 def downgrade(settings: Settings | None = None, revision: str = "base") -> None:
-    command.downgrade(alembic_config(settings), revision)
+    command.downgrade(migrating(alembic_config(settings)), revision)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -56,9 +63,9 @@ def main(argv: list[str] | None = None) -> None:
 
     cfg = alembic_config()
     if args.action == "upgrade":
-        command.upgrade(cfg, args.revision)
+        command.upgrade(migrating(cfg), args.revision)
     elif args.action == "downgrade":
-        command.downgrade(cfg, args.revision)
+        command.downgrade(migrating(cfg), args.revision)
     elif args.action == "current":
         command.current(cfg, verbose=True)
     elif args.action == "history":

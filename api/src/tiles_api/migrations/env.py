@@ -18,10 +18,13 @@ def run_migrations_online() -> None:
     engine = engine_from_config(
         config.get_section(config.config_ini_section, {}), prefix="sqlalchemy.", poolclass=pool.NullPool
     )
+    migrating = config.attributes.get("migrating", False)  # set by db.upgrade and db.downgrade
     with engine.connect() as connection:
-        # One migrator at a time: each API pod migrates as it starts (the Helm chart, T5.09), so the
-        # others wait here, then find the database at head. Released when the connection closes.
-        connection.exec_driver_sql(f"SELECT pg_advisory_lock({MIGRATION_LOCK})")
+        if migrating:
+            # One migrator at a time: each API pod migrates as it starts (the Helm chart, T5.09), so
+            # the others wait here, then find the database at head. Released when the connection
+            # closes. `tiles-migrate current` and `history` neither wait nor grant.
+            connection.exec_driver_sql(f"SELECT pg_advisory_lock({MIGRATION_LOCK})")
         # Every site's rows, for migrations that move data (row security, 0024).
         connection.exec_driver_sql("SET tiles.site_id = '*'")
         connection.commit()
@@ -31,8 +34,9 @@ def run_migrations_online() -> None:
         # Grants `tiles_app` (row security, 0024) every table again, so tables a later migration
         # made, as whichever login, are covered; still under the lock, as concurrent GRANTs on the
         # same tables fail. Nothing before 0024 or after downgrading past it.
-        connection.exec_driver_sql(GRANT_APP)
-        connection.commit()
+        if migrating:
+            connection.exec_driver_sql(GRANT_APP)
+            connection.commit()
 
 
 if context.is_offline_mode():
