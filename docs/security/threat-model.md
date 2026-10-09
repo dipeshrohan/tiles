@@ -1,0 +1,130 @@
+# Threat model and IEC 62443 gap list (T5.07)
+
+This covers Tiles as built in October 2026: the edge agent on a plant's network, the Tiles API and its database, the browser app, and the services they call. It is a STRIDE analysis of each part and data flow, then a gap list against IEC 62443 for the edge agent (a component, 62443-4-2) and the whole system (62443-3-3). It is written to share with a partner's IT/OT security team (T3.15), and to be reviewed whenever an ADR changes a trust boundary.
+
+Status keys: **Done** (in place, with where), **Partial** and **Gap** (an action, with its task where there is one).
+
+## The system and its trust boundaries
+
+```
+ Plant OT network                 │ DMZ / site IT            │ Tiles cloud (or customer-hosted)                │ Third parties
+                                  │                          │                                                 │
+ PLC / OPC UA server ─┐           │                          │  ┌─────────────┐   ┌──────────────────────┐     │
+ MQTT broker ─────────┼─ reads ──▶│ Edge agent ── HTTPS out ─┼─▶│  Tiles API  │──▶│ Postgres + Timescale │     │
+ Historian / SQL DB ──┘ (no write)│ (buffer on disk)         │  │  (FastAPI)  │   │ (row security, T5.04)│     │
+                                  │                          │  └─────┬───────┘   └──────────────────────┘     │
+                                  │                          │        │  ▲                                     │
+ Engineers' browsers ─────────────┼──── HTTPS ───────────────┼────────┘  │ tokens (OIDC, PKCE)   ──────────────┼─▶ Identity provider
+                                  │                          │  jobs (cron): detect, run models, notify ───────┼─▶ SMTP, Teams webhooks
+                                  │                          │  copilot ───────────────────────────────────────┼─▶ Anthropic API
+```
+
+The trust boundaries, from the inside out:
+- **B1** between the plant's machines and the edge agent;
+- **B2** the agent's outbound HTTPS to the API, the only connection crossing the plant's perimeter, opened from inside;
+- **B3** browsers to the API;
+- **B4** the API to its database;
+- **B5** the API and its jobs to third parties: the identity provider, the Anthropic API, SMTP and Teams;
+- **B6** between sites and organisations within one Tiles database.
+
+## STRIDE by element
+
+### Edge agent (on site)
+
+| Threat | What could happen | Mitigation | Status |
+|---|---|---|---|
+| **S**poofing the API to the agent | A man in the middle on the plant's network receives readings or feeds commands | TLS is always verified; plain HTTP is refused except to localhost (`config.py`); a site CA can be pinned (`ca_file`). The agent takes no commands, and heartbeat `commands` are always empty | Done |
+| **S**poofing an OPC UA server | A rogue server feeds false values | The server certificate is always pinned (`opcua server-cert`, ADR 003) | Done |
+| **T**ampering with the machines | The agent writes to a PLC or database | Connectors are read-only by design: OPC UA reads and subscriptions, MQTT subscribe, and SQL queries in a transaction that is always rolled back (`sql.py`). The agent opens no listening port | Done |
+| **T**ampering with buffered readings | Someone on the host edits the SQLite buffer before upload | The buffer sits on the host under UID 10001. Readings are unsigned. Host disk encryption and access control are the partner's (runbook) | Partial: sign batches (gap G-E3) |
+| **R**epudiation | Unclear which agent sent what | Each agent has its own token; readings record `edge:<agent name>` as their source; registration and revocation are audited | Done |
+| **I**nformation disclosure of the token | The token file leaks and someone sends readings as the site | Only a hash is stored server-side; the token file is mode 0600 or an environment variable; revoking takes effect immediately | Done; rotation in the runbook |
+| **D**enial of service | The plant network or a broker floods the agent; the API is unreachable | The buffer is bounded and survives restarts; backoff on failure; batches of at most 10,000 readings | Done |
+| **E**levation of privilege | A bug in a protocol library (asyncua, paho, an ODBC driver) is exploited by a malicious server | Libraries are optional extras, imported only when configured; the image runs as non-root; dependencies are scanned (T5.08) | Partial: sandbox the process (G-E2) |
+
+### Tiles API and jobs
+
+| Threat | What could happen | Mitigation | Status |
+|---|---|---|---|
+| **S**poofing a user | Forged or replayed tokens | OIDC tokens are verified (signature through JWKS, issuer, audience, expiry; `auth.py`); in production there is no development identity; PKCE in the browser | Done |
+| **S**poofing an agent | Guessed tokens | 256-bit random tokens (`secrets.token_urlsafe(32)`), stored and looked up only as their SHA-256 hash | Done |
+| **T**ampering across sites | A request on site A reads or writes site B's rows | Every query is scoped by `SiteContext`, and the database enforces it: forced row security, closed when no site is named; readings only through the `site_samples` view and `tiles_store_samples` (T5.04) | Done |
+| **T**ampering with history | Ontology commits or the audit log are rewritten | Commits are append-only; the audit log refuses UPDATE, DELETE and TRUNCATE; design runs refuse UPDATE (trigger); every write endpoint audits itself | Done |
+| **T**ampering by the copilot | Prompt injection through data (a node label, a document) makes the copilot change things | Tools are read-only transactions. The one writing tool opens a change request that another engineer must approve (T4.09); answers are grounding-checked (T4.03) | Done |
+| **R**epudiation | Who changed what | The audit log with actor, request ID and before/after values; JSON logs with request IDs | Done |
+| **I**nformation disclosure of credentials | The database leaks Teams webhooks or SMTP secrets | Teams URLs are sealed with AES-256-GCM data keys kept outside the database (T5.06); secrets are `SecretStr` and come from files or a secrets manager; stored credentials are never shown again | Done |
+| **I**nformation disclosure to the AI provider | Plant data goes to the Anthropic API | Only tool results the copilot asked for, for the user who asked; the copilot is off until it is configured; the data-processing terms are the customer's decision | Partial: per-site opt-in and a data-classification note (G-A4) |
+| **D**enial of service | Floods of requests or huge bodies | Pydantic bounds every list and string; the copilot has per-organisation and per-user rate limits and token budgets (T4.07); sweeps run at most two at a time in the API | Partial: no global rate limit or body-size cap (G-A1) |
+| **E**levation of privilege | A viewer writes, or an engineer acts as an admin | Roles are checked per endpoint (`Editor`, `Admin`); the role is re-read for the copilot's writing tool; the API runs as `tiles_app` with no superuser powers | Done |
+
+### Browser app
+
+| Threat | What could happen | Mitigation | Status |
+|---|---|---|---|
+| **T**ampering / XSS | Data (tags, notes, node labels) runs as script | Every interpolation goes through `esc()` (a lint rule in review, CLAUDE.md); no runtime dependencies | Partial: no Content-Security-Policy from `server.js` (G-B1) |
+| **I**nformation disclosure | Tokens are stolen from storage | Tokens are in sessionStorage, not localStorage, and are refreshed before expiry | Partial: CSP and `frame-ancestors` (G-B1) |
+| **S**poofing / clickjacking | The app is framed by another site | None yet | Gap (G-B1) |
+
+### Database and backups
+
+| Threat | What could happen | Mitigation | Status |
+|---|---|---|---|
+| **I**nformation disclosure at rest | A disk or backup is stolen | Volume and backup encryption with KMS (runbook, T5.06) | Partial: the customer's or our deployment must enable it (T5.09, T5.14) |
+| **T**ampering | Direct access to the database bypasses the API | Network isolation (internal only); the API's role can't skip row security | Partial: least-privilege jobs role (G-D1) |
+| **D**enial of service | The disk fills with readings | Compression after 7 days, retention for 5 years (migration 0004) | Done; monitoring in T5.13 |
+
+## IEC 62443 gap list
+
+### Edge agent as a component (62443-4-2, aiming for SL 2)
+
+| Requirement | Status | Note or action |
+|---|---|---|
+| CR 1.1 / 1.2 Identification and authentication | Done | A per-agent token toward the API; OPC UA client certificate toward servers |
+| CR 1.5 Authenticator management | Partial | Token rotation is documented; there's no expiry (G-E1) |
+| CR 2.1 Authorisation enforcement | Done | Read-only connectors; no inbound interface |
+| CR 3.1 Communication integrity | Done | TLS for the API and MQTT; OPC UA signed and encrypted by default (Basic256Sha256, SignAndEncrypt); an unsecured session only with `allow_unsecured = true` |
+| CR 3.4 Software and information integrity | Partial | Image and zipapp built in CI with an SBOM; no signature on releases (G-E4) |
+| CR 3.9 Protection of audit information | Partial | Logs to stdout or journald; collecting them is the site's |
+| CR 4.1 Information confidentiality | Partial | Buffer and token on the host disk (encrypt the disk: runbook) |
+| CR 7.1 / 7.2 DoS protection, resource management | Done | Bounded buffer, batch limits, backoff |
+| EDR 2.4 Mobile code | Done | None: no plugins and no remote commands |
+| EDR 3.12 / 3.13 Provisioning of trust anchors | Done | Pinned OPC UA server certificates; the site CA for the API |
+| CR 2.12 Non-repudiation | Partial | Source recorded per reading; batches unsigned (G-E3) |
+
+### The system (62443-3-3, SL 2)
+
+| Requirement | Status | Note or action |
+|---|---|---|
+| SR 1.1 / 1.2 Human and software identification | Done | OIDC for people, tokens for agents |
+| SR 1.3 Account management | Partial | Users are made at first sign-in; provisioning and deprovisioning with SCIM is T5.05 |
+| SR 1.7 Password strength | Done | At the identity provider (Entra / Keycloak policy) |
+| SR 1.11 Unsuccessful login attempts | Done | At the identity provider |
+| SR 2.1 Authorisation enforcement | Done | Roles per endpoint and row security per site |
+| SR 2.8 / 2.9 Auditable events, storage | Done | An append-only audit log, JSON request logs; retention is the deployment's (T5.13) |
+| SR 3.1 Communication integrity | Partial | TLS at the edge and the browser; `sslmode=verify-full` to the database when remote (runbook); enforce it in Helm (T5.09) |
+| SR 3.3 Security functionality verification | Partial | Tests for row security, roles and sealing in CI; a penetration test is T6.07 |
+| SR 3.4 Software and information integrity | Partial | Dependency and image scanning with SBOMs (T5.08); signed images (G-S2) |
+| SR 4.1 Information confidentiality | Done | Sealed credentials (T5.06); encryption at rest is deployment configuration (T5.09) |
+| SR 5.1 Network segmentation | Done | The edge agent connects out only; the plant needs no inbound rule (T5.11 documents the firewall) |
+| SR 5.2 Zone boundary protection | Partial | Outbound-only design; an egress allowlist for the API (Anthropic, IdP, SMTP, Teams) to document (G-S3) |
+| SR 6.1 Audit log accessibility | Done | Admins read it in Settings |
+| SR 6.2 Continuous monitoring | Gap | T5.13: OpenTelemetry, alerts for ingest lag and job failures |
+| SR 7.1 / 7.2 DoS protection | Partial | G-A1 |
+| SR 7.3 / 7.4 Backup, recovery | Gap | T5.14: point-in-time recovery and a restore drill |
+| SR 7.6 Network and security configuration settings | Partial | Settings documented; Helm values with secure defaults (T5.09) |
+
+## Actions
+
+| ID | Action | Where |
+|---|---|---|
+| G-A1 | A request body-size cap and a general rate limit per token and IP in front of the API (ingress) and in the app for the agent endpoints | T5.09 (ingress) and a follow-up issue |
+| G-A4 | Per-site opt-in for the copilot, and a note on what it sends to the AI provider | Follow-up before go-live (T5.01) |
+| G-B1 | Security headers from the web server: a Content-Security-Policy without `unsafe-inline` scripts, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy` | Follow-up issue (small) |
+| G-D1 | Jobs connect as their own role, not the migration login | T5.09 |
+| G-E1 | Edge tokens expire (with rotation from the UI) | Follow-up |
+| G-E2 | Run the agent under systemd sandboxing (or a read-only container) with only outbound network | T5.11 |
+| G-E3 | Sign reading batches with a per-agent key, so the API can tell they weren't changed on the host | Later; weigh against SL target |
+| G-E4 / G-S2 | Sign releases and images (Sigstore cosign) and verify them at install | T6.04 |
+| G-S3 | Document and enforce the API's egress allowlist | T5.11 |
+
+Review this document when an ADR changes a trust boundary, before each release (T6.04), and after the penetration test (T6.07).
