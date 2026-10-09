@@ -75,6 +75,9 @@ locals {
       tlsSecret   = var.ingress.tls_secret
       annotations = var.ingress.annotations
     }
+    networkPolicy = {
+      egressAllowlist = var.egress_allowlist
+    }
     monitoring = {
       otlpEndpoint     = var.monitoring.otlp_endpoint
       prometheusRule   = { enabled = var.monitoring.prometheus_rule }

@@ -1,0 +1,80 @@
+# The Tiles edge agent as a sandboxed systemd service (T5.11). See ../README.md and docs/hybrid.md.
+#
+#   sudo useradd --system --home /var/lib/tiles-edge --shell /usr/sbin/nologin tiles-edge
+#   sudo python3 -m venv /opt/tiles-edge && sudo /opt/tiles-edge/bin/pip install "./edge[opcua,mqtt]"
+#   sudo install -m 644 edge/deploy/tiles-edge.service /etc/systemd/system/
+#   sudo install -d -o root -g tiles-edge -m 750 /etc/tiles-edge   # tiles-edge.toml here, and the
+#   sudo install -o tiles-edge -m 600 token /etc/tiles-edge/token  # token readable by the agent alone
+#   sudo systemctl enable --now tiles-edge
+#
+# The agent only connects out: it listens on nothing, needs no privileges, and writes only its
+# buffer. Everything else is read-only or hidden from it. `systemd-analyze security tiles-edge`
+# rates what is left (CI holds it to a threshold).
+
+[Unit]
+Description=Tiles edge agent: reads plant data, sends it out to Tiles
+Documentation=https://github.com/dipeshrohan/tiles/blob/main/docs/hybrid.md
+# Readings carry their time: start once the clock is synchronised.
+Wants=network-online.target time-sync.target
+After=network-online.target time-sync.target
+
+[Service]
+Type=simple
+ExecStart=/opt/tiles-edge/bin/tiles-edge run -c /etc/tiles-edge/tiles-edge.toml
+User=tiles-edge
+Group=tiles-edge
+# The disk buffer, /var/lib/tiles-edge (the config's default buffer_path): the only place it writes.
+StateDirectory=tiles-edge
+StateDirectoryMode=0700
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+# It stops cleanly on SIGTERM, with what it holds in the buffer; restarts after a crash, but not
+# when Tiles rejected it (exit 2: a bad config, 3: an unknown or revoked token), which a restart
+# can't fix.
+Restart=on-failure
+RestartSec=5
+RestartPreventExitStatus=2 3
+TimeoutStopSec=30
+
+# No privileges, ever.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=yes
+
+# The file system: read-only, no home directories, its own /tmp, no devices.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectProc=invisible
+ProcSubset=pid
+RemoveIPC=yes
+KeyringMode=private
+
+# The kernel and the host: hands off.
+PrivateUsers=yes
+ProtectHostname=yes
+ProtectClock=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+SystemCallErrorNumber=EPERM
+
+# The network: IP and local sockets only, and nothing listening.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+SocketBindDeny=any
+# To also limit where it may connect, list the Tiles API (or the proxy) and the servers it reads:
+# IPAddressDeny=any
+# IPAddressAllow=localhost 10.20.0.0/16 203.0.113.10
+
+[Install]
+WantedBy=multi-user.target

@@ -160,6 +160,17 @@ variable "anthropic_api_key" {
   sensitive   = true
 }
 
+variable "egress_allowlist" {
+  description = "Where the API and jobs may connect out to, if your cluster runs Cilium (docs/hybrid.md). Null: unrestricted."
+  type = object({
+    enabled    = optional(bool)
+    hosts      = optional(list(string))
+    namespaces = optional(list(string))
+    cidrs      = optional(list(string))
+  })
+  default = null
+}
+
 variable "monitoring" {
   description = "Your OpenTelemetry Collector, and the alert rules and dashboard."
   type = object({

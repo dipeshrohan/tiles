@@ -226,6 +226,7 @@ Then, on the Signals page, mark each such signal as a downtime (or scrap) event 
 
 ## Install
 
+- **As a systemd service** (recommended on a Linux host): [`deploy/tiles-edge.service`](deploy/tiles-edge.service) runs the agent sandboxed: no privileges, a read-only system, nothing listening. Its comments give the install commands; [hybrid mode](../docs/hybrid.md) explains the firewall rules.
 - **With pip:** `pip install "./edge[opcua,mqtt,postgresql,sqlserver]"` installs the `tiles-edge` command with every connector. Leave out the extras you don't need. The SQL Server driver also needs `libltdl7`, `libkrb5-3` and `libgssapi-krb5-2` (Debian and Ubuntu package names).
 - **As one file** (core only, no connectors): `python -m zipapp edge/src -m tiles_edge.cli:entry -p "/usr/bin/env python3" -o tiles-edge.pyz` builds `tiles-edge.pyz`, which runs with any Python 3.12+: `./tiles-edge.pyz check -c tiles-edge.toml`.
 - **As a container** (with every connector): `docker build -t tiles-edge edge`. The image runs as UID 10001, so make the token file that user's before mounting the config folder: `sudo chown 10001 /etc/tiles-edge/token` (keep mode 600), then
