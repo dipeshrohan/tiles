@@ -50,6 +50,7 @@ def my_membership(ctx: Ctx) -> dict[str, Any]:
 
 @router.get("/sites/{site_id}/members", response_model=list[Member])
 def list_members(ctx: Ctx) -> list[dict[str, Any]]:
+    """The site's members and their roles."""
     return ctx.conn.execute(MEMBERS_SQL + " ORDER BY u.email", [ctx.site_id]).fetchall()
 
 

@@ -310,6 +310,7 @@ def audit_request(
 
 @router.post("/sites/{site_id}/ontology/reviews/{number}/comments", response_model=Review)
 def comment(ctx: Editor, number: int, body: CommentIn) -> dict[str, Any]:
+    """Comment on a change request."""
     text = body.body.strip()
     if not text:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Write a comment first")

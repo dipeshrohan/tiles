@@ -188,6 +188,7 @@ def require_role(minimum: str) -> Any:
             )
         return ctx
 
+    check.minimum_role = minimum  # type: ignore[attr-defined]  # read by the API reference (apidoc.py)
     return check
 
 
@@ -253,6 +254,7 @@ def get_health(ctx: Ctx, view: Literal["head", "working"] = "head") -> o.HealthR
 
 @router.get("/sites/{site_id}/ontology/staged", response_model=list[dict[str, Any]], tags=["ontology"])
 def get_staged(ctx: Ctx) -> list[o.Op]:
+    """Your staged changes to the ontology, not yet committed (each person stages their own)."""
     return store.load_staged(ctx.conn, ctx.site_id, ctx.user)
 
 

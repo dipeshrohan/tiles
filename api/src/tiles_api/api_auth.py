@@ -30,6 +30,8 @@ class Me(BaseModel):
 
 @router.get("/auth/config", response_model=AuthConfig)
 def auth_config(request: Request) -> AuthConfig:
+    """How the browser signs in here: the OpenID Connect issuer and client, and whether requests
+    without a token act as the development user (anywhere but production)."""
     settings: Settings = request.app.state.settings
     return AuthConfig(
         enabled=bool(settings.oidc_issuer),
@@ -41,6 +43,8 @@ def auth_config(request: Request) -> AuthConfig:
 
 @router.get("/me", response_model=Me)
 def me(principal: Annotated[Principal, Depends(authenticate)]) -> Me:
+    """Who the request is from: email, name, organisation, and whether it signed in through the
+    identity provider (`oidc`) or is the development user (`dev`)."""
     return Me(
         email=principal.email,
         name=principal.name,

@@ -30,6 +30,7 @@ tiles-notify = "tiles_api.notify:main"
 tiles-run-sweeps = "tiles_api.sweeps:main"
 tiles-rotate-keys = "tiles_api.sealed:main"
 tiles-loadtest = "tiles_api.loadtest:main"
+tiles-apidoc = "tiles_api.apidoc:main"
 
 [dependency-groups]
 dev = [
