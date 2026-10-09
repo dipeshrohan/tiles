@@ -212,7 +212,7 @@ def test_cache_breakpoints_without_tools_or_messages() -> None:
     assert (tools, messages) == ([], [])
 
 
-def test_billed_tokens_count_cache_reads_a_tenth() -> None:
+def test_billed_tokens_follow_the_price() -> None:
     assert assistant.billed({}) == 0
     usage = {
         "input_tokens": 100,
@@ -220,7 +220,8 @@ def test_billed_tokens_count_cache_reads_a_tenth() -> None:
         "cache_creation_input_tokens": 1000,
         "cache_read_input_tokens": 5009,
     }
-    assert assistant.billed(usage) == 100 + 20 + 1000 + 500
+    # Output five times input, cache writes 1.25 times, cache reads a tenth; rounded down.
+    assert assistant.billed(usage) == 100 + 5 * 20 + 1250 + 500
 
 
 def test_a_question_stops_at_its_token_budget() -> None:
@@ -239,6 +240,24 @@ def test_a_question_stops_at_its_token_budget() -> None:
     model = Scripted(*rounds, ([], Turn([text(grounding.DECLINE + ".")], "end_turn")))
     list(assistant.respond(model, "s", [{"role": "user", "content": [text("Go")]}], TOOLS))
     assert len(model.calls) == 4
+
+
+def test_a_question_stops_when_told_to_between_calls() -> None:
+    # The organisation's daily budget, found spent while the question runs.
+    asked: list[int] = []
+    reasons = iter([None, "Spent for today"])
+
+    def stop() -> str | None:
+        asked.append(1)
+        return next(reasons)
+
+    rounds: list[tuple[list[str], Turn]] = [([], Turn([call("echo", {}, f"t{i}")], "tool_use")) for i in range(3)]
+    model = Scripted(*rounds)
+    events = list(assistant.respond(model, "s", [{"role": "user", "content": [text("Go")]}], TOOLS, stop=stop))
+    assert len(model.calls) == 2  # not asked before the first call; the third is never made
+    assert len(asked) == 2
+    assert events[-1].kind == "error"
+    assert events[-1].data["detail"] == "Spent for today" and events[-1].data["over_budget"] is True
 
 
 def test_empty_answers_and_unrun_tool_calls_are_not_kept() -> None:

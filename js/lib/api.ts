@@ -468,14 +468,15 @@ export interface CopilotMessage {
 }
 
 // The copilot's usage on a site (T4.07): per UTC day (latest first) and per user, with the limits
-// and how much of today's organisation budget is used. Tokens are billed tokens (cache reads count
-// a tenth) unless named otherwise; times are milliseconds from the question.
+// and how much of today's organisation budget is used. Tokens are billed tokens (weighted by price,
+// in input tokens) unless named otherwise; times are milliseconds from the question.
 export interface CopilotUsageDay {
   day: string;
   questions: number;
   answered: number;
   failed: number;
   over_budget: number;
+  ungrounded: number; // answered, but the grounding check found what no result supports
   model_calls: number;
   input_tokens: number;
   output_tokens: number;

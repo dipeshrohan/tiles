@@ -94,6 +94,7 @@ class UsageDay(BaseModel):
     answered: int
     failed: int
     over_budget: int
+    ungrounded: int  # answered, but the grounding check found what no result supports
     model_calls: int
     input_tokens: int
     output_tokens: int
@@ -318,9 +319,9 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
         return round((time.monotonic() - started) * 1000)
 
     def stream() -> Iterator[str]:
-        usage: dict[str, int] = {}  # every call's, so a broken-off answer is counted too
-        outcome = "failed"  # unless it ends with an answer, or over its budget
-        first_text = True
+        # Every call's tokens, so a broken-off answer is counted too; saved with each stored message.
+        tally = copilot_usage.Tally(usage_id, org_id)
+        over_daily: list[str] = []  # why the organisation may not go on today, found after a message
         try:
             events = assistant.respond(
                 model,
@@ -329,24 +330,20 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                 assistant_tools,
                 settings.copilot_max_rounds,
                 settings.copilot_question_tokens,
+                stop=lambda: over_daily[0] if over_daily else None,
             )
             for event in events:
                 if event.kind == "usage":
-                    for k, v in event.data.items():
-                        usage[k] = usage.get(k, 0) + v
-                    with pool.connection() as conn:
-                        copilot_usage.record_call(conn, usage_id, event.data, assistant.billed(event.data))
+                    tally.add_call(event.data, assistant.billed(event.data))
                     continue
-                if event.kind == "text" and first_text:
-                    first_text = False
-                    with pool.connection() as conn:
-                        copilot_usage.record_first_text(conn, usage_id, ms())
+                if event.kind == "text" and tally.first_text_ms is None:
+                    tally.first_text_ms = ms()  # the user sees text (a draft withdrawn later, too)
                 elif event.kind == "done":
-                    outcome = "answered"
+                    tally.outcome, tally.grounded = "answered", bool(event.data.get("grounded"))
                 elif event.kind == "error" and event.data.get("over_budget"):
-                    outcome = "over_budget"
+                    tally.outcome = "over_budget"
                 if event.kind == "message":
-                    with pool.connection() as conn:  # stored, and the answer's lease renewed
+                    with pool.connection() as conn:  # stored, the answer's lease renewed, its usage so far
                         conn.execute(
                             STORE,
                             {
@@ -357,12 +354,18 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                             },
                         )
                         conn.execute("UPDATE conversations SET busy_since = now() WHERE id = %s", [conversation_id])
+                        copilot_usage.save(conn, tally)
+                        if reason := copilot_usage.over_daily(conn, settings, org_id):
+                            over_daily[:] = [reason]
                     continue
                 yield _event(event.kind, event.data)
         except Exception:
             log.exception("copilot answer failed", extra={"conversation": str(conversation_id)})
             yield _event("error", {"detail": "The copilot could not answer: try again in a moment"})
         finally:
+            if tally.outcome == "running":  # it ended without an answer
+                tally.outcome = "failed"
+            t = tally.tokens
             with pool.connection() as conn:
                 conn.execute(
                     """
@@ -370,9 +373,16 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                            input_tokens = input_tokens + %s, output_tokens = output_tokens + %s
                     WHERE id = %s
                     """,
-                    [usage.get("input_tokens", 0), usage.get("output_tokens", 0), conversation_id],
+                    [
+                        # The whole prompt: cached or not, the model read it.
+                        t.get("input_tokens", 0)
+                        + t.get("cache_creation_input_tokens", 0)
+                        + t.get("cache_read_input_tokens", 0),
+                        t.get("output_tokens", 0),
+                        conversation_id,
+                    ],
                 )
-                copilot_usage.finish(conn, usage_id, outcome, ms())
+                copilot_usage.save(conn, tally, ms())
 
     assistant_tools = tools_for(open_ctx)
     return StreamingResponse(

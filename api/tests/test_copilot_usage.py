@@ -66,11 +66,15 @@ def test_each_question_records_its_tokens_times_and_outcome(
     assert row["model_calls"] == 2
     assert (row["input_tokens"], row["output_tokens"]) == (1050, 30)
     assert (row["cache_write_tokens"], row["cache_read_tokens"]) == (3000, 4000)
-    assert row["billed_tokens"] == 1050 + 30 + 3000 + 400
+    assert row["billed_tokens"] == 1050 + 5 * 30 + 3750 + 400
+    assert row["grounded"] is True  # a decline is grounded
     assert str(row["conversation_id"]) == conversation
     assert row["first_text_ms"] is not None and row["total_ms"] is not None
     assert 0 <= row["first_text_ms"] <= row["total_ms"]
     assert row["finished_at"] is not None
+    # The conversation counts the whole prompt the model read, cached or not.
+    detail = api.get(f"/sites/{site}/copilot/conversations/{conversation}", headers=ENG).json()
+    assert (detail["input_tokens"], detail["output_tokens"]) == (1050 + 3000 + 4000, 30)
 
 
 def test_a_question_over_its_budget_stops_and_says_so(
@@ -98,6 +102,7 @@ def test_rate_limits_per_user_and_per_organisation(
     site: str,  # noqa: F811
     model: Scripted,
     settings: Any,
+    database_url: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "copilot_user_questions_per_minute", 2)
@@ -120,6 +125,16 @@ def test_rate_limits_per_user_and_per_organisation(
     res = ask(api, site, theirs, "Again?", who=VIEWER)
     assert res.status_code == 429
     assert res.json()["detail"] == "Your organisation has asked 3 questions in the last minute: wait a moment"
+    # A limit lowered below what was asked: the wait is until enough questions age out.
+    monkeypatch.setattr(settings, "copilot_org_questions_per_minute", 2)
+    with psycopg.connect(database_url) as conn:  # asked 50, 40 and 30 seconds ago
+        conn.execute(
+            "UPDATE copilot_usage SET asked_at = now() - interval '1 second' * "
+            "(50 - 10 * (id - (SELECT min(id) FROM copilot_usage)))"
+        )
+    res = ask(api, site, theirs, "Again?", who=VIEWER)
+    assert res.status_code == 429
+    assert 19 <= int(res.headers["Retry-After"]) <= 21  # room for a second when the one of 40 seconds ages out
     # 0 turns a limit off.
     monkeypatch.setattr(settings, "copilot_user_questions_per_minute", 0)
     monkeypatch.setattr(settings, "copilot_org_questions_per_minute", 0)
@@ -143,11 +158,37 @@ def test_the_organisations_daily_budget(
     assert res.status_code == 429
     assert res.json()["detail"] == "Your organisation has used its copilot budget of 5,000 tokens for today (UTC)"
     assert 1 <= int(res.headers["Retry-After"]) <= 86_400
+    # A deleted user's questions were still spent.
+    with psycopg.connect(database_url) as conn:
+        conn.execute("DELETE FROM users WHERE email = 'eng@example.com'")
+    assert ask(api, site, start(api, site, VIEWER), "Mine?", who=VIEWER).status_code == 429
+    [row] = rows(database_url)
+    assert (row["user_id"], row["billed_tokens"]) == (None, 5000)
     # Yesterday's questions don't count against today.
     with psycopg.connect(database_url) as conn:
         conn.execute("UPDATE copilot_usage SET asked_at = asked_at - interval '1 day'")
     declines(model, 1)
-    assert ask(api, site, conversation, "Two").status_code == 200
+    assert ask(api, site, start(api, site, VIEWER), "Two", who=VIEWER).status_code == 200
+
+
+def test_the_daily_budget_stops_questions_already_running(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    model: Scripted,
+    settings: Any,
+    database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Taken while there was room; the organisation's budget runs out while it is answered.
+    monkeypatch.setattr(settings, "copilot_org_daily_tokens", 5000)
+    model.script += [
+        ([], Turn([call("site_overview", {}, f"t{i}")], "tool_use", {"input_tokens": 3000})) for i in range(3)
+    ]
+    res = ask(api, site, start(api, site), "Everything, please")
+    assert "budget of 5,000 tokens for today" in res.text
+    assert len(model.script) == 1  # stopped after the call that spent it
+    [row] = rows(database_url)
+    assert (row["outcome"], row["model_calls"], row["billed_tokens"]) == ("over_budget", 2, 6000)
 
 
 def test_admins_read_the_sites_usage(
@@ -168,12 +209,13 @@ def test_admins_read_the_sites_usage(
     usage = api.get(f"/sites/{site}/copilot/usage", headers=ADMIN).json()
     today, earlier = usage["days"]
     assert (today["questions"], today["answered"], today["failed"]) == (1, 0, 1)
-    assert (earlier["questions"], earlier["answered"], earlier["billed_tokens"]) == (2, 2, 2 * 210)
+    assert (earlier["questions"], earlier["answered"], earlier["billed_tokens"]) == (2, 2, 2 * 250)
+    assert (earlier["ungrounded"], today["ungrounded"]) == (0, 0)
     assert earlier["cache_read_tokens"] == 2000
     assert earlier["first_text_p50_ms"] is not None and earlier["total_p95_ms"] is not None
     assert sorted((u["email"], u["questions"], u["billed_tokens"]) for u in usage["users"]) == [
-        ("eng@example.com", 2, 210),  # one answered, one failed before any tokens
-        ("viewer@example.com", 1, 210),
+        ("eng@example.com", 2, 250),  # one answered, one failed before any tokens
+        ("viewer@example.com", 1, 250),
     ]
     assert usage["today"] == {"org_billed_tokens": 0, "site_billed_tokens": 0}
     assert usage["limits"]["org_daily_tokens"] == 5_000_000

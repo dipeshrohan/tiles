@@ -356,23 +356,23 @@ Limits on each question:
 
 The prompt is cached. Each model call marks three cache breakpoints: after the tools, after the system prompt, and after the last message. Every call of a question, and the next question in the conversation, starts with what the last call sent, so it reads that from the cache and writes only what is new.
 
-Tokens are counted as billed, in input tokens: input tokens, cache writes and output count in full, and cache reads count a tenth (`assistant.billed`). Budgets and the dashboard both use this count, so caching isn't held against anyone.
+Tokens are weighted by price, in input tokens (`assistant.billed`): an output token counts five, a cache write one and a quarter, and a cache read a tenth. Budgets and the dashboard both use this count, so a budget follows the cost and caching isn't held against anyone.
 
 Each question is a row in `copilot_usage` (migration 0019) from the moment it is taken. The row records:
 - the tokens of each model call (input, output, cache writes and cache reads);
 - the time to the first text and to the end;
-- how it ended: answered, failed, or over its budget.
+- how it ended (answered, failed, or over its budget), and whether the answer was grounded.
 
-The row is updated after every model call, so questions still being answered count against the limits. The limits are:
+The row is updated with every message the question stores, so questions still being answered count against the limits. A deleted user's rows stay, without the user: the tokens were spent. The limits are:
 - **Rate:** an organisation may ask `TILES_COPILOT_ORG_QUESTIONS_PER_MINUTE` questions a minute, and each person `TILES_COPILOT_USER_QUESTIONS_PER_MINUTE`.
 - **Daily budget:** an organisation's questions may use `TILES_COPILOT_ORG_DAILY_TOKENS` billed tokens per UTC day.
 
 A question over either limit is refused with 429 and `Retry-After`, before anything is stored. Questions from one organisation are admitted one at a time (an advisory lock), so two at once can't both take the last place.
 
-A question that reaches `TILES_COPILOT_QUESTION_TOKENS` stops calling the model and ends with an `error` event that carries `"over_budget": true`.
+A question stops calling the model when it reaches `TILES_COPILOT_QUESTION_TOKENS`, or when the organisation's daily budget runs out while it is answered. It ends with an `error` event that carries `"over_budget": true`. Both are checked before each model call, so the last call may go past them: one call is bounded by the conversation's length limit and `TILES_COPILOT_MAX_TOKENS`.
 
 Admins read the site's usage on the Settings page (`GET /copilot/usage`). For each UTC day it shows:
-- questions and how they ended;
+- questions and how they ended, and answers the grounding check flagged;
 - tokens, and the share of input read from the cache;
 - the median and 95th percentile of the time to the first text and to the whole answer.
 
@@ -405,7 +405,7 @@ A tool that can't answer says why in words the model can act on: the close signa
 | `DELETE /copilot/conversations/{id}` | its user | removes it |
 | `PUT /copilot/conversations/{id}/messages/{seq}/feedback` | its user | `{"rating": "up" \| "down", "comment"?}` on one of your answers (T4.04) |
 | `DELETE /copilot/conversations/{id}/messages/{seq}/feedback` | its user | takes it back |
-| `GET /copilot/usage?days` | admins | the site's usage over the last `days` (1–90, default 30) UTC days: `days` (latest first: questions, answered, failed, over budget, model calls, tokens by kind and billed, time to first text and to the end at the median and 95th percentile), `users` (questions and billed tokens), `today` (billed tokens of the organisation and of the site) and `limits` (T4.07) |
+| `GET /copilot/usage?days` | admins | the site's usage over the last `days` (1–90, default 30) UTC days: `days` (latest first: questions, answered, failed, over budget, ungrounded, model calls, tokens by kind and billed, time to first text and to the end at the median and 95th percentile), `users` (questions and billed tokens), `today` (billed tokens of the organisation and of the site) and `limits` (T4.07) |
 | `GET /copilot/feedback?rating&limit` | admins | the site's rated answers, newest first, each with its question, answer, whether it was grounded, the rating and comment, and who gave it: to improve the copilot and grow its evaluation set (T4.05) |
 | `POST /copilot/conversations/{id}/messages` | its user | `{"text"}` asks; the answer streams back (`text/event-stream`); 503 while the copilot is off, 409 while it is still answering |
 

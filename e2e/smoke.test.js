@@ -2363,6 +2363,7 @@ test('copilot usage: admins see questions, tokens, the cache and times; a refuse
     answered: 10,
     failed: 1,
     over_budget: 1,
+    ungrounded: 2,
     model_calls: 30,
     input_tokens: 20000,
     output_tokens: 4000,
@@ -2394,7 +2395,7 @@ test('copilot usage: admins see questions, tokens, the cache and times; a refuse
   assert.match(totals, /Tokens\s+138k/);
   assert.match(totals, /From cache\s+75%/);
   const row = await a.page.locator('#copilot-usage tbody tr').first().innerText();
-  assert.match(row, /2026-10-09\s+12\s+10\s+1\s+1\s+69k\s+75%\s+850 ms · 2\.4 s\s+5\.2 s · 14 s/);
+  assert.match(row, /2026-10-09\s+12\s+10\s+1\s+1\s+2\s+69k\s+75%\s+850 ms · 2\.4 s\s+5\.2 s · 14 s/);
   assert.match(await a.page.locator('#copilot-usage').innerText(), /Eng eng@example\.com\s+15\s+138k/);
   assert.match(await a.page.locator('#copilot-usage').innerText(), /6 questions a minute per person/);
 

@@ -110,7 +110,7 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
 function copilotUsageCard(): string {
   return `<div class="card stack" id="copilot-usage" style="gap:12px;grid-column:1 / -1">
       <h2>Copilot usage</h2>
-      <p class="small soft">Questions asked on this site over the last 30 days (UTC), the tokens they used and how long answers took. Tokens are as billed: reads from the prompt cache count a tenth. Only site admins see this.</p>
+      <p class="small soft">Questions asked on this site over the last 30 days (UTC), the tokens they used and how long answers took. Tokens are weighted by price, in input tokens: an output token counts five, a prompt-cache write one and a quarter, a cache read a tenth. Only site admins see this.</p>
       <div data-copilot-usage aria-live="polite"><p class="small soft">Loading…</p></div>
     </div>`;
 }
@@ -125,10 +125,10 @@ function usageHtml(u: CopilotUsage): string {
       ? `Today the organisation has used ${esc(tokens(b.used))} tokens (no daily limit).`
       : `Today the organisation has used ${esc(tokens(b.used))} of its ${esc(tokens(b.limit))} tokens (${esc(percent(b.share))}); this site ${esc(tokens(u.today.site_billed_tokens))}.`;
   const days = u.days.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Day</th><th>Questions</th><th>Answered</th><th>Failed</th><th>Over budget</th><th>Tokens</th><th>From cache</th><th>First text (median · 95%)</th><th>Whole answer (median · 95%)</th></tr></thead><tbody>${u.days
+    ? `<div class="table-wrap"><table><thead><tr><th>Day</th><th>Questions</th><th>Answered</th><th>Failed</th><th>Over budget</th><th>Ungrounded</th><th>Tokens</th><th>From cache</th><th>First text (median · 95%)</th><th>Whole answer (median · 95%)</th></tr></thead><tbody>${u.days
         .map(
           (d) =>
-            `<tr><td>${esc(d.day)}</td><td>${fmt(d.questions)}</td><td>${fmt(d.answered)}</td><td>${fmt(d.failed)}</td><td>${fmt(d.over_budget)}</td><td>${esc(tokens(d.billed_tokens))}</td><td>${esc(percent(cacheShare(d)))}</td><td>${esc(duration(d.first_text_p50_ms))} · ${esc(duration(d.first_text_p95_ms))}</td><td>${esc(duration(d.total_p50_ms))} · ${esc(duration(d.total_p95_ms))}</td></tr>`,
+            `<tr><td>${esc(d.day)}</td><td>${fmt(d.questions)}</td><td>${fmt(d.answered)}</td><td>${fmt(d.failed)}</td><td>${fmt(d.over_budget)}</td><td>${fmt(d.ungrounded)}</td><td>${esc(tokens(d.billed_tokens))}</td><td>${esc(percent(cacheShare(d)))}</td><td>${esc(duration(d.first_text_p50_ms))} · ${esc(duration(d.first_text_p95_ms))}</td><td>${esc(duration(d.total_p50_ms))} · ${esc(duration(d.total_p95_ms))}</td></tr>`,
         )
         .join('')}</tbody></table></div>`
     : '<p class="small soft">No questions in the last 30 days.</p>';

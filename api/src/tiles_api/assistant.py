@@ -84,15 +84,15 @@ class Event:
 
 
 def billed(usage: dict[str, int]) -> int:
-    """Tokens as they are billed, in input tokens: input, cache writes and output in full, cache
-    reads a tenth. Budgets and the usage dashboard count these, so caching is not counted against
-    anyone. (Output is dearer per token, but the per-call max_tokens bounds it.)"""
+    """Tokens weighted as Anthropic prices them, in input tokens: an output token costs five, a cache
+    write one and a quarter, a cache read a tenth. Budgets and the usage dashboard count these, so a
+    budget follows the cost, and caching is not counted against anyone."""
     return (
-        usage.get("input_tokens", 0)
-        + usage.get("cache_creation_input_tokens", 0)
-        + usage.get("output_tokens", 0)
-        + usage.get("cache_read_input_tokens", 0) // 10
-    )
+        20 * usage.get("input_tokens", 0)
+        + 25 * usage.get("cache_creation_input_tokens", 0)
+        + 100 * usage.get("output_tokens", 0)
+        + 2 * usage.get("cache_read_input_tokens", 0)
+    ) // 20
 
 
 def _blocks(content: Any, run_tools: bool) -> list[dict[str, Any]]:
@@ -160,10 +160,13 @@ def respond(
     tools: Sequence[Tool],
     max_rounds: int = 8,
     budget: int = 0,
+    stop: Callable[[], str | None] | None = None,
 ) -> Iterator[Event]:
     """Streams the answer to the conversation `history` (ending with the user's question).
     `message` events carry each new message to store, in order; `done` (or `error`) comes last.
-    Once the question has used `budget` billed tokens (0: no limit), the model is not called again."""
+    The model is not called again once the question has used `budget` billed tokens (0: no limit),
+    or when `stop` gives a reason (asked before every call but the first); both are checked before
+    a call, so the last call may go past them. Either ends with an `error` that has over_budget."""
     messages = [dict(m) for m in history]
     by_name = {t.name: t for t in tools}
     specs = [t.spec() for t in tools]
@@ -176,16 +179,13 @@ def respond(
     calls_left = max_rounds + 1  # one more for a withdrawn answer's second try
     while calls_left > (0 if repaired_once else 1):
         calls_left -= 1
-        if budget and billed(usage) >= budget:
-            yield Event(
-                "error",
-                {
-                    "detail": f"This question used its budget of {budget:,} tokens before an answer: "
-                    "ask a narrower one",
-                    "usage": usage,
-                    "over_budget": True,
-                },
-            )
+        reason = (
+            f"This question used its budget of {budget:,} tokens before an answer: ask a narrower one"
+            if budget and billed(usage) >= budget
+            else (stop() if stop and calls_left < max_rounds else None)
+        )
+        if reason:
+            yield Event("error", {"detail": reason, "usage": usage, "over_budget": True})
             return
         turn: Turn | None = None
         for item in model.stream(system=system, messages=messages, tools=specs):

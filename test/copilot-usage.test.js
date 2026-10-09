@@ -9,6 +9,7 @@ const day = (over = {}) => ({
   answered: 3,
   failed: 1,
   over_budget: 0,
+  ungrounded: 1,
   model_calls: 9,
   input_tokens: 1000,
   output_tokens: 200,
