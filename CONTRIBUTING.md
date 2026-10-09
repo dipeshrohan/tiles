@@ -40,6 +40,27 @@ Behind a TLS-intercepting proxy (some corporate networks and sandboxes), the ima
 
 CI runs lint and typecheck, unit tests on Node 22 and 24, the browser tests, the API and edge agent checks (ruff, strict mypy, pytest; the API's against a TimescaleDB service) and a full `docker compose up` smoke test, which also registers an edge agent and runs its container against the API, on every pull request. All must pass before merging.
 
+### Security scanning (T5.08)
+
+The CI's **Dependency and container scanning** job fails a pull request in three cases:
+- `npm audit` finds a high or critical advisory in the npm dependencies;
+- `pip-audit` finds any known vulnerability in the API's or the edge agent's locked dependencies;
+- Trivy finds a high or critical vulnerability that has a fix in the API or edge agent image.
+
+The job also writes software bills of materials in CycloneDX: the source tree and both images, as the `sbom` artifact of each run. Dependabot opens weekly update pull requests for npm, both `uv` projects, the images' base and the GitHub Actions (`.github/dependabot.yml`).
+
+To run the same checks locally (as CI runs them):
+
+```
+npm audit --audit-level=high
+for p in api edge; do (cd $p && uv export --locked --all-extras --no-dev --no-hashes --no-emit-project --format requirements-txt > /tmp/$p.txt) && uvx pip-audit==2.10.1 --strict --no-deps --disable-pip -r /tmp/$p.txt; done
+docker build --pull --no-cache -t tiles-api:scan api && docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.56.2 image --db-repository mirror.gcr.io/aquasec/trivy-db:2 --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed tiles-api:scan
+```
+
+Only what ships is audited: the development tools (pytest, mypy, ruff) aren't in the images. The images install the base's security updates, which needs the Debian mirrors as well as PyPI and Docker Hub. A cached build keeps old packages, so rebuild with `--pull --no-cache` now and then. Dependabot doesn't bump the pinned scanners (`aquasec/trivy`, `pip-audit`) or uv; bump them by hand when updating CI.
+
+A finding without a fix yet doesn't fail the build. For one that can't be fixed in time, an exception goes in a `.trivyignore` with the reason and an expiry date, reviewed like any change.
+
 ## Conventions
 
 - **Logic in `js/lib`, rendering in `js/views`, all strict TypeScript.** Library modules are pure and unit-tested; views turn state into HTML and wire up events with the helpers in `js/lib/dom.ts`. Domain types live in `js/lib/types.ts`, app and view types in `js/views/types.ts`.

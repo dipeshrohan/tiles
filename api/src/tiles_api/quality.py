@@ -324,7 +324,9 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--hours must be above 0 and at most 720")
     failed = False
     # Autocommit, so each site's checks are their own transaction: one site failing keeps the others'.
-    with psycopg.connect(get_settings().database_url, row_factory=dict_row, autocommit=True, options=UNSCOPED) as conn:
+    with psycopg.connect(
+        get_settings().database_url.get_secret_value(), row_factory=dict_row, autocommit=True, options=UNSCOPED
+    ) as conn:
         sites = [args.site] if args.site else [r["id"] for r in conn.execute("SELECT id FROM sites ORDER BY slug")]
         for site in sites:
             try:

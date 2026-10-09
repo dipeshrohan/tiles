@@ -97,6 +97,8 @@ services:
       # The copilot (T4.01) stays off unless both are set in your shell or the root .env file.
       TILES_ANTHROPIC_API_KEY: ${TILES_ANTHROPIC_API_KEY:-}
       TILES_COPILOT_MODEL: ${TILES_COPILOT_MODEL:-}
+      # Seals credentials stored in the database (T5.06); unset, they are stored as they are.
+      TILES_DATA_KEYS: ${TILES_DATA_KEYS:-}
     ports:
       - '127.0.0.1:8000:8000'
     depends_on:

@@ -12,11 +12,14 @@ from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 
 from tiles_api import ontology as o
+from tiles_api import sealed
 from tiles_api.main import create_app
 from tiles_api.ontology_store import load_head
 from tiles_api.seed import seed
 from tiles_api.settings import Settings
 from tiles_api.store import Conn
+
+PRODUCTION_KEYS = sealed.new_key("test")  # production needs data keys (T5.06)
 
 FIXTURES = Path(__file__).resolve().parents[2] / "test" / "fixtures" / "ontology-parity.json"
 CASES: list[dict[str, Any]] = json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"]
@@ -49,7 +52,7 @@ def api(settings: Settings) -> Iterator[TestClient]:
 @pytest.fixture
 def site(settings: Settings) -> str:
     """The demo site, with an empty ontology and no users."""
-    with psycopg.connect(settings.database_url) as conn:
+    with psycopg.connect(settings.database_url.get_secret_value()) as conn:
         conn.execute("TRUNCATE ontology_nodes, ontology_edges, commits, staged_ops, site_members, users CASCADE")
     return seed(settings)
 
@@ -156,7 +159,9 @@ def test_errors(api: TestClient, site: str) -> None:
 
 
 def test_production_refuses_requests_until_sign_in_exists(database_url: str, site: str) -> None:
-    with TestClient(create_app(Settings(_env_file=None, env="production", database_url=database_url))) as prod:
+    with TestClient(
+        create_app(Settings(_env_file=None, env="production", data_keys=PRODUCTION_KEYS, database_url=database_url))
+    ) as prod:
         assert prod.get(url(site, "graph")).status_code == 401
         assert prod.get("/sites").status_code == 401
 
@@ -202,7 +207,7 @@ def test_api_matches_the_shared_fixtures(api: TestClient, site: str, case: dict[
 
 def test_dev_users_become_engineers_on_the_site_they_open(api: TestClient, settings: Settings, site: str) -> None:
     api.get(url(site, "graph"), headers=ALICE)
-    with psycopg.connect(settings.database_url) as conn:
+    with psycopg.connect(settings.database_url.get_secret_value()) as conn:
         rows = conn.execute(
             "SELECT u.email, m.role FROM site_members m JOIN users u ON u.id = m.user_id WHERE m.site_id = %s",
             [site],
@@ -227,7 +232,7 @@ def test_health_scores_head_or_working_graph(api: TestClient, settings: Settings
     assert working["score"] == 67  # 1 orphan among 3 nodes
 
     # Edges stored without their nodes (e.g. by a future bulk import) are reported, not hidden.
-    with psycopg.connect(settings.database_url) as conn:
+    with psycopg.connect(settings.database_url.get_secret_value()) as conn:
         conn.execute(
             "INSERT INTO ontology_edges (site_id, id, from_id, rel, to_id) VALUES (%s, 'e9', 'a', 'feeds', 'ghost')",
             [site],
@@ -261,7 +266,7 @@ def test_head_graph_is_read_in_one_statement(settings: Settings, site: str) -> N
             self.queries.append(str(query))
             return self.conn.execute(query, params)
 
-    with psycopg.connect(settings.database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(settings.database_url.get_secret_value(), row_factory=dict_row) as conn:
         conn.execute(
             "INSERT INTO ontology_nodes (site_id, id, type, label)"
             " VALUES (%s, 'a', 'Line', 'A'), (%s, 'b', 'Line', 'B')",

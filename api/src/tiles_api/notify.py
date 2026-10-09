@@ -35,6 +35,7 @@ from urllib.parse import urlsplit
 import psycopg
 from psycopg.rows import dict_row
 
+from tiles_api import sealed
 from tiles_api.settings import Settings, get_settings
 from tiles_api.store import UNSCOPED, Conn, one
 
@@ -194,7 +195,7 @@ class LiveSender:
             if s.smtp_starttls:
                 smtp.starttls(context=ssl.create_default_context())
             if s.smtp_user:
-                smtp.login(s.smtp_user, s.smtp_password or "")
+                smtp.login(s.smtp_user, s.smtp_password.get_secret_value() if s.smtp_password else "")
             smtp.send_message(mail)
         finally:
             # Sent is sent: a server that hangs up on QUIT must not make it count as failed (and resent).
@@ -233,7 +234,8 @@ _no_redirects = urllib.request.build_opener(_NoRedirect)
 
 
 DUE = """
-SELECT n.id, n.kind, n.channel, n.attempts, u.email, s.teams_webhook_url, s.teams_on_raised, st.name AS site_name,
+SELECT n.id, n.site_id, n.kind, n.channel, n.attempts, u.email, s.teams_webhook_url, s.teams_on_raised,
+       st.name AS site_name,
        w.started_at, w.ended_at, w.peak, w.baseline, w.threshold, w.side, g.tag AS signal_tag,
        d.name AS detector, actor.name AS assigner, a.note
 FROM notifications n
@@ -261,7 +263,7 @@ class Sent:
     given_up: int = 0
 
 
-def send_due(conn: Conn, sender: Sender, app_url: str, limit: int = 200) -> Sent:
+def send_due(conn: Conn, sender: Sender, app_url: str, limit: int = 200, keys: sealed.DataKeys | None = None) -> Sent:
     """Sends the due notifications, oldest first, each in its own transaction (`conn` in
     autocommit mode), so one failing keeps the others sent."""
     result = Sent()
@@ -286,7 +288,15 @@ def send_due(conn: Conn, sender: Sender, app_url: str, limit: int = 200) -> Sent
                 elif not n["teams_on_raised"]:
                     raise GiveUp("Posting new warnings to the site's Teams channel was turned off")
                 else:
-                    sender.teams(n["teams_webhook_url"], teams_card(message))
+                    url = sealed.unseal(keys, n["teams_webhook_url"], sealed.teams_context(n["site_id"]))
+                    sender.teams(url, teams_card(message))
+            except sealed.SealError as e:  # a data key missing here: held, not counted, until it is set
+                conn.execute(
+                    "UPDATE notifications SET last_error = %s, next_at = now() + interval '5 minutes' WHERE id = %s",
+                    [str(e)[:500], n["id"]],
+                )
+                result.failed += 1
+                continue
             except Exception as e:  # anything the server or network says: kept, and retried
                 attempts = n["attempts"] + 1
                 give_up = attempts >= MAX_ATTEMPTS or isinstance(e, GiveUp)
@@ -316,8 +326,10 @@ def main(argv: list[str] | None = None, sender: Callable[[Settings], Sender] = L
     parser = argparse.ArgumentParser(prog="tiles-notify", description=main.__doc__)
     parser.parse_args(argv)
     settings = get_settings()
-    with psycopg.connect(settings.database_url, row_factory=dict_row, autocommit=True, options=UNSCOPED) as conn:
-        r = send_due(conn, sender(settings), settings.app_url)
+    with psycopg.connect(
+        settings.database_url.get_secret_value(), row_factory=dict_row, autocommit=True, options=UNSCOPED
+    ) as conn:
+        r = send_due(conn, sender(settings), settings.app_url, keys=sealed.keys_of(settings))
     print(f"{r.sent} sent, {r.failed} to retry, {r.given_up} given up")
     if r.failed or r.given_up:
         print("See GET /sites/{id}/notifications for why.", file=sys.stderr)

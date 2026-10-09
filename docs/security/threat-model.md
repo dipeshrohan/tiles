@@ -38,7 +38,7 @@ The trust boundaries, from the inside out:
 | **T**ampering with the machines | The agent writes to a PLC or database | Connectors are read-only by design: OPC UA reads and subscriptions, MQTT subscribe, and SQL queries in a transaction that is always rolled back (`sql.py`). The agent opens no listening port | Done |
 | **T**ampering with buffered readings | Someone on the host edits the SQLite buffer before upload | The buffer sits on the host under UID 10001. Readings are unsigned. Host disk encryption and access control are the partner's (runbook) | Partial: sign batches (gap G-E3) |
 | **R**epudiation | Unclear which agent sent what | Each agent has its own token; readings record `edge:<agent name>` as their source; registration and revocation are audited | Done |
-| **I**nformation disclosure of the token | The token file leaks and someone sends readings as the site | Only a hash is stored server-side; the token file is mode 0600 or an environment variable; revoking takes effect immediately | Done; rotation in the runbook |
+| **I**nformation disclosure of the token | The token file leaks and someone sends readings as the site | Only a hash is stored server-side; the token comes from a file or an environment variable, and the agent warns when the file can be read by other users (it asks for mode 0600); revoking takes effect immediately; rotation is in [the runbook](../runbooks/secrets-and-encryption.md) | Done |
 | **D**enial of service | The plant network or a broker floods the agent; the API is unreachable | The buffer is bounded and survives restarts; backoff on failure; batches of at most 10,000 readings | Done |
 | **E**levation of privilege | A bug in a protocol library (asyncua, paho, an ODBC driver) is exploited by a malicious server | Libraries are optional extras, imported only when configured; the image runs as non-root; dependencies are scanned (T5.08) | Partial: sandbox the process (G-E2) |
 
@@ -46,7 +46,7 @@ The trust boundaries, from the inside out:
 
 | Threat | What could happen | Mitigation | Status |
 |---|---|---|---|
-| **S**poofing a user | Forged or replayed tokens | OIDC tokens are verified (signature through JWKS, issuer, audience, expiry; `auth.py`); in production there is no development identity; PKCE in the browser | Done |
+| **S**poofing a user | Forged or replayed tokens; a request with no token naming any user | OIDC tokens are verified (signature through JWKS, issuer, audience, expiry; `auth.py`); PKCE in the browser. With `TILES_ENV=production` every request needs a token; outside production a request without one acts as the development user, or as whoever `X-Tiles-User` names | Partial: a deployment that leaves `TILES_ENV` unset accepts any identity (G-A5) |
 | **S**poofing an agent | Guessed tokens | 256-bit random tokens (`secrets.token_urlsafe(32)`), stored and looked up only as their SHA-256 hash | Done |
 | **T**ampering across sites | A request on site A reads or writes site B's rows | Every query is scoped by `SiteContext`, and the database enforces it: forced row security, closed when no site is named; readings only through the `site_samples` view and `tiles_store_samples` (T5.04) | Done |
 | **T**ampering with history | Ontology commits or the audit log are rewritten | Commits are append-only; the audit log refuses UPDATE, DELETE and TRUNCATE; design runs refuse UPDATE (trigger); every write endpoint audits itself | Done |
@@ -54,14 +54,14 @@ The trust boundaries, from the inside out:
 | **R**epudiation | Who changed what | The audit log with actor, request ID and before/after values; JSON logs with request IDs | Done |
 | **I**nformation disclosure of credentials | The database leaks Teams webhooks or SMTP secrets | Teams URLs are sealed with AES-256-GCM data keys kept outside the database (T5.06); secrets are `SecretStr` and come from files or a secrets manager; stored credentials are never shown again | Done |
 | **I**nformation disclosure to the AI provider | Plant data goes to the Anthropic API | Only tool results the copilot asked for, for the user who asked; the copilot is off until it is configured; the data-processing terms are the customer's decision | Partial: per-site opt-in and a data-classification note (G-A4) |
-| **D**enial of service | Floods of requests or huge bodies | Pydantic bounds every list and string; the copilot has per-organisation and per-user rate limits and token budgets (T4.07); sweeps run at most two at a time in the API | Partial: no global rate limit or body-size cap (G-A1) |
+| **D**enial of service | Floods of requests or huge bodies | Request models bound their lists and strings; the copilot has per-organisation and per-user rate limits and token budgets (T4.07); sweeps run at most two at a time in the API | Partial: no global rate limit or body-size cap (G-A1) |
 | **E**levation of privilege | A viewer writes, or an engineer acts as an admin | Roles are checked per endpoint (`Editor`, `Admin`); the role is re-read for the copilot's writing tool; the API runs as `tiles_app` with no superuser powers | Done |
 
 ### Browser app
 
 | Threat | What could happen | Mitigation | Status |
 |---|---|---|---|
-| **T**ampering / XSS | Data (tags, notes, node labels) runs as script | Every interpolation goes through `esc()` (a lint rule in review, CLAUDE.md); no runtime dependencies | Partial: no Content-Security-Policy from `server.js` (G-B1) |
+| **T**ampering / XSS | Data (tags, notes, node labels) runs as script | Every interpolation goes through `esc()`: a rule in CLAUDE.md and CONTRIBUTING, checked in review (no lint rule enforces it); no runtime dependencies | Partial: no Content-Security-Policy from `server.js` (G-B1) |
 | **I**nformation disclosure | Tokens are stolen from storage | Tokens are in sessionStorage, not localStorage, and are refreshed before expiry | Partial: CSP and `frame-ancestors` (G-B1) |
 | **S**poofing / clickjacking | The app is framed by another site | None yet | Gap (G-B1) |
 
@@ -69,7 +69,7 @@ The trust boundaries, from the inside out:
 
 | Threat | What could happen | Mitigation | Status |
 |---|---|---|---|
-| **I**nformation disclosure at rest | A disk or backup is stolen | Volume and backup encryption with KMS (runbook, T5.06) | Partial: the customer's or our deployment must enable it (T5.09, T5.14) |
+| **I**nformation disclosure at rest | A disk or backup is stolen | Credentials sealed in the database (T5.06); volume and backup encryption with KMS ([runbook](../runbooks/secrets-and-encryption.md)) | Partial: the customer's or our deployment must enable it (T5.09, T5.14) |
 | **T**ampering | Direct access to the database bypasses the API | Network isolation (internal only); the API's role can't skip row security | Partial: least-privilege jobs role (G-D1) |
 | **D**enial of service | The disk fills with readings | Compression after 7 days, retention for 5 years (migration 0004) | Done; monitoring in T5.13 |
 
@@ -83,9 +83,9 @@ The trust boundaries, from the inside out:
 | CR 1.5 Authenticator management | Partial | Token rotation is documented; there's no expiry (G-E1) |
 | CR 2.1 Authorisation enforcement | Done | Read-only connectors; no inbound interface |
 | CR 3.1 Communication integrity | Done | TLS for the API and MQTT; OPC UA signed and encrypted by default (Basic256Sha256, SignAndEncrypt); an unsecured session only with `allow_unsecured = true` |
-| CR 3.4 Software and information integrity | Partial | Image and zipapp built in CI with an SBOM; no signature on releases (G-E4) |
-| CR 3.9 Protection of audit information | Partial | Logs to stdout or journald; collecting them is the site's |
-| CR 4.1 Information confidentiality | Partial | Buffer and token on the host disk (encrypt the disk: runbook) |
+| CR 3.4 Software and information integrity | Partial | The image's dependencies are scanned and it has a CycloneDX SBOM in CI (T5.08); no signature on releases (G-E4) |
+| CR 3.9 Protection of audit information | Partial | JSON logs on stderr (journald under systemd); collecting them is the site's |
+| CR 4.1 Information confidentiality | Partial | Buffer and token on the host disk (encrypt the disk: [the runbook](../runbooks/secrets-and-encryption.md)) |
 | CR 7.1 / 7.2 DoS protection, resource management | Done | Bounded buffer, batch limits, backoff |
 | EDR 2.4 Mobile code | Done | None: no plugins and no remote commands |
 | EDR 3.12 / 3.13 Provisioning of trust anchors | Done | Pinned OPC UA server certificates; the site CA for the API |
@@ -119,6 +119,7 @@ The trust boundaries, from the inside out:
 |---|---|---|
 | G-A1 | A request body-size cap and a general rate limit per token and IP in front of the API (ingress) and in the app for the agent endpoints | T5.09 (ingress) and a follow-up issue |
 | G-A4 | Per-site opt-in for the copilot, and a note on what it sends to the AI provider | Follow-up before go-live (T5.01) |
+| G-A5 | Fail closed: refuse requests without a token whenever OIDC is configured, not only when `TILES_ENV=production`; the Helm chart sets production | T5.09, and a follow-up in `auth.py` |
 | G-B1 | Security headers from the web server: a Content-Security-Policy without `unsafe-inline` scripts, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy` | Follow-up issue (small) |
 | G-D1 | Jobs connect as their own role, not the migration login | T5.09 |
 | G-E1 | Edge tokens expire (with rotation from the UI) | Follow-up |

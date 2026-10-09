@@ -1,0 +1,38 @@
+# Dependency updates (T5.08): weekly pull requests for each ecosystem, grouped so a week's minor
+# and patch updates arrive together. CI (including the security job) runs on each.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: uv
+    directory: /api
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: uv
+    directory: /edge
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: docker
+    directories: [/api, /edge]
+    schedule:
+      interval: weekly
+    ignore:
+      # A new Python minor (3.14) is a decision, with its own testing of the wheels (the edge's
+      # SQL Server driver); patch releases of the same tag come with the weekly rebuild.
+      - dependency-name: python
+        update-types: [version-update:semver-major, version-update:semver-minor]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

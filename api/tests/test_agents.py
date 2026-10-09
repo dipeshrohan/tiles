@@ -8,9 +8,12 @@ import psycopg
 import pytest
 from fastapi.testclient import TestClient
 
+from tiles_api import sealed
 from tiles_api.main import create_app
 from tiles_api.seed import seed
 from tiles_api.settings import Settings
+
+PRODUCTION_KEYS = sealed.new_key("test")  # production needs data keys (T5.06)
 
 ENG = {"X-Tiles-User": "eng@example.com"}
 VIEWER = {"X-Tiles-User": "viewer@example.com"}
@@ -178,7 +181,13 @@ def test_registering_and_revoking_are_audited(api: TestClient, site: str) -> Non
 
 def test_heartbeats_work_in_production_without_a_user_token(database_url: str, site: str, api: TestClient) -> None:
     token = register(api, site)["token"]
-    prod = Settings(_env_file=None, env="production", database_url=database_url, oidc_issuer="https://idp.example.com")
+    prod = Settings(
+        _env_file=None,
+        env="production",
+        data_keys=PRODUCTION_KEYS,
+        database_url=database_url,
+        oidc_issuer="https://idp.example.com",
+    )
     with TestClient(create_app(prod)) as client:
         assert client.post("/agent/heartbeat", json=beat(), headers=agent_auth(token)).status_code == 200
         assert client.get(f"/sites/{site}/agents").status_code == 401  # people still need to sign in

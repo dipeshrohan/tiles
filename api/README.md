@@ -78,6 +78,8 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_SMTP_USER`, `TILES_SMTP_PASSWORD` | unset | SMTP login, if the server needs one |
 | `TILES_SMTP_FROM` | `Tiles <tiles@example.com>` | The sender of notification emails |
 | `TILES_APP_URL` | `http://localhost:5173` | Where the web app is, for links in notifications |
+| `TILES_DATA_KEYS` | unset (values stored as they are) | Data keys sealing credentials kept in the database (T5.06): `id:base64key`, comma-separated, the first sealing; required in production. `uv run tiles-rotate-keys --new-key k1` makes one, and `uv run tiles-rotate-keys` re-seals stored values with the first. See [the runbook](../docs/runbooks/secrets-and-encryption.md) |
+| `TILES_SECRETS_DIR` | unset | A directory of secret files, one per setting named as its variable (a secrets manager's mount, `/run/secrets`); environment variables and `.env` win over them |
 | `TILES_ANTHROPIC_API_KEY` | unset (copilot off) | The Anthropic API key the copilot calls Claude with; keep it in a secret store, never in the repository |
 | `TILES_COPILOT_MODEL` | unset (copilot off) | The Claude model ID to answer with: a current one from Anthropic's model documentation |
 | `TILES_COPILOT_MAX_TOKENS`, `TILES_COPILOT_MAX_ROUNDS` | `2048`, `8` | The most the model writes per call, and the most calls (tool rounds) per question |

@@ -35,7 +35,7 @@ def open_pool(settings: Settings) -> ConnectionPool[Conn]:
     """The API's connections: every one subject to row security (`act_as_app`). Scheduled jobs and
     migrations connect on their own, as the login they are given."""
     return ConnectionPool(
-        settings.database_url,
+        settings.database_url.get_secret_value(),
         min_size=1,
         max_size=settings.db_pool_max,
         kwargs={"row_factory": dict_row},

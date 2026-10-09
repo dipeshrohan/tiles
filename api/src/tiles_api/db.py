@@ -24,7 +24,7 @@ def alembic_config(settings: Settings | None = None) -> Config:
     cfg = Config()
     cfg.set_main_option("script_location", str(files("tiles_api") / "migrations"))
     # Alembic's config is an INI parser, so a literal % must be doubled.
-    cfg.set_main_option("sqlalchemy.url", sqlalchemy_url(settings.database_url).replace("%", "%%"))
+    cfg.set_main_option("sqlalchemy.url", sqlalchemy_url(settings.database_url.get_secret_value()).replace("%", "%%"))
     return cfg
 
 
@@ -37,7 +37,7 @@ def grant_app(settings: Settings | None = None) -> None:
     """Grants `tiles_app` (row security, migration 0024) every table again, so tables a later
     migration made, as whichever login, are covered. Nothing before 0024 or without the role."""
     settings = settings or get_settings()
-    with psycopg.connect(settings.database_url, autocommit=True) as conn:
+    with psycopg.connect(settings.database_url.get_secret_value(), autocommit=True) as conn:
         if conn.execute("SELECT to_regprocedure('tiles_grant_app()') IS NOT NULL").fetchone() == (True,):
             conn.execute("SELECT tiles_grant_app()")
 
