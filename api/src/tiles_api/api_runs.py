@@ -13,6 +13,9 @@ audit (T4.13). Runs are numbered per site.
   what came between.
 - `GET /sites/{id}/runs/compare?a=&b=` gives what changed between two runs of a model: version,
   parameters and outputs.
+
+Runs belong to a site's shared design project (T4.14, migration 0022), or to none (runs made
+before projects): a run's parent, and the latest run a restore follows, are in its project.
 """
 
 import math
@@ -41,7 +44,24 @@ class RunIn(BaseModel):
     # Numbers only (not true or "90"); those not given take their defaults.
     params: Annotated[dict[Annotated[str, Field(max_length=63)], StrictFloat | StrictInt], Field(max_length=50)] = {}
     note: Annotated[str, Field(max_length=500, pattern=r"^[^\x00]*$")] = ""
-    parent: Annotated[int | None, Field(ge=1)] = None  # the run this one was changed from
+    parent: Annotated[int | None, Field(ge=1)] = None  # the run this one was changed from, in its project
+    project: uuid.UUID | None = None  # the design project it belongs to (T4.14)
+
+
+class ProjectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: Annotated[str, Field(min_length=1, max_length=200, pattern=r"^[^\x00]*\S[^\x00]*$")]
+    description: Annotated[str, Field(max_length=2000, pattern=r"^[^\x00]*$")] = ""
+
+
+class Project(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str
+    created_by: str
+    created_at: datetime
+    runs: int
+    last_run_at: datetime | None
 
 
 class RestoreIn(BaseModel):
@@ -70,6 +90,7 @@ class Run(BaseModel):
     units: dict[str, str]  # of the parameters and outputs
     parent: int | None
     restored_from: int | None
+    project: uuid.UUID | None
     note: str
     author: Author
     created_at: datetime
@@ -151,7 +172,7 @@ def changes(a: dict[str, Any], b: dict[str, Any]) -> list[dict[str, Any]]:
 RUNS = """
 SELECT r.id, r.number, r.model_key AS model, r.version, r.params, r.output, r.note, r.created_at,
        r.author_name, r.author_email, p.number AS parent, p.params AS parent_params, p.version AS parent_version,
-       s.number AS restored_from
+       s.number AS restored_from, r.project_id AS project
 FROM design_runs r
 LEFT JOIN design_runs p ON p.id = r.parent_id
 LEFT JOIN design_runs s ON s.id = r.restored_from
@@ -159,7 +180,10 @@ WHERE r.site_id = %(site)s
 """
 
 
-OF_MODEL = " AND (%(model)s::text IS NULL OR r.model_key = %(model)s)"
+OF_MODEL = (
+    " AND (%(model)s::text IS NULL OR r.model_key = %(model)s)"
+    " AND (%(project)s::uuid IS NULL OR r.project_id = %(project)s)"
+)
 COUNT = "SELECT count(*) AS n FROM design_runs r WHERE r.site_id = %(site)s" + OF_MODEL  # noqa: S608 - constants
 
 
@@ -176,6 +200,7 @@ def _shown(row: dict[str, Any]) -> dict[str, Any]:
         "units": _units(model) if model else {},
         "parent": row["parent"],
         "restored_from": row["restored_from"],
+        "project": row["project"],
         "note": row["note"],
         "author": {"name": row["author_name"], "email": row["author_email"]},
         "created_at": row["created_at"],
@@ -213,6 +238,7 @@ def _store(
     note: str,
     parent_id: uuid.UUID | None,
     restored_from: uuid.UUID | None,
+    project_id: uuid.UUID | None,
 ) -> int:
     """Stores a run of `model` (its parameters and outputs, from _run); its number."""
     s = model.spec
@@ -233,8 +259,8 @@ def _store(
     ctx.conn.execute(
         """
         INSERT INTO design_runs (site_id, number, model_id, model_key, version, params, output, parent_id,
-                                 restored_from, note, author_id, author_name, author_email)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                 restored_from, note, author_id, author_name, author_email, project_id)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         [
             ctx.site_id,
@@ -250,6 +276,7 @@ def _store(
             ctx.user.id,
             ctx.user.name,
             ctx.user.email,
+            project_id,
         ],
     )
     return number
@@ -259,12 +286,14 @@ def _store(
 def list_runs(
     ctx: Ctx,
     model: Annotated[str | None, Query(max_length=100)] = None,
+    project: uuid.UUID | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
-    """The site's runs, the latest first; of one model (a registry key or the browser's id) if named."""
+    """The site's runs, the latest first; of one model (a registry key or the browser's id) and one
+    project if named."""
     key = _key(model) if model else None
-    args = {"site": ctx.site_id, "model": key, "limit": limit, "offset": offset}
+    args = {"site": ctx.site_id, "model": key, "project": project, "limit": limit, "offset": offset}
     rows = ctx.conn.execute(RUNS + OF_MODEL + " ORDER BY r.number DESC LIMIT %(limit)s OFFSET %(offset)s", args)
     total = one(ctx.conn.execute(COUNT, args).fetchone())["n"]
     return {"runs": [_shown(r) for r in rows.fetchall()], "total": total}
@@ -275,6 +304,8 @@ def create_run(ctx: Editor, body: RunIn) -> dict[str, Any]:
     model = _model(body.model, body.version)
     run = _run(model, body.params)
     _lock(ctx)
+    if body.project is not None:
+        _project(ctx, body.project)
     parent_id = None
     if body.parent is not None:
         parent = _row(ctx, body.parent)
@@ -283,13 +314,20 @@ def create_run(ctx: Editor, body: RunIn) -> dict[str, Any]:
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
                 f"Run {body.parent} is of {parent['model']}, not {model.spec.key}",
             )
+        if parent["project"] != body.project:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Run {body.parent} is in another project")
         parent_id = parent["id"]
-    number = _store(ctx, model, run, body.note.strip(), parent_id, None)
+    number = _store(ctx, model, run, body.note.strip(), parent_id, None, body.project)
     ctx.audit(
         "run.create",
         "design_run",
         str(number),
-        after={"model": model.spec.key, "version": model.spec.version, "parent": body.parent},
+        after={
+            "model": model.spec.key,
+            "version": model.spec.version,
+            "parent": body.parent,
+            "project": body.project and str(body.project),
+        },
     )
     return get_run(ctx, number)
 
@@ -359,11 +397,54 @@ def restore_run(ctx: Editor, number: int, body: RestoreIn | None = None) -> dict
     _lock(ctx)
     head = one(
         ctx.conn.execute(
-            "SELECT id, number FROM design_runs WHERE site_id = %s AND model_key = %s ORDER BY number DESC LIMIT 1",
-            [ctx.site_id, row["model"]],
+            "SELECT id, number FROM design_runs WHERE site_id = %s AND model_key = %s"
+            " AND project_id IS NOT DISTINCT FROM %s ORDER BY number DESC LIMIT 1",
+            [ctx.site_id, row["model"], row["project"]],
         ).fetchone()
     )
     note = (body.note.strip() if body else "") or f"Restored run {number}"
-    new = _store(ctx, model, run, note, head["id"], row["id"])
+    new = _store(ctx, model, run, note, head["id"], row["id"], row["project"])
     ctx.audit("run.restore", "design_run", str(new), after={"restored_from": number, "parent": head["number"]})
     return get_run(ctx, new)
+
+
+PROJECTS = """
+SELECT p.id, p.name, p.description, p.created_by, p.created_at,
+       count(r.id) AS runs, max(r.created_at) AS last_run_at
+FROM design_projects p LEFT JOIN design_runs r ON r.project_id = p.id
+WHERE p.site_id = %(site)s
+"""
+
+
+def _project(ctx: SiteContext, project_id: uuid.UUID) -> dict[str, Any]:
+    row = ctx.conn.execute(
+        PROJECTS + " AND p.id = %(id)s GROUP BY p.id", {"site": ctx.site_id, "id": project_id}
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such design project on this site")
+    return row
+
+
+@router.get("/sites/{site_id}/design-projects", response_model=list[Project])
+def list_projects(ctx: Ctx) -> list[dict[str, Any]]:
+    """The site's design projects, the one with the latest run first (T4.14)."""
+    return ctx.conn.execute(
+        PROJECTS + " GROUP BY p.id ORDER BY greatest(max(r.created_at), p.created_at) DESC LIMIT 200",
+        {"site": ctx.site_id},
+    ).fetchall()
+
+
+@router.post("/sites/{site_id}/design-projects", response_model=Project, status_code=status.HTTP_201_CREATED)
+def create_project(ctx: Editor, body: ProjectIn) -> dict[str, Any]:
+    name = body.name.strip()
+    row = ctx.conn.execute(
+        """
+        INSERT INTO design_projects (site_id, name, description, created_by) VALUES (%s, %s, %s, %s)
+        ON CONFLICT DO NOTHING RETURNING id
+        """,
+        [ctx.site_id, name, body.description.strip(), ctx.user.name],
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status.HTTP_409_CONFLICT, f"There is already a project called {name!r}")
+    ctx.audit("design_project.create", "design_project", str(row["id"]), after={"name": name})
+    return _project(ctx, row["id"])

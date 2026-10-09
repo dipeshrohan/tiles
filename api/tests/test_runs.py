@@ -1,6 +1,7 @@
 """Design runs (T4.11): stored with their parent, version, parameters, the output the API computed
 and their author; restored as a new run; compared; never changed."""
 
+import uuid
 from typing import Any
 
 import psycopg
@@ -226,3 +227,43 @@ def test_runs_outlive_their_author(api: TestClient, site: str, database_url: str
         conn.execute("DELETE FROM users WHERE email = 'eng@example.com'")
         assert conn.execute("SELECT author_id FROM design_runs").fetchall() == [(None,)]
     assert api.get(f"/sites/{site}/runs/1", headers=ADMIN).json()["author"]["email"] == "eng@example.com"
+
+
+def test_shared_design_projects(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    path = f"/sites/{site}/design-projects"
+    assert api.post(path, json={"name": "Pack B"}, headers=VIEWER).status_code == 403
+    res = api.post(path, json={"name": " Pack B ", "description": "Swelling of the B cells"}, headers=ENG)
+    assert res.status_code == 201, res.text
+    b = res.json()
+    assert (b["name"], b["description"], b["runs"], b["last_run_at"]) == ("Pack B", "Swelling of the B cells", 0, None)
+    assert api.post(path, json={"name": "pack b"}, headers=ADMIN).status_code == 409  # one name per site
+    assert api.post(path, json={"name": "  "}, headers=ENG).status_code == 422
+    c = api.post(path, json={"name": "Hip joint"}, headers=ENG).json()
+
+    # Runs belong to a project; their parents are in it.
+    r1 = run(api, site, {"model": "swelling", "project": b["id"]}).json()
+    assert r1["project"] == b["id"]
+    r2 = run(api, site, {"model": "swelling", "project": b["id"], "parent": 1, "params": {"soc": 50}}).json()
+    assert (r2["parent"], r2["project"]) == (1, b["id"])
+    res = run(api, site, {"model": "swelling", "project": c["id"], "parent": 1})
+    assert (res.status_code, res.json()["detail"]) == (422, "Run 1 is in another project")
+    res = run(api, site, {"model": "swelling", "parent": 1})  # no project: another one too
+    assert res.status_code == 422
+    assert run(api, site, {"model": "swelling", "project": str(uuid.uuid4())}).status_code == 404
+    run(api, site, {"model": "swelling", "project": c["id"]})  # run 3, in the other project
+    run(api, site, {"model": "swelling"})  # run 4, in none
+
+    # Listed by project, the busiest first, with their runs.
+    listed = api.get(path, headers=VIEWER).json()
+    assert [(p["name"], p["runs"]) for p in listed] == [("Hip joint", 1), ("Pack B", 2)]
+    runs = api.get(f"/sites/{site}/runs?project={b['id']}&model=swelling", headers=VIEWER).json()
+    assert ([r["number"] for r in runs["runs"]], runs["total"]) == ([2, 1], 2)
+
+    # A restore stays in its project, after that project's latest run.
+    restored = api.post(f"/sites/{site}/runs/1/restore", headers=ENG).json()
+    assert (restored["project"], restored["parent"], restored["restored_from"]) == (b["id"], 2, 1)
+    with psycopg.connect(database_url) as conn:
+        audit = conn.execute(
+            "SELECT after FROM audit_log WHERE action = 'design_project.create' AND site_id = %s ORDER BY id", [site]
+        ).fetchall()
+    assert audit == [({"name": "Pack B"},), ({"name": "Hip joint"},)]

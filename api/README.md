@@ -130,7 +130,8 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `dataset.create`, `dataset.rows`, `dataset.delete` | the dataset | `dataset.delete`: its name and rows | its name and columns; the rows added and the total |
 | `copilot.conversation.create`, `copilot.ask`, `copilot.conversation.delete` | the conversation | | `copilot.ask`: the question's length (not its text: conversations are private) |
 | `copilot.feedback`, `copilot.feedback.delete` | the conversation | | the answer's `seq` and the rating |
-| `run.create`, `run.restore` | the run's number | | its model, version and parent; the run restored and the parent |
+| `run.create`, `run.restore` | the run's number | | its model, version, parent and project; the run restored and the parent |
+| `design_project.create` | the project | | its name |
 | `insight.create`, `insight.update`, `insight.review`, `insight.reopen`, `insight.delete` | the insight's number | `insight.update`: the fields changed; `insight.reopen`: its status; `insight.delete`: its title and status | its title and kind; the fields changed; the decision and note |
 | `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
@@ -226,14 +227,18 @@ A run's model is named by the registry's key (`cell-swelling`) or the browser's 
 
 **Restoring** run *n* runs its version and parameters again as a new run. Its parent is the model's latest run, so the history keeps what came between, and `restored_from` is *n*. Its output must equal run *n*'s, since a published version never changes; otherwise it is refused with 409 and nothing is stored.
 
+**Projects (T4.14).** A site's design projects are shared by everyone on it (migration 0022). A run belongs to one project, or to none for runs made before projects. Its parent must be in the same project, and a restore follows the latest run of its model in its project. A project's name is unique on its site, whatever the case. The Design Studio uses these with the Tiles API: pick or create a project, save runs to it, see everyone's runs in it, and click a run to get its parameters back. Without the API, runs stay in the browser.
+
 **Comparing** two runs of a model gives:
 - what changed: the version first, then each parameter;
 - each output in either run, with the difference and the percentage of the first.
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|
-| `GET /runs?model&limit&offset` | members | `{"runs", "total"}`: the site's runs, latest first, of one model if named; each with its parameters, output, units, parent, `restored_from`, note, author and `changes` from its parent |
-| `POST /runs` | engineers | `{"model", "version"?, "params"?, "note"?, "parent"?}` runs the model and stores the run (201, with its `lineage`) |
+| `GET /design-projects` | members | the site's projects, the one with the latest run first, with their run counts |
+| `POST /design-projects` | engineers | `{"name", "description"?}` creates one (409 for a name taken) |
+| `GET /runs?model&project&limit&offset` | members | `{"runs", "total"}`: the site's runs, latest first, of one model and one project if named; each with its parameters, output, units, parent, `restored_from`, note, author and `changes` from its parent |
+| `POST /runs` | engineers | `{"model", "version"?, "params"?, "note"?, "parent"?, "project"?}` runs the model and stores the run (201, with its `lineage`) |
 | `GET /runs/{n}` | members | one run, with `lineage`: its parent, that run's parent, and so on back to the first run (at most 1,000; `lineage_complete` is false when it was cut) |
 | `POST /runs/{n}/restore` | engineers | `{"note"?}` (default "Restored run n") runs run *n* again as a new run after the model's latest |
 | `GET /runs/compare?a&b` | members | `{"a", "b", "changes", "outputs"}` |

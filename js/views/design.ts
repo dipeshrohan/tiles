@@ -1,6 +1,9 @@
 import { MODELS, evaluate, sweep, sensitivity, makeRun, runDiff, auditRecord, getModel } from '../lib/design.ts';
+import type { RunChange } from '../lib/design.ts';
+import { API_MODEL, asRun, changesOf, headOf } from '../lib/design-runs.ts';
 import { heatmap, hbars } from '../lib/svg.ts';
-import { esc, field, fmt, need, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf, timeAgo } from '../lib/dom.ts';
+import type { DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 
@@ -16,10 +19,92 @@ interface DesignUi {
   versions: Record<string, string>;
   sweepX: string | null;
   sweepY: string | null;
+  project: string | null; // the shared project shown, with the Tiles API (T4.14)
+  projectSite: string | null; // the site `project` is of
 }
 
 const uiState = (ctx: Context) =>
-  ctx.ui<DesignUi>('design', { model: 'swelling', params: {}, versions: {}, sweepX: null, sweepY: null });
+  ctx.ui<DesignUi>('design', {
+    model: 'swelling',
+    params: {},
+    versions: {},
+    sweepX: null,
+    sweepY: null,
+    project: null,
+    projectSite: null,
+  });
+
+// With the Tiles API, runs are stored on the site in shared projects (T4.11, T4.14); without it,
+// in this browser. Fetched afresh at each visit: others run designs meanwhile.
+let projects: { site: string; items: DesignProject[] } | null = null;
+let apiRuns: { key: string; items: DesignRun[] } | null = null;
+let saving = false;
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'design') {
+    projects = null;
+    apiRuns = null;
+  }
+});
+
+const siteOf = (ctx: Context): string | null =>
+  ctx.api && ctx.ontology.status === 'ready' ? (ctx.ontology.site?.id ?? null) : null;
+
+// The project shown on this site: the one chosen, if it is still there, or the latest.
+function projectOf(ctx: Context, site: string): DesignProject | null {
+  const ui = uiState(ctx);
+  const items = projects?.site === site ? projects.items : [];
+  if (ui.projectSite !== site) Object.assign(ui, { project: null, projectSite: site });
+  return items.find((p) => p.id === ui.project) ?? items[0] ?? null;
+}
+
+const runsKey = (site: string, project: string, model: string) => `${site}|${project}|${model}`;
+
+async function fetchProjects(ctx: Context, site: string): Promise<void> {
+  try {
+    const items = await ctx.api!.designProjects.list(site);
+    projects = { site, items };
+  } catch {
+    projects = { site, items: [] }; // the client showed why
+  }
+  ctx.rerender();
+}
+
+async function fetchRuns(ctx: Context, site: string, project: string, model: string): Promise<void> {
+  const key = runsKey(site, project, model);
+  apiRuns = { key, items: apiRuns?.key === key ? apiRuns.items : [] };
+  try {
+    const page = await ctx.api!.runs.list(site, { project, model: API_MODEL[model] ?? model, limit: 200 });
+    if (apiRuns?.key === key) apiRuns = { key, items: page.runs };
+  } catch {
+    // The client showed why; the history stays as it was.
+  }
+  ctx.rerender();
+}
+
+function projectBar(ctx: Context, site: string): string {
+  const items = projects?.site === site ? projects.items : null;
+  const shown = projectOf(ctx, site);
+  const canWrite = ctx.ontology.role !== null && ctx.ontology.role !== 'viewer';
+  const choose =
+    items === null
+      ? '<span class="small soft">Loading projects…</span>'
+      : items.length
+        ? `<label class="row" style="gap:8px">Project <select id="project" aria-label="Design project">${items
+            .map(
+              (p) =>
+                `<option value="${esc(p.id)}" ${p.id === shown?.id ? 'selected' : ''}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? '' : 's'})</option>`,
+            )
+            .join('')}</select></label>`
+        : '<span class="small soft">No projects yet on this site.</span>';
+  const create = canWrite
+    ? `<form id="new-project" class="row" style="gap:8px"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>`
+    : '';
+  return `<div class="card row" data-projects style="gap:16px;flex-wrap:wrap;justify-content:space-between;margin-bottom:16px">
+      <div class="row" style="gap:16px;flex-wrap:wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ''}</div>
+      ${create}
+      <span class="small soft" style="flex-basis:100%">Runs in a project are stored on the site and shared with everyone on it.</span>
+    </div>`;
+}
 
 // The selected model with its current parameters and version, defaults filled in.
 function current(ctx: Context) {
@@ -43,8 +128,15 @@ const view: View = {
     if (yKey === xKey) yKey = keys.find((k) => k !== xKey)!;
     const sw = sweep(model.id, version, params, xKey, yKey, 14);
     const sens = sensitivity(model.id, version, params);
-    const runs = ctx.state.runs.filter((r) => r.modelId === model.id);
+    const site = siteOf(ctx);
+    const project = site ? projectOf(ctx, site) : null;
+    const stored = site && project && apiRuns?.key === runsKey(site, project.id, model.id) ? apiRuns.items : [];
+    const runs: Run[] = site ? stored.map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
     const byId = new Map<string, Run>(ctx.state.runs.map((r) => [r.id, r]));
+    // What changed from each run's parent: the API says, for stored runs (their parent may be on another page).
+    const apiChanges = new Map<string, RunChange[]>(stored.map((r) => [String(r.number), changesOf(r)]));
+    const diffOf = (r: Run): RunChange[] => apiChanges.get(r.id) ?? runDiff(r, r.parent ? byId.get(r.parent) : null);
+    const canSave = !site || (project !== null && ctx.ontology.role !== null && ctx.ontology.role !== 'viewer');
     const unit = model.output.unit;
     const label = (k: string) => model.params.find((p) => p.key === k)?.label ?? k;
 
@@ -61,6 +153,7 @@ const view: View = {
           )
           .join('')}</div>
       </div>
+      ${site ? projectBar(ctx, site) : ''}
 
       <div class="grid g3" style="margin-bottom:16px">
         <div class="card">
@@ -95,8 +188,9 @@ const view: View = {
             )
             .join('')}</tbody></table>
           <form id="run-form" class="stack" style="gap:8px">
-            <input type="text" name="note" placeholder="Note for this run (optional)" aria-label="Run note" />
-            <button class="btn primary" type="submit">Save run</button>
+            <input type="text" name="note" maxlength="500" placeholder="Note for this run (optional)" aria-label="Run note" />
+            <button class="btn primary" type="submit" ${canSave && !saving ? '' : 'disabled'}>Save run${site && project ? ` to ${esc(project.name)}` : ''}</button>
+            ${site && !project ? '<span class="small soft">Create a project to save runs on the site.</span>' : ''}
           </form>
         </div>
         <div class="card">
@@ -128,19 +222,41 @@ const view: View = {
               ? `<div class="table-wrap"><table><thead><tr><th>Run</th><th>Changed vs parent</th><th class="num">${esc(model.output.label)}</th></tr></thead><tbody>
                 ${runs
                   .map((r) => {
-                    const diff = runDiff(r, r.parent ? byId.get(r.parent) : null);
+                    const diff = diffOf(r);
                     return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : '<span class="muted">untitled</span>'}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
                       <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join('<br>') || 'no change' : 'first run'}</td>
                       <td class="num"><b>${fmt(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
                   })
                   .join('')}</tbody></table></div>`
-              : '<div class="empty">No runs yet. Adjust parameters and press “Save run”.</div>'
+              : `<div class="empty">${site && !project ? 'Pick or create a project to see its runs.' : 'No runs yet. Adjust parameters and press “Save run”.'}</div>`
           }
         </div>
       </div>`;
   },
   bind(root, ctx) {
     const { ui, model, params } = current(ctx);
+    const site = siteOf(ctx);
+    if (site && projects?.site !== site) void fetchProjects(ctx, site);
+    const project = site ? projectOf(ctx, site) : null;
+    if (site && project && apiRuns?.key !== runsKey(site, project.id, model.id))
+      void fetchRuns(ctx, site, project.id, model.id);
+    root.querySelector<HTMLSelectElement>('#project')?.addEventListener('change', (e) => {
+      ui.project = (e.target as HTMLSelectElement).value;
+      ctx.rerender();
+    });
+    onSubmit(root, '#new-project', async (form) => {
+      const name = field(form, 'name').trim();
+      if (!site || !ctx.api || !name) return;
+      try {
+        const created = await ctx.api.designProjects.create(site, name);
+        ui.project = created.id;
+        projects = { site, items: [created, ...(projects?.site === site ? projects.items : [])] };
+        ctx.toast(`Project “${created.name}” created`);
+        ctx.rerender();
+      } catch {
+        // The client showed why (a name taken, say).
+      }
+    });
     onAll(root, '[data-model]', 'click', (b) => {
       if (b.dataset.model) ui.model = b.dataset.model;
       ctx.rerender();
@@ -174,8 +290,34 @@ const view: View = {
       ui.sweepY = sweepY.value;
       ctx.rerender();
     });
-    onSubmit(root, '#run-form', (form) => {
+    onSubmit(root, '#run-form', async (form) => {
       const note = field(form, 'note').trim();
+      if (site) {
+        if (!ctx.api || !project || saving) return;
+        const key = runsKey(site, project.id, model.id);
+        saving = true;
+        ctx.rerender();
+        try {
+          const items = apiRuns?.key === key ? apiRuns.items : [];
+          await ctx.api.runs.create(site, {
+            model: API_MODEL[model.id] ?? model.id,
+            version: ui.versions[model.id] ?? model.latest,
+            params,
+            note,
+            parent: headOf(items, model.id),
+            project: project.id,
+          });
+          ctx.toast(`Run saved to ${project.name}`);
+          projects = null; // its run count changed
+          apiRuns = null;
+        } catch {
+          // The client showed why.
+        } finally {
+          saving = false;
+          ctx.rerender();
+        }
+        return;
+      }
       ctx.update((s) => {
         const parent = s.runs.find((r) => r.modelId === model.id) ?? null;
         s.runs.unshift(
@@ -191,18 +333,20 @@ const view: View = {
       });
       ctx.toast('Run saved');
     });
+    const shownRuns = (): Run[] =>
+      site ? (apiRuns?.items ?? []).map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
     onAll(root, '[data-run]', 'click', (row) => {
-      const run = ctx.state.runs.find((r) => r.id === row.dataset.run);
+      const run = shownRuns().find((r) => r.id === row.dataset.run);
       if (!run) return;
       ui.params[model.id] = { ...run.params };
       ui.versions[model.id] = run.version;
       ctx.rerender();
-      ctx.toast(`Restored run “${run.note || run.id}”`);
+      ctx.toast(`Restored run “${run.note || (site ? `#${run.id}` : run.id)}”`);
     });
     onAll(root, '[data-export]', 'click', () => {
-      const blob = new Blob([JSON.stringify(auditRecord(ctx.state.runs, model.id), null, 2)], {
-        type: 'application/json',
-      });
+      const record = auditRecord(shownRuns(), model.id);
+      const body = site && project ? { ...record, site, project: { id: project.id, name: project.name } } : record;
+      const blob = new Blob([JSON.stringify(body, null, 2)], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `tiles-audit-${model.id}.json`;

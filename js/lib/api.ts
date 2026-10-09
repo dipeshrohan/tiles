@@ -522,12 +522,24 @@ export interface DesignRun {
   units: Record<string, string>;
   parent: number | null;
   restored_from: number | null;
+  project: string | null; // its design project (T4.14)
   note: string;
   author: { name: string; email: string };
   created_at: string;
   changes: RunChange[];
   lineage?: number[]; // one run's: its parent, that run's parent, … back to the first
   lineage_complete?: boolean; // false when the lineage was cut (it is long)
+}
+
+// A site's shared design project (T4.14): runs belong to one.
+export interface DesignProject {
+  id: string;
+  name: string;
+  description: string;
+  created_by: string;
+  created_at: string;
+  runs: number;
+  last_run_at: string | null;
 }
 
 export interface RunComparison {
@@ -959,7 +971,7 @@ export function createApiClient(options: ApiOptions) {
     runs: (() => {
       const base = (siteId: string) => `/sites/${encodeURIComponent(siteId)}/runs`;
       return {
-        list: (siteId: string, q: { model?: string; limit?: number; offset?: number } = {}) =>
+        list: (siteId: string, q: { model?: string; project?: string; limit?: number; offset?: number } = {}) =>
           request<{ runs: DesignRun[]; total: number }>('GET', `${base(siteId)}${query(q)}`),
         get: (siteId: string, n: number) => request<DesignRun>('GET', `${base(siteId)}/${n}`),
         create: (
@@ -970,6 +982,7 @@ export function createApiClient(options: ApiOptions) {
             params?: Record<string, number>;
             note?: string;
             parent?: number | null;
+            project?: string | null;
           },
         ) => request<DesignRun>('POST', base(siteId), run),
         restore: (siteId: string, n: number, note = '') =>
@@ -978,6 +991,11 @@ export function createApiClient(options: ApiOptions) {
           request<RunComparison>('GET', `${base(siteId)}/compare${query({ a, b })}`),
       };
     })(),
+    designProjects: {
+      list: (siteId: string) => request<DesignProject[]>('GET', `/sites/${encodeURIComponent(siteId)}/design-projects`),
+      create: (siteId: string, name: string, description = '') =>
+        request<DesignProject>('POST', `/sites/${encodeURIComponent(siteId)}/design-projects`, { name, description }),
+    },
     insights: (() => {
       const base = (siteId: string) => `/sites/${encodeURIComponent(siteId)}/insights`;
       const one = (siteId: string, n: number) => `${base(siteId)}/${n}`;
