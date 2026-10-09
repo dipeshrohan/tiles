@@ -85,6 +85,7 @@ def _get(ctx: SiteContext, detector_id: uuid.UUID) -> dict[str, Any]:
 
 @router.get("/sites/{site_id}/detectors", response_model=list[Detector])
 def list_detectors(ctx: Ctx) -> list[dict[str, Any]]:
+    """The site's detectors, by name, with their settings and state."""
     return ctx.conn.execute(DETECTORS + " ORDER BY d.name", [ctx.site_id]).fetchall()
 
 

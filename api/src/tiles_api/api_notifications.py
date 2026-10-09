@@ -76,6 +76,8 @@ def get_preferences(ctx: Ctx) -> dict[str, Any]:
 
 @router.put("/sites/{site_id}/notifications/preferences", response_model=Preferences)
 def set_preferences(ctx: Editor, body: PreferencesIn) -> dict[str, Any]:
+    """Choose which warnings you are told about on this site: those raised, those assigned to you, or
+    both."""
     before = _preferences(ctx)
     ctx.conn.execute(
         """

@@ -131,6 +131,7 @@ def find_dataset(ctx: SiteContext, dataset_id: uuid.UUID, lock: bool = False) ->
 
 @router.get("/sites/{site_id}/datasets", response_model=list[Dataset])
 def list_datasets(ctx: Ctx) -> list[dict[str, Any]]:
+    """The site's datasets (batch tables), by name, with their columns and row counts."""
     return ctx.conn.execute(DATASETS + " ORDER BY d.name", [ctx.site_id]).fetchall()
 
 
@@ -152,6 +153,7 @@ def create_dataset(ctx: Editor, body: DatasetIn) -> dict[str, Any]:
 
 @router.get("/sites/{site_id}/datasets/{dataset_id}", response_model=DatasetDetail)
 def get_dataset(ctx: Ctx, dataset_id: uuid.UUID) -> dict[str, Any]:
+    """A dataset with its columns and its first 20 rows."""
     d = find_dataset(ctx, dataset_id)
     preview = ctx.conn.execute(
         "SELECT row FROM dataset_rows WHERE dataset_id = %s ORDER BY i LIMIT 20", [dataset_id]
@@ -208,6 +210,7 @@ def add_rows(ctx: Editor, dataset_id: uuid.UUID, body: RowsIn) -> dict[str, Any]
 
 @router.delete("/sites/{site_id}/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_dataset(ctx: Editor, dataset_id: uuid.UUID) -> None:
+    """Delete a dataset and its rows (engineers and admins)."""
     d = find_dataset(ctx, dataset_id, lock=True)
     ctx.conn.execute("DELETE FROM datasets WHERE id = %s", [dataset_id])
     ctx.audit("dataset.delete", "dataset", str(dataset_id), before={"name": d["name"], "row_count": d["row_count"]})

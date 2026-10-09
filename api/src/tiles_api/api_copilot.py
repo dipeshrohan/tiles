@@ -202,6 +202,7 @@ def _shown_history(conn: Conn, conversation_id: uuid.UUID) -> list[dict[str, Any
 
 @router.get("/sites/{site_id}/copilot", response_model=Status)
 def copilot_status(ctx: Ctx, request: Request) -> dict[str, Any]:
+    """Whether the copilot is set up on this API (an Anthropic API key and a model are configured)."""
     return {"configured": model_for(request) is not None}
 
 
@@ -215,6 +216,7 @@ def list_conversations(ctx: Ctx) -> list[dict[str, Any]]:
 
 @router.post("/sites/{site_id}/copilot/conversations", response_model=Conversation, status_code=status.HTTP_201_CREATED)
 def create_conversation(ctx: Ctx, body: ConversationIn) -> dict[str, Any]:
+    """Start a conversation with the copilot on this site; it is yours alone."""
     row = one(
         ctx.conn.execute(
             "INSERT INTO conversations (site_id, user_id, title) VALUES (%s, %s, %s) RETURNING id",
@@ -227,11 +229,13 @@ def create_conversation(ctx: Ctx, body: ConversationIn) -> dict[str, Any]:
 
 @router.get("/sites/{site_id}/copilot/conversations/{conversation_id}", response_model=ConversationDetail)
 def get_conversation(ctx: Ctx, conversation_id: uuid.UUID) -> dict[str, Any]:
+    """One of your conversations, with its messages and the tools the copilot used."""
     return _own(ctx, conversation_id) | {"history": _shown_history(ctx.conn, conversation_id)}
 
 
 @router.delete("/sites/{site_id}/copilot/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_conversation(ctx: Ctx, conversation_id: uuid.UUID) -> None:
+    """Delete one of your conversations, unless the copilot is still answering in it (409)."""
     _own(ctx, conversation_id, lock=True)
     if _busy(ctx.conn, conversation_id):
         raise HTTPException(status.HTTP_409_CONFLICT, "The copilot is still answering in this conversation")
@@ -435,6 +439,7 @@ def rate_answer(ctx: Ctx, conversation_id: uuid.UUID, seq: int, body: Feedback) 
     status_code=status.HTTP_204_NO_CONTENT,
 )
 def unrate_answer(ctx: Ctx, conversation_id: uuid.UUID, seq: int) -> None:
+    """Withdraw your rating of an answer."""
     _answer(ctx, conversation_id, seq)
     ctx.conn.execute("DELETE FROM copilot_feedback WHERE conversation_id = %s AND seq = %s", [conversation_id, seq])
     ctx.audit("copilot.feedback.delete", "conversation", str(conversation_id), after={"seq": seq})
