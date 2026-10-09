@@ -110,7 +110,7 @@ The trust boundaries, from the inside out:
 | SR 6.1 Audit log accessibility | Done | Admins read it in Settings |
 | SR 6.2 Continuous monitoring | Gap | T5.13: OpenTelemetry, alerts for ingest lag and job failures |
 | SR 7.1 / 7.2 DoS protection | Partial | G-A1 |
-| SR 7.3 / 7.4 Backup, recovery | Gap | T5.14: point-in-time recovery and a restore drill |
+| SR 7.3 / 7.4 Backup, recovery | Partial | T5.14: point-in-time recovery policy and procedure ([runbook](../runbooks/backups.md)), a restore drill in CI; the deployment must run the backups and the monthly drill |
 | SR 7.6 Network and security configuration settings | Partial | Settings documented; Helm values with secure defaults (T5.09) |
 
 ## Actions
