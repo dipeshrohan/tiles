@@ -131,7 +131,7 @@ redis:
 # Monitoring (T5.13): traces and metrics pushed over OTLP to an OpenTelemetry Collector (see
 # deploy/monitoring), the alert rules as a PrometheusRule and the dashboard for Grafana's sidecar.
 monitoring:
-  otlpEndpoint: '' # e.g. http://otel-collector.monitoring:4318; empty: telemetry off
+  otlpEndpoint: '' # e.g. http://otel-collector.monitoring.svc:4318; empty: telemetry off
   prometheusRule:
     enabled: false # needs the Prometheus Operator's CRDs
     labels: {} # what your Prometheus selects rules by, e.g. release: kube-prometheus-stack

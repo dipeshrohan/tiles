@@ -99,3 +99,11 @@ columns = {{{{ temperature = "line1.temperature" }}}}
     assert json.loads(capsys.readouterr().out)["connectors"] == {
         "quality-db": "query results: the result has no column ts (it has id, at, temperature)"
     }
+
+
+def test_a_buffer_that_cant_open_is_not_a_config_error(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # A locked or full disk may clear by itself, so the service retries it (2 and 3 it doesn't).
+    path = write_config(tmp_path, "https://tiles.example.com")
+    (tmp_path / "buffer.sqlite").mkdir()  # a directory where the file should be
+    assert main(["run", "-c", str(path)]) == 5
+    assert "can't open the buffer" in capsys.readouterr().err

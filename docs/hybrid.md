@@ -30,7 +30,7 @@ This page is for plant IT and OT, and for whoever approves the firewall change.
 | The agent's host | The Tiles API host, for example `api.tiles.example.com` | TCP 443 (HTTPS) | Readings and heartbeats. Allow the host name if your firewall can; its addresses may change |
 | The agent's host | Your HTTP proxy, if all traffic leaves through one | The proxy's port | Instead of the rule above: the agent honours `HTTPS_PROXY` and `NO_PROXY`. If the proxy inspects TLS, give the agent its CA (`ca_file`) |
 | The agent's host | The OPC UA servers, MQTT brokers and SQL databases it reads | Their ports: OPC UA 4840 (or the server's), MQTT over TLS 8883, PostgreSQL 5432, SQL Server 1433 | Reading the plant's data, inside the plant network |
-| The agent's host | Your time servers | UDP 123 (NTP) | Readings carry their time; a drifting clock shifts them. The service waits for the clock to be synchronised |
+| The agent's host | Your time servers | UDP 123 (NTP) | Readings carry their time; a drifting clock shifts them. The service waits for the clock to be synchronised once `systemd-time-wait-sync` (or `chrony-wait`) is enabled |
 | The agent's host | Your DNS servers | UDP and TCP 53 | Resolving Tiles' host name |
 
 **Inbound to the agent's host: nothing.** No rule is needed from the internet, the cloud or the DMZ. Tiles never opens a connection to the plant.
@@ -43,18 +43,18 @@ The API and its scheduled jobs connect out to these hosts only:
 
 | To | Port | When |
 |---|---|---|
-| The identity provider: the issuer's host (`oidc.issuer`) and, if different, the signing keys' host | 443 | Always: it checks sign-in tokens against the provider's keys |
+| The identity provider: the issuer's host (`oidc.issuer`) and its signing keys' host. When the keys are on another host (Google's are), set `oidc.jwksUrl` or add the host to `hosts`: the chart can't discover it | 443 | Always: it checks sign-in tokens against the provider's keys |
 | The mail relay (`smtp.host`) | Its port, usually 587 | When notifications by e-mail are on |
-| `*.webhook.office.com`, `*.logic.azure.com`, `*.api.powerplatform.com` | 443 | When a site posts warnings to a Teams channel. Tiles refuses any other host for a webhook |
+| Hosts under `webhook.office.com`, `logic.azure.com` and `api.powerplatform.com` (up to three labels deep: the regional Workflows hosts) | 443 | When a site posts warnings to a Teams channel. Tiles refuses any other host for a webhook |
 | `api.anthropic.com` | 443 | When the copilot is on: it sends people's questions, and the data its tools read to answer them |
 | The OpenTelemetry Collector (`monitoring.otlpEndpoint`) | Usually 4318 | When monitoring is on |
 | The database and Redis | 5432, 6379 | In the cluster, or yours |
 
 **Enforcing it.** With Cilium (and its DNS proxy), the chart turns this list into policy: set `networkPolicy.egressAllowlist.enabled=true`, or `egress_allowlist = { enabled = true }` in Terraform.
 
-- **The API and jobs** may reach only the hosts above, worked out from the settings, plus any you add: `hosts` for an external database's or Redis's host, `namespaces` for in-cluster services such as a collector, `cidrs` for addresses.
+- **The API and jobs** may reach only the hosts above, worked out from the settings, plus any you add: `hosts` for an external database's or Redis's host, `namespaces` for in-cluster services, `cidrs` for addresses. A host in the cluster can't be named this way, so the chart allows its namespace instead: write it as `name.namespace.svc` (as in `http://otel-collector.monitoring.svc:4318`), or a bare name for one in Tiles' own namespace; a two-part `name.namespace` would be taken for a host outside.
 - **The web app, the database and Redis** may only look up names: they need nothing outside.
-- **Where it works:** on AKS, this needs Advanced Container Networking Services. Without Cilium, use your firewall's FQDN rules for the same list, for example Azure Firewall in front of the cluster's egress.
+- **Where it works:** on AKS, this needs Advanced Container Networking Services' security, which the Azure module turns on (`fqdn_policies`), and the managed environment enables the allowlist by default. Without Cilium, use your firewall's FQDN rules for the same list, for example Azure Firewall in front of the cluster's egress.
 
 ## Installing the agent
 

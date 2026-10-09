@@ -21,7 +21,7 @@ from tiles_edge.samples import MemoryBuffer
 DEFAULT_CONFIG = "/etc/tiles-edge/tiles-edge.toml"
 
 # Exit codes, for service managers and scripts.
-OK, UNREACHABLE, CONFIG, REJECTED, CONNECTOR = 0, 1, 2, 3, 4
+OK, UNREACHABLE, CONFIG, REJECTED, CONNECTOR, BUFFER = 0, 1, 2, 3, 4, 5
 
 
 def _common(parser: argparse.ArgumentParser) -> None:
@@ -88,8 +88,11 @@ def main(argv: list[str] | None = None) -> int:
             agent = Agent(config, client, connectors=built, forwarder=Forwarder(disk, client))
         else:
             agent = Agent(config, client, connectors=connectors.build(config, MemoryBuffer()))
-    except (ConfigError, BufferError) as e:
+    except ConfigError as e:
         return _fail(f"{args.config}: {e}", CONFIG)
+    except BufferError as e:
+        # Not the config's fault (a locked file, a full disk): a service manager may retry.
+        return _fail(str(e), BUFFER)
 
     if args.command == "check":
         # Try the connectors first, so the heartbeat reports what was just found

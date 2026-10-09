@@ -255,10 +255,17 @@ jobs:
               --set 'networkPolicy.egressAllowlist.cidrs[0]=10.20.0.5/32' \
             | "$(go env GOPATH)/bin/kubeconform" -strict -summary -kubernetes-version 1.33.0 -schema-location default \
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
-          # Settings that can't work are refused before anything is installed.
-          ! helm template t "$CHART" --kube-version 1.33.0 --set env=production 2> err.txt && grep -q 'needs oidc.issuer' err.txt
-          ! helm template t "$CHART" --kube-version 1.33.0 $VALUES --set apiUrl=api.example.com 2> err.txt && grep -q 'http(s) origins' err.txt
-          ! helm template t "$CHART" --kube-version 1.33.0 $VALUES --set ingress.enabled=true 2> err.txt && grep -q 'different host names' err.txt
+          # A collector in the cluster is allowed by its namespace (toFQDNs can't name it).
+          helm template t "$CHART" --kube-version 1.33.0 $VALUES --set networkPolicy.egressAllowlist.enabled=true \
+              --set monitoring.otlpEndpoint=http://otel-collector.monitoring.svc:4318 --show-only templates/egress.yaml > egress.txt
+          grep -q 'k8s:io.kubernetes.pod.namespace: "monitoring"' egress.txt
+          if grep -q otel-collector egress.txt; then echo "an in-cluster host in toFQDNs"; exit 1; fi
+          # Settings that can't work are refused before anything is installed. (Not `! a && b`:
+          # errexit ignores a failure there, so the check could never fail.)
+          refused() { if helm template t "$CHART" --kube-version 1.33.0 "${@:2}" 2> err.txt; then exit 1; fi; grep -q "$1" err.txt; }
+          refused 'needs oidc.issuer' --set env=production
+          refused 'http(s) origins' $VALUES --set apiUrl=api.example.com
+          refused 'different host names' $VALUES --set ingress.enabled=true
       - uses: helm/kind-action@v1
         with:
           cluster_name: tiles
@@ -297,7 +304,7 @@ jobs:
       - name: A lost Secret is refused, not replaced, while the database volume is there
         run: |
           kubectl delete secret tiles-generated
-          ! helm upgrade tiles "$CHART" $VALUES 2> err.txt
+          if helm upgrade tiles "$CHART" $VALUES 2> err.txt; then exit 1; fi
           grep 'holding its password is gone' err.txt
       - name: State on failure
         if: failure()
@@ -549,6 +556,7 @@ jobs:
           docker stop ci-edge
       - name: The agent as a sandboxed systemd service (edge/deploy/tiles-edge.service)
         run: |
+          set -o pipefail
           t=$(curl -fsS -X POST http://localhost:8080/realms/tiles/protocol/openid-connect/token \
             -d grant_type=password -d client_id=tiles-dev-cli -d scope=openid \
             -d username=admin -d password=admin | jq -er .access_token)
@@ -558,7 +566,7 @@ jobs:
           # Installed as edge/deploy/tiles-edge.service says.
           sudo useradd --system --home /var/lib/tiles-edge --shell /usr/sbin/nologin tiles-edge
           sudo python3 -m venv /opt/tiles-edge
-          sudo /opt/tiles-edge/bin/pip install --quiet ./edge
+          sudo /opt/tiles-edge/bin/pip install --quiet "./edge[opcua,mqtt]"
           sudo install -m 644 edge/deploy/tiles-edge.service /etc/systemd/system/
           sudo install -d -o root -g tiles-edge -m 750 /etc/tiles-edge
           printf '[tiles]\nurl = "http://localhost:8000"\ntoken_file = "token"\n[agent]\nheartbeat_seconds = 5\n' \
@@ -577,8 +585,8 @@ jobs:
           done
           sudo journalctl -u tiles-edge --no-pager | tail -20
           test "$status" = online
-          # It listens on nothing, and stops cleanly.
-          ! sudo ss -ltnp | grep -q tiles-edge
+          # It listens on nothing, and stops cleanly. (A negated pipeline wouldn't fail the step.)
+          if sudo ss -ltnup | grep tiles-edge; then echo "the agent listens on a port"; exit 1; fi
           sudo systemctl stop tiles-edge
           test "$(systemctl show -p Result --value tiles-edge)" = success
       - name: Logs on failure

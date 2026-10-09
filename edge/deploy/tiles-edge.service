@@ -5,6 +5,7 @@
 #   sudo install -m 644 edge/deploy/tiles-edge.service /etc/systemd/system/
 #   sudo install -d -o root -g tiles-edge -m 750 /etc/tiles-edge   # tiles-edge.toml here, and the
 #   sudo install -o tiles-edge -m 600 token /etc/tiles-edge/token  # token readable by the agent alone
+#   sudo systemctl enable systemd-time-wait-sync   # or chrony-wait, with chrony: see below
 #   sudo systemctl enable --now tiles-edge
 #
 # The agent only connects out: it listens on nothing, needs no privileges, and writes only its
@@ -14,7 +15,8 @@
 [Unit]
 Description=Tiles edge agent: reads plant data, sends it out to Tiles
 Documentation=https://github.com/dipeshrohan/tiles/blob/main/docs/hybrid.md
-# Readings carry their time: start once the clock is synchronised.
+# Readings carry their time: start once the clock is synchronised. time-sync.target waits for
+# that only when systemd-time-wait-sync (timesyncd) or chrony-wait (chrony) is enabled.
 Wants=network-online.target time-sync.target
 After=network-online.target time-sync.target
 
@@ -28,9 +30,9 @@ StateDirectory=tiles-edge
 StateDirectoryMode=0700
 Environment=PYTHONDONTWRITEBYTECODE=1
 UMask=0077
-# It stops cleanly on SIGTERM, with what it holds in the buffer; restarts after a crash, but not
-# when Tiles rejected it (exit 2: a bad config, 3: an unknown or revoked token), which a restart
-# can't fix.
+# It stops cleanly on SIGTERM, with what it holds in the buffer; restarts after a crash or when
+# its buffer can't open (exit 5), but not on what a restart can't fix: exit 2, a bad config, or
+# 3, Tiles rejected it (an unknown or revoked token).
 Restart=on-failure
 RestartSec=5
 RestartPreventExitStatus=2 3

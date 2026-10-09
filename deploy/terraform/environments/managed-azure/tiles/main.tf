@@ -105,4 +105,5 @@ module "tiles" {
   copilot_model     = var.copilot_model
   anthropic_api_key = var.anthropic_api_key
   monitoring        = var.monitoring
+  egress_allowlist  = var.egress_allowlist
 }

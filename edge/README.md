@@ -52,6 +52,7 @@ Tiles lists each site's agents at `GET /sites/<site-id>/agents`, with `online`, 
 | 2 | the config file is missing or invalid; the message says what to fix |
 | 3 | Tiles rejected the agent (unknown or revoked token): register it again |
 | 4 | `check` reached Tiles, but a connector couldn't connect; the output says why |
+| 5 | `run` couldn't open its buffer file (locked, the disk full or failing); the message says why. The service retries it |
 
 While running, the agent never gives up on a network problem. It retries with a growing, jittered delay (1 s, 2 s, 4 s … up to the heartbeat interval) and logs each failure.
 

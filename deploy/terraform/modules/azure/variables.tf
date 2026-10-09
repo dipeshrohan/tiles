@@ -80,3 +80,9 @@ variable "backup_retention_days" {
   type        = number
   default     = 35
 }
+
+variable "fqdn_policies" {
+  description = "Turn on Advanced Container Networking Services' security (a paid AKS feature), which the chart's egress allowlist by host name needs (docs/hybrid.md)."
+  type        = bool
+  default     = true
+}
