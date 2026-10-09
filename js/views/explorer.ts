@@ -2,6 +2,8 @@ import { esc, field, fmt, onAll, onSubmit } from '../lib/dom.ts';
 import type { SignalInfo, SignalSeries } from '../lib/api.ts';
 import { fitWidth, gapFor, TIME_CHART, timeAt, timeChart, toPoints } from '../lib/svg.ts';
 import { bindDraft, draftForm, insightLink, readDraft, seriesDraft, type DraftText } from '../lib/insights.ts';
+import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
+import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
 
@@ -41,6 +43,56 @@ let findTimer: ReturnType<typeof setTimeout> | undefined;
 let searchText = '';
 let saving: { key: string; text: DraftText } | null = null; // the insight being saved from the charts
 let savingBusy = false; // its POST is on its way
+// Each chart's wear check (T3.13): the choices typed, and the result for the range it ran on.
+interface WearState {
+  direction: 'either' | 'up' | 'down';
+  limit: string;
+  busy: boolean;
+  result: { key: string; data: WearCheckResult; limit: number | null } | null;
+}
+const wearStates = new Map<string, WearState>();
+const wearOf = (id: string): WearState => {
+  let w = wearStates.get(id);
+  if (!w) wearStates.set(id, (w = { direction: 'either', limit: '', busy: false, result: null }));
+  return w;
+};
+const wearKey = (id: string, range: Range | null): string => JSON.stringify([id, range]);
+
+function wearSection(p: Picked, range: Range | null): string {
+  const w = wearOf(p.id);
+  const r = w.result?.key === wearKey(p.id, range) ? w.result : null;
+  const option = (v: WearState['direction'], text: string) =>
+    `<option value="${v}" ${w.direction === v ? 'selected' : ''}>${text}</option>`;
+  return `<form class="row" style="gap:8px;flex-wrap:wrap;align-items:end" data-wear-form="${esc(p.id)}">
+      <label class="field">Wear moves it<select name="direction">${option('either', 'either way')}${option('up', 'up')}${option('down', 'down')}</select></label>
+      <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" style="width:8em"></label>
+      <button class="btn sm" type="submit" ${w.busy ? 'disabled' : ''}>Check for wear</button>
+    </form>
+    ${r ? wearBlock(r.data, r.limit, fitWidth(TIME_CHART.width)) : ''}`;
+}
+
+async function checkWear(ctx: Context, id: string): Promise<void> {
+  const site = ctx.ontology.site;
+  const { range } = ui(ctx);
+  const w = wearOf(id);
+  if (!ctx.api || !site || !range || w.busy) return;
+  const plan = wearPlan(range);
+  if (typeof plan === 'string') return void ctx.toast(plan);
+  const limit = parseLimit(w.limit);
+  if (typeof limit === 'string') return void ctx.toast(limit);
+  const key = wearKey(id, range);
+  w.busy = true;
+  ctx.rerender();
+  try {
+    const data = await ctx.api.signals.wearCheck(site.id, id, { ...plan, direction: w.direction, limit });
+    w.result = { key, data, limit };
+  } catch {
+    // the client showed why
+  } finally {
+    w.busy = false;
+    ctx.rerender();
+  }
+}
 
 const iso = (t: number) => new Date(t).toISOString();
 
@@ -356,6 +408,7 @@ const view: View = {
         (p) => `<div class="card stack" style="gap:6px">
           <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? '')}</span></div>
           <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
+          ${wearSection(p, range)}
         </div>`,
       )
       .join('');
@@ -429,6 +482,20 @@ const view: View = {
       });
       onSubmit(root, '#insight-save', () => void saveInsight(ctx));
     }
+    root.querySelectorAll<HTMLFormElement>('[data-wear-form]').forEach((form) => {
+      const id = form.dataset.wearForm ?? '';
+      const w = wearOf(id);
+      form.addEventListener('change', () => {
+        w.direction = field(form, 'direction') as WearState['direction'];
+      });
+      form.addEventListener('input', () => {
+        w.limit = field(form, 'limit');
+      });
+    });
+    onAll(root, '[data-wear-form]', 'submit', (form, e) => {
+      e.preventDefault();
+      void checkWear(ctx, form.dataset.wearForm ?? '');
+    });
     loadCharts(root, ctx);
   },
 };

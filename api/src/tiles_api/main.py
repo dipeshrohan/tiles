@@ -37,6 +37,7 @@ from tiles_api.api_series import router as series_router
 from tiles_api.api_signals import router as signals_router
 from tiles_api.api_suggest import router as suggest_router
 from tiles_api.api_warnings import router as warnings_router
+from tiles_api.api_wear import router as wear_router
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
 from tiles_api.settings import Settings, get_settings
 from tiles_api.store import close_pool
@@ -155,6 +156,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(suggest_router)  # before signals: /signals/suggestions is not a signal id
     app.include_router(signals_router)
     app.include_router(series_router)
+    app.include_router(wear_router)
     app.include_router(insights_router)
     return app
 

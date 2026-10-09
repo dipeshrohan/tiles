@@ -209,6 +209,38 @@ export interface SignalSeries {
   }[];
 }
 
+// The wear check (T3.13): has a signal's level moved from its baseline, how fast, and when does it
+// reach a limit.
+export interface WearCheckQuery {
+  end?: string; // excluded; default: just after the latest reading
+  recent_hours?: number;
+  baseline_hours?: number;
+  bucket_minutes?: number;
+  direction?: 'up' | 'down' | 'either';
+  threshold?: number; // a fraction of the baseline
+  limit?: number | null;
+  last?: number;
+}
+
+export interface WearCheckResult {
+  signal_id: string;
+  tag: string;
+  unit: string | null;
+  start: string;
+  recent_from: string;
+  end: string;
+  verdict: 'wearing' | 'stable' | 'not_enough_data';
+  baseline: number | null;
+  last: number | null;
+  change: number | null;
+  slope_per_day: number | null;
+  hours_to_limit: number | null;
+  baseline_buckets: number;
+  recent_buckets: number;
+  text: string;
+  buckets: { at: string; value: number; n: number }[];
+}
+
 // A suggested ontology node for an unmapped tag (T2.11): link an existing node, or create one by
 // staging `ops`.
 export interface MappingSuggestion {
@@ -621,6 +653,12 @@ export function createApiClient(options: ApiOptions) {
         request<SignalSeries>(
           'GET',
           `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}/series?${new URLSearchParams({ from, to, points: String(points) }).toString()}`,
+        ),
+      wearCheck: (siteId: string, signalId: string, q: WearCheckQuery) =>
+        request<WearCheckResult>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/signals/${encodeURIComponent(signalId)}/wear-check`,
+          q,
         ),
     },
     // Bulk imports of readings (T2.07): start one, send its readings in batches, finish it.
