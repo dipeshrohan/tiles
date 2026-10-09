@@ -14,6 +14,7 @@ from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are 
 
 from tiles_api.models import runner
 from tiles_api.models.plunger import PlungerFriction
+from tiles_api.store import UNSCOPED
 
 SHOTS = json.loads((Path(__file__).parents[2] / "test" / "fixtures" / "plunger-shots.json").read_text())["shots"]
 T0 = datetime(2026, 9, 1, 6, 0, tzinfo=UTC)
@@ -149,7 +150,7 @@ def test_a_bound_model_writes_derived_signals_from_the_history_then_only_new_dat
 
     # Stopped: kept, with its readings, but no longer run on schedule.
     assert api.delete(f"/sites/{site}/model-bindings/{binding['id']}", headers=ENG).status_code == 204
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(database_url, row_factory=dict_row, options=UNSCOPED) as conn:  # as a job connects
         assert binding["id"] not in [str(b) for b in runner.due(conn)]
         actions = [
             r["action"]
@@ -166,7 +167,7 @@ def test_a_shot_still_being_recorded_waits_for_the_next_run(
 ) -> None:
     import_shots(api, site, SHOTS[:2])
     binding = bind(api, site).json()
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(database_url, row_factory=dict_row, options=UNSCOPED) as conn:  # as a job connects
         row = conn.execute("SELECT * FROM model_bindings WHERE id = %s", [binding["id"]]).fetchone()
         assert row is not None
         last = T0 + CYCLE + timedelta(seconds=SHOTS[1]["payload"]["t"][-1])
@@ -251,7 +252,7 @@ def test_a_window_larger_than_a_batch_stops_the_run_rather_than_running_in_piece
     import_shots(api, site, SHOTS[:1])
     binding = bind(api, site, window={"kind": "fixed", "seconds": 3600}).json()
     monkeypatch.setattr(runner, "MAX_ROWS", 50)  # a shot has 80 readings: more than a batch
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(database_url, row_factory=dict_row, options=UNSCOPED) as conn:  # as a job connects
         result = runner.run(conn, binding["id"])
         assert (result.windows, result.done_until, result.written) == (0, None, 0)
         assert result.error == "a window has more than 50 readings: use shorter windows"
@@ -272,7 +273,7 @@ def test_windows_the_model_refuses_are_counted_and_the_first_reason_kept(databas
                 raise KeyError("third")
             return PlungerFriction().run(inputs, params)
 
-    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(database_url, row_factory=dict_row, options=UNSCOPED) as conn:  # as a job connects
         ids = {}
         for tag in ("v", "ph", "pm", "force", "friction"):
             ids[tag] = str(

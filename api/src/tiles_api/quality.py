@@ -36,6 +36,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
 from tiles_api.settings import get_settings
+from tiles_api.store import UNSCOPED
 
 Badge = Literal["good", "warn", "bad", "unknown"]
 Check = Literal["gaps", "stuck", "range", "source", "unit", "silent"]
@@ -75,13 +76,13 @@ class Report(BaseModel):
 
 # One statement per signal: readings in the window, steps between them, runs of one value.
 STATS: LiteralString = """
-WITH last AS (SELECT max(at) AS at FROM samples WHERE signal_id = %(id)s),
+WITH last AS (SELECT max(at) AS at FROM site_samples WHERE signal_id = %(id)s),
 s AS (
     SELECT x.at, x.value, x.quality,
            extract(epoch FROM x.at - lag(x.at) OVER w)::float8 AS step,
            (x.value, x.value_text, x.value_bool)
              IS DISTINCT FROM (lag(x.value) OVER w, lag(x.value_text) OVER w, lag(x.value_bool) OVER w) AS changed
-    FROM samples x, last
+    FROM site_samples x, last
     WHERE x.signal_id = %(id)s AND x.at > last.at - %(window_s)s::float8 * interval '1 second' AND x.at <= last.at
     WINDOW w AS (ORDER BY x.at)
 ),
@@ -323,7 +324,7 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--hours must be above 0 and at most 720")
     failed = False
     # Autocommit, so each site's checks are their own transaction: one site failing keeps the others'.
-    with psycopg.connect(get_settings().database_url, row_factory=dict_row, autocommit=True) as conn:
+    with psycopg.connect(get_settings().database_url, row_factory=dict_row, autocommit=True, options=UNSCOPED) as conn:
         sites = [args.site] if args.site else [r["id"] for r in conn.execute("SELECT id FROM sites ORDER BY slug")]
         for site in sites:
             try:

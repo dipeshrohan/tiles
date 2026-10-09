@@ -112,15 +112,13 @@ def store_samples(conn: Any, site_id: Any, source: str, samples: list[SampleIn])
         )
         for column, cell in zip(columns, row, strict=True):
             column.append(cell)
-    stored: int = conn.execute(
-        """
-        INSERT INTO samples (signal_id, at, value, value_text, value_bool, quality)
-        SELECT * FROM unnest(%s::uuid[], %s::timestamptz[], %s::float8[], %s::text[], %s::bool[], %s::text[])
-        ON CONFLICT (signal_id, at) DO NOTHING
-        """,
+    # Through tiles_store_samples (row security, T5.04): readings of this site's signals only.
+    row = conn.execute(
+        "SELECT tiles_store_samples(%s::uuid[], %s::timestamptz[], %s::float8[], %s::text[], %s::bool[], %s::text[])"
+        " AS n",
         list(columns),
-    ).rowcount
-    return stored
+    ).fetchone()
+    return int(row["n"]) if row else 0
 
 
 @router.post("/agent/samples", response_model=SamplesOut)

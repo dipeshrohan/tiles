@@ -3,25 +3,27 @@ its site, for every table of a site's data; jobs (no site named) see every site.
 
 import importlib
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
-from test_agents import ENG, api, site  # noqa: F401 - api and site are fixtures
+from test_agents import ADMIN, ENG, api, site  # noqa: F401 - api and site are fixtures
 from test_reviews import member
 
 from tiles_api import copilot_usage
 from tiles_api.api_ontology import SiteContext
 from tiles_api.identity import User
 from tiles_api.settings import Settings
-from tiles_api.store import act_as_app, all_sites
+from tiles_api.store import UNSCOPED, act_as_app, all_sites, open_pool
 
 RLS = importlib.import_module("tiles_api.migrations.versions.0024_site_row_security")
-# Tables of no one site: the organisation's, people, and the readings hypertable (reached only
-# through `signals`; TimescaleDB refuses row security on a compressed hypertable).
-UNSCOPED = {"alembic_version", "orgs", "sites", "users", "models", "samples"}
+# Tables of no one site: the organisation's, people, and the readings hypertable (TimescaleDB
+# refuses row security on a compressed hypertable: the API reads it through `site_samples` and
+# writes it with `tiles_store_samples`, and may not touch it otherwise).
+NO_SITE = {"alembic_version", "orgs", "sites", "users", "models", "samples"}
 
 
 def tables(conn: psycopg.Connection[Any]) -> dict[str, tuple[bool, bool, bool]]:
@@ -44,7 +46,7 @@ def test_every_table_of_a_sites_data_has_forced_row_security(database_url: str) 
     with_site = {t for t, (has_site, _, _) in found.items() if has_site}
     assert with_site == set(RLS.SITE_TABLES), "a table with site_id needs a policy (or one was dropped)"
     children = {t for t, *_ in RLS.CHILD_TABLES}
-    assert set(found) - with_site - children == UNSCOPED, "a new table: does it hold a site's data?"
+    assert set(found) - with_site - children == NO_SITE, "a new table: does it hold a site's data?"
     for table in with_site | children:
         assert found[table][1:] == (True, True), table
 
@@ -78,6 +80,14 @@ def two_sites(api: TestClient, site: str, database_url: str) -> dict[str, Any]: 
                 "INSERT INTO conversation_messages (conversation_id, seq, role, content) VALUES (%s, 0, 'user', '[]')",
                 [cv["id"]],
             )
+            conn.execute(
+                "INSERT INTO samples (signal_id, at, value) SELECT id, now(), 1 FROM signals WHERE site_id = %s", [s]
+            )
+        conn.execute(  # an organisation-level entry, of no site
+            "INSERT INTO audit_log (org_id, actor_name, action, entity_type, entity_id)"
+            " VALUES (%s, 'x', 'org', 'org', 'o')",
+            [org["org_id"]],
+        )
     return {"site": uuid.UUID(site), "other": other["id"], "org": org["org_id"], "user": user}
 
 
@@ -109,6 +119,29 @@ def test_a_request_sees_and_writes_only_its_sites_rows(database_url: str, two_si
         assert (
             conn.execute("UPDATE signals SET description = 'x' WHERE site_id = %s", [two_sites["other"]]).rowcount == 0
         )
+        # Readings, through the view the API reads: this site's only. The hypertable itself is closed.
+        sig = "SELECT DISTINCT g.site_id FROM site_samples x JOIN signals g ON g.id = x.signal_id"
+        assert [r["site_id"] for r in conn.execute(sig).fetchall()] == [two_sites["site"]]
+        with pytest.raises(psycopg.errors.InsufficientPrivilege), conn.transaction():
+            conn.execute("SELECT count(*) FROM samples")
+        # Readings are stored for this site's signals only.
+        other_signal = conn.execute("SELECT id FROM signals").fetchone()  # this site's
+        with all_sites(conn):
+            theirs_signal = conn.execute("SELECT id FROM signals WHERE site_id = %s", [two_sites["other"]]).fetchone()
+        store = (
+            "SELECT tiles_store_samples(%s::uuid[], %s::timestamptz[], %s::float8[], %s::text[], %s::bool[],"
+            " %s::text[]) AS n"
+        )
+        later = datetime.now(UTC) + timedelta(hours=1)
+        assert other_signal and theirs_signal
+
+        def args(sid: uuid.UUID) -> list[Any]:
+            return [[sid], [later], [2.0], [None], [None], ["good"]]
+
+        assert conn.execute(store, args(other_signal["id"])).fetchone() == {"n": 1}
+        assert conn.execute(store, args(theirs_signal["id"])).fetchone() == {"n": 0}
+        # The organisation's own audit entries aren't any site's.
+        assert conn.execute("SELECT count(*) AS n FROM audit_log WHERE site_id IS NULL").fetchone() == {"n": 0}
         # An organisation's total, by design, spans its sites; then the scope is back.
         with all_sites(conn):
             assert conn.execute(
@@ -120,6 +153,41 @@ def test_a_request_sees_and_writes_only_its_sites_rows(database_url: str, two_si
         assert conn2.execute(
             "SELECT count(*) AS n FROM datasets WHERE site_id = ANY(%s)", [[two_sites["site"], two_sites["other"]]]
         ).fetchone() == {"n": 2}
+
+
+def test_no_site_named_sees_no_rows(database_url: str, two_sites: dict[str, Any]) -> None:
+    """Code that names no site (an endpoint that forgot) gets nothing, not everything."""
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        act_as_app(conn)
+        assert conn.execute("SELECT count(*) AS n FROM signals").fetchone() == {"n": 0}
+        assert conn.execute("SELECT count(*) AS n FROM site_samples").fetchone() == {"n": 0}
+        assert conn.execute("SELECT count(*) AS n FROM dataset_rows").fetchone() == {"n": 0}
+    # Jobs name every site: they connect with it.
+    with psycopg.connect(database_url, row_factory=dict_row, options=UNSCOPED) as conn:
+        act_as_app(conn)
+        everything = conn.execute("SELECT count(*) AS n FROM signals").fetchone()
+        assert everything is not None and everything["n"] >= 2
+
+
+def test_an_agent_reaches_only_its_own_site(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    two_sites: dict[str, Any],
+) -> None:
+    token = api.post(f"/sites/{site}/agents", json={"name": "line-1"}, headers=ADMIN).json()["token"]
+    auth = {"Authorization": f"Bearer {token}"}
+    beat = {"version": "1", "started_at": datetime.now(UTC).isoformat(), "heartbeat_seconds": 30}
+    assert api.post("/agent/heartbeat", json=beat, headers=auth).status_code == 200
+    # Its readings land on its site's signals, whatever tag another site uses.
+    tag = f"tag-{two_sites['other']}"
+    batch = {"samples": [{"signal": tag, "at": datetime.now(UTC).isoformat(), "value": 5.0}]}
+    assert api.post("/agent/samples", json=batch, headers=auth).json()["stored"] == 1
+    with psycopg.connect(database_url) as conn:
+        sites = conn.execute(
+            "SELECT g.site_id FROM samples x JOIN signals g ON g.id = x.signal_id WHERE x.value = 5"
+        ).fetchall()
+    assert sites == [(two_sites["site"],)]  # a new signal of its own site, not the other site's
 
 
 def test_the_copilot_budget_counts_the_organisations_every_site(
@@ -142,8 +210,9 @@ def test_the_copilot_budget_counts_the_organisations_every_site(
 
 
 def test_the_api_works_as_a_role_that_cant_skip_row_security(api: TestClient) -> None:  # noqa: F811
-    api.get("/health/ready")  # the pool is made on first use
-    with api.app.state.pool.connection() as conn:  # type: ignore[attr-defined]
+    state = api.app.state  # type: ignore[attr-defined]
+    state.pool = state.pool or open_pool(state.settings)
+    with state.pool.connection() as conn:
         row = conn.execute(
             "SELECT current_user AS who, rolsuper OR rolbypassrls AS skips FROM pg_roles WHERE rolname = current_user"
         ).fetchone()

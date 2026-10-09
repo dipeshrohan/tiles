@@ -154,6 +154,7 @@ def site_context(site_id: uuid.UUID, principal: Auth, conn: DbConn) -> SiteConte
     ).fetchone()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Site not found")
+    scope_to_site(conn, site_id)  # before anything reads or writes the site's rows (T5.04)
     user = resolve_user(conn, principal, site_id, row["org_id"], row["slug"])
     return SiteContext(conn, site_id, row["org_id"], user)
 

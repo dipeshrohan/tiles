@@ -4,7 +4,7 @@ import threading
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Annotated, Any
+from typing import Annotated
 
 import psycopg
 from fastapi import Depends, Request
@@ -78,20 +78,19 @@ def scope_to_site(conn: Conn, site_id: uuid.UUID) -> None:
     conn.execute("SELECT set_config('tiles.site_id', %s, true)", [str(site_id)])
 
 
+UNSCOPED = "-c tiles.site_id=*"  # psycopg.connect(options=…) for jobs: every site's rows
+
+
 @contextmanager
 def all_sites(conn: Conn) -> Iterator[None]:
-    """Every site's rows for the statements inside (an organisation's totals), then the scope it
-    had again. Use it only for what spans sites by design, and name the organisation."""
-    before = one(conn.execute("SELECT coalesce(current_setting('tiles.site_id', true), '') AS s").fetchone())
-    conn.execute("SELECT set_config('tiles.site_id', '', true)")
-    try:
-        yield
-    finally:
-        conn.execute("SELECT set_config('tiles.site_id', %s, true)", [_scope(before)])
-
-
-def _scope(row: Any) -> str:
-    return str(row["s"] if isinstance(row, dict) else row[0])
+    """Every site's rows for the statements inside (an organisation's totals, an agent's token),
+    then the scope it had again. Use it only for what spans sites by design."""
+    before = one(conn.execute("SELECT coalesce(current_setting('tiles.site_id', true), '') AS s").fetchone())["s"]
+    conn.execute("SELECT set_config('tiles.site_id', '*', true)")
+    yield
+    # Restored only after the block succeeded: after an error the transaction is rolled back
+    # (and the setting with it), and the error is the one to see.
+    conn.execute("SELECT set_config('tiles.site_id', %s, true)", [before])
 
 
 def one[T](row: T | None) -> T:

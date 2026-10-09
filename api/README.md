@@ -110,15 +110,27 @@ Each site member is a viewer, engineer or admin; organisation admins (`users.org
 
 #### Site-level permissions in the database (T5.04)
 
-Roles decide what a member may do. The database also keeps each request to its own site's rows, so a query that forgets to filter by site can't reach another site's data. Migration 0024 sets this up:
-- **Row security on site data.** Every table with a `site_id` has a policy, forced so that it holds for the tables' owner too. Rows that belong to a site through a parent follow the parent's policy: a conversation's messages, a dataset's rows, a warning's activity.
-- **Scoped requests.** A request on a site scopes its transaction to that site. `SiteContext` runs `set_config('tiles.site_id', …, true)`, so only that site's rows are visible and writable, and the scope ends with the transaction.
-- **Unscoped work.** Without a site named, every row is visible, as before. This covers scheduled jobs, migrations, and endpoints that aren't a site's, such as an edge agent's heartbeat; they name the rows they want.
-- **Organisation totals.** The few counts that span an organisation's sites widen the scope explicitly with `store.all_sites` (the copilot's daily budget and rate limits).
-- **The `tiles_app` role.** A superuser, or a role with BYPASSRLS, skips row security even when it is forced, and Compose's database user is a superuser. So the API's connections switch to `tiles_app`, a role the migration creates that can't log in or skip policies and is granted every table (`store.act_as_app`). A login without those powers stays as it is, since the forced policies hold for it. On a managed database whose login may not create roles, the migration skips the role.
-- **Readings.** The `samples` hypertable can't have row security while it is compressed (TimescaleDB). Readings are reached only through `signals`, which has it.
+Roles decide what a member may do. The database also keeps each request to its own site's rows, so a query that forgets to filter by site can't reach another site's data. Migration 0024 sets this up.
 
-`tests/test_row_security.py` fails if a table with a `site_id` has no policy, if a new table isn't classified as a site's data or not, or if the API's connections could skip the policies.
+**Row security on site data.** Every table with a `site_id` has a policy, forced so that it holds for the tables' owner too. Rows that belong to a site through a parent follow the parent's policy: a conversation's messages, a dataset's rows, a warning's activity.
+
+**The `tiles.site_id` setting** decides what a transaction may see and write:
+- **a site's id**: that site's rows only. A request on a site sets it before anything else (`SiteContext`), and an edge agent's endpoints set it to the agent's site once its token is known.
+- **`*`**: every site's rows. Scheduled jobs and migrations connect with it (`store.UNSCOPED`). `store.all_sites` sets it, explicitly, for the few lookups that span sites: the copilot's organisation-wide budget and rate limits, and finding an agent by its token.
+- **unset**: no rows at all. Code that names no site gets nothing, rather than everything. Rows of no site (an organisation's own audit entries) are seen only with `*`.
+
+**The `tiles_app` role.** A superuser, or a role with BYPASSRLS, skips row security even when it is forced, and Compose's database user is a superuser. So the API's connections switch to `tiles_app`, a role the migration creates that can't log in or skip policies (`store.act_as_app`). The migration runner grants it every table again after each upgrade, so tables a later migration makes are covered whichever login made them. A login without those powers stays as it is, since the forced policies hold for it. On a managed database whose login may not create roles, the migration skips the role. If the API logs in as a different role from the one that ran the migrations, grant it `tiles_app`.
+
+**Readings.** The `samples` hypertable can't have row security while it is compressed (TimescaleDB), so `tiles_app` may not touch it:
+- it reads `site_samples`, a security-barrier view of the readings of the signals the setting lets it see;
+- it stores readings with `tiles_store_samples`, a function that keeps only readings of such signals.
+
+`tests/test_row_security.py` covers:
+- a table with a `site_id` and no policy, or a new table not yet classified as a site's data or not;
+- a request reading or writing another site's rows, readings included;
+- code with no site named seeing anything;
+- an agent reaching another site;
+- the API's connections being able to skip the policies.
 
 ### Audit log
 

@@ -294,7 +294,8 @@ def virtual_sensors(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
             SELECT g.id, g.tag, g.unit, s.at AS last_at,
                    coalesce(s.value::text, s.value_text, s.value_bool::text) AS last_value
             FROM signals g LEFT JOIN LATERAL (
-                SELECT at, value, value_text, value_bool FROM samples WHERE signal_id = g.id ORDER BY at DESC LIMIT 1
+                SELECT at, value, value_text, value_bool FROM site_samples
+                WHERE signal_id = g.id ORDER BY at DESC LIMIT 1
             ) s ON true
             WHERE g.site_id = %s AND g.id = ANY(%s)
             """,
@@ -363,7 +364,7 @@ def events(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
         """
         SELECT g.tag, g.event_kind AS kind, g.asset, s.at,
                coalesce(s.value::text, s.value_text, s.value_bool::text) AS value
-        FROM samples s JOIN signals g ON g.id = s.signal_id
+        FROM site_samples s JOIN signals g ON g.id = s.signal_id
         WHERE g.site_id = %(s)s AND g.event_kind IS NOT NULL AND s.at >= %(since)s AND s.at < %(until)s
           AND (%(sig)s::uuid IS NULL OR g.id = %(sig)s) AND (%(asset)s = '' OR g.asset = %(asset)s)
         ORDER BY s.at DESC LIMIT %(n)s

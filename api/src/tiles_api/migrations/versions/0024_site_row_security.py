@@ -1,18 +1,23 @@
 """Site-level permissions in the database (T5.04): row-level security on every table of a site's
 data, so a query a request makes can't reach another site's rows even if it forgets to filter.
 
-A request's transaction names its site with `SELECT set_config('tiles.site_id', <site>, true)`
-(SiteContext does it): its rows are then the only ones visible, and the only ones it may write.
-Without it (scheduled jobs, migrations, endpoints that aren't a site's, such as an edge agent's
-own) every row is visible, as before: those name the rows they want. `''` clears the setting for
-the rest of the transaction (`store.all_sites`), for the few counts that span an organisation.
+The setting `tiles.site_id` says whose rows a transaction may see and write:
+- a site's id: that site's rows only (SiteContext sets it for a request on a site, before
+  anything else; an edge agent's endpoints set it to the agent's site once its token is known);
+- `*`: every site's rows (scheduled jobs and migrations connect with it; `store.all_sites` sets
+  it for the few counts that span an organisation, and the agent's token lookup);
+- unset: no rows. Code that names no site sees nothing, rather than everything.
 
 Policies are forced, so they hold for the tables' owner. A superuser (or a role with BYPASSRLS)
 skips them all the same, as Compose's database user is: the API then works as `tiles_app`, a role
-made here that can't log in or skip them, granted every table (`store.open_pool` sets it). Child rows
-follow their parent's site (a conversation's messages, a dataset's rows, a warning's activity),
-through the parent's own policy. The `samples` hypertable can't have row security while it is
-compressed (TimescaleDB): readings are reached only through `signals`, which has it.
+made here that can't log in or skip them, granted every table (`store.act_as_app`; the migration
+runner grants it new tables too). Child rows follow their parent's site (a conversation's
+messages, a dataset's rows, a warning's activity), through the parent's own policy.
+
+The `samples` hypertable can't have row security while it is compressed (TimescaleDB), so
+`tiles_app` may not touch it: it reads `site_samples`, a view of the readings of the signals the
+setting lets it see, and stores readings with `tiles_store_samples`, which keeps only those of
+such signals.
 
 Revision ID: 0024
 Revises: 0023
@@ -70,10 +75,17 @@ CHILD_TABLES = (
 
 FUNCTION = """
 CREATE FUNCTION tiles_site_visible(site uuid) RETURNS boolean LANGUAGE sql STABLE PARALLEL SAFE AS $$
-    SELECT site IS NULL
-        OR coalesce(current_setting('tiles.site_id', true), '') = ''
+    SELECT coalesce(current_setting('tiles.site_id', true), '') = '*'
         OR site::text = current_setting('tiles.site_id', true)
 $$;
+"""
+
+# The readings `tiles_app` may see: those of the signals the setting lets it see. A security
+# barrier, so a caller's conditions can't look at rows before the filter has dropped them.
+SITE_SAMPLES = """
+CREATE VIEW site_samples WITH (security_barrier = true) AS
+SELECT s.* FROM samples s
+WHERE s.signal_id IN (SELECT g.id FROM signals g WHERE tiles_site_visible(g.site_id));
 """
 
 
@@ -86,11 +98,7 @@ BEGIN
         CREATE ROLE tiles_app NOLOGIN NOSUPERUSER NOBYPASSRLS;
     END IF;
     EXECUTE 'GRANT tiles_app TO ' || quote_ident(current_user);
-    GRANT USAGE ON SCHEMA public TO tiles_app;
-    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO tiles_app;
-    GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO tiles_app;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO tiles_app;
-    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO tiles_app;
+    PERFORM tiles_grant_app();
 EXCEPTION WHEN insufficient_privilege THEN
     -- A login that may not make roles isn't a superuser either: it owns the tables, and their
     -- forced policies hold for it as they are.
@@ -100,9 +108,51 @@ $$;
 """
 
 
+# Stores readings, skipping those already stored and those of signals the setting doesn't let the
+# caller see; the number stored. It runs as its owner, who may write the hypertable.
+STORE_SAMPLES = """
+CREATE FUNCTION tiles_store_samples(
+    ids uuid[], ats timestamptz[], vals float8[], texts text[], bools boolean[], qualities text[]
+) RETURNS bigint LANGUAGE sql SECURITY DEFINER SET search_path = public, pg_temp AS $$
+    WITH stored AS (
+        INSERT INTO samples (signal_id, at, value, value_text, value_bool, quality)
+        SELECT u.signal_id, u.at, u.value, u.value_text, u.value_bool, coalesce(u.quality, 'good')
+        FROM unnest(ids, ats, vals, texts, bools, qualities)
+             AS u (signal_id, at, value, value_text, value_bool, quality)
+        WHERE u.signal_id IN (SELECT g.id FROM signals g WHERE tiles_site_visible(g.site_id))
+        ON CONFLICT (signal_id, at) DO NOTHING
+        RETURNING 1
+    )
+    SELECT count(*) FROM stored
+$$;
+REVOKE ALL ON FUNCTION tiles_store_samples(uuid[], timestamptz[], float8[], text[], boolean[], text[]) FROM PUBLIC;
+"""
+
+# What `tiles_app` may do, granted again after every migration (db.upgrade) so new tables are
+# covered whoever made them: every table, except reading the readings hypertable.
+GRANT_APP = """
+CREATE FUNCTION tiles_grant_app() RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tiles_app') THEN
+        RETURN;
+    END IF;
+    GRANT USAGE ON SCHEMA public TO tiles_app;
+    GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO tiles_app;
+    GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO tiles_app;
+    REVOKE ALL ON samples FROM tiles_app;
+    GRANT EXECUTE ON FUNCTION tiles_store_samples(uuid[], timestamptz[], float8[], text[], boolean[], text[])
+        TO tiles_app;
+END
+$$;
+"""
+
+
 def upgrade() -> None:
-    op.execute(APP_ROLE)
     op.execute(FUNCTION)
+    op.execute(SITE_SAMPLES)
+    op.execute(STORE_SAMPLES)
+    op.execute(GRANT_APP)
+    op.execute(APP_ROLE)
     for table in SITE_TABLES:
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
@@ -113,7 +163,8 @@ def upgrade() -> None:
     for table, column, parent in CHILD_TABLES:
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
-        rule = f"{column} IN (SELECT id FROM {parent})"  # noqa: S608 - constants; the parent's policy decides
+        # The parent's own policy decides; EXISTS looks the parent up by its key.
+        rule = f"EXISTS (SELECT 1 FROM {parent} p WHERE p.id = {table}.{column})"  # noqa: S608 - constants
         op.execute(f"CREATE POLICY site_rows ON {table} USING ({rule}) WITH CHECK ({rule})")
 
 
@@ -126,6 +177,8 @@ def downgrade() -> None:
         op.execute(f"DROP POLICY site_rows ON {table}")
         op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
         op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")
+    op.execute("DROP FUNCTION tiles_store_samples(uuid[], timestamptz[], float8[], text[], boolean[], text[])")
+    op.execute("DROP VIEW site_samples")
     op.execute("DROP FUNCTION tiles_site_visible(uuid)")
     # The role stays (other databases of the server may use it); this database's grants go.
     op.execute(
@@ -133,8 +186,6 @@ def downgrade() -> None:
         DO $$
         BEGIN
             IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'tiles_app') THEN
-                ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM tiles_app;
-                ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM tiles_app;
                 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM tiles_app;
                 REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM tiles_app;
                 REVOKE USAGE ON SCHEMA public FROM tiles_app;
@@ -143,3 +194,4 @@ def downgrade() -> None:
         $$;
         """
     )
+    op.execute("DROP FUNCTION tiles_grant_app()")

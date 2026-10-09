@@ -46,14 +46,14 @@ class Series(BaseModel):
 RAW = """
 SELECT at, coalesce(value, value_bool::int) AS value, coalesce(value, value_bool::int) AS min,
        coalesce(value, value_bool::int) AS max, 1 AS n, value_text AS text
-FROM samples WHERE signal_id = %(id)s AND at >= %(start)s AND at < %(end)s ORDER BY at LIMIT %(limit)s
+FROM site_samples WHERE signal_id = %(id)s AND at >= %(start)s AND at < %(end)s ORDER BY at LIMIT %(limit)s
 """
 
 BUCKETS = """
 SELECT time_bucket(%(bucket_s)s * interval '1 second', at, %(start)s::timestamptz) AS at,
        avg(coalesce(value, value_bool::int)) AS value, min(coalesce(value, value_bool::int)) AS min,
        max(coalesce(value, value_bool::int)) AS max, count(*) AS n, last(value_text, at) AS text
-FROM samples WHERE signal_id = %(id)s AND at >= %(start)s AND at < %(end)s
+FROM site_samples WHERE signal_id = %(id)s AND at >= %(start)s AND at < %(end)s
 GROUP BY 1 ORDER BY 1
 """
 
@@ -83,7 +83,7 @@ def site_signal(ctx: SiteContext, signal_id: uuid.UUID) -> dict[str, Any]:
 
 def latest_end(ctx: SiteContext, signal_id: uuid.UUID) -> datetime:
     """Just after the signal's latest reading (a range's end is excluded), or now if it has none."""
-    latest = ctx.conn.execute("SELECT max(at) AS at FROM samples WHERE signal_id = %s", [signal_id]).fetchone()
+    latest = ctx.conn.execute("SELECT max(at) AS at FROM site_samples WHERE signal_id = %s", [signal_id]).fetchone()
     at: datetime | None = latest["at"] if latest else None
     return at + timedelta(microseconds=1) if at else datetime.now(UTC)
 
