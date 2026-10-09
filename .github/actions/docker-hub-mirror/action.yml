@@ -1,0 +1,28 @@
+name: Docker Hub images through a mirror
+description: >-
+  Pulls the given Docker Hub images from Google's mirror (mirror.gcr.io) and tags them with their
+  Docker Hub names, so Compose, the scripts and the Dockerfiles find them without asking Docker
+  Hub, whose anonymous pull limit (shared by every job on a runner's address) otherwise stops CI.
+  The daemon's registry-mirrors setting isn't used: the runners' containerd image store ignores
+  it.
+inputs:
+  images:
+    description: Docker Hub images, one per line (e.g. redis:7-alpine, timescale/timescaledb:2.30.2-pg17)
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        IMAGES: ${{ inputs.images }}
+      run: |
+        set -euo pipefail
+        for image in $IMAGES; do
+          case "$image" in */*) path="$image" ;; *) path="library/$image" ;; esac
+          for attempt in 1 2 3; do
+            docker pull -q "mirror.gcr.io/$path" && break
+            [ "$attempt" = 3 ] && exit 1
+            sleep $((attempt * 5))
+          done
+          docker tag "mirror.gcr.io/$path" "$image"
+        done

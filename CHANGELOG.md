@@ -32,7 +32,8 @@ The first version: everything up to the pilot. Not yet tagged.
 - **Analysis:**
   - a correlation finder over batch tables;
   - saved insights with evidence and proposed actions;
-  - a wear check with time to a limit.
+  - a wear check with time to a limit;
+  - **App Studio:** checks set up from templates without code: a wear check, and SPC limits (a control chart with limits from a baseline and the Western Electric rules), each run on a signal's latest readings (T6.10).
 - **Design studio:** physics-based design models, runs with lineage and audit export (PDF), and parameter sweeps.
 - **Copilot:**
   - Claude with read-only tools over the site's data;

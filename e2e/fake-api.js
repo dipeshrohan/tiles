@@ -86,6 +86,51 @@ function planImport(head, file, mode) {
   };
 }
 
+// App Studio's templates (T6.10), as GET /app-templates describes them (shortened settings).
+const param = (name, label, kind, extra = {}) => ({
+  name,
+  label,
+  kind,
+  default: null,
+  minimum: null,
+  maximum: null,
+  choices: [],
+  optional: false,
+  help: '',
+  ...extra,
+});
+const APP_TEMPLATES = [
+  {
+    id: 'wear-check',
+    version: 1,
+    title: 'Wear check',
+    summary: "Has a signal's level moved from its baseline, as a wearing tool's does?",
+    params: [
+      param('signal', 'Signal', 'signal'),
+      param('recent_hours', 'Recent window (hours)', 'number', { default: 24, minimum: 1, maximum: 720 }),
+      param('threshold_percent', 'Change that counts (%)', 'number', { default: 5, minimum: 0.1, maximum: 1000 }),
+      param('limit', 'Worn-out level', 'number', { optional: true }),
+    ],
+  },
+  {
+    id: 'spc-limits',
+    version: 1,
+    title: 'SPC limits',
+    summary: 'Is the process in control? A control chart with the Western Electric rules.',
+    params: [
+      param('signal', 'Signal', 'signal'),
+      param('sigmas', 'Limits at (sigma)', 'number', { default: 3, minimum: 1, maximum: 6 }),
+      param('rules', 'Rules', 'choices', {
+        default: ['beyond_limits', 'trend_of_six'],
+        choices: [
+          ['beyond_limits', 'a point beyond a control limit'],
+          ['trend_of_six', 'six points in a row rising or falling'],
+        ],
+      }),
+    ],
+  },
+];
+
 export function createFakeApi({
   oidc = false,
   requireSignIn = false,
@@ -239,6 +284,9 @@ export function createFakeApi({
   let performanceReport = null;
   const correlations = []; // each correlate request's body
   const insights = []; // saved insights, as the API returns them, with `evidence`
+  const studioApps = []; // App Studio's apps (T6.10), archived ones included
+  let lastApp = 0;
+  let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
   const designRuns = []; // latest last
@@ -529,6 +577,10 @@ export function createFakeApi({
         }
         return send(404, { detail: 'No such active SCIM token in your organisation' });
       }
+      if (url.pathname === '/app-templates' && req.method === 'GET') {
+        if (appsFailures > 0 && appsFailures--) return send(503, { detail: 'The API is restarting' });
+        return send(200, APP_TEMPLATES);
+      }
       const agentsPath = `/sites/${site.id}/agents`;
       if (
         !url.pathname.startsWith(base) &&
@@ -544,6 +596,7 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/performance` &&
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/apps`) &&
         !url.pathname.startsWith(`/sites/${site.id}/copilot`) &&
         url.pathname !== `/sites/${site.id}/design-projects` &&
         url.pathname !== `/sites/${site.id}/runs` &&
@@ -916,6 +969,101 @@ export function createFakeApi({
         await emit('done', { stop_reason: 'end_turn', usage: {}, grounded: grounding.grounded });
         res.end();
         return;
+      }
+      // App Studio (T6.10): apps from the templates above; a result made up from the settings.
+      const appsPath = `/sites/${site.id}/apps`;
+      if (url.pathname === appsPath || url.pathname.startsWith(`${appsPath}/`)) {
+        const m = url.pathname.slice(appsPath.length).match(/^(?:\/(\d+))?(\/result)?$/);
+        if (!m) return send(404, { detail: 'Not found' });
+        const shown = (a) => ({ ...a, signal_tag: signals.find((x) => x.id === a.config.signal)?.tag ?? null });
+        const live = studioApps.filter((a) => !a.archived);
+        const app = m[1] ? live.find((a) => a.number === Number(m[1])) : null;
+        if (m[1] && !app) return send(404, { detail: 'No such app on this site' });
+        const settings = (template, config) => {
+          const t = APP_TEMPLATES.find((x) => x.id === template);
+          if (!t) return { problem: `No template '${template}'` };
+          const clean = {};
+          for (const p of t.params) {
+            const v = config[p.name] ?? p.default;
+            if (v === null && !p.optional) return { problem: `${p.name}: ${p.label} is needed` };
+            if (p.kind === 'number' && v !== null && (v < p.minimum || v > p.maximum))
+              return { problem: `${p.name}: ${p.label} must be from ${p.minimum} to ${p.maximum}` };
+            clean[p.name] = v;
+          }
+          if (!signals.some((x) => x.id === clean.signal)) return { problem: 'No such signal on this site' };
+          return { t, clean };
+        };
+        const writes = req.method !== 'GET';
+        if (writes && role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+        if (!m[1] && req.method === 'GET') {
+          if (appsFailures > 0 && appsFailures--) return send(503, { detail: 'The API is restarting' });
+          return send(200, live.map(shown));
+        }
+        if (!m[1] && req.method === 'POST') {
+          const b = await body(req);
+          const { t, clean, problem } = settings(b.template, b.config ?? {});
+          if (problem) return send(422, { detail: problem });
+          const now = new Date().toISOString();
+          const made = {
+            number: ++lastApp,
+            name: b.name,
+            template: t.id,
+            template_version: 1,
+            template_title: t.title,
+            config: clean,
+            created_by: user,
+            created_at: now,
+            updated_at: now,
+          };
+          studioApps.push(made);
+          return send(201, shown(made));
+        }
+        if (app && !m[2] && req.method === 'PUT') {
+          const b = await body(req);
+          const { clean, problem } = settings(app.template, b.config ?? {});
+          if (problem) return send(422, { detail: problem });
+          Object.assign(app, { name: b.name, config: clean, updated_at: new Date().toISOString() });
+          return send(200, shown(app));
+        }
+        if (app && !m[2] && req.method === 'DELETE') {
+          app.archived = true;
+          return send(204);
+        }
+        if (app && m[2] && req.method === 'GET') {
+          const tag = shown(app).signal_tag;
+          const hour = 3_600_000;
+          const end = Date.parse('2026-09-08T00:00:00Z');
+          const points = Array.from({ length: 48 }, (_, i) => ({
+            at: new Date(end - (48 - i) * hour).toISOString(),
+            value: 100 + (i % 2) + (i > 40 ? (i - 40) * 2 : 0),
+          }));
+          const spc = app.template === 'spc-limits';
+          return send(200, {
+            app: shown(app),
+            status: spc ? 'alert' : 'ok',
+            headline: spc ? 'Out of control' : 'Stable',
+            text: spc
+              ? 'Out of control: 1 signal(s) in the recent 24 buckets (a point beyond a control limit); the centre is 100.5.'
+              : 'Stable: the recent level is 101, 0.5% above the baseline of 100.5 (the threshold is 5%).',
+            signal_id: app.config.signal,
+            tag,
+            unit: '°C',
+            start: points[0].at,
+            end: new Date(end).toISOString(),
+            gap_seconds: 5400,
+            points,
+            levels: spc
+              ? [
+                  { label: 'centre', value: 100.5 },
+                  { label: 'upper limit', value: 103.2 },
+                  { label: 'lower limit', value: 97.8 },
+                ]
+              : [{ label: 'baseline', value: 100.5 }],
+            spans: spc ? [{ from: points[46].at, to: points[47].at, label: 'a point beyond a control limit' }] : [],
+            facts: spc ? [{ label: 'Signals', value: 1, format: 'number' }] : [],
+          });
+        }
+        return send(405, { detail: 'Method not allowed' });
       }
       const insightsPath = `/sites/${site.id}/insights`;
       if (url.pathname === insightsPath || url.pathname.startsWith(`${insightsPath}/`)) {
@@ -1638,6 +1786,11 @@ export function createFakeApi({
       copilotDelayMs = ms;
     },
     insights,
+    studioApps,
+    // Makes the next `n` lists of App Studio's templates or apps fail.
+    failApps(n) {
+      appsFailures = n;
+    },
     wearChecks,
     // Refuses the next batch of dataset rows, as the API does a value of the wrong kind.
     failDatasetRows(detail) {

@@ -505,7 +505,32 @@ others. Engineers start one with `POST /sites/{site_id}/sweeps`; it runs in the 
   the result kept, with 200 and `cached: true`. This is another reason a version's numbers must never
   change.
 
-## 9. Checklist for a model pull request
+## 9. App Studio templates
+
+An App Studio template (T6.10) is a use case written once, which people then configure as apps on
+their signals, without code: the wear check and SPC limits are the first two. A template lives in
+`api/src/tiles_api/app_templates.py`:
+
+- **Its settings** (`Param`): each has a kind (`signal`, `number`, `integer`, `choice` or `choices`),
+  a label, a default, and bounds or choices. The browser builds the form from them
+  (`GET /app-templates`), and `check_config` checks an app's settings against them, filling in the
+  defaults. Checks across settings go in the template's `check`, which raises `ConfigError` with
+  what to fix.
+- **Its `run(ctx, config)`:** it reads the site's data through `ctx` (the site's own rows only) and
+  returns `result(...)`:
+  - a status (`ok`, `alert` or `no_data`), a headline and a sentence;
+  - the chart: points, reference levels and shaded stretches;
+  - facts, each a number or a share.
+
+  Keep the arithmetic in a pure module, as the wear check's is in `wear.py` and SPC's in `spc.py`,
+  and test it there.
+- **Its version:** an app keeps the template and version it was made with. Change what a published
+  version does only by adding a new version, and keep serving the old one for the apps made with it
+  (an app whose version is gone gets 409).
+- **Registered with `register(Template(...))`** at import. Test it in `api/tests/test_apps.py`: its
+  settings, a result on loaded readings, and too little data.
+
+## 10. Checklist for a model pull request
 
 Before you open the pull request:
 

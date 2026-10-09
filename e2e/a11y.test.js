@@ -131,11 +131,33 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     assert.match(label, /threshold 2,200; baseline 1,800/);
     assert.match(label, /1 shaded stretch/);
     await check('warning');
-    for (const route of ['shopfloor', 'plant', 'signals', 'settings', 'reviews', 'import', 'chat', 'onboarding']) {
+    for (const route of [
+      'shopfloor',
+      'plant',
+      'signals',
+      'settings',
+      'reviews',
+      'import',
+      'chat',
+      'onboarding',
+      'apps',
+    ]) {
       await page.evaluate((r) => (location.hash = r), `#/${route}`);
       await settled(page);
       await check(route);
     }
+    // App Studio: a template's form, and an app's result with its chart.
+    await page.evaluate(() => (location.hash = '#/apps/new'));
+    await page.click('[data-template="spc-limits"]');
+    await page.waitForSelector('#app-form [name=signal] option:not([disabled])', { state: 'attached' });
+    await check('app form');
+    await page.selectOption('#app-form [name=signal]', { index: 1 });
+    await page.click('#app-form button[type=submit]');
+    await page.waitForSelector('[data-app-detail] svg.chart');
+    // The "App made" toast has faded (axe would read it mid-fade).
+    await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 5000 });
+    await page.waitForTimeout(400);
+    await check('app');
     await page.evaluate(() => (location.hash = '#/signals'));
     await page.click('a[href^="#/explorer?signal="]');
     await page.waitForSelector('.explorer-chart svg.chart');

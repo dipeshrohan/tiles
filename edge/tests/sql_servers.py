@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-POSTGRES_IMAGE = "postgres:17"
+POSTGRES_IMAGE = "mirror.gcr.io/library/postgres:17"  # Docker Hub's, through Google's mirror (no pull limit)
 SQLSERVER_IMAGE = "mcr.microsoft.com/mssql/server:2022-latest"
 ADMIN_PASSWORD = "Tiles-test-1"
 READER_PASSWORD = "Reader-test-1"
