@@ -72,6 +72,13 @@ Plant data reaches Tiles through an edge agent that runs on the plant network an
 
 To backfill history, open **Import data** (API mode, engineers and admins). Choose a CSV file or a historian export, check how its columns map to signals (one column per signal, or one row per reading with tag and value columns), the time format and time zone, and import it. The file is read in the browser and sent in batches; readings Tiles already has are skipped, so importing a file twice is safe. Past imports are listed with who ran them and what they stored.
 
+## Guides
+
+- [User guide](docs/guides/user.md): the pages and how to work with them.
+- [Administrator guide](docs/guides/admin.md): installing, sign-in, people, edge agents, notifications, the copilot, jobs and operations.
+- [Model-author guide](docs/guides/model-author.md): writing, versioning and testing models, bindings and detectors.
+- [API reference](docs/guides/api.md): every endpoint, generated from the code (`tiles-apidoc`), with [openapi.json](docs/guides/openapi.json).
+
 ## Data model
 
 The ontology's node types and relationships, and how they map to ISA-95 (Enterprise › Site › Area › Line or Cell › Machine), are described in [docs/data-model.md](docs/data-model.md).
