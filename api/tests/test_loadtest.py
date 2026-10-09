@@ -6,6 +6,7 @@ import time
 from collections.abc import Iterator
 from pathlib import Path
 
+import psycopg
 import pytest
 import uvicorn
 
@@ -40,10 +41,10 @@ def test_judging_a_run() -> None:
         covered_s=60,
         late_ms=[0.0, 4000.0],
     )
-    assert judge(good, targets, 60) == []  # ingest's own latency isn't judged, its pace is
+    assert judge(good, targets) == []  # ingest's own latency isn't judged, its pace is
     slow = Results(steps={"warnings": Step(ms=[100.0] * 18 + [900.0] * 2)}, stored=5000, covered_s=60, late_ms=[6000.0])
     slow.steps["warnings"].fail("503")
-    problems = judge(slow, targets, 60)
+    problems = judge(slow, targets)
     assert problems == [
         "stored 83 readings/s, under 99% of 100",
         "batches went out 6,000 ms late (95th percentile): the API isn't keeping pace",
@@ -52,7 +53,7 @@ def test_judging_a_run() -> None:
     ]
     text = report(slow, targets, 60, {"users": 1})
     assert "**Failed**" in text
-    assert "| warnings | 21 | 0.3 | 100 | 900 | 900 | 900 | 503 x1 |" in text
+    assert "| warnings | 20 | 0.3 | 100 | 900 | 900 | 900 | 503 x1 |" in text
 
 
 @pytest.fixture
@@ -78,7 +79,13 @@ def server(database_url: str) -> Iterator[str]:
 def test_a_short_run_against_the_api(
     server: str, database_url: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    seed(Settings(_env_file=None, database_url=database_url))
+    site = seed(Settings(_env_file=None, database_url=database_url))
+    with psycopg.connect(database_url) as conn:  # a real agent whose name only starts like the test's
+        conn.execute(
+            "INSERT INTO edge_agents (org_id, site_id, name, token_hash)"
+            " SELECT org_id, id, 'load-cell-gateway', %s FROM sites WHERE id = %s",
+            [b"x" * 32, site],
+        )
     monkeypatch.setenv("TILES_DATABASE_URL", database_url)
     monkeypatch.setattr(loadtest, "get_settings", lambda: Settings(_env_file=None, database_url=database_url))
     tokens = tmp_path / "tokens.txt"
@@ -103,4 +110,14 @@ def test_a_short_run_against_the_api(
     with Http(server, {"authorization": f"Bearer {old}"}) as agent:
         status, _, _ = agent.call("POST", "/agent/samples", {"samples": []})
     assert status == 401
+    with psycopg.connect(database_url) as conn:  # the plant's own agent is left alone
+        row = conn.execute("SELECT revoked_at FROM edge_agents WHERE name = 'load-cell-gateway'").fetchone()
+    assert row == (None,)
     capsys.readouterr()
+
+
+def test_a_batch_must_hold_whole_readings(tmp_path: Path) -> None:
+    tokens = tmp_path / "tokens.txt"
+    tokens.write_text("tla_x\n")
+    with pytest.raises(SystemExit, match=r"must be a whole number of readings a batch, not 0\.5"):
+        loadtest.main(["run", "--tokens", str(tokens), "--interval", "5", "--rate", "0.1"])

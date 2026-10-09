@@ -5,7 +5,7 @@ import threading
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
-from typing import Annotated
+from typing import Annotated, Any
 
 import psycopg
 from fastapi import Depends, HTTPException, Request, status
@@ -32,13 +32,13 @@ def act_as_app(conn: Conn) -> None:
     conn.commit()
 
 
-def open_pool(settings: Settings) -> ConnectionPool[Conn]:
+def open_pool(settings: Settings, size: int | None = None) -> ConnectionPool[Conn]:
     """The API's connections: every one subject to row security (`act_as_app`). Scheduled jobs and
     migrations connect on their own, as the login they are given."""
     return ConnectionPool(
         settings.database_url.get_secret_value(),
         min_size=1,
-        max_size=settings.db_pool_max,
+        max_size=size or settings.db_pool_max,
         kwargs={"row_factory": dict_row},
         connection_class=psycopg.Connection[DictRow],
         configure=act_as_app,
@@ -95,10 +95,23 @@ def get_conn(request: Request, _slot: Annotated[None, Depends(db_slot, scope="fu
         yield conn
 
 
+def side_pool(state: Any) -> ConnectionPool[Conn]:
+    """Connections for work outside a request's own: the copilot's answer as it streams, sweeps
+    running after their request. Kept apart from the requests' pool, whose every connection
+    `db_slot` counts, so this work can't take one a queued request was promised."""
+    if state.side_pool is None:
+        with _pool_lock:
+            if state.side_pool is None:
+                state.side_pool = open_pool(state.settings, state.settings.db_side_pool_max)
+    pool: ConnectionPool[Conn] = state.side_pool
+    return pool
+
+
 def close_pool(state: object) -> None:
-    pool: ConnectionPool[Conn] | None = getattr(state, "pool", None)
-    if pool is not None:
-        pool.close()
+    for name in ("pool", "side_pool"):
+        pool: ConnectionPool[Conn] | None = getattr(state, name, None)
+        if pool is not None:
+            pool.close()
 
 
 def scope_to_site(conn: Conn, site_id: uuid.UUID) -> None:

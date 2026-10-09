@@ -22,6 +22,7 @@ import argparse
 import http.client
 import json
 import math
+import os
 import random
 import secrets
 import sys
@@ -41,6 +42,7 @@ from psycopg.rows import dict_row
 from tiles_api.api_agents import TOKEN_PREFIX, token_hash
 from tiles_api.api_samples import MAX_BATCH
 from tiles_api.settings import get_settings
+from tiles_api.store import UNSCOPED
 
 USER_STEPS = ("signals.search", "signals.page", "series.10min", "series.day", "warnings", "ontology.graph")
 
@@ -63,9 +65,15 @@ class Step:
 
     ms: list[float] = field(default_factory=list)
     failures: dict[str, int] = field(default_factory=dict)  # status or error -> count
+    lock: threading.Lock = field(default_factory=threading.Lock)  # users share a step
+
+    def ok(self, ms: float) -> None:
+        with self.lock:
+            self.ms.append(ms)
 
     def fail(self, why: str) -> None:
-        self.failures[why] = self.failures.get(why, 0) + 1
+        with self.lock:
+            self.failures[why] = self.failures.get(why, 0) + 1
 
 
 @dataclass
@@ -95,7 +103,7 @@ def stored_rate(results: Results) -> float:
     return results.stored / results.covered_s if results.covered_s else 0.0
 
 
-def judge(results: Results, targets: Targets, seconds: float) -> list[str]:
+def judge(results: Results, targets: Targets) -> list[str]:
     """What missed its target (empty: passed)."""
     problems = []
     rate = stored_rate(results)
@@ -119,7 +127,7 @@ def _failures(step: Step) -> str:
 
 def report(results: Results, targets: Targets, seconds: float, setup: dict[str, Any]) -> str:
     """The run as Markdown."""
-    problems = judge(results, targets, seconds)
+    problems = judge(results, targets)
     lines = [
         "# Tiles load test",
         "",
@@ -132,13 +140,13 @@ def report(results: Results, targets: Targets, seconds: float, setup: dict[str, 
         f"- Batches late: median {percentile(results.late_ms, 50):,.0f} ms, "
         f"95th percentile {percentile(results.late_ms, 95):,.0f} ms, worst {max(results.late_ms, default=0):,.0f} ms.",
         "",
-        "| Request | Count | Per second | Median ms | 95th ms | 99th ms | Worst ms | Failed |",
+        "| Request | Answered | Per second | Median ms | 95th ms | 99th ms | Worst ms | Failed |",
         "|---|---:|---:|---:|---:|---:|---:|---|",
     ]
     for name, step in sorted(results.steps.items()):
         ms = step.ms
         lines.append(
-            f"| {name} | {len(ms) + sum(step.failures.values())} | {len(ms) / seconds:.1f} | "
+            f"| {name} | {len(ms)} | {len(ms) / seconds:.1f} | "
             f"{percentile(ms, 50):,.0f} | {percentile(ms, 95):,.0f} | {percentile(ms, 99):,.0f} | "
             f"{max(ms, default=0):,.0f} | {_failures(step) or '-'} |"
         )
@@ -274,7 +282,7 @@ class Run:
                 if not measuring:
                     continue
                 if status == 200 and isinstance(data, dict):
-                    step.ms.append(ms)
+                    step.ok(ms)
                     with self.results.lock:
                         self.results.sent += int(data.get("received", 0))
                         self.results.stored += int(data.get("stored", 0))
@@ -316,7 +324,7 @@ class Run:
             if self.measuring.is_set():
                 step = self.results.step(name)
                 if status == 200:
-                    step.ms.append(ms)
+                    step.ok(ms)
                 else:
                     step.fail(str(status or "no answer"))
             self.stop.wait(rnd.uniform(0.5, 1.5))
@@ -339,8 +347,13 @@ def run(args: argparse.Namespace) -> int:
     tokens = [t.strip() for t in Path(args.tokens).read_text().splitlines() if t.strip()]
     if not tokens:
         raise SystemExit(f"No agent tokens in {args.tokens}: run `tiles-loadtest prepare` first")
+    steps = args.interval * args.rate
+    if steps < 1 or abs(steps - round(steps)) > 1e-9:
+        raise SystemExit(f"--interval x --rate must be a whole number of readings a batch, not {steps:g}")
     per_batch = math.ceil(args.signals / len(tokens)) * args.rate * args.interval
-    bearer = args.token
+    bearer = os.environ.get("TILES_LOADTEST_TOKEN") or (
+        Path(args.token_file).read_text().strip() if args.token_file else None
+    )
 
     def user_headers(i: int) -> dict[str, str]:
         if bearer:
@@ -390,16 +403,14 @@ def _drive(r: Run, args: argparse.Namespace, probe: Http, per_batch: float) -> i
     print(text)
     if args.report:
         Path(args.report).write_text(text)
-    return 1 if judge(r.results, targets, seconds) else 0
+    return 1 if judge(r.results, targets) else 0
 
 
 def prepare(args: argparse.Namespace) -> int:
     """Registers the load agents `load-0` … on a site (revoking earlier ones) and writes their tokens."""
     settings = get_settings()
     tokens = [TOKEN_PREFIX + secrets.token_urlsafe(32) for _ in range(args.agents)]
-    with psycopg.connect(
-        settings.database_url.get_secret_value(), row_factory=dict_row, options="-c tiles.site_id=*"
-    ) as conn:
+    with psycopg.connect(settings.database_url.get_secret_value(), row_factory=dict_row, options=UNSCOPED) as conn:
         site = conn.execute(
             "SELECT s.id, s.org_id FROM sites s JOIN orgs o ON o.id = s.org_id"
             " WHERE (%(site)s::uuid IS NULL AND o.slug = 'demo') OR s.id = %(site)s::uuid"
@@ -410,7 +421,7 @@ def prepare(args: argparse.Namespace) -> int:
             raise SystemExit("No such site (without --site: the demo site, made by tiles-seed)")
         conn.execute(
             "UPDATE edge_agents SET revoked_at = clock_timestamp()"
-            " WHERE site_id = %s AND name LIKE 'load-%%' AND revoked_at IS NULL",
+            " WHERE site_id = %s AND name ~ '^load-[0-9]+$' AND revoked_at IS NULL",
             [site["id"]],
         )
         for i, token in enumerate(tokens):
@@ -419,8 +430,10 @@ def prepare(args: argparse.Namespace) -> int:
                 [site["org_id"], site["id"], f"load-{i}", token_hash(token)],
             )
     out = Path(args.out)
-    out.write_text("\n".join(tokens) + "\n")
-    out.chmod(0o600)
+    out.unlink(missing_ok=True)  # created anew, readable by its owner only from the start
+    fd = os.open(out, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write("\n".join(tokens) + "\n")
     print(f"{args.agents} load agents on site {site['id']}; their tokens are in {out}", file=sys.stderr)
     return 0
 
@@ -441,7 +454,10 @@ def main(argv: list[str] | None = None) -> None:
     go.add_argument("--rate", type=float, default=1.0, help="readings a second per signal")
     go.add_argument("--interval", type=float, default=5.0, help="seconds between an agent's batches")
     go.add_argument("--users", type=int, default=50)
-    go.add_argument("--token", help="a bearer token for the users (default: the dev identity)")
+    go.add_argument(
+        "--token-file",
+        help="a file holding the users' bearer token, or set TILES_LOADTEST_TOKEN (default: the dev identity)",
+    )
     go.add_argument("--warmup", type=float, default=15.0)
     go.add_argument("--duration", type=float, default=120.0)
     go.add_argument("--p95-ms", type=float, default=1000.0, help="each browsing step's 95th percentile limit")

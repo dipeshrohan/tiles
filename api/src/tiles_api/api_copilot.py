@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from tiles_api import assistant, copilot_usage, grounding
 from tiles_api.api_ontology import Admin, Ctx, SiteContext
 from tiles_api.copilot_tools import tools_for
-from tiles_api.store import Conn, one, scope_to_site
+from tiles_api.store import Conn, one, scope_to_site, side_pool
 
 router = APIRouter(tags=["copilot"])
 log = logging.getLogger("tiles_api.copilot")
@@ -307,7 +307,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
             [ctx.site_id],
         ).fetchone()
     )
-    pool = request.app.state.pool
+    pool = side_pool(request.app.state)  # the answer streams after the request's connection is back
     site_id, org_id, user = ctx.site_id, ctx.org_id, ctx.user
 
     @contextmanager

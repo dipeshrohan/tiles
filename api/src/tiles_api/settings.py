@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     ready_timeout: float = 2.0
     db_pool_max: int = 10
     db_wait_seconds: float = 10.0  # a request waits this long for a connection, then gets a 503
+    db_side_pool_max: int = 4  # connections for streaming copilot answers and sweeps (store.side_pool)
     # Single sign-on (OpenID Connect). Off when oidc_issuer is unset.
     # oidc_issuer must match the tokens' `iss` claim (the URL browsers use).
     oidc_issuer: str | None = None

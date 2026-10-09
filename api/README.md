@@ -69,6 +69,7 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_READY_TIMEOUT` | `2.0` | Seconds each `/ready` check may take |
 | `TILES_DB_POOL_MAX` | `10` | Maximum database connections per API process |
 | `TILES_DB_WAIT_SECONDS` | `10` | How long a request waits for a free connection before a 503 (`Retry-After: 2`) |
+| `TILES_DB_SIDE_POOL_MAX` | `4` | Connections per API process for streaming copilot answers and sweeps, apart from the requests' |
 | `TILES_OIDC_ISSUER` | unset (sign-in off) | OpenID Connect issuer; must equal the tokens' `iss` (the address browsers use) |
 | `TILES_OIDC_JWKS_URL` | discovered from the issuer | Where the API fetches signing keys, if it reaches the provider by another address (Compose uses `http://keycloak:8080/…`) |
 | `TILES_OIDC_AUDIENCE` | `tiles-api` | Audience tokens must carry |

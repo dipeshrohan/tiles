@@ -69,17 +69,20 @@ All 1,200,000 readings were stored on schedule: no batch was late by more than a
   - a request now waits for a free connection on the event loop, before it takes a thread;
   - after `TILES_DB_WAIT_SECONDS` (10) it gets a `503` with `Retry-After: 2`, which edge agents retry;
   - `api/tests/test_store.py` runs 240 requests through 2 connections, which stalled before the fix and are now all answered.
+  - Work that takes connections outside a request (the copilot's answer as it streams, sweeps running after their request) uses a small pool of its own (`TILES_DB_SIDE_POOL_MAX`, 4). Otherwise it could take a connection that a queued request was promised.
 
 With the fix, the same overload is answered in full. Every reading is stored, and the browsing steps slow to about 2 seconds instead of failing.
 
-**One process uses one core.** Decoding and validating batches, and building answers, all run in one Python process. The new `TILES_WORKERS` setting runs several processes; the Helm chart's `api.workers` sets it, and its default is 2. Each process has its own connection pool.
+**One process uses one core.** Decoding and validating batches, and building answers, all run in one Python process. The new `TILES_WORKERS` setting runs several processes; the Helm chart's `api.workers` sets it, and its default is 2.
+
+Each process has its own pools, so an upgrade to this chart doubles the API's database connections: replicas × 2 × (10 + 4). Each process also runs up to two sweeps at a time.
 
 ## Sizing
 
 | Load | API | Database |
 |---|---|---|
-| Up to 10,000 readings/s and 50 people (one site's plant) | 2 pods × 2 workers, 1 CPU and 1.5 GB each | 4 CPUs, 16 GB, SSD storage (see storage below) |
-| More | Add API pods; each adds `workers × TILES_DB_POOL_MAX` connections | Keep `max_connections` above the total of all pods. Readings are compressed after 7 days (migration 0004) |
+| Up to 10,000 readings/s and 50 people (one site's plant) | 2 pods × 2 workers, 0.5 to 1 CPU and up to 1.5 GB each | 4 CPUs, 16 GB, SSD storage (see storage below) |
+| More | Add API pods; each opens up to `workers × (TILES_DB_POOL_MAX + TILES_DB_SIDE_POOL_MAX)` connections | Keep `max_connections` above the total of all pods, plus the jobs. Readings are compressed after 7 days (migration 0004) |
 
 **Storage** at the full rate, measured on the test's readings:
 
@@ -92,7 +95,8 @@ Above the target, run the test on the deployment itself, with the load generator
 ## Running it
 
 ```sh
-# Against a local API (the dev identity browses; in production pass --token with a user's token)
+# Against a local API. The dev identity browses; elsewhere, put a user's token in TILES_LOADTEST_TOKEN
+# or a file named by --token-file (never on the command line, where `ps` shows it).
 cd api
 TILES_DATABASE_URL=postgresql://tiles:…@localhost:5432/tiles uv run tiles-loadtest prepare --agents 10 --out /tmp/tokens.txt
 uv run tiles-loadtest run --api http://localhost:8000 --tokens /tmp/tokens.txt --signals 10000 --users 50 \
