@@ -1,17 +1,18 @@
-import { esc, fmt, onAll, onNavigate, routeOf } from '../lib/dom.ts';
-import type { WarningInfo, WarningOutcome } from '../lib/api.ts';
-import { howFar, OUTCOMES, when } from '../lib/warnings.ts';
-import {
-  floorOrder,
-  headline,
-  machineBoard,
-  machineOf,
-  pathOf,
-  placeWarning,
-  type FloorItem,
-  type FloorState,
-} from '../lib/shopfloor.ts';
+import { esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
+import type { WarningOutcome } from '../lib/api.ts';
+import { OUTCOMES, when } from '../lib/warnings.ts';
+import { headline, machineBoard, type FloorItem } from '../lib/shopfloor.ts';
 import type { Graph } from '../lib/types.ts';
+import {
+  ensureFloor,
+  fetchWarnings,
+  floorItems,
+  listed,
+  PAGE,
+  refreshFloor,
+  STATE_LABEL,
+  warningById,
+} from './floor-data.ts';
 import type { Context, View } from './types.ts';
 import { openWarning } from './warnings.ts';
 
@@ -29,15 +30,7 @@ interface Ui {
 const uiState = (ctx: Context) => ctx.ui<Ui>('shopfloor', { resolving: null, taking: null, full: false });
 
 const REFRESH_MS = 30_000;
-const PAGE = 100;
-const LINKS_PAGE = 500;
-const MAX_LINKS = 10_000; // a site's linked tags fetched to place warnings; beyond, tags place them
 
-// The open warnings and the signal catalogue's links (tag to Signal node), for the site fetched.
-let listing: { site: string; items: WarningInfo[] | null; at: number | null; more: boolean } | null = null;
-let links: { site: string; map: Map<string, string> } | null = null;
-let listSeq = 0;
-let linksSeq = 0;
 let busy: string | null = null; // the warning a step is on its way for
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -50,86 +43,8 @@ function stop(): void {
 }
 
 onNavigate((hash) => {
-  if (routeOf(hash) !== 'shopfloor') {
-    stop();
-    listing = null; // others work the warnings meanwhile: each visit fetches afresh
-    links = null;
-    ++listSeq; // and an answer still on its way is for the visit that has ended
-    ++linksSeq;
-  }
+  if (routeOf(hash) !== 'shopfloor') stop();
 });
-
-async function fetchList(ctx: Context, quiet = false): Promise<void> {
-  const site = siteId(ctx);
-  if (!ctx.api || !site) return;
-  const seq = ++listSeq;
-  // A quiet refresh keeps what is shown until the answer comes.
-  if (!quiet || listing?.site !== site) listing = { site, items: null, at: null, more: false };
-  try {
-    const items = await ctx.api.warnings.list(site, { status: 'unresolved', limit: PAGE });
-    if (seq === listSeq) listing = { site, items, at: Date.now(), more: items.length === PAGE };
-  } catch {
-    // The client showed why. A quiet refresh keeps the last list; otherwise nothing to show.
-    if (seq === listSeq && !quiet) listing = { site, items: [], at: null, more: false };
-  }
-  if (seq === listSeq && routeOf(location.hash) === 'shopfloor') ctx.rerender();
-}
-
-// Every linked tag of the site, a page at a time.
-async function fetchLinks(ctx: Context): Promise<void> {
-  const site = siteId(ctx);
-  if (!ctx.api || !site) return;
-  const seq = ++linksSeq;
-  links = { site, map: new Map() };
-  const map = new Map<string, string>();
-  try {
-    for (let offset = 0; offset < MAX_LINKS; offset += LINKS_PAGE) {
-      const page = await ctx.api.signals.list(site, { linked: 'yes', limit: LINKS_PAGE, offset });
-      if (seq !== linksSeq) return;
-      for (const s of page.signals) if (s.node_id) map.set(s.tag, s.node_id);
-      if (page.signals.length < LINKS_PAGE || offset + LINKS_PAGE >= page.total) break;
-    }
-  } catch {
-    if (seq !== linksSeq) return; // the client showed why; the pages fetched still place warnings
-  }
-  links = { site, map };
-  if (routeOf(location.hash) === 'shopfloor') ctx.rerender();
-}
-
-// The warnings as the floor reads them: from the API, or the browser's demo detector in local mode.
-function items(ctx: Context, graph: Graph): FloorItem[] | null {
-  if (!ctx.api) {
-    const model = Object.values(graph.nodes).find((n) => n.type === 'Model' && /friction/i.test(n.label));
-    const machineId = model ? machineOf(graph, model.id) : null;
-    const machine = machineId ? graph.nodes[machineId] : undefined;
-    return ctx.state.detection.alerts.map((a, i) => ({
-      id: `demo-${i}`,
-      tag: 'Plunger friction',
-      machineId,
-      machine: machine?.label ?? 'Die-caster',
-      path: machineId ? pathOf(graph, machineId) : [],
-      state: 'new' as FloorState,
-      status: 'raised' as const,
-      out: false,
-      startedAt: null,
-      endedAt: null,
-      assignee: null,
-      assigneeId: null,
-      detail: `Shots ${fmt(a.firstShot)}–${fmt(a.lastShot)}, friction peak ${fmt(a.peak, 2)}`,
-    }));
-  }
-  const site = siteId(ctx);
-  if (!site || listing?.site !== site || listing.items === null) return null;
-  const map = links?.site === site ? links.map : new Map<string, string>();
-  return listing.items.map((w) => placeWarning(graph, w, map, howFar(w))).sort(floorOrder);
-}
-
-const STATE_LABEL: Record<FloorState, [cls: string, label: string]> = {
-  out: ['bad', 'Signal still out'],
-  new: ['bad', 'Nobody has it'],
-  taken: ['warn', 'Being handled'],
-  ok: ['good', 'OK'],
-};
 
 function since(item: FloorItem, now: number): string {
   if (!item.startedAt) return '';
@@ -218,7 +133,7 @@ function board(graph: Graph, list: FloorItem[]): string {
 
 async function take(ctx: Context, id: string): Promise<void> {
   const site = siteId(ctx);
-  const w = listing?.items?.find((x) => x.id === id);
+  const w = warningById(id);
   if (!ctx.api || !site || !w || busy) return;
   busy = id;
   ctx.rerender();
@@ -234,7 +149,7 @@ async function take(ctx: Context, id: string): Promise<void> {
   } finally {
     busy = null;
   }
-  await fetchList(ctx, true);
+  await fetchWarnings(ctx, true);
 }
 
 async function resolve(ctx: Context, id: string, outcome: WarningOutcome): Promise<void> {
@@ -251,7 +166,7 @@ async function resolve(ctx: Context, id: string, outcome: WarningOutcome): Promi
   } finally {
     busy = null;
   }
-  await fetchList(ctx, true);
+  await fetchWarnings(ctx, true);
 }
 
 const view: View = {
@@ -273,14 +188,14 @@ const view: View = {
     if (ctx.api && ctx.ontology.status !== 'ready')
       return `<div class="floor">${head('<h1>Shopfloor</h1>')}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div></div>`;
     const graph = ctx.graph; // made afresh at each read: once for the whole page
-    const list = items(ctx, graph);
+    const list = floorItems(ctx, graph);
     if (list === null)
       return `<div class="floor">${head('<h1>Shopfloor</h1>')}<div class="card">Loading the warnings…</div></div>`;
     const now = Date.now();
     const { tone, text } = headline(list);
     const updated =
-      listing?.at && ctx.api
-        ? `<div class="small soft">Updated ${new Date(listing.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}; refreshes every 30 seconds</div>`
+      listed().at && ctx.api
+        ? `<div class="small soft">Updated ${new Date(listed().at ?? 0).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}; refreshes every 30 seconds</div>`
         : ctx.api
           ? ''
           : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
@@ -289,8 +204,8 @@ const view: View = {
     // A question about a warning that has left the floor (someone else resolved it) is dropped.
     if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
     if (ui.taking && !open.some((i) => i.id === ui.taking)) ui.taking = null;
-    const more = listing?.more
-      ? '<p class="small soft">Showing the 100 newest open warnings; the Warnings page has the rest.</p>'
+    const more = listed().more
+      ? `<p class="small soft">Showing the ${PAGE} newest open warnings; the Warnings page has the rest.</p>`
       : '';
     const cards = open.length
       ? `<div class="floor-cards">${open.map((i) => card(ctx, i, ui, now)).join('')}</div>${more}`
@@ -307,17 +222,15 @@ const view: View = {
     });
     if (!ctx.api) return;
     if (ctx.ontology.status !== 'ready') return;
-    const site = siteId(ctx);
-    if (listing?.site !== site) void fetchList(ctx);
-    if (links?.site !== site) void fetchLinks(ctx);
+    ensureFloor(ctx);
     // Polls while the page is shown. An open question survives the refresh (it is UI state), unless
     // its warning has gone.
     timer ??= setInterval(() => {
       if (routeOf(location.hash) !== 'shopfloor') return stop();
-      if (!busy && !document.hidden) void fetchList(ctx, true);
+      if (!busy && !document.hidden) void fetchWarnings(ctx, true);
     }, REFRESH_MS);
 
-    onAll(root, '[data-floor-refresh]', 'click', () => void fetchList(ctx, true));
+    onAll(root, '[data-floor-refresh]', 'click', () => refreshFloor(ctx));
     onAll(root, '[data-take]', 'click', (el) => void take(ctx, el.dataset.take ?? ''));
     onAll(root, '[data-ask-take]', 'click', (el) => {
       Object.assign(ui, { taking: el.dataset.askTake ?? null, resolving: null });
