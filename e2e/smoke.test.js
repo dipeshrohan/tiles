@@ -1239,10 +1239,14 @@ async function openAs(t, apiUrl, email, route) {
   t.after(() => page.close());
   if (email) {
     await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
-    await page.waitForSelector('#account:has-text("development user")'); // settled: no re-render mid-typing
+    // Settled: signed in and the site loaded (each re-renders the page, which would put the old email
+    // back mid-typing, and this would quietly stay the default engineer).
+    await page.waitForSelector('#account:has-text("development user")');
+    await page.waitForSelector('#notifications');
     await page.fill('#profile [name=email]', email);
     await page.click('#profile button[type=submit]');
     await page.waitForSelector('#toast:has-text("Profile saved")');
+    await page.waitForSelector(`#user:has-text("${email}")`);
     await page.evaluate((r) => (location.hash = r), `#/${route}`);
   } else await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/${route}`);
   return { page, errors };
