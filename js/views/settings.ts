@@ -153,9 +153,12 @@ interface NotifyDraft {
   teams_on_raised?: boolean;
 }
 let notifyDraft: NotifyDraft = { key: '' };
+// Leaving the page drops what was typed and not saved (the router reads routes in any case).
 if (typeof window !== 'undefined')
   window.addEventListener('hashchange', () => {
-    if (!location.hash.startsWith('#/settings')) notifyDraft = { key: '' };
+    if (location.hash.toLowerCase().startsWith('#/settings')) return;
+    notifyDraft = { key: '' };
+    sourceDraft = null;
   });
 
 async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void> {
@@ -268,13 +271,16 @@ let revealed: Revealed | null = null;
 // shows it again rather than wiping it.
 let apiCheck = '';
 let apiCheckSeq = 0;
-// The data source as typed and not yet saved: a re-render (the site loading in the background)
-// must not wipe an address being typed or a choice being made.
-let sourceDraft: { mode: 'local' | 'api'; apiUrl: string } | null = null;
-if (typeof window !== 'undefined')
-  window.addEventListener('hashchange', () => {
-    if (!location.hash.startsWith('#/settings')) sourceDraft = null;
-  });
+// The data source as typed and not yet saved, and the saved one it was typed against: a re-render
+// must not wipe an address being typed or a choice being made, but a source saved some other way
+// (signing in, a ?api= link) replaces it.
+let sourceDraft: { base: string; mode: 'local' | 'api'; apiUrl: string } | null = null;
+const sourceKey = (ds: { mode: string; apiUrl: string }): string => `${ds.mode}|${ds.apiUrl}`;
+
+function readSource(form: HTMLFormElement): { mode: 'local' | 'api'; apiUrl: string } {
+  const mode = (form.elements.namedItem('mode') as RadioNodeList).value === 'api' ? 'api' : 'local';
+  return { mode, apiUrl: field(form, 'apiUrl') };
+}
 
 // Who is looking: whether they are signed in, and as whom.
 function viewer(ctx: Context): string {
@@ -424,7 +430,8 @@ const view: View = {
   render(ctx) {
     const { user } = ctx.state;
     const ds = ctx.dataSource;
-    const typed = sourceDraft ?? ds; // the form shows what is being typed; the page follows what is saved
+    // The form shows what is being typed; the page follows what is saved.
+    const typed = sourceDraft?.base === sourceKey(ds) ? sourceDraft : ds;
     return `
       <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
       <div class="grid g2">
@@ -463,8 +470,8 @@ const view: View = {
       ctx.toast('Profile saved');
     });
     onSubmit(root, '#datasource', (form) => {
-      const mode = (form.elements.namedItem('mode') as RadioNodeList).value === 'api' ? 'api' : 'local';
-      const apiUrl = normalizeBaseUrl(field(form, 'apiUrl'));
+      const { mode, apiUrl: typedUrl } = readSource(form);
+      const apiUrl = normalizeBaseUrl(typedUrl);
       // Only API mode needs an address; local mode keeps the last good one.
       if (mode === 'api' && !isHttpUrl(apiUrl)) {
         ctx.toast('Enter the API address, e.g. http://localhost:8000');
@@ -475,10 +482,9 @@ const view: View = {
       ctx.setDataSource({ mode, apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl });
       ctx.toast(mode === 'api' ? 'Using the Tiles API' : 'Using this browser only');
     });
-    const source = root.querySelector<HTMLFormElement>('#datasource');
-    source?.addEventListener('input', () => {
-      const mode = (source.elements.namedItem('mode') as RadioNodeList).value === 'api' ? 'api' : 'local';
-      sourceDraft = { mode, apiUrl: field(source, 'apiUrl') };
+    const source = need<HTMLFormElement>(root, '#datasource');
+    source.addEventListener('input', () => {
+      sourceDraft = { base: sourceKey(ctx.dataSource), ...readSource(source) };
     });
     onAll(root, '[data-test-api]', 'click', async () => {
       const url = field(need<HTMLFormElement>(root, '#datasource'), 'apiUrl');
