@@ -121,6 +121,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `model.bind`, `model.run`, `model.stop` | the model binding | `model.stop`: its name | `model.bind`: its model, inputs, params and outputs; `model.run`: windows run, readings written, `done_until`, error |
 | `detector.create`, `detector.run`, `detector.stop` | the detector | `detector.stop`: its name | `detector.create`: its signal and settings; `detector.run`: readings, warnings raised and ended |
 | `backtest.run` | the signal | | readings replayed, settings tried, events given |
+| `dataset.create`, `dataset.rows`, `dataset.delete` | the dataset | `dataset.delete`: its name and rows | its name and columns; the rows added and the total |
 | `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
 | `notification.teams` | the site | the channel's host | the channel's host |
@@ -280,6 +281,31 @@ Alongside these, it shows what people resolved the warnings as (T3.07). Events o
 |---|---|---|
 | `GET /performance?days&horizon_hours&codes` | members | the last `days` (default 30): totals, each detector's scores, unwatched assets, and the latest 200 events with the warning that came first, if any. `codes` (repeatable) counts only those events. At most 20,000 events per period |
 | `PATCH /detectors/{id}` | engineers | `{"asset": <name> or null}` |
+
+### Batch tables and the correlation finder (T3.11)
+
+A **dataset** is a batch table from the MES or a quality system: one row per batch, with its settings and measurements, and a column saying whether it failed. Engineers upload it from a CSV on the Correlation finder page. The page declares the columns (number, text or true/false, inferred from the cells) and sends the rows in batches.
+
+The finder asks which variables separate the failed (NG) batches from the good ones. You choose:
+- the outcome column, and the values that mean failed (true, by default, for a true/false column);
+- the variables (by default every number column);
+- an optional `split` column (material, line, shift), whose segments are compared separately. An effect that cancels out when everything is pooled shows up this way.
+
+For each variable and segment it reports:
+- the failed and good means;
+- Cohen's d, with its 95% confidence interval (the normal approximation of Hedges and Olkin);
+- the point-biserial r.
+
+Results are ranked by |d|. The numbers match the browser's finder: `test/fixtures/correlation.json`, made from the demo cutter batches, keeps the two in step. A row with no outcome is left out, and a missing value only from its own variable. Each segment's strongest effect is explained in words when it is large (|d| ≥ 0.8) and its interval leaves out 0.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `GET /datasets` | members | the batch tables: name, columns, rows, who uploaded them |
+| `POST /datasets` | engineers | `{"name", "columns": [{"name", "kind"}], "description"?}` starts one (at most 200 columns) |
+| `POST /datasets/{id}/rows` | engineers | `{"rows": [{column: value}]}` appends up to 5,000 rows (at most 200,000 per dataset); a value of the wrong kind is refused, with its row |
+| `GET /datasets/{id}` | members | the dataset, with its first 20 rows |
+| `DELETE /datasets/{id}` | engineers | removes it |
+| `POST /datasets/{id}/correlate?min_effect` | members | `{"outcome", "ng_values"?, "variables"?, "split"?}`: the findings, largest effect first, and the explanations; at most 2 million rows × variables, and 50 segments |
 
 ### Backtest (T3.05)
 

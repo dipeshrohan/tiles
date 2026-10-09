@@ -402,3 +402,36 @@ test('the performance report and a detector asset are asked for as documented', 
   );
   assert.deepEqual(JSON.parse(f.calls[2].body), { asset: null });
 });
+
+test('every dataset call hits the documented path with its body', async () => {
+  const f = fakeFetch(...Array.from({ length: 6 }, () => ({ body: {} })));
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  await api.datasets.list('s');
+  await api.datasets.get('s', 'd 1');
+  await api.datasets.create('s', 'Lots', [{ name: 'x', kind: 'number' }]);
+  await api.datasets.addRows('s', 'd1', [{ x: 1 }]);
+  await api.datasets.correlate('s', 'd1', { outcome: 'ng', ng_values: [true], variables: ['x'], split: null });
+  await api.datasets.remove('s', 'd1');
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    [
+      'GET /sites/s/datasets',
+      'GET /sites/s/datasets/d%201',
+      'POST /sites/s/datasets',
+      'POST /sites/s/datasets/d1/rows',
+      'POST /sites/s/datasets/d1/correlate',
+      'DELETE /sites/s/datasets/d1',
+    ],
+  );
+  assert.deepEqual(
+    f.calls.map((c) => (c.body === undefined ? undefined : JSON.parse(c.body))),
+    [
+      undefined,
+      undefined,
+      { name: 'Lots', columns: [{ name: 'x', kind: 'number' }] },
+      { rows: [{ x: 1 }] },
+      { outcome: 'ng', ng_values: [true], variables: ['x'], split: null },
+      undefined,
+    ],
+  );
+});
