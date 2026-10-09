@@ -195,6 +195,12 @@ Ops, graphs and commits have the same JSON shape as in the browser (`js/lib/type
 
 Models are registered in code (`tiles_api/models/`): each declares its key, version (`MAJOR.MINOR.PATCH`), kind (`virtual-sensor` or `design`), input series, outputs (per sample, or one per window such as a shot) and parameters with their unit, default and bounds, and implements `run`. `registry.evaluate` checks inputs and parameters against the spec, fills in defaults and checks what the model returns. A published version never changes: `models/published.json` pins each version's spec fingerprint and a unit test fails if a published spec changes (give the change a new version) or a new version isn't pinned yet (the failure prints the line to add). An organisation's `models` row for a version is written when it is first used (by the model runner, T3.03), never rewritten. Listing and evaluating write nothing. The first model is `plunger-friction` (T3.02), ported from `js/lib/physics.ts`; `test/fixtures/plunger-shots.json`, made by the browser's model, keeps both giving the same numbers.
 
+The Design Studio's models (T4.10) are in the same registry, as `design` models: no input series, their parameters are the design, and they give one value. They are ported from `js/lib/design.ts`, and the browser's version 1.0 is 1.0.0 here:
+- `cell-swelling` 1.0.0, 1.1.0 and 2.0.0: the swelling force in kN, from state of charge, temperature, preload, cycles and anode thickness;
+- `joint-actuator` 1.0.0 and 1.1.0: the winding temperature in °C, from torque, gear ratio, torque constant, thermal resistance and ambient temperature.
+
+`test/fixtures/design-models.json`, made by the browser's models, keeps each version giving the same numbers within 1e-12. `POST /sites/{id}/models/cell-swelling/evaluate` with `{"version", "inputs": {}, "params"}` runs one. Like every published version, they are pinned in `models/published.json`.
+
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|
 | `GET /models` | members | every registered model version with its inputs, outputs and parameters |
