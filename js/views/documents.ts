@@ -1,6 +1,14 @@
 import { esc, field, need, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
 import type { DocumentMatch, SiteDocument } from '../lib/api.ts';
-import { contentTypeOf, LANGUAGES, pageFragment, sizeText, snippetHtml, titleFrom } from '../lib/documents.ts';
+import {
+  contentTypeOf,
+  LANGUAGES,
+  MAX_UPLOAD_BYTES,
+  pageFragment,
+  sizeText,
+  snippetHtml,
+  titleFrom,
+} from '../lib/documents.ts';
 import type { Context, View } from './types.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
@@ -13,7 +21,7 @@ interface Ui {
 const uiState = (ctx: Context) => ctx.ui<Ui>('documents', { query: '' });
 
 let listing: { key: string; items: SiteDocument[] | null; failed?: boolean } | null = null;
-let found: { key: string; matches: DocumentMatch[] | null } | null = null;
+let found: { key: string; matches: DocumentMatch[] | null; failed?: boolean } | null = null;
 let uploading = false;
 // What is chosen in the upload form, kept across re-renders (a list arriving re-draws the page).
 let draft: { site: string; file: File | null; title: string; language: string } | null = null;
@@ -50,13 +58,13 @@ async function search(ctx: Context): Promise<void> {
   if (!ctx.api || !site || !q) return;
   const key = searchKey(ctx);
   found = { key, matches: null };
-  let matches: DocumentMatch[] = [];
   try {
-    matches = (await ctx.api.documents.search(site, q)).matches;
+    const matches = (await ctx.api.documents.search(site, q)).matches;
+    if (found?.key === key) found = { key, matches };
   } catch {
-    // the client showed why
+    // A failed search is not "nothing matches": say so, and offer to try again.
+    if (found?.key === key) found = { key, matches: [], failed: true };
   }
-  if (found?.key === key) found = { key, matches };
   ctx.rerender();
 }
 
@@ -82,7 +90,10 @@ function searchCard(ctx: Context): string {
   const ui = uiState(ctx);
   const results = found?.key === searchKey(ctx) ? found.matches : undefined;
   let body = '';
-  if (ui.query.trim() && results === null) body = '<p class="small soft">Searching…</p>';
+  if (found?.key === searchKey(ctx) && found.failed)
+    body =
+      '<p class="small" role="alert">The search could not be run. <button class="btn sm" type="button" data-retry-search>Try again</button></p>';
+  else if (ui.query.trim() && results === null) body = '<p class="small soft">Searching…</p>';
   else if (results && !results.length)
     body = `<p class="small soft" data-no-matches>Nothing matches “${esc(ui.query)}”.</p>`;
   else if (results)
@@ -167,6 +178,10 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-open]', 'click', (el) => void open(ctx, Number(el.dataset.open), Number(el.dataset.page)));
+    onAll(root, '[data-retry-search]', 'click', () => {
+      found = null;
+      ctx.rerender();
+    });
     onAll(root, '[data-retry-docs]', 'click', () => {
       listing = null;
       ctx.rerender();
@@ -206,7 +221,7 @@ const view: View = {
       if (!file || uploading) return;
       const type = contentTypeOf(file);
       if (!type) return void ctx.toast('Upload a PDF, a text file or a Markdown file');
-      if (file.size > 20 * 1024 * 1024) return void ctx.toast('The file is larger than 20 MB');
+      if (file.size > MAX_UPLOAD_BYTES) return void ctx.toast('The file is larger than 20 MB');
       const title = field(form, 'title').trim() || titleFrom(file.name) || 'Document';
       uploading = true;
       ctx.rerender();

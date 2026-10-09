@@ -5,11 +5,12 @@ from typing import Any
 
 import psycopg
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from pdfs import make_pdf
 from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 
-from tiles_api import documents
+from tiles_api import api_documents, documents
 
 SOP = [
     "SOP 14: Die-casting cell 1\nPurpose: safe start-up of the cell after a stop.",
@@ -132,3 +133,53 @@ def test_requests_are_checked(api: TestClient, site: str) -> None:  # noqa: F811
     assert big.status_code == 413
     assert find(api, site, "").status_code == 422
     assert find(api, site, "!!! & |").json()["matches"] == []  # nothing to search for: no error
+
+
+def test_any_pdf_failure_is_a_file_that_cant_be_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    import zlib
+
+    from pypdf.errors import LimitReachedError
+
+    for error in (LimitReachedError("too much to decompress"), zlib.error("bad stream"), AttributeError("x")):
+
+        def broken(*_args: Any, error: Exception = error) -> Any:
+            raise error
+
+        monkeypatch.setattr(documents, "PdfReader", broken)
+        with pytest.raises(documents.DocumentError, match=f"can't be read \\({type(error).__name__}\\)"):
+            documents.pages(b"%PDF-1.4", "application/pdf")
+
+
+def test_control_characters_never_reach_the_index() -> None:
+    # STX and ETX mark matches in snippets: a document's own would unbalance them.
+    found = documents.pages(b"a\x02b\x03c\x07d\te\nf\x00g", "text/plain")
+    assert found == ["a b c d e\nf g"]
+
+
+def test_search_uses_the_index(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    upload(api, site, make_pdf(SOP))
+    upload(api, site, b"Kolbenspitze wechseln.", "text/plain", title="SA", language="german")
+    # A manual of many pages, so the plan is a large site's.
+    manual = "\f".join(f"Section {i}: torque the clamp bolts to spec {i} Nm and log it." for i in range(1500))
+    upload(api, site, manual.encode(), "text/plain", title="Manual")
+    with psycopg.connect(database_url) as conn:
+        conn.execute("ANALYZE document_chunks")
+        conn.execute("SELECT set_config('tiles.site_id', %s, false)", [site])
+        plan = "\n".join(
+            r[0]
+            for r in conn.execute(
+                "EXPLAIN " + api_documents.SEARCH_SQL, {"q": "plunger tip", "site": site, "limit": 10}
+            ).fetchall()
+        )
+    assert "document_chunks_tsv" in plan
+
+
+def test_a_bad_content_length_is_a_400(api: TestClient, site: str) -> None:  # noqa: F811
+    import asyncio
+    from types import SimpleNamespace
+
+    from tiles_api.api_documents import upload_body
+
+    with pytest.raises(HTTPException) as e:
+        asyncio.run(upload_body(SimpleNamespace(headers={"content-length": "abc"})))  # type: ignore[arg-type]
+    assert e.value.status_code == 400

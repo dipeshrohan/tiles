@@ -824,22 +824,23 @@
 	function createApiClient(options) {
 		const base = normalizeBaseUrl(options.baseUrl);
 		const doFetch = options.fetch ?? ((...args) => fetch(...args));
-		async function headersFor(body, anonymous, accept = "application/json") {
+		async function headersFor(body, anonymous, accept = "application/json", type) {
 			const headers = { Accept: accept };
-			if (body !== void 0) headers["Content-Type"] = "application/json";
+			if (type) headers["Content-Type"] = type;
+			else if (body !== void 0) headers["Content-Type"] = "application/json";
 			if (!anonymous && options.userEmail) headers["X-Tiles-User"] = options.userEmail;
 			const token = anonymous ? null : options.token ?? await options.getToken?.();
 			if (token) headers.Authorization = `Bearer ${token}`;
 			return headers;
 		}
-		async function request(method, path, body, { anonymous = false, text = false, blob = false, quiet = false } = {}) {
-			const headers = await headersFor(body, anonymous);
+		async function request(method, path, body, { anonymous = false, text = false, blob = false, quiet = false, file } = {}) {
+			const headers = await headersFor(body, anonymous, "application/json", file?.type);
 			let res;
 			try {
 				res = await doFetch(base + path, {
 					method,
 					headers,
-					body: body === void 0 ? void 0 : JSON.stringify(body)
+					body: file ? file.body : body === void 0 ? void 0 : JSON.stringify(body)
 				});
 			} catch {
 				return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
@@ -859,30 +860,6 @@
 				if (quiet) throw error;
 				return fail(error);
 			}
-			return parsed;
-		}
-		async function sendFile(path, file, type) {
-			const headers = {
-				...await headersFor(void 0, false),
-				"Content-Type": type
-			};
-			let res;
-			try {
-				res = await doFetch(base + path, {
-					method: "POST",
-					headers,
-					body: file
-				});
-			} catch {
-				return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
-			}
-			let parsed = null;
-			try {
-				parsed = await res.json();
-			} catch {
-				if (res.ok) return fail(new ApiError("The Tiles API sent a response that is not JSON", res.status));
-			}
-			if (!res.ok) return fail(new ApiError(errorMessage(parsed, res.status), res.status, res.headers.get("x-request-id")));
 			return parsed;
 		}
 		function fail(error) {
@@ -946,7 +923,10 @@
 			onboarding: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/onboarding`),
 			documents: {
 				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/documents`),
-				upload: (siteId, file, type, meta) => sendFile(`/sites/${encodeURIComponent(siteId)}/documents?${new URLSearchParams(meta)}`, file, type),
+				upload: (siteId, file, type, meta) => request("POST", `/sites/${encodeURIComponent(siteId)}/documents?${new URLSearchParams(meta)}`, void 0, { file: {
+					body: file,
+					type
+				} }),
 				search: (siteId, q, limit = 20) => request("GET", `/sites/${encodeURIComponent(siteId)}/documents/search?${new URLSearchParams({
 					q,
 					limit: String(limit)
@@ -10142,8 +10122,6 @@ heartbeat_seconds = 30
 			});
 		}
 	};
-	//#endregion
-	//#region js/lib/documents.ts
 	var LANGUAGES = [
 		["english", "English"],
 		["german", "German"],
@@ -10217,14 +10195,19 @@ heartbeat_seconds = 30
 			key,
 			matches: null
 		};
-		let matches = [];
 		try {
-			matches = (await ctx.api.documents.search(site, q)).matches;
-		} catch {}
-		if (found?.key === key) found = {
-			key,
-			matches
-		};
+			const matches = (await ctx.api.documents.search(site, q)).matches;
+			if (found?.key === key) found = {
+				key,
+				matches
+			};
+		} catch {
+			if (found?.key === key) found = {
+				key,
+				matches: [],
+				failed: true
+			};
+		}
 		ctx.rerender();
 	}
 	async function open(ctx, n, page) {
@@ -10247,7 +10230,8 @@ heartbeat_seconds = 30
 		const ui = uiState(ctx);
 		const results = found?.key === searchKey(ctx) ? found.matches : void 0;
 		let body = "";
-		if (ui.query.trim() && results === null) body = "<p class=\"small soft\">Searching…</p>";
+		if (found?.key === searchKey(ctx) && found.failed) body = "<p class=\"small\" role=\"alert\">The search could not be run. <button class=\"btn sm\" type=\"button\" data-retry-search>Try again</button></p>";
+		else if (ui.query.trim() && results === null) body = "<p class=\"small soft\">Searching…</p>";
 		else if (results && !results.length) body = `<p class="small soft" data-no-matches>Nothing matches “${esc(ui.query)}”.</p>`;
 		else if (results) body = `<ol class="stack doc-matches" style="gap:10px" data-matches>${results.map((m) => `<li class="doc-match">
           <div class="row" style="gap:8px;justify-content:space-between;flex-wrap:wrap">
@@ -10305,6 +10289,10 @@ heartbeat_seconds = 30
 				ctx.rerender();
 			});
 			onAll(root, "[data-open]", "click", (el) => void open(ctx, Number(el.dataset.open), Number(el.dataset.page)));
+			onAll(root, "[data-retry-search]", "click", () => {
+				found = null;
+				ctx.rerender();
+			});
 			onAll(root, "[data-retry-docs]", "click", () => {
 				listing = null;
 				ctx.rerender();

@@ -828,9 +828,10 @@ export function createApiClient(options: ApiOptions) {
 
   // `anonymous` requests carry no credentials (e.g. the public /auth/config).
   // `text` answers with the body as it is (a file to download), not parsed as JSON.
-  async function headersFor(body: unknown, anonymous: boolean, accept = 'application/json') {
+  async function headersFor(body: unknown, anonymous: boolean, accept = 'application/json', type?: string) {
     const headers: Record<string, string> = { Accept: accept };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (type) headers['Content-Type'] = type;
+    else if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (!anonymous && options.userEmail) headers['X-Tiles-User'] = options.userEmail;
     const token = anonymous ? null : (options.token ?? (await options.getToken?.()));
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -841,15 +842,28 @@ export function createApiClient(options: ApiOptions) {
     method: Method,
     path: string,
     body?: unknown,
-    { anonymous = false, text = false, blob = false, quiet = false } = {},
+    {
+      anonymous = false,
+      text = false,
+      blob = false,
+      quiet = false,
+      file,
+    }: {
+      anonymous?: boolean;
+      text?: boolean;
+      blob?: boolean;
+      quiet?: boolean;
+      file?: { body: Blob; type: string };
+    } = {},
   ): Promise<T> {
-    const headers = await headersFor(body, anonymous);
+    // `file`: sent as it is, with its own type (a document upload), instead of JSON.
+    const headers = await headersFor(body, anonymous, 'application/json', file?.type);
     let res: Response;
     try {
       res = await doFetch(base + path, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: file ? file.body : body === undefined ? undefined : JSON.stringify(body),
       });
     } catch {
       return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
@@ -869,26 +883,6 @@ export function createApiClient(options: ApiOptions) {
       if (quiet) throw error; // the caller shows it (e.g. a 403 that only means "not for you")
       return fail(error);
     }
-    return parsed as T;
-  }
-
-  // Sends a file as the request's body, as it is (a document upload: T4.08).
-  async function sendFile<T>(path: string, file: Blob, type: string): Promise<T> {
-    const headers = { ...(await headersFor(undefined, false)), 'Content-Type': type };
-    let res: Response;
-    try {
-      res = await doFetch(base + path, { method: 'POST', headers, body: file });
-    } catch {
-      return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
-    }
-    let parsed: unknown = null;
-    try {
-      parsed = await res.json();
-    } catch {
-      if (res.ok) return fail(new ApiError('The Tiles API sent a response that is not JSON', res.status));
-    }
-    if (!res.ok)
-      return fail(new ApiError(errorMessage(parsed, res.status), res.status, res.headers.get('x-request-id')));
     return parsed as T;
   }
 
@@ -963,10 +957,11 @@ export function createApiClient(options: ApiOptions) {
     documents: {
       list: (siteId: string) => request<SiteDocument[]>('GET', `/sites/${encodeURIComponent(siteId)}/documents`),
       upload: (siteId: string, file: Blob, type: string, meta: { title: string; filename: string; language: string }) =>
-        sendFile<SiteDocument>(
+        request<SiteDocument>(
+          'POST',
           `/sites/${encodeURIComponent(siteId)}/documents?${new URLSearchParams(meta)}`,
-          file,
-          type,
+          undefined,
+          { file: { body: file, type } },
         ),
       search: (siteId: string, q: string, limit = 20) =>
         request<{ query: string; matches: DocumentMatch[] }>(

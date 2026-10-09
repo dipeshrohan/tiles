@@ -737,10 +737,19 @@ test('Documents: an engineer uploads an SOP, searches it, and opens the page a m
   await page.fill('#doc-search [name=q]', 'spindle');
   await page.click('#doc-search button[type=submit]');
   await page.waitForSelector('[data-no-matches]');
+  // A search that fails says so (not "nothing matches"), and runs again on request.
+  fake.failDocumentSearch(1);
+  await page.fill('#doc-search [name=q]', 'hydraulic');
+  await page.click('#doc-search button[type=submit]');
+  await page.click('[data-retry-search]');
+  await page.waitForSelector('[data-matches]:has-text("Open page 2")');
 
   await page.click('[data-archive-doc="1"]');
   await page.waitForSelector('[data-doc-list]:has-text("No documents yet")');
-  assert.deepEqual(errors, []);
+  assert.deepEqual(
+    errors.filter((e) => !/status of 503/.test(e)),
+    [],
+  );
 
   // Viewers search, but don't upload.
   const viewer = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });

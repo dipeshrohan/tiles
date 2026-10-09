@@ -8,6 +8,7 @@ import hashlib
 import re
 import unicodedata
 import uuid
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Any
 
@@ -15,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from pydantic import BaseModel, Field
 
 from tiles_api import documents
-from tiles_api.api_ontology import Ctx, Editor, SiteContext
+from tiles_api.api_ontology import Auth, Ctx, Editor, SiteContext
 from tiles_api.store import one
 
 router = APIRouter(tags=["documents"])
@@ -57,16 +58,22 @@ SELECT number, title, filename, content_type, language::text AS language, pages,
 FROM documents WHERE site_id = %s AND archived_at IS NULL
 """
 
+# One query per language the site's documents are in, so each is a constant the GIN index on
+# `tsv` can be searched with (a query made per chunk would scan every chunk).
 SEARCH_SQL = """
+WITH q AS MATERIALIZED (
+    SELECT language, websearch_to_tsquery(language, %(q)s) AS q
+    FROM (SELECT DISTINCT language FROM documents WHERE site_id = %(site)s AND archived_at IS NULL) langs
+)
 SELECT d.number AS document, d.title, c.page,
        ts_rank_cd(c.tsv, q.q) AS rank,
        ts_headline(c.language, c.text, q.q,
                    'MaxFragments=2, MaxWords=30, MinWords=12, FragmentDelimiter=" … ", '
                    'StartSel=' || chr(2) || ', StopSel=' || chr(3)) AS snippet
-FROM document_chunks c
+FROM q
+JOIN document_chunks c ON c.site_id = %(site)s AND c.language = q.language AND c.tsv @@ q.q
 JOIN documents d ON d.site_id = c.site_id AND d.id = c.document_id
-CROSS JOIN LATERAL (SELECT websearch_to_tsquery(c.language, %(q)s) AS q) q
-WHERE c.site_id = %(site)s AND d.archived_at IS NULL AND c.tsv @@ q.q
+WHERE d.archived_at IS NULL
 ORDER BY rank DESC, d.number, c.page, c.ordinal
 LIMIT %(limit)s
 """
@@ -74,7 +81,10 @@ LIMIT %(limit)s
 
 async def upload_body(request: Request) -> bytes:
     """The uploaded file, read on the event loop, refused once it passes the size limit."""
-    size = int(request.headers.get("content-length") or 0)
+    try:
+        size = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Content-Length must be a number") from None
     if size > documents.MAX_BYTES:
         raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "The file is larger than 20 MB")
     body = bytearray()
@@ -86,6 +96,25 @@ async def upload_body(request: Request) -> bytes:
 
 
 Upload = Annotated[bytes, Depends(upload_body)]
+
+
+@dataclass(frozen=True)
+class Parsed:
+    content: bytes
+    content_type: str
+    pages: list[str]
+    chunks: list[documents.Chunk]
+
+
+def parsed_upload(request: Request, content: Upload) -> Parsed:
+    """The upload read and cut into chunks, on a worker thread, before the request takes a
+    database connection: a slow upload or a long PDF never holds one."""
+    content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
+    try:
+        found = documents.pages(content, content_type)
+    except documents.DocumentError as e:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+    return Parsed(content, content_type, found, documents.chunk(found))
 
 
 def _filename(name: str) -> str:
@@ -104,9 +133,9 @@ def _document(ctx: SiteContext, number: int) -> dict[str, Any]:
 
 @router.post("/sites/{site_id}/documents", response_model=DocumentOut, status_code=status.HTTP_201_CREATED)
 def upload_document(
-    ctx: Editor,
-    request: Request,
-    content: Upload,
+    _principal: Auth,  # signed in before anything is read
+    upload: Annotated[Parsed, Depends(parsed_upload)],
+    ctx: Editor,  # then a connection, for the writes
     title: Annotated[str, Query(min_length=1, max_length=200, pattern=TITLE)],
     filename: Annotated[str, Query(max_length=300)] = "",
     language: Annotated[str, Query(description=f"One of {', '.join(documents.LANGUAGES)}")] = "english",
@@ -116,12 +145,7 @@ def upload_document(
     why a file can't be read (encrypted, a scan without text, not UTF-8…)."""
     if language not in documents.LANGUAGES:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"language: one of {', '.join(documents.LANGUAGES)}")
-    content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
-    try:
-        found = documents.pages(content, content_type)
-    except documents.DocumentError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
-    chunks = documents.chunk(found)
+    content, content_type, found, chunks = upload.content, upload.content_type, upload.pages, upload.chunks
     digest = hashlib.sha256(content).hexdigest()
     number = one(
         ctx.conn.execute(
@@ -198,15 +222,16 @@ def search_documents(
 @router.get("/sites/{site_id}/documents/{number}/file")
 def document_file(ctx: Ctx, number: int) -> Response:
     """The file as it was uploaded (a PDF opens at a page with `#page=N`)."""
-    doc = _document(ctx, number)
-    row = one(
-        ctx.conn.execute(
-            "SELECT content FROM documents WHERE site_id = %s AND number = %s", [ctx.site_id, number]
-        ).fetchone()
-    )
+    doc: dict[str, Any] | None = ctx.conn.execute(
+        "SELECT filename, content_type, content FROM documents"
+        " WHERE site_id = %s AND number = %s AND archived_at IS NULL",
+        [ctx.site_id, number],
+    ).fetchone()
+    if doc is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document on this site")
     shown = doc["content_type"] if doc["content_type"] == "application/pdf" else "text/plain; charset=utf-8"
     return Response(
-        bytes(row["content"]),
+        bytes(doc["content"]),
         media_type=shown,
         headers={
             "Content-Disposition": f'inline; filename="{doc["filename"]}"',

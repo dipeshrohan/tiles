@@ -44,7 +44,6 @@ CREATE TABLE documents (
     UNIQUE (site_id, number),
     UNIQUE (site_id, id)
 );
-CREATE INDEX documents_site ON documents (site_id, number) WHERE archived_at IS NULL;
 
 CREATE TABLE document_chunks (
     id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

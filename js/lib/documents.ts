@@ -3,6 +3,9 @@
 
 import { esc } from './dom.ts';
 
+// The largest file the API takes (api/src/tiles_api/documents.py, MAX_BYTES).
+export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+
 // The languages a document can be searched in (the API's full-text configurations).
 export const LANGUAGES = [
   ['english', 'English'],

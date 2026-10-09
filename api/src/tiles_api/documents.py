@@ -15,10 +15,11 @@ embedding model, and gives exact pages to cite; meaning-based search would add o
 import io
 import logging
 import re
+import zlib
 from dataclasses import dataclass
 
 from pypdf import PdfReader
-from pypdf.errors import PdfReadError
+from pypdf.errors import PyPdfError
 
 MAX_BYTES = 20 * 1024 * 1024
 MAX_PAGES = 2_000
@@ -70,7 +71,9 @@ def _pdf_pages(content: bytes) -> list[str]:
         return [_clean(page.extract_text() or "") for page in reader.pages]
     except DocumentError:
         raise
-    except (PdfReadError, ValueError, KeyError, TypeError, IndexError, RecursionError) as e:
+    # A malformed PDF fails in many ways (pypdf's own errors, its limits on what it decompresses,
+    # zlib, a missing object): each is a file that can't be read, never a server error.
+    except (PyPdfError, ValueError, KeyError, TypeError, IndexError, AttributeError, RecursionError, zlib.error) as e:
         raise DocumentError(f"The PDF can't be read ({type(e).__name__})") from None
 
 
@@ -92,9 +95,13 @@ def _text_pages(content: bytes) -> list[str]:
     return found
 
 
+CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")  # all but tab and newline (and NUL, which PostgreSQL refuses)
+
+
 def _clean(text: str) -> str:
-    """Text as searched: no NUL characters (PostgreSQL refuses them), one space between words."""
-    text = text.replace("\x00", "")
+    """Text as searched: no control characters (STX and ETX mark matches in snippets: none may be
+    in the text), one space between words."""
+    text = CONTROL.sub(" ", text)
     text = re.sub(r"[ \t\r\v]+", " ", text)
     return re.sub(r"\n\s*\n\s*", "\n\n", text).strip()
 

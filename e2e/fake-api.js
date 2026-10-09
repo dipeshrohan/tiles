@@ -288,6 +288,7 @@ export function createFakeApi({
   let lastApp = 0;
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
+  let searchFailures = 0; // the next document searches that fail
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
   const designRuns = []; // latest last
@@ -1008,6 +1009,7 @@ export function createFakeApi({
           return send(201, shown(made));
         }
         if (url.pathname === `${docsPath}/search`) {
+          if (searchFailures > 0 && searchFailures--) return send(503, { detail: 'The API is restarting' });
           const words = (url.searchParams.get('q') ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
           const matches = [];
           for (const d of live)
@@ -1857,6 +1859,10 @@ export function createFakeApi({
     insights,
     studioApps,
     siteDocuments,
+    // Makes the next `n` document searches fail.
+    failDocumentSearch(n) {
+      searchFailures = n;
+    },
     // Makes the next `n` lists of App Studio's templates or apps fail.
     failApps(n) {
       appsFailures = n;

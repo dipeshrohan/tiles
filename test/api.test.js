@@ -46,6 +46,25 @@ test('requests carry JSON, the identity header and a bearer token when given', a
   assert.deepEqual(JSON.parse(call.body), op);
 });
 
+test('a document is uploaded as it is, with its own type, and errors keep their request id', async () => {
+  const f = fakeFetch(
+    { status: 201, body: { number: 1 } },
+    { status: 422, body: { detail: 'The PDF is encrypted' }, headers: { 'x-request-id': 'r-9' } },
+  );
+  const seen = [];
+  const api = createApiClient({ baseUrl: 'http://a', token: 't', fetch: f.fn, onError: (e) => seen.push(e) });
+  const file = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
+  const meta = { title: 'SOP 14', filename: 'sop.pdf', language: 'english' };
+  assert.deepEqual(await api.documents.upload('s', file, 'application/pdf', meta), { number: 1 });
+  const [call] = f.calls;
+  assert.equal(call.url, 'http://a/sites/s/documents?title=SOP+14&filename=sop.pdf&language=english');
+  assert.equal(call.headers['Content-Type'], 'application/pdf');
+  assert.equal(call.headers.Authorization, 'Bearer t');
+  assert.equal(call.body, file);
+  await assert.rejects(api.documents.upload('s', file, 'application/pdf', meta), /encrypted/);
+  assert.equal(seen[0].requestId, 'r-9');
+});
+
 test('every ontology call hits the documented path', async () => {
   const f = fakeFetch(...Array.from({ length: 11 }, () => ({ body: {} })));
   const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
