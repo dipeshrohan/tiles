@@ -4,7 +4,7 @@ reasons it gives when it can't answer."""
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 import psycopg
@@ -105,7 +105,7 @@ def test_the_ontology_graph_and_its_health(api: TestClient, site: str, tool: Run
     assert overview["ontology_nodes_by_type"] == {"Line": 1, "Machine": 2, "PLC": 1}
 
 
-def test_signals_their_readings_and_wear(api: TestClient, site: str, tool: Run) -> None:  # noqa: F811
+def test_signals_their_readings_and_wear(api: TestClient, site: str, tool: Run, database_url: str) -> None:  # noqa: F811
     load(api, site, "w03.cathode_power", FIXTURE["cathode"], step=HOUR)
     found = tool("find_signals", query="cathode")
     assert [s["tag"] for s in found["signals"]] == ["w03.cathode_power"]
@@ -113,7 +113,12 @@ def test_signals_their_readings_and_wear(api: TestClient, site: str, tool: Run) 
     assert (series["readings"], series["bucket_s"]) == (24, None)  # the day up to the latest reading
     assert series["summary"]["last"] == FIXTURE["cathode"][-1]
     assert series["summary"]["max"] == max(FIXTURE["cathode"][-24:])
-    whole = tool("time_series", tag="w03.cathode_power", **{"from": T0.isoformat()}, points=10)
+    whole = tool(
+        "time_series",
+        tag="w03.cathode_power",
+        **{"from": T0.isoformat(), "to": (T0 + 72 * HOUR).isoformat()},
+        points=10,
+    )
     assert (whole["readings"], len(whole["points"]) <= 10, whole["bucket_s"] is not None) == (72, True, True)
     worn = tool("wear_check", tag="w03.cathode_power", baseline_hours=48, limit=1900)
     assert (worn["verdict"], worn["buckets"]) == ("wearing", 72)
@@ -122,6 +127,21 @@ def test_signals_their_readings_and_wear(api: TestClient, site: str, tool: Run) 
     assert refused(tool, "time_series", tag="") == "Give the signal's tag (find_signals searches them)"
     assert refused(tool, "time_series", tag="w03.cathode_power", to="yesterday").startswith("to must be an ISO 8601")
     assert refused(tool, "wear_check", tag="w03.cathode_power", direction="sideways").startswith("direction:")
+    # A time without a zone is UTC, as for every other tool.
+    at_end = tool("wear_check", tag="w03.cathode_power", baseline_hours=48, end=(T0 + 72 * HOUR).isoformat()[:19])
+    assert at_end["change"] == worn["change"]
+    # A day from `from`, even past the latest reading: nothing there, said plainly.
+    later = tool("time_series", tag="w03.cathode_power", **{"from": (T0 + 100 * HOUR).isoformat()})
+    assert (later["readings"], later["points"]) == (0, [])
+    # Tags differing only by case (a model's output can name a derived signal in capitals): the exact
+    # one, or a question back.
+    load(api, site, "w03.spare", [2.0])
+    with psycopg.connect(database_url) as conn:
+        conn.execute("INSERT INTO signals (site_id, tag, source) VALUES (%s, 'W03.Spare', 'manual')", [site])
+    assert tool("time_series", tag="w03.spare", **{"from": T0.isoformat()})["summary"]["last"] == 2.0
+    assert refused(tool, "time_series", tag="W03.SPARE") == (
+        "Several tags are 'W03.SPARE' but for case: W03.Spare, w03.spare; give one exactly"
+    )
     assert "recent_hours must be a whole number of buckets" in refused(
         tool, "wear_check", tag="w03.cathode_power", recent_hours=1.5
     )
@@ -140,17 +160,27 @@ def test_virtual_sensors_with_their_inputs_and_outputs(api: TestClient, site: st
     assert {o["tag"] for o in b["outputs"].values()} >= {"dc1-plunger.friction"}
     assert all(o["last_value"] is not None for o in b["outputs"].values())
     assert refused(tool, "virtual_sensors", name="press") == "No virtual sensor named like 'press'"
+    assert refused(tool, "virtual_sensors", name="dc1_p") == "No virtual sensor named like 'dc1_p'"  # _ is no wildcard
+    assert [b["name"] for b in tool("virtual_sensors", name="1-PLUN")["virtual_sensors"]] == ["dc1-plunger"]
 
 
 def test_warnings_and_events(api: TestClient, site: str, tool: Run) -> None:  # noqa: F811
-    raise_warnings(api, site)
+    ids = raise_warnings(api, site)  # oldest first, long ago
     since = (T0 - timedelta(days=400)).isoformat()
     warnings = tool("events", since=since)["warnings"]
     assert len(warnings) == 3
     assert warnings[0]["started_at"] > warnings[-1]["started_at"]  # newest first
     assert {w["tag"] for w in warnings} == {warnings[0]["tag"]}
     assert tool("events", since=since, tag=warnings[0]["tag"], limit=1)["warnings"] == warnings[:1]
-    assert tool("events")["warnings"] == []  # by default the last 30 days only
+    # By default the last 30 days, and every warning still open however long ago it started.
+    assert len(tool("events")["warnings"]) == 3
+    res = api.post(f"/sites/{site}/warnings/{ids[0]}/resolve", json={"outcome": "true_alarm"}, headers=ENG)
+    assert res.status_code == 200, res.text
+    assert len(tool("events")["warnings"]) == 2
+    # Up to a time long ago, without `since`: the 30 days before it, not an empty range.
+    until = (datetime.fromisoformat(warnings[0]["started_at"].isoformat()) + timedelta(seconds=1)).isoformat()
+    assert len(tool("events", until=until)["warnings"]) == 3
+    assert refused(tool, "events", since=until, until=since) == "since must be before until"
     down = load(api, site, "dc2.downtime", ["DT-1", "DT-7"], step=HOUR)
     res = api.patch(f"/sites/{site}/signals/{down}", json={"event_kind": "downtime", "asset": "DC-2"}, headers=ENG)
     assert res.status_code == 200, res.text
@@ -160,6 +190,11 @@ def test_warnings_and_events(api: TestClient, site: str, tool: Run) -> None:  # 
         ("dc2.downtime", "downtime", "DT-1"),
     ]
     assert refused(tool, "events", kind="alarms") == 'kind must be "warnings" or "events"'
+    stop = load(api, site, "dc2.stopped", [True, False], step=HOUR)
+    res = api.patch(f"/sites/{site}/signals/{stop}", json={"event_kind": "other", "asset": "DC-3"}, headers=ENG)
+    assert res.status_code == 200, res.text
+    flags = tool("events", kind="events", since=(T0 - HOUR).isoformat(), asset="DC-3")["events"]
+    assert [e["value"] for e in flags] == ["false", "true"]  # true/false readings are values too
 
 
 def test_the_correlation_finder_on_a_batch_table(api: TestClient, site: str, tool: Run) -> None:  # noqa: F811
@@ -195,3 +230,8 @@ def test_tools_only_read(api: TestClient, site: str, database_url: str) -> None:
     with pytest.raises(psycopg.errors.ReadOnlySqlTransaction):
         copilot_tools._read_only(open_ctx, write)({})
     assert api.get("/sites", headers=VIEWER).json()[0]["name"] != "Hacked"
+
+
+def test_long_lists_in_a_reason_are_cut_short() -> None:
+    assert copilot_tools._names([f"d{i}" for i in range(3)]) == "d0, d1, d2"
+    assert copilot_tools._names([f"d{i}" for i in range(40)], limit=2) == "d0, d1 and 38 more"

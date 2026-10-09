@@ -341,10 +341,10 @@ The tools (T4.02) are the browser copilot's skills on the site's real data:
 | `find_signals` | the signal catalogue's search: unit, description, node, asset, event kind, latest reading, quality |
 | `graph_query` | one node (by id or label) with every node linked to it and how, and the signal tags mapped to it; or nodes by words and type |
 | `ontology_health` | the health check: score, counts and issues (dangling or duplicate relationships, orphans, missing properties) |
-| `time_series` | a signal over a range (default the day up to its latest reading): min, max, mean, first, last and up to 200 points |
+| `time_series` | a signal over a range (default the day up to its latest reading, or the day from `from`): min, max, mean, first, last and up to 200 points |
 | `wear_check` | the wear check (T3.13) on a signal |
 | `virtual_sensors` | model bindings: model and version, input and output signals with their latest values, how the last run went |
-| `events` | warnings (detector, peak, baseline, threshold, workflow and outcome) or events (downtime, scrap… codes), newest first, the last 30 days by default |
+| `events` | warnings (detector, peak, baseline, threshold, workflow and outcome) or events (downtime, scrap… codes), newest first; by default the 30 days up to `until` (now), plus every warning still open however long ago it started |
 | `correlate` | the correlation finder on an uploaded batch table; without an outcome it lists the columns, with an unknown name the datasets |
 
 A tool that can't answer says why in words the model can act on: the close signal tags or node labels, the datasets or columns there are, what was wrong with an input (the API's own checks become these messages). Each runs in its own read-only transaction.

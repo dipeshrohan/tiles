@@ -68,27 +68,38 @@ def _time(args: dict[str, Any], key: str) -> datetime | None:
 
 
 def _signal(ctx: SiteContext, tag: str) -> dict[str, Any]:
-    """The signal with this tag; otherwise the error names close ones."""
+    """The signal with this tag (its case, or else any case if only one matches); otherwise the
+    error names close ones."""
     if not tag:
         raise ToolError("Give the signal's tag (find_signals searches them)")
-    row = ctx.conn.execute(
-        "SELECT id, tag, unit FROM signals WHERE site_id = %s AND lower(tag) = lower(%s)", [ctx.site_id, tag]
-    ).fetchone()
-    if row:
-        return row
+    rows = ctx.conn.execute(
+        "SELECT id, tag, unit FROM signals WHERE site_id = %s AND lower(tag) = lower(%s) ORDER BY tag",
+        [ctx.site_id, tag],
+    ).fetchall()
+    exact = [r for r in rows if r["tag"] == tag]
+    if exact or len(rows) == 1:
+        return (exact or rows)[0]
+    if rows:
+        raise ToolError(f"Several tags are {tag!r} but for case: {', '.join(r['tag'] for r in rows)}; give one exactly")
     stem = next((w for w in re.split(r"[^0-9A-Za-z]+", tag) if w), "")
     near = (
         [
             r["tag"]
             for r in ctx.conn.execute(
                 "SELECT tag FROM signals WHERE site_id = %s AND tag ILIKE %s ORDER BY tag LIMIT 5",
-                [ctx.site_id, f"%{stem}%"],
+                [ctx.site_id, api_signals._like(stem)],
             )
         ]
         if stem
         else []
     )
     raise ToolError(f"No signal tagged {tag!r}" + (f"; close: {', '.join(near)}" if near else ""))
+
+
+def _names(items: list[str], limit: int = 30) -> str:
+    """A list for an error message, cut short so the message stays small."""
+    shown = ", ".join(items[:limit])
+    return shown + (f" and {len(items) - limit} more" if len(items) > limit else "")
 
 
 def _uuid(v: Any) -> uuid.UUID | None:
@@ -206,16 +217,13 @@ def ontology_health(ctx: SiteContext, _args: dict[str, Any]) -> dict[str, Any]:
 def time_series(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
     """A signal over a range (default: the day up to its latest reading), with its summary."""
     signal = _signal(ctx, _text(args, "tag"))
-    end = _time(args, "to")
     start = _time(args, "from")
-    if end is None:
-        latest = one(
-            ctx.conn.execute("SELECT max(at) AS at FROM samples WHERE signal_id = %s", [signal["id"]]).fetchone()
-        )["at"]
-        end = (latest + timedelta(microseconds=1)) if latest else datetime.now(UTC)
+    end = _time(args, "to")
+    if end is None:  # a day from `from`, or the day up to the latest reading
+        end = start + timedelta(hours=24) if start else api_series.latest_end(ctx, signal["id"])
     start = start or end - timedelta(hours=24)
     points = _int(args, "points", 100, 10, 200)
-    series = api_series.read_series(ctx, signal["id"], start, end, points)
+    series = api_series.read_series(ctx, signal["id"], start, end, points, signal)
     values = [p.value for p in series.points if p.value is not None]
     readings = sum(p.n for p in series.points)
     mean = (
@@ -245,9 +253,11 @@ def time_series(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
 
 def wear_check(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
     signal = _signal(ctx, _text(args, "tag"))
-    fields = ("end", "recent_hours", "baseline_hours", "bucket_minutes", "direction", "threshold", "limit")
-    body = api_wear.WearIn.model_validate({k: args[k] for k in fields if args.get(k) is not None})
-    out = api_wear.run_check(ctx, signal["id"], body)
+    fields = ("recent_hours", "baseline_hours", "bucket_minutes", "direction", "threshold", "limit")
+    body = api_wear.WearIn.model_validate(
+        {k: args[k] for k in fields if args.get(k) is not None} | {"end": _time(args, "end")}
+    )
+    out = api_wear.run_check(ctx, signal["id"], body, signal)
     return {k: v for k, v in out.items() if k not in ("buckets", "signal_id")} | {"buckets": len(out["buckets"])}
 
 
@@ -261,7 +271,7 @@ def virtual_sensors(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
         FROM model_bindings b JOIN models m ON m.id = b.model_id
         WHERE b.site_id = %s AND (%s = '' OR b.name ILIKE %s) ORDER BY b.name LIMIT 25
         """,
-        [ctx.site_id, name, f"%{name}%"],
+        [ctx.site_id, name, api_signals._like(name)],
     ).fetchall()
     if not rows:
         raise ToolError(f"No virtual sensor named like {name!r}" if name else "This site has no virtual sensors yet")
@@ -270,9 +280,10 @@ def virtual_sensors(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
         r["id"]: r
         for r in ctx.conn.execute(
             """
-            SELECT g.id, g.tag, g.unit, s.at AS last_at, coalesce(s.value::text, s.value_text) AS last_value
+            SELECT g.id, g.tag, g.unit, s.at AS last_at,
+                   coalesce(s.value::text, s.value_text, s.value_bool::text) AS last_value
             FROM signals g LEFT JOIN LATERAL (
-                SELECT at, value, value_text FROM samples WHERE signal_id = g.id ORDER BY at DESC LIMIT 1
+                SELECT at, value, value_text, value_bool FROM samples WHERE signal_id = g.id ORDER BY at DESC LIMIT 1
             ) s ON true
             WHERE g.site_id = %s AND g.id = ANY(%s)
             """,
@@ -302,8 +313,13 @@ def events(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
     kind = _text(args, "kind", "warnings")
     tag = _text(args, "tag")
     asset = _text(args, "asset", limit=100)
-    since = _time(args, "since") or datetime.now(UTC) - timedelta(days=30)
     until = _time(args, "until") or datetime.now(UTC) + timedelta(minutes=1)
+    since_given = _time(args, "since")
+    since = since_given or until - timedelta(days=30)
+    if since >= until:
+        raise ToolError("since must be before until")
+    # Without `since`, warnings still open (unresolved) are listed however long ago they started.
+    with_open = since_given is None
     limit = _int(args, "limit", 20, 1, 50)
     signal_id = _signal(ctx, tag)["id"] if tag else None
     if kind == "warnings":
@@ -314,18 +330,28 @@ def events(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
                    w.resolution_note, u.name AS assignee
             FROM warnings w JOIN signals g ON g.id = w.signal_id JOIN detectors d ON d.id = w.detector_id
             LEFT JOIN users u ON u.id = w.assignee_id
-            WHERE w.site_id = %(s)s AND w.started_at >= %(since)s AND w.started_at < %(until)s
+            WHERE w.site_id = %(s)s AND w.started_at < %(until)s
+              AND (w.started_at >= %(since)s OR (%(open)s AND w.resolved_at IS NULL))
               AND (%(sig)s::uuid IS NULL OR w.signal_id = %(sig)s) AND (%(asset)s = '' OR d.asset = %(asset)s)
             ORDER BY w.started_at DESC LIMIT %(n)s
             """,
-            {"s": ctx.site_id, "since": since, "until": until, "sig": signal_id, "asset": asset, "n": limit},
+            {
+                "s": ctx.site_id,
+                "since": since,
+                "until": until,
+                "open": with_open,
+                "sig": signal_id,
+                "asset": asset,
+                "n": limit,
+            },
         ).fetchall()
         return {"since": since, "until": until, "warnings": rows}
     if kind != "events":
         raise ToolError('kind must be "warnings" or "events"')
     rows = ctx.conn.execute(
         """
-        SELECT g.tag, g.event_kind AS kind, g.asset, s.at, coalesce(s.value::text, s.value_text) AS value
+        SELECT g.tag, g.event_kind AS kind, g.asset, s.at,
+               coalesce(s.value::text, s.value_text, s.value_bool::text) AS value
         FROM samples s JOIN signals g ON g.id = s.signal_id
         WHERE g.site_id = %(s)s AND g.event_kind IS NOT NULL AND s.at >= %(since)s AND s.at < %(until)s
           AND (%(sig)s::uuid IS NULL OR g.id = %(sig)s) AND (%(asset)s = '' OR g.asset = %(asset)s)
@@ -339,20 +365,23 @@ def events(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
 def correlate(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
     """The correlation finder on an uploaded batch table."""
     name = _text(args, "dataset")
-    rows = ctx.conn.execute(
-        "SELECT id, name, columns, row_count FROM datasets WHERE site_id = %s ORDER BY name", [ctx.site_id]
-    ).fetchall()
-    found = next((d for d in rows if d["name"].lower() == name.lower()), None)
-    if found is None:
-        names = ", ".join(f"{d['name']} ({d['row_count']} rows)" for d in rows) or "none uploaded yet"
+    hit = ctx.conn.execute(
+        "SELECT id FROM datasets WHERE site_id = %s AND lower(name) = lower(%s)", [ctx.site_id, name]
+    ).fetchone()
+    if hit is None:
+        rows = ctx.conn.execute(
+            "SELECT name, row_count FROM datasets WHERE site_id = %s ORDER BY name LIMIT 31", [ctx.site_id]
+        ).fetchall()
+        names = _names([f"{d['name']} ({d['row_count']} rows)" for d in rows]) or "none uploaded yet"
         raise ToolError(f"No dataset {name!r}; the site's datasets: {names}")
+    found = api_datasets.find_dataset(ctx, hit["id"])
     if not args.get("outcome"):
-        cols = ", ".join(f"{c['name']} ({c['kind']})" for c in found["columns"])
+        cols = _names([f"{c['name']} ({c['kind']})" for c in found["columns"]])
         raise ToolError(f"Say which column is the outcome; {found['name']} has: {cols}")
     body = api_datasets.CorrelateIn.model_validate(
         {k: args[k] for k in ("outcome", "ng_values", "variables", "split") if args.get(k) is not None}
     )
-    result = api_datasets.run(ctx, api_datasets.find_dataset(ctx, found["id"]), body)
+    result = api_datasets.run(ctx, found, body)
     findings = [{k: _finite(v) for k, v in f.items()} for f in result["findings"][:15]]
     return {
         "dataset": found["name"],

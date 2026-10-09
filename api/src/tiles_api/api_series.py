@@ -11,7 +11,7 @@ shows.
 
 import math
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
@@ -71,17 +71,37 @@ def get_series(
     return read_series(ctx, signal_id, start, end, points)
 
 
-def read_series(ctx: SiteContext, signal_id: uuid.UUID, start: datetime, end: datetime, points: int) -> Series:
+def site_signal(ctx: SiteContext, signal_id: uuid.UUID) -> dict[str, Any]:
+    """A signal of this site (its tag and unit); 404 for another site's."""
+    signal = ctx.conn.execute(
+        "SELECT id, tag, unit FROM signals WHERE id = %s AND site_id = %s", [signal_id, ctx.site_id]
+    ).fetchone()
+    if signal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such signal on this site")
+    return signal
+
+
+def latest_end(ctx: SiteContext, signal_id: uuid.UUID) -> datetime:
+    """Just after the signal's latest reading (a range's end is excluded), or now if it has none."""
+    latest = ctx.conn.execute("SELECT max(at) AS at FROM samples WHERE signal_id = %s", [signal_id]).fetchone()
+    at: datetime | None = latest["at"] if latest else None
+    return at + timedelta(microseconds=1) if at else datetime.now(UTC)
+
+
+def read_series(
+    ctx: SiteContext,
+    signal_id: uuid.UUID,
+    start: datetime,
+    end: datetime,
+    points: int,
+    signal: dict[str, Any] | None = None,  # site_signal's row, if the caller has it
+) -> Series:
     """A signal of this site over a range, as `GET …/series` answers it."""
     if end <= start:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "`to` must be after `from`")
     if end - start > MAX_SPAN:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The range can be at most five years")
-    signal = ctx.conn.execute(
-        "SELECT tag, unit FROM signals WHERE id = %s AND site_id = %s", [signal_id, ctx.site_id]
-    ).fetchone()
-    if signal is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such signal on this site")
+    signal = signal or site_signal(ctx, signal_id)
     args: dict[str, Any] = {"id": signal_id, "start": start, "end": end}
     # The readings as they are, one more than fit: if that one comes back, they are bucketed instead.
     rows = ctx.conn.execute(RAW, {**args, "limit": points + 1}).fetchall()
