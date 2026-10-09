@@ -172,7 +172,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [ ] `T5.13` [#87](https://github.com/dipeshrohan/tiles/issues/87) **Monitoring:** OpenTelemetry traces, metrics and dashboards; alerts for ingest lag and job failures · BE · 3d
 - [ ] `T5.14` [#88](https://github.com/dipeshrohan/tiles/issues/88) ★ **Backups and a restore drill** (point-in-time recovery for Postgres) · BE · 1.5d
   *Done when:* restoring into a fresh environment is documented and timed.
-- [ ] `T5.15` [#89](https://github.com/dipeshrohan/tiles/issues/89) ★ **Load test:** 10k signals at 1 Hz, 50 concurrent users; fix bottlenecks · BE · 3d · T2.06
+- [x] `T5.15` [#89](https://github.com/dipeshrohan/tiles/issues/89) ★ **Load test:** 10k signals at 1 Hz, 50 concurrent users; fix bottlenecks · BE · 3d · T2.06
   *Done when:* p95 API latency < 500 ms and ingest lag < 10 s under load.
 
 ### UX

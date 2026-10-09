@@ -6,7 +6,7 @@ import os
 from functools import lru_cache
 from typing import Literal, Self
 
-from pydantic import SecretStr, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,12 +17,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     host: str = "127.0.0.1"
     port: int = 8000
+    # API processes (T5.15): each has its own pool of `db_pool_max` connections, so the database
+    # sees up to workers x db_pool_max of them per API instance.
+    workers: int = Field(default=1, ge=1, le=64)
     cors_origins: list[str] = ["http://localhost:5173"]
     database_url: SecretStr = SecretStr("postgresql://tiles:tiles-dev@localhost:5432/tiles")  # holds a password
     redis_url: str = "redis://localhost:6379/0"
     # Seconds each readiness check may take before it counts as unavailable.
     ready_timeout: float = 2.0
     db_pool_max: int = 10
+    db_wait_seconds: float = 10.0  # a request waits this long for a connection, then gets a 503
     # Single sign-on (OpenID Connect). Off when oidc_issuer is unset.
     # oidc_issuer must match the tokens' `iss` claim (the URL browsers use).
     oidc_issuer: str | None = None

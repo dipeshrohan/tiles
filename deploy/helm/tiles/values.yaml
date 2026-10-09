@@ -72,10 +72,14 @@ api:
   # Applied by every API pod as it starts, one at a time (a database lock).
   migrateOnStart: true
   seedDemo: false # creates the demo organisation and site (tiles-seed)
+  # Processes per pod (TILES_WORKERS), each with its own pool of dbPoolMax connections: the
+  # database sees up to replicas x workers x dbPoolMax. The load test (T5.15, docs/load-test.md)
+  # met 10,000 readings a second and 50 people with 2 workers on 4 cores.
+  workers: 2
   dbPoolMax: 10
   resources:
-    requests: { cpu: 250m, memory: 384Mi }
-    limits: { memory: 1Gi }
+    requests: { cpu: 500m, memory: 512Mi }
+    limits: { memory: 1536Mi }
   podAnnotations: {}
   nodeSelector: {}
   tolerations: []

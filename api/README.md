@@ -62,11 +62,13 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_LOG_LEVEL` | `INFO` | Python log level |
 | `TILES_HOST` | `127.0.0.1` | Bind address for `tiles-api` |
 | `TILES_PORT` | `8000` | Port for `tiles-api` |
+| `TILES_WORKERS` | `1` | API processes; each has its own connection pool (T5.15) |
 | `TILES_CORS_ORIGINS` | `["http://localhost:5173"]` | JSON list of browser origins allowed to call the API |
 | `TILES_DATABASE_URL` | `postgresql://tiles:tiles-dev@localhost:5432/tiles` | PostgreSQL (TimescaleDB) connection |
 | `TILES_REDIS_URL` | `redis://localhost:6379/0` | Redis connection |
 | `TILES_READY_TIMEOUT` | `2.0` | Seconds each `/ready` check may take |
-| `TILES_DB_POOL_MAX` | `10` | Maximum database connections |
+| `TILES_DB_POOL_MAX` | `10` | Maximum database connections per API process |
+| `TILES_DB_WAIT_SECONDS` | `10` | How long a request waits for a free connection before a 503 (`Retry-After: 2`) |
 | `TILES_OIDC_ISSUER` | unset (sign-in off) | OpenID Connect issuer; must equal the tokens' `iss` (the address browsers use) |
 | `TILES_OIDC_JWKS_URL` | discovered from the issuer | Where the API fetches signing keys, if it reaches the provider by another address (Compose uses `http://keycloak:8080/…`) |
 | `TILES_OIDC_AUDIENCE` | `tiles-api` | Audience tokens must carry |

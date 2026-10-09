@@ -84,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Tiles API", version=VERSION, lifespan=lifespan)
     app.state.settings = settings
     app.state.pool = None
+    app.state.db_slots = None  # store.db_slot
     app.state.copilot_model = None  # tests set a stand-in for Claude
     app.state.copilot_client = None
 
@@ -176,5 +177,6 @@ def run() -> None:
         factory=True,
         host=settings.host,
         port=settings.port,
+        workers=settings.workers,
         log_config=None,
     )

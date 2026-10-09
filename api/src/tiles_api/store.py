@@ -1,13 +1,14 @@
 """Database access: a connection pool shared by request handlers."""
 
+import asyncio
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from typing import Annotated
 
 import psycopg
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
 
@@ -48,7 +49,34 @@ def open_pool(settings: Settings) -> ConnectionPool[Conn]:
 _pool_lock = threading.Lock()
 
 
-def get_conn(request: Request) -> Iterator[Conn]:
+async def db_slot(request: Request) -> AsyncIterator[None]:
+    """Waits for one of the pool's connections to be free, on the event loop, before the request
+    takes a worker thread for it (T5.15).
+
+    Sync handlers run on worker threads (40), each taking a connection (`db_pool_max`). With more
+    requests than connections, threads blocked on the pool left none for the requests holding a
+    connection to run their handler, and every request stalled until the pool's timeout (found by
+    the load test). Here the wait holds no thread; past `db_wait_seconds`, the answer is a 503.
+    """
+    state = request.app.state
+    loop = asyncio.get_running_loop()
+    if state.db_slots is None or state.db_slots[0] is not loop:  # one per event loop (tests run several)
+        state.db_slots = (loop, asyncio.Semaphore(state.settings.db_pool_max))
+    slots: asyncio.Semaphore = state.db_slots[1]
+    try:
+        async with asyncio.timeout(state.settings.db_wait_seconds):
+            await slots.acquire()
+    except TimeoutError:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "Tiles is busy: try again in a moment", headers={"Retry-After": "2"}
+        ) from None
+    try:
+        yield
+    finally:
+        slots.release()
+
+
+def get_conn(request: Request, _slot: Annotated[None, Depends(db_slot, scope="function")]) -> Iterator[Conn]:
     """FastAPI dependency: one connection and transaction per request.
 
     The pool is created on first use, so the app (and /health) starts without
