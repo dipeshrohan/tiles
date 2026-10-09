@@ -3,13 +3,14 @@ read its result. The sweep runs in the background after the request (sweeps.run)
 sweep that is already done is answered from its result at once.
 """
 
+import math
 import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response, status
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, field_validator, model_validator
 
 from tiles_api import api_runs, sweeps
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
@@ -28,6 +29,13 @@ class Axis(BaseModel):
     from_: Number = Field(alias="from")
     to: Number
     steps: Annotated[int, Field(ge=2, le=sweeps.MAX_STEPS)]
+
+    @field_validator("from_", "to")
+    @classmethod
+    def _finite(cls, v: float) -> float:
+        if not math.isfinite(v):
+            raise ValueError("must be a finite number")
+        return v
 
 
 class SweepIn(BaseModel):
@@ -89,23 +97,12 @@ def start_sweep(
     """Start a sweep (202: it runs in the background), or answer from an identical one's result (200)."""
     model = api_runs._model(body.model, body.version)
     spec = model.spec
-    params_by_name = {p.name: p for p in spec.params}
-    for axis in (body.x, body.y):
-        if axis is None:
-            continue
-        p = params_by_name.get(axis.param)
-        if p is None:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                f"{spec.key} has no parameter {axis.param}: it has {', '.join(params_by_name)}",
-            )
-        for v in (axis.from_, axis.to):
-            if (p.min is not None and v < p.min) or (p.max is not None and v > p.max):
-                raise HTTPException(
-                    status.HTTP_422_UNPROCESSABLE_CONTENT, f"{axis.param} must lie between {p.min} and {p.max}"
-                )
     try:
         full = check_params(spec, body.params)
+        # Both ends of each axis checked as the model checks a parameter (known, within bounds).
+        for axis in (a for a in (body.x, body.y) if a is not None):
+            for end in (axis.from_, axis.to):
+                check_params(spec, body.params | {axis.param: end})
     except ModelError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
     if (
@@ -161,7 +158,7 @@ def start_sweep(
         after={"model": spec.key, "version": spec.version, "x": x, "y": y, "points": total},
     )
     pool = request.app.state.pool
-    background.add_task(sweeps.run, pool.connection, sweep_id)  # after the request's transaction commits
+    background.add_task(sweeps.drain, pool.connection)  # after the request's transaction commits
     return _sweep(ctx, sweep_id)
 
 

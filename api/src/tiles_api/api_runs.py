@@ -137,11 +137,10 @@ def _key(model: str) -> str:
 
 def _model(key: str, version: str | None) -> Model:
     """A design model by the registry's key or the browser's id, its latest version unless named."""
+    # The browser's versions have no patch number ("2.0"), whichever name the model is given by.
+    full = None if version is None else version if version.count(".") == 2 else f"{version}.0"
     try:
-        if key in design.BROWSER_KEYS and version is not None:
-            model = registry.get(*design.from_browser(key, version))
-        else:
-            model = registry.get(_key(key), version)
+        model = registry.get(_key(key), full)
     except KeyError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e.args[0])) from e
     if model.spec.kind != "design":

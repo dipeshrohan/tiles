@@ -35,6 +35,7 @@ CREATE TABLE sweeps (
     result            jsonb,
     error             text,
     cancel_requested  boolean NOT NULL DEFAULT false,
+    worker            uuid,  -- the run that claimed it: only that one writes its progress and result
     created_by_id     uuid REFERENCES users (id) ON DELETE SET NULL,
     created_by        text NOT NULL,
     created_at        timestamptz NOT NULL DEFAULT now(),

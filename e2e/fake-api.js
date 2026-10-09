@@ -183,6 +183,7 @@ export function createFakeApi({
   let designRunsDelayMs = 0; // before a list of runs answers
   // Sweeps (T4.12): each one moves on a quarter of its points every time it is read, then is done.
   const designSweeps = [];
+  let sweepReadFailures = 0; // reads of a sweep that answer 503 first
   // The copilot: conversations by id ({ id, user, title, created_at, updated_at, history }) and
   // the answers to give next, each { tools: [{ name, input, result }], drafts: [{ text, reason }],
   // answer, grounding? }; with none scripted, it asks back.
@@ -1093,7 +1094,7 @@ export function createFakeApi({
             id: randomUUID(),
             key,
             model: b.model,
-            version: `${b.version}.0`,
+            version: b.version.split('.').length === 3 ? b.version : `${b.version}.0`,
             params: b.params ?? {},
             x: b.x,
             y: b.y ?? null,
@@ -1115,6 +1116,10 @@ export function createFakeApi({
         }
         const sw = designSweeps.find((x) => x.id === sweepMatch[1]);
         if (!sw) return send(404, { detail: 'No such sweep on this site' });
+        if (!sweepMatch[2] && sweepReadFailures > 0) {
+          sweepReadFailures -= 1;
+          return send(503, { detail: 'Busy' });
+        }
         if (sweepMatch[2]) {
           if (sw.status !== 'running') return send(409, { detail: `The sweep is already ${sw.status}` });
           sw.cancel_requested = true;
@@ -1487,6 +1492,10 @@ export function createFakeApi({
     copilotUsage,
     // Design runs stored on the site (T4.11), latest last.
     designRuns,
+    // The next `n` reads of a sweep fail, as a network blip would.
+    failSweepReads(n) {
+      sweepReadFailures = n;
+    },
     // Slows the list of runs, so a test can see the page wait for it.
     slowDesignRuns(ms) {
       designRunsDelayMs = ms;

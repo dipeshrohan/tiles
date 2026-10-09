@@ -4194,7 +4194,7 @@
 		site,
 		model,
 		version,
-		Object.entries(params).sort(),
+		Object.entries(params).filter(([k]) => k !== x && k !== y).sort(),
 		x,
 		y,
 		steps
@@ -4228,7 +4228,7 @@
 	];
 	var POLL_MS = 400;
 	var sweepRunning = (s) => s.status === "queued" || s.status === "running";
-	function follow(ctx, site, key) {
+	function follow(ctx, site, key, failures = 0) {
 		const at = visit;
 		sweepTimer = setTimeout(async () => {
 			sweepTimer = null;
@@ -4249,10 +4249,11 @@
 					return;
 				}
 			} catch {
+				if (at === visit && apiSweep?.key === key) follow(ctx, site, key, failures + 1);
 				return;
 			}
 			ctx.rerender();
-		}, POLL_MS);
+		}, POLL_MS * Math.min(2 ** failures, 16));
 	}
 	function sweepControls(ctx, key, canStart) {
 		const ui = uiState$5(ctx);
@@ -4347,6 +4348,16 @@
       <span class="small soft" style="flex-basis:100%">Runs in a project are stored on the site and shared with everyone on it.</span>
     </div>`;
 	}
+	function sweepAxes(model, ui) {
+		const keys = model.params.map((p) => p.key);
+		const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0];
+		let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1];
+		if (yKey === xKey) yKey = keys.find((k) => k !== xKey);
+		return {
+			xKey,
+			yKey
+		};
+	}
 	function current(ctx) {
 		const ui = uiState$5(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
@@ -4364,10 +4375,7 @@
 		render(ctx) {
 			const { ui, model, params, version } = current(ctx);
 			const value = evaluate(model.id, version, params);
-			const keys = model.params.map((p) => p.key);
-			const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0];
-			let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1];
-			if (yKey === xKey) yKey = keys.find((k) => k !== xKey);
+			const { xKey, yKey } = sweepAxes(model, ui);
 			const site0 = siteOf(ctx);
 			const keyNow = site0 ? sweepKey(site0, model.id, version, params, xKey, yKey, ui.sweepSteps) : "";
 			const finished = apiSweep?.key === keyNow && apiSweep.sweep.status === "done" ? apiSweep.sweep.result : null;
@@ -4478,10 +4486,7 @@
 			});
 			onAll(root, "[data-sweep-start]", "click", async () => {
 				if (!site || !ctx.api) return;
-				const keys = model.params.map((p) => p.key);
-				const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0];
-				let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1];
-				if (yKey === xKey) yKey = keys.find((k) => k !== xKey);
+				const { xKey, yKey } = sweepAxes(model, ui);
 				const version = ui.versions[model.id] ?? model.latest;
 				const axis = (k) => {
 					const p = model.params.find((q) => q.key === k);

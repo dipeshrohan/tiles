@@ -54,7 +54,8 @@ export function sweepGrid(r: SweepResult): { xs: number[]; ys: number[]; grid: n
   };
 }
 
-// Which sweep a design's current settings ask for: a finished one shows only while they hold.
+// Which sweep a design's current settings ask for: a finished one shows only while they hold. The
+// swept parameters' own values don't count (the grid sets them), as on the API.
 export const sweepKey = (
   site: string,
   model: string,
@@ -63,4 +64,15 @@ export const sweepKey = (
   x: string,
   y: string,
   steps: number,
-): string => JSON.stringify([site, model, version, Object.entries(params).sort(), x, y, steps]);
+): string =>
+  JSON.stringify([
+    site,
+    model,
+    version,
+    Object.entries(params)
+      .filter(([k]) => k !== x && k !== y)
+      .sort(),
+    x,
+    y,
+    steps,
+  ]);

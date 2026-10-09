@@ -53,29 +53,33 @@ const sweepRunning = (s: ApiSweep): boolean => s.status === 'queued' || s.status
 
 // Follows a sweep until it ends: its progress is written in place (a slider being dragged isn't
 // redrawn under the pointer); the page is drawn again when it ends.
-function follow(ctx: Context, site: string, key: string): void {
+function follow(ctx: Context, site: string, key: string, failures = 0): void {
   const at = visit;
-  sweepTimer = setTimeout(async () => {
-    sweepTimer = null;
-    if (at !== visit || apiSweep?.key !== key) return;
-    try {
-      const sweep = await ctx.api!.sweeps.get(site, apiSweep.sweep.id);
+  // After a failed read, wait longer before the next (the client showed why); keep following.
+  sweepTimer = setTimeout(
+    async () => {
+      sweepTimer = null;
       if (at !== visit || apiSweep?.key !== key) return;
-      apiSweep = { key, sweep };
-      if (sweepRunning(sweep)) {
-        const bar = document.querySelector<HTMLProgressElement>('#view [data-sweep-progress]');
-        if (bar) bar.value = sweep.done;
-        const text = document.querySelector('#view [data-sweep-done]');
-        if (text) text.textContent = `${fmt(sweep.done)} of ${fmt(sweep.total)} points`;
-        follow(ctx, site, key);
+      try {
+        const sweep = await ctx.api!.sweeps.get(site, apiSweep.sweep.id);
+        if (at !== visit || apiSweep?.key !== key) return;
+        apiSweep = { key, sweep };
+        if (sweepRunning(sweep)) {
+          const bar = document.querySelector<HTMLProgressElement>('#view [data-sweep-progress]');
+          if (bar) bar.value = sweep.done;
+          const text = document.querySelector('#view [data-sweep-done]');
+          if (text) text.textContent = `${fmt(sweep.done)} of ${fmt(sweep.total)} points`;
+          follow(ctx, site, key);
+          return;
+        }
+      } catch {
+        if (at === visit && apiSweep?.key === key) follow(ctx, site, key, failures + 1);
         return;
       }
-    } catch {
-      // The client showed why; the sweep is shown as it last was.
-      return;
-    }
-    ctx.rerender();
-  }, POLL_MS);
+      ctx.rerender();
+    },
+    POLL_MS * Math.min(2 ** failures, 16),
+  );
 }
 
 function sweepControls(ctx: Context, key: string, canStart: boolean): string {
@@ -190,6 +194,15 @@ function projectBar(ctx: Context, site: string): string {
     </div>`;
 }
 
+// The sweep's two parameters: those chosen, else the model's first two (never the same twice).
+function sweepAxes(model: DesignModel, ui: DesignUi): { xKey: string; yKey: string } {
+  const keys = model.params.map((p) => p.key);
+  const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0]!;
+  let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1]!;
+  if (yKey === xKey) yKey = keys.find((k) => k !== xKey)!;
+  return { xKey, yKey };
+}
+
 // The selected model with its current parameters and version, defaults filled in.
 function current(ctx: Context) {
   const ui = uiState(ctx);
@@ -206,10 +219,7 @@ const view: View = {
   render(ctx) {
     const { ui, model, params, version } = current(ctx);
     const value = evaluate(model.id, version, params);
-    const keys = model.params.map((p) => p.key);
-    const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0]!;
-    let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1]!;
-    if (yKey === xKey) yKey = keys.find((k) => k !== xKey)!;
+    const { xKey, yKey } = sweepAxes(model, ui);
     const site0 = siteOf(ctx);
     const keyNow = site0 ? sweepKey(site0, model.id, version, params, xKey, yKey, ui.sweepSteps) : '';
     const finished = apiSweep?.key === keyNow && apiSweep.sweep.status === 'done' ? apiSweep.sweep.result : null;
@@ -342,10 +352,7 @@ const view: View = {
     });
     onAll(root, '[data-sweep-start]', 'click', async () => {
       if (!site || !ctx.api) return;
-      const keys = model.params.map((p) => p.key);
-      const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0]!;
-      let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1]!;
-      if (yKey === xKey) yKey = keys.find((k) => k !== xKey)!;
+      const { xKey, yKey } = sweepAxes(model, ui);
       const version = ui.versions[model.id] ?? model.latest;
       const axis = (k: string) => {
         const p = model.params.find((q) => q.key === k)!;

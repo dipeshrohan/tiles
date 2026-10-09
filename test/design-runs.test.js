@@ -114,4 +114,5 @@ test("an API sweep's result as the heatmap draws it", () => {
   const key = (params) => sweepKey('s', 'swelling', '2.0', params, 'soc', 'cycles', 50);
   assert.equal(key({ a: 1, b: 2 }), key({ b: 2, a: 1 })); // whatever the order
   assert.notEqual(key({ a: 1 }), key({ a: 2 }));
+  assert.equal(key({ a: 1, soc: 10, cycles: 5 }), key({ a: 1, soc: 90, cycles: 700 })); // the swept ones don't count
 });

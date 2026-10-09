@@ -48,7 +48,16 @@ def test_a_sweep_runs_in_the_background_and_is_kept(api: TestClient, site: str, 
     again = start(api, site, {"model": "cell-swelling", "version": "2.0.0", "params": {"preload": 3}, "x": X, "y": Y})
     assert again.status_code == 200
     assert (again.json()["id"], again.json()["cached"]) == (started["id"], True)
-    # Another parameter, another sweep.
+    # The held value of a swept parameter doesn't matter (the grid sets it), nor 0 against 0.0.
+    same = {
+        "model": "swelling",
+        "version": "2.0",
+        "params": {"preload": 3.0, "soc": 90},
+        "x": {**X, "from": 0.0},
+        "y": Y,
+    }
+    assert start(api, site, same).status_code == 200
+    # Another parameter held, another sweep.
     assert start(api, site, {"model": "swelling", "version": "2.0", "x": X, "y": Y}).status_code == 202
     listed = api.get(f"/sites/{site}/sweeps", headers=VIEWER).json()
     assert len(listed) == 2 and all(s["result"] is None for s in listed)
@@ -65,8 +74,8 @@ def test_what_a_sweep_may_be(api: TestClient, site: str) -> None:  # noqa: F811
     assert one_axis.status_code == 202
     assert api.get(f"/sites/{site}/sweeps/{one_axis.json()['id']}", headers=ENG).json()["result"]["y"] is None
     for body, reason in (
-        ({"model": "swelling", "x": {**X, "param": "colour"}}, "has no parameter colour"),
-        ({"model": "swelling", "x": {**X, "to": 140}}, "soc must lie between"),
+        ({"model": "swelling", "x": {**X, "param": "colour"}}, "unknown param(s): colour"),
+        ({"model": "swelling", "x": {**X, "to": 140}}, "param soc = 140 is outside"),
         ({"model": "swelling", "x": X, "params": {"cycles": -1}}, "cycles"),
         ({"model": "plunger-friction", "x": X}, "only design models run"),
     ):
@@ -81,6 +90,10 @@ def test_what_a_sweep_may_be(api: TestClient, site: str) -> None:  # noqa: F811
     ):
         assert start(api, site, body).status_code == 422, body
     assert start(api, site, {"model": "swelling", "x": X, "project": str(uuid.uuid4())}).status_code == 404
+    for bad in ("NaN", "Infinity"):  # numbers JSON parsers let through
+        raw = '{"model": "swelling", "x": {"param": "soc", "from": ' + bad + ', "to": 100, "steps": 3}}'
+        res = api.post(f"/sites/{site}/sweeps", content=raw, headers=ENG | {"content-type": "application/json"})
+        assert res.status_code == 422, bad
     assert api.get(f"/sites/{site}/sweeps/{uuid.uuid4()}", headers=ENG).status_code == 404
 
 
@@ -191,14 +204,18 @@ def test_a_sweep_that_fails_says_why(
     def broken(self: Any, inputs: Any, p: Any) -> Any:
         if p["soc"] > 60:
             raise ZeroDivisionError("division by zero")  # a point it can't run: null
+        if p["cycles"] > 1500:
+            return {"force": [float("inf")]}  # one the registry refuses: null too
         return {"force": [1.0]}
 
     monkeypatch.setattr(design.Swelling200, "run", broken)
     assert sweeps.run(connect, sweep_id) == (sweep_id, "done")
     grid = api.get(f"/sites/{site}/sweeps/{sweep_id}", headers=ENG).json()["result"]["grid"]
     assert grid[0] == [1.0, 1.0, None]
+    assert grid[2] == [None, None, None]
     failing = queue(database_url, site, steps=3)
-    monkeypatch.setattr(design.Swelling200, "run", lambda self, inputs, p: {"force": "oops"})
+    with psycopg.connect(database_url) as conn:  # its model version is no longer registered
+        conn.execute("UPDATE sweeps SET version = '9.9.9' WHERE id = %s", [failing])
     assert sweeps.run(connect, failing) == (failing, "failed")
     shown = api.get(f"/sites/{site}/sweeps/{failing}", headers=ENG).json()
     assert shown["status"] == "failed" and shown["error"]
@@ -210,3 +227,89 @@ def test_values_along_an_axis() -> None:
     a = sweeps.cache_key(registry.get("cell-swelling", "2.0.0"), {"soc": 1}, X, None)
     assert a == sweeps.cache_key(registry.get("cell-swelling", "2.0.0"), {"soc": 1}, dict(X), None)
     assert a != sweeps.cache_key(registry.get("cell-swelling", "1.1.0"), {"soc": 1}, X, None)
+
+
+def test_a_sweep_cancelled_in_its_last_chunk_keeps_no_result(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    connect: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start(api, site, {"model": "swelling", "version": "2.0", "x": X})
+    sweep_id = queue(database_url, site, steps=5)  # 25 points: one chunk
+    original = design.Swelling200.run
+    calls = 0
+
+    def cancelling(self: Any, inputs: Any, p: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 3:
+            api.post(f"/sites/{site}/sweeps/{sweep_id}/cancel", headers=ENG)
+        return original(self, inputs, p)
+
+    monkeypatch.setattr(design.Swelling200, "run", cancelling)
+    assert sweeps.run(connect, sweep_id) == (sweep_id, "cancelled")
+    shown = api.get(f"/sites/{site}/sweeps/{sweep_id}", headers=ENG).json()
+    assert (shown["status"], shown["result"]) == ("cancelled", None)
+
+
+def test_a_sweep_taken_over_is_written_by_its_new_run_only(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    connect: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    start(api, site, {"model": "swelling", "version": "2.0", "x": X})
+    sweep_id = queue(database_url, site)  # 1,600 points
+    original = design.Swelling200.run
+    calls = 0
+
+    def slow(self: Any, inputs: Any, p: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 10:  # this run goes quiet; a worker takes the sweep over and finishes it
+            with psycopg.connect(database_url) as conn:
+                conn.execute("UPDATE sweeps SET heartbeat_at = now() - interval '10 minutes' WHERE id = %s", [sweep_id])
+            monkeypatch.setattr(design.Swelling200, "run", original)
+            assert sweeps.run(connect, sweep_id) == (sweep_id, "done")
+        return original(self, inputs, p)
+
+    monkeypatch.setattr(design.Swelling200, "run", slow)
+    assert sweeps.run(connect, sweep_id) == (sweep_id, "taken")  # the first run writes nothing more
+    shown = api.get(f"/sites/{site}/sweeps/{sweep_id}", headers=ENG).json()
+    assert (shown["status"], shown["done"]) == ("done", 1600)
+
+
+def test_a_cancelled_sweep_left_running_is_ended_not_run_again(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    connect: Any,
+) -> None:
+    start(api, site, {"model": "swelling", "version": "2.0", "x": X})
+    sweep_id = queue(database_url, site, steps=5)
+    with psycopg.connect(database_url) as conn:  # cancelled, then its worker died
+        conn.execute(
+            "UPDATE sweeps SET status = 'running', cancel_requested = true,"
+            " heartbeat_at = now() - interval '10 minutes' WHERE id = %s",
+            [sweep_id],
+        )
+    assert sweeps.run(connect) is None
+    assert api.get(f"/sites/{site}/sweeps/{sweep_id}", headers=ENG).json()["status"] == "cancelled"
+
+
+def test_the_api_runs_at_most_two_sweeps_at_once(api: TestClient, site: str, database_url: str, connect: Any) -> None:  # noqa: F811
+    start(api, site, {"model": "swelling", "version": "2.0", "x": X})
+    sweep_id = queue(database_url, site, steps=5)
+    held = [sweeps._api_workers.acquire(blocking=False) for _ in range(sweeps.API_WORKERS)]
+    try:
+        assert all(held)
+        sweeps.drain(connect)  # two are at it already: they will take it
+        assert api.get(f"/sites/{site}/sweeps/{sweep_id}", headers=ENG).json()["status"] == "queued"
+    finally:
+        for _ in held:
+            sweeps._api_workers.release()
+    sweeps.drain(connect)
+    assert api.get(f"/sites/{site}/sweeps/{sweep_id}", headers=ENG).json()["status"] == "done"

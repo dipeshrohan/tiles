@@ -2533,9 +2533,10 @@ test('design studio: a fine sweep runs on the API with its progress, and can be 
   const a = await openAs(t, apiUrl, null, 'design');
   await a.page.waitForSelector('[data-sweep-start]');
   await a.page.selectOption('#sweep-steps', '25');
+  fake.failSweepReads(1); // a blip while following it
   await a.page.click('[data-sweep-start]');
   await a.page.waitForSelector('[data-sweep-progress]'); // it runs, and says how far it got
-  await a.page.waitForSelector('[data-sweep-state]:has-text("API sweep: 625 points")');
+  await a.page.waitForSelector('[data-sweep-state]:has-text("API sweep: 625 points")', { timeout: 15000 });
   assert.equal(await a.page.locator('[data-sweep-progress]').count(), 0);
   // The same sweep again comes from the one kept.
   await a.page.click('[data-sweep-start]');
@@ -2545,7 +2546,10 @@ test('design studio: a fine sweep runs on the API with its progress, and can be 
   await a.page.click('[data-sweep-start]');
   await a.page.click('[data-sweep-cancel]');
   await a.page.waitForSelector('[data-sweep-state]:has-text("Cancelled after")');
-  assert.deepEqual(a.errors, []);
+  assert.deepEqual(
+    a.errors.filter((e) => !/503/.test(e)),
+    [],
+  );
   // Viewers see the sweep, but don't start one on the API.
   const v = await openAs(t, apiUrl, 'viewer@example.com', 'design');
   await v.page.waitForSelector('[data-projects]');
