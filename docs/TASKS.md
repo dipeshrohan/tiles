@@ -197,7 +197,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T6.06` [#98](https://github.com/dipeshrohan/tiles/issues/98) **New-site onboarding flow:** a wizard from site creation → edge agent → tag mapping → first dashboard · FE+BE · 4d · T2.11
   *Done when:* onboarding a new machine takes under 1 day.
 - [ ] `T6.07` [#99](https://github.com/dipeshrohan/tiles/issues/99) ★ **External penetration test** and remediation of all high and critical findings · TL · 3d (+ vendor time) · T5.07
-- [ ] `T6.08` [#100](https://github.com/dipeshrohan/tiles/issues/100) **SOC 2 / ISO 27001 readiness plan:** list of controls, owners, timeline · TL · 2d · T5.07
+- [x] `T6.08` [#100](https://github.com/dipeshrohan/tiles/issues/100) **SOC 2 / ISO 27001 readiness plan:** list of controls, owners, timeline · TL · 2d · T5.07
 - [ ] `T6.09` [#101](https://github.com/dipeshrohan/tiles/issues/101) ★ **Tag v1.0** and deploy it to the pilot environment · TL · 1d · T6.04–T6.07
 - [ ] `T6.10` [#102](https://github.com/dipeshrohan/tiles/issues/102) ◇ **App Studio v0:** templates (e.g. wear check, SPC limit) configurable without core code changes · BE+FE · 6d · T3.13
 
