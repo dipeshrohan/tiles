@@ -1,7 +1,16 @@
 // The Design Studio's runs from the API (T4.14): names, versions and runs as the browser reads them.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { API_MODEL, asRun, browserModel, browserVersion, changesOf, headOf } from '../js/lib/design-runs.ts';
+import {
+  API_MODEL,
+  asRun,
+  browserModel,
+  browserVersion,
+  changesOf,
+  headOf,
+  sweepGrid,
+  sweepKey,
+} from '../js/lib/design-runs.ts';
 import { MODELS, runDiff } from '../js/lib/design.ts';
 
 const stored = (over = {}) => ({
@@ -73,4 +82,36 @@ test("a stored run's changes from its parent, as the history shows them", () => 
     { key: 'soc', from: 70, to: 80 },
     { key: 'gone', from: 1, to: undefined },
   ]);
+});
+
+test("an API sweep's result as the heatmap draws it", () => {
+  const two = sweepGrid({
+    output: 'force',
+    unit: 'kN',
+    x: { param: 'soc', values: [0, 50, 100] },
+    y: { param: 'cycles', values: [0, 1000] },
+    grid: [
+      [1, 2, null],
+      [3, 4, 5],
+    ],
+    min: 1,
+    max: 5,
+  });
+  assert.deepEqual(two.xs, [0, 50, 100]);
+  assert.deepEqual(two.ys, [0, 1000]);
+  assert.ok(Number.isNaN(two.grid[0][2]));
+  assert.deepEqual([two.grid[1], two.min, two.max], [[3, 4, 5], 1, 5]);
+  const one = sweepGrid({
+    output: 'temp',
+    unit: '°C',
+    x: { param: 'torque', values: [5, 10] },
+    y: null,
+    grid: [[1, 2]],
+    min: null,
+    max: null,
+  });
+  assert.deepEqual([one.ys, one.min, one.max], [[0], 0, 0]);
+  const key = (params) => sweepKey('s', 'swelling', '2.0', params, 'soc', 'cycles', 50);
+  assert.equal(key({ a: 1, b: 2 }), key({ b: 2, a: 1 })); // whatever the order
+  assert.notEqual(key({ a: 1 }), key({ a: 2 }));
 });

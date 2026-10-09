@@ -1023,6 +1023,15 @@
 					auditPdf: (siteId, n) => request("GET", `${base(siteId)}/${n}/audit.pdf`, void 0, { blob: true })
 				};
 			})(),
+			sweeps: (() => {
+				const base = (siteId) => `/sites/${encodeURIComponent(siteId)}/sweeps`;
+				return {
+					start: (siteId, sweep) => request("POST", base(siteId), sweep),
+					get: (siteId, id) => request("GET", `${base(siteId)}/${encodeURIComponent(id)}`),
+					list: (siteId) => request("GET", base(siteId)),
+					cancel: (siteId, id) => request("POST", `${base(siteId)}/${encodeURIComponent(id)}/cancel`)
+				};
+			})(),
 			designProjects: {
 				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/design-projects`),
 				create: (siteId, name, description = "") => request("POST", `/sites/${encodeURIComponent(siteId)}/design-projects`, {
@@ -4172,6 +4181,24 @@
 			to: c.after ?? void 0
 		});
 	}
+	function sweepGrid(r) {
+		return {
+			xs: r.x.values,
+			ys: r.y?.values ?? [0],
+			grid: r.grid.map((row) => row.map((v) => v ?? NaN)),
+			min: r.min ?? 0,
+			max: r.max ?? 0
+		};
+	}
+	var sweepKey = (site, model, version, params, x, y, steps) => JSON.stringify([
+		site,
+		model,
+		version,
+		Object.entries(params).sort(),
+		x,
+		y,
+		steps
+	]);
 	//#endregion
 	//#region js/views/design.ts
 	var defaults = (model) => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
@@ -4184,6 +4211,7 @@
 		versions: {},
 		sweepX: null,
 		sweepY: null,
+		sweepSteps: 50,
 		project: null,
 		projectSite: null
 	});
@@ -4191,12 +4219,65 @@
 	var projectsFetching = null;
 	var apiRuns = null;
 	var saving$3 = false;
+	var apiSweep = null;
+	var sweepTimer = null;
+	var SWEEP_STEPS = [
+		25,
+		50,
+		100
+	];
+	var POLL_MS = 400;
+	var sweepRunning = (s) => s.status === "queued" || s.status === "running";
+	function follow(ctx, site, key) {
+		const at = visit;
+		sweepTimer = setTimeout(async () => {
+			sweepTimer = null;
+			if (at !== visit || apiSweep?.key !== key) return;
+			try {
+				const sweep = await ctx.api.sweeps.get(site, apiSweep.sweep.id);
+				if (at !== visit || apiSweep?.key !== key) return;
+				apiSweep = {
+					key,
+					sweep
+				};
+				if (sweepRunning(sweep)) {
+					const bar = document.querySelector("#view [data-sweep-progress]");
+					if (bar) bar.value = sweep.done;
+					const text = document.querySelector("#view [data-sweep-done]");
+					if (text) text.textContent = `${fmt$1(sweep.done)} of ${fmt$1(sweep.total)} points`;
+					follow(ctx, site, key);
+					return;
+				}
+			} catch {
+				return;
+			}
+			ctx.rerender();
+		}, POLL_MS);
+	}
+	function sweepControls(ctx, key, canStart) {
+		const ui = uiState$5(ctx);
+		const shown = apiSweep?.key === key ? apiSweep.sweep : null;
+		if (shown && sweepRunning(shown)) return `<div class="row" style="gap:8px" data-api-sweep>
+      <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="Sweep progress"></progress>
+      <span class="small soft" data-sweep-done>${fmt$1(shown.done)} of ${fmt$1(shown.total)} points</span>
+      ${canStart && !shown.cancel_requested ? "<button class=\"btn sm\" data-sweep-cancel>Cancel</button>" : ""}
+    </div>`;
+		const state = shown?.status === "done" ? `API sweep: ${fmt$1(shown.total)} points${shown.cached ? ", from an identical earlier sweep" : ""}` : shown?.status === "cancelled" ? `Cancelled after ${fmt$1(shown.done)} of ${fmt$1(shown.total)} points` : shown?.status === "failed" ? `The sweep failed: ${esc(shown.error ?? "no reason given")}` : "";
+		return `<div class="row" style="gap:8px;flex-wrap:wrap" data-api-sweep>
+      ${state ? `<span class="small soft" data-sweep-state>${state}</span>` : ""}
+      ${canStart ? `<label class="row small" style="gap:6px">Points per axis <select id="sweep-steps" aria-label="Points per axis">${SWEEP_STEPS.map((n) => `<option value="${n}" ${n === ui.sweepSteps ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+             <button class="btn sm" data-sweep-start>Run on the API</button>` : ""}
+    </div>`;
+	}
 	var visit = 0;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "design") {
 			projects = null;
 			projectsFetching = null;
 			apiRuns = null;
+			apiSweep = null;
+			if (sweepTimer !== null) clearTimeout(sweepTimer);
+			sweepTimer = null;
 			visit += 1;
 		}
 	});
@@ -4287,7 +4368,10 @@
 			const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0];
 			let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1];
 			if (yKey === xKey) yKey = keys.find((k) => k !== xKey);
-			const sw = sweep(model.id, version, params, xKey, yKey, 14);
+			const site0 = siteOf(ctx);
+			const keyNow = site0 ? sweepKey(site0, model.id, version, params, xKey, yKey, ui.sweepSteps) : "";
+			const finished = apiSweep?.key === keyNow && apiSweep.sweep.status === "done" ? apiSweep.sweep.result : null;
+			const sw = finished ? sweepGrid(finished) : sweep(model.id, version, params, xKey, yKey, 14);
 			const sens = sensitivity(model.id, version, params);
 			const site = siteOf(ctx);
 			const project = site ? projectOf(ctx, site) : null;
@@ -4360,6 +4444,7 @@
               <select id="sweep-y" aria-label="Y parameter">${model.params.filter((p) => p.key !== xKey).map((p) => `<option value="${p.key}" ${p.key === yKey ? "selected" : ""}>${esc(p.label)}</option>`).join("")}</select>
             </div>
           </div>
+          ${site0 ? sweepControls(ctx, keyNow, ctx.ontology.role !== null && ctx.ontology.role !== "viewer") : ""}
           ${heatmap({
 				...sw,
 				xLabel: label(xKey),
@@ -4387,6 +4472,55 @@
 			if (site && projects?.site !== site) fetchProjects(ctx, site);
 			const project = site ? projectOf(ctx, site) : null;
 			if (site && project && apiRuns?.key !== runsKey(site, project.id, model.id)) fetchRuns(ctx, site, project.id, model.id);
+			root.querySelector("#sweep-steps")?.addEventListener("change", (e) => {
+				ui.sweepSteps = Number(e.target.value);
+				ctx.rerender();
+			});
+			onAll(root, "[data-sweep-start]", "click", async () => {
+				if (!site || !ctx.api) return;
+				const keys = model.params.map((p) => p.key);
+				const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0];
+				let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1];
+				if (yKey === xKey) yKey = keys.find((k) => k !== xKey);
+				const version = ui.versions[model.id] ?? model.latest;
+				const axis = (k) => {
+					const p = model.params.find((q) => q.key === k);
+					return {
+						param: k,
+						from: p.min,
+						to: p.max,
+						steps: ui.sweepSteps
+					};
+				};
+				const key = sweepKey(site, model.id, version, params, xKey, yKey, ui.sweepSteps);
+				try {
+					const sweep = await ctx.api.sweeps.start(site, {
+						model: API_MODEL[model.id] ?? model.id,
+						version,
+						params,
+						x: axis(xKey),
+						y: axis(yKey),
+						project: project?.id ?? null
+					});
+					apiSweep = {
+						key,
+						sweep
+					};
+					if (sweepRunning(sweep)) follow(ctx, site, key);
+					ctx.rerender();
+				} catch {}
+			});
+			onAll(root, "[data-sweep-cancel]", "click", async () => {
+				if (!site || !ctx.api || !apiSweep) return;
+				try {
+					const sweep = await ctx.api.sweeps.cancel(site, apiSweep.sweep.id);
+					if (apiSweep?.sweep.id === sweep.id) apiSweep = {
+						key: apiSweep.key,
+						sweep
+					};
+					ctx.rerender();
+				} catch {}
+			});
 			root.querySelector("#project")?.addEventListener("change", (e) => {
 				ui.project = e.target.value;
 				ctx.rerender();

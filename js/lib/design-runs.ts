@@ -2,7 +2,7 @@
 // versions as its registry does ("cell-swelling" 2.0.0), the browser as js/lib/design.ts does
 // ("swelling" 2.0); a stored run becomes a browser Run, so the run history, its diffs and the
 // audit export read the same either way.
-import type { DesignRun } from './api.ts';
+import type { DesignRun, SweepResult } from './api.ts';
 import type { RunChange } from './design.ts';
 import type { Run } from './types.ts';
 
@@ -41,3 +41,26 @@ export function changesOf(r: DesignRun): RunChange[] {
       : { key: c.key, from: c.before ?? undefined, to: c.after ?? undefined },
   );
 }
+
+// An API sweep's result as the heatmap draws it (T4.12): a point the model couldn't run is NaN
+// (drawn empty); a one-axis sweep is one row.
+export function sweepGrid(r: SweepResult): { xs: number[]; ys: number[]; grid: number[][]; min: number; max: number } {
+  return {
+    xs: r.x.values,
+    ys: r.y?.values ?? [0],
+    grid: r.grid.map((row) => row.map((v) => v ?? Number.NaN)),
+    min: r.min ?? 0,
+    max: r.max ?? 0,
+  };
+}
+
+// Which sweep a design's current settings ask for: a finished one shows only while they hold.
+export const sweepKey = (
+  site: string,
+  model: string,
+  version: string,
+  params: Record<string, number>,
+  x: string,
+  y: string,
+  steps: number,
+): string => JSON.stringify([site, model, version, Object.entries(params).sort(), x, y, steps]);

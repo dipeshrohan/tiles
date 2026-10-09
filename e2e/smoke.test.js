@@ -160,6 +160,8 @@ test('settings can switch to the Tiles API and test the connection', async (t) =
   await page.click('[data-reset]');
   await page.reload();
   assert.equal(await page.locator('#datasource [name=mode][value=api]').isChecked(), true);
+  // Settled: loading the API's site re-renders the page, which would replace the field mid-fill.
+  await page.waitForSelector('#notifications'); // drawn once the site has loaded
 
   // Something that isn't the Tiles API answering /health is not "Connected".
   const other = createServer((req, res) => {
@@ -2522,4 +2524,31 @@ test("design studio: with the API unreachable, runs aren't kept in the browser i
   await a.page.waitForSelector('[data-projects]:has-text("Can\'t reach the Tiles API")');
   assert.equal(await a.page.locator('#run-form button[type=submit]').isDisabled(), true);
   assert.equal(await a.page.locator('[data-run]').count(), 0);
+});
+
+test('design studio: a fine sweep runs on the API with its progress, and can be cancelled', async (t) => {
+  const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, null, 'design');
+  await a.page.waitForSelector('[data-sweep-start]');
+  await a.page.selectOption('#sweep-steps', '25');
+  await a.page.click('[data-sweep-start]');
+  await a.page.waitForSelector('[data-sweep-progress]'); // it runs, and says how far it got
+  await a.page.waitForSelector('[data-sweep-state]:has-text("API sweep: 625 points")');
+  assert.equal(await a.page.locator('[data-sweep-progress]').count(), 0);
+  // The same sweep again comes from the one kept.
+  await a.page.click('[data-sweep-start]');
+  await a.page.waitForSelector('[data-sweep-state]:has-text("from an identical earlier sweep")');
+  // Another one, cancelled while it runs.
+  await a.page.selectOption('#sweep-steps', '50');
+  await a.page.click('[data-sweep-start]');
+  await a.page.click('[data-sweep-cancel]');
+  await a.page.waitForSelector('[data-sweep-state]:has-text("Cancelled after")');
+  assert.deepEqual(a.errors, []);
+  // Viewers see the sweep, but don't start one on the API.
+  const v = await openAs(t, apiUrl, 'viewer@example.com', 'design');
+  await v.page.waitForSelector('[data-projects]');
+  assert.equal(await v.page.locator('[data-sweep-start]').count(), 0);
+  assert.deepEqual(v.errors, []);
 });
