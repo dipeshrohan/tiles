@@ -30,6 +30,9 @@ interface Ui {
 
 const uiState = (ctx: Context) => ctx.ui<Ui>('plant', { query: '' });
 
+let searching = false; // the search box has the focus
+let typing: ReturnType<typeof setTimeout> | undefined;
+
 const crumbs = (graph: Graph, id: string | null): string => {
   const path = id ? trail(graph, id) : [];
   const links = [
@@ -50,12 +53,13 @@ const badge = (state: FloorItem['state'], count: number): string => {
 };
 
 function placeCard(graph: Graph, node: OntologyNode, items: FloorItem[] | null): string {
-  const machines = machinesUnder(graph, node.id).length;
+  const under = machinesUnder(graph, node.id);
+  const machines = under.length;
   const what =
     node.type === 'Machine'
       ? 'Machine'
       : `${node.type} · ${machines ? `${machines} machine${machines === 1 ? '' : 's'}` : 'no machines'}`;
-  const { state, warnings } = items ? rollUp(graph, items, node.id) : { state: 'ok' as const, warnings: [] };
+  const { state, warnings } = items ? rollUp(graph, items, node.id, under) : { state: 'ok' as const, warnings: [] };
   return `<a class="place-card s-${items ? state : 'none'}" href="${placeLink(node.id)}" data-place="${esc(node.id)}">
       <span class="small soft">${esc(what)}</span>
       <b>${esc(node.label)}</b>
@@ -93,10 +97,9 @@ function signalsCard(ctx: Context, signals: OntologyNode[], now: number): string
   if (!signals.length) return '';
   const catalogue = linkedSignals(ctx);
   const byNode = new Map(catalogue.flatMap((s) => (s.node_id ? [[s.node_id, s] as const] : [])));
-  const byTag = new Map(catalogue.map((s) => [s.tag, s] as const));
   const shown = signals.map((n) => {
     const own = n.props['tag'];
-    const s = byNode.get(n.id) ?? (typeof own === 'string' ? byTag.get(own) : undefined);
+    const s = byNode.get(n.id); // only a tag linked to this node: its own `tag` may be linked elsewhere
     const unit = n.props['unit'];
     return { n, s, tag: s?.tag ?? (typeof own === 'string' ? own : ''), unit: typeof unit === 'string' ? unit : '' };
   });
@@ -137,7 +140,10 @@ function machinePage(ctx: Context, graph: Graph, node: OntologyNode, items: Floo
     ? `<dl class="plant-facts">${props.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`
     : '';
   const warnings = items ? rollUp(graph, items, node.id).warnings : [];
-  const signals = [...sheet.plcs.flatMap((p) => p.signals), ...sheet.signals];
+  // Each signal once, though two PLCs emit it or the machine also contains it.
+  const signals = [
+    ...new Map([...sheet.plcs.flatMap((p) => p.signals), ...sheet.signals].map((n) => [n.id, n])).values(),
+  ];
   const prop = (n: OntologyNode, key: string) => {
     const v = n.props[key];
     return v === undefined ? '' : ` <span class="small soft">${esc(v)}</span>`;
@@ -251,25 +257,36 @@ const view: View = {
     ensureFloor(ctx);
     const form = root.querySelector<HTMLFormElement>('[data-plant-search]');
     const input = form?.querySelector<HTMLInputElement>('input');
-    let typing: ReturnType<typeof setTimeout> | undefined;
+    // The page renders again when the warnings or readings arrive: typing carries on in the new box.
+    if (input && searching) {
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+    input?.addEventListener('focus', () => (searching = true));
+    // A box taken away by a render keeps the search going; leaving it for elsewhere ends it.
+    // (A render blurs the box while still taking it away: whether it went is known just after.)
+    input?.addEventListener('blur', () =>
+      queueMicrotask(() => {
+        if (input.isConnected) searching = false;
+      }),
+    );
     input?.addEventListener('input', () => {
+      ui.query = input.value; // kept at once, so any render shows what is typed
       clearTimeout(typing);
-      typing = setTimeout(() => {
-        ui.query = input.value;
-        ctx.rerender();
-        const again = document.querySelector<HTMLInputElement>('[data-plant-search] input');
-        again?.focus();
-        again?.setSelectionRange(again.value.length, again.value.length);
-      }, 200);
+      typing = setTimeout(() => ctx.rerender(), 200);
     });
     // Enter goes to the best match, without waiting for the list.
     form?.addEventListener('submit', (e) => {
       e.preventDefault();
       clearTimeout(typing);
       const best = findPlaces(ctx.graph, input?.value ?? '', 1)[0];
-      ui.query = best ? '' : (input?.value ?? '');
-      if (best) location.hash = placeLink(best.id);
-      else ctx.rerender();
+      if (!best) return ctx.rerender();
+      ui.query = '';
+      searching = false;
+      const to = placeLink(best.id);
+      if (location.hash === to)
+        ctx.rerender(); // already there: no hashchange to render it
+      else location.hash = to;
     });
     // Going to a place leaves the search behind.
     onAll(root, '[data-place]', 'click', () => {

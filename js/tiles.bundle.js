@@ -7188,12 +7188,20 @@
 	var ROUTES = /* @__PURE__ */ new Set(["shopfloor", "plant"]);
 	var listing$2 = null;
 	var catalogue = null;
+	var stale = false;
+	var lastRoute = typeof location === "undefined" ? "" : routeOf(location.hash);
 	var listSeq = 0;
 	var catalogueSeq = 0;
 	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
 	var shown = () => ROUTES.has(routeOf(location.hash));
 	onNavigate((hash) => {
-		if (ROUTES.has(routeOf(hash))) return;
+		const route = routeOf(hash);
+		const from = lastRoute;
+		lastRoute = route;
+		if (ROUTES.has(route)) {
+			if (from !== route) stale = true;
+			return;
+		}
 		listing$2 = null;
 		catalogue = null;
 		++listSeq;
@@ -7240,7 +7248,8 @@
 		const seq = ++catalogueSeq;
 		if (catalogue?.site !== site) catalogue = {
 			site,
-			signals: null
+			signals: null,
+			links: /* @__PURE__ */ new Map()
 		};
 		const signals = [];
 		try {
@@ -7259,13 +7268,19 @@
 		}
 		catalogue = {
 			site,
-			signals
+			signals,
+			links: new Map(signals.flatMap((s) => s.node_id ? [[s.tag, s.node_id]] : []))
 		};
 		if (shown()) ctx.rerender();
 	}
 	function ensureFloor(ctx) {
 		if (!ctx.api || ctx.ontology.status !== "ready") return;
 		const site = siteId$4(ctx);
+		if (stale) {
+			stale = false;
+			if (listing$2?.site === site) fetchWarnings(ctx, true);
+			if (catalogue?.site === site) fetchCatalogue(ctx);
+		}
 		if (listing$2?.site !== site) fetchWarnings(ctx);
 		if (catalogue?.site !== site) fetchCatalogue(ctx);
 	}
@@ -7278,7 +7293,7 @@
 		return catalogue?.site === site && catalogue.signals || [];
 	}
 	function links(ctx) {
-		return new Map(linkedSignals(ctx).flatMap((s) => s.node_id ? [[s.tag, s.node_id]] : []));
+		return catalogue?.site === siteId$4(ctx) && catalogue.links || /* @__PURE__ */ new Map();
 	}
 	var warningById = (id) => listing$2?.items?.find((w) => w.id === id);
 	function floorItems(ctx, graph) {
@@ -7582,8 +7597,8 @@
 		taken: 2,
 		ok: 3
 	};
-	function rollUp(graph, items, id) {
-		const machines = new Set(machinesUnder(graph, id));
+	function rollUp(graph, items, id, under = machinesUnder(graph, id)) {
+		const machines = new Set(under);
 		const warnings = items.filter((i) => i.machineId !== null && machines.has(i.machineId) && i.state !== "ok");
 		return {
 			state: warnings.reduce((worst, i) => RANK[i.state] < RANK[worst] ? i.state : worst, "ok"),
@@ -7591,7 +7606,7 @@
 		};
 	}
 	function placeFromHash(hash) {
-		const m = hash.match(/^#\/plant\/([^?]+)/);
+		const m = hash.match(/^#\/plant\/([^?]+)/i);
 		if (!m?.[1]) return null;
 		try {
 			return decodeURIComponent(m[1]);
@@ -7603,6 +7618,8 @@
 	//#endregion
 	//#region js/views/plant.ts
 	var uiState$3 = (ctx) => ctx.ui("plant", { query: "" });
+	var searching = false;
+	var typing;
 	var crumbs = (graph, id) => {
 		const path = id ? trail(graph, id) : [];
 		return `<nav class="plant-trail" aria-label="Where you are">${[`<a href="#/plant">Plant</a>`, ...path.map((n, i) => i === path.length - 1 ? `<b aria-current="page">${esc(n.label)}</b>` : `<a href="${placeLink(n.id)}">${esc(n.label)}</a>`)].join("<span aria-hidden=\"true\">›</span>")}</nav>`;
@@ -7613,9 +7630,10 @@
 		return `<span class="badge ${cls}">${count} warning${count === 1 ? "" : "s"}: ${label.toLowerCase()}</span>`;
 	};
 	function placeCard(graph, node, items) {
-		const machines = machinesUnder(graph, node.id).length;
+		const under = machinesUnder(graph, node.id);
+		const machines = under.length;
 		const what = node.type === "Machine" ? "Machine" : `${node.type} · ${machines ? `${machines} machine${machines === 1 ? "" : "s"}` : "no machines"}`;
-		const { state, warnings } = items ? rollUp(graph, items, node.id) : {
+		const { state, warnings } = items ? rollUp(graph, items, node.id, under) : {
 			state: "ok",
 			warnings: []
 		};
@@ -7648,10 +7666,9 @@
 		if (!signals.length) return "";
 		const catalogue = linkedSignals(ctx);
 		const byNode = new Map(catalogue.flatMap((s) => s.node_id ? [[s.node_id, s]] : []));
-		const byTag = new Map(catalogue.map((s) => [s.tag, s]));
 		const shown = signals.map((n) => {
 			const own = n.props["tag"];
-			const s = byNode.get(n.id) ?? (typeof own === "string" ? byTag.get(own) : void 0);
+			const s = byNode.get(n.id);
 			const unit = n.props["unit"];
 			return {
 				n,
@@ -7681,7 +7698,7 @@
 		const props = Object.entries(node.props);
 		const facts = props.length ? `<dl class="plant-facts">${props.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>` : "";
 		const warnings = items ? rollUp(graph, items, node.id).warnings : [];
-		const signals = [...sheet.plcs.flatMap((p) => p.signals), ...sheet.signals];
+		const signals = [...new Map([...sheet.plcs.flatMap((p) => p.signals), ...sheet.signals].map((n) => [n.id, n])).values()];
 		const prop = (n, key) => {
 			const v = n.props[key];
 			return v === void 0 ? "" : ` <span class="small soft">${esc(v)}</span>`;
@@ -7743,24 +7760,29 @@
 			ensureFloor(ctx);
 			const form = root.querySelector("[data-plant-search]");
 			const input = form?.querySelector("input");
-			let typing;
+			if (input && searching) {
+				input.focus();
+				input.setSelectionRange(input.value.length, input.value.length);
+			}
+			input?.addEventListener("focus", () => searching = true);
+			input?.addEventListener("blur", () => queueMicrotask(() => {
+				if (input.isConnected) searching = false;
+			}));
 			input?.addEventListener("input", () => {
+				ui.query = input.value;
 				clearTimeout(typing);
-				typing = setTimeout(() => {
-					ui.query = input.value;
-					ctx.rerender();
-					const again = document.querySelector("[data-plant-search] input");
-					again?.focus();
-					again?.setSelectionRange(again.value.length, again.value.length);
-				}, 200);
+				typing = setTimeout(() => ctx.rerender(), 200);
 			});
 			form?.addEventListener("submit", (e) => {
 				e.preventDefault();
 				clearTimeout(typing);
 				const best = findPlaces(ctx.graph, input?.value ?? "", 1)[0];
-				ui.query = best ? "" : input?.value ?? "";
-				if (best) location.hash = placeLink(best.id);
-				else ctx.rerender();
+				if (!best) return ctx.rerender();
+				ui.query = "";
+				searching = false;
+				const to = placeLink(best.id);
+				if (location.hash === to) ctx.rerender();
+				else location.hash = to;
 			});
 			onAll(root, "[data-place]", "click", () => {
 				ui.query = "";

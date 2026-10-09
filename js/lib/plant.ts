@@ -131,13 +131,15 @@ export function findPlaces(
 
 const RANK: Record<FloorState, number> = { out: 0, new: 1, taken: 2, ok: 3 };
 
-// The open warnings of the machines at or under a place, and the worst of their states.
+// The open warnings of the machines at or under a place, and the worst of their states. `under`:
+// the place's machines, when the caller has them already.
 export function rollUp(
   graph: Graph,
   items: readonly FloorItem[],
   id: string,
+  under: readonly string[] = machinesUnder(graph, id),
 ): { state: FloorState; warnings: FloorItem[] } {
-  const machines = new Set(machinesUnder(graph, id));
+  const machines = new Set(under);
   const warnings = items.filter((i) => i.machineId !== null && machines.has(i.machineId) && i.state !== 'ok');
   const state = warnings.reduce<FloorState>((worst, i) => (RANK[i.state] < RANK[worst] ? i.state : worst), 'ok');
   return { state, warnings };
@@ -145,7 +147,7 @@ export function rollUp(
 
 // The place a `#/plant/<id>` link opens; null for the page itself.
 export function placeFromHash(hash: string): string | null {
-  const m = hash.match(/^#\/plant\/([^?]+)/);
+  const m = hash.match(/^#\/plant\/([^?]+)/i); // the router reads routes in any case
   if (!m?.[1]) return null;
   try {
     return decodeURIComponent(m[1]);

@@ -7,8 +7,8 @@ import type { Context } from './types.ts';
 
 // What the Shopfloor (T5.16) and Plant (T5.17) pages share: the site's open warnings and its
 // signal catalogue's linked tags (which place warnings on machines, and give a machine's signals
-// their latest readings). Fetched when one of the two pages shows; dropped when you leave them,
-// so each visit fetches afresh (others work the warnings meanwhile).
+// their latest readings). Fetched when one of the two pages shows, and afresh when you go from one
+// to the other (others work the warnings meanwhile); dropped when you leave them.
 
 export const PAGE = 100; // the newest open warnings shown
 const LINKS_PAGE = 500;
@@ -17,7 +17,10 @@ const MAX_LINKS = 10_000; // a site's linked tags fetched; beyond, warnings are 
 const ROUTES = new Set(['shopfloor', 'plant']);
 
 let listing: { site: string; items: WarningInfo[] | null; at: number | null; more: boolean } | null = null;
-let catalogue: { site: string; signals: SignalInfo[] | null } | null = null;
+// `links`: tag → Signal node, made once per fetch.
+let catalogue: { site: string; signals: SignalInfo[] | null; links: Map<string, string> } | null = null;
+let stale = false; // moved between the two pages: fetch again, showing the last meanwhile
+let lastRoute = typeof location === 'undefined' ? '' : routeOf(location.hash);
 let listSeq = 0;
 let catalogueSeq = 0;
 
@@ -25,7 +28,13 @@ const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const shown = (): boolean => ROUTES.has(routeOf(location.hash));
 
 onNavigate((hash) => {
-  if (ROUTES.has(routeOf(hash))) return;
+  const route = routeOf(hash);
+  const from = lastRoute;
+  lastRoute = route;
+  if (ROUTES.has(route)) {
+    if (from !== route) stale = true; // within a page (from place to place), what is shown stands
+    return;
+  }
   listing = null;
   catalogue = null;
   ++listSeq; // an answer still on its way is for the visit that has ended
@@ -59,7 +68,7 @@ export async function fetchCatalogue(ctx: Context): Promise<void> {
   const site = siteId(ctx);
   if (!ctx.api || !site) return;
   const seq = ++catalogueSeq;
-  if (catalogue?.site !== site) catalogue = { site, signals: null };
+  if (catalogue?.site !== site) catalogue = { site, signals: null, links: new Map() };
   const signals: SignalInfo[] = [];
   try {
     for (let offset = 0; offset < MAX_LINKS; offset += LINKS_PAGE) {
@@ -71,7 +80,8 @@ export async function fetchCatalogue(ctx: Context): Promise<void> {
   } catch {
     if (seq !== catalogueSeq) return; // the client showed why; the pages fetched still serve
   }
-  catalogue = { site, signals };
+  const links = new Map(signals.flatMap((s) => (s.node_id ? [[s.tag, s.node_id] as const] : [])));
+  catalogue = { site, signals, links };
   if (shown()) ctx.rerender();
 }
 
@@ -79,6 +89,11 @@ export async function fetchCatalogue(ctx: Context): Promise<void> {
 export function ensureFloor(ctx: Context): void {
   if (!ctx.api || ctx.ontology.status !== 'ready') return;
   const site = siteId(ctx);
+  if (stale) {
+    stale = false;
+    if (listing?.site === site) void fetchWarnings(ctx, true);
+    if (catalogue?.site === site) void fetchCatalogue(ctx);
+  }
   if (listing?.site !== site) void fetchWarnings(ctx);
   if (catalogue?.site !== site) void fetchCatalogue(ctx);
 }
@@ -97,7 +112,7 @@ export function linkedSignals(ctx: Context): SignalInfo[] {
 
 // The tag-to-node links that place warnings.
 function links(ctx: Context): Map<string, string> {
-  return new Map(linkedSignals(ctx).flatMap((s) => (s.node_id ? [[s.tag, s.node_id] as const] : [])));
+  return (catalogue?.site === siteId(ctx) && catalogue.links) || new Map();
 }
 
 // A warning by id, as the API last gave it.

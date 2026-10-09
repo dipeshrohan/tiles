@@ -1328,16 +1328,6 @@ tr.selected td {
   font-weight: 700;
   font-size: 22px;
 }
-.s-out,
-.s-new {
-  border-left-color: var(--bad);
-}
-.s-taken {
-  border-left-color: var(--warn);
-}
-.s-ok {
-  border-left-color: var(--good);
-}
 .floor-section {
   font-size: 24px;
   margin: 0 0 12px;
@@ -1388,9 +1378,7 @@ body.floor-full .topbar {
   padding: 8px 10px;
   font-size: 15px;
 }
-.plant-sheet {
-  margin-top: 14px;
-}
+
 .place-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
@@ -1420,13 +1408,13 @@ body.floor-full .topbar {
   align-self: flex-start;
 }
 .plant-sheet {
+  margin-top: 14px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
   gap: 14px;
   align-items: start;
 }
-.plant-sheet > .card,
-.plant-sheet + .card {
+.plant-sheet > .card {
   margin: 0;
 }
 .plant-list {
@@ -1457,6 +1445,17 @@ body.floor-full .topbar {
 }
 .plant-facts dd {
   margin: 0;
+}
+
+/* A warning's or place's state, on the Shopfloor's and Plant's cards (after their own borders). */
+:is(.floor-card, .floor-tile, .place-card):is(.s-out, .s-new) {
+  border-left-color: var(--bad);
+}
+:is(.floor-card, .floor-tile, .place-card).s-taken {
+  border-left-color: var(--warn);
+}
+:is(.floor-card, .floor-tile, .place-card).s-ok {
+  border-left-color: var(--good);
 }
 
 /* ---- responsive ---- */

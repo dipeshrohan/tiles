@@ -1748,6 +1748,10 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
 
   // The machines: DC-01 has its warning, DC-02 is fine.
   await page.waitForSelector('.floor-tile.s-out:has-text("Die-caster DC-01")');
+  assert.notEqual(
+    await page.$eval('.floor-tile.s-out', (el) => getComputedStyle(el).borderLeftColor),
+    await page.$eval('.floor-tile.s-ok', (el) => getComputedStyle(el).borderLeftColor),
+  );
   await page.waitForSelector('.floor-tile.s-ok:has-text("Die-caster DC-02")');
 
   // Full view hides the navigation, and gives it back.
@@ -1829,6 +1833,17 @@ test('the plant navigator: drill from the workcenter to a machine, with its warn
   assert.match(await page.evaluate(() => location.hash), /^#\/plant\/ln-dc$/);
   await page.waitForSelector('.place-card.s-out:has-text("Die-caster DC-01")');
   await page.waitForSelector('.place-card.s-ok:has-text("Die-caster DC-02")');
+  // The state shows as the card's colour, not only in its badge.
+  const border = (sel) => page.$eval(sel, (el) => getComputedStyle(el).borderLeftColor);
+  const bad = await page.evaluate(() => {
+    const probe = document.body.appendChild(document.createElement('i'));
+    probe.style.color = 'var(--bad)';
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  assert.equal(await border('.place-card.s-out'), bad);
+  assert.notEqual(await border('.place-card.s-ok'), bad);
 
   // The machine: its warning, its signal with the latest reading and a link to plot it, what it has.
   await page.click('.place-card:has-text("Die-caster DC-01")');
@@ -1852,8 +1867,13 @@ test('the plant navigator: drill from the workcenter to a machine, with its warn
   await page.click('.plant-sheet a:has-text("Die-caster DC-02")');
   await page.waitForSelector('.page-head h1:has-text("Die-caster DC-02")');
 
-  // Finding a place: Enter goes to the best match.
-  await page.fill('[data-plant-search] input', 'dc-01');
+  // Finding a place: typing carries on while the list renders; Enter goes to the best match.
+  await page.click('[data-plant-search] input');
+  await page.keyboard.type('dc');
+  await page.waitForSelector('[data-plant-results] a:has-text("Die-caster DC-02")');
+  await page.keyboard.type('-01');
+  assert.equal(await page.inputValue('[data-plant-search] input'), 'dc-01');
+  await page.waitForSelector('[data-plant-results]:not(:has-text("Die-caster DC-02"))');
   await page.waitForSelector('[data-plant-results] a:has-text("Die-caster DC-01")');
   await page.press('[data-plant-search] input', 'Enter');
   await page.waitForSelector('.page-head h1:has-text("Die-caster DC-01")');

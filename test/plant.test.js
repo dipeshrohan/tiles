@@ -160,6 +160,11 @@ test('warnings roll up to every place above their machine', () => {
   const weld = rollUp(graph, items, 'wc-asm');
   assert.deepEqual([weld.state, weld.warnings.map((i) => i.id)], ['new', ['b']]);
   assert.deepEqual(rollUp(graph, items, 'wc-elec'), { state: 'ok', warnings: [] });
+  // Given the place's machines, it uses them.
+  assert.deepEqual(
+    rollUp(graph, items, 'site-nk', ['m-weld03']).warnings.map((i) => i.id),
+    ['b'],
+  );
 });
 
 test('links name a place by its id, safely', () => {
@@ -170,4 +175,5 @@ test('links name a place by its id, safely', () => {
   assert.equal(placeFromHash('#/plant/'), null);
   assert.equal(placeFromHash('#/plant/%E0%A4%A'), null); // broken escapes open the top
   assert.equal(placeFromHash('#/shopfloor'), null);
+  assert.equal(placeFromHash('#/Plant/ln-dc1'), 'ln-dc1'); // the router reads routes in any case
 });
