@@ -38,6 +38,9 @@ app.kubernetes.io/component: {{ .component }}
 {{- if and (eq .Values.env "production") (not .Values.secrets.generateDataKey) (not .Values.secrets.existingSecret) -}}
 {{- fail "env=production needs data keys: set secrets.generateDataKey or give tiles_data_keys in secrets.existingSecret" -}}
 {{- end -}}
+{{- if and .Values.ingress.enabled (eq (regexReplaceAll ":[0-9]+$" (urlParse .Values.url).host "") (regexReplaceAll ":[0-9]+$" (urlParse .Values.apiUrl).host "")) -}}
+{{- fail "with the ingress, url and apiUrl need different host names: the app and the API each take a host's every path" -}}
+{{- end -}}
 {{- range list .Values.url .Values.apiUrl -}}
 {{- if not (regexMatch "^https?://[^/\\s]+$" .) -}}
 {{- fail (printf "url and apiUrl must be http(s) origins without a path, not %q" .) -}}

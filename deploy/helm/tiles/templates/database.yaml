@@ -51,13 +51,17 @@ spec:
             - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
           ports:
             - { name: postgres, containerPort: 5432 }
+          # Over TCP: on first start the image runs a temporary server on the socket only, while it
+          # initialises; that may take minutes on slow storage, and mustn't be cut short.
+          startupProbe:
+            exec: { command: [pg_isready, -h, 127.0.0.1, -U, tiles, -d, tiles] }
+            periodSeconds: 5
+            failureThreshold: 120
           readinessProbe:
-            # Over TCP: on first start the image runs a temporary server on the socket only.
             exec: { command: [pg_isready, -h, 127.0.0.1, -U, tiles, -d, tiles] }
             periodSeconds: 5
           livenessProbe:
             exec: { command: [pg_isready, -h, 127.0.0.1, -U, tiles, -d, tiles] }
-            initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 6
           resources:

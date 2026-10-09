@@ -381,8 +381,11 @@ const ctx: Context = {
   rerender: () => render(),
   toast,
   reset() {
+    // The data source is a preference, not workspace data; kept only if this browser chose one, so
+    // a deployment's default (the tiles-api meta tag) stays a default.
+    const chosen = load<Partial<DataSource> | null>('datasource', null);
     clearAll();
-    save('datasource', dataSource); // a preference, not workspace data
+    if (chosen) save('datasource', chosen);
     Object.assign(state, freshState(), { ui: {} });
     localRepo = state.repo;
     persist();

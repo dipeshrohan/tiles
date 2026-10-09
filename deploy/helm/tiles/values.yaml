@@ -8,11 +8,13 @@
 images:
   api:
     repository: ghcr.io/dipeshrohan/tiles-api
-    tag: '' # default: the chart's appVersion
+    # Published by the Images workflow: `main` follows the main branch; in production pin a
+    # release (`1.2.3`) or a commit (`sha-…`). Empty: the chart's appVersion, once released.
+    tag: main
     pullPolicy: IfNotPresent
   web:
     repository: ghcr.io/dipeshrohan/tiles-web
-    tag: ''
+    tag: main
     pullPolicy: IfNotPresent
 imagePullSecrets: []
 
@@ -39,8 +41,14 @@ oidc:
 # Secrets, Vault, Sealed Secrets) and name it here; never put the values in this file.
 secrets:
   existingSecret: ''
-  # A data key generated in the cluster (kept across upgrades) when your Secret has no
-  # tiles_data_keys. Back the Secret up: without it, sealed credentials can't be opened.
+  # The API reads its settings once, as it starts: after changing the Secret, change this (say, to
+  # the date) in the same `helm upgrade` to restart it. The jobs read them on every run.
+  revision: ''
+  # A data key generated in the cluster when your Secret has no tiles_data_keys (turn this off when
+  # it has: the generated one would hide it). Back the Secret up: without it, sealed credentials
+  # can't be opened. Generated values are kept by reading them back at upgrade (`lookup`), which
+  # `helm template` and GitOps tools (Argo CD) can't do: there, give every secret in your own
+  # Secret and use an external database.
   generateDataKey: true
 
 copilot:

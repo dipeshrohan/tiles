@@ -3,7 +3,6 @@
 import argparse
 from importlib.resources import files
 
-import psycopg
 from alembic import command
 from alembic.config import Config
 from alembic.script import ScriptDirectory
@@ -11,6 +10,10 @@ from alembic.script import ScriptDirectory
 from tiles_api.settings import Settings, get_settings
 
 MIGRATION_LOCK = 7_412_850_001  # the pg_advisory_lock key migrations hold (migrations/env.py)
+# Run after migrating, under that lock.
+GRANT_APP = (
+    "DO $$ BEGIN IF to_regprocedure('tiles_grant_app()') IS NOT NULL THEN PERFORM tiles_grant_app(); END IF; END $$"
+)
 
 
 def sqlalchemy_url(database_url: str) -> str:
@@ -31,17 +34,7 @@ def alembic_config(settings: Settings | None = None) -> Config:
 
 
 def upgrade(settings: Settings | None = None, revision: str = "head") -> None:
-    command.upgrade(alembic_config(settings), revision)
-    grant_app(settings)
-
-
-def grant_app(settings: Settings | None = None) -> None:
-    """Grants `tiles_app` (row security, migration 0024) every table again, so tables a later
-    migration made, as whichever login, are covered. Nothing before 0024 or without the role."""
-    settings = settings or get_settings()
-    with psycopg.connect(settings.database_url.get_secret_value(), autocommit=True) as conn:
-        if conn.execute("SELECT to_regprocedure('tiles_grant_app()') IS NOT NULL").fetchone() == (True,):
-            conn.execute("SELECT tiles_grant_app()")
+    command.upgrade(alembic_config(settings), revision)  # then grants tiles_app (migrations/env.py)
 
 
 def downgrade(settings: Settings | None = None, revision: str = "base") -> None:
@@ -64,7 +57,6 @@ def main(argv: list[str] | None = None) -> None:
     cfg = alembic_config()
     if args.action == "upgrade":
         command.upgrade(cfg, args.revision)
-        grant_app()
     elif args.action == "downgrade":
         command.downgrade(cfg, args.revision)
     elif args.action == "current":

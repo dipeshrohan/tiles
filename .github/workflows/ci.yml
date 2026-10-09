@@ -209,7 +209,7 @@ jobs:
         run: |
           helm lint "$CHART" $VALUES
           go install github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0
-          for extra in "" "--set ingress.enabled=true --set ingress.tlsSecret=tiles-tls" \
+          for extra in "" "--set ingress.enabled=true --set ingress.tlsSecret=tiles-tls --set apiUrl=http://api.localhost:8000" \
             "--set database.bundled=false --set redis.bundled=false --set secrets.existingSecret=tiles --set secrets.generateDataKey=false"; do
             helm template t "$CHART" --kube-version 1.33.0 $VALUES $extra \
               | "$(go env GOPATH)/bin/kubeconform" -strict -summary -kubernetes-version 1.33.0
@@ -217,6 +217,7 @@ jobs:
           # Settings that can't work are refused before anything is installed.
           ! helm template t "$CHART" --kube-version 1.33.0 --set env=production 2> err.txt && grep -q 'needs oidc.issuer' err.txt
           ! helm template t "$CHART" --kube-version 1.33.0 $VALUES --set apiUrl=api.example.com 2> err.txt && grep -q 'http(s) origins' err.txt
+          ! helm template t "$CHART" --kube-version 1.33.0 $VALUES --set ingress.enabled=true 2> err.txt && grep -q 'different host names' err.txt
       - uses: helm/kind-action@v1
         with:
           cluster_name: tiles

@@ -7,7 +7,7 @@ The chart installs Tiles on Kubernetes 1.27 or later (T5.09):
 - the web app;
 - for evaluation, a database and Redis.
 
-The images come from GitHub's container registry. The [Images workflow](../../../.github/workflows/images.yml) publishes `ghcr.io/dipeshrohan/tiles-api`, `tiles-web` and `tiles-edge` on every push to `main` (tags `main` and `sha-…`) and for every version tag (`1.2.3`). The chart defaults to its `appVersion`, so pin a tag that exists, for example `--set images.api.tag=main --set images.web.tag=main`.
+The images come from GitHub's container registry. The [Images workflow](../../../.github/workflows/images.yml) publishes `ghcr.io/dipeshrohan/tiles-api`, `tiles-web` and `tiles-edge` on every push to `main` (tags `main` and `sha-…`) and for every version tag (`1.2.3`). The chart installs `main` by default; in production, pin a release or a commit (`images.api.tag`, `images.web.tag`).
 
 ## Try it
 
@@ -18,7 +18,7 @@ helm install tiles deploy/helm/tiles \
   --set ingress.enabled=true --set ingress.className=nginx --set ingress.tlsSecret=tiles-tls
 ```
 
-- **Addresses:** people open `url`, and their browsers reach the API at `apiUrl`. With an ingress, these are two hosts. The web app opens `apiUrl` by default; the server writes it into the page.
+- **Addresses:** people open `url`, and their browsers reach the API at `apiUrl`. With the ingress, these must be two different host names, because each takes every path of its host. The web app opens `apiUrl` by default; the server writes it into the page.
 - **Sign-in:** at your OIDC provider, add `url` as a redirect URI and a web origin of the `tiles-web` client (the [API settings](../../../api/README.md) list the `oidc.*` options).
 - **Production mode** (`env: production`, the default): the dev identity is refused, so the API needs `oidc.issuer`. Production also needs data keys.
 - **Bad settings fail early:** `helm install` refuses settings that can't work before it creates anything, for example production without an issuer, or an address that isn't an http(s) origin.
@@ -47,6 +47,10 @@ The bundled database is one pod with one volume. It has no replica, no point-in-
    ```
 
 The API and the jobs read the Secret as files (`TILES_SECRETS_DIR`), never as environment variables. Values in `values.yaml` aren't secret.
+
+- **When your Secret has `tiles_data_keys`:** set `secrets.generateDataKey=false`. Otherwise the generated key is mounted at the same path, and one of the two hides the other.
+- **After changing the Secret** (a new database password, a new data key to rotate to): change `secrets.revision` in the same `helm upgrade` to restart the API, which reads its settings once, at start. The jobs read them on every run.
+- **With `helm template` or a GitOps tool (Argo CD, Flux's post-rendering):** the generated Secret can't work, because it keeps its values by reading itself back at upgrade (`lookup`), and those tools render without the cluster. Every render would make a new password and data key. Use your own Secret for everything (`secrets.generateDataKey=false`) and an external database.
 
 ### What the chart sets up for safety
 

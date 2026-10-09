@@ -3,7 +3,7 @@
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from tiles_api.db import MIGRATION_LOCK
+from tiles_api.db import GRANT_APP, MIGRATION_LOCK
 
 config = context.config
 
@@ -28,6 +28,11 @@ def run_migrations_online() -> None:
         context.configure(connection=connection, transaction_per_migration=True)
         with context.begin_transaction():
             context.run_migrations()
+        # Grants `tiles_app` (row security, 0024) every table again, so tables a later migration
+        # made, as whichever login, are covered; still under the lock, as concurrent GRANTs on the
+        # same tables fail. Nothing before 0024 or after downgrading past it.
+        connection.exec_driver_sql(GRANT_APP)
+        connection.commit()
 
 
 if context.is_offline_mode():

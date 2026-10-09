@@ -135,6 +135,25 @@ test('on an ultrawide screen the page and its charts use the whole width', async
   assert.deepEqual(errors, []);
 });
 
+test('a deployment opens its API by default, and a reset keeps it a default', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  const deployed = createTilesServer({ apiUrl });
+  await new Promise((resolve) => deployed.listen(0, '127.0.0.1', resolve));
+  const { page, errors } = await openPage();
+  t.after(() => Promise.all([page.close(), fake.close(), new Promise((r) => deployed.close(r))]));
+  await page.goto(`http://127.0.0.1:${deployed.address().port}/#/settings`);
+  assert.equal(await page.locator('#datasource [name=mode][value=api]').isChecked(), true);
+  assert.equal(await page.inputValue('#datasource [name=apiUrl]'), apiUrl);
+  await page.waitForSelector('#notifications'); // the API's site has loaded
+  page.once('dialog', (d) => d.accept());
+  await page.click('[data-reset]');
+  await page.waitForSelector('#toast:has-text("Demo data reset")');
+  // Nothing chosen in this browser, so nothing saved: a new address from the deployment still applies.
+  assert.equal(await page.evaluate(() => localStorage.getItem('tiles:datasource')), null);
+  assert.deepEqual(errors, []);
+});
+
 test('settings can switch to the Tiles API and test the connection', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

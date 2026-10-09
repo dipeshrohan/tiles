@@ -8765,8 +8765,9 @@
 		rerender: () => render(),
 		toast,
 		reset() {
+			const chosen = load$2("datasource", null);
 			clearAll();
-			save("datasource", dataSource);
+			if (chosen) save("datasource", chosen);
 			Object.assign(state, freshState(), { ui: {} });
 			localRepo = state.repo;
 			persist();

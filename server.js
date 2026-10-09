@@ -18,6 +18,7 @@ const attr = (text) => text.replace(/[&"<>]/g, (c) => ({ '&': '&amp;', '"': '&qu
 // `apiUrl` (TILES_API_URL when run directly, T5.09): the API a deployment serves the app with,
 // written into index.html's `tiles-api` meta tag; the app uses it until a browser chooses otherwise.
 export function createTilesServer({ apiUrl = '' } = {}) {
+  // The same test as isHttpUrl in js/lib/api.ts (this file runs without a build, so it can't import it).
   if (apiUrl && !/^https?:\/\/[^\s/]+/i.test(apiUrl)) throw new Error(`Not an http(s) URL: ${apiUrl}`);
   return createServer(async (req, res) => {
     let path;

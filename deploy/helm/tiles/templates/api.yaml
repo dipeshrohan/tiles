@@ -37,8 +37,11 @@ spec:
         {{- include "tiles.labels" . | nindent 8 }}
         app.kubernetes.io/component: api
       annotations:
-        # New settings roll the pods.
+        # New settings roll the pods, as does a new secrets.revision.
         checksum/env: {{ include "tiles.env" . | sha256sum }}
+        {{- with .Values.secrets.revision }}
+        tiles/secrets-revision: {{ . | quote }}
+        {{- end }}
         {{- with .Values.api.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
