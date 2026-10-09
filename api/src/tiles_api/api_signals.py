@@ -179,6 +179,7 @@ def _get(ctx: Any, signal_id: uuid.UUID) -> Signal:
 
 @router.get("/sites/{site_id}/signals/{signal_id}", response_model=Signal)
 def get_signal(ctx: Ctx, signal_id: uuid.UUID) -> Signal:
+    """One of the site's signals, with its settings, latest reading and data quality."""
     return _get(ctx, signal_id)
 
 

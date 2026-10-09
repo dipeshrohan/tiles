@@ -172,6 +172,8 @@ def list_insights(
 
 @router.get("/sites/{site_id}/insights/{number}", response_model=Insight)
 def get_insight(ctx: Ctx, number: int) -> dict[str, Any]:
+    """A saved insight by its number: the finding, its query, the evidence kept with it, the proposed
+    actions and its review."""
     return _find(ctx, number)
 
 
@@ -292,6 +294,7 @@ def reopen_insight(ctx: Editor, number: int) -> dict[str, Any]:
 
 @router.delete("/sites/{site_id}/insights/{number}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_insight(ctx: Editor, number: int) -> None:
+    """Delete an insight (its author, or an admin)."""
     insight = _find(ctx, number, lock=True)
     _own(ctx, insight, "deletes")
     ctx.conn.execute("DELETE FROM insights WHERE site_id = %s AND number = %s", [ctx.site_id, number])

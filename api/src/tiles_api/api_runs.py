@@ -307,6 +307,8 @@ def list_runs(
 
 @router.post("/sites/{site_id}/runs", response_model=RunDetail, status_code=status.HTTP_201_CREATED)
 def create_run(ctx: Editor, body: RunIn) -> dict[str, Any]:
+    """Run a registered design model with these parameters and keep the result, computed here, as the
+    site's next numbered run, in a project and after a parent run if given."""
     model = _model(body.model, body.version)
     run = _run(model, body.params)
     _lock(ctx)
@@ -372,6 +374,7 @@ def compare(ctx: Ctx, a: Annotated[int, Query(ge=1)], b: Annotated[int, Query(ge
 
 @router.get("/sites/{site_id}/runs/{number}", response_model=RunDetail)
 def get_run(ctx: Ctx, number: int) -> dict[str, Any]:
+    """A run by its number, with its inputs, results and lineage (the runs it was changed from)."""
     row = _row(ctx, number)
     lineage = ctx.conn.execute(
         """
@@ -447,6 +450,7 @@ def list_projects(ctx: Ctx) -> list[dict[str, Any]]:
 
 @router.post("/sites/{site_id}/design-projects", response_model=Project, status_code=status.HTTP_201_CREATED)
 def create_project(ctx: Editor, body: ProjectIn) -> dict[str, Any]:
+    """Start a design project on this site; its name must be new on the site."""
     name = body.name.strip()
     row = ctx.conn.execute(
         """
