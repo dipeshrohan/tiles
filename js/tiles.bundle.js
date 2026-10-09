@@ -902,6 +902,25 @@
 				remove: (siteId, id) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}`),
 				correlate: (siteId, id, q) => request("POST", `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}/correlate`, q)
 			},
+			insights: (() => {
+				const base = (siteId) => `/sites/${encodeURIComponent(siteId)}/insights`;
+				const one = (siteId, n) => `${base(siteId)}/${n}`;
+				return {
+					list: (siteId, q = {}) => request("GET", `${base(siteId)}${query(q)}`),
+					get: (siteId, n) => request("GET", one(siteId, n)),
+					create: (siteId, draft, source) => request("POST", base(siteId), {
+						...draft,
+						source
+					}),
+					edit: (siteId, n, changes) => request("PATCH", one(siteId, n), changes),
+					review: (siteId, n, decision, note) => request("POST", `${one(siteId, n)}/review`, {
+						decision,
+						note
+					}),
+					reopen: (siteId, n) => request("POST", `${one(siteId, n)}/reopen`),
+					remove: (siteId, n) => request("DELETE", one(siteId, n))
+				};
+			})(),
 			notifications: {
 				preferences: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/notifications/preferences`),
 				setPreferences: (siteId, prefs) => request("PUT", `/sites/${encodeURIComponent(siteId)}/notifications/preferences`, prefs),
@@ -1504,7 +1523,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$13 = {
+	var view$14 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1807,7 +1826,7 @@
 	];
 	//#endregion
 	//#region js/views/chat.ts
-	var view$12 = {
+	var view$13 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -2140,7 +2159,7 @@
 	}
 	//#endregion
 	//#region js/views/ontology.ts
-	var uiState$7 = (ctx) => ctx.ui("ontology", {
+	var uiState$8 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
 		hidden: [],
@@ -2151,7 +2170,7 @@
 		match: -1
 	});
 	function showHistory(ctx) {
-		uiState$7(ctx).tab = "history";
+		uiState$8(ctx).tab = "history";
 	}
 	var RELS = [
 		"contains",
@@ -2693,12 +2712,12 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$11 = {
+	var view$12 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
 		render(ctx) {
-			const ui = uiState$7(ctx);
+			const ui = uiState$8(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
@@ -2739,7 +2758,7 @@
       ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$7(ctx);
+			const ui = uiState$8(ctx);
 			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
@@ -3233,16 +3252,16 @@
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var uiState$6 = (ctx) => ctx.ui("quality", {
+	var uiState$7 = (ctx) => ctx.ui("quality", {
 		split: true,
 		variable: "tension"
 	});
-	var view$10 = {
+	var view$11 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
 		render(ctx) {
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
@@ -3358,7 +3377,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
@@ -3374,14 +3393,14 @@
 	};
 	//#endregion
 	//#region js/views/physics.ts
-	var uiState$5 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$9 = {
+	var uiState$6 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var view$10 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
@@ -3505,7 +3524,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
 				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
@@ -3533,7 +3552,7 @@
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var uiState$4 = (ctx) => ctx.ui("design", {
+	var uiState$5 = (ctx) => ctx.ui("design", {
 		model: "swelling",
 		params: {},
 		versions: {},
@@ -3541,7 +3560,7 @@
 		sweepY: null
 	});
 	function current(ctx) {
-		const ui = uiState$4(ctx);
+		const ui = uiState$5(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
 			ui,
@@ -3550,7 +3569,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$8 = {
+	var view$9 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -3995,7 +4014,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$7 = {
+	var view$8 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -4086,6 +4105,118 @@
 			});
 		}
 	};
+	var STATUS$2 = {
+		proposed: ["warn", "Waiting for review"],
+		accepted: ["good", "Accepted"],
+		rejected: ["bad", "Rejected"]
+	};
+	function statusBadge$1(status) {
+		const [cls, text] = STATUS$2[status];
+		return `<span class="badge ${cls}">${text}</span>`;
+	}
+	function parseActions(text) {
+		const actions = text.split("\n").map((l) => l.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean);
+		if (actions.length > 20) return `At most 20 actions`;
+		if (actions.some((a) => a.length > 500)) return "Keep each action to 500 characters";
+		return actions;
+	}
+	function readDraft(text) {
+		const title = text.title.trim();
+		if (!title) return "Give the insight a title";
+		if (title.length > 200) return "Keep the title to 200 characters";
+		if (text.summary.length > 5e3) return "Keep the summary to 5,000 characters";
+		const actions = parseActions(text.actions);
+		if (typeof actions === "string") return actions;
+		return {
+			title,
+			summary: text.summary.trim(),
+			actions
+		};
+	}
+	var draftText = (d) => ({
+		title: d.title,
+		summary: d.summary,
+		actions: d.actions.join("\n")
+	});
+	function correlationDraft(dataset, r) {
+		const top = r.explanations[0];
+		const title = top ? `${top.variable} separates failed batches${top.segment === "all" ? "" : ` (${top.segment})`}` : `No clear effect in ${dataset}`;
+		const summary = [`${dataset}: ${r.rows} batch(es), ${r.ng} failed.`, ...r.explanations.map((e) => e.text)].join("\n");
+		return {
+			title: title.slice(0, 200),
+			summary,
+			actions: ""
+		};
+	}
+	function seriesDraft(tags, from, to) {
+		return {
+			title: `${tags.join(", ")}`.slice(0, 200),
+			summary: `From ${when$1(from)} to ${when$1(to)}.`,
+			actions: ""
+		};
+	}
+	var when$1 = (iso) => new Date(iso).toLocaleString("en-GB", {
+		dateStyle: "medium",
+		timeStyle: "short"
+	});
+	function draftForm(id, text, busy, submit = "Save insight") {
+		return `<form class="stack insight-form" id="${esc(id)}" style="gap:8px">
+      <label class="field">Title<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
+      <label class="field">Summary<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
+      <label class="field">Proposed actions <span class="small soft">(one per line)</span><textarea name="actions" rows="3" placeholder="e.g. Lower anode tension to 1,000 N for a week">${esc(text.actions)}</textarea></label>
+      <div class="row" style="gap:8px"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
+    </form>`;
+	}
+	function bindDraft(form, text) {
+		form.addEventListener("input", (e) => {
+			const el = e.target;
+			if (el.name === "title" || el.name === "summary" || el.name === "actions") text[el.name] = el.value;
+		});
+	}
+	function sourceText(i) {
+		const q = i.query;
+		if (q.kind === "correlation") {
+			const name = i.evidence.dataset?.name ?? "a dataset";
+			const failed = q.ng_values?.length ? q.ng_values.map(String).join(", ") : "true";
+			const parts = [`Correlation of ${name}: outcome ${q.outcome} (failed when ${failed})`];
+			if (q.split) parts.push(`split by ${q.split}`);
+			parts.push(q.variables?.length ? `variables ${q.variables.join(", ")}` : "every number column");
+			return parts.join(", ");
+		}
+		const tags = i.evidence.series?.map((s) => s.tag) ?? [];
+		return `${tags.length ? tags.join(", ") : `${q.signals.length} signal(s)`} from ${when$1(q.start)} to ${when$1(q.end)}`;
+	}
+	function sourceLink(i) {
+		const q = i.query;
+		if (q.kind === "correlation") return {
+			href: `#/correlate?dataset=${encodeURIComponent(q.dataset_id)}`,
+			text: "Open in the correlation finder"
+		};
+		return {
+			href: `#/explorer?${new URLSearchParams({
+				signals: q.signals.join(","),
+				from: q.start,
+				to: q.end
+			}).toString()}`,
+			text: "Open in the Data explorer"
+		};
+	}
+	var insightLink = (n) => `#/insights/${n}`;
+	function numberFromHash(hash) {
+		const m = hash.match(/^#\/insights\/(\d+)(?:[?/]|$)/);
+		const n = m ? Number(m[1]) : NaN;
+		return Number.isSafeInteger(n) && n > 0 ? n : null;
+	}
+	function mayDo(i, me, role) {
+		const editor = role === "engineer" || role === "admin";
+		const owner = editor && (i.author_id === me || role === "admin");
+		return {
+			review: editor && i.status === "proposed" && i.author_id !== me,
+			edit: owner && i.status === "proposed",
+			reopen: owner && i.status !== "proposed",
+			remove: owner
+		};
+	}
 	//#endregion
 	//#region js/views/signals.ts
 	var PAGE$1 = 100;
@@ -4095,7 +4226,7 @@
 	var latestSearch = 0;
 	var resultsFor = "";
 	var resultsQuery = "";
-	var saving = null;
+	var saving$2 = null;
 	var catalogue = (ctx) => [
 		ctx.api?.baseUrl ?? "",
 		ctx.ontology.site?.id ?? "",
@@ -4207,7 +4338,7 @@
 		const stuck = s.stuck_after_s === null ? "" : String(+(s.stuck_after_s / 60).toPrecision(12));
 		return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
-        <fieldset style="display:contents" ${saving === s.id ? "disabled" : ""}>
+        <fieldset style="display:contents" ${saving$2 === s.id ? "disabled" : ""}>
         <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
         <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ""))}" inputmode="decimal" style="width:7em"></label>
         <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
@@ -4222,7 +4353,7 @@
 			["other", "other events"]
 		].map(([v, label]) => `<option value="${v}" ${v === (s.event_kind ?? "") ? "selected" : ""}>${label}</option>`).join("")}</select></label>
         <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" style="width:8em"></label>
-        <button class="btn primary" type="submit">${saving === s.id ? "Saving…" : "Save"}</button>
+        <button class="btn primary" type="submit">${saving$2 === s.id ? "Saving…" : "Save"}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
         </fieldset>
       </form>
@@ -4306,8 +4437,8 @@
 			const site = ctx.ontology.site;
 			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
 			if (!site || !ctx.api || !sig) return;
-			if (saving) {
-				const other = results?.signals.find((s) => s.id === saving);
+			if (saving$2) {
+				const other = results?.signals.find((s) => s.id === saving$2);
 				ctx.toast(`Wait for ${other ? other.tag : "the other change"} to be saved, then save this one`);
 				return;
 			}
@@ -4335,17 +4466,17 @@
 				fill(root, ctx);
 				return;
 			}
-			saving = sig.id;
+			saving$2 = sig.id;
 			fill(root, ctx);
 			ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
-				saving = null;
+				saving$2 = null;
 				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
 				if (ui$1(ctx).editing === sig.id) ui$1(ctx).editing = null;
 				ctx.toast(`Saved ${updated.tag}`);
 				fill(root, ctx);
 				search(root, ctx);
 			}, () => {
-				saving = null;
+				saving$2 = null;
 				fill(root, ctx);
 			});
 		});
@@ -4451,7 +4582,7 @@
 			})();
 		});
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "signals",
 		title: "Signals",
 		icon: "≋",
@@ -4556,6 +4687,7 @@
 	var latestFind = 0;
 	var findTimer;
 	var searchText = "";
+	var saving$1 = null;
 	var iso = (t) => new Date(t).toISOString();
 	function presetRange(preset, picked, now) {
 		if (preset !== "data") return {
@@ -4744,14 +4876,65 @@
 		});
 		find();
 	}
-	function addFromLink(ctx) {
-		const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("signal");
-		const site = ctx.ontology.site;
-		if (!id || !ctx.api || !site) return;
-		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
-		ctx.api.signals.get(site.id, id).then((s) => add(ctx, s), () => void 0);
+	var chartsKey = (u) => JSON.stringify([u.picked.map((p) => p.id), u.range]);
+	function linkRange(params) {
+		const from = Date.parse(params.get("from") ?? "");
+		const to = Date.parse(params.get("to") ?? "");
+		if (!(Number.isFinite(from) && Number.isFinite(to) && to > from && to - from <= 158112e6)) return null;
+		return {
+			from: iso(from),
+			to: iso(to)
+		};
 	}
-	var view$5 = {
+	function addFromLink(ctx) {
+		const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
+		const id = params.get("signal");
+		const ids = (params.get("signals") ?? "").split(",").filter(Boolean).slice(0, MAX_SIGNALS);
+		const site = ctx.ontology.site;
+		const api = ctx.api;
+		if (!id && !ids.length || !api || !site) return;
+		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
+		if (id) {
+			api.signals.get(site.id, id).then((s) => add(ctx, s), () => void 0);
+			return;
+		}
+		const range = linkRange(params);
+		Promise.allSettled(ids.map((i) => api.signals.get(site.id, i))).then((got) => {
+			const picked = got.flatMap((r) => r.status === "fulfilled" ? [{
+				id: r.value.id,
+				tag: r.value.tag,
+				unit: r.value.unit,
+				last_at: r.value.last_at
+			}] : []);
+			if (!picked.length) return;
+			Object.assign(ui(ctx), {
+				picked,
+				range: range ?? presetRange("data", picked, Date.now())
+			});
+			ctx.rerender();
+		});
+	}
+	async function saveInsight$1(ctx) {
+		const site = ctx.ontology.site;
+		const u = ui(ctx);
+		if (!ctx.api || !site || !u.range || !saving$1 || saving$1.key !== chartsKey(u)) return;
+		const draft = readDraft(saving$1.text);
+		if (typeof draft === "string") return void ctx.toast(draft);
+		const source = {
+			kind: "series",
+			signals: u.picked.map((p) => p.id),
+			start: u.range.from,
+			end: u.range.to,
+			points: 600
+		};
+		try {
+			const saved = await ctx.api.insights.create(site.id, draft, source);
+			saving$1 = null;
+			ctx.toast(`Insight #${saved.number} saved: another engineer reviews it`);
+			location.hash = insightLink(saved.number);
+		} catch {}
+	}
+	var view$6 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "⌁",
@@ -4766,6 +4949,7 @@
 				catalogue: catalogue(ctx)
 			});
 			const { picked, range } = u;
+			const canSave = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 			const chips = picked.map((p) => `<span class="badge">${esc(p.tag)} <button class="btn-link" type="button" data-remove="${esc(p.id)}" aria-label="Remove ${esc(p.tag)}">×</button></span>`).join(" ");
 			const rangeBar = range ? `<form id="explorer-range" class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
           ${[
@@ -4781,7 +4965,9 @@
           <button class="btn sm" type="button" data-pan="-1" aria-label="Earlier">←</button>
           <button class="btn sm" type="button" data-zoom-out>Zoom out</button>
           <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
-        </form>` : "";
+          ${canSave && saving$1?.key !== chartsKey(u) ? "<button class=\"btn sm\" type=\"button\" data-save-insight>Save as insight</button>" : ""}
+        </form>
+        ${canSave && saving$1?.key === chartsKey(u) ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm("insight-save", saving$1.text, false)}</div>` : ""}` : "";
 			const charts = picked.map((p) => `<div class="card stack" style="gap:6px">
           <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? "")}</span></div>
           <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
@@ -4834,34 +5020,55 @@
 					});
 				});
 			}
+			onAll(root, "[data-save-insight]", "click", () => {
+				const u = ui(ctx);
+				if (!u.range) return;
+				saving$1 = {
+					key: chartsKey(u),
+					text: seriesDraft(u.picked.map((p) => p.tag), u.range.from, u.range.to)
+				};
+				ctx.rerender();
+			});
+			const saveForm = root.querySelector("#insight-save");
+			if (saveForm && saving$1) {
+				bindDraft(saveForm, saving$1.text);
+				onAll(saveForm, "[data-cancel]", "click", () => {
+					saving$1 = null;
+					ctx.rerender();
+				});
+				saveForm.addEventListener("submit", (e) => {
+					e.preventDefault();
+					saveInsight$1(ctx);
+				});
+			}
 			loadCharts(root, ctx);
 		}
 	};
 	//#endregion
 	//#region js/views/reviews.ts
-	var uiState$3 = (ctx) => ctx.ui("reviews", {
+	var uiState$4 = (ctx) => ctx.ui("reviews", {
 		state: "open",
 		selected: null,
 		site: null
 	});
-	var listing$2 = null;
-	var detail$2 = null;
+	var listing$3 = null;
+	var detail$3 = null;
 	var listSeq$1 = 0;
 	var detailSeq$1 = 0;
-	var busy$2 = false;
+	var busy$3 = false;
 	var draft$1 = {
 		key: "",
 		text: ""
 	};
-	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/reviews")) {
-			listing$2 = null;
-			detail$2 = null;
+			listing$3 = null;
+			detail$3 = null;
 		}
 	});
-	var listKey$1 = (ctx) => `${siteId$3(ctx)}|${uiState$3(ctx).state}`;
-	var detailKey$1 = (ctx) => `${siteId$3(ctx)}|${uiState$3(ctx).selected}`;
+	var listKey$2 = (ctx) => `${siteId$4(ctx)}|${uiState$4(ctx).state}`;
+	var detailKey$2 = (ctx) => `${siteId$4(ctx)}|${uiState$4(ctx).selected}`;
 	var STATUS$1 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
@@ -4884,9 +5091,9 @@
 		if (r.status !== "open" || role === null || role === "viewer" || r.author_id === me) return false;
 		return r.reviewer_id === null || r.reviewer_id === me || role === "admin";
 	}
-	function listCard$2(ctx, ui) {
+	function listCard$3(ctx, ui) {
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
-		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
+		const items = listing$3?.key === listKey$2(ctx) ? listing$3.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
           <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
@@ -4894,9 +5101,9 @@
           <span class="small">${stats(r.stats)}</span>
         </button>`).join("") || `<div class="empty">${ui.state === "open" ? "Nothing waits for a review. Send staged changes from the Ontology page." : "No closed change requests yet."}</div>`}</div></div>`;
 	}
-	function detailCard$1(ctx, ui) {
+	function detailCard$2(ctx, ui) {
 		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a change request to see its changes.</div></div>";
-		const r = detail$2?.key === detailKey$1(ctx) ? detail$2.review : null;
+		const r = detail$3?.key === detailKey$2(ctx) ? detail$3.review : null;
 		if (!r) return "<div class=\"card\" data-review-detail><div class=\"empty\">Loading…</div></div>";
 		const o = ctx.ontology;
 		const open = r.status === "open";
@@ -4928,8 +5135,8 @@
       <div class="thread">${thread || "<p class=\"small muted\">No comments yet.</p>"}</div>
       ${waiting}
       ${canWrite ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
-        <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$1.key === detailKey$1(ctx) ? esc(draft$1.text) : ""}</textarea>
-        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$2 ? "disabled" : ""}>
+        <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$1.key === detailKey$2(ctx) ? esc(draft$1.text) : ""}</textarea>
+        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$3 ? "disabled" : ""}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
           ${reworkButton(r, mine)}
@@ -4949,22 +5156,22 @@
     </div>`;
 	}
 	async function fetchList$1(ctx) {
-		const site = siteId$3(ctx);
+		const site = siteId$4(ctx);
 		if (!ctx.api || !site) return;
-		const key = listKey$1(ctx);
+		const key = listKey$2(ctx);
 		const seq = ++listSeq$1;
-		listing$2 = {
+		listing$3 = {
 			key,
 			items: null
 		};
 		try {
-			const items = await ctx.api.reviews.list(site, uiState$3(ctx).state);
-			if (seq === listSeq$1) listing$2 = {
+			const items = await ctx.api.reviews.list(site, uiState$4(ctx).state);
+			if (seq === listSeq$1) listing$3 = {
 				key,
 				items
 			};
 		} catch {
-			if (seq === listSeq$1) listing$2 = {
+			if (seq === listSeq$1) listing$3 = {
 				key,
 				items: []
 			};
@@ -4972,28 +5179,28 @@
 		if (seq === listSeq$1) ctx.rerender();
 	}
 	async function fetchDetail$1(ctx) {
-		const site = siteId$3(ctx);
-		const n = uiState$3(ctx).selected;
+		const site = siteId$4(ctx);
+		const n = uiState$4(ctx).selected;
 		if (!ctx.api || !site || n === null) return;
-		const key = detailKey$1(ctx);
+		const key = detailKey$2(ctx);
 		const seq = ++detailSeq$1;
 		try {
 			const review = await ctx.api.reviews.get(site, n);
 			if (seq !== detailSeq$1) return;
-			detail$2 = {
+			detail$3 = {
 				key,
 				review
 			};
 		} catch {
 			if (seq !== detailSeq$1) return;
-			uiState$3(ctx).selected = null;
+			uiState$4(ctx).selected = null;
 		}
 		ctx.rerender();
 	}
-	async function act$1(ctx, action, comment) {
-		const site = siteId$3(ctx);
-		const r = detail$2?.review;
-		if (!ctx.api || !site || !r || busy$2) return;
+	async function act$2(ctx, action, comment) {
+		const site = siteId$4(ctx);
+		const r = detail$3?.review;
+		if (!ctx.api || !site || !r || busy$3) return;
 		const reviews = ctx.api.reviews;
 		const call = {
 			comment: () => reviews.comment(site, r.number, comment),
@@ -5002,11 +5209,11 @@
 			rework: () => reviews.rework(site, r.number)
 		}[action];
 		if (!call) return;
-		busy$2 = true;
+		busy$3 = true;
 		ctx.rerender();
 		try {
 			const review = await call();
-			detail$2 = {
+			detail$3 = {
 				key: `${site}|${review.number}`,
 				review
 			};
@@ -5018,7 +5225,7 @@
 			if (action === "approve") ctx.toast(`#${r.number} approved and committed`);
 			if (action === "reject") ctx.toast(`#${r.number} rejected`);
 			if (action !== "comment") {
-				listing$2 = null;
+				listing$3 = null;
 				await ctx.ontology.reload();
 			}
 			if (action === "rework" && r.reverts) ctx.toast(`#${r.number} withdrawn`);
@@ -5027,14 +5234,14 @@
 				location.hash = "#/ontology";
 			}
 		} catch {
-			detail$2 = null;
-			listing$2 = null;
+			detail$3 = null;
+			listing$3 = null;
 		} finally {
-			busy$2 = false;
+			busy$3 = false;
 			ctx.rerender();
 		}
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "✓",
@@ -5045,18 +5252,18 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$3(ctx);
-			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$2(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
+			const ui = uiState$4(ctx);
+			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$3(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$3(ctx);
-			if (ui.site !== siteId$3(ctx)) Object.assign(ui, {
+			const ui = uiState$4(ctx);
+			if (ui.site !== siteId$4(ctx)) Object.assign(ui, {
 				selected: null,
-				site: siteId$3(ctx)
+				site: siteId$4(ctx)
 			});
-			if (listing$2?.key !== listKey$1(ctx)) fetchList$1(ctx);
-			if (ui.selected !== null && detail$2?.key !== detailKey$1(ctx)) fetchDetail$1(ctx);
+			if (listing$3?.key !== listKey$2(ctx)) fetchList$1(ctx);
+			if (ui.selected !== null && detail$3?.key !== detailKey$2(ctx)) fetchDetail$1(ctx);
 			onAll(root, "[data-state]", "click", (el) => {
 				ui.state = el.dataset.state === "closed" ? "closed" : "open";
 				ctx.rerender();
@@ -5067,19 +5274,19 @@
 			});
 			onAll(root, "[data-history]", "click", () => showHistory(ctx));
 			onAll(root, "[data-refresh-reviews]", "click", () => {
-				listing$2 = null;
-				detail$2 = null;
+				listing$3 = null;
+				detail$3 = null;
 				ctx.ontology.reload();
 				ctx.rerender();
 			});
 			root.querySelector("#review-form textarea")?.addEventListener("input", (e) => {
 				draft$1 = {
-					key: detailKey$1(ctx),
+					key: detailKey$2(ctx),
 					text: e.target.value
 				};
 			});
 			onAll(root, "[data-policy]", "change", (el) => {
-				const site = siteId$3(ctx);
+				const site = siteId$4(ctx);
 				const required = el.checked;
 				if (!ctx.api || !site) return;
 				ctx.api.ontology.setReviewPolicy(site, required).then(() => ctx.toast(required ? "Every change now needs a review" : "Reviews are optional again")).catch(() => void 0).finally(() => void ctx.ontology.reload());
@@ -5094,7 +5301,7 @@
 					box.focus();
 					return;
 				}
-				act$1(ctx, action, comment);
+				act$2(ctx, action, comment);
 			});
 		}
 	};
@@ -5207,38 +5414,38 @@
 	}
 	//#endregion
 	//#region js/views/warnings.ts
-	var uiState$2 = (ctx) => ctx.ui("warnings", {
+	var uiState$3 = (ctx) => ctx.ui("warnings", {
 		filters: { ...DEFAULT_FILTERS },
 		selected: null,
 		site: null
 	});
-	var listing$1 = null;
-	var detail$1 = null;
+	var listing$2 = null;
+	var detail$2 = null;
 	var detailFailed = null;
 	var series = null;
 	var members = null;
 	var listSeq = 0;
 	var detailSeq = 0;
 	var seriesSeq = 0;
-	var busy$1 = false;
+	var busy$2 = false;
 	var draft = {
 		key: "",
 		text: ""
 	};
 	var PAGE = 100;
 	var ago = (iso) => when(iso, Date.now());
-	var siteId$2 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/warnings")) {
-			listing$1 = null;
-			detail$1 = null;
+			listing$2 = null;
+			detail$2 = null;
 			detailFailed = null;
 			series = null;
 			members = null;
 		}
 	});
-	var listKey = (ctx) => `${siteId$2(ctx)}|${JSON.stringify(uiState$2(ctx).filters)}`;
-	var detailKey = (ctx) => `${siteId$2(ctx)}|${uiState$2(ctx).selected}`;
+	var listKey$1 = (ctx) => `${siteId$3(ctx)}|${JSON.stringify(uiState$3(ctx).filters)}`;
+	var detailKey$1 = (ctx) => `${siteId$3(ctx)}|${uiState$3(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function badge(w) {
 		const [cls, label] = STATUS[w.status];
@@ -5257,15 +5464,15 @@
       </span>
     </div>`;
 	}
-	function listCard$1(ctx, ui) {
-		const items = listing$1?.key === listKey(ctx) ? listing$1.items : null;
+	function listCard$2(ctx, ui) {
+		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		const empty = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all" ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
 		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
           <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing$1?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
+        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing$2?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
@@ -5297,7 +5504,7 @@
 	function actionsForm(ctx, w) {
 		const actions = actionsFor(w, ctx.ontology.role);
 		if (!actions.length) return "";
-		const people = (members?.site === siteId$2(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
+		const people = (members?.site === siteId$3(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
 		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
 		const has = (a) => actions.includes(a);
 		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
@@ -5308,8 +5515,8 @@
         ${Object.keys(OUTCOMES).map((o) => `<option value="${o}">${OUTCOMES[o]}</option>`).join("")}
       </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>` : "";
 		return `<form class="stack" id="warning-form" style="gap:8px;margin-top:10px">
-      <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ""}</textarea>
-      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$1 ? "disabled" : ""}>
+      <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey$1(ctx) ? esc(draft.text) : ""}</textarea>
+      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$2 ? "disabled" : ""}>
         ${has("acknowledge") ? "<button class=\"btn primary\" type=\"button\" data-act=\"acknowledge\">Acknowledge</button>" : ""}
         ${assign}
         ${resolve}
@@ -5318,10 +5525,10 @@
       </fieldset>
     </form>`;
 	}
-	function detailCard(ctx, ui) {
+	function detailCard$1(ctx, ui) {
 		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a warning to see its signal and what was done.</div></div>";
-		const w = detail$1?.key === detailKey(ctx) ? detail$1.warning : null;
-		if (!w && detailFailed === detailKey(ctx)) return "<div class=\"card\" data-warning-detail><div class=\"empty\">This warning could not be loaded. Refresh to try again.</div></div>";
+		const w = detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
+		if (!w && detailFailed === detailKey$1(ctx)) return "<div class=\"card\" data-warning-detail><div class=\"empty\">This warning could not be loaded. Refresh to try again.</div></div>";
 		if (!w) return "<div class=\"card\" data-warning-detail><div class=\"empty\">Loading…</div></div>";
 		const activity = w.activity.map((a) => `
       <div class="comment">
@@ -5351,27 +5558,27 @@
     </div>`;
 	}
 	async function fetchList(ctx) {
-		const site = siteId$2(ctx);
+		const site = siteId$3(ctx);
 		if (!ctx.api || !site) return;
-		const key = listKey(ctx);
+		const key = listKey$1(ctx);
 		const seq = ++listSeq;
-		listing$1 = {
+		listing$2 = {
 			key,
 			items: null,
 			more: false
 		};
 		try {
 			const items = await ctx.api.warnings.list(site, {
-				...queryFor(uiState$2(ctx).filters),
+				...queryFor(uiState$3(ctx).filters),
 				limit: PAGE
 			});
-			if (seq === listSeq) listing$1 = {
+			if (seq === listSeq) listing$2 = {
 				key,
 				items,
 				more: items.length === PAGE
 			};
 		} catch {
-			if (seq === listSeq) listing$1 = {
+			if (seq === listSeq) listing$2 = {
 				key,
 				items: [],
 				more: false
@@ -5380,27 +5587,27 @@
 		if (seq === listSeq) ctx.rerender();
 	}
 	async function fetchMore(ctx) {
-		const site = siteId$2(ctx);
-		const shown = listing$1;
-		if (!ctx.api || !site || !shown?.items || shown.key !== listKey(ctx)) return;
+		const site = siteId$3(ctx);
+		const shown = listing$2;
+		if (!ctx.api || !site || !shown?.items || shown.key !== listKey$1(ctx)) return;
 		const seq = ++listSeq;
 		try {
 			const query = {
-				...queryFor(uiState$2(ctx).filters),
+				...queryFor(uiState$3(ctx).filters),
 				limit: PAGE,
 				offset: shown.items.length
 			};
 			const page = await ctx.api.warnings.list(site, query);
 			if (seq !== listSeq) return;
 			const seen = new Set(shown.items.map((w) => w.id));
-			listing$1 = {
+			listing$2 = {
 				key: shown.key,
 				items: [...shown.items, ...page.filter((w) => !seen.has(w.id))],
 				more: page.length === PAGE
 			};
 		} catch {
 			if (seq !== listSeq) return;
-			listing$1 = {
+			listing$2 = {
 				...shown,
 				more: true
 			};
@@ -5408,7 +5615,7 @@
 		ctx.rerender();
 	}
 	async function fetchSeries(ctx, w) {
-		const site = siteId$2(ctx);
+		const site = siteId$3(ctx);
 		if (!ctx.api || !site) return;
 		const key = seriesKey(w);
 		const seq = ++seriesSeq;
@@ -5434,28 +5641,28 @@
 		ctx.rerender();
 	}
 	async function fetchDetail(ctx) {
-		const site = siteId$2(ctx);
-		const id = uiState$2(ctx).selected;
+		const site = siteId$3(ctx);
+		const id = uiState$3(ctx).selected;
 		if (!ctx.api || !site || id === null) return;
-		const key = detailKey(ctx);
+		const key = detailKey$1(ctx);
 		const seq = ++detailSeq;
 		detailFailed = null;
 		try {
 			const warning = await ctx.api.warnings.get(site, id);
 			if (seq !== detailSeq) return;
-			detail$1 = {
+			detail$2 = {
 				key,
 				warning
 			};
 		} catch (e) {
 			if (seq !== detailSeq) return;
-			if (e instanceof ApiError && e.status === 404) uiState$2(ctx).selected = null;
+			if (e instanceof ApiError && e.status === 404) uiState$3(ctx).selected = null;
 			else detailFailed = key;
 		}
 		ctx.rerender();
 	}
 	async function fetchMembers(ctx) {
-		const site = siteId$2(ctx);
+		const site = siteId$3(ctx);
 		if (!ctx.api || !site) return;
 		members = {
 			site,
@@ -5470,10 +5677,10 @@
 		} catch {}
 		ctx.rerender();
 	}
-	async function act(ctx, action, note, form) {
-		const site = siteId$2(ctx);
-		const w = detail$1?.warning;
-		if (!ctx.api || !site || !w || busy$1) return;
+	async function act$1(ctx, action, note, form) {
+		const site = siteId$3(ctx);
+		const w = detail$2?.warning;
+		if (!ctx.api || !site || !w || busy$2) return;
 		const api = ctx.api.warnings;
 		const value = (name) => form.querySelector(`[name="${name}"]`)?.value ?? "";
 		const call = {
@@ -5484,13 +5691,13 @@
 			comment: () => api.comment(site, w.id, note)
 		}[action];
 		if (!call) return;
-		busy$1 = true;
+		busy$2 = true;
 		++detailSeq;
 		ctx.rerender();
 		try {
 			const warning = await call();
 			const key = `${site}|${warning.id}`;
-			detail$1 = {
+			detail$2 = {
 				key,
 				warning
 			};
@@ -5507,16 +5714,16 @@
 				comment: "Comment added"
 			};
 			ctx.toast(done[action] ?? "Done");
-			if (action !== "comment" && !same) listing$1 = null;
+			if (action !== "comment" && !same) listing$2 = null;
 		} catch {
-			detail$1 = null;
-			listing$1 = null;
+			detail$2 = null;
+			listing$2 = null;
 		} finally {
-			busy$1 = false;
+			busy$2 = false;
 			ctx.rerender();
 		}
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "⚠",
@@ -5527,20 +5734,20 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$2(ctx);
-			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$1(ctx, ui)}${detailCard(ctx, ui)}</div>`;
+			const ui = uiState$3(ctx);
+			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$2(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$2(ctx);
-			const site = siteId$2(ctx);
+			const ui = uiState$3(ctx);
+			const site = siteId$3(ctx);
 			if (ui.site !== site) Object.assign(ui, {
 				selected: null,
 				site
 			});
-			if (listing$1?.key !== listKey(ctx)) fetchList(ctx);
-			if (ui.selected !== null && detail$1?.key !== detailKey(ctx) && detailFailed !== detailKey(ctx)) fetchDetail(ctx);
-			const shown = detail$1?.key === detailKey(ctx) ? detail$1.warning : null;
+			if (listing$2?.key !== listKey$1(ctx)) fetchList(ctx);
+			if (ui.selected !== null && detail$2?.key !== detailKey$1(ctx) && detailFailed !== detailKey$1(ctx)) fetchDetail(ctx);
+			const shown = detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
 			if (shown && series?.key !== seriesKey(shown)) fetchSeries(ctx, shown);
 			if (site && members?.site !== site && actionsFor({ status: "raised" }, ctx.ontology.role).length) fetchMembers(ctx);
 			onAll(root, "[data-show]", "click", (el) => {
@@ -5563,9 +5770,9 @@
 				ctx.rerender();
 			});
 			onAll(root, "[data-refresh-warnings]", "click", () => {
-				if (busy$1) return;
-				listing$1 = null;
-				detail$1 = null;
+				if (busy$2) return;
+				listing$2 = null;
+				detail$2 = null;
 				detailFailed = null;
 				series = null;
 				ctx.rerender();
@@ -5573,7 +5780,7 @@
 			onAll(root, "[data-more-warnings]", "click", () => void fetchMore(ctx));
 			root.querySelector("#warning-form textarea")?.addEventListener("input", (e) => {
 				draft = {
-					key: detailKey(ctx),
+					key: detailKey$1(ctx),
 					text: e.target.value
 				};
 			});
@@ -5587,7 +5794,7 @@
 					box.focus();
 					return;
 				}
-				act(ctx, action, note, form);
+				act$1(ctx, action, note, form);
 			});
 		}
 	};
@@ -5652,7 +5859,7 @@
 	}
 	//#endregion
 	//#region js/views/performance.ts
-	var uiState$1 = (ctx) => ctx.ui("performance", {
+	var uiState$2 = (ctx) => ctx.ui("performance", {
 		days: 30,
 		horizonHours: 8,
 		codes: ""
@@ -5661,10 +5868,10 @@
 	var seq = 0;
 	var pending = null;
 	var assetDrafts = /* @__PURE__ */ new Map();
-	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$2 = (ctx) => ctx.ontology.site?.id ?? null;
 	var keyFor = (ctx) => {
-		const u = uiState$1(ctx);
-		return `${siteId$1(ctx)}|${u.days}|${u.horizonHours}|${parseCodes(u.codes).join(",")}`;
+		const u = uiState$2(ctx);
+		return `${siteId$2(ctx)}|${u.days}|${u.horizonHours}|${parseCodes(u.codes).join(",")}`;
 	};
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/performance")) {
@@ -5674,7 +5881,7 @@
 		}
 	});
 	async function load$1(ctx) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		if (!ctx.api || !site) return;
 		const key = keyFor(ctx);
 		const mine = ++seq;
@@ -5682,7 +5889,7 @@
 			key,
 			report: null
 		};
-		const u = uiState$1(ctx);
+		const u = uiState$2(ctx);
 		try {
 			const report = await ctx.api.performance(site, {
 				days: u.days,
@@ -5735,7 +5942,7 @@
       ${r.events.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Asset</th><th>Kind</th><th>Code</th><th>Warning</th></tr></thead><tbody>${rows}</tbody></table></div>` : "<p class=\"small soft\">No events of watched assets in this period. Events are readings on signals marked as downtime or scrap on the Signals page, with their asset.</p>"}
     </div>`;
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "performance",
 		title: "Warning performance",
 		icon: "◎",
@@ -5746,7 +5953,7 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const u = uiState$1(ctx);
+			const u = uiState$2(ctx);
 			const key = keyFor(ctx);
 			let body;
 			if (fetched?.key === `${key}|failed`) body = "<div class=\"card\"><p>This could not be loaded.</p></div>";
@@ -5762,7 +5969,7 @@
 			const key = keyFor(ctx);
 			if (fetched?.key !== key && fetched?.key !== `${key}|failed`) load$1(ctx);
 			onSubmit(root, "#performance-form", (form) => {
-				const u = uiState$1(ctx);
+				const u = uiState$2(ctx);
 				const data = new FormData(form);
 				u.days = Number(data.get("days")) || 30;
 				u.horizonHours = Number(data.get("horizon")) || 8;
@@ -5786,7 +5993,7 @@
 			});
 			onAll(root, "[data-asset-form]", "submit", (el, e) => {
 				e.preventDefault();
-				const site = siteId$1(ctx);
+				const site = siteId$2(ctx);
 				const api = ctx.api;
 				const id = el.dataset.assetForm ?? "";
 				const input = el.querySelector("[name=asset]");
@@ -6201,71 +6408,72 @@
 	}
 	//#endregion
 	//#region js/views/correlate.ts
-	var uiState = (ctx) => ctx.ui("correlate", {
+	var uiState$1 = (ctx) => ctx.ui("correlate", {
 		selected: null,
 		outcome: "",
 		ngText: "",
 		variables: null,
 		split: ""
 	});
-	var listing = null;
-	var detail = null;
+	var listing$1 = null;
+	var detail$1 = null;
 	var result = null;
-	var busy = "";
+	var saving = null;
+	var busy$1 = "";
 	var upload = null;
 	var chosen = {
 		file: null,
 		name: ""
 	};
-	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
 	var resultKey = (ctx) => JSON.stringify({
-		site: siteId(ctx),
-		...uiState(ctx)
+		site: siteId$1(ctx),
+		...uiState$1(ctx)
 	});
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/correlate")) {
-			listing = null;
-			detail = null;
+			listing$1 = null;
+			detail$1 = null;
 		}
 	});
-	async function loadList(ctx) {
-		const site = siteId(ctx);
+	async function loadList$1(ctx) {
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
-		listing = {
+		listing$1 = {
 			site,
 			items: null
 		};
 		try {
 			const items = await ctx.api.datasets.list(site);
-			if (listing?.site === site) listing = {
+			if (listing$1?.site === site) listing$1 = {
 				site,
 				items
 			};
 		} catch {
-			if (listing?.site === site) listing = {
+			if (listing$1?.site === site) listing$1 = {
 				site,
 				items: []
 			};
 		}
 		ctx.rerender();
 	}
-	async function loadDetail(ctx, id) {
-		const site = siteId(ctx);
+	async function loadDetail$1(ctx, id) {
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
 		try {
 			const data = await ctx.api.datasets.get(site, id);
-			if (uiState(ctx).selected === id) detail = {
+			if (uiState$1(ctx).selected === id) detail$1 = {
 				id,
 				data
 			};
 		} catch {
-			if (uiState(ctx).selected === id) uiState(ctx).selected = null;
+			if (uiState$1(ctx).selected === id) uiState$1(ctx).selected = null;
 		}
 		ctx.rerender();
 	}
-	function listCard(ctx, ui) {
+	function listCard$1(ctx, ui) {
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
-		const items = listing?.items;
+		const items = listing$1?.items;
 		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? "<div class=\"empty\">Loading…</div>" : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
               <b>${esc(d.name)}</b>
               <span class="small muted">${fmt$1(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ""}</span>
@@ -6275,12 +6483,12 @@
         <label class="field">CSV file<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
         ${chosen.file ? `<p class="small" data-chosen-file>Chosen: ${esc(chosen.file.name)}</p>` : ""}
         <label class="field">Name<input type="text" name="name" maxlength="200" value="${esc(chosen.name)}" placeholder="e.g. Cutter batches, September"></label>
-        <div><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${upload ? `Uploading ${fmt$1(upload.done, 0)} of ${fmt$1(upload.total, 0)}…` : "Upload"}</button></div>
+        <div><button class="btn primary" type="submit" ${busy$1 ? "disabled" : ""}>${upload ? `Uploading ${fmt$1(upload.done, 0)} of ${fmt$1(upload.total, 0)}…` : "Upload"}</button></div>
       </form>` : ""}</div>`;
 	}
 	function analysisCard(ctx, ui) {
 		if (!ui.selected) return "<div class=\"card\"><div class=\"empty\">Choose a batch table, or upload one.</div></div>";
-		const d = detail?.id === ui.selected ? detail.data : null;
+		const d = detail$1?.id === ui.selected ? detail$1.data : null;
 		if (!d) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
 		const numbers = d.columns.filter((c) => c.kind === "number").map((c) => c.name);
 		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
@@ -6292,7 +6500,7 @@
 		return `<div class="card stack" style="gap:12px" data-analysis>
       <div class="row" style="justify-content:space-between;align-items:start;gap:12px">
         <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt$1(d.row_count, 0)} batch(es)</p></div>
-        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy ? "disabled" : ""}>Delete</button>` : ""}
+        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy$1 ? "disabled" : ""}>Delete</button>` : ""}
       </div>
       ${preview}
       <form class="stack" id="correlate-form" style="gap:10px">
@@ -6300,11 +6508,12 @@
           <label class="field">Outcome<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? "")).join("")}</select></label>
           <label class="field">Failed when it is${outcome?.kind === "bool" ? " (default true)" : ""}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === "bool" ? "true" : "e.g. NG, scrap"}" style="width:12em"></label>
           <label class="field">Split by<select name="split"><option value="">nothing (pooled)</option>${d.columns.filter((c) => c.kind !== "number" && c.name !== outcome?.name).map((c) => option(c.name, ui.split)).join("")}</select></label>
-          <button class="btn primary" type="submit" ${busy ? "disabled" : ""}>Find</button>
+          <button class="btn primary" type="submit" ${busy$1 ? "disabled" : ""}>Find</button>
         </div>
         <fieldset class="row" style="gap:10px;flex-wrap:wrap;border:0;padding:0;margin:0"><legend class="small soft">Variables</legend>${numbers.filter((n) => n !== outcome?.name).map((n) => `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${checked.has(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</fieldset>
       </form>
       ${r ? resultBlock(r.data, r.split) : ""}
+      ${r && canEdit ? saving?.key === r.key ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3>${draftForm("insight-save", saving.text, Boolean(busy$1))}</div>` : "<div><button class=\"btn\" type=\"button\" data-save-insight>Save as insight</button></div>" : ""}
     </div>`;
 	}
 	function resultBlock(r, split) {
@@ -6318,7 +6527,7 @@
     </div>`;
 	}
 	async function uploadFile(ctx, file, name) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		const api = ctx.api;
 		if (!api || !site) return;
 		const text = await file.text();
@@ -6329,7 +6538,7 @@
 		}
 		const columns = inferColumns(header, body);
 		const rows = typedRows(body, columns);
-		busy = "upload";
+		busy$1 = "upload";
 		upload = {
 			done: 0,
 			total: rows.length
@@ -6347,32 +6556,32 @@
 				ctx.rerender();
 			}
 			ctx.toast(`${name}: ${fmt$1(rows.length, 0)} batch(es) uploaded`);
-			Object.assign(uiState(ctx), {
+			Object.assign(uiState$1(ctx), {
 				selected: d.id,
 				outcome: "",
 				ngText: "",
 				variables: null,
 				split: ""
 			});
-			detail = null;
-			listing = null;
+			detail$1 = null;
+			listing$1 = null;
 			created = null;
 		} catch {
 			if (created) await api.datasets.remove(site, created).catch(() => void 0);
-			listing = null;
+			listing$1 = null;
 		} finally {
-			busy = "";
+			busy$1 = "";
 			upload = null;
 			ctx.rerender();
 		}
 	}
 	async function removeDataset(ctx) {
-		const site = siteId(ctx);
-		const ui = uiState(ctx);
-		const d = detail?.id === ui.selected ? detail.data : null;
+		const site = siteId$1(ctx);
+		const ui = uiState$1(ctx);
+		const d = detail$1?.id === ui.selected ? detail$1.data : null;
 		if (!ctx.api || !site || !d) return;
 		if (!confirm(`Delete ${d.name} and its ${d.row_count} batch(es)?`)) return;
-		busy = "delete";
+		busy$1 = "delete";
 		ctx.rerender();
 		try {
 			await ctx.api.datasets.remove(site, d.id);
@@ -6384,17 +6593,47 @@
 				variables: null,
 				split: ""
 			});
-			detail = null;
-			listing = null;
+			detail$1 = null;
+			listing$1 = null;
 		} catch {} finally {
-			busy = "";
+			busy$1 = "";
 			ctx.rerender();
 		}
 	}
+	async function saveInsight(ctx) {
+		const site = siteId$1(ctx);
+		if (!ctx.api || !site || !result || !saving || saving.key !== result.key) return;
+		const draft = readDraft(saving.text);
+		if (typeof draft === "string") return void ctx.toast(draft);
+		busy$1 = "save";
+		ctx.rerender();
+		try {
+			const saved = await ctx.api.insights.create(site, draft, result.source);
+			saving = null;
+			ctx.toast(`Insight #${saved.number} saved: another engineer reviews it`);
+			location.hash = insightLink(saved.number);
+		} catch {} finally {
+			busy$1 = "";
+			ctx.rerender();
+		}
+	}
+	function selectFromLink(ctx) {
+		const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("dataset");
+		if (!id) return;
+		history.replaceState(null, "", `${location.pathname}${location.search}#/correlate`);
+		Object.assign(uiState$1(ctx), {
+			selected: id,
+			outcome: "",
+			ngText: "",
+			variables: null,
+			split: ""
+		});
+		detail$1 = null;
+	}
 	async function find(ctx) {
-		const site = siteId(ctx);
-		const ui = uiState(ctx);
-		const d = detail?.data;
+		const site = siteId$1(ctx);
+		const ui = uiState$1(ctx);
+		const d = detail$1?.data;
 		if (!ctx.api || !site || !d || !ui.selected) return;
 		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
 		if (!outcome) return;
@@ -6411,25 +6650,34 @@
 			return;
 		}
 		const key = resultKey(ctx);
-		busy = "find";
+		busy$1 = "find";
 		ctx.rerender();
 		try {
+			const q = {
+				outcome: outcome.name,
+				ng_values: ng,
+				variables,
+				split
+			};
+			const data = await ctx.api.datasets.correlate(site, ui.selected, q);
+			const source = {
+				kind: "correlation",
+				dataset_id: ui.selected,
+				...q
+			};
 			result = {
 				key,
-				data: await ctx.api.datasets.correlate(site, ui.selected, {
-					outcome: outcome.name,
-					ng_values: ng,
-					variables,
-					split
-				}),
-				split: split !== null
+				data,
+				split: split !== null,
+				source,
+				dataset: d.name
 			};
 		} catch {} finally {
-			busy = "";
+			busy$1 = "";
 			ctx.rerender();
 		}
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "correlate",
 		title: "Correlation finder",
 		icon: "⇄",
@@ -6440,15 +6688,16 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState(ctx);
-			return `${head}<div class="reviews">${listCard(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
+			const ui = uiState$1(ctx);
+			return `${head}<div class="reviews">${listCard$1(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState(ctx);
-			const site = siteId(ctx);
-			if (site && listing?.site !== site) loadList(ctx);
-			if (ui.selected && detail?.id !== ui.selected) loadDetail(ctx, ui.selected);
+			selectFromLink(ctx);
+			const ui = uiState$1(ctx);
+			const site = siteId$1(ctx);
+			if (site && listing$1?.site !== site) loadList$1(ctx);
+			if (ui.selected && detail$1?.id !== ui.selected) loadDetail$1(ctx, ui.selected);
 			onAll(root, "[data-dataset]", "click", (el) => {
 				Object.assign(ui, {
 					selected: el.dataset.dataset ?? null,
@@ -6499,7 +6748,254 @@
 				ui.ngText = e.target.value;
 			});
 			onSubmit(root, "#correlate-form", () => void find(ctx));
+			onAll(root, "[data-save-insight]", "click", () => {
+				if (!result || !detail$1) return;
+				saving = {
+					key: result.key,
+					text: correlationDraft(result.dataset, result.data)
+				};
+				ctx.rerender();
+			});
+			const saveForm = root.querySelector("#insight-save");
+			if (saveForm && saving) {
+				bindDraft(saveForm, saving.text);
+				onAll(saveForm, "[data-cancel]", "click", () => {
+					saving = null;
+					ctx.rerender();
+				});
+				onSubmit(root, "#insight-save", () => void saveInsight(ctx));
+			}
 			onAll(root, "[data-delete-dataset]", "click", () => void removeDataset(ctx));
+		}
+	};
+	//#endregion
+	//#region js/views/insights.ts
+	var uiState = (ctx) => ctx.ui("insights", { status: "proposed" });
+	var listing = null;
+	var detail = null;
+	var busy = false;
+	var editing = null;
+	var note = {
+		key: "",
+		text: ""
+	};
+	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var listKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).status}`;
+	var selected = () => typeof location === "undefined" ? null : numberFromHash(location.hash);
+	var detailKey = (ctx) => `${siteId(ctx)}|${selected()}`;
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/insights") || numberFromHash(location.hash) === null) {
+			listing = null;
+			detail = null;
+			editing = null;
+		}
+	});
+	async function loadList(ctx) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		const key = listKey(ctx);
+		listing = {
+			key,
+			items: null,
+			total: 0
+		};
+		const status = uiState(ctx).status || void 0;
+		try {
+			const got = await ctx.api.insights.list(site, { status });
+			if (listing?.key === key) listing = {
+				key,
+				items: got.insights,
+				total: got.total
+			};
+		} catch {
+			if (listing?.key === key) listing = {
+				key,
+				items: [],
+				total: 0
+			};
+		}
+		ctx.rerender();
+	}
+	async function loadDetail(ctx, n) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		const key = detailKey(ctx);
+		detail = {
+			key,
+			insight: null
+		};
+		let insight = null;
+		try {
+			insight = await ctx.api.insights.get(site, n);
+		} catch {}
+		if (detail?.key === key) detail = {
+			key,
+			insight
+		};
+		ctx.rerender();
+	}
+	function listCard(ctx, ui) {
+		const tabs = [
+			"proposed",
+			"accepted",
+			"rejected",
+			""
+		].map((s) => `<button class="tab ${ui.status === s ? "active" : ""}" data-status="${s}" role="tab">${s === "proposed" ? "To review" : s === "" ? "All" : s === "accepted" ? "Accepted" : "Rejected"}</button>`).join("");
+		const items = listing?.key === listKey(ctx) ? listing.items : null;
+		const n = selected();
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
+              <span class="row" style="gap:6px;justify-content:space-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$1(i.status)}</span>
+              <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
+            </a>`).join("") || `<div class="empty">${ui.status === "proposed" ? "Nothing waits for review." : "No insights here yet."} Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.</div>`}</div>${items && listing && listing.total > items.length ? `<p class="small soft">The newest ${items.length} of ${listing.total}.</p>` : ""}</div>`;
+	}
+	function evidence(i) {
+		const e = i.evidence;
+		if (i.query.kind === "correlation" && e.result) {
+			const r = e.result;
+			const split = Boolean(i.query.split);
+			const said = r.explanations.length ? `<ul class="stack" style="gap:4px">${r.explanations.map((x) => `<li>${esc(x.text)}</li>`).join("")}</ul>` : "<p class=\"small soft\">No large, clear effect.</p>";
+			const shown = e.findings_total !== void 0 && e.findings_total > r.findings.length ? `<p class="small soft">The ${r.findings.length} largest of ${e.findings_total} effects were kept.</p>` : "";
+			return `<p class="small soft">${r.rows} batch(es) with an outcome: ${r.ng} failed, ${r.ok} good.</p>${said}${forestPlot(r.findings, split)}${shown}`;
+		}
+		return (e.series ?? []).map((s) => {
+			const points = toPoints(s);
+			const chart = timeChart({
+				points,
+				from: Date.parse(s.start),
+				to: Date.parse(s.end),
+				gap: gapFor(s, points),
+				yLabel: s.unit ?? "",
+				width: fitWidth(TIME_CHART.width, .7)
+			});
+			return `<div class="stack" style="gap:4px" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;
+		}).join("");
+	}
+	function detailCard(ctx) {
+		const n = selected();
+		if (n === null) return "<div class=\"card\"><div class=\"empty\">Choose an insight.</div></div>";
+		if (detail?.key !== detailKey(ctx)) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
+		const i = detail.insight;
+		if (!i) return `<div class="card"><div class="empty">Insight #${n} could not be loaded.</div></div>`;
+		const may = mayDo(i, ctx.ontology.userId, ctx.ontology.role);
+		const key = `${detailKey(ctx)}|${i.updated_at}`;
+		const link = sourceLink(i);
+		const head = `<div class="row" style="justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+      <div><h2>#${i.number} ${esc(i.title)}</h2>
+      <p class="small soft">Saved by ${esc(i.author)} on ${esc(when$1(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when$1(i.updated_at))}` : ""}</p></div>
+      <div class="row" style="gap:6px">${statusBadge$1(i.status)}</div>
+    </div>`;
+		const body = editing?.key === key ? draftForm("insight-edit", editing.text, busy, "Save changes") : `${i.summary ? `<p style="white-space:pre-wrap" data-summary>${esc(i.summary)}</p>` : ""}
+        <div><h3>Proposed actions</h3>${i.actions.length ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>` : "<p class=\"small soft\">None proposed.</p>"}</div>`;
+		const reviewed = i.status !== "proposed" && i.reviewer ? `<p class="small" data-review>${i.status === "accepted" ? "Accepted" : "Rejected"} by ${esc(i.reviewer)}${i.reviewed_at ? ` on ${esc(when$1(i.reviewed_at))}` : ""}${i.review_note ? `: “${esc(i.review_note)}”` : ""}</p>` : "";
+		if (note.key !== key) note = {
+			key,
+			text: ""
+		};
+		const review = may.review ? `<form class="stack" id="insight-review" style="gap:8px">
+        <label class="field">Review note <span class="small soft">(needed to reject)</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
+        <div class="row" style="gap:8px"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? "disabled" : ""}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy ? "disabled" : ""}>Reject</button></div>
+      </form>` : "";
+		const tools = [
+			may.edit && editing?.key !== key ? `<button class="btn sm" type="button" data-edit>Edit</button>` : "",
+			may.reopen ? `<button class="btn sm" type="button" data-reopen ${busy ? "disabled" : ""}>Reopen</button>` : "",
+			may.remove ? `<button class="btn sm" type="button" data-remove ${busy ? "disabled" : ""}>Delete</button>` : ""
+		].join("");
+		return `<div class="card stack" style="gap:12px" data-insight-detail>
+      ${head}
+      ${body}
+      <div class="stack" style="gap:6px"><h3>Evidence</h3>
+        <p class="small soft" data-source>${esc(sourceText(i))}, as it was on ${esc(when$1(i.created_at))}. <a href="${esc(link.href)}">${esc(link.text)}</a> to see it on today’s data.</p>
+        ${evidence(i)}
+      </div>
+      ${reviewed}
+      ${review}
+      ${tools ? `<div class="row" style="gap:8px">${tools}</div>` : ""}
+      <p class="small soft" style="overflow-wrap:anywhere">Link: <a href="${insightLink(i.number)}" data-link>${esc(location.href.split("#")[0] ?? "")}${insightLink(i.number)}</a></p>
+    </div>`;
+	}
+	async function act(ctx, run, done) {
+		const site = siteId(ctx);
+		const n = selected();
+		if (!ctx.api || !site || n === null || busy) return;
+		busy = true;
+		ctx.rerender();
+		try {
+			const got = await run(site, n);
+			ctx.toast(done);
+			detail = got ? {
+				key: detailKey(ctx),
+				insight: got
+			} : null;
+			editing = null;
+			listing = null;
+			if (!got) location.hash = "#/insights";
+		} catch {} finally {
+			busy = false;
+			ctx.rerender();
+		}
+	}
+	var view$1 = {
+		id: "insights",
+		title: "Insights",
+		icon: "✦",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Insights</h1>
+        <p class="soft">Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer.</p></div></div>`;
+			if (!ctx.api) return `${head}<div class="card"><p>Insights are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			const o = ctx.ontology;
+			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+			return `${head}<div class="reviews">${listCard(ctx, uiState(ctx))}${detailCard(ctx)}</div>`;
+		},
+		bind(root, ctx) {
+			const api = ctx.api;
+			if (!api || ctx.ontology.status !== "ready") return;
+			const ui = uiState(ctx);
+			if (listing?.key !== listKey(ctx)) loadList(ctx);
+			const n = selected();
+			if (n !== null && detail?.key !== detailKey(ctx)) loadDetail(ctx, n);
+			onAll(root, "[data-status]", "click", (el) => {
+				ui.status = el.dataset.status ?? "";
+				ctx.rerender();
+			});
+			const i = detail?.key === detailKey(ctx) ? detail.insight : null;
+			if (!i) return;
+			const key = `${detailKey(ctx)}|${i.updated_at}`;
+			onAll(root, "[data-edit]", "click", () => {
+				editing = {
+					key,
+					text: draftText(i)
+				};
+				ctx.rerender();
+			});
+			const editForm = root.querySelector("#insight-edit");
+			if (editForm && editing) {
+				bindDraft(editForm, editing.text);
+				onAll(editForm, "[data-cancel]", "click", () => {
+					editing = null;
+					ctx.rerender();
+				});
+				onSubmit(root, "#insight-edit", () => {
+					const draft = editing && readDraft(editing.text);
+					if (typeof draft === "string") return void ctx.toast(draft);
+					if (draft) act(ctx, (site, num) => api.insights.edit(site, num, draft), "Insight saved");
+				});
+			}
+			root.querySelector("#insight-review [name=note]")?.addEventListener("input", (e) => {
+				note.text = e.target.value;
+			});
+			root.querySelector("#insight-review")?.addEventListener("submit", (e) => {
+				e.preventDefault();
+				const decision = e.submitter?.dataset.decision;
+				if (decision !== "accepted" && decision !== "rejected") return;
+				if (decision === "rejected" && !note.text.trim()) return void ctx.toast("Say why the insight is rejected");
+				const text = note.text.trim();
+				act(ctx, (site, num) => api.insights.review(site, num, decision, text), decision === "accepted" ? "Insight accepted" : "Insight rejected");
+			});
+			onAll(root, "[data-reopen]", "click", () => void act(ctx, (site, num) => api.insights.reopen(site, num), "Insight reopened"));
+			onAll(root, "[data-remove]", "click", () => {
+				if (confirm(`Delete insight #${i.number}, ${i.title}?`)) act(ctx, (site, num) => api.insights.remove(site, num), "Insight deleted");
+			});
 		}
 	};
 	//#endregion
@@ -6764,50 +7260,52 @@
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$14,
 		view$13,
 		view$12,
-		view$11,
+		view$5,
 		view$4,
 		view$3,
-		view$2,
+		view$11,
 		view$10,
 		view$9,
-		view$8,
+		view$7,
 		view$6,
-		view$5,
+		view$2,
 		view$1,
 		view,
-		view$7
+		view$8
 	];
 	var NAV = [
-		{ items: [view$13, view$12] },
+		{ items: [view$14, view$13] },
 		{
 			group: "Operations",
 			items: [
-				view$11,
+				view$12,
+				view$5,
 				view$4,
 				view$3,
-				view$2,
-				view$10,
-				view$9
+				view$11,
+				view$10
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$7,
 				view$6,
-				view$5,
+				view$2,
 				view$1,
 				view
 			]
 		},
 		{
 			group: "Design",
-			items: [view$8]
+			items: [view$9]
 		},
 		{
 			group: "",
-			items: [view$7]
+			items: [view$8]
 		}
 	];
 	function freshState() {
@@ -7100,7 +7598,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? view$13;
+		return VIEWS.find((v) => v.id === id) ?? view$14;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -7123,8 +7621,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$13 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$13 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$14 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$14 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);

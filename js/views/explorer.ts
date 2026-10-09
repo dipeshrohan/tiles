@@ -1,6 +1,7 @@
 import { esc, field, fmt, onAll } from '../lib/dom.ts';
 import type { SignalInfo, SignalSeries } from '../lib/api.ts';
 import { fitWidth, gapFor, TIME_CHART, timeAt, timeChart, toPoints } from '../lib/svg.ts';
+import { bindDraft, draftForm, insightLink, readDraft, seriesDraft, type DraftText } from '../lib/insights.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
 
@@ -38,6 +39,7 @@ let latestLoad = 0; // charts from an earlier load are dropped
 let latestFind = 0;
 let findTimer: ReturnType<typeof setTimeout> | undefined;
 let searchText = '';
+let saving: { key: string; text: DraftText } | null = null; // the insight being saved from the charts
 
 const iso = (t: number) => new Date(t).toISOString();
 
@@ -246,16 +248,68 @@ function bindSearch(root: HTMLElement, ctx: Context): void {
   void find();
 }
 
-// `#/explorer?signal=<id>` (the Signals page links here) adds that signal.
+// The charts shown, as a key: a saved-insight draft belongs to them.
+const chartsKey = (u: Ui): string => JSON.stringify([u.picked.map((p) => p.id), u.range]);
+
+// A link's range, if it is one the API serves.
+export function linkRange(params: URLSearchParams): Range | null {
+  const from = Date.parse(params.get('from') ?? '');
+  const to = Date.parse(params.get('to') ?? '');
+  if (!(Number.isFinite(from) && Number.isFinite(to) && to > from && to - from <= MAX_SPAN)) return null;
+  return { from: iso(from), to: iso(to) };
+}
+
+// `#/explorer?signal=<id>` (the Signals page links here) adds that signal;
+// `#/explorer?signals=<id>,<id>&from=…&to=…` (a saved insight links here) shows those over that range.
 function addFromLink(ctx: Context): void {
-  const id = new URLSearchParams(location.hash.split('?')[1] ?? '').get('signal');
+  const params = new URLSearchParams(location.hash.split('?')[1] ?? '');
+  const id = params.get('signal');
+  const ids = (params.get('signals') ?? '').split(',').filter(Boolean).slice(0, MAX_SIGNALS);
   const site = ctx.ontology.site;
-  if (!id || !ctx.api || !site) return;
+  const api = ctx.api;
+  if ((!id && !ids.length) || !api || !site) return;
   history.replaceState(null, '', `${location.pathname}${location.search}#/explorer`);
-  ctx.api.signals.get(site.id, id).then(
-    (s) => add(ctx, s),
-    () => undefined, // the client showed why
-  );
+  if (id) {
+    api.signals.get(site.id, id).then(
+      (s) => add(ctx, s),
+      () => undefined, // the client showed why
+    );
+    return;
+  }
+  const range = linkRange(params);
+  void Promise.allSettled(ids.map((i) => api.signals.get(site.id, i))).then((got) => {
+    const picked = got.flatMap((r) =>
+      r.status === 'fulfilled'
+        ? [{ id: r.value.id, tag: r.value.tag, unit: r.value.unit, last_at: r.value.last_at }]
+        : [],
+    );
+    if (!picked.length) return;
+    Object.assign(ui(ctx), { picked, range: range ?? presetRange('data', picked, Date.now()) });
+    ctx.rerender();
+  });
+}
+
+async function saveInsight(ctx: Context): Promise<void> {
+  const site = ctx.ontology.site;
+  const u = ui(ctx);
+  if (!ctx.api || !site || !u.range || !saving || saving.key !== chartsKey(u)) return;
+  const draft = readDraft(saving.text);
+  if (typeof draft === 'string') return void ctx.toast(draft);
+  const source = {
+    kind: 'series' as const,
+    signals: u.picked.map((p) => p.id),
+    start: u.range.from,
+    end: u.range.to,
+    points: 600,
+  };
+  try {
+    const saved = await ctx.api.insights.create(site.id, draft, source);
+    saving = null;
+    ctx.toast(`Insight #${saved.number} saved: another engineer reviews it`);
+    location.hash = insightLink(saved.number);
+  } catch {
+    // the client showed why
+  }
 }
 
 const view: View = {
@@ -270,6 +324,7 @@ const view: View = {
     const u = ui(ctx);
     if (u.catalogue !== catalogue(ctx)) Object.assign(u, { picked: [], range: null, catalogue: catalogue(ctx) });
     const { picked, range } = u;
+    const canSave = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
     const chips = picked
       .map(
         (p) =>
@@ -286,7 +341,9 @@ const view: View = {
           <button class="btn sm" type="button" data-pan="-1" aria-label="Earlier">←</button>
           <button class="btn sm" type="button" data-zoom-out>Zoom out</button>
           <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
-        </form>`
+          ${canSave && saving?.key !== chartsKey(u) ? '<button class="btn sm" type="button" data-save-insight>Save as insight</button>' : ''}
+        </form>
+        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm('insight-save', saving.text, false)}</div>` : ''}`
       : '';
     const charts = picked
       .map(
@@ -342,6 +399,31 @@ const view: View = {
           return;
         }
         setRange(ctx, { from: iso(from), to: iso(to) });
+      });
+    }
+    onAll(root, '[data-save-insight]', 'click', () => {
+      const u = ui(ctx);
+      if (!u.range) return;
+      saving = {
+        key: chartsKey(u),
+        text: seriesDraft(
+          u.picked.map((p) => p.tag),
+          u.range.from,
+          u.range.to,
+        ),
+      };
+      ctx.rerender();
+    });
+    const saveForm = root.querySelector<HTMLFormElement>('#insight-save');
+    if (saveForm && saving) {
+      bindDraft(saveForm, saving.text);
+      onAll(saveForm, '[data-cancel]', 'click', () => {
+        saving = null;
+        ctx.rerender();
+      });
+      saveForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        void saveInsight(ctx);
       });
     }
     loadCharts(root, ctx);

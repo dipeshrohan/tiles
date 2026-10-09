@@ -17,7 +17,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import AwareDatetime, BaseModel
 
-from tiles_api.api_ontology import Ctx
+from tiles_api.api_ontology import Ctx, SiteContext
 
 router = APIRouter(tags=["signals"])
 
@@ -68,6 +68,11 @@ def get_series(
 ) -> Series:
     """A signal's readings from `from` (included) to `to` (excluded): as they are when there are at
     most `points`, otherwise in at most `points` buckets with their average, minimum and maximum."""
+    return read_series(ctx, signal_id, start, end, points)
+
+
+def read_series(ctx: SiteContext, signal_id: uuid.UUID, start: datetime, end: datetime, points: int) -> Series:
+    """A signal of this site over a range, as `GET …/series` answers it."""
     if end <= start:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "`to` must be after `from`")
     if end - start > MAX_SPAN:

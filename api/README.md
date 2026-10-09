@@ -122,6 +122,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `detector.create`, `detector.run`, `detector.stop` | the detector | `detector.stop`: its name | `detector.create`: its signal and settings; `detector.run`: readings, warnings raised and ended |
 | `backtest.run` | the signal | | readings replayed, settings tried, events given |
 | `dataset.create`, `dataset.rows`, `dataset.delete` | the dataset | `dataset.delete`: its name and rows | its name and columns; the rows added and the total |
+| `insight.create`, `insight.update`, `insight.review`, `insight.reopen`, `insight.delete` | the insight's number | `insight.update`: the fields changed; `insight.reopen`: its status; `insight.delete`: its title and status | its title and kind; the fields changed; the decision and note |
 | `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
 | `notification.teams` | the site | the channel's host | the channel's host |
@@ -306,6 +307,22 @@ Results are ranked by |d|. The numbers match the browser's finder: `test/fixture
 | `GET /datasets/{id}` | members | the dataset, with its first 20 rows |
 | `DELETE /datasets/{id}` | engineers | removes it |
 | `POST /datasets/{id}/correlate?min_effect` | members | `{"outcome", "ng_values"?, "variables"?, "split"?}`: the findings, largest effect first, and the explanations; at most 2 million rows × variables, and 50 segments |
+
+### Saved insights (T3.12)
+
+An **insight** is a finding worth keeping: a title, a summary, the actions it proposes, the query that found it and the evidence the query gave. Engineers save one from the Correlation finder (a correlation of a dataset) or the Data explorer (up to 8 signals over a time range). The API computes the evidence from the query itself, so it can't be made up. It is kept as it was when saved, so the insight still shows what was seen after the data changes or the dataset is deleted. A correlation keeps its 60 largest effects; a signal keeps at most 1,000 points.
+
+Each insight has a number per site, so `#/insights/<number>` links to it. It waits for review until another engineer accepts or rejects it; rejecting needs a note. Its author (or an admin) can edit the title, summary and actions while it waits, reopen it after a review, or delete it. The query and evidence never change: a different finding is a new insight.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `GET /insights?status&limit&offset` | members | newest first, without the evidence; `status` is `proposed`, `accepted` or `rejected` |
+| `GET /insights/{number}` | members | one, with its `query` and `evidence` |
+| `POST /insights` | engineers | `{"title", "summary"?, "actions"?, "source"}`, where `source` is `{"kind": "correlation", "dataset_id", "outcome", "ng_values"?, "variables"?, "split"?, "min_effect"?}` or `{"kind": "series", "signals", "start", "end", "points"?}` |
+| `PATCH /insights/{number}` | its author, admins | `{"title"?, "summary"?, "actions"?}` while it waits for review |
+| `POST /insights/{number}/review` | other engineers | `{"decision": "accepted" \| "rejected", "note"}` |
+| `POST /insights/{number}/reopen` | its author, admins | back to waiting for review |
+| `DELETE /insights/{number}` | its author, admins | removes it |
 
 ### Backtest (T3.05)
 

@@ -119,7 +119,7 @@ FROM datasets d LEFT JOIN users u ON u.id = d.created_by WHERE d.site_id = %s
 """
 
 
-def _get(ctx: SiteContext, dataset_id: uuid.UUID, lock: bool = False) -> dict[str, Any]:
+def find_dataset(ctx: SiteContext, dataset_id: uuid.UUID, lock: bool = False) -> dict[str, Any]:
     if lock:
         ctx.conn.execute("SELECT 1 FROM datasets WHERE id = %s AND site_id = %s FOR UPDATE", [dataset_id, ctx.site_id])
     row = ctx.conn.execute(DATASETS + " AND d.id = %s", [ctx.site_id, dataset_id]).fetchone()
@@ -146,12 +146,12 @@ def create_dataset(ctx: Editor, body: DatasetIn) -> dict[str, Any]:
     if row is None:
         raise HTTPException(status.HTTP_409_CONFLICT, f"A dataset is already called {body.name}")
     ctx.audit("dataset.create", "dataset", str(row["id"]), after={"name": body.name, "columns": len(body.columns)})
-    return _get(ctx, row["id"])
+    return find_dataset(ctx, row["id"])
 
 
 @router.get("/sites/{site_id}/datasets/{dataset_id}", response_model=DatasetDetail)
 def get_dataset(ctx: Ctx, dataset_id: uuid.UUID) -> dict[str, Any]:
-    d = _get(ctx, dataset_id)
+    d = find_dataset(ctx, dataset_id)
     preview = ctx.conn.execute(
         "SELECT row FROM dataset_rows WHERE dataset_id = %s ORDER BY i LIMIT 20", [dataset_id]
     ).fetchall()
@@ -187,7 +187,7 @@ def _check(columns: list[dict[str, str]], rows: list[dict[str, Any]]) -> list[di
 @router.post("/sites/{site_id}/datasets/{dataset_id}/rows", response_model=RowsOut)
 def add_rows(ctx: Editor, dataset_id: uuid.UUID, body: RowsIn) -> dict[str, Any]:
     """Append a batch of rows (at most 5,000), in order."""
-    d = _get(ctx, dataset_id, lock=True)
+    d = find_dataset(ctx, dataset_id, lock=True)
     if d["row_count"] + len(body.rows) > MAX_ROWS:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"A dataset holds at most {MAX_ROWS} rows")
     rows = _check(d["columns"], body.rows)
@@ -207,7 +207,7 @@ def add_rows(ctx: Editor, dataset_id: uuid.UUID, body: RowsIn) -> dict[str, Any]
 
 @router.delete("/sites/{site_id}/datasets/{dataset_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_dataset(ctx: Editor, dataset_id: uuid.UUID) -> None:
-    d = _get(ctx, dataset_id, lock=True)
+    d = find_dataset(ctx, dataset_id, lock=True)
     ctx.conn.execute("DELETE FROM datasets WHERE id = %s", [dataset_id])
     ctx.audit("dataset.delete", "dataset", str(dataset_id), before={"name": d["name"], "row_count": d["row_count"]})
 
@@ -240,7 +240,13 @@ def correlate_dataset(
 ) -> dict[str, Any]:
     """Which variables separate the failed batches from the good ones: Cohen's d with its 95%
     confidence interval and r, per segment of `split` if given, largest effect first."""
-    d = _get(ctx, dataset_id)
+    return run(ctx, dataset_id, body, min_effect)
+
+
+def run(ctx: SiteContext, dataset_id: uuid.UUID, body: CorrelateIn, min_effect: float = 0.8) -> dict[str, Any]:
+    """The correlation of a dataset of this site, as `POST …/correlate` answers it (saved insights
+    keep one as their evidence)."""
+    d = find_dataset(ctx, dataset_id)
     kinds = {c["name"]: c["kind"] for c in d["columns"]}
     for name in [body.outcome, *([body.split] if body.split else []), *(body.variables or [])]:
         if name not in kinds:

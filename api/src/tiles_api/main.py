@@ -23,6 +23,7 @@ from tiles_api.api_backtest import router as backtest_router
 from tiles_api.api_datasets import router as datasets_router
 from tiles_api.api_detectors import router as detectors_router
 from tiles_api.api_imports import router as imports_router
+from tiles_api.api_insights import router as insights_router
 from tiles_api.api_members import router as members_router
 from tiles_api.api_model_bindings import router as bindings_router
 from tiles_api.api_models import router as models_router
@@ -154,6 +155,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(suggest_router)  # before signals: /signals/suggestions is not a signal id
     app.include_router(signals_router)
     app.include_router(series_router)
+    app.include_router(insights_router)
     return app
 
 

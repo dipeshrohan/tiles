@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { MAX_SPAN, describe as describeSeries, pan, presetRange, zoomOut } from '../js/views/explorer.ts';
+import { MAX_SPAN, describe as describeSeries, linkRange, pan, presetRange, zoomOut } from '../js/views/explorer.ts';
 import { gapFor, tickLabel, timeAt, timeChart, timeTicks, TIME_CHART, toPoints } from '../js/lib/svg.ts';
 
 const H = 3_600_000;
@@ -140,4 +140,16 @@ test('hour and day ticks stay on round local times across a daylight-saving chan
     if (tz === undefined) delete process.env.TZ;
     else process.env.TZ = tz;
   }
+});
+
+test('a link’s range is used only when the API would serve it', () => {
+  const at = (from, to) => linkRange(new URLSearchParams({ from, to }));
+  assert.deepEqual(at('2026-09-01T00:00:00Z', '2026-09-02T00:00:00Z'), {
+    from: '2026-09-01T00:00:00.000Z',
+    to: '2026-09-02T00:00:00.000Z',
+  });
+  assert.equal(at('2026-09-02T00:00:00Z', '2026-09-01T00:00:00Z'), null);
+  assert.equal(at('yesterday', '2026-09-01T00:00:00Z'), null);
+  assert.equal(at('2000-01-01T00:00:00Z', '2026-09-01T00:00:00Z'), null); // longer than five years
+  assert.equal(linkRange(new URLSearchParams()), null);
 });
