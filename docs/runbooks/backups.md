@@ -19,7 +19,7 @@ Edge agents need no backup. Their buffer only holds readings the API hasn't acce
 |---|---|---|
 | Recovery point (data lost at most) | 5 minutes | WAL is archived every 5 minutes at the latest (`archive_timeout = 300`), or continuously with streaming archiving |
 | Recovery time | 1 hour for a site's first year of data | Measured by the drill: note the restore time each month |
-| Retention | 35 days of point-in-time recovery, and 12 monthly full backups | Covers a mistake found weeks later, and the audit trail's needs |
+| Retention | 35 days of point-in-time recovery, plus 12 monthly full backups (each restorable to when it was taken) | The first covers a mistake found weeks later; the second, one found months later, and the audit trail's needs |
 
 Backups are encrypted (see [secrets and encryption](secrets-and-encryption.md)), kept in another region or site than the database, and readable only by the backup role.
 
@@ -56,6 +56,16 @@ repo1-cipher-type=aes-256-cbc
 repo1-cipher-pass=<from your secrets manager>
 repo1-retention-full-type=time
 repo1-retention-full=35
+# Monthly full backups for a year, in a second repository (a bucket with object lock, if you can).
+repo2-type=s3
+repo2-s3-bucket=tiles-backups-monthly
+repo2-s3-region=eu-west-1
+repo2-s3-endpoint=s3.eu-west-1.amazonaws.com
+repo2-path=/tiles
+repo2-cipher-type=aes-256-cbc
+repo2-cipher-pass=<from your secrets manager>
+repo2-retention-full-type=count
+repo2-retention-full=12
 archive-async=y
 compress-type=zst
 
@@ -73,8 +83,9 @@ archive_timeout = 300
 
 1. **Set up:** `pgbackrest --stanza=tiles stanza-create`, then `pgbackrest --stanza=tiles check`.
 2. **Schedule (cron):**
-   - a full backup weekly (`backup --type=full`);
-   - a differential one daily (`backup --type=diff`).
+   - a full backup weekly (`backup --repo=1 --type=full`);
+   - a differential one daily (`backup --repo=1 --type=diff`);
+   - a full backup monthly to the second repository (`backup --repo=2 --type=full`). It keeps the twelve latest and the WAL each one needs to be consistent, so these restore to the moment their backup ended, not to any point in between.
 3. **Monitor:** alert when `pgbackrest info` shows no backup in the last 26 hours, or when `pg_stat_archiver.failed_count` grows.
 
 The Helm chart's bundled database is for evaluation and has no backups. In production, set `database.bundled=false` and point Tiles at a database backed up as described here.

@@ -192,10 +192,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - run: uv sync --locked --project api
       - name: Point-in-time recovery of a Tiles database (docs/runbooks/backups.md)
         run: DRILL_REPORT="$RUNNER_TEMP/drill.md" deploy/backup/pitr-drill.sh
       - name: Timing
-        if: success()
         run: cat "$RUNNER_TEMP/drill.md" >> "$GITHUB_STEP_SUMMARY"
 
   stack:

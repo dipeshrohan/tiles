@@ -21,12 +21,14 @@ REPORT=${DRILL_REPORT:-}
 RUN=tiles-drill-$$
 PASSWORD=drill-$(od -An -N12 -tx1 /dev/urandom | tr -d ' \n')
 URL="postgresql://tiles:${PASSWORD}@127.0.0.1:${PORT}/tiles"
-cd "$(dirname "$0")/../.."
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+WORK=$(mktemp -d)
 
 say() { printf '\n== %s\n' "$*"; }
 cleanup() {
   docker rm -f "$RUN-primary" "$RUN-restored" >/dev/null 2>&1 || true
   docker volume rm "$RUN-data" "$RUN-archive" "$RUN-base" "$RUN-restore" >/dev/null 2>&1 || true
+  rm -rf "$WORK"
 }
 trap cleanup EXIT
 
@@ -45,6 +47,9 @@ wait_ready() { # container: accepting connections over TCP, out of recovery
   echo "$1 didn't become ready" >&2
   return 1
 }
+tiles() { # a Tiles command against the drill's server; run from an empty directory, so no .env applies
+  (cd "$WORK" && TILES_ENV=development TILES_DATABASE_URL="$URL" uv run --quiet --project "$ROOT/api" "$@")
+}
 count() { # container, tag prefix: readings of the drill's signals
   psql_in "$1" "SELECT count(*) FROM samples x JOIN signals g ON g.id = x.signal_id WHERE g.tag LIKE '$2%'"
 }
@@ -60,7 +65,8 @@ docker run -d --name "$RUN-primary" -p "127.0.0.1:$PORT:5432" \
 wait_ready "$RUN-primary"
 
 say "Tiles' schema and the demo site"
-(cd api && TILES_DATABASE_URL="$URL" uv run --quiet tiles-migrate upgrade && TILES_DATABASE_URL="$URL" uv run --quiet tiles-seed)
+tiles tiles-migrate upgrade
+tiles tiles-seed
 SITE=$(psql_in "$RUN-primary" "SELECT s.id FROM sites s JOIN orgs o ON o.id = s.org_id WHERE o.slug = 'demo' LIMIT 1")
 write() { # tag, readings: one a second, ending now
   psql_in "$RUN-primary" "
@@ -85,10 +91,17 @@ say "The mistake, then the server is lost"
 psql_in "$RUN-primary" "DELETE FROM samples" >/dev/null
 test "$(count "$RUN-primary" drill.)" = 0
 LAST=$(psql_in "$RUN-primary" 'SELECT pg_walfile_name(pg_switch_wal())')
+archived=f
 for _ in $(seq 1 60); do # the WAL holding the mistake is archived: recovery has to see past it
-  [ "$(psql_in "$RUN-primary" "SELECT coalesce(last_archived_wal >= '$LAST', false) FROM pg_stat_archiver")" = t ] && break
+  archived=$(psql_in "$RUN-primary" "SELECT coalesce(last_archived_wal >= '$LAST', false) FROM pg_stat_archiver")
+  [ "$archived" = t ] && break
   sleep 1
 done
+if [ "$archived" != t ]; then
+  psql_in "$RUN-primary" 'SELECT * FROM pg_stat_archiver' >&2
+  echo "WAL $LAST wasn't archived within 60s: archiving is failing" >&2
+  exit 1
+fi
 docker rm -f "$RUN-primary" >/dev/null
 docker volume rm "$RUN-data" >/dev/null
 
@@ -116,18 +129,36 @@ after=$(count "$RUN-restored" drill.after-backup)
 echo "readings: $before from before the backup, $after from after it (5000 and 3000 written)"
 test "$before" = 5000
 test "$after" = 3000
-docker logs "$RUN-restored" 2>&1 | grep -q 'recovery stopping before commit' \
-  || { echo "recovery didn't stop at the target" >&2; exit 1; }
-(cd api && TILES_DATABASE_URL="$URL" uv run --quiet tiles-migrate current) | grep '^Rev:' | tee /dev/stderr | grep -q '(head)'
-# The API's row security role came back with the rest (migration 0024).
-test "$(psql_in "$RUN-restored" "SELECT count(*) FROM pg_roles WHERE rolname = 'tiles_app'")" = 1
-(cd api && TILES_DATABASE_URL="$URL" uv run --quiet python -c '
-from tiles_api.readiness import check_database
+# Whole outputs first: `cmd | grep -q` can fail under pipefail when grep stops reading early.
+log=$(docker logs "$RUN-restored" 2>&1)
+grep -q 'recovery stopping before commit' <<<"$log" || { echo "recovery didn't stop at the target" >&2; exit 1; }
+revision=$(tiles tiles-migrate current | grep '^Rev:')
+echo "$revision"
+grep -q '(head)' <<<"$revision"
+# As the API reads them: the role it switches to, scoped to the site, through site_samples (row
+# security, migration 0024), so its grants, policies and the view came back too.
+tiles python - "$SITE" <<'PY'
+import sys
+import uuid
+
+import psycopg
+from psycopg.rows import dict_row
+
 from tiles_api.settings import Settings
-check_database(Settings(_env_file=None))
-print("the API reaches it")')
+from tiles_api.store import act_as_app, scope_to_site
+
+with psycopg.connect(Settings(_env_file=None).database_url.get_secret_value(), row_factory=dict_row) as conn:
+    act_as_app(conn)
+    scope_to_site(conn, uuid.UUID(sys.argv[1]))
+    row = conn.execute(
+        "SELECT count(*) FROM site_samples x JOIN signals g ON g.id = x.signal_id WHERE g.tag LIKE 'drill.%'"
+    ).fetchone()
+    assert row == {"count": 8000}, row
+    print("the API's role reads all 8000 readings of the site")
+PY
 
 say "Restored to $GOOD in ${RESTORE_S}s: every reading of the good state is back, the mistake isn't"
 if [ -n "$REPORT" ]; then
+  [ -s "$REPORT" ] || printf '| When (UTC) | Image | Restore | Checked |\n|---|---|---|---|\n' > "$REPORT"
   printf '| %s | %s | %ss | 8000 of 8000 readings |\n' "$(date -u +%Y-%m-%dT%H:%MZ)" "$IMAGE" "$RESTORE_S" >> "$REPORT"
 fi
