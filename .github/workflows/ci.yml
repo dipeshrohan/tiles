@@ -113,6 +113,78 @@ jobs:
           set +e; "$RUNNER_TEMP/tiles-edge.pyz" check -c /nonexistent.toml; code=$?; set -e
           test "$code" = 2  # exit codes survive the zipapp
 
+  security:
+    name: Dependency and container scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      TRIVY_IMAGE: aquasec/trivy:0.56.2
+      # Trivy's vulnerability database from Google's mirror, which rate-limits CI less than ghcr.io.
+      TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db:2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+      # Each check runs whatever the others found, so one run reports every problem.
+      - name: npm dependencies (npm audit)
+        if: ${{ !cancelled() }}
+        run: |
+          npm ci --ignore-scripts
+          npm audit --audit-level=high
+      - name: Python dependencies that ship, of the API and the edge agent (pip-audit)
+        if: ${{ !cancelled() }}
+        run: |
+          status=0
+          for project in api edge; do
+            (cd "$project" && uv export --locked --all-extras --no-dev --no-hashes --no-emit-project \
+              --format requirements-txt > "$RUNNER_TEMP/$project-requirements.txt")
+            uvx pip-audit==2.10.1 --strict --no-deps --disable-pip -r "$RUNNER_TEMP/$project-requirements.txt" || status=1
+          done
+          exit $status
+      - name: Build the images
+        id: build
+        if: ${{ !cancelled() }}
+        run: |
+          docker build -t tiles-api:scan api
+          docker build -t tiles-edge:scan edge
+      - name: Scan the images (Trivy; high and critical findings with a fix fail the build)
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy"
+          trivy() {
+            docker run --rm -e TRIVY_DB_REPOSITORY -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$RUNNER_TEMP/trivy:/root/.cache" "$TRIVY_IMAGE" "$@"
+          }
+          status=0
+          for image in tiles-api:scan tiles-edge:scan; do
+            trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
+              "$image" || status=1
+          done
+          exit $status
+      - name: Software bills of materials (CycloneDX)
+        if: ${{ !cancelled() }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy" "$RUNNER_TEMP/sbom"
+          trivy() {
+            docker run --rm -e TRIVY_DB_REPOSITORY -v /var/run/docker.sock:/var/run/docker.sock \
+              -v "$RUNNER_TEMP/trivy:/root/.cache" -v "$GITHUB_WORKSPACE:/src:ro" -v "$RUNNER_TEMP/sbom:/out" \
+              "$TRIVY_IMAGE" "$@"
+          }
+          trivy fs --format cyclonedx --output /out/tiles-source.cdx.json /src
+          if [ "${{ steps.build.outcome }}" = success ]; then
+            trivy image --format cyclonedx --output /out/tiles-api-image.cdx.json tiles-api:scan
+            trivy image --format cyclonedx --output /out/tiles-edge-image.cdx.json tiles-edge:scan
+          fi
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: sbom
+          path: ${{ runner.temp }}/sbom
+          if-no-files-found: warn
+
   stack:
     name: Docker Compose stack
     runs-on: ubuntu-latest
