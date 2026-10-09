@@ -1946,8 +1946,14 @@ test('setting up a site: outline the plant, connect an agent, map a tag, open th
   assert.match(token, /^tla_/);
   assert.match(await page.locator('[data-agent-token]').innerText(), new RegExp(`url = "${apiUrl}"`));
   await page.waitForSelector('[role=status]:has-text("Waiting for the agent’s first heartbeat")');
+  // The page checks every 5 s, and leaves what is being typed alone until there is news.
+  await page.click('[data-step=outline]');
+  await page.fill('#outline [name=line]', 'Line 2');
+  await page.waitForTimeout(6_000);
+  assert.equal(await page.inputValue('#outline [name=line]'), 'Line 2');
+  await page.click('[data-step=agent]');
   fake.heartbeat(token);
-  await page.waitForSelector('.wizard-steps li.done:has-text("1 agent calling in")', { timeout: 15_000 });
+  await page.waitForSelector('.wizard-steps li.done:has-text("1 agent has called in")', { timeout: 15_000 });
   await page.waitForSelector('.wizard-panel h2:has-text("Map the tags")');
   await page.waitForSelector('.wizard-panel:has-text("No tags have arrived yet")');
 

@@ -6,6 +6,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { correlationFinder } from '../js/lib/analysis.ts';
 import { evaluate as evaluateDesign, getModel as getDesignModel } from '../js/lib/design.ts';
 import { median } from '../js/lib/stats.ts';
+import { machineOf } from '../js/lib/shopfloor.ts';
 import { createServer } from 'node:http';
 import {
   applyOp,
@@ -165,24 +166,6 @@ export function createFakeApi({
   };
   // A site's onboarding progress (T6.06), worked out from the fake's state as the API does.
   const onboarding = () => {
-    const edges = Object.values(head.edges);
-    const into = (to, rel) =>
-      edges
-        .filter((e) => e.to === to && e.rel === rel && head.nodes[e.from])
-        .map((e) => e.from)
-        .sort();
-    const machineOf = (id) => {
-      for (const plc of into(id, 'emits'))
-        for (const m of into(plc, 'controlledBy')) if (head.nodes[m].type === 'Machine') return m;
-      const seen = new Set([id]);
-      for (let at = id; ;) {
-        const up = into(at, 'contains').find((p) => !seen.has(p));
-        if (!up) return null;
-        if (head.nodes[up].type === 'Machine') return up;
-        seen.add(up);
-        at = up;
-      }
-    };
     const machines = Object.values(head.nodes).filter((n) => n.type === 'Machine').length;
     const live = agents.filter((a) => !a.revoked);
     const seen = live.filter((a) => a.last_seen_at).length;
@@ -190,7 +173,7 @@ export function createFakeApi({
     const mapped = tags.filter((x) => x.node_id);
     const counts = new Map();
     for (const x of mapped) {
-      const m = head.nodes[x.node_id] ? machineOf(x.node_id) : null;
+      const m = head.nodes[x.node_id] ? machineOf(head, x.node_id) : null;
       if (m) counts.set(m, (counts.get(m) ?? 0) + 1);
     }
     const best = [...counts].sort(
@@ -208,7 +191,7 @@ export function createFakeApi({
         key: 'agent',
         done: seen > 0,
         detail: seen
-          ? `${n(seen, 'agent')} calling in`
+          ? `${seen} agent${seen === 1 ? ' has' : 's have'} called in, ${seen} online now`
           : live.length
             ? `${n(live.length, 'agent')} registered, none has called in yet`
             : 'No edge agent yet',

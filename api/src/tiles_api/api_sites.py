@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 from tiles_api import audit
 from tiles_api import ontology as o
 from tiles_api import ontology_store as store
+from tiles_api.api_agents import AGENT_SQL, agent_view, db_now
 from tiles_api.api_ontology import Auth, Ctx, Site
 from tiles_api.identity import ensure_org, ensure_user
 from tiles_api.store import Conn, DbConn, one, scope_to_site
@@ -137,13 +138,29 @@ class Onboarding(BaseModel):
     dashboard: dict[str, str] | None  # the machine to open first: {id, label}
 
 
-def machine_of(graph: o.Graph, node_id: str) -> str | None:
+Into = dict[tuple[str, str], list[str]]
+
+
+def edges_into(graph: o.Graph) -> Into:
+    """(to, rel) → the nodes those edges come from, sorted: built once, for every lookup."""
+    into: Into = {}
+    for e in graph["edges"].values():
+        if e["from"] in graph["nodes"] and e["to"] in graph["nodes"]:
+            into.setdefault((e["to"], e["rel"]), []).append(e["from"])
+    for sources in into.values():
+        sources.sort()
+    return into
+
+
+def machine_of(graph: o.Graph, node_id: str, index: Into | None = None) -> str | None:
     """The machine a Signal node belongs to: its PLC's (PLC emits it, the machine controlledBy the
-    PLC), or the nearest Machine containing it. As the browser's js/lib/shopfloor.ts places it."""
-    nodes, edges = graph["nodes"], list(graph["edges"].values())
+    PLC), or the nearest Machine containing it. As the browser's js/lib/shopfloor.ts places it (the
+    same ordering: candidates by id)."""
+    nodes = graph["nodes"]
+    index = edges_into(graph) if index is None else index
 
     def into(to: str, rel: str) -> list[str]:
-        return sorted(e["from"] for e in edges if e["to"] == to and e["rel"] == rel and e["from"] in nodes)
+        return index.get((to, rel), [])
 
     for plc in into(node_id, "emits"):
         for m in into(plc, "controlledBy"):
@@ -171,13 +188,10 @@ def onboarding(ctx: Ctx) -> Onboarding:
     conn = ctx.conn
     head = store.load_head(conn, ctx.site_id)
     machines = sum(1 for n in head["nodes"].values() if n["type"] == "Machine")
-    agents = one(
-        conn.execute(
-            "SELECT count(*) AS n, count(last_seen_at) AS seen FROM edge_agents"
-            " WHERE site_id = %s AND revoked_at IS NULL",
-            [ctx.site_id],
-        ).fetchone()
-    )
+    # The agents as their page lists them: called in at all, and online now (the same rule).
+    now = db_now(conn)
+    listed = [agent_view(r, now) for r in conn.execute(AGENT_SQL, [ctx.site_id])]
+    online = sum(1 for a in listed if a.status == "online")
     linked = [
         r["node_id"]
         for r in conn.execute(
@@ -192,12 +206,14 @@ def onboarding(ctx: Ctx) -> Onboarding:
     )
     # The machine with the most mapped signals: its page on Plant is the first dashboard.
     counts: dict[str, int] = {}
+    index = edges_into(head)
     for node in linked:
-        if node in head["nodes"] and (m := machine_of(head, node)):
+        if node in head["nodes"] and (m := machine_of(head, node, index)):
             counts[m] = counts.get(m, 0) + 1
     best = min(counts, key=lambda m: (-counts[m], head["nodes"][m]["label"], m)) if counts else None
     dashboard = {"id": best, "label": head["nodes"][best]["label"]} if best else None
-    n_agents, seen, n_tags, mapped = int(agents["n"]), int(agents["seen"]), int(tags["n"]), len(linked)
+    n_agents, n_tags, mapped = len(listed), int(tags["n"]), len(linked)
+    seen = sum(1 for a in listed if a.last_seen_at is not None)
     steps = [
         Step(key="site", done=True, detail="Created"),
         Step(
@@ -208,7 +224,7 @@ def onboarding(ctx: Ctx) -> Onboarding:
         Step(
             key="agent",
             done=seen > 0,
-            detail=f"{plural(seen, 'agent')} calling in"
+            detail=f"{seen} agent{' has' if seen == 1 else 's have'} called in, {online} online now"
             if seen
             else f"{plural(n_agents, 'agent')} registered, none has called in yet"
             if n_agents

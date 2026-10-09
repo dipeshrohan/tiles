@@ -1,7 +1,9 @@
 import { esc, field, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
 import type { EdgeAgent, Onboarding } from '../lib/api.ts';
+import { placeLink } from '../lib/plant.ts';
 import {
   agentConfig,
+  freeAgentName,
   names,
   outlineOps,
   outlineProblem,
@@ -25,7 +27,8 @@ const uiState = (ctx: Context) => ctx.ui<Ui>('onboarding', { step: null });
 
 const POLL_MS = 5_000; // while waiting for an agent's first heartbeat
 
-let progress: { site: string; data: Onboarding | null } | null = null;
+// `failed`: the last fetch failed with nothing to show: Try again, not a fetch at every render.
+let progress: { site: string; data: Onboarding | null; failed?: boolean } | null = null;
 let agents: { site: string; list: EdgeAgent[] | null } | null = null;
 let revealed: { site: string; name: string; token: string } | null = null; // shown once
 let created: { id: string; name: string } | null = null; // a site just created here
@@ -45,26 +48,34 @@ onNavigate((hash) => {
   ++seq;
 });
 
-async function load(ctx: Context): Promise<void> {
+// The site's progress and agents. `withOntology`: the ontology too (Refresh, a visit), since others
+// outline and map meanwhile; the poll for a heartbeat leaves it. A poll renders only on news, so
+// what is being typed in a form stays.
+async function load(ctx: Context, { withOntology = false, quiet = false } = {}): Promise<void> {
   const site = siteId(ctx);
   if (!ctx.api || !site) return;
   const mine = ++seq;
   if (progress?.site !== site) progress = { site, data: null };
+  const before = JSON.stringify([progress.data, agents?.site === site ? agents.list : null]);
   try {
-    // The ontology too: others outline and map meanwhile, and the next steps link into it.
     const [data, list] = await Promise.all([
       ctx.api.onboarding(site),
       ctx.api.agents.list(site),
-      ctx.ontology.reload(),
+      withOntology ? ctx.ontology.reload() : undefined,
     ]);
     if (mine !== seq) return;
+    // The step shown just got done (the agent called in): on to the first step left.
+    const ui = uiState(ctx);
+    const was = progress.data?.steps.find((x) => x.key === ui.step);
+    if (was && !was.done && data.steps.find((x) => x.key === ui.step)?.done) ui.step = null;
     progress = { site, data };
     agents = { site, list };
   } catch {
     if (mine !== seq) return; // the client showed why
-    agents = { site, list: agents?.site === site ? agents.list : [] };
-    if (!progress.data) progress = { site, data: null };
+    if (!progress.data) progress = { site, data: null, failed: true };
+    if (quiet) return;
   }
+  if (quiet && JSON.stringify([progress.data, agents?.list ?? null]) === before) return;
   if (routeOf(location.hash) === 'onboarding') ctx.rerender();
 }
 
@@ -144,7 +155,7 @@ function agentStep(ctx: Context, data: Onboarding): string {
   const form =
     ctx.ontology.role === 'admin'
       ? `<form class="row" id="new-agent" style="gap:8px;flex-wrap:wrap">
-          <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(list?.length ? `edge-${String(list.length + 1).padStart(2, '0')}` : 'edge-01')}" autocomplete="off"></label>
+          <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(freeAgentName((list ?? []).map((a) => a.name)))}" autocomplete="off"></label>
           <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Register an agent</button>
         </form>`
       : '<p class="small soft">Admins of the site register edge agents.</p>';
@@ -166,7 +177,7 @@ function dashboardStep(data: Onboarding): string {
     return '<p>Once a machine has a mapped signal, its page shows the live readings: the first dashboard.</p>';
   return `<p><b>${esc(data.dashboard.label)}</b> has live signals. Its page shows each one’s latest reading, its open warnings, and what feeds it.</p>
     <p class="row" style="gap:8px;flex-wrap:wrap">
-      <a class="btn primary" href="#/plant/${encodeURIComponent(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
+      <a class="btn primary" href="${placeLink(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
       <a class="btn" href="#/shopfloor">Shopfloor view</a>
       <a class="btn" href="#/explorer">Data explorer</a>
     </p>
@@ -188,7 +199,10 @@ const view: View = {
     if (ctx.ontology.status !== 'ready')
       return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
     const data = progress?.site === siteId(ctx) ? progress.data : null;
-    if (!data) return `${head}<div class="card">Loading this site’s progress…</div>`;
+    if (!data)
+      return progress?.failed
+        ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>`
+        : `${head}<div class="card">Loading this site’s progress…</div>`;
     const ui = uiState(ctx);
     const current = ui.step ?? data.next ?? 'dashboard';
     const meta = STEPS.find((s) => s.key === current) ?? STEPS[0]!;
@@ -215,11 +229,12 @@ const view: View = {
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
     const site = siteId(ctx);
-    if (progress?.site !== site) void load(ctx);
+    if (progress?.site !== site) void load(ctx, { withOntology: true });
     const data = progress?.site === site ? progress.data : null;
     // While an agent is registered but hasn't called in, check every few seconds.
     const waiting = data !== null && data.agents > 0 && data.agents_seen === 0;
-    if (waiting && timer === null) timer = setInterval(() => !document.hidden && void load(ctx), POLL_MS);
+    if (waiting && timer === null)
+      timer = setInterval(() => !document.hidden && void load(ctx, { quiet: true }), POLL_MS);
     if (!waiting && timer !== null) {
       clearInterval(timer);
       timer = null;
@@ -229,7 +244,7 @@ const view: View = {
       ui.step = (el.dataset.step as StepKey | undefined) ?? null;
       ctx.rerender();
     });
-    onAll(root, '[data-onboarding-refresh]', 'click', () => void load(ctx));
+    onAll(root, '[data-onboarding-refresh]', 'click', () => void load(ctx, { withOntology: true }));
 
     // The slug follows the name until it is edited.
     const form = root.querySelector<HTMLFormElement>('#new-site');
@@ -302,7 +317,7 @@ const view: View = {
           busy = false;
           if (!ok) return ctx.rerender();
           ui.step = null; // done: on to the first step left
-          await load(ctx);
+          await load(ctx, { withOntology: true });
         })(),
     );
 

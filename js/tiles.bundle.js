@@ -7935,7 +7935,14 @@
 		"SQL historian"
 	];
 	function names(text) {
-		return [...new Set(text.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean))];
+		return [...new Set(text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))];
+	}
+	function freeAgentName(taken) {
+		const used = new Set(taken);
+		for (let n = 1;; n++) {
+			const name = `edge-${String(n).padStart(2, "0")}`;
+			if (!used.has(name)) return name;
+		}
 	}
 	function outlineProblem(o) {
 		if (!o.line.trim()) return "Name the line";
@@ -8030,7 +8037,7 @@ heartbeat_seconds = 30
 		revealed = null;
 		++seq$1;
 	});
-	async function load$2(ctx) {
+	async function load$2(ctx, { withOntology = false, quiet = false } = {}) {
 		const site = siteId$3(ctx);
 		if (!ctx.api || !site) return;
 		const mine = ++seq$1;
@@ -8038,13 +8045,17 @@ heartbeat_seconds = 30
 			site,
 			data: null
 		};
+		const before = JSON.stringify([progress$1.data, agents?.site === site ? agents.list : null]);
 		try {
 			const [data, list] = await Promise.all([
 				ctx.api.onboarding(site),
 				ctx.api.agents.list(site),
-				ctx.ontology.reload()
+				withOntology ? ctx.ontology.reload() : void 0
 			]);
 			if (mine !== seq$1) return;
+			const ui = uiState$3(ctx);
+			const was = progress$1.data?.steps.find((x) => x.key === ui.step);
+			if (was && !was.done && data.steps.find((x) => x.key === ui.step)?.done) ui.step = null;
 			progress$1 = {
 				site,
 				data
@@ -8055,15 +8066,14 @@ heartbeat_seconds = 30
 			};
 		} catch {
 			if (mine !== seq$1) return;
-			agents = {
-				site,
-				list: agents?.site === site ? agents.list : []
-			};
 			if (!progress$1.data) progress$1 = {
 				site,
-				data: null
+				data: null,
+				failed: true
 			};
+			if (quiet) return;
 		}
+		if (quiet && JSON.stringify([progress$1.data, agents?.list ?? null]) === before) return;
 		if (routeOf(location.hash) === "onboarding") ctx.rerender();
 	}
 	var canEdit = (ctx) => ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
@@ -8121,7 +8131,7 @@ heartbeat_seconds = 30
           <p>Check it with <code>tiles-edge check -c /etc/tiles-edge/tiles-edge.toml</code>, then run <code>tiles-edge run -c /etc/tiles-edge/tiles-edge.toml</code> as a service. It only connects out, over HTTPS.</p>
         </div>` : "";
 		const form = ctx.ontology.role === "admin" ? `<form class="row" id="new-agent" style="gap:8px;flex-wrap:wrap">
-          <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(list?.length ? `edge-${String(list.length + 1).padStart(2, "0")}` : "edge-01")}" autocomplete="off"></label>
+          <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(freeAgentName((list ?? []).map((a) => a.name)))}" autocomplete="off"></label>
           <button class="btn primary" type="submit" ${busy$2 ? "disabled" : ""}>Register an agent</button>
         </form>` : "<p class=\"small soft\">Admins of the site register edge agents.</p>";
 		return `<p>The edge agent runs on a machine on site that can reach the controllers. It reads them read-only, buffers to disk, and sends readings out to Tiles.</p>
@@ -8138,7 +8148,7 @@ heartbeat_seconds = 30
 		if (!data.dashboard) return "<p>Once a machine has a mapped signal, its page shows the live readings: the first dashboard.</p>";
 		return `<p><b>${esc(data.dashboard.label)}</b> has live signals. Its page shows each one’s latest reading, its open warnings, and what feeds it.</p>
     <p class="row" style="gap:8px;flex-wrap:wrap">
-      <a class="btn primary" href="#/plant/${encodeURIComponent(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
+      <a class="btn primary" href="${placeLink(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
       <a class="btn" href="#/shopfloor">Shopfloor view</a>
       <a class="btn" href="#/explorer">Data explorer</a>
     </p>
@@ -8157,7 +8167,7 @@ heartbeat_seconds = 30
 			if (ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (ctx.ontology.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
 			const data = progress$1?.site === siteId$3(ctx) ? progress$1.data : null;
-			if (!data) return `${head}<div class="card">Loading this site’s progress…</div>`;
+			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">Loading this site’s progress…</div>`;
 			const current = uiState$3(ctx).step ?? data.next ?? "dashboard";
 			const meta = STEPS.find((s) => s.key === current) ?? STEPS[0];
 			const body = {
@@ -8183,10 +8193,10 @@ heartbeat_seconds = 30
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
 			const site = siteId$3(ctx);
-			if (progress$1?.site !== site) load$2(ctx);
+			if (progress$1?.site !== site) load$2(ctx, { withOntology: true });
 			const data = progress$1?.site === site ? progress$1.data : null;
 			const waiting = data !== null && data.agents > 0 && data.agents_seen === 0;
-			if (waiting && timer === null) timer = setInterval(() => !document.hidden && void load$2(ctx), POLL_MS);
+			if (waiting && timer === null) timer = setInterval(() => !document.hidden && void load$2(ctx, { quiet: true }), POLL_MS);
 			if (!waiting && timer !== null) {
 				clearInterval(timer);
 				timer = null;
@@ -8196,7 +8206,7 @@ heartbeat_seconds = 30
 				ui.step = el.dataset.step ?? null;
 				ctx.rerender();
 			});
-			onAll(root, "[data-onboarding-refresh]", "click", () => void load$2(ctx));
+			onAll(root, "[data-onboarding-refresh]", "click", () => void load$2(ctx, { withOntology: true }));
 			const form = root.querySelector("#new-site");
 			const slug = form?.querySelector("[name=slug]");
 			let slugEdited = false;
@@ -8255,7 +8265,7 @@ heartbeat_seconds = 30
 				busy$2 = false;
 				if (!ok) return ctx.rerender();
 				ui.step = null;
-				await load$2(ctx);
+				await load$2(ctx, { withOntology: true });
 			})());
 			onSubmit(root, "#new-agent", (agent) => void (async () => {
 				if (!ctx.api || !site || busy$2) return;

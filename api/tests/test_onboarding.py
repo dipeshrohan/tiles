@@ -148,6 +148,7 @@ def test_onboarding_follows_the_site_from_created_to_its_first_dashboard(
     assert steps(api, site_id)["details"]["agent"] == "1 agent registered, none has called in yet"
     assert api.post("/agent/heartbeat", json=beat(), headers=agent_auth(token)).status_code == 200
     s = steps(api, site_id)
+    assert s["details"]["agent"] == "1 agent has called in, 1 online now"
     assert (s["done"], s["agents_seen"], s["details"]["mapping"]) == (
         ["site", "outline", "agent"],
         1,
@@ -170,6 +171,11 @@ def test_onboarding_follows_the_site_from_created_to_its_first_dashboard(
     assert (s["done"], s["next"]) == (["site", "outline", "agent", "mapping", "dashboard"], None)
     assert s["dashboard"] == {"id": "press", "label": "Press 1"}
     assert s["details"]["dashboard"] == "Press 1: 1 mapped signal"
+
+    # An agent gone quiet has still called in: the step stays done, and says it isn't online.
+    with psycopg.connect(database_url) as conn:
+        conn.execute("UPDATE edge_agents SET last_seen_at = now() - interval '1 day' WHERE site_id = %s", [site_id])
+    assert steps(api, site_id)["details"]["agent"] == "1 agent has called in, 0 online now"
 
     # Another site's members can't read it.
     other = api.get(f"/sites/{site_id}/onboarding", headers={"Authorization": "Bearer not-a-token"})

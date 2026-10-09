@@ -54,12 +54,13 @@ export interface Outline {
   protocol: string;
 }
 
-// The lines of a textarea as names: trimmed, blank ones and repeats dropped.
+// The lines of a textarea as names, one per line (a name may have a comma: "Press 4, 400 t"):
+// trimmed, blank ones and repeats dropped.
 export function names(text: string): string[] {
   return [
     ...new Set(
       text
-        .split(/\r?\n|,/)
+        .split(/\r?\n/)
         .map((s) => s.trim())
         .filter(Boolean),
     ),
@@ -67,6 +68,15 @@ export function names(text: string): string[] {
 }
 
 // Why an outline can't be made, or null.
+// The first agent name of the form edge-01, edge-02, … that no agent has.
+export function freeAgentName(taken: readonly string[]): string {
+  const used = new Set(taken);
+  for (let n = 1; ; n++) {
+    const name = `edge-${String(n).padStart(2, '0')}`;
+    if (!used.has(name)) return name;
+  }
+}
+
 export function outlineProblem(o: Outline): string | null {
   if (!o.line.trim()) return 'Name the line';
   if (!o.machines.length) return 'Name at least one machine';

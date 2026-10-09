@@ -2,7 +2,15 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { applyOps, emptyGraph } from '../js/lib/ontology.ts';
-import { agentConfig, names, outlineOps, outlineProblem, slugFrom, STEPS } from '../js/lib/onboarding.ts';
+import {
+  agentConfig,
+  freeAgentName,
+  names,
+  outlineOps,
+  outlineProblem,
+  slugFrom,
+  STEPS,
+} from '../js/lib/onboarding.ts';
 import { machineOf } from '../js/lib/shopfloor.ts';
 import { machinesUnder, topPlaces } from '../js/lib/plant.ts';
 
@@ -31,7 +39,8 @@ test("a site's slug is its name in lower case, digits and dashes", () => {
 });
 
 test('machine names: one per line or comma, trimmed, without blanks or repeats', () => {
-  assert.deepEqual(names(' Press 1 \n\nPress 2, Press 1\r\nPress 3 '), ['Press 1', 'Press 2', 'Press 3']);
+  assert.deepEqual(names(' Press 1 \n\nPress 2\nPress 1\r\nPress 3 '), ['Press 1', 'Press 2', 'Press 3']);
+  assert.deepEqual(names('Press 4, 400 t\nPress 5'), ['Press 4, 400 t', 'Press 5']); // one per line, commas and all
   assert.equal(outlineProblem(outline({ line: ' ' })), 'Name the line');
   assert.equal(outlineProblem(outline({ machines: [] })), 'Name at least one machine');
   assert.equal(outlineProblem(outline()), null);
@@ -71,6 +80,12 @@ test('a second outline joins the site it has, without the workcenter, and its id
       .map((e) => [e.from, e.rel]),
     [['site-plant-2', 'contains']],
   );
+});
+
+test('a new agent is offered the first free name', () => {
+  assert.equal(freeAgentName([]), 'edge-01');
+  assert.equal(freeAgentName(['edge-01', 'edge-03']), 'edge-02');
+  assert.equal(freeAgentName(['edge-01', 'edge-02', 'edge-03']), 'edge-04');
 });
 
 test("the agent's config points at this Tiles, its token in a file beside it", () => {
