@@ -145,6 +145,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-hub-mirror
+        with:
+          images: >-
+            python:3.13-slim
+            node:22-alpine
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -216,6 +220,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-hub-mirror
+        with:
+          images: >-
+            timescale/timescaledb:2.30.2-pg17
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -241,6 +248,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-hub-mirror
+        with:
+          images: >-
+            python:3.13-slim
+            node:22-alpine
+            timescale/timescaledb:2.30.2-pg17
+            redis:7.4-alpine
       - uses: azure/setup-helm@v4
         with:
           version: v3.19.0
@@ -278,10 +291,10 @@ jobs:
           docker build -t tiles-api:ci api
           docker build -t tiles-web:ci .
           kind load docker-image tiles-api:ci tiles-web:ci --name tiles
-          # The chart's other images (the database, Redis), pulled here through the mirror: kind's
-          # nodes would pull them from Docker Hub themselves.
+          # The chart's other images (the database, Redis), fetched through the mirror at the start
+          # of the job: kind's nodes would pull them from Docker Hub themselves.
           for image in $(helm template t "$CHART" --kube-version 1.33.0 $VALUES | awk '$1 == "image:" { gsub(/"/, "", $2); print $2 }' | sort -u | grep -v '^tiles-'); do
-            docker pull -q "$image" && kind load docker-image "$image" --name tiles
+            kind load docker-image "$image" --name tiles
           done
       - name: Install
         run: |
@@ -328,7 +341,6 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/docker-hub-mirror
       # Google's mirror of Docker Hub, which rate-limits CI less.
       - name: The alert rules fire when they should (promtool)
         run: |
@@ -352,7 +364,6 @@ jobs:
         working-directory: deploy/terraform
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/docker-hub-mirror
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.3
@@ -383,6 +394,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-hub-mirror
+        with:
+          images: >-
+            python:3.13-slim
+            node:22-alpine
+            timescale/timescaledb:2.30.2-pg17
+            redis:7.4-alpine
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.3
@@ -395,9 +412,9 @@ jobs:
           docker build -t tiles-api:ci api
           docker build -t tiles-web:ci .
           kind load docker-image tiles-api:ci tiles-web:ci --name tiles-install
-          # The chart's other images (the database, Redis), pulled here through the mirror.
+          # The chart's other images (the database, Redis), fetched through the mirror at the start.
           for image in $(helm template t deploy/helm/tiles --kube-version 1.33.0 --set oidc.issuer=https://idp.example.com | awk '$1 == "image:" { gsub(/"/, "", $2); print $2 }' | sort -u | grep -v '/tiles-'); do
-            docker pull -q "$image" && kind load docker-image "$image" --name tiles-install
+            kind load docker-image "$image" --name tiles-install
           done
       - name: Install with the customer-hosted Terraform, as the guide does
         working-directory: deploy/terraform/environments/customer-hosted
@@ -473,6 +490,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-hub-mirror
+        with:
+          images: >-
+            python:3.13-slim
+            node:22-alpine
+            timescale/timescaledb:2.30.2-pg17
+            redis:7-alpine
       - name: Start the stack
         run: docker compose up --build --wait --wait-timeout 300
       - name: Check every service
