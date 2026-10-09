@@ -49,13 +49,17 @@ class Violation:
     rule: Rule
 
 
-def limits(baseline: Sequence[float], k: float = 3.0) -> Limits | None:
+def limits(baseline: Sequence[float], k: float = 3.0, follows: Sequence[bool] | None = None) -> Limits | None:
     """The control limits from the baseline points; None with fewer than MIN_BASELINE of them, or
-    when they never move (no spread to measure)."""
+    when they never move (no spread to measure). `follows[i]` says whether point i comes straight
+    after point i - 1 (no empty bucket between): a range across a gap isn't a moving range, so it
+    is left out (all are neighbours when not given)."""
     if len(baseline) < MIN_BASELINE:
         return None
     centre = statistics.fmean(baseline)
-    ranges = [abs(b - a) for a, b in pairwise(baseline)]
+    ranges = [abs(b - a) for i, (a, b) in enumerate(pairwise(baseline), 1) if follows is None or follows[i]]
+    if not ranges:
+        return None
     sigma = statistics.fmean(ranges) / D2
     if sigma <= 0:
         return None
@@ -74,14 +78,16 @@ def violations(points: Sequence[float], lim: Limits, rules: Sequence[Rule] = RUL
     # The control limits may be k sigma with k other than 3: rule 1 uses them as set.
     upper_k = (lim.upper - lim.centre) / lim.sigma
     lower_k = (lim.centre - lim.lower) / lim.sigma
-    last: dict[Rule, int] = {}  # where each rule last fired, so one long run is reported once
+    # Where each rule last fired, on each side: one long run is reported once, and a swing to the
+    # other side is a new one.
+    last: dict[tuple[Rule, int], int] = {}
 
-    def fire(i: int, rule: Rule, span: int) -> None:
-        if rule in last and last[rule] > i - span:
-            last[rule] = i
-            return
-        last[rule] = i
-        found.append(Violation(i, rule))
+    def fire(i: int, rule: Rule, span: int, side: int = 0) -> None:
+        key = (rule, side)
+        repeat = key in last and last[key] > i - span
+        last[key] = i
+        if not repeat:
+            found.append(Violation(i, rule))
 
     for i in range(len(z)):
         if "beyond_limits" in rules and (z[i] > upper_k or z[i] < -lower_k):
@@ -91,15 +97,17 @@ def violations(points: Sequence[float], lim: Limits, rules: Sequence[Rule] = RUL
                 recent = z[i + 1 - window : i + 1]
                 for side in (1, -1):
                     if sum(1 for v in recent if v * side > beyond) >= need and z[i] * side > beyond:
-                        fire(i, rule, window)  # type: ignore[arg-type]
+                        fire(i, rule, window, side)  # type: ignore[arg-type]
                         break
         if "run_of_eight" in rules and i + 1 >= 8:
             recent = z[i - 7 : i + 1]
-            if all(v > 0 for v in recent) or all(v < 0 for v in recent):
-                fire(i, "run_of_eight", 8)
+            for side in (1, -1):
+                if all(v * side > 0 for v in recent):
+                    fire(i, "run_of_eight", 8, side)
         if "trend_of_six" in rules and i + 1 >= 6:
             steps = [b - a for a, b in pairwise(points[i - 5 : i + 1])]
-            if all(s > 0 for s in steps) or all(s < 0 for s in steps):
-                fire(i, "trend_of_six", 6)
+            for side in (1, -1):
+                if all(step * side > 0 for step in steps):
+                    fire(i, "trend_of_six", 6, side)
     found.sort(key=lambda v: (v.index, RULES.index(v.rule)))
     return found

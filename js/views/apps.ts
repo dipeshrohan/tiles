@@ -28,8 +28,9 @@ interface Draft {
   values: Record<string, string | string[]>; // as typed
 }
 
-let templates: { api: string; list: AppTemplate[] | null } | null = null;
-let listing: { key: string; items: StudioApp[] | null } | null = null;
+// `failed`: the last fetch failed; the page offers to try again rather than look empty.
+let templates: { api: string; list: AppTemplate[] | null; failed?: boolean } | null = null;
+let listing: { key: string; items: StudioApp[] | null; failed?: boolean } | null = null;
 let signals: { key: string; list: SignalOption[] } | null = null;
 let result: { key: string; result: AppResult | null } | null = null; // null result: couldn't run
 let draft: Draft | null = null;
@@ -37,8 +38,10 @@ let busy = false;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const hash = (): string => (typeof location === 'undefined' ? '' : location.hash);
-const isNew = (): boolean => /^#\/apps\/new(?:[?/]|$)/.test(hash());
-const editKey = (): boolean => /^#\/apps\/\d+\/edit(?:[?/]|$)/.test(hash());
+const NEW = /^#\/apps\/new(?:[?/]|$)/;
+const EDIT = /^#\/apps\/\d+\/edit(?:[?/]|$)/;
+const isNew = (): boolean => NEW.test(hash());
+const editKey = (): boolean => EDIT.test(hash());
 const selected = (): number | null => appNumberFromHash(hash());
 const listKey = (ctx: Context): string => `${siteId(ctx)}`;
 const resultKey = (ctx: Context, app: StudioApp): string => `${siteId(ctx)}|${app.number}|${app.updated_at}`;
@@ -49,8 +52,13 @@ onNavigate((h) => {
   if (routeOf(h) !== 'apps') {
     listing = null;
     result = null;
-    draft = null;
   } else if (appNumberFromHash(h) === null) result = null;
+  // Leaving a form (Cancel, or anywhere else) drops what was typed in it, and the signals it
+  // listed: the next form starts from the app's settings and today's catalogue.
+  if (!NEW.test(h) && !EDIT.test(h)) {
+    draft = null;
+    signals = null;
+  }
 });
 
 async function load(ctx: Context): Promise<void> {
@@ -64,7 +72,10 @@ async function load(ctx: Context): Promise<void> {
         if (templates?.api === api.baseUrl) templates.list = list;
         ctx.rerender();
       },
-      () => undefined,
+      () => {
+        if (templates?.api === api.baseUrl) templates.failed = true;
+        ctx.rerender();
+      },
     );
   }
   if (listing?.key !== listKey(ctx)) {
@@ -74,7 +85,7 @@ async function load(ctx: Context): Promise<void> {
       const items = await api.apps.list(site);
       if (listing?.key === key) listing.items = items;
     } catch {
-      if (listing?.key === key) listing.items = [];
+      if (listing?.key === key) listing.failed = true;
     }
     ctx.rerender();
   }
@@ -110,23 +121,28 @@ async function run(ctx: Context, app: StudioApp): Promise<void> {
   ctx.rerender();
 }
 
+const retry = (what: string, attr: string): string =>
+  `<div class="empty" role="alert">${what} could not be loaded. <button class="btn sm" type="button" ${attr}>Try again</button></div>`;
+
 function listCard(ctx: Context): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   const n = selected();
   const rows =
-    items === null
-      ? '<div class="empty">Loading…</div>'
-      : items
-          .map(
-            (
-              a,
-            ) => `<a class="review-row ${n === a.number ? 'sel' : ''}" href="${appLink(a.number)}" data-app="${a.number}">
+    listing?.key === listKey(ctx) && listing.failed
+      ? retry('The apps', 'data-retry-apps')
+      : items === null
+        ? '<div class="empty">Loading…</div>'
+        : items
+            .map(
+              (
+                a,
+              ) => `<a class="review-row ${n === a.number ? 'sel' : ''}" href="${appLink(a.number)}" data-app="${a.number}">
               <b>#${a.number} ${esc(a.name)}</b>
               <span class="small muted">${esc(a.template_title)} · ${esc(a.signal_tag ?? 'signal gone')}</span>
             </a>`,
-          )
-          .join('') ||
-        `<div class="empty">No apps yet.${canEdit(ctx) ? ' Make one from a template.' : ' Engineers make them from templates.'}</div>`;
+            )
+            .join('') ||
+          `<div class="empty">No apps yet.${canEdit(ctx) ? ' Make one from a template.' : ' Engineers make them from templates.'}</div>`;
   const make = canEdit(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>New app</a>` : '';
   return `<div class="card stack" style="gap:8px"><div class="row" style="justify-content:space-between;gap:8px"><h2>Apps</h2>${make}</div><div class="review-list" data-app-list>${rows}</div></div>`;
 }
@@ -157,6 +173,7 @@ function formCard(ctx: Context, d: Draft, template: AppTemplate, editing: Studio
 
 function newCard(ctx: Context): string {
   const list = templates?.list;
+  if (templates?.failed) return `<div class="card">${retry('The templates', 'data-retry-templates')}</div>`;
   if (!list) return '<div class="card"><div class="empty">Loading the templates…</div></div>';
   if (!draft || draft.key !== 'new' || !list.some((t) => t.id === draft?.template))
     return `<div class="card stack" style="gap:10px"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
@@ -168,11 +185,13 @@ function detailCard(ctx: Context): string {
   const n = selected();
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   if (n === null) return '<div class="card"><div class="empty">Choose an app, or make one from a template.</div></div>';
+  if (listing?.failed) return '<div class="card"><div class="empty">The apps could not be loaded.</div></div>';
   if (items === null) return '<div class="card"><div class="empty">Loading…</div></div>';
   const app = items.find((a) => a.number === n);
   if (!app) return `<div class="card"><div class="empty">There is no app #${n} on this site.</div></div>`;
   const template = templates?.list?.find((t) => t.id === app.template);
   if (editKey()) {
+    if (templates?.failed) return `<div class="card">${retry('The templates', 'data-retry-templates')}</div>`;
     if (!template) return '<div class="card"><div class="empty">Loading the template…</div></div>';
     if (draft?.key !== `edit|${app.number}`)
       draft = { key: `edit|${app.number}`, template: app.template, name: app.name, values: {} };
@@ -284,6 +303,14 @@ const view: View = {
       draft.values = values;
     });
     onSubmit(root, '#app-form', (f) => void save(ctx, f));
+    onAll(root, '[data-retry-templates]', 'click', () => {
+      templates = null;
+      ctx.rerender();
+    });
+    onAll(root, '[data-retry-apps]', 'click', () => {
+      listing = null;
+      ctx.rerender();
+    });
     onAll(root, '[data-rerun]', 'click', () => {
       if (app) void run(ctx, app);
     });

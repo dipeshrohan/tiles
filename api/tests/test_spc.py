@@ -61,3 +61,22 @@ def test_a_trend_of_six() -> None:
 
 def test_a_quiet_process_breaks_no_rule() -> None:
     assert rules([at(z) for z in (0.3, -0.5, 0.8, -0.2, 0.1, -0.9, 0.4, -0.1, 0.6, -0.3)]) == []
+
+
+def test_a_swing_to_the_other_side_is_a_new_signal() -> None:
+    swings = [at(0), at(2.5), at(2.5), at(-2.5), at(-2.5)]
+    assert rules(swings, ["two_of_three"]) == [(2, "two_of_three"), (4, "two_of_three")]
+    swing = [at(0.4)] * 8 + [at(-0.4)] * 8
+    assert rules(swing, ["run_of_eight"]) == [(7, "run_of_eight"), (15, "run_of_eight")]
+
+
+def test_a_gap_in_the_baseline_is_no_moving_range() -> None:
+    # Two steady stretches at different levels, an outage between them.
+    values = [10.0, 11.0, 10.0, 11.0, 20.0, 21.0, 20.0, 21.0]
+    follows = [True, True, True, True, False, True, True, True]
+    with_gap = spc.limits(values, follows=follows)
+    across = spc.limits(values)
+    assert with_gap is not None and across is not None
+    assert with_gap.sigma == pytest.approx(1 / 1.128)  # the six neighbours' ranges, all 1
+    assert across.sigma > with_gap.sigma
+    assert spc.limits(values, follows=[True] + [False] * 7) is None  # no neighbours at all

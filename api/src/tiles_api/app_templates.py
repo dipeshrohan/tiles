@@ -117,8 +117,13 @@ def _value(p: Param, value: Any) -> Any:
             raise ValueError(f"{p.label} must be a number")
         if p.kind == "integer" and value != int(value):
             raise ValueError(f"{p.label} must be a whole number")
-        if (p.minimum is not None and value < p.minimum) or (p.maximum is not None and value > p.maximum):
-            raise ValueError(f"{p.label} must be from {number_text(p.minimum or 0)} to {number_text(p.maximum or 0)}")
+        low = p.minimum is not None and value < p.minimum
+        high = p.maximum is not None and value > p.maximum
+        if low or high:
+            if p.minimum is not None and p.maximum is not None:
+                raise ValueError(f"{p.label} must be from {number_text(p.minimum)} to {number_text(p.maximum)}")
+            bound = number_text(p.minimum if low else p.maximum)  # type: ignore[arg-type]
+            raise ValueError(f"{p.label} must be at {'least' if low else 'most'} {bound}")
         return int(value) if p.kind == "integer" else float(value)
     allowed = [c[0] for c in p.choices]
     if p.kind == "choice":
@@ -181,7 +186,22 @@ def wear_in(config: dict[str, Any]) -> WearIn:
             limit=config["limit"],
         )
     except ValidationError as e:
-        raise ConfigError([str(err["msg"]).removeprefix("Value error, ") for err in e.errors()]) from None
+        raise ConfigError([_wear_words(str(err["msg"])) for err in e.errors()]) from None
+
+
+# The wear check's own messages, in the words of this template's settings.
+WEAR_WORDS = (
+    ("Value error, ", ""),
+    ("recent_hours", "The recent window"),
+    ("baseline_hours", "The baseline"),
+    ("at least `last` buckets", f"at least {WearIn.model_fields['last'].default} buckets"),
+)
+
+
+def _wear_words(message: str) -> str:
+    for said, meant in WEAR_WORDS:
+        message = message.replace(said, meant)
+    return message
 
 
 def check_wear(config: dict[str, Any]) -> None:
@@ -259,8 +279,15 @@ MAX_SPC_POINTS = 5_000
 
 
 def check_spc(config: dict[str, Any]) -> None:
+    problems = []
+    for name, label in (("baseline_hours", "The baseline"), ("recent_hours", "The recent window")):
+        buckets = config[name] * 60 / config["bucket_minutes"]
+        if not math.isclose(buckets, round(buckets)):  # else a bucket would hold both
+            problems.append(f"{name}: {label} must be a whole number of points")
     if (config["baseline_hours"] + config["recent_hours"]) * 60 / config["bucket_minutes"] > MAX_SPC_POINTS:
-        raise ConfigError([f"At most {MAX_SPC_POINTS} points: choose longer buckets or shorter windows"])
+        problems.append(f"At most {MAX_SPC_POINTS} points: choose longer buckets or shorter windows")
+    if problems:
+        raise ConfigError(problems)
 
 
 def run_spc(ctx: SiteContext, config: dict[str, Any]) -> dict[str, Any]:
@@ -270,9 +297,13 @@ def run_spc(ctx: SiteContext, config: dict[str, Any]) -> dict[str, Any]:
     recent_from = end - timedelta(hours=config["recent_hours"])
     start = recent_from - timedelta(hours=config["baseline_hours"])
     rows = ctx.conn.execute(SPC_POINTS, {"width": width, "start": start, "end": end, "id": signal["id"]}).fetchall()
-    baseline = [float(r["value"]) for r in rows if r["at"] < recent_from]
+    before = [r for r in rows if r["at"] < recent_from]
+    baseline = [float(r["value"]) for r in before]
     recent = [r for r in rows if r["at"] >= recent_from]
-    lim = spc.limits(baseline, config["sigmas"])
+    # A moving range is between neighbouring buckets only: not across an empty one.
+    step = timedelta(seconds=width)
+    follows = [i > 0 and r["at"] - before[i - 1]["at"] == step for i, r in enumerate(before)]
+    lim = spc.limits(baseline, config["sigmas"], follows)
     points = [{"at": r["at"], "value": float(r["value"])} for r in rows]
     base = {
         "signal": signal,

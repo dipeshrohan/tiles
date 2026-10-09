@@ -9846,8 +9846,10 @@ heartbeat_seconds = 30
 	var busy = false;
 	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
 	var hash = () => typeof location === "undefined" ? "" : location.hash;
-	var isNew = () => /^#\/apps\/new(?:[?/]|$)/.test(hash());
-	var editKey = () => /^#\/apps\/\d+\/edit(?:[?/]|$)/.test(hash());
+	var NEW = /^#\/apps\/new(?:[?/]|$)/;
+	var EDIT = /^#\/apps\/\d+\/edit(?:[?/]|$)/;
+	var isNew = () => NEW.test(hash());
+	var editKey = () => EDIT.test(hash());
 	var selected = () => appNumberFromHash(hash());
 	var listKey = (ctx) => `${siteId(ctx)}`;
 	var resultKey = (ctx, app) => `${siteId(ctx)}|${app.number}|${app.updated_at}`;
@@ -9856,8 +9858,11 @@ heartbeat_seconds = 30
 		if (routeOf(h) !== "apps") {
 			listing = null;
 			result = null;
-			draft = null;
 		} else if (appNumberFromHash(h) === null) result = null;
+		if (!NEW.test(h) && !EDIT.test(h)) {
+			draft = null;
+			signals = null;
+		}
 	});
 	async function load$1(ctx) {
 		const api = ctx.api;
@@ -9871,7 +9876,10 @@ heartbeat_seconds = 30
 			api.appTemplates().then((list) => {
 				if (templates?.api === api.baseUrl) templates.list = list;
 				ctx.rerender();
-			}, () => void 0);
+			}, () => {
+				if (templates?.api === api.baseUrl) templates.failed = true;
+				ctx.rerender();
+			});
 		}
 		if (listing?.key !== listKey(ctx)) {
 			const key = listKey(ctx);
@@ -9883,7 +9891,7 @@ heartbeat_seconds = 30
 				const items = await api.apps.list(site);
 				if (listing?.key === key) listing.items = items;
 			} catch {
-				if (listing?.key === key) listing.items = [];
+				if (listing?.key === key) listing.failed = true;
 			}
 			ctx.rerender();
 		}
@@ -9925,10 +9933,11 @@ heartbeat_seconds = 30
 		};
 		ctx.rerender();
 	}
+	var retry = (what, attr) => `<div class="empty" role="alert">${what} could not be loaded. <button class="btn sm" type="button" ${attr}>Try again</button></div>`;
 	function listCard(ctx) {
 		const items = listing?.key === listKey(ctx) ? listing.items : null;
 		const n = selected();
-		const rows = items === null ? "<div class=\"empty\">Loading…</div>" : items.map((a) => `<a class="review-row ${n === a.number ? "sel" : ""}" href="${appLink(a.number)}" data-app="${a.number}">
+		const rows = listing?.key === listKey(ctx) && listing.failed ? retry("The apps", "data-retry-apps") : items === null ? "<div class=\"empty\">Loading…</div>" : items.map((a) => `<a class="review-row ${n === a.number ? "sel" : ""}" href="${appLink(a.number)}" data-app="${a.number}">
               <b>#${a.number} ${esc(a.name)}</b>
               <span class="small muted">${esc(a.template_title)} · ${esc(a.signal_tag ?? "signal gone")}</span>
             </a>`).join("") || `<div class="empty">No apps yet.${canEdit(ctx) ? " Make one from a template." : " Engineers make them from templates."}</div>`;
@@ -9952,6 +9961,7 @@ heartbeat_seconds = 30
 	}
 	function newCard(ctx) {
 		const list = templates?.list;
+		if (templates?.failed) return `<div class="card">${retry("The templates", "data-retry-templates")}</div>`;
 		if (!list) return "<div class=\"card\"><div class=\"empty\">Loading the templates…</div></div>";
 		if (!draft || draft.key !== "new" || !list.some((t) => t.id === draft?.template)) return `<div class="card stack" style="gap:10px"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
 		const template = list.find((t) => t.id === draft?.template);
@@ -9961,11 +9971,13 @@ heartbeat_seconds = 30
 		const n = selected();
 		const items = listing?.key === listKey(ctx) ? listing.items : null;
 		if (n === null) return "<div class=\"card\"><div class=\"empty\">Choose an app, or make one from a template.</div></div>";
+		if (listing?.failed) return "<div class=\"card\"><div class=\"empty\">The apps could not be loaded.</div></div>";
 		if (items === null) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
 		const app = items.find((a) => a.number === n);
 		if (!app) return `<div class="card"><div class="empty">There is no app #${n} on this site.</div></div>`;
 		const template = templates?.list?.find((t) => t.id === app.template);
 		if (editKey()) {
+			if (templates?.failed) return `<div class="card">${retry("The templates", "data-retry-templates")}</div>`;
 			if (!template) return "<div class=\"card\"><div class=\"empty\">Loading the template…</div></div>";
 			if (draft?.key !== `edit|${app.number}`) draft = {
 				key: `edit|${app.number}`,
@@ -10073,6 +10085,14 @@ heartbeat_seconds = 30
 				draft.values = values;
 			});
 			onSubmit(root, "#app-form", (f) => void save(ctx, f));
+			onAll(root, "[data-retry-templates]", "click", () => {
+				templates = null;
+				ctx.rerender();
+			});
+			onAll(root, "[data-retry-apps]", "click", () => {
+				listing = null;
+				ctx.rerender();
+			});
 			onAll(root, "[data-rerun]", "click", () => {
 				if (app) run(ctx, app);
 			});

@@ -286,6 +286,7 @@ export function createFakeApi({
   const insights = []; // saved insights, as the API returns them, with `evidence`
   const studioApps = []; // App Studio's apps (T6.10), archived ones included
   let lastApp = 0;
+  let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
   const designRuns = []; // latest last
@@ -576,7 +577,10 @@ export function createFakeApi({
         }
         return send(404, { detail: 'No such active SCIM token in your organisation' });
       }
-      if (url.pathname === '/app-templates' && req.method === 'GET') return send(200, APP_TEMPLATES);
+      if (url.pathname === '/app-templates' && req.method === 'GET') {
+        if (appsFailures > 0 && appsFailures--) return send(503, { detail: 'The API is restarting' });
+        return send(200, APP_TEMPLATES);
+      }
       const agentsPath = `/sites/${site.id}/agents`;
       if (
         !url.pathname.startsWith(base) &&
@@ -991,7 +995,10 @@ export function createFakeApi({
         };
         const writes = req.method !== 'GET';
         if (writes && role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
-        if (!m[1] && req.method === 'GET') return send(200, live.map(shown));
+        if (!m[1] && req.method === 'GET') {
+          if (appsFailures > 0 && appsFailures--) return send(503, { detail: 'The API is restarting' });
+          return send(200, live.map(shown));
+        }
         if (!m[1] && req.method === 'POST') {
           const b = await body(req);
           const { t, clean, problem } = settings(b.template, b.config ?? {});
@@ -1780,6 +1787,10 @@ export function createFakeApi({
     },
     insights,
     studioApps,
+    // Makes the next `n` lists of App Studio's templates or apps fail.
+    failApps(n) {
+      appsFailures = n;
+    },
     wearChecks,
     // Refuses the next batch of dataset rows, as the API does a value of the wrong kind.
     failDatasetRows(detail) {

@@ -674,10 +674,25 @@ test('App Studio: an engineer makes an SPC app from its template, runs it, chang
   await page.click('#app-form button[type=submit]');
   await page.waitForSelector('#toast:has-text("App saved")');
   assert.equal(fake.studioApps[0].config.sigmas, 2.5);
+  // Cancel drops what was typed: the next change starts from the saved settings.
+  await page.click('[data-edit-app]');
+  await page.fill('#app-form [name=sigmas]', '4');
+  await page.click('#app-form a.btn:has-text("Cancel")');
+  await page.waitForSelector('[data-app-detail]');
+  await page.click('[data-edit-app]');
+  assert.equal(await page.inputValue('#app-form [name=sigmas]'), '2.5');
+  await page.click('#app-form a.btn:has-text("Cancel")');
 
   await page.click('[data-archive-app]');
   await page.waitForSelector('[data-app-list]:has-text("No apps yet")');
   assert.deepEqual(errors, []);
+
+  // A list that fails to load says so, and loads again on request.
+  fake.failApps(2);
+  await page.reload();
+  await page.waitForSelector('[data-app-list]:has-text("The apps could not be loaded")');
+  await page.click('[data-retry-apps]');
+  await page.waitForSelector('[data-app-list]:has-text("No apps yet")');
 
   // Viewers see the apps, but don't make them.
   const viewer = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });

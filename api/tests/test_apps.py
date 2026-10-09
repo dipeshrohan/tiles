@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 from test_series import load
 
-from tiles_api.app_templates import TEMPLATES, ConfigError, check_config
+from tiles_api.app_templates import TEMPLATES, ConfigError, Param, Template, check_config
 
 WEAR: dict[str, Any] = json.loads(
     (Path(__file__).resolve().parents[2] / "test" / "fixtures" / "wear-check.json").read_text()
@@ -55,8 +55,24 @@ def test_settings_are_checked_against_the_template() -> None:
     ]
     with pytest.raises(ConfigError, match="At most 5000 points"):
         check_config(spc, {"signal": signal, "bucket_minutes": 1, "baseline_hours": 24 * 90})
-    with pytest.raises(ConfigError, match="whole number of buckets"):
+    with pytest.raises(ConfigError, match="The recent window must be a whole number of buckets"):
         check_config(TEMPLATES["wear-check"], {"signal": signal, "recent_hours": 1.5})
+    with pytest.raises(ConfigError, match="The recent window needs at least 4 buckets"):
+        check_config(TEMPLATES["wear-check"], {"signal": signal, "recent_hours": 2})
+    with pytest.raises(ConfigError) as e:
+        check_config(spc, {"signal": signal, "bucket_minutes": 45, "baseline_hours": 3, "recent_hours": 1})
+    assert e.value.problems == ["recent_hours: The recent window must be a whole number of points"]
+    one_bound = Template(
+        "t",
+        1,
+        "T",
+        "",
+        (Param("cap", "Cap", "number", 1, maximum=10), Param("floor", "Floor", "number", 5, minimum=5)),
+        run=lambda *_: {},
+    )
+    with pytest.raises(ConfigError) as e:
+        check_config(one_bound, {"cap": 20, "floor": 1})
+    assert e.value.problems == ["cap: Cap must be at most 10", "floor: Floor must be at least 5"]
     with pytest.raises(ConfigError, match="Signal is needed"):
         check_config(TEMPLATES["wear-check"], {})
 
