@@ -27,6 +27,7 @@ export const PLACES = [
   { file: 'edge/uv.lock', pattern: /^name = "tiles-edge"\nversion = "([^"]+)"\nsource = \{ editable = "\." \}/m },
   { file: 'edge/src/tiles_edge/__init__.py', pattern: /^__version__ = "([^"]+)"/m },
   { file: 'deploy/helm/tiles/Chart.yaml', pattern: /^version: (\S+)$/m },
+  { file: 'docs/guides/openapi.json', pattern: /^ {4}"title": "Tiles API",\n {4}"version": "([^"]+)"/m },
   { file: 'deploy/helm/tiles/Chart.yaml', pattern: /^appVersion: ['"]([^'"]+)['"]$/m },
 ];
 

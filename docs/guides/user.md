@@ -382,7 +382,7 @@ If the range is too short, Tiles asks you to zoom out; if it is longer than 120 
 
 **What it's for:** the inbox of warnings that detectors raised on your site. You see the signal around each warning and work it through: acknowledge, assign, resolve with what it turned out to be. This page needs API mode.
 
-Detectors watch signals and raise a warning when a reading moves too far from its normal level for long enough. Detectors are set up by your admin or model author through the Tiles API.
+Detectors watch signals and raise a warning when a reading moves too far from its normal level for long enough. Engineers and admins set detectors up through the Tiles API (`POST /sites/{site_id}/detectors`; there is no page for it yet); the [model-author guide](model-author.md) explains their settings.
 
 ### Two separate states
 

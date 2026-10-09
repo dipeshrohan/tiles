@@ -19,6 +19,9 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
   - *engineer* or *admin*: that role on the site or above. Organisation admins are admins of
     every site.
   - *edge agent*: an agent's own token, `Authorization: Bearer tla_…`.
+
+  Some endpoints narrow this further (only an insight's author, a review's named reviewer); their
+  description says so, and anyone else gets a `403`.
 - **Bodies** are JSON, with times in ISO 8601 with a time zone. Unknown fields are refused.
 - **Errors** answer with a status and `{"detail": "…"}`, in words meant for people:
   - `401`: sign in;
@@ -526,7 +529,7 @@ Your membership of this site (joining it on first visit), including your role.
 
 **Who:** site member. **Answers:** 200, 422.
 
-The site's members and their roles.
+The site's members (everyone who has signed in to it) and their roles. Organisation admins are admins of every site, listed here or not.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
@@ -887,7 +890,7 @@ A change request with its ops, its comments and, while open, whether it still ap
 
 **Who:** engineer. **Answers:** 200, 422.
 
-Approve a change request: its ops are committed, with its author as author and you as reviewer.
+Approve a change request: its ops are committed, with its author as author and you as reviewer. Not its author; its named reviewer if it has one, any engineer otherwise, or an admin.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
@@ -913,7 +916,7 @@ Comment on a change request.
 
 **Who:** engineer. **Answers:** 200, 422.
 
-Reject a change request, saying why. Nothing is committed; its author can rework it.
+Reject a change request, saying why. Nothing is committed; its author can rework it. Not its author; its named reviewer if it has one, any engineer otherwise, or an admin.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

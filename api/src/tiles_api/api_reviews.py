@@ -322,7 +322,8 @@ def comment(ctx: Editor, number: int, body: CommentIn) -> dict[str, Any]:
 
 @router.post("/sites/{site_id}/ontology/reviews/{number}/approve", response_model=Review)
 def approve(ctx: Editor, number: int, body: DecisionIn) -> dict[str, Any]:
-    """Approve a change request: its ops are committed, with its author as author and you as reviewer."""
+    """Approve a change request: its ops are committed, with its author as author and you as reviewer.
+    Not its author; its named reviewer if it has one, any engineer otherwise, or an admin."""
     store.lock_site(ctx.conn, ctx.site_id)
     req = _find(ctx, number, lock=True)
     _may_decide(ctx, req)
@@ -348,7 +349,8 @@ def approve(ctx: Editor, number: int, body: DecisionIn) -> dict[str, Any]:
 
 @router.post("/sites/{site_id}/ontology/reviews/{number}/reject", response_model=Review)
 def reject(ctx: Editor, number: int, body: DecisionIn) -> dict[str, Any]:
-    """Reject a change request, saying why. Nothing is committed; its author can rework it."""
+    """Reject a change request, saying why. Nothing is committed; its author can rework it.
+    Not its author; its named reviewer if it has one, any engineer otherwise, or an admin."""
     reason = body.comment.strip()
     if not reason:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Say why the change is rejected")

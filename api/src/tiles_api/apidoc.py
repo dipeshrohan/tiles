@@ -18,6 +18,7 @@ from fastapi.routing import APIRoute
 from tiles_api.main import create_app
 from tiles_api.settings import Settings
 
+# In a checkout: the repository's docs/guides (elsewhere, pass --out).
 DOCS = Path(__file__).resolve().parents[3] / "docs" / "guides"
 METHODS = ("GET", "POST", "PUT", "PATCH", "DELETE")
 
@@ -42,6 +43,9 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
   - *engineer* or *admin*: that role on the site or above. Organisation admins are admins of
     every site.
   - *edge agent*: an agent's own token, `Authorization: Bearer tla_…`.
+
+  Some endpoints narrow this further (only an insight's author, a review's named reviewer); their
+  description says so, and anyone else gets a `403`.
 - **Bodies** are JSON, with times in ISO 8601 with a time zone. Unknown fields are refused.
 - **Errors** answer with a status and `{"detail": "…"}`, in words meant for people:
   - `401`: sign in;
@@ -71,10 +75,14 @@ def routes(app: FastAPI) -> Iterator[APIRoute]:
     yield from walk(list(app.routes))
 
 
+PUBLIC = {"/health", "/ready", "/auth/config"}  # open by design; anything else must sign in
+
+
 def caller(route: APIRoute) -> str:
-    """Who may call an endpoint, from the dependencies it takes."""
+    """Who may call an endpoint, from the dependencies it takes. An endpoint that is neither public
+    nor recognised raises, so a new way of authenticating can't be listed as open to anyone."""
     if route.path.startswith("/agent/"):
-        return "edge agent"
+        return "edge agent"  # its handler checks the agent's token (api_agents.calling_agent)
     calls: list[Any] = []
 
     def walk(dependant: Any) -> None:
@@ -93,7 +101,9 @@ def caller(route: APIRoute) -> str:
         return "site member"
     if "authenticate" in names:
         return "signed in"
-    return "anyone"
+    if route.path in PUBLIC:
+        return "anyone"
+    raise ValueError(f"{route.path}: who may call it? Add its sign-in check to apidoc.caller")
 
 
 def _schema_type(schema: dict[str, Any]) -> str:
@@ -147,7 +157,7 @@ def markdown(app: FastAPI) -> str:
 
 def documents() -> dict[str, str]:
     """The files' contents, by name."""
-    app = create_app(Settings(_env_file=None))
+    app = create_app(Settings(_env_file=None, env="test"))  # whatever the shell's TILES_ENV
     spec = json.dumps(app.openapi(), indent=2, sort_keys=True) + "\n"
     return {"api.md": markdown(app), "openapi.json": spec}
 
@@ -157,7 +167,9 @@ def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="tiles-apidoc", description=main.__doc__)
     parser.add_argument("--out", type=Path, default=DOCS)
     args = parser.parse_args(argv)
+    if args.out == DOCS and not (DOCS.parent / "TASKS.md").exists():
+        parser.error(f"{DOCS} isn't a Tiles checkout's docs/guides: pass --out")
     args.out.mkdir(parents=True, exist_ok=True)
     for name, text in documents().items():
-        (args.out / name).write_text(text)
+        (args.out / name).write_text(text, encoding="utf-8")
         print(f"wrote {args.out / name}")

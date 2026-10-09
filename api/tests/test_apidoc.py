@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import pytest
 from fastapi.routing import APIRoute
 
 from tiles_api import apidoc
@@ -12,7 +13,7 @@ from tiles_api.settings import Settings
 def test_the_committed_reference_is_current() -> None:
     for name, text in apidoc.documents().items():
         path = apidoc.DOCS / name
-        assert path.exists() and path.read_text() == text, (
+        assert path.exists() and path.read_text(encoding="utf-8") == text, (
             f"docs/guides/{name} is out of date: run `uv run tiles-apidoc`"
         )
 
@@ -43,3 +44,18 @@ def test_every_endpoint_says_what_it_does() -> None:
 def test_writes_both_files(tmp_path: Path) -> None:
     apidoc.main(["--out", str(tmp_path)])
     assert sorted(p.name for p in tmp_path.iterdir()) == ["api.md", "openapi.json"]
+
+
+def test_an_endpoint_whose_caller_cant_be_told_is_refused() -> None:
+    from fastapi import FastAPI
+
+    app = FastAPI()
+
+    @app.get("/sites/{site_id}/secret")
+    def secret(site_id: str) -> str:
+        """Checks a token by itself."""
+        return site_id
+
+    [route] = [r for r in apidoc.routes(app) if r.path == "/sites/{site_id}/secret"]
+    with pytest.raises(ValueError, match="who may call it"):
+        apidoc.caller(route)

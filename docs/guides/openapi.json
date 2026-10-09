@@ -10090,7 +10090,7 @@
     },
     "/sites/{site_id}/members": {
       "get": {
-        "description": "The site's members and their roles.",
+        "description": "The site's members (everyone who has signed in to it) and their roles. Organisation admins are\nadmins of every site, listed here or not.",
         "operationId": "list_members_sites__site_id__members_get",
         "parameters": [
           {
@@ -11528,7 +11528,7 @@
     },
     "/sites/{site_id}/ontology/reviews/{number}/approve": {
       "post": {
-        "description": "Approve a change request: its ops are committed, with its author as author and you as reviewer.",
+        "description": "Approve a change request: its ops are committed, with its author as author and you as reviewer.\nNot its author; its named reviewer if it has one, any engineer otherwise, or an admin.",
         "operationId": "approve_sites__site_id__ontology_reviews__number__approve_post",
         "parameters": [
           {
@@ -11654,7 +11654,7 @@
     },
     "/sites/{site_id}/ontology/reviews/{number}/reject": {
       "post": {
-        "description": "Reject a change request, saying why. Nothing is committed; its author can rework it.",
+        "description": "Reject a change request, saying why. Nothing is committed; its author can rework it.\nNot its author; its named reviewer if it has one, any engineer otherwise, or an admin.",
         "operationId": "reject_sites__site_id__ontology_reviews__number__reject_post",
         "parameters": [
           {

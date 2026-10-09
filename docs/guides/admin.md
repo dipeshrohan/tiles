@@ -149,7 +149,7 @@ INSERT INTO sites (org_id, slug, name)
 SELECT id, 'plant-2', 'Plant 2' FROM orgs WHERE slug = 'acme';
 
 -- Make a user an organisation admin.
-UPDATE users SET org_admin = true WHERE email = 'jane@example.com';
+UPDATE users SET org_admin = true WHERE email = 'jane@example.com' AND org_id = (SELECT id FROM orgs WHERE slug = 'acme');
 ```
 
 These SQL changes are not in the audit log, so record them yourself.
@@ -167,7 +167,7 @@ These SQL changes are not in the audit log, so record them yourself.
 
 There is no page for this yet. Use the API as a site admin:
 
-1. List the members: `GET /sites/{site_id}/members`.
+1. List the members: `GET /sites/{site_id}/members`. It lists everyone who has signed in to the site; organisation admins are admins of every site whether listed or not.
 2. Set the role: `PUT /sites/{site_id}/members/{user_id}` with `{"role": "engineer"}` (`viewer`, `engineer` or `admin`).
 
 You can't change your own role; ask another admin. The change is audited as `member.role`. A demoted engineer can still discard their own staged changes.
@@ -351,7 +351,7 @@ Each job is a command from the API package. It runs over every site, then exits.
 
 | Command | What it does | Helm job | Default schedule |
 |---|---|---|---|
-| `tiles-check-quality` | Checks every signal for gaps, stuck values, out-of-range values, flagged readings, unit mismatches and silent edge tags over the last 24 hours (`--site`, `--hours`) | `checkQuality` | every 15 minutes |
+| `tiles-check-quality` | Checks every signal for gaps, stuck values, out-of-range values, flagged readings, unit mismatches and silent edge tags over the 24 hours before each signal's latest reading (`--site`, `--hours`) | `checkQuality` | every 15 minutes |
 | `tiles-run-models` | Runs every enabled model binding on its new readings and writes the derived signals (`--site`) | `runModels` | every 5 minutes |
 | `tiles-detect` | Feeds every enabled detector its new readings and raises or ends warnings (`--site`) | `detect` | every 5 minutes |
 | `tiles-notify` | Sends due notifications by email and to Teams | `notify` | every minute |
