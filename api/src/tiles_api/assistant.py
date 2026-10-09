@@ -155,6 +155,7 @@ def respond(
         (grounding.text_of(m) for m in reversed(messages) if m["role"] == "user" and grounding.text_of(m)), ""
     )
     repaired_once = False
+    withdrawn: list[str] = []  # why drafts were withdrawn, kept with the answer
     calls_left = max_rounds + 1  # one more for a withdrawn answer's second try
     while calls_left > (0 if repaired_once else 1):
         calls_left -= 1
@@ -179,12 +180,16 @@ def respond(
             report = grounding.check(grounding.text_of(answer), question, messages)
             if not report.grounded and not repaired_once and content:
                 repaired_once = True
+                withdrawn.append(report.problems())
                 yield Event("retract", {"reason": report.problems()})
                 messages += [answer, {"role": "user", "content": [{"type": "text", "text": _repair(report)}]}]
                 continue
             if content:  # an empty answer is left out: the Messages API refuses empty messages
                 messages.append(answer)
-                yield Event("message", answer | {"meta": {"grounding": report.as_dict()}})
+                meta: dict[str, Any] = {"grounding": report.as_dict()}
+                if withdrawn:
+                    meta["withdrawn"] = withdrawn
+                yield Event("message", answer | {"meta": meta})
             yield Event("grounding", report.as_dict())
             yield Event("done", {"stop_reason": turn.stop_reason, "usage": usage, "grounded": report.grounded})
             return

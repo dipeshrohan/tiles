@@ -3,6 +3,7 @@
 // failure into an ApiError that is also passed to `onError` (the app shows
 // it as a toast). Pure apart from `fetch`, which tests replace.
 
+import { sseParser, type SseEvent } from './sse.ts';
 import type { Commit, DiffStats, Graph, HealthReport, Op } from './types.ts';
 
 export interface Site {
@@ -435,6 +436,37 @@ export interface CorrelationResult {
   explanations: { segment: string; variable: string; text: string }[];
 }
 
+// The copilot (T4.01–T4.04): a user's conversations, their stored messages (Messages API content
+// blocks) and an answer's grounding report.
+export interface CopilotConversation {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+  messages: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface CopilotGrounding {
+  grounded: boolean;
+  declined: boolean;
+  cited: number[];
+  unknown_citations: number[];
+  unsupported_numbers: string[];
+  unsupported_names: string[];
+  uncited: boolean;
+}
+
+export interface CopilotMessage {
+  seq: number;
+  role: 'user' | 'assistant';
+  content: Record<string, unknown>[];
+  meta: { grounding?: CopilotGrounding; withdrawn?: string[] }; // why drafts were withdrawn
+  created_at: string;
+  feedback?: { rating: 'up' | 'down'; comment: string } | null;
+}
+
 // A saved insight (T3.12): a finding with what produced it and the evidence it gave when saved.
 export type InsightStatus = 'proposed' | 'accepted' | 'rejected';
 
@@ -548,17 +580,22 @@ export function createApiClient(options: ApiOptions) {
 
   // `anonymous` requests carry no credentials (e.g. the public /auth/config).
   // `text` answers with the body as it is (a file to download), not parsed as JSON.
+  async function headersFor(body: unknown, anonymous: boolean, accept = 'application/json') {
+    const headers: Record<string, string> = { Accept: accept };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (!anonymous && options.userEmail) headers['X-Tiles-User'] = options.userEmail;
+    const token = anonymous ? null : (options.token ?? (await options.getToken?.()));
+    if (token) headers.Authorization = `Bearer ${token}`;
+    return headers;
+  }
+
   async function request<T>(
     method: Method,
     path: string,
     body?: unknown,
     { anonymous = false, text = false } = {},
   ): Promise<T> {
-    const headers: Record<string, string> = { Accept: 'application/json' };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
-    if (!anonymous && options.userEmail) headers['X-Tiles-User'] = options.userEmail;
-    const token = anonymous ? null : (options.token ?? (await options.getToken?.()));
-    if (token) headers.Authorization = `Bearer ${token}`;
+    const headers = await headersFor(body, anonymous);
     let res: Response;
     try {
       res = await doFetch(base + path, {
@@ -585,6 +622,37 @@ export function createApiClient(options: ApiOptions) {
   function fail(error: ApiError): never {
     options.onError?.(error);
     throw error;
+  }
+
+  // A POST whose answer streams back as server-sent events (the copilot's, T4.04): each event
+  // reaches `onEvent` as it arrives; resolves when the stream ends.
+  async function streamEvents(path: string, body: unknown, onEvent: (e: SseEvent) => void): Promise<void> {
+    const headers = await headersFor(body, false, 'text/event-stream');
+    let res: Response;
+    try {
+      res = await doFetch(base + path, { method: 'POST', headers, body: JSON.stringify(body) });
+    } catch {
+      return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
+    }
+    if (!res.ok || !res.body) {
+      let parsed: unknown = null;
+      try {
+        parsed = await res.json();
+      } catch {
+        // no details
+      }
+      return fail(new ApiError(errorMessage(parsed, res.status), res.status, res.headers.get('x-request-id')));
+    }
+    const parser = sseParser(onEvent);
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parser.feed(decoder.decode(value, { stream: true }));
+    }
+    parser.feed(decoder.decode());
+    parser.end();
   }
 
   const site = (id: string) => `/sites/${encodeURIComponent(id)}/ontology`;
@@ -783,6 +851,28 @@ export function createApiClient(options: ApiOptions) {
           q,
         ),
     },
+    copilot: (() => {
+      const base = (siteId: string) => `/sites/${encodeURIComponent(siteId)}/copilot`;
+      const conv = (siteId: string, id: string) => `${base(siteId)}/conversations/${encodeURIComponent(id)}`;
+      return {
+        status: (siteId: string) => request<{ configured: boolean }>('GET', base(siteId)),
+        conversations: (siteId: string) => request<CopilotConversation[]>('GET', `${base(siteId)}/conversations`),
+        create: (siteId: string, title = '') =>
+          request<CopilotConversation>('POST', `${base(siteId)}/conversations`, { title }),
+        get: (siteId: string, id: string) =>
+          request<CopilotConversation & { history: CopilotMessage[] }>('GET', conv(siteId, id)),
+        remove: (siteId: string, id: string) => request<void>('DELETE', conv(siteId, id)),
+        ask: (siteId: string, id: string, text: string, onEvent: (e: SseEvent) => void) =>
+          streamEvents(`${conv(siteId, id)}/messages`, { text }, onEvent),
+        rate: (siteId: string, id: string, seq: number, rating: 'up' | 'down', comment = '') =>
+          request<{ rating: 'up' | 'down'; comment: string }>('PUT', `${conv(siteId, id)}/messages/${seq}/feedback`, {
+            rating,
+            comment,
+          }),
+        unrate: (siteId: string, id: string, seq: number) =>
+          request<void>('DELETE', `${conv(siteId, id)}/messages/${seq}/feedback`),
+      };
+    })(),
     insights: (() => {
       const base = (siteId: string) => `/sites/${encodeURIComponent(siteId)}/insights`;
       const one = (siteId: string, n: number) => `${base(siteId)}/${n}`;

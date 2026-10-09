@@ -738,6 +738,47 @@
 		} catch {}
 	}
 	//#endregion
+	//#region js/lib/sse.ts
+	function sseParser(onEvent) {
+		let buffer = "";
+		const emit = (block) => {
+			let event = "message";
+			const data = [];
+			for (const line of block.split("\n")) {
+				if (!line || line.startsWith(":")) continue;
+				const colon = line.indexOf(":");
+				const field = colon < 0 ? line : line.slice(0, colon);
+				const value = colon < 0 ? "" : line.slice(colon + 1).replace(/^ /, "");
+				if (field === "event") event = value;
+				else if (field === "data") data.push(value);
+			}
+			if (!data.length) return;
+			let parsed = data.join("\n");
+			try {
+				parsed = JSON.parse(parsed);
+			} catch {}
+			onEvent({
+				event,
+				data: parsed
+			});
+		};
+		return {
+			feed(chunk) {
+				buffer += chunk.replace(/\r\n?/g, "\n");
+				let end = buffer.indexOf("\n\n");
+				while (end >= 0) {
+					emit(buffer.slice(0, end));
+					buffer = buffer.slice(end + 2);
+					end = buffer.indexOf("\n\n");
+				}
+			},
+			end() {
+				if (buffer.trim()) emit(buffer);
+				buffer = "";
+			}
+		};
+	}
+	//#endregion
 	//#region js/lib/api.ts
 	var ApiError = class extends Error {
 		status;
@@ -769,12 +810,16 @@
 	function createApiClient(options) {
 		const base = normalizeBaseUrl(options.baseUrl);
 		const doFetch = options.fetch ?? ((...args) => fetch(...args));
-		async function request(method, path, body, { anonymous = false, text = false } = {}) {
-			const headers = { Accept: "application/json" };
+		async function headersFor(body, anonymous, accept = "application/json") {
+			const headers = { Accept: accept };
 			if (body !== void 0) headers["Content-Type"] = "application/json";
 			if (!anonymous && options.userEmail) headers["X-Tiles-User"] = options.userEmail;
 			const token = anonymous ? null : options.token ?? await options.getToken?.();
 			if (token) headers.Authorization = `Bearer ${token}`;
+			return headers;
+		}
+		async function request(method, path, body, { anonymous = false, text = false } = {}) {
+			const headers = await headersFor(body, anonymous);
 			let res;
 			try {
 				res = await doFetch(base + path, {
@@ -800,6 +845,36 @@
 		function fail(error) {
 			options.onError?.(error);
 			throw error;
+		}
+		async function streamEvents(path, body, onEvent) {
+			const headers = await headersFor(body, false, "text/event-stream");
+			let res;
+			try {
+				res = await doFetch(base + path, {
+					method: "POST",
+					headers,
+					body: JSON.stringify(body)
+				});
+			} catch {
+				return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
+			}
+			if (!res.ok || !res.body) {
+				let parsed = null;
+				try {
+					parsed = await res.json();
+				} catch {}
+				return fail(new ApiError(errorMessage(parsed, res.status), res.status, res.headers.get("x-request-id")));
+			}
+			const parser = sseParser(onEvent);
+			const reader = res.body.getReader();
+			const decoder = new TextDecoder();
+			for (;;) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				parser.feed(decoder.decode(value, { stream: true }));
+			}
+			parser.feed(decoder.decode());
+			parser.end();
 		}
 		const site = (id) => `/sites/${encodeURIComponent(id)}/ontology`;
 		const warning = (siteId, id = "") => `/sites/${encodeURIComponent(siteId)}/warnings${id ? `/${encodeURIComponent(id)}` : ""}`;
@@ -903,6 +978,23 @@
 				remove: (siteId, id) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}`),
 				correlate: (siteId, id, q) => request("POST", `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}/correlate`, q)
 			},
+			copilot: (() => {
+				const base = (siteId) => `/sites/${encodeURIComponent(siteId)}/copilot`;
+				const conv = (siteId, id) => `${base(siteId)}/conversations/${encodeURIComponent(id)}`;
+				return {
+					status: (siteId) => request("GET", base(siteId)),
+					conversations: (siteId) => request("GET", `${base(siteId)}/conversations`),
+					create: (siteId, title = "") => request("POST", `${base(siteId)}/conversations`, { title }),
+					get: (siteId, id) => request("GET", conv(siteId, id)),
+					remove: (siteId, id) => request("DELETE", conv(siteId, id)),
+					ask: (siteId, id, text, onEvent) => streamEvents(`${conv(siteId, id)}/messages`, { text }, onEvent),
+					rate: (siteId, id, seq, rating, comment = "") => request("PUT", `${conv(siteId, id)}/messages/${seq}/feedback`, {
+						rating,
+						comment
+					}),
+					unrate: (siteId, id, seq) => request("DELETE", `${conv(siteId, id)}/messages/${seq}/feedback`)
+				};
+			})(),
 			insights: (() => {
 				const base = (siteId) => `/sites/${encodeURIComponent(siteId)}/insights`;
 				const one = (siteId, n) => `${base(siteId)}/${n}`;
@@ -1826,21 +1918,418 @@
 		"Where is Tab Welder W-03?"
 	];
 	//#endregion
+	//#region js/lib/copilot-chat.ts
+	var emptyAnswer = () => ({
+		seq: null,
+		text: "",
+		tools: [],
+		retracted: [],
+		grounding: null,
+		error: null,
+		done: false,
+		feedback: null
+	});
+	var blocks = (m) => Array.isArray(m.content) ? m.content : [];
+	var textOf = (m) => blocks(m).filter((b) => b.type === "text").map((b) => String(b.text ?? "")).join("\n");
+	function parseResult(content) {
+		const text = typeof content === "string" ? content : "";
+		const m = text.match(/^\[(\d+)\] [^\n]*\n?([\s\S]*)$/);
+		return m ? {
+			n: Number(m[1]),
+			body: m[2] ?? ""
+		} : {
+			n: null,
+			body: text
+		};
+	}
+	var preview$1 = (body) => body.length > 300 ? `${body.slice(0, 300)}…` : body;
+	function exchanges(history) {
+		const out = [];
+		let current = null;
+		const traces = /* @__PURE__ */ new Map();
+		for (const m of history) {
+			const content = blocks(m);
+			if (m.role === "user" && content.some((b) => b.type === "text")) {
+				current = {
+					question: textOf(m),
+					answer: null
+				};
+				out.push(current);
+				continue;
+			}
+			if (!current) continue;
+			current.answer ??= emptyAnswer();
+			const answer = current.answer;
+			if (m.role === "user") {
+				for (const b of content.filter((x) => x.type === "tool_result")) {
+					const t = traces.get(String(b.tool_use_id));
+					const { n, body } = parseResult(b.content);
+					if (t) Object.assign(t, {
+						n,
+						isError: Boolean(b.is_error),
+						preview: preview$1(body)
+					});
+				}
+				continue;
+			}
+			const calls = content.filter((b) => b.type === "tool_use");
+			for (const c of calls) {
+				const t = {
+					n: null,
+					id: String(c.id),
+					name: String(c.name),
+					input: c.input ?? {},
+					isError: null,
+					preview: ""
+				};
+				traces.set(t.id, t);
+				answer.tools.push(t);
+			}
+			if (!calls.length) Object.assign(answer, {
+				seq: m.seq,
+				text: textOf(m),
+				grounding: m.meta?.grounding ?? null,
+				retracted: (m.meta?.withdrawn ?? []).map((reason) => ({
+					text: "",
+					reason
+				})),
+				feedback: m.feedback ?? null,
+				done: true
+			});
+		}
+		for (const e of out) if (e.answer && !e.answer.done) e.answer.done = true;
+		return out;
+	}
+	function applyEvent(a, event, data) {
+		switch (event) {
+			case "text": return {
+				...a,
+				text: a.text + String(data.text ?? "")
+			};
+			case "tool_use": return {
+				...a,
+				text: "",
+				tools: [...a.tools, {
+					n: typeof data.n === "number" ? data.n : null,
+					id: String(data.id),
+					name: String(data.name),
+					input: data.input ?? {},
+					isError: null,
+					preview: ""
+				}]
+			};
+			case "tool_result": return {
+				...a,
+				tools: a.tools.map((t) => t.id === data.id ? {
+					...t,
+					isError: Boolean(data.is_error)
+				} : t)
+			};
+			case "retract": return {
+				...a,
+				text: "",
+				retracted: [...a.retracted, {
+					text: a.text,
+					reason: String(data.reason ?? "")
+				}]
+			};
+			case "grounding": return {
+				...a,
+				grounding: data
+			};
+			case "error": return {
+				...a,
+				error: String(data.detail ?? "The copilot could not answer"),
+				done: true
+			};
+			case "done": return {
+				...a,
+				done: true
+			};
+			default: return a;
+		}
+	}
+	function answerHtml(text, tools, key) {
+		const known = new Set(tools.map((t) => t.n).filter((n) => n !== null));
+		return esc(text).replace(/`([^`\n]+)`/g, "<code>$1</code>").replace(/\*\*([^*\n]+)\*\*/g, "<b>$1</b>").replace(/\[(\d+)\]/g, (whole, n) => known.has(Number(n)) ? `<a class="cite" href="#" data-cite="${esc(key)}-${n}" title="The tool result this rests on">[${n}]</a>` : whole).replace(/\n/g, "<br>");
+	}
+	function evidenceLink(t) {
+		const tag = typeof t.input.tag === "string" ? t.input.tag : "";
+		switch (t.name) {
+			case "time_series":
+			case "wear_check": return tag ? {
+				href: `#/explorer?tag=${encodeURIComponent(tag)}`,
+				text: `Plot ${tag}`
+			} : null;
+			case "find_signals": return {
+				href: "#/signals",
+				text: "Open the signals"
+			};
+			case "graph_query":
+			case "ontology_health": return {
+				href: "#/ontology",
+				text: "Open the ontology"
+			};
+			case "events": return t.input.kind === "events" ? {
+				href: "#/performance",
+				text: "Open warning performance"
+			} : {
+				href: "#/warnings",
+				text: "Open the warnings"
+			};
+			case "correlate": return {
+				href: "#/correlate",
+				text: "Open the correlation finder"
+			};
+			case "virtual_sensors": return {
+				href: "#/physics",
+				text: "Open factory physics"
+			};
+			default: return null;
+		}
+	}
+	function groundingWarning(g) {
+		if (!g || g.grounded) return null;
+		const parts = [];
+		if (g.uncited) parts.push("it cites no tool result");
+		if (g.unsupported_numbers.length) parts.push(`no tool returned ${g.unsupported_numbers.join(", ")}`);
+		if (g.unsupported_names.length) parts.push(`no tool named ${g.unsupported_names.join(", ")}`);
+		if (g.unknown_citations.length) parts.push(`it cites results that don't exist`);
+		return `Check this answer: ${parts.join("; ")}.`;
+	}
+	var toolLabel = (t) => {
+		const args = Object.entries(t.input).filter(([, v]) => v !== "" && v !== null && v !== void 0).map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`).join(", ");
+		return `${t.name}(${args})`;
+	};
+	//#endregion
 	//#region js/views/chat.ts
-	var view$13 = {
-		id: "chat",
-		title: "Copilot",
-		icon: "✦",
-		render(ctx) {
-			const log = ctx.state.chat;
-			const messages = log.length ? log.map((m) => m.role === "user" ? `<div class="msg user">${esc(m.text)}</div>` : `<div class="msg bot">${m.steps?.length ? `<div class="trace">${m.steps.map((s) => `<div>${esc(s)}</div>`).join("")}</div>` : ""}${esc(m.text)}${m.link ? `\n<a href="${esc(m.link)}">Open the evidence →</a>` : ""}</div>`).join("") : `<div class="empty"><h2 style="color:var(--ink)">Ask about your plant</h2><p style="margin-top:6px">The copilot picks a skill, runs it on the factory data and shows each step it took.</p></div>`;
-			return `
-      <div class="page-head">
-        <div><div class="eyebrow">Copilot</div><h1>Talk to your data &amp; docs</h1></div>
-        ${log.length ? "<button class=\"btn sm\" data-clear>Clear conversation</button>" : ""}
+	var uiState$9 = (ctx) => ctx.ui("chat", { conversation: null });
+	var API_SUGGESTIONS = [
+		"Which warnings are open?",
+		"How healthy is the ontology?",
+		"What do the virtual sensors show?",
+		"Is anything wearing on the welders?"
+	];
+	var remote$1 = null;
+	var thread = null;
+	var live = null;
+	var busy$4 = false;
+	var draft$2 = "";
+	var rating = null;
+	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
+	var threadKey = (ctx) => `${siteId$5(ctx)}|${uiState$9(ctx).conversation}`;
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/chat")) {
+			remote$1 = null;
+			thread = null;
+		}
+	});
+	async function loadRemote(ctx) {
+		const site = siteId$5(ctx);
+		if (!ctx.api || !site) return;
+		remote$1 = {
+			site,
+			configured: null,
+			conversations: null
+		};
+		try {
+			const { configured } = await ctx.api.copilot.status(site);
+			const conversations = configured ? await ctx.api.copilot.conversations(site) : [];
+			if (remote$1?.site === site) remote$1 = {
+				site,
+				configured,
+				conversations
+			};
+		} catch {
+			if (remote$1?.site === site) remote$1 = {
+				site,
+				configured: false,
+				conversations: []
+			};
+		}
+		ctx.rerender();
+	}
+	async function loadThread(ctx, id) {
+		const site = siteId$5(ctx);
+		if (!ctx.api || !site) return;
+		const key = `${site}|${id}`;
+		try {
+			const got = await ctx.api.copilot.get(site, id);
+			if (threadKey(ctx) === key) thread = {
+				key,
+				exchanges: exchanges(got.history)
+			};
+		} catch {
+			if (threadKey(ctx) === key) {
+				uiState$9(ctx).conversation = null;
+				thread = null;
+			}
+		}
+		ctx.rerender();
+	}
+	function answerBody(a, key, conversation) {
+		const tools = a.tools.length ? `<details class="trace" data-trace><summary>Used ${a.tools.length} tool${a.tools.length === 1 ? "" : "s"}</summary><ol class="stack" style="gap:6px;margin:6px 0 0;padding-left:18px">${a.tools.map((t) => {
+			const link = evidenceLink(t);
+			const state = t.isError === null ? "…" : t.isError ? "✗" : "✓";
+			return `<li id="cite-${esc(key)}-${t.n ?? ""}" data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ""}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? "bad" : "soft"}">${state}</span>${t.preview ? `<pre class="small soft" style="white-space:pre-wrap;margin:4px 0 0">${esc(t.preview)}</pre>` : ""}${link ? ` <a href="${esc(link.href)}">${esc(link.text)} →</a>` : ""}</li>`;
+		}).join("")}</ol></details>` : "";
+		const withdrawn = a.retracted.map((r) => `<p class="small soft" data-retracted>A first draft was withdrawn: ${esc(r.reason)}.</p>`).join("");
+		const warning = groundingWarning(a.grounding);
+		const vote = (r, label) => `<button class="btn sm ${a.feedback?.rating === r ? "primary" : ""}" type="button" data-rate="${r}" data-seq="${a.seq}" aria-pressed="${a.feedback?.rating === r}" title="${r === "up" ? "Helpful" : "Not helpful"}">${label}</button>`;
+		const rateKey = `${conversation}|${a.seq}`;
+		const feedback = a.done && a.seq !== null && conversation ? `<div class="row" style="gap:6px;margin-top:8px;align-items:center" data-feedback>${vote("up", "👍")}${vote("down", "👎")}${a.feedback?.comment ? `<span class="small soft">“${esc(a.feedback.comment)}”</span>` : ""}</div>${rating?.key === rateKey ? `<form class="row" style="gap:6px;margin-top:6px" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="What was wrong? (goes to your site's admins with this answer)" value="${esc(rating.comment)}" style="flex:1"><button class="btn sm" type="submit">Send</button></form>` : ""}` : "";
+		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, a.tools, key)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn)">⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ""}${feedback}`;
+	}
+	function remoteRender(ctx) {
+		const ui = uiState$9(ctx);
+		const list = remote$1?.conversations;
+		const items = list === null || list === void 0 ? "<div class=\"empty\">Loading…</div>" : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
+			dateStyle: "medium",
+			timeStyle: "short"
+		})}</span></button>`).join("") || "<div class=\"empty\">No conversations yet.</div>";
+		const key = threadKey(ctx);
+		const log = [...(ui.conversation && thread?.key === key ? thread.exchanges : []).map((e, i) => `<div class="msg user">${esc(e.question)}</div>${e.answer ? `<div class="msg bot copilot-answer">${answerBody(e.answer, `${i}`, ui.conversation)}</div>` : ""}`), ...live && live.key === key ? [`<div class="msg user">${esc(live.question)}</div><div class="msg bot copilot-answer" data-live>${answerBody(live.answer, "live", null)}</div>`] : []].join("");
+		return `<div class="copilot">
+      <div class="card stack" style="gap:8px">
+        <button class="btn primary" type="button" data-new-conversation>New conversation</button>
+        <div class="review-list" data-conversations>${items}</div>
       </div>
       <div class="chat">
-        <div class="chat-log" id="chat-log">${messages}</div>
+        <div class="chat-log" id="chat-log">${ui.conversation && thread?.key !== key && !live ? "<div class=\"empty\">Loading…</div>" : log || `<div class="empty"><h2 style="color:var(--ink)">Ask about your plant</h2><p style="margin-top:6px">The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer.</p></div>`}</div>
+        <div>
+          <div class="chips" style="margin:10px 0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+          <form class="composer" id="composer">
+            <input type="text" name="q" value="${esc(draft$2)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$4 ? "disabled" : ""} />
+            <button class="btn primary" type="submit" ${busy$4 ? "disabled" : ""}>Ask</button>
+            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$4 ? "disabled" : ""}>Delete</button>` : ""}
+          </form>
+        </div>
+      </div>
+    </div>`;
+	}
+	function drawLive() {
+		const el = document.querySelector("[data-live]");
+		if (!el || !live) return;
+		el.innerHTML = answerBody(live.answer, "live", null);
+		const log = document.querySelector("#chat-log");
+		if (log) log.scrollTop = log.scrollHeight;
+	}
+	async function send(ctx, question) {
+		const site = siteId$5(ctx);
+		const api = ctx.api;
+		const text = question.trim();
+		if (!api || !site || !text || busy$4) return;
+		busy$4 = true;
+		draft$2 = "";
+		const ui = uiState$9(ctx);
+		try {
+			if (!ui.conversation) {
+				ui.conversation = (await api.copilot.create(site)).id;
+				thread = {
+					key: threadKey(ctx),
+					exchanges: []
+				};
+			}
+			const id = ui.conversation;
+			live = {
+				key: threadKey(ctx),
+				question: text,
+				answer: emptyAnswer()
+			};
+			ctx.rerender();
+			await api.copilot.ask(site, id, text, (e) => {
+				if (!live) return;
+				live.answer = applyEvent(live.answer, e.event, e.data ?? {});
+				drawLive();
+			});
+		} catch {
+			draft$2 = text;
+		} finally {
+			busy$4 = false;
+			live = null;
+			if (ui.conversation) await loadThread(ctx, ui.conversation);
+			loadRemote(ctx);
+		}
+	}
+	async function rate(ctx, seq, value, comment) {
+		const site = siteId$5(ctx);
+		const id = uiState$9(ctx).conversation;
+		if (!ctx.api || !site || !id) return;
+		try {
+			const current = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer?.feedback;
+			if (current?.rating === value && !comment) await ctx.api.copilot.unrate(site, id, seq);
+			else await ctx.api.copilot.rate(site, id, seq, value, comment);
+			rating = value === "down" && !comment && current?.rating !== "down" ? {
+				key: `${id}|${seq}`,
+				comment: ""
+			} : null;
+			if (comment) ctx.toast("Thanks: your site’s admins will see it");
+		} catch {}
+		await loadThread(ctx, id);
+	}
+	function remoteBind(root, ctx) {
+		const ui = uiState$9(ctx);
+		const site = siteId$5(ctx);
+		if (ui.conversation && thread?.key !== threadKey(ctx) && !live) loadThread(ctx, ui.conversation);
+		const logEl = root.querySelector("#chat-log");
+		if (logEl) logEl.scrollTop = logEl.scrollHeight;
+		root.querySelector("#composer [name=q]")?.addEventListener("input", (e) => {
+			draft$2 = e.target.value;
+		});
+		onSubmit(root, "#composer", (form) => void send(ctx, field$1(form, "q")));
+		onAll(root, "[data-q]", "click", (b) => void send(ctx, b.dataset.q ?? ""));
+		onAll(root, "[data-new-conversation]", "click", () => {
+			ui.conversation = null;
+			thread = null;
+			ctx.rerender();
+			root.querySelector("#composer [name=q]")?.focus();
+		});
+		onAll(root, "[data-conversation]", "click", (el) => {
+			ui.conversation = el.dataset.conversation ?? null;
+			rating = null;
+			ctx.rerender();
+		});
+		onAll(root, "[data-delete-conversation]", "click", () => {
+			const id = ui.conversation;
+			if (!ctx.api || !site || !id || !confirm("Delete this conversation?")) return;
+			ctx.api.copilot.remove(site, id).then(() => {
+				ui.conversation = null;
+				thread = null;
+				loadRemote(ctx);
+			}, () => void 0);
+		});
+		onAll(root, "[data-cite]", "click", (el, e) => {
+			e.preventDefault();
+			const target = document.getElementById(`cite-${el.dataset.cite ?? ""}`);
+			const details = target?.closest("details");
+			if (details) details.open = true;
+			target?.scrollIntoView({
+				block: "nearest",
+				behavior: "smooth"
+			});
+			target?.classList.add("flash");
+			setTimeout(() => target?.classList.remove("flash"), 1200);
+		});
+		onAll(root, "[data-rate]", "click", (el) => {
+			rate(ctx, Number(el.dataset.seq), el.dataset.rate === "up" ? "up" : "down", "");
+		});
+		root.querySelectorAll("[data-rate-form]").forEach((form) => {
+			form.querySelector("[name=comment]")?.addEventListener("input", (e) => {
+				if (rating) rating.comment = e.target.value;
+			});
+			form.addEventListener("submit", (e) => {
+				e.preventDefault();
+				const comment = field$1(form, "comment").trim();
+				if (!comment) return void ctx.toast("Say what was wrong, or leave the thumbs down as it is");
+				rate(ctx, Number(form.dataset.rateForm), "down", comment);
+			});
+		});
+	}
+	function localRender(ctx, note = "") {
+		const log = ctx.state.chat;
+		return `${note}
+      <div class="chat">
+        <div class="chat-log" id="chat-log">${log.length ? log.map((m) => m.role === "user" ? `<div class="msg user">${esc(m.text)}</div>` : `<div class="msg bot">${m.steps?.length ? `<div class="trace">${m.steps.map((s) => `<div>${esc(s)}</div>`).join("")}</div>` : ""}${esc(m.text)}${m.link ? `\n<a href="${esc(m.link)}">Open the evidence →</a>` : ""}</div>`).join("") : `<div class="empty"><h2 style="color:var(--ink)">Ask about your plant</h2><p style="margin-top:6px">The copilot picks a skill, runs it on the factory data and shows each step it took.</p></div>`}</div>
         <div>
           <div class="chips" style="margin:10px 0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
@@ -1849,37 +2338,59 @@
           </form>
         </div>
       </div>`;
+	}
+	function localBind(root, ctx) {
+		const logEl = need(root, "#chat-log");
+		logEl.scrollTop = logEl.scrollHeight;
+		const sendLocal = (q) => {
+			if (!q.trim()) return;
+			const answer = ask(q, {
+				graph: ctx.graph,
+				batches: ctx.state.batches,
+				weld: ctx.state.weld,
+				shots: ctx.state.shots
+			});
+			if (!answer) return;
+			ctx.update((s) => {
+				s.chat.push({
+					role: "user",
+					text: q.trim()
+				});
+				s.chat.push({
+					role: "bot",
+					text: answer.text,
+					steps: answer.steps,
+					link: answer.link,
+					skill: answer.skill
+				});
+			});
+			document.querySelector("#composer input")?.focus();
+		};
+		onSubmit(root, "#composer", (form) => sendLocal(field$1(form, "q")));
+		onAll(root, "[data-q]", "click", (b) => sendLocal(b.dataset.q ?? ""));
+		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
+	}
+	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$5(ctx) && remote$1?.configured);
+	var view$13 = {
+		id: "chat",
+		title: "Copilot",
+		icon: "✦",
+		render(ctx) {
+			const on = remoteOn(ctx);
+			const head = `
+      <div class="page-head">
+        <div><div class="eyebrow">Copilot</div><h1>Talk to your data &amp; docs</h1></div>
+        ${!on && ctx.state.chat.length ? "<button class=\"btn sm\" data-clear>Clear conversation</button>" : ""}
+      </div>`;
+			if (on) return head + remoteRender(ctx);
+			const checking = ctx.api && remote$1?.configured === null;
+			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
 		},
 		bind(root, ctx) {
-			const logEl = need(root, "#chat-log");
-			logEl.scrollTop = logEl.scrollHeight;
-			const send = (q) => {
-				if (!q.trim()) return;
-				const answer = ask(q, {
-					graph: ctx.graph,
-					batches: ctx.state.batches,
-					weld: ctx.state.weld,
-					shots: ctx.state.shots
-				});
-				if (!answer) return;
-				ctx.update((s) => {
-					s.chat.push({
-						role: "user",
-						text: q.trim()
-					});
-					s.chat.push({
-						role: "bot",
-						text: answer.text,
-						steps: answer.steps,
-						link: answer.link,
-						skill: answer.skill
-					});
-				});
-				document.querySelector("#composer input")?.focus();
-			};
-			onSubmit(root, "#composer", (form) => send(field$1(form, "q")));
-			onAll(root, "[data-q]", "click", (b) => send(b.dataset.q ?? ""));
-			onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
+			const site = siteId$5(ctx);
+			if (ctx.api && ctx.ontology.status === "ready" && site && remote$1?.site !== site) loadRemote(ctx);
+			if (remoteOn(ctx)) remoteBind(root, ctx);
+			else localBind(root, ctx);
 		}
 	};
 	//#endregion
@@ -5052,11 +5563,23 @@
 	function addFromLink(ctx) {
 		const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
 		const id = params.get("signal");
+		const tag = params.get("tag");
 		const ids = (params.get("signals") ?? "").split(",").filter(Boolean).slice(0, MAX_SIGNALS);
 		const site = ctx.ontology.site;
 		const api = ctx.api;
-		if (!id && !ids.length || !api || !site) return;
+		if (!id && !tag && !ids.length || !api || !site) return;
 		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
+		if (tag) {
+			api.signals.list(site.id, {
+				q: tag,
+				limit: 25
+			}).then((page) => {
+				const s = page.signals.find((x) => x.tag === tag);
+				if (s) add(ctx, s);
+				else ctx.toast(`No signal tagged ${tag}`);
+			}, () => void 0);
+			return;
+		}
 		if (id) {
 			api.signals.get(site.id, id).then((s) => add(ctx, s), () => void 0);
 			return;

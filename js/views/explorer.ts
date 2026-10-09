@@ -345,15 +345,28 @@ export function linkRange(params: URLSearchParams): Range | null {
 }
 
 // `#/explorer?signal=<id>` (the Signals page links here) adds that signal;
-// `#/explorer?signals=<id>,<id>&from=…&to=…` (a saved insight links here) shows those over that range.
+// `#/explorer?signals=<id>,<id>&from=…&to=…` (a saved insight links here) shows those over that range;
+// `#/explorer?tag=<tag>` (the copilot's evidence links) adds the signal with that tag.
 function addFromLink(ctx: Context): void {
   const params = new URLSearchParams(location.hash.split('?')[1] ?? '');
   const id = params.get('signal');
+  const tag = params.get('tag');
   const ids = (params.get('signals') ?? '').split(',').filter(Boolean).slice(0, MAX_SIGNALS);
   const site = ctx.ontology.site;
   const api = ctx.api;
-  if ((!id && !ids.length) || !api || !site) return;
+  if ((!id && !tag && !ids.length) || !api || !site) return;
   history.replaceState(null, '', `${location.pathname}${location.search}#/explorer`);
+  if (tag) {
+    api.signals.list(site.id, { q: tag, limit: 25 }).then(
+      (page) => {
+        const s = page.signals.find((x) => x.tag === tag);
+        if (s) add(ctx, s);
+        else ctx.toast(`No signal tagged ${tag}`);
+      },
+      () => undefined, // the client showed why
+    );
+    return;
+  }
   if (id) {
     api.signals.get(site.id, id).then(
       (s) => add(ctx, s),

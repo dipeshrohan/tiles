@@ -92,6 +92,7 @@ export function createFakeApi({
   roles = {},
   slowAuthConfigMs = 0,
   failImportFinish = false,
+  copilot = false, // whether the copilot service is on (T4.01)
 } = {}) {
   let origin = '';
   const codes = new Map(); // code -> { challenge, redirectUri }
@@ -175,6 +176,14 @@ export function createFakeApi({
   let performanceReport = null;
   const correlations = []; // each correlate request's body
   const insights = []; // saved insights, as the API returns them, with `evidence`
+  // The copilot: conversations by id ({ id, user, title, created_at, updated_at, history }) and
+  // the answers to give next, each { tools: [{ name, input, result }], drafts: [{ text, reason }],
+  // answer, grounding? }; with none scripted, it asks back.
+  const conversations = new Map();
+  const copilotScripts = [];
+  const copilotQuestions = [];
+  const feedback = []; // { conversation, seq, rating, comment }
+  let copilotDelayMs = 5; // between streamed events
   const wearChecks = []; // each wear-check request's body
   let datasetRowsFail = null; // a detail: the next rows batch is refused with it
   // Batch tables (T3.11): like the API, the correlation finder ranks with the browser's own.
@@ -382,6 +391,7 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/performance` &&
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/copilot`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`)
       )
         return send(404, { detail: 'Site not found' });
@@ -624,6 +634,116 @@ export function createFakeApi({
         return { user_id: who, email: who, name: who.split('@')[0], role: r, site_role: r, org_admin: false };
       };
       members.add(user);
+      const copilotPath = `/sites/${site.id}/copilot`;
+      if (url.pathname === copilotPath || url.pathname.startsWith(`${copilotPath}/`)) {
+        if (url.pathname === copilotPath) return send(200, { configured: copilot });
+        const now = () => new Date().toISOString();
+        const shown = ({ history: h, user: _u, ...c }) => ({
+          ...c,
+          messages: h.length,
+          input_tokens: 0,
+          output_tokens: 0,
+        });
+        const m = url.pathname
+          .slice(copilotPath.length)
+          .match(/^\/conversations(?:\/([^/]+))?(?:\/messages(?:\/(\d+)\/feedback)?)?$/);
+        if (!m) return send(404, { detail: 'Not found' });
+        if (!m[1] && req.method === 'GET')
+          return send(
+            200,
+            [...conversations.values()]
+              .filter((c) => c.user === user)
+              .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
+              .map(shown),
+          );
+        if (!m[1] && req.method === 'POST') {
+          const { title = '' } = (await body(req)) ?? {};
+          const c = { id: randomUUID(), user, title, created_at: now(), updated_at: now(), history: [] };
+          conversations.set(c.id, c);
+          return send(201, shown(c));
+        }
+        const c = conversations.get(m[1]);
+        if (!c || c.user !== user) return send(404, { detail: 'No such conversation' });
+        const withFeedback = (msg) => {
+          const f = feedback.find((x) => x.conversation === c.id && x.seq === msg.seq);
+          return { ...msg, feedback: f ? { rating: f.rating, comment: f.comment } : null };
+        };
+        if (m[2] !== undefined) {
+          const seq = Number(m[2]);
+          const msg = c.history[seq];
+          if (!msg || msg.role !== 'assistant') return send(404, { detail: 'No such answer in this conversation' });
+          const at = feedback.findIndex((x) => x.conversation === c.id && x.seq === seq);
+          if (at >= 0) feedback.splice(at, 1);
+          if (req.method === 'DELETE') return send(204);
+          const { rating, comment = '' } = await body(req);
+          feedback.push({ conversation: c.id, seq, rating, comment: comment.trim() });
+          return send(200, { rating, comment: comment.trim() });
+        }
+        if (req.method === 'GET') return send(200, { ...shown(c), history: c.history.map(withFeedback) });
+        if (req.method === 'DELETE') {
+          conversations.delete(c.id);
+          return send(204);
+        }
+        // A question: the scripted answer, streamed as the API streams it, and stored as it stores it.
+        const { text } = await body(req);
+        copilotQuestions.push(text);
+        const script = copilotScripts.shift() ?? { answer: 'Which press do you mean?' };
+        const store = (role, content, meta = {}) =>
+          c.history.push({ seq: c.history.length, role, content, meta, created_at: now() });
+        store('user', [{ type: 'text', text }]);
+        if (!c.title) c.title = text.slice(0, 80);
+        c.updated_at = now();
+        res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+        const emit = async (event, data) => {
+          res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+          await new Promise((r) => setTimeout(r, copilotDelayMs));
+        };
+        for (const d of script.drafts ?? []) {
+          await emit('text', { text: d.text });
+          await emit('retract', { reason: d.reason });
+        }
+        const first = 1 + c.history.flatMap((x) => x.content).filter((b) => b.type === 'tool_result').length;
+        const tools = (script.tools ?? []).map((t, i) => ({ ...t, n: first + i, id: `toolu_${first + i}` }));
+        if (tools.length) {
+          store(
+            'assistant',
+            tools.map((t) => ({ type: 'tool_use', id: t.id, name: t.name, input: t.input })),
+          );
+          for (const t of tools) {
+            await emit('tool_use', { id: t.id, name: t.name, input: t.input, n: t.n });
+            await emit('tool_result', { id: t.id, name: t.name, is_error: Boolean(t.isError), n: t.n });
+          }
+          store(
+            'user',
+            tools.map((t) => ({
+              type: 'tool_result',
+              tool_use_id: t.id,
+              content: `[${t.n}] ${t.name} ${JSON.stringify(t.input)}\n${JSON.stringify(t.result)}`,
+              is_error: Boolean(t.isError),
+            })),
+          );
+        }
+        const words = script.answer.split(/(?<= )/);
+        for (const w of words) await emit('text', { text: w });
+        const grounding = script.grounding ?? {
+          grounded: true,
+          declined: false,
+          cited: [...script.answer.matchAll(/\[(\d+)\]/g)].map((x) => Number(x[1])),
+          unknown_citations: [],
+          unsupported_numbers: [],
+          unsupported_names: [],
+          uncited: false,
+        };
+        const withdrawn = (script.drafts ?? []).map((d) => d.reason);
+        store('assistant', [{ type: 'text', text: script.answer }], {
+          grounding,
+          ...(withdrawn.length ? { withdrawn } : {}),
+        });
+        await emit('grounding', grounding);
+        await emit('done', { stop_reason: 'end_turn', usage: {}, grounded: grounding.grounded });
+        res.end();
+        return;
+      }
       const insightsPath = `/sites/${site.id}/insights`;
       if (url.pathname === insightsPath || url.pathname.startsWith(`${insightsPath}/`)) {
         const m = url.pathname.slice(insightsPath.length).match(/^(?:\/(\d+))?(?:\/(review|reopen))?$/);
@@ -1142,6 +1262,14 @@ export function createFakeApi({
     bearersSeen,
     datasets,
     correlations,
+    // The copilot: the next answers to give, the questions asked, the ratings given.
+    copilotScripts,
+    copilotQuestions,
+    copilotFeedback: feedback,
+    // Slows the copilot's streamed events, so a test can see an answer arrive.
+    slowCopilot(ms) {
+      copilotDelayMs = ms;
+    },
     insights,
     wearChecks,
     // Refuses the next batch of dataset rows, as the API does a value of the wrong kind.

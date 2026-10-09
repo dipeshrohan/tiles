@@ -2204,3 +2204,105 @@ test('the wear check: a welder tip climbing in its last day, with a limit', asyn
   await a.page.waitForSelector('[data-wear-result]', { state: 'detached' });
   assert.deepEqual(a.errors, []);
 });
+
+test('the copilot: a streamed answer with its tools, citations, a withdrawn draft and feedback', async (t) => {
+  const fake = createFakeApi({ copilot: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.copilotScripts.push({
+    drafts: [{ text: 'It runs at 99 °C.', reason: 'it cites no tool result; no cited result holds 99' }],
+    tools: [
+      {
+        name: 'find_signals',
+        input: { query: 'oil' },
+        result: { signals: [{ tag: 'press9.oil_temp', last_value: 42 }] },
+      },
+    ],
+    answer: '`press9.oil_temp` reads **42 °C** [1].',
+  });
+  const a = await openAs(t, apiUrl, null, 'chat');
+  await a.page.waitForSelector('[data-new-conversation]');
+  await a.page.fill('#composer [name=q]', 'How hot is the press oil?');
+  await rerender(a.page); // what is typed survives
+  assert.equal(await a.page.inputValue('#composer [name=q]'), 'How hot is the press oil?');
+  fake.slowCopilot(150);
+  await a.page.click('#composer button[type=submit]');
+  // It streams in: the draft, its withdrawal, the tool, then the answer word by word.
+  await a.page.waitForSelector('[data-live] [data-retracted]');
+  await a.page.waitForSelector('[data-live] [data-answer-text]:has-text("reads")');
+  assert.equal(await a.page.locator('#composer button[type=submit]').isDisabled(), true);
+  await a.page.waitForSelector('[data-live]', { state: 'detached' });
+  fake.slowCopilot(5);
+  await a.page.waitForSelector('[data-answer-text]:has-text("reads 42 °C")');
+  await a.page.waitForSelector('[data-conversations]:has-text("How hot is the press oil?")');
+  const answer = a.page.locator('.copilot-answer').last();
+  assert.match(await answer.locator('[data-retracted]').innerText(), /A first draft was withdrawn: it cites no tool/);
+  assert.equal(await answer.locator('[data-answer-text] code').innerText(), 'press9.oil_temp');
+  assert.equal(await answer.locator('[data-answer-text] b').innerText(), '42 °C');
+  assert.match(await answer.locator('summary').innerText(), /Used 1 tool/);
+  // A citation opens the tool behind it, with where to see the evidence.
+  assert.equal(await answer.locator('details[data-trace]').evaluate((d) => d.open), false);
+  await answer.locator('a.cite').click();
+  assert.equal(await answer.locator('details[data-trace]').evaluate((d) => d.open), true);
+  const tool = answer.locator('[data-tool="find_signals"]');
+  assert.match(await tool.innerText(), /\[1\] find_signals\(query=oil\) ✓/);
+  assert.match(await tool.innerText(), /press9\.oil_temp/); // what it gave
+  assert.equal(await tool.locator('a').getAttribute('href'), '#/signals');
+  assert.deepEqual(fake.copilotQuestions, ['How hot is the press oil?']);
+
+  // Not helpful: a thumbs down asks what was wrong, for the site's admins.
+  await answer.locator('[data-rate="down"]').click();
+  await a.page.waitForSelector('[data-rate-form]');
+  await a.page.fill('[data-rate-form] [name=comment]', 'It should say which press');
+  await a.page.click('[data-rate-form] button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("your site’s admins will see it")');
+  await a.page.waitForSelector('[data-feedback]:has-text("It should say which press")');
+  assert.deepEqual(
+    fake.copilotFeedback.map((f) => [f.seq, f.rating, f.comment]),
+    [[3, 'down', 'It should say which press']],
+  );
+  assert.equal(await a.page.locator('[data-rate="down"]').getAttribute('aria-pressed'), 'true');
+
+  // An answer that still states what no tool returned is shown with a warning.
+  fake.copilotScripts.push({
+    answer: 'It will reach 1,900 W tomorrow.',
+    grounding: {
+      grounded: false,
+      declined: false,
+      cited: [],
+      unknown_citations: [],
+      unsupported_numbers: ['1,900'],
+      unsupported_names: [],
+      uncited: true,
+    },
+  });
+  await a.page.fill('#composer [name=q]', 'When does the welder fail?');
+  await a.page.press('#composer [name=q]', 'Enter');
+  await a.page.waitForSelector('[data-grounding-warning]');
+  assert.equal(
+    await a.page.locator('[data-grounding-warning]').innerText(),
+    '⚠ Check this answer: it cites no tool result; no tool returned 1,900.',
+  );
+
+  // The conversation is kept: back on the page, it is there with its rating.
+  await a.page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/home`);
+  await a.page.evaluate(() => (location.hash = '#/chat'));
+  await a.page.click('[data-conversation]');
+  await a.page.waitForSelector('[data-answer-text]:has-text("reads 42 °C")');
+  assert.equal(await a.page.locator('.copilot-answer').count(), 2);
+  assert.equal(await a.page.locator('[data-rate="down"]').first().getAttribute('aria-pressed'), 'true');
+  await a.page.click('[data-new-conversation]');
+  await a.page.waitForSelector('#chat-log:has-text("Ask about your plant")');
+  assert.deepEqual(a.errors, []);
+});
+
+test('the copilot: with the service off, the built-in skills answer and say so', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, null, 'chat');
+  await a.page.waitForSelector('[data-copilot-off]');
+  await a.page.click('.chip >> nth=0');
+  await a.page.waitForSelector('.msg.bot');
+  assert.deepEqual(a.errors, []);
+});

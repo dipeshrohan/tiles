@@ -17,15 +17,15 @@ import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api import assistant, grounding
-from tiles_api.api_ontology import Ctx, SiteContext
+from tiles_api.api_ontology import Admin, Ctx, SiteContext
 from tiles_api.copilot_tools import tools_for
 from tiles_api.store import Conn, one
 
@@ -57,12 +57,29 @@ class Conversation(BaseModel):
     output_tokens: int
 
 
+class Feedback(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rating: Literal["up", "down"]
+    comment: Annotated[str, Field(max_length=2000, pattern=NO_NUL)] = ""
+
+
 class Message(BaseModel):
     seq: int
     role: str
     content: list[dict[str, Any]]  # Messages API content blocks: text, tool_use, tool_result
     meta: dict[str, Any]  # an answer's grounding report (T4.03)
     created_at: datetime
+    feedback: Feedback | None = None  # yours, on an answer (T4.04)
+
+
+class FeedbackRow(Feedback):
+    conversation_id: uuid.UUID
+    seq: int
+    user: str
+    question: str  # the question the answer was to
+    answer: str
+    grounded: bool | None
+    updated_at: datetime
 
 
 class ConversationDetail(Conversation):
@@ -114,8 +131,13 @@ def _own(ctx: SiteContext, conversation_id: uuid.UUID, *, lock: bool = False) ->
 
 def _history(conn: Conn, conversation_id: uuid.UUID) -> list[dict[str, Any]]:
     return conn.execute(
-        "SELECT seq, role, content, meta, created_at FROM conversation_messages"
-        " WHERE conversation_id = %s ORDER BY seq",
+        """
+        SELECT m.seq, m.role, m.content, m.meta, m.created_at,
+               CASE WHEN f.rating IS NULL THEN NULL
+                    ELSE jsonb_build_object('rating', f.rating, 'comment', f.comment) END AS feedback
+        FROM conversation_messages m LEFT JOIN copilot_feedback f USING (conversation_id, seq)
+        WHERE m.conversation_id = %s ORDER BY m.seq
+        """,
         [conversation_id],
     ).fetchall()
 
@@ -280,3 +302,73 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
     return StreamingResponse(
         stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
+
+
+def _answer(ctx: SiteContext, conversation_id: uuid.UUID, seq: int) -> None:
+    """Your own conversation's answer (an assistant message with text) at `seq`, or 404."""
+    _own(ctx, conversation_id)
+    row = ctx.conn.execute(
+        "SELECT role, content FROM conversation_messages WHERE conversation_id = %s AND seq = %s",
+        [conversation_id, seq],
+    ).fetchone()
+    if row is None or row["role"] != "assistant" or not grounding.text_of(row).strip():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such answer in this conversation")
+
+
+@router.put("/sites/{site_id}/copilot/conversations/{conversation_id}/messages/{seq}/feedback", response_model=Feedback)
+def rate_answer(ctx: Ctx, conversation_id: uuid.UUID, seq: int, body: Feedback) -> dict[str, Any]:
+    """Rate one of your answers up or down, with a comment; your site's admins read it, with the
+    question and the answer, to improve the copilot."""
+    _answer(ctx, conversation_id, seq)
+    comment = body.comment.strip()
+    ctx.conn.execute(
+        """
+        INSERT INTO copilot_feedback (conversation_id, seq, site_id, user_id, rating, comment)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        ON CONFLICT (conversation_id, seq) DO UPDATE
+        SET rating = EXCLUDED.rating, comment = EXCLUDED.comment, updated_at = now()
+        """,
+        [conversation_id, seq, ctx.site_id, ctx.user.id, body.rating, comment],
+    )
+    ctx.audit("copilot.feedback", "conversation", str(conversation_id), after={"seq": seq, "rating": body.rating})
+    return {"rating": body.rating, "comment": comment}
+
+
+@router.delete(
+    "/sites/{site_id}/copilot/conversations/{conversation_id}/messages/{seq}/feedback",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def unrate_answer(ctx: Ctx, conversation_id: uuid.UUID, seq: int) -> None:
+    _answer(ctx, conversation_id, seq)
+    ctx.conn.execute("DELETE FROM copilot_feedback WHERE conversation_id = %s AND seq = %s", [conversation_id, seq])
+    ctx.audit("copilot.feedback.delete", "conversation", str(conversation_id), after={"seq": seq})
+
+
+@router.get("/sites/{site_id}/copilot/feedback", response_model=list[FeedbackRow])
+def list_feedback(
+    ctx: Admin, rating: Literal["up", "down"] | None = None, limit: Annotated[int, Query(ge=1, le=200)] = 100
+) -> list[dict[str, Any]]:
+    """The site's rated answers, newest first, with their question (admins)."""
+    rows = ctx.conn.execute(
+        """
+        SELECT f.conversation_id, f.seq, f.rating, f.comment, f.updated_at, u.name AS user, a.content AS answer,
+               a.meta -> 'grounding' -> 'grounded' AS grounded,
+               (SELECT q.content FROM conversation_messages q
+                WHERE q.conversation_id = f.conversation_id AND q.seq < f.seq AND q.role = 'user'
+                  AND EXISTS (SELECT 1 FROM jsonb_array_elements(q.content) b WHERE b ->> 'type' = 'text')
+                ORDER BY q.seq DESC LIMIT 1) AS question
+        FROM copilot_feedback f JOIN users u ON u.id = f.user_id
+        JOIN conversation_messages a ON a.conversation_id = f.conversation_id AND a.seq = f.seq
+        WHERE f.site_id = %s AND (%s::text IS NULL OR f.rating = %s)
+        ORDER BY f.updated_at DESC LIMIT %s
+        """,
+        [ctx.site_id, rating, rating, limit],
+    ).fetchall()
+    return [
+        r
+        | {
+            "answer": grounding.text_of({"content": r["answer"]}),
+            "question": grounding.text_of({"content": r["question"] or []}),
+        }
+        for r in rows
+    ]

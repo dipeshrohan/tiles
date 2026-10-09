@@ -126,6 +126,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `backtest.run` | the signal | | readings replayed, settings tried, events given |
 | `dataset.create`, `dataset.rows`, `dataset.delete` | the dataset | `dataset.delete`: its name and rows | its name and columns; the rows added and the total |
 | `copilot.conversation.create`, `copilot.ask`, `copilot.conversation.delete` | the conversation | | `copilot.ask`: the question's length (not its text: conversations are private) |
+| `copilot.feedback`, `copilot.feedback.delete` | the conversation | | the answer's `seq` and the rating |
 | `insight.create`, `insight.update`, `insight.review`, `insight.reopen`, `insight.delete` | the insight's number | `insight.update`: the fields changed; `insight.reopen`: its status; `insight.delete`: its title and status | its title and kind; the fields changed; the decision and note |
 | `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
@@ -330,7 +331,7 @@ An answer streams back as server-sent events:
 - every number in it, with or without a unit after it, is in a cited result or in the question. It may appear as given, rounded half up to the digits shown, rounded to its trailing zeros when that is within 5% ("about 1,800"), as a percentage of a fraction, or as the count of a list. A minus sign must be in the result too;
 - every `code` span (a tag, node or dataset name) is a value or key in a cited result, a whole word of one, or in the question.
 
-An answer that fails is withdrawn and the model is told why and asked once more. The second try doesn't count against `TILES_COPILOT_MAX_ROUNDS`. If the second answer fails too, it is kept with its report, which names the numbers and names nothing supports, so the page can warn. The report is stored with the answer (`meta.grounding`, migration 0017). The check can't tell whether a sentence with no number or name says what its result says. It catches values, counts, times, tags and every uncited answer, and T4.06 measures the rest on the evaluation set.
+The reasons for any withdrawn drafts are kept with the answer too (`meta.withdrawn`). An answer that fails is withdrawn and the model is told why and asked once more. The second try doesn't count against `TILES_COPILOT_MAX_ROUNDS`. If the second answer fails too, it is kept with its report, which names the numbers and names nothing supports, so the page can warn. The report is stored with the answer (`meta.grounding`, migration 0017). The check can't tell whether a sentence with no number or name says what its result says. It catches values, counts, times, tags and every uncited answer, and T4.06 measures the rest on the evaluation set.
 
 Every message of the exchange (the question, the answer, the tool calls and their results) is stored as it completes, so the next question carries the whole conversation. Whatever broke off while it was stored is repaired before it goes to the model, wherever it broke: a tool call without its results, a result without its call, an empty message. A turn cut short in the middle of a tool call keeps only its text, and an empty answer isn't stored.
 
@@ -366,6 +367,9 @@ A tool that can't answer says why in words the model can act on: the close signa
 | `POST /copilot/conversations` | members | `{"title"?}` starts one (titled by its first question otherwise) |
 | `GET /copilot/conversations/{id}` | its user | with `history`: every stored message, as Messages API content blocks, and its `meta` (an answer's grounding report) |
 | `DELETE /copilot/conversations/{id}` | its user | removes it |
+| `PUT /copilot/conversations/{id}/messages/{seq}/feedback` | its user | `{"rating": "up" \| "down", "comment"?}` on one of your answers (T4.04) |
+| `DELETE /copilot/conversations/{id}/messages/{seq}/feedback` | its user | takes it back |
+| `GET /copilot/feedback?rating&limit` | admins | the site's rated answers, newest first, each with its question, answer, whether it was grounded, the rating and comment, and who gave it: to improve the copilot and grow its evaluation set (T4.05) |
 | `POST /copilot/conversations/{id}/messages` | its user | `{"text"}` asks; the answer streams back (`text/event-stream`); 503 while the copilot is off, 409 while it is still answering |
 
 ### Wear check (T3.13)
