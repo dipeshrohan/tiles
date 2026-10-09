@@ -30,6 +30,14 @@ test('columns are numbers, true/false or text, by what they hold, with names mad
   assert.equal(typedRows(rows, columns)[2]['ok?'], true);
 });
 
+test('names stay unique when a header already holds the made-up one, or long ones share a start', () => {
+  const long = 'x'.repeat(95);
+  const names = inferColumns(['a', 'a (2)', 'a', `${long}1`, `${long}2`], []).map((c) => c.name);
+  assert.deepEqual(names.slice(0, 3), ['a', 'a (2)', 'a (3)']);
+  assert.equal(new Set(names).size, 5);
+  assert.ok(names.every((n) => n.length <= 100));
+});
+
 test('the failed values are read as the outcome column holds them', () => {
   assert.deepEqual(parseNgValues(' NG , scrap,', 'text'), ['NG', 'scrap']);
   assert.deepEqual(parseNgValues('1, 2.5', 'number'), [1, 2.5]);
@@ -54,17 +62,21 @@ test('the forest plot shows each effect with its interval, coloured by direction
     ok_count: 10,
     r: 0.3,
   });
-  const svg = forestPlot([
-    f('anode', 'tension', 2.2, 1.8, 2.6, true),
-    f('cathode', 'tension <x>', -2, -2.4, -1.6, true),
-    f('all', 'speed', 0.1, -0.2, 0.4, false),
-    f('all', 'few', 0, null, null, false),
-  ]);
+  const svg = forestPlot(
+    [
+      f('anode', 'tension', 2.2, 1.8, 2.6, true),
+      f('cathode', 'tension <x>', -2, -2.4, -1.6, true),
+      f('all', 'speed', 0.1, -0.2, 0.4, false), // a segment that happens to be called "all"
+      f('all', 'few', 0, null, null, false),
+    ],
+    true,
+  );
   assert.equal((svg.match(/<circle class="ci bad"/g) ?? []).length, 1);
   assert.equal((svg.match(/<circle class="ci good"/g) ?? []).length, 1);
   assert.equal((svg.match(/<circle class="ci muted"/g) ?? []).length, 1);
   assert.match(svg, /cathode · tension &lt;x&gt;/);
-  assert.match(svg, />speed</);
+  assert.match(svg, />all · speed</);
   assert.doesNotMatch(svg, /few/);
-  assert.match(forestPlot([]), /No effect could be measured/);
+  assert.match(forestPlot([f('all', 'speed', 0.1, -0.2, 0.4, false)], false), />speed</);
+  assert.match(forestPlot([], false), /No effect could be measured/);
 });

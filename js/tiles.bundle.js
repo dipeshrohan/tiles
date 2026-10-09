@@ -6139,16 +6139,16 @@
 	var TRUE = /* @__PURE__ */ new Set(["true", "yes"]);
 	var FALSE = /* @__PURE__ */ new Set(["false", "no"]);
 	function inferColumns(header, rows) {
-		const seen = /* @__PURE__ */ new Map();
+		const used = /* @__PURE__ */ new Set();
 		return header.map((raw, i) => {
-			let name = raw.trim() || `column ${i + 1}`;
-			const n = (seen.get(name) ?? 0) + 1;
-			seen.set(name, n);
-			if (n > 1) name = `${name} (${n})`;
+			const base = (raw.trim() || `column ${i + 1}`).slice(0, 90).trim();
+			let name = base;
+			for (let n = 2; used.has(name); n++) name = `${base} (${n})`;
+			used.add(name);
 			const cells = rows.map((r) => (r[i] ?? "").trim()).filter(Boolean);
 			const kind = cells.length && cells.every((c) => parseNumber(c, false) !== null) ? "number" : cells.length && cells.every((c) => TRUE.has(c.toLowerCase()) || FALSE.has(c.toLowerCase())) ? "bool" : "text";
 			return {
-				name: name.slice(0, 100),
+				name,
 				kind
 			};
 		});
@@ -6175,7 +6175,7 @@
 		}
 		return parts;
 	}
-	function forestPlot(findings, width = 760) {
+	function forestPlot(findings, split, width = 760) {
 		const shown = findings.filter((f) => f.ci_low !== null && f.ci_high !== null).slice(0, 24);
 		if (!shown.length) return "<p class=\"small soft\">No effect could be measured: each group needs two batches or more.</p>";
 		const label = 220;
@@ -6186,7 +6186,7 @@
 		const rows = shown.map((f, i) => {
 			const y = 20 + i * rowH + rowH / 2;
 			const cls = f.clear ? f.effect > 0 ? "bad" : "good" : "muted";
-			const name = f.segment === "all" ? f.variable : `${f.segment} · ${f.variable}`;
+			const name = split ? `${f.segment} · ${f.variable}` : f.variable;
 			return `<text class="tick" x="${label}" y="${y + 4}" text-anchor="end">${esc(name)}</text>
         <line class="ci ${cls}" x1="${x(f.ci_low).toFixed(1)}" x2="${x(f.ci_high).toFixed(1)}" y1="${y}" y2="${y}"/>
         <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>d = ${f.effect.toFixed(2)} (95% CI ${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)})</title></circle>`;
@@ -6284,12 +6284,16 @@
 		if (!d) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
 		const numbers = d.columns.filter((c) => c.kind === "number").map((c) => c.name);
 		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
-		const chosen = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));
+		const checked = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));
 		const option = (name, current) => `<option value="${esc(name)}" ${name === current ? "selected" : ""}>${esc(name)}</option>`;
 		const preview = d.preview.length ? `<details><summary class="small">The first ${d.preview.length} batch(es)</summary><div class="table-wrap"><table class="small"><thead><tr>${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${d.preview.map((r) => `<tr>${d.columns.map((c) => `<td>${esc(r[c.name] === null || r[c.name] === void 0 ? "" : String(r[c.name]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>` : "";
-		const r = result?.key === resultKey(ctx) ? result.data : null;
+		const r = result?.key === resultKey(ctx) ? result : null;
+		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 		return `<div class="card stack" style="gap:12px" data-analysis>
-      <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt$1(d.row_count, 0)} batch(es)</p></div>
+      <div class="row" style="justify-content:space-between;align-items:start;gap:12px">
+        <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt$1(d.row_count, 0)} batch(es)</p></div>
+        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy ? "disabled" : ""}>Delete</button>` : ""}
+      </div>
       ${preview}
       <form class="stack" id="correlate-form" style="gap:10px">
         <div class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
@@ -6298,18 +6302,18 @@
           <label class="field">Split by<select name="split"><option value="">nothing (pooled)</option>${d.columns.filter((c) => c.kind !== "number" && c.name !== outcome?.name).map((c) => option(c.name, ui.split)).join("")}</select></label>
           <button class="btn primary" type="submit" ${busy ? "disabled" : ""}>Find</button>
         </div>
-        <fieldset class="row" style="gap:10px;flex-wrap:wrap;border:0;padding:0;margin:0"><legend class="small soft">Variables</legend>${numbers.filter((n) => n !== outcome?.name).map((n) => `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${chosen.has(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</fieldset>
+        <fieldset class="row" style="gap:10px;flex-wrap:wrap;border:0;padding:0;margin:0"><legend class="small soft">Variables</legend>${numbers.filter((n) => n !== outcome?.name).map((n) => `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${checked.has(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</fieldset>
       </form>
-      ${r ? resultBlock(r) : ""}
+      ${r ? resultBlock(r.data, r.split) : ""}
     </div>`;
 	}
-	function resultBlock(r) {
+	function resultBlock(r, split) {
 		const said = r.explanations.length ? `<ul class="stack" data-explanations style="gap:4px">${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join("")}</ul>` : "<p class=\"small soft\" data-explanations>No large, clear effect (|d| ≥ 0.8 with an interval that leaves out 0).</p>";
 		const rows = r.findings.slice(0, 50).map((f) => `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? "–" : fmt$1(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? "–" : fmt$1(f.ok_mean, 2)}</td><td><b>${f.effect.toFixed(2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? "–" : `${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)}`}${f.clear ? "" : " <span class=\"small soft\">(could be 0)</span>"}</td><td>${f.r.toFixed(2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`).join("");
 		return `<div class="stack" style="gap:10px" data-result>
       <p class="small soft">${fmt$1(r.rows, 0)} batch(es) with an outcome: ${fmt$1(r.ng, 0)} failed, ${fmt$1(r.ok, 0)} good.</p>
       ${said}
-      ${forestPlot(r.findings)}
+      ${forestPlot(r.findings, split)}
       <div class="table-wrap"><table><thead><tr><th>Segment</th><th>Variable</th><th>Failed mean</th><th>Good mean</th><th>d</th><th>95% CI</th><th>r</th><th>Failed / good</th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 	}
@@ -6331,8 +6335,10 @@
 			total: rows.length
 		};
 		ctx.rerender();
+		let created = null;
 		try {
 			const d = await api.datasets.create(site, name, columns);
+			created = d.id;
 			for (let i = 0; i < rows.length; i += 2e3) {
 				upload = {
 					done: (await api.datasets.addRows(site, d.id, rows.slice(i, i + 2e3))).row_count,
@@ -6350,11 +6356,38 @@
 			});
 			detail = null;
 			listing = null;
+			created = null;
 		} catch {
+			if (created) await api.datasets.remove(site, created).catch(() => void 0);
 			listing = null;
 		} finally {
 			busy = "";
 			upload = null;
+			ctx.rerender();
+		}
+	}
+	async function removeDataset(ctx) {
+		const site = siteId(ctx);
+		const ui = uiState(ctx);
+		const d = detail?.id === ui.selected ? detail.data : null;
+		if (!ctx.api || !site || !d) return;
+		if (!confirm(`Delete ${d.name} and its ${d.row_count} batch(es)?`)) return;
+		busy = "delete";
+		ctx.rerender();
+		try {
+			await ctx.api.datasets.remove(site, d.id);
+			ctx.toast(`${d.name} deleted`);
+			Object.assign(ui, {
+				selected: null,
+				outcome: "",
+				ngText: "",
+				variables: null,
+				split: ""
+			});
+			detail = null;
+			listing = null;
+		} catch {} finally {
+			busy = "";
 			ctx.rerender();
 		}
 	}
@@ -6365,6 +6398,7 @@
 		if (!ctx.api || !site || !d || !ui.selected) return;
 		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
 		if (!outcome) return;
+		const split = ui.split && ui.split !== outcome.name ? ui.split : null;
 		const ng = parseNgValues(ui.ngText, outcome.kind);
 		if (typeof ng === "string") {
 			ctx.toast(ng);
@@ -6386,8 +6420,9 @@
 					outcome: outcome.name,
 					ng_values: ng,
 					variables,
-					split: ui.split || null
-				})
+					split
+				}),
+				split: split !== null
 			};
 		} catch {} finally {
 			busy = "";
@@ -6429,7 +6464,7 @@
 				const file = e.target.files?.[0] ?? null;
 				chosen = {
 					file,
-					name: chosen.name || (file ? file.name.replace(/\.[^.]+$/, "") : "")
+					name: chosen.name || (file ? file.name.replace(/\.[^.]+$/, "").trim().slice(0, 200).trim() : "")
 				};
 				ctx.rerender();
 			});
@@ -6453,7 +6488,8 @@
 				if (el.name === "outcome") Object.assign(ui, {
 					outcome: el.value,
 					ngText: "",
-					variables: null
+					variables: null,
+					split: ui.split === el.value ? "" : ui.split
 				});
 				if (el.name === "split") ui.split = el.value;
 				if (el.name === "variable") ui.variables = [...form.querySelectorAll("[name=variable]:checked")].map((c) => c.value);
@@ -6463,6 +6499,7 @@
 				ui.ngText = e.target.value;
 			});
 			onSubmit(root, "#correlate-form", () => void find(ctx));
+			onAll(root, "[data-delete-dataset]", "click", () => void removeDataset(ctx));
 		}
 	};
 	//#endregion

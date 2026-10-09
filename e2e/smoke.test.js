@@ -1971,7 +1971,46 @@ test('the correlation finder: upload a batch table, split it, and read the effec
   await v.page.click('[data-dataset]');
   await v.page.waitForSelector('#correlate-form');
   assert.equal(await v.page.locator('#dataset-form').count(), 0);
+  assert.equal(await v.page.locator('[data-delete-dataset]').count(), 0);
   await v.page.click('#correlate-form button[type=submit]');
   await v.page.waitForSelector('[data-result]');
   assert.deepEqual([...a.errors, ...v.errors], []);
+});
+
+test('the correlation finder: a failed upload leaves nothing behind, and engineers delete tables', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, null, 'correlate');
+  a.page.on('dialog', (d) => void d.accept());
+  await a.page.waitForSelector('#dataset-form');
+  const file = { name: 'cutter.csv', mimeType: 'text/csv', buffer: Buffer.from(cutterCsv()) };
+  await a.page.setInputFiles('#dataset-form [name=file]', file);
+  await a.page.waitForSelector('[data-chosen-file]');
+  fake.failDatasetRows('Row 1: tension must be a number');
+  await a.page.click('#dataset-form button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("tension must be a number")');
+  await a.page.waitForSelector('[data-dataset-list]:has-text("No batch tables yet")');
+  assert.deepEqual(fake.datasets, []);
+
+  // Splitting by the outcome is dropped when the outcome changes to the split column.
+  await a.page.setInputFiles('#dataset-form [name=file]', file);
+  await a.page.waitForSelector('[data-chosen-file]');
+  await a.page.click('#dataset-form button[type=submit]');
+  await a.page.waitForSelector('[data-analysis]:has-text("720 batch(es)")');
+  await a.page.selectOption('#correlate-form [name=split]', 'material');
+  await a.page.selectOption('#correlate-form [name=outcome]', 'material');
+  await a.page.fill('#correlate-form [name=ng]', 'anode');
+  await a.page.click('#correlate-form button[type=submit]');
+  await a.page.waitForSelector('[data-result]');
+  assert.equal(fake.correlations.at(-1).split, null);
+
+  await a.page.click('[data-delete-dataset]');
+  await a.page.waitForSelector('#toast:has-text("cutter deleted")');
+  await a.page.waitForSelector('[data-dataset-list]:has-text("No batch tables yet")');
+  assert.deepEqual(fake.datasets, []);
+  assert.deepEqual(
+    a.errors.filter((e) => !/Failed to load resource/.test(e)), // the refused batch
+    [],
+  );
 });

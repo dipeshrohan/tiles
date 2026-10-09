@@ -22,7 +22,7 @@ const uiState = (ctx: Context) =>
 
 let listing: { site: string; items: Dataset[] | null } | null = null;
 let detail: { id: string; data: Dataset & { preview: Record<string, DatasetValue>[] } } | null = null;
-let result: { key: string; data: CorrelationResult } | null = null;
+let result: { key: string; data: CorrelationResult; split: boolean } | null = null;
 let busy = '';
 let upload: { done: number; total: number } | null = null;
 // The file and name chosen for upload, kept across re-renders (a file input can't be refilled).
@@ -98,7 +98,7 @@ function analysisCard(ctx: Context, ui: Ui): string {
   const numbers = d.columns.filter((c) => c.kind === 'number').map((c) => c.name);
   const outcome =
     d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === 'bool') ?? d.columns[0];
-  const chosen = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));
+  const checked = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));
   const option = (name: string, current: string) =>
     `<option value="${esc(name)}" ${name === current ? 'selected' : ''}>${esc(name)}</option>`;
   const preview = d.preview.length
@@ -109,9 +109,13 @@ function analysisCard(ctx: Context, ui: Ui): string {
         )
         .join('')}</tbody></table></div></details>`
     : '';
-  const r = result?.key === resultKey(ctx) ? result.data : null;
+  const r = result?.key === resultKey(ctx) ? result : null;
+  const canEdit = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
   return `<div class="card stack" style="gap:12px" data-analysis>
-      <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt(d.row_count, 0)} batch(es)</p></div>
+      <div class="row" style="justify-content:space-between;align-items:start;gap:12px">
+        <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt(d.row_count, 0)} batch(es)</p></div>
+        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy ? 'disabled' : ''}>Delete</button>` : ''}
+      </div>
       ${preview}
       <form class="stack" id="correlate-form" style="gap:10px">
         <div class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
@@ -127,15 +131,15 @@ function analysisCard(ctx: Context, ui: Ui): string {
           .filter((n) => n !== outcome?.name)
           .map(
             (n) =>
-              `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${chosen.has(n) ? 'checked' : ''}> ${esc(n)}</label>`,
+              `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${checked.has(n) ? 'checked' : ''}> ${esc(n)}</label>`,
           )
           .join('')}</fieldset>
       </form>
-      ${r ? resultBlock(r) : ''}
+      ${r ? resultBlock(r.data, r.split) : ''}
     </div>`;
 }
 
-function resultBlock(r: CorrelationResult): string {
+function resultBlock(r: CorrelationResult, split: boolean): string {
   const said = r.explanations.length
     ? `<ul class="stack" data-explanations style="gap:4px">${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join('')}</ul>`
     : '<p class="small soft" data-explanations>No large, clear effect (|d| ≥ 0.8 with an interval that leaves out 0).</p>';
@@ -149,7 +153,7 @@ function resultBlock(r: CorrelationResult): string {
   return `<div class="stack" style="gap:10px" data-result>
       <p class="small soft">${fmt(r.rows, 0)} batch(es) with an outcome: ${fmt(r.ng, 0)} failed, ${fmt(r.ok, 0)} good.</p>
       ${said}
-      ${forestPlot(r.findings)}
+      ${forestPlot(r.findings, split)}
       <div class="table-wrap"><table><thead><tr><th>Segment</th><th>Variable</th><th>Failed mean</th><th>Good mean</th><th>d</th><th>95% CI</th><th>r</th><th>Failed / good</th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 }
@@ -170,8 +174,10 @@ async function uploadFile(ctx: Context, file: File, name: string): Promise<void>
   busy = 'upload';
   upload = { done: 0, total: rows.length };
   ctx.rerender();
+  let created: string | null = null;
   try {
     const d = await api.datasets.create(site, name, columns);
+    created = d.id;
     for (let i = 0; i < rows.length; i += 2000) {
       const sent = await api.datasets.addRows(site, d.id, rows.slice(i, i + 2000));
       upload = { done: sent.row_count, total: rows.length };
@@ -181,11 +187,36 @@ async function uploadFile(ctx: Context, file: File, name: string): Promise<void>
     Object.assign(uiState(ctx), { selected: d.id, outcome: '', ngText: '', variables: null, split: '' });
     detail = null;
     listing = null;
+    created = null;
   } catch {
-    listing = null; // the client showed why; show what is there
+    // The client showed why. A half-uploaded table would mislead: remove it.
+    if (created) await api.datasets.remove(site, created).catch(() => undefined);
+    listing = null;
   } finally {
     busy = '';
     upload = null;
+    ctx.rerender();
+  }
+}
+
+async function removeDataset(ctx: Context): Promise<void> {
+  const site = siteId(ctx);
+  const ui = uiState(ctx);
+  const d = detail?.id === ui.selected ? detail.data : null;
+  if (!ctx.api || !site || !d) return;
+  if (!confirm(`Delete ${d.name} and its ${d.row_count} batch(es)?`)) return;
+  busy = 'delete';
+  ctx.rerender();
+  try {
+    await ctx.api.datasets.remove(site, d.id);
+    ctx.toast(`${d.name} deleted`);
+    Object.assign(ui, { selected: null, outcome: '', ngText: '', variables: null, split: '' });
+    detail = null;
+    listing = null;
+  } catch {
+    // the client showed why
+  } finally {
+    busy = '';
     ctx.rerender();
   }
 }
@@ -198,6 +229,7 @@ async function find(ctx: Context): Promise<void> {
   const outcome =
     d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === 'bool') ?? d.columns[0];
   if (!outcome) return;
+  const split = ui.split && ui.split !== outcome.name ? ui.split : null;
   const ng = parseNgValues(ui.ngText, outcome.kind);
   if (typeof ng === 'string') {
     ctx.toast(ng);
@@ -217,9 +249,9 @@ async function find(ctx: Context): Promise<void> {
       outcome: outcome.name,
       ng_values: ng,
       variables,
-      split: ui.split || null,
+      split,
     });
-    result = { key, data };
+    result = { key, data, split: split !== null };
   } catch {
     // the client showed why
   } finally {
@@ -257,7 +289,18 @@ const view: View = {
     const uploadForm = root.querySelector<HTMLFormElement>('#dataset-form');
     uploadForm?.querySelector<HTMLInputElement>('[name=file]')?.addEventListener('change', (e) => {
       const file = (e.target as HTMLInputElement).files?.[0] ?? null;
-      chosen = { file, name: chosen.name || (file ? file.name.replace(/\.[^.]+$/, '') : '') };
+      chosen = {
+        file,
+        name:
+          chosen.name ||
+          (file
+            ? file.name
+                .replace(/\.[^.]+$/, '')
+                .trim()
+                .slice(0, 200)
+                .trim()
+            : ''),
+      };
       ctx.rerender();
     });
     uploadForm?.querySelector<HTMLInputElement>('[name=name]')?.addEventListener('input', (e) => {
@@ -275,7 +318,13 @@ const view: View = {
     const form = root.querySelector<HTMLFormElement>('#correlate-form');
     form?.addEventListener('change', (e) => {
       const el = e.target as HTMLInputElement | HTMLSelectElement;
-      if (el.name === 'outcome') Object.assign(ui, { outcome: el.value, ngText: '', variables: null });
+      if (el.name === 'outcome')
+        Object.assign(ui, {
+          outcome: el.value,
+          ngText: '',
+          variables: null,
+          split: ui.split === el.value ? '' : ui.split,
+        });
       if (el.name === 'split') ui.split = el.value;
       if (el.name === 'variable')
         ui.variables = [...form.querySelectorAll<HTMLInputElement>('[name=variable]:checked')].map((c) => c.value);
@@ -285,6 +334,7 @@ const view: View = {
       ui.ngText = (e.target as HTMLInputElement).value;
     });
     onSubmit(root, '#correlate-form', () => void find(ctx));
+    onAll(root, '[data-delete-dataset]', 'click', () => void removeDataset(ctx));
   },
 };
 

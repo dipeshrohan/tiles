@@ -11,12 +11,12 @@ const FALSE = new Set(['false', 'no']);
 // Each column's kind, from its cells: numbers if every filled one is a number, true/false if every
 // one is true/false or yes/no, otherwise text. Names are trimmed, and made unique.
 export function inferColumns(header: string[], rows: string[][]): DatasetColumn[] {
-  const seen = new Map<string, number>();
+  const used = new Set<string>();
   return header.map((raw, i) => {
-    let name = raw.trim() || `column ${i + 1}`;
-    const n = (seen.get(name) ?? 0) + 1;
-    seen.set(name, n);
-    if (n > 1) name = `${name} (${n})`;
+    const base = (raw.trim() || `column ${i + 1}`).slice(0, 90).trim();
+    let name = base;
+    for (let n = 2; used.has(name); n++) name = `${base} (${n})`;
+    used.add(name);
     const cells = rows.map((r) => (r[i] ?? '').trim()).filter(Boolean);
     const kind: DatasetColumn['kind'] =
       cells.length && cells.every((c) => parseNumber(c, false) !== null)
@@ -24,7 +24,7 @@ export function inferColumns(header: string[], rows: string[][]): DatasetColumn[
         : cells.length && cells.every((c) => TRUE.has(c.toLowerCase()) || FALSE.has(c.toLowerCase()))
           ? 'bool'
           : 'text';
-    return { name: name.slice(0, 100), kind };
+    return { name, kind };
   });
 }
 
@@ -65,7 +65,7 @@ export function parseNgValues(text: string, kind: DatasetColumn['kind']): Datase
 }
 
 // Each effect with its 95% interval on one scale, 0 marked: those whose interval misses 0 stand out.
-export function forestPlot(findings: CorrelationFinding[], width = 760): string {
+export function forestPlot(findings: CorrelationFinding[], split: boolean, width = 760): string {
   const shown = findings.filter((f) => f.ci_low !== null && f.ci_high !== null).slice(0, 24);
   if (!shown.length)
     return '<p class="small soft">No effect could be measured: each group needs two batches or more.</p>';
@@ -79,7 +79,7 @@ export function forestPlot(findings: CorrelationFinding[], width = 760): string 
     .map((f, i) => {
       const y = 20 + i * rowH + rowH / 2;
       const cls = f.clear ? (f.effect > 0 ? 'bad' : 'good') : 'muted';
-      const name = f.segment === 'all' ? f.variable : `${f.segment} · ${f.variable}`;
+      const name = split ? `${f.segment} · ${f.variable}` : f.variable;
       return `<text class="tick" x="${label}" y="${y + 4}" text-anchor="end">${esc(name)}</text>
         <line class="ci ${cls}" x1="${x(f.ci_low!).toFixed(1)}" x2="${x(f.ci_high!).toFixed(1)}" y1="${y}" y2="${y}"/>
         <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>d = ${f.effect.toFixed(2)} (95% CI ${f.ci_low!.toFixed(2)} to ${f.ci_high!.toFixed(2)})</title></circle>`;

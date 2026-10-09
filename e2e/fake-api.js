@@ -172,6 +172,8 @@ export function createFakeApi({
   let failWarningGets = 0; // answer this many reads of one warning with an error
   // Warning performance (T3.10): the report a test sets, and the queries the page asked it with.
   let performanceReport = null;
+  const correlations = []; // each correlate request's body
+  let datasetRowsFail = null; // a detail: the next rows batch is refused with it
   // Batch tables (T3.11): like the API, the correlation finder ranks with the browser's own.
   const datasets = []; // { id, name, description, columns, rows, created_by, created_at }
   const performanceQueries = [];
@@ -546,15 +548,29 @@ export function createFakeApi({
         }
         if (m[2] === 'rows') {
           const { rows } = await body(req);
+          if (datasetRowsFail) {
+            const detail = datasetRowsFail;
+            datasetRowsFail = null;
+            return send(422, { detail });
+          }
           d.rows.push(...rows.map((r) => Object.fromEntries(d.columns.map((c) => [c.name, r[c.name] ?? null]))));
           return send(200, { received: rows.length, row_count: d.rows.length });
         }
         const q = await body(req);
+        correlations.push(q);
         const ng = q.ng_values ?? [true];
         const judged = d.rows.filter((r) => r[q.outcome] !== null && r[q.outcome] !== undefined);
-        const rows = judged.map((r) => ({ ...r, __ng: ng.includes(r[q.outcome]) }));
+        // Segments named as the API names them: a missing value is "(blank)".
+        const rows = judged.map((r) => ({
+          ...r,
+          __ng: ng.includes(r[q.outcome]),
+          __segment: q.split ? (r[q.split] === null ? '(blank)' : String(r[q.split])) : null,
+        }));
         const variables = q.variables.map((key) => ({ key, label: key, unit: '' }));
-        const findings = correlationFinder(rows, variables, { outcome: '__ng', splitBy: q.split || null }).map((f) => {
+        const findings = correlationFinder(rows, variables, {
+          outcome: '__ng',
+          splitBy: q.split ? '__segment' : null,
+        }).map((f) => {
           const n = f.ngCount + f.okCount;
           const se =
             f.ngCount > 1 && f.okCount > 1 ? Math.sqrt(n / (f.ngCount * f.okCount) + f.effect ** 2 / (2 * n)) : null;
@@ -574,14 +590,13 @@ export function createFakeApi({
           };
         });
         const top = new Map();
-        for (const f of findings) if (!top.has(f.segment)) top.set(f.segment, f);
-        const explanations = [...top.values()]
-          .filter((f) => f.clear && Math.abs(f.effect) >= 0.8)
-          .map((f) => ({
-            segment: f.segment,
-            variable: f.variable,
-            text: `${f.segment === 'all' ? '' : `${f.segment}: `}failed batches ran ${f.variable} ${f.effect > 0 ? 'higher' : 'lower'}.`,
-          }));
+        for (const f of findings)
+          if (f.clear && Math.abs(f.effect) >= 0.8 && !top.has(f.segment)) top.set(f.segment, f);
+        const explanations = [...top.values()].map((f) => ({
+          segment: f.segment,
+          variable: f.variable,
+          text: `${q.split ? `${f.segment}: ` : ''}failed batches ran ${f.variable} ${f.effect > 0 ? 'higher' : 'lower'}.`,
+        }));
         const ngCount = rows.filter((r) => r.__ng).length;
         return send(200, { rows: rows.length, ng: ngCount, ok: rows.length - ngCount, findings, explanations });
       }
@@ -969,6 +984,12 @@ export function createFakeApi({
     server,
     requests,
     bearersSeen,
+    datasets,
+    correlations,
+    // Refuses the next batch of dataset rows, as the API does a value of the wrong kind.
+    failDatasetRows(detail) {
+      datasetRowsFail = detail;
+    },
     // Lets a test play an edge agent sending a heartbeat with its token.
     heartbeat(token, hostname = 'edge-01', connectors = [], buffer = null) {
       const agent = agents.find((a) => a.token === token);

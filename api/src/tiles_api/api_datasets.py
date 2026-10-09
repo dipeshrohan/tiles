@@ -78,6 +78,12 @@ class CorrelateIn(BaseModel):
     variables: Annotated[list[str], Field(min_length=1, max_length=MAX_COLUMNS)] | None = None  # default: all numbers
     split: str | None = None  # a column whose values are the segments (material, line, shift…)
 
+    @model_validator(mode="after")
+    def _split_apart(self) -> "CorrelateIn":
+        if self.split is not None and self.split == self.outcome:
+            raise ValueError("Split by another column than the outcome")
+        return self
+
 
 class FindingOut(BaseModel):
     segment: str
@@ -104,7 +110,7 @@ class CorrelateOut(BaseModel):
     ng: int
     ok: int
     findings: list[FindingOut]  # by |d|, largest first
-    explanations: list[Explanation]  # per segment, its strongest clear effect, if large (|d| >= 0.8)
+    explanations: list[Explanation]  # per segment, its strongest clear effect that is large (|d| >= 0.8)
 
 
 DATASETS = """
@@ -215,8 +221,8 @@ def _same(a: Any, b: Any) -> bool:
     return bool(a == b)
 
 
-def _text(f: correlate.Finding) -> str:
-    where = "" if f.segment == "all" else f"{f.segment}: "
+def _text(f: correlate.Finding, split: bool) -> str:
+    where = f"{f.segment}: " if split else ""
     direction = "higher" if f.effect > 0 else "lower"
     return (
         f"{where}failed batches ran {f.variable} {direction} "
@@ -256,11 +262,18 @@ def correlate_dataset(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             f"{d['row_count']} rows x {len(variables)} variables is too much at once: choose fewer variables",
         )
+    needed = list(dict.fromkeys([body.outcome, *([body.split] if body.split else []), *variables]))
     rows = [
         r["row"]
-        for r in ctx.conn.execute("SELECT row FROM dataset_rows WHERE dataset_id = %s ORDER BY i", [dataset_id])
+        for r in ctx.conn.execute(
+            """
+            SELECT (SELECT jsonb_object_agg(k, d.row -> k) FROM unnest(%s::text[]) AS k) AS row
+            FROM dataset_rows d WHERE d.dataset_id = %s ORDER BY d.i
+            """,
+            [needed, dataset_id],
+        )
     ]
-    if body.split and len({str(r.get(body.split)) for r in rows}) > MAX_SEGMENTS:
+    if body.split and len({correlate.segment_of(r.get(body.split)) for r in rows}) > MAX_SEGMENTS:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, f"{body.split} has more than {MAX_SEGMENTS} values to split by"
         )
@@ -269,15 +282,14 @@ def correlate_dataset(
         return any(_same(value, ng) for ng in ng_values)
 
     findings = correlate.find(rows, variables, is_ng, body.outcome, body.split)
-    judged = [r for r in rows if r.get(body.outcome) is not None]
+    judged = correlate.judged(rows, body.outcome)
     ng = sum(1 for r in judged if is_ng(r[body.outcome]))
     top: dict[str, correlate.Finding] = {}
-    for f in findings:
-        top.setdefault(f.segment, f)
+    for f in findings:  # largest first: each segment's first clear, large effect
+        if f.clear and abs(f.effect) >= min_effect:
+            top.setdefault(f.segment, f)
     explanations = [
-        {"segment": f.segment, "variable": f.variable, "text": _text(f)}
-        for f in top.values()
-        if f.clear and abs(f.effect) >= min_effect
+        {"segment": f.segment, "variable": f.variable, "text": _text(f, bool(body.split))} for f in top.values()
     ]
 
     def finite(x: float) -> float | None:

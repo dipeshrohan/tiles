@@ -4,9 +4,12 @@ out when everything is pooled shows.
 
 For each variable and segment: the NG and OK means, Cohen's d (pooled standard deviation) with a
 95% confidence interval (the normal approximation of Hedges and Olkin), and the point-biserial
-correlation r. The numbers match the browser's correlationFinder (js/lib/analysis.ts) on the same
-rows: test/fixtures/correlation.json keeps them matched. A row whose outcome is missing is left
-out; a row whose variable is missing is left out of that variable only.
+correlation r. On complete rows the numbers match the browser's correlationFinder
+(js/lib/analysis.ts): test/fixtures/correlation.json keeps them matched. Unlike the browser (whose
+demo batches have no gaps), a row whose outcome is missing is left out, and a row whose variable
+is missing is left out of that variable only, rather than counted as a number it isn't.
+Segments are named as the browser names them: true and false in lower case, a missing value
+"(blank)", a whole number without its ".0".
 """
 
 import math
@@ -86,6 +89,22 @@ class Finding:
         return self.ci_low is not None and self.ci_high is not None and (self.ci_low > 0 or self.ci_high < 0)
 
 
+def segment_of(value: Any) -> str:
+    """A split column's value as a segment name."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "(blank)"
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
+
+
+def judged(rows: Sequence[Mapping[str, Any]], outcome: str) -> list[Mapping[str, Any]]:
+    """The rows with an outcome: the only ones counted."""
+    return [r for r in rows if r.get(outcome) is not None]
+
+
 def _number(value: Any) -> float | None:
     if isinstance(value, bool) or value is None:
         return None
@@ -104,11 +123,11 @@ def find(
     """Ranks the variables by |d| (each segment's, if `split`; segments in order of first
     appearance), as the browser does. `is_ng(value)` says whether an outcome value is NG; a row
     with no outcome is left out."""
-    judged = [r for r in rows if r.get(outcome) is not None]
-    segments = list(dict.fromkeys(str(r.get(split)) for r in judged)) if split else ["all"]
+    counted = judged(rows, outcome)
+    segments = list(dict.fromkeys(segment_of(r.get(split)) for r in counted)) if split else ["all"]
     findings: list[Finding] = []
     for segment in segments:
-        subset = [r for r in judged if str(r.get(split)) == segment] if split else judged
+        subset = [r for r in counted if segment_of(r.get(split)) == segment] if split else counted
         flags = [bool(is_ng(r[outcome])) for r in subset]
         for v in variables:
             pairs = [

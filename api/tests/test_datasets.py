@@ -142,3 +142,36 @@ def test_uploads_and_requests_are_checked(
             for r in conn.execute("SELECT action FROM audit_log WHERE entity_id = %s ORDER BY id", [dataset])
         ]
     assert actions == ["dataset.create", *["dataset.rows"] * 2, "dataset.delete"]
+
+
+def test_each_segment_is_explained_by_its_strongest_clear_effect(api: TestClient, site: str) -> None:  # noqa: F811
+    columns = [
+        {"name": "ng", "kind": "bool"},
+        {"name": "night", "kind": "bool"},
+        {"name": "a", "kind": "number"},
+        {"name": "b", "kind": "number"},
+    ]
+    res = api.post(f"/sites/{site}/datasets", json={"name": "shifts", "columns": columns}, headers=ENG)
+    dataset = res.json()["id"]
+    rows: list[dict[str, Any]] = []
+    for night in (True, False):
+        for i in range(40):
+            ng = i % 4 == 0
+            # a: measured on four batches only, far apart but too few to be sure; b: on all, clearly apart.
+            a = {0: 2.5, 4: 4.5, 1: -1.0, 2: 1.0}.get(i)
+            rows.append({"ng": ng, "night": night, "a": a, "b": (1.5 if ng else 0.0) + (i % 3 - 1) * 0.8})
+    assert api.post(f"/sites/{site}/datasets/{dataset}/rows", json={"rows": rows}, headers=ENG).status_code == 200
+    out = run(api, site, dataset, outcome="ng", split="night").json()
+    assert [(f["segment"], f["variable"], f["clear"]) for f in out["findings"]][:2] == [
+        ("true", "a", False),
+        ("false", "a", False),
+    ]
+    assert [(e["segment"], e["variable"]) for e in out["explanations"]] == [("true", "b"), ("false", "b")]
+    assert out["explanations"][0]["text"].startswith("true: failed batches ran b higher (")
+    pooled = run(api, site, dataset, outcome="ng").json()
+    assert [e["segment"] for e in pooled["explanations"]] == ["all"]
+    assert pooled["explanations"][0]["text"].startswith("failed batches ran ")  # no segment named
+
+    res = run(api, site, dataset, outcome="ng", split="ng")
+    assert res.status_code == 422
+    assert "Split by another column than the outcome" in res.text
