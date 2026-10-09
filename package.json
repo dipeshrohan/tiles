@@ -5,6 +5,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "version:check": "node scripts/version.js check",
     "start": "node server.js",
     "build": "vite build",
     "dev": "vite build --watch",
