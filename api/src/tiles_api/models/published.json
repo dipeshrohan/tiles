@@ -1,5 +1,14 @@
 {
   "plunger-friction": {
     "1.0.0": "72bf87f98e6ad1bf538f40a76ef5b1b2b208d53b438c62907a9088b04bea4815"
+  },
+  "cell-swelling": {
+    "1.0.0": "0abc86ba6e7bc2913b2bfad38a5e8e183de9039a6dc1b798c32b836f8962d49d",
+    "1.1.0": "f11bd85fe4771fc69cf7569e3fe6ade2ff5c554ca53d5a9c8de4970f82ad250a",
+    "2.0.0": "edb8b5b897dfd1a120831d1dfb70d603ca7a45d36d4abd3ee5fbf820172308be"
+  },
+  "joint-actuator": {
+    "1.0.0": "3087c5d70e75057919f196ce56e0bab612bbbed221235d0eaac5ee062eb2af36",
+    "1.1.0": "979e681e2e1d739dec7a2ff4329fb44aae25c07f2bf2fe5eb5190b84187868d0"
   }
 }

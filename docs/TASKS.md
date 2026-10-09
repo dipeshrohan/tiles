@@ -137,7 +137,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [ ] `T4.09` [#68](https://github.com/dipeshrohan/tiles/issues/68) ◇ **Copilot can stage ontology changes**, which always need human approval through T2.12 · BE · 2d · T4.02, T2.12
 
 ### Design Studio backend
-- [ ] `T4.10` [#69](https://github.com/dipeshrohan/tiles/issues/69) ★ **Shared model registry for Design:** swelling and actuator models ported; versions immutable once published · ML · 3d · T3.01
+- [x] `T4.10` [#69](https://github.com/dipeshrohan/tiles/issues/69) ★ **Shared model registry for Design:** swelling and actuator models ported; versions immutable once published · ML · 3d · T3.01
 - [ ] `T4.11` [#70](https://github.com/dipeshrohan/tiles/issues/70) **Runs API:** store runs with parent, version, parameters, output and author; restore; compare · BE · 2d · T4.10
 - [ ] `T4.12` [#71](https://github.com/dipeshrohan/tiles/issues/71) **Sweeps as background jobs:** progress UI and cancel; results cached · BE+FE · 3d · T4.10
 - [ ] `T4.13` [#72](https://github.com/dipeshrohan/tiles/issues/72) **Audit export:** PDF report plus JSON with the full lineage chain · BE · 2d · T4.11
