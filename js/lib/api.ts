@@ -50,6 +50,56 @@ export interface IdentityProvider extends IdentityProviderIn {
   verified: boolean;
 }
 
+// App Studio (T6.10): templates, and apps configured from them on a site.
+export type AppParamKind = 'signal' | 'number' | 'integer' | 'choice' | 'choices';
+export interface AppParam {
+  name: string;
+  label: string;
+  kind: AppParamKind;
+  default: unknown;
+  minimum: number | null;
+  maximum: number | null;
+  choices: [string, string][]; // [value, label]
+  optional: boolean;
+  help: string;
+}
+export interface AppTemplate {
+  id: string;
+  version: number;
+  title: string;
+  summary: string;
+  params: AppParam[];
+}
+export type AppConfig = Record<string, unknown>;
+export interface StudioApp {
+  number: number;
+  name: string;
+  template: string;
+  template_version: number;
+  template_title: string;
+  config: AppConfig;
+  signal_tag: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+export interface AppResult {
+  app: StudioApp;
+  status: 'ok' | 'alert' | 'no_data';
+  headline: string;
+  text: string;
+  signal_id: string;
+  tag: string;
+  unit: string | null;
+  start: string;
+  end: string;
+  gap_seconds: number;
+  points: { at: string; value: number }[];
+  levels: { label: string; value: number }[];
+  spans: { from: string; to: string; label: string }[];
+  facts: { label: string; value: number; format: 'number' | 'percent' }[];
+}
+
 // A token an identity provider's SCIM client provisions users with (never shown again).
 export interface ScimToken {
   id: string;
@@ -868,6 +918,18 @@ export function createApiClient(options: ApiOptions) {
     // Setting up a site (T6.06): organisation admins create one; its progress, step by step.
     createSite: (site: NewSite) => request<Site>('POST', '/sites', site),
     onboarding: (siteId: string) => request<Onboarding>('GET', `/sites/${encodeURIComponent(siteId)}/onboarding`),
+    // App Studio (T6.10): templates, and the site's apps made from them.
+    appTemplates: () => request<AppTemplate[]>('GET', '/app-templates'),
+    apps: {
+      list: (siteId: string) => request<StudioApp[]>('GET', `/sites/${encodeURIComponent(siteId)}/apps`),
+      create: (siteId: string, app: { name: string; template: string; config: AppConfig }) =>
+        request<StudioApp>('POST', `/sites/${encodeURIComponent(siteId)}/apps`, app),
+      update: (siteId: string, n: number, app: { name: string; config: AppConfig }) =>
+        request<StudioApp>('PUT', `/sites/${encodeURIComponent(siteId)}/apps/${n}`, app),
+      archive: (siteId: string, n: number) => request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/apps/${n}`),
+      result: (siteId: string, n: number) =>
+        request<AppResult>('GET', `/sites/${encodeURIComponent(siteId)}/apps/${n}/result`),
+    },
     // Your organisation's own sign-in and SCIM provisioning (T5.05; organisation admins).
     org: {
       // Your organisation, and whether you manage it.

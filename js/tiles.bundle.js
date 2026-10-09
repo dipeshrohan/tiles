@@ -727,7 +727,7 @@
 	//#endregion
 	//#region js/lib/store.ts
 	var PREFIX = "tiles:";
-	function load$3(key, fallback) {
+	function load$4(key, fallback) {
 		try {
 			const raw = window.localStorage.getItem(PREFIX + key);
 			return raw ? JSON.parse(raw) : fallback;
@@ -735,7 +735,7 @@
 			return fallback;
 		}
 	}
-	function save(key, value) {
+	function save$1(key, value) {
 		try {
 			window.localStorage.setItem(PREFIX + key, JSON.stringify(value));
 		} catch {}
@@ -920,6 +920,14 @@
 			sites: () => request("GET", "/sites"),
 			createSite: (site) => request("POST", "/sites", site),
 			onboarding: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/onboarding`),
+			appTemplates: () => request("GET", "/app-templates"),
+			apps: {
+				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/apps`),
+				create: (siteId, app) => request("POST", `/sites/${encodeURIComponent(siteId)}/apps`, app),
+				update: (siteId, n, app) => request("PUT", `/sites/${encodeURIComponent(siteId)}/apps/${n}`, app),
+				archive: (siteId, n) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/apps/${n}`),
+				result: (siteId, n) => request("GET", `/sites/${encodeURIComponent(siteId)}/apps/${n}/result`)
+			},
 			org: {
 				me: () => request("GET", "/org"),
 				identityProvider: () => request("GET", "/org/identity-provider"),
@@ -1704,7 +1712,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$17 = {
+	var view$18 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -2208,12 +2216,12 @@
 	var remote$1 = null;
 	var thread = null;
 	var live = null;
-	var busy$6 = false;
-	var draft$2 = "";
+	var busy$7 = false;
+	var draft$3 = "";
 	var rating = null;
 	var failure = null;
-	var siteId$8 = (ctx) => ctx.ontology.site?.id ?? null;
-	var threadKey = (ctx) => `${siteId$8(ctx)}|${uiState$12(ctx).conversation}`;
+	var siteId$9 = (ctx) => ctx.ontology.site?.id ?? null;
+	var threadKey = (ctx) => `${siteId$9(ctx)}|${uiState$12(ctx).conversation}`;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "chat") {
 			remote$1 = null;
@@ -2221,7 +2229,7 @@
 		}
 	});
 	async function loadRemote(ctx) {
-		const site = siteId$8(ctx);
+		const site = siteId$9(ctx);
 		if (!ctx.api || !site) return;
 		remote$1 = {
 			site,
@@ -2246,7 +2254,7 @@
 		ctx.rerender();
 	}
 	async function loadThread(ctx, id) {
-		const site = siteId$8(ctx);
+		const site = siteId$9(ctx);
 		if (!ctx.api || !site) return;
 		const key = `${site}|${id}`;
 		try {
@@ -2307,9 +2315,9 @@
         <div>
           <div class="chips" style="margin:10px 0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
-            <input type="text" name="q" value="${esc(draft$2)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$6 ? "disabled" : ""} />
-            <button class="btn primary" type="submit" ${busy$6 ? "disabled" : ""}>Ask</button>
-            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$6 ? "disabled" : ""}>Delete</button>` : ""}
+            <input type="text" name="q" value="${esc(draft$3)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$7 ? "disabled" : ""} />
+            <button class="btn primary" type="submit" ${busy$7 ? "disabled" : ""}>Ask</button>
+            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$7 ? "disabled" : ""}>Delete</button>` : ""}
           </form>
           <p class="small soft" style="margin-top:6px">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
         </div>
@@ -2325,12 +2333,12 @@
 		if (log) log.scrollTop = log.scrollHeight;
 	}
 	async function send(ctx, question) {
-		const site = siteId$8(ctx);
+		const site = siteId$9(ctx);
 		const api = ctx.api;
 		const text = question.trim();
-		if (!api || !site || !text || busy$6) return;
-		busy$6 = true;
-		draft$2 = "";
+		if (!api || !site || !text || busy$7) return;
+		busy$7 = true;
+		draft$3 = "";
 		failure = null;
 		const ui = uiState$12(ctx);
 		let sent = false;
@@ -2356,13 +2364,13 @@
 				drawLive();
 			});
 		} catch (e) {
-			if (!sent) draft$2 = text;
+			if (!sent) draft$3 = text;
 			else if (live) live.answer = {
 				...live.answer,
 				error: e instanceof Error ? e.message : "The answer was cut off"
 			};
 		} finally {
-			busy$6 = false;
+			busy$7 = false;
 			if (live?.answer.error) failure = {
 				key: live.key,
 				question: text,
@@ -2374,7 +2382,7 @@
 		}
 	}
 	async function rate(ctx, seq, value, comment) {
-		const site = siteId$8(ctx);
+		const site = siteId$9(ctx);
 		const id = uiState$12(ctx).conversation;
 		if (!ctx.api || !site || !id) return;
 		const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
@@ -2394,12 +2402,12 @@
 	}
 	function remoteBind(root, ctx) {
 		const ui = uiState$12(ctx);
-		const site = siteId$8(ctx);
+		const site = siteId$9(ctx);
 		if (ui.conversation && thread?.key !== threadKey(ctx) && !live) loadThread(ctx, ui.conversation);
 		const logEl = root.querySelector("#chat-log");
 		if (logEl) logEl.scrollTop = logEl.scrollHeight;
 		root.querySelector("#composer [name=q]")?.addEventListener("input", (e) => {
-			draft$2 = e.target.value;
+			draft$3 = e.target.value;
 		});
 		onSubmit(root, "#composer", (form) => void send(ctx, field$1(form, "q")));
 		onAll(root, "[data-q]", "click", (b) => void send(ctx, b.dataset.q ?? ""));
@@ -2495,8 +2503,8 @@
 		onAll(root, "[data-q]", "click", (b) => sendLocal(b.dataset.q ?? ""));
 		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 	}
-	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$8(ctx) && remote$1?.configured);
-	var view$16 = {
+	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$9(ctx) && remote$1?.configured);
+	var view$17 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -2512,7 +2520,7 @@
 			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
 		},
 		bind(root, ctx) {
-			const site = siteId$8(ctx);
+			const site = siteId$9(ctx);
 			if (ctx.api && ctx.ontology.status === "ready" && site && remote$1?.site !== site) loadRemote(ctx);
 			if (remoteOn(ctx)) remoteBind(root, ctx);
 			else localBind(root, ctx);
@@ -3349,7 +3357,7 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$15 = {
+	var view$16 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
@@ -3962,7 +3970,7 @@
 		split: true,
 		variable: "tension"
 	});
-	var view$14 = {
+	var view$15 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
@@ -4104,7 +4112,7 @@
 	//#endregion
 	//#region js/views/physics.ts
 	var uiState$9 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$13 = {
+	var view$14 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
@@ -4484,7 +4492,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$12 = {
+	var view$13 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -5339,7 +5347,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$11 = {
+	var view$12 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -5451,7 +5459,7 @@
 		accepted: ["good", "Accepted"],
 		rejected: ["bad", "Rejected"]
 	};
-	function statusBadge$1(status) {
+	function statusBadge$2(status) {
 		const [cls, text] = STATUS$2[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
@@ -6003,7 +6011,7 @@
 			})();
 		});
 	}
-	var view$10 = {
+	var view$11 = {
 		id: "signals",
 		title: "Signals",
 		icon: "≋",
@@ -6456,7 +6464,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$9 = {
+	var view$10 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "⌁",
@@ -6573,16 +6581,16 @@
 		selected: null,
 		site: null
 	});
-	var listing$4 = null;
+	var listing$5 = null;
 	var detail$3 = null;
 	var listSeq$2 = 0;
 	var detailSeq$1 = 0;
-	var busy$5 = false;
-	var draft$1 = {
+	var busy$6 = false;
+	var draft$2 = {
 		key: "",
 		text: ""
 	};
-	var siteId$7 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$8 = (ctx) => ctx.ontology.site?.id ?? null;
 	var linked = (hash) => {
 		const m = /^#\/reviews\/(\d+)/i.exec(hash);
 		return m ? Number(m[1]) : null;
@@ -6592,19 +6600,19 @@
 	onNavigate((hash) => {
 		wanted = linked(hash);
 		if (routeOf(hash) !== "reviews") {
-			listing$4 = null;
+			listing$5 = null;
 			detail$3 = null;
 		}
 	});
-	var listKey$2 = (ctx) => `${siteId$7(ctx)}|${uiState$7(ctx).state}`;
-	var detailKey$2 = (ctx) => `${siteId$7(ctx)}|${uiState$7(ctx).selected}`;
+	var listKey$3 = (ctx) => `${siteId$8(ctx)}|${uiState$7(ctx).state}`;
+	var detailKey$2 = (ctx) => `${siteId$8(ctx)}|${uiState$7(ctx).selected}`;
 	var STATUS$1 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
 		rejected: ["bad", "Rejected"],
 		withdrawn: ["", "Withdrawn"]
 	};
-	function statusBadge(status) {
+	function statusBadge$1(status) {
 		const [cls, text] = STATUS$1[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
@@ -6620,17 +6628,17 @@
 		if (r.status !== "open" || role === null || role === "viewer" || r.author_id === me) return false;
 		return r.reviewer_id === null || r.reviewer_id === me || role === "admin";
 	}
-	function listCard$3(ctx, ui) {
+	function listCard$4(ctx, ui) {
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
-		const items = listing$4?.key === listKey$2(ctx) ? listing$4.items : null;
+		const items = listing$5?.key === listKey$3(ctx) ? listing$5.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
-          <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
+          <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$1(r.status)}</span>
           <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
           <span class="small">${stats(r.stats)}</span>
         </button>`).join("") || `<div class="empty">${ui.state === "open" ? "Nothing waits for a review. Send staged changes from the Ontology page." : "No closed change requests yet."}</div>`}</div></div>`;
 	}
-	function detailCard$2(ctx, ui) {
+	function detailCard$3(ctx, ui) {
 		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a change request to see its changes.</div></div>";
 		const r = detail$3?.key === detailKey$2(ctx) ? detail$3.review : null;
 		if (!r) return "<div class=\"card\" data-review-detail><div class=\"empty\">Loading…</div></div>";
@@ -6641,7 +6649,7 @@
 		const diff = shown.map((c) => `<div class="change ${c.sign === "+" ? "plus" : c.sign === "−" ? "minus" : "mod"}"><span class="sign">${c.sign}</span> ${esc(c.text)}${c.problem ? ` <span class="badge bad" title="${esc(c.problem)}">doesn't apply</span>` : ""}</div>`).join("");
 		const thread = r.thread.map((c) => `
       <div class="comment">
-        <div class="small muted"><b>${esc(c.author)}</b> · ${timeAgo(c.created_at)}${c.verdict ? ` ${statusBadge(c.verdict)}` : ""}</div>
+        <div class="small muted"><b>${esc(c.author)}</b> · ${timeAgo(c.created_at)}${c.verdict ? ` ${statusBadge$1(c.verdict)}` : ""}</div>
         ${c.body ? `<div class="comment-body">${esc(c.body)}</div>` : ""}
       </div>`).join("");
 		const canWrite = o.role !== null && o.role !== "viewer";
@@ -6652,7 +6660,7 @@
 		return `
     <div class="card" data-review-detail>
       <div class="card-head"><div>
-        ${statusBadge(r.status)}${r.source === "copilot" ? ` ${COPILOT_BADGE}` : ""}
+        ${statusBadge$1(r.status)}${r.source === "copilot" ? ` ${COPILOT_BADGE}` : ""}
         <h2 style="margin-top:6px">#${r.number} ${esc(r.message)}</h2>
         <div class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)} · ${r.reviewer ? `review by ${esc(r.reviewer)}` : "any engineer may review"}${r.reverts ? ` · reverts <span class="mono">${esc(r.reverts.slice(-7))}</span>` : ""}</div>
       </div></div>
@@ -6664,8 +6672,8 @@
       <div class="thread">${thread || "<p class=\"small muted\">No comments yet.</p>"}</div>
       ${waiting}
       ${canWrite ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
-        <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$1.key === detailKey$2(ctx) ? esc(draft$1.text) : ""}</textarea>
-        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$5 ? "disabled" : ""}>
+        <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$2.key === detailKey$2(ctx) ? esc(draft$2.text) : ""}</textarea>
+        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$6 ? "disabled" : ""}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
           ${reworkButton(r, mine)}
@@ -6685,22 +6693,22 @@
     </div>`;
 	}
 	async function fetchList$1(ctx) {
-		const site = siteId$7(ctx);
+		const site = siteId$8(ctx);
 		if (!ctx.api || !site) return;
-		const key = listKey$2(ctx);
+		const key = listKey$3(ctx);
 		const seq = ++listSeq$2;
-		listing$4 = {
+		listing$5 = {
 			key,
 			items: null
 		};
 		try {
 			const items = await ctx.api.reviews.list(site, uiState$7(ctx).state);
-			if (seq === listSeq$2) listing$4 = {
+			if (seq === listSeq$2) listing$5 = {
 				key,
 				items
 			};
 		} catch {
-			if (seq === listSeq$2) listing$4 = {
+			if (seq === listSeq$2) listing$5 = {
 				key,
 				items: []
 			};
@@ -6708,7 +6716,7 @@
 		if (seq === listSeq$2) ctx.rerender();
 	}
 	async function fetchDetail$1(ctx) {
-		const site = siteId$7(ctx);
+		const site = siteId$8(ctx);
 		const n = uiState$7(ctx).selected;
 		if (!ctx.api || !site || n === null) return;
 		const key = detailKey$2(ctx);
@@ -6727,9 +6735,9 @@
 		ctx.rerender();
 	}
 	async function act$2(ctx, action, comment) {
-		const site = siteId$7(ctx);
+		const site = siteId$8(ctx);
 		const r = detail$3?.review;
-		if (!ctx.api || !site || !r || busy$5) return;
+		if (!ctx.api || !site || !r || busy$6) return;
 		const reviews = ctx.api.reviews;
 		const call = {
 			comment: () => reviews.comment(site, r.number, comment),
@@ -6738,7 +6746,7 @@
 			rework: () => reviews.rework(site, r.number)
 		}[action];
 		if (!call) return;
-		busy$5 = true;
+		busy$6 = true;
 		ctx.rerender();
 		try {
 			const review = await call();
@@ -6746,7 +6754,7 @@
 				key: `${site}|${review.number}`,
 				review
 			};
-			draft$1 = {
+			draft$2 = {
 				key: "",
 				text: ""
 			};
@@ -6754,7 +6762,7 @@
 			if (action === "approve") ctx.toast(`#${r.number} approved and committed`);
 			if (action === "reject") ctx.toast(`#${r.number} rejected`);
 			if (action !== "comment") {
-				listing$4 = null;
+				listing$5 = null;
 				await ctx.ontology.reload();
 			}
 			if (action === "rework" && r.reverts) ctx.toast(`#${r.number} withdrawn`);
@@ -6764,13 +6772,13 @@
 			}
 		} catch {
 			detail$3 = null;
-			listing$4 = null;
+			listing$5 = null;
 		} finally {
-			busy$5 = false;
+			busy$6 = false;
 			ctx.rerender();
 		}
 	}
-	var view$8 = {
+	var view$9 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "✓",
@@ -6782,21 +6790,21 @@
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
 			const ui = uiState$7(ctx);
-			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$3(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
+			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$4(ctx, ui)}${detailCard$3(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
 			const ui = uiState$7(ctx);
-			if (ui.site !== siteId$7(ctx)) Object.assign(ui, {
+			if (ui.site !== siteId$8(ctx)) Object.assign(ui, {
 				selected: null,
-				site: siteId$7(ctx)
+				site: siteId$8(ctx)
 			});
 			if (wanted !== null) {
 				ui.selected = wanted;
 				wanted = null;
 				history.replaceState(history.state, "", `${location.pathname}${location.search}#/reviews`);
 			}
-			if (listing$4?.key !== listKey$2(ctx)) fetchList$1(ctx);
+			if (listing$5?.key !== listKey$3(ctx)) fetchList$1(ctx);
 			if (ui.selected !== null && detail$3?.key !== detailKey$2(ctx)) fetchDetail$1(ctx);
 			onAll(root, "[data-state]", "click", (el) => {
 				ui.state = el.dataset.state === "closed" ? "closed" : "open";
@@ -6808,19 +6816,19 @@
 			});
 			onAll(root, "[data-history]", "click", () => showHistory(ctx));
 			onAll(root, "[data-refresh-reviews]", "click", () => {
-				listing$4 = null;
+				listing$5 = null;
 				detail$3 = null;
 				ctx.ontology.reload();
 				ctx.rerender();
 			});
 			root.querySelector("#review-form textarea")?.addEventListener("input", (e) => {
-				draft$1 = {
+				draft$2 = {
 					key: detailKey$2(ctx),
 					text: e.target.value
 				};
 			});
 			onAll(root, "[data-policy]", "change", (el) => {
-				const site = siteId$7(ctx);
+				const site = siteId$8(ctx);
 				const required = el.checked;
 				if (!ctx.api || !site) return;
 				ctx.api.ontology.setReviewPolicy(site, required).then(() => ctx.toast(required ? "Every change now needs a review" : "Reviews are optional again")).catch(() => void 0).finally(() => void ctx.ontology.reload());
@@ -6953,7 +6961,7 @@
 		selected: null,
 		site: null
 	});
-	var listing$3 = null;
+	var listing$4 = null;
 	var detail$2 = null;
 	var detailFailed = null;
 	var series = null;
@@ -6961,25 +6969,25 @@
 	var listSeq$1 = 0;
 	var detailSeq = 0;
 	var seriesSeq = 0;
-	var busy$4 = false;
-	var draft = {
+	var busy$5 = false;
+	var draft$1 = {
 		key: "",
 		text: ""
 	};
 	var PAGE$1 = 100;
 	var ago = (iso) => when(iso, Date.now());
-	var siteId$6 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$7 = (ctx) => ctx.ontology.site?.id ?? null;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "warnings") {
-			listing$3 = null;
+			listing$4 = null;
 			detail$2 = null;
 			detailFailed = null;
 			series = null;
 			members = null;
 		}
 	});
-	var listKey$1 = (ctx) => `${siteId$6(ctx)}|${JSON.stringify(uiState$6(ctx).filters)}`;
-	var detailKey$1 = (ctx) => `${siteId$6(ctx)}|${uiState$6(ctx).selected}`;
+	var listKey$2 = (ctx) => `${siteId$7(ctx)}|${JSON.stringify(uiState$6(ctx).filters)}`;
+	var detailKey$1 = (ctx) => `${siteId$7(ctx)}|${uiState$6(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function badge$1(w) {
 		const [cls, label] = STATUS[w.status];
@@ -6998,15 +7006,15 @@
       </span>
     </div>`;
 	}
-	function listCard$2(ctx, ui) {
-		const items = listing$3?.key === listKey$1(ctx) ? listing$3.items : null;
+	function listCard$3(ctx, ui) {
+		const items = listing$4?.key === listKey$2(ctx) ? listing$4.items : null;
 		const empty = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all" ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
 		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
           <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing$3?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
+        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing$4?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
@@ -7039,7 +7047,7 @@
 	function actionsForm(ctx, w) {
 		const actions = actionsFor(w, ctx.ontology.role);
 		if (!actions.length) return "";
-		const people = (members?.site === siteId$6(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
+		const people = (members?.site === siteId$7(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
 		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
 		const has = (a) => actions.includes(a);
 		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
@@ -7050,8 +7058,8 @@
         ${Object.keys(OUTCOMES).map((o) => `<option value="${o}">${OUTCOMES[o]}</option>`).join("")}
       </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>` : "";
 		return `<form class="stack" id="warning-form" style="gap:8px;margin-top:10px">
-      <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey$1(ctx) ? esc(draft.text) : ""}</textarea>
-      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$4 ? "disabled" : ""}>
+      <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft$1.key === detailKey$1(ctx) ? esc(draft$1.text) : ""}</textarea>
+      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$5 ? "disabled" : ""}>
         ${has("acknowledge") ? "<button class=\"btn primary\" type=\"button\" data-act=\"acknowledge\">Acknowledge</button>" : ""}
         ${assign}
         ${resolve}
@@ -7060,7 +7068,7 @@
       </fieldset>
     </form>`;
 	}
-	function detailCard$1(ctx, ui) {
+	function detailCard$2(ctx, ui) {
 		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a warning to see its signal and what was done.</div></div>";
 		const w = detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
 		if (!w && detailFailed === detailKey$1(ctx)) return "<div class=\"card\" data-warning-detail><div class=\"empty\">This warning could not be loaded. Refresh to try again.</div></div>";
@@ -7093,11 +7101,11 @@
     </div>`;
 	}
 	async function fetchList(ctx) {
-		const site = siteId$6(ctx);
+		const site = siteId$7(ctx);
 		if (!ctx.api || !site) return;
-		const key = listKey$1(ctx);
+		const key = listKey$2(ctx);
 		const seq = ++listSeq$1;
-		listing$3 = {
+		listing$4 = {
 			key,
 			items: null,
 			more: false
@@ -7107,13 +7115,13 @@
 				...queryFor(uiState$6(ctx).filters),
 				limit: PAGE$1
 			});
-			if (seq === listSeq$1) listing$3 = {
+			if (seq === listSeq$1) listing$4 = {
 				key,
 				items,
 				more: items.length === PAGE$1
 			};
 		} catch {
-			if (seq === listSeq$1) listing$3 = {
+			if (seq === listSeq$1) listing$4 = {
 				key,
 				items: [],
 				more: false
@@ -7122,9 +7130,9 @@
 		if (seq === listSeq$1) ctx.rerender();
 	}
 	async function fetchMore(ctx) {
-		const site = siteId$6(ctx);
-		const shown = listing$3;
-		if (!ctx.api || !site || !shown?.items || shown.key !== listKey$1(ctx)) return;
+		const site = siteId$7(ctx);
+		const shown = listing$4;
+		if (!ctx.api || !site || !shown?.items || shown.key !== listKey$2(ctx)) return;
 		const seq = ++listSeq$1;
 		try {
 			const query = {
@@ -7135,14 +7143,14 @@
 			const page = await ctx.api.warnings.list(site, query);
 			if (seq !== listSeq$1) return;
 			const seen = new Set(shown.items.map((w) => w.id));
-			listing$3 = {
+			listing$4 = {
 				key: shown.key,
 				items: [...shown.items, ...page.filter((w) => !seen.has(w.id))],
 				more: page.length === PAGE$1
 			};
 		} catch {
 			if (seq !== listSeq$1) return;
-			listing$3 = {
+			listing$4 = {
 				...shown,
 				more: true
 			};
@@ -7150,7 +7158,7 @@
 		ctx.rerender();
 	}
 	async function fetchSeries(ctx, w) {
-		const site = siteId$6(ctx);
+		const site = siteId$7(ctx);
 		if (!ctx.api || !site) return;
 		const key = seriesKey(w);
 		const seq = ++seriesSeq;
@@ -7176,7 +7184,7 @@
 		ctx.rerender();
 	}
 	async function fetchDetail(ctx) {
-		const site = siteId$6(ctx);
+		const site = siteId$7(ctx);
 		const id = uiState$6(ctx).selected;
 		if (!ctx.api || !site || id === null) return;
 		const key = detailKey$1(ctx);
@@ -7197,7 +7205,7 @@
 		ctx.rerender();
 	}
 	async function fetchMembers(ctx) {
-		const site = siteId$6(ctx);
+		const site = siteId$7(ctx);
 		if (!ctx.api || !site) return;
 		members = {
 			site,
@@ -7213,9 +7221,9 @@
 		ctx.rerender();
 	}
 	async function act$1(ctx, action, note, form) {
-		const site = siteId$6(ctx);
+		const site = siteId$7(ctx);
 		const w = detail$2?.warning;
-		if (!ctx.api || !site || !w || busy$4) return;
+		if (!ctx.api || !site || !w || busy$5) return;
 		const api = ctx.api.warnings;
 		const value = (name) => form.querySelector(`[name="${name}"]`)?.value ?? "";
 		const call = {
@@ -7226,7 +7234,7 @@
 			comment: () => api.comment(site, w.id, note)
 		}[action];
 		if (!call) return;
-		busy$4 = true;
+		busy$5 = true;
 		++detailSeq;
 		ctx.rerender();
 		try {
@@ -7236,7 +7244,7 @@
 				key,
 				warning
 			};
-			if (draft.key === key) draft = {
+			if (draft$1.key === key) draft$1 = {
 				key: "",
 				text: ""
 			};
@@ -7249,23 +7257,23 @@
 				comment: "Comment added"
 			};
 			ctx.toast(done[action] ?? "Done");
-			if (action !== "comment" && !same) listing$3 = null;
+			if (action !== "comment" && !same) listing$4 = null;
 		} catch {
 			detail$2 = null;
-			listing$3 = null;
+			listing$4 = null;
 		} finally {
-			busy$4 = false;
+			busy$5 = false;
 			ctx.rerender();
 		}
 	}
 	function openWarning(ctx, id) {
 		Object.assign(uiState$6(ctx), {
 			selected: id,
-			site: siteId$6(ctx)
+			site: siteId$7(ctx)
 		});
 		location.hash = "#/warnings";
 	}
-	var view$7 = {
+	var view$8 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "⚠",
@@ -7277,17 +7285,17 @@
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
 			const ui = uiState$6(ctx);
-			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$2(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
+			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$3(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
 			const ui = uiState$6(ctx);
-			const site = siteId$6(ctx);
+			const site = siteId$7(ctx);
 			if (ui.site !== site) Object.assign(ui, {
 				selected: null,
 				site
 			});
-			if (listing$3?.key !== listKey$1(ctx)) fetchList(ctx);
+			if (listing$4?.key !== listKey$2(ctx)) fetchList(ctx);
 			if (ui.selected !== null && detail$2?.key !== detailKey$1(ctx) && detailFailed !== detailKey$1(ctx)) fetchDetail(ctx);
 			const shown = detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
 			if (shown && series?.key !== seriesKey(shown)) fetchSeries(ctx, shown);
@@ -7312,8 +7320,8 @@
 				ctx.rerender();
 			});
 			onAll(root, "[data-refresh-warnings]", "click", () => {
-				if (busy$4) return;
-				listing$3 = null;
+				if (busy$5) return;
+				listing$4 = null;
 				detail$2 = null;
 				detailFailed = null;
 				series = null;
@@ -7321,7 +7329,7 @@
 			});
 			onAll(root, "[data-more-warnings]", "click", () => void fetchMore(ctx));
 			root.querySelector("#warning-form textarea")?.addEventListener("input", (e) => {
-				draft = {
+				draft$1 = {
 					key: detailKey$1(ctx),
 					text: e.target.value
 				};
@@ -7488,13 +7496,13 @@
 	var LINKS_PAGE = 500;
 	var MAX_LINKS = 1e4;
 	var ROUTES = /* @__PURE__ */ new Set(["shopfloor", "plant"]);
-	var listing$2 = null;
+	var listing$3 = null;
 	var catalogue = null;
 	var stale = false;
 	var lastRoute = typeof location === "undefined" ? "" : routeOf(location.hash);
 	var listSeq = 0;
 	var catalogueSeq = 0;
-	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$6 = (ctx) => ctx.ontology.site?.id ?? null;
 	var shown = () => ROUTES.has(routeOf(location.hash));
 	onNavigate((hash) => {
 		const route = routeOf(hash);
@@ -7504,20 +7512,20 @@
 			if (from !== route) stale = true;
 			return;
 		}
-		listing$2 = null;
+		listing$3 = null;
 		catalogue = null;
 		++listSeq;
 		++catalogueSeq;
 	});
 	var listed = () => ({
-		at: listing$2?.at ?? null,
-		more: listing$2?.more ?? false
+		at: listing$3?.at ?? null,
+		more: listing$3?.more ?? false
 	});
 	async function fetchWarnings(ctx, quiet = false) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		if (!ctx.api || !site) return;
 		const seq = ++listSeq;
-		if (!quiet || listing$2?.site !== site) listing$2 = {
+		if (!quiet || listing$3?.site !== site) listing$3 = {
 			site,
 			items: null,
 			at: null,
@@ -7528,14 +7536,14 @@
 				status: "unresolved",
 				limit: 100
 			});
-			if (seq === listSeq) listing$2 = {
+			if (seq === listSeq) listing$3 = {
 				site,
 				items,
 				at: Date.now(),
 				more: items.length === 100
 			};
 		} catch {
-			if (seq === listSeq && !quiet) listing$2 = {
+			if (seq === listSeq && !quiet) listing$3 = {
 				site,
 				items: [],
 				at: null,
@@ -7545,7 +7553,7 @@
 		if (seq === listSeq && shown()) ctx.rerender();
 	}
 	async function fetchCatalogue(ctx) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		if (!ctx.api || !site) return;
 		const seq = ++catalogueSeq;
 		if (catalogue?.site !== site) catalogue = {
@@ -7577,13 +7585,13 @@
 	}
 	function ensureFloor(ctx) {
 		if (!ctx.api || ctx.ontology.status !== "ready") return;
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		if (stale) {
 			stale = false;
-			if (listing$2?.site === site) fetchWarnings(ctx, true);
+			if (listing$3?.site === site) fetchWarnings(ctx, true);
 			if (catalogue?.site === site) fetchCatalogue(ctx);
 		}
-		if (listing$2?.site !== site) fetchWarnings(ctx);
+		if (listing$3?.site !== site) fetchWarnings(ctx);
 		if (catalogue?.site !== site) fetchCatalogue(ctx);
 	}
 	function refreshFloor(ctx) {
@@ -7591,13 +7599,13 @@
 		fetchCatalogue(ctx);
 	}
 	function linkedSignals(ctx) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		return catalogue?.site === site && catalogue.signals || [];
 	}
 	function links(ctx) {
-		return catalogue?.site === siteId$5(ctx) && catalogue.links || /* @__PURE__ */ new Map();
+		return catalogue?.site === siteId$6(ctx) && catalogue.links || /* @__PURE__ */ new Map();
 	}
-	var warningById = (id) => listing$2?.items?.find((w) => w.id === id);
+	var warningById = (id) => listing$3?.items?.find((w) => w.id === id);
 	function floorItems(ctx, graph) {
 		if (!ctx.api) {
 			const model = Object.values(graph.nodes).find((n) => n.type === "Model" && /friction/i.test(n.label));
@@ -7619,10 +7627,10 @@
 				detail: `Shots ${fmt$1(a.firstShot)}–${fmt$1(a.lastShot)}, friction peak ${fmt$1(a.peak, 2)}`
 			}));
 		}
-		const site = siteId$5(ctx);
-		if (!site || listing$2?.site !== site || listing$2.items === null) return null;
+		const site = siteId$6(ctx);
+		if (!site || listing$3?.site !== site || listing$3.items === null) return null;
 		const map = links(ctx);
-		return listing$2.items.map((w) => placeWarning(graph, w, map, howFar(w))).sort(floorOrder);
+		return listing$3.items.map((w) => placeWarning(graph, w, map, howFar(w))).sort(floorOrder);
 	}
 	var STATE_LABEL = {
 		out: ["bad", "Signal still out"],
@@ -7638,11 +7646,11 @@
 		full: false
 	});
 	var REFRESH_MS = 3e4;
-	var busy$3 = null;
+	var busy$4 = null;
 	var shownHeadline = null;
 	var toldHeadline = null;
 	var timer$1 = null;
-	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
 	function stop() {
 		if (timer$1 !== null) clearInterval(timer$1);
 		timer$1 = null;
@@ -7663,7 +7671,7 @@
 		if (!ctx.api) return "<p class=\"small soft\">Connect to the Tiles API in Settings to take and resolve warnings.</p>";
 		const role = ctx.ontology.role;
 		if (role !== "engineer" && role !== "admin") return "<p class=\"small soft\">An engineer of the site acts on it.</p>";
-		const wait = busy$3 !== null ? "disabled" : "";
+		const wait = busy$4 !== null ? "disabled" : "";
 		const label = (verb) => `${verb}: ${item.machine}, ${item.tag}`;
 		if (ui.resolving === item.id) {
 			const outcome = (o, cls) => `<button class="btn floor-btn ${cls}" data-outcome="${o}" data-id="${esc(item.id)}" ${wait}>${OUTCOMES[o]}</button>`;
@@ -7695,7 +7703,7 @@
       <p class="floor-state"><span class="badge ${cls}">${label}</span> ${since(item, now)}</p>
       <p class="small">${esc(item.detail)}</p>
       ${who}
-      ${busy$3 === item.id ? "<p class=\"small soft\" role=\"status\">Sending…</p>" : ""}
+      ${busy$4 === item.id ? "<p class=\"small soft\" role=\"status\">Sending…</p>" : ""}
       ${actions(ctx, item, ui)}
     </article>`;
 	}
@@ -7713,10 +7721,10 @@
 		}).join("")}</div>`;
 	}
 	async function take(ctx, id) {
-		const site = siteId$4(ctx);
+		const site = siteId$5(ctx);
 		const w = warningById(id);
-		if (!ctx.api || !site || !w || busy$3) return;
-		busy$3 = id;
+		if (!ctx.api || !site || !w || busy$4) return;
+		busy$4 = id;
 		ctx.rerender();
 		try {
 			if (w.status === "raised") await ctx.api.warnings.acknowledge(site, id);
@@ -7725,25 +7733,25 @@
 			uiState$5(ctx).taking = null;
 			ctx.toast(me ? `It's yours: ${w.signal_tag}` : `Acknowledged: ${w.signal_tag}`);
 		} catch {} finally {
-			busy$3 = null;
+			busy$4 = null;
 		}
 		await fetchWarnings(ctx, true);
 	}
 	async function resolve(ctx, id, outcome) {
-		const site = siteId$4(ctx);
-		if (!ctx.api || !site || busy$3) return;
-		busy$3 = id;
+		const site = siteId$5(ctx);
+		if (!ctx.api || !site || busy$4) return;
+		busy$4 = id;
 		ctx.rerender();
 		try {
 			await ctx.api.warnings.resolve(site, id, outcome);
 			uiState$5(ctx).resolving = null;
 			ctx.toast(`Resolved as ${OUTCOMES[outcome].toLowerCase()}`);
 		} catch {} finally {
-			busy$3 = null;
+			busy$4 = null;
 		}
 		await fetchWarnings(ctx, true);
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "shopfloor",
 		title: "Shopfloor",
 		icon: "▣",
@@ -7770,7 +7778,7 @@
 				minute: "2-digit"
 			})}; refreshes every 30 seconds</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
 			shownHeadline = {
-				site: siteId$4(ctx),
+				site: siteId$5(ctx),
 				text
 			};
 			const status = `<h1 class="floor-headline ${tone}">${esc(text)}</h1>${updated}`;
@@ -7798,7 +7806,7 @@
 			ensureFloor(ctx);
 			timer$1 ??= setInterval(() => {
 				if (routeOf(location.hash) !== "shopfloor") return stop();
-				if (!busy$3 && !document.hidden) fetchWarnings(ctx, true);
+				if (!busy$4 && !document.hidden) fetchWarnings(ctx, true);
 			}, REFRESH_MS);
 			onAll(root, "[data-floor-refresh]", "click", () => refreshFloor(ctx));
 			onAll(root, "[data-take]", "click", (el) => void take(ctx, el.dataset.take ?? ""));
@@ -8042,7 +8050,7 @@
 		const rows = findPlaces(graph, query).map((h) => `<li><a href="${placeLink(h.id)}" data-place="${esc(h.id)}">${esc(h.label)}</a> <span class="small soft">${esc(h.type)}${h.path.length ? ` · ${esc(h.path.join(" › "))}` : ""}</span></li>`).join("");
 		return `<div class="card" data-plant-results>${rows ? `<ul class="plant-list">${rows}</ul>` : `<p class="small">No place is called “${esc(query)}”.</p>`}</div>`;
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "plant",
 		title: "Plant",
 		icon: "⌗",
@@ -8236,9 +8244,9 @@ heartbeat_seconds = 30
 	var revealed = null;
 	var created = null;
 	var seq$1 = 0;
-	var busy$2 = false;
+	var busy$3 = false;
 	var timer = null;
-	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
 	onNavigate((hash) => {
 		if (routeOf(hash) === "onboarding") return;
 		if (timer !== null) clearInterval(timer);
@@ -8248,8 +8256,8 @@ heartbeat_seconds = 30
 		revealed = null;
 		++seq$1;
 	});
-	async function load$2(ctx, { withOntology = false, quiet = false } = {}) {
-		const site = siteId$3(ctx);
+	async function load$3(ctx, { withOntology = false, quiet = false } = {}) {
+		const site = siteId$4(ctx);
 		if (!ctx.api || !site) return;
 		const mine = ++seq$1;
 		if (progress$1?.site !== site) progress$1 = {
@@ -8287,7 +8295,7 @@ heartbeat_seconds = 30
 		if (quiet && JSON.stringify([progress$1.data, agents?.list ?? null]) === before) return;
 		if (routeOf(location.hash) === "onboarding") ctx.rerender();
 	}
-	var canEdit = (ctx) => ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
+	var canEdit$1 = (ctx) => ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 	function stepList(data, current) {
 		return `<ol class="wizard-steps">${STEPS.map((s, i) => {
 			const state = data.steps.find((x) => x.key === s.key);
@@ -8313,12 +8321,12 @@ heartbeat_seconds = 30
       <label class="field">Name<input type="text" name="name" required maxlength="120" placeholder="Plant 2" autocomplete="off"></label>
       <label class="field">Short name, in links<input type="text" name="slug" required pattern="[a-z0-9][a-z0-9\\-]{0,62}" placeholder="plant-2" autocomplete="off"></label>
       <label class="field">Time zone<input type="text" name="timezone" required value="${esc(zone)}" autocomplete="off"></label>
-      <div><button class="btn primary" type="submit" ${busy$2 ? "disabled" : ""}>Create the site</button></div>
+      <div><button class="btn primary" type="submit" ${busy$3 ? "disabled" : ""}>Create the site</button></div>
     </form>`;
 	}
 	function outlineStep(ctx, data) {
 		const have = data.machines ? `<p>The ontology has ${data.machines} machine${data.machines === 1 ? "" : "s"}. Add another line here, or edit them on the <a href="#/ontology">Ontology</a> page.</p>` : "<p>Name a line and its machines. Each machine gets a controller (PLC), which is where the edge agent’s tags go.</p>";
-		if (!canEdit(ctx)) return `${have}<p class="small soft">Engineers and admins of the site outline the plant.</p>`;
+		if (!canEdit$1(ctx)) return `${have}<p class="small soft">Engineers and admins of the site outline the plant.</p>`;
 		const staged = ctx.state.repo.staged.length;
 		return `${have}
     ${staged ? `<p class="small" role="note">You have ${staged} staged change${staged === 1 ? "" : "s"}: commit or discard them on the <a href="#/ontology">Ontology</a> page first.</p>` : ""}
@@ -8327,14 +8335,14 @@ heartbeat_seconds = 30
       <label class="field">Line<input type="text" name="line" required placeholder="Die-cast line 1" autocomplete="off"></label>
       <label class="field">Machines, one per line<textarea name="machines" rows="4" required placeholder="Die-caster DC-01&#10;Die-caster DC-02"></textarea></label>
       <label class="field">How their controllers are read<select name="protocol">${PROTOCOLS.map((p) => `<option>${esc(p)}</option>`).join("")}</select></label>
-      <div><button class="btn primary" type="submit" ${busy$2 || staged ? "disabled" : ""}>${ctx.ontology.reviewRequired ? "Send for review" : "Add to the ontology"}</button></div>
+      <div><button class="btn primary" type="submit" ${busy$3 || staged ? "disabled" : ""}>${ctx.ontology.reviewRequired ? "Send for review" : "Add to the ontology"}</button></div>
     </form>`;
 	}
 	function agentStep(ctx, data) {
-		const list = agents?.site === siteId$3(ctx) ? agents.list : null;
+		const list = agents?.site === siteId$4(ctx) ? agents.list : null;
 		const rows = (list ?? []).map((a) => `<li><span><b>${esc(a.name)}</b> <span class="small soft">${esc(a.hostname ?? "")}</span></span><span class="badge ${a.status === "online" ? "good" : a.status === "offline" ? "warn" : ""}">${esc(a.status)}</span></li>`).join("");
 		const waiting = !data.agents_seen && data.agents ? "<p role=\"status\" class=\"small\">Waiting for the agent’s first heartbeat… this page checks every few seconds.</p>" : "";
-		const token = revealed?.site === siteId$3(ctx) ? `<div class="card stack" style="gap:8px" data-agent-token>
+		const token = revealed?.site === siteId$4(ctx) ? `<div class="card stack" style="gap:8px" data-agent-token>
           <p><b>${esc(revealed.name)}</b>’s token, shown only this once. Save it on the agent’s machine as <code>/etc/tiles-edge/token</code>, readable only by the agent’s user:</p>
           <pre class="code-block" tabindex="0">${esc(revealed.token)}</pre>
           <p>Then write <code>/etc/tiles-edge/tiles-edge.toml</code>:</p>
@@ -8343,7 +8351,7 @@ heartbeat_seconds = 30
         </div>` : "";
 		const form = ctx.ontology.role === "admin" ? `<form class="row" id="new-agent" style="gap:8px;flex-wrap:wrap">
           <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(freeAgentName((list ?? []).map((a) => a.name)))}" autocomplete="off"></label>
-          <button class="btn primary" type="submit" ${busy$2 ? "disabled" : ""}>Register an agent</button>
+          <button class="btn primary" type="submit" ${busy$3 ? "disabled" : ""}>Register an agent</button>
         </form>` : "<p class=\"small soft\">Admins of the site register edge agents.</p>";
 		return `<p>The edge agent runs on a machine on site that can reach the controllers. It reads them read-only, buffers to disk, and sends readings out to Tiles.</p>
     ${rows ? `<ul class="plant-list">${rows}</ul>` : ""}
@@ -8365,7 +8373,7 @@ heartbeat_seconds = 30
     </p>
     ${data.next === null ? "<p role=\"status\"><b>This site is set up.</b> Next, add detectors to raise warnings (Warnings page) and invite the team.</p>" : ""}`;
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "onboarding",
 		title: "Set up a site",
 		icon: "◔",
@@ -8377,7 +8385,7 @@ heartbeat_seconds = 30
 			if (!ctx.api) return `${head}<div class="card"><p>Setting up a site needs the Tiles API: sites, edge agents and tags live there. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
 			if (ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (ctx.ontology.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
-			const data = progress$1?.site === siteId$3(ctx) ? progress$1.data : null;
+			const data = progress$1?.site === siteId$4(ctx) ? progress$1.data : null;
 			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">Loading this site’s progress…</div>`;
 			const current = uiState$3(ctx).step ?? data.next ?? "dashboard";
 			const meta = STEPS.find((s) => s.key === current) ?? STEPS[0];
@@ -8403,11 +8411,11 @@ heartbeat_seconds = 30
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const site = siteId$3(ctx);
-			if (progress$1?.site !== site) load$2(ctx, { withOntology: true });
+			const site = siteId$4(ctx);
+			if (progress$1?.site !== site) load$3(ctx, { withOntology: true });
 			const data = progress$1?.site === site ? progress$1.data : null;
 			const waiting = data !== null && data.agents > 0 && data.agents_seen === 0;
-			if (waiting && timer === null) timer = setInterval(() => !document.hidden && void load$2(ctx, { quiet: true }), POLL_MS);
+			if (waiting && timer === null) timer = setInterval(() => !document.hidden && void load$3(ctx, { quiet: true }), POLL_MS);
 			if (!waiting && timer !== null) {
 				clearInterval(timer);
 				timer = null;
@@ -8417,7 +8425,7 @@ heartbeat_seconds = 30
 				ui.step = el.dataset.step ?? null;
 				ctx.rerender();
 			});
-			onAll(root, "[data-onboarding-refresh]", "click", () => void load$2(ctx, { withOntology: true }));
+			onAll(root, "[data-onboarding-refresh]", "click", () => void load$3(ctx, { withOntology: true }));
 			const form = root.querySelector("#new-site");
 			const slug = form?.querySelector("[name=slug]");
 			let slugEdited = false;
@@ -8426,8 +8434,8 @@ heartbeat_seconds = 30
 				if (slug && !slugEdited) slug.value = slugFrom(e.target.value);
 			});
 			onSubmit(root, "#new-site", (form) => void (async () => {
-				if (!ctx.api || busy$2) return;
-				busy$2 = true;
+				if (!ctx.api || busy$3) return;
+				busy$3 = true;
 				try {
 					const made = await ctx.api.createSite({
 						name: field$1(form, "name"),
@@ -8440,7 +8448,7 @@ heartbeat_seconds = 30
 					};
 					ctx.toast(`${made.name} created`);
 				} catch {} finally {
-					busy$2 = false;
+					busy$3 = false;
 					ctx.rerender();
 				}
 			})());
@@ -8455,7 +8463,7 @@ heartbeat_seconds = 30
 				});
 			});
 			onSubmit(root, "#outline", (outline) => void (async () => {
-				if (busy$2) return;
+				if (busy$3) return;
 				const o = {
 					site: ctx.ontology.site?.name ?? "Site",
 					workcenter: field$1(outline, "workcenter"),
@@ -8465,7 +8473,7 @@ heartbeat_seconds = 30
 				};
 				const problem = outlineProblem(o);
 				if (problem) return ctx.toast(problem);
-				busy$2 = true;
+				busy$3 = true;
 				const review = ctx.ontology.reviewRequired;
 				const message = `Outline ${o.line.trim()} (${o.machines.length} machine${o.machines.length === 1 ? "" : "s"})`;
 				const ok = await ctx.ontology.act(async (store, repo) => {
@@ -8473,14 +8481,14 @@ heartbeat_seconds = 30
 					const staged = await store.stage(repo, outlineOps(ctx.graph, o));
 					return review ? store.requestReview(staged, { message }) : store.commit(staged, message, ctx.state.user.name);
 				}, review ? "Sent for review: another engineer approves it" : `${o.line.trim()} added to the ontology`);
-				busy$2 = false;
+				busy$3 = false;
 				if (!ok) return ctx.rerender();
 				ui.step = null;
-				await load$2(ctx, { withOntology: true });
+				await load$3(ctx, { withOntology: true });
 			})());
 			onSubmit(root, "#new-agent", (agent) => void (async () => {
-				if (!ctx.api || !site || busy$2) return;
-				busy$2 = true;
+				if (!ctx.api || !site || busy$3) return;
+				busy$3 = true;
 				try {
 					const out = await ctx.api.agents.register(site, field$1(agent, "name"));
 					revealed = {
@@ -8490,9 +8498,9 @@ heartbeat_seconds = 30
 					};
 					ctx.toast(`${out.agent.name} registered`);
 				} catch {} finally {
-					busy$2 = false;
+					busy$3 = false;
 				}
-				await load$2(ctx);
+				await load$3(ctx);
 			})());
 		}
 	};
@@ -8566,10 +8574,10 @@ heartbeat_seconds = 30
 	var seq = 0;
 	var pending = null;
 	var assetDrafts = /* @__PURE__ */ new Map();
-	var siteId$2 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
 	var keyFor = (ctx) => {
 		const u = uiState$2(ctx);
-		return `${siteId$2(ctx)}|${u.days}|${u.horizonHours}|${parseCodes(u.codes).join(",")}`;
+		return `${siteId$3(ctx)}|${u.days}|${u.horizonHours}|${parseCodes(u.codes).join(",")}`;
 	};
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "performance") {
@@ -8578,8 +8586,8 @@ heartbeat_seconds = 30
 			assetDrafts.clear();
 		}
 	});
-	async function load$1(ctx) {
-		const site = siteId$2(ctx);
+	async function load$2(ctx) {
+		const site = siteId$3(ctx);
 		if (!ctx.api || !site) return;
 		const key = keyFor(ctx);
 		const mine = ++seq;
@@ -8640,7 +8648,7 @@ heartbeat_seconds = 30
       ${r.events.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Asset</th><th>Kind</th><th>Code</th><th>Warning</th></tr></thead><tbody>${rows}</tbody></table></div>` : "<p class=\"small soft\">No events of watched assets in this period. Events are readings on signals marked as downtime or scrap on the Signals page, with their asset.</p>"}
     </div>`;
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "performance",
 		title: "Warning performance",
 		icon: "◎",
@@ -8665,7 +8673,7 @@ heartbeat_seconds = 30
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
 			const key = keyFor(ctx);
-			if (fetched?.key !== key && fetched?.key !== `${key}|failed`) load$1(ctx);
+			if (fetched?.key !== key && fetched?.key !== `${key}|failed`) load$2(ctx);
 			onSubmit(root, "#performance-form", (form) => {
 				const u = uiState$2(ctx);
 				const data = new FormData(form);
@@ -8691,7 +8699,7 @@ heartbeat_seconds = 30
 			});
 			onAll(root, "[data-asset-form]", "submit", (el, e) => {
 				e.preventDefault();
-				const site = siteId$2(ctx);
+				const site = siteId$3(ctx);
 				const api = ctx.api;
 				const id = el.dataset.assetForm ?? "";
 				const input = el.querySelector("[name=asset]");
@@ -9116,42 +9124,42 @@ heartbeat_seconds = 30
 		variables: null,
 		split: ""
 	});
-	var listing$1 = null;
+	var listing$2 = null;
 	var detail$1 = null;
-	var result = null;
+	var result$1 = null;
 	var saving = null;
-	var busy$1 = "";
+	var busy$2 = "";
 	var upload = null;
 	var chosen = {
 		file: null,
 		name: ""
 	};
-	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
-	var resultKey = (ctx) => JSON.stringify({
-		site: siteId$1(ctx),
+	var siteId$2 = (ctx) => ctx.ontology.site?.id ?? null;
+	var resultKey$1 = (ctx) => JSON.stringify({
+		site: siteId$2(ctx),
 		...uiState$1(ctx)
 	});
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "correlate") {
-			listing$1 = null;
+			listing$2 = null;
 			detail$1 = null;
 		}
 	});
 	async function loadList$1(ctx) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		if (!ctx.api || !site) return;
-		listing$1 = {
+		listing$2 = {
 			site,
 			items: null
 		};
 		try {
 			const items = await ctx.api.datasets.list(site);
-			if (listing$1?.site === site) listing$1 = {
+			if (listing$2?.site === site) listing$2 = {
 				site,
 				items
 			};
 		} catch {
-			if (listing$1?.site === site) listing$1 = {
+			if (listing$2?.site === site) listing$2 = {
 				site,
 				items: []
 			};
@@ -9159,7 +9167,7 @@ heartbeat_seconds = 30
 		ctx.rerender();
 	}
 	async function loadDetail$1(ctx, id) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		if (!ctx.api || !site) return;
 		try {
 			const data = await ctx.api.datasets.get(site, id);
@@ -9172,9 +9180,9 @@ heartbeat_seconds = 30
 		}
 		ctx.rerender();
 	}
-	function listCard$1(ctx, ui) {
+	function listCard$2(ctx, ui) {
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
-		const items = listing$1?.items;
+		const items = listing$2?.items;
 		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? "<div class=\"empty\">Loading…</div>" : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
               <b>${esc(d.name)}</b>
               <span class="small muted">${fmt$1(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ""}</span>
@@ -9184,7 +9192,7 @@ heartbeat_seconds = 30
         <label class="field">CSV file<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
         ${chosen.file ? `<p class="small" data-chosen-file>Chosen: ${esc(chosen.file.name)}</p>` : ""}
         <label class="field">Name<input type="text" name="name" maxlength="200" value="${esc(chosen.name)}" placeholder="e.g. Cutter batches, September"></label>
-        <div><button class="btn primary" type="submit" ${busy$1 ? "disabled" : ""}>${upload ? `Uploading ${fmt$1(upload.done, 0)} of ${fmt$1(upload.total, 0)}…` : "Upload"}</button></div>
+        <div><button class="btn primary" type="submit" ${busy$2 ? "disabled" : ""}>${upload ? `Uploading ${fmt$1(upload.done, 0)} of ${fmt$1(upload.total, 0)}…` : "Upload"}</button></div>
       </form>` : ""}</div>`;
 	}
 	function analysisCard(ctx, ui) {
@@ -9196,12 +9204,12 @@ heartbeat_seconds = 30
 		const checked = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));
 		const option = (name, current) => `<option value="${esc(name)}" ${name === current ? "selected" : ""}>${esc(name)}</option>`;
 		const preview = d.preview.length ? `<details><summary class="small">The first ${d.preview.length} batch(es)</summary><div class="table-wrap"><table class="small"><thead><tr>${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${d.preview.map((r) => `<tr>${d.columns.map((c) => `<td>${esc(r[c.name] === null || r[c.name] === void 0 ? "" : String(r[c.name]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>` : "";
-		const r = result?.key === resultKey(ctx) ? result : null;
+		const r = result$1?.key === resultKey$1(ctx) ? result$1 : null;
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 		return `<div class="card stack" style="gap:12px" data-analysis>
       <div class="row" style="justify-content:space-between;align-items:start;gap:12px">
         <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt$1(d.row_count, 0)} batch(es)</p></div>
-        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy$1 ? "disabled" : ""}>Delete</button>` : ""}
+        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy$2 ? "disabled" : ""}>Delete</button>` : ""}
       </div>
       ${preview}
       <form class="stack" id="correlate-form" style="gap:10px">
@@ -9209,12 +9217,12 @@ heartbeat_seconds = 30
           <label class="field">Outcome<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? "")).join("")}</select></label>
           <label class="field">Failed when it is${outcome?.kind === "bool" ? " (default true)" : ""}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === "bool" ? "true" : "e.g. NG, scrap"}" style="width:12em"></label>
           <label class="field">Split by<select name="split"><option value="">nothing (pooled)</option>${d.columns.filter((c) => c.kind !== "number" && c.name !== outcome?.name).map((c) => option(c.name, ui.split)).join("")}</select></label>
-          <button class="btn primary" type="submit" ${busy$1 ? "disabled" : ""}>Find</button>
+          <button class="btn primary" type="submit" ${busy$2 ? "disabled" : ""}>Find</button>
         </div>
         <fieldset class="row" style="gap:10px;flex-wrap:wrap;border:0;padding:0;margin:0"><legend class="small soft">Variables</legend>${numbers.filter((n) => n !== outcome?.name).map((n) => `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${checked.has(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</fieldset>
       </form>
       ${r ? resultBlock(r.data, r.split) : ""}
-      ${r && canEdit ? saving?.key === r.key ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3>${draftForm("insight-save", saving.text, Boolean(busy$1))}</div>` : "<div><button class=\"btn\" type=\"button\" data-save-insight>Save as insight</button></div>" : ""}
+      ${r && canEdit ? saving?.key === r.key ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3>${draftForm("insight-save", saving.text, Boolean(busy$2))}</div>` : "<div><button class=\"btn\" type=\"button\" data-save-insight>Save as insight</button></div>" : ""}
     </div>`;
 	}
 	function resultBlock(r, split) {
@@ -9228,7 +9236,7 @@ heartbeat_seconds = 30
     </div>`;
 	}
 	async function uploadFile(ctx, file, name) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		const api = ctx.api;
 		if (!api || !site) return;
 		const text = await file.text();
@@ -9239,7 +9247,7 @@ heartbeat_seconds = 30
 		}
 		const columns = inferColumns(header, body);
 		const rows = typedRows(body, columns);
-		busy$1 = "upload";
+		busy$2 = "upload";
 		upload = {
 			done: 0,
 			total: rows.length
@@ -9265,24 +9273,24 @@ heartbeat_seconds = 30
 				split: ""
 			});
 			detail$1 = null;
-			listing$1 = null;
+			listing$2 = null;
 			created = null;
 		} catch {
 			if (created) await api.datasets.remove(site, created).catch(() => void 0);
-			listing$1 = null;
+			listing$2 = null;
 		} finally {
-			busy$1 = "";
+			busy$2 = "";
 			upload = null;
 			ctx.rerender();
 		}
 	}
 	async function removeDataset(ctx) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		const ui = uiState$1(ctx);
 		const d = detail$1?.id === ui.selected ? detail$1.data : null;
 		if (!ctx.api || !site || !d) return;
 		if (!confirm(`Delete ${d.name} and its ${d.row_count} batch(es)?`)) return;
-		busy$1 = "delete";
+		busy$2 = "delete";
 		ctx.rerender();
 		try {
 			await ctx.api.datasets.remove(site, d.id);
@@ -9295,26 +9303,26 @@ heartbeat_seconds = 30
 				split: ""
 			});
 			detail$1 = null;
-			listing$1 = null;
+			listing$2 = null;
 		} catch {} finally {
-			busy$1 = "";
+			busy$2 = "";
 			ctx.rerender();
 		}
 	}
 	async function saveInsight(ctx) {
-		const site = siteId$1(ctx);
-		if (!ctx.api || !site || !result || !saving || saving.key !== result.key) return;
+		const site = siteId$2(ctx);
+		if (!ctx.api || !site || !result$1 || !saving || saving.key !== result$1.key) return;
 		const draft = readDraft(saving.text);
 		if (typeof draft === "string") return void ctx.toast(draft);
-		busy$1 = "save";
+		busy$2 = "save";
 		ctx.rerender();
 		try {
-			const saved = await ctx.api.insights.create(site, draft, result.source);
+			const saved = await ctx.api.insights.create(site, draft, result$1.source);
 			saving = null;
 			ctx.toast(`Insight #${saved.number} saved: another engineer reviews it`);
 			location.hash = insightLink(saved.number);
 		} catch {} finally {
-			busy$1 = "";
+			busy$2 = "";
 			ctx.rerender();
 		}
 	}
@@ -9332,7 +9340,7 @@ heartbeat_seconds = 30
 		detail$1 = null;
 	}
 	async function find(ctx) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		const ui = uiState$1(ctx);
 		const d = detail$1?.data;
 		if (!ctx.api || !site || !d || !ui.selected) return;
@@ -9350,8 +9358,8 @@ heartbeat_seconds = 30
 			ctx.toast("Choose at least one variable");
 			return;
 		}
-		const key = resultKey(ctx);
-		busy$1 = "find";
+		const key = resultKey$1(ctx);
+		busy$2 = "find";
 		ctx.rerender();
 		try {
 			const q = {
@@ -9366,7 +9374,7 @@ heartbeat_seconds = 30
 				dataset_id: ui.selected,
 				...q
 			};
-			result = {
+			result$1 = {
 				key,
 				data,
 				split: split !== null,
@@ -9374,11 +9382,11 @@ heartbeat_seconds = 30
 				dataset: d.name
 			};
 		} catch {} finally {
-			busy$1 = "";
+			busy$2 = "";
 			ctx.rerender();
 		}
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "correlate",
 		title: "Correlation finder",
 		icon: "⇄",
@@ -9390,14 +9398,14 @@ heartbeat_seconds = 30
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
 			const ui = uiState$1(ctx);
-			return `${head}<div class="reviews">${listCard$1(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
+			return `${head}<div class="reviews">${listCard$2(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
 			selectFromLink(ctx);
 			const ui = uiState$1(ctx);
-			const site = siteId$1(ctx);
-			if (site && listing$1?.site !== site) loadList$1(ctx);
+			const site = siteId$2(ctx);
+			if (site && listing$2?.site !== site) loadList$1(ctx);
 			if (ui.selected && detail$1?.id !== ui.selected) loadDetail$1(ctx, ui.selected);
 			onAll(root, "[data-dataset]", "click", (el) => {
 				Object.assign(ui, {
@@ -9450,10 +9458,10 @@ heartbeat_seconds = 30
 			});
 			onSubmit(root, "#correlate-form", () => void find(ctx));
 			onAll(root, "[data-save-insight]", "click", () => {
-				if (!result || !detail$1) return;
+				if (!result$1 || !detail$1) return;
 				saving = {
-					key: result.key,
-					text: correlationDraft(result.dataset, result.data)
+					key: result$1.key,
+					text: correlationDraft(result$1.dataset, result$1.data)
 				};
 				ctx.rerender();
 			});
@@ -9472,30 +9480,30 @@ heartbeat_seconds = 30
 	//#endregion
 	//#region js/views/insights.ts
 	var uiState = (ctx) => ctx.ui("insights", { status: "proposed" });
-	var listing = null;
+	var listing$1 = null;
 	var detail = null;
-	var busy = false;
+	var busy$1 = false;
 	var editing = null;
 	var note = {
 		key: "",
 		text: ""
 	};
-	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
-	var listKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).status}`;
-	var selected = () => typeof location === "undefined" ? null : numberFromHash(location.hash);
-	var detailKey = (ctx) => `${siteId(ctx)}|${selected()}`;
+	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
+	var listKey$1 = (ctx) => `${siteId$1(ctx)}|${uiState(ctx).status}`;
+	var selected$1 = () => typeof location === "undefined" ? null : numberFromHash(location.hash);
+	var detailKey = (ctx) => `${siteId$1(ctx)}|${selected$1()}`;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "insights" || numberFromHash(hash) === null) {
-			listing = null;
+			listing$1 = null;
 			detail = null;
 			editing = null;
 		}
 	});
 	async function loadList(ctx) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
-		const key = listKey(ctx);
-		listing = {
+		const key = listKey$1(ctx);
+		listing$1 = {
 			key,
 			items: null,
 			total: 0
@@ -9503,13 +9511,13 @@ heartbeat_seconds = 30
 		const status = uiState(ctx).status || void 0;
 		try {
 			const got = await ctx.api.insights.list(site, { status });
-			if (listing?.key === key) listing = {
+			if (listing$1?.key === key) listing$1 = {
 				key,
 				items: got.insights,
 				total: got.total
 			};
 		} catch {
-			if (listing?.key === key) listing = {
+			if (listing$1?.key === key) listing$1 = {
 				key,
 				items: [],
 				total: 0
@@ -9518,7 +9526,7 @@ heartbeat_seconds = 30
 		ctx.rerender();
 	}
 	async function loadDetail(ctx, n) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
 		const key = detailKey(ctx);
 		detail = {
@@ -9535,19 +9543,19 @@ heartbeat_seconds = 30
 		};
 		ctx.rerender();
 	}
-	function listCard(ctx, ui) {
+	function listCard$1(ctx, ui) {
 		const tabs = [
 			"proposed",
 			"accepted",
 			"rejected",
 			""
 		].map((s) => `<button class="tab ${ui.status === s ? "active" : ""}" data-status="${s}" role="tab">${s === "proposed" ? "To review" : s === "" ? "All" : s === "accepted" ? "Accepted" : "Rejected"}</button>`).join("");
-		const items = listing?.key === listKey(ctx) ? listing.items : null;
-		const n = selected();
+		const items = listing$1?.key === listKey$1(ctx) ? listing$1.items : null;
+		const n = selected$1();
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
-              <span class="row" style="gap:6px;justify-content:space-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$1(i.status)}</span>
+              <span class="row" style="gap:6px;justify-content:space-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$2(i.status)}</span>
               <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
-            </a>`).join("") || `<div class="empty">${ui.status === "proposed" ? "Nothing waits for review." : "No insights here yet."} Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.</div>`}</div>${items && listing && listing.total > items.length ? `<p class="small soft">The newest ${items.length} of ${listing.total}.</p>` : ""}</div>`;
+            </a>`).join("") || `<div class="empty">${ui.status === "proposed" ? "Nothing waits for review." : "No insights here yet."} Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.</div>`}</div>${items && listing$1 && listing$1.total > items.length ? `<p class="small soft">The newest ${items.length} of ${listing$1.total}.</p>` : ""}</div>`;
 	}
 	function evidence(i) {
 		const e = i.evidence;
@@ -9572,8 +9580,8 @@ heartbeat_seconds = 30
 			return `<div class="stack" style="gap:4px" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;
 		}).join("");
 	}
-	function detailCard(ctx) {
-		const n = selected();
+	function detailCard$1(ctx) {
+		const n = selected$1();
 		if (n === null) return "<div class=\"card\"><div class=\"empty\">Choose an insight.</div></div>";
 		if (detail?.key !== detailKey(ctx)) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
 		const i = detail.insight;
@@ -9584,9 +9592,9 @@ heartbeat_seconds = 30
 		const head = `<div class="row" style="justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
       <div><h2>#${i.number} ${esc(i.title)}</h2>
       <p class="small soft">Saved by ${esc(i.author)} on ${esc(when$1(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when$1(i.updated_at))}` : ""}</p></div>
-      <div class="row" style="gap:6px">${statusBadge$1(i.status)}</div>
+      <div class="row" style="gap:6px">${statusBadge$2(i.status)}</div>
     </div>`;
-		const body = editing?.key === key ? draftForm("insight-edit", editing.text, busy, "Save changes") : `${i.summary ? `<p style="white-space:pre-wrap" data-summary>${esc(i.summary)}</p>` : ""}
+		const body = editing?.key === key ? draftForm("insight-edit", editing.text, busy$1, "Save changes") : `${i.summary ? `<p style="white-space:pre-wrap" data-summary>${esc(i.summary)}</p>` : ""}
         <div><h3>Proposed actions</h3>${i.actions.length ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>` : "<p class=\"small soft\">None proposed.</p>"}</div>`;
 		const reviewed = i.status !== "proposed" && i.reviewer ? `<p class="small" data-review>${i.status === "accepted" ? "Accepted" : "Rejected"} by ${esc(i.reviewer)}${i.reviewed_at ? ` on ${esc(when$1(i.reviewed_at))}` : ""}${i.review_note ? `: “${esc(i.review_note)}”` : ""}</p>` : "";
 		if (note.key !== key) note = {
@@ -9595,12 +9603,12 @@ heartbeat_seconds = 30
 		};
 		const review = may.review ? `<form class="stack" id="insight-review" style="gap:8px">
         <label class="field">Review note <span class="small soft">(needed to reject)</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
-        <div class="row" style="gap:8px"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? "disabled" : ""}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy ? "disabled" : ""}>Reject</button></div>
+        <div class="row" style="gap:8px"><button class="btn primary" type="submit" data-decision="accepted" ${busy$1 ? "disabled" : ""}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy$1 ? "disabled" : ""}>Reject</button></div>
       </form>` : "";
 		const tools = [
 			may.edit && editing?.key !== key ? `<button class="btn sm" type="button" data-edit>Edit</button>` : "",
-			may.reopen ? `<button class="btn sm" type="button" data-reopen ${busy ? "disabled" : ""}>Reopen</button>` : "",
-			may.remove ? `<button class="btn sm" type="button" data-remove ${busy ? "disabled" : ""}>Delete</button>` : ""
+			may.reopen ? `<button class="btn sm" type="button" data-reopen ${busy$1 ? "disabled" : ""}>Reopen</button>` : "",
+			may.remove ? `<button class="btn sm" type="button" data-remove ${busy$1 ? "disabled" : ""}>Delete</button>` : ""
 		].join("");
 		return `<div class="card stack" style="gap:12px" data-insight-detail>
       ${head}
@@ -9616,10 +9624,10 @@ heartbeat_seconds = 30
     </div>`;
 	}
 	async function act(ctx, run, done) {
-		const site = siteId(ctx);
-		const n = selected();
-		if (!ctx.api || !site || n === null || busy) return;
-		busy = true;
+		const site = siteId$1(ctx);
+		const n = selected$1();
+		if (!ctx.api || !site || n === null || busy$1) return;
+		busy$1 = true;
 		ctx.rerender();
 		try {
 			const got = await run(site, n);
@@ -9629,14 +9637,14 @@ heartbeat_seconds = 30
 				insight: got
 			} : null;
 			editing = null;
-			listing = null;
+			listing$1 = null;
 			if (!got) location.hash = "#/insights";
 		} catch {} finally {
-			busy = false;
+			busy$1 = false;
 			ctx.rerender();
 		}
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "insights",
 		title: "Insights",
 		icon: "✦",
@@ -9647,14 +9655,14 @@ heartbeat_seconds = 30
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			return `${head}<div class="reviews">${listCard(ctx, uiState(ctx))}${detailCard(ctx)}</div>`;
+			return `${head}<div class="reviews">${listCard$1(ctx, uiState(ctx))}${detailCard$1(ctx)}</div>`;
 		},
 		bind(root, ctx) {
 			const api = ctx.api;
 			if (!api || ctx.ontology.status !== "ready") return;
 			const ui = uiState(ctx);
-			if (listing?.key !== listKey(ctx)) loadList(ctx);
-			const n = selected();
+			if (listing$1?.key !== listKey$1(ctx)) loadList(ctx);
+			const n = selected$1();
 			if (n !== null && detail?.key !== detailKey(ctx)) loadDetail(ctx, n);
 			onAll(root, "[data-status]", "click", (el) => {
 				ui.status = el.dataset.status ?? "";
@@ -9696,6 +9704,387 @@ heartbeat_seconds = 30
 			onAll(root, "[data-reopen]", "click", () => void act(ctx, (site, num) => api.insights.reopen(site, num), "Insight reopened"));
 			onAll(root, "[data-remove]", "click", () => {
 				if (confirm(`Delete insight #${i.number}, ${i.title}?`)) act(ctx, (site, num) => api.insights.remove(site, num), "Insight deleted");
+			});
+		}
+	};
+	//#endregion
+	//#region js/lib/apps.ts
+	var appLink = (n) => `#/apps/${n}`;
+	function appNumberFromHash(hash) {
+		const m = hash.match(/^#\/apps\/(\d+)(?:[?/]|$)/);
+		const n = m ? Number(m[1]) : NaN;
+		return Number.isSafeInteger(n) && n > 0 ? n : null;
+	}
+	function defaultConfig(t) {
+		return Object.fromEntries(t.params.map((p) => [p.name, p.default ?? null]));
+	}
+	function paramField(p, value, signals) {
+		const id = `app-param-${p.name}`;
+		const help = p.help ? ` <span class="small soft">${esc(p.help)}</span>` : "";
+		const label = `${esc(p.label)}${p.optional ? " <span class=\"small soft\">(optional)</span>" : ""}${help}`;
+		if (p.kind === "signal") {
+			const known = signals.some((s) => s.id === value);
+			const options = [
+				`<option value="" ${value ? "" : "selected"} disabled>Choose a signal</option>`,
+				...value && !known ? [`<option value="${esc(String(value))}" selected>${esc(String(value))}</option>`] : [],
+				...signals.map((s) => `<option value="${esc(s.id)}" ${s.id === value ? "selected" : ""}>${esc(s.tag)}${s.unit ? ` (${esc(s.unit)})` : ""}</option>`)
+			];
+			return `<label class="field" for="${id}">${label}<select id="${id}" name="${esc(p.name)}" ${p.optional ? "" : "required"}>${options.join("")}</select></label>`;
+		}
+		if (p.kind === "choice") return `<label class="field" for="${id}">${label}<select id="${id}" name="${esc(p.name)}">${p.choices.map(([v, l]) => `<option value="${esc(v)}" ${v === value ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
+		if (p.kind === "choices") {
+			const chosen = Array.isArray(value) ? value : [];
+			return `<fieldset class="field app-choices"><legend>${label}</legend>${p.choices.map(([v, l]) => `<label class="row" style="gap:8px"><input type="checkbox" name="${esc(p.name)}" value="${esc(v)}" ${chosen.includes(v) ? "checked" : ""} /> ${esc(l)}</label>`).join("")}</fieldset>`;
+		}
+		const bounds = `${p.minimum !== null ? ` min="${p.minimum}"` : ""}${p.maximum !== null ? ` max="${p.maximum}"` : ""}`;
+		const step = p.kind === "integer" ? "1" : "any";
+		const shown = typeof value === "number" ? String(value) : "";
+		return `<label class="field" for="${id}">${label}<input id="${id}" type="number" name="${esc(p.name)}" value="${shown}" step="${step}"${bounds} ${p.optional ? "" : "required"} /></label>`;
+	}
+	function readConfig(t, values) {
+		const config = {};
+		const problems = [];
+		for (const p of t.params) {
+			const raw = values[p.name];
+			if (p.kind === "choices") {
+				const chosen = (Array.isArray(raw) ? raw : []).filter((v) => p.choices.some(([c]) => c === v));
+				if (!chosen.length) problems.push(`${p.label}: choose at least one`);
+				config[p.name] = chosen;
+				continue;
+			}
+			const text = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
+			if (text === "") {
+				if (!p.optional) problems.push(`${p.label} is needed`);
+				config[p.name] = null;
+				continue;
+			}
+			if (p.kind === "signal" || p.kind === "choice") {
+				if (p.kind === "choice" && !p.choices.some(([c]) => c === text)) problems.push(`${p.label}: choose one`);
+				config[p.name] = text;
+				continue;
+			}
+			const n = Number(text);
+			if (!Number.isFinite(n)) problems.push(`${p.label} must be a number`);
+			else if (p.kind === "integer" && !Number.isInteger(n)) problems.push(`${p.label} must be a whole number`);
+			else if (p.minimum !== null && n < p.minimum || p.maximum !== null && n > p.maximum) problems.push(`${p.label} must be from ${p.minimum ?? "…"} to ${p.maximum ?? "…"}`);
+			config[p.name] = n;
+		}
+		return {
+			config,
+			problems
+		};
+	}
+	function formValues(form) {
+		const values = {};
+		for (const el of Array.from(form.elements)) {
+			if (!el.name) continue;
+			if (el.type === "checkbox") {
+				const list = values[el.name] ?? [];
+				if (el.checked) list.push(el.value);
+				values[el.name] = list;
+			} else values[el.name] = el.value;
+		}
+		return values;
+	}
+	function resultChart(r) {
+		return {
+			points: r.points.map((p) => ({
+				t: Date.parse(p.at),
+				v: p.value,
+				lo: p.value,
+				hi: p.value
+			})),
+			from: Date.parse(r.start),
+			to: Date.parse(r.end),
+			gap: r.gap_seconds * 1e3,
+			yLabel: r.unit ?? "",
+			title: `${r.tag}${r.unit ? ` (${r.unit})` : ""}: ${r.headline}`,
+			levels: r.levels.map((l) => ({
+				v: l.value,
+				label: l.label
+			})),
+			spans: r.spans.map((s) => ({
+				from: Date.parse(s.from),
+				to: Date.parse(s.to)
+			}))
+		};
+	}
+	function statusBadge(status) {
+		return `<span class="badge ${{
+			ok: "good",
+			alert: "bad",
+			no_data: ""
+		}[status]}">${{
+			ok: "OK",
+			alert: "Alert",
+			no_data: "No data"
+		}[status]}</span>`;
+	}
+	function factText(f) {
+		if (f.format === "percent") return `${(f.value * 100).toFixed(1)}%`;
+		const abs = Math.abs(f.value);
+		return abs !== 0 && abs < 1 ? f.value.toPrecision(3) : f.value.toLocaleString("en-GB", { maximumFractionDigits: 1 });
+	}
+	function configSummary(t, config, signalTag) {
+		if (!t) return Object.entries(config).map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
+		return t.params.map((p) => {
+			const v = config[p.name];
+			if (v === null || v === void 0) return `${p.label}: none`;
+			if (p.kind === "signal") return `${p.label}: ${signalTag ?? "a signal no longer on this site"}`;
+			if (p.kind === "choice") return `${p.label}: ${p.choices.find(([c]) => c === v)?.[1] ?? String(v)}`;
+			if (p.kind === "choices") return `${p.label}: ${(Array.isArray(v) ? v : []).map((x) => p.choices.find(([c]) => c === x)?.[1] ?? String(x)).join("; ")}`;
+			return `${p.label}: ${String(v)}`;
+		});
+	}
+	//#endregion
+	//#region js/views/apps.ts
+	var templates = null;
+	var listing = null;
+	var signals = null;
+	var result = null;
+	var draft = null;
+	var busy = false;
+	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var hash = () => typeof location === "undefined" ? "" : location.hash;
+	var isNew = () => /^#\/apps\/new(?:[?/]|$)/.test(hash());
+	var editKey = () => /^#\/apps\/\d+\/edit(?:[?/]|$)/.test(hash());
+	var selected = () => appNumberFromHash(hash());
+	var listKey = (ctx) => `${siteId(ctx)}`;
+	var resultKey = (ctx, app) => `${siteId(ctx)}|${app.number}|${app.updated_at}`;
+	var canEdit = (ctx) => ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
+	onNavigate((h) => {
+		if (routeOf(h) !== "apps") {
+			listing = null;
+			result = null;
+			draft = null;
+		} else if (appNumberFromHash(h) === null) result = null;
+	});
+	async function load$1(ctx) {
+		const api = ctx.api;
+		const site = siteId(ctx);
+		if (!api || !site) return;
+		if (templates?.api !== api.baseUrl) {
+			templates = {
+				api: api.baseUrl,
+				list: null
+			};
+			api.appTemplates().then((list) => {
+				if (templates?.api === api.baseUrl) templates.list = list;
+				ctx.rerender();
+			}, () => void 0);
+		}
+		if (listing?.key !== listKey(ctx)) {
+			const key = listKey(ctx);
+			listing = {
+				key,
+				items: null
+			};
+			try {
+				const items = await api.apps.list(site);
+				if (listing?.key === key) listing.items = items;
+			} catch {
+				if (listing?.key === key) listing.items = [];
+			}
+			ctx.rerender();
+		}
+	}
+	async function loadSignals(ctx) {
+		const api = ctx.api;
+		const site = siteId(ctx);
+		if (!api || !site || signals?.key === site) return;
+		signals = {
+			key: site,
+			list: []
+		};
+		try {
+			const got = await api.signals.list(site, { limit: 500 });
+			if (signals?.key === site) signals.list = got.signals.map((s) => ({
+				id: s.id,
+				tag: s.tag,
+				unit: s.unit
+			}));
+		} catch {}
+		ctx.rerender();
+	}
+	async function run(ctx, app) {
+		const api = ctx.api;
+		const site = siteId(ctx);
+		if (!api || !site) return;
+		const key = resultKey(ctx, app);
+		result = {
+			key,
+			result: null
+		};
+		let got = null;
+		try {
+			got = await api.apps.result(site, app.number);
+		} catch {}
+		if (result?.key === key) result = {
+			key,
+			result: got
+		};
+		ctx.rerender();
+	}
+	function listCard(ctx) {
+		const items = listing?.key === listKey(ctx) ? listing.items : null;
+		const n = selected();
+		const rows = items === null ? "<div class=\"empty\">Loading…</div>" : items.map((a) => `<a class="review-row ${n === a.number ? "sel" : ""}" href="${appLink(a.number)}" data-app="${a.number}">
+              <b>#${a.number} ${esc(a.name)}</b>
+              <span class="small muted">${esc(a.template_title)} · ${esc(a.signal_tag ?? "signal gone")}</span>
+            </a>`).join("") || `<div class="empty">No apps yet.${canEdit(ctx) ? " Make one from a template." : " Engineers make them from templates."}</div>`;
+		return `<div class="card stack" style="gap:8px"><div class="row" style="justify-content:space-between;gap:8px"><h2>Apps</h2>${canEdit(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>New app</a>` : ""}</div><div class="review-list" data-app-list>${rows}</div></div>`;
+	}
+	function templateCards(list) {
+		return `<div class="stack" style="gap:8px" data-templates>${list.map((t) => `<button class="card app-template" type="button" data-template="${esc(t.id)}">
+        <b>${esc(t.title)}</b><span class="small soft">${esc(t.summary)}</span></button>`).join("")}</div>`;
+	}
+	function formCard(ctx, d, template, editing) {
+		const values = (Object.keys(d.values).length ? readConfig(template, d.values).config : null) ?? (editing ? editing.config : defaultConfig(template));
+		const list = signals?.list ?? [];
+		const fields = template.params.map((p) => paramField(p, values[p.name], list)).join("");
+		return `<form class="card stack" id="app-form" style="gap:10px">
+      <h2>${esc(editing ? `Change #${editing.number} ${editing.name}` : `New app: ${template.title}`)}</h2>
+      <p class="small soft">${esc(template.summary)}</p>
+      <label class="field" for="app-name">Name<input id="app-name" type="text" name="__name" value="${esc(d.name)}" maxlength="120" required /></label>
+      <div class="grid g2 app-fields" style="gap:10px">${fields}</div>
+      <div class="row" style="gap:8px"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${editing ? "Save" : "Make the app"}</button><a class="btn" href="${editing ? appLink(editing.number) : "#/apps"}">Cancel</a></div>
+    </form>`;
+	}
+	function newCard(ctx) {
+		const list = templates?.list;
+		if (!list) return "<div class=\"card\"><div class=\"empty\">Loading the templates…</div></div>";
+		if (!draft || draft.key !== "new" || !list.some((t) => t.id === draft?.template)) return `<div class="card stack" style="gap:10px"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
+		const template = list.find((t) => t.id === draft?.template);
+		return template ? formCard(ctx, draft, template, null) : "";
+	}
+	function detailCard(ctx) {
+		const n = selected();
+		const items = listing?.key === listKey(ctx) ? listing.items : null;
+		if (n === null) return "<div class=\"card\"><div class=\"empty\">Choose an app, or make one from a template.</div></div>";
+		if (items === null) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
+		const app = items.find((a) => a.number === n);
+		if (!app) return `<div class="card"><div class="empty">There is no app #${n} on this site.</div></div>`;
+		const template = templates?.list?.find((t) => t.id === app.template);
+		if (editKey()) {
+			if (!template) return "<div class=\"card\"><div class=\"empty\">Loading the template…</div></div>";
+			if (draft?.key !== `edit|${app.number}`) draft = {
+				key: `edit|${app.number}`,
+				template: app.template,
+				name: app.name,
+				values: {}
+			};
+			return formCard(ctx, draft, template, app);
+		}
+		const r = result?.key === resultKey(ctx, app) ? result : null;
+		const settings = `<details><summary class="small">Settings</summary><ul class="small" data-app-settings>${configSummary(template, app.config, app.signal_tag).map((line) => `<li>${esc(line)}</li>`).join("")}</ul></details>`;
+		const tools = canEdit(ctx) ? `<div class="row" style="gap:8px"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? "disabled" : ""}>Archive</button></div>` : "";
+		let body;
+		if (!r) body = "<p class=\"small soft\">Running it on the latest readings…</p>";
+		else if (!r.result) body = "<p class=\"small soft\">It could not run. Check its settings.</p>";
+		else {
+			const out = r.result;
+			const chart = timeChart({
+				...resultChart(out),
+				width: fitWidth(TIME_CHART.width, .7)
+			});
+			const facts = out.facts.length ? `<div class="row" style="gap:24px;flex-wrap:wrap" data-app-facts>${out.facts.map((f) => `<div><div class="small soft">${esc(f.label)}</div><strong>${esc(factText(f))}</strong></div>`).join("")}</div>` : "";
+			const marked = out.spans.length ? `<p class="small soft">Shaded: ${esc([...new Set(out.spans.map((s) => s.label))].join("; "))}.</p>` : "";
+			body = `<div class="row" style="gap:8px;align-items:center" data-app-status>${statusBadge(out.status)} <b>${esc(out.headline)}</b></div>
+      <p data-app-text>${esc(out.text)}</p>${facts}${chart}${marked}`;
+		}
+		return `<div class="card stack" style="gap:12px" data-app-detail>
+      <div class="row" style="justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+        <div><h2>#${app.number} ${esc(app.name)}</h2>
+        <p class="small soft">${esc(app.template_title)} on <code>${esc(app.signal_tag ?? "a signal no longer on this site")}</code> · made by ${esc(app.created_by)}</p></div>
+        <button class="btn sm" type="button" data-rerun>Run again</button>
+      </div>
+      ${body}
+      ${settings}
+      ${tools}
+    </div>`;
+	}
+	async function save(ctx, form) {
+		const api = ctx.api;
+		const site = siteId(ctx);
+		const d = draft;
+		const template = templates?.list?.find((t) => t.id === d?.template);
+		if (!api || !site || !d || !template || busy) return;
+		const { config, problems } = readConfig(template, formValues(form));
+		const name = d.name.trim();
+		if (!name) problems.unshift("Give the app a name");
+		if (problems.length) return void ctx.toast(problems.join(". "));
+		busy = true;
+		ctx.rerender();
+		try {
+			const editing = /^edit\|(\d+)$/.exec(d.key);
+			const saved = editing ? await api.apps.update(site, Number(editing[1]), {
+				name,
+				config
+			}) : await api.apps.create(site, {
+				name,
+				template: template.id,
+				config
+			});
+			ctx.toast(editing ? "App saved" : `App #${saved.number} made`);
+			draft = null;
+			listing = null;
+			result = null;
+			location.hash = appLink(saved.number);
+		} catch {} finally {
+			busy = false;
+			ctx.rerender();
+		}
+	}
+	var view$1 = {
+		id: "apps",
+		title: "App Studio",
+		icon: "▦",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Data · Apps</div><h1>App Studio</h1>
+        <p class="soft">Checks set up from templates, without code: a tool's wear, a process's control limits. Each one runs on a signal's latest readings when you open it.</p></div></div>`;
+			if (!ctx.api) return `${head}<div class="card"><p>Apps are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			const o = ctx.ontology;
+			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+			return `${head}<div class="reviews">${listCard(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
+		},
+		bind(root, ctx) {
+			if (!ctx.api || ctx.ontology.status !== "ready") return;
+			load$1(ctx);
+			const app = (listing?.key === listKey(ctx) ? listing.items : null)?.find((a) => a.number === selected()) ?? null;
+			if (isNew() || editKey()) loadSignals(ctx);
+			else if (app && result?.key !== resultKey(ctx, app)) run(ctx, app);
+			onAll(root, "[data-template]", "click", (el) => {
+				const t = templates?.list?.find((x) => x.id === el.dataset.template);
+				if (t) draft = {
+					key: "new",
+					template: t.id,
+					name: t.title,
+					values: {}
+				};
+				ctx.rerender();
+			});
+			const form = root.querySelector("#app-form");
+			form?.addEventListener("input", () => {
+				if (!draft) return;
+				const values = formValues(form);
+				draft.name = String(values.__name ?? "");
+				delete values.__name;
+				draft.values = values;
+			});
+			onSubmit(root, "#app-form", (f) => void save(ctx, f));
+			onAll(root, "[data-rerun]", "click", () => {
+				if (app) run(ctx, app);
+			});
+			onAll(root, "[data-archive-app]", "click", () => {
+				const api = ctx.api;
+				const site = siteId(ctx);
+				if (!api || !site || !app || !confirm(`Archive app #${app.number}, ${app.name}?`)) return;
+				api.apps.archive(site, app.number).then(() => {
+					ctx.toast(`Archived #${app.number}`);
+					listing = null;
+					location.hash = "#/apps";
+				}, () => void 0);
 			});
 		}
 	};
@@ -9961,45 +10350,47 @@ heartbeat_seconds = 30
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$18,
 		view$17,
 		view$16,
-		view$15,
+		view$9,
 		view$8,
 		view$7,
 		view$6,
-		view$5,
-		view$3,
+		view$4,
+		view$15,
 		view$14,
 		view$13,
-		view$12,
+		view$11,
 		view$10,
-		view$9,
+		view$3,
 		view$2,
 		view$1,
 		view,
-		view$4,
-		view$11
+		view$5,
+		view$12
 	];
 	var NAV = [
-		{ items: [view$17, view$16] },
+		{ items: [view$18, view$17] },
 		{
 			group: "Operations",
 			items: [
-				view$6,
-				view$5,
-				view$15,
-				view$8,
 				view$7,
-				view$3,
-				view$14,
-				view$13
+				view$6,
+				view$16,
+				view$9,
+				view$8,
+				view$4,
+				view$15,
+				view$14
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$11,
 				view$10,
-				view$9,
+				view$3,
 				view$2,
 				view$1,
 				view
@@ -10007,11 +10398,11 @@ heartbeat_seconds = 30
 		},
 		{
 			group: "Design",
-			items: [view$12]
+			items: [view$13]
 		},
 		{
 			group: "",
-			items: [view$4, view$11]
+			items: [view$5, view$12]
 		}
 	];
 	function freshState() {
@@ -10026,7 +10417,7 @@ heartbeat_seconds = 30
 		};
 	}
 	var STATE_KEY = "state-v2";
-	var persisted = load$3(STATE_KEY, null);
+	var persisted = load$4(STATE_KEY, null);
 	var shots = generateShotHistory();
 	var detection = detectFrictionAlerts(shots.history);
 	var state = {
@@ -10040,7 +10431,7 @@ heartbeat_seconds = 30
 		ui: {}
 	};
 	function persist() {
-		save(STATE_KEY, {
+		save$1(STATE_KEY, {
 			repo: ontologyStatus === "local" ? state.repo : localRepo,
 			runs: state.runs,
 			chat: state.chat.slice(-60),
@@ -10048,7 +10439,7 @@ heartbeat_seconds = 30
 		});
 	}
 	var DEPLOYED_API = document.querySelector("meta[name=\"tiles-api\"]")?.content ?? "";
-	var dataSource = resolveDataSource(load$3("datasource", null), location.search, DEPLOYED_API);
+	var dataSource = resolveDataSource(load$4("datasource", null), location.search, DEPLOYED_API);
 	var api = makeApi();
 	var localRepo = state.repo;
 	var remote = null;
@@ -10197,7 +10588,7 @@ heartbeat_seconds = 30
 			history.replaceState(null, "", cleanCallbackUrl(location.href, e instanceof SignInError ? e.returnTo : void 0));
 			toast(e instanceof Error ? e.message : String(e));
 		}
-		dataSource = resolveDataSource(load$3("datasource", null), location.search, DEPLOYED_API);
+		dataSource = resolveDataSource(load$4("datasource", null), location.search, DEPLOYED_API);
 		api = makeApi();
 		render();
 	}
@@ -10247,9 +10638,9 @@ heartbeat_seconds = 30
 		rerender: () => render(),
 		toast,
 		reset() {
-			const chosen = load$3("datasource", null);
+			const chosen = load$4("datasource", null);
 			clearAll();
-			if (chosen) save("datasource", chosen);
+			if (chosen) save$1("datasource", chosen);
 			Object.assign(state, freshState(), { ui: {} });
 			localRepo = state.repo;
 			persist();
@@ -10265,7 +10656,7 @@ heartbeat_seconds = 30
 		},
 		setDataSource(source) {
 			dataSource = source;
-			save("datasource", source);
+			save$1("datasource", source);
 			api = makeApi();
 			refreshAuth();
 			connectOntology();
@@ -10280,7 +10671,7 @@ heartbeat_seconds = 30
 				return sessionForApi();
 			},
 			get signInOrg() {
-				return load$3("signin-org", "");
+				return load$4("signin-org", "");
 			},
 			async signIn(org) {
 				if (!canRedirect()) return toast("Open Tiles over http(s) to sign in");
@@ -10293,7 +10684,7 @@ heartbeat_seconds = 30
 					return toast(status === 404 ? `${slug} has no sign-in of its own` : `Can't start sign-in: ${String(e)}`);
 				}
 				if (!config?.enabled || !config.issuer) return toast("This Tiles API has no sign-in configured");
-				save("signin-org", slug ?? "");
+				save$1("signin-org", slug ?? "");
 				try {
 					location.assign(await beginSignIn({
 						issuer: config.issuer,
@@ -10319,7 +10710,7 @@ heartbeat_seconds = 30
 	};
 	function currentView() {
 		const id = routeOf(location.hash);
-		return VIEWS.find((v) => v.id === id) ?? view$17;
+		return VIEWS.find((v) => v.id === id) ?? view$18;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -10342,8 +10733,8 @@ heartbeat_seconds = 30
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$17 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$17 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$18 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$18 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
@@ -10394,11 +10785,11 @@ heartbeat_seconds = 30
 		if (theme) document.documentElement.dataset.theme = theme;
 		else delete document.documentElement.dataset.theme;
 	}
-	applyTheme(load$3("theme", null));
+	applyTheme(load$4("theme", null));
 	need(document, "#theme").addEventListener("click", () => {
 		const next = (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark";
 		applyTheme(next);
-		save("theme", next);
+		save$1("theme", next);
 	});
 	need(document, "#menu").addEventListener("click", (e) => {
 		const open = need(document, "#sidebar").classList.toggle("open");

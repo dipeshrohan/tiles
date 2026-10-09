@@ -20,6 +20,9 @@ from tiles_api.settings import Settings
 from tiles_api.store import UNSCOPED, act_as_app, all_sites, open_pool
 
 RLS = importlib.import_module("tiles_api.migrations.versions.0024_site_row_security")
+# Tables of a site's data made after 0024, each with its policy in its own migration.
+LATER = importlib.import_module("tiles_api.migrations.versions.0028_apps")
+SITE_TABLES = {*RLS.SITE_TABLES, *LATER.SITE_TABLES}
 # Tables of no one site: the organisation's, people, and the readings hypertable (TimescaleDB
 # refuses row security on a compressed hypertable: the API reads it through `site_samples` and
 # writes it with `tiles_store_samples`, and may not touch it otherwise). An organisation's sign-in
@@ -55,7 +58,7 @@ def test_every_table_of_a_sites_data_has_forced_row_security(database_url: str) 
     with psycopg.connect(database_url) as conn:
         found = tables(conn)
     with_site = {t for t, (has_site, _, _) in found.items() if has_site}
-    assert with_site == set(RLS.SITE_TABLES), "a table with site_id needs a policy (or one was dropped)"
+    assert with_site == SITE_TABLES, "a table with site_id needs a policy (or one was dropped)"
     children = {t for t, *_ in RLS.CHILD_TABLES}
     assert set(found) - with_site - children == NO_SITE, "a new table: does it hold a site's data?"
     for table in with_site | children:

@@ -38,7 +38,72 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+
+## apps
+
+### `GET /app-templates`
+
+**Who:** signed in. **Answers:** 200.
+
+The templates an app can be made from, with their settings (what the form asks).
+
+### `GET /sites/{site_id}/apps`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The site's apps, by number.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/apps`
+
+**Who:** engineer. **Answers:** 201, 422.
+
+Makes an app from a template's current version: 422 with what to fix if the settings don't fit it.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** AppIn (see [openapi.json](openapi.json)).
+
+### `PUT /sites/{site_id}/apps/{number}`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Renames an app or changes its settings, for the template version it was made with.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** AppUpdate (see [openapi.json](openapi.json)).
+
+### `DELETE /sites/{site_id}/apps/{number}`
+
+**Who:** engineer. **Answers:** 204, 422.
+
+Archives an app: it leaves the list, and its number isn't reused.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+### `GET /sites/{site_id}/apps/{number}/result`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Runs the app on its signal's readings now: its status, in words, and the chart.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
 
 ## auth
 

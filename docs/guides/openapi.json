@@ -222,6 +222,127 @@
         "title": "AgentIn",
         "type": "object"
       },
+      "AppIn": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "description": "The template's settings; defaults fill what is left out",
+            "title": "Config",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$",
+            "title": "Name",
+            "type": "string"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "template",
+          "config"
+        ],
+        "title": "AppIn",
+        "type": "object"
+      },
+      "AppOut": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "title": "Created By",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "signal_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The tag of the app's signal, if it still exists",
+            "title": "Signal Tag"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          },
+          "template_title": {
+            "title": "Template Title",
+            "type": "string"
+          },
+          "template_version": {
+            "title": "Template Version",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "name",
+          "template",
+          "template_version",
+          "template_title",
+          "config",
+          "signal_tag",
+          "created_by",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AppOut",
+        "type": "object"
+      },
+      "AppUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "config"
+        ],
+        "title": "AppUpdate",
+        "type": "object"
+      },
       "AskIn": {
         "additionalProperties": false,
         "properties": {
@@ -2477,6 +2598,33 @@
         "title": "Explanation",
         "type": "object"
       },
+      "Fact": {
+        "properties": {
+          "format": {
+            "enum": [
+              "number",
+              "percent"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "value",
+          "format"
+        ],
+        "title": "Fact",
+        "type": "object"
+      },
       "Feedback": {
         "additionalProperties": false,
         "properties": {
@@ -3388,6 +3536,24 @@
         "title": "Issue",
         "type": "object"
       },
+      "Level": {
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "label",
+          "value"
+        ],
+        "title": "Level",
+        "type": "object"
+      },
       "Me": {
         "properties": {
           "email": {
@@ -3563,7 +3729,7 @@
           },
           "params": {
             "items": {
-              "$ref": "#/components/schemas/ParamOut"
+              "$ref": "#/components/schemas/tiles_api__api_models__ParamOut"
             },
             "title": "Params",
             "type": "array"
@@ -3934,125 +4100,6 @@
           "percent"
         ],
         "title": "OutputChange",
-        "type": "object"
-      },
-      "ParamOut": {
-        "properties": {
-          "default": {
-            "title": "Default",
-            "type": "number"
-          },
-          "description": {
-            "title": "Description",
-            "type": "string"
-          },
-          "max": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max"
-          },
-          "min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "unit",
-          "default",
-          "min",
-          "max",
-          "description"
-        ],
-        "title": "ParamOut",
-        "type": "object"
-      },
-      "Point": {
-        "properties": {
-          "at": {
-            "format": "date-time",
-            "title": "At",
-            "type": "string"
-          },
-          "max": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max"
-          },
-          "min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min"
-          },
-          "n": {
-            "title": "N",
-            "type": "integer"
-          },
-          "text": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Text"
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          }
-        },
-        "required": [
-          "at",
-          "value",
-          "min",
-          "max",
-          "n",
-          "text"
-        ],
-        "title": "Point",
         "type": "object"
       },
       "Policy": {
@@ -4551,6 +4598,111 @@
           }
         },
         "title": "RestoreIn",
+        "type": "object"
+      },
+      "ResultOut": {
+        "properties": {
+          "app": {
+            "$ref": "#/components/schemas/AppOut"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "facts": {
+            "items": {
+              "$ref": "#/components/schemas/Fact"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "gap_seconds": {
+            "description": "Points further apart than this aren't joined",
+            "title": "Gap Seconds",
+            "type": "number"
+          },
+          "headline": {
+            "title": "Headline",
+            "type": "string"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/Level"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/tiles_api__api_apps__Point"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "signal_id": {
+            "format": "uuid",
+            "title": "Signal Id",
+            "type": "string"
+          },
+          "spans": {
+            "items": {
+              "$ref": "#/components/schemas/Span"
+            },
+            "title": "Spans",
+            "type": "array"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "alert",
+              "no_data"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "app",
+          "status",
+          "headline",
+          "text",
+          "signal_id",
+          "tag",
+          "unit",
+          "start",
+          "end",
+          "gap_seconds",
+          "points",
+          "levels",
+          "spans",
+          "facts"
+        ],
+        "title": "ResultOut",
         "type": "object"
       },
       "Review": {
@@ -5515,7 +5667,7 @@
           },
           "points": {
             "items": {
-              "$ref": "#/components/schemas/Point"
+              "$ref": "#/components/schemas/tiles_api__api_series__Point"
             },
             "title": "Points",
             "type": "array"
@@ -6115,6 +6267,31 @@
         "title": "Site",
         "type": "object"
       },
+      "Span": {
+        "properties": {
+          "from": {
+            "format": "date-time",
+            "title": "From",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "title": "To",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to",
+          "label"
+        ],
+        "title": "Span",
+        "type": "object"
+      },
       "Spread": {
         "properties": {
           "count": {
@@ -6608,6 +6785,42 @@
           }
         },
         "title": "TeamsIn",
+        "type": "object"
+      },
+      "TemplateOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/tiles_api__api_apps__ParamOut"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "title",
+          "summary",
+          "params"
+        ],
+        "title": "TemplateOut",
         "type": "object"
       },
       "Totals": {
@@ -7638,6 +7851,112 @@
         "title": "WindowIn",
         "type": "object"
       },
+      "tiles_api__api_apps__ParamOut": {
+        "properties": {
+          "choices": {
+            "description": "(value, label) for choice and choices",
+            "items": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            },
+            "title": "Choices",
+            "type": "array"
+          },
+          "default": {
+            "title": "Default"
+          },
+          "help": {
+            "title": "Help",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "signal",
+              "number",
+              "integer",
+              "choice",
+              "choices"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "maximum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum"
+          },
+          "minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "optional": {
+            "title": "Optional",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "kind",
+          "default",
+          "minimum",
+          "maximum",
+          "choices",
+          "optional",
+          "help"
+        ],
+        "title": "ParamOut",
+        "type": "object"
+      },
+      "tiles_api__api_apps__Point": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "at",
+          "value"
+        ],
+        "title": "Point",
+        "type": "object"
+      },
       "tiles_api__api_detectors__RunOut": {
         "properties": {
           "caught_up": {
@@ -7771,6 +8090,58 @@
           "caught_up"
         ],
         "title": "RunOut",
+        "type": "object"
+      },
+      "tiles_api__api_models__ParamOut": {
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "number"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "unit",
+          "default",
+          "min",
+          "max",
+          "description"
+        ],
+        "title": "ParamOut",
         "type": "object"
       },
       "tiles_api__api_ontology_io__ImportIn": {
@@ -7937,6 +8308,73 @@
           }
         },
         "title": "ReviewIn",
+        "type": "object"
+      },
+      "tiles_api__api_series__Point": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "at",
+          "value",
+          "min",
+          "max",
+          "n",
+          "text"
+        ],
+        "title": "Point",
         "type": "object"
       },
       "tiles_api__api_warnings__CommentIn": {
@@ -8206,6 +8644,32 @@
         "summary": "Ingest",
         "tags": [
           "edge agents"
+        ]
+      }
+    },
+    "/app-templates": {
+      "get": {
+        "description": "The templates an app can be made from, with their settings (what the form asks).",
+        "operationId": "list_templates_app_templates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateOut"
+                  },
+                  "title": "Response List Templates App Templates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Templates",
+        "tags": [
+          "apps"
         ]
       }
     },
@@ -9288,6 +9752,266 @@
         "summary": "Revoke Agent",
         "tags": [
           "edge agents"
+        ]
+      }
+    },
+    "/sites/{site_id}/apps": {
+      "get": {
+        "description": "The site's apps, by number.",
+        "operationId": "list_apps_sites__site_id__apps_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AppOut"
+                  },
+                  "title": "Response List Apps Sites  Site Id  Apps Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Apps",
+        "tags": [
+          "apps"
+        ]
+      },
+      "post": {
+        "description": "Makes an app from a template's current version: 422 with what to fix if the settings don't\nfit it.",
+        "operationId": "create_app__sites__site_id__apps_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create App ",
+        "tags": [
+          "apps"
+        ]
+      }
+    },
+    "/sites/{site_id}/apps/{number}": {
+      "delete": {
+        "description": "Archives an app: it leaves the list, and its number isn't reused.",
+        "operationId": "archive_app_sites__site_id__apps__number__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive App",
+        "tags": [
+          "apps"
+        ]
+      },
+      "put": {
+        "description": "Renames an app or changes its settings, for the template version it was made with.",
+        "operationId": "update_app_sites__site_id__apps__number__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update App",
+        "tags": [
+          "apps"
+        ]
+      }
+    },
+    "/sites/{site_id}/apps/{number}/result": {
+      "get": {
+        "description": "Runs the app on its signal's readings now: its status, in words, and the chart.",
+        "operationId": "app_result_sites__site_id__apps__number__result_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResultOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "App Result",
+        "tags": [
+          "apps"
         ]
       }
     },

@@ -19,6 +19,7 @@ from pydantic import BaseModel
 
 from tiles_api import readiness, telemetry
 from tiles_api.api_agents import router as agents_router
+from tiles_api.api_apps import router as apps_router
 from tiles_api.api_auth import router as auth_router
 from tiles_api.api_backtest import router as backtest_router
 from tiles_api.api_copilot import router as copilot_router
@@ -158,6 +159,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sites_router)
     app.include_router(org_sign_in_router)
     app.include_router(scim_router)
+    app.include_router(apps_router)
     app.add_exception_handler(ScimError, error_response)
     app.include_router(models_router)
     app.include_router(bindings_router)

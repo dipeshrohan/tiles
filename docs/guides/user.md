@@ -25,11 +25,12 @@ Other guides:
 12. [Factory physics and Process & quality (demo pages)](#factory-physics-and-process--quality-demo-pages)
 13. [Correlation finder](#correlation-finder)
 14. [Insights](#insights)
-15. [Design studio](#design-studio)
-16. [Copilot](#copilot)
-17. [Set up a site](#set-up-a-site)
-18. [Settings](#settings)
-19. [Glossary](#glossary)
+15. [App Studio](#app-studio)
+16. [Design studio](#design-studio)
+17. [Copilot](#copilot)
+18. [Set up a site](#set-up-a-site)
+19. [Settings](#settings)
+20. [Glossary](#glossary)
 
 ---
 
@@ -577,6 +578,39 @@ Admins can do these on any insight.
 
 ---
 
+## App Studio
+
+*API mode.* An app is a check you set up from a template, without code, on one of your site's signals. It runs on the signal's latest readings each time you open it. Templates:
+
+- **Wear check:** has the signal's level moved from its baseline, as a wearing tool's does, and when will it reach a worn-out level? It is the [wear check](#checking-for-wear) of the Data explorer, kept with its settings.
+- **SPC limits:** is the process in control? A control chart: each point is the mean of a bucket of readings. The centre line and the limits (3 sigma by default) come from a baseline when the process was in control, and the recent points are checked against the rules you choose:
+  - a point beyond a control limit;
+  - two of three points beyond 2 sigma on one side;
+  - four of five beyond 1 sigma on one side;
+  - eight in a row on one side of the centre;
+  - six in a row rising or falling.
+
+### Making an app (engineers and admins)
+
+1. Open **App Studio** and choose **New app**.
+2. Pick a template.
+3. Give the app a name, choose the signal, and set the other settings. Each setting shows its limits, and the template's defaults are filled in.
+4. Choose **Make the app**. It opens on its result.
+
+### Reading an app
+
+Each app shows:
+
+- **Its status:** OK, Alert or No data.
+- **A sentence** saying what was found.
+- **Its numbers,** such as the change from the baseline or how many signals broke a rule.
+- **A chart** of the points, with the reference lines and shaded stretches (the recent window, or the points that broke a rule).
+- **Its settings,** under **Settings**.
+
+**Run again** reads the latest readings. Engineers and admins **Change** an app's settings or **Archive** it. Every change is in the site's audit log. An app keeps the template version it was made with, so a later version of a template never changes what an existing app does.
+
+---
+
 ## Design studio
 
 **What it's for:** exploring physics models from first principles. Every run records the model version and parameters, so you can trace, compare and export any result for audit.
@@ -759,6 +793,7 @@ Every change on the site: who, what and when. For example staged and committed o
 
 ## Glossary
 
+- **App**: A check set up from an App Studio template on one of your signals, such as a wear check or SPC limits.
 - **Acknowledge**: Mark a new warning as seen. It moves from **New** to **Acknowledged**.
 - **Asset**: A machine as your MES names it, for example DC-01. Event signals and detectors carry an asset so events can be matched to warnings.
 - **Audit record**: A file with a design run, its whole lineage, the model specifications and a digest that shows nothing was changed.
@@ -778,6 +813,7 @@ Every change on the site: who, what and when. For example staged and committed o
 - **Relationship**: A link between two nodes, such as Line `contains` Machine or PLC `emits` Signal.
 - **Revert**: A new commit that undoes an earlier one.
 - **Run**: One evaluation of a design model at a version with a set of parameters, saved with its result, author and parent.
+- **SPC**: Statistical process control: a control chart's centre line and limits, from a baseline, and rules that say when a process has gone out of control.
 - **Signal**: A stream of readings with a tag, unit and sample rate. Also the ontology node type that represents it.
 - **Staged change**: An ontology edit that is not yet committed. Only you see it.
 - **Sweep**: A grid of runs over one or two parameters, shown as a heat map.

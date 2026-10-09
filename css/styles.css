@@ -1239,6 +1239,30 @@ tr.selected td {
 .review-row.sel {
   border-color: var(--accent);
 }
+/* App Studio (T6.10): a template to start from, and a template's settings. */
+.app-template {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.app-template:hover,
+.app-template:focus-visible {
+  border-color: var(--accent);
+}
+.app-choices {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  grid-column: 1 / -1;
+}
 .review-diff .change {
   padding: 2px 0;
   overflow-wrap: anywhere;

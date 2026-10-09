@@ -633,6 +633,61 @@ test('organisation admins set their own sign-in and SCIM tokens; people sign in 
   assert.equal(await page.locator('#org-sign-in').isVisible(), false);
 });
 
+test('App Studio: an engineer makes an SPC app from its template, runs it, changes and archives it', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('oven.zone2_temp');
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  page.on('dialog', (d) => void d.accept());
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  await page.goto(`${home}#/apps`);
+  await page.waitForSelector('[data-app-list]:has-text("No apps yet")');
+  await page.click('[data-new-app]');
+  // The templates to start from, then the form made from the chosen one's settings.
+  await page.click('[data-template="spc-limits"]');
+  await page.waitForSelector('#app-form');
+  await page.fill('#app-form [name=__name]', 'Oven zone 2');
+  await page.selectOption('#app-form [name=signal]', { label: 'oven.zone2_temp' });
+  assert.equal(await page.inputValue('#app-form [name=sigmas]'), '3'); // the template's default
+  await page.uncheck('#app-form [name=rules][value=trend_of_six]');
+  await page.click('#app-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("App #1 made")');
+  await page.waitForSelector('[data-app-status]:has-text("Out of control")');
+  assert.equal(new URL(page.url()).hash, '#/apps/1');
+  assert.match(await page.locator('[data-app-text]').innerText(), /Out of control: 1 signal/);
+  assert.equal(await page.locator('[data-app-detail] svg.chart .span').count(), 1);
+  assert.deepEqual(fake.studioApps[0].config.rules, ['beyond_limits']);
+  // Settings in words.
+  await page.click('[data-app-detail] summary');
+  assert.match(await page.locator('[data-app-settings]').innerText(), /Signal: oven.zone2_temp/);
+
+  // Changing it: the form holds the template's limits, so the browser checks them before sending.
+  await page.click('[data-edit-app]');
+  await page.waitForSelector('#app-form:has-text("Change #1 Oven zone 2")');
+  await page.fill('#app-form [name=sigmas]', '9');
+  await page.click('#app-form button[type=submit]');
+  assert.equal(await page.$eval('#app-form [name=sigmas]', (el) => el.validity.rangeOverflow), true);
+  assert.equal(fake.studioApps[0].config.sigmas, 3); // not sent
+  await page.fill('#app-form [name=sigmas]', '2.5');
+  await page.click('#app-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("App saved")');
+  assert.equal(fake.studioApps[0].config.sigmas, 2.5);
+
+  await page.click('[data-archive-app]');
+  await page.waitForSelector('[data-app-list]:has-text("No apps yet")');
+  assert.deepEqual(errors, []);
+
+  // Viewers see the apps, but don't make them.
+  const viewer = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const viewerUrl = await viewer.listen();
+  t.after(() => viewer.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(viewerUrl)}#/apps`);
+  await page.waitForSelector('[data-app-list]:has-text("Engineers make them")');
+  assert.equal(await page.locator('[data-new-app]').count(), 0);
+});
+
 test('site admins register edge agents and see them come online', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();
