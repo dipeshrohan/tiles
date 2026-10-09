@@ -4,7 +4,12 @@ FROM python:3.13-slim
 
 # uv from PyPI (pinned) rather than a container registry, so the build only
 # needs PyPI and Docker Hub.
-RUN pip install --no-cache-dir uv==0.11.32
+# The base image's security updates, and a current pip (T5.08: the image scan fails on known
+# vulnerabilities that have a fix).
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir --upgrade pip uv==0.11.32
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
