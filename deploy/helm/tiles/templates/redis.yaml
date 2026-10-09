@@ -1,0 +1,54 @@
+{{- if .Values.redis.bundled }}
+{{- $fullname := include "tiles.fullname" . }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-redis
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tiles.selector" (dict "root" . "component" "redis") | nindent 4 }}
+  ports:
+    - { name: redis, port: 6379, targetPort: redis }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-redis
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+    app.kubernetes.io/component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "redis") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tiles.labels" . | nindent 8 }}
+        app.kubernetes.io/component: redis
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        {{- include "tiles.podSecurity" (dict "uid" 999) | nindent 8 }}
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          # A cache for now: nothing kept on disk.
+          args: [--save, "", --appendonly, "no"]
+          ports:
+            - { name: redis, containerPort: 6379 }
+          readinessProbe:
+            exec: { command: [redis-cli, ping] }
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}
+          securityContext:
+            {{- include "tiles.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      volumes:
+        - { name: data, emptyDir: {} }
+{{- end }}

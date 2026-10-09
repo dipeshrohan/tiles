@@ -1,0 +1,90 @@
+{{- if .Values.database.bundled }}
+{{- $fullname := include "tiles.fullname" . }}
+# One TimescaleDB pod with a volume, for evaluation: no replica, no point-in-time recovery.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-db
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tiles.selector" (dict "root" . "component" "db") | nindent 4 }}
+  ports:
+    - { name: postgres, port: 5432, targetPort: postgres }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $fullname }}-db
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db
+spec:
+  serviceName: {{ $fullname }}-db
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "db") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tiles.labels" . | nindent 8 }}
+        app.kubernetes.io/component: db
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70 # postgres in the Alpine-based image
+        runAsGroup: 70
+        fsGroup: 70
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: postgres
+          image: {{ .Values.database.image }}
+          env:
+            - { name: POSTGRES_USER, value: tiles }
+            - { name: POSTGRES_DB, value: tiles }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: {{ include "tiles.generatedSecret" . }}, key: postgres_password }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          ports:
+            - { name: postgres, containerPort: 5432 }
+          # Over TCP: on first start the image runs a temporary server on the socket only, while it
+          # initialises; that may take minutes on slow storage, and mustn't be cut short.
+          startupProbe:
+            exec: { command: [pg_isready, -h, 127.0.0.1, -U, tiles, -d, tiles] }
+            periodSeconds: 5
+            failureThreshold: 120
+          readinessProbe:
+            exec: { command: [pg_isready, -h, 127.0.0.1, -U, tiles, -d, tiles] }
+            periodSeconds: 5
+          livenessProbe:
+            exec: { command: [pg_isready, -h, 127.0.0.1, -U, tiles, -d, tiles] }
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            {{- toYaml .Values.database.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: run, mountPath: /var/run/postgresql }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: run, emptyDir: {} }
+        - { name: tmp, emptyDir: {} }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.database.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.database.storage }}
+{{- end }}

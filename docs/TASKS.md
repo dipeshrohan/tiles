@@ -163,7 +163,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T5.08` [#82](https://github.com/dipeshrohan/tiles/issues/82) **Dependency and container scanning in the automated checks**; SBOM generation · TL · 1d · T1.02
 
 ### Deployment
-- [ ] `T5.09` [#83](https://github.com/dipeshrohan/tiles/issues/83) ★ **Helm charts** for API, workers, frontend and database (or managed database) · BE · 3d · T1.11
+- [x] `T5.09` [#83](https://github.com/dipeshrohan/tiles/issues/83) ★ **Helm charts** for API, workers, frontend and database (or managed database) · BE · 3d · T1.11
 - [ ] `T5.10` [#84](https://github.com/dipeshrohan/tiles/issues/84) **Terraform modules** for the managed cloud and a customer-hosted reference install · BE · 3d · T5.09
 - [ ] `T5.11` [#85](https://github.com/dipeshrohan/tiles/issues/85) **Hybrid mode:** edge agent on site plus Tiles cloud; documented firewall rules (outbound only) · BE · 2d · T2.04, T5.10
 - [ ] `T5.12` [#86](https://github.com/dipeshrohan/tiles/issues/86) **Customer-hosted install guide** and a dry run on a clean cluster · BE+TL · 2d · T5.10

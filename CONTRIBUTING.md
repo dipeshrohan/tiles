@@ -38,7 +38,7 @@ From `edge/`: `uv sync --all-extras` once, then `uv run pytest -W error`, `uv ru
 
 Behind a TLS-intercepting proxy (some corporate networks and sandboxes), the image build can fail at `pip install` with a certificate error. Build the API image from a copy of `api/` with your proxy's CA added (`COPY ca.crt …` plus `SSL_CERT_FILE`/`PIP_CERT`), tag it `tiles-api:dev`, then run `docker compose up --no-build --wait`. Don't commit proxy certificates. If quay.io is blocked, pull Keycloak through a mirror and retag it: `docker pull mirror.gcr.io/keycloak/keycloak:26.4 && docker tag mirror.gcr.io/keycloak/keycloak:26.4 quay.io/keycloak/keycloak:26.4`.
 
-CI runs lint and typecheck, unit tests on Node 22 and 24, the browser tests, the API and edge agent checks (ruff, strict mypy, pytest; the API's against a TimescaleDB service), a point-in-time restore drill (`deploy/backup/pitr-drill.sh`) and a full `docker compose up` smoke test, which also registers an edge agent and runs its container against the API, on every pull request. All must pass before merging.
+CI runs lint and typecheck, unit tests on Node 22 and 24, the browser tests, the API and edge agent checks (ruff, strict mypy, pytest; the API's against a TimescaleDB service), a point-in-time restore drill (`deploy/backup/pitr-drill.sh`), a full `docker compose up` smoke test, which also registers an edge agent and runs its container against the API, and the Helm chart (lint, kubeconform, then an install, a job run and an upgrade on a kind cluster; see `deploy/helm/tiles/README.md`), on every pull request. All must pass before merging.
 
 ### Security scanning (T5.08)
 

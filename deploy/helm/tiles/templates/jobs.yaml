@@ -1,0 +1,57 @@
+{{- $fullname := include "tiles.fullname" . }}
+{{- range $name, $job := .Values.jobs }}
+{{- if $job.enabled }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-%s" $fullname ($name | kebabcase) | trunc 52 | trimSuffix "-" }}
+  labels:
+    {{- include "tiles.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: job
+spec:
+  schedule: {{ $job.schedule | quote }}
+  timeZone: Etc/UTC
+  # A run still going when the next is due: the next waits for the following slot.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: {{ $.Values.jobDefaults.activeDeadlineSeconds }}
+      backoffLimit: {{ $.Values.jobDefaults.backoffLimit }}
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            {{- include "tiles.labels" $ | nindent 12 }}
+            app.kubernetes.io/component: job
+            tiles-job: {{ $name | kebabcase }}
+        spec:
+          restartPolicy: Never
+          serviceAccountName: {{ $fullname }}
+          automountServiceAccountToken: false
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- include "tiles.podSecurity" (dict "uid" 10001) | nindent 12 }}
+          containers:
+            - name: {{ $name | kebabcase }}
+              image: {{ include "tiles.image" (dict "image" $.Values.images.api "root" $) }}
+              imagePullPolicy: {{ $.Values.images.api.pullPolicy }}
+              command: [{{ $job.command | quote }}]
+              env:
+                {{- include "tiles.env" $ | nindent 16 }}
+              resources:
+                {{- toYaml $.Values.jobDefaults.resources | nindent 16 }}
+              securityContext:
+                {{- include "tiles.containerSecurity" $ | nindent 16 }}
+              volumeMounts:
+                {{- include "tiles.secretsMount" $ | nindent 16 }}
+          volumes:
+            {{- include "tiles.secretsVolume" $ | nindent 12 }}
+{{- end }}
+{{- end }}

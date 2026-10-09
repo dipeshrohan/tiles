@@ -1,0 +1,7 @@
+# The web image (Dockerfile) copies a few files by name; keep the build context small and free of secrets.
+*
+!package.json
+!server.js
+!index.html
+!css/
+!js/tiles.bundle.js

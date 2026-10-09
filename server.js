@@ -1,5 +1,6 @@
 // Zero-dependency static server: `node server.js` then open http://localhost:5173
 import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +14,22 @@ const types = {
   '.svg': 'image/svg+xml',
 };
 
-export function createTilesServer() {
+const attr = (text) => text.replace(/[&"<>]/g, (c) => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[c]);
+
+// `apiUrl` (TILES_API_URL when run directly, T5.09): the API a deployment serves the app with,
+// written into index.html's `tiles-api` meta tag; the app uses it until a browser chooses otherwise.
+export function createTilesServer({ apiUrl = '' } = {}) {
+  // The same test as isHttpUrl in js/lib/api.ts (this file runs without a build, so it can't import it).
+  if (apiUrl && !/^https?:\/\/[^\s/]+/i.test(apiUrl)) throw new Error(`Not an http(s) URL: ${apiUrl}`);
+  const index = join(root, 'index.html');
+  // The page with the address in, made once; a page without the tag fails here, not silently.
+  let page = null;
+  if (apiUrl) {
+    const html = readFileSync(index, 'utf8');
+    const tag = /<meta\s+name="tiles-api"\s+content="[^"]*"\s*\/?>/;
+    if (!tag.test(html)) throw new Error('index.html has no <meta name="tiles-api"> tag to put the API address in');
+    page = Buffer.from(html.replace(tag, `<meta name="tiles-api" content="${attr(apiUrl)}" />`));
+  }
   return createServer(async (req, res) => {
     let path;
     try {
@@ -28,7 +44,7 @@ export function createTilesServer() {
     }
     const file = join(root, path || 'index.html');
     try {
-      const body = await readFile(file);
+      const body = page && file === index ? page : await readFile(file);
       res.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream' }).end(body);
     } catch {
       res.writeHead(404).end('Not found');
@@ -38,5 +54,7 @@ export function createTilesServer() {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT) || 5173;
-  createTilesServer().listen(port, () => console.log(`Tiles running at http://localhost:${port}`));
+  createTilesServer({ apiUrl: process.env.TILES_API_URL ?? '' }).listen(port, () =>
+    console.log(`Tiles running at http://localhost:${port}`),
+  );
 }

@@ -1,0 +1,20 @@
+Tiles {{ .Chart.AppVersion }} is installing as "{{ .Release.Name }}".
+
+  App: {{ .Values.url }}
+  API: {{ .Values.apiUrl }}  (/health, /ready)
+{{- if not .Values.ingress.enabled }}
+
+No ingress: to try it from this machine,
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "tiles.fullname" . }}-web 5173 &
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "tiles.fullname" . }}-api 8000 &
+{{- end }}
+{{- if .Values.database.bundled }}
+
+The database is a single pod for evaluation. For production, use a managed PostgreSQL with
+TimescaleDB and backups (database.bundled=false, tiles_database_url in your Secret).
+{{- end }}
+{{- if .Values.secrets.generateDataKey }}
+
+The data key that seals stored credentials was generated in the Secret
+{{ include "tiles.generatedSecret" . }}. Back it up: without it they can't be opened.
+{{- end }}

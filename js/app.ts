@@ -113,7 +113,10 @@ function persist(): void {
 
 // ---- data source ---------------------------------------------------------
 
-let dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search);
+// The API this deployment serves the app with (server.js fills the meta tag from TILES_API_URL).
+const DEPLOYED_API = document.querySelector<HTMLMetaElement>('meta[name="tiles-api"]')?.content ?? '';
+
+let dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search, DEPLOYED_API);
 let api = makeApi();
 
 // ---- ontology store (local or API) ------------------------------------------
@@ -287,7 +290,7 @@ async function finishSignIn(): Promise<void> {
     toast(e instanceof Error ? e.message : String(e));
   }
   // The address now carries the page's own query again (e.g. ?api=…).
-  dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search);
+  dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search, DEPLOYED_API);
   api = makeApi();
   render();
 }
@@ -378,8 +381,11 @@ const ctx: Context = {
   rerender: () => render(),
   toast,
   reset() {
+    // The data source is a preference, not workspace data; kept only if this browser chose one, so
+    // a deployment's default (the tiles-api meta tag) stays a default.
+    const chosen = load<Partial<DataSource> | null>('datasource', null);
     clearAll();
-    save('datasource', dataSource); // a preference, not workspace data
+    if (chosen) save('datasource', chosen);
     Object.assign(state, freshState(), { ui: {} });
     localRepo = state.repo;
     persist();
