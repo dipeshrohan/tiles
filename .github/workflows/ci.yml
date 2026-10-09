@@ -574,8 +574,9 @@ jobs:
           printf '%s' "$token" | sudo install -o tiles-edge -m 600 /dev/stdin /etc/tiles-edge/token
           sudo systemctl daemon-reload
           sudo systemd-analyze verify /etc/systemd/system/tiles-edge.service
-          # The sandbox holds: systemd's exposure score stays at "OK" (1.1 when written).
-          sudo systemd-analyze security --threshold=2 tiles-edge.service | tail -1
+          # The sandbox holds: systemd's exposure score stays at or below 2.0 (1.1 when written).
+          # --threshold counts in tenths of the score it prints, so 20 is 2.0.
+          sudo systemd-analyze security --threshold=20 tiles-edge.service | tail -1
           sudo systemctl start tiles-edge
           for _ in $(seq 30); do
             status=$(curl -fsS "http://localhost:8000/sites/$site/agents" -H "Authorization: Bearer $t" \
