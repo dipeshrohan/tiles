@@ -7032,8 +7032,38 @@
 	};
 	//#endregion
 	//#region js/lib/shopfloor.ts
-	var incoming = (graph, to, rel) => Object.values(graph.edges).filter((e) => e.to === to && e.rel === rel && graph.nodes[e.from]).map((e) => e.from).sort();
-	var outgoing = (graph, from, rel) => Object.values(graph.edges).filter((e) => e.from === from && e.rel === rel && graph.nodes[e.to]).map((e) => e.to).sort();
+	var indexes = /* @__PURE__ */ new WeakMap();
+	function indexOf(graph) {
+		const cached = indexes.get(graph);
+		if (cached) return cached;
+		const add = (map, key, id) => {
+			const list = map.get(key);
+			if (list) list.push(id);
+			else map.set(key, [id]);
+		};
+		const index = {
+			to: /* @__PURE__ */ new Map(),
+			from: /* @__PURE__ */ new Map(),
+			byTag: /* @__PURE__ */ new Map(),
+			byLabel: /* @__PURE__ */ new Map()
+		};
+		for (const e of Object.values(graph.edges)) {
+			if (!graph.nodes[e.from] || !graph.nodes[e.to]) continue;
+			add(index.to, `${e.rel}|${e.to}`, e.from);
+			add(index.from, `${e.rel}|${e.from}`, e.to);
+		}
+		for (const list of [...index.to.values(), ...index.from.values()]) list.sort();
+		const signals = Object.values(graph.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.id.localeCompare(b.id));
+		for (const n of signals) {
+			const tag = n.props["tag"];
+			if (typeof tag === "string" && !index.byTag.has(tag)) index.byTag.set(tag, n.id);
+			if (!index.byLabel.has(n.label)) index.byLabel.set(n.label, n.id);
+		}
+		indexes.set(graph, index);
+		return index;
+	}
+	var incoming = (graph, to, rel) => indexOf(graph).to.get(`${rel}|${to}`) ?? [];
+	var outgoing = (graph, from, rel) => indexOf(graph).from.get(`${rel}|${from}`) ?? [];
 	var isMachine = (graph, id) => graph.nodes[id]?.type === "Machine";
 	var parentOf = (graph, id) => incoming(graph, id, "contains")[0] ?? null;
 	function machineOf(graph, id) {
@@ -7069,8 +7099,8 @@
 	function nodeForTag(graph, tag, links) {
 		const linked = links.get(tag);
 		if (linked && graph.nodes[linked]) return linked;
-		const signals = Object.values(graph.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.id.localeCompare(b.id));
-		return signals.find((n) => n.props["tag"] === tag)?.id ?? signals.find((n) => n.label === tag)?.id ?? null;
+		const index = indexOf(graph);
+		return index.byTag.get(tag) ?? index.byLabel.get(tag) ?? null;
 	}
 	function stateOf(w) {
 		if (w.status === "resolved") return "ok";
@@ -7107,8 +7137,13 @@
 		return RANK[a.state] - RANK[b.state] || (b.startedAt ?? "").localeCompare(a.startedAt ?? "") || a.id.localeCompare(b.id);
 	}
 	function machineBoard(graph, items) {
+		const open = /* @__PURE__ */ new Map();
+		for (const i of items) {
+			if (i.machineId === null || i.state === "ok") continue;
+			open.set(i.machineId, [...open.get(i.machineId) ?? [], i]);
+		}
 		const tiles = Object.values(graph.nodes).filter((n) => n.type === "Machine").map((m) => {
-			const mine = items.filter((i) => i.machineId === m.id && i.state !== "ok");
+			const mine = open.get(m.id) ?? [];
 			const state = mine.reduce((worst, i) => RANK[i.state] < RANK[worst] ? i.state : worst, "ok");
 			return {
 				id: m.id,
@@ -7119,7 +7154,8 @@
 			};
 		});
 		const where = (t) => [...t.path, t.label].join("\0");
-		return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || where(a).localeCompare(where(b)));
+		const collator = new Intl.Collator("en", { numeric: true });
+		return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || collator.compare(where(a), where(b)));
 	}
 	function headline(items) {
 		const open = items.filter((i) => i.state !== "ok");
@@ -7140,13 +7176,17 @@
 	//#region js/views/shopfloor.ts
 	var uiState$3 = (ctx) => ctx.ui("shopfloor", {
 		resolving: null,
+		taking: null,
 		full: false
 	});
 	var REFRESH_MS = 3e4;
 	var PAGE = 100;
+	var LINKS_PAGE = 500;
+	var MAX_LINKS = 1e4;
 	var listing$2 = null;
 	var links = null;
 	var listSeq = 0;
+	var linksSeq = 0;
 	var busy$2 = null;
 	var timer = null;
 	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
@@ -7160,6 +7200,8 @@
 			stop();
 			listing$2 = null;
 			links = null;
+			++listSeq;
+			++linksSeq;
 		}
 	});
 	async function fetchList(ctx, quiet = false) {
@@ -7196,27 +7238,33 @@
 	async function fetchLinks(ctx) {
 		const site = siteId$3(ctx);
 		if (!ctx.api || !site) return;
+		const seq = ++linksSeq;
 		links = {
 			site,
 			map: /* @__PURE__ */ new Map()
 		};
+		const map = /* @__PURE__ */ new Map();
 		try {
-			const { signals } = await ctx.api.signals.list(site, {
-				linked: "yes",
-				limit: 500
-			});
-			const map = new Map(signals.filter((s) => s.node_id).map((s) => [s.tag, s.node_id ?? ""]));
-			if (links.site === site) links = {
-				site,
-				map
-			};
+			for (let offset = 0; offset < MAX_LINKS; offset += LINKS_PAGE) {
+				const page = await ctx.api.signals.list(site, {
+					linked: "yes",
+					limit: LINKS_PAGE,
+					offset
+				});
+				if (seq !== linksSeq) return;
+				for (const s of page.signals) if (s.node_id) map.set(s.tag, s.node_id);
+				if (page.signals.length < LINKS_PAGE || offset + LINKS_PAGE >= page.total) break;
+			}
 		} catch {
-			return;
+			if (seq !== linksSeq) return;
 		}
+		links = {
+			site,
+			map
+		};
 		if (routeOf(location.hash) === "shopfloor") ctx.rerender();
 	}
-	function items(ctx) {
-		const graph = ctx.graph;
+	function items(ctx, graph) {
 		if (!ctx.api) {
 			const model = Object.values(graph.nodes).find((n) => n.type === "Model" && /friction/i.test(n.label));
 			const machineId = model ? machineOf(graph, model.id) : null;
@@ -7266,8 +7314,13 @@
         <button class="btn floor-btn" data-cancel ${wait}>Back</button>
       </div>`;
 		}
+		if (ui.taking === item.id && item.assignee) return `<p class="floor-ask">Take it from ${esc(item.assignee)}?</p>
+      <div class="floor-actions">
+        <button class="btn primary floor-btn" data-take="${esc(item.id)}" ${wait}>Yes, take it</button>
+        <button class="btn floor-btn" data-cancel ${wait}>Back</button>
+      </div>`;
 		const mine = item.assigneeId !== null && item.assigneeId === ctx.ontology.userId;
-		return `<div class="floor-actions">${item.status === "raised" ? `<button class="btn primary floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("I'm on it"))}" ${wait}>I'm on it</button>` : !mine ? `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("Take it"))}" ${wait}>Take it</button>` : ""}
+		return `<div class="floor-actions">${item.status === "raised" && !item.assignee ? `<button class="btn primary floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("I'm on it"))}" ${wait}>I'm on it</button>` : mine ? "" : item.assignee ? `<button class="btn floor-btn" data-ask-take="${esc(item.id)}" aria-label="${esc(label("Take it"))}" ${wait}>Take it</button>` : `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("Take it"))}" ${wait}>Take it</button>`}
       <button class="btn floor-btn" data-resolve="${esc(item.id)}" aria-label="${esc(label("Resolve"))}" ${wait}>Resolve</button>
       <button class="btn floor-btn" data-open="${esc(item.id)}" aria-label="${esc(label("Details"))}">Details</button>
     </div>`;
@@ -7287,8 +7340,8 @@
       ${actions(ctx, item, ui)}
     </article>`;
 	}
-	function board(ctx, list) {
-		const tiles = machineBoard(ctx.graph, list);
+	function board(graph, list) {
+		const tiles = machineBoard(graph, list);
 		if (!tiles.length) return "<p class=\"small soft\">The ontology has no machines yet: add them on the Ontology page to see them here.</p>";
 		return `<div class="floor-board">${tiles.map((t) => {
 			const [cls, label] = STATE_LABEL[t.state];
@@ -7310,7 +7363,8 @@
 			if (w.status === "raised") await ctx.api.warnings.acknowledge(site, id);
 			const me = ctx.ontology.userId;
 			if (me && w.assignee_id !== me) await ctx.api.warnings.assign(site, id, me);
-			ctx.toast(`It's yours: ${w.signal_tag}`);
+			uiState$3(ctx).taking = null;
+			ctx.toast(me ? `It's yours: ${w.signal_tag}` : `Acknowledged: ${w.signal_tag}`);
 		} catch {} finally {
 			busy$2 = null;
 		}
@@ -7347,7 +7401,8 @@
       </div>`;
 			if (ctx.api && ctx.ontology.status === "loading") return `<div class="floor">${head("<h1>Loading…</h1>")}</div>`;
 			if (ctx.api && ctx.ontology.status !== "ready") return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div></div>`;
-			const list = items(ctx);
+			const graph = ctx.graph;
+			const list = items(ctx, graph);
 			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">Loading the warnings…</div></div>`;
 			const now = Date.now();
 			const { tone, text } = headline(list);
@@ -7357,10 +7412,12 @@
 			})}; refreshes every 30 seconds</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
 			const status = `<h1 class="floor-headline ${tone}" role="status">${esc(text)}</h1>${updated}`;
 			const open = list.filter((i) => i.state !== "ok");
+			if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
+			if (ui.taking && !open.some((i) => i.id === ui.taking)) ui.taking = null;
 			const more = listing$2?.more ? "<p class=\"small soft\">Showing the 100 newest open warnings; the Warnings page has the rest.</p>" : "";
 			const cards = open.length ? `<div class="floor-cards">${open.map((i) => card(ctx, i, ui, now)).join("")}</div>${more}` : "";
 			return `<div class="floor">${head(status)}${cards}
-        <h2 class="floor-section">Machines</h2>${board(ctx, list)}</div>`;
+        <h2 class="floor-section">Machines</h2>${board(graph, list)}</div>`;
 		},
 		bind(root, ctx) {
 			const ui = uiState$3(ctx);
@@ -7376,16 +7433,29 @@
 			if (links?.site !== site) fetchLinks(ctx);
 			timer ??= setInterval(() => {
 				if (routeOf(location.hash) !== "shopfloor") return stop();
-				if (!busy$2 && !uiState$3(ctx).resolving && !document.hidden) fetchList(ctx, true);
+				if (!busy$2 && !document.hidden) fetchList(ctx, true);
 			}, REFRESH_MS);
 			onAll(root, "[data-floor-refresh]", "click", () => void fetchList(ctx, true));
 			onAll(root, "[data-take]", "click", (el) => void take(ctx, el.dataset.take ?? ""));
+			onAll(root, "[data-ask-take]", "click", (el) => {
+				Object.assign(ui, {
+					taking: el.dataset.askTake ?? null,
+					resolving: null
+				});
+				ctx.rerender();
+			});
 			onAll(root, "[data-resolve]", "click", (el) => {
-				ui.resolving = el.dataset.resolve ?? null;
+				Object.assign(ui, {
+					resolving: el.dataset.resolve ?? null,
+					taking: null
+				});
 				ctx.rerender();
 			});
 			onAll(root, "[data-cancel]", "click", () => {
-				ui.resolving = null;
+				Object.assign(ui, {
+					resolving: null,
+					taking: null
+				});
 				ctx.rerender();
 			});
 			onAll(root, "[data-outcome]", "click", (el) => {

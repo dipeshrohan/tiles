@@ -11,6 +11,7 @@ import {
   type FloorItem,
   type FloorState,
 } from '../lib/shopfloor.ts';
+import type { Graph } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { openWarning } from './warnings.ts';
 
@@ -21,18 +22,22 @@ import { openWarning } from './warnings.ts';
 
 interface Ui {
   resolving: string | null; // the warning whose outcome buttons are open
+  taking: string | null; // the warning, someone else's, whose "take it from them?" is open
   full: boolean;
 }
 
-const uiState = (ctx: Context) => ctx.ui<Ui>('shopfloor', { resolving: null, full: false });
+const uiState = (ctx: Context) => ctx.ui<Ui>('shopfloor', { resolving: null, taking: null, full: false });
 
 const REFRESH_MS = 30_000;
 const PAGE = 100;
+const LINKS_PAGE = 500;
+const MAX_LINKS = 10_000; // a site's linked tags fetched to place warnings; beyond, tags place them
 
 // The open warnings and the signal catalogue's links (tag to Signal node), for the site fetched.
 let listing: { site: string; items: WarningInfo[] | null; at: number | null; more: boolean } | null = null;
 let links: { site: string; map: Map<string, string> } | null = null;
 let listSeq = 0;
+let linksSeq = 0;
 let busy: string | null = null; // the warning a step is on its way for
 let timer: ReturnType<typeof setInterval> | null = null;
 
@@ -49,6 +54,8 @@ onNavigate((hash) => {
     stop();
     listing = null; // others work the warnings meanwhile: each visit fetches afresh
     links = null;
+    ++listSeq; // and an answer still on its way is for the visit that has ended
+    ++linksSeq;
   }
 });
 
@@ -68,23 +75,29 @@ async function fetchList(ctx: Context, quiet = false): Promise<void> {
   if (seq === listSeq && routeOf(location.hash) === 'shopfloor') ctx.rerender();
 }
 
+// Every linked tag of the site, a page at a time.
 async function fetchLinks(ctx: Context): Promise<void> {
   const site = siteId(ctx);
   if (!ctx.api || !site) return;
+  const seq = ++linksSeq;
   links = { site, map: new Map() };
+  const map = new Map<string, string>();
   try {
-    const { signals } = await ctx.api.signals.list(site, { linked: 'yes', limit: 500 });
-    const map = new Map(signals.filter((s) => s.node_id).map((s) => [s.tag, s.node_id ?? '']));
-    if (links.site === site) links = { site, map };
+    for (let offset = 0; offset < MAX_LINKS; offset += LINKS_PAGE) {
+      const page = await ctx.api.signals.list(site, { linked: 'yes', limit: LINKS_PAGE, offset });
+      if (seq !== linksSeq) return;
+      for (const s of page.signals) if (s.node_id) map.set(s.tag, s.node_id);
+      if (page.signals.length < LINKS_PAGE || offset + LINKS_PAGE >= page.total) break;
+    }
   } catch {
-    return; // the client showed why; warnings are placed by the ontology's own tags
+    if (seq !== linksSeq) return; // the client showed why; the pages fetched still place warnings
   }
+  links = { site, map };
   if (routeOf(location.hash) === 'shopfloor') ctx.rerender();
 }
 
 // The warnings as the floor reads them: from the API, or the browser's demo detector in local mode.
-function items(ctx: Context): FloorItem[] | null {
-  const graph = ctx.graph;
+function items(ctx: Context, graph: Graph): FloorItem[] | null {
   if (!ctx.api) {
     const model = Object.values(graph.nodes).find((n) => n.type === 'Model' && /friction/i.test(n.label));
     const machineId = model ? machineOf(graph, model.id) : null;
@@ -140,13 +153,23 @@ function actions(ctx: Context, item: FloorItem, ui: Ui): string {
         <button class="btn floor-btn" data-cancel ${wait}>Back</button>
       </div>`;
   }
+  // Taking a warning from a colleague asks first: a brushed button mustn't take it off them.
+  if (ui.taking === item.id && item.assignee) {
+    return `<p class="floor-ask">Take it from ${esc(item.assignee)}?</p>
+      <div class="floor-actions">
+        <button class="btn primary floor-btn" data-take="${esc(item.id)}" ${wait}>Yes, take it</button>
+        <button class="btn floor-btn" data-cancel ${wait}>Back</button>
+      </div>`;
+  }
   const mine = item.assigneeId !== null && item.assigneeId === ctx.ontology.userId;
   const take =
-    item.status === 'raised'
+    item.status === 'raised' && !item.assignee
       ? `<button class="btn primary floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("I'm on it"))}" ${wait}>I'm on it</button>`
-      : !mine
-        ? `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${wait}>Take it</button>`
-        : '';
+      : mine
+        ? ''
+        : item.assignee
+          ? `<button class="btn floor-btn" data-ask-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${wait}>Take it</button>`
+          : `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${wait}>Take it</button>`;
   return `<div class="floor-actions">${take}
       <button class="btn floor-btn" data-resolve="${esc(item.id)}" aria-label="${esc(label('Resolve'))}" ${wait}>Resolve</button>
       <button class="btn floor-btn" data-open="${esc(item.id)}" aria-label="${esc(label('Details'))}">Details</button>
@@ -176,8 +199,8 @@ function card(ctx: Context, item: FloorItem, ui: Ui, now: number): string {
     </article>`;
 }
 
-function board(ctx: Context, list: FloorItem[]): string {
-  const tiles = machineBoard(ctx.graph, list);
+function board(graph: Graph, list: FloorItem[]): string {
+  const tiles = machineBoard(graph, list);
   if (!tiles.length)
     return '<p class="small soft">The ontology has no machines yet: add them on the Ontology page to see them here.</p>';
   return `<div class="floor-board">${tiles
@@ -203,7 +226,9 @@ async function take(ctx: Context, id: string): Promise<void> {
     if (w.status === 'raised') await ctx.api.warnings.acknowledge(site, id);
     const me = ctx.ontology.userId;
     if (me && w.assignee_id !== me) await ctx.api.warnings.assign(site, id, me);
-    ctx.toast(`It's yours: ${w.signal_tag}`);
+    uiState(ctx).taking = null;
+    // Without your user id (not known yet) it can only be acknowledged: say so.
+    ctx.toast(me ? `It's yours: ${w.signal_tag}` : `Acknowledged: ${w.signal_tag}`);
   } catch {
     // The client showed why; the list shows the warning as it is now.
   } finally {
@@ -247,7 +272,8 @@ const view: View = {
     if (ctx.api && ctx.ontology.status === 'loading') return `<div class="floor">${head('<h1>Loading…</h1>')}</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')
       return `<div class="floor">${head('<h1>Shopfloor</h1>')}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div></div>`;
-    const list = items(ctx);
+    const graph = ctx.graph; // made afresh at each read: once for the whole page
+    const list = items(ctx, graph);
     if (list === null)
       return `<div class="floor">${head('<h1>Shopfloor</h1>')}<div class="card">Loading the warnings…</div></div>`;
     const now = Date.now();
@@ -260,6 +286,9 @@ const view: View = {
           : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
     const status = `<h1 class="floor-headline ${tone}" role="status">${esc(text)}</h1>${updated}`;
     const open = list.filter((i) => i.state !== 'ok');
+    // A question about a warning that has left the floor (someone else resolved it) is dropped.
+    if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
+    if (ui.taking && !open.some((i) => i.id === ui.taking)) ui.taking = null;
     const more = listing?.more
       ? '<p class="small soft">Showing the 100 newest open warnings; the Warnings page has the rest.</p>'
       : '';
@@ -267,7 +296,7 @@ const view: View = {
       ? `<div class="floor-cards">${open.map((i) => card(ctx, i, ui, now)).join('')}</div>${more}`
       : '';
     return `<div class="floor">${head(status)}${cards}
-        <h2 class="floor-section">Machines</h2>${board(ctx, list)}</div>`;
+        <h2 class="floor-section">Machines</h2>${board(graph, list)}</div>`;
   },
   bind(root, ctx) {
     const ui = uiState(ctx);
@@ -281,20 +310,25 @@ const view: View = {
     const site = siteId(ctx);
     if (listing?.site !== site) void fetchList(ctx);
     if (links?.site !== site) void fetchLinks(ctx);
-    // Polls while the page is shown and nobody is choosing an outcome (a refresh would close it).
+    // Polls while the page is shown. An open question survives the refresh (it is UI state), unless
+    // its warning has gone.
     timer ??= setInterval(() => {
       if (routeOf(location.hash) !== 'shopfloor') return stop();
-      if (!busy && !uiState(ctx).resolving && !document.hidden) void fetchList(ctx, true);
+      if (!busy && !document.hidden) void fetchList(ctx, true);
     }, REFRESH_MS);
 
     onAll(root, '[data-floor-refresh]', 'click', () => void fetchList(ctx, true));
     onAll(root, '[data-take]', 'click', (el) => void take(ctx, el.dataset.take ?? ''));
+    onAll(root, '[data-ask-take]', 'click', (el) => {
+      Object.assign(ui, { taking: el.dataset.askTake ?? null, resolving: null });
+      ctx.rerender();
+    });
     onAll(root, '[data-resolve]', 'click', (el) => {
-      ui.resolving = el.dataset.resolve ?? null;
+      Object.assign(ui, { resolving: el.dataset.resolve ?? null, taking: null });
       ctx.rerender();
     });
     onAll(root, '[data-cancel]', 'click', () => {
-      ui.resolving = null;
+      Object.assign(ui, { resolving: null, taking: null });
       ctx.rerender();
     });
     onAll(root, '[data-outcome]', 'click', (el) => {

@@ -58,7 +58,10 @@ test('a node under a machine in the hierarchy belongs to it', () => {
   g.nodes['sig-x'] = { id: 'sig-x', type: 'Signal', label: 'Loose tag', props: {} };
   g.edges['e-x'] = { id: 'e-x', from: 'm-cut01', rel: 'contains', to: 'sig-x' };
   assert.equal(machineOf(g, 'sig-x'), 'm-cut01');
-  // A cycle in the hierarchy ends the search rather than looping.
+});
+
+test('a cycle in the hierarchy ends the search rather than looping', () => {
+  const g = structuredClone(graph);
   g.nodes['a'] = { id: 'a', type: 'Signal', label: 'a', props: {} };
   g.nodes['b'] = { id: 'b', type: 'Cell', label: 'b', props: {} };
   g.edges['ab'] = { id: 'ab', from: 'a', rel: 'contains', to: 'b' };
@@ -144,6 +147,21 @@ test('the board has every machine, those with warnings first, each with its wors
     ],
   );
   assert.deepEqual(tiles[2].path, ['Electrode', 'Cutting Line 1']);
+});
+
+test('the board orders machines by where they are, "Line 2" before "Line 10"', () => {
+  const g = { nodes: {}, edges: {} };
+  const node = (id, type, label) => (g.nodes[id] = { id, type, label, props: {} });
+  const edge = (from, to) => (g.edges[`${from}-${to}`] = { id: `${from}-${to}`, from, rel: 'contains', to });
+  for (const n of [10, 2, 1]) {
+    node(`l${n}`, 'Line', `Line ${n}`);
+    node(`m${n}`, 'Machine', 'Press');
+    edge(`l${n}`, `m${n}`);
+  }
+  assert.deepEqual(
+    machineBoard(g, []).map((t) => t.path[0]),
+    ['Line 1', 'Line 2', 'Line 10'],
+  );
 });
 
 test('the headline says what needs someone', () => {

@@ -24,17 +24,47 @@ export interface FloorItem {
   detail: string; // how far out it went, in words
 }
 
-const incoming = (graph: Graph, to: string, rel: string): string[] =>
-  Object.values(graph.edges)
-    .filter((e) => e.to === to && e.rel === rel && graph.nodes[e.from])
-    .map((e) => e.from)
-    .sort();
+// The graph's edges by relationship and end, built once per graph (each render has its own):
+// lookups are then constant time, however many machines and warnings the page shows. Graphs are
+// never changed in place (applyOp makes a new one), so a cached index stays true.
+interface Index {
+  to: Map<string, string[]>; // `${rel}|${to}` → the nodes it comes from, sorted
+  from: Map<string, string[]>; // `${rel}|${from}` → the nodes it goes to, sorted
+  byTag: Map<string, string>; // a Signal node's `tag` property → its id (the first by id)
+  byLabel: Map<string, string>; // a Signal node's label → its id (the first by id)
+}
 
-const outgoing = (graph: Graph, from: string, rel: string): string[] =>
-  Object.values(graph.edges)
-    .filter((e) => e.from === from && e.rel === rel && graph.nodes[e.to])
-    .map((e) => e.to)
-    .sort();
+const indexes = new WeakMap<Graph, Index>();
+
+function indexOf(graph: Graph): Index {
+  const cached = indexes.get(graph);
+  if (cached) return cached;
+  const add = (map: Map<string, string[]>, key: string, id: string) => {
+    const list = map.get(key);
+    if (list) list.push(id);
+    else map.set(key, [id]);
+  };
+  const index: Index = { to: new Map(), from: new Map(), byTag: new Map(), byLabel: new Map() };
+  for (const e of Object.values(graph.edges)) {
+    if (!graph.nodes[e.from] || !graph.nodes[e.to]) continue; // dangling: the health check's business
+    add(index.to, `${e.rel}|${e.to}`, e.from);
+    add(index.from, `${e.rel}|${e.from}`, e.to);
+  }
+  for (const list of [...index.to.values(), ...index.from.values()]) list.sort();
+  const signals = Object.values(graph.nodes)
+    .filter((n) => n.type === 'Signal')
+    .sort((a, b) => a.id.localeCompare(b.id));
+  for (const n of signals) {
+    const tag = n.props['tag'];
+    if (typeof tag === 'string' && !index.byTag.has(tag)) index.byTag.set(tag, n.id);
+    if (!index.byLabel.has(n.label)) index.byLabel.set(n.label, n.id);
+  }
+  indexes.set(graph, index);
+  return index;
+}
+
+const incoming = (graph: Graph, to: string, rel: string): string[] => indexOf(graph).to.get(`${rel}|${to}`) ?? [];
+const outgoing = (graph: Graph, from: string, rel: string): string[] => indexOf(graph).from.get(`${rel}|${from}`) ?? [];
 
 const isMachine = (graph: Graph, id: string): boolean => graph.nodes[id]?.type === 'Machine';
 
@@ -88,10 +118,8 @@ export function pathOf(graph: Graph, id: string): string[] {
 export function nodeForTag(graph: Graph, tag: string, links: ReadonlyMap<string, string>): string | null {
   const linked = links.get(tag);
   if (linked && graph.nodes[linked]) return linked;
-  const signals = Object.values(graph.nodes)
-    .filter((n) => n.type === 'Signal')
-    .sort((a, b) => a.id.localeCompare(b.id));
-  return signals.find((n) => n.props['tag'] === tag)?.id ?? signals.find((n) => n.label === tag)?.id ?? null;
+  const index = indexOf(graph);
+  return index.byTag.get(tag) ?? index.byLabel.get(tag) ?? null;
 }
 
 export function stateOf(w: Pick<WarningInfo, 'status' | 'ended_at'>): FloorState {
@@ -148,16 +176,23 @@ export interface MachineTile {
 }
 
 // Every machine of the ontology with the worst state of its open warnings: machines with warnings
-// first (worst first), then the rest in the order of the hierarchy.
+// first (worst first), then by where they are (workcenter, line, then name; "Line 2" before
+// "Line 10"). The ontology keeps no order of its own between siblings.
 export function machineBoard(graph: Graph, items: readonly FloorItem[]): MachineTile[] {
+  const open = new Map<string, FloorItem[]>();
+  for (const i of items) {
+    if (i.machineId === null || i.state === 'ok') continue;
+    open.set(i.machineId, [...(open.get(i.machineId) ?? []), i]);
+  }
   const machines = Object.values(graph.nodes).filter((n): n is OntologyNode => n.type === 'Machine');
   const tiles = machines.map((m) => {
-    const mine = items.filter((i) => i.machineId === m.id && i.state !== 'ok');
+    const mine = open.get(m.id) ?? [];
     const state = mine.reduce<FloorState>((worst, i) => (RANK[i.state] < RANK[worst] ? i.state : worst), 'ok');
     return { id: m.id, label: m.label, path: pathOf(graph, m.id), state, warnings: mine.length };
   });
   const where = (t: MachineTile) => [...t.path, t.label].join('\u0000');
-  return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || where(a).localeCompare(where(b)));
+  const collator = new Intl.Collator('en', { numeric: true });
+  return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || collator.compare(where(a), where(b)));
 }
 
 // The page's headline: what needs someone now.

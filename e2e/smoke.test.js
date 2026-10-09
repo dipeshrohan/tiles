@@ -1710,6 +1710,42 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
   assert.equal(await cards.count(), 1);
   assert.match(await headline.getAttribute('class'), /bad/);
 
+  // A colleague's warning: taking it from them asks first.
+  const theirs = fake.raiseWarning('dc1.pressure', [], {
+    started_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+    last_at: new Date(Date.now() - 4 * 60_000).toISOString(),
+    ended_at: new Date(Date.now() - 3 * 60_000).toISOString(),
+    peak: 300,
+    baseline: 200,
+    threshold: 250,
+    readings: 3,
+    acknowledged_at: new Date().toISOString(),
+    acknowledged_by: 'eng2@example.com',
+    assignee_id: 'eng2@example.com',
+  });
+  await page.click('[data-floor-refresh]');
+  await page.click(`[data-ask-take="${theirs}"]`);
+  await page.waitForSelector('.floor-ask:has-text("Take it from eng2?")');
+  await page.click('[data-cancel]');
+  await page.waitForSelector(`.floor-card:has([data-ask-take="${theirs}"]):has-text("eng2 has it")`);
+  await page.click(`[data-ask-take="${theirs}"]`);
+  await page.click(`[data-take="${theirs}"]`);
+  await page.waitForSelector('#toast:has-text("It\'s yours: dc1.pressure")');
+  await page.waitForSelector(`.floor-card:has([data-resolve="${theirs}"]):has-text("demo has it")`);
+
+  // A question about a warning someone else resolves meanwhile goes with it.
+  await page.click(`[data-resolve="${theirs}"]`);
+  await page.waitForSelector('.floor-ask:has-text("What was it?")');
+  const b = await openAs(t, apiUrl, 'eng2@example.com', 'warnings');
+  await b.page.click(`[data-warning="${theirs}"]`);
+  await b.page.selectOption('#warning-form [name=outcome]', 'unknown');
+  await b.page.click('[data-act=resolve]');
+  await b.page.waitForSelector('#toast:has-text("Resolved as unknown")');
+  await page.click('[data-floor-refresh]');
+  await page.waitForSelector('.floor-headline:has-text("1 open warning: 1 signal still out")');
+  assert.equal(await page.locator('.floor-ask').count(), 0);
+  assert.deepEqual(b.errors, []);
+
   // The machines: DC-01 has its warning, DC-02 is fine.
   await page.waitForSelector('.floor-tile.s-out:has-text("Die-caster DC-01")');
   await page.waitForSelector('.floor-tile.s-ok:has-text("Die-caster DC-02")');
