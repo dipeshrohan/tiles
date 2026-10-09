@@ -166,9 +166,16 @@ export function answerHtml(text: string, tools: ToolTrace[]): string {
 }
 
 // Where a tool's evidence can be seen in Tiles, from what it was asked.
-export function evidenceLink(t: Pick<ToolTrace, 'name' | 'input'>): { href: string; text: string } | null {
+export function evidenceLink(
+  t: Pick<ToolTrace, 'name' | 'input'> & { preview?: string },
+): { href: string; text: string } | null {
   const tag = typeof t.input.tag === 'string' ? t.input.tag : '';
   switch (t.name) {
+    case 'propose_ontology_change': {
+      // The change request it opened (T4.09), once its result is stored.
+      const n = /^\{"change_request":\s*(\d+)/.exec(t.preview ?? '')?.[1];
+      return n ? { href: `#/reviews/${n}`, text: `Review change request #${n}` } : null;
+    }
     case 'time_series':
     case 'wear_check':
       return tag ? { href: `#/explorer?tag=${encodeURIComponent(tag)}`, text: `Plot ${tag}` } : null;

@@ -70,6 +70,9 @@ def test_every_tool_is_described_for_the_model(tool: Run) -> None:
     ]
     for s in specs:
         assert s["description"] and s["input_schema"]["type"] == "object", s["name"]
+    # Engineers and admins also get the one tool that writes: a proposal for review (T4.09).
+    editing = [t.spec()["name"] for t in copilot_tools.tools_for(lambda: None, can_propose=True)]  # type: ignore[arg-type, return-value]
+    assert editing == ["propose_ontology_change", *[s["name"] for s in specs]]
 
 
 def test_the_ontology_graph_and_its_health(api: TestClient, site: str, tool: Run) -> None:  # noqa: F811

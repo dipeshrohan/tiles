@@ -384,7 +384,9 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                 )
                 copilot_usage.save(conn, tally, ms())
 
-    assistant_tools = tools_for(open_ctx)
+    # Engineers and admins may have the copilot propose ontology changes, for another engineer to review.
+    can_propose = ctx.user.role in ("engineer", "admin")
+    assistant_tools = tools_for(open_ctx, can_propose=can_propose, conversation_id=conversation_id)
     return StreamingResponse(
         stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )

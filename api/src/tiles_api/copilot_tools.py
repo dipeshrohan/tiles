@@ -1,7 +1,10 @@
 """The copilot's tools (T4.01, T4.02): read-only views of the site, run as the user who asked.
 Each call opens its own short, read-only transaction, so no connection is held while the model
-writes. A tool that can't answer raises ToolError with a reason the model can act on (a near
-match, the names it may use); the API's own checks (HTTPException, validation) become ToolErrors.
+writes. The one tool that writes, `propose_ontology_change` (T4.09), is offered to engineers and
+admins only: it opens a change request for review (api_reviews), which the person who asked can't
+approve, so a person always approves what the copilot proposes before it is committed. A tool
+that can't answer raises ToolError with a reason the model can act on (a near match, the names it
+may use); the API's own checks (HTTPException, validation) become ToolErrors.
 
 The tools are the browser copilot's skills on the site's real data: the ontology (graph query and
 health check), signals (search, time series, wear check), virtual sensors, warnings and events,
@@ -17,10 +20,11 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from fastapi import HTTPException
-from pydantic import ValidationError
+from psycopg.types.json import Jsonb
+from pydantic import TypeAdapter, ValidationError
 
-from tiles_api import api_datasets, api_series, api_signals, api_wear, ontology, ontology_store
-from tiles_api.api_ontology import SiteContext
+from tiles_api import api_datasets, api_reviews, api_series, api_signals, api_wear, ontology, ontology_store
+from tiles_api.api_ontology import OpIn, SiteContext, _op_dict, can_edit
 from tiles_api.assistant import Tool, ToolError
 from tiles_api.store import one
 
@@ -29,9 +33,16 @@ LIST_LIMIT = 25
 
 
 def _read_only(open_ctx: OpenCtx, fn: Callable[[SiteContext, dict[str, Any]], Any]) -> Callable[[dict[str, Any]], Any]:
+    return _in_transaction(open_ctx, fn, read_only=True)
+
+
+def _in_transaction(
+    open_ctx: OpenCtx, fn: Callable[[SiteContext, dict[str, Any]], Any], *, read_only: bool
+) -> Callable[[dict[str, Any]], Any]:
     def run(args: dict[str, Any]) -> Any:
         with open_ctx() as ctx:
-            ctx.conn.execute("SET TRANSACTION READ ONLY")
+            if read_only:
+                ctx.conn.execute("SET TRANSACTION READ ONLY")
             try:
                 return fn(ctx, args)
             except HTTPException as e:
@@ -397,23 +408,107 @@ def correlate(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
 # ---- the list the model sees ----------------------------------------------------------
 
 OBJECT = "object"
+MAX_PROPOSED_OPS = 200
+OPS = TypeAdapter(list[OpIn])
+
+
+MAX_MESSAGE = 2000  # as a person's change request
+
+
+def propose_ontology_change(
+    ctx: SiteContext, args: dict[str, Any], conversation_id: uuid.UUID | None, proposed: list[int]
+) -> Any:
+    """Opens a change request of `ops` in the name of the user who asked (T4.09); `proposed` holds
+    the one this question opened, if any."""
+    if proposed:  # a second call in one question (a withdrawn answer tried again, say) opens nothing
+        raise ToolError(f"This question already proposed change request #{proposed[0]}: refer to it")
+    # Their role now, not when they asked: they may have been demoted while the answer ran.
+    if not can_edit(ctx.conn, ctx.site_id, ctx.org_id, ctx.user.id):
+        raise ToolError("Only engineers and admins of the site can propose ontology changes")
+    message = str(args.get("message") or "").replace("\x00", "").strip()
+    if not message:
+        raise ToolError("Give the change request a message: what it changes and why")
+    if len(message) > MAX_MESSAGE:
+        raise ToolError(f"The message has {len(message)} characters; keep it to {MAX_MESSAGE}")
+    raw = args.get("ops")
+    if not isinstance(raw, list) or not raw:
+        raise ToolError("Give `ops`: a list of changes (addNode, addEdge, setProp, removeEdge, removeNode)")
+    if len(raw) > MAX_PROPOSED_OPS:
+        raise ToolError(f"At most {MAX_PROPOSED_OPS} changes in one proposal: split it")
+    ops = [_op_dict(op) for op in OPS.validate_python(raw)]
+    ontology_store.lock_site(ctx.conn, ctx.site_id)
+    # The same changes already proposed in this conversation and still open (an answer cut off
+    # before it was stored, asked again): that request, not another.
+    same = ctx.conn.execute(
+        """
+        SELECT number FROM change_requests
+        WHERE site_id = %s AND source = 'copilot' AND conversation_id = %s AND status = 'open' AND ops = %s
+        ORDER BY number DESC LIMIT 1
+        """,
+        [ctx.site_id, conversation_id, Jsonb(ops)],
+    ).fetchone()
+    if same:
+        number = int(same["number"])
+    else:
+        number = api_reviews.open_request(ctx, ops, message, source="copilot", conversation_id=conversation_id)
+        api_reviews.audit_request(ctx, number, message, ops, source="copilot", conversation_id=conversation_id)
+    proposed.append(number)
+    return {
+        "change_request": number,
+        "status": "open",
+        "changes": ontology.diff_stats(ops),
+        "committed": False,
+        "next": "Another engineer of the site must approve it on the Change reviews page; until then nothing changes.",
+    }
+
+
 TIME = {"type": "string", "description": "ISO 8601, e.g. 2026-09-05T06:00:00Z (UTC unless it says otherwise)"}
 
 
-def tools_for(open_ctx: OpenCtx) -> list[Tool]:
+def tools_for(open_ctx: OpenCtx, *, can_propose: bool = False, conversation_id: uuid.UUID | None = None) -> list[Tool]:
+    """The tools for a question: the read-only ones, and for engineers and admins (`can_propose`)
+    the one that proposes ontology changes."""
+
     def tool(
         name: str,
         description: str,
         properties: dict[str, Any],
         fn: Callable[..., Any],
         required: list[str] | None = None,
+        read_only: bool = True,
     ) -> Tool:
         schema: dict[str, Any] = {"type": OBJECT, "properties": properties}
         if required:
             schema["required"] = required
-        return Tool(name, description, schema, _read_only(open_ctx, fn))
+        return Tool(name, description, schema, _in_transaction(open_ctx, fn, read_only=read_only))
 
+    proposed: list[int] = []  # the change request this question opened
+    proposing = (
+        [
+            tool(
+                "propose_ontology_change",
+                "Propose changes to the plant's ontology, only when the user asks for a change. They go to another "
+                "engineer of the site for review as a numbered change request; nothing changes until it is approved. "
+                "Read the nodes first (graph_query) so ids and labels match. Ops: "
+                '{"kind": "addNode", "node": {"id", "type", "label", "props"?}}, '
+                '{"kind": "addEdge", "edge": {"id", "from", "rel", "to"}}, '
+                '{"kind": "setProp", "id", "key", "value"?} (no value removes it), '
+                '{"kind": "removeEdge", "id"}, {"kind": "removeNode", "id"} (after its relationships). '
+                "Relationships: contains, controlledBy, emits, runs, consumes, monitors, reads, describes.",
+                {
+                    "message": {"type": "string", "description": "What the change does and why, for the reviewer"},
+                    "ops": {"type": "array", "items": {"type": "object"}, "maxItems": MAX_PROPOSED_OPS},
+                },
+                lambda ctx, args: propose_ontology_change(ctx, args, conversation_id, proposed),
+                ["message", "ops"],
+                read_only=False,
+            )
+        ]
+        if can_propose
+        else []
+    )
     return [
+        *proposing,
         tool(
             "site_overview",
             "The site's name, how many ontology nodes of each type it has, how many signals, and how many "

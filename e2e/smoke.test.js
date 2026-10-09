@@ -2421,3 +2421,39 @@ test('copilot usage: admins see questions, tokens, the cache and times; a refuse
     [],
   );
 });
+
+test('the copilot proposes an ontology change, which waits for another engineer', async (t) => {
+  const fake = createFakeApi({ copilot: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const ops = [{ kind: 'addNode', node: { id: 'line-3', type: 'Line', label: 'Assembly Line 3', props: {} } }];
+  const number = fake.addCopilotProposal({ message: 'Add Assembly Line 3', ops, author: 'demo@example.com' });
+  fake.copilotScripts.push({
+    tools: [
+      {
+        name: 'propose_ontology_change',
+        input: { message: 'Add Assembly Line 3', ops },
+        result: { change_request: number, status: 'open', committed: false },
+      },
+    ],
+    answer: 'I proposed it as change request 1 [1]; another engineer must approve it before it is committed.',
+  });
+  const a = await openAs(t, apiUrl, null, 'chat');
+  await a.page.waitForSelector('[data-new-conversation]');
+  await a.page.fill('#composer [name=q]', 'Add Assembly Line 3 to the plant');
+  await a.page.press('#composer [name=q]', 'Enter');
+  await a.page.waitForSelector('[data-answer-text]:has-text("another engineer must approve it")');
+  await a.page.locator('.copilot-answer a.cite').click(); // opens the trace
+  const link = a.page.locator('[data-tool="propose_ontology_change"] a');
+  assert.equal(await link.innerText(), 'Review change request #1 →');
+  assert.equal(await link.getAttribute('href'), '#/reviews/1');
+  await link.click();
+  await a.page.waitForSelector('[data-review-detail]:has-text("Add Assembly Line 3")');
+  assert.equal(await a.page.evaluate(() => location.hash), '#/reviews'); // picked once
+  const detail = a.page.locator('[data-review-detail]');
+  assert.match(await detail.innerText(), /Proposed by the copilot/);
+  assert.match(await a.page.locator('[data-review="1"]').innerText(), /Proposed by the copilot/);
+  // The person who asked can't approve it.
+  assert.equal(await detail.locator('[data-act="approve"]').count(), 0);
+  assert.deepEqual(a.errors, []);
+});
