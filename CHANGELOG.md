@@ -48,6 +48,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - dependency and image scanning with SBOMs;
   - a threat model;
   - a Helm chart;
+  - **customer-hosted install guide** (`docs/install.md`): prerequisites, sign-in, mirrored images, settings, install, checks, backups, upgrades and troubleshooting, followed on a new cluster by CI's install dry run (T5.12);
   - **Terraform modules:** Tiles on any cluster, and the managed cloud on Azure (AKS with Entra ID sign-in, enforced network policies, backup storage), with a customer-hosted reference install; tested with mock providers and `trivy config` in CI (T5.10);
   - backups with a point-in-time restore drill;
   - a load test (10,000 readings a second, 50 users);

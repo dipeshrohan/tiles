@@ -103,7 +103,7 @@ The full list of settings is in the [API README](../../api/README.md#configurati
 
 [deploy/terraform](../../deploy/terraform/README.md) installs the same chart:
 
-- **`customer-hosted`:** on a cluster you run.
+- **`customer-hosted`:** on a cluster you run. The [install guide](../install.md) walks through it.
 - **`managed-azure`:** Tiles' managed cloud, in two stages: the AKS cluster and the storage for the database's backups, then Tiles on it.
 
 The Terraform module makes the Secret from sensitive variables, generating a data key if you give none. Those values then sit in Terraform's state, so keep the state in an encrypted backend. To keep secrets out of Terraform, give your own Secret instead (`existing_secret`). Its namespace enforces the restricted Pod Security Standard.

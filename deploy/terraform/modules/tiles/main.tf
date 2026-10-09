@@ -28,12 +28,16 @@ locals {
 
   values = {
     images = {
-      api = { tag = var.image_tag, pullPolicy = "IfNotPresent" }
-      web = { tag = var.image_tag, pullPolicy = "IfNotPresent" }
+      for name in ["api", "web"] : name => {
+        repository = var.images.registry == "" ? "tiles-${name}" : "${trimsuffix(var.images.registry, "/")}/tiles-${name}"
+        tag        = var.image_tag
+        pullPolicy = var.images.pull_policy
+      }
     }
-    env    = var.env
-    url    = var.url
-    apiUrl = var.api_url
+    imagePullSecrets = [for s in var.images.pull_secrets : { name = s }]
+    env              = var.env
+    url              = var.url
+    apiUrl           = var.api_url
     oidc = {
       issuer     = var.oidc.issuer
       audience   = var.oidc.audience

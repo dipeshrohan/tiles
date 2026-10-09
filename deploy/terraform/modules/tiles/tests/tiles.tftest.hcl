@@ -53,6 +53,10 @@ run "bundled_database_and_a_generated_key" {
     error_message = "A failed upgrade rolls back."
   }
   assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).images.api.repository == "ghcr.io/dipeshrohan/tiles-api" && yamldecode(helm_release.tiles.values[0]).images.web.repository == "ghcr.io/dipeshrohan/tiles-web"
+    error_message = "The images come from the published registry by default."
+  }
+  assert {
     condition     = !issensitive(helm_release.tiles.values[0])
     error_message = "The chart's values are readable in the plan (they hold no secret)."
   }
@@ -196,4 +200,20 @@ run "sign_in_is_https" {
     oidc = { issuer = "http://idp.example.com" }
   }
   expect_failures = [var.oidc]
+}
+
+run "images_from_a_mirror" {
+  command = plan
+  variables {
+    data_keys = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    images    = { registry = "registry.plant.example.com/tiles/", pull_secrets = ["plant-registry"] }
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).images.api.repository == "registry.plant.example.com/tiles/tiles-api"
+    error_message = "A mirror's images, without a doubled slash."
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).imagePullSecrets == [{ name = "plant-registry" }]
+    error_message = "Pulled with the given Secret."
+  }
 }

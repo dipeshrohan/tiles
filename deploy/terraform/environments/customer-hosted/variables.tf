@@ -21,6 +21,16 @@ variable "image_tag" {
   type        = string
 }
 
+variable "images" {
+  description = "Your mirror of Tiles' images, if the cluster can't reach ghcr.io, and the Secrets to pull with."
+  type = object({
+    registry     = optional(string, "ghcr.io/dipeshrohan")
+    pull_policy  = optional(string, "IfNotPresent")
+    pull_secrets = optional(list(string), [])
+  })
+  default = {}
+}
+
 variable "url" {
   description = "Where people open Tiles, e.g. https://tiles.plant.example.com."
   type        = string
@@ -90,6 +100,12 @@ variable "storage_class" {
   description = "Storage class for the bundled database (empty: the cluster's default). Use SSDs."
   type        = string
   default     = ""
+}
+
+variable "ingress_enabled" {
+  description = "Expose Tiles through an Ingress on your controller (false: you route to the tiles-web and tiles-api Services yourself)."
+  type        = bool
+  default     = true
 }
 
 variable "ingress_class" {

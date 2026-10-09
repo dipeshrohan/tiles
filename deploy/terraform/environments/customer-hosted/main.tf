@@ -39,6 +39,7 @@ module "tiles" {
   source    = "../../modules/tiles"
   namespace = var.namespace
   image_tag = var.image_tag
+  images    = var.images
   url       = var.url
   api_url   = var.api_url
   oidc      = var.oidc
@@ -54,6 +55,7 @@ module "tiles" {
   redis_url        = var.redis_url
   data_keys        = var.data_keys
   ingress = {
+    enabled    = var.ingress_enabled
     class_name = var.ingress_class
     tls_secret = var.tls_secret
   }

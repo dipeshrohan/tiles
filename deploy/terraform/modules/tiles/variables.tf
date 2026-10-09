@@ -52,6 +52,20 @@ variable "image_tag" {
   }
 }
 
+variable "images" {
+  description = "Where the images come from: a registry (or your mirror of it, for a site without internet; empty: the cluster's own images), how they are pulled, and the Secrets to pull them with."
+  type = object({
+    registry     = optional(string, "ghcr.io/dipeshrohan")
+    pull_policy  = optional(string, "IfNotPresent")
+    pull_secrets = optional(list(string), [])
+  })
+  default = {}
+  validation {
+    condition     = contains(["IfNotPresent", "Always", "Never"], var.images.pull_policy)
+    error_message = "images.pull_policy is IfNotPresent, Always or Never."
+  }
+}
+
 variable "url" {
   description = "Where people open the app, e.g. https://tiles.example.com (an origin: no path)."
   type        = string
