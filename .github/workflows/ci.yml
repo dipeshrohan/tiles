@@ -144,6 +144,7 @@ jobs:
       TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db:2
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-hub-mirror
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -214,6 +215,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-hub-mirror
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -238,6 +240,7 @@ jobs:
         --set url=http://localhost:5173 --set apiUrl=http://localhost:8000
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-hub-mirror
       - uses: azure/setup-helm@v4
         with:
           version: v3.19.0
@@ -275,6 +278,11 @@ jobs:
           docker build -t tiles-api:ci api
           docker build -t tiles-web:ci .
           kind load docker-image tiles-api:ci tiles-web:ci --name tiles
+          # The chart's other images (the database, Redis), pulled here through the mirror: kind's
+          # nodes would pull them from Docker Hub themselves.
+          for image in $(helm template t "$CHART" --kube-version 1.33.0 $VALUES | awk '$1 == "image:" { gsub(/"/, "", $2); print $2 }' | sort -u | grep -v '^tiles-'); do
+            docker pull -q "$image" && kind load docker-image "$image" --name tiles
+          done
       - name: Install
         run: |
           # Every pod meets the restricted Pod Security Standard (the Terraform module enforces it).
@@ -320,6 +328,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-hub-mirror
       # Google's mirror of Docker Hub, which rate-limits CI less.
       - name: The alert rules fire when they should (promtool)
         run: |
@@ -343,6 +352,7 @@ jobs:
         working-directory: deploy/terraform
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-hub-mirror
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.3
@@ -372,6 +382,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-hub-mirror
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.3
@@ -384,6 +395,10 @@ jobs:
           docker build -t tiles-api:ci api
           docker build -t tiles-web:ci .
           kind load docker-image tiles-api:ci tiles-web:ci --name tiles-install
+          # The chart's other images (the database, Redis), pulled here through the mirror.
+          for image in $(helm template t deploy/helm/tiles --kube-version 1.33.0 --set oidc.issuer=https://idp.example.com | awk '$1 == "image:" { gsub(/"/, "", $2); print $2 }' | sort -u | grep -v '/tiles-'); do
+            docker pull -q "$image" && kind load docker-image "$image" --name tiles-install
+          done
       - name: Install with the customer-hosted Terraform, as the guide does
         working-directory: deploy/terraform/environments/customer-hosted
         env:
@@ -457,6 +472,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: ./.github/actions/docker-hub-mirror
       - name: Start the stack
         run: docker compose up --build --wait --wait-timeout 300
       - name: Check every service
