@@ -63,6 +63,7 @@ The API and the jobs read the Secret as files (`TILES_SECRETS_DIR`), never as en
 - **Network policies** (they need a CNI that enforces them):
   - the database and Redis accept only the API and the jobs;
   - Tiles pods accept traffic only on their own HTTP ports.
+  - with Cilium, `networkPolicy.egressAllowlist.enabled` also limits where they connect out to: the API and jobs to the hosts their settings name (the identity provider, mail, Teams, the copilot's provider, the collector) plus `hosts`, `namespaces` and `cidrs`; the web app, the database and Redis to name lookups only ([hybrid mode](../../../docs/hybrid.md)).
 - **The generated Secret** `<release>-generated` holds the bundled database's password and, with `secrets.generateDataKey`, a data key:
   - it is made once, and an upgrade reads it back;
   - uninstalling keeps it, as it keeps the database volume;

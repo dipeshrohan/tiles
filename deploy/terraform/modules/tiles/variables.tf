@@ -240,6 +240,18 @@ variable "monitoring" {
   default = {}
 }
 
+variable "egress_allowlist" {
+  description = "Limit where the API and jobs may connect out to, by host name (needs Cilium with its DNS proxy: docs/hybrid.md). The identity provider, mail relay, collector, Teams and the copilot's provider come from the settings; add an external database's host, in-cluster namespaces or addresses here."
+  type = object({
+    enabled    = optional(bool, false)
+    hosts      = optional(list(string), [])
+    namespaces = optional(list(string), [])
+    cidrs      = optional(list(string), [])
+  })
+  default  = {}
+  nullable = false
+}
+
 variable "extra_values" {
   description = "More chart values, merged over the module's (see deploy/helm/tiles/values.yaml)."
   type        = any

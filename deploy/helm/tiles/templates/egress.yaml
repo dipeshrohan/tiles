@@ -1,0 +1,111 @@
+{{- define "tiles.dnsEgress" -}}
+# Name lookups, through Cilium's DNS proxy (which is how it learns the hosts' addresses).
+- toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s-app: kube-dns
+  toPorts:
+    - ports: [{ port: "53", protocol: ANY }]
+      rules:
+        dns: [{ matchPattern: "*" }]
+{{- end }}
+{{- if .Values.networkPolicy.egressAllowlist.enabled }}
+{{- /*
+  The API's and jobs' egress allowlist (T5.11, G-S3 in the threat model): where they may connect,
+  by host name. Plain NetworkPolicy can't name hosts, so these are CiliumNetworkPolicies: they need
+  Cilium with its DNS proxy (on AKS, Advanced Container Networking Services). The API and jobs may
+  reach what is listed; the web app, the database and Redis need nothing outside and get only
+  name lookups. Everything else is refused.
+*/}}
+{{- $fullname := include "tiles.fullname" . }}
+{{- $v := .Values }}
+{{- /* Settings' hosts. A cluster-internal one (no dot, or ending in .svc or .svc.cluster.local)
+  can't be named in toFQDNs, which covers addresses outside the cluster: allow its namespace. */}}
+{{- $hosts := list }}
+{{- $namespaces := $v.networkPolicy.egressAllowlist.namespaces }}
+{{- $named := list $v.oidc.issuer $v.oidc.jwksUrl $v.monitoring.otlpEndpoint | compact }}
+{{- $found := list }}
+{{- range $url := $named }}{{ $found = append $found (regexReplaceAll ":[0-9]+$" (urlParse $url).host "") }}{{ end }}
+{{- if $v.smtp.host }}{{ $found = append $found $v.smtp.host }}{{ end }}
+{{- range $host := concat $found $v.networkPolicy.egressAllowlist.hosts }}
+{{- $inCluster := regexFind "^[^.]+(\\.[^.]+\\.svc(\\.cluster\\.local)?)?$" $host }}
+{{- if and $inCluster (not (regexMatch "^[^.]+$" $host)) }}
+{{- $namespaces = append $namespaces (index (splitList "." $host) 1) }}
+{{- else if $inCluster }}
+{{- $namespaces = append $namespaces $.Release.Namespace }}
+{{- else }}
+{{- $hosts = append $hosts $host }}
+{{- end }}
+{{- end }}
+{{- if $v.copilot.model }}{{ $hosts = append $hosts "api.anthropic.com" }}{{ end }}
+{{- $hosts = $hosts | uniq }}
+{{- $namespaces = $namespaces | uniq }}
+{{- /* Microsoft's Teams webhook hosts: the same suffixes as notify.py's TEAMS_HOSTS (a test holds
+  them equal). A Cilium `*` stands for one label, and the regional hosts are up to three deep. */}}
+{{- $teams := list "webhook.office.com" "logic.azure.com" "api.powerplatform.com" }}
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ $fullname }}-egress
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/instance, operator: In, values: [{{ .Release.Name | quote }}] }
+      - { key: app.kubernetes.io/component, operator: In, values: [api, job] }
+  egress:
+    {{- include "tiles.dnsEgress" . | nindent 4 }}
+    # The bundled database and Redis.
+    - toEndpoints:
+        - matchExpressions:
+            - { key: app.kubernetes.io/instance, operator: In, values: [{{ .Release.Name | quote }}] }
+            - { key: app.kubernetes.io/component, operator: In, values: [db, redis] }
+      toPorts:
+        - ports: [{ port: "5432", protocol: TCP }, { port: "6379", protocol: TCP }]
+    {{- if $hosts }}
+    # The identity provider, mail relay, collector, the copilot's model provider and what you added.
+    - toFQDNs:
+        {{- range $hosts }}
+        - matchName: {{ . | quote }}
+        {{- end }}
+    {{- end }}
+    # Teams channels: Microsoft's webhook hosts only (notify.py refuses any other).
+    - toFQDNs:
+        {{- range $teams }}
+        {{- $suffix := . }}
+        {{- range list "*" "*.*" "*.*.*" }}
+        - matchPattern: {{ printf "%s.%s" . $suffix | quote }}
+        {{- end }}
+        {{- end }}
+      toPorts:
+        - ports: [{ port: "443", protocol: TCP }]
+    {{- with $namespaces }}
+    # Services in these namespaces (an in-cluster collector, say): host names can't match them.
+    - toEndpoints:
+        {{- range . }}
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: {{ . | quote }}
+        {{- end }}
+    {{- end }}
+    {{- with $v.networkPolicy.egressAllowlist.cidrs }}
+    # Addresses you added (an external database by IP, say).
+    - toCIDR:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+---
+# The web app, the database and Redis connect to nothing: name lookups only.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{ $fullname }}-no-egress
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  endpointSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/instance, operator: In, values: [{{ .Release.Name | quote }}] }
+      - { key: app.kubernetes.io/component, operator: In, values: [web, db, redis] }
+  egress:
+    {{- include "tiles.dnsEgress" . | nindent 4 }}
+{{- end }}

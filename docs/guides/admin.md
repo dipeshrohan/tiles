@@ -266,6 +266,8 @@ The agent only connects out. Plant IT needs to approve:
 - **Inside the plant network**, from the agent's host to the servers it reads: the OPC UA endpoints, MQTT brokers and SQL databases you configure.
 - **No inbound rules.** Tiles never connects to the agent. Commands, when there are any, travel back in the heartbeat answer.
 
+[Hybrid mode](../hybrid.md) has the full tables for plant IT: both sides, proxies, time sync, the cloud's egress allowlist and the agent's sandboxed service.
+
 ## 6. Notifications
 
 Tiles announces two things:

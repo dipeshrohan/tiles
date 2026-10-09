@@ -116,6 +116,15 @@ resource "azurerm_kubernetes_cluster" "tiles" {
     network_data_plane  = "cilium"
     network_policy      = "cilium"
     load_balancer_sku   = "standard"
+    # Advanced Container Networking Services' security: Cilium's DNS proxy, for the chart's
+    # egress allowlist by host name (docs/hybrid.md).
+    dynamic "advanced_networking" {
+      for_each = var.fqdn_policies ? [1] : []
+      content {
+        security_enabled      = true
+        observability_enabled = false
+      }
+    }
   }
 
   # An NGINX ingress controller managed by AKS: the chart's ingress uses its class.

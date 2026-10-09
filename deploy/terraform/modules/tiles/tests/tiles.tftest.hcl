@@ -278,3 +278,27 @@ run "null_image_settings_take_the_defaults" {
     error_message = "Null pull_secrets is none; an empty registry is the cluster's own images."
   }
 }
+
+run "an_egress_allowlist" {
+  command = plan
+  variables {
+    data_keys        = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    egress_allowlist = { enabled = true, hosts = ["db.plant.example.com"], namespaces = ["monitoring"] }
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).networkPolicy.egressAllowlist.enabled && yamldecode(helm_release.tiles.values[0]).networkPolicy.egressAllowlist.hosts == ["db.plant.example.com"]
+    error_message = "The allowlist reaches the chart."
+  }
+}
+
+run "no_egress_allowlist_unless_asked" {
+  command = plan
+  variables {
+    data_keys        = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    egress_allowlist = null
+  }
+  assert {
+    condition     = !yamldecode(helm_release.tiles.values[0]).networkPolicy.egressAllowlist.enabled
+    error_message = "Off by default: it needs Cilium."
+  }
+}

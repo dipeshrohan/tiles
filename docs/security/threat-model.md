@@ -106,7 +106,7 @@ The trust boundaries, from the inside out:
 | SR 3.4 Software and information integrity | Partial | Dependency and image scanning with SBOMs (T5.08); signed images (G-S2) |
 | SR 4.1 Information confidentiality | Done | Sealed credentials (T5.06); encryption at rest is deployment configuration (T5.09) |
 | SR 5.1 Network segmentation | Done | The edge agent connects out only; the plant needs no inbound rule (T5.11 documents the firewall) |
-| SR 5.2 Zone boundary protection | Partial | Outbound-only design; an egress allowlist for the API (Anthropic, IdP, SMTP, Teams) to document (G-S3) |
+| SR 5.2 Zone boundary protection | Done | Outbound-only design; the API's egress allowlist is documented and enforced by host name with Cilium ([hybrid mode](../hybrid.md), T5.11), or by the deployment's firewall |
 | SR 6.1 Audit log accessibility | Done | Admins read it in Settings |
 | SR 6.2 Continuous monitoring | Gap | T5.13: OpenTelemetry, alerts for ingest lag and job failures |
 | SR 7.1 / 7.2 DoS protection | Partial | G-A1 |
@@ -123,9 +123,9 @@ The trust boundaries, from the inside out:
 | G-B1 | Security headers from the web server: a Content-Security-Policy without `unsafe-inline` scripts, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy` | Follow-up issue (small) |
 | G-D1 | Jobs connect as their own role, not the migration login | T5.09 |
 | G-E1 | Edge tokens expire (with rotation from the UI) | Follow-up |
-| G-E2 | Run the agent under systemd sandboxing (or a read-only container) with only outbound network | T5.11 |
+| G-E2 | Run the agent under systemd sandboxing (or a read-only container) with only outbound network | Done: `edge/deploy/tiles-edge.service` (exposure 1.1, checked in CI), T5.11 |
 | G-E3 | Sign reading batches with a per-agent key, so the API can tell they weren't changed on the host | Later; weigh against SL target |
 | G-E4 / G-S2 | Sign releases and images (Sigstore cosign) and verify them at install | T6.04 |
-| G-S3 | Document and enforce the API's egress allowlist | T5.11 |
+| G-S3 | Document and enforce the API's egress allowlist | Done: [hybrid mode](../hybrid.md) lists it; `networkPolicy.egressAllowlist` enforces it with Cilium, T5.11 |
 
 Review this document when an ADR changes a trust boundary, before each release (T6.04), and after the penetration test (T6.07). The [SOC 2 and ISO 27001 readiness plan](compliance-readiness.md) tracks these actions among its controls.

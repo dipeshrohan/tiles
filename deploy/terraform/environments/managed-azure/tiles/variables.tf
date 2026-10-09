@@ -105,3 +105,15 @@ variable "monitoring" {
   })
   default = {}
 }
+
+variable "egress_allowlist" {
+  description = "Where the API and jobs may connect out to (docs/hybrid.md): on by default, as the cluster stage's FQDN policies allow. Add an external database's host, namespaces or addresses."
+  type = object({
+    enabled    = optional(bool, true)
+    hosts      = optional(list(string), [])
+    namespaces = optional(list(string), [])
+    cidrs      = optional(list(string), [])
+  })
+  default  = {}
+  nullable = false
+}

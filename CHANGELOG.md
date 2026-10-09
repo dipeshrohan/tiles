@@ -48,6 +48,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - dependency and image scanning with SBOMs;
   - a threat model, and a SOC 2 and ISO 27001 readiness plan: controls mapped to both, with owners, status, evidence and a timeline (T6.08);
   - a Helm chart;
+  - **hybrid mode** (`docs/hybrid.md`): firewall rules for plant IT and the cloud (outbound only), a sandboxed systemd service for the edge agent, and an egress allowlist by host name for the API and jobs (Cilium; on by default in the managed Azure environment). The agent exits with code 5, which its service retries, when its buffer can't open (T5.11);
   - **customer-hosted install guide** (`docs/install.md`): prerequisites, sign-in, mirrored images, settings, install, checks, backups, upgrades and troubleshooting, followed on a new cluster by CI's install dry run (T5.12);
   - **Terraform modules:** Tiles on any cluster, and the managed cloud on Azure (AKS with Entra ID sign-in, enforced network policies, backup storage), with a customer-hosted reference install; tested with mock providers and `trivy config` in CI (T5.10);
   - backups with a point-in-time restore drill;

@@ -61,6 +61,10 @@ run "a_locked_down_cluster" {
     error_message = "NetworkPolicies are enforced (the chart's need it)."
   }
   assert {
+    condition     = azurerm_kubernetes_cluster.tiles.network_profile[0].advanced_networking[0].security_enabled
+    error_message = "Cilium's DNS proxy is on, for the chart's egress allowlist by host name."
+  }
+  assert {
     condition     = azurerm_kubernetes_cluster.tiles.oidc_issuer_enabled && azurerm_kubernetes_cluster.tiles.workload_identity_enabled
     error_message = "Workload identity is on."
   }

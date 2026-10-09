@@ -131,7 +131,7 @@ redis:
 # Monitoring (T5.13): traces and metrics pushed over OTLP to an OpenTelemetry Collector (see
 # deploy/monitoring), the alert rules as a PrometheusRule and the dashboard for Grafana's sidecar.
 monitoring:
-  otlpEndpoint: '' # e.g. http://otel-collector.monitoring:4318; empty: telemetry off
+  otlpEndpoint: '' # e.g. http://otel-collector.monitoring.svc:4318; empty: telemetry off
   prometheusRule:
     enabled: false # needs the Prometheus Operator's CRDs
     labels: {} # what your Prometheus selects rules by, e.g. release: kube-prometheus-stack
@@ -153,3 +153,12 @@ ingress:
 # Needs a CNI that enforces NetworkPolicy.
 networkPolicy:
   enabled: true
+  # Where the API and jobs may connect out to, by host name (T5.11): a CiliumNetworkPolicy, so it
+  # needs Cilium (on AKS, Advanced Container Networking Services). The identity provider, mail
+  # relay, collector, Teams' webhook hosts and, with the copilot on, its model provider are allowed
+  # from the settings above; add an external database's or Redis's host here.
+  egressAllowlist:
+    enabled: false
+    hosts: [] # e.g. [db.example.com, redis.example.com]
+    namespaces: [] # in-cluster services to reach, e.g. [monitoring] for a collector there
+    cidrs: [] # e.g. [10.20.0.5/32]
