@@ -42,6 +42,7 @@ import settings from './views/settings.ts';
 import explorer from './views/explorer.ts';
 import reviews from './views/reviews.ts';
 import warnings from './views/warnings.ts';
+import shopfloor from './views/shopfloor.ts';
 import performance from './views/performance.ts';
 import correlate from './views/correlate.ts';
 import insights from './views/insights.ts';
@@ -55,6 +56,7 @@ const VIEWS: View[] = [
   ontology,
   reviews,
   warnings,
+  shopfloor,
   performance,
   quality,
   physics,
@@ -69,7 +71,7 @@ const VIEWS: View[] = [
 
 const NAV: { group?: string; items: View[] }[] = [
   { items: [home, chat] },
-  { group: 'Operations', items: [ontology, reviews, warnings, performance, quality, physics] },
+  { group: 'Operations', items: [shopfloor, ontology, reviews, warnings, performance, quality, physics] },
   { group: 'Data', items: [signals, explorer, correlate, insights, imports] },
   { group: 'Design', items: [design] },
   { group: '', items: [settings] },

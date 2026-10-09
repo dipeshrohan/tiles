@@ -1238,6 +1238,135 @@ tr.selected td {
   transform: translateX(-50%) translateY(0);
 }
 
+/* ---- shopfloor view (T5.16): read at arm's length, used with gloves ---- */
+.floor {
+  font-size: 18px;
+}
+.floor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.floor-headline {
+  font-size: clamp(26px, 3.2vw, 40px);
+  line-height: 1.15;
+  margin: 4px 0;
+}
+.floor-headline.bad {
+  color: var(--bad);
+}
+.floor-headline.warn {
+  color: var(--warn);
+}
+.floor-headline.good {
+  color: var(--good);
+}
+.floor-tools,
+.floor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+/* Touch targets of at least 64 px with room between them: a gloved finger hits the right one. */
+.btn.floor-btn {
+  min-height: 64px;
+  min-width: 120px;
+  padding: 12px 22px;
+  font-size: 20px;
+  border-radius: 12px;
+  border-width: 2px;
+  justify-content: center;
+}
+.btn.floor-btn.danger {
+  border-color: var(--bad);
+}
+.floor-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr));
+  gap: 18px;
+  margin-bottom: 28px;
+}
+.floor-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 10px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.floor-card h2 {
+  font-size: 28px;
+  margin: 0;
+}
+.floor-card p {
+  margin: 0;
+}
+.floor-card .floor-actions {
+  margin-top: auto;
+  padding-top: 8px;
+}
+.floor-card .badge,
+.floor-tile .badge {
+  font-size: 16px;
+  padding: 4px 10px;
+}
+.floor-where {
+  color: var(--soft);
+  font-size: 15px;
+}
+.floor-tag {
+  font-size: 16px;
+  color: var(--soft);
+}
+.floor-ask {
+  font-weight: 700;
+  font-size: 22px;
+}
+.s-out,
+.s-new {
+  border-left-color: var(--bad);
+}
+.s-taken {
+  border-left-color: var(--warn);
+}
+.s-ok {
+  border-left-color: var(--good);
+}
+.floor-section {
+  font-size: 24px;
+  margin: 0 0 12px;
+}
+.floor-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 14px;
+}
+.floor-tile {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 10px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 20px;
+}
+/* Full view: the page alone, for a tablet mounted on the line. */
+body.floor-full .shell {
+  grid-template-columns: 1fr;
+}
+body.floor-full .sidebar,
+body.floor-full .topbar {
+  display: none;
+}
+
 /* ---- responsive ---- */
 @media (max-width: 1100px) {
   .g4 {
