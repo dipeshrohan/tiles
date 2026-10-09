@@ -22,13 +22,21 @@ variable "image_tag" {
 }
 
 variable "images" {
-  description = "Your mirror of Tiles' images, if the cluster can't reach ghcr.io, and the Secrets to pull with."
+  description = "Your mirror of the images, if the cluster can't reach the internet: its registry, the Secrets to pull with, and the database's and Redis's images there (see docs/install.md). Null: the published ones."
   type = object({
-    registry     = optional(string, "ghcr.io/dipeshrohan")
-    pull_policy  = optional(string, "IfNotPresent")
-    pull_secrets = optional(list(string), [])
+    registry     = optional(string)
+    pull_policy  = optional(string)
+    pull_secrets = optional(list(string))
+    database     = optional(string)
+    redis        = optional(string)
   })
-  default = {}
+  default = null
+}
+
+variable "create_namespace" {
+  description = "Create the namespace (false: you made it, e.g. with the certificate's Secret in it; Terraform labels it)."
+  type        = bool
+  default     = true
 }
 
 variable "url" {
@@ -134,6 +142,19 @@ variable "smtp" {
 
 variable "smtp_password" {
   description = "The SMTP user's password (TF_VAR_smtp_password)."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "copilot_model" {
+  description = "The copilot's model; off when empty. It sends questions and the data its tools read to the model provider."
+  type        = string
+  default     = ""
+}
+
+variable "anthropic_api_key" {
+  description = "The copilot's API key (TF_VAR_anthropic_api_key)."
   type        = string
   default     = null
   sensitive   = true

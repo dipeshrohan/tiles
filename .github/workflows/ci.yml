@@ -375,17 +375,19 @@ jobs:
         env:
           TF_VAR_smtp_password: first-password
         run: |
-          # The guide's terraform.tfvars, for a kind cluster: its images, no ingress controller.
-          cat > terraform.tfvars <<'TFVARS'
-          kube_context  = "kind-tiles-install"
-          image_tag     = "ci"
-          images        = { registry = "", pull_policy = "Never" }
-          url           = "http://localhost:5173"
-          api_url       = "http://localhost:8000"
-          oidc          = { issuer = "https://idp.example.com/realms/tiles" }
-          database_size = "1Gi"
+          # The guide's terraform.tfvars, as step 3 starts it; then only what kind needs, which
+          # *.auto.tfvars overrides: its context, the images built here, no ingress controller,
+          # a small volume on kind's storage class.
+          cp terraform.tfvars.example terraform.tfvars
+          cat > kind.auto.tfvars <<'TFVARS'
+          kube_context    = "kind-tiles-install"
+          image_tag       = "ci"
+          images          = { registry = "", pull_policy = "Never" }
+          url             = "http://localhost:5173"
+          api_url         = "http://localhost:8000"
+          storage_class   = ""
+          database_size   = "1Gi"
           ingress_enabled = false
-          smtp          = { host = "smtp.example.com", user = "tiles" }
           TFVARS
           terraform init -input=false
           terraform plan -input=false -out tiles.plan
@@ -395,8 +397,9 @@ jobs:
           test "$(kubectl get ns tiles -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}')" = restricted
           kubectl -n tiles port-forward svc/tiles-api 8000 >/dev/null 2>&1 &
           kubectl -n tiles port-forward svc/tiles-web 5173 >/dev/null 2>&1 &
-          sleep 3
-          curl -fsS http://localhost:8000/ready | tee /dev/stderr | grep -q '"status":"ok"'
+          # Until the port-forwards listen.
+          curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://localhost:8000/ready | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -fsS --retry 30 --retry-connrefused --retry-delay 1 -o /dev/null http://localhost:5173/
           curl -fsS http://localhost:8000/health | grep -q '"env":"production"'
           test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/sites)" = 401
           curl -fsS http://localhost:5173/ | grep -q '<meta name="tiles-api" content="http://localhost:8000" />'
@@ -421,9 +424,12 @@ jobs:
         working-directory: deploy/terraform/environments/customer-hosted
         env:
           TF_VAR_smtp_password: second-password
+        # A destroy plan, never a destroy: refused, it must name prevent_destroy.
         run: |
-          ! terraform destroy -input=false -auto-approve 2> err.txt
-          grep -q 'prevent_destroy' err.txt
+          if terraform plan -destroy -input=false -no-color > out.txt 2>&1; then
+            cat out.txt; echo "a destroy plan was allowed"; exit 1
+          fi
+          grep -q 'prevent_destroy' out.txt
       - name: State on failure
         if: failure()
         run: |

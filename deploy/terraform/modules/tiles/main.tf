@@ -50,12 +50,12 @@ locals {
       revision        = local.revision
       generateDataKey = false # the Secret has tiles_data_keys (generated here, or yours)
     }
-    database = {
+    database = merge({
       bundled      = local.database_bundled
       storage      = var.database_storage.size
       storageClass = var.database_storage.storage_class
-    }
-    redis = { bundled = local.redis_bundled }
+    }, var.images.database == null ? {} : { image = var.images.database })
+    redis = merge({ bundled = local.redis_bundled }, var.images.redis == null ? {} : { image = var.images.redis })
     api = {
       replicas = var.replicas.api
       workers  = var.replicas.api_workers
@@ -83,16 +83,31 @@ locals {
   }
 }
 
+locals {
+  namespace_labels = {
+    "app.kubernetes.io/part-of" = "tiles"
+    # The pods meet the restricted Pod Security Standard (the chart runs them unprivileged).
+    "pod-security.kubernetes.io/enforce" = "restricted"
+  }
+}
+
 resource "kubernetes_namespace_v1" "tiles" {
   count = var.create_namespace ? 1 : 0
   metadata {
-    name = var.namespace
-    labels = {
-      "app.kubernetes.io/part-of" = "tiles"
-      # The pods meet the restricted Pod Security Standard (the chart runs them unprivileged).
-      "pod-security.kubernetes.io/enforce" = "restricted"
-    }
+    name   = var.namespace
+    labels = local.namespace_labels
   }
+}
+
+# A namespace made beforehand (say, to hold the certificate's Secret) gets the same labels.
+resource "kubernetes_labels" "namespace" {
+  count       = var.create_namespace ? 0 : 1
+  api_version = "v1"
+  kind        = "Namespace"
+  metadata {
+    name = var.namespace
+  }
+  labels = local.namespace_labels
 }
 
 # One data key, made once and kept in state: it opens the credentials Tiles seals (T5.06), so
@@ -131,5 +146,5 @@ resource "helm_release" "tiles" {
   wait            = true
   atomic          = true
   cleanup_on_fail = true
-  depends_on      = [kubernetes_namespace_v1.tiles, kubernetes_secret_v1.settings]
+  depends_on      = [kubernetes_namespace_v1.tiles, kubernetes_labels.namespace, kubernetes_secret_v1.settings]
 }
