@@ -11,7 +11,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from tiles_api import wear
-from tiles_api.api_ontology import Ctx
+from tiles_api.api_ontology import Ctx, SiteContext
 from tiles_api.notify import number_text
 from tiles_api.store import one
 
@@ -127,6 +127,11 @@ def explain(a: wear.Assessment, unit: str | None, limit: float | None, body: Wea
 def wear_check(ctx: Ctx, signal_id: uuid.UUID, body: WearIn) -> dict[str, Any]:
     """Has the signal's level moved from its baseline (a wearing tool's), how fast, and when does
     it reach `limit`? The baseline is `baseline_hours` before the last `recent_hours` up to `end`."""
+    return run_check(ctx, signal_id, body)
+
+
+def run_check(ctx: SiteContext, signal_id: uuid.UUID, body: WearIn) -> dict[str, Any]:
+    """The wear check of a signal of this site, as `POST …/wear-check` answers it."""
     signal = ctx.conn.execute(
         "SELECT tag, unit FROM signals WHERE id = %s AND site_id = %s", [signal_id, ctx.site_id]
     ).fetchone()
