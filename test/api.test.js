@@ -464,3 +464,73 @@ test('every insight call hits the documented path with its body', async () => {
   assert.deepEqual(JSON.parse(f.calls[4].body), { title: 'U' });
   assert.deepEqual(JSON.parse(f.calls[5].body), { decision: 'rejected', note: 'why' });
 });
+
+test('the copilot calls hit their paths, and an answer streams in as events', async () => {
+  const sse =
+    'event: text\ndata: {"text":"Hel"}\n\nevent: text\ndata: {"text":"lo [1]."}\n\nevent: done\ndata: {"grounded":true}\n\n';
+  const f = fakeFetch(
+    { body: { configured: true } },
+    { status: 201, body: { id: 'c 1' } },
+    { raw: sse, headers: { 'content-type': 'text/event-stream' } },
+    { body: { rating: 'down', comment: 'x' } },
+    { status: 204 },
+    { status: 409, body: { detail: 'The copilot is still answering in this conversation' } },
+  );
+  const errors = [];
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn, token: 't', onError: (e) => errors.push(e) });
+  assert.deepEqual(await api.copilot.status('s'), { configured: true });
+  await api.copilot.create('s');
+  const events = [];
+  await api.copilot.ask('s', 'c 1', 'Hi?', (e) => events.push(e));
+  assert.deepEqual(events, [
+    { event: 'text', data: { text: 'Hel' } },
+    { event: 'text', data: { text: 'lo [1].' } },
+    { event: 'done', data: { grounded: true } },
+  ]);
+  await api.copilot.rate('s', 'c 1', 3, 'down', 'x');
+  await api.copilot.unrate('s', 'c 1', 3);
+  await assert.rejects(
+    api.copilot.ask('s', 'c 1', 'Again?', () => {}),
+    /still answering/,
+  );
+  assert.equal(errors.length, 1);
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    [
+      'GET /sites/s/copilot',
+      'POST /sites/s/copilot/conversations',
+      'POST /sites/s/copilot/conversations/c%201/messages',
+      'PUT /sites/s/copilot/conversations/c%201/messages/3/feedback',
+      'DELETE /sites/s/copilot/conversations/c%201/messages/3/feedback',
+      'POST /sites/s/copilot/conversations/c%201/messages',
+    ],
+  );
+  assert.equal(f.calls[2].headers.Accept, 'text/event-stream');
+  assert.equal(f.calls[2].headers.Authorization, 'Bearer t');
+  assert.deepEqual(JSON.parse(f.calls[2].body), { text: 'Hi?' });
+  assert.deepEqual(JSON.parse(f.calls[3].body), { rating: 'down', comment: 'x' });
+});
+
+test('an answer cut off mid-stream is reported, not silently dropped', async () => {
+  const encoder = new TextEncoder();
+  let reads = 0;
+  const body = new ReadableStream({
+    pull(controller) {
+      if (reads++ === 0) controller.enqueue(encoder.encode('event: text\ndata: {"text":"Par"}\n\n'));
+      else controller.error(new TypeError('network error'));
+    },
+  });
+  const errors = [];
+  const api = createApiClient({
+    baseUrl: 'http://api.test',
+    fetch: async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }),
+    onError: (e) => errors.push(e.message),
+  });
+  const events = [];
+  await assert.rejects(
+    api.copilot.ask('s', 'c', 'Hi?', (e) => events.push(e)),
+    /cut off/,
+  );
+  assert.deepEqual(events, [{ event: 'text', data: { text: 'Par' } }]);
+  assert.deepEqual(errors, ['The answer was cut off: the connection to the Tiles API dropped']);
+});

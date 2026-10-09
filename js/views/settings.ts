@@ -1,4 +1,4 @@
-import { esc, field, need, onAll, onSubmit } from '../lib/dom.ts';
+import { esc, field, need, onAll, onSubmit, onNavigate, routeOf } from '../lib/dom.ts';
 import {
   createApiClient,
   isHttpUrl,
@@ -154,12 +154,11 @@ interface NotifyDraft {
 }
 let notifyDraft: NotifyDraft = { key: '' };
 // Leaving the page drops what was typed and not saved (the router reads routes in any case).
-if (typeof window !== 'undefined')
-  window.addEventListener('hashchange', () => {
-    if (location.hash.toLowerCase().startsWith('#/settings')) return;
-    notifyDraft = { key: '' };
-    sourceDraft = null;
-  });
+onNavigate((hash) => {
+  if (routeOf(hash) === 'settings') return;
+  notifyDraft = { key: '' };
+  sourceDraft = null;
+});
 
 async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void> {
   const site = ctx.ontology.site;

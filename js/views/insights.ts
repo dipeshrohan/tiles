@@ -1,4 +1,4 @@
-import { esc, onAll, onSubmit } from '../lib/dom.ts';
+import { esc, onAll, onSubmit, onNavigate, routeOf } from '../lib/dom.ts';
 import { forestPlot } from '../lib/datasets.ts';
 import type { Insight, InsightStatus, InsightSummary } from '../lib/api.ts';
 import {
@@ -40,15 +40,14 @@ const selected = (): number | null => (typeof location === 'undefined' ? null : 
 const detailKey = (ctx: Context): string => `${siteId(ctx)}|${selected()}`;
 
 // Others save and review while you are elsewhere: each visit to the page fetches afresh.
-if (typeof window !== 'undefined')
-  window.addEventListener('hashchange', () => {
-    // Back to the list (or away): what others did meanwhile shows when you come back.
-    if (!location.hash.startsWith('#/insights') || numberFromHash(location.hash) === null) {
-      listing = null;
-      detail = null;
-      editing = null;
-    }
-  });
+onNavigate((hash) => {
+  // Back to the list (or away): what others did meanwhile shows when you come back.
+  if (routeOf(hash) !== 'insights' || numberFromHash(hash) === null) {
+    listing = null;
+    detail = null;
+    editing = null;
+  }
+});
 
 async function loadList(ctx: Context): Promise<void> {
   const site = siteId(ctx);

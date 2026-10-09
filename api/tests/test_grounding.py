@@ -120,6 +120,7 @@ def test_an_unsupported_answer_is_withdrawn_and_answered_again_once() -> None:
     assert [m["role"] for m in stored] == ["assistant", "user", "assistant"]
     assert stored[-1]["content"] == [{"type": "text", "text": "It is at 1,785 W [1]."}]
     assert stored[-1]["meta"]["grounding"]["grounded"] is True
+    assert stored[-1]["meta"]["withdrawn"] == ["it cites no tool result; no cited result holds 1,900"]
     assert events[-1].data["grounded"] is True
 
     # Still unsupported after one try: kept, with the report saying so (the user is warned).

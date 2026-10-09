@@ -1,4 +1,4 @@
-import { esc, need, onAll } from '../lib/dom.ts';
+import { esc, need, onAll, onNavigate, routeOf } from '../lib/dom.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import {
   ApiError,
@@ -60,16 +60,15 @@ const ago = (iso: string): string => when(iso, Date.now());
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 
 // Others act on warnings and detectors raise new ones while you are elsewhere: each visit fetches afresh.
-if (typeof window !== 'undefined')
-  window.addEventListener('hashchange', () => {
-    if (!location.hash.startsWith('#/warnings')) {
-      listing = null;
-      detail = null;
-      detailFailed = null;
-      series = null;
-      members = null; // roles change, and people join
-    }
-  });
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'warnings') {
+    listing = null;
+    detail = null;
+    detailFailed = null;
+    series = null;
+    members = null; // roles change, and people join
+  }
+});
 
 const listKey = (ctx: Context): string => `${siteId(ctx)}|${JSON.stringify(uiState(ctx).filters)}`;
 const detailKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).selected}`;

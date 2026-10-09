@@ -71,3 +71,15 @@ export function download(name: string, text: string, type: string): void {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+
+/** The page a hash names, as the router reads it: "#/Warnings?x=1" is "warnings". */
+export const routeOf = (hash: string): string => (hash.replace(/^#\/?/, '').split(/[/?]/)[0] || 'home').toLowerCase();
+
+/** Calls `fn` with the hash of every navigation. Each event carries its own URL: by the time the
+ * events of two quick navigations run (away and straight back), `location.hash` already reads the
+ * second, so a page reading it would miss that you left. An event made by code has no URL: it
+ * stays on the current page. */
+export function onNavigate(fn: (hash: string) => void): void {
+  if (typeof window !== 'undefined')
+    window.addEventListener('hashchange', (e) => fn(e.newURL ? new URL(e.newURL).hash : location.hash));
+}
