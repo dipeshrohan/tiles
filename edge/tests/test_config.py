@@ -309,3 +309,17 @@ def test_sql_signals_are_unique_across_connectors(tmp_path: Path) -> None:
     body = SQL.format(extra="") + SQL.format(extra="").replace('name = "mes"', 'name = "mes-2"')
     with pytest.raises(ConfigError, match=r"signal 'line1\.temperature' appears more than once"):
         load(with_sql(tmp_path, body), env={})
+
+
+def test_a_token_file_others_can_read_is_warned_about(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
+    # Anyone else on the host could send readings as this site (threat model, T5.07).
+    path = write_config(tmp_path, "https://t.example.com")
+    (tmp_path / "token").chmod(0o644)
+    with caplog.at_level("WARNING", logger="tiles_edge.config"):
+        load(path, {})
+    assert "can be read by other users (mode 644): chmod 600 it" in caplog.text
+    caplog.clear()
+    (tmp_path / "token").chmod(0o600)
+    with caplog.at_level("WARNING", logger="tiles_edge.config"):
+        load(path, {})
+    assert caplog.text == ""

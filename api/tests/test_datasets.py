@@ -125,6 +125,8 @@ def test_uploads_and_requests_are_checked(
     ):
         res = run(api, site, dataset, **body)
         assert (res.status_code, res.json()["detail"]) == (422, detail), body
+    for body in ({"outcome": "x" * 201}, {"outcome": ""}, {"outcome": "ng", "split": "x" * 201}):
+        assert run(api, site, dataset, **body).status_code == 422  # names are bounded (T5.07)
     monkeypatch.setattr(api_datasets, "MAX_WORK", 720 * 5)
     res = run(api, site, dataset, outcome="ng")
     assert (res.status_code, res.json()["detail"]) == (

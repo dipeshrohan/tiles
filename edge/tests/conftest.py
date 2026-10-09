@@ -96,6 +96,7 @@ def tls_tiles(certificate: tuple[Path, Path]) -> Iterator[FakeTiles]:
 def write_config(folder: Path, url: str, extra: str = "", token: str | None = TOKEN) -> Path:
     if token is not None:
         (folder / "token").write_text(token + "\n")
+        (folder / "token").chmod(0o600)  # as the agent asks: no one else reads it
     path = folder / "tiles-edge.toml"
     agent = '[agent]\nheartbeat_seconds = 5\nbuffer_path = "buffer.sqlite"\n'
     path.write_text(f'[tiles]\nurl = "{url}"\ntoken_file = "token"\n{extra}\n{agent}')

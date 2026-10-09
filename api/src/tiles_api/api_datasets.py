@@ -72,11 +72,12 @@ class RowsOut(BaseModel):
 
 class CorrelateIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    outcome: str  # the column that says whether a batch failed
+    outcome: Annotated[str, Field(min_length=1, max_length=200)]  # the column that says whether a batch failed
     # The outcome values that mean failed (NG); for a true/false column, true unless given.
     ng_values: Annotated[list[Value], Field(min_length=1, max_length=100)] | None = None
     variables: Annotated[list[str], Field(min_length=1, max_length=MAX_COLUMNS)] | None = None  # default: all numbers
-    split: str | None = None  # a column whose values are the segments (material, line, shift…)
+    # A column whose values are the segments (material, line, shift…).
+    split: Annotated[str, Field(min_length=1, max_length=200)] | None = None
 
     @model_validator(mode="after")
     def _split_apart(self) -> "CorrelateIn":

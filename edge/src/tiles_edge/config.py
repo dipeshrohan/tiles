@@ -27,6 +27,7 @@ Relative paths are resolved against the config file's folder.
 """
 
 import hashlib
+import logging
 import os
 import re
 import socket
@@ -38,6 +39,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+
+log = logging.getLogger("tiles_edge.config")
 
 TOKEN_ENV = "TILES_EDGE_TOKEN"  # noqa: S105 - the variable's name, not a secret
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -236,6 +239,14 @@ def _token(tiles: dict[str, Any], base: Path, env: dict[str, str]) -> str:
             ) from None
         except OSError as e:
             raise ConfigError(f"can't read the token file {path}: {e.strerror}") from None
+        mode = path.stat().st_mode & 0o777
+        if mode & 0o077:  # anyone else on the host could send readings as this site (T5.07)
+            log.warning(
+                "the token file %s can be read by other users (mode %o): chmod 600 it, or set %s instead",
+                path,
+                mode,
+                TOKEN_ENV,
+            )
     else:
         raise ConfigError(f"no agent token: set [tiles] token_file or the {TOKEN_ENV} environment variable")
     if not token.startswith("tla_"):
