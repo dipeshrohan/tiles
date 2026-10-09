@@ -35,6 +35,7 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
+from tiles_api import telemetry
 from tiles_api.settings import get_settings
 from tiles_api.store import UNSCOPED
 
@@ -314,6 +315,7 @@ def check_site(
     return counts
 
 
+@telemetry.job_main("tiles-check-quality")
 def main(argv: list[str] | None = None) -> None:
     """`tiles-check-quality`: checks every signal of every site (or one site), e.g. from cron."""
     parser = argparse.ArgumentParser(prog="tiles-check-quality", description=main.__doc__)

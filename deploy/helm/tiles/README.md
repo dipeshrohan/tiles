@@ -71,6 +71,10 @@ The API and the jobs read the Secret as files (`TILES_SECRETS_DIR`), never as en
 - **Capacity:** each API pod runs `api.workers` processes with `api.dbPoolMax` connections each; the [load test](../../../docs/load-test.md) has the measurements and sizing.
 - **Rollouts:** the API restarts when its settings change. With more than one replica, the API and the web app each have a PodDisruptionBudget.
 
+## Monitoring
+
+Set `monitoring.otlpEndpoint` to an OpenTelemetry Collector to send traces and metrics. `monitoring.prometheusRule.enabled` and `monitoring.grafanaDashboard.enabled` install the alert rules and the dashboard. See [deploy/monitoring](../../monitoring/README.md).
+
 ## Jobs
 
 Each job is a CronJob that runs one command over every site, then exits. A run that overlaps the next one makes that next run wait (`concurrencyPolicy: Forbid`).

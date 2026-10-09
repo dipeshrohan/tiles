@@ -1,0 +1,93 @@
+# promtool test rules deploy/monitoring/alerts.test.yaml (CI runs it): the alert rules fire when
+# they should, and only then.
+rule_files:
+  - ../helm/tiles/files/alerts.yaml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      # Two API processes report the same agents; one agent falls behind, one is fine.
+      - series: 'tiles_agent_buffer_oldest_age_seconds{site="plant-1",agent="press-01",service_instance_id="a"}'
+        values: '0+60x30'
+      - series: 'tiles_agent_buffer_oldest_age_seconds{site="plant-1",agent="press-01",service_instance_id="b"}'
+        values: '0+60x30'
+      - series: 'tiles_agent_buffer_oldest_age_seconds{site="plant-1",agent="line-2",service_instance_id="a"}'
+        values: '0x30'
+      - series: 'tiles_agent_heartbeat_age_seconds{site="plant-1",agent="line-2",service_instance_id="a"}'
+        values: '0+60x30'
+      - series: 'tiles_agent_buffer_dropped{site="plant-1",agent="press-01",service_instance_id="a"}'
+        values: '0x20 5x10'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: TilesIngestLag
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: TilesIngestLag
+        exp_alerts:
+          - exp_labels: { severity: warning, site: plant-1, agent: press-01 }
+            exp_annotations:
+              summary: Readings from press-01 (plant-1) are 25m 0s behind
+              description: >-
+                The oldest reading waiting in the agent's buffer is over 15 minutes old: the agent can't send
+                fast enough, or Tiles refuses its batches. Check the agent on the Settings page and the API's logs.
+      - eval_time: 25m
+        alertname: TilesAgentSilent
+        exp_alerts:
+          - exp_labels: { severity: warning, site: plant-1, agent: line-2 }
+            exp_annotations:
+              summary: Edge agent line-2 (plant-1) has not called in for 25m 0s
+              description: The agent is stopped, or can't reach Tiles (network, proxy, a revoked token).
+      - eval_time: 25m
+        alertname: TilesAgentDropping
+        exp_alerts:
+          - exp_labels: { severity: critical, site: plant-1, agent: press-01 }
+            exp_annotations:
+              summary: Edge agent press-01 (plant-1) is dropping readings
+              description: Its buffer is full. Readings dropped on site are lost; fix the backlog and raise the buffer's size.
+  - interval: 1m
+    input_series:
+      - series: 'tiles_job_runs_total{command="tiles-detect",outcome="ok"}'
+        values: '0+1x110'
+      - series: 'tiles_job_runs_total{command="tiles-detect",outcome="failed"}'
+        values: '0x40 1x70'
+      - series: 'tiles_job_runs_total{command="tiles-notify",outcome="ok"}'
+        values: '0+1x10 10x100'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: TilesJobFailing
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: TilesJobFailing
+        exp_alerts:
+          - exp_labels: { severity: warning, command: tiles-detect }
+            exp_annotations:
+              summary: Scheduled job tiles-detect failed
+              description: Read the failed Job's output (kubectl logs job/…); each item that failed is named.
+      - eval_time: 60m
+        alertname: TilesJobStopped
+        exp_alerts: [] # runs stopped at 10m: an hour without one, then 30 minutes more
+      - eval_time: 105m
+        alertname: TilesJobStopped
+        exp_alerts:
+          - exp_labels: { severity: warning, command: tiles-notify }
+            exp_annotations:
+              summary: Scheduled job tiles-notify has not run for an hour
+              description: Its CronJob is suspended, or its runs never start (image, Secret). Its work (models, detectors, notifications) waits.
+  - interval: 1m
+    input_series:
+      # 100 requests a minute, 10 of them failing from minute 20.
+      - series: 'http_server_duration_milliseconds_count{http_status_code="200"}'
+        values: '0+100x60'
+      - series: 'http_server_duration_milliseconds_count{http_status_code="503"}'
+        values: '0x20 0+10x40'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: TilesApiErrors
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: TilesApiErrors
+        exp_alerts:
+          - exp_labels: { severity: critical }
+            exp_annotations:
+              summary: More than 5% of API requests fail (9.091%)
+              description: Check /ready and the API's logs (request ids lead to their traces).

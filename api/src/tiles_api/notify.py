@@ -35,7 +35,7 @@ from urllib.parse import urlsplit
 import psycopg
 from psycopg.rows import dict_row
 
-from tiles_api import sealed
+from tiles_api import sealed, telemetry
 from tiles_api.settings import Settings, get_settings
 from tiles_api.store import UNSCOPED, Conn, one
 
@@ -321,6 +321,7 @@ def send_due(conn: Conn, sender: Sender, app_url: str, limit: int = 200, keys: s
     return result
 
 
+@telemetry.job_main("tiles-notify")
 def main(argv: list[str] | None = None, sender: Callable[[Settings], Sender] = LiveSender) -> None:
     """`tiles-notify`: sends the notifications that are due, e.g. every minute from cron."""
     parser = argparse.ArgumentParser(prog="tiles-notify", description=main.__doc__)
@@ -330,6 +331,8 @@ def main(argv: list[str] | None = None, sender: Callable[[Settings], Sender] = L
         settings.database_url.get_secret_value(), row_factory=dict_row, autocommit=True, options=UNSCOPED
     ) as conn:
         r = send_due(conn, sender(settings), settings.app_url, keys=sealed.keys_of(settings))
+    for outcome, n in (("sent", r.sent), ("retry", r.failed), ("given up", r.given_up)):
+        telemetry.notifications.add(n, {"outcome": outcome})
     print(f"{r.sent} sent, {r.failed} to retry, {r.given_up} given up")
     if r.failed or r.given_up:
         print("See GET /sites/{id}/notifications for why.", file=sys.stderr)

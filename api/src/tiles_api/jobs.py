@@ -10,6 +10,7 @@ import psycopg
 from psycopg import sql
 from psycopg.rows import dict_row
 
+from tiles_api import telemetry
 from tiles_api.settings import get_settings
 from tiles_api.store import UNSCOPED, Conn
 
@@ -35,8 +36,10 @@ def run_each(ids: Callable[[Conn], list[uuid.UUID]], run_one: Callable[[Conn, uu
                     line, ok = run_one(conn, item)
             except Exception as e:
                 failed = True
+                telemetry.job_items.add(1, {"command": telemetry.job_name(), "outcome": "failed"})
                 print(f"{item}: not run ({e})", file=sys.stderr)
                 continue
+            telemetry.job_items.add(1, {"command": telemetry.job_name(), "outcome": "ok" if ok else "failed"})
             print(f"{item}: {line}")
             failed = failed or not ok
     if failed:

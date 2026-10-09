@@ -102,6 +102,10 @@ app.kubernetes.io/component: {{ .component }}
   value: {{ .from | quote }}
 {{- end }}
 {{- end }}
+{{- with .Values.monitoring.otlpEndpoint }}
+- name: OTEL_EXPORTER_OTLP_ENDPOINT
+  value: {{ . | quote }}
+{{- end }}
 {{- with .Values.extraEnv }}
 {{ toYaml . }}
 {{- end }}

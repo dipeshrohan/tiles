@@ -297,6 +297,26 @@ jobs:
           kubectl describe pods
           for pod in $(kubectl get pods -o name); do kubectl logs "$pod" --all-containers --tail=80 || true; done
 
+  monitoring:
+    name: Alert rules and collector configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # Google's mirror of Docker Hub, which rate-limits CI less.
+      - name: The alert rules fire when they should (promtool)
+        run: |
+          docker run --rm -v "$PWD/deploy:/deploy:ro" --entrypoint promtool mirror.gcr.io/prom/prometheus:v3.5.0 \
+            check rules /deploy/helm/tiles/files/alerts.yaml
+          docker run --rm -v "$PWD/deploy:/deploy:ro" --entrypoint promtool mirror.gcr.io/prom/prometheus:v3.5.0 \
+            test rules /deploy/monitoring/alerts.test.yaml
+      - name: The collector configuration is valid
+        run: |
+          docker run --rm -e TRACES_ENDPOINT=http://tempo:4318 -v "$PWD/deploy/monitoring:/m:ro" \
+            mirror.gcr.io/otel/opentelemetry-collector-contrib:0.135.0 validate --config=/m/otel-collector.yaml
+      - name: The dashboard is valid JSON
+        run: python3 -m json.tool deploy/helm/tiles/files/grafana-dashboard.json > /dev/null
+
   stack:
     name: Docker Compose stack
     runs-on: ubuntu-latest

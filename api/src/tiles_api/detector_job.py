@@ -18,7 +18,7 @@ from typing import Any
 from psycopg import sql
 from psycopg.types.json import Jsonb
 
-from tiles_api import jobs, notify
+from tiles_api import jobs, notify, telemetry
 from tiles_api.detection import Alert, Config, State, step
 from tiles_api.store import Conn, one
 
@@ -128,6 +128,7 @@ def due(conn: Conn, site_id: uuid.UUID | None = None) -> list[uuid.UUID]:
     return jobs.enabled(conn, "detectors", site_id)
 
 
+@telemetry.job_main("tiles-detect")
 def main(argv: list[str] | None = None) -> None:
     """`tiles-detect`: runs every enabled detector on its new readings, e.g. every minute from cron."""
     parser = argparse.ArgumentParser(prog="tiles-detect", description=main.__doc__)

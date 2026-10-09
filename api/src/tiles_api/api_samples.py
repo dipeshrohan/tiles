@@ -19,6 +19,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, Header, HTTPException, status
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, Strict, field_validator
 
+from tiles_api import telemetry
 from tiles_api.api_agents import calling_agent
 from tiles_api.store import DbConn, one
 
@@ -118,7 +119,13 @@ def store_samples(conn: Any, site_id: Any, source: str, samples: list[SampleIn])
         " AS n",
         list(columns),
     ).fetchone()
-    return int(row["n"]) if row else 0
+    stored = int(row["n"]) if row else 0
+    kind = source.split(":", 1)[0]  # edge, import
+    telemetry.readings.add(stored, {"source": kind, "stored": "new"})
+    telemetry.readings.add(len(samples) - stored, {"source": kind, "stored": "not new"})
+    if kind == "edge":
+        telemetry.ingest_delay.record(max(0.0, (now - max(s.at for s in samples)).total_seconds()))
+    return stored
 
 
 @router.post("/agent/samples", response_model=SamplesOut)
