@@ -108,6 +108,18 @@ Each site member is a viewer, engineer or admin; organisation admins (`users.org
 | `PUT /members/{user_id}` | set a member's role: `{"role": "engineer"}` (admins only; not your own role) |
 | `GET /audit?limit=100&offset=0` | the site's audit log, newest first (admins only) |
 
+#### Site-level permissions in the database (T5.04)
+
+Roles decide what a member may do. The database also keeps each request to its own site's rows, so a query that forgets to filter by site can't reach another site's data. Migration 0024 sets this up:
+- **Row security on site data.** Every table with a `site_id` has a policy, forced so that it holds for the tables' owner too. Rows that belong to a site through a parent follow the parent's policy: a conversation's messages, a dataset's rows, a warning's activity.
+- **Scoped requests.** A request on a site scopes its transaction to that site. `SiteContext` runs `set_config('tiles.site_id', …, true)`, so only that site's rows are visible and writable, and the scope ends with the transaction.
+- **Unscoped work.** Without a site named, every row is visible, as before. This covers scheduled jobs, migrations, and endpoints that aren't a site's, such as an edge agent's heartbeat; they name the rows they want.
+- **Organisation totals.** The few counts that span an organisation's sites widen the scope explicitly with `store.all_sites` (the copilot's daily budget and rate limits).
+- **The `tiles_app` role.** A superuser, or a role with BYPASSRLS, skips row security even when it is forced, and Compose's database user is a superuser. So the API's connections switch to `tiles_app`, a role the migration creates that can't log in or skip policies and is granted every table (`store.act_as_app`). A login without those powers stays as it is, since the forced policies hold for it. On a managed database whose login may not create roles, the migration skips the role.
+- **Readings.** The `samples` hypertable can't have row security while it is compressed (TimescaleDB). Readings are reached only through `signals`, which has it.
+
+`tests/test_row_security.py` fails if a table with a `site_id` has no policy, if a new table isn't classified as a site's data or not, or if the API's connections could skip the policies.
+
 ### Audit log
 
 Every write is recorded in `audit_log` in the same transaction as the change, so there is an entry exactly when the change happened. Each entry has the actor, the time, the action, the entity, the before and after values as JSON, and the request ID.

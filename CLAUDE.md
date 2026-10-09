@@ -36,6 +36,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 
 ## Rules
 - Add or update tests with every behaviour change; never skip or disable a test.
+- A site's data is under row security (T5.04, migration 0024): a new table with a `site_id` needs a forced `site_rows` policy in its migration, and a table that belongs to a site through a parent needs one through the parent (`tests/test_row_security.py` fails otherwise). Requests are scoped by `SiteContext`; widen with `store.all_sites` only for an organisation's totals.
 - Keep the browser app free of runtime dependencies.
 - Escape any interpolated text with `esc()` when building HTML strings.
 - Task IDs (T1.01 …) map to GitHub issues; reference the issue in PRs.
