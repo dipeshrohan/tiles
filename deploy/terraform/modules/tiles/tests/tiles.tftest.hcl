@@ -1,0 +1,146 @@
+# The tiles module's plan, with mock providers: no cluster needed (terraform test).
+
+mock_provider "helm" {}
+mock_provider "kubernetes" {}
+mock_provider "random" {
+  mock_resource "random_bytes" {
+    defaults = { base64 = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }
+  }
+}
+
+variables {
+  image_tag = "1.2.3"
+  url       = "https://tiles.example.com"
+  api_url   = "https://api.tiles.example.com"
+  oidc      = { issuer = "https://idp.example.com/realms/tiles" }
+}
+
+run "bundled_database_and_a_generated_key" {
+  command = apply
+
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).database.bundled && yamldecode(helm_release.tiles.values[0]).redis.bundled
+    error_message = "Without database_url and redis_url, the chart's own run."
+  }
+  assert {
+    condition     = nonsensitive(join(",", sort(keys(kubernetes_secret_v1.settings[0].data)))) == "tiles_data_keys"
+    error_message = "The Secret holds the data key only (the chart makes the bundled database's)."
+  }
+  assert {
+    condition     = startswith(nonsensitive(kubernetes_secret_v1.settings[0].data.tiles_data_keys), "k1:")
+    error_message = "The generated key is id:base64key, with the default id."
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).secrets.existingSecret == "tiles-settings" && !yamldecode(helm_release.tiles.values[0]).secrets.generateDataKey
+    error_message = "The chart reads the module's Secret, and makes no key of its own."
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).images.api.tag == "1.2.3" && yamldecode(helm_release.tiles.values[0]).env == "production"
+    error_message = "The pinned release runs in production."
+  }
+  assert {
+    condition     = kubernetes_namespace_v1.tiles[0].metadata[0].labels["pod-security.kubernetes.io/enforce"] == "restricted"
+    error_message = "The namespace enforces the restricted Pod Security Standard."
+  }
+  assert {
+    condition     = helm_release.tiles.atomic && helm_release.tiles.wait
+    error_message = "A failed upgrade rolls back."
+  }
+}
+
+run "external_database_redis_and_mail" {
+  command = apply
+  variables {
+    database_url     = "postgresql://tiles:secret@db.example.com:5432/tiles?sslmode=require"
+    redis_url        = "rediss://:secret@redis.example.com:6380/0"
+    data_keys        = "k2:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=,k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    smtp             = { host = "smtp.example.com", user = "tiles" }
+    smtp_password    = "mail-secret"
+    create_namespace = false
+  }
+
+  assert {
+    condition     = !yamldecode(helm_release.tiles.values[0]).database.bundled && !yamldecode(helm_release.tiles.values[0]).redis.bundled
+    error_message = "Given URLs, the chart's database and Redis are off."
+  }
+  assert {
+    condition     = nonsensitive(join(",", sort(keys(kubernetes_secret_v1.settings[0].data)))) == "tiles_data_keys,tiles_database_url,tiles_redis_url,tiles_smtp_password"
+    error_message = "Every secret given is in the Secret, and nothing else."
+  }
+  assert {
+    condition     = nonsensitive(kubernetes_secret_v1.settings[0].data.tiles_data_keys) == var.data_keys
+    error_message = "Given data keys are used as they are (no key generated)."
+  }
+  assert {
+    condition     = length(random_bytes.data_key) == 0 && length(kubernetes_namespace_v1.tiles) == 0
+    error_message = "No key generated, and the existing namespace is used."
+  }
+  assert {
+    condition     = !strcontains(helm_release.tiles.values[0], "secret@")
+    error_message = "No secret reaches the chart's values: only the Secret holds them."
+  }
+}
+
+run "a_fingerprint_of_the_settings" {
+  command = apply
+  variables {
+    data_keys     = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    smtp_password = "first"
+  }
+  assert {
+    condition     = length(output.settings_revision) == 12 && yamldecode(helm_release.tiles.values[0]).secrets.revision == output.settings_revision
+    error_message = "The chart's revision is a short fingerprint of the settings."
+  }
+}
+
+run "a_changed_secret_restarts_the_api" {
+  command = apply
+  variables {
+    data_keys     = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    smtp_password = "second"
+  }
+  assert {
+    condition     = output.settings_revision != run.a_fingerprint_of_the_settings.settings_revision
+    error_message = "A new password gives the chart a new revision, which restarts the API."
+  }
+}
+
+run "an_existing_secret_keeps_secrets_out_of_terraform" {
+  command = apply
+  variables {
+    existing_secret = "tiles-from-vault"
+    database_url    = "postgresql://ignored"
+  }
+  assert {
+    condition     = length(kubernetes_secret_v1.settings) == 0 && length(random_bytes.data_key) == 0
+    error_message = "With existing_secret, Terraform makes no Secret and no key."
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).secrets.existingSecret == "tiles-from-vault" && !yamldecode(helm_release.tiles.values[0]).database.bundled
+    error_message = "The chart reads the given Secret, for the database too."
+  }
+}
+
+run "production_runs_a_pinned_release" {
+  command = plan
+  variables {
+    image_tag = "main"
+  }
+  expect_failures = [var.image_tag]
+}
+
+run "urls_are_origins" {
+  command = plan
+  variables {
+    api_url = "https://tiles.example.com/api"
+  }
+  expect_failures = [var.api_url]
+}
+
+run "sign_in_is_https" {
+  command = plan
+  variables {
+    oidc = { issuer = "http://idp.example.com" }
+  }
+  expect_failures = [var.oidc]
+}
