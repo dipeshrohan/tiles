@@ -331,8 +331,6 @@ def main(argv: list[str] | None = None, sender: Callable[[Settings], Sender] = L
         settings.database_url.get_secret_value(), row_factory=dict_row, autocommit=True, options=UNSCOPED
     ) as conn:
         r = send_due(conn, sender(settings), settings.app_url, keys=sealed.keys_of(settings))
-    for outcome, n in (("sent", r.sent), ("retry", r.failed), ("given up", r.given_up)):
-        telemetry.notifications.add(n, {"outcome": outcome})
     print(f"{r.sent} sent, {r.failed} to retry, {r.given_up} given up")
     if r.failed or r.given_up:
         print("See GET /sites/{id}/notifications for why.", file=sys.stderr)

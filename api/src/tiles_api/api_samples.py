@@ -121,8 +121,10 @@ def store_samples(conn: Any, site_id: Any, source: str, samples: list[SampleIn])
     ).fetchone()
     stored = int(row["n"]) if row else 0
     kind = source.split(":", 1)[0]  # edge, import
+    refused = sum(1 for s in samples if s.signal not in ids)  # a model's derived signal
     telemetry.readings.add(stored, {"source": kind, "stored": "new"})
-    telemetry.readings.add(len(samples) - stored, {"source": kind, "stored": "not new"})
+    telemetry.readings.add(len(samples) - refused - stored, {"source": kind, "stored": "not new"})
+    telemetry.readings.add(refused, {"source": kind, "stored": "refused"})
     if kind == "edge":
         telemetry.ingest_delay.record(max(0.0, (now - max(s.at for s in samples)).total_seconds()))
     return stored

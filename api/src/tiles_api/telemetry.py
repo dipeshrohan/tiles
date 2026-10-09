@@ -12,10 +12,14 @@ a Prometheus exporter shows them:
 - `tiles_agent_heartbeat_age_seconds`, `tiles_agent_buffer_queued`,
   `tiles_agent_buffer_oldest_age_seconds`, `tiles_agent_buffer_dropped`, per site and agent: what
   each active agent last reported (the oldest reading still waiting on site is the ingest lag);
-- `tiles_job_runs_total{command, outcome}`, `tiles_job_duration_seconds{command, outcome}` and
-  `tiles_job_items_total{command, outcome}`: the scheduled jobs, by their command (Prometheus's
-  own `job` label is the service: tiles-api, tiles-jobs);
-- `tiles_notifications_total{outcome}`: e-mail and Teams messages sent, to retry or given up.
+- `tiles_job_last_run_age_seconds`, `tiles_job_last_failed`, `tiles_job_last_duration_seconds` and
+  `tiles_job_failed_runs_last_hour`, per command: each scheduled job's last run, from the
+  `job_runs` table the jobs write (a job process lives too briefly to keep counters; Prometheus's
+  own `job` label is the service: tiles-api);
+- `tiles_notifications_pending`, `tiles_notifications_oldest_pending_age_seconds` and
+  `tiles_notifications_given_up_last_hour`, per site: the e-mail and Teams outbox.
+
+The gauges are read from the database by every API process, at most every 10 seconds.
 
 deploy/monitoring has a collector configuration, the alert rules and a dashboard.
 """
@@ -28,13 +32,14 @@ import time
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import UTC, datetime
 from importlib.metadata import version
-from pathlib import Path
 from typing import Any
 
 import psycopg
 from fastapi import FastAPI
 from opentelemetry import metrics, trace
+from opentelemetry.instrumentation.utils import suppress_instrumentation
 from opentelemetry.metrics import CallbackOptions, Observation
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import MetricReader, PeriodicExportingMetricReader
@@ -55,17 +60,12 @@ readings = METER.create_counter(
 ingest_delay = METER.create_histogram(
     "tiles.ingest.delay", unit="s", description="Age of a batch's newest reading when the batch arrived"
 )
-job_runs = METER.create_counter("tiles.job.runs", unit="{run}", description="Scheduled job runs, by outcome")
-job_items = METER.create_counter("tiles.job.items", unit="{item}", description="Items a job ran, by outcome")
-job_duration = METER.create_histogram("tiles.job.duration", unit="s", description="How long a job run took")
-notifications = METER.create_counter(
-    "tiles.notifications", unit="{message}", description="Notifications sent, to retry or given up"
-)
 
 _lock = threading.Lock()
 _providers: tuple[TracerProvider, MeterProvider] | None = None
 _watching = False
-current_job: ContextVar[str | None] = ContextVar("tiles_job", default=None)
+_job_items: ContextVar[list[int] | None] = ContextVar("tiles_job_items", default=None)
+KEEP_RUNS_DAYS = 30
 
 
 def enabled() -> bool:
@@ -118,8 +118,9 @@ def instrument(app: FastAPI, settings: Settings) -> None:
         return
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-    FastAPIInstrumentor.instrument_app(app, excluded_urls="health,ready")
-    watch_agents(lambda: psycopg.connect(settings.database_url.get_secret_value(), options=UNSCOPED))
+    # Anchored: only the health checks themselves, not a site's /signals/health or the like.
+    FastAPIInstrumentor.instrument_app(app, excluded_urls=r"^https?://[^/]+/(health|ready)$")
+    watch(lambda: psycopg.connect(settings.database_url.get_secret_value(), options=UNSCOPED, connect_timeout=5))
 
 
 def agent_rows(conn: Any) -> list[dict[str, Any]]:
@@ -141,63 +142,155 @@ def agent_rows(conn: Any) -> list[dict[str, Any]]:
     )
 
 
-def watch_agents(connect: Callable[[], Any], max_age_s: float = 10) -> None:
-    """Gauges of every active agent's last report, read at most every `max_age_s` (each gauge is
-    read on each export; one query serves them all)."""
+def job_rows(conn: Any) -> list[dict[str, Any]]:
+    """Each command's last run (ages and durations in seconds) and its failed runs in the last hour."""
+    cur = conn.cursor(row_factory=dict_row)
+    return list(
+        cur.execute(
+            """
+            SELECT DISTINCT ON (command) command,
+                   extract(epoch FROM clock_timestamp() - finished_at)::float8 AS last_run_age,
+                   (outcome = 'failed')::int AS last_failed,
+                   extract(epoch FROM finished_at - started_at)::float8 AS last_duration,
+                   count(*) FILTER (WHERE outcome = 'failed' AND finished_at > clock_timestamp() - interval '1 hour')
+                       OVER (PARTITION BY command) AS failed_last_hour
+            FROM job_runs
+            ORDER BY command, finished_at DESC
+            """
+        )
+    )
+
+
+def notification_rows(conn: Any) -> list[dict[str, Any]]:
+    """Each site's outbox: messages waiting (and the oldest one's age), and those given up lately."""
+    cur = conn.cursor(row_factory=dict_row)
+    return list(
+        cur.execute(
+            """
+            SELECT s.slug AS site, count(n.id) AS pending,
+                   coalesce(extract(epoch FROM clock_timestamp() - min(n.created_at))::float8, 0) AS oldest_pending_age,
+                   (SELECT count(*) FROM notifications g
+                    WHERE g.site_id = s.id AND g.failed_at > clock_timestamp() - interval '1 hour')
+                       AS given_up_last_hour
+            FROM sites s
+            LEFT JOIN notifications n ON n.site_id = s.id AND n.sent_at IS NULL AND n.failed_at IS NULL
+            GROUP BY s.id, s.slug
+            """
+        )
+    )
+
+
+def watch(connect: Callable[[], Any], max_age_s: float = 10) -> None:
+    """Gauges of the agents' last reports, the jobs' last runs and the notification outbox, read at
+    most every `max_age_s` (each gauge is read on each export; one connection serves them all). When
+    the database can't be read, the last values stay."""
     global _watching
     with _lock:
         if _watching:  # one set of gauges per process, however many apps it makes (tests)
             return
         _watching = True
-    cache: dict[str, Any] = {"at": 0.0, "rows": []}
+    queries = {"agents": agent_rows, "jobs": job_rows, "notifications": notification_rows}
+    cache: dict[str, Any] = {"at": float("-inf"), **{k: [] for k in queries}}
     guard = threading.Lock()
 
-    def rows() -> list[dict[str, Any]]:
+    def rows(kind: str) -> list[dict[str, Any]]:
         with guard:
             if time.monotonic() - cache["at"] > max_age_s:
+                cache["at"] = time.monotonic()  # a failure isn't retried at every export either
                 try:
-                    with connect() as conn:
-                        cache["rows"] = agent_rows(conn)
-                except psycopg.Error:
-                    cache["rows"] = []  # no gauges this time, rather than a broken export
-                cache["at"] = time.monotonic()
-            return list(cache["rows"])
+                    with suppress_instrumentation(), connect() as conn:  # not a trace of its own each time
+                        for k, query in queries.items():
+                            cache[k] = query(conn)
+                except psycopg.Error as e:
+                    print(f"tiles telemetry: can't read the gauges ({e})", file=sys.stderr)
+            return list(cache[kind])
 
-    def gauge(field: str) -> Callable[[CallbackOptions], Iterable[Observation]]:
+    def gauge(
+        kind: str, field: str, labels: tuple[str, ...], default: float | None = None
+    ) -> Callable[[CallbackOptions], Iterable[Observation]]:
         def observe(_options: CallbackOptions) -> Iterable[Observation]:
-            for r in rows():
-                value = r[field]
-                if value is None and field == "oldest_age":
-                    value = 0.0  # nothing waiting on site
+            for r in rows(kind):
+                value = r[field] if r[field] is not None else default
                 if value is not None:
-                    yield Observation(value, {"site": r["site"], "agent": r["agent"]})
+                    yield Observation(value, {label: r[label] for label in labels})
 
         return observe
 
-    METER.create_observable_gauge(
-        "tiles.agent.heartbeat_age", [gauge("heartbeat_age")], unit="s", description="Since the agent's last heartbeat"
-    )
-    METER.create_observable_gauge(
-        "tiles.agent.buffer.queued", [gauge("queued")], description="Readings waiting in the agent's buffer"
-    )
-    METER.create_observable_gauge(
+    def add(name: str, kind: str, field: str, description: str, unit: str = "", default: float | None = None) -> None:
+        labels = {"agents": ("site", "agent"), "jobs": ("command",), "notifications": ("site",)}[kind]
+        METER.create_observable_gauge(name, [gauge(kind, field, labels, default)], unit=unit, description=description)
+
+    add("tiles.agent.heartbeat_age", "agents", "heartbeat_age", "Since the agent's last heartbeat", "s")
+    add("tiles.agent.buffer.queued", "agents", "queued", "Readings waiting in the agent's buffer")
+    add(
         "tiles.agent.buffer.oldest_age",
-        [gauge("oldest_age")],
-        unit="s",
-        description="Age of the oldest reading waiting on site: the ingest lag",
+        "agents",
+        "oldest_age",
+        "Age of the oldest reading waiting on site: the ingest lag",
+        "s",
+        default=0.0,  # nothing waiting on site
     )
-    METER.create_observable_gauge(
-        "tiles.agent.buffer.dropped", [gauge("dropped")], description="Readings the agent dropped (buffer full)"
+    add("tiles.agent.buffer.dropped", "agents", "dropped", "Readings the agent dropped (buffer full)")
+    add("tiles.job.last_run_age", "jobs", "last_run_age", "Since the job's last run finished", "s")
+    add("tiles.job.last_failed", "jobs", "last_failed", "1 when the job's last run failed")
+    add("tiles.job.last_duration", "jobs", "last_duration", "How long the job's last run took", "s")
+    add("tiles.job.failed_runs_last_hour", "jobs", "failed_last_hour", "The job's failed runs in the last hour")
+    add("tiles.notifications.pending", "notifications", "pending", "Notifications waiting to be sent")
+    add(
+        "tiles.notifications.oldest_pending_age",
+        "notifications",
+        "oldest_pending_age",
+        "Age of the oldest notification waiting to be sent",
+        "s",
     )
+    add(
+        "tiles.notifications.given_up_last_hour",
+        "notifications",
+        "given_up_last_hour",
+        "Notifications given up after their retries in the last hour",
+    )
+
+
+def count_item(ok: bool) -> None:
+    """An item the running job ran (a binding, a detector), for its run's record."""
+    items = _job_items.get()
+    if items is not None:
+        items[0 if ok else 1] += 1
+
+
+def record_run(
+    settings: Settings, name: str, outcome: str, started: datetime, finished: datetime, items: list[int]
+) -> None:
+    """Writes a job's run to `job_runs` (and forgets runs over 30 days old). A failure to write it
+    is printed, not raised: the job's own outcome stands."""
+    try:
+        with (
+            suppress_instrumentation(),
+            psycopg.connect(
+                settings.database_url.get_secret_value(), autocommit=True, options=UNSCOPED, connect_timeout=5
+            ) as conn,
+        ):
+            conn.execute(
+                "INSERT INTO job_runs (command, outcome, started_at, finished_at, items_ok, items_failed)"
+                " VALUES (%s, %s, %s, %s, %s, %s)",
+                [name, outcome, started, finished, items[0], items[1]],
+            )
+            conn.execute(
+                "DELETE FROM job_runs WHERE command = %s AND finished_at < now() - make_interval(days => %s)",
+                [name, KEEP_RUNS_DAYS],
+            )
+    except psycopg.Error as e:
+        print(f"{name}: run not recorded ({e})", file=sys.stderr)
 
 
 @contextmanager
 def job(name: str, settings: Settings) -> Iterator[None]:
-    """A scheduled job's run: its outcome (failed when it exits non-zero or raises) and duration,
-    sent before the process exits."""
+    """A scheduled job's run: recorded in `job_runs` with its outcome (failed when it exits non-zero
+    or raises), duration and items; its spans are sent before the process exits."""
     configure("tiles-jobs", settings)
-    token = current_job.set(name)
-    started = time.perf_counter()
+    items = [0, 0]
+    items_token = _job_items.set(items)
+    started = datetime.now(UTC)
     outcome = "failed"
     try:
         yield
@@ -206,10 +299,8 @@ def job(name: str, settings: Settings) -> Iterator[None]:
         outcome = "ok" if e.code in (0, None) else "failed"
         raise
     finally:
-        attrs = {"command": name, "outcome": outcome}
-        job_runs.add(1, attrs)
-        job_duration.record(time.perf_counter() - started, attrs)
-        current_job.reset(token)
+        record_run(settings, name, outcome, started, datetime.now(UTC), items)
+        _job_items.reset(items_token)
         shutdown()
 
 
@@ -225,8 +316,3 @@ def job_main[**P, R](name: str) -> Callable[[Callable[P, R]], Callable[P, R]]:
         return run
 
     return wrap
-
-
-def job_name() -> str:
-    """The running job's name, as its command is called."""
-    return current_job.get() or Path(sys.argv[0]).name

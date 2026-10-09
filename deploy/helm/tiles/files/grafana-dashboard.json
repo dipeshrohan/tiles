@@ -273,46 +273,11 @@
     {
       "id": 7,
       "type": "timeseries",
-      "title": "Job runs per hour",
+      "title": "Since each job last ran",
       "gridPos": {
         "h": 8,
         "w": 8,
         "x": 0,
-        "y": 18
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": ["lastNotNull", "max"]
-        }
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "expr": "sum by (command, outcome) (increase(tiles_job_runs_total[1h]))",
-          "legendFormat": "{{command}} {{outcome}}"
-        }
-      ]
-    },
-    {
-      "id": 8,
-      "type": "timeseries",
-      "title": "Job duration (p95)",
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
         "y": 18
       },
       "datasource": {
@@ -335,15 +300,72 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (command, le) (rate(tiles_job_duration_seconds_bucket[1h])))",
+          "expr": "max by (command) (tiles_job_last_run_age_seconds)",
           "legendFormat": "{{command}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "Job duration and failed runs (last hour)",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 18
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": ["lastNotNull", "max"]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (command) (tiles_job_last_duration_seconds)",
+          "legendFormat": "{{command}} duration"
+        },
+        {
+          "refId": "B",
+          "expr": "max by (command) (tiles_job_failed_runs_last_hour)",
+          "legendFormat": "{{command}} failed runs"
         }
       ]
     },
     {
       "id": 9,
       "type": "timeseries",
-      "title": "Notifications per hour",
+      "title": "Notification outbox",
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -370,8 +392,13 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (outcome) (increase(tiles_notifications_total[1h]))",
-          "legendFormat": "{{outcome}}"
+          "expr": "max by (site) (tiles_notifications_pending)",
+          "legendFormat": "{{site}} waiting"
+        },
+        {
+          "refId": "B",
+          "expr": "max by (site) (tiles_notifications_given_up_last_hour)",
+          "legendFormat": "{{site}} given up (last hour)"
         }
       ]
     },

@@ -36,10 +36,10 @@ def run_each(ids: Callable[[Conn], list[uuid.UUID]], run_one: Callable[[Conn, uu
                     line, ok = run_one(conn, item)
             except Exception as e:
                 failed = True
-                telemetry.job_items.add(1, {"command": telemetry.job_name(), "outcome": "failed"})
+                telemetry.count_item(False)
                 print(f"{item}: not run ({e})", file=sys.stderr)
                 continue
-            telemetry.job_items.add(1, {"command": telemetry.job_name(), "outcome": "ok" if ok else "failed"})
+            telemetry.count_item(ok)
             print(f"{item}: {line}")
             failed = failed or not ok
     if failed:
