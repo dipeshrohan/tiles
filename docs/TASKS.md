@@ -140,7 +140,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T4.10` [#69](https://github.com/dipeshrohan/tiles/issues/69) ★ **Shared model registry for Design:** swelling and actuator models ported; versions immutable once published · ML · 3d · T3.01
 - [x] `T4.11` [#70](https://github.com/dipeshrohan/tiles/issues/70) **Runs API:** store runs with parent, version, parameters, output and author; restore; compare · BE · 2d · T4.10
 - [ ] `T4.12` [#71](https://github.com/dipeshrohan/tiles/issues/71) **Sweeps as background jobs:** progress UI and cancel; results cached · BE+FE · 3d · T4.10
-- [ ] `T4.13` [#72](https://github.com/dipeshrohan/tiles/issues/72) **Audit export:** PDF report plus JSON with the full lineage chain · BE · 2d · T4.11
+- [x] `T4.13` [#72](https://github.com/dipeshrohan/tiles/issues/72) **Audit export:** PDF report plus JSON with the full lineage chain · BE · 2d · T4.11
 - [x] `T4.14` [#73](https://github.com/dipeshrohan/tiles/issues/73) **Design Studio UI uses the API**, with shared projects for team collaboration · FE · 3d · T4.11
 - [ ] `T4.15` [#74](https://github.com/dipeshrohan/tiles/issues/74) ◇ **Register a model from GitHub or an HTTP endpoint,** run in a sandbox · BE · 4d · T4.10
 

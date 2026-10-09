@@ -236,7 +236,11 @@ const view: View = {
         </div>
         <div class="card">
           <div class="card-head"><div><h2>Run history</h2><p>Click a run to restore its exact parameters.</p></div>
-            <button class="btn sm" data-export ${runs.length ? '' : 'disabled'}>Export audit record</button>
+            ${
+              site
+                ? `<div class="row" style="gap:6px"><button class="btn sm" data-audit="json" ${runs.length ? '' : 'disabled'} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? '' : 'disabled'}>Audit report (PDF)</button></div>`
+                : `<button class="btn sm" data-export ${runs.length ? '' : 'disabled'}>Export audit record</button>`
+            }
           </div>
           ${
             runs.length
@@ -373,15 +377,35 @@ const view: View = {
       ctx.rerender();
       ctx.toast(`Restored run “${run.note || (site ? `#${run.id}` : run.id)}”`);
     });
-    onAll(root, '[data-export]', 'click', () => {
-      const record = auditRecord(shownRuns(), model.id);
-      const body = site && project ? { ...record, site, project: { id: project.id, name: project.name } } : record;
-      const blob = new Blob([JSON.stringify(body, null, 2)], { type: 'application/json' });
+    const download = (blob: Blob, name: string) => {
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `tiles-audit-${model.id}.json`;
+      a.download = name;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    };
+    onAll(root, '[data-export]', 'click', () => {
+      const record = auditRecord(shownRuns(), model.id);
+      download(
+        new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' }),
+        `tiles-audit-${model.id}.json`,
+      );
+    });
+    // With the API (T4.13): the latest run's audit record, made by the API from the stored runs.
+    onAll(root, '[data-audit]', 'click', async (b) => {
+      const latest = shownRuns()[0];
+      if (!site || !ctx.api || !latest) return;
+      const n = Number(latest.id);
+      try {
+        if (b.dataset.audit === 'pdf') download(await ctx.api.runs.auditPdf(site, n), `tiles-run-${n}-audit.pdf`);
+        else
+          download(
+            new Blob([await ctx.api.runs.audit(site, n)], { type: 'application/json' }),
+            `tiles-run-${n}-audit.json`,
+          );
+      } catch {
+        // The client showed why.
+      }
     });
   },
 };

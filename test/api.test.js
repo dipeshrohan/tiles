@@ -469,6 +469,19 @@ test('every design run call hits the documented path with its body', async () =>
   assert.deepEqual(JSON.parse(f.calls[5].body), { note: 'Back' });
 });
 
+test("a run's audit record comes back as the JSON file's text, its report as a PDF blob", async () => {
+  const pdf = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
+  const f = fakeFetch({ raw: '{"run": 3}' }, { raw: pdf });
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  assert.equal(await api.runs.audit('s', 3), '{"run": 3}');
+  const blob = await api.runs.auditPdf('s', 3);
+  assert.equal(await blob.text(), '%PDF-1.4');
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    ['GET /sites/s/runs/3/audit', 'GET /sites/s/runs/3/audit.pdf'],
+  );
+});
+
 test('design projects are listed and created as documented', async () => {
   const f = fakeFetch({ body: [] }, { body: {} }, { body: {} });
   const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });

@@ -229,6 +229,15 @@ A run's model is named by the registry's key (`cell-swelling`) or the browser's 
 
 **Projects (T4.14).** A site's design projects are shared by everyone on it (migration 0022). A run belongs to one project, or to none for runs made before projects. Its parent must be in the same project, and a restore follows the latest run of its model in its project. A project's name is unique on its site, whatever the case. The Design Studio uses these with the Tiles API: pick or create a project, save runs to it, see everyone's runs in it, and click a run to get its parameters back. Without the API, runs stay in the browser.
 
+**Audit export (T4.13).** The audit record of run *n* holds:
+- the run, its lineage back to the first run, and the runs any of them restored, newest first, each in full (parameters, output, units, note, author, time, changes from its parent);
+- the spec of every model version they ran, as stored in the organisation's `models` rows;
+- the site, organisation and project;
+- who exported it, and when;
+- a SHA-256 digest of `runs` as canonical JSON (keys sorted, no spaces), so anyone can check the runs weren't changed after the export.
+
+The record holds at most 5,000 runs; `complete` is false if it was cut. The PDF report has the same content: a header with the lineage and the digest, a section per run, then the model versions with their parameters and bounds. `pdf.py` writes it with the standard library only (Helvetica, WinAnsi text). In the Design Studio, with the API, **Audit record (JSON)** and **Audit report (PDF)** export the latest run's record.
+
 **Comparing** two runs of a model gives:
 - what changed: the version first, then each parameter;
 - each output in either run, with the difference and the percentage of the first.
@@ -242,6 +251,8 @@ A run's model is named by the registry's key (`cell-swelling`) or the browser's 
 | `GET /runs/{n}` | members | one run, with `lineage`: its parent, that run's parent, and so on back to the first run (at most 1,000; `lineage_complete` is false when it was cut) |
 | `POST /runs/{n}/restore` | engineers | `{"note"?}` (default "Restored run n") runs run *n* again as a new run after the model's latest |
 | `GET /runs/compare?a&b` | members | `{"a", "b", "changes", "outputs"}` |
+| `GET /runs/{n}/audit` | members | run *n*'s audit record as a JSON file (`format` "tiles-design-audit/1", `lineage`, `complete`, `runs`, `models`, `digest`, …) |
+| `GET /runs/{n}/audit.pdf` | members | the same as a PDF report |
 
 #### Model runner (T3.03)
 

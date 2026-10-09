@@ -682,7 +682,7 @@ export function createApiClient(options: ApiOptions) {
     method: Method,
     path: string,
     body?: unknown,
-    { anonymous = false, text = false } = {},
+    { anonymous = false, text = false, blob = false } = {},
   ): Promise<T> {
     const headers = await headersFor(body, anonymous);
     let res: Response;
@@ -698,6 +698,7 @@ export function createApiClient(options: ApiOptions) {
     const requestId = res.headers.get('x-request-id');
     if (res.status === 204) return undefined as T;
     if (text && res.ok) return (await res.text()) as T;
+    if (blob && res.ok) return (await res.blob()) as T;
     let parsed: unknown = null;
     try {
       parsed = await res.json();
@@ -989,6 +990,11 @@ export function createApiClient(options: ApiOptions) {
           request<DesignRun>('POST', `${base(siteId)}/${n}/restore`, { note }),
         compare: (siteId: string, a: number, b: number) =>
           request<RunComparison>('GET', `${base(siteId)}/compare${query({ a, b })}`),
+        // A run's audit record with its whole lineage (T4.13): the JSON file as it is, or a PDF report.
+        audit: (siteId: string, n: number) =>
+          request<string>('GET', `${base(siteId)}/${n}/audit`, undefined, { text: true }),
+        auditPdf: (siteId: string, n: number) =>
+          request<Blob>('GET', `${base(siteId)}/${n}/audit.pdf`, undefined, { blob: true }),
       };
     })(),
     designProjects: {
