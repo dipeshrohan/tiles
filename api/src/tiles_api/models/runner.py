@@ -94,7 +94,7 @@ def _read(
         if align_s > 0:
             joins.append(
                 sql.SQL(
-                    "JOIN LATERAL (SELECT value FROM samples x WHERE x.signal_id = {sig} AND x.value IS NOT NULL"
+                    "JOIN LATERAL (SELECT value FROM site_samples x WHERE x.signal_id = {sig} AND x.value IS NOT NULL"
                     " AND x.at <= s0.at AND x.at >= s0.at - make_interval(secs => {align})"
                     " ORDER BY x.at DESC LIMIT 1) {a} ON true"
                 ).format(sig=sql.Literal(sig), align=sql.Literal(align_s), a=a)
@@ -102,14 +102,14 @@ def _read(
         else:
             joins.append(
                 sql.SQL(
-                    "JOIN samples {a} ON {a}.signal_id = {sig} AND {a}.at = s0.at AND {a}.value IS NOT NULL"
+                    "JOIN site_samples {a} ON {a}.signal_id = {sig} AND {a}.at = s0.at AND {a}.value IS NOT NULL"
                 ).format(a=a, sig=sql.Literal(sig))
             )
     columns = sql.SQL(", ").join(sql.SQL("{}.value").format(sql.Identifier(f"s{i}")) for i in range(len(signals)))
     # Without a placeholder for a missing bound, so the planner can skip older chunks.
     since = sql.SQL("AND s0.at > %s") if after is not None else sql.SQL("")
     query = sql.SQL(
-        "SELECT s0.at, {columns} FROM samples s0 {joins} WHERE s0.signal_id = %s AND s0.value IS NOT NULL {since} "
+        "SELECT s0.at, {columns} FROM site_samples s0 {joins} WHERE s0.signal_id = %s AND s0.value IS NOT NULL {since} "
         "ORDER BY s0.at LIMIT %s"
     ).format(columns=columns, joins=sql.SQL(" ").join(joins), since=since)
     params: list[Any] = [signals[0], *([after] if after is not None else []), limit]
@@ -119,7 +119,7 @@ def _read(
 
 def _first_reading_after(conn: Conn, signal: str, after: datetime | None) -> bool:
     since = sql.SQL("AND at > %s") if after is not None else sql.SQL("")
-    query = sql.SQL("SELECT 1 FROM samples WHERE signal_id = %s AND value IS NOT NULL {since} LIMIT 1").format(
+    query = sql.SQL("SELECT 1 FROM site_samples WHERE signal_id = %s AND value IS NOT NULL {since} LIMIT 1").format(
         since=since
     )
     return conn.execute(query, [signal, *([after] if after is not None else [])]).fetchone() is not None
@@ -199,15 +199,20 @@ def _write(conn: Conn, readings: list[tuple[str, datetime, float]]) -> int:
     stored = 0
     for i in range(0, len(readings), 10_000):
         chunk = readings[i : i + 10_000]
-        cur = conn.execute(
-            """
-            INSERT INTO samples (signal_id, at, value)
-            SELECT * FROM unnest(%s::uuid[], %s::timestamptz[], %s::float8[])
-            ON CONFLICT (signal_id, at) DO NOTHING
-            """,
-            [[uuid.UUID(s) for s, _, _ in chunk], [t for _, t, _ in chunk], [v for _, _, v in chunk]],
-        )
-        stored += cur.rowcount
+        n = len(chunk)
+        row = conn.execute(  # through tiles_store_samples (row security, T5.04)
+            "SELECT tiles_store_samples(%s::uuid[], %s::timestamptz[], %s::float8[], %s::text[], %s::bool[],"
+            " %s::text[]) AS n",
+            [
+                [uuid.UUID(s) for s, _, _ in chunk],
+                [t for _, t, _ in chunk],
+                [v for _, _, v in chunk],
+                [None] * n,
+                [None] * n,
+                ["good"] * n,
+            ],
+        ).fetchone()
+        stored += int(row["n"]) if row else 0
     return stored
 
 

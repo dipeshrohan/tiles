@@ -19,7 +19,7 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api.api_ontology import Admin, Ctx
-from tiles_api.store import DbConn, one
+from tiles_api.store import DbConn, all_sites, one, scope_to_site
 
 router = APIRouter(tags=["edge agents"])
 
@@ -186,25 +186,27 @@ def agent_token(authorization: str) -> bytes:
 
 def calling_agent(conn: Any, authorization: str) -> dict[str, Any]:
     """The active agent whose token this is (id, site_id, name); 401 otherwise."""
-    row: dict[str, Any] | None = conn.execute(
-        "SELECT id, site_id, name FROM edge_agents WHERE token_hash = %s AND revoked_at IS NULL",
-        [agent_token(authorization)],
-    ).fetchone()
+    with all_sites(conn):  # the token says which site's agent it is
+        row: dict[str, Any] | None = conn.execute(
+            "SELECT id, site_id, name FROM edge_agents WHERE token_hash = %s AND revoked_at IS NULL",
+            [agent_token(authorization)],
+        ).fetchone()
     if row is None:
         raise _unauthorized("Unknown or revoked agent token")
+    scope_to_site(conn, row["site_id"])  # the rest of the request is the agent's site's (T5.04)
     return row
 
 
 @router.post("/agent/heartbeat", response_model=HeartbeatOut)
 def heartbeat(body: HeartbeatIn, conn: DbConn, authorization: Annotated[str, Header()] = "") -> HeartbeatOut:
     """Called by an edge agent every `heartbeat_seconds`, with its own token."""
+    agent = calling_agent(conn, authorization)
     row = conn.execute(
         """
         UPDATE edge_agents SET last_seen_at = clock_timestamp(), last_status = %s
-        WHERE token_hash = %s AND revoked_at IS NULL
-        RETURNING id, site_id, last_seen_at
+        WHERE id = %s RETURNING id, site_id, last_seen_at
         """,
-        [Jsonb(body.model_dump(mode="json")), agent_token(authorization)],
+        [Jsonb(body.model_dump(mode="json")), agent["id"]],
     ).fetchone()
     if row is None:
         raise _unauthorized("Unknown or revoked agent token")

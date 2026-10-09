@@ -99,7 +99,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T3.02` [#48](https://github.com/dipeshrohan/tiles/issues/48) ★ **Port the plunger-friction model** to the registry, with unit tests carried over from `physics.test.js` · ML · 2d · T3.01
 - [x] `T3.03` [#49](https://github.com/dipeshrohan/tiles/issues/49) ★ **Model runner:** runs registered models on new data windows and writes derived signals back to TimescaleDB · BE · 3d · T3.01, T2.06
 - [x] `T3.04` [#50](https://github.com/dipeshrohan/tiles/issues/50) ★ **Streaming detection job:** rolling robust baseline, how long a deviation must persist, cooldown; thresholds stored as config per signal · ML+BE · 3d · T3.03
-- [ ] `T3.05` [#51](https://github.com/dipeshrohan/tiles/issues/51) ★ **Backtest tool:** replay history to get recall, precision and warning-time distribution per threshold setting · ML · 3d · T3.04
+- [x] `T3.05` [#51](https://github.com/dipeshrohan/tiles/issues/51) ★ **Backtest tool:** replay history to get recall, precision and warning-time distribution per threshold setting · ML · 3d · T3.04
   *Done when:* a report generated for the partner's target machine. The tool is built (`POST /sites/{id}/backtest`, `tiles-backtest`); the report waits on the partner's history (T2.17).
 - [ ] `T3.06` [#13](https://github.com/dipeshrohan/tiles/issues/13) **Tune on partner history** and document the chosen settings · ML+FDE · 3d · T3.05, T2.17
 
@@ -156,7 +156,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [ ] `T5.03` [#77](https://github.com/dipeshrohan/tiles/issues/77) **Populate the pilot knowledge base:** SOPs, lessons learned, equipment history · FDE · 2d · T4.08
 
 ### Security
-- [ ] `T5.04` [#78](https://github.com/dipeshrohan/tiles/issues/78) ★ **Site-level permissions** with row-level security in Postgres · BE · 3d · T1.17
+- [x] `T5.04` [#78](https://github.com/dipeshrohan/tiles/issues/78) ★ **Site-level permissions** with row-level security in Postgres · BE · 3d · T1.17
 - [ ] `T5.05` [#79](https://github.com/dipeshrohan/tiles/issues/79) **Single sign-on with the customer's identity provider** (Azure AD / Entra) and SCIM user provisioning ◇ · BE · 2d · T1.16
 - [ ] `T5.06` [#80](https://github.com/dipeshrohan/tiles/issues/80) ★ **Encryption at rest, secrets manager, key rotation runbook** · BE · 2d
 - [ ] `T5.07` [#81](https://github.com/dipeshrohan/tiles/issues/81) ★ **Threat model** (STRIDE) and IEC 62443 gap list for the edge agent and cloud · TL · 2d · T3.15

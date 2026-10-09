@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from tiles_api import assistant, copilot_usage, grounding
 from tiles_api.api_ontology import Admin, Ctx, SiteContext
 from tiles_api.copilot_tools import tools_for
-from tiles_api.store import Conn, one
+from tiles_api.store import Conn, one, scope_to_site
 
 router = APIRouter(tags=["copilot"])
 log = logging.getLogger("tiles_api.copilot")
@@ -315,6 +315,13 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
         with pool.connection() as conn:
             yield SiteContext(conn, site_id, org_id, user)
 
+    @contextmanager
+    def site_conn() -> Iterator[Conn]:
+        """A pooled connection scoped to this site (row security, T5.04)."""
+        with pool.connection() as conn:
+            scope_to_site(conn, site_id)
+            yield conn
+
     def ms() -> int:
         return round((time.monotonic() - started) * 1000)
 
@@ -343,7 +350,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                 elif event.kind == "error" and event.data.get("over_budget"):
                     tally.outcome = "over_budget"
                 if event.kind == "message":
-                    with pool.connection() as conn:  # stored, the answer's lease renewed, its usage so far
+                    with site_conn() as conn:  # stored, the answer's lease renewed, its usage so far
                         conn.execute(
                             STORE,
                             {
@@ -366,7 +373,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
             if tally.outcome == "running":  # it ended without an answer
                 tally.outcome = "failed"
             t = tally.tokens
-            with pool.connection() as conn:
+            with site_conn() as conn:
                 conn.execute(
                     """
                     UPDATE conversations SET busy_since = NULL, updated_at = now(),

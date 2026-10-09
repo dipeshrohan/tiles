@@ -36,6 +36,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 
 ## Rules
 - Add or update tests with every behaviour change; never skip or disable a test.
+- A site's data is under row security (T5.04, migration 0024), closed when no site is named: a new table with a `site_id` needs a forced `site_rows` policy in its migration, and a table that belongs to a site through a parent needs one through the parent (`tests/test_row_security.py` fails otherwise). Requests are scoped by `SiteContext`; a pooled connection used outside one must scope itself (`store.scope_to_site`); jobs connect with `options=store.UNSCOPED`; widen with `store.all_sites` only for what spans sites. The API reads readings from the `site_samples` view and stores them with `tiles_store_samples`, never the `samples` table.
 - Keep the browser app free of runtime dependencies.
 - Escape any interpolated text with `esc()` when building HTML strings.
 - Task IDs (T1.01 …) map to GitHub issues; reference the issue in PRs.

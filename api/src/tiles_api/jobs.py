@@ -11,7 +11,7 @@ from psycopg import sql
 from psycopg.rows import dict_row
 
 from tiles_api.settings import get_settings
-from tiles_api.store import Conn
+from tiles_api.store import UNSCOPED, Conn
 
 
 def enabled(conn: Conn, table: Literal["model_bindings", "detectors"], site_id: uuid.UUID | None) -> list[uuid.UUID]:
@@ -26,7 +26,7 @@ def run_each(ids: Callable[[Conn], list[uuid.UUID]], run_one: Callable[[Conn, uu
     """Runs `run_one` on each id, one transaction each, printing the line it returns. An item that
     raises, or reports it didn't go well (False), makes the exit code 1."""
     failed = False
-    with psycopg.connect(get_settings().database_url, row_factory=dict_row, autocommit=True) as conn:
+    with psycopg.connect(get_settings().database_url, row_factory=dict_row, autocommit=True, options=UNSCOPED) as conn:
         for item in ids(conn):
             try:
                 with conn.transaction():

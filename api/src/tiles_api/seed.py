@@ -3,7 +3,7 @@
 import psycopg
 
 from tiles_api.settings import Settings, get_settings
-from tiles_api.store import one
+from tiles_api.store import UNSCOPED, one
 
 DEMO_ORG = ("demo", "Demo Manufacturing")
 DEMO_SITE = ("plant-1", "Plant 1")
@@ -12,7 +12,7 @@ DEMO_SITE = ("plant-1", "Plant 1")
 def seed(settings: Settings | None = None) -> str:
     """Returns the demo site's id."""
     settings = settings or get_settings()
-    with psycopg.connect(settings.database_url) as conn:
+    with psycopg.connect(settings.database_url, options=UNSCOPED) as conn:
         org = one(
             conn.execute(
                 "INSERT INTO orgs (slug, name) VALUES (%s, %s) ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug"

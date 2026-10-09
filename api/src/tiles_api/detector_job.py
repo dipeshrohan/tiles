@@ -88,7 +88,7 @@ def run(conn: Conn, detector_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunRe
         # No placeholder for a missing bound, so the planner can skip older chunks.
         since = sql.SQL("AND at > %s") if result.done_until is not None else sql.SQL("")
         query = sql.SQL(
-            "SELECT at, value FROM samples WHERE signal_id = %s AND value IS NOT NULL AND at <= %s {since}"
+            "SELECT at, value FROM site_samples WHERE signal_id = %s AND value IS NOT NULL AND at <= %s {since}"
             " ORDER BY at LIMIT %s"
         ).format(since=since)
         bound = [result.done_until] if result.done_until is not None else []
@@ -109,7 +109,8 @@ def run(conn: Conn, detector_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunRe
             break
         if batch == batches - 1:  # stopped at the limit: is anything left?
             more = conn.execute(
-                "SELECT 1 FROM samples WHERE signal_id = %s AND value IS NOT NULL AND at > %s AND at <= %s LIMIT 1",
+                "SELECT 1 FROM site_samples WHERE signal_id = %s AND value IS NOT NULL AND at > %s AND at <= %s"
+                " LIMIT 1",
                 [detector["signal_id"], result.done_until, until],
             ).fetchone()
             result.caught_up = more is None

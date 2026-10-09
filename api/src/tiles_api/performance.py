@@ -71,7 +71,7 @@ def report(
         """
         SELECT s.at, g.asset, g.event_kind AS kind, g.tag AS signal_tag,
                coalesce(s.value_text, s.value::text, s.value_bool::text) AS code
-        FROM samples s JOIN signals g ON g.id = s.signal_id
+        FROM site_samples s JOIN signals g ON g.id = s.signal_id
         WHERE g.site_id = %(site)s AND g.event_kind IS NOT NULL AND g.asset IS NOT NULL
           AND s.at >= %(start)s AND s.at <= %(end)s
           AND coalesce(s.value <> 0, s.value_bool, s.value_text <> '')
@@ -86,7 +86,7 @@ def report(
     detectors = conn.execute(
         """
         SELECT d.id, d.name, d.asset, d.config, d.done_until, g.tag AS signal_tag,
-               (SELECT min(at) FROM samples s WHERE s.signal_id = d.signal_id) AS first_at
+               (SELECT min(at) FROM site_samples s WHERE s.signal_id = d.signal_id) AS first_at
         FROM detectors d JOIN signals g ON g.id = d.signal_id WHERE d.site_id = %s ORDER BY d.name
         """,
         [site_id],
