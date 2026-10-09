@@ -1007,6 +1007,19 @@
 					usage: (siteId, days = 30) => request("GET", `${base(siteId)}/usage${query({ days })}`)
 				};
 			})(),
+			runs: (() => {
+				const base = (siteId) => `/sites/${encodeURIComponent(siteId)}/runs`;
+				return {
+					list: (siteId, q = {}) => request("GET", `${base(siteId)}${query(q)}`),
+					get: (siteId, n) => request("GET", `${base(siteId)}/${n}`),
+					create: (siteId, run) => request("POST", base(siteId), run),
+					restore: (siteId, n, note = "") => request("POST", `${base(siteId)}/${n}/restore`, { note }),
+					compare: (siteId, a, b) => request("GET", `${base(siteId)}/compare${query({
+						a,
+						b
+					})}`)
+				};
+			})(),
 			insights: (() => {
 				const base = (siteId) => `/sites/${encodeURIComponent(siteId)}/insights`;
 				const one = (siteId, n) => `${base(siteId)}/${n}`;

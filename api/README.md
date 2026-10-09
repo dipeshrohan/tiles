@@ -130,6 +130,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `dataset.create`, `dataset.rows`, `dataset.delete` | the dataset | `dataset.delete`: its name and rows | its name and columns; the rows added and the total |
 | `copilot.conversation.create`, `copilot.ask`, `copilot.conversation.delete` | the conversation | | `copilot.ask`: the question's length (not its text: conversations are private) |
 | `copilot.feedback`, `copilot.feedback.delete` | the conversation | | the answer's `seq` and the rating |
+| `run.create`, `run.restore` | the run's number | | its model, version and parent; the run restored and the parent |
 | `insight.create`, `insight.update`, `insight.review`, `insight.reopen`, `insight.delete` | the insight's number | `insight.update`: the fields changed; `insight.reopen`: its status; `insight.delete`: its title and status | its title and kind; the fields changed; the decision and note |
 | `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
@@ -210,6 +211,32 @@ The Design Studio's models (T4.10) are in the same registry, as `design` models:
 | `GET /models` | members | every registered model version with its inputs, outputs and parameters |
 | `GET /models/{key}` | members | a model's versions, newest first |
 | `POST /models/{key}/evaluate` | members | `{"version"?, "inputs": {name: [numbers]}, "params"?: {name: number}}` (up to 20 inputs of 100,000 numbers) runs it and answers the outputs; nothing is stored |
+
+#### Design runs (T4.11)
+
+A **run** is a design model version, its parameters and the output the API computes from them. The browser never sends an output. Each run is stored with:
+- its parent: the run it was changed from;
+- the run it restored, if any;
+- a note, and its author (name and email, kept even when the account is deleted);
+- the full set of parameters, defaults filled in.
+
+Runs are numbered per site and never change (migration 0020; a trigger refuses updates), so a design's lineage can be followed back to its first run and exported for audit (T4.13). A run refers to the organisation's `models` row for its version.
+
+A run's model is named by the registry's key (`cell-swelling`) or the browser's id (`swelling`, with versions like `2.0`); without a version it runs the latest. Only `design` models run, on numbers (not `true` or `"90"`). A parent must be a run of the same model, in any version. A site's runs are stored one at a time, so two restores at once don't both take the same latest run as their parent. A run whose version is no longer registered still shows, with its model's key as its name and no units, but can't be restored.
+
+**Restoring** run *n* runs its version and parameters again as a new run. Its parent is the model's latest run, so the history keeps what came between, and `restored_from` is *n*. Its output must equal run *n*'s, since a published version never changes; otherwise it is refused with 409 and nothing is stored.
+
+**Comparing** two runs of a model gives:
+- what changed: the version first, then each parameter;
+- each output in either run, with the difference and the percentage of the first.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `GET /runs?model&limit&offset` | members | `{"runs", "total"}`: the site's runs, latest first, of one model if named; each with its parameters, output, units, parent, `restored_from`, note, author and `changes` from its parent |
+| `POST /runs` | engineers | `{"model", "version"?, "params"?, "note"?, "parent"?}` runs the model and stores the run (201, with its `lineage`) |
+| `GET /runs/{n}` | members | one run, with `lineage`: its parent, that run's parent, and so on back to the first run (at most 1,000; `lineage_complete` is false when it was cut) |
+| `POST /runs/{n}/restore` | engineers | `{"note"?}` (default "Restored run n") runs run *n* again as a new run after the model's latest |
+| `GET /runs/compare?a&b` | members | `{"a", "b", "changes", "outputs"}` |
 
 #### Model runner (T3.03)
 
