@@ -23,7 +23,7 @@ RLS = importlib.import_module("tiles_api.migrations.versions.0024_site_row_secur
 # Tables of no one site: the organisation's, people, and the readings hypertable (TimescaleDB
 # refuses row security on a compressed hypertable: the API reads it through `site_samples` and
 # writes it with `tiles_store_samples`, and may not touch it otherwise).
-NO_SITE = {"alembic_version", "orgs", "sites", "users", "models", "samples"}
+NO_SITE = {"alembic_version", "orgs", "sites", "users", "models", "samples", "job_runs"}
 
 
 def tables(conn: psycopg.Connection[Any]) -> dict[str, tuple[bool, bool, bool]]:

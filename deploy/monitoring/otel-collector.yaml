@@ -1,0 +1,47 @@
+# OpenTelemetry Collector configuration for Tiles (T5.13). The API and the scheduled jobs push
+# traces and metrics here over OTLP (set OTEL_EXPORTER_OTLP_ENDPOINT=http://<collector>:4318, or
+# the Helm chart's monitoring.otlpEndpoint). Metrics are offered to Prometheus on :8889 (scrape it,
+# with the rules in deploy/helm/tiles/files/alerts.yaml); traces go to any OTLP backend (Tempo,
+# Jaeger, a vendor). Runs as is with otel/opentelemetry-collector-contrib.
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+  batch: {}
+  # Request URLs carry site ids, which are fine; drop the client address, which isn't needed.
+  attributes/strip:
+    actions:
+      - key: net.peer.ip
+        action: delete
+      - key: client.address
+        action: delete
+
+exporters:
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: false # service.name and friends stay on target_info, not on every series
+  otlphttp/traces:
+    endpoint: ${env:TRACES_ENDPOINT} # e.g. http://tempo:4318
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, attributes/strip, batch]
+      exporters: [otlphttp/traces]
