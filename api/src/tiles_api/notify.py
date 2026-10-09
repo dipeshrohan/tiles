@@ -123,15 +123,16 @@ def _utc(t: datetime) -> str:
     return t.astimezone(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
 
-def _num(x: float) -> str:
+def number_text(x: float) -> str:
+    """A reading as people read it: four significant digits, or whole above 1,000."""
     return f"{x:,.4g}" if abs(x) < 1000 else f"{x:,.0f}"
 
 
 def render(n: dict[str, Any], app_url: str) -> Message:
     """The message for a queued notification (a row of DUE), from the warning as it is now."""
     tag = n["signal_tag"]
-    limit = f"the threshold of {_num(n['threshold'])} (baseline {_num(n['baseline'])})"
-    out = f"peak {_num(n['peak'])}, {n['side']} {limit}"
+    limit = f"the threshold of {number_text(n['threshold'])} (baseline {number_text(n['baseline'])})"
+    out = f"peak {number_text(n['peak'])}, {n['side']} {limit}"
     started = _utc(n["started_at"])
     state = "still out" if n["ended_at"] is None else "back in since " + _utc(n["ended_at"])
     link = f"{app_url.rstrip('/')}/#/warnings"

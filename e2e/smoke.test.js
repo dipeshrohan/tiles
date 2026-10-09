@@ -2172,8 +2172,11 @@ test('the wear check: a welder tip climbing in its last day, with a limit', asyn
   await rerender(a.page); // the choices survive
   assert.equal(await a.page.inputValue(`${form} [name=limit]`), '1900');
   assert.equal(await a.page.inputValue(`${form} [name=direction]`), 'up');
+  const loads = () => fake.requests.filter((r) => r.endsWith('/series')).length;
+  const before = loads();
   await a.page.click(`${form} button[type=submit]`);
   await a.page.waitForSelector('[data-wear-result]:has-text("Wearing")');
+  assert.equal(loads(), before); // only its own section is redrawn, not the charts
   // The last day against the three before it, in 15-minute buckets.
   assert.deepEqual(fake.wearChecks.at(-1), {
     end: to,
@@ -2184,10 +2187,19 @@ test('the wear check: a welder tip climbing in its last day, with a limit', asyn
     limit: 1900,
   });
   assert.equal((await a.page.locator('[data-wear-result] svg .level').count()) >= 2, true); // baseline and limit
+  // Another question: the answer to the old one goes.
+  await a.page.selectOption(`${form} [name=direction]`, 'down');
+  await a.page.waitForSelector('[data-wear-result]', { state: 'detached' });
+  await a.page.selectOption(`${form} [name=direction]`, 'up');
+  await a.page.waitForSelector('[data-wear-result]:has-text("Wearing")'); // the same question again
   await a.page.fill(`${form} [name=limit]`, 'high');
   await a.page.click(`${form} button[type=submit]`);
   await a.page.waitForSelector('#toast:has-text("The limit is a number")');
   // A different range is a different question: its answer goes.
+  await a.page.fill(`${form} [name=limit]`, '1,900');
+  await a.page.click(`${form} button[type=submit]`);
+  await a.page.waitForSelector('[data-wear-result]:has-text("Wearing")');
+  assert.equal(fake.wearChecks.at(-1).limit, 1900);
   await a.page.click('[data-preset="24h"]');
   await a.page.waitForSelector('[data-wear-result]', { state: 'detached' });
   assert.deepEqual(a.errors, []);

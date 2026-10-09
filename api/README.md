@@ -313,7 +313,7 @@ Results are ranked by |d|. The numbers match the browser's finder: `test/fixture
 The demo copilot's welder check, for any signal. A wearing tool moves a signal's level: a welder tip's power climbs before its swap, a spindle's current or a cutter's force drifts.
 
 The readings are cut into equal buckets, each kept as its median. The **baseline** is the median of the buckets in `baseline_hours` before the recent window. The **recent level** is the median of the last `last` buckets (4 by default) of the last `recent_hours`, so one odd bucket doesn't decide. The check also gives:
-- the **change**: (recent − baseline) / baseline. It is **wearing** when the change reaches `threshold` (5% by default) in `direction` (`up`, `down` or `either`), and **stable** otherwise. It says **not enough data** below 6 baseline buckets, below `last` recent ones, or when the baseline is 0;
+- the **change**: (recent − baseline) / |baseline|, so a fall is negative whatever the sign. It is **wearing** when the change reaches `threshold` (5% by default) in `direction` (`up`, `down` or `either`), and **stable** otherwise. It says **not enough data** below 6 baseline buckets, below `last` recent ones, or when the baseline is 0;
 - the **slope** in the recent window, as the median of the slopes between every two buckets (Theil–Sen), so one spike can't tilt it;
 - given a `limit`, about how long until the level reaches it at that pace.
 

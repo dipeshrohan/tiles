@@ -38,9 +38,9 @@ test('the last day (at most a quarter of the range) is checked against the rest,
 });
 
 test('every plan fits what the API takes', () => {
-  for (const hours of [0.5, 1, 2, 7, 25, 49, 97, 24 * 7, 24 * 31, 24 * 90, 24 * 120]) {
+  for (const hours of [1, 2, 7, 25, 49, 97, 24 * 7, 24 * 31, 24 * 90, 24 * 100, 24 * 110, 24 * 120]) {
     const p = wearPlan(range(hours));
-    if (typeof p === 'string') continue;
+    assert.equal(typeof p, 'object', `${hours}: ${p}`);
     const width = p.bucket_minutes / 60;
     assert.ok(Number.isInteger(Math.round((p.recent_hours / width) * 1e9) / 1e9), `${hours}: recent`);
     assert.ok(Number.isInteger(Math.round((p.baseline_hours / width) * 1e9) / 1e9), `${hours}: baseline`);
@@ -52,7 +52,9 @@ test('every plan fits what the API takes', () => {
 test('a limit is a number or nothing', () => {
   assert.equal(parseLimit(' '), null);
   assert.equal(parseLimit('1900'), 1900);
-  assert.equal(parseLimit('2,5'), 2.5);
+  assert.equal(parseLimit('1,900'), 1900); // as the check's sentences write it
+  assert.equal(parseLimit('1,900.5'), 1900.5);
+  assert.equal(parseLimit('-12.5'), -12.5);
   assert.equal(parseLimit('high'), 'The limit is a number');
 });
 

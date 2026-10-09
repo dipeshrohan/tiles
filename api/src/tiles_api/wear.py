@@ -4,7 +4,8 @@ tool's does (a welder tip's power climbing before its swap, a spindle's current,
 The readings are first cut into equal time buckets, each its median. The baseline is the median of
 the buckets before the recent window; the recent level is the median of the last few buckets in
 it (four by default), so one odd bucket doesn't decide. The change is (recent - baseline) /
-baseline. On hourly buckets this is the browser's wearCheck (js/lib/analysis.ts), which the demo
+|baseline| (so a fall is negative whatever the baseline's sign). On hourly buckets, for a positive
+baseline, this is the browser's wearCheck (js/lib/analysis.ts), which the demo
 copilot runs on the welder: test/fixtures/wear-check.json keeps the two matched.
 
 It also says how fast the level moves in the recent window (the Theil-Sen slope: the median of
@@ -76,18 +77,20 @@ def assess(
     base = statistics.median(b.value for b in baseline)
     level = statistics.median(b.value for b in recent[-last:])
     slope = theil_sen(recent)
-    change = (level - base) / abs(base) if base else None
+    change = (level - base) / abs(base) if base else None  # a fall is negative, whatever the sign of the baseline
     if change is None:
         verdict: Verdict = "not_enough_data"  # a zero baseline has no relative change
     else:
         moved = {"up": change >= threshold, "down": change <= -threshold, "either": abs(change) >= threshold}
         verdict = "wearing" if moved[direction] else "stable"
-    return Assessment(verdict, base, level, change, slope, _hours_to(limit, level, slope, direction), **counts)
+    toward = direction if direction != "either" or limit is None else ("up" if limit >= base else "down")
+    return Assessment(verdict, base, level, change, slope, _hours_to(limit, level, slope, toward), **counts)
 
 
 def _hours_to(limit: float | None, level: float, slope: float | None, direction: Direction) -> float | None:
     """Hours until the level reaches `limit` at `slope`: 0 if it is there or past it (in
-    `direction`), None if it moves away from it or not at all."""
+    `direction`; for `either`, the side of the baseline the limit is on), None if it moves away
+    from it or not at all."""
     if limit is None:
         return None
     gap = limit - level

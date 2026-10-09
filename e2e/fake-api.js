@@ -559,7 +559,7 @@ export function createFakeApi({
         const enough = base.length >= 6 && recent.length >= 4;
         const baseline = enough ? median(base.map((b) => b.v)) : null;
         const last = enough ? median(recent.slice(-4).map((b) => b.v)) : null;
-        const change = enough && baseline ? (last - baseline) / baseline : null;
+        const change = enough && baseline ? (last - baseline) / Math.abs(baseline) : null;
         const moved =
           change !== null &&
           (q.direction === 'down' ? change <= -0.05 : q.direction === 'up' ? change >= 0.05 : Math.abs(change) >= 0.05);

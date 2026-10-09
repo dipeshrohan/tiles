@@ -12,6 +12,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validato
 
 from tiles_api import wear
 from tiles_api.api_ontology import Ctx
+from tiles_api.notify import number_text
 from tiles_api.store import one
 
 router = APIRouter(tags=["signals"])
@@ -84,7 +85,7 @@ GROUP BY 1 ORDER BY 1
 
 
 def _num(x: float, unit: str | None) -> str:
-    text = f"{x:,.0f}" if abs(x) >= 1000 else f"{x:.4g}"
+    text = number_text(x)
     return f"{text} {unit}" if unit else text
 
 
@@ -106,7 +107,7 @@ def explain(a: wear.Assessment, unit: str | None, limit: float | None, body: Wea
     head = "Wearing" if a.verdict == "wearing" else "Stable"
     parts = [
         f"{head}: the recent level is {_num(a.last, unit)}, {abs(a.change):.1%} {way} the baseline of "
-        f"{_num(a.baseline, unit)} (the threshold is {body.threshold:.0%})"
+        f"{_num(a.baseline, unit)} (the threshold is {body.threshold * 100:g}%)"
     ]
     if a.slope_per_hour is not None:
         per_day = a.slope_per_hour * 24

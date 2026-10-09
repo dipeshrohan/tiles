@@ -4242,7 +4242,7 @@
 		if (spanHours > MAX_SPAN_HOURS) return "Check at most 120 days at once: zoom in";
 		const step = STEPS.find((m) => spanHours * 60 / m <= MAX_BUCKETS) ?? 1440;
 		const buckets = Math.floor(spanHours * 60 / step);
-		const recent = Math.min(Math.floor(1440 / step), Math.floor(buckets / 4));
+		const recent = Math.max(4, Math.min(Math.floor(1440 / step), Math.floor(buckets / 4)));
 		if (recent < 4 || buckets - recent < 6) return "The range is too short to check for wear: zoom out";
 		return {
 			end: new Date(to).toISOString(),
@@ -4254,7 +4254,7 @@
 	function parseLimit(text) {
 		const t = text.trim();
 		if (!t) return null;
-		const n = Number(t.replace(",", "."));
+		const n = Number(t.replace(/[,\s]/g, ""));
 		return Number.isFinite(n) ? n : "The limit is a number";
 	}
 	var VERDICT = {
@@ -4780,43 +4780,75 @@
 		});
 		return w;
 	};
-	var wearKey = (id, range) => JSON.stringify([id, range]);
-	function wearSection(p, range) {
-		const w = wearOf(p.id);
-		const r = w.result?.key === wearKey(p.id, range) ? w.result : null;
+	var wearKey = (id, range, w) => JSON.stringify([
+		id,
+		range,
+		w.direction,
+		w.limit.trim()
+	]);
+	function wearForm(id) {
+		const w = wearOf(id);
 		const option = (v, text) => `<option value="${v}" ${w.direction === v ? "selected" : ""}>${text}</option>`;
-		return `<form class="row" style="gap:8px;flex-wrap:wrap;align-items:end" data-wear-form="${esc(p.id)}">
+		return `<form class="row" style="gap:8px;flex-wrap:wrap;align-items:end" data-wear-form="${esc(id)}">
       <label class="field">Wear moves it<select name="direction">${option("either", "either way")}${option("up", "up")}${option("down", "down")}</select></label>
       <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" style="width:8em"></label>
-      <button class="btn sm" type="submit" ${w.busy ? "disabled" : ""}>Check for wear</button>
+      <button class="btn sm" type="submit">Check for wear</button>
     </form>
-    ${r ? wearBlock(r.data, r.limit, fitWidth(TIME_CHART.width)) : ""}`;
+    <div data-wear-out></div>`;
 	}
-	async function checkWear(ctx, id) {
+	function showWear(box, ctx) {
+		const w = wearOf(box.dataset.wear ?? "");
+		const r = w.result?.key === wearKey(box.dataset.wear ?? "", ui(ctx).range, w) ? w.result : null;
+		const out = box.querySelector("[data-wear-out]");
+		if (out) out.innerHTML = r ? wearBlock(r.data, r.limit, fitWidth(TIME_CHART.width)) : "";
+		const button = box.querySelector("button[type=submit]");
+		if (button) button.disabled = w.busy;
+	}
+	function drawWear(box, ctx) {
+		const id = box.dataset.wear ?? "";
+		box.innerHTML = wearForm(id);
+		const form = box.querySelector("form");
+		if (!form) return;
+		const w = wearOf(id);
+		form.addEventListener("input", () => {
+			w.limit = field$1(form, "limit");
+		});
+		form.addEventListener("change", () => {
+			w.direction = field$1(form, "direction");
+			w.limit = field$1(form, "limit");
+			showWear(box, ctx);
+		});
+		onSubmit(box, "form", () => void checkWear(ctx, box));
+		showWear(box, ctx);
+	}
+	async function checkWear(ctx, box) {
 		const site = ctx.ontology.site;
 		const { range } = ui(ctx);
+		const id = box.dataset.wear ?? "";
 		const w = wearOf(id);
-		if (!ctx.api || !site || !range || w.busy) return;
+		if (w.busy) return;
+		if (!ctx.api || !site || !range) return void ctx.toast("Choose a range first");
 		const plan = wearPlan(range);
 		if (typeof plan === "string") return void ctx.toast(plan);
 		const limit = parseLimit(w.limit);
 		if (typeof limit === "string") return void ctx.toast(limit);
-		const key = wearKey(id, range);
+		const key = wearKey(id, range, w);
+		const query = {
+			...plan,
+			direction: w.direction,
+			limit
+		};
 		w.busy = true;
-		ctx.rerender();
+		showWear(box, ctx);
 		try {
 			w.result = {
 				key,
-				data: await ctx.api.signals.wearCheck(site.id, id, {
-					...plan,
-					direction: w.direction,
-					limit
-				}),
+				data: await ctx.api.signals.wearCheck(site.id, id, query),
 				limit
 			};
 		} catch {} finally {
 			w.busy = false;
-			ctx.rerender();
+			if (box.isConnected) showWear(box, ctx);
 		}
 	}
 	var iso = (t) => new Date(t).toISOString();
@@ -5084,6 +5116,7 @@
 				range: null,
 				catalogue: catalogue(ctx)
 			});
+			for (const id of wearStates.keys()) if (!u.picked.some((p) => p.id === id)) wearStates.delete(id);
 			const { picked, range } = u;
 			const canSave = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 			const chips = picked.map((p) => `<span class="badge">${esc(p.tag)} <button class="btn-link" type="button" data-remove="${esc(p.id)}" aria-label="Remove ${esc(p.tag)}">×</button></span>`).join(" ");
@@ -5107,7 +5140,7 @@
 			const charts = picked.map((p) => `<div class="card stack" style="gap:6px">
           <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? "")}</span></div>
           <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
-          ${wearSection(p, range)}
+          <div data-wear="${esc(p.id)}"></div>
         </div>`).join("");
 			return `${head}<div class="card stack" style="gap:12px">
         <form id="explorer-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
@@ -5175,19 +5208,7 @@
 				});
 				onSubmit(root, "#insight-save", () => void saveInsight$1(ctx));
 			}
-			root.querySelectorAll("[data-wear-form]").forEach((form) => {
-				const w = wearOf(form.dataset.wearForm ?? "");
-				form.addEventListener("change", () => {
-					w.direction = field$1(form, "direction");
-				});
-				form.addEventListener("input", () => {
-					w.limit = field$1(form, "limit");
-				});
-			});
-			onAll(root, "[data-wear-form]", "submit", (form, e) => {
-				e.preventDefault();
-				checkWear(ctx, form.dataset.wearForm ?? "");
-			});
+			root.querySelectorAll("[data-wear]").forEach((box) => drawWear(box, ctx));
 			loadCharts(root, ctx);
 		}
 	};

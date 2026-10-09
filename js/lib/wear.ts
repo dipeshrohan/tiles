@@ -20,7 +20,8 @@ export function wearPlan(range: { from: string; to: string }): WearCheckQuery | 
   if (spanHours > MAX_SPAN_HOURS) return 'Check at most 120 days at once: zoom in';
   const step = STEPS.find((m) => (spanHours * 60) / m <= MAX_BUCKETS) ?? 1440;
   const buckets = Math.floor((spanHours * 60) / step);
-  const recent = Math.min(Math.floor((24 * 60) / step), Math.floor(buckets / 4));
+  // At least four buckets: long ranges' buckets are long, and their last day may hold fewer.
+  const recent = Math.max(4, Math.min(Math.floor((24 * 60) / step), Math.floor(buckets / 4)));
   if (recent < 4 || buckets - recent < 6) return 'The range is too short to check for wear: zoom out';
   return {
     end: new Date(to).toISOString(),
@@ -30,11 +31,12 @@ export function wearPlan(range: { from: string; to: string }): WearCheckQuery | 
   };
 }
 
-// A limit typed in, or null; a string says why not.
+// A limit typed in, or null; a string says why not. Commas group thousands (1,900), as the
+// check's own sentences write them.
 export function parseLimit(text: string): number | null | string {
   const t = text.trim();
   if (!t) return null;
-  const n = Number(t.replace(',', '.'));
+  const n = Number(t.replace(/[,\s]/g, ''));
   return Number.isFinite(n) ? n : 'The limit is a number';
 }
 

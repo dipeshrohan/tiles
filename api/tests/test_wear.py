@@ -123,3 +123,26 @@ def test_requests_are_checked(api: TestClient, site: str) -> None:  # noqa: F811
         assert res.status_code == 422, body
         assert why in res.text, body
     assert api.post(f"/sites/{site}/signals/{signal}/wear-check", json={}, headers=ENG).status_code == 200
+
+
+def test_a_limit_already_passed_counts_on_either_side_of_the_baseline() -> None:
+    base = buckets([100.0] * 10)
+    over = buckets([116, 118, 120, 122, 124], first=10)  # rising past a limit above the baseline
+    assert wear.assess(base, over, limit=110).hours_to_limit == 0
+    back = buckets([128, 126, 124, 122, 120], first=10)  # falling back toward it: still past it
+    assert wear.assess(base, back, limit=110).hours_to_limit == 0
+    under = buckets([90, 88, 86, 84, 82], first=10)  # below a limit under the baseline
+    assert wear.assess(base, under, limit=95).hours_to_limit == 0
+    assert wear.assess(base, under, limit=70).hours_to_limit == pytest.approx(7.5)  # (70 - 85) / -2
+
+
+def test_a_fall_is_negative_whatever_the_baselines_sign() -> None:
+    vacuum = wear.assess(buckets([-10.0] * 6), buckets([-12.0] * 4, 6), direction="down")
+    assert vacuum.change == pytest.approx(-0.2)
+    assert vacuum.verdict == "wearing"
+
+
+def test_the_threshold_is_written_as_given(api: TestClient, site: str) -> None:  # noqa: F811
+    signal = load(api, site, "w03.cathode_power", FIXTURE["cathode"], step=HOUR)
+    out = check(api, site, signal, baseline_hours=48, threshold=0.025).json()
+    assert "(the threshold is 2.5%)" in out["text"]
