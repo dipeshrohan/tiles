@@ -3829,7 +3829,9 @@
 	}
 	var notifyDraft = { key: "" };
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/settings")) notifyDraft = { key: "" };
+		if (location.hash.toLowerCase().startsWith("#/settings")) return;
+		notifyDraft = { key: "" };
+		sourceDraft = null;
 	});
 	async function fillNotifications(root, ctx) {
 		const site = ctx.ontology.site;
@@ -3911,9 +3913,13 @@
 	var apiCheck = "";
 	var apiCheckSeq = 0;
 	var sourceDraft = null;
-	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/settings")) sourceDraft = null;
-	});
+	var sourceKey = (ds) => `${ds.mode}|${ds.apiUrl}`;
+	function readSource(form) {
+		return {
+			mode: form.elements.namedItem("mode").value === "api" ? "api" : "local",
+			apiUrl: field$1(form, "apiUrl")
+		};
+	}
 	function viewer(ctx) {
 		return `${ctx.auth.signedIn ? "signed-in" : "dev"}:${ctx.state.user.email}`;
 	}
@@ -4026,7 +4032,7 @@
 		render(ctx) {
 			const { user } = ctx.state;
 			const ds = ctx.dataSource;
-			const typed = sourceDraft ?? ds;
+			const typed = sourceDraft?.base === sourceKey(ds) ? sourceDraft : ds;
 			return `
       <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
       <div class="grid g2">
@@ -4068,8 +4074,8 @@
 				ctx.toast("Profile saved");
 			});
 			onSubmit(root, "#datasource", (form) => {
-				const mode = form.elements.namedItem("mode").value === "api" ? "api" : "local";
-				const apiUrl = normalizeBaseUrl(field$1(form, "apiUrl"));
+				const { mode, apiUrl: typedUrl } = readSource(form);
+				const apiUrl = normalizeBaseUrl(typedUrl);
 				if (mode === "api" && !isHttpUrl(apiUrl)) {
 					ctx.toast("Enter the API address, e.g. http://localhost:8000");
 					return;
@@ -4082,11 +4088,11 @@
 				});
 				ctx.toast(mode === "api" ? "Using the Tiles API" : "Using this browser only");
 			});
-			const source = root.querySelector("#datasource");
-			source?.addEventListener("input", () => {
+			const source = need(root, "#datasource");
+			source.addEventListener("input", () => {
 				sourceDraft = {
-					mode: source.elements.namedItem("mode").value === "api" ? "api" : "local",
-					apiUrl: field$1(source, "apiUrl")
+					base: sourceKey(ctx.dataSource),
+					...readSource(source)
 				};
 			});
 			onAll(root, "[data-test-api]", "click", async () => {
