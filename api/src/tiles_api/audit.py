@@ -10,7 +10,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from tiles_api.logging import request_id_var
-from tiles_api.store import Conn
+from tiles_api.store import Conn, all_sites
 
 
 # `at` is clock_timestamp(), when the write happened, rather than the column
@@ -48,6 +48,13 @@ def record(
             request_id_var.get(),
         ],
     )
+
+
+def record_org(conn: Conn, *, org_id: uuid.UUID, **entry: Any) -> None:
+    """An entry about the organisation itself (its sign-in, its users through SCIM: T5.05), which
+    belongs to no site. Row security keeps site-less rows out of every site's view."""
+    with all_sites(conn):
+        record(conn, org_id=org_id, site_id=None, **entry)
 
 
 # Newest first by time, which the (site_id, at DESC) index serves; id breaks ties

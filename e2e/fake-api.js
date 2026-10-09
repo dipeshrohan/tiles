@@ -98,6 +98,10 @@ export function createFakeApi({
 } = {}) {
   let origin = '';
   const codes = new Map(); // code -> { challenge, redirectUri }
+  const scopesAsked = []; // the scope of each sign-in sent to the provider
+  // The organisation's own sign-in (T5.05): its provider (served by /idp too) and SCIM tokens.
+  let orgProvider = null;
+  const scimTokens = [];
   const tokens = new Set();
   const site = { id: '11111111-1111-1111-1111-111111111111', slug: 'plant-1', name: 'Plant 1', org: 'demo' };
   const sites = [site]; // the organisation's; only `site` is served
@@ -404,6 +408,7 @@ export function createFakeApi({
       });
     if (url.pathname === '/idp/auth') {
       const q = url.searchParams;
+      scopesAsked.push(q.get('scope'));
       const code = randomUUID();
       codes.set(code, { challenge: q.get('code_challenge'), redirectUri: q.get('redirect_uri') });
       const back = new URL(q.get('redirect_uri'));
@@ -439,6 +444,18 @@ export function createFakeApi({
       return send(401, { detail: 'Sign in to use Tiles' });
     const user = bearer ? signedInAs : (req.headers['x-tiles-user'] ?? 'demo@example.com');
     if (url.pathname === '/auth/config' && slowAuthConfigMs) await new Promise((r) => setTimeout(r, slowAuthConfigMs));
+    if (url.pathname === '/auth/config' && url.searchParams.has('org')) {
+      if (!orgProvider || url.searchParams.get('org').toLowerCase() !== 'demo')
+        return send(404, { detail: 'That organisation has no sign-in of its own' });
+      return send(200, {
+        enabled: true,
+        issuer: `${origin}/idp`, // the provider's own issuer stands for its tenant: sign-in goes to /idp
+        client_id: orgProvider.client_id,
+        scope: orgProvider.scope,
+        org: 'demo',
+        dev_identity: !requireSignIn,
+      });
+    }
     if (url.pathname === '/auth/config')
       return send(200, {
         enabled: oidc,
@@ -469,6 +486,45 @@ export function createFakeApi({
         const made = { id: randomUUID(), slug, name: String(name).trim(), org: 'demo' };
         sites.push(made);
         return send(201, made);
+      }
+      if (url.pathname === '/org' && req.method === 'GET')
+        return send(200, { slug: 'demo', name: 'Demo', admin: (roles[user] ?? 'engineer') === 'admin' });
+      // The organisation's sign-in: organisation admins only (here: admins of the site).
+      if (url.pathname === '/org/identity-provider' || url.pathname.startsWith('/org/scim-tokens')) {
+        if ((roles[user] ?? 'engineer') !== 'admin')
+          return send(403, { detail: 'Creating a site needs an organisation admin' });
+        if (url.pathname === '/org/identity-provider') {
+          if (req.method === 'GET') return send(200, orgProvider);
+          if (req.method === 'PUT') {
+            const p = await body(req);
+            if (!/^https?:\/\//.test(p.issuer ?? '')) return send(422, { detail: 'The issuer is an https URL' });
+            orgProvider = { ...p, updated_at: new Date().toISOString() };
+            return send(200, orgProvider);
+          }
+          if (req.method === 'DELETE') {
+            if (!orgProvider) return send(404, { detail: 'Your organisation has no identity provider' });
+            orgProvider = null;
+            return send(204);
+          }
+        }
+        if (url.pathname === '/org/scim-tokens' && req.method === 'GET') return send(200, scimTokens);
+        if (url.pathname === '/org/scim-tokens' && req.method === 'POST') {
+          const made = {
+            id: randomUUID(),
+            name: (await body(req)).name,
+            created_at: new Date().toISOString(),
+            last_used_at: null,
+            revoked_at: null,
+          };
+          scimTokens.unshift(made);
+          return send(201, { ...made, token: `tiles_scim_${randomUUID()}` });
+        }
+        const revoking = scimTokens.find((t) => url.pathname === `/org/scim-tokens/${t.id}` && !t.revoked_at);
+        if (revoking && req.method === 'DELETE') {
+          revoking.revoked_at = new Date().toISOString();
+          return send(204);
+        }
+        return send(404, { detail: 'No such active SCIM token in your organisation' });
       }
       const agentsPath = `/sites/${site.id}/agents`;
       if (
@@ -1556,6 +1612,7 @@ export function createFakeApi({
     server,
     requests,
     bearersSeen,
+    scopesAsked,
     datasets,
     correlations,
     // The copilot: the next answers to give, the questions asked, the ratings given.

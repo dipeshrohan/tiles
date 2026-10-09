@@ -99,7 +99,8 @@ for (const colorScheme of ['light', 'dark']) {
 }
 
 test('pages with the API’s data on them pass the accessibility rules, charts included', async (t) => {
-  const fake = createFakeApi();
+  // An admin, so the admins' cards are checked too (the audit log, the organisation's sign-in).
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();
   t.after(() => fake.close());
   const now = Date.now();

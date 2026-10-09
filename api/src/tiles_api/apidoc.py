@@ -75,7 +75,13 @@ def routes(app: FastAPI) -> Iterator[APIRoute]:
     yield from walk(list(app.routes))
 
 
-PUBLIC = {"/health", "/ready", "/auth/config"}  # open by design; anything else must sign in
+PUBLIC = {
+    "/health",
+    "/ready",
+    "/auth/config",
+    "/scim/v2/ServiceProviderConfig",
+    "/scim/v2/ResourceTypes",
+}  # open by design; anything else must sign in
 
 
 def caller(route: APIRoute) -> str:
@@ -98,6 +104,8 @@ def caller(route: APIRoute) -> str:
         return "admin"
     if "engineer" in roles:
         return "engineer"
+    if "SCIM token" in roles:
+        return "SCIM token"
     names = {getattr(c, "__name__", "") for c in calls}
     if "site_context" in names:
         return "site member"

@@ -566,6 +566,72 @@ test('site admins see the audit log in settings; others do not', async (t) => {
   assert.equal(await page.locator('#audit').count(), 0);
 });
 
+test('organisation admins set their own sign-in and SCIM tokens; people sign in through it', async (t) => {
+  const admins = { 'demo@example.com': 'admin', 'ana@example.com': 'admin' };
+  const fake = createFakeApi({ oidc: true, roles: admins });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  page.on('dialog', (d) => void d.accept());
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  await page.goto(`${home}#/settings`);
+  await page.waitForSelector('#org-sign-in:has-text("signs in through this deployment")');
+
+  // The provider: the fake's own /idp stands in for an Entra ID tenant.
+  const scope = 'openid profile email offline_access api://8a2b/access';
+  const tenant = 'https://login.microsoftonline.com/6f1d0a59-0000-4000-8000-000000000001/v2.0';
+  await page.fill('#org-provider-form [name=issuer]', 'http://idp.example.com');
+  await page.fill('#org-provider-form [name=clientId]', 'spa-client');
+  await page.fill('#org-provider-form [name=audience]', 'api-app');
+  await page.fill('#org-provider-form [name=scope]', scope);
+  await page.fill('#org-provider-form [name=groupRoles]', 'moulding-engineers = engineer');
+  await page.click('#org-provider-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("The issuer is an https address")'); // refused here
+  await page.fill('#org-provider-form [name=issuer]', tenant);
+  await page.click('#org-provider-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Organisation sign-in saved")');
+  await page.waitForSelector(`#org-sign-in:has-text("Signs in through ${tenant}")`);
+  assert.equal(await page.inputValue('#org-provider-form [name=groupRoles]'), 'moulding-engineers = engineer');
+
+  // A SCIM token, shown once, with the tenant URL to give the provider.
+  assert.match(await page.locator('#org-sign-in').innerText(), new RegExp(`${apiUrl}/scim/v2`));
+  await page.fill('#scim-token-form [name=name]', 'Entra ID provisioning');
+  await page.click('#scim-token-form button[type=submit]');
+  await page.waitForSelector('[data-scim-token]');
+  assert.match(await page.locator('[data-scim-token] pre').innerText(), /^tiles_scim_/);
+  await page.click('[data-scim-token-done]');
+  await page.waitForSelector('[data-scim-token]', { state: 'detached' });
+  await page.click('[data-revoke-scim]');
+  await page.waitForSelector('#org-sign-in:has-text("No SCIM tokens yet")');
+
+  // Signing in through the organisation's own provider asks for its scope.
+  await page.fill('#org-sign-in-form [name=org]', 'Demo');
+  await page.click('#org-sign-in-form button[type=submit]');
+  await page.waitForSelector('#account:has-text("through demo\'s own sign-in")');
+  assert.deepEqual(fake.scopesAsked, [scope]);
+  // An organisation without one is told so.
+  await page.click('#account [data-sign-out]');
+  await page.waitForSelector('#account [data-sign-in]');
+  assert.equal(await page.inputValue('#org-sign-in-form [name=org]'), 'demo'); // remembered
+  await page.fill('#org-sign-in-form [name=org]', 'acme');
+  await page.click('#org-sign-in-form button[type=submit]');
+  await page.waitForSelector('#toast:has-text("acme has no sign-in of its own")');
+  assert.deepEqual(
+    errors.filter((e) => !/status of 404/.test(e)),
+    [],
+  );
+
+  // Not an organisation admin: no card.
+  const engineer = createFakeApi();
+  const engineerUrl = await engineer.listen();
+  t.after(() => engineer.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(engineerUrl)}#/settings`);
+  await page.waitForSelector('#account');
+  await page.waitForTimeout(200);
+  assert.equal(await page.locator('#org-sign-in').isVisible(), false);
+});
+
 test('site admins register edge agents and see them come online', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();

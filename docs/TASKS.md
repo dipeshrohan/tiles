@@ -157,7 +157,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 
 ### Security
 - [x] `T5.04` [#78](https://github.com/dipeshrohan/tiles/issues/78) ★ **Site-level permissions** with row-level security in Postgres · BE · 3d · T1.17
-- [ ] `T5.05` [#79](https://github.com/dipeshrohan/tiles/issues/79) **Single sign-on with the customer's identity provider** (Azure AD / Entra) and SCIM user provisioning ◇ · BE · 2d · T1.16
+- [x] `T5.05` [#79](https://github.com/dipeshrohan/tiles/issues/79) **Single sign-on with the customer's identity provider** (Azure AD / Entra) and SCIM user provisioning ◇ · BE · 2d · T1.16
 - [x] `T5.06` [#80](https://github.com/dipeshrohan/tiles/issues/80) ★ **Encryption at rest, secrets manager, key rotation runbook** · BE · 2d
 - [x] `T5.07` [#81](https://github.com/dipeshrohan/tiles/issues/81) ★ **Threat model** (STRIDE) and IEC 62443 gap list for the edge agent and cloud · TL · 2d · T3.15
 - [x] `T5.08` [#82](https://github.com/dipeshrohan/tiles/issues/82) **Dependency and container scanning in the automated checks**; SBOM generation · TL · 1d · T1.02

@@ -12,6 +12,7 @@ import {
   type TeamsChannel,
 } from '../lib/api.ts';
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
+import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import type { Context, View } from './types.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
@@ -19,19 +20,26 @@ function accountCard(ctx: Context): string {
   const { config, signedIn } = ctx.auth;
   const { user } = ctx.state;
   let body: string;
+  // An organisation with its own identity provider (T5.05) signs in through it, by its slug.
+  const orgForm = `<form class="row" id="org-sign-in-form" style="gap:8px;flex-wrap:wrap">
+      <label class="field" style="flex:1;min-width:180px">Or with your organisation's own sign-in<input type="text" name="org" value="${esc(ctx.auth.signInOrg)}" placeholder="your organisation, e.g. acme" pattern="[A-Za-z0-9][A-Za-z0-9\\-]{0,62}" required /></label>
+      <div style="align-self:end"><button class="btn" type="submit">Sign in with it</button></div>
+    </form>`;
   if (!config) body = '<p class="small soft">Checking how this API signs people in…</p>';
-  else if (!config.enabled)
-    body = '<p class="small soft">This API has no sign-in configured; requests act as the development user.</p>';
   else if (signedIn)
-    body = `<p>Signed in as <b>${esc(user.name)}</b> <span class="soft">(${esc(user.email)})</span></p>
+    body = `<p>Signed in as <b>${esc(user.name)}</b> <span class="soft">(${esc(user.email)})</span>${
+      ctx.auth.signInOrg ? ` through <b>${esc(ctx.auth.signInOrg)}</b>'s own sign-in` : ''
+    }</p>
       <div><button class="btn" type="button" data-sign-out>Sign out</button></div>`;
+  else if (!config.enabled)
+    body = `<p class="small soft">This API has no sign-in of its own; requests act as the development user.</p>${orgForm}`;
   else
     body = `<p class="small soft">${
       config.dev_identity
         ? 'Not signed in: until you sign in, you act as the development user.'
         : 'Sign in to use this Tiles API.'
     }</p>
-      <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>`;
+      <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>${orgForm}`;
   return `<div class="card stack" id="account" style="gap:12px"><h2>Account</h2>${body}</div>`;
 }
 
@@ -515,6 +523,7 @@ const view: View = {
           <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
         ${ds.mode === 'api' ? accountCard(ctx) : ''}
+        ${ds.mode === 'api' ? orgSignInCard() : ''}
         ${ctx.ontology.site ? notificationsCard(ctx) : ''}
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === 'admin') : ''}
         ${ctx.ontology.role === 'admin' ? copilotUsageCard() : ''}
@@ -574,7 +583,9 @@ const view: View = {
     bindAgents(root, ctx);
     void fillNotifications(root, ctx);
     onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());
+    onSubmit(root, '#org-sign-in-form', (form) => void ctx.auth.signIn(field(form, 'org')));
     onAll(root, '[data-sign-out]', 'click', () => void ctx.auth.signOut());
+    void bindOrgSignIn(root, ctx);
     onAll(root, '[data-reset]', 'click', () => {
       if (confirm('Reset ontology history, design runs and chat to the demo defaults?')) ctx.reset();
     });

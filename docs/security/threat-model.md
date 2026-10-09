@@ -96,7 +96,7 @@ The trust boundaries, from the inside out:
 | Requirement | Status | Note or action |
 |---|---|---|
 | SR 1.1 / 1.2 Human and software identification | Done | OIDC for people, tokens for agents |
-| SR 1.3 Account management | Partial | Users are made at first sign-in; provisioning and deprovisioning with SCIM is T5.05 |
+| SR 1.3 Account management | Done | Users are made at first sign-in, or provisioned from the customer's directory with SCIM, which also deactivates and deletes them (T5.05, [Entra ID and SCIM](../guides/entra-id.md)) |
 | SR 1.7 Password strength | Done | At the identity provider (Entra / Keycloak policy) |
 | SR 1.11 Unsuccessful login attempts | Done | At the identity provider |
 | SR 2.1 Authorisation enforcement | Done | Roles per endpoint and row security per site |

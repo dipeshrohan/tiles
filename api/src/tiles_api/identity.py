@@ -3,7 +3,9 @@
 Organisations and users are created on first sign-in. A user's first visit to
 a site makes them a member with the role their token grants (viewer unless it
 carries tiles-engineer or tiles-admin); after that the stored membership is
-what counts, so admins can change it (T1.17).
+what counts, so admins can change it (T1.17). A user deactivated or deleted
+(through SCIM, T5.05) can't sign in, and an organisation that enforces its own
+identity provider takes no other sign-in.
 """
 
 import uuid
@@ -37,11 +39,27 @@ def ensure_org(conn: Conn, slug: str) -> uuid.UUID:
 
 
 def ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, object]:
+    """The user `p` is in the organisation, created or linked on first sign-in; 403 when they may
+    not sign in (deactivated, or not through the organisation's enforced provider)."""
+    if p.subject and not p.org_provider:
+        enforced = conn.execute(
+            "SELECT 1 FROM org_identity_providers WHERE org_id = %s AND enforced", [org_id]
+        ).fetchone()
+        if enforced:
+            raise HTTPException(403, "Your organisation signs in through its own identity provider")
+    user = _ensure_user(conn, p, org_id)
+    if not user["active"] or user["deleted_at"] is not None:
+        raise HTTPException(403, "Your account has been deactivated; ask your organisation's administrator")
+    return user
+
+
+def _ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, object]:
     if p.subject:
         # Known by their identity-provider subject: refresh name and email.
         row = conn.execute(
             "UPDATE users SET email = %s, name = %s, last_seen_at = now()"
-            " WHERE oidc_issuer = %s AND oidc_subject = %s RETURNING id, name, email, org_admin, org_id",
+            " WHERE oidc_issuer = %s AND oidc_subject = %s"
+            " RETURNING id, name, email, org_admin, org_id, active, deleted_at",
             [p.email, p.name, p.issuer, p.subject],
         ).fetchone()
         if row:
@@ -49,17 +67,22 @@ def ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, object
                 # Policy: an identity belongs to one organisation; moving it is an admin task.
                 raise HTTPException(403, "Your sign-in belongs to another organisation")
             return row
-        # A user created before sign-in (same email, no subject yet): link them.
+        # A user created before sign-in (same email, no subject yet: by an admin or SCIM): link
+        # them. The organisation's own provider vouches for its people, so it also takes over a
+        # user bound to another issuer (this deployment's, before the organisation had one); never
+        # one bound to itself under another subject.
         row = conn.execute(
             "UPDATE users SET oidc_issuer = %s, oidc_subject = %s, name = %s, last_seen_at = now()"
-            " WHERE org_id = %s AND email = %s AND oidc_subject IS NULL RETURNING id, name, email, org_admin, org_id",
-            [p.issuer, p.subject, p.name, org_id, p.email],
+            " WHERE org_id = %s AND email = %s"
+            " AND (oidc_subject IS NULL OR (%s AND oidc_issuer IS DISTINCT FROM %s))"
+            " RETURNING id, name, email, org_admin, org_id, active, deleted_at",
+            [p.issuer, p.subject, p.name, org_id, p.email, p.org_provider, p.issuer],
         ).fetchone()
         if row:
             return row
         row = conn.execute(
             "INSERT INTO users (org_id, email, name, oidc_issuer, oidc_subject) VALUES (%s, %s, %s, %s, %s)"
-            " ON CONFLICT (org_id, email) DO NOTHING RETURNING id, name, email, org_admin, org_id",
+            " ON CONFLICT (org_id, email) DO NOTHING RETURNING id, name, email, org_admin, org_id, active, deleted_at",
             [org_id, p.email, p.name, p.issuer, p.subject],
         ).fetchone()
         if row is None:
@@ -71,7 +94,7 @@ def ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, object
         conn.execute(
             "INSERT INTO users (org_id, email, name) VALUES (%s, %s, %s)"
             " ON CONFLICT (org_id, email) DO UPDATE SET last_seen_at = now()"
-            " RETURNING id, name, email, org_admin, org_id",
+            " RETURNING id, name, email, org_admin, org_id, active, deleted_at",
             [org_id, p.email, p.name],
         ).fetchone()
     )

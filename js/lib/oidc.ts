@@ -14,6 +14,8 @@ export interface SignInConfig {
   redirectUri: string;
   // The Tiles API this sign-in is for. Its token is only ever sent there.
   apiUrl: string;
+  // What to ask for; an organisation's provider may need its API's scope (Entra ID: api://…/access).
+  scope?: string;
 }
 
 export interface Session {
@@ -24,6 +26,8 @@ export interface Session {
   issuer: string;
   clientId: string;
   apiUrl: string;
+  // Asked for again on refresh (Entra ID wants it); unset for the default.
+  scope?: string;
 }
 
 // A failed sign-in, with the page to go back to (so ?api=… survives).
@@ -104,7 +108,7 @@ export async function beginSignIn(config: SignInConfig, returnTo: string, doFetc
     response_type: 'code',
     client_id: config.clientId,
     redirect_uri: config.redirectUri,
-    scope: 'openid email profile',
+    scope: config.scope || 'openid email profile',
     state: pending.state,
     code_challenge: await codeChallenge(pending.verifier),
     code_challenge_method: 'S256',
@@ -122,7 +126,7 @@ interface TokenResponse {
 async function tokenRequest(
   endpoint: string,
   form: Record<string, string>,
-  config: Pick<Session, 'issuer' | 'clientId' | 'apiUrl'>,
+  config: Pick<Session, 'issuer' | 'clientId' | 'apiUrl' | 'scope'>,
   doFetch: Fetch,
   now: number,
 ): Promise<Session> {
@@ -141,6 +145,7 @@ async function tokenRequest(
     issuer: config.issuer,
     clientId: config.clientId,
     apiUrl: config.apiUrl,
+    ...(config.scope ? { scope: config.scope } : {}),
   };
 }
 
@@ -219,7 +224,12 @@ async function refresh(session: Session, doFetch: Fetch, now: number): Promise<s
     const endpoints = await discover(session.issuer, doFetch);
     const next = await tokenRequest(
       endpoints.token_endpoint,
-      { grant_type: 'refresh_token', refresh_token: session.refreshToken, client_id: session.clientId },
+      {
+        grant_type: 'refresh_token',
+        refresh_token: session.refreshToken,
+        client_id: session.clientId,
+        ...(session.scope ? { scope: session.scope } : {}),
+      },
       session,
       doFetch,
       now,

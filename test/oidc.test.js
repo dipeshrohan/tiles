@@ -111,6 +111,19 @@ test('access tokens are reused, then refreshed shortly before they expire', asyn
   assert.equal(loadSession().refreshToken, 'rt'); // not rotated: the old one is kept
 });
 
+test("an organisation's provider gets its own scope, asked for again on refresh", async () => {
+  const scope = 'openid profile email offline_access api://8a2b/access';
+  const p = provider({ status: 200, body: { access_token: 'first', expires_in: 300, refresh_token: 'rt' } });
+  const q = new URL(await beginSignIn({ ...config, scope }, '#/', p.fn)).searchParams;
+  assert.equal(q.get('scope'), scope);
+  await completeSignIn(`?code=abc&state=${q.get('state')}`, p.fn, 0);
+  assert.equal(loadSession().scope, scope);
+  const r = provider({ status: 200, body: { access_token: 'second', expires_in: 300 } });
+  assert.equal(await accessToken(API, r.fn, 290_000), 'second');
+  assert.equal(r.tokenCalls[0].scope, scope);
+  assert.equal(loadSession().scope, scope);
+});
+
 test('a session that cannot be renewed is ended', async () => {
   await signedIn(300);
   assert.equal(await accessToken(API, provider().fn, 299_000), null);

@@ -832,7 +832,7 @@
 			if (token) headers.Authorization = `Bearer ${token}`;
 			return headers;
 		}
-		async function request(method, path, body, { anonymous = false, text = false, blob = false } = {}) {
+		async function request(method, path, body, { anonymous = false, text = false, blob = false, quiet = false } = {}) {
 			const headers = await headersFor(body, anonymous);
 			let res;
 			try {
@@ -854,7 +854,11 @@
 			} catch {
 				if (res.ok) return fail(new ApiError("The Tiles API sent a response that is not JSON", res.status, requestId));
 			}
-			if (!res.ok) return fail(new ApiError(errorMessage(parsed, res.status), res.status, requestId));
+			if (!res.ok) {
+				const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId);
+				if (quiet) throw error;
+				return fail(error);
+			}
 			return parsed;
 		}
 		function fail(error) {
@@ -908,11 +912,23 @@
 			baseUrl: base,
 			request,
 			health: () => request("GET", "/health"),
-			authConfig: () => request("GET", "/auth/config", void 0, { anonymous: true }),
+			authConfig: (org) => request("GET", org ? `/auth/config?org=${encodeURIComponent(org)}` : "/auth/config", void 0, {
+				anonymous: true,
+				quiet: !!org
+			}),
 			me: () => request("GET", "/me"),
 			sites: () => request("GET", "/sites"),
 			createSite: (site) => request("POST", "/sites", site),
 			onboarding: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/onboarding`),
+			org: {
+				me: () => request("GET", "/org"),
+				identityProvider: () => request("GET", "/org/identity-provider"),
+				setIdentityProvider: (p) => request("PUT", "/org/identity-provider", p),
+				removeIdentityProvider: () => request("DELETE", "/org/identity-provider"),
+				scimTokens: () => request("GET", "/org/scim-tokens"),
+				createScimToken: (name) => request("POST", "/org/scim-tokens", { name }),
+				revokeScimToken: (id) => request("DELETE", `/org/scim-tokens/${encodeURIComponent(id)}`)
+			},
 			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
 			members: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/members`),
 			audit: (siteId, { limit = 100, offset = 0 } = {}) => request("GET", `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
@@ -1173,7 +1189,7 @@
 			response_type: "code",
 			client_id: config.clientId,
 			redirect_uri: config.redirectUri,
-			scope: "openid email profile",
+			scope: config.scope || "openid email profile",
 			state: pending.state,
 			code_challenge: await codeChallenge(pending.verifier),
 			code_challenge_method: "S256"
@@ -1195,7 +1211,8 @@
 			idToken: body.id_token,
 			issuer: config.issuer,
 			clientId: config.clientId,
-			apiUrl: config.apiUrl
+			apiUrl: config.apiUrl,
+			...config.scope ? { scope: config.scope } : {}
 		};
 	}
 	async function completeSignIn(search, doFetch = fetch, now = Date.now()) {
@@ -1252,7 +1269,8 @@
 			const next = await tokenRequest((await discover(session.issuer, doFetch)).token_endpoint, {
 				grant_type: "refresh_token",
 				refresh_token: session.refreshToken,
-				client_id: session.clientId
+				client_id: session.clientId,
+				...session.scope ? { scope: session.scope } : {}
 			}, session, doFetch, now);
 			write(SESSION_KEY, {
 				...next,
@@ -4803,17 +4821,206 @@
 	}
 	var percent$1 = (share) => share === null ? "–" : `${Math.round(share * 100)}%`;
 	//#endregion
+	//#region js/lib/org-sign-in.ts
+	var ROLES = [
+		"viewer",
+		"engineer",
+		"admin"
+	];
+	function parseGroupRoles(text) {
+		const roles = {};
+		const errors = [];
+		text.split("\n").forEach((raw, i) => {
+			const line = raw.replace(/#.*$/, "").trim();
+			if (!line) return;
+			const m = /^(.+?)\s*[=:]\s*(\S+)$/.exec(line);
+			const role = m?.[2]?.toLowerCase();
+			if (!m?.[1] || !role || !ROLES.includes(role)) {
+				errors.push(`Line ${i + 1}: write a group ID, then = and viewer, engineer or admin`);
+				return;
+			}
+			roles[m[1].trim()] = role;
+		});
+		return {
+			roles,
+			errors
+		};
+	}
+	function groupRolesText(roles) {
+		return Object.entries(roles).map(([group, role]) => `${group} = ${role}`).join("\n");
+	}
+	function scimBaseUrl(apiUrl) {
+		return `${apiUrl.replace(/\/+$/, "")}/scim/v2`;
+	}
+	function providerFromForm(f) {
+		const errors = [];
+		const issuer = f.issuer.trim().replace(/\/+$/, "");
+		if (!/^https:\/\/[^/?#\s]+(\/[^?#\s]*)?$/.test(issuer)) errors.push("The issuer is an https address");
+		if (!f.clientId.trim()) errors.push("Give the browser’s client ID");
+		if (!f.audience.trim()) errors.push("Give the audience: the API app’s ID, as the tokens name it");
+		const jwks = f.jwksUrl.trim();
+		if (jwks && !jwks.startsWith("https://")) errors.push("The signing keys’ address is https");
+		const groups = parseGroupRoles(f.groupRoles);
+		errors.push(...groups.errors);
+		if (errors.length) return {
+			provider: null,
+			errors
+		};
+		return {
+			provider: {
+				issuer,
+				client_id: f.clientId.trim(),
+				audience: f.audience.trim(),
+				scope: f.scope.trim() || "openid email profile",
+				jwks_url: jwks || null,
+				group_roles: groups.roles,
+				enforced: f.enforced
+			},
+			errors
+		};
+	}
+	//#endregion
+	//#region js/views/org-sign-in.ts
+	var revealed$2 = null;
+	function orgSignInCard() {
+		return `<div class="card stack" id="org-sign-in" style="gap:12px;grid-column:1 / -1" hidden>
+      <h2>Organisation sign-in</h2>
+      <p class="small soft">Sign your organisation's people in with its own identity provider, such as Microsoft Entra ID, and let it create and deactivate their accounts (SCIM). See <code>docs/guides/entra-id.md</code>. Only organisation admins see this.</p>
+      <div data-org-provider aria-live="polite"></div>
+      <h3>User provisioning (SCIM)</h3>
+      <div data-scim aria-live="polite"></div>
+    </div>`;
+	}
+	function providerForm(p, viaProvider) {
+		const v = (s) => esc(s ?? "");
+		const status = p ? `<p class="small">Signs in through <b>${esc(p.issuer)}</b>${p.enforced ? ", and no other sign-in reaches your organisation" : ""}. Updated ${esc(new Date(p.updated_at).toLocaleString("en-GB"))}.</p>` : "<p class=\"small soft\">Your organisation signs in through this deployment’s provider.</p>";
+		const enforceHint = viaProvider ? "Refuse every other sign-in for your organisation." : "Refuse every other sign-in. Save the provider first, then sign in through it to turn this on.";
+		return `${status}
+    <form class="stack" id="org-provider-form" style="gap:8px">
+      <label class="field">Issuer (the tokens’ <code>iss</code>; Entra ID: https://login.microsoftonline.com/&lt;tenant ID&gt;/v2.0)<input type="url" name="issuer" value="${v(p?.issuer)}" required autocomplete="off" /></label>
+      <div class="grid g2" style="gap:8px">
+        <label class="field">Browser client ID (a single-page app registration)<input type="text" name="clientId" value="${v(p?.client_id)}" required autocomplete="off" /></label>
+        <label class="field">Audience (the API app’s ID, as the tokens’ <code>aud</code> names it)<input type="text" name="audience" value="${v(p?.audience)}" required autocomplete="off" /></label>
+      </div>
+      <label class="field">Scope (Entra ID: openid profile email offline_access api://&lt;API app ID&gt;/access)<input type="text" name="scope" value="${v(p?.scope ?? "openid email profile")}" autocomplete="off" /></label>
+      <label class="field">Signing keys (leave empty to find them from the issuer)<input type="url" name="jwksUrl" value="${v(p?.jwks_url)}" autocomplete="off" /></label>
+      <label class="field">Groups and the role each grants, one per line: <code>&lt;group ID&gt; = engineer</code><textarea name="groupRoles" rows="3" spellcheck="false">${esc(groupRolesText(p?.group_roles ?? {}))}</textarea></label>
+      <label class="row" style="gap:8px"><input type="checkbox" name="enforced" ${p?.enforced ? "checked" : ""} /> ${esc(enforceHint)}</label>
+      <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button>${p ? "<button class=\"btn danger\" type=\"button\" data-org-provider-remove>Remove</button>" : ""}</div>
+    </form>`;
+	}
+	function scimHtml(ctx, tokens) {
+		const api = ctx.api;
+		if (!api) return "";
+		const shown = revealed$2 && revealed$2.apiUrl === api.baseUrl && revealed$2.user === ctx.state.user.email ? `<div class="stack" style="gap:8px" data-scim-token>
+          <p><b>Token for ${esc(revealed$2.name)}.</b> Copy it now into your provider’s provisioning settings as the secret token: Tiles keeps only its hash and won’t show it again.</p>
+          <pre class="code-block">${esc(revealed$2.token)}</pre>
+          <div><button class="btn" type="button" data-scim-token-done>Done, I've saved it</button></div>
+        </div>` : "";
+		const active = tokens.filter((t) => !t.revoked_at);
+		const rows = active.length ? `<div class="table-wrap"><table><thead><tr><th>Token</th><th>Made</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${active.map((t) => `<tr><td>${esc(t.name)}</td><td>${esc(new Date(t.created_at).toLocaleString("en-GB"))}</td><td>${t.last_used_at ? esc(new Date(t.last_used_at).toLocaleString("en-GB")) : "never"}</td><td><button class="btn sm danger" type="button" data-revoke-scim="${esc(t.id)}" data-scim-name="${esc(t.name)}">Revoke</button></td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No SCIM tokens yet.</p>";
+		return `<p class="small">Tenant URL for your provider: <code>${esc(scimBaseUrl(api.baseUrl))}</code>. Users only: roles come from sign-in, memberships from site admins.</p>
+    ${shown}${rows}
+    <form class="row" id="scim-token-form" style="gap:8px;flex-wrap:wrap">
+      <label class="field" style="flex:1;min-width:200px">New token for<input type="text" name="name" placeholder="e.g. Entra ID provisioning" maxlength="120" required /></label>
+      <div style="align-self:end"><button class="btn primary" type="submit">Make a token</button></div>
+    </form>`;
+	}
+	async function fillScim(root, ctx) {
+		const box = root.querySelector("[data-scim]");
+		const api = ctx.api;
+		if (!box || !api) return;
+		let tokens;
+		try {
+			tokens = await api.org.scimTokens();
+		} catch {
+			box.innerHTML = "<p class=\"small soft\">The SCIM tokens could not be loaded.</p>";
+			return;
+		}
+		box.innerHTML = scimHtml(ctx, tokens);
+		onAll(box, "[data-scim-token-done]", "click", () => {
+			revealed$2 = null;
+			fillScim(root, ctx);
+		});
+		onAll(box, "[data-revoke-scim]", "click", (el) => {
+			const name = el.dataset.scimName ?? "";
+			if (!confirm(`Revoke ${name}? Provisioning with it stops at once.`)) return;
+			api.org.revokeScimToken(el.dataset.revokeScim ?? "").then(() => {
+				ctx.toast(`Revoked ${name}`);
+				return fillScim(root, ctx);
+			}, () => void 0);
+		});
+		onSubmit(box, "#scim-token-form", (form) => {
+			const name = field$1(form, "name").trim();
+			api.org.createScimToken(name).then(({ token }) => {
+				revealed$2 = {
+					name,
+					token,
+					apiUrl: api.baseUrl,
+					user: ctx.state.user.email
+				};
+				return fillScim(root, ctx);
+			}, () => void 0);
+		});
+	}
+	async function bindOrgSignIn(root, ctx) {
+		const card = root.querySelector("#org-sign-in");
+		const box = root.querySelector("[data-org-provider]");
+		const api = ctx.api;
+		if (!card || !box || !api) return;
+		let provider;
+		try {
+			if (!(await api.org.me()).admin) return card.remove();
+			provider = await api.org.identityProvider();
+		} catch {
+			card.hidden = false;
+			box.innerHTML = "<p class=\"small soft\">The organisation’s sign-in could not be loaded.</p>";
+			return;
+		}
+		card.hidden = false;
+		const viaProvider = !!provider && ctx.auth.signedIn && ctx.auth.signInOrg !== "";
+		box.innerHTML = providerForm(provider, viaProvider);
+		onSubmit(box, "#org-provider-form", (form) => {
+			const { provider: body, errors } = providerFromForm({
+				issuer: field$1(form, "issuer"),
+				clientId: field$1(form, "clientId"),
+				audience: field$1(form, "audience"),
+				scope: field$1(form, "scope"),
+				jwksUrl: field$1(form, "jwksUrl"),
+				groupRoles: field$1(form, "groupRoles"),
+				enforced: form.elements.namedItem("enforced").checked
+			});
+			if (!body) return ctx.toast(errors.join(". "));
+			api.org.setIdentityProvider(body).then(() => {
+				ctx.toast("Organisation sign-in saved");
+				return bindOrgSignIn(root, ctx);
+			}, () => void 0);
+		});
+		onAll(box, "[data-org-provider-remove]", "click", () => {
+			if (!confirm("Remove your organisation’s provider? Its sign-ins stop working at once.")) return;
+			api.org.removeIdentityProvider().then(() => {
+				ctx.toast("Organisation sign-in removed");
+				return bindOrgSignIn(root, ctx);
+			}, () => void 0);
+		});
+		await fillScim(root, ctx);
+	}
+	//#endregion
 	//#region js/views/settings.ts
 	function accountCard(ctx) {
 		const { config, signedIn } = ctx.auth;
 		const { user } = ctx.state;
 		let body;
+		const orgForm = `<form class="row" id="org-sign-in-form" style="gap:8px;flex-wrap:wrap">
+      <label class="field" style="flex:1;min-width:180px">Or with your organisation's own sign-in<input type="text" name="org" value="${esc(ctx.auth.signInOrg)}" placeholder="your organisation, e.g. acme" pattern="[A-Za-z0-9][A-Za-z0-9\\-]{0,62}" required /></label>
+      <div style="align-self:end"><button class="btn" type="submit">Sign in with it</button></div>
+    </form>`;
 		if (!config) body = "<p class=\"small soft\">Checking how this API signs people in…</p>";
-		else if (!config.enabled) body = "<p class=\"small soft\">This API has no sign-in configured; requests act as the development user.</p>";
-		else if (signedIn) body = `<p>Signed in as <b>${esc(user.name)}</b> <span class="soft">(${esc(user.email)})</span></p>
+		else if (signedIn) body = `<p>Signed in as <b>${esc(user.name)}</b> <span class="soft">(${esc(user.email)})</span>${ctx.auth.signInOrg ? ` through <b>${esc(ctx.auth.signInOrg)}</b>'s own sign-in` : ""}</p>
       <div><button class="btn" type="button" data-sign-out>Sign out</button></div>`;
+		else if (!config.enabled) body = `<p class="small soft">This API has no sign-in of its own; requests act as the development user.</p>${orgForm}`;
 		else body = `<p class="small soft">${config.dev_identity ? "Not signed in: until you sign in, you act as the development user." : "Sign in to use this Tiles API."}</p>
-      <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>`;
+      <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>${orgForm}`;
 		return `<div class="card stack" id="account" style="gap:12px"><h2>Account</h2>${body}</div>`;
 	}
 	function describeAudit(e) {
@@ -5164,6 +5371,7 @@
           <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
         ${ds.mode === "api" ? accountCard(ctx) : ""}
+        ${ds.mode === "api" ? orgSignInCard() : ""}
         ${ctx.ontology.site ? notificationsCard(ctx) : ""}
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === "admin") : ""}
         ${ctx.ontology.role === "admin" ? copilotUsageCard() : ""}
@@ -5229,7 +5437,9 @@
 			bindAgents(root, ctx);
 			fillNotifications(root, ctx);
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
+			onSubmit(root, "#org-sign-in-form", (form) => void ctx.auth.signIn(field$1(form, "org")));
 			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
+			bindOrgSignIn(root, ctx);
 			onAll(root, "[data-reset]", "click", () => {
 				if (confirm("Reset ontology history, design runs and chat to the demo defaults?")) ctx.reset();
 			});
@@ -10068,15 +10278,28 @@ heartbeat_seconds = 30
 			get signedIn() {
 				return sessionForApi();
 			},
-			async signIn() {
-				if (!authConfig?.enabled || !authConfig.issuer) return toast("This Tiles API has no sign-in configured");
+			get signInOrg() {
+				return load$3("signin-org", "");
+			},
+			async signIn(org) {
 				if (!canRedirect()) return toast("Open Tiles over http(s) to sign in");
+				let config = authConfig;
+				const slug = org?.trim().toLowerCase();
+				if (slug && api) try {
+					config = await api.authConfig(slug);
+				} catch (e) {
+					const status = e.status;
+					return toast(status === 404 ? `${slug} has no sign-in of its own` : `Can't start sign-in: ${String(e)}`);
+				}
+				if (!config?.enabled || !config.issuer) return toast("This Tiles API has no sign-in configured");
+				save("signin-org", slug ?? "");
 				try {
 					location.assign(await beginSignIn({
-						issuer: authConfig.issuer,
-						clientId: authConfig.client_id,
+						issuer: config.issuer,
+						clientId: config.client_id,
 						redirectUri: redirectUri(),
-						apiUrl: api?.baseUrl ?? ""
+						apiUrl: api?.baseUrl ?? "",
+						...config.scope ? { scope: config.scope } : {}
 					}, location.search + (location.hash || "#/")));
 				} catch (e) {
 					toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
