@@ -2,17 +2,7 @@
 
 Every release of Tiles, newest first, in the format of [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Tiles uses [semantic versioning](https://semver.org/spec/v2.0.0.html); [releasing](docs/releasing.md) says what counts as a breaking change and how a release is made.
 
-Each pull request adds its user-visible change under **Unreleased**. A release turns that heading into the version and its date.
-
-## [Unreleased]
-
-### Added
-
-- **Release process (T6.04).**
-  - One version across the browser app, the API, the edge agent and the Helm chart (`scripts/version.js`).
-  - This changelog.
-  - Release notes and assets made from a version tag.
-  - An upgrade test that migrates the previous version's database, with its data, to the new one and back.
+The top section is the next version, marked **Unreleased** until it is released. Each pull request adds its user-visible change there; the release replaces **Unreleased** with the date.
 
 ## [0.1.0] - Unreleased
 
@@ -56,7 +46,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - a threat model;
   - a Helm chart;
   - backups with a point-in-time restore drill;
-  - a load test (10,000 readings a second, 50 users).
+  - a load test (10,000 readings a second, 50 users);
+  - **release process:** one version across the browser app, the API, the edge agent and the Helm chart; this changelog; release notes and assets made from a version tag; an upgrade test that migrates the previous version's database, with its data, to the new one and back (T6.04).
 
-[Unreleased]: https://github.com/dipeshrohan/tiles/commits/main
-[0.1.0]: https://github.com/dipeshrohan/tiles/commits/main
+[0.1.0]: https://github.com/dipeshrohan/tiles/releases/tag/v0.1.0

@@ -99,8 +99,14 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin main
           scripts/upgrade-test.sh FETCH_HEAD "$TILES_TEST_DATABASE_URL"
-          git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*' || true
-          last=$(git tag --list 'v*' --sort=-v:refname | head -1)
+          # The latest final release (no -rc): what sites upgrade from. A failed fetch fails the step.
+          code=0; git ls-remote --exit-code --tags origin 'refs/tags/v*' > /dev/null || code=$?
+          case $code in
+            0) git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*' ;;
+            2) ;; # no release tags yet
+            *) exit "$code" ;;
+          esac
+          last=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
           if [ -n "$last" ]; then
             scripts/upgrade-test.sh "$last" "$TILES_TEST_DATABASE_URL"
           else

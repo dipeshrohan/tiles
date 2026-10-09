@@ -1,7 +1,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { PLACES, SEMVER, changelogSection, found, replaceVersion } from '../scripts/version.js';
+import { PLACES, SEMVER, changelogHeading, changelogSection, found, replaceVersion } from '../scripts/version.js';
 
 test('every place states the same version, and the changelog has its section', () => {
   const places = found();
@@ -23,6 +23,12 @@ test('setting a version changes only the version, not a dependency that shares i
   assert.match(next, /name = "anyio"\nversion = "0\.1\.0"/);
   assert.match(next, /name = "tiles-api"\nversion = "1\.2\.3"/);
   assert.throws(() => replaceVersion('nothing here', pattern, '1.2.3'), /version not found/);
+  // A malformed version is repaired in place, not matched again further on in the pattern.
+  const bad = '[[package]]\nname = "tiles-api"\nversion = "e"\nsource = { editable = "." }';
+  assert.equal(
+    replaceVersion(bad, pattern, '1.2.3'),
+    '[[package]]\nname = "tiles-api"\nversion = "1.2.3"\nsource = { editable = "." }',
+  );
 });
 
 test('release notes are the changelog section of the version', () => {
@@ -35,10 +41,14 @@ test('release notes are the changelog section of the version', () => {
     '- a bug',
     '## [1.1.0] - 2026-09-01',
     '- older',
+    '[CVE-2026-1]: https://example.com/advisory "advisory"',
     '[1.2.0]: https://example.com/1.2.0',
   ].join('\n');
   assert.equal(changelogSection(changelog, '1.2.0'), '### Fixed\n- a bug');
-  assert.equal(changelogSection(changelog, '1.1.0'), '- older');
+  // The versions' own links go; any other reference stays whole.
+  assert.equal(changelogSection(changelog, '1.1.0'), '- older\n[CVE-2026-1]: https://example.com/advisory "advisory"');
+  assert.equal(changelogHeading(changelog, '1.2.0'), '## [1.2.0] - 2026-10-01');
+  assert.equal(changelogHeading('## [2.0.0] - Unreleased\n', '2.0.0'), '## [2.0.0] - Unreleased');
   assert.equal(changelogSection(changelog, '1.2'), null); // not a prefix match
   assert.equal(changelogSection(changelog, '9.9.9'), null);
 });

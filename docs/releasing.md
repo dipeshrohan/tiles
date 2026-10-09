@@ -50,11 +50,13 @@ The upgrade test checks this on every pull request.
 
 `CHANGELOG.md` follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-- **Each pull request** with a change people will notice adds a line under **Unreleased**, in the right group:
+- **The top section is the next version.** It is headed `## [X.Y.Z] - Unreleased`, which is also the version the files state.
+- **Each pull request** with a change people will notice adds a line to that section, in the right group:
   - Added, Changed, Deprecated or Removed;
   - Fixed;
   - Security.
 - **Write for the person upgrading:** what changed for them, and what they must do. The task ID helps, for example (T5.15).
+- **When the changes outgrow the planned version** (a breaking change in a minor version), raise it with `node scripts/version.js set` and rename the section.
 
 ## The upgrade test
 
@@ -71,26 +73,32 @@ CI's API job runs it from `main` on every pull request, and from the latest rele
 ## Making a release
 
 1. **Prepare** in a pull request:
-   1. Choose the version from what is under **Unreleased** (see above).
-   2. Run `node scripts/version.js set X.Y.Z`.
-   3. In `CHANGELOG.md`, rename **Unreleased** to `## [X.Y.Z] - YYYY-MM-DD` and start a new empty **Unreleased** above it. Update the links at the end of the file.
-   4. Merge it once CI is green.
-2. **Tag** the merge commit on `main`, then push the tag:
+   1. Check the version against what the top section of the changelog holds (see above). If it has to change, run `node scripts/version.js set X.Y.Z`.
+   2. Replace **Unreleased** in its heading with the date: `## [X.Y.Z] - YYYY-MM-DD`.
+   3. Merge it once CI is green.
+2. **Tag** that merge commit on `main`, then push the tag:
    ```sh
    git tag -a vX.Y.Z -m "Tiles X.Y.Z"
    git push origin vX.Y.Z
    ```
-3. **Automation.** Pushing the tag starts two workflows:
-   - The **Release** workflow checks that the tag, the files and the changelog agree. It then publishes a GitHub release with the changelog section as its notes and three files: the Helm chart (`tiles-X.Y.Z.tgz`), the edge agent as one file (`tiles-edge-X.Y.Z.pyz`) and their `SHA256SUMS`.
-   - The **Images** workflow publishes `tiles-api`, `tiles-web` and `tiles-edge` tagged `X.Y.Z` and `X.Y`.
-4. **Deploy** by pinning the version (`images.api.tag=X.Y.Z`, `images.web.tag=X.Y.Z`) and running `helm upgrade`. The API migrates as it starts. Take a backup first ([backups](runbooks/backups.md)).
+3. **Automation.** Pushing the tag starts the **Release** workflow.
+   1. It checks four things:
+      - the tagged commit is on `main`;
+      - CI passed on it;
+      - every file states `X.Y.Z`;
+      - the changelog section for it has a date.
+   2. It publishes the images `tiles-api`, `tiles-web` and `tiles-edge`, tagged `X.Y.Z` and `X.Y`.
+   3. It publishes a GitHub release with the changelog section as its notes and three files: the Helm chart (`tiles-X.Y.Z.tgz`, its images pinned to `X.Y.Z`), the edge agent as one file (`tiles-edge-X.Y.Z.pyz`) and their `SHA256SUMS`.
+4. **Start the next version** in the next pull request: run `node scripts/version.js set` with the planned version (usually the next minor), and add its `## [X.Y.Z] - Unreleased` section above.
+5. **Deploy** the released chart, or the repository's chart with the image tags pinned (`images.api.tag=X.Y.Z`, `images.web.tag=X.Y.Z`), with `helm upgrade`. The API migrates as it starts. Take a backup first ([backups](runbooks/backups.md)).
 
 **Pre-releases** (`X.Y.Z-rc.1`) follow the same steps and are marked as pre-releases on GitHub.
 
 ## Rolling back
 
-If a release has to be undone:
+If a release has to be undone, do it in this order. The older version can't start on a newer schema: its pods' `tiles-migrate upgrade` doesn't know the newer revision. The newer version mustn't keep running on an older one.
 
-1. **Migrations that ran:** run the new version's `tiles-migrate downgrade <the previous version's revision>`. The upgrade test proves this path for every change. `tiles-migrate current` shows a version's revision; the release notes name a release's new migrations.
-2. **Images:** `helm rollback`, or pin the previous image tags.
-3. **Data a downgrade can't keep:** if a migration was not reversible (a major release says so), restore the backup taken before the upgrade instead.
+1. **Stop the writers.** Scale the API to zero (`kubectl scale deploy/<release>-api --replicas=0`) and suspend the CronJobs. Edge agents buffer meanwhile.
+2. **Migrate down with the newer version.** Run its image once: `kubectl run tiles-downgrade --rm -it --restart=Never --image=…/tiles-api:X.Y.Z -- tiles-migrate downgrade <the older version's revision>`. Give it the same secrets as the API. `tiles-migrate current` shows a version's revision, and each release's notes name its new migrations. The upgrade test proves this path for every change.
+3. **Go back to the older images:** `helm rollback`, or pin the older image tags. The API's pods start, and the jobs resume.
+4. **Data a migration down can't keep:** if a migration was not reversible (a major release says so), restore the backup taken before the upgrade instead of steps 2 and 3.

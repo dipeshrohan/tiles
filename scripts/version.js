@@ -2,11 +2,12 @@
 //
 //   node scripts/version.js check          every place agrees, and CHANGELOG.md has its section
 //   node scripts/version.js set 1.2.3      writes 1.2.3 everywhere (then add its changelog section)
-//   node scripts/version.js notes 1.2.3    prints that version's changelog section (release notes)
+//   node scripts/version.js notes 1.2.3    prints that version's changelog section (release notes);
+//                                          with --released, refuses a section still marked Unreleased
 //
 // See docs/releasing.md.
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -38,10 +39,16 @@ export function found(readFile = read) {
 
 // The text with the place's version replaced.
 export function replaceVersion(text, pattern, next) {
-  const m = text.match(pattern);
+  const m = text.match(new RegExp(pattern.source, pattern.flags.replace('g', '') + 'd')); // d: group offsets
   if (!m) throw new Error(`version not found by ${pattern}`);
-  const start = m.index + m[0].lastIndexOf(m[1]);
-  return text.slice(0, start) + next + text.slice(start + m[1].length);
+  const [start, end] = m.indices[1];
+  return text.slice(0, start) + next + text.slice(end);
+}
+
+// The heading line of a version's section (`## [1.2.0] - 2026-10-01`, or `- Unreleased` until then).
+export function changelogHeading(changelog, version) {
+  const heading = new RegExp(`^## \\[${version.replace(/\./g, '\\.')}\\].*$`, 'm');
+  return changelog.match(heading)?.[0] ?? null;
 }
 
 // A version's section of a Keep a Changelog file: the text under `## [x.y.z]`, without the heading.
@@ -55,7 +62,7 @@ export function changelogSection(changelog, version) {
   const body = lines
     .slice(start + 1, end)
     .join('\n')
-    .replace(/\n\[[^\]]+\]: \S+/g, '') // link references at the end of the file
+    .replace(/^\[(Unreleased|\d+\.\d+\.\d+[^\]]*)\]: \S+$/gm, '') // the versions' links at the end of the file
     .trim();
   return body || null;
 }
@@ -90,8 +97,13 @@ function set(next) {
   console.log(`${next} in ${files.size} files. Add a "## [${next}]" section to CHANGELOG.md.`);
 }
 
-function notes(version) {
-  const section = changelogSection(read('CHANGELOG.md'), version ?? '');
+function notes(version, { released = false } = {}) {
+  const changelog = read('CHANGELOG.md');
+  if (released && /Unreleased/i.test(changelogHeading(changelog, version ?? '') ?? 'Unreleased')) {
+    console.error(`CHANGELOG.md's section for ${version} isn't dated: replace "Unreleased" with the release date`);
+    process.exit(1);
+  }
+  const section = changelogSection(changelog, version ?? '');
   if (!section) {
     console.error(`CHANGELOG.md has no section for ${version}`);
     process.exit(1);
@@ -99,11 +111,12 @@ function notes(version) {
   console.log(section);
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  const [action, arg] = process.argv.slice(2);
+// Run as a command (paths compared after resolving links, as Node does for import.meta.url).
+if (process.argv[1] && fileURLToPath(import.meta.url) === realpathSync(process.argv[1])) {
+  const [action, arg, flag] = process.argv.slice(2);
   if (action === 'check') check();
   else if (action === 'set') set(arg);
-  else if (action === 'notes') notes(arg);
+  else if (action === 'notes') notes(arg, { released: flag === '--released' });
   else {
     console.error('usage: node scripts/version.js check | set <version> | notes <version>');
     process.exit(2);
