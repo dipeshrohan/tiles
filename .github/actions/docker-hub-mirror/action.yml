@@ -1,0 +1,15 @@
+name: Docker Hub through a mirror
+description: >-
+  Pulls of Docker Hub images go through Google's mirror (mirror.gcr.io), falling back to Docker
+  Hub for an image it doesn't hold: Hub's anonymous pull limit, shared by every job on a runner's
+  address, otherwise stops CI. Run it before anything starts containers.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        conf=/etc/docker/daemon.json
+        current=$(sudo cat "$conf" 2>/dev/null || echo '{}')
+        echo "$current" | jq '. + {"registry-mirrors": ["https://mirror.gcr.io"]}' | sudo tee "$conf" > /dev/null
+        sudo systemctl restart docker
+        docker info --format 'Registry mirrors: {{.RegistryConfig.Mirrors}}'
