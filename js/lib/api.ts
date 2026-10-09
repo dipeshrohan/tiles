@@ -100,6 +100,27 @@ export interface AppResult {
   facts: { label: string; value: number; format: 'number' | 'percent' }[];
 }
 
+// Document search (T4.08): a site's SOPs and manuals, and the passages that match a query.
+export interface SiteDocument {
+  number: number;
+  title: string;
+  filename: string;
+  content_type: string;
+  language: string;
+  pages: number;
+  size: number;
+  sha256: string;
+  uploaded_by: string;
+  created_at: string;
+}
+export interface DocumentMatch {
+  document: number;
+  title: string;
+  page: number;
+  snippet: string; // each match between \u0002 and \u0003
+  rank: number;
+}
+
 // A token an identity provider's SCIM client provisions users with (never shown again).
 export interface ScimToken {
   id: string;
@@ -807,9 +828,10 @@ export function createApiClient(options: ApiOptions) {
 
   // `anonymous` requests carry no credentials (e.g. the public /auth/config).
   // `text` answers with the body as it is (a file to download), not parsed as JSON.
-  async function headersFor(body: unknown, anonymous: boolean, accept = 'application/json') {
+  async function headersFor(body: unknown, anonymous: boolean, accept = 'application/json', type?: string) {
     const headers: Record<string, string> = { Accept: accept };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (type) headers['Content-Type'] = type;
+    else if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (!anonymous && options.userEmail) headers['X-Tiles-User'] = options.userEmail;
     const token = anonymous ? null : (options.token ?? (await options.getToken?.()));
     if (token) headers.Authorization = `Bearer ${token}`;
@@ -820,15 +842,28 @@ export function createApiClient(options: ApiOptions) {
     method: Method,
     path: string,
     body?: unknown,
-    { anonymous = false, text = false, blob = false, quiet = false } = {},
+    {
+      anonymous = false,
+      text = false,
+      blob = false,
+      quiet = false,
+      file,
+    }: {
+      anonymous?: boolean;
+      text?: boolean;
+      blob?: boolean;
+      quiet?: boolean;
+      file?: { body: Blob; type: string };
+    } = {},
   ): Promise<T> {
-    const headers = await headersFor(body, anonymous);
+    // `file`: sent as it is, with its own type (a document upload), instead of JSON.
+    const headers = await headersFor(body, anonymous, 'application/json', file?.type);
     let res: Response;
     try {
       res = await doFetch(base + path, {
         method,
         headers,
-        body: body === undefined ? undefined : JSON.stringify(body),
+        body: file ? file.body : body === undefined ? undefined : JSON.stringify(body),
       });
     } catch {
       return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
@@ -918,6 +953,26 @@ export function createApiClient(options: ApiOptions) {
     // Setting up a site (T6.06): organisation admins create one; its progress, step by step.
     createSite: (site: NewSite) => request<Site>('POST', '/sites', site),
     onboarding: (siteId: string) => request<Onboarding>('GET', `/sites/${encodeURIComponent(siteId)}/onboarding`),
+    // Document search (T4.08).
+    documents: {
+      list: (siteId: string) => request<SiteDocument[]>('GET', `/sites/${encodeURIComponent(siteId)}/documents`),
+      upload: (siteId: string, file: Blob, type: string, meta: { title: string; filename: string; language: string }) =>
+        request<SiteDocument>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/documents?${new URLSearchParams(meta)}`,
+          undefined,
+          { file: { body: file, type } },
+        ),
+      search: (siteId: string, q: string, limit = 20) =>
+        request<{ query: string; matches: DocumentMatch[] }>(
+          'GET',
+          `/sites/${encodeURIComponent(siteId)}/documents/search?${new URLSearchParams({ q, limit: String(limit) })}`,
+        ),
+      file: (siteId: string, n: number) =>
+        request<Blob>('GET', `/sites/${encodeURIComponent(siteId)}/documents/${n}/file`, undefined, { blob: true }),
+      archive: (siteId: string, n: number) =>
+        request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/documents/${n}`),
+    },
     // App Studio (T6.10): templates, and the site's apps made from them.
     appTemplates: () => request<AppTemplate[]>('GET', '/app-templates'),
     apps: {

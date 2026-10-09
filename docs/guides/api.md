@@ -38,7 +38,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
 
 ## apps
 
@@ -383,6 +383,65 @@ Run the detector on one batch of its new readings now (`caught_up`: nothing more
 | Parameter | In | Type | Required |
 |---|---|---|---|
 | `detector_id` | path | uuid | yes |
+| `site_id` | path | uuid | yes |
+
+## documents
+
+### `GET /sites/{site_id}/documents`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The site's documents, newest first.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/documents`
+
+**Who:** engineer. **Answers:** 201, 422.
+
+Uploads a document: the body is the file (Content-Type `application/pdf`, `text/plain` or `text/markdown`, up to 20 MB). Its text is read page by page and indexed for search; 422 says why a file can't be read (encrypted, a scan without text, not UTF-8…).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `title` | query | string | yes |
+| `filename` | query | string | no |
+| `language` | query | string | no |
+
+### `GET /sites/{site_id}/documents/search`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The passages that match best, each with its document and page to cite. The query is read as a web search: words (stemmed: "valves" finds "valve"), "quoted phrases", OR, and -words to leave out.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `q` | query | string | yes |
+| `limit` | query | integer | no |
+
+### `DELETE /sites/{site_id}/documents/{number}`
+
+**Who:** engineer. **Answers:** 204, 422.
+
+Archives a document: it leaves the list and search; its number isn't reused.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+### `GET /sites/{site_id}/documents/{number}/file`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The file as it was uploaded (a PDF opens at a page with `#page=N`).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
 | `site_id` | path | uuid | yes |
 
 ## edge agents

@@ -33,6 +33,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - a correlation finder over batch tables;
   - saved insights with evidence and proposed actions;
   - a wear check with time to a limit;
+  - **document search:** SOPs, manuals and lessons learned (PDF, text, Markdown) searched by their words in their language, each match with its page to open, and a copilot tool that cites the document and page (T4.08);
   - **App Studio:** checks set up from templates without code: a wear check, and SPC limits (a control chart with limits from a baseline and the Western Electric rules), each run on a signal's latest readings (T6.10).
 - **Design studio:** physics-based design models, runs with lineage and audit export (PDF), and parameter sweeps.
 - **Copilot:**

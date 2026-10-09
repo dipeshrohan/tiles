@@ -2269,6 +2269,65 @@
         "title": "DiffStats",
         "type": "object"
       },
+      "DocumentOut": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "pages": {
+            "title": "Pages",
+            "type": "integer"
+          },
+          "sha256": {
+            "title": "Sha256",
+            "type": "string"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "uploaded_by": {
+            "title": "Uploaded By",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "filename",
+          "content_type",
+          "language",
+          "pages",
+          "size",
+          "sha256",
+          "uploaded_by",
+          "created_at"
+        ],
+        "title": "DocumentOut",
+        "type": "object"
+      },
       "EdgeIn": {
         "additionalProperties": false,
         "properties": {
@@ -3552,6 +3611,41 @@
           "value"
         ],
         "title": "Level",
+        "type": "object"
+      },
+      "Match": {
+        "properties": {
+          "document": {
+            "description": "The document's number",
+            "title": "Document",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "rank": {
+            "title": "Rank",
+            "type": "number"
+          },
+          "snippet": {
+            "description": "The words around the match; each match between \\u0002 and \\u0003",
+            "title": "Snippet",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "document",
+          "title",
+          "page",
+          "snippet",
+          "rank"
+        ],
+        "title": "Match",
         "type": "object"
       },
       "Me": {
@@ -5645,6 +5739,27 @@
           "name"
         ],
         "title": "ScimTokenIn",
+        "type": "object"
+      },
+      "SearchOut": {
+        "properties": {
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/Match"
+            },
+            "title": "Matches",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "matches"
+        ],
+        "title": "SearchOut",
         "type": "object"
       },
       "Series": {
@@ -11408,6 +11523,297 @@
         "summary": "Run Now",
         "tags": [
           "detection"
+        ]
+      }
+    },
+    "/sites/{site_id}/documents": {
+      "get": {
+        "description": "The site's documents, newest first.",
+        "operationId": "list_documents_sites__site_id__documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentOut"
+                  },
+                  "title": "Response List Documents Sites  Site Id  Documents Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Documents",
+        "tags": [
+          "documents"
+        ]
+      },
+      "post": {
+        "description": "Uploads a document: the body is the file (Content-Type `application/pdf`, `text/plain` or\n`text/markdown`, up to 20 MB). Its text is read page by page and indexed for search; 422 says\nwhy a file can't be read (encrypted, a scan without text, not UTF-8\u2026).",
+        "operationId": "upload_document_sites__site_id__documents_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "title",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "pattern": "^\\S(.*\\S)?$",
+              "title": "Title",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "filename",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 300,
+              "title": "Filename",
+              "type": "string"
+            }
+          },
+          {
+            "description": "One of english, german, french, spanish, italian, dutch, portuguese, swedish, simple",
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "default": "english",
+              "description": "One of english, german, french, spanish, italian, dutch, portuguese, swedish, simple",
+              "title": "Language",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/sites/{site_id}/documents/search": {
+      "get": {
+        "description": "The passages that match best, each with its document and page to cite. The query is read as\na web search: words (stemmed: \"valves\" finds \"valve\"), \"quoted phrases\", OR, and -words to\nleave out.",
+        "operationId": "search_documents_sites__site_id__documents_search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Words, \"a phrase\", or -excluded",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Words, \"a phrase\", or -excluded",
+              "maxLength": 500,
+              "minLength": 1,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search Documents",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/sites/{site_id}/documents/{number}": {
+      "delete": {
+        "description": "Archives a document: it leaves the list and search; its number isn't reused.",
+        "operationId": "archive_document_sites__site_id__documents__number__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Archive Document",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/sites/{site_id}/documents/{number}/file": {
+      "get": {
+        "description": "The file as it was uploaded (a PDF opens at a page with `#page=N`).",
+        "operationId": "document_file_sites__site_id__documents__number__file_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Document File",
+        "tags": [
+          "documents"
         ]
       }
     },

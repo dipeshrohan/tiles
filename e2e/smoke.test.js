@@ -703,6 +703,63 @@ test('App Studio: an engineer makes an SPC app from its template, runs it, chang
   assert.equal(await page.locator('[data-new-app]').count(), 0);
 });
 
+test('Documents: an engineer uploads an SOP, searches it, and opens the page a match is on', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  page.on('dialog', (d) => void d.accept());
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  await page.goto(`${home}#/documents`);
+  await page.waitForSelector('[data-doc-list]:has-text("No documents yet")');
+  const sop =
+    'SOP 14: die-casting start-up\fCheck the hydraulic pressure: 140 to 160 bar.\fReplace the plunger tip after 20000 shots.';
+  await page.setInputFiles('#doc-upload [name=file]', {
+    name: 'SOP_14 start-up.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from(sop),
+  });
+  await page.click('#doc-upload button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Uploaded SOP 14 start-up: 3 page(s)")');
+  await page.waitForSelector('[data-doc-list]:has-text("SOP 14 start-up")');
+  assert.equal(fake.siteDocuments[0].content.toString(), sop); // sent as it is
+
+  // A search: each match with its page, the words marked.
+  await page.fill('#doc-search [name=q]', 'plunger tips');
+  await page.click('#doc-search button[type=submit]');
+  await page.waitForSelector('[data-matches]');
+  assert.match(await page.locator('[data-matches]').innerText(), /SOP 14 start-up[\s\S]*Open page 3/);
+  assert.deepEqual(await page.locator('[data-matches] mark').allInnerTexts(), ['plunger', 'tip']);
+  const popup = page.waitForEvent('popup');
+  await page.click('[data-matches] [data-open]');
+  await popup;
+  await page.fill('#doc-search [name=q]', 'spindle');
+  await page.click('#doc-search button[type=submit]');
+  await page.waitForSelector('[data-no-matches]');
+  // A search that fails says so (not "nothing matches"), and runs again on request.
+  fake.failDocumentSearch(1);
+  await page.fill('#doc-search [name=q]', 'hydraulic');
+  await page.click('#doc-search button[type=submit]');
+  await page.click('[data-retry-search]');
+  await page.waitForSelector('[data-matches]:has-text("Open page 2")');
+
+  await page.click('[data-archive-doc="1"]');
+  await page.waitForSelector('[data-doc-list]:has-text("No documents yet")');
+  assert.deepEqual(
+    errors.filter((e) => !/status of 503/.test(e)),
+    [],
+  );
+
+  // Viewers search, but don't upload.
+  const viewer = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const viewerUrl = await viewer.listen();
+  t.after(() => viewer.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(viewerUrl)}#/documents`);
+  await page.waitForSelector('[data-doc-list]:has-text("No documents yet")');
+  assert.equal(await page.locator('#doc-upload').count(), 0);
+});
+
 test('site admins register edge agents and see them come online', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();
