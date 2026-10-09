@@ -27,6 +27,11 @@ updates:
     directories: [/api, /edge]
     schedule:
       interval: weekly
+    ignore:
+      # A new Python minor (3.14) is a decision, with its own testing of the wheels (the edge's
+      # SQL Server driver); patch releases of the same tag come with the weekly rebuild.
+      - dependency-name: python
+        update-types: [version-update:semver-major, version-update:semver-minor]
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -5,18 +5,15 @@
 # the token in TILES_EDGE_TOKEN instead. See README.md.
 FROM python:3.13-slim
 
-# What the SQL Server driver's bundled ODBC driver loads at run time.
+# The base image's security updates (T5.08: the image scan fails on known vulnerabilities that have
+# a fix), and what the SQL Server driver's bundled ODBC driver loads at run time.
 RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends libltdl7 libkrb5-3 libgssapi-krb5-2 \
     && rm -rf /var/lib/apt/lists/*
 
-# uv from PyPI (pinned), as in the API image, so the build only needs PyPI and Docker Hub.
-# The base image's security updates, and a current pip (T5.08: the image scan fails on known
-# vulnerabilities that have a fix).
-RUN apt-get update \
-    && apt-get upgrade -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir --upgrade pip uv==0.11.32
+# uv from PyPI (pinned), as in the API image; then pip goes, unused at run time.
+RUN pip install --no-cache-dir uv==0.11.32 && pip uninstall -y pip
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \

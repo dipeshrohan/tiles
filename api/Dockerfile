@@ -2,14 +2,16 @@
 #   docker build -t tiles-api api/
 FROM python:3.13-slim
 
-# uv from PyPI (pinned) rather than a container registry, so the build only
-# needs PyPI and Docker Hub.
-# The base image's security updates, and a current pip (T5.08: the image scan fails on known
-# vulnerabilities that have a fix).
+# The base image's security updates (T5.08: the image scan fails on known vulnerabilities that have
+# a fix). This needs the Debian mirrors; a cached layer keeps old packages, so rebuild with
+# --pull --no-cache now and then.
 RUN apt-get update \
     && apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
-RUN pip install --no-cache-dir --upgrade pip uv==0.11.32
+
+# uv from PyPI (pinned) rather than a container registry. pip then goes: the app runs from uv's
+# environment, and an unused pip is only something more to patch.
+RUN pip install --no-cache-dir uv==0.11.32 && pip uninstall -y pip
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
