@@ -16,7 +16,7 @@ from tiles_api import api_runs, sweeps
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.models import store
 from tiles_api.models.registry import ModelError, check_params
-from tiles_api.store import one
+from tiles_api.store import one, side_pool
 
 router = APIRouter(tags=["sweeps"])
 
@@ -157,7 +157,7 @@ def start_sweep(
         str(sweep_id),
         after={"model": spec.key, "version": spec.version, "x": x, "y": y, "points": total},
     )
-    pool = request.app.state.pool
+    pool = side_pool(request.app.state)  # it runs after the request, outside its connection count
     background.add_task(sweeps.drain, pool.connection)  # after the request's transaction commits
     return _sweep(ctx, sweep_id)
 

@@ -79,6 +79,8 @@ spec:
           imagePullPolicy: {{ .Values.images.api.pullPolicy }}
           env:
             {{- include "tiles.env" . | nindent 12 }}
+            - name: TILES_WORKERS
+              value: {{ .Values.api.workers | quote }}
           ports:
             - { name: http, containerPort: 8000 }
           startupProbe:
