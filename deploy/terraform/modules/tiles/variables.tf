@@ -52,6 +52,23 @@ variable "image_tag" {
   }
 }
 
+variable "images" {
+  description = "Where the images come from: a registry (or your mirror of it, for a site without internet; empty: the cluster's own images), how they are pulled, the Secrets to pull them with, and the bundled database's and Redis's images in full (null: the chart's, from Docker Hub)."
+  type = object({
+    registry     = optional(string, "ghcr.io/dipeshrohan")
+    pull_policy  = optional(string, "IfNotPresent")
+    pull_secrets = optional(list(string), [])
+    database     = optional(string)
+    redis        = optional(string)
+  })
+  default  = {}
+  nullable = false
+  validation {
+    condition     = contains(["IfNotPresent", "Always", "Never"], var.images.pull_policy)
+    error_message = "images.pull_policy is IfNotPresent, Always or Never."
+  }
+}
+
 variable "url" {
   description = "Where people open the app, e.g. https://tiles.example.com (an origin: no path)."
   type        = string

@@ -36,12 +36,14 @@ provider "helm" {
 }
 
 module "tiles" {
-  source    = "../../modules/tiles"
-  namespace = var.namespace
-  image_tag = var.image_tag
-  url       = var.url
-  api_url   = var.api_url
-  oidc      = var.oidc
+  source           = "../../modules/tiles"
+  namespace        = var.namespace
+  create_namespace = var.create_namespace
+  image_tag        = var.image_tag
+  images           = var.images
+  url              = var.url
+  api_url          = var.api_url
+  oidc             = var.oidc
   # Your own TimescaleDB, or (null) the chart's single database pod on your storage class.
   database_url = var.database_url
   database_storage = {
@@ -54,10 +56,13 @@ module "tiles" {
   redis_url        = var.redis_url
   data_keys        = var.data_keys
   ingress = {
+    enabled    = var.ingress_enabled
     class_name = var.ingress_class
     tls_secret = var.tls_secret
   }
-  smtp          = var.smtp
-  smtp_password = var.smtp_password
-  monitoring    = var.monitoring
+  smtp              = var.smtp
+  smtp_password     = var.smtp_password
+  copilot_model     = var.copilot_model
+  anthropic_api_key = var.anthropic_api_key
+  monitoring        = var.monitoring
 }

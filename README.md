@@ -76,6 +76,7 @@ To backfill history, open **Import data** (API mode, engineers and admins). Choo
 
 - [User guide](docs/guides/user.md): the pages and how to work with them.
 - [Administrator guide](docs/guides/admin.md): installing, sign-in, people, edge agents, notifications, the copilot, jobs and operations.
+- [Install guide](docs/install.md): Tiles on your own Kubernetes cluster, with Terraform, from prerequisites to the first site.
 - [Model-author guide](docs/guides/model-author.md): writing, versioning and testing models, bindings and detectors.
 - [API reference](docs/guides/api.md): every endpoint, generated from the code (`tiles-apidoc`), with [openapi.json](docs/guides/openapi.json).
 

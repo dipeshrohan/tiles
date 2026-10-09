@@ -352,6 +352,91 @@ jobs:
           docker run --rm -v "$PWD:/src:ro" mirror.gcr.io/aquasec/trivy:0.56.2 \
             config --severity HIGH,CRITICAL --exit-code 1 /src
 
+  install:
+    name: Install dry run (docs/install.md)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: tiles-install
+      - name: The images, as a mirror would hold them
+        run: |
+          docker build -t tiles-api:ci api
+          docker build -t tiles-web:ci .
+          kind load docker-image tiles-api:ci tiles-web:ci --name tiles-install
+      - name: Install with the customer-hosted Terraform, as the guide does
+        working-directory: deploy/terraform/environments/customer-hosted
+        env:
+          TF_VAR_smtp_password: first-password
+        run: |
+          # The guide's terraform.tfvars, as step 3 starts it; then only what kind needs, which
+          # *.auto.tfvars overrides: its context, the images built here, no ingress controller,
+          # a small volume on kind's storage class.
+          cp terraform.tfvars.example terraform.tfvars
+          cat > kind.auto.tfvars <<'TFVARS'
+          kube_context    = "kind-tiles-install"
+          image_tag       = "ci"
+          images          = { registry = "", pull_policy = "Never" }
+          url             = "http://localhost:5173"
+          api_url         = "http://localhost:8000"
+          storage_class   = ""
+          database_size   = "1Gi"
+          ingress_enabled = false
+          TFVARS
+          terraform init -input=false
+          terraform plan -input=false -out tiles.plan
+          terraform apply -input=false tiles.plan
+      - name: Tiles answers, ready, behind its sign-in; the namespace is restricted
+        run: |
+          test "$(kubectl get ns tiles -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}')" = restricted
+          kubectl -n tiles port-forward svc/tiles-api 8000 >/dev/null 2>&1 &
+          kubectl -n tiles port-forward svc/tiles-web 5173 >/dev/null 2>&1 &
+          # Until the port-forwards listen.
+          curl -fsS --retry 30 --retry-connrefused --retry-delay 1 http://localhost:8000/ready | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -fsS --retry 30 --retry-connrefused --retry-delay 1 -o /dev/null http://localhost:5173/
+          curl -fsS http://localhost:8000/health | grep -q '"env":"production"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/sites)" = 401
+          curl -fsS http://localhost:5173/ | grep -q '<meta name="tiles-api" content="http://localhost:8000" />'
+      - name: A second plan changes nothing
+        working-directory: deploy/terraform/environments/customer-hosted
+        env:
+          TF_VAR_smtp_password: first-password
+        run: terraform plan -input=false -detailed-exitcode
+      - name: A changed secret restarts the API, and the data key stays
+        working-directory: deploy/terraform/environments/customer-hosted
+        env:
+          TF_VAR_smtp_password: second-password
+        run: |
+          key=$(kubectl -n tiles get secret tiles-settings -o jsonpath='{.data.tiles_data_keys}')
+          before=$(kubectl -n tiles get deploy tiles-api -o jsonpath='{.spec.template.metadata.annotations.tiles/secrets-revision}')
+          terraform apply -input=false -auto-approve
+          after=$(kubectl -n tiles get deploy tiles-api -o jsonpath='{.spec.template.metadata.annotations.tiles/secrets-revision}')
+          test -n "$before" && test "$before" != "$after"
+          test "$key" = "$(kubectl -n tiles get secret tiles-settings -o jsonpath='{.data.tiles_data_keys}')"
+          kubectl -n tiles rollout status deploy/tiles-api --timeout 5m
+      - name: Terraform won't destroy the data key
+        working-directory: deploy/terraform/environments/customer-hosted
+        env:
+          TF_VAR_smtp_password: second-password
+        # A destroy plan, never a destroy: refused, it must name prevent_destroy.
+        run: |
+          if terraform plan -destroy -input=false -no-color > out.txt 2>&1; then
+            cat out.txt; echo "a destroy plan was allowed"; exit 1
+          fi
+          grep -q 'prevent_destroy' out.txt
+      - name: State on failure
+        if: failure()
+        run: |
+          kubectl -n tiles get all,pvc,secrets -o wide
+          kubectl -n tiles describe pods
+          kubectl -n tiles logs deploy/tiles-api --all-containers --tail 100
+
   stack:
     name: Docker Compose stack
     runs-on: ubuntu-latest
