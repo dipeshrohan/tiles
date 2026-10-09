@@ -1003,7 +1003,8 @@
 						rating,
 						comment
 					}),
-					unrate: (siteId, id, seq) => request("DELETE", `${conv(siteId, id)}/messages/${seq}/feedback`)
+					unrate: (siteId, id, seq) => request("DELETE", `${conv(siteId, id)}/messages/${seq}/feedback`),
+					usage: (siteId, days = 30) => request("GET", `${base(siteId)}/usage${query({ days })}`)
 				};
 			})(),
 			insights: (() => {
@@ -4295,6 +4296,47 @@
 		}
 	};
 	//#endregion
+	//#region js/lib/copilot-usage.ts
+	function cacheShare(d) {
+		const all = d.input_tokens + d.cache_write_tokens + d.cache_read_tokens;
+		return all ? d.cache_read_tokens / all : null;
+	}
+	function usageTotals(u) {
+		const sum = (k) => u.days.reduce((n, d) => n + d[k], 0);
+		const tokens = (k) => u.days.reduce((n, d) => n + d[k], 0);
+		return {
+			questions: sum("questions"),
+			answered: sum("answered"),
+			failed: sum("failed"),
+			overBudget: sum("over_budget"),
+			billed: sum("billed_tokens"),
+			cacheShare: cacheShare({
+				input_tokens: tokens("input_tokens"),
+				cache_write_tokens: tokens("cache_write_tokens"),
+				cache_read_tokens: tokens("cache_read_tokens")
+			})
+		};
+	}
+	function budgetToday(u) {
+		const limit = u.limits.org_daily_tokens || null;
+		const used = u.today.org_billed_tokens;
+		return {
+			used,
+			limit,
+			share: limit ? Math.min(1, used / limit) : null
+		};
+	}
+	function tokens(n) {
+		if (n < 1e3) return String(n);
+		const k = +(n / 1e3).toPrecision(3);
+		return k < 1e3 ? `${k}k` : `${+(n / 1e6).toPrecision(3)}M`;
+	}
+	function duration$2(ms) {
+		if (ms === null) return "–";
+		return ms < 1e3 ? `${Math.round(ms)} ms` : `${+(ms / 1e3).toFixed(1)} s`;
+	}
+	var percent$1 = (share) => share === null ? "–" : `${Math.round(share * 100)}%`;
+	//#endregion
 	//#region js/views/settings.ts
 	function accountCard(ctx) {
 		const { config, signedIn } = ctx.auth;
@@ -4358,6 +4400,43 @@
 			box.innerHTML = entries.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>${entries.map((e) => `<tr><td>${esc(new Date(e.at).toLocaleString("en-GB"))}</td><td>${esc(e.actor_name)}</td><td>${esc(describeAudit(e))}</td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No changes yet.</p>";
 		} catch {
 			box.innerHTML = "<p class=\"small soft\">The audit log could not be loaded.</p>";
+		}
+	}
+	function copilotUsageCard() {
+		return `<div class="card stack" id="copilot-usage" style="gap:12px;grid-column:1 / -1">
+      <h2>Copilot usage</h2>
+      <p class="small soft">Questions asked on this site over the last 30 days (UTC), the tokens they used and how long answers took. Tokens are weighted by price, in input tokens: an output token counts five, a prompt-cache write one and a quarter, a cache read a tenth. Only site admins see this.</p>
+      <div data-copilot-usage aria-live="polite"><p class="small soft">Loading…</p></div>
+    </div>`;
+	}
+	function usageHtml(u) {
+		const t = usageTotals(u);
+		const b = budgetToday(u);
+		const l = u.limits;
+		const limit = (n, what) => n ? `${fmt$1(n)} ${what}` : `no limit on ${what}`;
+		const budget = b.limit === null ? `Today the organisation has used ${esc(tokens(b.used))} tokens (no daily limit).` : `Today the organisation has used ${esc(tokens(b.used))} of its ${esc(tokens(b.limit))} tokens (${esc(percent$1(b.share))}); this site ${esc(tokens(u.today.site_billed_tokens))}.`;
+		const days = u.days.length ? `<div class="table-wrap"><table><thead><tr><th>Day</th><th>Questions</th><th>Answered</th><th>Failed</th><th>Over budget</th><th>Ungrounded</th><th>Tokens</th><th>From cache</th><th>First text (median · 95%)</th><th>Whole answer (median · 95%)</th></tr></thead><tbody>${u.days.map((d) => `<tr><td>${esc(d.day)}</td><td>${fmt$1(d.questions)}</td><td>${fmt$1(d.answered)}</td><td>${fmt$1(d.failed)}</td><td>${fmt$1(d.over_budget)}</td><td>${fmt$1(d.ungrounded)}</td><td>${esc(tokens(d.billed_tokens))}</td><td>${esc(percent$1(cacheShare(d)))}</td><td>${esc(duration$2(d.first_text_p50_ms))} · ${esc(duration$2(d.first_text_p95_ms))}</td><td>${esc(duration$2(d.total_p50_ms))} · ${esc(duration$2(d.total_p95_ms))}</td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No questions in the last 30 days.</p>";
+		const users = u.users.length ? `<div class="table-wrap"><table><thead><tr><th>Who</th><th>Questions</th><th>Tokens</th></tr></thead><tbody>${u.users.map((p) => `<tr><td>${esc(p.user)} <span class="soft small">${esc(p.email)}</span></td><td>${fmt$1(p.questions)}</td><td>${esc(tokens(p.billed_tokens))}</td></tr>`).join("")}</tbody></table></div>` : "";
+		return `<p data-copilot-budget>${budget}</p>
+    <div class="row" style="gap:24px;flex-wrap:wrap" data-copilot-totals>
+      <div><div class="small soft">Questions</div><strong>${fmt$1(t.questions)}</strong></div>
+      <div><div class="small soft">Answered</div><strong>${fmt$1(t.answered)}</strong></div>
+      <div><div class="small soft">Failed</div><strong>${fmt$1(t.failed)}</strong></div>
+      <div><div class="small soft">Over budget</div><strong>${fmt$1(t.overBudget)}</strong></div>
+      <div><div class="small soft">Tokens</div><strong>${esc(tokens(t.billed))}</strong></div>
+      <div><div class="small soft">From cache</div><strong>${esc(percent$1(t.cacheShare))}</strong></div>
+    </div>
+    ${days}${users}
+    <p class="small soft">Limits: ${esc(limit(l.org_questions_per_minute, "questions a minute per organisation"))}; ${esc(limit(l.user_questions_per_minute, "questions a minute per person"))}; ${esc(limit(l.org_daily_tokens, "tokens a day per organisation"))}; ${esc(limit(l.question_tokens, "tokens per question"))}. Set with the API's TILES_COPILOT_* variables.</p>`;
+	}
+	async function fillCopilotUsage(root, ctx) {
+		const box = root.querySelector("[data-copilot-usage]");
+		const site = ctx.ontology.site;
+		if (!box || !site || !ctx.api) return;
+		try {
+			box.innerHTML = usageHtml(await ctx.api.copilot.usage(site.id, 30));
+		} catch {
+			box.innerHTML = "<p class=\"small soft\">Copilot usage could not be loaded.</p>";
 		}
 	}
 	function notificationsCard(ctx) {
@@ -4621,6 +4700,7 @@
         ${ds.mode === "api" ? accountCard(ctx) : ""}
         ${ctx.ontology.site ? notificationsCard(ctx) : ""}
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === "admin") : ""}
+        ${ctx.ontology.role === "admin" ? copilotUsageCard() : ""}
         ${ctx.ontology.role === "admin" ? auditCard() : ""}
       </div>`;
 		},
@@ -4676,7 +4756,10 @@
 					show("Not reachable");
 				}
 			});
-			if (ctx.ontology.role === "admin") fillAudit(root, ctx);
+			if (ctx.ontology.role === "admin") {
+				fillCopilotUsage(root, ctx);
+				fillAudit(root, ctx);
+			}
 			bindAgents(root, ctx);
 			fillNotifications(root, ctx);
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());

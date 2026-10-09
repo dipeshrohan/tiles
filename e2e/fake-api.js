@@ -184,6 +184,20 @@ export function createFakeApi({
   const copilotQuestions = [];
   const feedback = []; // { conversation, seq, rating, comment }
   let copilotDelayMs = 5; // between streamed events
+  // The copilot's usage (T4.07), as GET …/copilot/usage gives it to admins.
+  const copilotUsage = {
+    days: [],
+    users: [],
+    today: { org_billed_tokens: 0, site_billed_tokens: 0 },
+    limits: {
+      question_tokens: 200000,
+      org_daily_tokens: 5000000,
+      org_questions_per_minute: 30,
+      user_questions_per_minute: 6,
+      max_tokens_per_call: 2048,
+      max_rounds: 8,
+    },
+  };
   const wearChecks = []; // each wear-check request's body
   let datasetRowsFail = null; // a detail: the next rows batch is refused with it
   // Batch tables (T3.11): like the API, the correlation finder ranks with the browser's own.
@@ -637,6 +651,10 @@ export function createFakeApi({
       const copilotPath = `/sites/${site.id}/copilot`;
       if (url.pathname === copilotPath || url.pathname.startsWith(`${copilotPath}/`)) {
         if (url.pathname === copilotPath) return send(200, { configured: copilot });
+        if (url.pathname === `${copilotPath}/usage`)
+          return role === 'admin'
+            ? send(200, copilotUsage)
+            : send(403, { detail: `Your role on this site is ${role}; this needs admin or above` });
         const now = () => new Date().toISOString();
         const shown = ({ history: h, user: _u, ...c }) => ({
           ...c,
@@ -688,6 +706,11 @@ export function createFakeApi({
         const { text } = await body(req);
         copilotQuestions.push(text);
         const script = copilotScripts.shift() ?? { answer: 'Which press do you mean?' };
+        // A rate limit or budget refuses the question before it is stored (T4.07).
+        if (script.refuse) {
+          res.setHeader('retry-after', '30');
+          return send(429, { detail: script.refuse });
+        }
         const store = (role, content, meta = {}) =>
           c.history.push({ seq: c.history.length, role, content, meta, created_at: now() });
         store('user', [{ type: 'text', text }]);
@@ -1272,6 +1295,7 @@ export function createFakeApi({
     copilotScripts,
     copilotQuestions,
     copilotFeedback: feedback,
+    copilotUsage,
     // Slows the copilot's streamed events, so a test can see an answer arrive.
     slowCopilot(ms) {
       copilotDelayMs = ms;

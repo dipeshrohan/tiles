@@ -467,6 +467,42 @@ export interface CopilotMessage {
   feedback?: { rating: 'up' | 'down'; comment: string } | null;
 }
 
+// The copilot's usage on a site (T4.07): per UTC day (latest first) and per user, with the limits
+// and how much of today's organisation budget is used. Tokens are billed tokens (weighted by price,
+// in input tokens) unless named otherwise; times are milliseconds from the question.
+export interface CopilotUsageDay {
+  day: string;
+  questions: number;
+  answered: number;
+  failed: number;
+  over_budget: number;
+  ungrounded: number; // answered, but the grounding check found what no result supports
+  model_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_write_tokens: number;
+  cache_read_tokens: number;
+  billed_tokens: number;
+  first_text_p50_ms: number | null;
+  first_text_p95_ms: number | null;
+  total_p50_ms: number | null;
+  total_p95_ms: number | null;
+}
+
+export interface CopilotUsage {
+  days: CopilotUsageDay[];
+  users: { user: string; email: string; questions: number; billed_tokens: number }[];
+  today: { org_billed_tokens: number; site_billed_tokens: number };
+  limits: {
+    question_tokens: number;
+    org_daily_tokens: number;
+    org_questions_per_minute: number;
+    user_questions_per_minute: number;
+    max_tokens_per_call: number;
+    max_rounds: number;
+  };
+}
+
 // A saved insight (T3.12): a finding with what produced it and the evidence it gave when saved.
 export type InsightStatus = 'proposed' | 'accepted' | 'rejected';
 
@@ -876,6 +912,7 @@ export function createApiClient(options: ApiOptions) {
           }),
         unrate: (siteId: string, id: string, seq: number) =>
           request<void>('DELETE', `${conv(siteId, id)}/messages/${seq}/feedback`),
+        usage: (siteId: string, days = 30) => request<CopilotUsage>('GET', `${base(siteId)}/usage${query({ days })}`),
       };
     })(),
     insights: (() => {

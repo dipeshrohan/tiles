@@ -7,7 +7,9 @@ times. Every message of the exchange (the answer, the tool calls and their resul
 so the next question carries the whole conversation.
 
 The model is behind `Model`, so the loop is tested without the network; `AnthropicModel` is the
-real one (the official SDK's streaming helper).
+real one (the official SDK's streaming helper). It caches the prompt (T4.07): the tools, the system
+prompt and the conversation so far are the same at the start of every call of a question, and of
+the next question, so each call reads them from the cache and writes only what is new.
 """
 
 import json
@@ -22,6 +24,7 @@ log = logging.getLogger("tiles_api.copilot")
 
 MAX_TOOL_OUTPUT = 20_000  # characters of a tool's result sent back to the model
 MAX_TOOL_ERROR = 2_000  # and of a tool's reason for not answering
+USAGE_KEYS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 
 SYSTEM = """You are the Tiles copilot for {site}, a site of {org}. Tiles holds the plant's ontology
 (machines, lines, PLCs, signals and how they connect), its signals' readings, warnings and
@@ -78,6 +81,18 @@ EventKind = Literal["text", "tool_use", "tool_result", "message", "usage", "retr
 class Event:
     kind: EventKind
     data: dict[str, Any]
+
+
+def billed(usage: dict[str, int]) -> int:
+    """Tokens weighted as Anthropic prices them, in input tokens: an output token costs five, a cache
+    write one and a quarter, a cache read a tenth. Budgets and the usage dashboard count these, so a
+    budget follows the cost, and caching is not counted against anyone."""
+    return (
+        20 * usage.get("input_tokens", 0)
+        + 25 * usage.get("cache_creation_input_tokens", 0)
+        + 100 * usage.get("output_tokens", 0)
+        + 2 * usage.get("cache_read_input_tokens", 0)
+    ) // 20
 
 
 def _blocks(content: Any, run_tools: bool) -> list[dict[str, Any]]:
@@ -144,9 +159,14 @@ def respond(
     history: Sequence[dict[str, Any]],
     tools: Sequence[Tool],
     max_rounds: int = 8,
+    budget: int = 0,
+    stop: Callable[[], str | None] | None = None,
 ) -> Iterator[Event]:
     """Streams the answer to the conversation `history` (ending with the user's question).
-    `message` events carry each new message to store, in order; `done` (or `error`) comes last."""
+    `message` events carry each new message to store, in order; `done` (or `error`) comes last.
+    The model is not called again once the question has used `budget` billed tokens (0: no limit),
+    or when `stop` gives a reason (asked before every call but the first); both are checked before
+    a call, so the last call may go past them. Either ends with an `error` that has over_budget."""
     messages = [dict(m) for m in history]
     by_name = {t.name: t for t in tools}
     specs = [t.spec() for t in tools]
@@ -159,6 +179,14 @@ def respond(
     calls_left = max_rounds + 1  # one more for a withdrawn answer's second try
     while calls_left > (0 if repaired_once else 1):
         calls_left -= 1
+        reason = (
+            f"This question used its budget of {budget:,} tokens before an answer: ask a narrower one"
+            if budget and billed(usage) >= budget
+            else (stop() if stop and calls_left < max_rounds else None)
+        )
+        if reason:
+            yield Event("error", {"detail": reason, "usage": usage, "over_budget": True})
+            return
         turn: Turn | None = None
         for item in model.stream(system=system, messages=messages, tools=specs):
             if isinstance(item, Turn):
@@ -222,6 +250,26 @@ def _repair(report: grounding.Grounding) -> str:
     )
 
 
+EPHEMERAL = {"type": "ephemeral"}
+
+
+def cached(
+    system: str, tools: list[dict[str, Any]], messages: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """The request with cache breakpoints (T4.07): after the tools and the system prompt (the same
+    for every question on a site), and after the last message, so the next call (another tool round,
+    or the next question) reads all of it from the cache. Copies: the stored messages are untouched."""
+    sys_blocks = [{"type": "text", "text": system, "cache_control": EPHEMERAL}]
+    tool_specs = [*tools[:-1], {**tools[-1], "cache_control": EPHEMERAL}] if tools else []
+    msgs = list(messages)
+    if msgs and isinstance(msgs[-1].get("content"), list) and msgs[-1]["content"]:
+        last = msgs[-1]
+        blocks = list(last["content"])
+        blocks[-1] = {**blocks[-1], "cache_control": EPHEMERAL}
+        msgs[-1] = {**last, "content": blocks}
+    return sys_blocks, tool_specs, msgs
+
+
 def _plain(block: Any) -> dict[str, Any]:
     """A response content block as the Messages API takes it back (only the fields it accepts)."""
     if block.type == "text":
@@ -243,14 +291,11 @@ class AnthropicModel:
     def stream(
         self, *, system: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> Iterator[str | Turn]:
+        sys_blocks, tool_specs, msgs = cached(system, tools, messages)
         with self.client.messages.stream(
-            model=self.model, max_tokens=self.max_tokens, system=system, messages=messages, tools=tools
+            model=self.model, max_tokens=self.max_tokens, system=sys_blocks, messages=msgs, tools=tool_specs
         ) as s:
             yield from s.text_stream
             final = s.get_final_message()
-        usage = {
-            k: v
-            for k, v in final.usage.model_dump().items()
-            if isinstance(v, int) and k in ("input_tokens", "output_tokens")
-        }
+        usage = {k: v for k, v in final.usage.model_dump().items() if isinstance(v, int) and k in USAGE_KEYS}
         yield Turn([_plain(b) for b in final.content], final.stop_reason, usage)

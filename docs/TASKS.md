@@ -132,7 +132,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [ ] `T4.05` [#64](https://github.com/dipeshrohan/tiles/issues/64) ★ **Evaluation set:** 100+ real partner questions with expected answers and the tools they should use · PM+FDE · 3d · T3.14
 - [ ] `T4.06` [#65](https://github.com/dipeshrohan/tiles/issues/65) ★ **Evaluation harness in the automated checks:** scores accuracy, grounding and tool choice; fails under the thresholds · BE · 3d · T4.05, T4.03
   *Done when:* ≥ 85% correct and 0 unsupported claims on the evaluation set.
-- [ ] `T4.07` [#66](https://github.com/dipeshrohan/tiles/issues/66) **Cost and latency controls:** prompt caching, token budgets, per-org rate limits, usage dashboard · BE · 2d · T4.01
+- [x] `T4.07` [#66](https://github.com/dipeshrohan/tiles/issues/66) **Cost and latency controls:** prompt caching, token budgets, per-org rate limits, usage dashboard · BE · 2d · T4.01
 - [ ] `T4.08` [#67](https://github.com/dipeshrohan/tiles/issues/67) ◇ **Document search:** upload SOPs and manuals, chunk and embed them, cite with page numbers · BE · 4d · T4.02
 - [ ] `T4.09` [#68](https://github.com/dipeshrohan/tiles/issues/68) ◇ **Copilot can stage ontology changes**, which always need human approval through T2.12 · BE · 2d · T4.02, T2.12
 
