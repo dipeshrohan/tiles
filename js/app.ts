@@ -113,7 +113,10 @@ function persist(): void {
 
 // ---- data source ---------------------------------------------------------
 
-let dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search);
+// The API this deployment serves the app with (server.js fills the meta tag from TILES_API_URL).
+const DEPLOYED_API = document.querySelector<HTMLMetaElement>('meta[name="tiles-api"]')?.content ?? '';
+
+let dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search, DEPLOYED_API);
 let api = makeApi();
 
 // ---- ontology store (local or API) ------------------------------------------
@@ -287,7 +290,7 @@ async function finishSignIn(): Promise<void> {
     toast(e instanceof Error ? e.message : String(e));
   }
   // The address now carries the page's own query again (e.g. ?api=…).
-  dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search);
+  dataSource = resolveDataSource(load<Partial<DataSource> | null>('datasource', null), location.search, DEPLOYED_API);
   api = makeApi();
   render();
 }

@@ -13,7 +13,12 @@ const types = {
   '.svg': 'image/svg+xml',
 };
 
-export function createTilesServer() {
+const attr = (text) => text.replace(/[&"<>]/g, (c) => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[c]);
+
+// `apiUrl` (TILES_API_URL when run directly, T5.09): the API a deployment serves the app with,
+// written into index.html's `tiles-api` meta tag; the app uses it until a browser chooses otherwise.
+export function createTilesServer({ apiUrl = '' } = {}) {
+  if (apiUrl && !/^https?:\/\/[^\s/]+/i.test(apiUrl)) throw new Error(`Not an http(s) URL: ${apiUrl}`);
   return createServer(async (req, res) => {
     let path;
     try {
@@ -28,7 +33,12 @@ export function createTilesServer() {
     }
     const file = join(root, path || 'index.html');
     try {
-      const body = await readFile(file);
+      let body = await readFile(file);
+      if (apiUrl && file === join(root, 'index.html')) {
+        body = body
+          .toString('utf8')
+          .replace('<meta name="tiles-api" content="" />', `<meta name="tiles-api" content="${attr(apiUrl)}" />`);
+      }
       res.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream' }).end(body);
     } catch {
       res.writeHead(404).end('Not found');
@@ -38,5 +48,7 @@ export function createTilesServer() {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const port = Number(process.env.PORT) || 5173;
-  createTilesServer().listen(port, () => console.log(`Tiles running at http://localhost:${port}`));
+  createTilesServer({ apiUrl: process.env.TILES_API_URL ?? '' }).listen(port, () =>
+    console.log(`Tiles running at http://localhost:${port}`),
+  );
 }

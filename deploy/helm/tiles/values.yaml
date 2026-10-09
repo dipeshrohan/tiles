@@ -1,0 +1,126 @@
+# Tiles Helm chart (T5.09). See README.md next to this file.
+#
+# The smallest install, for evaluation: a bundled database and Redis, a generated data key, the
+# dev identity off (production) and sign-in from your OIDC provider:
+#   helm install tiles deploy/helm/tiles --set url=https://tiles.example.com \
+#     --set apiUrl=https://api.tiles.example.com --set oidc.issuer=https://idp.example.com/realms/tiles
+
+images:
+  api:
+    repository: ghcr.io/dipeshrohan/tiles-api
+    tag: '' # default: the chart's appVersion
+    pullPolicy: IfNotPresent
+  web:
+    repository: ghcr.io/dipeshrohan/tiles-web
+    tag: ''
+    pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# development | test | production. Production refuses the dev identity and requires data keys.
+env: production
+logLevel: INFO
+
+# Where people open the app, and where their browsers reach the API (also the CORS origin and
+# the links in notifications).
+url: http://localhost:5173
+apiUrl: http://localhost:8000
+
+# Single sign-on (OIDC). Without an issuer, production refuses every request.
+oidc:
+  issuer: ''
+  jwksUrl: '' # default: discovered from the issuer
+  audience: tiles-api
+  clientId: tiles-web
+  defaultOrg: demo
+
+# Secrets reach the API and jobs as files (TILES_SECRETS_DIR), one per setting, named as its
+# variable in lower case: tiles_database_url, tiles_data_keys, tiles_smtp_password,
+# tiles_anthropic_api_key, tiles_redis_url. Create the Secret from your secret manager (External
+# Secrets, Vault, Sealed Secrets) and name it here; never put the values in this file.
+secrets:
+  existingSecret: ''
+  # A data key generated in the cluster (kept across upgrades) when your Secret has no
+  # tiles_data_keys. Back the Secret up: without it, sealed credentials can't be opened.
+  generateDataKey: true
+
+copilot:
+  model: '' # TILES_COPILOT_MODEL; the copilot is off unless this and tiles_anthropic_api_key are set
+  orgDailyTokens: 5000000
+
+smtp:
+  host: ''
+  port: 587
+  starttls: true
+  user: ''
+  from: Tiles <tiles@example.com>
+
+# Extra environment variables for the API and jobs (TILES_* settings not covered above).
+extraEnv: []
+
+api:
+  replicas: 2
+  # Applied by every API pod as it starts, one at a time (a database lock).
+  migrateOnStart: true
+  seedDemo: false # creates the demo organisation and site (tiles-seed)
+  dbPoolMax: 10
+  resources:
+    requests: { cpu: 250m, memory: 384Mi }
+    limits: { memory: 1Gi }
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+web:
+  replicas: 2
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 128Mi }
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# The scheduled jobs (cron, UTC). Each runs one command over every site, then exits.
+jobs:
+  checkQuality: { enabled: true, schedule: '*/15 * * * *', command: tiles-check-quality }
+  runModels: { enabled: true, schedule: '*/5 * * * *', command: tiles-run-models }
+  detect: { enabled: true, schedule: '*/5 * * * *', command: tiles-detect }
+  notify: { enabled: true, schedule: '* * * * *', command: tiles-notify }
+  runSweeps: { enabled: true, schedule: '*/2 * * * *', command: tiles-run-sweeps }
+jobDefaults:
+  activeDeadlineSeconds: 1800
+  backoffLimit: 1
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1Gi }
+
+# A single TimescaleDB pod with a volume, for evaluation. In production, turn it off and give
+# tiles_database_url for a managed PostgreSQL with TimescaleDB (backups: T5.14).
+database:
+  bundled: true
+  image: timescale/timescaledb:2.30.2-pg17
+  storage: 20Gi
+  storageClass: ''
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { memory: 2Gi }
+
+# Redis, which /ready checks. Off: give tiles_redis_url in the Secret.
+redis:
+  bundled: true
+  image: redis:7.4-alpine
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 256Mi }
+
+ingress:
+  enabled: false
+  className: ''
+  annotations: {}
+  # TLS for both hosts (taken from url and apiUrl); with cert-manager, set its annotation instead.
+  tlsSecret: ''
+
+# Pods accept traffic only from where they need it (the database and Redis from Tiles only).
+# Needs a CNI that enforces NetworkPolicy.
+networkPolicy:
+  enabled: true

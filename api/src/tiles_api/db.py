@@ -10,6 +10,8 @@ from alembic.script import ScriptDirectory
 
 from tiles_api.settings import Settings, get_settings
 
+MIGRATION_LOCK = 7_412_850_001  # the pg_advisory_lock key migrations hold (migrations/env.py)
+
 
 def sqlalchemy_url(database_url: str) -> str:
     """Point SQLAlchemy at psycopg 3, whatever scheme the setting uses."""

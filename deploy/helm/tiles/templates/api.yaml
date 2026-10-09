@@ -1,0 +1,125 @@
+{{- $fullname := include "tiles.fullname" . }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-api
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tiles.selector" (dict "root" . "component" "api") | nindent 4 }}
+  ports:
+    - { name: http, port: 8000, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-api
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "api") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tiles.labels" . | nindent 8 }}
+        app.kubernetes.io/component: api
+      annotations:
+        # New settings roll the pods.
+        checksum/env: {{ include "tiles.env" . | sha256sum }}
+        {{- with .Values.api.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ $fullname }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "tiles.podSecurity" (dict "uid" 10001) | nindent 8 }}
+      {{- if or .Values.api.migrateOnStart .Values.api.seedDemo }}
+      initContainers:
+        # Migrations (one pod at a time: they hold a database lock), then the demo site if asked.
+        - name: migrate
+          image: {{ include "tiles.image" (dict "image" .Values.images.api "root" .) }}
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - {{ list (ternary "tiles-migrate upgrade" "" .Values.api.migrateOnStart) (ternary "tiles-seed" "" .Values.api.seedDemo) | compact | join " && " | quote }}
+          env:
+            {{- include "tiles.env" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            {{- include "tiles.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            {{- include "tiles.secretsMount" . | nindent 12 }}
+      {{- end }}
+      containers:
+        - name: api
+          image: {{ include "tiles.image" (dict "image" .Values.images.api "root" .) }}
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          env:
+            {{- include "tiles.env" . | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8000 }
+          startupProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          readinessProbe:
+            # The database and Redis answer.
+            httpGet: { path: /ready, port: http }
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.api.resources | nindent 12 }}
+          securityContext:
+            {{- include "tiles.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            {{- include "tiles.secretsMount" . | nindent 12 }}
+      volumes:
+        {{- include "tiles.secretsVolume" . | nindent 8 }}
+      {{- with .Values.api.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.api.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if gt (int .Values.api.replicas) 1 }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $fullname }}-api
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "api") | nindent 6 }}
+{{- end }}

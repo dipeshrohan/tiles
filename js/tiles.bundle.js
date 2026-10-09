@@ -1083,9 +1083,12 @@
 		mode: "local",
 		apiUrl: "http://localhost:8000"
 	};
-	function resolveDataSource(saved, search) {
+	function resolveDataSource(saved, search, deployed = "") {
 		const source = {
-			...DEFAULT_DATA_SOURCE,
+			...isHttpUrl(deployed) ? {
+				mode: "api",
+				apiUrl: normalizeBaseUrl(deployed)
+			} : DEFAULT_DATA_SOURCE,
 			...saved ?? {}
 		};
 		if (source.mode !== "local" && source.mode !== "api") source.mode = "local";
@@ -8562,7 +8565,8 @@
 			user: state.user
 		});
 	}
-	var dataSource = resolveDataSource(load$2("datasource", null), location.search);
+	var DEPLOYED_API = document.querySelector("meta[name=\"tiles-api\"]")?.content ?? "";
+	var dataSource = resolveDataSource(load$2("datasource", null), location.search, DEPLOYED_API);
 	var api = makeApi();
 	var localRepo = state.repo;
 	var remote = null;
@@ -8711,7 +8715,7 @@
 			history.replaceState(null, "", cleanCallbackUrl(location.href, e instanceof SignInError ? e.returnTo : void 0));
 			toast(e instanceof Error ? e.message : String(e));
 		}
-		dataSource = resolveDataSource(load$2("datasource", null), location.search);
+		dataSource = resolveDataSource(load$2("datasource", null), location.search, DEPLOYED_API);
 		api = makeApi();
 		render();
 	}
