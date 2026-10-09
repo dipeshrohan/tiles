@@ -216,3 +216,13 @@ def test_a_broken_off_history_is_repaired_wherever_it_broke() -> None:
     ]
     # Two questions in a row (the first answer broke off) are joined into one message.
     assert assistant.repaired([msg("user", text("a")), msg("user", text("b"))]) == [msg("user", text("a"), text("b"))]
+
+
+def test_a_long_reason_for_not_answering_is_cut_short() -> None:
+    def wordy(_args: dict[str, Any]) -> Any:
+        raise ToolError("x" * 50_000)
+
+    model = Scripted(([], Turn([call("wordy", {})], "tool_use")), ([], Turn([text("Ok.")], "end_turn")))
+    events = list(assistant.respond(model, "s", QUESTION, [Tool("wordy", "", {"type": "object"}, wordy)]))
+    result = next(e for e in events if e.kind == "message" and e.data["role"] == "user").data["content"][0]
+    assert len(result["content"]) == assistant.MAX_TOOL_ERROR

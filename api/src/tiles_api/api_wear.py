@@ -7,13 +7,12 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
-from tiles_api import wear
-from tiles_api.api_ontology import Ctx
+from tiles_api import api_series, wear
+from tiles_api.api_ontology import Ctx, SiteContext
 from tiles_api.notify import number_text
-from tiles_api.store import one
 
 router = APIRouter(tags=["signals"])
 
@@ -127,17 +126,16 @@ def explain(a: wear.Assessment, unit: str | None, limit: float | None, body: Wea
 def wear_check(ctx: Ctx, signal_id: uuid.UUID, body: WearIn) -> dict[str, Any]:
     """Has the signal's level moved from its baseline (a wearing tool's), how fast, and when does
     it reach `limit`? The baseline is `baseline_hours` before the last `recent_hours` up to `end`."""
-    signal = ctx.conn.execute(
-        "SELECT tag, unit FROM signals WHERE id = %s AND site_id = %s", [signal_id, ctx.site_id]
-    ).fetchone()
-    if signal is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such signal on this site")
-    end = body.end
-    if end is None:
-        latest = one(
-            ctx.conn.execute("SELECT max(at) AS at FROM samples WHERE signal_id = %s", [signal_id]).fetchone()
-        )["at"]
-        end = (latest + timedelta(microseconds=1)) if latest else datetime.now().astimezone()
+    return run_check(ctx, signal_id, body)
+
+
+def run_check(
+    ctx: SiteContext, signal_id: uuid.UUID, body: WearIn, signal: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """The wear check of a signal of this site, as `POST …/wear-check` answers it (`signal`:
+    api_series.site_signal's row, if the caller has it)."""
+    signal = signal or api_series.site_signal(ctx, signal_id)
+    end = body.end or api_series.latest_end(ctx, signal_id)
     recent_from = end - timedelta(hours=body.recent_hours)
     start = recent_from - timedelta(hours=body.baseline_hours)
     rows = ctx.conn.execute(

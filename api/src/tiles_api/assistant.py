@@ -19,6 +19,7 @@ from typing import Any, Literal, Protocol
 log = logging.getLogger("tiles_api.copilot")
 
 MAX_TOOL_OUTPUT = 20_000  # characters of a tool's result sent back to the model
+MAX_TOOL_ERROR = 2_000  # and of a tool's reason for not answering
 
 SYSTEM = """You are the Tiles copilot for {site}, a site of {org}. Tiles holds the plant's ontology
 (machines, lines, PLCs, signals and how they connect), its signals' readings, warnings and
@@ -120,7 +121,7 @@ def _result(tool: Tool | None, name: str, args: dict[str, Any]) -> tuple[str, bo
     try:
         out = json.dumps(tool.run(args), default=str, ensure_ascii=False)
     except ToolError as e:
-        return str(e), True
+        return str(e)[:MAX_TOOL_ERROR], True
     except Exception:
         log.exception("copilot tool failed", extra={"tool": name})
         return f"{name} failed: the input may not fit it", True
