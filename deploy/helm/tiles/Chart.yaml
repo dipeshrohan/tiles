@@ -1,0 +1,8 @@
+apiVersion: v2
+name: tiles
+description: Tiles on Kubernetes (T5.09) - the API, its scheduled jobs, the web app and, for evaluation, a database.
+type: application
+version: 0.1.0
+appVersion: '0.1.0'
+home: https://github.com/dipeshrohan/tiles
+kubeVersion: '>=1.27.0-0'

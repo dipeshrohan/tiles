@@ -107,12 +107,13 @@ services:
       redis:
         condition: service_healthy
 
+  # The web image (Dockerfile): the built app only. Run `npm run build` first after editing js/.
   web:
-    image: node:22-alpine
-    working_dir: /app
-    command: ['node', 'server.js']
-    volumes:
-      - ./:/app:ro
+    build: .
+    image: tiles-web:dev
+    environment:
+      # The app opens this API by default (Settings can switch back to this browser's data).
+      TILES_API_URL: http://localhost:8000
     ports:
       - '127.0.0.1:5173:5173'
     healthcheck:

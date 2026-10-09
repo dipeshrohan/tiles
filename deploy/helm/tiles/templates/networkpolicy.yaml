@@ -1,0 +1,60 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $fullname := include "tiles.fullname" . }}
+{{- range $component := list "db" "redis" }}
+{{- if (index $.Values (ternary "database" "redis" (eq $component "db"))).bundled }}
+---
+# The {{ $component }} accepts only the API and its jobs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-{{ $component }}
+  labels:
+    {{- include "tiles.labels" $ | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" $ "component" $component) | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/instance, operator: In, values: [{{ $.Release.Name | quote }}] }
+              - { key: app.kubernetes.io/component, operator: In, values: [api, job] }
+      ports:
+        - port: {{ ternary 5432 6379 (eq $component "db") }}
+{{- end }}
+{{- end }}
+---
+# The API and the web app take traffic on their own port only (from the ingress controller,
+# wherever it runs); the jobs take none.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-http
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app.kubernetes.io/instance, operator: In, values: [{{ .Release.Name | quote }}] }
+      - { key: app.kubernetes.io/component, operator: In, values: [api, web] }
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: 8000
+        - port: 5173
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-jobs
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name | quote }}
+      app.kubernetes.io/component: job
+  policyTypes: [Ingress]
+{{- end }}

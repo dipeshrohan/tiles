@@ -1,6 +1,10 @@
 """Schema v1: migrations apply and reverse cleanly; constraints hold."""
 
 import json
+import os
+import subprocess
+import sys
+import threading
 from collections.abc import Iterator
 
 import psycopg
@@ -8,7 +12,7 @@ import pytest
 from psycopg import errors
 from psycopg.rows import dict_row
 
-from tiles_api.db import alembic_config, downgrade, main, next_revision_id, sqlalchemy_url, upgrade
+from tiles_api.db import MIGRATION_LOCK, alembic_config, downgrade, main, next_revision_id, sqlalchemy_url, upgrade
 from tiles_api.settings import Settings, get_settings
 
 TABLES = {
@@ -358,3 +362,31 @@ def test_edge_agents_keep_names_unique_among_active_agents(conn: psycopg.Connect
         conn.execute(insert, [org["id"], site["id"], "edge-02", b"short"])
     with pytest.raises(psycopg.errors.CheckViolation), conn.transaction():
         conn.execute(insert, [org["id"], site["id"], "bad name", b"d" * 32])
+
+
+def test_migrators_take_turns(database_url: str) -> None:
+    """Every API pod migrates as it starts (the Helm chart, T5.09): a second one waits for the first."""
+    settings = Settings(_env_file=None, database_url=database_url)
+    with psycopg.connect(database_url, autocommit=True) as holder:
+        holder.execute("SELECT pg_advisory_lock(%s)", [MIGRATION_LOCK])  # another migrator, mid-way
+        done = threading.Event()
+
+        def migrate() -> None:
+            upgrade(settings)
+            done.set()
+
+        worker = threading.Thread(target=migrate)
+        worker.start()
+        assert not done.wait(1.5), "the second migrator didn't wait"
+        # Reading the revision changes nothing, so it doesn't wait (nor grant).
+        current = subprocess.run(  # its own process: Alembic's context is one per process
+            [sys.executable, "-c", "from tiles_api.db import main; main(['current'])"],
+            env={**os.environ, "TILES_DATABASE_URL": database_url},
+            capture_output=True,
+            text=True,
+            timeout=20,
+        )
+        assert "(head)" in current.stdout, current.stderr
+        holder.execute("SELECT pg_advisory_unlock(%s)", [MIGRATION_LOCK])
+        worker.join(30)
+    assert done.is_set()

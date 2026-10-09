@@ -150,6 +150,7 @@ jobs:
         run: |
           docker build -t tiles-api:scan api
           docker build -t tiles-edge:scan edge
+          docker build -t tiles-web:scan .
       - name: Scan the images (Trivy; high and critical findings with a fix fail the build)
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
@@ -159,7 +160,7 @@ jobs:
               -v "$RUNNER_TEMP/trivy:/root/.cache" "$TRIVY_IMAGE" "$@"
           }
           status=0
-          for image in tiles-api:scan tiles-edge:scan; do
+          for image in tiles-api:scan tiles-edge:scan tiles-web:scan; do
             trivy image --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --no-progress \
               "$image" || status=1
           done
@@ -177,6 +178,7 @@ jobs:
           if [ "${{ steps.build.outcome }}" = success ]; then
             trivy image --format cyclonedx --output /out/tiles-api-image.cdx.json tiles-api:scan
             trivy image --format cyclonedx --output /out/tiles-edge-image.cdx.json tiles-edge:scan
+            trivy image --format cyclonedx --output /out/tiles-web-image.cdx.json tiles-web:scan
           fi
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
@@ -184,6 +186,81 @@ jobs:
           name: sbom
           path: ${{ runner.temp }}/sbom
           if-no-files-found: warn
+
+  helm:
+    name: Helm chart on Kubernetes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CHART: deploy/helm/tiles
+      # Production settings: sign-in from an issuer (only asked when a token arrives), data keys.
+      VALUES: >-
+        --set oidc.issuer=https://idp.example.com/realms/tiles
+        --set images.api.repository=tiles-api --set images.api.tag=ci --set images.api.pullPolicy=Never
+        --set images.web.repository=tiles-web --set images.web.tag=ci --set images.web.pullPolicy=Never
+        --set api.replicas=2 --set api.seedDemo=true --set database.storage=1Gi
+        --set url=http://localhost:5173 --set apiUrl=http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.19.0
+      - name: Lint, render and validate (kubeconform)
+        run: |
+          helm lint "$CHART" $VALUES
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.7.0
+          for extra in "" "--set ingress.enabled=true --set ingress.tlsSecret=tiles-tls --set apiUrl=http://api.localhost:8000" \
+            "--set database.bundled=false --set redis.bundled=false --set secrets.existingSecret=tiles --set secrets.generateDataKey=false"; do
+            helm template t "$CHART" --kube-version 1.33.0 $VALUES $extra \
+              | "$(go env GOPATH)/bin/kubeconform" -strict -summary -kubernetes-version 1.33.0
+          done
+          # Settings that can't work are refused before anything is installed.
+          ! helm template t "$CHART" --kube-version 1.33.0 --set env=production 2> err.txt && grep -q 'needs oidc.issuer' err.txt
+          ! helm template t "$CHART" --kube-version 1.33.0 $VALUES --set apiUrl=api.example.com 2> err.txt && grep -q 'http(s) origins' err.txt
+          ! helm template t "$CHART" --kube-version 1.33.0 $VALUES --set ingress.enabled=true 2> err.txt && grep -q 'different host names' err.txt
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: tiles
+      - name: Build the images into the cluster
+        run: |
+          docker build -t tiles-api:ci api
+          docker build -t tiles-web:ci .
+          kind load docker-image tiles-api:ci tiles-web:ci --name tiles
+      - name: Install
+        run: helm install tiles "$CHART" $VALUES --wait --timeout 10m
+      - name: The API answers, ready, behind its sign-in; the app opens it
+        run: |
+          kubectl port-forward svc/tiles-api 8000 >/dev/null 2>&1 &
+          kubectl port-forward svc/tiles-web 5173 >/dev/null 2>&1 &
+          sleep 3
+          curl -fsS http://localhost:8000/ready | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -fsS http://localhost:8000/health | grep -q '"env":"production"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/sites)" = 401
+          curl -fsS http://localhost:5173/ | grep -q '<meta name="tiles-api" content="http://localhost:8000" />'
+      - name: A scheduled job runs to completion
+        run: |
+          for job in tiles-check-quality tiles-notify; do
+            kubectl create job "$job-now" --from="cronjob/$job"
+            kubectl wait --for=condition=complete "job/$job-now" --timeout=180s
+            kubectl logs "job/$job-now"
+          done
+      - name: An upgrade keeps the generated password and data key
+        run: |
+          before=$(kubectl get secret tiles-generated -o jsonpath='{.data}')
+          helm upgrade tiles "$CHART" $VALUES --set api.replicas=3 --wait --timeout 10m
+          test "$before" = "$(kubectl get secret tiles-generated -o jsonpath='{.data}')"
+          kubectl rollout status deploy/tiles-api
+      - name: A lost Secret is refused, not replaced, while the database volume is there
+        run: |
+          kubectl delete secret tiles-generated
+          ! helm upgrade tiles "$CHART" $VALUES 2> err.txt
+          grep 'holding its password is gone' err.txt
+      - name: State on failure
+        if: failure()
+        run: |
+          kubectl get all,pvc,secrets -o wide
+          kubectl describe pods
+          for pod in $(kubectl get pods -o name); do kubectl logs "$pod" --all-containers --tail=80 || true; done
 
   stack:
     name: Docker Compose stack

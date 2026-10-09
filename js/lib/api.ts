@@ -1132,9 +1132,14 @@ export interface DataSource {
 export const DEFAULT_DATA_SOURCE: DataSource = { mode: 'local', apiUrl: 'http://localhost:8000' };
 
 // A `?api=<url>` query parameter switches to API mode for this visit, which
-// is handy for demos and tests; `?api=local` forces local mode.
-export function resolveDataSource(saved: Partial<DataSource> | null, search: string): DataSource {
-  const source: DataSource = { ...DEFAULT_DATA_SOURCE, ...(saved ?? {}) };
+// is handy for demos and tests; `?api=local` forces local mode. `deployed` is
+// the API a deployment serves the app with (the `tiles-api` meta tag, T5.09):
+// the default until this browser chooses otherwise in Settings.
+export function resolveDataSource(saved: Partial<DataSource> | null, search: string, deployed = ''): DataSource {
+  const fallback: DataSource = isHttpUrl(deployed)
+    ? { mode: 'api', apiUrl: normalizeBaseUrl(deployed) }
+    : DEFAULT_DATA_SOURCE;
+  const source: DataSource = { ...fallback, ...(saved ?? {}) };
   if (source.mode !== 'local' && source.mode !== 'api') source.mode = 'local';
   const param = new URLSearchParams(search).get('api');
   if (param === 'local') return { ...source, mode: 'local' };

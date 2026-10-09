@@ -144,6 +144,15 @@ test('data source: saved choice, defaults and the ?api= override', () => {
   assert.equal(resolveDataSource({ mode: 'cloud' }, '').mode, 'local');
 });
 
+test('data source: the API of a deployment is the default until this browser chooses', () => {
+  const deployed = 'https://api.tiles.example.com/';
+  assert.deepEqual(resolveDataSource(null, '', deployed), { mode: 'api', apiUrl: 'https://api.tiles.example.com' });
+  const chose = { mode: 'local', apiUrl: 'https://api.tiles.example.com' };
+  assert.deepEqual(resolveDataSource(chose, '', deployed), chose);
+  assert.equal(resolveDataSource(null, '?api=local', deployed).mode, 'local');
+  assert.deepEqual(resolveDataSource(null, '', 'javascript:alert(1)'), DEFAULT_DATA_SOURCE);
+});
+
 test('only a real Tiles /health answer counts as connected', () => {
   assert.equal(isTilesHealth({ status: 'ok', version: '0.1.0', env: 'development' }), true);
   for (const other of [{ ok: true }, { status: 'ok' }, { status: 'up', version: '1', env: 'x' }, null, 'ok']) {
