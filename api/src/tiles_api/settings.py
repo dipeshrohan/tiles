@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     cors_origins: list[str] = ["http://localhost:5173"]
-    database_url: str = "postgresql://tiles:tiles-dev@localhost:5432/tiles"
+    database_url: SecretStr = SecretStr("postgresql://tiles:tiles-dev@localhost:5432/tiles")  # holds a password
     redis_url: str = "redis://localhost:6379/0"
     # Seconds each readiness check may take before it counts as unavailable.
     ready_timeout: float = 2.0
@@ -46,12 +46,12 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_from: str = "Tiles <tiles@example.com>"
     app_url: str = "http://localhost:5173"
-    # The copilot (T4.01): Claude through the Anthropic API. Off until both are set; the model is a
-    # current Claude model ID from Anthropic's documentation.
     # Data keys that seal credentials stored in the database (T5.06, sealed.py): `id:base64key`,
     # comma-separated, the first sealing. Required in production. `tiles-rotate-keys --new-key ID`
     # makes one.
     data_keys: SecretStr | None = None
+    # The copilot (T4.01): Claude through the Anthropic API. Off until both are set; the model is a
+    # current Claude model ID from Anthropic's documentation.
     anthropic_api_key: SecretStr | None = None
     copilot_model: str | None = None
     copilot_max_tokens: int = 2048  # per model call

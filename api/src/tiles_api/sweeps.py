@@ -198,7 +198,7 @@ def drain(connect: Connect) -> None:
 def main() -> None:
     """tiles-run-sweeps: runs every waiting sweep (queued, or left running by a worker that went
     quiet), oldest first; the exit code is 1 if one failed."""
-    url = get_settings().database_url
+    url = get_settings().database_url.get_secret_value()
 
     def connect() -> AbstractContextManager[Conn]:
         return psycopg.connect(url, row_factory=dict_row, autocommit=False, options=UNSCOPED)

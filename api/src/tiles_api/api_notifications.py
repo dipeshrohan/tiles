@@ -35,6 +35,7 @@ class Teams(BaseModel):
     configured: bool
     host: str | None  # the webhook's host; the URL itself is never shown
     on_raised: bool
+    problem: str | None = None  # why the stored URL can't be opened (a data key missing): set it again
 
 
 class TeamsIn(BaseModel):
@@ -94,11 +95,17 @@ def _teams(ctx: SiteContext, keys: sealed.DataKeys | None) -> dict[str, Any]:
         "SELECT teams_webhook_url, teams_on_raised FROM site_notifications WHERE site_id = %s", [ctx.site_id]
     ).fetchone()
     stored = row["teams_webhook_url"] if row else None
-    url = sealed.unseal(keys, stored, sealed.teams_context(ctx.site_id)) if stored else None
+    url, problem = None, None
+    if stored:
+        try:
+            url = sealed.unseal(keys, stored, sealed.teams_context(ctx.site_id))
+        except sealed.SealError as e:  # shown, so an admin can set it again or remove it
+            problem = str(e)
     return {
-        "configured": url is not None,
+        "configured": stored is not None,
         "host": urlsplit(url).hostname if url else None,
         "on_raised": row["teams_on_raised"] if row else True,
+        "problem": problem,
     }
 
 

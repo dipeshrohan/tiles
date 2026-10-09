@@ -16,7 +16,7 @@ import os
 import re
 import sys
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import psycopg
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -75,10 +75,12 @@ class DataKeys:
         key = dict(self.keys).get(kid)
         if key is None:
             raise SealError(f"Sealed with data key {kid}, which isn't set: add it to TILES_DATA_KEYS")
-        raw = base64.b64decode(encoded)
         try:
+            raw = base64.b64decode(encoded, validate=True)
+            if len(raw) < 12 + 16:  # a nonce and a tag at least
+                raise ValueError("too short")
             return AESGCM(key).decrypt(raw[:12], raw[12:], context.encode()).decode()
-        except Exception as e:  # InvalidTag: another key's, or another row's
+        except Exception as e:  # not base64, cut short, InvalidTag: another key's, or another row's
             raise SealError(f"A value sealed with key {kid} doesn't open here (changed, or another row's)") from e
 
     def needs_resealing(self, value: str) -> bool:
@@ -134,28 +136,48 @@ def main(argv: list[str] | None = None) -> None:
     if keys is None:
         print("TILES_DATA_KEYS isn't set: nothing to seal with", file=sys.stderr)
         sys.exit(2)
-    with psycopg.connect(settings.database_url, row_factory=dict_row, options=UNSCOPED) as conn:
-        resealed = reseal(conn, keys)
-    print(f"{resealed} value(s) sealed with key {keys.current}")
+    with psycopg.connect(settings.database_url.get_secret_value(), row_factory=dict_row, options=UNSCOPED) as conn:
+        result = reseal(conn, keys)
+    print(f"{result.resealed} value(s) sealed with key {keys.current}; {result.checked} checked")
+    for where, why in result.failed:
+        print(f"{where}: not opened ({why})", file=sys.stderr)
+    if result.failed:
+        print(
+            "Don't drop a key until every value opens: add back the key named above, or set those again",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
-def reseal(conn: Conn, keys: DataKeys) -> int:
-    """Re-seals the stored credentials not sealed with the current key; how many. One transaction."""
+@dataclass
+class Resealed:
+    checked: int = 0  # values opened
+    resealed: int = 0  # of them, sealed again with the current key
+    failed: list[tuple[str, str]] = field(default_factory=list)  # (where, why) of values that don't open
+
+
+def reseal(conn: Conn, keys: DataKeys) -> Resealed:
+    """Opens every stored credential (so a rotation proves they all still open), re-seals those not
+    sealed with the current key, and names the ones that don't open, leaving them as they are."""
     rows = conn.execute(
         "SELECT site_id, teams_webhook_url FROM site_notifications WHERE teams_webhook_url IS NOT NULL FOR UPDATE"
     ).fetchall()
-    n = 0
+    out = Resealed()
     for r in rows:
-        value = r["teams_webhook_url"]
-        if not keys.needs_resealing(value):
+        value, context = r["teams_webhook_url"], teams_context(r["site_id"])
+        try:
+            plain = keys.unseal(value, context)
+        except SealError as e:
+            out.failed.append((f"site {r['site_id']}: Teams webhook", str(e)))
             continue
-        context = teams_context(r["site_id"])
-        conn.execute(
-            "UPDATE site_notifications SET teams_webhook_url = %s WHERE site_id = %s",
-            [keys.seal(keys.unseal(value, context), context), r["site_id"]],
-        )
-        n += 1
-    return n
+        out.checked += 1
+        if keys.needs_resealing(value):
+            conn.execute(
+                "UPDATE site_notifications SET teams_webhook_url = %s WHERE site_id = %s",
+                [keys.seal(plain, context), r["site_id"]],
+            )
+            out.resealed += 1
+    return out
 
 
 def teams_context(site_id: uuid.UUID | str) -> str:

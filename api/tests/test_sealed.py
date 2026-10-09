@@ -33,8 +33,9 @@ def test_a_value_opens_only_where_it_was_sealed() -> None:
     with pytest.raises(sealed.SealError, match="doesn't open here"):
         keys.unseal(value, "teams:b")  # copied to another row
     tampered = value[:-4] + ("AAAA" if not value.endswith("AAAA") else "BBBB")
-    with pytest.raises(sealed.SealError):
-        keys.unseal(tampered, "teams:a")
+    for broken in (tampered, "tiles:v1:k1:abc", "tiles:v1:k1:" + "A" * 8, "tiles:v1:k1:not base64!"):
+        with pytest.raises(sealed.SealError, match="doesn't open here"):
+            keys.unseal(broken, "teams:a")
     assert keys.unseal("https://plain", "teams:a") == "https://plain"  # stored before keys were set
     # Without keys, sealed values can't be read, and nothing is sealed.
     with pytest.raises(sealed.SealError, match="TILES_DATA_KEYS isn't set"):
@@ -118,8 +119,8 @@ def test_the_teams_webhook_is_stored_sealed_and_still_sent(
     keys = sealed.DataKeys.parse(f"{K2},{K1}")
     assert keys is not None
     with psycopg.connect(database_url, row_factory=psycopg.rows.dict_row) as conn:
-        assert sealed.reseal(conn, keys) == 1
-        assert sealed.reseal(conn, keys) == 0  # nothing left to do
+        assert sealed.reseal(conn, keys) == sealed.Resealed(checked=1, resealed=1)
+        assert sealed.reseal(conn, keys) == sealed.Resealed(checked=1, resealed=0)  # nothing left to do
         [rotated] = conn.execute("SELECT teams_webhook_url AS v FROM site_notifications WHERE site_id = %s", [site])
     assert rotated["v"].startswith("tiles:v1:k2:")
     monkeypatch.setattr(settings, "data_keys", Settings(_env_file=None, data_keys=K2).data_keys)
@@ -140,9 +141,37 @@ def test_a_sealed_webhook_is_opened_to_send(
         # Without the key, it can't be opened: kept and retried, saying why (never sent elsewhere).
         lost = FakeSender()
         assert send_due(conn, lost, "https://tiles.example.com", keys=None).failed == 1
-        [why] = conn.execute("SELECT last_error FROM notifications WHERE channel = 'teams'").fetchall()
+        [why] = conn.execute("SELECT last_error, attempts FROM notifications WHERE channel = 'teams'").fetchall()
         assert "TILES_DATA_KEYS isn't set" in why["last_error"]
+        assert why["attempts"] == 0  # held, not counted: it isn't given up while the key is missing
         conn.execute("UPDATE notifications SET next_at = now()")
         sender = FakeSender()
         assert send_due(conn, sender, "https://tiles.example.com", keys=sealed.DataKeys.parse(K1)).sent == 1
     assert [url for url, _ in sender.posts] == [URL] and lost.posts == []
+
+
+def test_a_webhook_that_wont_open_can_still_be_replaced(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = api.app.state.settings  # type: ignore[attr-defined]
+    monkeypatch.setattr(settings, "data_keys", Settings(_env_file=None, data_keys=K1).data_keys)
+    api.put(f"/sites/{site}/notifications/teams", json={"webhook_url": URL}, headers=ADMIN)
+    # The key it was sealed with is dropped before rotating.
+    monkeypatch.setattr(settings, "data_keys", Settings(_env_file=None, data_keys=K2).data_keys)
+    shown = api.get(f"/sites/{site}/notifications/teams", headers=ADMIN).json()
+    assert (shown["configured"], shown["host"]) == (True, None)
+    assert "data key k1, which isn't set" in shown["problem"]
+    # Rotation names it and leaves it, rather than stopping every site's.
+    keys = sealed.DataKeys.parse(K2)
+    assert keys is not None
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        result = sealed.reseal(conn, keys)
+    [(where, why)] = [f for f in result.failed if site in f[0]]  # other sites' values are the module's
+    assert where == f"site {site}: Teams webhook" and "k1" in why
+    # An admin sets it again (or removes it).
+    res = api.put(f"/sites/{site}/notifications/teams", json={"webhook_url": URL}, headers=ADMIN)
+    assert res.status_code == 200 and res.json()["problem"] is None
+    assert api.put(f"/sites/{site}/notifications/teams", json={"webhook_url": None}, headers=ADMIN).status_code == 200

@@ -290,6 +290,13 @@ def send_due(conn: Conn, sender: Sender, app_url: str, limit: int = 200, keys: s
                 else:
                     url = sealed.unseal(keys, n["teams_webhook_url"], sealed.teams_context(n["site_id"]))
                     sender.teams(url, teams_card(message))
+            except sealed.SealError as e:  # a data key missing here: held, not counted, until it is set
+                conn.execute(
+                    "UPDATE notifications SET last_error = %s, next_at = now() + interval '5 minutes' WHERE id = %s",
+                    [str(e)[:500], n["id"]],
+                )
+                result.failed += 1
+                continue
             except Exception as e:  # anything the server or network says: kept, and retried
                 attempts = n["attempts"] + 1
                 give_up = attempts >= MAX_ATTEMPTS or isinstance(e, GiveUp)
@@ -319,7 +326,9 @@ def main(argv: list[str] | None = None, sender: Callable[[Settings], Sender] = L
     parser = argparse.ArgumentParser(prog="tiles-notify", description=main.__doc__)
     parser.parse_args(argv)
     settings = get_settings()
-    with psycopg.connect(settings.database_url, row_factory=dict_row, autocommit=True, options=UNSCOPED) as conn:
+    with psycopg.connect(
+        settings.database_url.get_secret_value(), row_factory=dict_row, autocommit=True, options=UNSCOPED
+    ) as conn:
         r = send_due(conn, sender(settings), settings.app_url, keys=sealed.keys_of(settings))
     print(f"{r.sent} sent, {r.failed} to retry, {r.given_up} given up")
     if r.failed or r.given_up:

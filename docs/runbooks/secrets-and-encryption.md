@@ -49,11 +49,11 @@ A data key is `id:base64` (32 random bytes). Several can be set at once, separat
 
 1. Make a new key: `uv run tiles-rotate-keys --new-key k2` prints `k2:…`. Store it in the secrets manager.
 2. Put it first, keeping the old one: `TILES_DATA_KEYS=k2:…,k1:…`. Restart the API and the jobs (`tiles-notify`).
-3. Re-seal everything with the new key: `uv run tiles-rotate-keys`. It prints how many values it re-sealed. It also seals values stored before keys were set.
-4. Run it again: it should report 0.
+3. Re-seal everything with the new key: `uv run tiles-rotate-keys`. It opens every stored value, re-seals those not sealed with the new key, and seals values stored before keys were set. It prints how many it checked and re-sealed. It names each value that doesn't open, with its site, and exits 1 if there are any.
+4. Run it again: it should re-seal 0 and name none. If it names a value, add back the key it names, or set that credential again (Settings → Notifications), before going on.
 5. Remove the old key: `TILES_DATA_KEYS=k2:…`. Restart. Keep the old key in the secrets manager, marked retired, until no backup sealed with it remains within the retention period.
 
-If a value doesn't open, the API says which key sealed it ("Sealed with data key k1, which isn't set"). Add that key back and run step 3 again.
+If a value doesn't open, the API says which key sealed it ("Sealed with data key k1, which isn't set"), and Settings → Notifications shows the problem so an admin can set the webhook again. Teams messages that can't be opened are held, not given up: they go once the key is back.
 
 ### Database password
 

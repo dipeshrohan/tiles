@@ -22,8 +22,10 @@ ALTER TABLE site_notifications ADD CONSTRAINT site_notifications_teams_webhook_u
     CHECK (teams_webhook_url ~ '^(https://|tiles:v1:)');
 """
 
+# Code before 0025 can't open sealed URLs: they are removed (set them again after downgrading).
 DOWNGRADE = """
 ALTER TABLE site_notifications DROP CONSTRAINT site_notifications_teams_webhook_url_check;
+UPDATE site_notifications SET teams_webhook_url = NULL WHERE teams_webhook_url LIKE 'tiles:v1:%';
 ALTER TABLE site_notifications ADD CONSTRAINT site_notifications_teams_webhook_url_check
     CHECK (teams_webhook_url ~ '^https://');
 """
