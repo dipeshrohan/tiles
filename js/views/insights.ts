@@ -132,6 +132,7 @@ function evidence(i: Insight): string {
         to: Date.parse(s.end),
         gap: gapFor(s, points),
         yLabel: s.unit ?? '',
+        title: s.unit ? `${s.tag} (${s.unit})` : s.tag,
         width: fitWidth(TIME_CHART.width, 0.7),
       });
       return `<div class="stack" style="gap:4px" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;

@@ -1,6 +1,6 @@
 import { afterEach, test } from 'vitest';
 import assert from 'node:assert/strict';
-import { fitWidth, lineChart } from '../js/lib/svg.ts';
+import { dumbbell, fitWidth, hbars, heatmap, lineChart, listed, timeChart } from '../js/lib/svg.ts';
 
 afterEach(() => {
   delete globalThis.document;
@@ -25,4 +25,100 @@ test('charts are drawn to the width the page gives them, within limits', () => {
 test('a chart grows at most one and a half times its drawn size', () => {
   const svg = lineChart({ series: [{ values: [1, 2, 3], color: 'red' }], width: 480, height: 200 });
   assert.match(svg, /viewBox="0 0 480 200" style="max-width:720px"/);
+});
+
+// What a screen reader is told about a chart: its name, and the numbers a reader takes from it.
+const label = (svg) => {
+  assert.match(svg, /^<svg [^>]*role="img"/);
+  assert.doesNotMatch(svg, /^<svg[^>]*><title>/, 'no title as well: it would be read twice');
+  return svg.match(/aria-label="([^"]*)"/)?.[1];
+};
+
+test('a line chart names its lines and their ranges, its windows and its marks', () => {
+  const svg = lineChart({
+    series: [
+      { values: [1, 2, null, 4.5], color: 'red', label: 'Friction' },
+      { values: [3, 3, 3, 3], color: 'blue', label: 'Threshold' },
+    ],
+    bands: [{ from: 1, to: 2, color: 'pink' }],
+    markers: [{ x: 3, label: 'Seizure', color: 'red' }],
+    xLabel: 'shot',
+    yLabel: 'kN',
+    title: 'Plunger friction',
+  });
+  assert.equal(
+    label(svg),
+    'Plunger friction. 4 points along shot; Friction 1 to 4.5; Threshold 3; 1 shaded window; marked: Seizure',
+  );
+  assert.match(
+    label(lineChart({ series: [{ values: [5, 6], color: 'x' }], yLabel: 'bar' })),
+    /^bar\. 2 points; values 5 to 6$/,
+  );
+});
+
+test('a time chart gives its span, its values and latest, its levels and shaded stretches', () => {
+  const t0 = Date.parse('2026-10-09T10:00:00Z');
+  const points = [0, 1, 2].map((i) => ({ t: t0 + i * 60_000, v: 100 + i, lo: 100 + i, hi: 100 + i }));
+  const svg = timeChart({
+    points,
+    from: t0,
+    to: t0 + 3 * 60_000,
+    gap: 120_000,
+    yLabel: 'N',
+    title: 'dc1.friction',
+    levels: [{ v: 150, label: 'threshold' }],
+    spans: [{ from: t0, to: t0 + 60_000 }],
+  });
+  assert.equal(
+    label(svg),
+    'dc1.friction. 3 readings from 2026-10-09 10:00 UTC to 2026-10-09 10:03 UTC; values 100 to 102; latest 102 at 2026-10-09 10:02 UTC; threshold 150; 1 shaded stretch',
+  );
+  // Small values keep three significant digits, and a range that reads as one number says it once.
+  const tiny = [0.000234, 0.000912].map((v, i) => ({ t: t0 + i * 60_000, v, lo: v, hi: v }));
+  assert.match(
+    label(timeChart({ points: tiny, from: t0, to: t0 + 120_000, gap: 120_000, yLabel: 'mm' })),
+    /values 0\.000234 to 0\.000912; latest 0\.000912/,
+  );
+  const flat = [5.001, 5.002].map((v, i) => ({ t: t0 + i * 60_000, v, lo: v, hi: v }));
+  assert.match(label(timeChart({ points: flat, from: t0, to: t0 + 120_000, gap: 1e6 })), /values 5; latest 5/);
+  const empty = timeChart({ points: [], from: t0, to: t0 + 1, gap: 1, yLabel: 'N' });
+  assert.equal(label(empty), 'N. No readings from 2026-10-09 10:00 UTC to 2026-10-09 10:00 UTC');
+});
+
+test('bars, dumbbells and heatmaps list their values', () => {
+  const bars = hbars({
+    items: [
+      { label: 'Tension', value: 0.9 },
+      { label: 'Speed', value: -0.2 },
+    ],
+    title: 'Effect size',
+    format: (v) => v.toFixed(1),
+  });
+  assert.equal(label(bars), 'Effect size. Tension 0.9 and Speed -0.2');
+  const dumb = dumbbell({ rows: [{ label: 'Anode', a: 12, b: 10 }], domain: [0, 20], xLabel: 'Tension (N)' });
+  assert.equal(label(dumb), 'Tension (N). Anode: 12 against 10');
+  const heat = heatmap({
+    xs: [1, 2],
+    ys: [10, 20],
+    grid: [
+      [5, 6],
+      [7, 9],
+    ],
+    min: 5,
+    max: 9,
+    xLabel: 'speed',
+    yLabel: 'force',
+    format: (v) => `${v} mm`,
+  });
+  assert.equal(
+    label(heat),
+    'Parameter sweep. 2 × 2 grid of speed by force; lowest 5 mm at speed 1.0, force 10.0; highest 9 mm at speed 2.0, force 20.0',
+  );
+});
+
+test('lists read as a sentence, and long ones say how many more', () => {
+  assert.equal(listed([]), '');
+  assert.equal(listed(['a']), 'a');
+  assert.equal(listed(['a', 'b', 'c']), 'a, b and c');
+  assert.equal(listed(['a', 'b', 'c', 'd'], 2), 'a, b and 2 more');
 });

@@ -85,7 +85,15 @@ export function forestPlot(findings: CorrelationFinding[], split: boolean, width
         <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>d = ${f.effect.toFixed(2)} (95% CI ${f.ci_low!.toFixed(2)} to ${f.ci_high!.toFixed(2)})</title></circle>`;
     })
     .join('');
-  return `<svg class="chart forest" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="Effect sizes with their 95% confidence intervals">
+  // For screen readers: the effects whose interval misses 0, as the plot makes them stand out.
+  const clear = shown.filter((f) => f.clear);
+  const name = (f: CorrelationFinding) => (split ? `${f.segment} · ${f.variable}` : f.variable);
+  const summary = `Effect sizes with their 95% confidence intervals, ${shown.length} shown. ${
+    clear.length
+      ? `Clear effects: ${clear.map((f) => `${name(f)} d = ${f.effect.toFixed(2)} (${f.ci_low!.toFixed(2)} to ${f.ci_high!.toFixed(2)})`).join('; ')}`
+      : 'No interval misses 0'
+  }`;
+  return `<svg class="chart forest" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(summary)}"><title>${esc(summary)}</title>
     <line class="grid" x1="${x(0)}" x2="${x(0)}" y1="12" y2="${height - 18}"/>
     <text class="tick" x="${x(0)}" y="${height - 4}" text-anchor="middle">0</text>
     <text class="tick" x="${x(-reach)}" y="${height - 4}">failed ran lower</text>

@@ -107,6 +107,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 - A small badge on **Ontology builder** shows your uncommitted changes, or the number of health issues. A badge on **Factory physics** shows its open warning windows.
 - The button at the top switches between light and dark themes. On a phone, the menu button opens the left menu.
 - Short messages ("toasts") appear at the bottom of the screen when something is saved or fails.
+- **With a keyboard:** the first Tab offers **Skip to content**, past the menu. Every control is reachable with Tab and works with Enter or Space; ontology nodes too. **With a screen reader:** each chart is described with the numbers it shows (its span, range, latest value, thresholds and shaded warnings), and toasts and the Shopfloor's headline are announced. Tiles follows the system's reduced-motion setting.
 
 ---
 

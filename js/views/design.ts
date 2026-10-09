@@ -296,7 +296,7 @@ const view: View = {
         </div>
         <div class="card">
           <div class="card-head"><div><h2>Sensitivity</h2><p>Output change for ±10% of each range</p></div></div>
-          ${hbars({ items: sens.map((s) => ({ label: s.label, value: s.delta, color: 'var(--accent)' })), width: 320, left: 120, format: (x) => `${x >= 0 ? '+' : '−'}${fmt(Math.abs(x), 2)}` })}
+          ${hbars({ items: sens.map((s) => ({ label: s.label, value: s.delta, color: 'var(--accent)' })), width: 320, left: 120, title: 'Output change for ±10% of each range', format: (x) => `${x >= 0 ? '+' : '−'}${fmt(Math.abs(x), 2)}` })}
         </div>
       </div>
 

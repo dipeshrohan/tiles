@@ -60,6 +60,7 @@ export function wearBlock(r: WearCheckResult, limit: number | null, width = TIME
     to: Date.parse(r.end),
     gap: bucketMs * 1.5,
     yLabel: r.unit ?? '',
+    title: `Wear check of ${r.tag}${r.unit ? ` (${r.unit})` : ''}: bucket medians`,
     levels,
     spans: [{ from: Date.parse(r.recent_from), to: Date.parse(r.end) }],
     width,

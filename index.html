@@ -17,18 +17,27 @@
     <meta name="tiles-api" content="" />
   </head>
   <body>
+    <a class="skip-link" href="#/" data-skip>Skip to content</a>
     <div class="shell">
       <aside class="sidebar" id="sidebar">
         <a class="brand" href="#/">
           <span class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
           <span>Tiles</span>
         </a>
-        <nav id="nav"></nav>
+        <nav id="nav" aria-label="Pages"></nav>
         <div class="user" id="user"></div>
       </aside>
       <div class="main">
         <header class="topbar">
-          <button class="icon-btn menu" id="menu" aria-label="Toggle navigation">☰</button>
+          <button
+            class="icon-btn menu"
+            id="menu"
+            aria-label="Toggle navigation"
+            aria-controls="sidebar"
+            aria-expanded="false"
+          >
+            ☰
+          </button>
           <div class="crumbs" id="crumbs"></div>
           <button class="icon-btn" id="theme" aria-label="Toggle light or dark theme" title="Toggle theme">
             <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
@@ -41,6 +50,8 @@
       </div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <!-- Read out by screen readers when a page has news (a live region must be there before it changes). -->
+    <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
     <script src="js/tiles.bundle.js" defer></script>
   </body>
 </html>

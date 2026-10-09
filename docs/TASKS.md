@@ -178,7 +178,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 ### UX
 - [x] `T5.16` [#90](https://github.com/dipeshrohan/tiles/issues/90) **Shopfloor view:** tablet layout, large type, warnings-first, works with gloves (big touch targets) · FE+PM · 3d · T3.08
 - [x] `T5.17` [#91](https://github.com/dipeshrohan/tiles/issues/91) **Site → line → machine navigator** built from the ontology hierarchy · FE · 2d · T1.15
-- [ ] `T5.18` [#92](https://github.com/dipeshrohan/tiles/issues/92) **Accessibility pass:** keyboard navigation, contrast, screen-reader labels on charts · FE · 2d
+- [x] `T5.18` [#92](https://github.com/dipeshrohan/tiles/issues/92) **Accessibility pass:** keyboard navigation, contrast, screen-reader labels on charts · FE · 2d
 
 **Month 5 exit check:** 4+ weeks of live warnings with outcomes logged; security review passed or has a clear remaining list.
 

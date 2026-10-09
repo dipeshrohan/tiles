@@ -69,7 +69,7 @@ const view: View = {
       <div class="grid g2" style="margin-bottom:16px">
         <div class="card">
           <div class="card-head"><h2>Effect size by variable</h2><p>Cohen's d, failed vs healthy · |d| ≥ 0.8 is strong</p></div>
-          ${hbars({ items: effects, width: 480, left: 200, format: (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2) })}
+          ${hbars({ items: effects, width: 480, left: 200, title: "Effect size by variable (Cohen's d)", format: (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2) })}
           ${ui.split ? '' : '<p class="small soft" style="margin-top:8px">Pooled across materials, nothing stands out. Try <a href="#/quality" data-split="1">splitting by material</a>.</p>'}
         </div>
         <div class="stack">
@@ -114,13 +114,14 @@ const view: View = {
         <div class="legend" style="margin-bottom:6px"><span><i style="background:var(--bad)"></i>Cathode tip</span><span><i style="background:var(--accent)"></i>Anode tip</span><span><i class="box" style="background:var(--band)"></i>Final 24 h before swap</span></div>
         ${lineChart({
           series: [
-            { values: series.map((s) => s.anode), color: 'var(--accent)' },
-            { values: series.map((s) => s.cathode), color: 'var(--bad)', width: 2 },
+            { values: series.map((s) => s.anode), color: 'var(--accent)', label: 'anode tip' },
+            { values: series.map((s) => s.cathode), color: 'var(--bad)', width: 2, label: 'cathode tip' },
           ],
           bands: [{ from: swapAt - 24, to: swapAt, color: 'var(--band)' }],
           markers: [{ x: swapAt, label: 'scheduled swap', color: 'var(--soft)' }],
           xFormat: (h) => `${h}h`,
           yLabel: 'Median welding power (W)',
+          title: 'Median welding power by hour (W)',
           width: fitWidth(1040),
           height: 260,
         })}

@@ -113,7 +113,9 @@ function answerBody(a: Answer, cited: Answer['tools'], conversation: string | nu
         }`
       : '';
   return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? '' : '<span class="soft"> …</span>'}</div>${
-    warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn)">⚠ ${esc(warning)}</p>` : ''
+    warning
+      ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn-ink)">⚠ ${esc(warning)}</p>`
+      : ''
   }${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ''}${feedback}`;
 }
 

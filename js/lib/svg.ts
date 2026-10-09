@@ -36,6 +36,7 @@ export interface LineChartOptions {
   xFormat?: (i: number) => string | number;
   yMin?: number;
   yMax?: number;
+  title?: string; // what the chart shows, for screen readers (default: the y label)
 }
 
 export interface DumbbellRow {
@@ -94,6 +95,50 @@ function niceStep(raw: number): number {
   return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
 }
 
+// The opening of a chart: an image to screen readers, named by its title and a short summary of what
+// it shows (the numbers a sighted reader takes from it). In aria-label only: a <title> as well would
+// be read twice, and show as a tooltip over the whole chart.
+function open(width: number, height: number, title: string, summary: string, cls = 'chart'): string {
+  const name = [title, summary].filter(Boolean).join('. ');
+  return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}">`;
+}
+
+// "a, b and c"; with more than `max`, the first ones and how many more.
+export function listed(items: string[], max = 8): string {
+  const shown = items.length > max ? [...items.slice(0, max), `${items.length - max} more`] : items;
+  return shown.length < 2 ? (shown[0] ?? '') : `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}`;
+}
+
+// A number as a summary reads it: as many digits as its size needs, no trailing zeros.
+// Below 1, three significant digits (0.000234, not 0).
+const num = (x: number): string => {
+  const abs = Math.abs(x);
+  if (abs > 0 && abs < 1) return x.toLocaleString('en-GB', { maximumSignificantDigits: 3 });
+  const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+  return x.toLocaleString('en-GB', { maximumFractionDigits: digits });
+};
+
+// The lowest and highest of some values, in one pass (no spreading: there may be many).
+function extent(values: Iterable<number>): [number, number] {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const v of values) {
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return [lo, hi];
+}
+
+// "lo to hi", or one number when they read the same.
+const span = ([lo, hi]: [number, number], format = num): string => {
+  if (!Number.isFinite(lo)) return 'no values';
+  return format(lo) === format(hi) ? format(lo) : `${format(lo)} to ${format(hi)}`;
+};
+const range = (values: number[], format = num): string => span(extent(values), format);
+
+// A time as a chart's summary gives it: UTC, to the minute.
+const at = (t: number): string => `${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+
 // series: [{ values: number[] (null = gap), color, label, width }]
 // bands: [{ from, to, color }] in x index units; markers: [{ x, label, color }]
 export function lineChart({
@@ -107,6 +152,7 @@ export function lineChart({
   xFormat = (i) => i,
   yMin,
   yMax,
+  title = yLabel,
 }: LineChartOptions): string {
   const n = Math.max(...series.map((s) => s.values.length));
   const all = series.flatMap((s) => s.values.filter((v): v is number => v !== null && Number.isFinite(v)));
@@ -129,7 +175,16 @@ export function lineChart({
     });
     return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ''} stroke-linejoin="round"/>`;
   });
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
+  const summary = [
+    `${n} points${xLabel ? ` along ${xLabel}` : ''}`,
+    ...series.map(
+      (s, i) =>
+        `${s.label ?? (series.length > 1 ? `line ${i + 1}` : 'values')} ${range(s.values.filter((v): v is number => v !== null && Number.isFinite(v)))}`,
+    ),
+    bands.length ? `${bands.length} shaded window${bands.length === 1 ? '' : 's'}` : '',
+    markers.length ? `marked: ${listed(markers.map((m) => m.label))}` : '',
+  ].filter(Boolean);
+  return `${open(width, height, title, summary.join('; '))}
     ${bands.map((b) => `<rect x="${x(b.from)}" y="${PAD.t}" width="${Math.max(2, x(b.to) - x(b.from))}" height="${height - PAD.t - PAD.b}" fill="${b.color}"/>`).join('')}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(xFormat(t))}</text>`).join('')}
@@ -157,9 +212,10 @@ export function dumbbell({
   left?: number;
 }): string {
   const height = rows.length * rowH + 44;
+  const summary = listed(rows.map((r) => `${r.label}: ${fmt(r.a)} against ${fmt(r.b)}`));
   const x = scale(domain[0], domain[1], left, width - 20);
   const xt = ticks(domain[0], domain[1], 6);
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(xLabel)}">
+  return `${open(width, height, xLabel, summary)}
     ${xt.map((t) => `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="8" y2="${height - 30}"/><text class="tick" x="${x(t)}" y="${height - 16}" text-anchor="middle">${fmt(t)}</text>`).join('')}
     ${rows
       .map((r, i) => {
@@ -184,19 +240,21 @@ export function hbars({
   rowH = 28,
   format = (v: number) => fmt(v, 2),
   left = 190,
+  title = 'Bar chart',
 }: {
   items: BarItem[];
   width?: number;
   rowH?: number;
   format?: (v: number) => string;
   left?: number;
+  title?: string;
 }): string {
   const height = items.length * rowH + 10;
   const maxAbs = Math.max(...items.map((i) => Math.abs(i.value)), 1e-9);
   const hasNeg = items.some((i) => i.value < 0);
   const x = scale(hasNeg ? -maxAbs : 0, maxAbs, left, width - 60);
   const zero = x(0);
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img">
+  return `${open(width, height, title, listed(items.map((it) => `${it.label} ${format(it.value)}`)))}
     <line class="grid" x1="${zero}" x2="${zero}" y1="0" y2="${height}"/>
     ${items
       .map((it, i) => {
@@ -240,7 +298,21 @@ export function heatmap({
   });
   const xi = [0, Math.floor(xs.length / 2), xs.length - 1];
   const yi = [0, Math.floor(ys.length / 2), ys.length - 1];
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="Parameter sweep">
+  // The lowest and highest cells, as a reader would look for them.
+  let lowest = { v: Infinity, x: NaN, y: NaN };
+  let highest = { v: -Infinity, x: NaN, y: NaN };
+  ys.forEach((yv, j) =>
+    xs.forEach((xv, i) => {
+      const v = grid[j]?.[i] ?? NaN;
+      if (v < lowest.v) lowest = { v, x: xv, y: yv };
+      if (v > highest.v) highest = { v, x: xv, y: yv };
+    }),
+  );
+  const cell = (c: typeof lowest) => `${format(c.v)} at ${xLabel} ${fmt(c.x, 1)}, ${yLabel} ${fmt(c.y, 1)}`;
+  const summary = Number.isFinite(lowest.v)
+    ? `${xs.length} × ${ys.length} grid of ${xLabel} by ${yLabel}; lowest ${cell(lowest)}; highest ${cell(highest)}`
+    : 'no values';
+  return `${open(width, height, 'Parameter sweep', summary)}
     ${cells.join('')}
     ${xi.map((i) => `<text class="tick" x="${left + (i + 0.5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt(xs[i] ?? NaN, 1)}</text>`).join('')}
     ${yi.map((j) => `<text class="tick" x="${left - 6}" y="${10 + (ys.length - 1 - j + 0.5) * ch + 4}" text-anchor="end">${fmt(ys[j] ?? NaN, 1)}</text>`).join('')}
@@ -270,6 +342,7 @@ export interface TimeChartOptions {
   yLabel?: string;
   levels?: { v: number; label: string }[]; // reference lines (a threshold, a baseline), kept in view
   spans?: { from: number; to: number }[]; // stretches of time to shade (a warning)
+  title?: string; // what the chart shows, for screen readers (default: the y label)
 }
 
 export const TIME_CHART = { width: 900, height: 220, pad: PAD };
@@ -375,13 +448,17 @@ export function timeChart({
   yLabel = '',
   levels = [],
   spans = [],
+  title = yLabel,
 }: TimeChartOptions): string {
   const shown = points.filter((p) => p.t >= from && p.t <= to);
+  const when = `from ${at(from)} to ${at(to)}`;
   if (!shown.length)
-    return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}"><text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
+    return `${open(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
   const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
-  let lo = Math.min(...shown.map((p) => p.lo), ...marks);
-  let hi = Math.max(...shown.map((p) => p.hi), ...marks);
+  const [dataLo] = extent(shown.map((p) => p.lo));
+  const [, dataHi] = extent(shown.map((p) => p.hi));
+  let lo = Math.min(dataLo, ...marks);
+  let hi = Math.max(dataHi, ...marks);
   if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
   const x = scale(from, to, PAD.l, width - PAD.r);
   const y = scale(lo, hi, height - PAD.b, PAD.t);
@@ -433,7 +510,15 @@ export function timeChart({
       return `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`;
     })
     .join('');
-  return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
+  const last = shown[shown.length - 1]!;
+  const summary = [
+    `${shown.length} reading${shown.length === 1 ? '' : 's'} ${when}`,
+    `values ${span([dataLo, dataHi])}`,
+    `latest ${num(last.v)} at ${at(last.t)}`,
+    ...levels.filter((l) => Number.isFinite(l.v)).map((l) => `${l.label} ${num(l.v)}`),
+    spans.length ? `${spans.length} shaded stretch${spans.length === 1 ? '' : 'es'}` : '',
+  ].filter(Boolean);
+  return `${open(width, height, title, summary.join('; '))}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join('')}
     ${shade}${band}${lines}${refs}

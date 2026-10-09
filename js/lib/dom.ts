@@ -22,6 +22,13 @@ export const $$ = <E extends Element = HTMLElement>(sel: string, root: ParentNod
 
 // Like querySelector, but throws when the element is missing so a broken
 // template fails loudly instead of silently doing nothing.
+// Tells screen-reader users something the page shows has changed (through #announcer, a live region
+// that stays put while pages re-render).
+export function announce(message: string): void {
+  const region = typeof document === 'undefined' ? null : document.querySelector('#announcer');
+  if (region) region.textContent = message;
+}
+
 export function need<E extends Element = HTMLElement>(root: ParentNode, sel: string): E {
   const el = root.querySelector<E>(sel);
   if (!el) throw new Error(`Missing element ${sel}`);

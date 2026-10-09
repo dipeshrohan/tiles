@@ -116,7 +116,7 @@ function signalsCard(ctx: Context, signals: OntologyNode[], now: number): string
     .join('');
   const head = ctx.api ? 'Latest reading' : 'Unit';
   return `<div class="card"><div class="card-head"><h2>Signals</h2></div>
-      <div class="table-wrap"><table><thead><tr><th>Signal</th>${tags ? '<th>Tag</th>' : ''}<th>${head}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Signal</th>${tags ? '<th>Tag</th>' : ''}<th>${head}</th><th><span class="sr-only">Plot</span></th></tr></thead><tbody>${rows}</tbody></table></div>
       ${ctx.api ? '<p class="small soft">A signal shows its reading once a tag is linked to it on the Signals page.</p>' : ''}
     </div>`;
 }

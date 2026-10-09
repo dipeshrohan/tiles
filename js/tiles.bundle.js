@@ -1404,6 +1404,10 @@
 			year: "numeric"
 		});
 	};
+	function announce(message) {
+		const region = typeof document === "undefined" ? null : document.querySelector("#announcer");
+		if (region) region.textContent = message;
+	}
 	function need(root, sel) {
 		const el = root.querySelector(sel);
 		if (!el) throw new Error(`Missing element ${sel}`);
@@ -1780,7 +1784,7 @@
 	//#endregion
 	//#region js/lib/analysis.ts
 	var field = (row, key) => row[key];
-	var num$1 = (row, key) => Number(field(row, key));
+	var num$2 = (row, key) => Number(field(row, key));
 	function correlationFinder(rows, variables, { outcome = "ng", splitBy = null } = {}) {
 		const segments = splitBy ? [...new Set(rows.map((r) => String(field(r, splitBy))))] : ["all"];
 		const findings = [];
@@ -1789,8 +1793,8 @@
 			const bad = subset.filter((r) => field(r, outcome));
 			const good = subset.filter((r) => !field(r, outcome));
 			for (const v of variables) {
-				const a = bad.map((r) => num$1(r, v.key));
-				const b = good.map((r) => num$1(r, v.key));
+				const a = bad.map((r) => num$2(r, v.key));
+				const b = good.map((r) => num$2(r, v.key));
 				findings.push({
 					segment: seg,
 					variable: v.key,
@@ -1799,7 +1803,7 @@
 					ngMean: mean(a),
 					okMean: mean(b),
 					effect: cohensD(a, b),
-					r: pearson(subset.map((r) => num$1(r, v.key)), subset.map((r) => field(r, outcome) ? 1 : 0)),
+					r: pearson(subset.map((r) => num$2(r, v.key)), subset.map((r) => field(r, outcome) ? 1 : 0)),
 					ngCount: a.length,
 					okCount: b.length
 				});
@@ -2250,7 +2254,7 @@
 		const vote = (r, label) => `<button class="btn sm ${a.feedback?.rating === r ? "primary" : ""}" type="button" data-rate="${r}" data-seq="${a.seq}" aria-pressed="${a.feedback?.rating === r}" title="${r === "up" ? "Helpful" : "Not helpful"}">${label}</button>`;
 		const rateKey = `${conversation}|${a.seq}`;
 		const feedback = a.done && a.seq !== null && conversation ? `<div class="row" style="gap:6px;margin-top:8px;align-items:center" data-feedback>${vote("up", "👍")}${vote("down", "👎")}${a.feedback?.comment ? `<span class="small soft">“${esc(a.feedback.comment)}”</span>` : ""}</div>${rating?.key === rateKey ? `<form class="row" style="gap:6px;margin-top:6px" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="What was wrong? (goes to your site's admins with this answer)" value="${esc(rating.comment)}" style="flex:1"><button class="btn sm" type="submit">Send</button></form>` : ""}` : "";
-		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn)">⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ""}${feedback}`;
+		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn-ink)">⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ""}${feedback}`;
 	}
 	function remoteRender(ctx) {
 		const ui = uiState$11(ctx);
@@ -2966,7 +2970,7 @@
       <div class="kv">
         ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join("") || "<span class=\"muted small\" style=\"grid-column:span 3\">No properties</span>"}
       </div>
-      ${required.length ? `<p class="small" style="color:var(--warn);margin-top:6px">Missing required: ${required.map(esc).join(", ")}</p>` : ""}
+      ${required.length ? `<p class="small" style="color:var(--warn-ink);margin-top:6px">Missing required: ${required.map(esc).join(", ")}</p>` : ""}
       <form class="row" id="prop-form" style="margin:8px 0 16px">
         <input type="text" name="key" placeholder="key" style="width:90px" value="${esc(required[0] ?? "")}" required aria-label="Property key" />
         <input type="text" name="value" placeholder="value" style="flex:1;width:90px" required aria-label="Property value" />
@@ -3629,7 +3633,36 @@
 		const m = raw / p;
 		return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
 	}
-	function lineChart({ series, width = 760, height = 260, bands = [], markers = [], xLabel = "", yLabel = "", xFormat = (i) => i, yMin, yMax }) {
+	function open(width, height, title, summary, cls = "chart") {
+		const name = [title, summary].filter(Boolean).join(". ");
+		return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}">`;
+	}
+	function listed$1(items, max = 8) {
+		const shown = items.length > max ? [...items.slice(0, max), `${items.length - max} more`] : items;
+		return shown.length < 2 ? shown[0] ?? "" : `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}`;
+	}
+	var num$1 = (x) => {
+		const abs = Math.abs(x);
+		if (abs > 0 && abs < 1) return x.toLocaleString("en-GB", { maximumSignificantDigits: 3 });
+		const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+		return x.toLocaleString("en-GB", { maximumFractionDigits: digits });
+	};
+	function extent(values) {
+		let lo = Infinity;
+		let hi = -Infinity;
+		for (const v of values) {
+			if (v < lo) lo = v;
+			if (v > hi) hi = v;
+		}
+		return [lo, hi];
+	}
+	var span = ([lo, hi], format = num$1) => {
+		if (!Number.isFinite(lo)) return "no values";
+		return format(lo) === format(hi) ? format(lo) : `${format(lo)} to ${format(hi)}`;
+	};
+	var range = (values, format = num$1) => span(extent(values), format);
+	var at = (t) => `${new Date(t).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+	function lineChart({ series, width = 760, height = 260, bands = [], markers = [], xLabel = "", yLabel = "", xFormat = (i) => i, yMin, yMax, title = yLabel }) {
 		const n = Math.max(...series.map((s) => s.values.length));
 		const all = series.flatMap((s) => s.values.filter((v) => v !== null && Number.isFinite(v)));
 		const lo = yMin ?? Math.min(...all);
@@ -3651,7 +3684,12 @@
 			});
 			return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ""} stroke-linejoin="round"/>`;
 		});
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
+		return `${open(width, height, title, [
+			`${n} points${xLabel ? ` along ${xLabel}` : ""}`,
+			...series.map((s, i) => `${s.label ?? (series.length > 1 ? `line ${i + 1}` : "values")} ${range(s.values.filter((v) => v !== null && Number.isFinite(v)))}`),
+			bands.length ? `${bands.length} shaded window${bands.length === 1 ? "" : "s"}` : "",
+			markers.length ? `marked: ${listed$1(markers.map((m) => m.label))}` : ""
+		].filter(Boolean).join("; "))}
     ${bands.map((b) => `<rect x="${x(b.from)}" y="${PAD.t}" width="${Math.max(2, x(b.to) - x(b.from))}" height="${height - PAD.t - PAD.b}" fill="${b.color}"/>`).join("")}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt$1(t)}</text>`).join("")}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(xFormat(t))}</text>`).join("")}
@@ -3663,9 +3701,10 @@
 	}
 	function dumbbell({ rows, width = 620, rowH = 64, domain, xLabel = "", left = 240 }) {
 		const height = rows.length * rowH + 44;
+		const summary = listed$1(rows.map((r) => `${r.label}: ${fmt$1(r.a)} against ${fmt$1(r.b)}`));
 		const x = scale(domain[0], domain[1], left, width - 20);
 		const xt = ticks(domain[0], domain[1], 6);
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(xLabel)}">
+		return `${open(width, height, xLabel, summary)}
     ${xt.map((t) => `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="8" y2="${height - 30}"/><text class="tick" x="${x(t)}" y="${height - 16}" text-anchor="middle">${fmt$1(t)}</text>`).join("")}
     ${rows.map((r, i) => {
 			const cy = 30 + i * rowH;
@@ -3680,12 +3719,12 @@
     <text class="axis" x="${(left + width) / 2}" y="${height - 2}" text-anchor="middle">${esc(xLabel)}</text>
   </svg>`;
 	}
-	function hbars({ items, width = 520, rowH = 28, format = (v) => fmt$1(v, 2), left = 190 }) {
+	function hbars({ items, width = 520, rowH = 28, format = (v) => fmt$1(v, 2), left = 190, title = "Bar chart" }) {
 		const height = items.length * rowH + 10;
 		const maxAbs = Math.max(...items.map((i) => Math.abs(i.value)), 1e-9);
 		const x = scale(items.some((i) => i.value < 0) ? -maxAbs : 0, maxAbs, left, width - 60);
 		const zero = x(0);
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img">
+		return `${open(width, height, title, listed$1(items.map((it) => `${it.label} ${format(it.value)}`)))}
     <line class="grid" x1="${zero}" x2="${zero}" y1="0" y2="${height}"/>
     ${items.map((it, i) => {
 			const cy = 6 + i * rowH;
@@ -3720,7 +3759,31 @@
 			Math.floor(ys.length / 2),
 			ys.length - 1
 		];
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="Parameter sweep">
+		let lowest = {
+			v: Infinity,
+			x: NaN,
+			y: NaN
+		};
+		let highest = {
+			v: -Infinity,
+			x: NaN,
+			y: NaN
+		};
+		ys.forEach((yv, j) => xs.forEach((xv, i) => {
+			const v = grid[j]?.[i] ?? NaN;
+			if (v < lowest.v) lowest = {
+				v,
+				x: xv,
+				y: yv
+			};
+			if (v > highest.v) highest = {
+				v,
+				x: xv,
+				y: yv
+			};
+		}));
+		const cell = (c) => `${format(c.v)} at ${xLabel} ${fmt$1(c.x, 1)}, ${yLabel} ${fmt$1(c.y, 1)}`;
+		return `${open(width, height, "Parameter sweep", Number.isFinite(lowest.v) ? `${xs.length} × ${ys.length} grid of ${xLabel} by ${yLabel}; lowest ${cell(lowest)}; highest ${cell(highest)}` : "no values")}
     ${cells.join("")}
     ${xi.map((i) => `<text class="tick" x="${left + (i + .5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt$1(xs[i] ?? NaN, 1)}</text>`).join("")}
     ${yi.map((j) => `<text class="tick" x="50" y="${10 + (ys.length - 1 - j + .5) * ch + 4}" text-anchor="end">${fmt$1(ys[j] ?? NaN, 1)}</text>`).join("")}
@@ -3821,12 +3884,15 @@
 		const right = width - PAD.r;
 		return from + Math.min(1, Math.max(0, (x - left) / (right - left))) * (to - from);
 	}
-	function timeChart({ points, from, to, gap, color = "var(--accent)", width = TIME_CHART.width, height = TIME_CHART.height, yLabel = "", levels = [], spans = [] }) {
+	function timeChart({ points, from, to, gap, color = "var(--accent)", width = TIME_CHART.width, height = TIME_CHART.height, yLabel = "", levels = [], spans = [], title = yLabel }) {
 		const shown = points.filter((p) => p.t >= from && p.t <= to);
-		if (!shown.length) return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}"><text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
+		const when = `from ${at(from)} to ${at(to)}`;
+		if (!shown.length) return `${open(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
 		const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
-		let lo = Math.min(...shown.map((p) => p.lo), ...marks);
-		let hi = Math.max(...shown.map((p) => p.hi), ...marks);
+		const [dataLo] = extent(shown.map((p) => p.lo));
+		const [, dataHi] = extent(shown.map((p) => p.hi));
+		let lo = Math.min(dataLo, ...marks);
+		let hi = Math.max(dataHi, ...marks);
 		if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
 		const x = scale(from, to, PAD.l, width - PAD.r);
 		const y = scale(lo, hi, height - PAD.b, PAD.t);
@@ -3855,7 +3921,14 @@
 			lastLabel = labelY;
 			return `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`;
 		}).join("");
-		return `<svg class="chart" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(yLabel)}">
+		const last = shown[shown.length - 1];
+		return `${open(width, height, title, [
+			`${shown.length} reading${shown.length === 1 ? "" : "s"} ${when}`,
+			`values ${span([dataLo, dataHi])}`,
+			`latest ${num$1(last.v)} at ${at(last.t)}`,
+			...levels.filter((l) => Number.isFinite(l.v)).map((l) => `${l.label} ${num$1(l.v)}`),
+			spans.length ? `${spans.length} shaded stretch${spans.length === 1 ? "" : "es"}` : ""
+		].filter(Boolean).join("; "))}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt$1(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join("")}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join("")}
     ${shade}${band}${lines}${refs}
@@ -3922,6 +3995,7 @@
 				items: effects,
 				width: 480,
 				left: 200,
+				title: "Effect size by variable (Cohen's d)",
 				format: (x) => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(2)
 			})}
           ${ui.split ? "" : "<p class=\"small soft\" style=\"margin-top:8px\">Pooled across materials, nothing stands out. Try <a href=\"#/quality\" data-split=\"1\">splitting by material</a>.</p>"}
@@ -3962,11 +4036,13 @@
         ${lineChart({
 				series: [{
 					values: series.map((s) => s.anode),
-					color: "var(--accent)"
+					color: "var(--accent)",
+					label: "anode tip"
 				}, {
 					values: series.map((s) => s.cathode),
 					color: "var(--bad)",
-					width: 2
+					width: 2,
+					label: "cathode tip"
 				}],
 				bands: [{
 					from: swapAt - 24,
@@ -3980,6 +4056,7 @@
 				}],
 				xFormat: (h) => `${h}h`,
 				yLabel: "Median welding power (W)",
+				title: "Median welding power by hour (W)",
 				width: fitWidth(1040),
 				height: 260
 			})}
@@ -4048,12 +4125,14 @@
 				series: [{
 					values: hist.map((h) => h.friction),
 					color: "var(--accent)",
-					width: 1.2
+					width: 1.2,
+					label: "friction"
 				}, {
 					values: detection.thresholds,
 					color: "var(--warn)",
 					width: 1.4,
-					dash: "4 3"
+					dash: "4 3",
+					label: "threshold"
 				}],
 				bands: detection.alerts.map((a) => ({
 					from: a.firstShot,
@@ -4073,6 +4152,7 @@
 				}],
 				xFormat: (i) => `${fmt$1(toH(i), 0)}h`,
 				yLabel: "Friction (N)",
+				title: "Plunger friction by shot (N)",
 				width: fitWidth(1040),
 				height: 300
 			})}
@@ -4090,13 +4170,16 @@
           ${lineChart({
 				series: [{
 					values: payload.ph,
-					color: "var(--accent)"
+					color: "var(--accent)",
+					label: "hydraulic pressure"
 				}, {
 					values: payload.pm,
-					color: "var(--warm)"
+					color: "var(--warm)",
+					label: "metal pressure"
 				}],
 				xFormat: (i) => `${fmt$1(i * PLUNGER.dt * 1e3)}ms`,
 				yLabel: "bar",
+				title: `Shot ${ui.shot} pressures (bar)`,
 				width: fitWidth(480, .5),
 				height: 200,
 				yMin: 0
@@ -4105,10 +4188,12 @@
           ${lineChart({
 				series: [{
 					values: payload.v,
-					color: "var(--soft)"
+					color: "var(--soft)",
+					label: "velocity"
 				}],
 				xFormat: (i) => `${fmt$1(i * PLUNGER.dt * 1e3)}ms`,
 				yLabel: "m/s",
+				title: `Shot ${ui.shot} plunger velocity (m/s)`,
 				width: fitWidth(480, .5),
 				height: 150,
 				yMin: 0
@@ -4449,6 +4534,7 @@
 				})),
 				width: 320,
 				left: 120,
+				title: "Output change for ±10% of each range",
 				format: (x) => `${x >= 0 ? "+" : "−"}${fmt$1(Math.abs(x), 2)}`
 			})}
         </div>
@@ -5011,7 +5097,7 @@
 			box.innerHTML = "<p class=\"small soft\">The agents could not be loaded.</p>";
 			return;
 		}
-		box.innerHTML = agents.length ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? "<th></th>" : ""}</tr></thead><tbody>${agents.map((a) => `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"}</td><td>${esc(a.hostname ?? "—")}</td><td>${esc(a.version ?? "—")}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${admin ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>` : ""}</tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No agents registered for this site yet.</p>";
+		box.innerHTML = agents.length ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? "<th><span class=\"sr-only\">Actions</span></th>" : ""}</tr></thead><tbody>${agents.map((a) => `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"}</td><td>${esc(a.hostname ?? "—")}</td><td>${esc(a.version ?? "—")}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${admin ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>` : ""}</tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No agents registered for this site yet.</p>";
 		onAll(box, "[data-revoke-agent]", "click", (el) => {
 			const name = el.dataset.agentName ?? "";
 			if (!confirm(`Revoke ${name}? Its token stops working at once.`)) return;
@@ -5325,6 +5411,7 @@
 			to: Date.parse(r.end),
 			gap: bucketMs * 1.5,
 			yLabel: r.unit ?? "",
+			title: `Wear check of ${r.tag}${r.unit ? ` (${r.unit})` : ""}: bucket medians`,
 			levels,
 			spans: [{
 				from: Date.parse(r.recent_from),
@@ -5486,7 +5573,7 @@
 		const { editing, open } = ui$1(ctx);
 		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
 		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
-    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
+    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
             <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
             <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
@@ -5950,6 +6037,7 @@
 			to,
 			gap: gapFor(series, points),
 			yLabel: series.unit ?? "",
+			title: series.unit ? `${series.tag} (${series.unit})` : series.tag,
 			width: fitWidth(TIME_CHART.width)
 		}) : ""}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
@@ -6720,6 +6808,7 @@
 			to,
 			gap: gapFor(s, points),
 			yLabel: s.unit ?? "",
+			title: `${w.signal_tag} around the warning${s.unit ? ` (${s.unit})` : ""}`,
 			width: fitWidth(TIME_CHART.width),
 			levels: [{
 				v: w.threshold,
@@ -7337,6 +7426,8 @@
 	});
 	var REFRESH_MS = 3e4;
 	var busy$2 = null;
+	var shownHeadline = null;
+	var toldHeadline = null;
 	var timer = null;
 	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
 	function stop() {
@@ -7345,7 +7436,11 @@
 		document.body.classList.remove("floor-full");
 	}
 	onNavigate((hash) => {
-		if (routeOf(hash) !== "shopfloor") stop();
+		if (routeOf(hash) !== "shopfloor") {
+			stop();
+			shownHeadline = null;
+			toldHeadline = null;
+		}
 	});
 	function since(item, now) {
 		if (!item.startedAt) return "";
@@ -7461,7 +7556,11 @@
 				hour: "2-digit",
 				minute: "2-digit"
 			})}; refreshes every 30 seconds</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
-			const status = `<h1 class="floor-headline ${tone}" role="status">${esc(text)}</h1>${updated}`;
+			shownHeadline = {
+				site: siteId$3(ctx),
+				text
+			};
+			const status = `<h1 class="floor-headline ${tone}">${esc(text)}</h1>${updated}`;
 			const open = list.filter((i) => i.state !== "ok");
 			if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
 			if (ui.taking && !open.some((i) => i.id === ui.taking)) ui.taking = null;
@@ -7473,6 +7572,10 @@
 		bind(root, ctx) {
 			const ui = uiState$4(ctx);
 			document.body.classList.toggle("floor-full", ui.full);
+			if (shownHeadline && shownHeadline.text !== toldHeadline?.text) {
+				if (toldHeadline && toldHeadline.site === shownHeadline.site) announce(shownHeadline.text);
+				toldHeadline = shownHeadline;
+			}
 			onAll(root, "[data-floor-full]", "click", () => {
 				ui.full = !ui.full;
 				ctx.rerender();
@@ -7686,7 +7789,7 @@
         </tr>`).join("");
 		const head = ctx.api ? "Latest reading" : "Unit";
 		return `<div class="card"><div class="card-head"><h2>Signals</h2></div>
-      <div class="table-wrap"><table><thead><tr><th>Signal</th>${tags ? "<th>Tag</th>" : ""}<th>${head}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Signal</th>${tags ? "<th>Tag</th>" : ""}<th>${head}</th><th><span class="sr-only">Plot</span></th></tr></thead><tbody>${rows}</tbody></table></div>
       ${ctx.api ? "<p class=\"small soft\">A signal shows its reading once a tag is linked to it on the Signals page.</p>" : ""}
     </div>`;
 	}
@@ -8391,7 +8494,10 @@
         <line class="ci ${cls}" x1="${x(f.ci_low).toFixed(1)}" x2="${x(f.ci_high).toFixed(1)}" y1="${y}" y2="${y}"/>
         <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>d = ${f.effect.toFixed(2)} (95% CI ${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)})</title></circle>`;
 		}).join("");
-		return `<svg class="chart forest" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="Effect sizes with their 95% confidence intervals">
+		const clear = shown.filter((f) => f.clear);
+		const name = (f) => split ? `${f.segment} · ${f.variable}` : f.variable;
+		const summary = `Effect sizes with their 95% confidence intervals, ${shown.length} shown. ${clear.length ? `Clear effects: ${clear.map((f) => `${name(f)} d = ${f.effect.toFixed(2)} (${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)})`).join("; ")}` : "No interval misses 0"}`;
+		return `<svg class="chart forest" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(summary)}"><title>${esc(summary)}</title>
     <line class="grid" x1="${x(0)}" x2="${x(0)}" y1="12" y2="${height - 18}"/>
     <text class="tick" x="${x(0)}" y="${height - 4}" text-anchor="middle">0</text>
     <text class="tick" x="${x(-reach)}" y="${height - 4}">failed ran lower</text>
@@ -8858,6 +8964,7 @@
 				to: Date.parse(s.end),
 				gap: gapFor(s, points),
 				yLabel: s.unit ?? "",
+				title: s.unit ? `${s.tag} (${s.unit})` : s.tag,
 				width: fitWidth(TIME_CHART.width, .7)
 			});
 			return `<div class="stack" style="gap:4px" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;
@@ -9612,7 +9719,7 @@
 		return "";
 	}
 	function renderNav(active) {
-		need(document, "#nav").innerHTML = NAV.map((g) => (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === "" ? "<div class=\"nav-group\">&nbsp;</div>" : "") + g.items.map((v) => `<a class="nav-link ${v === active ? "active" : ""}" href="#/${v.id === "home" ? "" : v.id}"><span class="ico" aria-hidden="true">${v.icon}</span>${esc(v.title)}${badgeFor(v)}</a>`).join("")).join("");
+		need(document, "#nav").innerHTML = NAV.map((g) => (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === "" ? "<div class=\"nav-group\">&nbsp;</div>" : "") + g.items.map((v) => `<a class="nav-link ${v === active ? "active" : ""}" href="#/${v.id === "home" ? "" : v.id}"${v === active ? " aria-current=\"page\"" : ""}><span class="ico" aria-hidden="true">${v.icon}</span>${esc(v.title)}${badgeFor(v)}</a>`).join("")).join("");
 		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
 		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 	}
@@ -9677,8 +9784,20 @@
 		applyTheme(next);
 		save("theme", next);
 	});
-	need(document, "#menu").addEventListener("click", () => need(document, "#sidebar").classList.toggle("open"));
-	need(document, "#nav").addEventListener("click", () => need(document, "#sidebar").classList.remove("open"));
+	need(document, "#menu").addEventListener("click", (e) => {
+		const open = need(document, "#sidebar").classList.toggle("open");
+		e.currentTarget.setAttribute("aria-expanded", String(open));
+	});
+	need(document, "[data-skip]").addEventListener("click", (e) => {
+		e.preventDefault();
+		need(document, "#view").focus();
+	});
+	need(document, "#nav").addEventListener("click", () => closeMenu());
+	document.addEventListener("keydown", (e) => {
+		if (e.key !== "Escape" || !need(document, "#sidebar").classList.contains("open")) return;
+		closeMenu();
+		need(document, "#menu").focus();
+	});
 	var drawnWidth = 0;
 	var resizeTimer;
 	window.addEventListener("resize", () => {
@@ -9690,7 +9809,12 @@
 			renderSoon();
 		}, 200);
 	});
+	function closeMenu() {
+		need(document, "#sidebar").classList.remove("open");
+		need(document, "#menu").setAttribute("aria-expanded", "false");
+	}
 	window.addEventListener("hashchange", () => {
+		closeMenu();
 		render();
 		need(document, "#view").focus({ preventScroll: true });
 		window.scrollTo(0, 0);

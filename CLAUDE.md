@@ -46,4 +46,5 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - Credentials stored in the database are sealed with a data key (`sealed.py`, T5.06; `sealed.seal`/`unseal` with a context naming the row) and never shown again; settings that hold secrets are `SecretStr`. See `docs/runbooks/secrets-and-encryption.md`.
 - Keep the browser app free of runtime dependencies.
 - Escape any interpolated text with `esc()` when building HTML strings.
+- Pages must pass `e2e/a11y.test.js` (axe, WCAG 2.1 AA, light and dark; T5.18): real buttons and links, labelled fields and table headers (`sr-only` for an action column), charts from `js/lib/svg.ts` (each gets a name and a summary of its numbers; pass a `title`), text colours that meet 4.5:1 (`--warn-ink` for text, `--warn` only for lines), underlined links in running text. See CONTRIBUTING.
 - Task IDs (T1.01 …) map to GitHub issues; reference the issue in PRs.

@@ -70,6 +70,12 @@ A finding without a fix yet doesn't fail the build. For one that can't be fixed 
 - **No runtime dependencies** in the browser app. Dev dependencies are fine.
 - **Synthetic data is seeded**, so results are reproducible; keep it that way.
 - **Escape user-visible strings** with `esc()` from `js/lib/dom.js` when building HTML.
+- **Accessible to keyboard and screen-reader users (WCAG 2.1 AA).** `e2e/a11y.test.js` runs axe on every page, in light and dark, and fails on any violation. So:
+  - make controls `<button>`s and `<a>`s, not clickable `div`s;
+  - give every form field a label, and every table column a header (an `sr-only` one for a column of buttons);
+  - draw charts with `js/lib/svg.ts`, which names each one and summarises its numbers for screen readers (pass a `title`);
+  - colour text with the tokens that meet 4.5:1, such as `--muted`, `--soft` and `--warn-ink` (`--warn` is for lines and borders);
+  - never let colour alone carry meaning: links inside text are underlined, and states have words.
 - **Commit messages:** a short imperative summary line, then why the change was made.
 
 ## Planning
