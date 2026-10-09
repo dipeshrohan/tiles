@@ -215,7 +215,7 @@ def main(argv: list[str] | None = None) -> None:
     except (OSError, ValueError) as e:
         parser.error(str(e))
     settings = get_settings()
-    with psycopg.connect(settings.database_url, row_factory=dict_row, options=UNSCOPED) as conn:
+    with psycopg.connect(settings.database_url.get_secret_value(), row_factory=dict_row, options=UNSCOPED) as conn:
         signal = conn.execute(
             "SELECT id FROM signals WHERE site_id = %s AND tag = %s", [args.site, args.signal]
         ).fetchone()

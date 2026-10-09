@@ -1,9 +1,12 @@
-"""Typed configuration, read from TILES_* environment variables or api/.env."""
+"""Typed configuration, read from TILES_* environment variables or api/.env, and from files in
+TILES_SECRETS_DIR (T5.06): a secret manager's mounted secrets (Docker or Kubernetes secrets, a
+Vault agent), one file per setting, named as its variable (`tiles_data_keys`, any case)."""
 
+import os
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,7 +18,7 @@ class Settings(BaseSettings):
     host: str = "127.0.0.1"
     port: int = 8000
     cors_origins: list[str] = ["http://localhost:5173"]
-    database_url: str = "postgresql://tiles:tiles-dev@localhost:5432/tiles"
+    database_url: SecretStr = SecretStr("postgresql://tiles:tiles-dev@localhost:5432/tiles")  # holds a password
     redis_url: str = "redis://localhost:6379/0"
     # Seconds each readiness check may take before it counts as unavailable.
     ready_timeout: float = 2.0
@@ -40,9 +43,13 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_starttls: bool = True
     smtp_user: str | None = None
-    smtp_password: str | None = None
+    smtp_password: SecretStr | None = None
     smtp_from: str = "Tiles <tiles@example.com>"
     app_url: str = "http://localhost:5173"
+    # Data keys that seal credentials stored in the database (T5.06, sealed.py): `id:base64key`,
+    # comma-separated, the first sealing. Required in production. `tiles-rotate-keys --new-key ID`
+    # makes one.
+    data_keys: SecretStr | None = None
     # The copilot (T4.01): Claude through the Anthropic API. Off until both are set; the model is a
     # current Claude model ID from Anthropic's documentation.
     anthropic_api_key: SecretStr | None = None
@@ -56,7 +63,20 @@ class Settings(BaseSettings):
     copilot_org_questions_per_minute: int = 30
     copilot_user_questions_per_minute: int = 6
 
+    @model_validator(mode="after")
+    def _keys(self) -> Self:
+        from tiles_api.sealed import DataKeys
+
+        keys = DataKeys.parse(self.data_keys.get_secret_value() if self.data_keys else None)  # malformed: refused
+        if keys is None and self.env == "production":
+            raise ValueError(
+                "Set TILES_DATA_KEYS in production: credentials stored in the database are sealed with it"
+                " (tiles-rotate-keys --new-key k1 makes one)"
+            )
+        return self
+
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    secrets = os.environ.get("TILES_SECRETS_DIR")
+    return Settings(_secrets_dir=secrets) if secrets else Settings()

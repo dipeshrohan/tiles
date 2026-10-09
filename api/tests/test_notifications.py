@@ -67,17 +67,22 @@ def test_admins_point_the_site_at_a_teams_channel_whose_url_stays_secret(
 ) -> None:
     path = f"/sites/{site}/notifications/teams"
     assert api.get(path, headers=ENG).status_code == 403
-    assert api.get(path, headers=ADMIN).json() == {"configured": False, "host": None, "on_raised": True}
+    assert api.get(path, headers=ADMIN).json() == {
+        "configured": False,
+        "host": None,
+        "on_raised": True,
+        "problem": None,
+    }
     bad = api.put(path, json={"webhook_url": "https://intranet.example.com/x"}, headers=ADMIN)
     assert (bad.status_code, bad.json()["detail"].split(":")[0]) == (422, "Not a Microsoft Teams webhook")
     res = api.put(path, json={"webhook_url": f"  {TEAMS} "}, headers=ADMIN)
-    assert res.json() == {"configured": True, "host": "acme.webhook.office.com", "on_raised": True}
+    assert res.json() == {"configured": True, "host": "acme.webhook.office.com", "on_raised": True, "problem": None}
     assert "webhookb2" not in res.text
     # Left out, the URL stays: only whether it hears of new warnings changes.
     paused = api.put(path, json={"on_raised": False}, headers=ADMIN).json()
-    assert paused == {"configured": True, "host": "acme.webhook.office.com", "on_raised": False}
+    assert paused == {"configured": True, "host": "acme.webhook.office.com", "on_raised": False, "problem": None}
     removed = api.put(path, json={"webhook_url": None}, headers=ADMIN).json()
-    assert removed == {"configured": False, "host": None, "on_raised": True}
+    assert removed == {"configured": False, "host": None, "on_raised": True, "problem": None}
     assert api.put(path, json={"on_raised": False}, headers=ADMIN).json()["configured"] is False
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         audited = conn.execute("SELECT before, after FROM audit_log WHERE action = 'notification.teams'").fetchall()
