@@ -1,0 +1,95 @@
+# Tiles alert rules (T5.13), for Prometheus fed by the OpenTelemetry collector
+# (deploy/monitoring/otel-collector.yaml). The Helm chart installs them as a PrometheusRule
+# (monitoring.prometheusRule.enabled); deploy/monitoring/alerts.test.yaml tests them with promtool.
+# Every API process reports the agents' gauges, so they are combined with max.
+groups:
+  - name: tiles-ingest
+    rules:
+      - alert: TilesIngestLag
+        expr: max by (site, agent) (tiles_agent_buffer_oldest_age_seconds) > 900
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Readings from {{ $labels.agent }} ({{ $labels.site }}) are {{ $value | humanizeDuration }} behind'
+          description: >-
+            The oldest reading waiting in the agent's buffer is over 15 minutes old: the agent can't send
+            fast enough, or Tiles refuses its batches. Check the agent on the Settings page and the API's logs.
+      - alert: TilesIngestLagCritical
+        expr: max by (site, agent) (tiles_agent_buffer_oldest_age_seconds) > 3600
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Readings from {{ $labels.agent }} ({{ $labels.site }}) are over an hour behind'
+          description: Warnings on this line are late by as much. The agent's buffer is bounded; see its dropped count.
+      - alert: TilesAgentSilent
+        expr: max by (site, agent) (tiles_agent_heartbeat_age_seconds) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Edge agent {{ $labels.agent }} ({{ $labels.site }}) has not called in for {{ $value | humanizeDuration }}'
+          description: The agent is stopped, or can't reach Tiles (network, proxy, a revoked token).
+      - alert: TilesAgentDropping
+        expr: max by (site, agent) (delta(tiles_agent_buffer_dropped[1h])) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: 'Edge agent {{ $labels.agent }} ({{ $labels.site }}) is dropping readings'
+          description: Its buffer is full. Readings dropped on site are lost; fix the backlog and raise the buffer's size.
+  # The jobs' and the outbox's gauges come from the database (job_runs, notifications): every API
+  # process reports them, so they are combined with max too.
+  - name: tiles-jobs
+    rules:
+      - alert: TilesJobFailing
+        expr: max by (command) (tiles_job_last_failed) == 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Scheduled job {{ $labels.command }} keeps failing'
+          description: Its runs have failed for 10 minutes. Read the failed Job's output (kubectl logs job/…); each item that failed is named.
+      - alert: TilesJobStopped
+        expr: max by (command) (tiles_job_last_run_age_seconds) > 3600
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Scheduled job {{ $labels.command }} has not run for {{ $value | humanizeDuration }}'
+          description: Its CronJob is suspended, or its runs never start (image, Secret). Its work (models, detectors, notifications) waits.
+      - alert: TilesNotificationsGivenUp
+        expr: max by (site) (tiles_notifications_given_up_last_hour) > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Notifications for {{ $labels.site }} were given up after their retries'
+          description: People were not told about warnings. GET /sites/{id}/notifications says why (SMTP, the Teams channel).
+      - alert: TilesNotificationsStuck
+        expr: max by (site) (tiles_notifications_oldest_pending_age_seconds) > 1800
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'Notifications for {{ $labels.site }} have waited {{ $value | humanizeDuration }}'
+          description: tiles-notify isn't sending them (its CronJob, SMTP or the Teams channel); they are retried until given up.
+  - name: tiles-api
+    rules:
+      - alert: TilesApiErrors
+        expr: >-
+          sum(rate(http_server_duration_milliseconds_count{http_status_code=~"5.."}[5m]))
+          / sum(rate(http_server_duration_milliseconds_count[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: 'More than 5% of API requests fail ({{ $value | humanizePercentage }})'
+          description: Check /ready and the API's logs (request ids lead to their traces).
+      - alert: TilesApiSlow
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_server_duration_milliseconds_bucket[5m]))) > 2000
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: 'API requests are slow: 95% take up to {{ $value | humanize }} ms'
+          description: See docs/load-test.md for capacity; 503 "busy" answers mean requests wait for database connections.

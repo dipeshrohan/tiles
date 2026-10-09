@@ -35,7 +35,7 @@ from urllib.parse import urlsplit
 import psycopg
 from psycopg.rows import dict_row
 
-from tiles_api import sealed
+from tiles_api import sealed, telemetry
 from tiles_api.settings import Settings, get_settings
 from tiles_api.store import UNSCOPED, Conn, one
 
@@ -321,6 +321,7 @@ def send_due(conn: Conn, sender: Sender, app_url: str, limit: int = 200, keys: s
     return result
 
 
+@telemetry.job_main("tiles-notify")
 def main(argv: list[str] | None = None, sender: Callable[[Settings], Sender] = LiveSender) -> None:
     """`tiles-notify`: sends the notifications that are due, e.g. every minute from cron."""
     parser = argparse.ArgumentParser(prog="tiles-notify", description=main.__doc__)

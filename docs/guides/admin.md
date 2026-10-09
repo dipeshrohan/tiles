@@ -372,7 +372,7 @@ Other commands you run by hand:
 ### When a job fails
 
 - Each binding, detector, site or message is handled in its own transaction. One failing doesn't undo or stop the others.
-- The command prints a line for each item, with failures on stderr, and exits with code 1 if any item failed. Watch for failed Jobs in your cluster monitoring.
+- The command prints a line for each item, with failures on stderr, and exits with code 1 if any item failed. Each run is recorded in the `job_runs` table, and with monitoring on, alerts fire when a job keeps failing or stops running ([monitoring](../../deploy/monitoring/README.md)).
 - Model bindings and detectors save where they got to (`done_until`, the detector's state), so the next successful run catches up. Nothing is lost by a missed run.
 - `tiles-notify` keeps failed messages for retry (see [The outbox and retries](#the-outbox-and-retries)) and tells you to read `GET /sites/{id}/notifications` for why.
 - A binding's or detector's last error is shown with it in the app (`GET /sites/{id}/model-bindings`, `GET /sites/{id}/detectors`).

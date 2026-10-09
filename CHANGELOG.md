@@ -48,6 +48,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - a Helm chart;
   - backups with a point-in-time restore drill;
   - a load test (10,000 readings a second, 50 users);
+  - **monitoring:** OpenTelemetry traces and metrics (ingest lag from the agents' buffers, job runs, notifications, requests), alert rules tested with promtool, a Grafana dashboard and a collector configuration (T5.13);
   - **guides:** a user guide, an administrator guide, a model-author guide and an API reference generated from the code, with a test that keeps it current (T6.05);
   - **release process:** one version across the browser app, the API, the edge agent and the Helm chart; this changelog; release notes and assets made from a version tag; an upgrade test that migrates the previous version's database, with its data, to the new one and back (T6.04).
 

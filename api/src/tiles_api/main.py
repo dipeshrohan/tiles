@@ -14,9 +14,10 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from opentelemetry import trace
 from pydantic import BaseModel
 
-from tiles_api import readiness
+from tiles_api import readiness, telemetry
 from tiles_api.api_agents import router as agents_router
 from tiles_api.api_auth import router as auth_router
 from tiles_api.api_backtest import router as backtest_router
@@ -93,6 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def request_context(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         request_id = new_request_id(request.headers.get("x-request-id"))
         token = request_id_var.set(request_id)
+        trace.get_current_span().set_attribute("tiles.request_id", request_id)  # traces meet the logs
         started = time.perf_counter()
         try:
             response = await call_next(request)
@@ -168,6 +170,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(runs_router)
     app.include_router(sweeps_router)
     app.include_router(copilot_router)
+    telemetry.instrument(app, settings)
     return app
 
 

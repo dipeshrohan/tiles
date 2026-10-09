@@ -22,7 +22,7 @@ from typing import Any, Literal
 from psycopg import sql
 from psycopg.rows import tuple_row
 
-from tiles_api import jobs
+from tiles_api import jobs, telemetry
 from tiles_api.models.registry import Model, evaluate, registry
 from tiles_api.store import Conn
 
@@ -251,6 +251,7 @@ def due(conn: Conn, site_id: uuid.UUID | None = None) -> list[uuid.UUID]:
     return jobs.enabled(conn, "model_bindings", site_id)
 
 
+@telemetry.job_main("tiles-run-models")
 def main(argv: list[str] | None = None) -> None:
     """`tiles-run-models`: runs every enabled model binding on its new data, e.g. from cron."""
     parser = argparse.ArgumentParser(prog="tiles-run-models", description=main.__doc__)

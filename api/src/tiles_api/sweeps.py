@@ -27,6 +27,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
+from tiles_api import telemetry
 from tiles_api.models.registry import Model, ModelError, evaluate, registry
 from tiles_api.settings import get_settings
 from tiles_api.store import UNSCOPED, Conn
@@ -195,6 +196,7 @@ def drain(connect: Connect) -> None:
         _api_workers.release()
 
 
+@telemetry.job_main("tiles-run-sweeps")
 def main() -> None:
     """tiles-run-sweeps: runs every waiting sweep (queued, or left running by a worker that went
     quiet), oldest first; the exit code is 1 if one failed."""
