@@ -364,6 +364,22 @@
               }
             ],
             "title": "Issuer"
+          },
+          "org": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Org"
+          },
+          "scope": {
+            "default": "openid email profile",
+            "title": "Scope",
+            "type": "string"
           }
         },
         "required": [
@@ -3571,6 +3587,45 @@
         "title": "ModelOut",
         "type": "object"
       },
+      "MyOrg": {
+        "properties": {
+          "admin": {
+            "description": "Whether you manage the organisation: its sites, sign-in and SCIM tokens",
+            "title": "Admin",
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "slug": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None: the development identity, with several organisations to choose from",
+            "title": "Slug"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "admin"
+        ],
+        "title": "MyOrg",
+        "type": "object"
+      },
       "NewAgent": {
         "properties": {
           "agent": {
@@ -3586,6 +3641,63 @@
           "token"
         ],
         "title": "NewAgent",
+        "type": "object"
+      },
+      "NewScimToken": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          },
+          "token": {
+            "description": "Shown once: give it to the SCIM client as its secret token",
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "last_used_at",
+          "revoked_at",
+          "token"
+        ],
+        "title": "NewScimToken",
         "type": "object"
       },
       "NewSite": {
@@ -4115,6 +4227,158 @@
           "name"
         ],
         "title": "ProjectIn",
+        "type": "object"
+      },
+      "ProviderIn": {
+        "properties": {
+          "audience": {
+            "description": "The tokens' `aud`: Entra ID, the API app's ID",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Audience",
+            "type": "string"
+          },
+          "client_id": {
+            "description": "The browser's client (a public SPA client)",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "enforced": {
+            "default": false,
+            "description": "Refuse every other sign-in for this organisation",
+            "title": "Enforced",
+            "type": "boolean"
+          },
+          "group_roles": {
+            "additionalProperties": {
+              "enum": [
+                "viewer",
+                "engineer",
+                "admin"
+              ],
+              "type": "string"
+            },
+            "description": "The provider's group IDs (the `groups` claim) and the role each grants",
+            "title": "Group Roles",
+            "type": "object"
+          },
+          "issuer": {
+            "description": "The tokens' `iss`, exactly. Entra ID: https://login.microsoftonline.com/<tenant-id>/v2.0",
+            "maxLength": 500,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "jwks_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The signing keys; empty: from discovery",
+            "title": "Jwks Url"
+          },
+          "scope": {
+            "default": "openid email profile",
+            "description": "What the browser asks for. Entra ID: openid profile email offline_access api://<api-app-id>/access",
+            "maxLength": 500,
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issuer",
+          "client_id",
+          "audience"
+        ],
+        "title": "ProviderIn",
+        "type": "object"
+      },
+      "ProviderOut": {
+        "properties": {
+          "audience": {
+            "description": "The tokens' `aud`: Entra ID, the API app's ID",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Audience",
+            "type": "string"
+          },
+          "client_id": {
+            "description": "The browser's client (a public SPA client)",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "enforced": {
+            "default": false,
+            "description": "Refuse every other sign-in for this organisation",
+            "title": "Enforced",
+            "type": "boolean"
+          },
+          "group_roles": {
+            "additionalProperties": {
+              "enum": [
+                "viewer",
+                "engineer",
+                "admin"
+              ],
+              "type": "string"
+            },
+            "description": "The provider's group IDs (the `groups` claim) and the role each grants",
+            "title": "Group Roles",
+            "type": "object"
+          },
+          "issuer": {
+            "description": "The tokens' `iss`, exactly. Entra ID: https://login.microsoftonline.com/<tenant-id>/v2.0",
+            "maxLength": 500,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "jwks_url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The signing keys; empty: from discovery",
+            "title": "Jwks Url"
+          },
+          "scope": {
+            "default": "openid email profile",
+            "description": "What the browser asks for. Entra ID: openid profile email offline_access api://<api-app-id>/access",
+            "maxLength": 500,
+            "title": "Scope",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "verified": {
+            "description": "Confirmed: the admin who saved it has signed in through it. Until then it takes no one else",
+            "title": "Verified",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "issuer",
+          "client_id",
+          "audience",
+          "updated_at",
+          "verified"
+        ],
+        "title": "ProviderOut",
         "type": "object"
       },
       "QualityCheckIn": {
@@ -5162,6 +5426,73 @@
           "stored"
         ],
         "title": "SamplesOut",
+        "type": "object"
+      },
+      "ScimToken": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revoked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revoked At"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "last_used_at",
+          "revoked_at"
+        ],
+        "title": "ScimToken",
+        "type": "object"
+      },
+      "ScimTokenIn": {
+        "properties": {
+          "name": {
+            "description": "Which client uses it, e.g. Entra ID provisioning",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ScimTokenIn",
         "type": "object"
       },
       "Series": {
@@ -7880,8 +8211,27 @@
     },
     "/auth/config": {
       "get": {
-        "description": "How the browser signs in here: the OpenID Connect issuer and client, and whether requests\nwithout a token act as the development user (anywhere but production).",
+        "description": "How the browser signs in here: the OpenID Connect issuer and client, and whether requests\nwithout a token act as the development user (anywhere but production). With `?org=<slug>`,\nthat organisation's own identity provider (T5.05): 404 if it has none.",
         "operationId": "auth_config_auth_config_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 63,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -7892,6 +8242,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "Auth Config",
@@ -7944,6 +8304,378 @@
         ]
       }
     },
+    "/org": {
+      "get": {
+        "description": "Your organisation, and whether you are its admin (an organisation admin, or someone whose\nsign-in grants admin). The development identity names one with `?org=`, or gets the only one.",
+        "operationId": "my_org_org_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyOrg"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "My Org",
+        "tags": [
+          "organisation sign-in"
+        ]
+      }
+    },
+    "/org/identity-provider": {
+      "delete": {
+        "description": "Removes your organisation's identity provider: its tokens stop working at once (each request\nchecks), and people sign in through this deployment's issuer again.",
+        "operationId": "delete_provider_org_identity_provider_delete",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Provider",
+        "tags": [
+          "organisation sign-in"
+        ]
+      },
+      "get": {
+        "description": "Your organisation's identity provider, or null when it signs in through this deployment's.",
+        "operationId": "get_provider_org_identity_provider_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProviderOut"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Provider Org Identity Provider Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Provider",
+        "tags": [
+          "organisation sign-in"
+        ]
+      },
+      "put": {
+        "description": "Sets your organisation's identity provider. A new issuer is pending until you sign in\nthrough it as yourself (the same email): that shows your organisation controls it, so no\norganisation can take another's. Then its tokens sign in to your organisation only. Turning\n`enforced` on needs it confirmed and you signed in through it (409 otherwise), so a provider\nthat doesn't work can't lock everyone out; then no other sign-in reaches your organisation.",
+        "operationId": "set_provider_org_identity_provider_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Provider",
+        "tags": [
+          "organisation sign-in"
+        ]
+      }
+    },
+    "/org/scim-tokens": {
+      "get": {
+        "description": "Your organisation's SCIM tokens, newest first (never the tokens themselves).",
+        "operationId": "list_scim_tokens_org_scim_tokens_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ScimToken"
+                  },
+                  "title": "Response List Scim Tokens Org Scim Tokens Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Scim Tokens",
+        "tags": [
+          "organisation sign-in"
+        ]
+      },
+      "post": {
+        "description": "A token for your identity provider's SCIM client (`/scim/v2`), which then creates, updates\nand deactivates your organisation's users. It is shown once; only its hash is kept.",
+        "operationId": "create_scim_token_org_scim_tokens_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScimTokenIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewScimToken"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Scim Token",
+        "tags": [
+          "organisation sign-in"
+        ]
+      }
+    },
+    "/org/scim-tokens/{token_id}": {
+      "delete": {
+        "description": "Revokes a SCIM token: it stops working at once.",
+        "operationId": "revoke_scim_token_org_scim_tokens__token_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Scim Token",
+        "tags": [
+          "organisation sign-in"
+        ]
+      }
+    },
     "/ready": {
       "get": {
         "description": "Readiness: the database and Redis are reachable. 503 if either is not.",
@@ -7973,6 +8705,358 @@
         "summary": "Ready",
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/scim/v2/ResourceTypes": {
+      "get": {
+        "description": "The resources: users only.",
+        "operationId": "resource_types_scim_v2_ResourceTypes_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Resource Types",
+        "tags": [
+          "provisioning"
+        ]
+      }
+    },
+    "/scim/v2/ServiceProviderConfig": {
+      "get": {
+        "description": "What this SCIM service supports (public, as RFC 7644 allows).",
+        "operationId": "service_provider_config_scim_v2_ServiceProviderConfig_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Service Provider Config",
+        "tags": [
+          "provisioning"
+        ]
+      }
+    },
+    "/scim/v2/Users": {
+      "get": {
+        "description": "The organisation's users, with `filter=userName eq \"\u2026\"` (or `externalId`, `emails.value`),\n`startIndex` (from 1) and `count` (up to 200).",
+        "operationId": "list_users_scim_v2_Users_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "filter",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 500,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Filter"
+            }
+          },
+          {
+            "in": "query",
+            "name": "startIndex",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "title": "Startindex",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "count",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "title": "Count",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Users",
+        "tags": [
+          "provisioning"
+        ]
+      },
+      "post": {
+        "description": "Creates a user (they sign in later, and are linked by email). A user deleted before comes\nback with their history; 409 if the email or externalId is an existing user's.",
+        "operationId": "create_user_scim_v2_Users_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create User",
+        "tags": [
+          "provisioning"
+        ]
+      }
+    },
+    "/scim/v2/Users/{user_id}": {
+      "delete": {
+        "description": "Deletes a user: they can't sign in, their site memberships end, and SCIM no longer finds\nthem. What they did stays in the history, under their name.",
+        "operationId": "delete_user_scim_v2_Users__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete User",
+        "tags": [
+          "provisioning"
+        ]
+      },
+      "get": {
+        "description": "One user.",
+        "operationId": "get_user_scim_v2_Users__user_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get User",
+        "tags": [
+          "provisioning"
+        ]
+      },
+      "patch": {
+        "description": "Changes a user with `Operations` (`add`, `replace`; `remove` of `externalId`), by path or\nby a value object without one, as Entra ID sends them.",
+        "operationId": "patch_user_scim_v2_Users__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Patch User",
+        "tags": [
+          "provisioning"
+        ]
+      },
+      "put": {
+        "description": "Replaces a user's attributes (those Tiles keeps).",
+        "operationId": "replace_user_scim_v2_Users__user_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Authorization",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replace User",
+        "tags": [
+          "provisioning"
         ]
       }
     },

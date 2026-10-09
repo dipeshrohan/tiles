@@ -72,6 +72,10 @@
   color-scheme: dark;
 }
 
+/* `hidden` hides, whatever display a class gives the element (a .card is flex). */
+[hidden] {
+  display: none !important;
+}
 * {
   box-sizing: border-box;
 }

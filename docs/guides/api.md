@@ -38,15 +38,19 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
 
 ## auth
 
 ### `GET /auth/config`
 
-**Who:** anyone. **Answers:** 200.
+**Who:** anyone. **Answers:** 200, 422.
 
-How the browser signs in here: the OpenID Connect issuer and client, and whether requests without a token act as the development user (anywhere but production).
+How the browser signs in here: the OpenID Connect issuer and client, and whether requests without a token act as the development user (anywhere but production). With `?org=<slug>`, that organisation's own identity provider (T5.05): 404 if it has none.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
 
 ### `GET /me`
 
@@ -825,6 +829,155 @@ Stage several changes, all or none (e.g. a node and its relationship). Returns a
 | `site_id` | path | uuid | yes |
 
 **Body:** list of any (see [openapi.json](openapi.json)).
+
+## organisation sign-in
+
+### `GET /org`
+
+**Who:** signed in. **Answers:** 200, 422.
+
+Your organisation, and whether you are its admin (an organisation admin, or someone whose sign-in grants admin). The development identity names one with `?org=`, or gets the only one.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+### `GET /org/identity-provider`
+
+**Who:** organisation admin. **Answers:** 200, 422.
+
+Your organisation's identity provider, or null when it signs in through this deployment's.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+### `PUT /org/identity-provider`
+
+**Who:** organisation admin. **Answers:** 200, 422.
+
+Sets your organisation's identity provider. A new issuer is pending until you sign in through it as yourself (the same email): that shows your organisation controls it, so no organisation can take another's. Then its tokens sign in to your organisation only. Turning `enforced` on needs it confirmed and you signed in through it (409 otherwise), so a provider that doesn't work can't lock everyone out; then no other sign-in reaches your organisation.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+**Body:** ProviderIn (see [openapi.json](openapi.json)).
+
+### `DELETE /org/identity-provider`
+
+**Who:** organisation admin. **Answers:** 204, 422.
+
+Removes your organisation's identity provider: its tokens stop working at once (each request checks), and people sign in through this deployment's issuer again.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+### `GET /org/scim-tokens`
+
+**Who:** organisation admin. **Answers:** 200, 422.
+
+Your organisation's SCIM tokens, newest first (never the tokens themselves).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+### `POST /org/scim-tokens`
+
+**Who:** organisation admin. **Answers:** 201, 422.
+
+A token for your identity provider's SCIM client (`/scim/v2`), which then creates, updates and deactivates your organisation's users. It is shown once; only its hash is kept.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+**Body:** ScimTokenIn (see [openapi.json](openapi.json)).
+
+### `DELETE /org/scim-tokens/{token_id}`
+
+**Who:** organisation admin. **Answers:** 204, 422.
+
+Revokes a SCIM token: it stops working at once.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `token_id` | path | uuid | yes |
+| `org` | query | string | no |
+
+## provisioning
+
+### `GET /scim/v2/ResourceTypes`
+
+**Who:** anyone. **Answers:** 200.
+
+The resources: users only.
+
+### `GET /scim/v2/ServiceProviderConfig`
+
+**Who:** anyone. **Answers:** 200.
+
+What this SCIM service supports (public, as RFC 7644 allows).
+
+### `GET /scim/v2/Users`
+
+**Who:** SCIM token. **Answers:** 200, 422.
+
+The organisation's users, with `filter=userName eq "…"` (or `externalId`, `emails.value`), `startIndex` (from 1) and `count` (up to 200).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `filter` | query | string | no |
+| `startIndex` | query | integer | no |
+| `count` | query | integer | no |
+
+### `POST /scim/v2/Users`
+
+**Who:** SCIM token. **Answers:** 201, 422.
+
+Creates a user (they sign in later, and are linked by email). A user deleted before comes back with their history; 409 if the email or externalId is an existing user's.
+
+### `GET /scim/v2/Users/{user_id}`
+
+**Who:** SCIM token. **Answers:** 200, 422.
+
+One user.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `user_id` | path | string | yes |
+
+### `PUT /scim/v2/Users/{user_id}`
+
+**Who:** SCIM token. **Answers:** 200, 422.
+
+Replaces a user's attributes (those Tiles keeps).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `user_id` | path | string | yes |
+
+### `PATCH /scim/v2/Users/{user_id}`
+
+**Who:** SCIM token. **Answers:** 200, 422.
+
+Changes a user with `Operations` (`add`, `replace`; `remove` of `externalId`), by path or by a value object without one, as Entra ID sends them.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `user_id` | path | string | yes |
+
+### `DELETE /scim/v2/Users/{user_id}`
+
+**Who:** SCIM token. **Answers:** 204, 422.
+
+Deletes a user: they can't sign in, their site memberships end, and SCIM no longer finds them. What they did stays in the history, under their name.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `user_id` | path | string | yes |
 
 ## reviews
 

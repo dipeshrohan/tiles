@@ -121,6 +121,8 @@ Tiles uses OpenID Connect for sign-in. The browser signs in with the Authorizati
 5. Create the roles `tiles-viewer`, `tiles-engineer` and `tiles-admin`, and assign them to people. Tiles reads them from Keycloak realm roles (`realm_access.roles`) or from a top-level `roles` claim. Only these names count; a bare `admin` role means nothing to Tiles.
 6. If you have more than one organisation, add a `tiles_org` claim with the organisation's slug: lowercase letters, digits and hyphens, up to 63 characters. Without it, users join `TILES_OIDC_DEFAULT_ORG`.
 
+**An organisation's own provider.** Besides the deployment's provider above, each organisation can sign its people in with its own, for example its Microsoft Entra ID tenant. That provider's tokens reach that organisation only. Its admins can also provision people from their directory with SCIM. See [Entra ID and SCIM](entra-id.md).
+
 ### Configure Tiles
 
 | Setting | Helm value | Default | Meaning |
@@ -146,6 +148,7 @@ Outside production (`TILES_ENV` is `development` or `test`), a request without a
 
 - **Organisations** are created on the first sign-in that names them, from the `tiles_org` claim or `TILES_OIDC_DEFAULT_ORG`.
 - **Users** are created on first sign-in and are known by their issuer and subject. An identity belongs to one organisation. A user who later signs in with another organisation's claim gets 403.
+- **Or users are provisioned** by the organisation's directory through SCIM, before their first sign-in, and deactivated or deleted there. A deactivated user gets 403 ([Entra ID and SCIM](entra-id.md)).
 - **Memberships** are created on a user's first visit to a site. They get the highest role their token grants: `tiles-admin` gives admin, `tiles-engineer` gives engineer, anything else gives viewer.
 - **After that, the stored membership counts.** Changing someone's roles at the identity provider doesn't change their role on a site they have already visited.
 - Users see only their own organisation's sites.

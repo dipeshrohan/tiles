@@ -44,6 +44,9 @@ from tiles_api.api_sweeps import router as sweeps_router
 from tiles_api.api_warnings import router as warnings_router
 from tiles_api.api_wear import router as wear_router
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
+from tiles_api.org_sign_in import router as org_sign_in_router
+from tiles_api.scim import ScimError, error_response
+from tiles_api.scim import router as scim_router
 from tiles_api.settings import Settings, get_settings
 from tiles_api.store import close_pool
 
@@ -88,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.pool = None
     app.state.db_slots = None  # store.db_slot
     app.state.side_pool = None  # store.side_pool
+    app.state.verifiers = None  # auth.verifiers: the token verifiers, made on first use
     app.state.copilot_model = None  # tests set a stand-in for Claude
     app.state.copilot_client = None
 
@@ -152,6 +156,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ontology_io_router)
     app.include_router(members_router)
     app.include_router(sites_router)
+    app.include_router(org_sign_in_router)
+    app.include_router(scim_router)
+    app.add_exception_handler(ScimError, error_response)
     app.include_router(models_router)
     app.include_router(bindings_router)
     app.include_router(detectors_router)

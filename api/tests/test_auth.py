@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from jwt.algorithms import RSAAlgorithm
 
 from tiles_api import sealed
-from tiles_api.auth import TokenVerifier, role_from_claims
+from tiles_api.auth import make_verifiers, role_from_claims
 from tiles_api.main import create_app
 from tiles_api.seed import seed
 from tiles_api.settings import Settings
@@ -61,7 +61,7 @@ def make_client(database_url: str, env: str = "production", issuer: str | None =
     )
     app = create_app(settings)
     if issuer:
-        app.state.verifier = TokenVerifier(settings, jwk_client=StaticJwks())
+        app.state.verifiers = make_verifiers(app.state, jwk_client=StaticJwks())
     return TestClient(app)
 
 
@@ -90,6 +90,8 @@ def test_auth_config_tells_the_browser_how_to_sign_in(database_url: str) -> None
             "enabled": True,
             "issuer": ISSUER,
             "client_id": "tiles-web",
+            "scope": "openid email profile",
+            "org": None,
             "dev_identity": False,
         }
     with make_client(database_url, env="development", issuer=None) as c:
@@ -242,7 +244,7 @@ def test_unknown_signing_key_is_401_and_unreachable_discovery_is_503(database_ur
         _env_file=None, env="production", data_keys=PRODUCTION_KEYS, database_url=database_url, oidc_issuer=ISSUER
     )
     app = create_app(settings)
-    app.state.verifier = TokenVerifier(settings, jwk_client=NoMatchingKey())
+    app.state.verifiers = make_verifiers(app.state, jwk_client=NoMatchingKey())
     with TestClient(app) as c:
         res = c.get("/me", headers=bearer(token()))
         assert res.status_code == 401

@@ -58,8 +58,11 @@ export interface AuthContext {
   // The API's sign-in settings; null in local mode or until fetched.
   readonly config: AuthConfig | null;
   readonly signedIn: boolean;
-  // Sends the browser to the sign-in provider; it comes back to this page.
-  signIn(): Promise<void>;
+  // The organisation last signed in with through its own provider ('' for the API's).
+  readonly signInOrg: string;
+  // Sends the browser to the sign-in provider (the organisation's own, given its slug: T5.05);
+  // it comes back to this page.
+  signIn(org?: string): Promise<void>;
   signOut(): Promise<void>;
 }
 

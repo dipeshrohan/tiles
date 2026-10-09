@@ -333,17 +333,33 @@ const authCtx: AuthContext = {
   get signedIn() {
     return sessionForApi();
   },
-  async signIn() {
-    if (!authConfig?.enabled || !authConfig.issuer) return toast('This Tiles API has no sign-in configured');
+  get signInOrg() {
+    return load<string>('signin-org', '');
+  },
+  async signIn(org?: string) {
     if (!canRedirect()) return toast('Open Tiles over http(s) to sign in');
+    // An organisation's own provider (T5.05), or the API's.
+    let config = authConfig;
+    const slug = org?.trim().toLowerCase();
+    if (slug && api) {
+      try {
+        config = await api.authConfig(slug);
+      } catch (e) {
+        const status = (e as { status?: number }).status;
+        return toast(status === 404 ? `${slug} has no sign-in of its own` : `Can't start sign-in: ${String(e)}`);
+      }
+    }
+    if (!config?.enabled || !config.issuer) return toast('This Tiles API has no sign-in configured');
+    save('signin-org', slug ?? '');
     try {
       location.assign(
         await beginSignIn(
           {
-            issuer: authConfig.issuer,
-            clientId: authConfig.client_id,
+            issuer: config.issuer,
+            clientId: config.client_id,
             redirectUri: redirectUri(),
             apiUrl: api?.baseUrl ?? '',
+            ...(config.scope ? { scope: config.scope } : {}),
           },
           location.search + (location.hash || '#/'),
         ),

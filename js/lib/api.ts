@@ -25,8 +25,38 @@ export interface AuthConfig {
   enabled: boolean;
   issuer: string | null;
   client_id: string;
+  // What to ask the provider for (an organisation's own may need its API's scope, T5.05).
+  scope?: string;
+  // The organisation whose own provider this is, or null for the deployment's.
+  org?: string | null;
   // Outside production, requests without a token act as the development user.
   dev_identity: boolean;
+}
+
+// An organisation's own identity provider (T5.05), e.g. its Entra ID tenant.
+export type OrgRole = 'viewer' | 'engineer' | 'admin';
+export interface IdentityProviderIn {
+  issuer: string;
+  client_id: string;
+  audience: string;
+  scope: string;
+  jwks_url: string | null;
+  group_roles: Record<string, OrgRole>;
+  enforced: boolean;
+}
+export interface IdentityProvider extends IdentityProviderIn {
+  updated_at: string;
+  // Confirmed: the admin who saved it signed in through it. Until then it takes no one else.
+  verified: boolean;
+}
+
+// A token an identity provider's SCIM client provisions users with (never shown again).
+export interface ScimToken {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
 }
 
 export interface Membership {
@@ -740,7 +770,7 @@ export function createApiClient(options: ApiOptions) {
     method: Method,
     path: string,
     body?: unknown,
-    { anonymous = false, text = false, blob = false } = {},
+    { anonymous = false, text = false, blob = false, quiet = false } = {},
   ): Promise<T> {
     const headers = await headersFor(body, anonymous);
     let res: Response;
@@ -763,7 +793,11 @@ export function createApiClient(options: ApiOptions) {
     } catch {
       if (res.ok) return fail(new ApiError('The Tiles API sent a response that is not JSON', res.status, requestId));
     }
-    if (!res.ok) return fail(new ApiError(errorMessage(parsed, res.status), res.status, requestId));
+    if (!res.ok) {
+      const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId);
+      if (quiet) throw error; // the caller shows it (e.g. a 403 that only means "not for you")
+      return fail(error);
+    }
     return parsed as T;
   }
 
@@ -823,12 +857,28 @@ export function createApiClient(options: ApiOptions) {
     baseUrl: base,
     request,
     health: () => request<ApiHealth>('GET', '/health'),
-    authConfig: () => request<AuthConfig>('GET', '/auth/config', undefined, { anonymous: true }),
+    // With `org`, that organisation's own sign-in (404 when it has none: the caller says so).
+    authConfig: (org?: string) =>
+      request<AuthConfig>('GET', org ? `/auth/config?org=${encodeURIComponent(org)}` : '/auth/config', undefined, {
+        anonymous: true,
+        quiet: !!org,
+      }),
     me: () => request<Me>('GET', '/me'),
     sites: () => request<Site[]>('GET', '/sites'),
     // Setting up a site (T6.06): organisation admins create one; its progress, step by step.
     createSite: (site: NewSite) => request<Site>('POST', '/sites', site),
     onboarding: (siteId: string) => request<Onboarding>('GET', `/sites/${encodeURIComponent(siteId)}/onboarding`),
+    // Your organisation's own sign-in and SCIM provisioning (T5.05; organisation admins).
+    org: {
+      // Your organisation, and whether you manage it.
+      me: () => request<{ slug: string | null; name: string | null; admin: boolean }>('GET', '/org'),
+      identityProvider: () => request<IdentityProvider | null>('GET', '/org/identity-provider'),
+      setIdentityProvider: (p: IdentityProviderIn) => request<IdentityProvider>('PUT', '/org/identity-provider', p),
+      removeIdentityProvider: () => request<void>('DELETE', '/org/identity-provider'),
+      scimTokens: () => request<ScimToken[]>('GET', '/org/scim-tokens'),
+      createScimToken: (name: string) => request<ScimToken & { token: string }>('POST', '/org/scim-tokens', { name }),
+      revokeScimToken: (id: string) => request<void>('DELETE', `/org/scim-tokens/${encodeURIComponent(id)}`),
+    },
     // Your membership (and role) on a site; joins it on first visit.
     membership: (siteId: string) => request<Membership>('GET', `/sites/${encodeURIComponent(siteId)}/me`),
     members: (siteId: string) => request<Membership[]>('GET', `/sites/${encodeURIComponent(siteId)}/members`),

@@ -42,6 +42,7 @@ The first version: everything up to the pilot. Not yet tagged.
 - **Platform:**
   - **accessibility (WCAG 2.1 AA):** every page tested with axe in light and dark; text contrast raised to 4.5:1; charts described to screen readers, with their numbers; a skip link, the current page marked in the menu, underlined links in text, and less motion when asked (T5.18);
   - single sign-on (OIDC) with site roles;
+  - **an organisation's own sign-in** (Microsoft Entra ID or any OpenID Connect provider), which can be enforced, with its groups and app roles mapped to roles, and **SCIM 2.0 user provisioning** that creates, deactivates and deletes people (`docs/guides/entra-id.md`, T5.05);
   - row security per site in the database;
   - credentials sealed with rotatable data keys;
   - an audit log;

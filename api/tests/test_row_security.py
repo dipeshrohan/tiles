@@ -22,8 +22,19 @@ from tiles_api.store import UNSCOPED, act_as_app, all_sites, open_pool
 RLS = importlib.import_module("tiles_api.migrations.versions.0024_site_row_security")
 # Tables of no one site: the organisation's, people, and the readings hypertable (TimescaleDB
 # refuses row security on a compressed hypertable: the API reads it through `site_samples` and
-# writes it with `tiles_store_samples`, and may not touch it otherwise).
-NO_SITE = {"alembic_version", "orgs", "sites", "users", "models", "samples", "job_runs"}
+# writes it with `tiles_store_samples`, and may not touch it otherwise). An organisation's sign-in
+# and SCIM tokens (T5.05) are its own, read before any site is named.
+NO_SITE = {
+    "alembic_version",
+    "orgs",
+    "sites",
+    "users",
+    "models",
+    "samples",
+    "job_runs",
+    "org_identity_providers",
+    "scim_tokens",
+}
 
 
 def tables(conn: psycopg.Connection[Any]) -> dict[str, tuple[bool, bool, bool]]:
