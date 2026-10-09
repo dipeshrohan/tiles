@@ -1,7 +1,8 @@
 import { esc, fmt, onAll, onSubmit } from '../lib/dom.ts';
 import { detectDelimiter, parseCsv } from '../lib/csv.ts';
 import { forestPlot, inferColumns, parseNgValues, typedRows } from '../lib/datasets.ts';
-import type { CorrelationResult, Dataset, DatasetValue } from '../lib/api.ts';
+import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '../lib/api.ts';
+import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
 
 // The correlation finder (T3.11): which settings separate failed batches from good ones, on real
@@ -22,7 +23,9 @@ const uiState = (ctx: Context) =>
 
 let listing: { site: string; items: Dataset[] | null } | null = null;
 let detail: { id: string; data: Dataset & { preview: Record<string, DatasetValue>[] } } | null = null;
-let result: { key: string; data: CorrelationResult; split: boolean } | null = null;
+let result: { key: string; data: CorrelationResult; split: boolean; source: InsightSource; dataset: string } | null =
+  null;
+let saving: { key: string; text: DraftText } | null = null; // the insight being saved from the result
 let busy = '';
 let upload: { done: number; total: number } | null = null;
 // The file and name chosen for upload, kept across re-renders (a file input can't be refilled).
@@ -136,6 +139,7 @@ function analysisCard(ctx: Context, ui: Ui): string {
           .join('')}</fieldset>
       </form>
       ${r ? resultBlock(r.data, r.split) : ''}
+      ${r && canEdit ? (saving?.key === r.key ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3>${draftForm('insight-save', saving.text, Boolean(busy))}</div>` : '<div><button class="btn" type="button" data-save-insight>Save as insight</button></div>') : ''}
     </div>`;
 }
 
@@ -221,6 +225,35 @@ async function removeDataset(ctx: Context): Promise<void> {
   }
 }
 
+async function saveInsight(ctx: Context): Promise<void> {
+  const site = siteId(ctx);
+  if (!ctx.api || !site || !result || !saving || saving.key !== result.key) return;
+  const draft = readDraft(saving.text);
+  if (typeof draft === 'string') return void ctx.toast(draft);
+  busy = 'save';
+  ctx.rerender();
+  try {
+    const saved = await ctx.api.insights.create(site, draft, result.source);
+    saving = null;
+    ctx.toast(`Insight #${saved.number} saved: another engineer reviews it`);
+    location.hash = insightLink(saved.number);
+  } catch {
+    // the client showed why
+  } finally {
+    busy = '';
+    ctx.rerender();
+  }
+}
+
+// `#/correlate?dataset=<id>` (a saved insight links here) selects that dataset.
+function selectFromLink(ctx: Context): void {
+  const id = new URLSearchParams(location.hash.split('?')[1] ?? '').get('dataset');
+  if (!id) return;
+  history.replaceState(null, '', `${location.pathname}${location.search}#/correlate`);
+  Object.assign(uiState(ctx), { selected: id, outcome: '', ngText: '', variables: null, split: '' });
+  detail = null;
+}
+
 async function find(ctx: Context): Promise<void> {
   const site = siteId(ctx);
   const ui = uiState(ctx);
@@ -245,13 +278,10 @@ async function find(ctx: Context): Promise<void> {
   busy = 'find';
   ctx.rerender();
   try {
-    const data = await ctx.api.datasets.correlate(site, ui.selected, {
-      outcome: outcome.name,
-      ng_values: ng,
-      variables,
-      split,
-    });
-    result = { key, data, split: split !== null };
+    const q = { outcome: outcome.name, ng_values: ng, variables, split };
+    const data = await ctx.api.datasets.correlate(site, ui.selected, q);
+    const source: InsightSource = { kind: 'correlation', dataset_id: ui.selected, ...q };
+    result = { key, data, split: split !== null, source, dataset: d.name };
   } catch {
     // the client showed why
   } finally {
@@ -278,6 +308,7 @@ const view: View = {
   },
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
+    selectFromLink(ctx);
     const ui = uiState(ctx);
     const site = siteId(ctx);
     if (site && listing?.site !== site) void loadList(ctx);
@@ -334,6 +365,20 @@ const view: View = {
       ui.ngText = (e.target as HTMLInputElement).value;
     });
     onSubmit(root, '#correlate-form', () => void find(ctx));
+    onAll(root, '[data-save-insight]', 'click', () => {
+      if (!result || !detail) return;
+      saving = { key: result.key, text: correlationDraft(result.dataset, result.data) };
+      ctx.rerender();
+    });
+    const saveForm = root.querySelector<HTMLFormElement>('#insight-save');
+    if (saveForm && saving) {
+      bindDraft(saveForm, saving.text);
+      onAll(saveForm, '[data-cancel]', 'click', () => {
+        saving = null;
+        ctx.rerender();
+      });
+      onSubmit(root, '#insight-save', () => void saveInsight(ctx));
+    }
     onAll(root, '[data-delete-dataset]', 'click', () => void removeDataset(ctx));
   },
 };

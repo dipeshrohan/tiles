@@ -435,3 +435,32 @@ test('every dataset call hits the documented path with its body', async () => {
     ],
   );
 });
+
+test('every insight call hits the documented path with its body', async () => {
+  const f = fakeFetch(...Array.from({ length: 7 }, () => ({ body: {} })));
+  const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
+  const draft = { title: 'T', summary: '', actions: ['a'] };
+  const source = { kind: 'series', signals: ['x'], start: '2026-09-01T00:00:00Z', end: '2026-09-02T00:00:00Z' };
+  await api.insights.list('s');
+  await api.insights.list('s', { status: 'accepted', limit: 5 });
+  await api.insights.get('s', 3);
+  await api.insights.create('s', draft, source);
+  await api.insights.edit('s', 3, { title: 'U' });
+  await api.insights.review('s', 3, 'rejected', 'why');
+  await api.insights.reopen('s', 3);
+  assert.deepEqual(
+    f.calls.map((c) => `${c.method} ${c.url.replace('http://api.test', '')}`),
+    [
+      'GET /sites/s/insights',
+      'GET /sites/s/insights?status=accepted&limit=5',
+      'GET /sites/s/insights/3',
+      'POST /sites/s/insights',
+      'PATCH /sites/s/insights/3',
+      'POST /sites/s/insights/3/review',
+      'POST /sites/s/insights/3/reopen',
+    ],
+  );
+  assert.deepEqual(JSON.parse(f.calls[3].body), { ...draft, source });
+  assert.deepEqual(JSON.parse(f.calls[4].body), { title: 'U' });
+  assert.deepEqual(JSON.parse(f.calls[5].body), { decision: 'rejected', note: 'why' });
+});

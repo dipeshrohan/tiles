@@ -111,7 +111,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 
 ### Quality analytics
 - [x] `T3.11` [#56](https://github.com/dipeshrohan/tiles/issues/56) **Correlation finder v2:** server-side over real batch tables; choose the outcome, variables and split; Cohen's d plus confidence intervals · ML+BE · 3d · T2.06
-- [ ] `T3.12` [#57](https://github.com/dipeshrohan/tiles/issues/57) **Saved insights:** save a finding with its query, evidence chart and proposed actions; insights are reviewable and linkable · BE+FE · 2.5d · T3.11
+- [x] `T3.12` [#57](https://github.com/dipeshrohan/tiles/issues/57) **Saved insights:** save a finding with its query, evidence chart and proposed actions; insights are reviewable and linkable · BE+FE · 2.5d · T3.11
 - [ ] `T3.13` [#14](https://github.com/dipeshrohan/tiles/issues/14) ◇ **Wear-check skill on real signals** (generalise the weld-power check) · ML · 2d · T3.03
 
 ### Pilot

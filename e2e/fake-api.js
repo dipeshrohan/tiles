@@ -173,6 +173,7 @@ export function createFakeApi({
   // Warning performance (T3.10): the report a test sets, and the queries the page asked it with.
   let performanceReport = null;
   const correlations = []; // each correlate request's body
+  const insights = []; // saved insights, as the API returns them, with `evidence`
   let datasetRowsFail = null; // a detail: the next rows batch is refused with it
   // Batch tables (T3.11): like the API, the correlation finder ranks with the browser's own.
   const datasets = []; // { id, name, description, columns, rows, created_by, created_at }
@@ -192,6 +193,103 @@ export function createFakeApi({
     const raw = await rawBody(req);
     return raw ? JSON.parse(raw) : undefined;
   };
+
+  // Like the API: a signal's readings in [from, to), as they are or in at most `points` buckets.
+  function seriesOf(plotted, from, to, points) {
+    const rows = [...samples.entries()]
+      .filter(([k]) => k.startsWith(`${plotted.tag}|`))
+      .map(([k, v]) => ({ t: Date.parse(k.split('|')[1]), v }))
+      .filter((r) => r.t >= from && r.t < to)
+      .sort((a, b) => a.t - b.t);
+    const num = (v) => (typeof v === 'boolean' ? Number(v) : typeof v === 'number' ? v : null);
+    const text = (v) => (typeof v === 'string' ? v : null);
+    let bucket = null;
+    let out = rows.map((r) => ({
+      at: new Date(r.t).toISOString(),
+      value: num(r.v),
+      min: num(r.v),
+      max: num(r.v),
+      n: 1,
+      text: text(r.v),
+    }));
+    if (rows.length > points) {
+      bucket = Math.ceil((to - from) / points) / 1000; // whole ms, as the API rounds
+      const groups = new Map();
+      for (const r of rows) {
+        const start = from + Math.floor((r.t - from) / (bucket * 1000)) * bucket * 1000;
+        if (!groups.has(start)) groups.set(start, []);
+        groups.get(start).push(r);
+      }
+      out = [...groups.entries()].map(([start, rs]) => {
+        const vs = rs.map((r) => num(r.v)).filter((v) => v !== null);
+        return {
+          at: new Date(start).toISOString(),
+          value: vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null,
+          min: vs.length ? Math.min(...vs) : null,
+          max: vs.length ? Math.max(...vs) : null,
+          n: rs.length,
+          text:
+            rs
+              .map((r) => text(r.v))
+              .filter((v) => v !== null)
+              .at(-1) ?? null,
+        };
+      });
+    }
+    return {
+      signal_id: plotted.id,
+      tag: plotted.tag,
+      unit: plotted.unit,
+      start: new Date(from).toISOString(),
+      end: new Date(to).toISOString(),
+      bucket_s: bucket,
+      points: out,
+    };
+  }
+
+  // Like the API: which variables separate a dataset's failed rows from its good ones.
+  function correlationOf(d, q) {
+    const ng = q.ng_values ?? [true];
+    const judged = d.rows.filter((r) => r[q.outcome] !== null && r[q.outcome] !== undefined);
+    // Segments named as the API names them: a missing value is "(blank)".
+    const rows = judged.map((r) => ({
+      ...r,
+      __ng: ng.includes(r[q.outcome]),
+      __segment: q.split ? (r[q.split] === null ? '(blank)' : String(r[q.split])) : null,
+    }));
+    const variables = q.variables.map((key) => ({ key, label: key, unit: '' }));
+    const findings = correlationFinder(rows, variables, {
+      outcome: '__ng',
+      splitBy: q.split ? '__segment' : null,
+    }).map((f) => {
+      const n = f.ngCount + f.okCount;
+      const se =
+        f.ngCount > 1 && f.okCount > 1 ? Math.sqrt(n / (f.ngCount * f.okCount) + f.effect ** 2 / (2 * n)) : null;
+      const ci = se === null ? [null, null] : [f.effect - 1.96 * se, f.effect + 1.96 * se];
+      return {
+        segment: f.segment,
+        variable: f.variable,
+        ng_mean: Number.isFinite(f.ngMean) ? f.ngMean : null,
+        ok_mean: Number.isFinite(f.okMean) ? f.okMean : null,
+        ng_count: f.ngCount,
+        ok_count: f.okCount,
+        effect: f.effect,
+        ci_low: ci[0],
+        ci_high: ci[1],
+        clear: ci[0] !== null && (ci[0] > 0 || ci[1] < 0),
+        r: f.r,
+      };
+    });
+    const top = new Map();
+    for (const f of findings) if (f.clear && Math.abs(f.effect) >= 0.8 && !top.has(f.segment)) top.set(f.segment, f);
+    const explanations = [...top.values()].map((f) => ({
+      segment: f.segment,
+      variable: f.variable,
+      text: `${q.split ? `${f.segment}: ` : ''}failed batches ran ${f.variable} ${f.effect > 0 ? 'higher' : 'lower'}.`,
+    }));
+    const ngCount = rows.filter((r) => r.__ng).length;
+    return { rows: rows.length, ng: ngCount, ok: rows.length - ngCount, findings, explanations };
+  }
 
   const server = createServer(async (req, res) => {
     const send = (status, data) => {
@@ -281,6 +379,7 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/notifications`) &&
         url.pathname !== `/sites/${site.id}/performance` &&
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`)
       )
         return send(404, { detail: 'Site not found' });
@@ -436,55 +535,7 @@ export function createFakeApi({
         const to = Date.parse(url.searchParams.get('to') ?? '');
         const points = Number(url.searchParams.get('points') ?? 1000);
         if (!(to > from)) return send(422, { detail: '`to` must be after `from`' });
-        const rows = [...samples.entries()]
-          .filter(([k]) => k.startsWith(`${plotted.tag}|`))
-          .map(([k, v]) => ({ t: Date.parse(k.split('|')[1]), v }))
-          .filter((r) => r.t >= from && r.t < to)
-          .sort((a, b) => a.t - b.t);
-        const num = (v) => (typeof v === 'boolean' ? Number(v) : typeof v === 'number' ? v : null);
-        const text = (v) => (typeof v === 'string' ? v : null);
-        let bucket = null;
-        let out = rows.map((r) => ({
-          at: new Date(r.t).toISOString(),
-          value: num(r.v),
-          min: num(r.v),
-          max: num(r.v),
-          n: 1,
-          text: text(r.v),
-        }));
-        if (rows.length > points) {
-          bucket = Math.ceil((to - from) / points) / 1000; // whole ms, as the API rounds
-          const groups = new Map();
-          for (const r of rows) {
-            const start = from + Math.floor((r.t - from) / (bucket * 1000)) * bucket * 1000;
-            if (!groups.has(start)) groups.set(start, []);
-            groups.get(start).push(r);
-          }
-          out = [...groups.entries()].map(([start, rs]) => {
-            const vs = rs.map((r) => num(r.v)).filter((v) => v !== null);
-            return {
-              at: new Date(start).toISOString(),
-              value: vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null,
-              min: vs.length ? Math.min(...vs) : null,
-              max: vs.length ? Math.max(...vs) : null,
-              n: rs.length,
-              text:
-                rs
-                  .map((r) => text(r.v))
-                  .filter((v) => v !== null)
-                  .at(-1) ?? null,
-            };
-          });
-        }
-        return send(200, {
-          signal_id: plotted.id,
-          tag: plotted.tag,
-          unit: plotted.unit,
-          start: new Date(from).toISOString(),
-          end: new Date(to).toISOString(),
-          bucket_s: bucket,
-          points: out,
-        });
+        return send(200, seriesOf(plotted, from, to, points));
       }
       const sig = signals.find((x) => url.pathname === `${signalsPath}/${x.id}`);
       if (url.pathname.startsWith(`${signalsPath}/`)) {
@@ -515,6 +566,93 @@ export function createFakeApi({
         return { user_id: who, email: who, name: who.split('@')[0], role: r, site_role: r, org_admin: false };
       };
       members.add(user);
+      const insightsPath = `/sites/${site.id}/insights`;
+      if (url.pathname === insightsPath || url.pathname.startsWith(`${insightsPath}/`)) {
+        const m = url.pathname.slice(insightsPath.length).match(/^(?:\/(\d+))?(?:\/(review|reopen))?$/);
+        const i = m?.[1] ? insights.find((x) => x.number === Number(m[1])) : null;
+        if (req.method !== 'GET' && role === 'viewer')
+          return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+        const summary = ({ query: _query, evidence: _evidence, ...rest }) => rest;
+        const now = () => new Date().toISOString();
+        if (!m?.[1] && req.method === 'GET') {
+          const status = url.searchParams.get('status');
+          const found = insights.filter((x) => !status || x.status === status).sort((a, b) => b.number - a.number);
+          return send(200, { insights: found.map(summary), total: found.length });
+        }
+        if (!m?.[1] && req.method === 'POST') {
+          const { title, summary: text = '', actions = [], source } = await body(req);
+          let evidence;
+          if (source.kind === 'correlation') {
+            const d = datasets.find((x) => x.id === source.dataset_id);
+            if (!d) return send(404, { detail: 'No such dataset' });
+            const result = correlationOf(d, source);
+            evidence = {
+              dataset: { id: d.id, name: d.name, row_count: d.rows.length },
+              result: { ...result, findings: result.findings.slice(0, 60) },
+              findings_total: result.findings.length,
+            };
+          } else {
+            const picked = source.signals.map((id) => signals.find((x) => x.id === id));
+            if (picked.some((x) => !x)) return send(404, { detail: 'No such signal on this site' });
+            const [from, to] = [Date.parse(source.start), Date.parse(source.end)];
+            evidence = { series: picked.map((x) => seriesOf(x, from, to, source.points ?? 600)) };
+          }
+          const created = {
+            number: Math.max(0, ...insights.map((x) => x.number)) + 1,
+            title,
+            summary: text,
+            actions,
+            kind: source.kind,
+            status: 'proposed',
+            author: user.split('@')[0],
+            author_id: user,
+            created_at: now(),
+            updated_at: now(),
+            reviewer: null,
+            reviewed_at: null,
+            review_note: '',
+            query: source,
+            evidence,
+          };
+          insights.push(created);
+          return send(201, created);
+        }
+        if (!i) return send(404, { detail: `Insight #${m?.[1]} not found` });
+        const owner = i.author_id === user || role === 'admin';
+        if (!m[2] && req.method === 'GET') return send(200, i);
+        if (!m[2] && req.method === 'DELETE') {
+          if (!owner) return send(403, { detail: 'Only its author (or an admin) deletes an insight' });
+          insights.splice(insights.indexOf(i), 1);
+          return send(204);
+        }
+        if (!m[2] && req.method === 'PATCH') {
+          if (!owner) return send(403, { detail: 'Only its author (or an admin) edits an insight' });
+          if (i.status !== 'proposed')
+            return send(409, { detail: `Insight #${i.number} is ${i.status}: reopen it first` });
+          const changes = await body(req);
+          for (const k of ['title', 'summary', 'actions']) if (changes[k] !== undefined) i[k] = changes[k];
+          i.updated_at = now();
+          return send(200, i);
+        }
+        if (m[2] === 'review') {
+          const { decision, note = '' } = await body(req);
+          if (i.author_id === user) return send(403, { detail: 'Another engineer reviews your insight' });
+          if (i.status !== 'proposed') return send(409, { detail: `Insight #${i.number} is already ${i.status}` });
+          if (decision === 'rejected' && !note.trim()) return send(422, { detail: 'Say why the insight is rejected' });
+          Object.assign(i, {
+            status: decision,
+            reviewer: user.split('@')[0],
+            reviewed_at: now(),
+            review_note: note.trim(),
+            updated_at: now(),
+          });
+          return send(200, i);
+        }
+        if (!owner) return send(403, { detail: 'Only its author (or an admin) reopens an insight' });
+        if (i.status === 'proposed') return send(409, { detail: `Insight #${i.number} already waits for review` });
+        Object.assign(i, { status: 'proposed', reviewer: null, reviewed_at: null, review_note: '', updated_at: now() });
+        return send(200, i);
+      }
       const datasetsPath = `/sites/${site.id}/datasets`;
       if (url.pathname.startsWith(datasetsPath)) {
         const shown = ({ rows, ...d }) => ({ ...d, row_count: rows.length });
@@ -558,47 +696,7 @@ export function createFakeApi({
         }
         const q = await body(req);
         correlations.push(q);
-        const ng = q.ng_values ?? [true];
-        const judged = d.rows.filter((r) => r[q.outcome] !== null && r[q.outcome] !== undefined);
-        // Segments named as the API names them: a missing value is "(blank)".
-        const rows = judged.map((r) => ({
-          ...r,
-          __ng: ng.includes(r[q.outcome]),
-          __segment: q.split ? (r[q.split] === null ? '(blank)' : String(r[q.split])) : null,
-        }));
-        const variables = q.variables.map((key) => ({ key, label: key, unit: '' }));
-        const findings = correlationFinder(rows, variables, {
-          outcome: '__ng',
-          splitBy: q.split ? '__segment' : null,
-        }).map((f) => {
-          const n = f.ngCount + f.okCount;
-          const se =
-            f.ngCount > 1 && f.okCount > 1 ? Math.sqrt(n / (f.ngCount * f.okCount) + f.effect ** 2 / (2 * n)) : null;
-          const ci = se === null ? [null, null] : [f.effect - 1.96 * se, f.effect + 1.96 * se];
-          return {
-            segment: f.segment,
-            variable: f.variable,
-            ng_mean: Number.isFinite(f.ngMean) ? f.ngMean : null,
-            ok_mean: Number.isFinite(f.okMean) ? f.okMean : null,
-            ng_count: f.ngCount,
-            ok_count: f.okCount,
-            effect: f.effect,
-            ci_low: ci[0],
-            ci_high: ci[1],
-            clear: ci[0] !== null && (ci[0] > 0 || ci[1] < 0),
-            r: f.r,
-          };
-        });
-        const top = new Map();
-        for (const f of findings)
-          if (f.clear && Math.abs(f.effect) >= 0.8 && !top.has(f.segment)) top.set(f.segment, f);
-        const explanations = [...top.values()].map((f) => ({
-          segment: f.segment,
-          variable: f.variable,
-          text: `${q.split ? `${f.segment}: ` : ''}failed batches ran ${f.variable} ${f.effect > 0 ? 'higher' : 'lower'}.`,
-        }));
-        const ngCount = rows.filter((r) => r.__ng).length;
-        return send(200, { rows: rows.length, ng: ngCount, ok: rows.length - ngCount, findings, explanations });
+        return send(200, correlationOf(d, q));
       }
       if (url.pathname === `/sites/${site.id}/performance`) {
         performanceQueries.push(url.searchParams.toString());
@@ -986,6 +1084,7 @@ export function createFakeApi({
     bearersSeen,
     datasets,
     correlations,
+    insights,
     // Refuses the next batch of dataset rows, as the API does a value of the wrong kind.
     failDatasetRows(detail) {
       datasetRowsFail = detail;

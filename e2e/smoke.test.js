@@ -25,6 +25,7 @@ const PAGES = [
   'signals',
   'explorer',
   'correlate',
+  'insights',
   'import',
   'settings',
 ];
@@ -2013,4 +2014,137 @@ test('the correlation finder: a failed upload leaves nothing behind, and enginee
     a.errors.filter((e) => !/Failed to load resource/.test(e)), // the refused batch
     [],
   );
+});
+
+test('saved insights: save a correlation, another engineer reviews it, its author reworks it', async (t) => {
+  const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, null, 'correlate');
+  await a.page.waitForSelector('#dataset-form');
+  await a.page.setInputFiles('#dataset-form [name=file]', {
+    name: 'cutter.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(cutterCsv()),
+  });
+  await a.page.waitForSelector('[data-chosen-file]');
+  await a.page.click('#dataset-form button[type=submit]');
+  await a.page.waitForSelector('[data-analysis]:has-text("720 batch(es)")');
+  await a.page.selectOption('#correlate-form [name=split]', 'material');
+  await a.page.click('#correlate-form button[type=submit]');
+  await a.page.waitForSelector('[data-explanations]');
+  await a.page.click('[data-save-insight]');
+  // A first draft from the strongest clear effect.
+  assert.equal(await a.page.inputValue('#insight-save [name=title]'), 'tension separates failed batches (anode)');
+  assert.match(await a.page.inputValue('#insight-save [name=summary]'), /cutter: 720 batch\(es\)/);
+  await a.page.fill('#insight-save [name=actions]', 'Lower anode tension\n\n- Check cathode rolls ');
+  await rerender(a.page); // what is typed survives
+  assert.equal(
+    await a.page.inputValue('#insight-save [name=actions]'),
+    'Lower anode tension\n\n- Check cathode rolls ',
+  );
+  await a.page.click('#insight-save button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("Insight #1 saved")');
+  await a.page.waitForSelector('[data-insight-detail]:has-text("#1 tension separates failed batches (anode)")');
+  assert.equal(await a.page.evaluate(() => location.hash), '#/insights/1');
+  assert.deepEqual(await a.page.locator('[data-actions] li').allInnerTexts(), [
+    'Lower anode tension',
+    'Check cathode rolls',
+  ]);
+  assert.equal(fake.insights[0].query.split, 'material');
+  assert.match(
+    await a.page.locator('[data-source]').innerText(),
+    /Correlation of cutter: outcome ng .*split by material/,
+  );
+  assert.equal((await a.page.locator('[data-insight-detail] .forest circle.ci.bad').count()) >= 1, true);
+  assert.equal(await a.page.locator('#insight-review').count(), 0); // not its own reviewer
+
+  // Another engineer, following the link: rejecting says why.
+  const b = await openAs(t, apiUrl, 'eng2@example.com', 'insights/1');
+  await b.page.waitForSelector('#insight-review');
+  assert.equal(await b.page.locator('[data-insight-list] [data-insight="1"].sel').count(), 1);
+  await b.page.click('#insight-review [data-decision=rejected]');
+  await b.page.waitForSelector('#toast:has-text("Say why the insight is rejected")');
+  await b.page.fill('#insight-review [name=note]', 'Only one month of batches');
+  await rerender(b.page);
+  assert.equal(await b.page.inputValue('#insight-review [name=note]'), 'Only one month of batches');
+  await b.page.click('#insight-review [data-decision=rejected]');
+  await b.page.waitForSelector('[data-review]:has-text("Rejected by eng2")');
+  assert.match(await b.page.locator('[data-review]').innerText(), /Only one month of batches/);
+  assert.equal(await b.page.locator('[data-reopen]').count(), 0); // not theirs
+
+  // Its author reopens and reworks it; the other engineer accepts it.
+  await a.page.evaluate(() => (location.hash = '#/insights'));
+  await a.page.click('[data-status=""]');
+  await a.page.click('[data-insight="1"]');
+  await a.page.click('[data-reopen]');
+  await a.page.waitForSelector('#toast:has-text("Insight reopened")');
+  await a.page.click('[data-edit]');
+  await a.page.fill('#insight-edit [name=title]', 'Anode tension drives tab failures');
+  await a.page.click('#insight-edit button[type=submit]');
+  await a.page.waitForSelector('[data-insight-detail]:has-text("#1 Anode tension drives tab failures")');
+  await b.page.evaluate(() => (location.hash = '#/insights'));
+  await b.page.waitForSelector('[data-insight-list]:has-text("Anode tension drives tab failures")');
+  await b.page.click('[data-insight="1"]');
+  await b.page.fill('#insight-review [name=note]', 'Matches the October trial');
+  await b.page.click('#insight-review [data-decision=accepted]');
+  await b.page.waitForSelector('[data-review]:has-text("Accepted by eng2")');
+
+  // Viewers read insights, but don't save or review them.
+  const v = await openAs(t, apiUrl, 'viewer@example.com', 'insights/1');
+  await v.page.waitForSelector('[data-insight-detail]:has-text("Accepted by eng2")');
+  assert.equal(await v.page.locator('#insight-review, [data-edit], [data-remove], [data-reopen]').count(), 0);
+  await v.page.evaluate(() => (location.hash = '#/correlate'));
+  await v.page.click('[data-dataset]');
+  await v.page.click('#correlate-form button[type=submit]');
+  await v.page.waitForSelector('[data-result]');
+  assert.equal(await v.page.locator('[data-save-insight]').count(), 0);
+
+  // Its author deletes it.
+  a.page.on('dialog', (d) => void d.accept());
+  await a.page.click('[data-remove]');
+  await a.page.waitForSelector('#toast:has-text("Insight deleted")');
+  assert.deepEqual(fake.insights, []);
+  assert.deepEqual([...a.errors, ...b.errors, ...v.errors], []);
+});
+
+test('saved insights: signals over a range, kept as plotted and opened again in the explorer', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const temp = fake.addSignal('press1.temperature', { source: 'edge:edge-01', unit: '°C' });
+  const force = fake.addSignal('press1.force', { source: 'edge:edge-01', unit: 'kN' });
+  const end = Date.parse('2026-09-05T06:00:00Z');
+  for (let i = 0; i < 288; i++) {
+    const at = new Date(end - i * 300_000).toISOString().replace('Z', '000Z');
+    fake.samples.set(`press1.temperature|${at}`, 20 + (i % 12));
+    fake.samples.set(`press1.force|${at}`, 300 + i);
+  }
+  temp.last_at = force.last_at = new Date(end).toISOString();
+  const from = new Date(end - 6 * 3_600_000).toISOString();
+  const to = new Date(end).toISOString();
+  // A link with signals and a range shows them (as a saved insight links back).
+  const a = await openAs(t, apiUrl, null, `explorer?signals=${temp.id},${force.id}&from=${from}&to=${to}`);
+  await a.page.waitForSelector('[data-picked]:has-text("press1.force")');
+  await a.page.waitForSelector('[data-chart] svg');
+  assert.equal(await a.page.evaluate(() => location.hash), '#/explorer');
+  await a.page.click('[data-save-insight]');
+  assert.equal(await a.page.inputValue('#insight-save [name=title]'), 'press1.temperature, press1.force');
+  await a.page.fill('#insight-save [name=title]', 'Force climbs while temperature cycles');
+  await a.page.dblclick('#insight-save button[type=submit]'); // saved once
+  await a.page.waitForSelector('[data-insight-detail]:has-text("Force climbs while temperature cycles")');
+  assert.equal(fake.insights.length, 1);
+  assert.equal(await a.page.locator('[data-evidence-series] svg').count(), 2);
+  assert.deepEqual(fake.insights[0].query, {
+    kind: 'series',
+    signals: [temp.id, force.id],
+    start: from,
+    end: to,
+    points: 900, // as the charts were drawn
+  });
+  assert.equal(fake.insights[0].evidence.series[1].points.length, 72); // 6 h of 5-minute readings
+  await a.page.click('[data-source] a');
+  await a.page.waitForSelector('[data-picked]:has-text("press1.force")');
+  assert.equal(await a.page.inputValue('#explorer-range [name=from]').then(Boolean), true);
+  assert.deepEqual(a.errors, []);
 });

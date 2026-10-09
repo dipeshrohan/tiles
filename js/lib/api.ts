@@ -403,6 +403,55 @@ export interface CorrelationResult {
   explanations: { segment: string; variable: string; text: string }[];
 }
 
+// A saved insight (T3.12): a finding with what produced it and the evidence it gave when saved.
+export type InsightStatus = 'proposed' | 'accepted' | 'rejected';
+
+export type InsightSource =
+  | {
+      kind: 'correlation';
+      dataset_id: string;
+      outcome: string;
+      ng_values?: DatasetValue[] | null;
+      variables?: string[] | null;
+      split?: string | null;
+      min_effect?: number;
+    }
+  | { kind: 'series'; signals: string[]; start: string; end: string; points?: number };
+
+export interface InsightSummary {
+  number: number;
+  title: string;
+  summary: string;
+  actions: string[];
+  kind: InsightSource['kind'];
+  status: InsightStatus;
+  author: string;
+  author_id: string | null;
+  created_at: string;
+  updated_at: string;
+  reviewer: string | null;
+  reviewed_at: string | null;
+  review_note: string;
+}
+
+export interface InsightEvidence {
+  dataset?: { id: string; name: string; row_count: number }; // correlation
+  result?: CorrelationResult; // its largest findings
+  findings_total?: number;
+  series?: SignalSeries[]; // series
+}
+
+export interface Insight extends InsightSummary {
+  query: InsightSource;
+  evidence: InsightEvidence;
+}
+
+export interface InsightDraft {
+  title: string;
+  summary: string;
+  actions: string[];
+}
+
 export interface Me {
   email: string;
   name: string;
@@ -696,6 +745,23 @@ export function createApiClient(options: ApiOptions) {
           q,
         ),
     },
+    insights: (() => {
+      const base = (siteId: string) => `/sites/${encodeURIComponent(siteId)}/insights`;
+      const one = (siteId: string, n: number) => `${base(siteId)}/${n}`;
+      return {
+        list: (siteId: string, q: { status?: InsightStatus; limit?: number; offset?: number } = {}) =>
+          request<{ insights: InsightSummary[]; total: number }>('GET', `${base(siteId)}${query(q)}`),
+        get: (siteId: string, n: number) => request<Insight>('GET', one(siteId, n)),
+        create: (siteId: string, draft: InsightDraft, source: InsightSource) =>
+          request<Insight>('POST', base(siteId), { ...draft, source }),
+        edit: (siteId: string, n: number, changes: Partial<InsightDraft>) =>
+          request<Insight>('PATCH', one(siteId, n), changes),
+        review: (siteId: string, n: number, decision: 'accepted' | 'rejected', note: string) =>
+          request<Insight>('POST', `${one(siteId, n)}/review`, { decision, note }),
+        reopen: (siteId: string, n: number) => request<Insight>('POST', `${one(siteId, n)}/reopen`),
+        remove: (siteId: string, n: number) => request<void>('DELETE', one(siteId, n)),
+      };
+    })(),
     notifications: {
       preferences: (siteId: string) =>
         request<NotificationPrefs>('GET', `/sites/${encodeURIComponent(siteId)}/notifications/preferences`),
