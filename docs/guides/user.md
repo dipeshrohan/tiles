@@ -19,14 +19,15 @@ Other guides:
 6. [Import data](#import-data)
 7. [Data explorer](#data-explorer)
 8. [Warnings](#warnings)
-9. [Warning performance](#warning-performance)
-10. [Factory physics and Process & quality (demo pages)](#factory-physics-and-process--quality-demo-pages)
-11. [Correlation finder](#correlation-finder)
-12. [Insights](#insights)
-13. [Design studio](#design-studio)
-14. [Copilot](#copilot)
-15. [Settings](#settings)
-16. [Glossary](#glossary)
+9. [Shopfloor](#shopfloor)
+10. [Warning performance](#warning-performance)
+11. [Factory physics and Process & quality (demo pages)](#factory-physics-and-process--quality-demo-pages)
+12. [Correlation finder](#correlation-finder)
+13. [Insights](#insights)
+14. [Design studio](#design-studio)
+15. [Copilot](#copilot)
+16. [Settings](#settings)
+17. [Glossary](#glossary)
 
 ---
 
@@ -101,7 +102,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 
 ### Finding your way
 
-- The left menu groups pages: **Home** and **Copilot** at the top, then **Operations**, **Data**, **Design** and **Settings**.
+- The left menu groups pages: **Home** and **Copilot** at the top, then **Operations** (starting with **Shopfloor**, the view for a tablet on the line), **Data**, **Design** and **Settings**.
 - A small badge on **Ontology builder** shows your uncommitted changes, or the number of health issues. A badge on **Factory physics** shows its open warning windows.
 - The button at the top switches between light and dark themes. On a phone, the menu button opens the left menu.
 - Short messages ("toasts") appear at the bottom of the screen when something is saved or fails.
@@ -426,6 +427,25 @@ Engineers and admins can get emails about warnings. Set them on the **Settings**
 - **Every new warning on this site**.
 
 Admins can also post every new warning to a Microsoft Teams channel.
+
+---
+
+## Shopfloor
+
+The Shopfloor page is the warnings page for a tablet on the line: large type, read at arm's length, with buttons big enough to press with gloves on. It is the first page under **Operations**.
+
+- **The headline** says what needs someone: how many warnings are open, how many signals are still out, and how many nobody has taken. Green means all clear.
+- **The warnings come first, worst first:** signals still out, then warnings nobody has taken, then the rest; newest first within each. Each card names the machine, with its line above it, and the signal.
+  - Tiles finds the machine from the ontology: the signal's `Signal` node (linked on the Signals page, or carrying the tag in its `tag` property), the PLC that emits it, and the machine that PLC controls. A warning Tiles can't place is named by its signal's tag.
+- **Engineers and admins** act on a warning with the buttons on its card:
+  - **I'm on it** acknowledges a new warning and assigns it to you. **Take it** assigns a warning someone else has to you.
+  - **Resolve** asks what it was: **True alarm**, **False alarm** or **Unknown**. **Back** closes the question.
+  - **Details** opens the warning on the Warnings page, with its chart, activity and comments.
+- **Machines** below show every machine of the site, coloured by its worst open warning: red for a signal out or a warning nobody has taken, amber while someone handles it, green when it has none.
+- The page refreshes itself every 30 seconds. **Refresh** fetches now.
+- **Full view** hides the menu and the top bar, for a tablet mounted on a machine. **Show navigation** brings them back.
+
+Viewers see the same page without the buttons. In local mode, the page shows the demo plunger-friction detector's warnings on Die-caster DC-02, read-only.
 
 ---
 

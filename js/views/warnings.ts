@@ -368,6 +368,12 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
   }
 }
 
+// Opens this page on one warning, whatever the filters show (the shopfloor view's Details).
+export function openWarning(ctx: Context, id: string): void {
+  Object.assign(uiState(ctx), { selected: id, site: siteId(ctx) });
+  location.hash = '#/warnings';
+}
+
 const view: View = {
   id: 'warnings',
   title: 'Warnings',

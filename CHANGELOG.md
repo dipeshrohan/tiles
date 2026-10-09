@@ -25,6 +25,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - a model registry and a model runner that writes derived signals;
   - streaming detectors, with backtests;
   - a warnings inbox with acknowledgement, assignment and outcomes;
+  - a shopfloor view for tablets on the line: warnings first on their machines, large type, buttons big enough for gloves, a board of every machine, and a full view without the menu (T5.16);
   - e-mail and Teams notifications;
   - warning performance against downtime and scrap events.
 - **Analysis:**

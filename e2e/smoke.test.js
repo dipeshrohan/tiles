@@ -1654,6 +1654,98 @@ test('viewers read warnings but cannot act on them; local mode explains the API 
   assert.deepEqual([...v.errors, ...errors], []);
 });
 
+test('the shopfloor view: warnings first on their machines, taken and resolved with big buttons', async (t) => {
+  const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = (id, type, label, props = {}) => ({ kind: 'addNode', node: { id, type, label, props } });
+  const edge = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
+  fake.commitAs(
+    'maria',
+    [
+      node('wc-cast', 'Workcenter', 'Casting'),
+      node('ln-dc', 'Line', 'DC line 1'),
+      node('m-dc1', 'Machine', 'Die-caster DC-01'),
+      node('m-dc2', 'Machine', 'Die-caster DC-02'),
+      node('plc-dc1', 'PLC', 'PLC DC-01', { protocol: 'OPC UA' }),
+      node('sig-fr', 'Signal', 'Plunger friction', { unit: 'N', tag: 'dc1.friction' }),
+      edge('wc-cast', 'contains', 'ln-dc'),
+      edge('ln-dc', 'contains', 'm-dc1'),
+      edge('ln-dc', 'contains', 'm-dc2'),
+      edge('m-dc1', 'controlledBy', 'plc-dc1'),
+      edge('plc-dc1', 'emits', 'sig-fr'),
+    ],
+    'the casting line',
+  );
+  const { out, over } = raiseFrictionWarnings(fake);
+
+  const { page, errors } = await openAs(t, apiUrl, null, 'shopfloor');
+  await page.setViewportSize({ width: 768, height: 1024 }); // a tablet, upright
+  const headline = page.locator('.floor-headline');
+  await page.waitForSelector('.floor-headline:has-text("2 open warnings: 1 signal still out, 2 nobody has taken")');
+  // Still out first, on its machine; the other is named by its tag, which the ontology doesn't place.
+  const cards = page.locator('.floor-card');
+  await page.waitForSelector('.floor-card:first-child:has-text("Casting › DC line 1")');
+  assert.match(await cards.nth(0).innerText(), /Die-caster DC-01[\s\S]*dc1\.friction[\s\S]*Signal still out/);
+  assert.match(await cards.nth(1).innerText(), /dc2\.friction[\s\S]*Nobody has it/);
+  // Gloves: every button is at least 64 px each way.
+  for (const box of await page.locator('.floor-btn').evaluateAll((els) => els.map((e) => e.getBoundingClientRect())))
+    assert.ok(box.height >= 64 && box.width >= 64, `a ${box.width}×${box.height} button`);
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  assert.ok(overflow <= 0, `page scrolls sideways by ${overflow}px`);
+
+  // Taken: acknowledged and assigned to whoever pressed it.
+  await page.click(`[data-take="${out}"]`);
+  await page.waitForSelector('#toast:has-text("It\'s yours: dc1.friction")');
+  await page.waitForSelector('.floor-card:first-child:has-text("demo has it")');
+  assert.equal(await page.locator(`[data-take="${out}"]`).count(), 0);
+  await page.waitForSelector('.floor-headline:has-text("2 open warnings: 1 signal still out, 1 nobody has taken")');
+
+  // Resolved with what it was: it leaves the floor.
+  await page.click(`[data-resolve="${over}"]`);
+  await page.waitForSelector('.floor-ask:has-text("What was it?")');
+  await page.click(`[data-outcome=false_alarm][data-id="${over}"]`);
+  await page.waitForSelector('#toast:has-text("Resolved as false alarm")');
+  await page.waitForSelector('.floor-headline:has-text("1 open warning: 1 signal still out")');
+  assert.equal(await cards.count(), 1);
+  assert.match(await headline.getAttribute('class'), /bad/);
+
+  // The machines: DC-01 has its warning, DC-02 is fine.
+  await page.waitForSelector('.floor-tile.s-out:has-text("Die-caster DC-01")');
+  await page.waitForSelector('.floor-tile.s-ok:has-text("Die-caster DC-02")');
+
+  // Full view hides the navigation, and gives it back.
+  assert.ok((await page.locator('#sidebar').isVisible()) || (await page.locator('#menu').isVisible()));
+  await page.click('[data-floor-full]');
+  await page.waitForSelector('body.floor-full');
+  assert.equal(await page.locator('.topbar').isVisible(), false);
+  await page.click('[data-floor-full]');
+  await page.waitForSelector('body:not(.floor-full) .topbar');
+
+  // Details: the Warnings page, open on it.
+  await page.click(`[data-open="${out}"]`);
+  await page.waitForSelector('[data-warning-detail]:has-text("dc1.friction")');
+  assert.deepEqual(errors, []);
+
+  // Viewers see the floor but leave the steps to engineers.
+  const v = await openAs(t, apiUrl, 'viewer@example.com', 'shopfloor');
+  await v.page.waitForSelector('.floor-card:has-text("An engineer of the site acts on it")');
+  assert.equal(await v.page.locator('[data-take], [data-resolve]').count(), 0);
+  assert.deepEqual(v.errors, []);
+});
+
+test("the shopfloor view in local mode shows the demo detector's warnings, read-only", async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/shopfloor`);
+  await page.waitForSelector('.floor-headline:has-text("open warning")');
+  await page.waitForSelector('.floor-card:has-text("Die-caster DC-02")');
+  await page.waitForSelector('.floor-card:has-text("Connect to the Tiles API in Settings")');
+  await page.waitForSelector('.floor-tile.s-new:has-text("Die-caster DC-02")');
+  await page.waitForSelector('.floor-tile.s-ok:has-text("Notching Cutter C-01")');
+  assert.deepEqual(errors, []);
+});
+
 test('assigning never unassigns someone the list of people lacks, and a no-op assign says so', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

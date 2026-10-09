@@ -1672,7 +1672,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$14 = {
+	var view$15 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -2166,7 +2166,7 @@
 	};
 	//#endregion
 	//#region js/views/chat.ts
-	var uiState$9 = (ctx) => ctx.ui("chat", { conversation: null });
+	var uiState$10 = (ctx) => ctx.ui("chat", { conversation: null });
 	var API_SUGGESTIONS = [
 		"Which warnings are open?",
 		"How healthy is the ontology?",
@@ -2176,12 +2176,12 @@
 	var remote$1 = null;
 	var thread = null;
 	var live = null;
-	var busy$4 = false;
+	var busy$5 = false;
 	var draft$2 = "";
 	var rating = null;
 	var failure = null;
-	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
-	var threadKey = (ctx) => `${siteId$5(ctx)}|${uiState$9(ctx).conversation}`;
+	var siteId$6 = (ctx) => ctx.ontology.site?.id ?? null;
+	var threadKey = (ctx) => `${siteId$6(ctx)}|${uiState$10(ctx).conversation}`;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "chat") {
 			remote$1 = null;
@@ -2189,7 +2189,7 @@
 		}
 	});
 	async function loadRemote(ctx) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		if (!ctx.api || !site) return;
 		remote$1 = {
 			site,
@@ -2214,7 +2214,7 @@
 		ctx.rerender();
 	}
 	async function loadThread(ctx, id) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		if (!ctx.api || !site) return;
 		const key = `${site}|${id}`;
 		try {
@@ -2225,7 +2225,7 @@
 			};
 		} catch {
 			if (threadKey(ctx) === key) {
-				uiState$9(ctx).conversation = null;
+				uiState$10(ctx).conversation = null;
 				thread = null;
 			}
 		}
@@ -2245,7 +2245,7 @@
 		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn)">⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ""}${feedback}`;
 	}
 	function remoteRender(ctx) {
-		const ui = uiState$9(ctx);
+		const ui = uiState$10(ctx);
 		const list = remote$1?.conversations;
 		const items = list === null || list === void 0 ? "<div class=\"empty\">Loading…</div>" : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
 			dateStyle: "medium",
@@ -2275,9 +2275,9 @@
         <div>
           <div class="chips" style="margin:10px 0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
-            <input type="text" name="q" value="${esc(draft$2)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$4 ? "disabled" : ""} />
-            <button class="btn primary" type="submit" ${busy$4 ? "disabled" : ""}>Ask</button>
-            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$4 ? "disabled" : ""}>Delete</button>` : ""}
+            <input type="text" name="q" value="${esc(draft$2)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$5 ? "disabled" : ""} />
+            <button class="btn primary" type="submit" ${busy$5 ? "disabled" : ""}>Ask</button>
+            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$5 ? "disabled" : ""}>Delete</button>` : ""}
           </form>
           <p class="small soft" style="margin-top:6px">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
         </div>
@@ -2293,14 +2293,14 @@
 		if (log) log.scrollTop = log.scrollHeight;
 	}
 	async function send(ctx, question) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		const api = ctx.api;
 		const text = question.trim();
-		if (!api || !site || !text || busy$4) return;
-		busy$4 = true;
+		if (!api || !site || !text || busy$5) return;
+		busy$5 = true;
 		draft$2 = "";
 		failure = null;
-		const ui = uiState$9(ctx);
+		const ui = uiState$10(ctx);
 		let sent = false;
 		try {
 			if (!ui.conversation) {
@@ -2330,7 +2330,7 @@
 				error: e instanceof Error ? e.message : "The answer was cut off"
 			};
 		} finally {
-			busy$4 = false;
+			busy$5 = false;
 			if (live?.answer.error) failure = {
 				key: live.key,
 				question: text,
@@ -2342,8 +2342,8 @@
 		}
 	}
 	async function rate(ctx, seq, value, comment) {
-		const site = siteId$5(ctx);
-		const id = uiState$9(ctx).conversation;
+		const site = siteId$6(ctx);
+		const id = uiState$10(ctx).conversation;
 		if (!ctx.api || !site || !id) return;
 		const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
 		try {
@@ -2361,8 +2361,8 @@
 		ctx.rerender();
 	}
 	function remoteBind(root, ctx) {
-		const ui = uiState$9(ctx);
-		const site = siteId$5(ctx);
+		const ui = uiState$10(ctx);
+		const site = siteId$6(ctx);
 		if (ui.conversation && thread?.key !== threadKey(ctx) && !live) loadThread(ctx, ui.conversation);
 		const logEl = root.querySelector("#chat-log");
 		if (logEl) logEl.scrollTop = logEl.scrollHeight;
@@ -2463,8 +2463,8 @@
 		onAll(root, "[data-q]", "click", (b) => sendLocal(b.dataset.q ?? ""));
 		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 	}
-	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$5(ctx) && remote$1?.configured);
-	var view$13 = {
+	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$6(ctx) && remote$1?.configured);
+	var view$14 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -2480,7 +2480,7 @@
 			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
 		},
 		bind(root, ctx) {
-			const site = siteId$5(ctx);
+			const site = siteId$6(ctx);
 			if (ctx.api && ctx.ontology.status === "ready" && site && remote$1?.site !== site) loadRemote(ctx);
 			if (remoteOn(ctx)) remoteBind(root, ctx);
 			else localBind(root, ctx);
@@ -2764,7 +2764,7 @@
 	}
 	//#endregion
 	//#region js/views/ontology.ts
-	var uiState$8 = (ctx) => ctx.ui("ontology", {
+	var uiState$9 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
 		hidden: [],
@@ -2775,7 +2775,7 @@
 		match: -1
 	});
 	function showHistory(ctx) {
-		uiState$8(ctx).tab = "history";
+		uiState$9(ctx).tab = "history";
 	}
 	var RELS = [
 		"contains",
@@ -3317,12 +3317,12 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$12 = {
+	var view$13 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
 		render(ctx) {
-			const ui = uiState$8(ctx);
+			const ui = uiState$9(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
@@ -3363,7 +3363,7 @@
       ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$8(ctx);
+			const ui = uiState$9(ctx);
 			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
@@ -3857,16 +3857,16 @@
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var uiState$7 = (ctx) => ctx.ui("quality", {
+	var uiState$8 = (ctx) => ctx.ui("quality", {
 		split: true,
 		variable: "tension"
 	});
-	var view$11 = {
+	var view$12 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
 		render(ctx) {
-			const ui = uiState$7(ctx);
+			const ui = uiState$8(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
@@ -3982,7 +3982,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$7(ctx);
+			const ui = uiState$8(ctx);
 			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
@@ -3998,14 +3998,14 @@
 	};
 	//#endregion
 	//#region js/views/physics.ts
-	var uiState$6 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$10 = {
+	var uiState$7 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var view$11 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
@@ -4129,7 +4129,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
 				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
@@ -4208,7 +4208,7 @@
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var uiState$5 = (ctx) => ctx.ui("design", {
+	var uiState$6 = (ctx) => ctx.ui("design", {
 		model: "swelling",
 		params: {},
 		versions: {},
@@ -4259,7 +4259,7 @@
 		}, POLL_MS * Math.min(2 ** failures, 16));
 	}
 	function sweepControls(ctx, key, canStart) {
-		const ui = uiState$5(ctx);
+		const ui = uiState$6(ctx);
 		const shown = apiSweep?.key === key ? apiSweep.sweep : null;
 		if (shown && sweepRunning(shown)) return `<div class="row" style="gap:8px" data-api-sweep>
       <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="Sweep progress"></progress>
@@ -4288,7 +4288,7 @@
 	var siteOf = (ctx) => ctx.api && ctx.ontology.status === "ready" ? ctx.ontology.site?.id ?? null : null;
 	var apiWaiting = (ctx) => ctx.api !== null && siteOf(ctx) === null;
 	function projectOf(ctx, site) {
-		const ui = uiState$5(ctx);
+		const ui = uiState$6(ctx);
 		const items = projects?.site === site ? projects.items : [];
 		if (ui.projectSite !== site) Object.assign(ui, {
 			project: null,
@@ -4362,7 +4362,7 @@
 		};
 	}
 	function current(ctx) {
-		const ui = uiState$5(ctx);
+		const ui = uiState$6(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
 			ui,
@@ -4371,7 +4371,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$9 = {
+	var view$10 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -5035,7 +5035,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$8 = {
+	var view$9 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -5332,7 +5332,7 @@
 	}
 	//#endregion
 	//#region js/views/signals.ts
-	var PAGE$1 = 100;
+	var PAGE$2 = 100;
 	var results = null;
 	var failed = false;
 	var checking = false;
@@ -5496,7 +5496,7 @@
 		try {
 			page = await ctx.api.signals.list(site.id, {
 				...ui$1(ctx).query,
-				limit: PAGE$1
+				limit: PAGE$2
 			});
 		} catch {}
 		if (mine !== latestSearch) return;
@@ -5695,7 +5695,7 @@
 			})();
 		});
 	}
-	var view$7 = {
+	var view$8 = {
 		id: "signals",
 		title: "Signals",
 		icon: "≋",
@@ -6147,7 +6147,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "⌁",
@@ -6259,21 +6259,21 @@
 	};
 	//#endregion
 	//#region js/views/reviews.ts
-	var uiState$4 = (ctx) => ctx.ui("reviews", {
+	var uiState$5 = (ctx) => ctx.ui("reviews", {
 		state: "open",
 		selected: null,
 		site: null
 	});
-	var listing$3 = null;
+	var listing$4 = null;
 	var detail$3 = null;
-	var listSeq$1 = 0;
+	var listSeq$2 = 0;
 	var detailSeq$1 = 0;
-	var busy$3 = false;
+	var busy$4 = false;
 	var draft$1 = {
 		key: "",
 		text: ""
 	};
-	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
 	var linked = (hash) => {
 		const m = /^#\/reviews\/(\d+)/i.exec(hash);
 		return m ? Number(m[1]) : null;
@@ -6283,12 +6283,12 @@
 	onNavigate((hash) => {
 		wanted = linked(hash);
 		if (routeOf(hash) !== "reviews") {
-			listing$3 = null;
+			listing$4 = null;
 			detail$3 = null;
 		}
 	});
-	var listKey$2 = (ctx) => `${siteId$4(ctx)}|${uiState$4(ctx).state}`;
-	var detailKey$2 = (ctx) => `${siteId$4(ctx)}|${uiState$4(ctx).selected}`;
+	var listKey$2 = (ctx) => `${siteId$5(ctx)}|${uiState$5(ctx).state}`;
+	var detailKey$2 = (ctx) => `${siteId$5(ctx)}|${uiState$5(ctx).selected}`;
 	var STATUS$1 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
@@ -6313,7 +6313,7 @@
 	}
 	function listCard$3(ctx, ui) {
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
-		const items = listing$3?.key === listKey$2(ctx) ? listing$3.items : null;
+		const items = listing$4?.key === listKey$2(ctx) ? listing$4.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
           <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
@@ -6356,7 +6356,7 @@
       ${waiting}
       ${canWrite ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
         <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$1.key === detailKey$2(ctx) ? esc(draft$1.text) : ""}</textarea>
-        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$3 ? "disabled" : ""}>
+        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$4 ? "disabled" : ""}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
           ${reworkButton(r, mine)}
@@ -6375,32 +6375,32 @@
       <span class="row" style="gap:12px">${o.role === "admin" ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? "checked" : ""} /> Require a review for every change</label>` : ""}<button class="btn sm" data-refresh-reviews>Refresh</button></span>
     </div>`;
 	}
-	async function fetchList$1(ctx) {
-		const site = siteId$4(ctx);
+	async function fetchList$2(ctx) {
+		const site = siteId$5(ctx);
 		if (!ctx.api || !site) return;
 		const key = listKey$2(ctx);
-		const seq = ++listSeq$1;
-		listing$3 = {
+		const seq = ++listSeq$2;
+		listing$4 = {
 			key,
 			items: null
 		};
 		try {
-			const items = await ctx.api.reviews.list(site, uiState$4(ctx).state);
-			if (seq === listSeq$1) listing$3 = {
+			const items = await ctx.api.reviews.list(site, uiState$5(ctx).state);
+			if (seq === listSeq$2) listing$4 = {
 				key,
 				items
 			};
 		} catch {
-			if (seq === listSeq$1) listing$3 = {
+			if (seq === listSeq$2) listing$4 = {
 				key,
 				items: []
 			};
 		}
-		if (seq === listSeq$1) ctx.rerender();
+		if (seq === listSeq$2) ctx.rerender();
 	}
 	async function fetchDetail$1(ctx) {
-		const site = siteId$4(ctx);
-		const n = uiState$4(ctx).selected;
+		const site = siteId$5(ctx);
+		const n = uiState$5(ctx).selected;
 		if (!ctx.api || !site || n === null) return;
 		const key = detailKey$2(ctx);
 		const seq = ++detailSeq$1;
@@ -6413,14 +6413,14 @@
 			};
 		} catch {
 			if (seq !== detailSeq$1) return;
-			uiState$4(ctx).selected = null;
+			uiState$5(ctx).selected = null;
 		}
 		ctx.rerender();
 	}
 	async function act$2(ctx, action, comment) {
-		const site = siteId$4(ctx);
+		const site = siteId$5(ctx);
 		const r = detail$3?.review;
-		if (!ctx.api || !site || !r || busy$3) return;
+		if (!ctx.api || !site || !r || busy$4) return;
 		const reviews = ctx.api.reviews;
 		const call = {
 			comment: () => reviews.comment(site, r.number, comment),
@@ -6429,7 +6429,7 @@
 			rework: () => reviews.rework(site, r.number)
 		}[action];
 		if (!call) return;
-		busy$3 = true;
+		busy$4 = true;
 		ctx.rerender();
 		try {
 			const review = await call();
@@ -6445,7 +6445,7 @@
 			if (action === "approve") ctx.toast(`#${r.number} approved and committed`);
 			if (action === "reject") ctx.toast(`#${r.number} rejected`);
 			if (action !== "comment") {
-				listing$3 = null;
+				listing$4 = null;
 				await ctx.ontology.reload();
 			}
 			if (action === "rework" && r.reverts) ctx.toast(`#${r.number} withdrawn`);
@@ -6455,13 +6455,13 @@
 			}
 		} catch {
 			detail$3 = null;
-			listing$3 = null;
+			listing$4 = null;
 		} finally {
-			busy$3 = false;
+			busy$4 = false;
 			ctx.rerender();
 		}
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "✓",
@@ -6472,22 +6472,22 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$3(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$4(ctx);
-			if (ui.site !== siteId$4(ctx)) Object.assign(ui, {
+			const ui = uiState$5(ctx);
+			if (ui.site !== siteId$5(ctx)) Object.assign(ui, {
 				selected: null,
-				site: siteId$4(ctx)
+				site: siteId$5(ctx)
 			});
 			if (wanted !== null) {
 				ui.selected = wanted;
 				wanted = null;
 				history.replaceState(history.state, "", `${location.pathname}${location.search}#/reviews`);
 			}
-			if (listing$3?.key !== listKey$2(ctx)) fetchList$1(ctx);
+			if (listing$4?.key !== listKey$2(ctx)) fetchList$2(ctx);
 			if (ui.selected !== null && detail$3?.key !== detailKey$2(ctx)) fetchDetail$1(ctx);
 			onAll(root, "[data-state]", "click", (el) => {
 				ui.state = el.dataset.state === "closed" ? "closed" : "open";
@@ -6499,7 +6499,7 @@
 			});
 			onAll(root, "[data-history]", "click", () => showHistory(ctx));
 			onAll(root, "[data-refresh-reviews]", "click", () => {
-				listing$3 = null;
+				listing$4 = null;
 				detail$3 = null;
 				ctx.ontology.reload();
 				ctx.rerender();
@@ -6511,7 +6511,7 @@
 				};
 			});
 			onAll(root, "[data-policy]", "change", (el) => {
-				const site = siteId$4(ctx);
+				const site = siteId$5(ctx);
 				const required = el.checked;
 				if (!ctx.api || !site) return;
 				ctx.api.ontology.setReviewPolicy(site, required).then(() => ctx.toast(required ? "Every change now needs a review" : "Reviews are optional again")).catch(() => void 0).finally(() => void ctx.ontology.reload());
@@ -6639,38 +6639,38 @@
 	}
 	//#endregion
 	//#region js/views/warnings.ts
-	var uiState$3 = (ctx) => ctx.ui("warnings", {
+	var uiState$4 = (ctx) => ctx.ui("warnings", {
 		filters: { ...DEFAULT_FILTERS },
 		selected: null,
 		site: null
 	});
-	var listing$2 = null;
+	var listing$3 = null;
 	var detail$2 = null;
 	var detailFailed = null;
 	var series = null;
 	var members = null;
-	var listSeq = 0;
+	var listSeq$1 = 0;
 	var detailSeq = 0;
 	var seriesSeq = 0;
-	var busy$2 = false;
+	var busy$3 = false;
 	var draft = {
 		key: "",
 		text: ""
 	};
-	var PAGE = 100;
+	var PAGE$1 = 100;
 	var ago = (iso) => when(iso, Date.now());
-	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "warnings") {
-			listing$2 = null;
+			listing$3 = null;
 			detail$2 = null;
 			detailFailed = null;
 			series = null;
 			members = null;
 		}
 	});
-	var listKey$1 = (ctx) => `${siteId$3(ctx)}|${JSON.stringify(uiState$3(ctx).filters)}`;
-	var detailKey$1 = (ctx) => `${siteId$3(ctx)}|${uiState$3(ctx).selected}`;
+	var listKey$1 = (ctx) => `${siteId$4(ctx)}|${JSON.stringify(uiState$4(ctx).filters)}`;
+	var detailKey$1 = (ctx) => `${siteId$4(ctx)}|${uiState$4(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function badge(w) {
 		const [cls, label] = STATUS[w.status];
@@ -6690,14 +6690,14 @@
     </div>`;
 	}
 	function listCard$2(ctx, ui) {
-		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
+		const items = listing$3?.key === listKey$1(ctx) ? listing$3.items : null;
 		const empty = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all" ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
 		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
           <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing$2?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
+        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing$3?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
@@ -6729,7 +6729,7 @@
 	function actionsForm(ctx, w) {
 		const actions = actionsFor(w, ctx.ontology.role);
 		if (!actions.length) return "";
-		const people = (members?.site === siteId$3(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
+		const people = (members?.site === siteId$4(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
 		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
 		const has = (a) => actions.includes(a);
 		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
@@ -6741,7 +6741,7 @@
       </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>` : "";
 		return `<form class="stack" id="warning-form" style="gap:8px;margin-top:10px">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey$1(ctx) ? esc(draft.text) : ""}</textarea>
-      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$2 ? "disabled" : ""}>
+      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$3 ? "disabled" : ""}>
         ${has("acknowledge") ? "<button class=\"btn primary\" type=\"button\" data-act=\"acknowledge\">Acknowledge</button>" : ""}
         ${assign}
         ${resolve}
@@ -6782,57 +6782,57 @@
       </details>
     </div>`;
 	}
-	async function fetchList(ctx) {
-		const site = siteId$3(ctx);
+	async function fetchList$1(ctx) {
+		const site = siteId$4(ctx);
 		if (!ctx.api || !site) return;
 		const key = listKey$1(ctx);
-		const seq = ++listSeq;
-		listing$2 = {
+		const seq = ++listSeq$1;
+		listing$3 = {
 			key,
 			items: null,
 			more: false
 		};
 		try {
 			const items = await ctx.api.warnings.list(site, {
-				...queryFor(uiState$3(ctx).filters),
-				limit: PAGE
+				...queryFor(uiState$4(ctx).filters),
+				limit: PAGE$1
 			});
-			if (seq === listSeq) listing$2 = {
+			if (seq === listSeq$1) listing$3 = {
 				key,
 				items,
-				more: items.length === PAGE
+				more: items.length === PAGE$1
 			};
 		} catch {
-			if (seq === listSeq) listing$2 = {
+			if (seq === listSeq$1) listing$3 = {
 				key,
 				items: [],
 				more: false
 			};
 		}
-		if (seq === listSeq) ctx.rerender();
+		if (seq === listSeq$1) ctx.rerender();
 	}
 	async function fetchMore(ctx) {
-		const site = siteId$3(ctx);
-		const shown = listing$2;
+		const site = siteId$4(ctx);
+		const shown = listing$3;
 		if (!ctx.api || !site || !shown?.items || shown.key !== listKey$1(ctx)) return;
-		const seq = ++listSeq;
+		const seq = ++listSeq$1;
 		try {
 			const query = {
-				...queryFor(uiState$3(ctx).filters),
-				limit: PAGE,
+				...queryFor(uiState$4(ctx).filters),
+				limit: PAGE$1,
 				offset: shown.items.length
 			};
 			const page = await ctx.api.warnings.list(site, query);
-			if (seq !== listSeq) return;
+			if (seq !== listSeq$1) return;
 			const seen = new Set(shown.items.map((w) => w.id));
-			listing$2 = {
+			listing$3 = {
 				key: shown.key,
 				items: [...shown.items, ...page.filter((w) => !seen.has(w.id))],
-				more: page.length === PAGE
+				more: page.length === PAGE$1
 			};
 		} catch {
-			if (seq !== listSeq) return;
-			listing$2 = {
+			if (seq !== listSeq$1) return;
+			listing$3 = {
 				...shown,
 				more: true
 			};
@@ -6840,7 +6840,7 @@
 		ctx.rerender();
 	}
 	async function fetchSeries(ctx, w) {
-		const site = siteId$3(ctx);
+		const site = siteId$4(ctx);
 		if (!ctx.api || !site) return;
 		const key = seriesKey(w);
 		const seq = ++seriesSeq;
@@ -6866,8 +6866,8 @@
 		ctx.rerender();
 	}
 	async function fetchDetail(ctx) {
-		const site = siteId$3(ctx);
-		const id = uiState$3(ctx).selected;
+		const site = siteId$4(ctx);
+		const id = uiState$4(ctx).selected;
 		if (!ctx.api || !site || id === null) return;
 		const key = detailKey$1(ctx);
 		const seq = ++detailSeq;
@@ -6881,13 +6881,13 @@
 			};
 		} catch (e) {
 			if (seq !== detailSeq) return;
-			if (e instanceof ApiError && e.status === 404) uiState$3(ctx).selected = null;
+			if (e instanceof ApiError && e.status === 404) uiState$4(ctx).selected = null;
 			else detailFailed = key;
 		}
 		ctx.rerender();
 	}
 	async function fetchMembers(ctx) {
-		const site = siteId$3(ctx);
+		const site = siteId$4(ctx);
 		if (!ctx.api || !site) return;
 		members = {
 			site,
@@ -6903,9 +6903,9 @@
 		ctx.rerender();
 	}
 	async function act$1(ctx, action, note, form) {
-		const site = siteId$3(ctx);
+		const site = siteId$4(ctx);
 		const w = detail$2?.warning;
-		if (!ctx.api || !site || !w || busy$2) return;
+		if (!ctx.api || !site || !w || busy$3) return;
 		const api = ctx.api.warnings;
 		const value = (name) => form.querySelector(`[name="${name}"]`)?.value ?? "";
 		const call = {
@@ -6916,7 +6916,7 @@
 			comment: () => api.comment(site, w.id, note)
 		}[action];
 		if (!call) return;
-		busy$2 = true;
+		busy$3 = true;
 		++detailSeq;
 		ctx.rerender();
 		try {
@@ -6939,16 +6939,23 @@
 				comment: "Comment added"
 			};
 			ctx.toast(done[action] ?? "Done");
-			if (action !== "comment" && !same) listing$2 = null;
+			if (action !== "comment" && !same) listing$3 = null;
 		} catch {
 			detail$2 = null;
-			listing$2 = null;
+			listing$3 = null;
 		} finally {
-			busy$2 = false;
+			busy$3 = false;
 			ctx.rerender();
 		}
 	}
-	var view$4 = {
+	function openWarning(ctx, id) {
+		Object.assign(uiState$4(ctx), {
+			selected: id,
+			site: siteId$4(ctx)
+		});
+		location.hash = "#/warnings";
+	}
+	var view$5 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "⚠",
@@ -6959,18 +6966,18 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$2(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$3(ctx);
-			const site = siteId$3(ctx);
+			const ui = uiState$4(ctx);
+			const site = siteId$4(ctx);
 			if (ui.site !== site) Object.assign(ui, {
 				selected: null,
 				site
 			});
-			if (listing$2?.key !== listKey$1(ctx)) fetchList(ctx);
+			if (listing$3?.key !== listKey$1(ctx)) fetchList$1(ctx);
 			if (ui.selected !== null && detail$2?.key !== detailKey$1(ctx) && detailFailed !== detailKey$1(ctx)) fetchDetail(ctx);
 			const shown = detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
 			if (shown && series?.key !== seriesKey(shown)) fetchSeries(ctx, shown);
@@ -6995,8 +7002,8 @@
 				ctx.rerender();
 			});
 			onAll(root, "[data-refresh-warnings]", "click", () => {
-				if (busy$2) return;
-				listing$2 = null;
+				if (busy$3) return;
+				listing$3 = null;
 				detail$2 = null;
 				detailFailed = null;
 				series = null;
@@ -7021,6 +7028,372 @@
 				}
 				act$1(ctx, action, note, form);
 			});
+		}
+	};
+	//#endregion
+	//#region js/lib/shopfloor.ts
+	var incoming = (graph, to, rel) => Object.values(graph.edges).filter((e) => e.to === to && e.rel === rel && graph.nodes[e.from]).map((e) => e.from).sort();
+	var outgoing = (graph, from, rel) => Object.values(graph.edges).filter((e) => e.from === from && e.rel === rel && graph.nodes[e.to]).map((e) => e.to).sort();
+	var isMachine = (graph, id) => graph.nodes[id]?.type === "Machine";
+	var parentOf = (graph, id) => incoming(graph, id, "contains")[0] ?? null;
+	function machineOf(graph, id) {
+		const node = graph.nodes[id];
+		if (!node) return null;
+		if (node.type === "Machine") return id;
+		const plcs = node.type === "Signal" ? incoming(graph, id, "emits") : node.type === "PLC" ? [id] : [];
+		for (const plc of plcs) {
+			const machine = incoming(graph, plc, "controlledBy").find((m) => isMachine(graph, m));
+			if (machine) return machine;
+		}
+		if (node.type === "Model") {
+			const machine = outgoing(graph, id, "monitors").find((m) => isMachine(graph, m));
+			if (machine) return machine;
+		}
+		const seen = /* @__PURE__ */ new Set([id]);
+		for (let up = parentOf(graph, id); up && !seen.has(up); up = parentOf(graph, up)) {
+			if (isMachine(graph, up)) return up;
+			seen.add(up);
+		}
+		return null;
+	}
+	function pathOf(graph, id) {
+		const path = [];
+		const seen = /* @__PURE__ */ new Set([id]);
+		for (let up = parentOf(graph, id); up && !seen.has(up); up = parentOf(graph, up)) {
+			const node = graph.nodes[up];
+			if (node && node.type !== "Site" && node.type !== "Enterprise") path.unshift(node.label);
+			seen.add(up);
+		}
+		return path;
+	}
+	function nodeForTag(graph, tag, links) {
+		const linked = links.get(tag);
+		if (linked && graph.nodes[linked]) return linked;
+		const signals = Object.values(graph.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.id.localeCompare(b.id));
+		return signals.find((n) => n.props["tag"] === tag)?.id ?? signals.find((n) => n.label === tag)?.id ?? null;
+	}
+	function stateOf(w) {
+		if (w.status === "resolved") return "ok";
+		if (!w.ended_at) return "out";
+		return w.status === "raised" ? "new" : "taken";
+	}
+	var RANK = {
+		out: 0,
+		new: 1,
+		taken: 2,
+		ok: 3
+	};
+	function placeWarning(graph, w, links, detail) {
+		const node = nodeForTag(graph, w.signal_tag, links);
+		const machineId = node ? machineOf(graph, node) : null;
+		const machine = machineId ? graph.nodes[machineId] : void 0;
+		return {
+			id: w.id,
+			tag: w.signal_tag,
+			machineId,
+			machine: machine?.label ?? w.signal_tag,
+			path: machineId ? pathOf(graph, machineId) : [],
+			state: stateOf(w),
+			status: w.status,
+			out: !w.ended_at,
+			startedAt: w.started_at,
+			endedAt: w.ended_at,
+			assignee: w.assignee,
+			assigneeId: w.assignee_id,
+			detail
+		};
+	}
+	function floorOrder(a, b) {
+		return RANK[a.state] - RANK[b.state] || (b.startedAt ?? "").localeCompare(a.startedAt ?? "") || a.id.localeCompare(b.id);
+	}
+	function machineBoard(graph, items) {
+		const tiles = Object.values(graph.nodes).filter((n) => n.type === "Machine").map((m) => {
+			const mine = items.filter((i) => i.machineId === m.id && i.state !== "ok");
+			const state = mine.reduce((worst, i) => RANK[i.state] < RANK[worst] ? i.state : worst, "ok");
+			return {
+				id: m.id,
+				label: m.label,
+				path: pathOf(graph, m.id),
+				state,
+				warnings: mine.length
+			};
+		});
+		const where = (t) => [...t.path, t.label].join("\0");
+		return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || where(a).localeCompare(where(b)));
+	}
+	function headline(items) {
+		const open = items.filter((i) => i.state !== "ok");
+		const out = open.filter((i) => i.state === "out").length;
+		const untaken = open.filter((i) => i.status === "raised").length;
+		if (!open.length) return {
+			tone: "good",
+			text: "All clear: no open warnings"
+		};
+		const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+		const parts = [out ? `${plural(out, "signal")} still out` : "", untaken ? `${untaken} nobody has taken` : ""].filter(Boolean);
+		return {
+			tone: out || untaken ? "bad" : "warn",
+			text: `${plural(open.length, "open warning")}${parts.length ? `: ${parts.join(", ")}` : ""}`
+		};
+	}
+	//#endregion
+	//#region js/views/shopfloor.ts
+	var uiState$3 = (ctx) => ctx.ui("shopfloor", {
+		resolving: null,
+		full: false
+	});
+	var REFRESH_MS = 3e4;
+	var PAGE = 100;
+	var listing$2 = null;
+	var links = null;
+	var listSeq = 0;
+	var busy$2 = null;
+	var timer = null;
+	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
+	function stop() {
+		if (timer !== null) clearInterval(timer);
+		timer = null;
+		document.body.classList.remove("floor-full");
+	}
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "shopfloor") {
+			stop();
+			listing$2 = null;
+			links = null;
+		}
+	});
+	async function fetchList(ctx, quiet = false) {
+		const site = siteId$3(ctx);
+		if (!ctx.api || !site) return;
+		const seq = ++listSeq;
+		if (!quiet || listing$2?.site !== site) listing$2 = {
+			site,
+			items: null,
+			at: null,
+			more: false
+		};
+		try {
+			const items = await ctx.api.warnings.list(site, {
+				status: "unresolved",
+				limit: PAGE
+			});
+			if (seq === listSeq) listing$2 = {
+				site,
+				items,
+				at: Date.now(),
+				more: items.length === PAGE
+			};
+		} catch {
+			if (seq === listSeq && !quiet) listing$2 = {
+				site,
+				items: [],
+				at: null,
+				more: false
+			};
+		}
+		if (seq === listSeq && routeOf(location.hash) === "shopfloor") ctx.rerender();
+	}
+	async function fetchLinks(ctx) {
+		const site = siteId$3(ctx);
+		if (!ctx.api || !site) return;
+		links = {
+			site,
+			map: /* @__PURE__ */ new Map()
+		};
+		try {
+			const { signals } = await ctx.api.signals.list(site, {
+				linked: "yes",
+				limit: 500
+			});
+			const map = new Map(signals.filter((s) => s.node_id).map((s) => [s.tag, s.node_id ?? ""]));
+			if (links.site === site) links = {
+				site,
+				map
+			};
+		} catch {
+			return;
+		}
+		if (routeOf(location.hash) === "shopfloor") ctx.rerender();
+	}
+	function items(ctx) {
+		const graph = ctx.graph;
+		if (!ctx.api) {
+			const model = Object.values(graph.nodes).find((n) => n.type === "Model" && /friction/i.test(n.label));
+			const machineId = model ? machineOf(graph, model.id) : null;
+			const machine = machineId ? graph.nodes[machineId] : void 0;
+			return ctx.state.detection.alerts.map((a, i) => ({
+				id: `demo-${i}`,
+				tag: "Plunger friction",
+				machineId,
+				machine: machine?.label ?? "Die-caster",
+				path: machineId ? pathOf(graph, machineId) : [],
+				state: "new",
+				status: "raised",
+				out: false,
+				startedAt: null,
+				endedAt: null,
+				assignee: null,
+				assigneeId: null,
+				detail: `Shots ${fmt$1(a.firstShot)}–${fmt$1(a.lastShot)}, friction peak ${fmt$1(a.peak, 2)}`
+			}));
+		}
+		const site = siteId$3(ctx);
+		if (!site || listing$2?.site !== site || listing$2.items === null) return null;
+		const map = links?.site === site ? links.map : /* @__PURE__ */ new Map();
+		return listing$2.items.map((w) => placeWarning(graph, w, map, howFar(w))).sort(floorOrder);
+	}
+	var STATE_LABEL = {
+		out: ["bad", "Signal still out"],
+		new: ["bad", "Nobody has it"],
+		taken: ["warn", "Being handled"],
+		ok: ["good", "OK"]
+	};
+	function since(item, now) {
+		if (!item.startedAt) return "";
+		return item.out ? `Out since ${esc(when(item.startedAt, now))}` : `Started ${esc(when(item.startedAt, now))}, back ${esc(when(item.endedAt ?? item.startedAt, now))}`;
+	}
+	function actions(ctx, item, ui) {
+		if (!ctx.api) return "<p class=\"small soft\">Connect to the Tiles API in Settings to take and resolve warnings.</p>";
+		const role = ctx.ontology.role;
+		if (role !== "engineer" && role !== "admin") return "<p class=\"small soft\">An engineer of the site acts on it.</p>";
+		const wait = busy$2 !== null ? "disabled" : "";
+		const label = (verb) => `${verb}: ${item.machine}, ${item.tag}`;
+		if (ui.resolving === item.id) {
+			const outcome = (o, cls) => `<button class="btn floor-btn ${cls}" data-outcome="${o}" data-id="${esc(item.id)}" ${wait}>${OUTCOMES[o]}</button>`;
+			return `<p class="floor-ask">What was it?</p>
+      <div class="floor-actions">
+        ${outcome("true_alarm", "danger")}${outcome("false_alarm", "")}${outcome("unknown", "")}
+        <button class="btn floor-btn" data-cancel ${wait}>Back</button>
+      </div>`;
+		}
+		const mine = item.assigneeId !== null && item.assigneeId === ctx.ontology.userId;
+		return `<div class="floor-actions">${item.status === "raised" ? `<button class="btn primary floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("I'm on it"))}" ${wait}>I'm on it</button>` : !mine ? `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("Take it"))}" ${wait}>Take it</button>` : ""}
+      <button class="btn floor-btn" data-resolve="${esc(item.id)}" aria-label="${esc(label("Resolve"))}" ${wait}>Resolve</button>
+      <button class="btn floor-btn" data-open="${esc(item.id)}" aria-label="${esc(label("Details"))}">Details</button>
+    </div>`;
+	}
+	function card(ctx, item, ui, now) {
+		const [cls, label] = STATE_LABEL[item.state];
+		const where = item.path.length ? `<div class="floor-where">${esc(item.path.join(" › "))}</div>` : "";
+		const who = item.assignee ? `<p><b>${esc(item.assignee)}</b> has it</p>` : item.status === "acknowledged" ? "<p>Acknowledged, nobody assigned</p>" : item.state === "out" ? "<p>Nobody has it yet</p>" : "";
+		return `<article class="floor-card s-${item.state}" aria-label="${esc(`${item.machine}: ${label}`)}">
+      ${where}
+      <h2>${esc(item.machine)}</h2>
+      <div class="mono floor-tag">${esc(item.tag)}</div>
+      <p class="floor-state"><span class="badge ${cls}">${label}</span> ${since(item, now)}</p>
+      <p class="small">${esc(item.detail)}</p>
+      ${who}
+      ${busy$2 === item.id ? "<p class=\"small soft\" role=\"status\">Sending…</p>" : ""}
+      ${actions(ctx, item, ui)}
+    </article>`;
+	}
+	function board(ctx, list) {
+		const tiles = machineBoard(ctx.graph, list);
+		if (!tiles.length) return "<p class=\"small soft\">The ontology has no machines yet: add them on the Ontology page to see them here.</p>";
+		return `<div class="floor-board">${tiles.map((t) => {
+			const [cls, label] = STATE_LABEL[t.state];
+			const count = t.warnings ? `${t.warnings} warning${t.warnings === 1 ? "" : "s"}` : "No warnings";
+			return `<div class="floor-tile s-${t.state}">
+          <div class="floor-where">${esc(t.path.join(" › "))}</div>
+          <b>${esc(t.label)}</b>
+          <span><span class="badge ${cls}">${t.state === "ok" ? "OK" : label}</span> <span class="small">${count}</span></span>
+        </div>`;
+		}).join("")}</div>`;
+	}
+	async function take(ctx, id) {
+		const site = siteId$3(ctx);
+		const w = listing$2?.items?.find((x) => x.id === id);
+		if (!ctx.api || !site || !w || busy$2) return;
+		busy$2 = id;
+		ctx.rerender();
+		try {
+			if (w.status === "raised") await ctx.api.warnings.acknowledge(site, id);
+			const me = ctx.ontology.userId;
+			if (me && w.assignee_id !== me) await ctx.api.warnings.assign(site, id, me);
+			ctx.toast(`It's yours: ${w.signal_tag}`);
+		} catch {} finally {
+			busy$2 = null;
+		}
+		await fetchList(ctx, true);
+	}
+	async function resolve(ctx, id, outcome) {
+		const site = siteId$3(ctx);
+		if (!ctx.api || !site || busy$2) return;
+		busy$2 = id;
+		ctx.rerender();
+		try {
+			await ctx.api.warnings.resolve(site, id, outcome);
+			uiState$3(ctx).resolving = null;
+			ctx.toast(`Resolved as ${OUTCOMES[outcome].toLowerCase()}`);
+		} catch {} finally {
+			busy$2 = null;
+		}
+		await fetchList(ctx, true);
+	}
+	var view$4 = {
+		id: "shopfloor",
+		title: "Shopfloor",
+		icon: "▣",
+		render(ctx) {
+			const ui = uiState$3(ctx);
+			const site = ctx.ontology.site?.name ?? (ctx.api ? "" : "Demo plant");
+			const fullLabel = ui.full ? "Show navigation" : "Full view";
+			const head = (status) => `<div class="floor-head">
+        <div><div class="eyebrow">Operations · ${esc(site)}</div>${status}</div>
+        <div class="floor-tools">
+          ${ctx.api ? "<button class=\"btn floor-btn\" data-floor-refresh>Refresh</button>" : ""}
+          <button class="btn floor-btn" data-floor-full aria-pressed="${ui.full}">${fullLabel}</button>
+        </div>
+      </div>`;
+			if (ctx.api && ctx.ontology.status === "loading") return `<div class="floor">${head("<h1>Loading…</h1>")}</div>`;
+			if (ctx.api && ctx.ontology.status !== "ready") return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div></div>`;
+			const list = items(ctx);
+			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">Loading the warnings…</div></div>`;
+			const now = Date.now();
+			const { tone, text } = headline(list);
+			const updated = listing$2?.at && ctx.api ? `<div class="small soft">Updated ${new Date(listing$2.at).toLocaleTimeString("en-GB", {
+				hour: "2-digit",
+				minute: "2-digit"
+			})}; refreshes every 30 seconds</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
+			const status = `<h1 class="floor-headline ${tone}" role="status">${esc(text)}</h1>${updated}`;
+			const open = list.filter((i) => i.state !== "ok");
+			const more = listing$2?.more ? "<p class=\"small soft\">Showing the 100 newest open warnings; the Warnings page has the rest.</p>" : "";
+			const cards = open.length ? `<div class="floor-cards">${open.map((i) => card(ctx, i, ui, now)).join("")}</div>${more}` : "";
+			return `<div class="floor">${head(status)}${cards}
+        <h2 class="floor-section">Machines</h2>${board(ctx, list)}</div>`;
+		},
+		bind(root, ctx) {
+			const ui = uiState$3(ctx);
+			document.body.classList.toggle("floor-full", ui.full);
+			onAll(root, "[data-floor-full]", "click", () => {
+				ui.full = !ui.full;
+				ctx.rerender();
+			});
+			if (!ctx.api) return;
+			if (ctx.ontology.status !== "ready") return;
+			const site = siteId$3(ctx);
+			if (listing$2?.site !== site) fetchList(ctx);
+			if (links?.site !== site) fetchLinks(ctx);
+			timer ??= setInterval(() => {
+				if (routeOf(location.hash) !== "shopfloor") return stop();
+				if (!busy$2 && !uiState$3(ctx).resolving && !document.hidden) fetchList(ctx, true);
+			}, REFRESH_MS);
+			onAll(root, "[data-floor-refresh]", "click", () => void fetchList(ctx, true));
+			onAll(root, "[data-take]", "click", (el) => void take(ctx, el.dataset.take ?? ""));
+			onAll(root, "[data-resolve]", "click", (el) => {
+				ui.resolving = el.dataset.resolve ?? null;
+				ctx.rerender();
+			});
+			onAll(root, "[data-cancel]", "click", () => {
+				ui.resolving = null;
+				ctx.rerender();
+			});
+			onAll(root, "[data-outcome]", "click", (el) => {
+				const id = el.dataset.id;
+				const outcome = el.dataset.outcome;
+				if (id && outcome) resolve(ctx, id, outcome);
+			});
+			onAll(root, "[data-open]", "click", (el) => openWarning(ctx, el.dataset.open ?? ""));
 		}
 	};
 	//#endregion
@@ -8484,40 +8857,42 @@
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$15,
 		view$14,
 		view$13,
-		view$12,
+		view$6,
 		view$5,
 		view$4,
 		view$3,
+		view$12,
 		view$11,
 		view$10,
-		view$9,
+		view$8,
 		view$7,
-		view$6,
 		view$2,
 		view$1,
 		view,
-		view$8
+		view$9
 	];
 	var NAV = [
-		{ items: [view$14, view$13] },
+		{ items: [view$15, view$14] },
 		{
 			group: "Operations",
 			items: [
-				view$12,
-				view$5,
 				view$4,
+				view$13,
+				view$6,
+				view$5,
 				view$3,
-				view$11,
-				view$10
+				view$12,
+				view$11
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$8,
 				view$7,
-				view$6,
 				view$2,
 				view$1,
 				view
@@ -8525,11 +8900,11 @@
 		},
 		{
 			group: "Design",
-			items: [view$9]
+			items: [view$10]
 		},
 		{
 			group: "",
-			items: [view$8]
+			items: [view$9]
 		}
 	];
 	function freshState() {
@@ -8824,7 +9199,7 @@
 	};
 	function currentView() {
 		const id = routeOf(location.hash);
-		return VIEWS.find((v) => v.id === id) ?? view$14;
+		return VIEWS.find((v) => v.id === id) ?? view$15;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -8847,8 +9222,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$14 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$14 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$15 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$15 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
