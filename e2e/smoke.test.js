@@ -169,6 +169,13 @@ test('settings can switch to the Tiles API and test the connection', async (t) =
   await new Promise((resolve) => other.listen(0, '127.0.0.1', resolve));
   t.after(() => other.close());
   await page.fill('#datasource [name=apiUrl]', `http://127.0.0.1:${other.address().port}`);
+  // A re-render (here as on navigating; the page's background loads re-render it the same way)
+  // keeps the address being typed.
+  await rerender(page);
+  assert.equal(await page.inputValue('#datasource [name=apiUrl]'), `http://127.0.0.1:${other.address().port}`);
+  await page.evaluate(() => (location.hash = '#/Settings')); // the same page, routes read in any case
+  await page.waitForSelector('#datasource');
+  assert.equal(await page.inputValue('#datasource [name=apiUrl]'), `http://127.0.0.1:${other.address().port}`);
   await page.click('[data-test-api]');
   await page.waitForSelector('[data-api-status]:has-text("not the Tiles API")');
   // A re-render (here, leaving and coming back) keeps the answer rather than wiping it.

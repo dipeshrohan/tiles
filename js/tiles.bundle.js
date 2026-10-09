@@ -3829,7 +3829,9 @@
 	}
 	var notifyDraft = { key: "" };
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
-		if (!location.hash.startsWith("#/settings")) notifyDraft = { key: "" };
+		if (location.hash.toLowerCase().startsWith("#/settings")) return;
+		notifyDraft = { key: "" };
+		sourceDraft = null;
 	});
 	async function fillNotifications(root, ctx) {
 		const site = ctx.ontology.site;
@@ -3910,6 +3912,14 @@
 	var revealed = null;
 	var apiCheck = "";
 	var apiCheckSeq = 0;
+	var sourceDraft = null;
+	var sourceKey = (ds) => `${ds.mode}|${ds.apiUrl}`;
+	function readSource(form) {
+		return {
+			mode: form.elements.namedItem("mode").value === "api" ? "api" : "local",
+			apiUrl: field$1(form, "apiUrl")
+		};
+	}
 	function viewer(ctx) {
 		return `${ctx.auth.signedIn ? "signed-in" : "dev"}:${ctx.state.user.email}`;
 	}
@@ -4022,6 +4032,7 @@
 		render(ctx) {
 			const { user } = ctx.state;
 			const ds = ctx.dataSource;
+			const typed = sourceDraft?.base === sourceKey(ds) ? sourceDraft : ds;
 			return `
       <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
       <div class="grid g2">
@@ -4040,9 +4051,9 @@
         <form class="card stack" id="datasource" style="gap:12px">
           <h2>Data source</h2>
           <p class="small soft">Keep data in this browser, or share it through the Tiles API (<code>docker compose up</code> starts one on port 8000). Pages move to the API one at a time.</p>
-          <label class="row" style="gap:8px"><input type="radio" name="mode" value="local" ${ds.mode === "local" ? "checked" : ""} /> This browser only</label>
-          <label class="row" style="gap:8px"><input type="radio" name="mode" value="api" ${ds.mode === "api" ? "checked" : ""} /> Tiles API</label>
-          <label class="field">API address<input type="url" name="apiUrl" value="${esc(ds.apiUrl)}" placeholder="http://localhost:8000" /></label>
+          <label class="row" style="gap:8px"><input type="radio" name="mode" value="local" ${typed.mode === "local" ? "checked" : ""} /> This browser only</label>
+          <label class="row" style="gap:8px"><input type="radio" name="mode" value="api" ${typed.mode === "api" ? "checked" : ""} /> Tiles API</label>
+          <label class="field">API address<input type="url" name="apiUrl" value="${esc(typed.apiUrl)}" placeholder="http://localhost:8000" /></label>
           <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
           <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
@@ -4063,18 +4074,26 @@
 				ctx.toast("Profile saved");
 			});
 			onSubmit(root, "#datasource", (form) => {
-				const mode = form.elements.namedItem("mode").value === "api" ? "api" : "local";
-				const apiUrl = normalizeBaseUrl(field$1(form, "apiUrl"));
+				const { mode, apiUrl: typedUrl } = readSource(form);
+				const apiUrl = normalizeBaseUrl(typedUrl);
 				if (mode === "api" && !isHttpUrl(apiUrl)) {
 					ctx.toast("Enter the API address, e.g. http://localhost:8000");
 					return;
 				}
 				apiCheck = "";
+				sourceDraft = null;
 				ctx.setDataSource({
 					mode,
 					apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl
 				});
 				ctx.toast(mode === "api" ? "Using the Tiles API" : "Using this browser only");
+			});
+			const source = need(root, "#datasource");
+			source.addEventListener("input", () => {
+				sourceDraft = {
+					base: sourceKey(ctx.dataSource),
+					...readSource(source)
+				};
 			});
 			onAll(root, "[data-test-api]", "click", async () => {
 				const url = field$1(need(root, "#datasource"), "apiUrl");

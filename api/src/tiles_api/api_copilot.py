@@ -24,7 +24,7 @@ from fastapi.responses import StreamingResponse
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
-from tiles_api import assistant
+from tiles_api import assistant, grounding
 from tiles_api.api_ontology import Ctx, SiteContext
 from tiles_api.copilot_tools import tools_for
 from tiles_api.store import Conn, one
@@ -61,6 +61,7 @@ class Message(BaseModel):
     seq: int
     role: str
     content: list[dict[str, Any]]  # Messages API content blocks: text, tool_use, tool_result
+    meta: dict[str, Any]  # an answer's grounding report (T4.03)
     created_at: datetime
 
 
@@ -113,7 +114,8 @@ def _own(ctx: SiteContext, conversation_id: uuid.UUID, *, lock: bool = False) ->
 
 def _history(conn: Conn, conversation_id: uuid.UUID) -> list[dict[str, Any]]:
     return conn.execute(
-        "SELECT seq, role, content, created_at FROM conversation_messages WHERE conversation_id = %s ORDER BY seq",
+        "SELECT seq, role, content, meta, created_at FROM conversation_messages"
+        " WHERE conversation_id = %s ORDER BY seq",
         [conversation_id],
     ).fetchall()
 
@@ -171,8 +173,9 @@ def _busy(conn: Conn, conversation_id: uuid.UUID) -> bool:
 
 # The next message of a conversation, numbered after the last one stored.
 STORE = """
-INSERT INTO conversation_messages (conversation_id, seq, role, content)
-SELECT %(c)s, coalesce(max(seq), -1) + 1, %(role)s, %(content)s FROM conversation_messages WHERE conversation_id = %(c)s
+INSERT INTO conversation_messages (conversation_id, seq, role, content, meta)
+SELECT %(c)s, coalesce(max(seq), -1) + 1, %(role)s, %(content)s, %(meta)s
+FROM conversation_messages WHERE conversation_id = %(c)s
 """
 
 
@@ -204,7 +207,9 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
         raise HTTPException(status.HTTP_409_CONFLICT, "This conversation is too long to carry on: start a new one")
     question = {"role": "user", "content": [{"type": "text", "text": text}]}
     history = assistant.repaired([*stored, question])
-    ctx.conn.execute(STORE, {"c": conversation_id, "role": "user", "content": Jsonb(question["content"])})
+    ctx.conn.execute(
+        STORE, {"c": conversation_id, "role": "user", "content": Jsonb(question["content"]), "meta": Jsonb({})}
+    )
     ctx.conn.execute(
         """
         UPDATE conversations SET busy_since = now(), updated_at = now(),
@@ -233,7 +238,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
         try:
             events = assistant.respond(
                 model,
-                assistant.SYSTEM.format(site=names["site"], org=names["org"]),
+                assistant.SYSTEM.format(site=names["site"], org=names["org"], decline=grounding.DECLINE),
                 history,
                 assistant_tools,
                 settings.copilot_max_rounds,
@@ -247,7 +252,12 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                     with pool.connection() as conn:  # stored, and the answer's lease renewed
                         conn.execute(
                             STORE,
-                            {"c": conversation_id, "role": event.data["role"], "content": Jsonb(event.data["content"])},
+                            {
+                                "c": conversation_id,
+                                "role": event.data["role"],
+                                "content": Jsonb(event.data["content"]),
+                                "meta": Jsonb(event.data.get("meta", {})),
+                            },
                         )
                         conn.execute("UPDATE conversations SET busy_since = now() WHERE id = %s", [conversation_id])
                     continue

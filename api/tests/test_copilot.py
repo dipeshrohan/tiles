@@ -76,32 +76,35 @@ def test_a_question_is_answered_from_the_sites_own_signals(
             Turn([text("Looking."), call("find_signals", {"query": "oil"})], "tool_use", {"input_tokens": 50}),
         ),
         (
-            ["press9.oil_temp ", "reads 42."],
-            Turn([text("press9.oil_temp reads 42.")], "end_turn", {"input_tokens": 80, "output_tokens": 12}),
+            ["`press9.oil_temp` ", "reads 42 [1]."],
+            Turn([text("`press9.oil_temp` reads 42 [1].")], "end_turn", {"input_tokens": 80, "output_tokens": 12}),
         ),
     ]
     conversation = start(api, site)
     res = ask(api, site, conversation, "  Which oil temperatures do we measure?  ")
     assert (res.status_code, res.headers["content-type"].split(";")[0]) == (200, "text/event-stream")
     got = events(res.text)
-    assert [k for k, _ in got] == ["text", "tool_use", "tool_result", "text", "text", "done"]
-    assert got[1][1] == {"id": "t1", "name": "find_signals", "input": {"query": "oil"}}
+    assert [k for k, _ in got] == ["text", "tool_use", "tool_result", "text", "text", "grounding", "done"]
+    assert got[1][1] == {"id": "t1", "name": "find_signals", "input": {"query": "oil"}, "n": 1}
+    assert (got[-2][1]["grounded"], got[-2][1]["cited"]) == (True, [1])
     assert got[2][1]["is_error"] is False
     assert got[-1][1]["usage"] == {"input_tokens": 130, "output_tokens": 12}
     # The site's name is in the prompt; the tool read this site's signals.
     assert model.calls[0]["system"].startswith("You are the Tiles copilot for Plant 1, a site of Demo Manufacturing.")
     result = model.calls[1]["messages"][2]["content"][0]
-    assert json.loads(result["content"])["signals"][0]["tag"] == "press9.oil_temp"
-    assert json.loads(result["content"])["signals"][0]["last_value"] == 42.0
+    assert json.loads(result["content"].split("\n", 1)[1])["signals"][0]["tag"] == "press9.oil_temp"
+    assert json.loads(result["content"].split("\n", 1)[1])["signals"][0]["last_value"] == 42.0
 
     detail = api.get(f"/sites/{site}/copilot/conversations/{conversation}", headers=ENG).json()
     assert detail["title"] == "Which oil temperatures do we measure?"
     assert [m["role"] for m in detail["history"]] == ["user", "assistant", "user", "assistant"]
     assert detail["history"][0]["content"] == [text("Which oil temperatures do we measure?")]
+    assert detail["history"][0]["meta"] == {}
+    assert detail["history"][-1]["meta"]["grounding"]["cited"] == [1]  # kept with the answer
     assert (detail["messages"], detail["input_tokens"], detail["output_tokens"]) == (4, 130, 12)
 
     # The next question carries the whole conversation.
-    model.script.append((["Yes."], Turn([text("Yes.")], "end_turn")))
+    model.script.append((["Which line?"], Turn([text("Which line?")], "end_turn")))
     ask(api, site, conversation, "Is that the only one?")
     assert [m["role"] for m in model.calls[2]["messages"]] == ["user", "assistant", "user", "assistant", "user"]
     listed = api.get(f"/sites/{site}/copilot/conversations", headers=ENG).json()
@@ -132,7 +135,7 @@ def test_viewers_ask_too_and_one_answer_at_a_time(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     conversation = start(api, site, VIEWER)
-    model.script.append((["Hi."], Turn([text("Hi.")], "end_turn")))
+    model.script.append((["Which press?"], Turn([text("Which press?")], "end_turn")))
     assert ask(api, site, conversation, "Hello?", who=VIEWER).status_code == 200
     with psycopg.connect(database_url) as conn:
         conn.execute("UPDATE conversations SET busy_since = now() WHERE id = %s", [conversation])
@@ -142,12 +145,12 @@ def test_viewers_ask_too_and_one_answer_at_a_time(
         conn.execute(
             "UPDATE conversations SET busy_since = now() - interval '10 minutes' WHERE id = %s", [conversation]
         )
-    model.script.append((["Hi."], Turn([text("Hi.")], "end_turn")))
+    model.script.append((["Which press?"], Turn([text("Which press?")], "end_turn")))
     assert ask(api, site, conversation, "Again?", who=VIEWER).status_code == 200
     assert ask(api, site, conversation, " ", who=VIEWER).status_code == 422
     # Room for a question and every round of its answer (8 by default: 17 messages), or it's full.
     monkeypatch.setattr(api_copilot, "MAX_MESSAGES", 4 + 17)
-    model.script.append((["Hi."], Turn([text("Hi.")], "end_turn")))
+    model.script.append((["Which press?"], Turn([text("Which press?")], "end_turn")))
     assert ask(api, site, conversation, "Once more?", who=VIEWER).status_code == 200
     res = ask(api, site, conversation, "More?", who=VIEWER)
     assert (res.status_code, res.json()["detail"]) == (409, "This conversation is full: start a new one")
@@ -190,7 +193,7 @@ def test_a_broken_answer_says_so_counts_its_tokens_and_leaves_a_usable_conversat
             [conversation, json.dumps([text("Hmm."), call("find_signals", {}, "t9")])],
         )
     del model.stream
-    for answer in ("Fine.", "Still fine."):
+    for answer in ("Which press?", "Which line?"):
         model.script.append(([answer], Turn([text(answer)], "end_turn")))
     ask(api, site, conversation, "Now?")
     ask(api, site, conversation, "And now?")  # the broken call is no longer the last message
@@ -210,8 +213,11 @@ def test_a_broken_answer_says_so_counts_its_tokens_and_leaves_a_usable_conversat
 def test_a_tool_says_what_was_wrong_with_its_input(api: TestClient, site: str, model: Scripted) -> None:  # noqa: F811
     model.script += [
         ([], Turn([call("find_signals", {"limit": "ten"})], "tool_use")),
-        ([], Turn([text("Sorry.")], "end_turn")),
+        ([], Turn([text("I can't answer that from the site's data.")], "end_turn")),
     ]
     ask(api, site, start(api, site), "Ten signals?")
     result = model.calls[1]["messages"][-1]["content"][0]
-    assert (result["content"], result["is_error"]) == ("limit must be a whole number from 1 to 25", True)
+    assert (result["content"], result["is_error"]) == (
+        '[1] find_signals {"limit": "ten"}\nlimit must be a whole number from 1 to 25',
+        True,
+    )

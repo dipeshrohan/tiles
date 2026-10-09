@@ -52,14 +52,27 @@ def run(model: Scripted, max_rounds: int = 8) -> list[Event]:
 
 
 def test_a_plain_answer_streams_its_text_and_is_one_message() -> None:
-    model = Scripted((["Hel", "lo"], Turn([text("Hello")], "end_turn", {"input_tokens": 5, "output_tokens": 2})))
+    # A question back states nothing, so it needs no citation.
+    model = Scripted(
+        (["Which ", "press?"], Turn([text("Which press?")], "end_turn", {"input_tokens": 5, "output_tokens": 2}))
+    )
     events = run(model)
+    report = {
+        "grounded": True,
+        "declined": False,
+        "cited": [],
+        "unknown_citations": [],
+        "unsupported_numbers": [],
+        "unsupported_names": [],
+        "uncited": False,
+    }
     assert [(e.kind, e.data) for e in events] == [
-        ("text", {"text": "Hel"}),
-        ("text", {"text": "lo"}),
+        ("text", {"text": "Which "}),
+        ("text", {"text": "press?"}),
         ("usage", {"input_tokens": 5, "output_tokens": 2}),
-        ("message", {"role": "assistant", "content": [text("Hello")]}),
-        ("done", {"stop_reason": "end_turn", "usage": {"input_tokens": 5, "output_tokens": 2}}),
+        ("message", {"role": "assistant", "content": [text("Which press?")], "meta": {"grounding": report}}),
+        ("grounding", report),
+        ("done", {"stop_reason": "end_turn", "usage": {"input_tokens": 5, "output_tokens": 2}, "grounded": True}),
     ]
     assert model.calls[0]["system"] == "sys"
     assert model.calls[0]["tools"] == [
@@ -73,7 +86,7 @@ def test_tool_calls_run_and_their_results_go_back_to_the_model() -> None:
             ["Let me look."],
             Turn([text("Let me look."), call("echo", {"say": "press 9"})], "tool_use", {"input_tokens": 9}),
         ),
-        (["Press 9."], Turn([text("Press 9.")], "end_turn", {"input_tokens": 20, "output_tokens": 3})),
+        (["Press 9 [1]."], Turn([text("Press 9 [1].")], "end_turn", {"input_tokens": 20, "output_tokens": 3})),
     )
     events = run(model)
     kinds = [e.kind for e in events]
@@ -87,13 +100,18 @@ def test_tool_calls_run_and_their_results_go_back_to_the_model() -> None:
         "text",
         "usage",
         "message",
+        "grounding",
         "done",
     ]
-    assert events[3].data == {"id": "t1", "name": "echo", "input": {"say": "press 9"}}
+    assert events[3].data == {"id": "t1", "name": "echo", "input": {"say": "press 9"}, "n": 1}
     assert events[4].data["is_error"] is False
     result = events[5].data
     assert result["role"] == "user"
-    assert json.loads(result["content"][0]["content"]) == {"echo": "press 9", "long": ""}
+    # Each result is numbered for citing, with its tool and input, then what it gave.
+    head, body = result["content"][0]["content"].split("\n", 1)
+    assert head == '[1] echo {"say": "press 9"}'
+    assert json.loads(body) == {"echo": "press 9", "long": ""}
+    assert events[-2].data["grounded"] is True
     assert result["content"][0]["tool_use_id"] == "t1"
     # The second call carries the question, the tool call and its result.
     assert [m["role"] for m in model.calls[1]["messages"]] == ["user", "assistant", "user"]
@@ -114,14 +132,14 @@ def test_failing_unknown_and_long_tools_are_told_to_the_model() -> None:
                 "tool_use",
             ),
         ),
-        ([], Turn([text("Sorry.")], "end_turn")),
+        ([], Turn([text("I can't answer that from the site's data.")], "end_turn")),
     )
     events = run(model)
     results = next(e for e in events if e.kind == "message" and e.data["role"] == "user").data["content"]
     assert [(r["tool_use_id"], r["is_error"]) for r in results] == [("a", True), ("b", True), ("c", True), ("d", False)]
-    assert results[0]["content"] == "Nothing found"
-    assert results[1]["content"] == "No tool called nope"
-    assert results[2]["content"] == "echo failed: the input may not fit it"
+    assert results[0]["content"] == '[1] echo {"fail": true}\nNothing found'
+    assert results[1]["content"] == "[2] nope {}\nNo tool called nope"
+    assert results[2]["content"] == '[3] echo {"crash": true}\necho failed: the input may not fit it'
     assert len(results[3]["content"]) < 20_100
     assert results[3]["content"].endswith("(cut at 20000 characters: ask for less)")
 
@@ -184,9 +202,9 @@ def test_empty_answers_and_unrun_tool_calls_are_not_kept() -> None:
     stored = [e.data for e in run(model) if e.kind == "message"]
     assert [m["role"] for m in stored] == ["assistant", "user"]
     # A turn cut short (max_tokens) mid tool call: the call never runs, so it isn't kept.
-    cut = Scripted(([], Turn([text("Let me check"), call("echo", {})], "max_tokens")))
+    cut = Scripted(([], Turn([text("Which press do you mean?"), call("echo", {})], "max_tokens")))
     events = run(cut)
-    assert [e.data for e in events if e.kind == "message"] == [{"role": "assistant", "content": [text("Let me check")]}]
+    assert [e.data["content"] for e in events if e.kind == "message"] == [[text("Which press do you mean?")]]
     assert not [e for e in events if e.kind == "tool_use"]
     assert events[-1].data["stop_reason"] == "max_tokens"
 
@@ -222,7 +240,10 @@ def test_a_long_reason_for_not_answering_is_cut_short() -> None:
     def wordy(_args: dict[str, Any]) -> Any:
         raise ToolError("x" * 50_000)
 
-    model = Scripted(([], Turn([call("wordy", {})], "tool_use")), ([], Turn([text("Ok.")], "end_turn")))
+    model = Scripted(
+        ([], Turn([call("wordy", {})], "tool_use")),
+        ([], Turn([text("I can't answer that from the site's data.")], "end_turn")),
+    )
     events = list(assistant.respond(model, "s", QUESTION, [Tool("wordy", "", {"type": "object"}, wordy)]))
     result = next(e for e in events if e.kind == "message" and e.data["role"] == "user").data["content"][0]
-    assert len(result["content"]) == assistant.MAX_TOOL_ERROR
+    assert len(result["content"].split("\n", 1)[1]) == assistant.MAX_TOOL_ERROR

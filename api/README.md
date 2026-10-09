@@ -324,9 +324,19 @@ The copilot answers questions about the site with Claude (the Anthropic API) and
 
 An answer streams back as server-sent events:
 - `text`: a piece of the answer as the model writes it;
-- `tool_use`: a tool the model called, with its input;
+- `tool_use`: a tool the model called, with its input and the number `n` its result is cited by;
 - `tool_result`: whether the tool answered;
-- `done`, with the tokens used, or `error`.
+- `retract`: the answer so far is withdrawn (it stated what no tool returned), with why; a new one follows;
+- `grounding`: the final answer's grounding report;
+- `done`, with the tokens used and whether the answer is grounded, or `error`.
+
+**Grounding (T4.03).** An answer may only state what the tools returned. Each tool result reaches the model numbered, with its tool and input (`[3] wear_check {"tag": …}`), and the model cites the results a fact rests on as `[3]`. `grounding.py` then holds the answer to them:
+- it cites at least one result, unless it declines (starts with "I can't answer that from the site's data") or is only a short question back (one sentence, no numbers or names);
+- every result it cites exists;
+- every number in it, with or without a unit after it, is in a cited result or in the question. It may appear as given, rounded half up to the digits shown, rounded to its trailing zeros when that is within 5% ("about 1,800"), as a percentage of a fraction, or as the count of a list. A minus sign must be in the result too;
+- every `code` span (a tag, node or dataset name) is a value or key in a cited result, a whole word of one, or in the question.
+
+An answer that fails is withdrawn and the model is told why and asked once more. The second try doesn't count against `TILES_COPILOT_MAX_ROUNDS`. If the second answer fails too, it is kept with its report, which names the numbers and names nothing supports, so the page can warn. The report is stored with the answer (`meta.grounding`, migration 0017). The check can't tell whether a sentence with no number or name says what its result says. It catches values, counts, times, tags and every uncited answer, and T4.06 measures the rest on the evaluation set.
 
 Every message of the exchange (the question, the answer, the tool calls and their results) is stored as it completes, so the next question carries the whole conversation. Whatever broke off while it was stored is repaired before it goes to the model, wherever it broke: a tool call without its results, a result without its call, an empty message. A turn cut short in the middle of a tool call keeps only its text, and an empty answer isn't stored.
 
@@ -360,7 +370,7 @@ A tool that can't answer says why in words the model can act on: the close signa
 | `GET /copilot` | members | `{"configured"}`: whether the copilot is on |
 | `GET /copilot/conversations` | members | your conversations, latest first, with their message and token counts |
 | `POST /copilot/conversations` | members | `{"title"?}` starts one (titled by its first question otherwise) |
-| `GET /copilot/conversations/{id}` | its user | with `history`: every stored message, as Messages API content blocks |
+| `GET /copilot/conversations/{id}` | its user | with `history`: every stored message, as Messages API content blocks, and its `meta` (an answer's grounding report) |
 | `DELETE /copilot/conversations/{id}` | its user | removes it |
 | `POST /copilot/conversations/{id}/messages` | its user | `{"text"}` asks; the answer streams back (`text/event-stream`); 503 while the copilot is off, 409 while it is still answering |
 
