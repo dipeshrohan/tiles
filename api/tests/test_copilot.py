@@ -145,38 +145,73 @@ def test_viewers_ask_too_and_one_answer_at_a_time(
     model.script.append((["Hi."], Turn([text("Hi.")], "end_turn")))
     assert ask(api, site, conversation, "Again?", who=VIEWER).status_code == 200
     assert ask(api, site, conversation, " ", who=VIEWER).status_code == 422
-    monkeypatch.setattr(api_copilot, "MAX_MESSAGES", 4)
+    # Room for a question and every round of its answer (8 by default: 17 messages), or it's full.
+    monkeypatch.setattr(api_copilot, "MAX_MESSAGES", 4 + 17)
+    model.script.append((["Hi."], Turn([text("Hi.")], "end_turn")))
+    assert ask(api, site, conversation, "Once more?", who=VIEWER).status_code == 200
     res = ask(api, site, conversation, "More?", who=VIEWER)
     assert (res.status_code, res.json()["detail"]) == (409, "This conversation is full: start a new one")
+    monkeypatch.setattr(api_copilot, "MAX_MESSAGES", 200)
+    monkeypatch.setattr(api_copilot, "MAX_HISTORY_CHARS", 100)
+    res = ask(api, site, conversation, "More?", who=VIEWER)
+    assert res.json()["detail"] == "This conversation is too long to carry on: start a new one"
 
 
-def test_a_broken_answer_says_so_frees_the_conversation_and_drops_a_dangling_tool_call(
+def test_a_broken_answer_says_so_counts_its_tokens_and_leaves_a_usable_conversation(
     api: TestClient,  # noqa: F811
     site: str,  # noqa: F811
     model: Scripted,
     database_url: str,
 ) -> None:
     conversation = start(api, site)
+    calls = 0
 
     def broken(**_: Any) -> Iterator[str | Turn]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            yield Turn([call("site_overview", {})], "tool_use", {"input_tokens": 70, "output_tokens": 9})
+            return
         yield "Let me"
         raise RuntimeError("connection reset")
 
     model.stream = broken  # type: ignore[method-assign]
     got = events(ask(api, site, conversation, "What broke?").text)
-    assert got == [
-        ("text", {"text": "Let me"}),
-        ("error", {"detail": "The copilot could not answer: try again in a moment"}),
-    ]
+    assert [k for k, _ in got] == ["tool_use", "tool_result", "text", "error"]
+    assert got[-1][1] == {"detail": "The copilot could not answer: try again in a moment"}
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
-        row = conn.execute("SELECT busy_since FROM conversations WHERE id = %s", [conversation]).fetchone()
-        assert row is not None and row["busy_since"] is None
-        # A tool call whose results were never stored (the process died between them).
+        row = conn.execute(
+            "SELECT busy_since, input_tokens, output_tokens FROM conversations WHERE id = %s", [conversation]
+        ).fetchone()
+        assert row == {"busy_since": None, "input_tokens": 70, "output_tokens": 9}  # the first call is counted
+        # A tool call whose results were never stored (the process died between them), then a question.
         conn.execute(
-            "INSERT INTO conversation_messages (conversation_id, seq, role, content) VALUES (%s, 1, 'assistant', %s)",
-            [conversation, json.dumps([call("find_signals", {})])],
+            "INSERT INTO conversation_messages (conversation_id, seq, role, content) VALUES (%s, 3, 'assistant', %s)",
+            [conversation, json.dumps([text("Hmm."), call("find_signals", {}, "t9")])],
         )
     del model.stream
-    model.script.append((["Fine."], Turn([text("Fine.")], "end_turn")))
+    for answer in ("Fine.", "Still fine."):
+        model.script.append(([answer], Turn([text(answer)], "end_turn")))
     ask(api, site, conversation, "Now?")
-    assert [m["role"] for m in model.calls[-1]["messages"]] == ["user", "user"]  # the dangling call left out
+    ask(api, site, conversation, "And now?")  # the broken call is no longer the last message
+    sent = model.calls[-1]["messages"]
+    assert not [b for m in sent for b in m["content"] if b.get("id") == "t9"]
+    assert [m["role"] for m in sent] == ["user", "assistant", "user", "assistant", "user", "assistant", "user"]
+
+    # It can't be deleted while it answers; a NUL can't be stored.
+    with psycopg.connect(database_url) as busy_conn:
+        busy_conn.execute("UPDATE conversations SET busy_since = now() WHERE id = %s", [conversation])
+    res = api.delete(f"/sites/{site}/copilot/conversations/{conversation}", headers=ENG)
+    assert (res.status_code, res.json()["detail"]) == (409, "The copilot is still answering in this conversation")
+    assert ask(api, site, start(api, site), "a\x00b").status_code == 422
+    assert api.post(f"/sites/{site}/copilot/conversations", json={"title": "a\x00"}, headers=ENG).status_code == 422
+
+
+def test_a_tool_says_what_was_wrong_with_its_input(api: TestClient, site: str, model: Scripted) -> None:  # noqa: F811
+    model.script += [
+        ([], Turn([call("find_signals", {"limit": "ten"})], "tool_use")),
+        ([], Turn([text("Sorry.")], "end_turn")),
+    ]
+    ask(api, site, start(api, site), "Ten signals?")
+    result = model.calls[1]["messages"][-1]["content"][0]
+    assert (result["content"], result["is_error"]) == ("limit must be a whole number from 1 to 25", True)

@@ -322,13 +322,14 @@ An answer streams back as server-sent events:
 - `tool_result`: whether the tool answered;
 - `done`, with the tokens used, or `error`.
 
-Every message of the exchange (the question, the answer, the tool calls and their results) is stored as it completes, so the next question carries the whole conversation. A tool call whose results were never stored is left out of what goes to the model.
+Every message of the exchange (the question, the answer, the tool calls and their results) is stored as it completes, so the next question carries the whole conversation. Whatever broke off while it was stored is repaired before it goes to the model, wherever it broke: a tool call without its results, a result without its call, an empty message. A turn cut short in the middle of a tool call keeps only its text, and an empty answer isn't stored.
 
 Limits on each question:
 - at most `TILES_COPILOT_MAX_ROUNDS` model calls;
 - a tool result is cut at 20,000 characters;
-- one answer at a time per conversation (a question still answering after 5 minutes counts as lost);
-- 200 messages per conversation.
+- one answer at a time per conversation (one that has stored nothing for 10 minutes counts as lost), and it can't be deleted meanwhile;
+- a conversation takes a question only while it has room for every round of the answer (200 messages in all), and while what it sends the model stays under about 400,000 characters;
+- tokens are counted for every model call, including those of an answer that broke off.
 
 Conversations are private to their user. Anyone on the site may use the copilot, because its tools only read.
 

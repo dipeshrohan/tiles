@@ -43,8 +43,11 @@ def site_overview(ctx: SiteContext, _args: dict[str, Any]) -> dict[str, Any]:
 
 
 def find_signals(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
-    query = str(args.get("query", "")).strip()[:200]
-    limit = min(max(int(args.get("limit", 10)), 1), 25)
+    query = str(args.get("query", "")).replace("\x00", "").strip()[:200]
+    try:
+        limit = min(max(int(args.get("limit", 10)), 1), 25)
+    except (TypeError, ValueError):
+        raise ToolError("limit must be a whole number from 1 to 25") from None
     page = api_signals.list_signals(ctx, q=query, source="", linked="", quality="", limit=limit, offset=0)
     if not page.signals:
         raise ToolError(f"No signal matches {query!r}" if query else "This site has no signals yet")

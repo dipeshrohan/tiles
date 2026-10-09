@@ -33,7 +33,9 @@ router = APIRouter(tags=["copilot"])
 log = logging.getLogger("tiles_api.copilot")
 
 MAX_MESSAGES = 200  # stored per conversation (each tool round adds two)
-BUSY_MINUTES = 5  # a question still answering after this long is taken as lost
+MAX_HISTORY_CHARS = 400_000  # about 100,000 tokens of conversation sent with each question
+BUSY_MINUTES = 10  # an answer that has stored nothing for this long is taken as lost
+NO_NUL = r"^[^\x00]*$"  # PostgreSQL text can't hold NUL
 
 
 class Status(BaseModel):
@@ -42,7 +44,7 @@ class Status(BaseModel):
 
 class ConversationIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    title: Annotated[str, Field(max_length=200)] = ""
+    title: Annotated[str, Field(max_length=200, pattern=NO_NUL)] = ""
 
 
 class Conversation(BaseModel):
@@ -68,7 +70,7 @@ class ConversationDetail(Conversation):
 
 class AskIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    text: Annotated[str, Field(min_length=1, max_length=8000)]
+    text: Annotated[str, Field(min_length=1, max_length=8000, pattern=NO_NUL)]
 
 
 def model_for(request: Request) -> assistant.Model | None:
@@ -116,15 +118,6 @@ def _history(conn: Conn, conversation_id: uuid.UUID) -> list[dict[str, Any]]:
     ).fetchall()
 
 
-def sound(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """The stored messages as the model can take them: a tool call whose results were never stored
-    (the answer broke off) is left out, or the Messages API would refuse the conversation."""
-    out = [{"role": m["role"], "content": m["content"]} for m in messages]
-    while out and out[-1]["role"] == "assistant" and any(b.get("type") == "tool_use" for b in out[-1]["content"]):
-        out.pop()
-    return out
-
-
 @router.get("/sites/{site_id}/copilot", response_model=Status)
 def copilot_status(ctx: Ctx, request: Request) -> dict[str, Any]:
     return {"configured": model_for(request) is not None}
@@ -158,8 +151,29 @@ def get_conversation(ctx: Ctx, conversation_id: uuid.UUID) -> dict[str, Any]:
 @router.delete("/sites/{site_id}/copilot/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_conversation(ctx: Ctx, conversation_id: uuid.UUID) -> None:
     _own(ctx, conversation_id, lock=True)
+    if _busy(ctx.conn, conversation_id):
+        raise HTTPException(status.HTTP_409_CONFLICT, "The copilot is still answering in this conversation")
     ctx.conn.execute("DELETE FROM conversations WHERE id = %s", [conversation_id])
     ctx.audit("copilot.conversation.delete", "conversation", str(conversation_id))
+
+
+def _busy(conn: Conn, conversation_id: uuid.UUID) -> bool:
+    return bool(
+        one(
+            conn.execute(
+                "SELECT coalesce(busy_since > now() - %s * interval '1 minute', false) AS busy"
+                " FROM conversations WHERE id = %s",
+                [BUSY_MINUTES, conversation_id],
+            ).fetchone()
+        )["busy"]
+    )
+
+
+# The next message of a conversation, numbered after the last one stored.
+STORE = """
+INSERT INTO conversation_messages (conversation_id, seq, role, content)
+SELECT %(c)s, coalesce(max(seq), -1) + 1, %(role)s, %(content)s FROM conversation_messages WHERE conversation_id = %(c)s
+"""
 
 
 def _event(kind: str, data: dict[str, Any]) -> str:
@@ -176,26 +190,21 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
             "The copilot is off: set TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL on the API",
         )
     conversation = _own(ctx, conversation_id, lock=True)
-    busy = one(
-        ctx.conn.execute(
-            "SELECT busy_since > now() - %s * interval '1 minute' AS busy FROM conversations WHERE id = %s",
-            [BUSY_MINUTES, conversation_id],
-        ).fetchone()
-    )["busy"]
-    if busy:
+    settings = request.app.state.settings
+    if _busy(ctx.conn, conversation_id):
         raise HTTPException(status.HTTP_409_CONFLICT, "The copilot is still answering in this conversation")
-    if conversation["messages"] >= MAX_MESSAGES:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This conversation is full: start a new one")
     text = body.text.strip()
     if not text:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Ask a question")
+    stored = _history(ctx.conn, conversation_id)
+    # Room for the question and every round of its answer, and a conversation the model can still read.
+    if conversation["messages"] + 1 + 2 * settings.copilot_max_rounds > MAX_MESSAGES:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This conversation is full: start a new one")
+    if sum(len(json.dumps(m["content"])) for m in stored) > MAX_HISTORY_CHARS:
+        raise HTTPException(status.HTTP_409_CONFLICT, "This conversation is too long to carry on: start a new one")
     question = {"role": "user", "content": [{"type": "text", "text": text}]}
-    history = [*sound(_history(ctx.conn, conversation_id)), question]
-    seq = conversation["messages"]
-    ctx.conn.execute(
-        "INSERT INTO conversation_messages (conversation_id, seq, role, content) VALUES (%s, %s, 'user', %s)",
-        [conversation_id, seq, Jsonb(question["content"])],
-    )
+    history = assistant.repaired([*stored, question])
+    ctx.conn.execute(STORE, {"c": conversation_id, "role": "user", "content": Jsonb(question["content"])})
     ctx.conn.execute(
         """
         UPDATE conversations SET busy_since = now(), updated_at = now(),
@@ -213,7 +222,6 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
     )
     pool = request.app.state.pool
     site_id, org_id, user = ctx.site_id, ctx.org_id, ctx.user
-    settings = request.app.state.settings
 
     @contextmanager
     def open_ctx() -> Iterator[SiteContext]:
@@ -221,8 +229,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
             yield SiteContext(conn, site_id, org_id, user)
 
     def stream() -> Iterator[str]:
-        nonlocal seq
-        usage: dict[str, int] = {}
+        usage: dict[str, int] = {}  # every call's, so a broken-off answer is counted too
         try:
             events = assistant.respond(
                 model,
@@ -232,17 +239,18 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                 settings.copilot_max_rounds,
             )
             for event in events:
-                if event.kind == "message":
-                    seq += 1
-                    with pool.connection() as conn:
-                        conn.execute(
-                            "INSERT INTO conversation_messages (conversation_id, seq, role, content)"
-                            " VALUES (%s, %s, %s, %s)",
-                            [conversation_id, seq, event.data["role"], Jsonb(event.data["content"])],
-                        )
+                if event.kind == "usage":
+                    for k, v in event.data.items():
+                        usage[k] = usage.get(k, 0) + v
                     continue
-                if event.kind in ("done", "error"):
-                    usage = event.data.get("usage", usage)
+                if event.kind == "message":
+                    with pool.connection() as conn:  # stored, and the answer's lease renewed
+                        conn.execute(
+                            STORE,
+                            {"c": conversation_id, "role": event.data["role"], "content": Jsonb(event.data["content"])},
+                        )
+                        conn.execute("UPDATE conversations SET busy_since = now() WHERE id = %s", [conversation_id])
+                    continue
                 yield _event(event.kind, event.data)
         except Exception:
             log.exception("copilot answer failed", extra={"conversation": str(conversation_id)})

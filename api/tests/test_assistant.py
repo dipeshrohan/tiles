@@ -57,6 +57,7 @@ def test_a_plain_answer_streams_its_text_and_is_one_message() -> None:
     assert [(e.kind, e.data) for e in events] == [
         ("text", {"text": "Hel"}),
         ("text", {"text": "lo"}),
+        ("usage", {"input_tokens": 5, "output_tokens": 2}),
         ("message", {"role": "assistant", "content": [text("Hello")]}),
         ("done", {"stop_reason": "end_turn", "usage": {"input_tokens": 5, "output_tokens": 2}}),
     ]
@@ -76,10 +77,21 @@ def test_tool_calls_run_and_their_results_go_back_to_the_model() -> None:
     )
     events = run(model)
     kinds = [e.kind for e in events]
-    assert kinds == ["text", "message", "tool_use", "tool_result", "message", "text", "message", "done"]
-    assert events[2].data == {"id": "t1", "name": "echo", "input": {"say": "press 9"}}
-    assert events[3].data["is_error"] is False
-    result = events[4].data
+    assert kinds == [
+        "text",
+        "usage",
+        "message",
+        "tool_use",
+        "tool_result",
+        "message",
+        "text",
+        "usage",
+        "message",
+        "done",
+    ]
+    assert events[3].data == {"id": "t1", "name": "echo", "input": {"say": "press 9"}}
+    assert events[4].data["is_error"] is False
+    result = events[5].data
     assert result["role"] == "user"
     assert json.loads(result["content"][0]["content"]) == {"echo": "press 9", "long": ""}
     assert result["content"][0]["tool_use_id"] == "t1"
@@ -161,3 +173,46 @@ def test_the_sdk_adapter_streams_text_and_returns_plain_blocks() -> None:
         [text("Checking."), call("echo", {"say": "x"}, "t9")], "tool_use", {"input_tokens": 11, "output_tokens": 4}
     )
     assert (sent["model"], sent["max_tokens"], sent["system"]) == ("stand-in", 512, "s")
+
+
+def test_empty_answers_and_unrun_tool_calls_are_not_kept() -> None:
+    # An empty answer after tools (it happens) isn't stored: the Messages API refuses empty messages.
+    model = Scripted(
+        ([], Turn([call("echo", {})], "tool_use")),
+        ([], Turn([text(" ")], "end_turn")),
+    )
+    stored = [e.data for e in run(model) if e.kind == "message"]
+    assert [m["role"] for m in stored] == ["assistant", "user"]
+    # A turn cut short (max_tokens) mid tool call: the call never runs, so it isn't kept.
+    cut = Scripted(([], Turn([text("Let me check"), call("echo", {})], "max_tokens")))
+    events = run(cut)
+    assert [e.data for e in events if e.kind == "message"] == [{"role": "assistant", "content": [text("Let me check")]}]
+    assert not [e for e in events if e.kind == "tool_use"]
+    assert events[-1].data["stop_reason"] == "max_tokens"
+
+
+def test_a_broken_off_history_is_repaired_wherever_it_broke() -> None:
+    def msg(role: str, *content: dict[str, Any]) -> dict[str, Any]:
+        return {"role": role, "content": list(content)}
+
+    result = {"type": "tool_result", "tool_use_id": "t1", "content": "{}"}
+    history = [
+        msg("user", text("First?")),
+        msg("assistant", text("Looking."), call("echo", {})),  # its result was never stored
+        msg("user", text("Second?")),
+        msg("assistant"),  # empty
+        msg("user", result),  # a result whose call isn't before it
+        msg("assistant", call("echo", {}, "t2")),
+        msg("user", {"type": "tool_result", "tool_use_id": "t2", "content": "{}"}),
+        msg("assistant", text("Done.")),
+    ]
+    assert assistant.repaired(history) == [
+        msg("user", text("First?")),
+        msg("assistant", text("Looking.")),
+        msg("user", text("Second?")),
+        msg("assistant", call("echo", {}, "t2")),
+        msg("user", {"type": "tool_result", "tool_use_id": "t2", "content": "{}"}),
+        msg("assistant", text("Done.")),
+    ]
+    # Two questions in a row (the first answer broke off) are joined into one message.
+    assert assistant.repaired([msg("user", text("a")), msg("user", text("b"))]) == [msg("user", text("a"), text("b"))]

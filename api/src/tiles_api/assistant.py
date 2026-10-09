@@ -62,7 +62,7 @@ class ToolError(Exception):
     """A tool could not answer (bad input, nothing found): the model is told why."""
 
 
-EventKind = Literal["text", "tool_use", "tool_result", "message", "done", "error"]
+EventKind = Literal["text", "tool_use", "tool_result", "message", "usage", "done", "error"]
 
 
 @dataclass(frozen=True)
@@ -71,8 +71,46 @@ class Event:
     data: dict[str, Any]
 
 
-def _blocks(content: Any) -> list[dict[str, Any]]:
-    return content if isinstance(content, list) else [{"type": "text", "text": str(content)}]
+def _blocks(content: Any, run_tools: bool) -> list[dict[str, Any]]:
+    """The content to keep: without empty text (the Messages API refuses it), and without tool
+    calls that won't run (a turn cut short by max_tokens), which would have no results."""
+    blocks = content if isinstance(content, list) else [{"type": "text", "text": str(content)}]
+    return [
+        b
+        for b in blocks
+        if not (b.get("type") == "text" and not str(b.get("text", "")).strip())
+        and (run_tools or b.get("type") != "tool_use")
+    ]
+
+
+def repaired(messages: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Stored messages as the Messages API takes them, whatever broke off while they were stored:
+    a tool call keeps its place only if the next message has its result (and a result only if the
+    message before has its call); empty messages are left out, and messages of one role in a row
+    are joined."""
+    msgs = [{"role": m["role"], "content": list(m["content"])} for m in messages]
+    for i, m in enumerate(msgs):
+        nxt = msgs[i + 1] if i + 1 < len(msgs) else None
+        prev = msgs[i - 1] if i > 0 else None
+        if m["role"] == "assistant":
+            answered = {b.get("tool_use_id") for b in (nxt or {}).get("content", []) if b.get("type") == "tool_result"}
+            m["content"] = [b for b in m["content"] if b.get("type") != "tool_use" or b.get("id") in answered]
+        else:
+            asked = {
+                b.get("id")
+                for b in (prev or {}).get("content", [])
+                if prev and prev["role"] == "assistant" and b.get("type") == "tool_use"
+            }
+            m["content"] = [b for b in m["content"] if b.get("type") != "tool_result" or b.get("tool_use_id") in asked]
+    out: list[dict[str, Any]] = []
+    for m in msgs:
+        if not m["content"]:
+            continue
+        if out and out[-1]["role"] == m["role"]:
+            out[-1]["content"] = out[-1]["content"] + m["content"]
+        else:
+            out.append(m)
+    return out
 
 
 def _result(tool: Tool | None, name: str, args: dict[str, Any]) -> tuple[str, bool]:
@@ -116,12 +154,14 @@ def respond(
             return
         for k, v in turn.usage.items():
             usage[k] = usage.get(k, 0) + v
-        content = _blocks(turn.content)
-        answer: dict[str, Any] = {"role": "assistant", "content": content}
-        messages.append(answer)
-        yield Event("message", answer)
+        yield Event("usage", dict(turn.usage))
+        content = _blocks(turn.content, run_tools=turn.stop_reason == "tool_use")
         calls = [b for b in content if b.get("type") == "tool_use"]
-        if turn.stop_reason != "tool_use" or not calls:
+        if content:  # an empty answer is left out: the Messages API refuses empty messages
+            answer: dict[str, Any] = {"role": "assistant", "content": content}
+            messages.append(answer)
+            yield Event("message", answer)
+        if not calls:
             yield Event("done", {"stop_reason": turn.stop_reason, "usage": usage})
             return
         results = []
