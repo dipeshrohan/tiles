@@ -1,5 +1,5 @@
 """Saved insights (T3.12): a finding worth keeping (what was asked, the evidence it gave and what to
-do about it), numbered per site and reviewed by another engineer.
+do about it), numbered per site (a number is never reused) and reviewed by another engineer.
 
 `query` is what produced the evidence (a correlation of a dataset, or signals over a time range);
 `evidence` is what it gave when the insight was saved, kept as it was, so the insight still shows
@@ -42,9 +42,17 @@ CREATE TABLE insights (
 );
 
 CREATE INDEX insights_status ON insights (site_id, status, number DESC);
+
+-- The last number given per site: never lowered, so a deleted insight's number (and its links) is
+-- never given to another.
+CREATE TABLE insight_numbers (
+    site_id  uuid PRIMARY KEY REFERENCES sites (id) ON DELETE CASCADE,
+    last     integer NOT NULL
+);
 """
 
 DOWNGRADE = """
+DROP TABLE insight_numbers;
 DROP TABLE insights;
 """
 

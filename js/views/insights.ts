@@ -267,10 +267,8 @@ const view: View = {
     root.querySelector<HTMLTextAreaElement>('#insight-review [name=note]')?.addEventListener('input', (e) => {
       note.text = (e.target as HTMLTextAreaElement).value;
     });
-    const reviewForm = root.querySelector<HTMLFormElement>('#insight-review');
-    reviewForm?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const decision = ((e as SubmitEvent).submitter as HTMLButtonElement | null)?.dataset.decision;
+    onSubmit(root, '#insight-review', (_form, submitter) => {
+      const decision = submitter?.dataset.decision;
       if (decision !== 'accepted' && decision !== 'rejected') return;
       if (decision === 'rejected' && !note.text.trim()) return void ctx.toast('Say why the insight is rejected');
       const text = note.text.trim();

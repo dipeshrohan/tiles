@@ -133,10 +133,11 @@ export function mayDo(
   me: string | null,
   role: Role,
 ): { review: boolean; edit: boolean; reopen: boolean; remove: boolean } {
+  // Until you are known (`me` null), only an admin's rights don't depend on who wrote it.
   const editor = role === 'engineer' || role === 'admin';
-  const owner = editor && (i.author_id === me || role === 'admin');
+  const owner = editor && ((me !== null && i.author_id === me) || role === 'admin');
   return {
-    review: editor && i.status === 'proposed' && i.author_id !== me,
+    review: editor && me !== null && i.status === 'proposed' && i.author_id !== me,
     edit: owner && i.status === 'proposed',
     reopen: owner && i.status !== 'proposed',
     remove: owner,

@@ -40,6 +40,7 @@ TABLES = {
     "notifications",
     "datasets",
     "dataset_rows",
+    "insight_numbers",
     "insights",
 }
 

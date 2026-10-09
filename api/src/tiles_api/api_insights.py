@@ -50,6 +50,10 @@ class SeriesSource(BaseModel):
     def _distinct(self) -> "SeriesSource":
         if len(set(self.signals)) != len(self.signals):
             raise ValueError("Each signal once")
+        if self.end <= self.start:
+            raise ValueError("The end must be after the start")
+        if self.end - self.start > api_series.MAX_SPAN:
+            raise ValueError("The range can be at most five years")
         return self
 
 
@@ -130,11 +134,18 @@ def _own(ctx: SiteContext, insight: dict[str, Any], what: str) -> None:
 def evidence_for(ctx: SiteContext, source: CorrelationSource | SeriesSource) -> dict[str, Any]:
     """What the query gives now, as kept with the insight."""
     if isinstance(source, CorrelationSource):
-        result = api_datasets.run(ctx, source.dataset_id, source, source.min_effect)
         d = api_datasets.find_dataset(ctx, source.dataset_id)
+        result = api_datasets.run(ctx, d, source, source.min_effect)
+        # The largest effects, and every one the explanations name, in their order.
+        explained = {(e["segment"], e["variable"]) for e in result["explanations"]}
+        kept = [
+            f
+            for i, f in enumerate(result["findings"])
+            if i < MAX_FINDINGS or (f["segment"], f["variable"]) in explained
+        ]
         return {
             "dataset": {"id": str(d["id"]), "name": d["name"], "row_count": d["row_count"]},
-            "result": result | {"findings": result["findings"][:MAX_FINDINGS]},
+            "result": result | {"findings": kept},
             "findings_total": len(result["findings"]),
         }
     series = [api_series.read_series(ctx, s, source.start, source.end, source.points) for s in source.signals]
@@ -169,31 +180,35 @@ def create_insight(ctx: Editor, body: InsightIn) -> dict[str, Any]:
     """Save a finding: its evidence is computed from `source` now and kept as it is. It waits for
     another engineer to accept or reject it."""
     evidence = evidence_for(ctx, body.source)
-    # One number at a time per site: two saving at once wait for each other rather than collide.
-    ctx.conn.execute("SELECT pg_advisory_xact_lock(hashtext('insights'), hashtext(%s))", [str(ctx.site_id)])
+    # The site's next number (two saving at once wait for each other); never one given before.
     number = one(
         ctx.conn.execute(
             """
-            INSERT INTO insights (site_id, number, title, summary, actions, kind, query, evidence, author_id,
-                                  author_name)
-            VALUES (%s, (SELECT coalesce(max(number), 0) + 1 FROM insights WHERE site_id = %s),
-                    %s, %s, %s, %s, %s, %s, %s, %s)
-            RETURNING number
+            INSERT INTO insight_numbers (site_id, last) VALUES (%s, 1)
+            ON CONFLICT (site_id) DO UPDATE SET last = insight_numbers.last + 1 RETURNING last
             """,
-            [
-                ctx.site_id,
-                ctx.site_id,
-                body.title,
-                body.summary,
-                Jsonb(body.actions),
-                body.source.kind,
-                Jsonb(body.source.model_dump(mode="json")),
-                Jsonb(evidence),
-                ctx.user.id,
-                ctx.user.name,
-            ],
+            [ctx.site_id],
         ).fetchone()
-    )["number"]
+    )["last"]
+    ctx.conn.execute(
+        """
+        INSERT INTO insights (site_id, number, title, summary, actions, kind, query, evidence, author_id,
+                              author_name)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """,
+        [
+            ctx.site_id,
+            number,
+            body.title,
+            body.summary,
+            Jsonb(body.actions),
+            body.source.kind,
+            Jsonb(body.source.model_dump(mode="json")),
+            Jsonb(evidence),
+            ctx.user.id,
+            ctx.user.name,
+        ],
+    )
     ctx.audit("insight.create", "insight", str(number), after={"title": body.title, "kind": body.source.kind})
     return _find(ctx, number)
 

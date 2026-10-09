@@ -97,4 +97,8 @@ test('authors edit, reopen and delete; other engineers review; viewers read', ()
   assert.deepEqual(mayDo(rejected, 'bob', 'engineer'), none);
   assert.deepEqual(mayDo(rejected, 'cat', 'admin'), { ...none, reopen: true, remove: true });
   assert.deepEqual(mayDo(proposed, 'ann', 'viewer'), none); // demoted since
+  // Not known yet: nothing that depends on who wrote it.
+  assert.deepEqual(mayDo(proposed, null, 'engineer'), none);
+  assert.deepEqual(mayDo({ status: 'rejected', author_id: null }, null, 'engineer'), none);
+  assert.deepEqual(mayDo({ status: 'proposed', author_id: null }, 'bob', 'engineer'), { ...none, review: true });
 });

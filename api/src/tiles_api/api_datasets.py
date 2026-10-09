@@ -240,13 +240,13 @@ def correlate_dataset(
 ) -> dict[str, Any]:
     """Which variables separate the failed batches from the good ones: Cohen's d with its 95%
     confidence interval and r, per segment of `split` if given, largest effect first."""
-    return run(ctx, dataset_id, body, min_effect)
+    return run(ctx, find_dataset(ctx, dataset_id), body, min_effect)
 
 
-def run(ctx: SiteContext, dataset_id: uuid.UUID, body: CorrelateIn, min_effect: float = 0.8) -> dict[str, Any]:
-    """The correlation of a dataset of this site, as `POST …/correlate` answers it (saved insights
-    keep one as their evidence)."""
-    d = find_dataset(ctx, dataset_id)
+def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: float = 0.8) -> dict[str, Any]:
+    """The correlation of a dataset (`find_dataset`), as `POST …/correlate` answers it (saved
+    insights keep one as their evidence)."""
+    dataset_id = d["id"]
     kinds = {c["name"]: c["kind"] for c in d["columns"]}
     for name in [body.outcome, *([body.split] if body.split else []), *(body.variables or [])]:
         if name not in kinds:

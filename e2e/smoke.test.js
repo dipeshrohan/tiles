@@ -2131,15 +2131,16 @@ test('saved insights: signals over a range, kept as plotted and opened again in 
   await a.page.click('[data-save-insight]');
   assert.equal(await a.page.inputValue('#insight-save [name=title]'), 'press1.temperature, press1.force');
   await a.page.fill('#insight-save [name=title]', 'Force climbs while temperature cycles');
-  await a.page.click('#insight-save button[type=submit]');
+  await a.page.dblclick('#insight-save button[type=submit]'); // saved once
   await a.page.waitForSelector('[data-insight-detail]:has-text("Force climbs while temperature cycles")');
+  assert.equal(fake.insights.length, 1);
   assert.equal(await a.page.locator('[data-evidence-series] svg').count(), 2);
   assert.deepEqual(fake.insights[0].query, {
     kind: 'series',
     signals: [temp.id, force.id],
     start: from,
     end: to,
-    points: 600,
+    points: 900, // as the charts were drawn
   });
   assert.equal(fake.insights[0].evidence.series[1].points.length, 72); // 6 h of 5-minute readings
   await a.page.click('[data-source] a');

@@ -4,12 +4,15 @@ reviewed by another engineer, numbered per site."""
 from typing import Any
 
 import psycopg
+import pytest
 from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 from test_agents import ADMIN, ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 from test_datasets import upload
 from test_reviews import ENG2, member
 from test_series import MINUTE, T0, load, series
+
+from tiles_api import api_insights
 
 CORRELATION = {"kind": "correlation", "outcome": "ng", "variables": ["tension", "speed"], "split": "material"}
 
@@ -126,8 +129,10 @@ def test_signals_over_a_range_are_kept_as_the_explorer_plots_them(api: TestClien
     assert [s["tag"] for s in kept] == ["press9.temp", "press9.force"]
     assert kept[0] == series(api, site, a, T0, end, points=100).json()
     assert kept[0]["bucket_s"] == 180  # 300 readings in at most 100 points
-    # Numbered per site.
+    # Numbered per site; a deleted insight's number (and its links) is never given to another.
     assert save(api, site, source).json()["number"] == 2
+    assert api.delete(f"/sites/{site}/insights/2", headers=ENG).status_code == 204
+    assert save(api, site, source).json()["number"] == 3
 
     for bad, code in (
         (source | {"signals": [a, a]}, 422),
@@ -140,8 +145,27 @@ def test_signals_over_a_range_are_kept_as_the_explorer_plots_them(api: TestClien
         ({"kind": "warning"}, 422),
     ):
         assert save(api, site, bad).status_code == code, bad
+    res = save(api, site, source | {"end": T0.isoformat()})
+    assert "The end must be after the start" in res.text  # named as the request names them
     assert save(api, site, source, title=" padded").status_code == 422
     assert save(api, site, source, actions=["x"] * 21).status_code == 422
     res = api.post(f"/sites/{site}/insights", json={"title": "x", "source": source}, headers=VIEWER)
     assert res.status_code == 403
-    assert api.get(f"/sites/{site}/insights", headers=VIEWER).json()["total"] == 2
+    assert api.get(f"/sites/{site}/insights", headers=VIEWER).json()["total"] == 2  # 1 and 3
+
+
+def test_a_correlation_keeps_every_effect_its_explanations_name(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(api_insights, "MAX_FINDINGS", 1)
+    dataset = upload(api, site)
+    evidence = save(api, site, CORRELATION | {"dataset_id": dataset}).json()["evidence"]
+    kept = [(f["segment"], f["variable"]) for f in evidence["result"]["findings"]]
+    explained = [(e["segment"], e["variable"]) for e in evidence["result"]["explanations"]]
+    assert (kept, explained, evidence["findings_total"]) == (
+        [("anode", "tension"), ("cathode", "tension")],
+        [("anode", "tension"), ("cathode", "tension")],
+        4,
+    )

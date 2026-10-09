@@ -4209,9 +4209,9 @@
 	}
 	function mayDo(i, me, role) {
 		const editor = role === "engineer" || role === "admin";
-		const owner = editor && (i.author_id === me || role === "admin");
+		const owner = editor && (me !== null && i.author_id === me || role === "admin");
 		return {
-			review: editor && i.status === "proposed" && i.author_id !== me,
+			review: editor && me !== null && i.status === "proposed" && i.author_id !== me,
 			edit: owner && i.status === "proposed",
 			reopen: owner && i.status !== "proposed",
 			remove: owner
@@ -4688,6 +4688,7 @@
 	var findTimer;
 	var searchText = "";
 	var saving$1 = null;
+	var savingBusy = false;
 	var iso = (t) => new Date(t).toISOString();
 	function presetRange(preset, picked, now) {
 		if (preset !== "data") return {
@@ -4917,7 +4918,7 @@
 	async function saveInsight$1(ctx) {
 		const site = ctx.ontology.site;
 		const u = ui(ctx);
-		if (!ctx.api || !site || !u.range || !saving$1 || saving$1.key !== chartsKey(u)) return;
+		if (!ctx.api || !site || !u.range || !saving$1 || saving$1.key !== chartsKey(u) || savingBusy) return;
 		const draft = readDraft(saving$1.text);
 		if (typeof draft === "string") return void ctx.toast(draft);
 		const source = {
@@ -4925,14 +4926,19 @@
 			signals: u.picked.map((p) => p.id),
 			start: u.range.from,
 			end: u.range.to,
-			points: 600
+			points: POINTS
 		};
+		savingBusy = true;
+		ctx.rerender();
 		try {
 			const saved = await ctx.api.insights.create(site.id, draft, source);
 			saving$1 = null;
 			ctx.toast(`Insight #${saved.number} saved: another engineer reviews it`);
 			location.hash = insightLink(saved.number);
-		} catch {}
+		} catch {} finally {
+			savingBusy = false;
+			ctx.rerender();
+		}
 	}
 	var view$6 = {
 		id: "explorer",
@@ -4967,7 +4973,7 @@
           <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
           ${canSave && saving$1?.key !== chartsKey(u) ? "<button class=\"btn sm\" type=\"button\" data-save-insight>Save as insight</button>" : ""}
         </form>
-        ${canSave && saving$1?.key === chartsKey(u) ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm("insight-save", saving$1.text, false)}</div>` : ""}` : "";
+        ${canSave && saving$1?.key === chartsKey(u) ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm("insight-save", saving$1.text, savingBusy)}</div>` : ""}` : "";
 			const charts = picked.map((p) => `<div class="card stack" style="gap:6px">
           <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? "")}</span></div>
           <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
@@ -5036,10 +5042,7 @@
 					saving$1 = null;
 					ctx.rerender();
 				});
-				saveForm.addEventListener("submit", (e) => {
-					e.preventDefault();
-					saveInsight$1(ctx);
-				});
+				onSubmit(root, "#insight-save", () => void saveInsight$1(ctx));
 			}
 			loadCharts(root, ctx);
 		}
@@ -6984,9 +6987,8 @@
 			root.querySelector("#insight-review [name=note]")?.addEventListener("input", (e) => {
 				note.text = e.target.value;
 			});
-			root.querySelector("#insight-review")?.addEventListener("submit", (e) => {
-				e.preventDefault();
-				const decision = e.submitter?.dataset.decision;
+			onSubmit(root, "#insight-review", (_form, submitter) => {
+				const decision = submitter?.dataset.decision;
 				if (decision !== "accepted" && decision !== "rejected") return;
 				if (decision === "rejected" && !note.text.trim()) return void ctx.toast("Say why the insight is rejected");
 				const text = note.text.trim();

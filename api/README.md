@@ -310,9 +310,9 @@ Results are ranked by |d|. The numbers match the browser's finder: `test/fixture
 
 ### Saved insights (T3.12)
 
-An **insight** is a finding worth keeping: a title, a summary, the actions it proposes, the query that found it and the evidence the query gave. Engineers save one from the Correlation finder (a correlation of a dataset) or the Data explorer (up to 8 signals over a time range). The API computes the evidence from the query itself, so it can't be made up. It is kept as it was when saved, so the insight still shows what was seen after the data changes or the dataset is deleted. A correlation keeps its 60 largest effects; a signal keeps at most 1,000 points.
+An **insight** is a finding worth keeping: a title, a summary, the actions it proposes, the query that found it and the evidence the query gave. Engineers save one from the Correlation finder (a correlation of a dataset) or the Data explorer (up to 8 signals over a time range). The API computes the evidence from the query itself, so it can't be made up. It is kept as it was when saved, so the insight still shows what was seen after the data changes or the dataset is deleted. A correlation keeps its 60 largest effects and every effect its explanations name; a signal keeps at most 1,000 points.
 
-Each insight has a number per site, so `#/insights/<number>` links to it. It waits for review until another engineer accepts or rejects it; rejecting needs a note. Its author (or an admin) can edit the title, summary and actions while it waits, reopen it after a review, or delete it. The query and evidence never change: a different finding is a new insight.
+Each insight has a number per site, never reused, so `#/insights/<number>` keeps linking to the same one. It waits for review until another engineer accepts or rejects it; rejecting needs a note. Its author (or an admin) can edit the title, summary and actions while it waits, reopen it after a review, or delete it. The query and evidence never change: a different finding is a new insight.
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|

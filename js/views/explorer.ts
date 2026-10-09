@@ -1,4 +1,4 @@
-import { esc, field, fmt, onAll } from '../lib/dom.ts';
+import { esc, field, fmt, onAll, onSubmit } from '../lib/dom.ts';
 import type { SignalInfo, SignalSeries } from '../lib/api.ts';
 import { fitWidth, gapFor, TIME_CHART, timeAt, timeChart, toPoints } from '../lib/svg.ts';
 import { bindDraft, draftForm, insightLink, readDraft, seriesDraft, type DraftText } from '../lib/insights.ts';
@@ -40,6 +40,7 @@ let latestFind = 0;
 let findTimer: ReturnType<typeof setTimeout> | undefined;
 let searchText = '';
 let saving: { key: string; text: DraftText } | null = null; // the insight being saved from the charts
+let savingBusy = false; // its POST is on its way
 
 const iso = (t: number) => new Date(t).toISOString();
 
@@ -292,7 +293,7 @@ function addFromLink(ctx: Context): void {
 async function saveInsight(ctx: Context): Promise<void> {
   const site = ctx.ontology.site;
   const u = ui(ctx);
-  if (!ctx.api || !site || !u.range || !saving || saving.key !== chartsKey(u)) return;
+  if (!ctx.api || !site || !u.range || !saving || saving.key !== chartsKey(u) || savingBusy) return;
   const draft = readDraft(saving.text);
   if (typeof draft === 'string') return void ctx.toast(draft);
   const source = {
@@ -300,8 +301,10 @@ async function saveInsight(ctx: Context): Promise<void> {
     signals: u.picked.map((p) => p.id),
     start: u.range.from,
     end: u.range.to,
-    points: 600,
+    points: POINTS, // as the charts were drawn
   };
+  savingBusy = true;
+  ctx.rerender();
   try {
     const saved = await ctx.api.insights.create(site.id, draft, source);
     saving = null;
@@ -309,6 +312,9 @@ async function saveInsight(ctx: Context): Promise<void> {
     location.hash = insightLink(saved.number);
   } catch {
     // the client showed why
+  } finally {
+    savingBusy = false;
+    ctx.rerender();
   }
 }
 
@@ -343,7 +349,7 @@ const view: View = {
           <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
           ${canSave && saving?.key !== chartsKey(u) ? '<button class="btn sm" type="button" data-save-insight>Save as insight</button>' : ''}
         </form>
-        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm('insight-save', saving.text, false)}</div>` : ''}`
+        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm('insight-save', saving.text, savingBusy)}</div>` : ''}`
       : '';
     const charts = picked
       .map(
@@ -421,10 +427,7 @@ const view: View = {
         saving = null;
         ctx.rerender();
       });
-      saveForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        void saveInsight(ctx);
-      });
+      onSubmit(root, '#insight-save', () => void saveInsight(ctx));
     }
     loadCharts(root, ctx);
   },
