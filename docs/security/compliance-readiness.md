@@ -7,7 +7,7 @@ Customers who host Tiles themselves ([install guide](../install.md)) run it unde
 ## Scope
 
 - **SOC 2:** the Trust Services Criteria for **Security** (the common criteria, CC), **Availability** (A) and **Confidentiality** (C). Processing Integrity and Privacy can wait: the copilot's handling of data is covered under Confidentiality and vendor management.
-- **ISO 27001:2022:** an information security management system (ISMS) for the people, code, cloud and operations behind Tiles' managed cloud. Its Statement of Applicability (SoA) is drawn from the control list below. Physical controls (Annex A.7) are inherited from the cloud provider; Tiles has no data centre.
+- **ISO 27001:2022:** an information security management system (ISMS) for the people, code, cloud and operations behind Tiles' managed cloud. Its Statement of Applicability (SoA) covers all 93 Annex A controls: those below as Tiles implements them, and the rest as not applicable, each with the reason (GOV-4). Physical controls (Annex A.7) are inherited from the cloud provider; Tiles has no data centre.
 - **Systems:**
   - the Tiles application (browser app, API, jobs, edge agent);
   - this repository and its CI;
@@ -40,8 +40,14 @@ The references are SOC 2's criteria (CC, A, C) and the ISO 27001:2022 clauses an
 | GOV-1 | An information security policy, and the policies under it, approved and reviewed yearly | CC1.1, CC2.1, CC5.3 | 5.2, A.5.1 | CEO | Gap | Write the policy set: security, acceptable use, access, change, incident response, business continuity, vendor, data classification and retention, cryptography, secure development. Publish it to staff, and collect acknowledgements |
 | GOV-2 | Roles and responsibilities for security, with a named security lead | CC1.3 | 5.3, A.5.2 | CEO | Gap | Name the owners in the table above, in the policy |
 | GOV-3 | A risk assessment, with treatment, yearly and on major change | CC3.1–CC3.4 | 6.1.2, 6.1.3, 8.2, 8.3 | Security lead | Partial | Inputs: the [threat model](threat-model.md) (STRIDE, IEC 62443 gap list) and the [roadmap's risks](../ROADMAP.md#risks-and-mitigations). Action: a risk register with likelihood, impact, owner and treatment |
-| GOV-4 | A Statement of Applicability | — | 6.1.3 d | Security lead | Gap | From this control list: each Annex A control, applicable or not and why |
+| GOV-4 | A Statement of Applicability | — | 6.1.3 d | Security lead | Gap | Every Annex A control, applicable or not and why: the controls here as Tiles implements them, the rest with the reason they don't apply |
 | GOV-5 | Internal audit and management review, yearly | CC4.1, CC4.2 | 9.2, 9.3 | Security lead, CEO | Gap | An internal audit before certification (another company's security lead, or a consultant), and a management review with minutes |
+| GOV-6 | The ISMS's context, interested parties and scope, written down | CC2.1 | 4.1–4.4 | Security lead | Partial | This plan's scope. Action: the ISMS scope statement, and who expects what of it (customers, partners, regulators) |
+| GOV-7 | Security objectives, and how they are measured | CC4.1 | 6.2, 9.1 | Security lead | Gap | A few objectives with measures, read at the management review: patch deadlines met, access reviews done on time, restore drills passed, incidents and their time to close |
+| GOV-8 | Competence, awareness, and documented information under control | CC1.4, CC2.2 | 7.2, 7.3, 7.5 | Security lead | Partial | Documents are versioned in this repository and reviewed in pull requests. Action: a register of the ISMS documents with owners and review dates; competence records with HR-2 |
+| GOV-9 | Nonconformities corrected, and the ISMS improved | CC4.2 | 10.1, 10.2 | Security lead | Gap | A log of findings (audits, incidents, pen tests) with root cause, action and closure: GitHub issues with a label will do |
+| GOV-10 | Legal, regulatory and contractual requirements known and met | CC2.3, CC3.1 | A.5.31, A.5.32, A.5.34 | CEO | Gap | A register: data protection law where customers are (GDPR in the EU), customers' contract terms, the licences of what Tiles uses (its SBOMs list them) |
+| GOV-11 | Threat intelligence gathered and used | CC3.2, CC7.1 | A.5.7 | Security lead | Partial | Advisories reach CI through Trivy's database and Dependabot. Action: subscribe to the cloud provider's and the main dependencies' security advisories, and record what is acted on |
 
 ### People
 
@@ -50,6 +56,7 @@ The references are SOC 2's criteria (CC, A, C) and the ISO 27001:2022 clauses an
 | HR-1 | Background checks where the law allows, and a confidentiality agreement before access | CC1.4 | A.6.1, A.6.2, A.6.6 | People | Gap | A hiring checklist; the signed agreements kept |
 | HR-2 | Security training at hiring and yearly, phishing awareness included | CC1.4, CC2.2 | A.6.3 | People | Gap | A short course and a record of who took it |
 | HR-3 | Leavers lose access the same day | CC6.2, CC6.3 | A.5.18, A.6.5 | People, Operations | Gap | An offboarding checklist covering the identity provider, GitHub, Azure and devices, signed off per leaver. Most access goes through single sign-on, so one switch does most of it |
+| HR-4 | Remote work done securely | CC6.1, CC6.8 | A.6.7 | People | Gap | A remote-working rule in the acceptable use policy: managed devices only (EP-1), no customer data on personal devices, screen privacy |
 
 ### Access
 
@@ -65,11 +72,13 @@ The references are SOC 2's criteria (CC, A, C) and the ISO 27001:2022 clauses an
 
 | ID | Control | SOC 2 | ISO 27001 | Owner | Status | Evidence, or the action |
 |---|---|---|---|---|---|---|
-| CM-1 | Every change reviewed and tested before it reaches production | CC8.1 | A.8.32, A.8.25 | Tech lead | Partial | Pull requests with CI gates: lint, types, unit, API and browser tests, accessibility, scans, chart and Terraform checks, restore and install dry runs. Action: **turn on branch protection for `main`** (required reviews and checks, no direct pushes: #15), and keep the settings as evidence |
+| CM-1 | Every change reviewed and tested before it reaches production | CC8.1 | A.8.32, A.8.25 | Tech lead | Partial | Pull requests with CI gates: lint, types, unit, API and browser tests, accessibility, scans, chart and Terraform checks, restore and install dry runs. Action: **turn on branch protection for `main`**: required reviews and checks, no direct pushes. It is a repository admin's setting, not code, and #15 (T1.02) stays open until it is on. Keep the settings as evidence |
 | CM-2 | Secure development: tests with every change, threat modelling when a trust boundary moves | CC8.1 | A.8.25–A.8.28 | Tech lead | Done | The repository's rules (`CLAUDE.md`, [contributing](../../CONTRIBUTING.md)) and the [threat model](threat-model.md), reviewed before each release |
 | CM-3 | Releases versioned, with notes, tested upgrades and a rollback procedure | CC8.1 | A.8.32 | Tech lead | Done | [Releasing](../releasing.md), the upgrade test in CI, the [changelog](../../CHANGELOG.md) |
 | CM-4 | Infrastructure as code, with secure defaults checked in CI | CC7.1, CC8.1 | A.8.9 | Operations | Done | The [Helm chart](../../deploy/helm/tiles/README.md) and [Terraform](../../deploy/terraform/README.md). The restricted Pod Security Standard is enforced, and `trivy config` and `terraform test` run in CI |
 | CM-5 | Production changes go through the pipeline, not by hand | CC8.1 | A.8.32 | Operations | Partial | Terraform applies from a pipeline whose identity has the rights; people have read access day to day. Action: a pipeline for the managed environments, and break-glass access for the rest |
+| CM-6 | Development, test and production kept apart | CC8.1 | A.8.31 | Operations | Partial | CI tests on throwaway databases and clusters; production uses separate subscriptions and secrets (Terraform environments), and `TILES_ENV=production` refuses the development identity. Action: write it in the change policy; no production data in development without an approved, anonymised copy |
+| CM-7 | Access to source code controlled | CC6.1, CC8.1 | A.8.4 | Tech lead | Partial | GitHub, behind the organisation's sign-in; changes only through reviewed pull requests (CM-1). Action: the review of who has write access, in AC-2 |
 
 ### Vulnerabilities and the supply chain
 
@@ -77,7 +86,7 @@ The references are SOC 2's criteria (CC, A, C) and the ISO 27001:2022 clauses an
 |---|---|---|---|---|---|---|
 | VM-1 | Dependencies and images scanned; findings fixed within set times | CC7.1 | A.8.8 | Tech lead | Partial | Trivy on every image and Dependabot (T5.08), failing on high and critical findings that have a fix. Action: write the deadlines (critical 7 days, high 30 days), triage the open Dependabot pull requests, and keep a record |
 | VM-2 | A penetration test yearly, and before certification; its high and critical findings fixed | CC4.1, CC7.1 | A.8.8 | Security lead | Gap | T6.07 |
-| VM-3 | Software bills of materials, and signed images verified at install | CC7.1, CC8.1 | A.5.21, A.8.30 | Tech lead | Partial | CycloneDX SBOMs for the images and the source (T5.08). Action: sign images and releases with cosign, and verify at install (G-E4, G-S2) |
+| VM-3 | Software bills of materials, and signed images verified at install | CC7.1, CC8.1 | A.5.21, A.8.28 | Tech lead | Partial | CycloneDX SBOMs for the images and the source (T5.08). Action: sign images and releases with cosign, and verify at install (G-E4, G-S2) |
 
 ### Data protection
 
@@ -117,7 +126,7 @@ Weeks count from the start of this plan (month 6 of the roadmap).
 
 | When | What | Done when |
 |---|---|---|
-| **Weeks 1–2** | Name the owners (GOV-2). Choose how evidence is collected: a compliance platform, or a tracked spreadsheet and this repository. Write and approve the policy set (GOV-1). Draft the risk register (GOV-3). Fix the scope with the auditor's input | Policies approved; risk register drafted |
+| **Weeks 1–2** | Name the owners (GOV-2). Choose how evidence is collected: a compliance platform, or a tracked spreadsheet and this repository, with CI's evidence exported every month (see Evidence). Write and approve the policy set (GOV-1). Draft the risk register (GOV-3). Fix the scope with the auditor's input | Policies approved; risk register drafted |
 | **Weeks 3–6** | Close the technical gaps:<br>• branch protection on `main` (CM-1)<br>• MFA enforced (AC-1)<br>• the first access review (AC-2)<br>• the offboarding checklist (HR-3)<br>• deadlines for vulnerabilities, and triage of the open Dependabot pull requests (VM-1)<br>• the asset inventory (AS-1)<br>• device management (EP-1)<br>• vendor records (VD-1)<br>• per-site copilot opt-in (DP-2) | Each control has its evidence |
 | **Weeks 5–8** | The incident response plan, and a tabletop exercise (IR-1, IR-2). The continuity plan with its targets (BC-2), and a recorded production restore (BC-1). Training for everyone (HR-2). The penetration test (VM-2, T6.07), with its high and critical findings fixed | The exercise and the restore recorded; the pen test report and its fixes |
 | **Weeks 9–10** | A readiness assessment by the audit firm. The internal audit (GOV-5) and the Statement of Applicability (GOV-4). The first management review | No open findings that would qualify the report |
@@ -127,7 +136,7 @@ Weeks count from the start of this plan (month 6 of the roadmap).
 
 ## Evidence
 
-Much of the evidence is produced already, on every change, and kept with each CI run:
+Much of the evidence is produced already, on every change, by CI. GitHub keeps run logs and artifacts for 90 days at most, shorter than a Type II window and its audit, so **export it to the evidence store every month**: the runs on `main`, the SBOMs and scan results, and the restore drill's report. The evidence is:
 
 - **Change management (CM-1 to CM-4):** pull requests with reviews and checks.
 - **Releases (CM-3):** the release workflow, the changelog and tagged releases.
