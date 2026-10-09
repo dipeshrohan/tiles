@@ -1,0 +1,9 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+# Your settings and backend: copied from the .example files, kept out of git.
+terraform.tfvars
+backend.hcl
+# Modules don't pin providers; the environments (root modules) do.
+modules/**/.terraform.lock.hcl

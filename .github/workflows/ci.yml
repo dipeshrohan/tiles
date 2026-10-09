@@ -262,7 +262,10 @@ jobs:
           docker build -t tiles-web:ci .
           kind load docker-image tiles-api:ci tiles-web:ci --name tiles
       - name: Install
-        run: helm install tiles "$CHART" $VALUES --wait --timeout 10m
+        run: |
+          # Every pod meets the restricted Pod Security Standard (the Terraform module enforces it).
+          kubectl label namespace default pod-security.kubernetes.io/enforce=restricted --overwrite
+          helm install tiles "$CHART" $VALUES --wait --timeout 10m
       - name: The API answers, ready, behind its sign-in; the app opens it
         run: |
           kubectl port-forward svc/tiles-api 8000 >/dev/null 2>&1 &
@@ -316,6 +319,38 @@ jobs:
             mirror.gcr.io/otel/opentelemetry-collector-contrib:0.135.0 validate --config=/m/otel-collector.yaml
       - name: The dashboard is valid JSON
         run: python3 -m json.tool deploy/helm/tiles/files/grafana-dashboard.json > /dev/null
+
+  terraform:
+    name: Terraform modules
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: deploy/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.3
+          terraform_wrapper: false
+      - name: Formatted
+        run: terraform fmt -check -recursive -diff
+      - name: Every root validates with its locked providers
+        run: |
+          for d in modules/tiles modules/azure environments/managed-azure/cluster environments/managed-azure/tiles environments/customer-hosted; do
+            echo "::group::$d"
+            terraform -chdir="$d" init -backend=false -input=false
+            terraform -chdir="$d" validate
+            echo "::endgroup::"
+          done
+      - name: The modules plan what they should (terraform test, mock providers)
+        run: |
+          terraform -chdir=modules/tiles test
+          terraform -chdir=modules/azure test
+      - name: No high or critical misconfiguration (trivy config)
+        run: |
+          docker run --rm -v "$PWD:/src:ro" mirror.gcr.io/aquasec/trivy:0.56.2 \
+            config --severity HIGH,CRITICAL --exit-code 1 /src
 
   stack:
     name: Docker Compose stack

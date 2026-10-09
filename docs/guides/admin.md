@@ -99,6 +99,15 @@ extraEnv:
 
 The full list of settings is in the [API README](../../api/README.md#configuration).
 
+### With Terraform
+
+[deploy/terraform](../../deploy/terraform/README.md) installs the same chart:
+
+- **`customer-hosted`:** on a cluster you run.
+- **`managed-azure`:** Tiles' managed cloud, in two stages: the AKS cluster and the storage for the database's backups, then Tiles on it.
+
+The Terraform module makes the Secret from sensitive variables, generating a data key if you give none. Those values then sit in Terraform's state, so keep the state in an encrypted backend. To keep secrets out of Terraform, give your own Secret instead (`existing_secret`). Its namespace enforces the restricted Pod Security Standard.
+
 ## 3. Sign-in
 
 Tiles uses OpenID Connect for sign-in. The browser signs in with the Authorization Code flow and PKCE as a public client. The API checks each access token's signature against the provider's published keys, and checks its issuer, audience and expiry. Keycloak is used in development. In production, use your own provider (for example Entra ID).

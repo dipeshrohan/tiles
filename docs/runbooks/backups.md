@@ -73,6 +73,15 @@ compress-type=zst
 pg1-path=/var/lib/postgresql/data
 ```
 
+On Tiles' managed cloud (Azure, [deploy/terraform](../../deploy/terraform/README.md)), the repository is the storage account the Terraform makes. It takes no account keys: pgBackRest signs in as the nodes' identity, which may write to that container only.
+
+```ini
+repo1-type=azure
+repo1-azure-account=<backup_storage.account, from the Terraform outputs>
+repo1-azure-container=pgbackrest
+repo1-azure-key-type=auto
+```
+
 ```ini
 # postgresql.conf
 wal_level = replica

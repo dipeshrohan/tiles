@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars. Secrets (database_url, smtp_password) go in TF_VAR_… variables from
+# your secret store, never here.
+kube_context = "plant-cluster"
+image_tag    = "0.1.0"
+url          = "https://tiles.plant.example.com"
+api_url      = "https://tiles-api.plant.example.com"
+oidc = {
+  issuer      = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+  default_org = "acme"
+}
+storage_class = "fast-ssd"
+ingress_class = "nginx"
+smtp = {
+  host = "mail.plant.example.com"
+  from = "Tiles <tiles@plant.example.com>"
+}

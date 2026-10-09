@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars. Secrets (data_keys, smtp_password, anthropic_api_key) go in the
+# pipeline's secret store as TF_VAR_… variables, never here.
+subscription_id = "00000000-0000-0000-0000-000000000000"
+name            = "tiles-eu1"
+
+image_tag = "0.1.0"
+url       = "https://tiles.example.com"
+api_url   = "https://api.tiles.example.com"
+oidc = {
+  issuer      = "https://login.microsoftonline.com/<tenant-id>/v2.0"
+  default_org = "acme"
+}
+
+smtp = {
+  host = "smtp.example.com"
+  user = "tiles@example.com"
+  from = "Tiles <tiles@example.com>"
+}
