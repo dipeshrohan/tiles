@@ -13,8 +13,7 @@ const tracked = () =>
   execFileSync('git', ['ls-files', '-z', '--', '*.md'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
 
 // The text outside fenced code (``` and ~~~) and HTML comments; `prose` also drops inline code.
-const unfenced = (text) =>
-  text.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, '').replace(/<!--[\s\S]*?-->/g, '');
+const unfenced = (text) => text.replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[^\n]*$/gm, '').replace(/<!--[\s\S]*?-->/g, '');
 export const prose = (text) => unfenced(text).replace(/`[^`\n]*`/g, '');
 
 // The anchors a page has: GitHub's for each heading (lower case, punctuation dropped, spaces to
