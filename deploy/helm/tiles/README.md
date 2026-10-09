@@ -68,6 +68,7 @@ The API and the jobs read the Secret as files (`TILES_SECRETS_DIR`), never as en
   - uninstalling keeps it, as it keeps the database volume;
   - **back it up**: without the data key, sealed credentials can't be opened.
 - **Request size:** the ingress raises nginx's body limit to 16 MB (`ingress.annotations`), since edge agents post up to 10,000 readings at once.
+- **Capacity:** each API pod runs `api.workers` processes with `api.dbPoolMax` connections each; the [load test](../../../docs/load-test.md) has the measurements and sizing.
 - **Rollouts:** the API restarts when its settings change. With more than one replica, the API and the web app each have a PodDisruptionBudget.
 
 ## Jobs

@@ -1,13 +1,14 @@
 """Database access: a connection pool shared by request handlers."""
 
+import asyncio
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
-from typing import Annotated
+from typing import Annotated, Any
 
 import psycopg
-from fastapi import Depends, Request
+from fastapi import Depends, HTTPException, Request, status
 from psycopg.rows import DictRow, dict_row
 from psycopg_pool import ConnectionPool
 
@@ -31,13 +32,13 @@ def act_as_app(conn: Conn) -> None:
     conn.commit()
 
 
-def open_pool(settings: Settings) -> ConnectionPool[Conn]:
+def open_pool(settings: Settings, size: int | None = None) -> ConnectionPool[Conn]:
     """The API's connections: every one subject to row security (`act_as_app`). Scheduled jobs and
     migrations connect on their own, as the login they are given."""
     return ConnectionPool(
         settings.database_url.get_secret_value(),
         min_size=1,
-        max_size=settings.db_pool_max,
+        max_size=size or settings.db_pool_max,
         kwargs={"row_factory": dict_row},
         connection_class=psycopg.Connection[DictRow],
         configure=act_as_app,
@@ -48,7 +49,34 @@ def open_pool(settings: Settings) -> ConnectionPool[Conn]:
 _pool_lock = threading.Lock()
 
 
-def get_conn(request: Request) -> Iterator[Conn]:
+async def db_slot(request: Request) -> AsyncIterator[None]:
+    """Waits for one of the pool's connections to be free, on the event loop, before the request
+    takes a worker thread for it (T5.15).
+
+    Sync handlers run on worker threads (40), each taking a connection (`db_pool_max`). With more
+    requests than connections, threads blocked on the pool left none for the requests holding a
+    connection to run their handler, and every request stalled until the pool's timeout (found by
+    the load test). Here the wait holds no thread; past `db_wait_seconds`, the answer is a 503.
+    """
+    state = request.app.state
+    loop = asyncio.get_running_loop()
+    if state.db_slots is None or state.db_slots[0] is not loop:  # one per event loop (tests run several)
+        state.db_slots = (loop, asyncio.Semaphore(state.settings.db_pool_max))
+    slots: asyncio.Semaphore = state.db_slots[1]
+    try:
+        async with asyncio.timeout(state.settings.db_wait_seconds):
+            await slots.acquire()
+    except TimeoutError:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "Tiles is busy: try again in a moment", headers={"Retry-After": "2"}
+        ) from None
+    try:
+        yield
+    finally:
+        slots.release()
+
+
+def get_conn(request: Request, _slot: Annotated[None, Depends(db_slot, scope="function")]) -> Iterator[Conn]:
     """FastAPI dependency: one connection and transaction per request.
 
     The pool is created on first use, so the app (and /health) starts without
@@ -67,10 +95,23 @@ def get_conn(request: Request) -> Iterator[Conn]:
         yield conn
 
 
+def side_pool(state: Any) -> ConnectionPool[Conn]:
+    """Connections for work outside a request's own: the copilot's answer as it streams, sweeps
+    running after their request. Kept apart from the requests' pool, whose every connection
+    `db_slot` counts, so this work can't take one a queued request was promised."""
+    if state.side_pool is None:
+        with _pool_lock:
+            if state.side_pool is None:
+                state.side_pool = open_pool(state.settings, state.settings.db_side_pool_max)
+    pool: ConnectionPool[Conn] = state.side_pool
+    return pool
+
+
 def close_pool(state: object) -> None:
-    pool: ConnectionPool[Conn] | None = getattr(state, "pool", None)
-    if pool is not None:
-        pool.close()
+    for name in ("pool", "side_pool"):
+        pool: ConnectionPool[Conn] | None = getattr(state, name, None)
+        if pool is not None:
+            pool.close()
 
 
 def scope_to_site(conn: Conn, site_id: uuid.UUID) -> None:
