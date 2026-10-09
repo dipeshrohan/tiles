@@ -49,6 +49,12 @@ class Settings(BaseSettings):
     copilot_model: str | None = None
     copilot_max_tokens: int = 2048  # per model call
     copilot_max_rounds: int = 8  # model calls per question (each tool round is one)
+    # Cost controls (T4.07), in billed tokens: input, cache writes and output count in full, cache
+    # reads a tenth (copilot_usage.billed). 0 turns a limit off.
+    copilot_question_tokens: int = 200_000  # one question stops calling the model past this
+    copilot_org_daily_tokens: int = 5_000_000  # an organisation's questions wait for the next UTC day
+    copilot_org_questions_per_minute: int = 30
+    copilot_user_questions_per_minute: int = 6
 
 
 @lru_cache

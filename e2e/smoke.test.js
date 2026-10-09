@@ -2352,3 +2352,71 @@ test('the copilot: with the service off, the built-in skills answer and say so',
   await a.page.waitForSelector('.msg.bot');
   assert.deepEqual(a.errors, []);
 });
+
+test('copilot usage: admins see questions, tokens, the cache and times; a refused question says why', async (t) => {
+  const fake = createFakeApi({ copilot: true, roles: { 'admin@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const day = (d, over = {}) => ({
+    day: d,
+    questions: 12,
+    answered: 10,
+    failed: 1,
+    over_budget: 1,
+    model_calls: 30,
+    input_tokens: 20000,
+    output_tokens: 4000,
+    cache_write_tokens: 30000,
+    cache_read_tokens: 150000,
+    billed_tokens: 69000,
+    first_text_p50_ms: 850,
+    first_text_p95_ms: 2400,
+    total_p50_ms: 5200,
+    total_p95_ms: 14000,
+    ...over,
+  });
+  fake.copilotUsage.days.push(
+    day('2026-10-09'),
+    day('2026-10-08', { questions: 3, answered: 3, failed: 0, over_budget: 0 }),
+  );
+  fake.copilotUsage.users.push({ user: 'Eng', email: 'eng@example.com', questions: 15, billed_tokens: 138000 });
+  fake.copilotUsage.today = { org_billed_tokens: 1250000, site_billed_tokens: 69000 };
+
+  const a = await openAs(t, apiUrl, 'admin@example.com', 'settings');
+  await a.page.waitForSelector('[data-copilot-budget]');
+  assert.equal(
+    await a.page.locator('[data-copilot-budget]').innerText(),
+    'Today the organisation has used 1.25M of its 5M tokens (25%); this site 69k.',
+  );
+  const totals = await a.page.locator('[data-copilot-totals]').innerText();
+  assert.match(totals, /Questions\s+15/);
+  assert.match(totals, /Over budget\s+1/);
+  assert.match(totals, /Tokens\s+138k/);
+  assert.match(totals, /From cache\s+75%/);
+  const row = await a.page.locator('#copilot-usage tbody tr').first().innerText();
+  assert.match(row, /2026-10-09\s+12\s+10\s+1\s+1\s+69k\s+75%\s+850 ms · 2\.4 s\s+5\.2 s · 14 s/);
+  assert.match(await a.page.locator('#copilot-usage').innerText(), /Eng eng@example\.com\s+15\s+138k/);
+  assert.match(await a.page.locator('#copilot-usage').innerText(), /6 questions a minute per person/);
+
+  // Not for engineers.
+  const e = await openAs(t, apiUrl, null, 'settings');
+  await e.page.waitForSelector('#notifications');
+  assert.equal(await e.page.locator('#copilot-usage').count(), 0);
+
+  // A question over a limit is refused, and the page says why.
+  fake.copilotScripts.push({ refuse: 'You have asked 6 questions in the last minute: wait a moment' });
+  await e.page.evaluate(() => (location.hash = '#/chat'));
+  await e.page.waitForSelector('[data-new-conversation]');
+  await e.page.fill('#composer [name=q]', 'How hot is the press oil?');
+  await e.page.press('#composer [name=q]', 'Enter');
+  await e.page.waitForSelector('#toast:has-text("6 questions in the last minute")');
+  await e.page.waitForFunction(
+    () => document.querySelector('#composer [name=q]')?.value === 'How hot is the press oil?',
+  );
+  assert.equal(await e.page.locator('.copilot-answer').count(), 0); // not stored: ask again later
+  assert.deepEqual(a.errors, []);
+  assert.deepEqual(
+    e.errors.filter((m) => !/429/.test(m)),
+    [],
+  );
+});

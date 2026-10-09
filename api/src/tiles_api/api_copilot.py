@@ -8,15 +8,17 @@ the exchange is stored as it completes, so the next question carries the whole c
 
 Conversations are private to their user. Anyone on the site may use the copilot: its tools only
 read, as the user who asked. It is off until TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL are
-set.
+set. Rate limits and token budgets (copilot_usage.py, T4.07) refuse a question with 429; admins
+read the usage at `GET …/copilot/usage`.
 """
 
 import json
 import logging
+import time
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
@@ -24,7 +26,7 @@ from fastapi.responses import StreamingResponse
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
-from tiles_api import assistant, grounding
+from tiles_api import assistant, copilot_usage, grounding
 from tiles_api.api_ontology import Admin, Ctx, SiteContext
 from tiles_api.copilot_tools import tools_for
 from tiles_api.store import Conn, one
@@ -84,6 +86,52 @@ class FeedbackRow(Feedback):
 
 class ConversationDetail(Conversation):
     history: list[Message]
+
+
+class UsageDay(BaseModel):
+    day: date
+    questions: int
+    answered: int
+    failed: int
+    over_budget: int
+    model_calls: int
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int
+    cache_read_tokens: int
+    billed_tokens: int
+    first_text_p50_ms: float | None
+    first_text_p95_ms: float | None
+    total_p50_ms: float | None
+    total_p95_ms: float | None
+
+
+class UsageUser(BaseModel):
+    user: str
+    email: str
+    questions: int
+    billed_tokens: int
+
+
+class UsageToday(BaseModel):
+    org_billed_tokens: int
+    site_billed_tokens: int
+
+
+class UsageLimits(BaseModel):
+    question_tokens: int
+    org_daily_tokens: int
+    org_questions_per_minute: int
+    user_questions_per_minute: int
+    max_tokens_per_call: int
+    max_rounds: int
+
+
+class Usage(BaseModel):
+    days: list[UsageDay]
+    users: list[UsageUser]
+    today: UsageToday
+    limits: UsageLimits
 
 
 class AskIn(BaseModel):
@@ -236,6 +284,8 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
         raise HTTPException(status.HTTP_409_CONFLICT, "This conversation is full: start a new one")
     if sum(len(json.dumps(m["content"])) for m in stored) > MAX_HISTORY_CHARS:
         raise HTTPException(status.HTTP_409_CONFLICT, "This conversation is too long to carry on: start a new one")
+    usage_id = copilot_usage.admit(ctx.conn, settings, ctx.org_id, ctx.site_id, ctx.user.id, conversation_id)
+    started = time.monotonic()
     question = {"role": "user", "content": [{"type": "text", "text": text}]}
     history = assistant.repaired([*stored, question])
     ctx.conn.execute(
@@ -264,8 +314,13 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
         with pool.connection() as conn:
             yield SiteContext(conn, site_id, org_id, user)
 
+    def ms() -> int:
+        return round((time.monotonic() - started) * 1000)
+
     def stream() -> Iterator[str]:
         usage: dict[str, int] = {}  # every call's, so a broken-off answer is counted too
+        outcome = "failed"  # unless it ends with an answer, or over its budget
+        first_text = True
         try:
             events = assistant.respond(
                 model,
@@ -273,12 +328,23 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                 history,
                 assistant_tools,
                 settings.copilot_max_rounds,
+                settings.copilot_question_tokens,
             )
             for event in events:
                 if event.kind == "usage":
                     for k, v in event.data.items():
                         usage[k] = usage.get(k, 0) + v
+                    with pool.connection() as conn:
+                        copilot_usage.record_call(conn, usage_id, event.data, assistant.billed(event.data))
                     continue
+                if event.kind == "text" and first_text:
+                    first_text = False
+                    with pool.connection() as conn:
+                        copilot_usage.record_first_text(conn, usage_id, ms())
+                elif event.kind == "done":
+                    outcome = "answered"
+                elif event.kind == "error" and event.data.get("over_budget"):
+                    outcome = "over_budget"
                 if event.kind == "message":
                     with pool.connection() as conn:  # stored, and the answer's lease renewed
                         conn.execute(
@@ -306,6 +372,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                     """,
                     [usage.get("input_tokens", 0), usage.get("output_tokens", 0), conversation_id],
                 )
+                copilot_usage.finish(conn, usage_id, outcome, ms())
 
     assistant_tools = tools_for(open_ctx)
     return StreamingResponse(
@@ -352,6 +419,12 @@ def unrate_answer(ctx: Ctx, conversation_id: uuid.UUID, seq: int) -> None:
     _answer(ctx, conversation_id, seq)
     ctx.conn.execute("DELETE FROM copilot_feedback WHERE conversation_id = %s AND seq = %s", [conversation_id, seq])
     ctx.audit("copilot.feedback.delete", "conversation", str(conversation_id), after={"seq": seq})
+
+
+@router.get("/sites/{site_id}/copilot/usage", response_model=Usage)
+def usage(ctx: Admin, request: Request, days: Annotated[int, Query(ge=1, le=90)] = 30) -> dict[str, Any]:
+    """The site's copilot usage by UTC day and by user, with the limits and today's budget (admins)."""
+    return copilot_usage.dashboard(ctx.conn, request.app.state.settings, ctx.org_id, ctx.site_id, days)
 
 
 @router.get("/sites/{site_id}/copilot/feedback", response_model=list[FeedbackRow])

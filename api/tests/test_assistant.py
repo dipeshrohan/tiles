@@ -7,7 +7,7 @@ from typing import Any
 
 from anthropic.types import Message, TextBlock, ToolUseBlock, Usage
 
-from tiles_api import assistant
+from tiles_api import assistant, grounding
 from tiles_api.assistant import Event, Tool, ToolError, Turn
 
 
@@ -164,7 +164,7 @@ def test_the_sdk_adapter_streams_text_and_returns_plain_blocks() -> None:
         ],
         stop_reason="tool_use",
         stop_sequence=None,
-        usage=Usage(input_tokens=11, output_tokens=4),
+        usage=Usage(input_tokens=11, output_tokens=4, cache_creation_input_tokens=300, cache_read_input_tokens=2000),
     )
     sent: dict[str, Any] = {}
 
@@ -185,12 +185,60 @@ def test_the_sdk_adapter_streams_text_and_returns_plain_blocks() -> None:
         return Stream()
 
     client = SimpleNamespace(messages=SimpleNamespace(stream=stream))
-    out = list(assistant.AnthropicModel(client, "stand-in", 512).stream(system="s", messages=[], tools=[]))
+    history = [{"role": "user", "content": [text("Hi")]}]
+    tools = [{"name": "a", "description": "", "input_schema": {}}, {"name": "b", "description": "", "input_schema": {}}]
+    out = list(assistant.AnthropicModel(client, "stand-in", 512).stream(system="s", messages=history, tools=tools))
     assert out[:2] == ["Check", "ing."]
-    assert out[2] == Turn(
-        [text("Checking."), call("echo", {"say": "x"}, "t9")], "tool_use", {"input_tokens": 11, "output_tokens": 4}
-    )
-    assert (sent["model"], sent["max_tokens"], sent["system"]) == ("stand-in", 512, "s")
+    usage = {
+        "input_tokens": 11,
+        "output_tokens": 4,
+        "cache_creation_input_tokens": 300,
+        "cache_read_input_tokens": 2000,
+    }
+    assert out[2] == Turn([text("Checking."), call("echo", {"say": "x"}, "t9")], "tool_use", usage)
+    assert (sent["model"], sent["max_tokens"]) == ("stand-in", 512)
+    # The prompt is cached (T4.07): the tools, the system prompt, and the conversation to its end.
+    ephemeral = {"type": "ephemeral"}
+    assert sent["system"] == [{"type": "text", "text": "s", "cache_control": ephemeral}]
+    assert sent["tools"] == [tools[0], tools[1] | {"cache_control": ephemeral}]
+    assert sent["messages"] == [{"role": "user", "content": [text("Hi") | {"cache_control": ephemeral}]}]
+    assert history == [{"role": "user", "content": [text("Hi")]}]  # what is stored is untouched
+    assert "cache_control" not in tools[1]
+
+
+def test_cache_breakpoints_without_tools_or_messages() -> None:
+    system, tools, messages = assistant.cached("s", [], [])
+    assert system == [{"type": "text", "text": "s", "cache_control": {"type": "ephemeral"}}]
+    assert (tools, messages) == ([], [])
+
+
+def test_billed_tokens_count_cache_reads_a_tenth() -> None:
+    assert assistant.billed({}) == 0
+    usage = {
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "cache_creation_input_tokens": 1000,
+        "cache_read_input_tokens": 5009,
+    }
+    assert assistant.billed(usage) == 100 + 20 + 1000 + 500
+
+
+def test_a_question_stops_at_its_token_budget() -> None:
+    # Each tool round costs 600 billed tokens; with a budget of 1,000 the third call is never made.
+    rounds: list[tuple[list[str], Turn]] = [
+        ([], Turn([call("echo", {"say": str(i)}, f"t{i}")], "tool_use", {"input_tokens": 600})) for i in range(3)
+    ]
+    model = Scripted(*rounds)
+    events = list(assistant.respond(model, "s", [{"role": "user", "content": [text("Go")]}], TOOLS, budget=1000))
+    assert len(model.calls) == 2
+    last = events[-1]
+    assert last.kind == "error" and last.data["over_budget"] is True
+    assert "budget of 1,000 tokens" in last.data["detail"]
+    assert last.data["usage"] == {"input_tokens": 1200}
+    # Without a budget it goes on.
+    model = Scripted(*rounds, ([], Turn([text(grounding.DECLINE + ".")], "end_turn")))
+    list(assistant.respond(model, "s", [{"role": "user", "content": [text("Go")]}], TOOLS))
+    assert len(model.calls) == 4
 
 
 def test_empty_answers_and_unrun_tool_calls_are_not_kept() -> None:
