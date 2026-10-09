@@ -60,6 +60,12 @@ after(async () => {
   server?.close();
 });
 
+// The page has its data: nothing in it is still loading.
+async function settled(page) {
+  await page.waitForSelector('#view h1');
+  await page.waitForFunction(() => !/Loading/.test(document.querySelector('#view')?.textContent ?? ''));
+}
+
 // What axe finds on the page as it is now, as readable lines.
 async function audit(page) {
   if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ path: AXE });
@@ -125,8 +131,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await check('warning');
     for (const route of ['shopfloor', 'plant', 'signals', 'settings', 'reviews', 'import', 'chat']) {
       await page.evaluate((r) => (location.hash = r), `#/${route}`);
-      await page.waitForSelector('#view h1');
-      await page.waitForTimeout(150); // its fetches answered
+      await settled(page);
       await check(route);
     }
     await page.evaluate(() => (location.hash = '#/signals'));
@@ -168,5 +173,41 @@ test('the keyboard reaches the content first, and the menu says whether it is op
   assert.equal(await phone.getAttribute('#menu', 'aria-expanded'), 'true');
   await phone.click('#nav a[href="#/plant"]');
   assert.equal(await phone.getAttribute('#menu', 'aria-expanded'), 'false');
+  // Any link closes it (the brand, too), and so does Escape, giving the focus back to the button.
+  await phone.click('#menu');
+  await phone.click('.brand');
+  await phone.waitForSelector('#sidebar:not(.open)');
+  assert.equal(await phone.getAttribute('#menu', 'aria-expanded'), 'false');
+  await phone.click('#menu');
+  await phone.keyboard.press('Escape');
+  await phone.waitForSelector('#sidebar:not(.open)');
+  assert.equal(await phone.evaluate(() => document.activeElement?.id), 'menu');
   await phone.close();
+});
+
+test('the Shopfloor tells screen readers when its headline changes', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const page = await browser.newPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/shopfloor`);
+  await page.waitForSelector('.floor-headline:has-text("All clear")');
+  // Opening the page reads its heading; nothing is announced.
+  assert.equal(await page.textContent('#announcer'), '');
+  fake.raiseWarning('dc1.friction', [], {
+    started_at: new Date(Date.now() - 60_000).toISOString(),
+    last_at: new Date().toISOString(),
+    peak: 3,
+    baseline: 1,
+    threshold: 2,
+    readings: 2,
+  });
+  await page.click('[data-floor-refresh]');
+  await page.waitForSelector('.floor-headline:has-text("1 open warning")');
+  assert.equal(await page.textContent('#announcer'), '1 open warning: 1 signal still out, 1 nobody has taken');
+  // The announcer stays put while the page renders again.
+  await page.click('[data-floor-full]');
+  await page.click('[data-floor-full]');
+  assert.equal(await page.locator('#announcer').count(), 1);
 });

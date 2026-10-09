@@ -95,11 +95,12 @@ function niceStep(raw: number): number {
   return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
 }
 
-// The opening of a chart: an image to screen readers, named by its title and described by a short
-// summary of what it shows (the numbers a sighted reader takes from it), also as its <title>.
+// The opening of a chart: an image to screen readers, named by its title and a short summary of what
+// it shows (the numbers a sighted reader takes from it). In aria-label only: a <title> as well would
+// be read twice, and show as a tooltip over the whole chart.
 function open(width: number, height: number, title: string, summary: string, cls = 'chart'): string {
   const name = [title, summary].filter(Boolean).join('. ');
-  return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}"><title>${esc(name)}</title>`;
+  return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}">`;
 }
 
 // "a, b and c"; with more than `max`, the first ones and how many more.
@@ -109,18 +110,31 @@ export function listed(items: string[], max = 8): string {
 }
 
 // A number as a summary reads it: as many digits as its size needs, no trailing zeros.
+// Below 1, three significant digits (0.000234, not 0).
 const num = (x: number): string => {
   const abs = Math.abs(x);
-  const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : abs >= 1 ? 2 : 3;
+  if (abs > 0 && abs < 1) return x.toLocaleString('en-GB', { maximumSignificantDigits: 3 });
+  const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
   return x.toLocaleString('en-GB', { maximumFractionDigits: digits });
 };
 
-const range = (values: number[], format = num): string => {
-  if (!values.length) return 'no values';
-  const lo = Math.min(...values);
-  const hi = Math.max(...values);
-  return lo === hi ? format(lo) : `${format(lo)} to ${format(hi)}`;
+// The lowest and highest of some values, in one pass (no spreading: there may be many).
+function extent(values: Iterable<number>): [number, number] {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const v of values) {
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  return [lo, hi];
+}
+
+// "lo to hi", or one number when they read the same.
+const span = ([lo, hi]: [number, number], format = num): string => {
+  if (!Number.isFinite(lo)) return 'no values';
+  return format(lo) === format(hi) ? format(lo) : `${format(lo)} to ${format(hi)}`;
 };
+const range = (values: number[], format = num): string => span(extent(values), format);
 
 // A time as a chart's summary gives it: UTC, to the minute.
 const at = (t: number): string => `${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
@@ -441,8 +455,10 @@ export function timeChart({
   if (!shown.length)
     return `${open(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
   const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
-  let lo = Math.min(...shown.map((p) => p.lo), ...marks);
-  let hi = Math.max(...shown.map((p) => p.hi), ...marks);
+  const [dataLo] = extent(shown.map((p) => p.lo));
+  const [, dataHi] = extent(shown.map((p) => p.hi));
+  let lo = Math.min(dataLo, ...marks);
+  let hi = Math.max(dataHi, ...marks);
   if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
   const x = scale(from, to, PAD.l, width - PAD.r);
   const y = scale(lo, hi, height - PAD.b, PAD.t);
@@ -497,7 +513,7 @@ export function timeChart({
   const last = shown[shown.length - 1]!;
   const summary = [
     `${shown.length} reading${shown.length === 1 ? '' : 's'} ${when}`,
-    `values ${range([...shown.map((p) => p.lo), ...shown.map((p) => p.hi)])}`,
+    `values ${span([dataLo, dataHi])}`,
     `latest ${num(last.v)} at ${at(last.t)}`,
     ...levels.filter((l) => Number.isFinite(l.v)).map((l) => `${l.label} ${num(l.v)}`),
     spans.length ? `${spans.length} shaded stretch${spans.length === 1 ? '' : 'es'}` : '',

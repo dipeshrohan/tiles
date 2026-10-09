@@ -190,6 +190,7 @@ function chartFor(series: SignalSeries, range: Range): string {
           to,
           gap: gapFor(series, points),
           yLabel: series.unit ?? '',
+          title: series.unit ? `${series.tag} (${series.unit})` : series.tag,
           width: fitWidth(TIME_CHART.width),
         })
       : '';

@@ -29,10 +29,9 @@ test('a chart grows at most one and a half times its drawn size', () => {
 
 // What a screen reader is told about a chart: its name, and the numbers a reader takes from it.
 const label = (svg) => {
-  const name = svg.match(/aria-label="([^"]*)"/)?.[1];
-  assert.equal(svg.match(/<title>([^<]*)<\/title>/)?.[1], name, 'the title says the same');
-  assert.match(svg, /role="img"/);
-  return name;
+  assert.match(svg, /^<svg [^>]*role="img"/);
+  assert.doesNotMatch(svg, /^<svg[^>]*><title>/, 'no title as well: it would be read twice');
+  return svg.match(/aria-label="([^"]*)"/)?.[1];
 };
 
 test('a line chart names its lines and their ranges, its windows and its marks', () => {
@@ -74,6 +73,14 @@ test('a time chart gives its span, its values and latest, its levels and shaded 
     label(svg),
     'dc1.friction. 3 readings from 2026-10-09 10:00 UTC to 2026-10-09 10:03 UTC; values 100 to 102; latest 102 at 2026-10-09 10:02 UTC; threshold 150; 1 shaded stretch',
   );
+  // Small values keep three significant digits, and a range that reads as one number says it once.
+  const tiny = [0.000234, 0.000912].map((v, i) => ({ t: t0 + i * 60_000, v, lo: v, hi: v }));
+  assert.match(
+    label(timeChart({ points: tiny, from: t0, to: t0 + 120_000, gap: 120_000, yLabel: 'mm' })),
+    /values 0\.000234 to 0\.000912; latest 0\.000912/,
+  );
+  const flat = [5.001, 5.002].map((v, i) => ({ t: t0 + i * 60_000, v, lo: v, hi: v }));
+  assert.match(label(timeChart({ points: flat, from: t0, to: t0 + 120_000, gap: 1e6 })), /values 5; latest 5/);
   const empty = timeChart({ points: [], from: t0, to: t0 + 1, gap: 1, yLabel: 'N' });
   assert.equal(label(empty), 'N. No readings from 2026-10-09 10:00 UTC to 2026-10-09 10:00 UTC');
 });

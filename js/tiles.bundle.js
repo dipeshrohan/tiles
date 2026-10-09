@@ -1404,6 +1404,10 @@
 			year: "numeric"
 		});
 	};
+	function announce(message) {
+		const region = typeof document === "undefined" ? null : document.querySelector("#announcer");
+		if (region) region.textContent = message;
+	}
 	function need(root, sel) {
 		const el = root.querySelector(sel);
 		if (!el) throw new Error(`Missing element ${sel}`);
@@ -3631,7 +3635,7 @@
 	}
 	function open(width, height, title, summary, cls = "chart") {
 		const name = [title, summary].filter(Boolean).join(". ");
-		return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}"><title>${esc(name)}</title>`;
+		return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}">`;
 	}
 	function listed$1(items, max = 8) {
 		const shown = items.length > max ? [...items.slice(0, max), `${items.length - max} more`] : items;
@@ -3639,15 +3643,24 @@
 	}
 	var num$1 = (x) => {
 		const abs = Math.abs(x);
-		const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : abs >= 1 ? 2 : 3;
+		if (abs > 0 && abs < 1) return x.toLocaleString("en-GB", { maximumSignificantDigits: 3 });
+		const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
 		return x.toLocaleString("en-GB", { maximumFractionDigits: digits });
 	};
-	var range = (values, format = num$1) => {
-		if (!values.length) return "no values";
-		const lo = Math.min(...values);
-		const hi = Math.max(...values);
-		return lo === hi ? format(lo) : `${format(lo)} to ${format(hi)}`;
+	function extent(values) {
+		let lo = Infinity;
+		let hi = -Infinity;
+		for (const v of values) {
+			if (v < lo) lo = v;
+			if (v > hi) hi = v;
+		}
+		return [lo, hi];
+	}
+	var span = ([lo, hi], format = num$1) => {
+		if (!Number.isFinite(lo)) return "no values";
+		return format(lo) === format(hi) ? format(lo) : `${format(lo)} to ${format(hi)}`;
 	};
+	var range = (values, format = num$1) => span(extent(values), format);
 	var at = (t) => `${new Date(t).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 	function lineChart({ series, width = 760, height = 260, bands = [], markers = [], xLabel = "", yLabel = "", xFormat = (i) => i, yMin, yMax, title = yLabel }) {
 		const n = Math.max(...series.map((s) => s.values.length));
@@ -3876,8 +3889,10 @@
 		const when = `from ${at(from)} to ${at(to)}`;
 		if (!shown.length) return `${open(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
 		const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
-		let lo = Math.min(...shown.map((p) => p.lo), ...marks);
-		let hi = Math.max(...shown.map((p) => p.hi), ...marks);
+		const [dataLo] = extent(shown.map((p) => p.lo));
+		const [, dataHi] = extent(shown.map((p) => p.hi));
+		let lo = Math.min(dataLo, ...marks);
+		let hi = Math.max(dataHi, ...marks);
 		if (lo === hi) [lo, hi] = [lo - 1, hi + 1];
 		const x = scale(from, to, PAD.l, width - PAD.r);
 		const y = scale(lo, hi, height - PAD.b, PAD.t);
@@ -3909,7 +3924,7 @@
 		const last = shown[shown.length - 1];
 		return `${open(width, height, title, [
 			`${shown.length} reading${shown.length === 1 ? "" : "s"} ${when}`,
-			`values ${range([...shown.map((p) => p.lo), ...shown.map((p) => p.hi)])}`,
+			`values ${span([dataLo, dataHi])}`,
 			`latest ${num$1(last.v)} at ${at(last.t)}`,
 			...levels.filter((l) => Number.isFinite(l.v)).map((l) => `${l.label} ${num$1(l.v)}`),
 			spans.length ? `${spans.length} shaded stretch${spans.length === 1 ? "" : "es"}` : ""
@@ -4021,11 +4036,13 @@
         ${lineChart({
 				series: [{
 					values: series.map((s) => s.anode),
-					color: "var(--accent)"
+					color: "var(--accent)",
+					label: "anode tip"
 				}, {
 					values: series.map((s) => s.cathode),
 					color: "var(--bad)",
-					width: 2
+					width: 2,
+					label: "cathode tip"
 				}],
 				bands: [{
 					from: swapAt - 24,
@@ -4039,6 +4056,7 @@
 				}],
 				xFormat: (h) => `${h}h`,
 				yLabel: "Median welding power (W)",
+				title: "Median welding power by hour (W)",
 				width: fitWidth(1040),
 				height: 260
 			})}
@@ -4107,12 +4125,14 @@
 				series: [{
 					values: hist.map((h) => h.friction),
 					color: "var(--accent)",
-					width: 1.2
+					width: 1.2,
+					label: "friction"
 				}, {
 					values: detection.thresholds,
 					color: "var(--warn)",
 					width: 1.4,
-					dash: "4 3"
+					dash: "4 3",
+					label: "threshold"
 				}],
 				bands: detection.alerts.map((a) => ({
 					from: a.firstShot,
@@ -4132,6 +4152,7 @@
 				}],
 				xFormat: (i) => `${fmt$1(toH(i), 0)}h`,
 				yLabel: "Friction (N)",
+				title: "Plunger friction by shot (N)",
 				width: fitWidth(1040),
 				height: 300
 			})}
@@ -4149,13 +4170,16 @@
           ${lineChart({
 				series: [{
 					values: payload.ph,
-					color: "var(--accent)"
+					color: "var(--accent)",
+					label: "hydraulic pressure"
 				}, {
 					values: payload.pm,
-					color: "var(--warm)"
+					color: "var(--warm)",
+					label: "metal pressure"
 				}],
 				xFormat: (i) => `${fmt$1(i * PLUNGER.dt * 1e3)}ms`,
 				yLabel: "bar",
+				title: `Shot ${ui.shot} pressures (bar)`,
 				width: fitWidth(480, .5),
 				height: 200,
 				yMin: 0
@@ -4164,10 +4188,12 @@
           ${lineChart({
 				series: [{
 					values: payload.v,
-					color: "var(--soft)"
+					color: "var(--soft)",
+					label: "velocity"
 				}],
 				xFormat: (i) => `${fmt$1(i * PLUNGER.dt * 1e3)}ms`,
 				yLabel: "m/s",
+				title: `Shot ${ui.shot} plunger velocity (m/s)`,
 				width: fitWidth(480, .5),
 				height: 150,
 				yMin: 0
@@ -5385,6 +5411,7 @@
 			to: Date.parse(r.end),
 			gap: bucketMs * 1.5,
 			yLabel: r.unit ?? "",
+			title: `Wear check of ${r.tag}${r.unit ? ` (${r.unit})` : ""}: bucket medians`,
 			levels,
 			spans: [{
 				from: Date.parse(r.recent_from),
@@ -6010,6 +6037,7 @@
 			to,
 			gap: gapFor(series, points),
 			yLabel: series.unit ?? "",
+			title: series.unit ? `${series.tag} (${series.unit})` : series.tag,
 			width: fitWidth(TIME_CHART.width)
 		}) : ""}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
@@ -6780,6 +6808,7 @@
 			to,
 			gap: gapFor(s, points),
 			yLabel: s.unit ?? "",
+			title: `${w.signal_tag} around the warning${s.unit ? ` (${s.unit})` : ""}`,
 			width: fitWidth(TIME_CHART.width),
 			levels: [{
 				v: w.threshold,
@@ -7397,6 +7426,8 @@
 	});
 	var REFRESH_MS = 3e4;
 	var busy$2 = null;
+	var shownHeadline = null;
+	var toldHeadline = null;
 	var timer = null;
 	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
 	function stop() {
@@ -7405,7 +7436,11 @@
 		document.body.classList.remove("floor-full");
 	}
 	onNavigate((hash) => {
-		if (routeOf(hash) !== "shopfloor") stop();
+		if (routeOf(hash) !== "shopfloor") {
+			stop();
+			shownHeadline = null;
+			toldHeadline = null;
+		}
 	});
 	function since(item, now) {
 		if (!item.startedAt) return "";
@@ -7521,7 +7556,11 @@
 				hour: "2-digit",
 				minute: "2-digit"
 			})}; refreshes every 30 seconds</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
-			const status = `<div role="status"><h1 class="floor-headline ${tone}">${esc(text)}</h1></div>${updated}`;
+			shownHeadline = {
+				site: siteId$3(ctx),
+				text
+			};
+			const status = `<h1 class="floor-headline ${tone}">${esc(text)}</h1>${updated}`;
 			const open = list.filter((i) => i.state !== "ok");
 			if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
 			if (ui.taking && !open.some((i) => i.id === ui.taking)) ui.taking = null;
@@ -7533,6 +7572,10 @@
 		bind(root, ctx) {
 			const ui = uiState$4(ctx);
 			document.body.classList.toggle("floor-full", ui.full);
+			if (shownHeadline && shownHeadline.text !== toldHeadline?.text) {
+				if (toldHeadline && toldHeadline.site === shownHeadline.site) announce(shownHeadline.text);
+				toldHeadline = shownHeadline;
+			}
 			onAll(root, "[data-floor-full]", "click", () => {
 				ui.full = !ui.full;
 				ctx.rerender();
@@ -8921,6 +8964,7 @@
 				to: Date.parse(s.end),
 				gap: gapFor(s, points),
 				yLabel: s.unit ?? "",
+				title: s.unit ? `${s.tag} (${s.unit})` : s.tag,
 				width: fitWidth(TIME_CHART.width, .7)
 			});
 			return `<div class="stack" style="gap:4px" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;
@@ -9748,9 +9792,11 @@
 		e.preventDefault();
 		need(document, "#view").focus();
 	});
-	need(document, "#nav").addEventListener("click", () => {
-		need(document, "#sidebar").classList.remove("open");
-		need(document, "#menu").setAttribute("aria-expanded", "false");
+	need(document, "#nav").addEventListener("click", () => closeMenu());
+	document.addEventListener("keydown", (e) => {
+		if (e.key !== "Escape" || !need(document, "#sidebar").classList.contains("open")) return;
+		closeMenu();
+		need(document, "#menu").focus();
 	});
 	var drawnWidth = 0;
 	var resizeTimer;
@@ -9763,7 +9809,12 @@
 			renderSoon();
 		}, 200);
 	});
+	function closeMenu() {
+		need(document, "#sidebar").classList.remove("open");
+		need(document, "#menu").setAttribute("aria-expanded", "false");
+	}
 	window.addEventListener("hashchange", () => {
+		closeMenu();
 		render();
 		need(document, "#view").focus({ preventScroll: true });
 		window.scrollTo(0, 0);

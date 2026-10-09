@@ -48,8 +48,8 @@ const view: View = {
         <div id="run-chart" style="cursor:crosshair">
         ${lineChart({
           series: [
-            { values: hist.map((h) => h.friction), color: 'var(--accent)', width: 1.2 },
-            { values: detection.thresholds, color: 'var(--warn)', width: 1.4, dash: '4 3' },
+            { values: hist.map((h) => h.friction), color: 'var(--accent)', width: 1.2, label: 'friction' },
+            { values: detection.thresholds, color: 'var(--warn)', width: 1.4, dash: '4 3', label: 'threshold' },
           ],
           bands: detection.alerts.map((a) => ({ from: a.firstShot, to: a.lastShot, color: 'var(--band)' })),
           markers: [
@@ -58,6 +58,7 @@ const view: View = {
           ],
           xFormat: (i) => `${fmt(toH(i), 0)}h`,
           yLabel: 'Friction (N)',
+          title: 'Plunger friction by shot (N)',
           width: fitWidth(1040),
           height: 300,
         })}
@@ -74,17 +75,18 @@ const view: View = {
           <div class="legend" style="margin:8px 0"><span><i style="background:var(--accent)"></i>Hydraulic pressure (bar)</span><span><i style="background:var(--warm)"></i>Metal pressure (bar)</span></div>
           ${lineChart({
             series: [
-              { values: payload.ph, color: 'var(--accent)' },
-              { values: payload.pm, color: 'var(--warm)' },
+              { values: payload.ph, color: 'var(--accent)', label: 'hydraulic pressure' },
+              { values: payload.pm, color: 'var(--warm)', label: 'metal pressure' },
             ],
             xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`,
             yLabel: 'bar',
+            title: `Shot ${ui.shot} pressures (bar)`,
             width: fitWidth(480, 0.5),
             height: 200,
             yMin: 0,
           })}
           <div class="legend" style="margin:8px 0"><span><i style="background:var(--soft)"></i>Plunger velocity (m/s)</span></div>
-          ${lineChart({ series: [{ values: payload.v, color: 'var(--soft)' }], xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`, yLabel: 'm/s', width: fitWidth(480, 0.5), height: 150, yMin: 0 })}
+          ${lineChart({ series: [{ values: payload.v, color: 'var(--soft)', label: 'velocity' }], xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`, yLabel: 'm/s', title: `Shot ${ui.shot} plunger velocity (m/s)`, width: fitWidth(480, 0.5), height: 150, yMin: 0 })}
         </div>
         <div class="card">
           <div class="card-head"><h2>How it works</h2><span class="badge">model v1.3</span></div>

@@ -136,6 +136,7 @@ function chartCard(w: WarningDetail): string {
     to,
     gap: gapFor(s, points),
     yLabel: s.unit ?? '',
+    title: `${w.signal_tag} around the warning${s.unit ? ` (${s.unit})` : ''}`,
     width: fitWidth(TIME_CHART.width),
     levels: [
       { v: w.threshold, label: 'threshold' },

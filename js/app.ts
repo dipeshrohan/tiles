@@ -547,9 +547,12 @@ need(document, '[data-skip]').addEventListener('click', (e) => {
   e.preventDefault();
   need(document, '#view').focus();
 });
-need(document, '#nav').addEventListener('click', () => {
-  need(document, '#sidebar').classList.remove('open');
-  need(document, '#menu').setAttribute('aria-expanded', 'false');
+need(document, '#nav').addEventListener('click', () => closeMenu());
+// Escape closes the phone menu, and gives the focus back to its button.
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || !need(document, '#sidebar').classList.contains('open')) return;
+  closeMenu();
+  need(document, '#menu').focus();
 });
 
 // Charts are drawn to the page's width (fitWidth in svg.ts): draw them again when it changes.
@@ -565,7 +568,13 @@ window.addEventListener('resize', () => {
   }, 200);
 });
 
+function closeMenu(): void {
+  need(document, '#sidebar').classList.remove('open');
+  need(document, '#menu').setAttribute('aria-expanded', 'false');
+}
+
 window.addEventListener('hashchange', () => {
+  closeMenu(); // whatever link was followed: the menu's, the brand, or one in the page
   render();
   need(document, '#view').focus({ preventScroll: true });
   window.scrollTo(0, 0);

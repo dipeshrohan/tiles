@@ -104,6 +104,9 @@ summary:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+#view:focus-visible {
+  outline: none; /* focus lands here on navigation, for screen readers: it isn't a control */
+}
 .skip-link {
   position: absolute;
   left: 8px;

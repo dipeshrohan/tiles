@@ -1,4 +1,4 @@
-import { esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
+import { announce, esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
 import type { WarningOutcome } from '../lib/api.ts';
 import { OUTCOMES, when } from '../lib/warnings.ts';
 import { headline, machineBoard, type FloorItem } from '../lib/shopfloor.ts';
@@ -32,6 +32,9 @@ const uiState = (ctx: Context) => ctx.ui<Ui>('shopfloor', { resolving: null, tak
 const REFRESH_MS = 30_000;
 
 let busy: string | null = null; // the warning a step is on its way for
+// The headline shown, and the one screen readers were last told of: a change (a refresh) is announced.
+let shownHeadline: { site: string | null; text: string } | null = null;
+let toldHeadline: { site: string | null; text: string } | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
@@ -43,7 +46,11 @@ function stop(): void {
 }
 
 onNavigate((hash) => {
-  if (routeOf(hash) !== 'shopfloor') stop();
+  if (routeOf(hash) !== 'shopfloor') {
+    stop();
+    shownHeadline = null;
+    toldHeadline = null; // the next visit opens on its headline, unannounced
+  }
 });
 
 function since(item: FloorItem, now: number): string {
@@ -199,8 +206,8 @@ const view: View = {
         : ctx.api
           ? ''
           : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
-    // Announced when it changes (a refresh), and still the page's heading.
-    const status = `<div role="status"><h1 class="floor-headline ${tone}">${esc(text)}</h1></div>${updated}`;
+    shownHeadline = { site: siteId(ctx), text };
+    const status = `<h1 class="floor-headline ${tone}">${esc(text)}</h1>${updated}`;
     const open = list.filter((i) => i.state !== 'ok');
     // A question about a warning that has left the floor (someone else resolved it) is dropped.
     if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
@@ -217,6 +224,11 @@ const view: View = {
   bind(root, ctx) {
     const ui = uiState(ctx);
     document.body.classList.toggle('floor-full', ui.full);
+    // The first headline is the page's heading, read as the page opens; later ones are news.
+    if (shownHeadline && shownHeadline.text !== toldHeadline?.text) {
+      if (toldHeadline && toldHeadline.site === shownHeadline.site) announce(shownHeadline.text);
+      toldHeadline = shownHeadline;
+    }
     onAll(root, '[data-floor-full]', 'click', () => {
       ui.full = !ui.full;
       ctx.rerender();

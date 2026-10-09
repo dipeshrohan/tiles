@@ -114,13 +114,14 @@ const view: View = {
         <div class="legend" style="margin-bottom:6px"><span><i style="background:var(--bad)"></i>Cathode tip</span><span><i style="background:var(--accent)"></i>Anode tip</span><span><i class="box" style="background:var(--band)"></i>Final 24 h before swap</span></div>
         ${lineChart({
           series: [
-            { values: series.map((s) => s.anode), color: 'var(--accent)' },
-            { values: series.map((s) => s.cathode), color: 'var(--bad)', width: 2 },
+            { values: series.map((s) => s.anode), color: 'var(--accent)', label: 'anode tip' },
+            { values: series.map((s) => s.cathode), color: 'var(--bad)', width: 2, label: 'cathode tip' },
           ],
           bands: [{ from: swapAt - 24, to: swapAt, color: 'var(--band)' }],
           markers: [{ x: swapAt, label: 'scheduled swap', color: 'var(--soft)' }],
           xFormat: (h) => `${h}h`,
           yLabel: 'Median welding power (W)',
+          title: 'Median welding power by hour (W)',
           width: fitWidth(1040),
           height: 260,
         })}
