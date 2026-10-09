@@ -133,6 +133,7 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `run.create`, `run.restore` | the run's number | | its model, version, parent and project; the run restored and the parent |
 | `design_project.create` | the project | | its name |
 | `run.audit_export` | the run's number | | the format (json or pdf), the runs in it and its digest |
+| `sweep.start`, `sweep.cancel` | the sweep | `sweep.cancel`: its status and progress | `sweep.start`: its model, version, axes and points |
 | `insight.create`, `insight.update`, `insight.review`, `insight.reopen`, `insight.delete` | the insight's number | `insight.update`: the fields changed; `insight.reopen`: its status; `insight.delete`: its title and status | its title and kind; the fields changed; the decision and note |
 | `detector.update` | the detector | its asset | its asset |
 | `notification.preferences` | the user | their choices | their choices |
@@ -224,7 +225,7 @@ A **run** is a design model version, its parameters and the output the API compu
 
 Runs are numbered per site and never change (migration 0020; a trigger refuses updates), so a design's lineage can be followed back to its first run and exported for audit (T4.13). A run refers to the organisation's `models` row for its version.
 
-A run's model is named by the registry's key (`cell-swelling`) or the browser's id (`swelling`, with versions like `2.0`); without a version it runs the latest. Only `design` models run, on numbers (not `true` or `"90"`). A parent must be a run of the same model, in any version. A site's runs are stored one at a time, so two restores at once don't both take the same latest run as their parent. A run whose version is no longer registered still shows, with its model's key as its name and no units, but can't be restored.
+A run's model is named by the registry's key (`cell-swelling`) or the browser's id (`swelling`). Its version may be the registry's (`2.0.0`) or the browser's (`2.0`) with either name; without a version it runs the latest. Only `design` models run, on numbers (not `true` or `"90"`). A parent must be a run of the same model, in any version. A site's runs are stored one at a time, so two restores at once don't both take the same latest run as their parent. A run whose version is no longer registered still shows, with its model's key as its name and no units, but can't be restored.
 
 **Restoring** run *n* runs its version and parameters again as a new run. Its parent is the model's latest run, so the history keeps what came between, and `restored_from` is *n*. Its output must equal run *n*'s, since a published version never changes; otherwise it is refused with 409 and nothing is stored.
 
@@ -258,6 +259,31 @@ The record holds at most 5,000 runs, the most recent; `complete` is false if it 
 | `GET /runs/compare?a&b` | members | `{"a", "b", "changes", "outputs"}` |
 | `GET /runs/{n}/audit` | members | run *n*'s audit record as a JSON file (`format` "tiles-design-audit/1", `lineage`, `complete`, `runs`, `models`, `digest`, …) |
 | `GET /runs/{n}/audit.pdf` | members | the same as a PDF report |
+
+#### Sweeps (T4.12)
+
+A **sweep** runs a design model version over a grid of one or two parameters (`x`, and `y` if given), with the other parameters held. It is the Design Studio's heatmap at a finer grid: up to 200 points per axis and 40,000 in all. Each axis runs evenly from `from` to `to` in `steps` points, within the parameter's bounds.
+
+A sweep is a background job (`sweeps.py`, migration 0023):
+- the API takes it (202) and, after the request, runs the queue in its own threads, at most two sweeps at a time, so sweeps don't take the threads that answer requests;
+- it runs in chunks of 500 points, each point through the registry's checks as a run is;
+- after each chunk it saves its progress (`done` of `total`), renews its heartbeat, and stops if it was cancelled;
+- a cancelled sweep that was still queued stops at once, a running one after the chunk it is on, and one cancelled in its last chunk keeps no result;
+- a point the model refuses or can't run is null in the grid, and a sweep that fails says why (`error`);
+- when done, its grid is kept as its result, with its axes and the grid's min and max.
+
+Whoever claims a sweep holds a token: only that run writes the sweep's progress and result. A sweep taken over after its worker went quiet is therefore never finished twice, and a cancelled sweep whose worker died is ended rather than run again.
+
+An identical sweep later is answered at once (200, `cached` true) from the kept result. Identical means the same model version, the same held parameters (not the swept ones, which the grid sets) and the same axes, with numbers compared as numbers. Axis ends must be finite numbers within the parameter's bounds. Schedule `uv run tiles-run-sweeps` from cron, for example every minute. It runs any sweep left queued (by a restart, say) or left running by a worker with no heartbeat for 2 minutes, and its exit code is 1 if one failed.
+
+In the Design Studio with the API, engineers choose the points per axis and press **Run on the API**. The page shows the sweep's progress and can cancel it. When it is done, the heatmap shows the API's grid for as long as the design's settings stay the same.
+
+| Method and path (under `/sites/{site_id}`) | Who | Does |
+|---|---|---|
+| `POST /sweeps` | engineers | `{"model", "version"?, "params"?, "x": {"param", "from", "to", "steps"}, "y"?, "project"?}` starts one (202), or answers from an identical one (200) |
+| `GET /sweeps` | members | the latest 20 (`limit` up to 100), without results |
+| `GET /sweeps/{id}` | members | its status, progress, and result when done |
+| `POST /sweeps/{id}/cancel` | engineers | stops it |
 
 #### Model runner (T3.03)
 

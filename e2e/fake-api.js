@@ -181,6 +181,9 @@ export function createFakeApi({
   const designProjects = [];
   const designRuns = []; // latest last
   let designRunsDelayMs = 0; // before a list of runs answers
+  // Sweeps (T4.12): each one moves on a quarter of its points every time it is read, then is done.
+  const designSweeps = [];
+  let sweepReadFailures = 0; // reads of a sweep that answer 503 first
   // The copilot: conversations by id ({ id, user, title, created_at, updated_at, history }) and
   // the answers to give next, each { tools: [{ name, input, result }], drafts: [{ text, reason }],
   // answer, grounding? }; with none scripted, it asks back.
@@ -413,6 +416,7 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/copilot`) &&
         url.pathname !== `/sites/${site.id}/design-projects` &&
         url.pathname !== `/sites/${site.id}/runs` &&
+        !url.pathname.startsWith(`/sites/${site.id}/sweeps`) &&
         !url.pathname.startsWith(`/sites/${site.id}/runs/`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`)
       )
@@ -1040,6 +1044,94 @@ export function createFakeApi({
         designRuns.push(r);
         return send(201, { ...r, lineage: [] });
       }
+      const sweepMatch = url.pathname.match(new RegExp(`^/sites/${site.id}/sweeps(?:/([^/]+)(/cancel)?)?$`));
+      if (sweepMatch) {
+        const values = (a) => Array.from({ length: a.steps }, (_, i) => a.from + ((a.to - a.from) * i) / (a.steps - 1));
+        const finish = (sw) => {
+          const id = Object.entries({ swelling: 'cell-swelling', actuator: 'joint-actuator' }).find(
+            ([, k]) => k === sw.model,
+          )[0];
+          const xs = values(sw.x);
+          const ys = sw.y ? values(sw.y) : [0];
+          const grid = ys.map((yv) =>
+            xs.map((xv) =>
+              evaluateDesign(id, sw.version.replace(/\.0$/, ''), {
+                ...sw.params,
+                [sw.x.param]: xv,
+                ...(sw.y ? { [sw.y.param]: yv } : {}),
+              }),
+            ),
+          );
+          const flat = grid.flat();
+          Object.assign(sw, {
+            status: 'done',
+            done: sw.total,
+            finished_at: new Date().toISOString(),
+            result: {
+              output: 'force',
+              unit: '',
+              x: { param: sw.x.param, values: xs },
+              y: sw.y ? { param: sw.y.param, values: ys } : null,
+              grid,
+              min: Math.min(...flat),
+              max: Math.max(...flat),
+            },
+          });
+        };
+        if (!sweepMatch[1] && req.method === 'GET')
+          return send(
+            200,
+            designSweeps.map((sw) => ({ ...sw, result: null })),
+          );
+        if (!sweepMatch[1] && req.method === 'POST') {
+          if (role === 'viewer')
+            return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+          const b = await body(req);
+          const key = JSON.stringify([b.model, b.version, b.params, b.x, b.y]);
+          const same = designSweeps.find((sw) => sw.key === key && sw.status === 'done');
+          if (same) return send(200, { ...same, cached: true });
+          const sw = {
+            id: randomUUID(),
+            key,
+            model: b.model,
+            version: b.version.split('.').length === 3 ? b.version : `${b.version}.0`,
+            params: b.params ?? {},
+            x: b.x,
+            y: b.y ?? null,
+            project: b.project ?? null,
+            status: 'running',
+            total: b.x.steps * (b.y ? b.y.steps : 1),
+            done: 0,
+            error: null,
+            cancel_requested: false,
+            created_by: user.split('@')[0],
+            created_at: new Date().toISOString(),
+            started_at: new Date().toISOString(),
+            finished_at: null,
+            cached: false,
+            result: null,
+          };
+          designSweeps.unshift(sw);
+          return send(202, sw);
+        }
+        const sw = designSweeps.find((x) => x.id === sweepMatch[1]);
+        if (!sw) return send(404, { detail: 'No such sweep on this site' });
+        if (!sweepMatch[2] && sweepReadFailures > 0) {
+          sweepReadFailures -= 1;
+          return send(503, { detail: 'Busy' });
+        }
+        if (sweepMatch[2]) {
+          if (sw.status !== 'running') return send(409, { detail: `The sweep is already ${sw.status}` });
+          sw.cancel_requested = true;
+          return send(200, { ...sw, result: null });
+        }
+        if (sw.status === 'running') {
+          if (sw.cancel_requested) Object.assign(sw, { status: 'cancelled', finished_at: new Date().toISOString() });
+          else if (sw.done + Math.ceil(sw.total / 4) >= sw.total) finish(sw);
+          else sw.done += Math.ceil(sw.total / 4);
+        }
+        return send(200, sw);
+      }
       // A run's audit record (T4.13): its lineage back to the first run, as JSON or a PDF report.
       const runAudit = url.pathname.match(new RegExp(`^/sites/${site.id}/runs/(\\d+)/audit(\\.pdf)?$`));
       if (runAudit) {
@@ -1400,6 +1492,10 @@ export function createFakeApi({
     copilotUsage,
     // Design runs stored on the site (T4.11), latest last.
     designRuns,
+    // The next `n` reads of a sweep fail, as a network blip would.
+    failSweepReads(n) {
+      sweepReadFailures = n;
+    },
     // Slows the list of runs, so a test can see the page wait for it.
     slowDesignRuns(ms) {
       designRunsDelayMs = ms;

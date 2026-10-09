@@ -1,9 +1,9 @@
 import { MODELS, evaluate, sweep, sensitivity, makeRun, runDiff, auditRecord, getModel } from '../lib/design.ts';
 import type { RunChange } from '../lib/design.ts';
-import { API_MODEL, asRun, changesOf, headOf } from '../lib/design-runs.ts';
+import { API_MODEL, asRun, changesOf, headOf, sweepGrid, sweepKey } from '../lib/design-runs.ts';
 import { heatmap, hbars } from '../lib/svg.ts';
 import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf, timeAgo } from '../lib/dom.ts';
-import type { DesignProject, DesignRun } from '../lib/api.ts';
+import type { ApiSweep, DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 
@@ -19,6 +19,7 @@ interface DesignUi {
   versions: Record<string, string>;
   sweepX: string | null;
   sweepY: string | null;
+  sweepSteps: number; // points per axis of a sweep run on the API (T4.12)
   project: string | null; // the shared project shown, with the Tiles API (T4.14)
   projectSite: string | null; // the site `project` is of
 }
@@ -30,6 +31,7 @@ const uiState = (ctx: Context) =>
     versions: {},
     sweepX: null,
     sweepY: null,
+    sweepSteps: 50,
     project: null,
     projectSite: null,
   });
@@ -41,12 +43,81 @@ let projects: { site: string; items: DesignProject[] } | null = null;
 let projectsFetching: string | null = null; // the site whose projects are being fetched
 let apiRuns: { key: string; items: DesignRun[]; loaded: boolean } | null = null;
 let saving = false;
+// A sweep run on the API (T4.12) for the design's settings (`key`), followed until it ends.
+let apiSweep: { key: string; sweep: ApiSweep } | null = null;
+let sweepTimer: ReturnType<typeof setTimeout> | null = null;
+const SWEEP_STEPS = [25, 50, 100];
+const POLL_MS = 400;
+
+const sweepRunning = (s: ApiSweep): boolean => s.status === 'queued' || s.status === 'running';
+
+// Follows a sweep until it ends: its progress is written in place (a slider being dragged isn't
+// redrawn under the pointer); the page is drawn again when it ends.
+function follow(ctx: Context, site: string, key: string, failures = 0): void {
+  const at = visit;
+  // After a failed read, wait longer before the next (the client showed why); keep following.
+  sweepTimer = setTimeout(
+    async () => {
+      sweepTimer = null;
+      if (at !== visit || apiSweep?.key !== key) return;
+      try {
+        const sweep = await ctx.api!.sweeps.get(site, apiSweep.sweep.id);
+        if (at !== visit || apiSweep?.key !== key) return;
+        apiSweep = { key, sweep };
+        if (sweepRunning(sweep)) {
+          const bar = document.querySelector<HTMLProgressElement>('#view [data-sweep-progress]');
+          if (bar) bar.value = sweep.done;
+          const text = document.querySelector('#view [data-sweep-done]');
+          if (text) text.textContent = `${fmt(sweep.done)} of ${fmt(sweep.total)} points`;
+          follow(ctx, site, key);
+          return;
+        }
+      } catch {
+        if (at === visit && apiSweep?.key === key) follow(ctx, site, key, failures + 1);
+        return;
+      }
+      ctx.rerender();
+    },
+    POLL_MS * Math.min(2 ** failures, 16),
+  );
+}
+
+function sweepControls(ctx: Context, key: string, canStart: boolean): string {
+  const ui = uiState(ctx);
+  const shown = apiSweep?.key === key ? apiSweep.sweep : null;
+  if (shown && sweepRunning(shown))
+    return `<div class="row" style="gap:8px" data-api-sweep>
+      <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="Sweep progress"></progress>
+      <span class="small soft" data-sweep-done>${fmt(shown.done)} of ${fmt(shown.total)} points</span>
+      ${canStart && !shown.cancel_requested ? '<button class="btn sm" data-sweep-cancel>Cancel</button>' : ''}
+    </div>`;
+  const state =
+    shown?.status === 'done'
+      ? `API sweep: ${fmt(shown.total)} points${shown.cached ? ', from an identical earlier sweep' : ''}`
+      : shown?.status === 'cancelled'
+        ? `Cancelled after ${fmt(shown.done)} of ${fmt(shown.total)} points`
+        : shown?.status === 'failed'
+          ? `The sweep failed: ${esc(shown.error ?? 'no reason given')}`
+          : '';
+  return `<div class="row" style="gap:8px;flex-wrap:wrap" data-api-sweep>
+      ${state ? `<span class="small soft" data-sweep-state>${state}</span>` : ''}
+      ${
+        canStart
+          ? `<label class="row small" style="gap:6px">Points per axis <select id="sweep-steps" aria-label="Points per axis">${SWEEP_STEPS.map((n) => `<option value="${n}" ${n === ui.sweepSteps ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+             <button class="btn sm" data-sweep-start>Run on the API</button>`
+          : ''
+      }
+    </div>`;
+}
 let visit = 0; // a fetch that answers after you left (and maybe came back) is dropped
 onNavigate((hash) => {
   if (routeOf(hash) !== 'design') {
     projects = null;
     projectsFetching = null;
     apiRuns = null;
+    apiSweep = null;
+    if (sweepTimer !== null) clearTimeout(sweepTimer);
+    sweepTimer = null;
     visit += 1;
   }
 });
@@ -123,6 +194,15 @@ function projectBar(ctx: Context, site: string): string {
     </div>`;
 }
 
+// The sweep's two parameters: those chosen, else the model's first two (never the same twice).
+function sweepAxes(model: DesignModel, ui: DesignUi): { xKey: string; yKey: string } {
+  const keys = model.params.map((p) => p.key);
+  const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0]!;
+  let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1]!;
+  if (yKey === xKey) yKey = keys.find((k) => k !== xKey)!;
+  return { xKey, yKey };
+}
+
 // The selected model with its current parameters and version, defaults filled in.
 function current(ctx: Context) {
   const ui = uiState(ctx);
@@ -139,11 +219,11 @@ const view: View = {
   render(ctx) {
     const { ui, model, params, version } = current(ctx);
     const value = evaluate(model.id, version, params);
-    const keys = model.params.map((p) => p.key);
-    const xKey = ui.sweepX && keys.includes(ui.sweepX) ? ui.sweepX : keys[0]!;
-    let yKey = ui.sweepY && keys.includes(ui.sweepY) ? ui.sweepY : keys[1]!;
-    if (yKey === xKey) yKey = keys.find((k) => k !== xKey)!;
-    const sw = sweep(model.id, version, params, xKey, yKey, 14);
+    const { xKey, yKey } = sweepAxes(model, ui);
+    const site0 = siteOf(ctx);
+    const keyNow = site0 ? sweepKey(site0, model.id, version, params, xKey, yKey, ui.sweepSteps) : '';
+    const finished = apiSweep?.key === keyNow && apiSweep.sweep.status === 'done' ? apiSweep.sweep.result : null;
+    const sw = finished ? sweepGrid(finished) : sweep(model.id, version, params, xKey, yKey, 14);
     const sens = sensitivity(model.id, version, params);
     const site = siteOf(ctx);
     const project = site ? projectOf(ctx, site) : null;
@@ -232,6 +312,7 @@ const view: View = {
                 .join('')}</select>
             </div>
           </div>
+          ${site0 ? sweepControls(ctx, keyNow, ctx.ontology.role !== null && ctx.ontology.role !== 'viewer') : ''}
           ${heatmap({ ...sw, xLabel: label(xKey), yLabel: label(yKey), format: (v) => `${fmt(v, 2)} ${unit}` })}
         </div>
         <div class="card">
@@ -265,6 +346,45 @@ const view: View = {
     const project = site ? projectOf(ctx, site) : null;
     if (site && project && apiRuns?.key !== runsKey(site, project.id, model.id))
       void fetchRuns(ctx, site, project.id, model.id);
+    root.querySelector<HTMLSelectElement>('#sweep-steps')?.addEventListener('change', (e) => {
+      ui.sweepSteps = Number((e.target as HTMLSelectElement).value);
+      ctx.rerender();
+    });
+    onAll(root, '[data-sweep-start]', 'click', async () => {
+      if (!site || !ctx.api) return;
+      const { xKey, yKey } = sweepAxes(model, ui);
+      const version = ui.versions[model.id] ?? model.latest;
+      const axis = (k: string) => {
+        const p = model.params.find((q) => q.key === k)!;
+        return { param: k, from: p.min, to: p.max, steps: ui.sweepSteps };
+      };
+      const key = sweepKey(site, model.id, version, params, xKey, yKey, ui.sweepSteps);
+      try {
+        const sweep = await ctx.api.sweeps.start(site, {
+          model: API_MODEL[model.id] ?? model.id,
+          version,
+          params,
+          x: axis(xKey),
+          y: axis(yKey),
+          project: project?.id ?? null,
+        });
+        apiSweep = { key, sweep };
+        if (sweepRunning(sweep)) follow(ctx, site, key);
+        ctx.rerender();
+      } catch {
+        // The client showed why.
+      }
+    });
+    onAll(root, '[data-sweep-cancel]', 'click', async () => {
+      if (!site || !ctx.api || !apiSweep) return;
+      try {
+        const sweep = await ctx.api.sweeps.cancel(site, apiSweep.sweep.id);
+        if (apiSweep?.sweep.id === sweep.id) apiSweep = { key: apiSweep.key, sweep };
+        ctx.rerender();
+      } catch {
+        // The client showed why (it may have just finished).
+      }
+    });
     root.querySelector<HTMLSelectElement>('#project')?.addEventListener('change', (e) => {
       ui.project = (e.target as HTMLSelectElement).value;
       ctx.rerender();

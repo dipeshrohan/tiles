@@ -80,6 +80,9 @@ def test_runs_keep_their_lineage(api: TestClient, site: str, database_url: str) 
 
 
 def test_what_a_run_may_be(api: TestClient, site: str) -> None:  # noqa: F811
+    # The Design Studio names the model by the registry's key with its own version (no patch number).
+    named = run(api, site, {"model": "cell-swelling", "version": "1.1"})
+    assert (named.status_code, named.json()["version"]) == (201, "1.1.0")
     assert run(api, site, {"model": "swelling"}, who=VIEWER).status_code == 403
     assert run(api, site, {"model": "nothing"}).status_code == 404
     assert run(api, site, {"model": "swelling", "version": "9.0"}).status_code == 404
@@ -93,7 +96,7 @@ def test_what_a_run_may_be(api: TestClient, site: str) -> None:  # noqa: F811
     # A parent of another model, or that doesn't exist.
     actuator = run(api, site, {"model": "actuator"}).json()
     res = run(api, site, {"model": "swelling", "parent": actuator["number"]})
-    assert (res.status_code, res.json()["detail"]) == (422, "Run 1 is of joint-actuator, not cell-swelling")
+    assert (res.status_code, res.json()["detail"]) == (422, "Run 2 is of joint-actuator, not cell-swelling")
     assert run(api, site, {"model": "swelling", "parent": 42}).status_code == 404
     # Numbers only, and not too many.
     for params in ({"soc": "high"}, {"soc": "90"}, {"soc": True}, {f"p{i}": 1 for i in range(51)}):

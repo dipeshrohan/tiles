@@ -531,6 +531,46 @@ export interface DesignRun {
   lineage_complete?: boolean; // false when the lineage was cut (it is long)
 }
 
+// A parameter sweep run in the background on the API (T4.12): its progress (`done` of `total`
+// points) and, once done, its grid (rows by y, nulls where the model couldn't run).
+export interface SweepAxis {
+  param: string;
+  from: number;
+  to: number;
+  steps: number;
+}
+
+export interface SweepResult {
+  output: string;
+  unit: string;
+  x: { param: string; values: number[] };
+  y: { param: string; values: number[] } | null;
+  grid: (number | null)[][];
+  min: number | null;
+  max: number | null;
+}
+
+export interface ApiSweep {
+  id: string;
+  model: string;
+  version: string;
+  params: Record<string, number>;
+  x: SweepAxis;
+  y: SweepAxis | null;
+  project: string | null;
+  status: 'queued' | 'running' | 'done' | 'cancelled' | 'failed';
+  total: number;
+  done: number;
+  error: string | null;
+  cancel_requested: boolean;
+  created_by: string;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  cached: boolean;
+  result: SweepResult | null;
+}
+
 // A site's shared design project (T4.14): runs belong to one.
 export interface DesignProject {
   id: string;
@@ -995,6 +1035,26 @@ export function createApiClient(options: ApiOptions) {
           request<string>('GET', `${base(siteId)}/${n}/audit`, undefined, { text: true }),
         auditPdf: (siteId: string, n: number) =>
           request<Blob>('GET', `${base(siteId)}/${n}/audit.pdf`, undefined, { blob: true }),
+      };
+    })(),
+    sweeps: (() => {
+      const base = (siteId: string) => `/sites/${encodeURIComponent(siteId)}/sweeps`;
+      return {
+        start: (
+          siteId: string,
+          sweep: {
+            model: string;
+            version?: string;
+            params?: Record<string, number>;
+            x: SweepAxis;
+            y?: SweepAxis | null;
+            project?: string | null;
+          },
+        ) => request<ApiSweep>('POST', base(siteId), sweep),
+        get: (siteId: string, id: string) => request<ApiSweep>('GET', `${base(siteId)}/${encodeURIComponent(id)}`),
+        list: (siteId: string) => request<ApiSweep[]>('GET', base(siteId)),
+        cancel: (siteId: string, id: string) =>
+          request<ApiSweep>('POST', `${base(siteId)}/${encodeURIComponent(id)}/cancel`),
       };
     })(),
     designProjects: {
