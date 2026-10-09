@@ -46,7 +46,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - credentials sealed with rotatable data keys;
   - an audit log;
   - dependency and image scanning with SBOMs;
-  - a threat model;
+  - a threat model, and a SOC 2 and ISO 27001 readiness plan: controls mapped to both, with owners, status, evidence and a timeline (T6.08);
   - a Helm chart;
   - **customer-hosted install guide** (`docs/install.md`): prerequisites, sign-in, mirrored images, settings, install, checks, backups, upgrades and troubleshooting, followed on a new cluster by CI's install dry run (T5.12);
   - **Terraform modules:** Tiles on any cluster, and the managed cloud on Azure (AKS with Entra ID sign-in, enforced network policies, backup storage), with a customer-hosted reference install; tested with mock providers and `trivy config` in CI (T5.10);

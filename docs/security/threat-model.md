@@ -128,4 +128,4 @@ The trust boundaries, from the inside out:
 | G-E4 / G-S2 | Sign releases and images (Sigstore cosign) and verify them at install | T6.04 |
 | G-S3 | Document and enforce the API's egress allowlist | T5.11 |
 
-Review this document when an ADR changes a trust boundary, before each release (T6.04), and after the penetration test (T6.07).
+Review this document when an ADR changes a trust boundary, before each release (T6.04), and after the penetration test (T6.07). The [SOC 2 and ISO 27001 readiness plan](compliance-readiness.md) tracks these actions among its controls.
