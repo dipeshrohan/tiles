@@ -12,11 +12,14 @@ from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 
 from tiles_api import ontology as o
+from tiles_api import sealed
 from tiles_api.main import create_app
 from tiles_api.ontology_store import load_head
 from tiles_api.seed import seed
 from tiles_api.settings import Settings
 from tiles_api.store import Conn
+
+PRODUCTION_KEYS = sealed.new_key("test")  # production needs data keys (T5.06)
 
 FIXTURES = Path(__file__).resolve().parents[2] / "test" / "fixtures" / "ontology-parity.json"
 CASES: list[dict[str, Any]] = json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"]
@@ -156,7 +159,9 @@ def test_errors(api: TestClient, site: str) -> None:
 
 
 def test_production_refuses_requests_until_sign_in_exists(database_url: str, site: str) -> None:
-    with TestClient(create_app(Settings(_env_file=None, env="production", database_url=database_url))) as prod:
+    with TestClient(
+        create_app(Settings(_env_file=None, env="production", data_keys=PRODUCTION_KEYS, database_url=database_url))
+    ) as prod:
         assert prod.get(url(site, "graph")).status_code == 401
         assert prod.get("/sites").status_code == 401
 

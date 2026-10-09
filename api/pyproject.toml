@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.20.0",
     "anthropic>=1.12.1",
+    "cryptography>=50.0.2",
     "fastapi>=0.142.2",
     "psycopg-pool>=3.3.3",
     "psycopg[binary]>=3.3.6",
@@ -27,6 +28,7 @@ tiles-detect = "tiles_api.detector_job:main"
 tiles-backtest = "tiles_api.api_backtest:main"
 tiles-notify = "tiles_api.notify:main"
 tiles-run-sweeps = "tiles_api.sweeps:main"
+tiles-rotate-keys = "tiles_api.sealed:main"
 
 [dependency-groups]
 dev = [

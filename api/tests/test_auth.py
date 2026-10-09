@@ -11,10 +11,13 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 from jwt.algorithms import RSAAlgorithm
 
+from tiles_api import sealed
 from tiles_api.auth import TokenVerifier, role_from_claims
 from tiles_api.main import create_app
 from tiles_api.seed import seed
 from tiles_api.settings import Settings
+
+PRODUCTION_KEYS = sealed.new_key("test")  # production needs data keys (T5.06)
 
 ISSUER = "https://idp.example.com/realms/tiles"
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -53,7 +56,9 @@ def bearer(t: str) -> dict[str, str]:
 
 
 def make_client(database_url: str, env: str = "production", issuer: str | None = ISSUER) -> TestClient:
-    settings = Settings(_env_file=None, env=env, database_url=database_url, oidc_issuer=issuer)
+    settings = Settings(
+        _env_file=None, env=env, database_url=database_url, oidc_issuer=issuer, data_keys=PRODUCTION_KEYS
+    )
     app = create_app(settings)
     if issuer:
         app.state.verifier = TokenVerifier(settings, jwk_client=StaticJwks())
@@ -171,6 +176,7 @@ def test_unreachable_provider_is_a_503(database_url: str, site: str) -> None:
     settings = Settings(
         _env_file=None,
         env="production",
+        data_keys=PRODUCTION_KEYS,
         database_url=database_url,
         oidc_issuer=ISSUER,
         oidc_jwks_url="http://127.0.0.1:1/certs",
@@ -232,7 +238,9 @@ def test_unknown_signing_key_is_401_and_unreachable_discovery_is_503(database_ur
         def get_signing_key_from_jwt(self, _token: str) -> jwt.PyJWK:
             raise jwt.PyJWKClientError('Unable to find a signing key that matches: "rogue"')
 
-    settings = Settings(_env_file=None, env="production", database_url=database_url, oidc_issuer=ISSUER)
+    settings = Settings(
+        _env_file=None, env="production", data_keys=PRODUCTION_KEYS, database_url=database_url, oidc_issuer=ISSUER
+    )
     app = create_app(settings)
     app.state.verifier = TokenVerifier(settings, jwk_client=NoMatchingKey())
     with TestClient(app) as c:
@@ -241,7 +249,11 @@ def test_unknown_signing_key_is_401_and_unreachable_discovery_is_503(database_ur
         assert res.headers["www-authenticate"].startswith("Bearer")
     # No JWKS URL configured: discovery at an unreachable issuer is a 503, not a 500.
     unreachable = Settings(
-        _env_file=None, env="production", database_url=database_url, oidc_issuer="http://127.0.0.1:1/realms/x"
+        _env_file=None,
+        env="production",
+        data_keys=PRODUCTION_KEYS,
+        database_url=database_url,
+        oidc_issuer="http://127.0.0.1:1/realms/x",
     )
     with TestClient(create_app(unreachable)) as c:
         assert c.get("/me", headers=bearer(token(iss="http://127.0.0.1:1/realms/x"))).status_code == 503

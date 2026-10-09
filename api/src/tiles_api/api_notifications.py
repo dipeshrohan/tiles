@@ -10,10 +10,10 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
-from tiles_api import notify
+from tiles_api import notify, sealed
 from tiles_api.api_ontology import Admin, Ctx, Editor, SiteContext
 
 router = APIRouter(tags=["notifications"])
@@ -89,11 +89,12 @@ def set_preferences(ctx: Editor, body: PreferencesIn) -> dict[str, Any]:
     return _preferences(ctx)
 
 
-def _teams(ctx: SiteContext) -> dict[str, Any]:
+def _teams(ctx: SiteContext, keys: sealed.DataKeys | None) -> dict[str, Any]:
     row = ctx.conn.execute(
         "SELECT teams_webhook_url, teams_on_raised FROM site_notifications WHERE site_id = %s", [ctx.site_id]
     ).fetchone()
-    url = row["teams_webhook_url"] if row else None
+    stored = row["teams_webhook_url"] if row else None
+    url = sealed.unseal(keys, stored, sealed.teams_context(ctx.site_id)) if stored else None
     return {
         "configured": url is not None,
         "host": urlsplit(url).hostname if url else None,
@@ -102,26 +103,30 @@ def _teams(ctx: SiteContext) -> dict[str, Any]:
 
 
 @router.get("/sites/{site_id}/notifications/teams", response_model=Teams)
-def get_teams(ctx: Admin) -> dict[str, Any]:
+def get_teams(ctx: Admin, request: Request) -> dict[str, Any]:
     """The site's Teams channel, which hears of every new warning (admins)."""
-    return _teams(ctx)
+    return _teams(ctx, sealed.keys_of(request.app.state.settings))
 
 
 @router.put("/sites/{site_id}/notifications/teams", response_model=Teams)
-def set_teams(ctx: Admin, body: TeamsIn) -> dict[str, Any]:
-    """Point the site at a Teams channel's webhook (Workflows, or an incoming webhook), or remove it."""
+def set_teams(ctx: Admin, request: Request, body: TeamsIn) -> dict[str, Any]:
+    """Point the site at a Teams channel's webhook (Workflows, or an incoming webhook), or remove it.
+    The URL is a credential: it is stored sealed (T5.06) and never shown again."""
+    keys = sealed.keys_of(request.app.state.settings)
     keep = "webhook_url" not in body.model_fields_set
     url = body.webhook_url.strip() if body.webhook_url else None
     if keep:
         row = ctx.conn.execute(
             "SELECT teams_webhook_url FROM site_notifications WHERE site_id = %s", [ctx.site_id]
         ).fetchone()
-        url = row["teams_webhook_url"] if row else None
-    elif url:
-        problem = notify.teams_url_problem(url)
-        if problem:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
-    before = _teams(ctx)
+        stored = row["teams_webhook_url"] if row else None  # kept as it is stored
+    else:
+        if url:
+            problem = notify.teams_url_problem(url)
+            if problem:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
+        stored = sealed.seal(keys, url, sealed.teams_context(ctx.site_id)) if url else None
+    before = _teams(ctx, keys)
     ctx.conn.execute(
         """
         INSERT INTO site_notifications (site_id, teams_webhook_url, teams_on_raised) VALUES (%s, %s, %s)
@@ -129,9 +134,9 @@ def set_teams(ctx: Admin, body: TeamsIn) -> dict[str, Any]:
         SET teams_webhook_url = EXCLUDED.teams_webhook_url, teams_on_raised = EXCLUDED.teams_on_raised,
             updated_at = now()
         """,
-        [ctx.site_id, url, body.on_raised],
+        [ctx.site_id, stored, body.on_raised],
     )
-    after = _teams(ctx)
+    after = _teams(ctx, keys)
     ctx.audit("notification.teams", "site", str(ctx.site_id), before=before, after=after)  # hosts, not URLs
     return after
 

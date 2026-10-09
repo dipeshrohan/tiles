@@ -4,9 +4,12 @@ import logging
 import pytest
 from fastapi.testclient import TestClient
 
+from tiles_api import sealed
 from tiles_api.logging import JsonFormatter, new_request_id, request_id_var
 from tiles_api.main import VERSION, create_app
 from tiles_api.settings import Settings
+
+PRODUCTION_KEYS = sealed.new_key("test")  # production needs data keys (T5.06)
 
 
 def test_health_reports_status_version_and_env(client: TestClient) -> None:
@@ -72,6 +75,7 @@ def test_json_formatter_drops_terminal_colour_copies() -> None:
 
 def test_settings_read_tiles_environment_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("TILES_ENV", "production")
+    monkeypatch.setenv("TILES_DATA_KEYS", PRODUCTION_KEYS)
     monkeypatch.setenv("TILES_PORT", "9001")
     monkeypatch.setenv("TILES_CORS_ORIGINS", '["https://tiles.example.com"]')
     s = Settings(_env_file=None)
