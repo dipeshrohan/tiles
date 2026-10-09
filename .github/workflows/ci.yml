@@ -185,6 +185,19 @@ jobs:
           path: ${{ runner.temp }}/sbom
           if-no-files-found: warn
 
+  restore:
+    name: Restore drill
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Point-in-time recovery of a Tiles database (docs/runbooks/backups.md)
+        run: DRILL_REPORT="$RUNNER_TEMP/drill.md" deploy/backup/pitr-drill.sh
+      - name: Timing
+        if: success()
+        run: cat "$RUNNER_TEMP/drill.md" >> "$GITHUB_STEP_SUMMARY"
+
   stack:
     name: Docker Compose stack
     runs-on: ubuntu-latest
