@@ -29,8 +29,9 @@ router = APIRouter(tags=["organisation sign-in"])
 
 SCIM_TOKEN_PREFIX = "tiles_scim_"  # noqa: S105 - a prefix, not a secret
 PROVIDER_SQL = """
-    SELECT o.slug, p.issuer, p.client_id, p.audience, p.scope, p.jwks_url, p.group_roles, p.enforced, p.updated_at
-    FROM org_identity_providers p JOIN orgs o ON o.id = p.org_id
+    SELECT o.slug, p.issuer, p.client_id, p.audience, p.scope, p.jwks_url, p.group_roles, p.enforced, p.updated_at,
+        p.verified_at IS NOT NULL AS verified, u.email AS confirmer
+    FROM org_identity_providers p JOIN orgs o ON o.id = p.org_id LEFT JOIN users u ON u.id = p.saved_by
 """
 
 
@@ -43,28 +44,34 @@ def _provider(row: dict[str, Any]) -> OrgProvider:
         scope=row["scope"],
         jwks_url=row["jwks_url"],
         group_roles=dict(row["group_roles"]),
+        verified=row["verified"],
+        confirmer=None if row["verified"] else row["confirmer"],
     )
 
 
-def _find(state: Any, where: str, value: str) -> OrgProvider | None:
+def _find(state: Any, where: str, value: str) -> tuple[OrgProvider, ...]:
     if not state.settings.database_url:
-        return None
+        return ()
     try:
         with side_pool(state).connection() as conn:
-            row = conn.execute(f"{PROVIDER_SQL} WHERE {where} = %s", [value]).fetchone()
+            rows = conn.execute(
+                f"{PROVIDER_SQL} WHERE {where} = %s ORDER BY p.verified_at IS NULL, p.updated_at LIMIT 20", [value]
+            ).fetchall()
     except psycopg.Error as e:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Sign-in is unavailable; try again") from e
-    return _provider(row) if row else None
+    return tuple(_provider(r) for r in rows)
 
 
-def provider_by_issuer(state: Any, issuer: str) -> OrgProvider | None:
-    """The organisation's provider whose tokens carry this issuer (auth.Verifiers asks)."""
+def provider_by_issuer(state: Any, issuer: str) -> tuple[OrgProvider, ...]:
+    """The providers whose tokens carry this issuer (auth.Verifiers asks): the organisation that
+    has confirmed it first, then those still pending, which take only the admin who saved them."""
     return _find(state, "p.issuer", issuer)
 
 
 def provider_by_org(state: Any, slug: str) -> OrgProvider | None:
-    """An organisation's provider, for the browser to sign in with (/auth/config?org=)."""
-    return _find(state, "o.slug", slug)
+    """An organisation's provider, confirmed or not, for the browser to sign in with
+    (/auth/config?org=)."""
+    return next(iter(_find(state, "o.slug", slug)), None)
 
 
 def scim_token_hash(token: str) -> bytes:
@@ -118,6 +125,9 @@ class ProviderIn(BaseModel):
 
 class ProviderOut(ProviderIn):
     updated_at: datetime
+    verified: bool = Field(
+        description="Confirmed: the admin who saved it has signed in through it. Until then it takes no one else"
+    )
 
 
 class ScimTokenIn(BaseModel):
@@ -172,29 +182,46 @@ def get_provider(caller: OrgAdmin) -> dict[str, Any] | None:
 
 @router.put("/org/identity-provider", response_model=ProviderOut)
 def set_provider(body: ProviderIn, caller: OrgAdmin, request: Request) -> dict[str, Any]:
-    """Sets your organisation's identity provider. Its tokens then sign in to your organisation
-    only. Turning `enforced` on needs you signed in through it (409 otherwise), so a provider that
-    doesn't work can't lock everyone out; then no other sign-in reaches your organisation."""
+    """Sets your organisation's identity provider. A new issuer is pending until you sign in
+    through it as yourself (the same email): that shows your organisation controls it, so no
+    organisation can take another's. Then its tokens sign in to your organisation only. Turning
+    `enforced` on needs it confirmed and you signed in through it (409 otherwise), so a provider
+    that doesn't work can't lock everyone out; then no other sign-in reaches your organisation."""
     settings = request.app.state.settings
     if settings.oidc_issuer and body.issuer == settings.oidc_issuer.rstrip("/"):
         raise HTTPException(status.HTTP_409_CONFLICT, "That is this deployment's own issuer")
     conn = caller.conn
     before: dict[str, Any] | None = conn.execute(f"{PROVIDER_SQL} WHERE p.org_id = %s", [caller.org_id]).fetchone()
-    if body.enforced and not (caller.via_provider and before and before["issuer"] == body.issuer):
+    same = before is not None and before["issuer"] == body.issuer
+    if body.enforced and not (caller.via_provider and same and before and before["verified"]):
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "Save the provider first, then sign in through it and turn enforcement on: that shows it works",
+            "Save the provider, sign in through it to confirm it, then turn enforcement on: that shows it works",
         )
+    taken = conn.execute(
+        "SELECT 1 FROM org_identity_providers WHERE issuer = %s AND verified_at IS NOT NULL AND org_id <> %s",
+        [body.issuer, caller.org_id],
+    ).fetchone()
+    if taken:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Another organisation signs in with that issuer")
     try:
         with conn.transaction():
+            # A new issuer starts pending (and not enforced: the row is checked as inserted), to
+            # be confirmed by this admin; so does a pending one saved again (by whoever saves it).
+            # A confirmed one stays confirmed.
             conn.execute(
                 """
                 INSERT INTO org_identity_providers
-                    (org_id, issuer, client_id, audience, scope, jwks_url, group_roles, enforced)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (org_id, issuer, client_id, audience, scope, jwks_url, group_roles, enforced, saved_by)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, false, %s)
                 ON CONFLICT (org_id) DO UPDATE SET issuer = EXCLUDED.issuer, client_id = EXCLUDED.client_id,
                     audience = EXCLUDED.audience, scope = EXCLUDED.scope, jwks_url = EXCLUDED.jwks_url,
-                    group_roles = EXCLUDED.group_roles, enforced = EXCLUDED.enforced, updated_at = now()
+                    group_roles = EXCLUDED.group_roles, enforced = %s, updated_at = now(),
+                    verified_at = CASE WHEN org_identity_providers.issuer = EXCLUDED.issuer
+                        THEN org_identity_providers.verified_at END,
+                    saved_by = CASE WHEN org_identity_providers.issuer = EXCLUDED.issuer
+                        AND org_identity_providers.verified_at IS NOT NULL
+                        THEN org_identity_providers.saved_by ELSE EXCLUDED.saved_by END
                 """,
                 [
                     caller.org_id,
@@ -204,6 +231,7 @@ def set_provider(body: ProviderIn, caller: OrgAdmin, request: Request) -> dict[s
                     body.scope,
                     body.jwks_url,
                     Jsonb(body.group_roles),
+                    caller.user_id,
                     body.enforced,
                 ],
             )
@@ -227,8 +255,8 @@ def set_provider(body: ProviderIn, caller: OrgAdmin, request: Request) -> dict[s
 
 @router.delete("/org/identity-provider", status_code=status.HTTP_204_NO_CONTENT)
 def delete_provider(caller: OrgAdmin, request: Request) -> Response:
-    """Removes your organisation's identity provider: its tokens stop working at once, and people
-    sign in through this deployment's issuer again."""
+    """Removes your organisation's identity provider: its tokens stop working at once (each request
+    checks), and people sign in through this deployment's issuer again."""
     conn = caller.conn
     before: dict[str, Any] | None = conn.execute(f"{PROVIDER_SQL} WHERE p.org_id = %s", [caller.org_id]).fetchone()
     if before is None:
@@ -251,7 +279,7 @@ def delete_provider(caller: OrgAdmin, request: Request) -> Response:
 def _audited(row: dict[str, Any] | None) -> dict[str, Any] | None:
     if row is None:
         return None
-    return {k: v for k, v in row.items() if k not in ("slug", "updated_at")}
+    return {k: v for k, v in row.items() if k not in ("slug", "updated_at", "confirmer")}
 
 
 SCIM_TOKENS = "SELECT id, name, created_at, last_used_at, revoked_at FROM scim_tokens"

@@ -4893,7 +4893,8 @@
 	}
 	function providerForm(p, viaProvider) {
 		const v = (s) => esc(s ?? "");
-		const status = p ? `<p class="small">Signs in through <b>${esc(p.issuer)}</b>${p.enforced ? ", and no other sign-in reaches your organisation" : ""}. Updated ${esc(new Date(p.updated_at).toLocaleString("en-GB"))}.</p>` : "<p class=\"small soft\">Your organisation signs in through this deployment’s provider.</p>";
+		const updated = p ? ` Updated ${esc(new Date(p.updated_at).toLocaleString("en-GB"))}.` : "";
+		const status = !p ? "<p class=\"small soft\">Your organisation signs in through this deployment’s provider.</p>" : p.verified ? `<p class="small">Signs in through <b>${esc(p.issuer)}</b>${p.enforced ? ", and no other sign-in reaches your organisation" : ""}.${updated}</p>` : `<p class="small" data-org-provider-pending><span class="badge warn">Not confirmed</span> Sign in through <b>${esc(p.issuer)}</b> yourself, with the same email, under <i>Account</i> above: that confirms your organisation controls it. Until then it takes no one else.${updated}</p>`;
 		const enforceHint = viaProvider ? "Refuse every other sign-in for your organisation." : "Refuse every other sign-in. Save the provider first, then sign in through it to turn this on.";
 		return `${status}
     <form class="stack" id="org-provider-form" style="gap:8px">

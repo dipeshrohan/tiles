@@ -44,7 +44,11 @@ In Tiles, under **Settings → Organisation sign-in**, as an organisation admin,
 | Signing keys | empty: found from the issuer |
 | Groups | optional: one `<group object ID> = engineer` (or `admin`, `viewer`) per line |
 
-Save it. People now sign in on the Settings page under *Or with your organisation's own sign-in*, giving the organisation's short name (its slug). The browser remembers it for next time.
+Save it. People sign in on the Settings page under *Or with your organisation's own sign-in*, giving the organisation's short name (its slug). The browser remembers it for next time.
+
+**Confirm it first.** A provider you save starts *not confirmed*, and takes no one but you. Sign in through it yourself, as above, with the same email you use in Tiles. That confirms your organisation controls the tenant, and from then on its people can sign in.
+
+This is what stops one organisation from claiming another's tenant. Once an organisation has confirmed an issuer, no other organisation can save it.
 
 **Roles.** A person gets the highest role among:
 
@@ -54,11 +58,11 @@ Save it. People now sign in on the Settings page under *Or with your organisatio
 
 As with every sign-in, this sets their role on a site they open for the first time. After that, site admins change it on the site. **Organisation admin** is a Tiles setting, not a role in the token, though `tiles-admin` also lets someone create sites and manage the organisation's sign-in.
 
-**People who signed in before.** If your organisation used the deployment's own provider before, its people keep their accounts. The first time they sign in through Entra ID, their account moves to it, matched by email.
+**People who signed in before.** If your organisation used the deployment's own provider before, its people keep their accounts. The first time they sign in through Entra ID, their account moves to it, matched by email. It moves back the same way if they sign in through the deployment's provider again, unless the provider is enforced. An account never moves to another identity of the same provider.
 
-**Enforcing it.** When sign-in through Entra ID works, sign in through it yourself, then tick *Refuse every other sign-in* and save. Tiles only lets you turn this on while you are signed in through the provider, so a provider that doesn't work can't lock everyone out. If it breaks later (a tenant moved, say), the deployment's operators turn enforcement off in the database: `UPDATE org_identity_providers SET enforced = false WHERE issuer = '<issuer>'`. An organisation admin can then sign in through the deployment's provider and fix or remove it.
+**Enforcing it.** When the provider is confirmed, sign in through it, then tick *Refuse every other sign-in* and save. Tiles only lets you turn this on for a confirmed provider while you are signed in through it, so a provider that doesn't work can't lock everyone out. If it breaks later (a tenant moved, say), the deployment's operators turn enforcement off in the database: `UPDATE org_identity_providers SET enforced = false WHERE issuer = '<issuer>'`. An organisation admin can then sign in through the deployment's provider and fix or remove it.
 
-**Removing it** stops its tokens at once. People sign in through the deployment's provider again.
+**Removing it** stops its tokens at once: every request checks the organisation's provider. People sign in through the deployment's provider again.
 
 **Checked at sign-in:**
 
@@ -66,6 +70,8 @@ As with every sign-in, this sets their role on a site they open for the first ti
 - the person's email, from `email`, or else `preferred_username` or `upn`, which are email addresses in Entra ID.
 
 A token from an issuer no organisation has registered gets 401. A deactivated or deleted person gets 403.
+
+Tiles fetches a provider's discovery document and signing keys only from public https addresses, never from addresses inside your network or the cluster.
 
 ## 3. Provision people with SCIM
 

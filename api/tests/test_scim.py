@@ -118,11 +118,18 @@ def test_patch_and_put_change_what_tiles_keeps(scim: tuple[TestClient, dict[str,
     )
     assert res.status_code == 200, res.text
     body = res.json()
+    # Her mail address changed, not her userName (her UPN in Entra ID): she is still mia@.
     assert (body["displayName"], body["userName"], "externalId" in body) == (
         "Mia Chen-Ortiz",
-        "mia.chen@acme.example",
+        "mia@acme.example",
         False,
     )
+    renamed = c.patch(
+        f"/scim/v2/Users/{uid}",
+        headers=auth,
+        json=patch({"op": "Replace", "path": "userName", "value": "mia.chen@acme.example"}),
+    )
+    assert renamed.json()["userName"] == "mia.chen@acme.example"
     put = c.put(f"/scim/v2/Users/{uid}", headers=auth, json=entra_user(email="mia@acme.example", displayName=None))
     assert put.status_code == 200, put.text
     assert (put.json()["userName"], put.json()["displayName"], put.json()["externalId"]) == (
@@ -197,3 +204,44 @@ def test_the_service_describes_itself(prod: TestClient) -> None:  # noqa: F811 -
     assert config.status_code == 200 and config.headers["content-type"].startswith(MEDIA)
     assert config.json()["patch"] == {"supported": True}
     assert [r["id"] for r in prod.get("/scim/v2/ResourceTypes").json()["Resources"]] == ["User"]
+
+
+def test_a_user_name_that_isnt_an_email_uses_the_primary_email(scim: tuple[TestClient, dict[str, str]]) -> None:
+    c, auth = scim
+    res = c.post("/scim/v2/Users", headers=auth, json=entra_user(email="mia.chen@acme.example", userName="mchen"))
+    assert res.status_code == 201, res.text
+    assert res.json()["userName"] == "mia.chen@acme.example"
+    bare = {"schemas": [USER], "userName": "mchen2"}
+    assert c.post("/scim/v2/Users", headers=auth, json=bare).status_code == 400
+
+
+def test_a_deleted_users_external_id_can_be_given_to_someone_new(scim: tuple[TestClient, dict[str, str]]) -> None:
+    c, auth = scim
+    uid = c.post("/scim/v2/Users", headers=auth, json=entra_user()).json()["id"]
+    assert c.delete(f"/scim/v2/Users/{uid}", headers=auth).status_code == 204
+    again = c.post("/scim/v2/Users", headers=auth, json=entra_user(email="mia.chen@acme.example"))
+    assert again.status_code == 201, again.text
+    assert again.json()["externalId"] == "mia-object-id" and again.json()["id"] != uid
+
+
+def test_a_sign_in_whose_email_scim_gave_to_someone_else_keeps_working(
+    scim: tuple[TestClient, dict[str, str]], database_url: str
+) -> None:
+    c, auth = scim
+    uid = c.post("/scim/v2/Users", headers=auth, json=entra_user()).json()["id"]
+    mia = bearer(token(sub="mia", email="mia@acme.example", tiles_org="acme"))
+    assert c.get("/sites", headers=mia).status_code == 200  # linked
+    rename = patch({"op": "Replace", "path": "userName", "value": "mia.chen@acme.example"})
+    assert c.patch(f"/scim/v2/Users/{uid}", headers=auth, json=rename).status_code == 200
+    other = c.post("/scim/v2/Users", headers=auth, json=entra_user(externalId="someone-new"))
+    assert other.status_code == 201, other.text
+    # Mia's token still says mia@: she signs in as herself, and keeps her new email.
+    assert c.get("/sites", headers=mia).status_code == 200
+    with psycopg.connect(database_url) as conn:
+        assert conn.execute("SELECT email FROM users WHERE id = %s", [uid]).fetchone() == ("mia.chen@acme.example",)
+
+
+def test_a_body_that_isnt_json_is_a_scim_error(scim: tuple[TestClient, dict[str, str]]) -> None:
+    c, auth = scim
+    res = c.post("/scim/v2/Users", headers=auth, content=b"{not json")
+    assert res.status_code == 400 and res.json()["scimType"] == "invalidSyntax"

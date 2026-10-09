@@ -3,7 +3,10 @@
 `org_identity_providers`: an organisation's sign-in provider (a customer's Entra ID tenant, say).
 Tokens from its issuer sign in to that organisation only, whatever they claim; `group_roles` maps
 the provider's group IDs to Tiles roles; `enforced` refuses the deployment's own issuer for the
-organisation once its provider works. `scim_tokens`: the bearer tokens a provider provisions users
+organisation once its provider works. A provider is pending until the admin who saved it
+(`saved_by`) signs in through it as themselves (`verified_at`), which shows the organisation
+controls it: until then it takes no one else, and an issuer is unique among confirmed ones only,
+so no organisation can hold another's tenant. `scim_tokens`: the bearer tokens a provider provisions users
 with (only their hashes). Users gain `active` (a deactivated user can't sign in), `external_id`
 (the provider's ID for them) and `deleted_at` (deleted through SCIM: kept for the history that
 names them, gone from SCIM). Organisation-wide, so not under the site row policy.
@@ -25,15 +28,20 @@ depends_on: str | Sequence[str] | None = None
 UPGRADE = """
 CREATE TABLE org_identity_providers (
     org_id      uuid PRIMARY KEY REFERENCES orgs (id) ON DELETE CASCADE,
-    issuer      text NOT NULL UNIQUE CHECK (issuer ~ '^https://[^/?#]+(/[^?#]*)?$' AND issuer !~ '/$'),
+    issuer      text NOT NULL CHECK (issuer ~ '^https://[^/?#]+(/[^?#]*)?$' AND issuer !~ '/$'),
     client_id   text NOT NULL CHECK (client_id <> ''),
     audience    text NOT NULL CHECK (audience <> ''),
     scope       text NOT NULL DEFAULT 'openid email profile',
     jwks_url    text CHECK (jwks_url ~ '^https://'),
     group_roles jsonb NOT NULL DEFAULT '{}' CHECK (jsonb_typeof(group_roles) = 'object'),
     enforced    boolean NOT NULL DEFAULT false,
-    updated_at  timestamptz NOT NULL DEFAULT now()
+    saved_by    uuid REFERENCES users (id) ON DELETE SET NULL,
+    verified_at timestamptz,
+    updated_at  timestamptz NOT NULL DEFAULT now(),
+    CHECK (NOT enforced OR verified_at IS NOT NULL)
 );
+CREATE UNIQUE INDEX org_identity_providers_issuer ON org_identity_providers (issuer) WHERE verified_at IS NOT NULL;
+CREATE INDEX org_identity_providers_pending ON org_identity_providers (issuer) WHERE verified_at IS NULL;
 
 CREATE TABLE scim_tokens (
     id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),

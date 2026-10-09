@@ -4364,13 +4364,19 @@
             "format": "date-time",
             "title": "Updated At",
             "type": "string"
+          },
+          "verified": {
+            "description": "Confirmed: the admin who saved it has signed in through it. Until then it takes no one else",
+            "title": "Verified",
+            "type": "boolean"
           }
         },
         "required": [
           "issuer",
           "client_id",
           "audience",
-          "updated_at"
+          "updated_at",
+          "verified"
         ],
         "title": "ProviderOut",
         "type": "object"
@@ -8350,7 +8356,7 @@
     },
     "/org/identity-provider": {
       "delete": {
-        "description": "Removes your organisation's identity provider: its tokens stop working at once, and people\nsign in through this deployment's issuer again.",
+        "description": "Removes your organisation's identity provider: its tokens stop working at once (each request\nchecks), and people sign in through this deployment's issuer again.",
         "operationId": "delete_provider_org_identity_provider_delete",
         "parameters": [
           {
@@ -8447,7 +8453,7 @@
         ]
       },
       "put": {
-        "description": "Sets your organisation's identity provider. Its tokens then sign in to your organisation\nonly. Turning `enforced` on needs you signed in through it (409 otherwise), so a provider that\ndoesn't work can't lock everyone out; then no other sign-in reaches your organisation.",
+        "description": "Sets your organisation's identity provider. A new issuer is pending until you sign in\nthrough it as yourself (the same email): that shows your organisation controls it, so no\norganisation can take another's. Then its tokens sign in to your organisation only. Turning\n`enforced` on needs it confirmed and you signed in through it (409 otherwise), so a provider\nthat doesn't work can't lock everyone out; then no other sign-in reaches your organisation.",
         "operationId": "set_provider_org_identity_provider_put",
         "parameters": [
           {

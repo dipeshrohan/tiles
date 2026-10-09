@@ -428,6 +428,8 @@ export function createFakeApi({
         return send(400, { error: 'invalid_grant', error_description: 'Bad code or verifier' });
       const token = `tok-${randomUUID()}`;
       tokens.add(token);
+      // A sign-in through the organisation's pending provider confirms it (here: any sign-in).
+      if (orgProvider) orgProvider.verified = true;
       return send(200, { access_token: token, expires_in: 300, id_token: 'id-token' });
     }
     if (url.pathname === '/idp/logout') {
@@ -498,7 +500,8 @@ export function createFakeApi({
           if (req.method === 'PUT') {
             const p = await body(req);
             if (!/^https?:\/\//.test(p.issuer ?? '')) return send(422, { detail: 'The issuer is an https URL' });
-            orgProvider = { ...p, updated_at: new Date().toISOString() };
+            const same = orgProvider?.issuer === p.issuer;
+            orgProvider = { ...p, verified: same && orgProvider.verified, updated_at: new Date().toISOString() };
             return send(200, orgProvider);
           }
           if (req.method === 'DELETE') {

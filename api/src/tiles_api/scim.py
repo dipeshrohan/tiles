@@ -116,7 +116,8 @@ def resource(row: dict[str, Any], request: Request) -> dict[str, Any]:
 class Fields:
     """The attributes Tiles keeps, as a request sets them."""
 
-    email: str | None = None
+    email: str | None = None  # the userName: Tiles' key for the person, their email address
+    mail: str | None = None  # from emails: the email only for a new or replaced user without one
     name: str | None = None
     external_id: str | None = None
     active: bool | None = None
@@ -178,9 +179,10 @@ def _set(fields: Fields, attribute: str, value: Any) -> None:
             if sub in ("formatted", "givenName", "familyName") and v is not None:
                 _set(fields, f"name.{sub}", v)
     elif key == "emails" or re.fullmatch(r"emails\[.*\]\.value", key):
-        email = _primary_email(value) if key == "emails" else str(value)
-        if email and fields.email is None:
-            fields.email = _email(email)
+        # A mail address, which may differ from the userName (Entra ID's userPrincipalName): it
+        # never changes who the person is; see _from_resource.
+        mail = str((_primary_email(value) if key == "emails" else value) or "").strip().lower()
+        fields.mail = mail if EMAIL.match(mail) else None
     elif isinstance(value, dict) and key == "":
         for sub, v in value.items():
             _set(fields, sub, v)
@@ -188,16 +190,18 @@ def _set(fields: Fields, attribute: str, value: Any) -> None:
 
 
 def _from_resource(body: Any) -> Fields:
+    """A whole User (create, replace). Its email is its userName, or when that isn't an email
+    address, its primary email."""
     if not isinstance(body, dict):
         raise ScimError(400, "The body must be a SCIM User", "invalidSyntax")
     fields = Fields()
-    for key in ("userName", "active", "externalId", "name", "displayName"):
+    for key in ("active", "externalId", "name", "displayName", "emails"):
         if key in body and body[key] is not None:
             _set(fields, key, body[key])
-    if fields.email is None and "emails" in body:
-        _set(fields, "emails", body["emails"])
+    user_name = str(body.get("userName") or "").strip().lower()
+    fields.email = user_name if EMAIL.match(user_name) else fields.mail
     if fields.email is None:
-        raise ScimError(400, "A user needs a userName: their email address", "invalidValue")
+        raise ScimError(400, "A user needs an email address: as its userName, or in emails", "invalidValue")
     return fields
 
 
@@ -264,6 +268,18 @@ def _write(client: ScimClient, user: dict[str, Any], fields: Fields) -> dict[str
     if _audited(row) != _audited(user):
         _audit(client, "scim.user.update", row["id"], _audited(user), _audited(row))
     return row
+
+
+async def scim_body(request: Request) -> Any:
+    """The request's JSON (application/scim+json), read on the event loop, so the handlers can be
+    plain functions that run their database calls on worker threads."""
+    try:
+        return await request.json()
+    except ValueError:
+        raise ScimError(400, "The body must be JSON", "invalidSyntax") from None
+
+
+Body = Annotated[Any, Depends(scim_body)]
 
 
 @router.get("/ServiceProviderConfig")
@@ -351,10 +367,10 @@ def get_user(user_id: str, client: Client, request: Request) -> JSONResponse:
 
 
 @router.post("/Users", status_code=status.HTTP_201_CREATED)
-async def create_user(request: Request, client: Client) -> JSONResponse:
+def create_user(request: Request, client: Client, body: Body) -> JSONResponse:
     """Creates a user (they sign in later, and are linked by email). A user deleted before comes
     back with their history; 409 if the email or externalId is an existing user's."""
-    fields = _from_resource(await _json(request))
+    fields = _from_resource(body)
     email = fields.email or ""
     conn = client.conn
     deleted = conn.execute(
@@ -401,17 +417,10 @@ async def create_user(request: Request, client: Client) -> JSONResponse:
     return scim(body, 201, body["meta"]["location"])
 
 
-async def _json(request: Request) -> Any:
-    try:
-        return await request.json()
-    except ValueError:
-        raise ScimError(400, "The body must be JSON", "invalidSyntax") from None
-
-
 @router.put("/Users/{user_id}")
-async def replace_user(user_id: str, request: Request, client: Client) -> JSONResponse:
+def replace_user(user_id: str, request: Request, client: Client, body: Body) -> JSONResponse:
     """Replaces a user's attributes (those Tiles keeps)."""
-    fields = _from_resource(await _json(request))
+    fields = _from_resource(body)
     user = _load(client, user_id)
     if fields.external_id is None:
         fields.external_id = ""  # a replacement without it clears it
@@ -419,10 +428,9 @@ async def replace_user(user_id: str, request: Request, client: Client) -> JSONRe
 
 
 @router.patch("/Users/{user_id}")
-async def patch_user(user_id: str, request: Request, client: Client) -> JSONResponse:
+def patch_user(user_id: str, request: Request, client: Client, body: Body) -> JSONResponse:
     """Changes a user with `Operations` (`add`, `replace`; `remove` of `externalId`), by path or
     by a value object without one, as Entra ID sends them."""
-    body = await _json(request)
     ops = body.get("Operations") if isinstance(body, dict) else None
     if not isinstance(ops, list) or not ops:
         raise ScimError(400, "A PATCH needs Operations", "invalidSyntax")
@@ -451,7 +459,8 @@ def delete_user(user_id: str, client: Client) -> Response:
     them. What they did stays in the history, under their name."""
     user = _load(client, user_id)
     conn = client.conn
-    conn.execute("UPDATE users SET active = false, deleted_at = now() WHERE id = %s", [user["id"]])
+    # The external ID goes too: the provider may give it to someone provisioned later.
+    conn.execute("UPDATE users SET active = false, deleted_at = now(), external_id = NULL WHERE id = %s", [user["id"]])
     with all_sites(conn):  # the memberships are the organisation's sites' rows
         conn.execute("DELETE FROM site_members WHERE user_id = %s", [user["id"]])
     _audit(client, "scim.user.delete", user["id"], before=_audited(user))

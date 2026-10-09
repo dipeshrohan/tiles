@@ -8,10 +8,13 @@ header), so tests, curl and the local stack work without a sign-in. A token
 that is present is always verified; a bad one is a 401.
 """
 
+import ipaddress
 import json
 import re
+import socket
 import threading
 import time
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -54,6 +57,9 @@ class OrgProvider:
     scope: str
     jwks_url: str | None = None
     group_roles: dict[str, str] = field(default_factory=dict)
+    # Confirmed by the admin who saved it signing in through it; until then it takes them only.
+    verified: bool = True
+    confirmer: str | None = None  # that admin's email, while pending
 
 
 def unauthorized(message: str) -> HTTPException:
@@ -63,17 +69,31 @@ def unauthorized(message: str) -> HTTPException:
 class TokenVerifier:
     """Checks signature, issuer, audience and expiry of OIDC access tokens."""
 
-    def __init__(self, issuer: str, audience: str, jwks_url: str | None = None, jwk_client: Any = None) -> None:
+    def __init__(
+        self,
+        issuer: str,
+        audience: str,
+        jwks_url: str | None = None,
+        jwk_client: Any = None,
+        public_only: bool = False,
+    ) -> None:
         self.issuer = issuer.rstrip("/")
         self.audience = audience
         self._jwks_url = jwks_url
         self._client = jwk_client
+        # An organisation's provider, whose addresses its admins chose: fetched only from public
+        # addresses, never the cluster's own services.
+        self._public_only = public_only
         self._lock = threading.Lock()
 
     def _jwk_client(self) -> Any:
         with self._lock:
             if self._client is None:
+                if self._public_only:
+                    public_https(self._jwks_url or self.issuer)
                 url = self._jwks_url or discover_jwks_url(self.issuer)
+                if self._public_only:
+                    public_https(url)
                 self._client = jwt.PyJWKClient(url, cache_keys=True, lifespan=3600, timeout=5)
             return self._client
 
@@ -96,6 +116,21 @@ class TokenVerifier:
             # Includes a token signed with a key the provider doesn't have.
             raise unauthorized(f"Invalid token: {e}") from e
         return claims
+
+
+def public_https(url: str) -> None:
+    """Refuses (as an unreachable provider) an address that isn't https, or whose host resolves to
+    a private, loopback, link-local or otherwise non-public address."""
+    parts = urllib.parse.urlsplit(url)
+    if parts.scheme != "https" or not parts.hostname:
+        raise jwt.PyJWKClientConnectionError("the provider's address must be https")
+    try:
+        found = socket.getaddrinfo(parts.hostname, parts.port or 443, proto=socket.IPPROTO_TCP)
+    except OSError as e:
+        raise jwt.PyJWKClientConnectionError("the provider's host doesn't resolve") from e
+    for *_, address in found:
+        if not ipaddress.ip_address(str(address[0]).split("%")[0]).is_global:
+            raise jwt.PyJWKClientConnectionError("the provider's host isn't a public address")
 
 
 def discover_jwks_url(issuer: str) -> str:
@@ -176,46 +211,66 @@ def principal_from_org_claims(claims: dict[str, Any], provider: OrgProvider) -> 
     )
 
 
-PROVIDER_TTL = 60.0  # seconds an organisation's provider (or its absence) is remembered
-PROVIDER_CACHE_MAX = 1000
+PROVIDER_TTL = 60.0  # seconds an issuer's providers (or their absence) are remembered
+UNKNOWN_MAX = 1000  # unknown issuers remembered at most (then forgotten, not the known ones)
+ISSUER = re.compile(r"^https://[^/?#\s]{1,253}(/[^?#\s]{0,240})?$")
 
 
 class Verifiers:
     """The token verifiers of this API: the configured issuer's, and organisations' providers',
-    looked up by the token's issuer (from the database, remembered for a minute)."""
+    looked up by the token's issuer (from the database, remembered for a minute). Whether a
+    provider still holds, and its enforcement, are checked against the database on every request
+    (identity.ensure_user), so a removed provider stops at once."""
 
     def __init__(self, settings: Settings, lookup: Any, jwk_client: Any = None) -> None:
         self.settings = settings
-        self._lookup = lookup  # issuer -> OrgProvider | None
+        self._lookup = lookup  # issuer -> tuple[OrgProvider, ...]
         self._jwk_client = jwk_client  # tests: one stand-in for every issuer's keys
         self._lock = threading.Lock()
-        self._providers: dict[str, tuple[float, OrgProvider | None]] = {}
+        self._known: dict[str, tuple[float, tuple[OrgProvider, ...]]] = {}
+        self._unknown: dict[str, float] = {}
         self._verifiers: dict[tuple[str, str, str | None], TokenVerifier] = {}
 
-    def _verifier(self, issuer: str, audience: str, jwks_url: str | None) -> TokenVerifier:
+    def _verifier(self, issuer: str, audience: str, jwks_url: str | None, public_only: bool) -> TokenVerifier:
         key = (issuer, audience, jwks_url)
         with self._lock:
             if key not in self._verifiers:
-                self._verifiers[key] = TokenVerifier(issuer, audience, jwks_url, self._jwk_client)
+                self._verifiers[key] = TokenVerifier(issuer, audience, jwks_url, self._jwk_client, public_only)
             return self._verifiers[key]
 
-    def provider(self, issuer: str, now: float | None = None) -> OrgProvider | None:
+    def providers(self, issuer: str, now: float | None = None) -> tuple[OrgProvider, ...]:
+        """The organisations' providers with this issuer: the confirmed one, or those pending."""
         now = time.monotonic() if now is None else now
+        if not ISSUER.match(issuer):
+            return ()
         with self._lock:
-            cached = self._providers.get(issuer)
-        if cached and cached[0] > now:
-            return cached[1]
-        found: OrgProvider | None = self._lookup(issuer)
+            known = self._known.get(issuer)
+            if known and known[0] > now:
+                return known[1]
+            if self._unknown.get(issuer, 0.0) > now:
+                return ()
+        found: tuple[OrgProvider, ...] = tuple(self._lookup(issuer))
         with self._lock:
-            if len(self._providers) >= PROVIDER_CACHE_MAX:
-                self._providers.clear()  # unknown issuers can't fill memory
-            self._providers[issuer] = (now + PROVIDER_TTL, found)
+            if any(p.verified for p in found):
+                self._known[issuer] = (now + PROVIDER_TTL, found)
+                self._unknown.pop(issuer, None)
+            elif found:
+                # Pending only: not remembered, so its confirmation (on any API process) counts
+                # at once. Only organisation admins make pending providers, and briefly.
+                self._known.pop(issuer, None)
+                self._unknown.pop(issuer, None)
+            else:
+                if len(self._unknown) >= UNKNOWN_MAX:
+                    self._unknown.clear()  # random issuers can't fill memory, nor evict real ones
+                self._unknown[issuer] = now + PROVIDER_TTL
+                self._known.pop(issuer, None)
         return found
 
     def forget(self) -> None:
         """After an organisation's provider changes: look it up again."""
         with self._lock:
-            self._providers.clear()
+            self._known.clear()
+            self._unknown.clear()
 
     def principal(self, token: str) -> Principal:
         try:
@@ -225,13 +280,21 @@ class Verifiers:
         issuer = str(unverified.get("iss") or "").rstrip("/")
         settings = self.settings
         if settings.oidc_issuer and issuer == settings.oidc_issuer.rstrip("/"):
-            v = self._verifier(issuer, settings.oidc_audience, settings.oidc_jwks_url)
+            v = self._verifier(issuer, settings.oidc_audience, settings.oidc_jwks_url, False)
             return principal_from_claims(v.verify(token), settings)
-        provider = self.provider(issuer) if issuer else None
+        candidates = self.providers(issuer)
+        provider = next((p for p in candidates if p.verified), None)
+        if provider is None and candidates:
+            # Pending providers take only the admin who saved them, signing in to confirm.
+            email = email_from_claims(unverified)
+            provider = next((p for p in candidates if p.confirmer == email), None)
         if provider is None:
             raise unauthorized("Tokens from this issuer aren't accepted here")
-        v = self._verifier(provider.issuer, provider.audience, provider.jwks_url)
-        return principal_from_org_claims(v.verify(token), provider)
+        v = self._verifier(provider.issuer, provider.audience, provider.jwks_url, True)
+        principal = principal_from_org_claims(v.verify(token), provider)
+        if not provider.verified and principal.email != provider.confirmer:
+            raise unauthorized("Tokens from this issuer aren't accepted here")
+        return principal
 
 
 def make_verifiers(state: Any, jwk_client: Any = None) -> Verifiers:

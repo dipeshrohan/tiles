@@ -46,6 +46,8 @@ export interface IdentityProviderIn {
 }
 export interface IdentityProvider extends IdentityProviderIn {
   updated_at: string;
+  // Confirmed: the admin who saved it signed in through it. Until then it takes no one else.
+  verified: boolean;
 }
 
 // A token an identity provider's SCIM client provisions users with (never shown again).

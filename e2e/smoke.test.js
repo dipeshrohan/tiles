@@ -591,7 +591,7 @@ test('organisation admins set their own sign-in and SCIM tokens; people sign in 
   await page.fill('#org-provider-form [name=issuer]', tenant);
   await page.click('#org-provider-form button[type=submit]');
   await page.waitForSelector('#toast:has-text("Organisation sign-in saved")');
-  await page.waitForSelector(`#org-sign-in:has-text("Signs in through ${tenant}")`);
+  await page.waitForSelector('[data-org-provider-pending]'); // until an admin signs in through it
   assert.equal(await page.inputValue('#org-provider-form [name=groupRoles]'), 'moulding-engineers = engineer');
 
   // A SCIM token, shown once, with the tenant URL to give the provider.
@@ -610,6 +610,7 @@ test('organisation admins set their own sign-in and SCIM tokens; people sign in 
   await page.click('#org-sign-in-form button[type=submit]');
   await page.waitForSelector('#account:has-text("through demo\'s own sign-in")');
   assert.deepEqual(fake.scopesAsked, [scope]);
+  await page.waitForSelector(`#org-sign-in:has-text("Signs in through ${tenant}")`); // confirmed
   // An organisation without one is told so.
   await page.click('#account [data-sign-out]');
   await page.waitForSelector('#account [data-sign-in]');

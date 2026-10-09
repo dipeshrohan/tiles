@@ -856,7 +856,7 @@ Your organisation's identity provider, or null when it signs in through this dep
 
 **Who:** organisation admin. **Answers:** 200, 422.
 
-Sets your organisation's identity provider. Its tokens then sign in to your organisation only. Turning `enforced` on needs you signed in through it (409 otherwise), so a provider that doesn't work can't lock everyone out; then no other sign-in reaches your organisation.
+Sets your organisation's identity provider. A new issuer is pending until you sign in through it as yourself (the same email): that shows your organisation controls it, so no organisation can take another's. Then its tokens sign in to your organisation only. Turning `enforced` on needs it confirmed and you signed in through it (409 otherwise), so a provider that doesn't work can't lock everyone out; then no other sign-in reaches your organisation.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
@@ -868,7 +868,7 @@ Sets your organisation's identity provider. Its tokens then sign in to your orga
 
 **Who:** organisation admin. **Answers:** 204, 422.
 
-Removes your organisation's identity provider: its tokens stop working at once, and people sign in through this deployment's issuer again.
+Removes your organisation's identity provider: its tokens stop working at once (each request checks), and people sign in through this deployment's issuer again.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

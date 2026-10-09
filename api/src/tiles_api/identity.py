@@ -11,8 +11,10 @@ identity provider takes no other sign-in.
 import uuid
 from dataclasses import dataclass
 
+import psycopg
 from fastapi import HTTPException
 
+from tiles_api import audit
 from tiles_api.auth import Principal
 from tiles_api.store import Conn, one
 
@@ -40,27 +42,69 @@ def ensure_org(conn: Conn, slug: str) -> uuid.UUID:
 
 def ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, object]:
     """The user `p` is in the organisation, created or linked on first sign-in; 403 when they may
-    not sign in (deactivated, or not through the organisation's enforced provider)."""
-    if p.subject and not p.org_provider:
-        enforced = conn.execute(
-            "SELECT 1 FROM org_identity_providers WHERE org_id = %s AND enforced", [org_id]
-        ).fetchone()
-        if enforced:
-            raise HTTPException(403, "Your organisation signs in through its own identity provider")
+    not sign in (deactivated, or not through the organisation's enforced provider). The
+    organisation's provider is read here on every request, so removing it, or enforcing it, takes
+    effect at once on every API process; a pending one is confirmed by its first sign-in, which
+    only the admin who saved it can make."""
+    provider = conn.execute(
+        "SELECT p.issuer, p.enforced, p.verified_at, u.email AS confirmer FROM org_identity_providers p"
+        " LEFT JOIN users u ON u.id = p.saved_by WHERE p.org_id = %s",
+        [org_id],
+    ).fetchone()
+    confirming = False
+    if p.org_provider:
+        if provider is None or provider["issuer"] != p.issuer:
+            raise HTTPException(
+                401,
+                "Your organisation no longer signs in this way",
+                headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+            )
+        if provider["verified_at"] is None:
+            if p.email != provider["confirmer"]:
+                raise HTTPException(403, "Your organisation's sign-in isn't confirmed yet")
+            confirming = True
+    elif p.subject and provider is not None and provider["enforced"]:
+        raise HTTPException(403, "Your organisation signs in through its own identity provider")
     user = _ensure_user(conn, p, org_id)
     if not user["active"] or user["deleted_at"] is not None:
         raise HTTPException(403, "Your account has been deactivated; ask your organisation's administrator")
+    if confirming:
+        _confirm(conn, org_id, user)
     return user
+
+
+def _confirm(conn: Conn, org_id: uuid.UUID, user: dict[str, object]) -> None:
+    """The organisation's pending provider works, signed in through by the admin who saved it."""
+    try:
+        with conn.transaction():
+            conn.execute(
+                "UPDATE org_identity_providers SET verified_at = now() WHERE org_id = %s AND verified_at IS NULL",
+                [org_id],
+            )
+    except psycopg.errors.UniqueViolation as e:
+        raise HTTPException(409, "Another organisation has confirmed this provider") from e
+    audit.record_org(
+        conn,
+        org_id=org_id,
+        actor_id=user["id"],
+        actor_name=str(user["name"]),
+        action="org.identity_provider.confirm",
+        entity_type="org_identity_provider",
+        entity_id=str(org_id),
+    )
 
 
 def _ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, object]:
     if p.subject:
-        # Known by their identity-provider subject: refresh name and email.
+        # Known by their identity-provider subject: refresh name and email (unless the email is
+        # another user's now: SCIM may have renamed them, and given it to someone else).
         row = conn.execute(
-            "UPDATE users SET email = %s, name = %s, last_seen_at = now()"
+            "UPDATE users SET name = %s, last_seen_at = now(), email = CASE WHEN EXISTS"
+            " (SELECT 1 FROM users o WHERE o.org_id = users.org_id AND o.email = %s AND o.id <> users.id)"
+            " THEN email ELSE %s END"
             " WHERE oidc_issuer = %s AND oidc_subject = %s"
             " RETURNING id, name, email, org_admin, org_id, active, deleted_at",
-            [p.email, p.name, p.issuer, p.subject],
+            [p.name, p.email, p.email, p.issuer, p.subject],
         ).fetchone()
         if row:
             if row["org_id"] != org_id:
@@ -68,15 +112,14 @@ def _ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, objec
                 raise HTTPException(403, "Your sign-in belongs to another organisation")
             return row
         # A user created before sign-in (same email, no subject yet: by an admin or SCIM): link
-        # them. The organisation's own provider vouches for its people, so it also takes over a
-        # user bound to another issuer (this deployment's, before the organisation had one); never
-        # one bound to itself under another subject.
+        # them. A user bound to another issuer moves too: to the organisation's own provider from
+        # this deployment's (before the organisation had one), and back if it is removed. Never
+        # to another identity of the same issuer.
         row = conn.execute(
             "UPDATE users SET oidc_issuer = %s, oidc_subject = %s, name = %s, last_seen_at = now()"
-            " WHERE org_id = %s AND email = %s"
-            " AND (oidc_subject IS NULL OR (%s AND oidc_issuer IS DISTINCT FROM %s))"
+            " WHERE org_id = %s AND email = %s AND (oidc_subject IS NULL OR oidc_issuer IS DISTINCT FROM %s)"
             " RETURNING id, name, email, org_admin, org_id, active, deleted_at",
-            [p.issuer, p.subject, p.name, org_id, p.email, p.org_provider, p.issuer],
+            [p.issuer, p.subject, p.name, org_id, p.email, p.issuer],
         ).fetchone()
         if row:
             return row
