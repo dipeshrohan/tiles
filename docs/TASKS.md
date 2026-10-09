@@ -127,7 +127,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 ### AI copilot
 - [x] `T4.01` [#60](https://github.com/dipeshrohan/tiles/issues/60) ★ **Copilot service:** Claude API with tool use; streaming responses; conversation storage per user · BE · 3d · T1.16
 - [x] `T4.02` [#61](https://github.com/dipeshrohan/tiles/issues/61) ★ **Turn the existing skills into tools:** graph query, correlation, virtual-sensor status, wear check, health check, time-series query, event lookup · BE · 4d · T4.01, T3.11, T3.03
-- [ ] `T4.03` [#62](https://github.com/dipeshrohan/tiles/issues/62) ★ **Grounding rules:** answers may only state facts from tool results; cite tool and inputs; decline when nothing supports an answer · BE · 2d · T4.02
+- [x] `T4.03` [#62](https://github.com/dipeshrohan/tiles/issues/62) ★ **Grounding rules:** answers may only state facts from tool results; cite tool and inputs; decline when nothing supports an answer · BE · 2d · T4.02
 - [ ] `T4.04` [#63](https://github.com/dipeshrohan/tiles/issues/63) **Copilot UI v2:** streaming, expandable tool traces, links to evidence, feedback on each answer · FE · 3d · T4.01
 - [ ] `T4.05` [#64](https://github.com/dipeshrohan/tiles/issues/64) ★ **Evaluation set:** 100+ real partner questions with expected answers and the tools they should use · PM+FDE · 3d · T3.14
 - [ ] `T4.06` [#65](https://github.com/dipeshrohan/tiles/issues/65) ★ **Evaluation harness in the automated checks:** scores accuracy, grounding and tool choice; fails under the thresholds · BE · 3d · T4.05, T4.03

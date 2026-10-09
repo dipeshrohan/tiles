@@ -16,6 +16,8 @@ from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
+from tiles_api import grounding
+
 log = logging.getLogger("tiles_api.copilot")
 
 MAX_TOOL_OUTPUT = 20_000  # characters of a tool's result sent back to the model
@@ -25,9 +27,15 @@ SYSTEM = """You are the Tiles copilot for {site}, a site of {org}. Tiles holds t
 (machines, lines, PLCs, signals and how they connect), its signals' readings, warnings and
 analyses. Engineers and operators ask you about their plant.
 
-Answer from what the tools return, and only from that: name the tool and inputs a fact comes from.
-If the tools give nothing that answers the question, say so plainly instead of guessing. Keep
-answers short and concrete, with units. Times are UTC unless the user says otherwise."""
+Rules for every answer:
+- State only what the tool results say. Each result starts with its number, like [3], then the tool
+  and its input. Cite the result a fact comes from right after the fact, like "Press 9 runs at 42 °C
+  [3]." An answer with no citation is not shown.
+- Write numbers as the results give them (rounding is fine), and tags, node names and dataset names
+  exactly, in backticks, like `press9.oil_temp`.
+- If the tools give nothing that answers the question, say "{decline}." and what you looked for.
+  Never guess, and never fill a gap from general knowledge about plants.
+- Keep answers short and concrete, with units. Times are UTC unless the user says otherwise."""
 
 
 @dataclass(frozen=True)
@@ -63,7 +71,7 @@ class ToolError(Exception):
     """A tool could not answer (bad input, nothing found): the model is told why."""
 
 
-EventKind = Literal["text", "tool_use", "tool_result", "message", "usage", "done", "error"]
+EventKind = Literal["text", "tool_use", "tool_result", "message", "usage", "retract", "grounding", "done", "error"]
 
 
 @dataclass(frozen=True)
@@ -143,6 +151,10 @@ def respond(
     by_name = {t.name: t for t in tools}
     specs = [t.spec() for t in tools]
     usage: dict[str, int] = {}
+    question = next(
+        (grounding.text_of(m) for m in reversed(messages) if m["role"] == "user" and grounding.text_of(m)), ""
+    )
+    repaired_once = False
     for _ in range(max_rounds):
         turn: Turn | None = None
         for item in model.stream(system=system, messages=messages, tools=specs):
@@ -158,24 +170,48 @@ def respond(
         yield Event("usage", dict(turn.usage))
         content = _blocks(turn.content, run_tools=turn.stop_reason == "tool_use")
         calls = [b for b in content if b.get("type") == "tool_use"]
-        if content:  # an empty answer is left out: the Messages API refuses empty messages
-            answer: dict[str, Any] = {"role": "assistant", "content": content}
-            messages.append(answer)
-            yield Event("message", answer)
+        answer: dict[str, Any] = {"role": "assistant", "content": content}
         if not calls:
-            yield Event("done", {"stop_reason": turn.stop_reason, "usage": usage})
+            # The final answer: held to the tool results it cites (grounding.py), rewritten once if
+            # it states what they don't. The first try isn't kept; the user is told it is withdrawn.
+            report = grounding.check(grounding.text_of(answer), question, messages)
+            if not report.grounded and not repaired_once and content:
+                repaired_once = True
+                yield Event("retract", {"reason": report.problems()})
+                messages += [answer, {"role": "user", "content": [{"type": "text", "text": _repair(report)}]}]
+                continue
+            if content:  # an empty answer is left out: the Messages API refuses empty messages
+                messages.append(answer)
+                yield Event("message", answer | {"meta": {"grounding": report.as_dict()}})
+            yield Event("grounding", report.as_dict())
+            yield Event("done", {"stop_reason": turn.stop_reason, "usage": usage, "grounded": report.grounded})
             return
+        messages.append(answer)
+        yield Event("message", answer)
         results = []
-        for call in calls:
-            yield Event("tool_use", {"id": call["id"], "name": call["name"], "input": call.get("input", {})})
-            out, failed = _result(by_name.get(call["name"]), call["name"], call.get("input") or {})
-            yield Event("tool_result", {"id": call["id"], "name": call["name"], "is_error": failed, "chars": len(out)})
-            results.append({"type": "tool_result", "tool_use_id": call["id"], "content": out, "is_error": failed})
+        first = grounding.next_label(messages)
+        for n, call in enumerate(calls, first):
+            args = call.get("input") or {}
+            yield Event("tool_use", {"id": call["id"], "name": call["name"], "input": args, "n": n})
+            out, failed = _result(by_name.get(call["name"]), call["name"], args)
+            yield Event(
+                "tool_result", {"id": call["id"], "name": call["name"], "is_error": failed, "chars": len(out), "n": n}
+            )
+            labelled = grounding.label(n, call["name"], args, out)
+            results.append({"type": "tool_result", "tool_use_id": call["id"], "content": labelled, "is_error": failed})
         reply = {"role": "user", "content": results}
         messages.append(reply)
         yield Event("message", reply)
     yield Event(
         "error", {"detail": f"Stopped after {max_rounds} rounds of tool calls without an answer", "usage": usage}
+    )
+
+
+def _repair(report: grounding.Grounding) -> str:
+    return (
+        f"(Tiles) That answer can't be shown: {report.problems()}. Answer again using only the tool results, "
+        f"citing each fact's result like [n], or say \"{grounding.DECLINE}.\" if they don't answer the question. "
+        "You may call tools again."
     )
 
 
