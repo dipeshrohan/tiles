@@ -180,6 +180,7 @@ export function createFakeApi({
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
   const designRuns = []; // latest last
+  let designRunsDelayMs = 0; // before a list of runs answers
   // The copilot: conversations by id ({ id, user, title, created_at, updated_at, history }) and
   // the answers to give next, each { tools: [{ name, input, result }], drafts: [{ text, reason }],
   // answer, grounding? }; with none scripted, it asks back.
@@ -990,6 +991,7 @@ export function createFakeApi({
       const runsPath = `/sites/${site.id}/runs`;
       if (url.pathname === runsPath) {
         if (req.method === 'GET') {
+          if (designRunsDelayMs) await new Promise((r) => setTimeout(r, designRunsDelayMs));
           const model = url.searchParams.get('model');
           const project = url.searchParams.get('project');
           const list = designRuns
@@ -1381,6 +1383,10 @@ export function createFakeApi({
     copilotUsage,
     // Design runs stored on the site (T4.11), latest last.
     designRuns,
+    // Slows the list of runs, so a test can see the page wait for it.
+    slowDesignRuns(ms) {
+      designRunsDelayMs = ms;
+    },
     // Slows the copilot's streamed events, so a test can see an answer arrive.
     slowCopilot(ms) {
       copilotDelayMs = ms;

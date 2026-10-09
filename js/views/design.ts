@@ -35,19 +35,27 @@ const uiState = (ctx: Context) =>
   });
 
 // With the Tiles API, runs are stored on the site in shared projects (T4.11, T4.14); without it,
-// in this browser. Fetched afresh at each visit: others run designs meanwhile.
+// in this browser. Fetched afresh at each visit: others run designs meanwhile. `loaded` is false
+// until a fetch answers: a run saved before its project's history is known would lose its parent.
 let projects: { site: string; items: DesignProject[] } | null = null;
-let apiRuns: { key: string; items: DesignRun[] } | null = null;
+let projectsFetching: string | null = null; // the site whose projects are being fetched
+let apiRuns: { key: string; items: DesignRun[]; loaded: boolean } | null = null;
 let saving = false;
+let visit = 0; // a fetch that answers after you left (and maybe came back) is dropped
 onNavigate((hash) => {
   if (routeOf(hash) !== 'design') {
     projects = null;
+    projectsFetching = null;
     apiRuns = null;
+    visit += 1;
   }
 });
 
+// The site whose runs are shown, with the Tiles API; null in this browser's mode, or while the
+// API's site isn't ready (nothing is saved then: see `apiWaiting`).
 const siteOf = (ctx: Context): string | null =>
   ctx.api && ctx.ontology.status === 'ready' ? (ctx.ontology.site?.id ?? null) : null;
+const apiWaiting = (ctx: Context): boolean => ctx.api !== null && siteOf(ctx) === null;
 
 // The project shown on this site: the one chosen, if it is still there, or the latest.
 function projectOf(ctx: Context, site: string): DesignProject | null {
@@ -60,25 +68,34 @@ function projectOf(ctx: Context, site: string): DesignProject | null {
 const runsKey = (site: string, project: string, model: string) => `${site}|${project}|${model}`;
 
 async function fetchProjects(ctx: Context, site: string): Promise<void> {
+  if (projectsFetching === site) return; // one at a time
+  projectsFetching = site;
+  const at = visit;
+  let items: DesignProject[] = [];
   try {
-    const items = await ctx.api!.designProjects.list(site);
-    projects = { site, items };
+    items = await ctx.api!.designProjects.list(site);
   } catch {
-    projects = { site, items: [] }; // the client showed why
+    // The client showed why; no projects are shown.
   }
+  if (at !== visit || projectsFetching !== site) return; // left meanwhile
+  projectsFetching = null;
+  projects = { site, items };
   ctx.rerender();
 }
 
 async function fetchRuns(ctx: Context, site: string, project: string, model: string): Promise<void> {
   const key = runsKey(site, project, model);
-  apiRuns = { key, items: apiRuns?.key === key ? apiRuns.items : [] };
+  if (apiRuns?.key === key) return; // fetching or fetched
+  apiRuns = { key, items: [], loaded: false };
+  const at = visit;
   try {
     const page = await ctx.api!.runs.list(site, { project, model: API_MODEL[model] ?? model, limit: 200 });
-    if (apiRuns?.key === key) apiRuns = { key, items: page.runs };
+    if (at === visit && apiRuns?.key === key) apiRuns = { key, items: page.runs, loaded: true };
   } catch {
-    // The client showed why; the history stays as it was.
+    if (at === visit && apiRuns?.key === key) apiRuns = null; // the client showed why; tried again when drawn
+    return;
   }
-  ctx.rerender();
+  if (at === visit) ctx.rerender();
 }
 
 function projectBar(ctx: Context, site: string): string {
@@ -130,13 +147,17 @@ const view: View = {
     const sens = sensitivity(model.id, version, params);
     const site = siteOf(ctx);
     const project = site ? projectOf(ctx, site) : null;
-    const stored = site && project && apiRuns?.key === runsKey(site, project.id, model.id) ? apiRuns.items : [];
-    const runs: Run[] = site ? stored.map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
+    const fetched = site && project && apiRuns?.key === runsKey(site, project.id, model.id) ? apiRuns : null;
+    const stored = fetched?.items ?? [];
+    const remote = site !== null || apiWaiting(ctx);
+    const runs: Run[] = remote ? stored.map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
     const byId = new Map<string, Run>(ctx.state.runs.map((r) => [r.id, r]));
     // What changed from each run's parent: the API says, for stored runs (their parent may be on another page).
     const apiChanges = new Map<string, RunChange[]>(stored.map((r) => [String(r.number), changesOf(r)]));
     const diffOf = (r: Run): RunChange[] => apiChanges.get(r.id) ?? runDiff(r, r.parent ? byId.get(r.parent) : null);
-    const canSave = !site || (project !== null && ctx.ontology.role !== null && ctx.ontology.role !== 'viewer');
+    const canSave = remote
+      ? Boolean(fetched?.loaded) && ctx.ontology.role !== null && ctx.ontology.role !== 'viewer'
+      : true;
     const unit = model.output.unit;
     const label = (k: string) => model.params.find((p) => p.key === k)?.label ?? k;
 
@@ -153,7 +174,7 @@ const view: View = {
           )
           .join('')}</div>
       </div>
-      ${site ? projectBar(ctx, site) : ''}
+      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card" data-projects style="margin-bottom:16px"><span class="small soft">${ctx.ontology.status === 'error' ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : 'Connecting to the Tiles API…'}</span></div>` : ''}
 
       <div class="grid g3" style="margin-bottom:16px">
         <div class="card">
@@ -228,7 +249,7 @@ const view: View = {
                       <td class="num"><b>${fmt(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
                   })
                   .join('')}</tbody></table></div>`
-              : `<div class="empty">${site && !project ? 'Pick or create a project to see its runs.' : 'No runs yet. Adjust parameters and press “Save run”.'}</div>`
+              : `<div class="empty">${site && !project ? 'Pick or create a project to see its runs.' : site && !fetched?.loaded ? 'Loading runs…' : remote && !site ? '' : 'No runs yet. Adjust parameters and press “Save run”.'}</div>`
           }
         </div>
       </div>`;
@@ -293,13 +314,13 @@ const view: View = {
     onSubmit(root, '#run-form', async (form) => {
       const note = field(form, 'note').trim();
       if (site) {
-        if (!ctx.api || !project || saving) return;
-        const key = runsKey(site, project.id, model.id);
+        const key = runsKey(site, project?.id ?? '', model.id);
+        if (!ctx.api || !project || saving || apiRuns?.key !== key || !apiRuns.loaded) return;
+        const items = apiRuns.items;
         saving = true;
         ctx.rerender();
         try {
-          const items = apiRuns?.key === key ? apiRuns.items : [];
-          await ctx.api.runs.create(site, {
+          const created = await ctx.api.runs.create(site, {
             model: API_MODEL[model.id] ?? model.id,
             version: ui.versions[model.id] ?? model.latest,
             params,
@@ -308,8 +329,14 @@ const view: View = {
             project: project.id,
           });
           ctx.toast(`Run saved to ${project.name}`);
-          projects = null; // its run count changed
-          apiRuns = null;
+          if (apiRuns?.key === key) apiRuns = { key, items: [created, ...items], loaded: true };
+          if (projects?.site === site)
+            projects = {
+              site,
+              items: projects.items.map((p) =>
+                p.id === project.id ? { ...p, runs: p.runs + 1, last_run_at: created.created_at } : p,
+              ),
+            };
         } catch {
           // The client showed why.
         } finally {
@@ -333,8 +360,11 @@ const view: View = {
       });
       ctx.toast('Run saved');
     });
-    const shownRuns = (): Run[] =>
-      site ? (apiRuns?.items ?? []).map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
+    const shownRuns = (): Run[] => {
+      if (!site && !apiWaiting(ctx)) return ctx.state.runs.filter((r) => r.modelId === model.id);
+      const key = site && project ? runsKey(site, project.id, model.id) : null;
+      return apiRuns?.key === key ? apiRuns.items.map(asRun) : [];
+    };
     onAll(root, '[data-run]', 'click', (row) => {
       const run = shownRuns().find((r) => r.id === row.dataset.run);
       if (!run) return;

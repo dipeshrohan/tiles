@@ -235,7 +235,7 @@ A run's model is named by the registry's key (`cell-swelling`) or the browser's 
 
 | Method and path (under `/sites/{site_id}`) | Who | Does |
 |---|---|---|
-| `GET /design-projects` | members | the site's projects, the one with the latest run first, with their run counts |
+| `GET /design-projects` | members | the site's projects (at most 200), the one with the latest run or newest first, with their run counts |
 | `POST /design-projects` | engineers | `{"name", "description"?}` creates one (409 for a name taken) |
 | `GET /runs?model&project&limit&offset` | members | `{"runs", "total"}`: the site's runs, latest first, of one model and one project if named; each with its parameters, output, units, parent, `restored_from`, note, author and `changes` from its parent |
 | `POST /runs` | engineers | `{"model", "version"?, "params"?, "note"?, "parent"?, "project"?}` runs the model and stores the run (201, with its `lineage`) |

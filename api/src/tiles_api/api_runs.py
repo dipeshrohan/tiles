@@ -9,8 +9,8 @@ audit (T4.13). Runs are numbered per site.
 - `POST /sites/{id}/runs` (engineers) runs a model and stores the run. The model is a registry
   key ("cell-swelling") or the browser's id ("swelling", with versions like "2.0").
 - `POST /sites/{id}/runs/{n}/restore` (engineers) runs run n's version and parameters again as a
-  new run, after the latest run of that model: the design goes back to it, and the history keeps
-  what came between.
+  new run, after the latest run of that model in its project: the design goes back to it, and the
+  history keeps what came between.
 - `GET /sites/{id}/runs/compare?a=&b=` gives what changed between two runs of a model: version,
   parameters and outputs.
 
@@ -304,8 +304,13 @@ def create_run(ctx: Editor, body: RunIn) -> dict[str, Any]:
     model = _model(body.model, body.version)
     run = _run(model, body.params)
     _lock(ctx)
-    if body.project is not None:
-        _project(ctx, body.project)
+    if (
+        body.project is not None
+        and not ctx.conn.execute(
+            "SELECT 1 FROM design_projects WHERE site_id = %s AND id = %s", [ctx.site_id, body.project]
+        ).fetchone()
+    ):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such design project on this site")
     parent_id = None
     if body.parent is not None:
         parent = _row(ctx, body.parent)
@@ -381,7 +386,7 @@ def get_run(ctx: Ctx, number: int) -> dict[str, Any]:
 
 @router.post("/sites/{site_id}/runs/{number}/restore", response_model=RunDetail, status_code=status.HTTP_201_CREATED)
 def restore_run(ctx: Editor, number: int, body: RestoreIn | None = None) -> dict[str, Any]:
-    """Run `number`'s version and parameters again, as a new run after the model's latest run."""
+    """Run `number`'s version and parameters again, as a new run after its model's latest run in its project."""
     row = _row(ctx, number)
     model = _stored_model(row)
     if model is None:
@@ -411,7 +416,7 @@ def restore_run(ctx: Editor, number: int, body: RestoreIn | None = None) -> dict
 PROJECTS = """
 SELECT p.id, p.name, p.description, p.created_by, p.created_at,
        count(r.id) AS runs, max(r.created_at) AS last_run_at
-FROM design_projects p LEFT JOIN design_runs r ON r.project_id = p.id
+FROM design_projects p LEFT JOIN design_runs r ON r.site_id = p.site_id AND r.project_id = p.id
 WHERE p.site_id = %(site)s
 """
 

@@ -4185,15 +4185,20 @@
 		projectSite: null
 	});
 	var projects = null;
+	var projectsFetching = null;
 	var apiRuns = null;
 	var saving$3 = false;
+	var visit = 0;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "design") {
 			projects = null;
+			projectsFetching = null;
 			apiRuns = null;
+			visit += 1;
 		}
 	});
 	var siteOf = (ctx) => ctx.api && ctx.ontology.status === "ready" ? ctx.ontology.site?.id ?? null : null;
+	var apiWaiting = (ctx) => ctx.api !== null && siteOf(ctx) === null;
 	function projectOf(ctx, site) {
 		const ui = uiState$5(ctx);
 		const items = projects?.site === site ? projects.items : [];
@@ -4205,37 +4210,46 @@
 	}
 	var runsKey = (site, project, model) => `${site}|${project}|${model}`;
 	async function fetchProjects(ctx, site) {
+		if (projectsFetching === site) return;
+		projectsFetching = site;
+		const at = visit;
+		let items = [];
 		try {
-			projects = {
-				site,
-				items: await ctx.api.designProjects.list(site)
-			};
-		} catch {
-			projects = {
-				site,
-				items: []
-			};
-		}
+			items = await ctx.api.designProjects.list(site);
+		} catch {}
+		if (at !== visit || projectsFetching !== site) return;
+		projectsFetching = null;
+		projects = {
+			site,
+			items
+		};
 		ctx.rerender();
 	}
 	async function fetchRuns(ctx, site, project, model) {
 		const key = runsKey(site, project, model);
+		if (apiRuns?.key === key) return;
 		apiRuns = {
 			key,
-			items: apiRuns?.key === key ? apiRuns.items : []
+			items: [],
+			loaded: false
 		};
+		const at = visit;
 		try {
 			const page = await ctx.api.runs.list(site, {
 				project,
 				model: API_MODEL[model] ?? model,
 				limit: 200
 			});
-			if (apiRuns?.key === key) apiRuns = {
+			if (at === visit && apiRuns?.key === key) apiRuns = {
 				key,
-				items: page.runs
+				items: page.runs,
+				loaded: true
 			};
-		} catch {}
-		ctx.rerender();
+		} catch {
+			if (at === visit && apiRuns?.key === key) apiRuns = null;
+			return;
+		}
+		if (at === visit) ctx.rerender();
 	}
 	function projectBar(ctx, site) {
 		const items = projects?.site === site ? projects.items : null;
@@ -4274,12 +4288,14 @@
 			const sens = sensitivity(model.id, version, params);
 			const site = siteOf(ctx);
 			const project = site ? projectOf(ctx, site) : null;
-			const stored = site && project && apiRuns?.key === runsKey(site, project.id, model.id) ? apiRuns.items : [];
-			const runs = site ? stored.map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
+			const fetched = site && project && apiRuns?.key === runsKey(site, project.id, model.id) ? apiRuns : null;
+			const stored = fetched?.items ?? [];
+			const remote = site !== null || apiWaiting(ctx);
+			const runs = remote ? stored.map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
 			const byId = new Map(ctx.state.runs.map((r) => [r.id, r]));
 			const apiChanges = new Map(stored.map((r) => [String(r.number), changesOf(r)]));
 			const diffOf = (r) => apiChanges.get(r.id) ?? runDiff(r, r.parent ? byId.get(r.parent) : null);
-			const canSave = !site || project !== null && ctx.ontology.role !== null && ctx.ontology.role !== "viewer";
+			const canSave = remote ? Boolean(fetched?.loaded) && ctx.ontology.role !== null && ctx.ontology.role !== "viewer" : true;
 			const unit = model.output.unit;
 			const label = (k) => model.params.find((p) => p.key === k)?.label ?? k;
 			return `
@@ -4291,7 +4307,7 @@
         </div>
         <div class="seg" role="group" aria-label="Model">${Object.values(MODELS).map((m) => `<button data-model="${m.id}" class="${m.id === model.id ? "active" : ""}">${esc(m.name)}</button>`).join("")}</div>
       </div>
-      ${site ? projectBar(ctx, site) : ""}
+      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card" data-projects style="margin-bottom:16px"><span class="small soft">${ctx.ontology.status === "error" ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : "Connecting to the Tiles API…"}</span></div>` : ""}
 
       <div class="grid g3" style="margin-bottom:16px">
         <div class="card">
@@ -4358,7 +4374,7 @@
 				return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : "<span class=\"muted\">untitled</span>"}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
                       <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join("<br>") || "no change" : "first run"}</td>
                       <td class="num"><b>${fmt$1(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
-			}).join("")}</tbody></table></div>` : `<div class="empty">${site && !project ? "Pick or create a project to see its runs." : "No runs yet. Adjust parameters and press “Save run”."}</div>`}
+			}).join("")}</tbody></table></div>` : `<div class="empty">${site && !project ? "Pick or create a project to see its runs." : site && !fetched?.loaded ? "Loading runs…" : remote && !site ? "" : "No runs yet. Adjust parameters and press “Save run”."}</div>`}
         </div>
       </div>`;
 		},
@@ -4422,13 +4438,13 @@
 			onSubmit(root, "#run-form", async (form) => {
 				const note = field$1(form, "note").trim();
 				if (site) {
-					if (!ctx.api || !project || saving$3) return;
-					const key = runsKey(site, project.id, model.id);
+					const key = runsKey(site, project?.id ?? "", model.id);
+					if (!ctx.api || !project || saving$3 || apiRuns?.key !== key || !apiRuns.loaded) return;
+					const items = apiRuns.items;
 					saving$3 = true;
 					ctx.rerender();
 					try {
-						const items = apiRuns?.key === key ? apiRuns.items : [];
-						await ctx.api.runs.create(site, {
+						const created = await ctx.api.runs.create(site, {
 							model: API_MODEL[model.id] ?? model.id,
 							version: ui.versions[model.id] ?? model.latest,
 							params,
@@ -4437,8 +4453,19 @@
 							project: project.id
 						});
 						ctx.toast(`Run saved to ${project.name}`);
-						projects = null;
-						apiRuns = null;
+						if (apiRuns?.key === key) apiRuns = {
+							key,
+							items: [created, ...items],
+							loaded: true
+						};
+						if (projects?.site === site) projects = {
+							site,
+							items: projects.items.map((p) => p.id === project.id ? {
+								...p,
+								runs: p.runs + 1,
+								last_run_at: created.created_at
+							} : p)
+						};
 					} catch {} finally {
 						saving$3 = false;
 						ctx.rerender();
@@ -4458,7 +4485,11 @@
 				});
 				ctx.toast("Run saved");
 			});
-			const shownRuns = () => site ? (apiRuns?.items ?? []).map(asRun) : ctx.state.runs.filter((r) => r.modelId === model.id);
+			const shownRuns = () => {
+				if (!site && !apiWaiting(ctx)) return ctx.state.runs.filter((r) => r.modelId === model.id);
+				const key = site && project ? runsKey(site, project.id, model.id) : null;
+				return apiRuns?.key === key ? apiRuns.items.map(asRun) : [];
+			};
 			onAll(root, "[data-run]", "click", (row) => {
 				const run = shownRuns().find((r) => r.id === row.dataset.run);
 				if (!run) return;

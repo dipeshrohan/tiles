@@ -2487,6 +2487,7 @@ test('design studio with the API: runs are stored in shared projects', async (t)
   assert.match(await b.page.locator('[data-run="2"]').innerText(), /State of charge: 80\.00 → 60\.00/);
   assert.equal(fake.designRuns[1].parent, 1);
   assert.equal(fake.designRuns[1].params.soc, 60);
+  await b.page.waitForSelector('#project option:has-text("Pack B (2 runs)")', { state: 'attached' }); // counted in place
   // A run's parameters come back with a click.
   await b.page.click('[data-run="1"]');
   await b.page.waitForSelector('#toast:has-text("Restored run “Baseline”")');
@@ -2498,4 +2499,20 @@ test('design studio with the API: runs are stored in shared projects', async (t)
   assert.equal(await v.page.locator('#new-project').count(), 0);
   assert.equal(await v.page.locator('#run-form button[type=submit]').isDisabled(), true);
   for (const p of [a, b, v]) assert.deepEqual(p.errors, []);
+
+  // A run isn't saved before the project's history is known: it would lose its parent.
+  fake.slowDesignRuns(1500);
+  const c = await openAs(t, apiUrl, 'eng3@example.com', 'design');
+  await c.page.waitForSelector('.empty:has-text("Loading runs…")');
+  assert.equal(await c.page.locator('#run-form button[type=submit]').isDisabled(), true);
+  await c.page.waitForSelector('[data-run="2"]');
+  assert.equal(await c.page.locator('#run-form button[type=submit]').isDisabled(), false);
+  fake.slowDesignRuns(0);
+});
+
+test("design studio: with the API unreachable, runs aren't kept in the browser instead", async (t) => {
+  const a = await openAs(t, 'http://127.0.0.1:1', null, 'design');
+  await a.page.waitForSelector('[data-projects]:has-text("Can\'t reach the Tiles API")');
+  assert.equal(await a.page.locator('#run-form button[type=submit]').isDisabled(), true);
+  assert.equal(await a.page.locator('[data-run]').count(), 0);
 });

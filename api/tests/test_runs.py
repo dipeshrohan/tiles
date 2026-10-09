@@ -253,7 +253,7 @@ def test_shared_design_projects(api: TestClient, site: str, database_url: str) -
     run(api, site, {"model": "swelling", "project": c["id"]})  # run 3, in the other project
     run(api, site, {"model": "swelling"})  # run 4, in none
 
-    # Listed by project, the busiest first, with their runs.
+    # Listed by project, the one with the latest run first, with their runs.
     listed = api.get(path, headers=VIEWER).json()
     assert [(p["name"], p["runs"]) for p in listed] == [("Hip joint", 1), ("Pack B", 2)]
     runs = api.get(f"/sites/{site}/runs?project={b['id']}&model=swelling", headers=VIEWER).json()
