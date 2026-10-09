@@ -141,18 +141,23 @@ Outside production (`TILES_ENV` is `development` or `test`), a request without a
 - **After that, the stored membership counts.** Changing someone's roles at the identity provider doesn't change their role on a site they have already visited.
 - Users see only their own organisation's sites.
 
-There is no page or endpoint yet for creating sites or organisation admins. `tiles-seed` creates the demo organisation (`demo`) and site (`plant-1`). For anything else, use SQL on the database, as the migration login. For example:
+**Creating a site.** Organisation admins, and anyone whose sign-in grants `tiles-admin`, create sites on the **Set up a site** page, or with `POST /sites`. The creator becomes the site's admin, and the creation is the first entry in its audit log. The page then walks the site through its setup, and shows how far it is:
+
+1. its plant outlined in the ontology;
+2. an edge agent registered and calling in;
+3. tags mapped to Signal nodes;
+4. the first dashboard, a machine's Plant page with live readings.
+
+`GET /sites/{id}/onboarding` gives the same progress.
+
+**Organisation admins** are still made in the database: there is no page for it yet. `tiles-seed` creates the demo organisation (`demo`) and site (`plant-1`). As the migration login:
 
 ```sql
--- A new site in an existing organisation.
-INSERT INTO sites (org_id, slug, name)
-SELECT id, 'plant-2', 'Plant 2' FROM orgs WHERE slug = 'acme';
-
 -- Make a user an organisation admin.
 UPDATE users SET org_admin = true WHERE email = 'jane@example.com' AND org_id = (SELECT id FROM orgs WHERE slug = 'acme');
 ```
 
-These SQL changes are not in the audit log, so record them yourself.
+This SQL change is not in the audit log, so record it yourself.
 
 ### Roles
 

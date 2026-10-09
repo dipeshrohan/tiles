@@ -99,6 +99,7 @@ export function createFakeApi({
   const codes = new Map(); // code -> { challenge, redirectUri }
   const tokens = new Set();
   const site = { id: '11111111-1111-1111-1111-111111111111', slug: 'plant-1', name: 'Plant 1', org: 'demo' };
+  const sites = [site]; // the organisation's; only `site` is served
   let head = createRepo().head;
   let history = [];
   const staged = new Map(); // email -> Op[]
@@ -160,6 +161,80 @@ export function createFakeApi({
       node_label: (sig.node_id && head.nodes[sig.node_id]?.label) || null,
       last_at: last ? last[0].split('|')[1] : null,
       last_value: last ? last[1] : null,
+    };
+  };
+  // A site's onboarding progress (T6.06), worked out from the fake's state as the API does.
+  const onboarding = () => {
+    const edges = Object.values(head.edges);
+    const into = (to, rel) =>
+      edges
+        .filter((e) => e.to === to && e.rel === rel && head.nodes[e.from])
+        .map((e) => e.from)
+        .sort();
+    const machineOf = (id) => {
+      for (const plc of into(id, 'emits'))
+        for (const m of into(plc, 'controlledBy')) if (head.nodes[m].type === 'Machine') return m;
+      const seen = new Set([id]);
+      for (let at = id; ;) {
+        const up = into(at, 'contains').find((p) => !seen.has(p));
+        if (!up) return null;
+        if (head.nodes[up].type === 'Machine') return up;
+        seen.add(up);
+        at = up;
+      }
+    };
+    const machines = Object.values(head.nodes).filter((n) => n.type === 'Machine').length;
+    const live = agents.filter((a) => !a.revoked);
+    const seen = live.filter((a) => a.last_seen_at).length;
+    const tags = signals.filter((x) => !x.source.startsWith('model:'));
+    const mapped = tags.filter((x) => x.node_id);
+    const counts = new Map();
+    for (const x of mapped) {
+      const m = head.nodes[x.node_id] ? machineOf(x.node_id) : null;
+      if (m) counts.set(m, (counts.get(m) ?? 0) + 1);
+    }
+    const best = [...counts].sort(
+      (a, b) => b[1] - a[1] || head.nodes[a[0]].label.localeCompare(head.nodes[b[0]].label),
+    )[0];
+    const n = (k, w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+    const steps = [
+      { key: 'site', done: true, detail: 'Created' },
+      {
+        key: 'outline',
+        done: machines > 0,
+        detail: machines ? `${n(machines, 'machine')} in the ontology` : 'No machines in the ontology yet',
+      },
+      {
+        key: 'agent',
+        done: seen > 0,
+        detail: seen
+          ? `${n(seen, 'agent')} calling in`
+          : live.length
+            ? `${n(live.length, 'agent')} registered, none has called in yet`
+            : 'No edge agent yet',
+      },
+      {
+        key: 'mapping',
+        done: mapped.length > 0,
+        detail: tags.length ? `${mapped.length} of ${n(tags.length, 'tag')} mapped` : 'No tags have arrived yet',
+      },
+      {
+        key: 'dashboard',
+        done: Boolean(best),
+        detail: best
+          ? `${head.nodes[best[0]].label}: ${n(best[1], 'mapped signal')}`
+          : 'Needs a machine with a mapped signal',
+      },
+    ];
+    return {
+      steps,
+      next: steps.find((x) => !x.done)?.key ?? null,
+      machines,
+      agents: live.length,
+      agents_seen: seen,
+      tags: tags.length,
+      mapped: mapped.length,
+      dashboard: best ? { id: best[0], label: head.nodes[best[0]].label } : null,
     };
   };
   // Change reviews (T2.12), like the API: requests with their ops and comment thread.
@@ -398,11 +473,25 @@ export function createFakeApi({
     const base = `/sites/${site.id}/ontology`;
     try {
       if (url.pathname === '/health') return send(200, { status: 'ok', version: 'fake', env: 'test' });
-      if (url.pathname === '/sites') return send(200, [site]);
+      if (url.pathname === '/sites' && req.method === 'GET') return send(200, sites);
+      // Creating a site (T6.06): admins only here (the API: organisation admins). Listed, not served.
+      if (url.pathname === '/sites' && req.method === 'POST') {
+        if ((roles[user] ?? 'engineer') !== 'admin')
+          return send(403, { detail: 'Creating a site needs an organisation admin' });
+        const { name, slug, timezone } = await body(req);
+        if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(slug ?? '') || !String(name ?? '').trim() || !timezone)
+          return send(422, { detail: 'Give the site a name, a slug and a time zone' });
+        if (sites.some((x) => x.slug === slug))
+          return send(409, { detail: `Your organisation already has a site called ${slug}` });
+        const made = { id: randomUUID(), slug, name: String(name).trim(), org: 'demo' };
+        sites.push(made);
+        return send(201, made);
+      }
       const agentsPath = `/sites/${site.id}/agents`;
       if (
         !url.pathname.startsWith(base) &&
         url.pathname !== `/sites/${site.id}/me` &&
+        url.pathname !== `/sites/${site.id}/onboarding` &&
         url.pathname !== `/sites/${site.id}/members` &&
         !url.pathname.endsWith('/audit') &&
         !url.pathname.startsWith(agentsPath) &&
@@ -422,6 +511,7 @@ export function createFakeApi({
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
+      if (url.pathname === `/sites/${site.id}/onboarding`) return send(200, onboarding());
       if (url.pathname.startsWith(agentsPath)) {
         const shown = (a) => ({
           id: a.id,

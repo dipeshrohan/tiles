@@ -1144,6 +1144,28 @@ Has the signal's level moved from its baseline (a wearing tool's), how fast, and
 
 Sites in your organisation (every site for the dev identity).
 
+### `POST /sites`
+
+**Who:** organisation admin. **Answers:** 201, 422.
+
+Creates a site in your organisation, with you as its admin. Its slug must be new in the organisation (409 otherwise).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+**Body:** NewSite (see [openapi.json](openapi.json)).
+
+### `GET /sites/{site_id}/onboarding`
+
+**Who:** site member. **Answers:** 200, 422.
+
+How far the site is set up, step by step: created, its plant outlined in the ontology, an edge agent that has called in, tags mapped to Signal nodes, and a machine with mapped signals (the first dashboard to open).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
 ## sweeps
 
 ### `GET /sites/{site_id}/sweeps`

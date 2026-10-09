@@ -30,6 +30,7 @@ const PAGES = [
   'correlate',
   'insights',
   'import',
+  'onboarding',
   'settings',
 ];
 // WCAG 2.1 A and AA, and the best practices that matter to these pages.
@@ -129,7 +130,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     assert.match(label, /threshold 2,200; baseline 1,800/);
     assert.match(label, /1 shaded stretch/);
     await check('warning');
-    for (const route of ['shopfloor', 'plant', 'signals', 'settings', 'reviews', 'import', 'chat']) {
+    for (const route of ['shopfloor', 'plant', 'signals', 'settings', 'reviews', 'import', 'chat', 'onboarding']) {
       await page.evaluate((r) => (location.hash = r), `#/${route}`);
       await settled(page);
       await check(route);

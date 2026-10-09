@@ -27,8 +27,9 @@ Other guides:
 14. [Insights](#insights)
 15. [Design studio](#design-studio)
 16. [Copilot](#copilot)
-17. [Settings](#settings)
-18. [Glossary](#glossary)
+17. [Set up a site](#set-up-a-site)
+18. [Settings](#settings)
+19. [Glossary](#glossary)
 
 ---
 
@@ -685,6 +686,20 @@ Your organisation may limit how many questions people ask per minute and how man
 - If your organisation has used its daily budget, the copilot is unavailable until the next day (UTC).
 
 Admins see usage on the **Settings** page.
+
+---
+
+## Set up a site
+
+**Set up a site**, beside Settings, takes a site from new to its first dashboard (API mode). The steps on the left show what is done, with a short status each. The page opens on the first step left, and works it out from the site itself, so you can leave and come back.
+
+1. **Create the site.** Organisation admins create another site here: its name, a short name for links (filled in from the name) and its time zone. **Set it up now** opens it.
+2. **Outline the plant** (engineers and admins). Name a line, optionally its workcenter, and its machines, one per line. Each machine gets a controller (PLC), read by the protocol you choose. It goes into the ontology as one commit, or as a change request when the site requires reviews. Commit or discard any changes you have staged first.
+3. **Connect an edge agent** (admins). Register an agent: its token is shown once, with the config file to put beside it and the commands to check and run it. The page notices the agent's first heartbeat by itself.
+4. **Map the tags.** Once readings arrive, the page counts the tags mapped to Signal nodes, and links to the Signals page, where **Suggest mappings** proposes one for each.
+5. **Open the first dashboard:** the Plant page of the machine with the most mapped signals, with their latest readings; and the Shopfloor view.
+
+**Refresh** checks again, the ontology included.
 
 ---
 

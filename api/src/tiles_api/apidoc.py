@@ -92,6 +92,8 @@ def caller(route: APIRoute) -> str:
 
     walk(route.dependant)
     roles = [getattr(c, "minimum_role", None) for c in calls]
+    if "organisation admin" in roles:
+        return "organisation admin"
     if "admin" in roles:
         return "admin"
     if "engineer" in roles:

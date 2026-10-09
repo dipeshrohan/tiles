@@ -26,6 +26,7 @@ def test_who_may_call_comes_from_the_dependencies() -> None:
     assert by_route[("/sites/{site_id}/signals", "GET")] == "site member"
     assert by_route[("/sites/{site_id}/ontology/commits", "POST")] == "engineer"
     assert by_route[("/sites/{site_id}/agents", "POST")] == "admin"
+    assert by_route[("/sites", "POST")] == "organisation admin"
     assert by_route[("/agent/samples", "POST")] == "edge agent"
     # Every endpoint is in the reference.
     text = apidoc.markdown(app)

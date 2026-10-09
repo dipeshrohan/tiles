@@ -3588,6 +3588,34 @@
         "title": "NewAgent",
         "type": "object"
       },
+      "NewSite": {
+        "properties": {
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "description": "Lower case, digits and dashes",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+            "title": "Slug",
+            "type": "string"
+          },
+          "timezone": {
+            "default": "UTC",
+            "description": "An IANA time zone, e.g. Europe/Berlin",
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "NewSite",
+        "type": "object"
+      },
       "NodeIn": {
         "additionalProperties": false,
         "properties": {
@@ -3653,6 +3681,81 @@
           }
         },
         "title": "NoteIn",
+        "type": "object"
+      },
+      "Onboarding": {
+        "properties": {
+          "agents": {
+            "title": "Agents",
+            "type": "integer"
+          },
+          "agents_seen": {
+            "title": "Agents Seen",
+            "type": "integer"
+          },
+          "dashboard": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dashboard"
+          },
+          "machines": {
+            "title": "Machines",
+            "type": "integer"
+          },
+          "mapped": {
+            "title": "Mapped",
+            "type": "integer"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "enum": [
+                  "site",
+                  "outline",
+                  "agent",
+                  "mapping",
+                  "dashboard"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "tags": {
+            "title": "Tags",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "steps",
+          "next",
+          "machines",
+          "agents",
+          "agents_seen",
+          "tags",
+          "mapped",
+          "dashboard"
+        ],
+        "title": "Onboarding",
         "type": "object"
       },
       "OutputChange": {
@@ -5770,6 +5873,36 @@
         "title": "Status",
         "type": "object"
       },
+      "Step": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "done": {
+            "title": "Done",
+            "type": "boolean"
+          },
+          "key": {
+            "enum": [
+              "site",
+              "outline",
+              "agent",
+              "mapping",
+              "dashboard"
+            ],
+            "title": "Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "done",
+          "detail"
+        ],
+        "title": "Step",
+        "type": "object"
+      },
       "SuggestionOut": {
         "properties": {
           "kind": {
@@ -7864,6 +7997,64 @@
           }
         },
         "summary": "List Sites",
+        "tags": [
+          "sites"
+        ]
+      },
+      "post": {
+        "description": "Creates a site in your organisation, with you as its admin. Its slug must be new in the\norganisation (409 otherwise).",
+        "operationId": "create_site_sites_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Site"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Site",
         "tags": [
           "sites"
         ]
@@ -10834,6 +11025,50 @@
         "summary": "Set Teams",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/sites/{site_id}/onboarding": {
+      "get": {
+        "description": "How far the site is set up, step by step: created, its plant outlined in the ontology, an\nedge agent that has called in, tags mapped to Signal nodes, and a machine with mapped signals\n(the first dashboard to open).",
+        "operationId": "onboarding_sites__site_id__onboarding_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Onboarding"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Onboarding",
+        "tags": [
+          "sites"
         ]
       }
     },

@@ -727,7 +727,7 @@
 	//#endregion
 	//#region js/lib/store.ts
 	var PREFIX = "tiles:";
-	function load$2(key, fallback) {
+	function load$3(key, fallback) {
 		try {
 			const raw = window.localStorage.getItem(PREFIX + key);
 			return raw ? JSON.parse(raw) : fallback;
@@ -911,6 +911,8 @@
 			authConfig: () => request("GET", "/auth/config", void 0, { anonymous: true }),
 			me: () => request("GET", "/me"),
 			sites: () => request("GET", "/sites"),
+			createSite: (site) => request("POST", "/sites", site),
+			onboarding: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/onboarding`),
 			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
 			members: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/members`),
 			audit: (siteId, { limit = 100, offset = 0 } = {}) => request("GET", `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
@@ -1684,7 +1686,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$16 = {
+	var view$17 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -2178,7 +2180,7 @@
 	};
 	//#endregion
 	//#region js/views/chat.ts
-	var uiState$11 = (ctx) => ctx.ui("chat", { conversation: null });
+	var uiState$12 = (ctx) => ctx.ui("chat", { conversation: null });
 	var API_SUGGESTIONS = [
 		"Which warnings are open?",
 		"How healthy is the ontology?",
@@ -2188,12 +2190,12 @@
 	var remote$1 = null;
 	var thread = null;
 	var live = null;
-	var busy$5 = false;
+	var busy$6 = false;
 	var draft$2 = "";
 	var rating = null;
 	var failure = null;
-	var siteId$7 = (ctx) => ctx.ontology.site?.id ?? null;
-	var threadKey = (ctx) => `${siteId$7(ctx)}|${uiState$11(ctx).conversation}`;
+	var siteId$8 = (ctx) => ctx.ontology.site?.id ?? null;
+	var threadKey = (ctx) => `${siteId$8(ctx)}|${uiState$12(ctx).conversation}`;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "chat") {
 			remote$1 = null;
@@ -2201,7 +2203,7 @@
 		}
 	});
 	async function loadRemote(ctx) {
-		const site = siteId$7(ctx);
+		const site = siteId$8(ctx);
 		if (!ctx.api || !site) return;
 		remote$1 = {
 			site,
@@ -2226,7 +2228,7 @@
 		ctx.rerender();
 	}
 	async function loadThread(ctx, id) {
-		const site = siteId$7(ctx);
+		const site = siteId$8(ctx);
 		if (!ctx.api || !site) return;
 		const key = `${site}|${id}`;
 		try {
@@ -2237,7 +2239,7 @@
 			};
 		} catch {
 			if (threadKey(ctx) === key) {
-				uiState$11(ctx).conversation = null;
+				uiState$12(ctx).conversation = null;
 				thread = null;
 			}
 		}
@@ -2257,7 +2259,7 @@
 		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn-ink)">⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ""}${feedback}`;
 	}
 	function remoteRender(ctx) {
-		const ui = uiState$11(ctx);
+		const ui = uiState$12(ctx);
 		const list = remote$1?.conversations;
 		const items = list === null || list === void 0 ? "<div class=\"empty\">Loading…</div>" : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
 			dateStyle: "medium",
@@ -2287,9 +2289,9 @@
         <div>
           <div class="chips" style="margin:10px 0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
-            <input type="text" name="q" value="${esc(draft$2)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$5 ? "disabled" : ""} />
-            <button class="btn primary" type="submit" ${busy$5 ? "disabled" : ""}>Ask</button>
-            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$5 ? "disabled" : ""}>Delete</button>` : ""}
+            <input type="text" name="q" value="${esc(draft$2)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$6 ? "disabled" : ""} />
+            <button class="btn primary" type="submit" ${busy$6 ? "disabled" : ""}>Ask</button>
+            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$6 ? "disabled" : ""}>Delete</button>` : ""}
           </form>
           <p class="small soft" style="margin-top:6px">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
         </div>
@@ -2305,14 +2307,14 @@
 		if (log) log.scrollTop = log.scrollHeight;
 	}
 	async function send(ctx, question) {
-		const site = siteId$7(ctx);
+		const site = siteId$8(ctx);
 		const api = ctx.api;
 		const text = question.trim();
-		if (!api || !site || !text || busy$5) return;
-		busy$5 = true;
+		if (!api || !site || !text || busy$6) return;
+		busy$6 = true;
 		draft$2 = "";
 		failure = null;
-		const ui = uiState$11(ctx);
+		const ui = uiState$12(ctx);
 		let sent = false;
 		try {
 			if (!ui.conversation) {
@@ -2342,7 +2344,7 @@
 				error: e instanceof Error ? e.message : "The answer was cut off"
 			};
 		} finally {
-			busy$5 = false;
+			busy$6 = false;
 			if (live?.answer.error) failure = {
 				key: live.key,
 				question: text,
@@ -2354,8 +2356,8 @@
 		}
 	}
 	async function rate(ctx, seq, value, comment) {
-		const site = siteId$7(ctx);
-		const id = uiState$11(ctx).conversation;
+		const site = siteId$8(ctx);
+		const id = uiState$12(ctx).conversation;
 		if (!ctx.api || !site || !id) return;
 		const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
 		try {
@@ -2373,8 +2375,8 @@
 		ctx.rerender();
 	}
 	function remoteBind(root, ctx) {
-		const ui = uiState$11(ctx);
-		const site = siteId$7(ctx);
+		const ui = uiState$12(ctx);
+		const site = siteId$8(ctx);
 		if (ui.conversation && thread?.key !== threadKey(ctx) && !live) loadThread(ctx, ui.conversation);
 		const logEl = root.querySelector("#chat-log");
 		if (logEl) logEl.scrollTop = logEl.scrollHeight;
@@ -2475,8 +2477,8 @@
 		onAll(root, "[data-q]", "click", (b) => sendLocal(b.dataset.q ?? ""));
 		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 	}
-	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$7(ctx) && remote$1?.configured);
-	var view$15 = {
+	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$8(ctx) && remote$1?.configured);
+	var view$16 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -2492,7 +2494,7 @@
 			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
 		},
 		bind(root, ctx) {
-			const site = siteId$7(ctx);
+			const site = siteId$8(ctx);
 			if (ctx.api && ctx.ontology.status === "ready" && site && remote$1?.site !== site) loadRemote(ctx);
 			if (remoteOn(ctx)) remoteBind(root, ctx);
 			else localBind(root, ctx);
@@ -2776,7 +2778,7 @@
 	}
 	//#endregion
 	//#region js/views/ontology.ts
-	var uiState$10 = (ctx) => ctx.ui("ontology", {
+	var uiState$11 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
 		hidden: [],
@@ -2787,7 +2789,7 @@
 		match: -1
 	});
 	function showHistory(ctx) {
-		uiState$10(ctx).tab = "history";
+		uiState$11(ctx).tab = "history";
 	}
 	var RELS = [
 		"contains",
@@ -3329,12 +3331,12 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$14 = {
+	var view$15 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
 		render(ctx) {
-			const ui = uiState$10(ctx);
+			const ui = uiState$11(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
@@ -3375,7 +3377,7 @@
       ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$10(ctx);
+			const ui = uiState$11(ctx);
 			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
@@ -3814,7 +3816,7 @@
 	var MINUTE$1 = 60 * SECOND;
 	var HOUR$3 = 60 * MINUTE$1;
 	var DAY = 24 * HOUR$3;
-	var STEPS$1 = [
+	var STEPS$2 = [
 		SECOND,
 		5 * SECOND,
 		15 * SECOND,
@@ -3837,7 +3839,7 @@
 		365 * DAY
 	];
 	function timeTicks(from, to, n = 6) {
-		const step = STEPS$1.find((s) => (to - from) / s <= n) ?? STEPS$1[STEPS$1.length - 1];
+		const step = STEPS$2.find((s) => (to - from) / s <= n) ?? STEPS$2[STEPS$2.length - 1];
 		const ticks = [];
 		if (step >= 30 * DAY) {
 			const months = Math.round(step / (30.4 * DAY));
@@ -3938,16 +3940,16 @@
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var uiState$9 = (ctx) => ctx.ui("quality", {
+	var uiState$10 = (ctx) => ctx.ui("quality", {
 		split: true,
 		variable: "tension"
 	});
-	var view$13 = {
+	var view$14 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
 		render(ctx) {
-			const ui = uiState$9(ctx);
+			const ui = uiState$10(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
@@ -4067,7 +4069,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$9(ctx);
+			const ui = uiState$10(ctx);
 			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
@@ -4083,14 +4085,14 @@
 	};
 	//#endregion
 	//#region js/views/physics.ts
-	var uiState$8 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$12 = {
+	var uiState$9 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var view$13 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = uiState$8(ctx);
+			const ui = uiState$9(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
@@ -4222,7 +4224,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$8(ctx);
+			const ui = uiState$9(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
 				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
@@ -4301,7 +4303,7 @@
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var uiState$7 = (ctx) => ctx.ui("design", {
+	var uiState$8 = (ctx) => ctx.ui("design", {
 		model: "swelling",
 		params: {},
 		versions: {},
@@ -4322,7 +4324,7 @@
 		50,
 		100
 	];
-	var POLL_MS = 400;
+	var POLL_MS$1 = 400;
 	var sweepRunning = (s) => s.status === "queued" || s.status === "running";
 	function follow(ctx, site, key, failures = 0) {
 		const at = visit;
@@ -4349,10 +4351,10 @@
 				return;
 			}
 			ctx.rerender();
-		}, POLL_MS * Math.min(2 ** failures, 16));
+		}, POLL_MS$1 * Math.min(2 ** failures, 16));
 	}
 	function sweepControls(ctx, key, canStart) {
-		const ui = uiState$7(ctx);
+		const ui = uiState$8(ctx);
 		const shown = apiSweep?.key === key ? apiSweep.sweep : null;
 		if (shown && sweepRunning(shown)) return `<div class="row" style="gap:8px" data-api-sweep>
       <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="Sweep progress"></progress>
@@ -4381,7 +4383,7 @@
 	var siteOf = (ctx) => ctx.api && ctx.ontology.status === "ready" ? ctx.ontology.site?.id ?? null : null;
 	var apiWaiting = (ctx) => ctx.api !== null && siteOf(ctx) === null;
 	function projectOf(ctx, site) {
-		const ui = uiState$7(ctx);
+		const ui = uiState$8(ctx);
 		const items = projects?.site === site ? projects.items : [];
 		if (ui.projectSite !== site) Object.assign(ui, {
 			project: null,
@@ -4455,7 +4457,7 @@
 		};
 	}
 	function current(ctx) {
-		const ui = uiState$7(ctx);
+		const ui = uiState$8(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
 			ui,
@@ -4464,7 +4466,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$11 = {
+	var view$12 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -5013,7 +5015,7 @@
 			list.innerHTML = "<p class=\"small soft\">The messages could not be loaded.</p>";
 		}
 	}
-	var revealed = null;
+	var revealed$1 = null;
 	var apiCheck = "";
 	var apiCheckSeq = 0;
 	var sourceDraft = null;
@@ -5066,21 +5068,21 @@
 		const box = root.querySelector("[data-agent-token]");
 		if (!box) return;
 		const admin = ctx.ontology.role === "admin";
-		if (!tokenStillShown(revealed, ctx.api?.baseUrl, ctx.ontology.site?.id, admin, viewer(ctx))) revealed = null;
-		if (!revealed) {
+		if (!tokenStillShown(revealed$1, ctx.api?.baseUrl, ctx.ontology.site?.id, admin, viewer(ctx))) revealed$1 = null;
+		if (!revealed$1) {
 			box.innerHTML = "";
 			return;
 		}
-		const config = `[tiles]\nurl = "${revealed.apiUrl}"\ntoken_file = "token"\n\n[agent]\nheartbeat_seconds = 30`;
+		const config = `[tiles]\nurl = "${revealed$1.apiUrl}"\ntoken_file = "token"\n\n[agent]\nheartbeat_seconds = 30`;
 		box.innerHTML = `<div class="stack" style="gap:8px">
-      <p><b>Token for ${esc(revealed.name)}.</b> Copy it now: Tiles keeps only its hash and won't show it again. Save it as <code>token</code> next to the agent's config file, readable only by the agent.</p>
-      <pre class="code-block" data-token>${esc(revealed.token)}</pre>
+      <p><b>Token for ${esc(revealed$1.name)}.</b> Copy it now: Tiles keeps only its hash and won't show it again. Save it as <code>token</code> next to the agent's config file, readable only by the agent.</p>
+      <pre class="code-block" data-token>${esc(revealed$1.token)}</pre>
       <p class="small soft">Config file (<code>tiles-edge.toml</code>):</p>
       <pre class="code-block">${esc(config)}</pre>
       <div><button class="btn" type="button" data-token-done>Done, I've saved it</button></div>
     </div>`;
 		onAll(box, "[data-token-done]", "click", () => {
-			revealed = null;
+			revealed$1 = null;
 			showToken(root, ctx);
 		});
 	}
@@ -5116,7 +5118,7 @@
 		onSubmit(root, "#agent-form", (form) => {
 			const name = field$1(form, "name").trim();
 			api.agents.register(site.id, name).then(({ token }) => {
-				revealed = {
+				revealed$1 = {
 					name,
 					token,
 					apiUrl: api.baseUrl,
@@ -5129,7 +5131,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$10 = {
+	var view$11 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -5348,7 +5350,7 @@
 	//#endregion
 	//#region js/lib/wear.ts
 	var HOUR$2 = 36e5;
-	var STEPS = [
+	var STEPS$1 = [
 		1,
 		5,
 		15,
@@ -5367,7 +5369,7 @@
 		const spanHours = (to - Date.parse(range.from)) / HOUR$2;
 		if (!(spanHours > 0)) return "Choose a range first";
 		if (spanHours > MAX_SPAN_HOURS) return "Check at most 120 days at once: zoom in";
-		const step = STEPS.find((m) => spanHours * 60 / m <= MAX_BUCKETS) ?? 1440;
+		const step = STEPS$1.find((m) => spanHours * 60 / m <= MAX_BUCKETS) ?? 1440;
 		const buckets = Math.floor(spanHours * 60 / step);
 		const recent = Math.max(4, Math.min(Math.floor(1440 / step), Math.floor(buckets / 4)));
 		if (recent < 4 || buckets - recent < 6) return "The range is too short to check for wear: zoom out";
@@ -5790,7 +5792,7 @@
 			})();
 		});
 	}
-	var view$9 = {
+	var view$10 = {
 		id: "signals",
 		title: "Signals",
 		icon: "≋",
@@ -6243,7 +6245,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$8 = {
+	var view$9 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "⌁",
@@ -6355,7 +6357,7 @@
 	};
 	//#endregion
 	//#region js/views/reviews.ts
-	var uiState$6 = (ctx) => ctx.ui("reviews", {
+	var uiState$7 = (ctx) => ctx.ui("reviews", {
 		state: "open",
 		selected: null,
 		site: null
@@ -6364,12 +6366,12 @@
 	var detail$3 = null;
 	var listSeq$2 = 0;
 	var detailSeq$1 = 0;
-	var busy$4 = false;
+	var busy$5 = false;
 	var draft$1 = {
 		key: "",
 		text: ""
 	};
-	var siteId$6 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$7 = (ctx) => ctx.ontology.site?.id ?? null;
 	var linked = (hash) => {
 		const m = /^#\/reviews\/(\d+)/i.exec(hash);
 		return m ? Number(m[1]) : null;
@@ -6383,8 +6385,8 @@
 			detail$3 = null;
 		}
 	});
-	var listKey$2 = (ctx) => `${siteId$6(ctx)}|${uiState$6(ctx).state}`;
-	var detailKey$2 = (ctx) => `${siteId$6(ctx)}|${uiState$6(ctx).selected}`;
+	var listKey$2 = (ctx) => `${siteId$7(ctx)}|${uiState$7(ctx).state}`;
+	var detailKey$2 = (ctx) => `${siteId$7(ctx)}|${uiState$7(ctx).selected}`;
 	var STATUS$1 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
@@ -6452,7 +6454,7 @@
       ${waiting}
       ${canWrite ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
         <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$1.key === detailKey$2(ctx) ? esc(draft$1.text) : ""}</textarea>
-        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$4 ? "disabled" : ""}>
+        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$5 ? "disabled" : ""}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
           ${reworkButton(r, mine)}
@@ -6472,7 +6474,7 @@
     </div>`;
 	}
 	async function fetchList$1(ctx) {
-		const site = siteId$6(ctx);
+		const site = siteId$7(ctx);
 		if (!ctx.api || !site) return;
 		const key = listKey$2(ctx);
 		const seq = ++listSeq$2;
@@ -6481,7 +6483,7 @@
 			items: null
 		};
 		try {
-			const items = await ctx.api.reviews.list(site, uiState$6(ctx).state);
+			const items = await ctx.api.reviews.list(site, uiState$7(ctx).state);
 			if (seq === listSeq$2) listing$4 = {
 				key,
 				items
@@ -6495,8 +6497,8 @@
 		if (seq === listSeq$2) ctx.rerender();
 	}
 	async function fetchDetail$1(ctx) {
-		const site = siteId$6(ctx);
-		const n = uiState$6(ctx).selected;
+		const site = siteId$7(ctx);
+		const n = uiState$7(ctx).selected;
 		if (!ctx.api || !site || n === null) return;
 		const key = detailKey$2(ctx);
 		const seq = ++detailSeq$1;
@@ -6509,14 +6511,14 @@
 			};
 		} catch {
 			if (seq !== detailSeq$1) return;
-			uiState$6(ctx).selected = null;
+			uiState$7(ctx).selected = null;
 		}
 		ctx.rerender();
 	}
 	async function act$2(ctx, action, comment) {
-		const site = siteId$6(ctx);
+		const site = siteId$7(ctx);
 		const r = detail$3?.review;
-		if (!ctx.api || !site || !r || busy$4) return;
+		if (!ctx.api || !site || !r || busy$5) return;
 		const reviews = ctx.api.reviews;
 		const call = {
 			comment: () => reviews.comment(site, r.number, comment),
@@ -6525,7 +6527,7 @@
 			rework: () => reviews.rework(site, r.number)
 		}[action];
 		if (!call) return;
-		busy$4 = true;
+		busy$5 = true;
 		ctx.rerender();
 		try {
 			const review = await call();
@@ -6553,11 +6555,11 @@
 			detail$3 = null;
 			listing$4 = null;
 		} finally {
-			busy$4 = false;
+			busy$5 = false;
 			ctx.rerender();
 		}
 	}
-	var view$7 = {
+	var view$8 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "✓",
@@ -6568,15 +6570,15 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$3(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$6(ctx);
-			if (ui.site !== siteId$6(ctx)) Object.assign(ui, {
+			const ui = uiState$7(ctx);
+			if (ui.site !== siteId$7(ctx)) Object.assign(ui, {
 				selected: null,
-				site: siteId$6(ctx)
+				site: siteId$7(ctx)
 			});
 			if (wanted !== null) {
 				ui.selected = wanted;
@@ -6607,7 +6609,7 @@
 				};
 			});
 			onAll(root, "[data-policy]", "change", (el) => {
-				const site = siteId$6(ctx);
+				const site = siteId$7(ctx);
 				const required = el.checked;
 				if (!ctx.api || !site) return;
 				ctx.api.ontology.setReviewPolicy(site, required).then(() => ctx.toast(required ? "Every change now needs a review" : "Reviews are optional again")).catch(() => void 0).finally(() => void ctx.ontology.reload());
@@ -6735,7 +6737,7 @@
 	}
 	//#endregion
 	//#region js/views/warnings.ts
-	var uiState$5 = (ctx) => ctx.ui("warnings", {
+	var uiState$6 = (ctx) => ctx.ui("warnings", {
 		filters: { ...DEFAULT_FILTERS },
 		selected: null,
 		site: null
@@ -6748,14 +6750,14 @@
 	var listSeq$1 = 0;
 	var detailSeq = 0;
 	var seriesSeq = 0;
-	var busy$3 = false;
+	var busy$4 = false;
 	var draft = {
 		key: "",
 		text: ""
 	};
 	var PAGE$1 = 100;
 	var ago = (iso) => when(iso, Date.now());
-	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$6 = (ctx) => ctx.ontology.site?.id ?? null;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "warnings") {
 			listing$3 = null;
@@ -6765,8 +6767,8 @@
 			members = null;
 		}
 	});
-	var listKey$1 = (ctx) => `${siteId$5(ctx)}|${JSON.stringify(uiState$5(ctx).filters)}`;
-	var detailKey$1 = (ctx) => `${siteId$5(ctx)}|${uiState$5(ctx).selected}`;
+	var listKey$1 = (ctx) => `${siteId$6(ctx)}|${JSON.stringify(uiState$6(ctx).filters)}`;
+	var detailKey$1 = (ctx) => `${siteId$6(ctx)}|${uiState$6(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function badge$1(w) {
 		const [cls, label] = STATUS[w.status];
@@ -6826,7 +6828,7 @@
 	function actionsForm(ctx, w) {
 		const actions = actionsFor(w, ctx.ontology.role);
 		if (!actions.length) return "";
-		const people = (members?.site === siteId$5(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
+		const people = (members?.site === siteId$6(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
 		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
 		const has = (a) => actions.includes(a);
 		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
@@ -6838,7 +6840,7 @@
       </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>` : "";
 		return `<form class="stack" id="warning-form" style="gap:8px;margin-top:10px">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey$1(ctx) ? esc(draft.text) : ""}</textarea>
-      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$3 ? "disabled" : ""}>
+      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$4 ? "disabled" : ""}>
         ${has("acknowledge") ? "<button class=\"btn primary\" type=\"button\" data-act=\"acknowledge\">Acknowledge</button>" : ""}
         ${assign}
         ${resolve}
@@ -6880,7 +6882,7 @@
     </div>`;
 	}
 	async function fetchList(ctx) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		if (!ctx.api || !site) return;
 		const key = listKey$1(ctx);
 		const seq = ++listSeq$1;
@@ -6891,7 +6893,7 @@
 		};
 		try {
 			const items = await ctx.api.warnings.list(site, {
-				...queryFor(uiState$5(ctx).filters),
+				...queryFor(uiState$6(ctx).filters),
 				limit: PAGE$1
 			});
 			if (seq === listSeq$1) listing$3 = {
@@ -6909,13 +6911,13 @@
 		if (seq === listSeq$1) ctx.rerender();
 	}
 	async function fetchMore(ctx) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		const shown = listing$3;
 		if (!ctx.api || !site || !shown?.items || shown.key !== listKey$1(ctx)) return;
 		const seq = ++listSeq$1;
 		try {
 			const query = {
-				...queryFor(uiState$5(ctx).filters),
+				...queryFor(uiState$6(ctx).filters),
 				limit: PAGE$1,
 				offset: shown.items.length
 			};
@@ -6937,7 +6939,7 @@
 		ctx.rerender();
 	}
 	async function fetchSeries(ctx, w) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		if (!ctx.api || !site) return;
 		const key = seriesKey(w);
 		const seq = ++seriesSeq;
@@ -6963,8 +6965,8 @@
 		ctx.rerender();
 	}
 	async function fetchDetail(ctx) {
-		const site = siteId$5(ctx);
-		const id = uiState$5(ctx).selected;
+		const site = siteId$6(ctx);
+		const id = uiState$6(ctx).selected;
 		if (!ctx.api || !site || id === null) return;
 		const key = detailKey$1(ctx);
 		const seq = ++detailSeq;
@@ -6978,13 +6980,13 @@
 			};
 		} catch (e) {
 			if (seq !== detailSeq) return;
-			if (e instanceof ApiError && e.status === 404) uiState$5(ctx).selected = null;
+			if (e instanceof ApiError && e.status === 404) uiState$6(ctx).selected = null;
 			else detailFailed = key;
 		}
 		ctx.rerender();
 	}
 	async function fetchMembers(ctx) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		if (!ctx.api || !site) return;
 		members = {
 			site,
@@ -7000,9 +7002,9 @@
 		ctx.rerender();
 	}
 	async function act$1(ctx, action, note, form) {
-		const site = siteId$5(ctx);
+		const site = siteId$6(ctx);
 		const w = detail$2?.warning;
-		if (!ctx.api || !site || !w || busy$3) return;
+		if (!ctx.api || !site || !w || busy$4) return;
 		const api = ctx.api.warnings;
 		const value = (name) => form.querySelector(`[name="${name}"]`)?.value ?? "";
 		const call = {
@@ -7013,7 +7015,7 @@
 			comment: () => api.comment(site, w.id, note)
 		}[action];
 		if (!call) return;
-		busy$3 = true;
+		busy$4 = true;
 		++detailSeq;
 		ctx.rerender();
 		try {
@@ -7041,18 +7043,18 @@
 			detail$2 = null;
 			listing$3 = null;
 		} finally {
-			busy$3 = false;
+			busy$4 = false;
 			ctx.rerender();
 		}
 	}
 	function openWarning(ctx, id) {
-		Object.assign(uiState$5(ctx), {
+		Object.assign(uiState$6(ctx), {
 			selected: id,
-			site: siteId$5(ctx)
+			site: siteId$6(ctx)
 		});
 		location.hash = "#/warnings";
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "⚠",
@@ -7063,13 +7065,13 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$2(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$5(ctx);
-			const site = siteId$5(ctx);
+			const ui = uiState$6(ctx);
+			const site = siteId$6(ctx);
 			if (ui.site !== site) Object.assign(ui, {
 				selected: null,
 				site
@@ -7099,7 +7101,7 @@
 				ctx.rerender();
 			});
 			onAll(root, "[data-refresh-warnings]", "click", () => {
-				if (busy$3) return;
+				if (busy$4) return;
 				listing$3 = null;
 				detail$2 = null;
 				detailFailed = null;
@@ -7281,7 +7283,7 @@
 	var lastRoute = typeof location === "undefined" ? "" : routeOf(location.hash);
 	var listSeq = 0;
 	var catalogueSeq = 0;
-	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
 	var shown = () => ROUTES.has(routeOf(location.hash));
 	onNavigate((hash) => {
 		const route = routeOf(hash);
@@ -7301,7 +7303,7 @@
 		more: listing$2?.more ?? false
 	});
 	async function fetchWarnings(ctx, quiet = false) {
-		const site = siteId$4(ctx);
+		const site = siteId$5(ctx);
 		if (!ctx.api || !site) return;
 		const seq = ++listSeq;
 		if (!quiet || listing$2?.site !== site) listing$2 = {
@@ -7332,7 +7334,7 @@
 		if (seq === listSeq && shown()) ctx.rerender();
 	}
 	async function fetchCatalogue(ctx) {
-		const site = siteId$4(ctx);
+		const site = siteId$5(ctx);
 		if (!ctx.api || !site) return;
 		const seq = ++catalogueSeq;
 		if (catalogue?.site !== site) catalogue = {
@@ -7364,7 +7366,7 @@
 	}
 	function ensureFloor(ctx) {
 		if (!ctx.api || ctx.ontology.status !== "ready") return;
-		const site = siteId$4(ctx);
+		const site = siteId$5(ctx);
 		if (stale) {
 			stale = false;
 			if (listing$2?.site === site) fetchWarnings(ctx, true);
@@ -7378,11 +7380,11 @@
 		fetchCatalogue(ctx);
 	}
 	function linkedSignals(ctx) {
-		const site = siteId$4(ctx);
+		const site = siteId$5(ctx);
 		return catalogue?.site === site && catalogue.signals || [];
 	}
 	function links(ctx) {
-		return catalogue?.site === siteId$4(ctx) && catalogue.links || /* @__PURE__ */ new Map();
+		return catalogue?.site === siteId$5(ctx) && catalogue.links || /* @__PURE__ */ new Map();
 	}
 	var warningById = (id) => listing$2?.items?.find((w) => w.id === id);
 	function floorItems(ctx, graph) {
@@ -7406,7 +7408,7 @@
 				detail: `Shots ${fmt$1(a.firstShot)}–${fmt$1(a.lastShot)}, friction peak ${fmt$1(a.peak, 2)}`
 			}));
 		}
-		const site = siteId$4(ctx);
+		const site = siteId$5(ctx);
 		if (!site || listing$2?.site !== site || listing$2.items === null) return null;
 		const map = links(ctx);
 		return listing$2.items.map((w) => placeWarning(graph, w, map, howFar(w))).sort(floorOrder);
@@ -7419,20 +7421,20 @@
 	};
 	//#endregion
 	//#region js/views/shopfloor.ts
-	var uiState$4 = (ctx) => ctx.ui("shopfloor", {
+	var uiState$5 = (ctx) => ctx.ui("shopfloor", {
 		resolving: null,
 		taking: null,
 		full: false
 	});
 	var REFRESH_MS = 3e4;
-	var busy$2 = null;
+	var busy$3 = null;
 	var shownHeadline = null;
 	var toldHeadline = null;
-	var timer = null;
-	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
+	var timer$1 = null;
+	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
 	function stop() {
-		if (timer !== null) clearInterval(timer);
-		timer = null;
+		if (timer$1 !== null) clearInterval(timer$1);
+		timer$1 = null;
 		document.body.classList.remove("floor-full");
 	}
 	onNavigate((hash) => {
@@ -7450,7 +7452,7 @@
 		if (!ctx.api) return "<p class=\"small soft\">Connect to the Tiles API in Settings to take and resolve warnings.</p>";
 		const role = ctx.ontology.role;
 		if (role !== "engineer" && role !== "admin") return "<p class=\"small soft\">An engineer of the site acts on it.</p>";
-		const wait = busy$2 !== null ? "disabled" : "";
+		const wait = busy$3 !== null ? "disabled" : "";
 		const label = (verb) => `${verb}: ${item.machine}, ${item.tag}`;
 		if (ui.resolving === item.id) {
 			const outcome = (o, cls) => `<button class="btn floor-btn ${cls}" data-outcome="${o}" data-id="${esc(item.id)}" ${wait}>${OUTCOMES[o]}</button>`;
@@ -7482,7 +7484,7 @@
       <p class="floor-state"><span class="badge ${cls}">${label}</span> ${since(item, now)}</p>
       <p class="small">${esc(item.detail)}</p>
       ${who}
-      ${busy$2 === item.id ? "<p class=\"small soft\" role=\"status\">Sending…</p>" : ""}
+      ${busy$3 === item.id ? "<p class=\"small soft\" role=\"status\">Sending…</p>" : ""}
       ${actions(ctx, item, ui)}
     </article>`;
 	}
@@ -7500,42 +7502,42 @@
 		}).join("")}</div>`;
 	}
 	async function take(ctx, id) {
-		const site = siteId$3(ctx);
+		const site = siteId$4(ctx);
 		const w = warningById(id);
-		if (!ctx.api || !site || !w || busy$2) return;
-		busy$2 = id;
+		if (!ctx.api || !site || !w || busy$3) return;
+		busy$3 = id;
 		ctx.rerender();
 		try {
 			if (w.status === "raised") await ctx.api.warnings.acknowledge(site, id);
 			const me = ctx.ontology.userId;
 			if (me && w.assignee_id !== me) await ctx.api.warnings.assign(site, id, me);
-			uiState$4(ctx).taking = null;
+			uiState$5(ctx).taking = null;
 			ctx.toast(me ? `It's yours: ${w.signal_tag}` : `Acknowledged: ${w.signal_tag}`);
 		} catch {} finally {
-			busy$2 = null;
+			busy$3 = null;
 		}
 		await fetchWarnings(ctx, true);
 	}
 	async function resolve(ctx, id, outcome) {
-		const site = siteId$3(ctx);
-		if (!ctx.api || !site || busy$2) return;
-		busy$2 = id;
+		const site = siteId$4(ctx);
+		if (!ctx.api || !site || busy$3) return;
+		busy$3 = id;
 		ctx.rerender();
 		try {
 			await ctx.api.warnings.resolve(site, id, outcome);
-			uiState$4(ctx).resolving = null;
+			uiState$5(ctx).resolving = null;
 			ctx.toast(`Resolved as ${OUTCOMES[outcome].toLowerCase()}`);
 		} catch {} finally {
-			busy$2 = null;
+			busy$3 = null;
 		}
 		await fetchWarnings(ctx, true);
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "shopfloor",
 		title: "Shopfloor",
 		icon: "▣",
 		render(ctx) {
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			const site = ctx.ontology.site?.name ?? (ctx.api ? "" : "Demo plant");
 			const fullLabel = ui.full ? "Show navigation" : "Full view";
 			const head = (status) => `<div class="floor-head">
@@ -7557,7 +7559,7 @@
 				minute: "2-digit"
 			})}; refreshes every 30 seconds</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
 			shownHeadline = {
-				site: siteId$3(ctx),
+				site: siteId$4(ctx),
 				text
 			};
 			const status = `<h1 class="floor-headline ${tone}">${esc(text)}</h1>${updated}`;
@@ -7570,7 +7572,7 @@
         <h2 class="floor-section">Machines</h2>${board(graph, list)}</div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			document.body.classList.toggle("floor-full", ui.full);
 			if (shownHeadline && shownHeadline.text !== toldHeadline?.text) {
 				if (toldHeadline && toldHeadline.site === shownHeadline.site) announce(shownHeadline.text);
@@ -7583,9 +7585,9 @@
 			if (!ctx.api) return;
 			if (ctx.ontology.status !== "ready") return;
 			ensureFloor(ctx);
-			timer ??= setInterval(() => {
+			timer$1 ??= setInterval(() => {
 				if (routeOf(location.hash) !== "shopfloor") return stop();
-				if (!busy$2 && !document.hidden) fetchWarnings(ctx, true);
+				if (!busy$3 && !document.hidden) fetchWarnings(ctx, true);
 			}, REFRESH_MS);
 			onAll(root, "[data-floor-refresh]", "click", () => refreshFloor(ctx));
 			onAll(root, "[data-take]", "click", (el) => void take(ctx, el.dataset.take ?? ""));
@@ -7720,7 +7722,7 @@
 	var placeLink = (id) => `#/plant/${encodeURIComponent(id)}`;
 	//#endregion
 	//#region js/views/plant.ts
-	var uiState$3 = (ctx) => ctx.ui("plant", { query: "" });
+	var uiState$4 = (ctx) => ctx.ui("plant", { query: "" });
 	var searching = false;
 	var typing;
 	var crumbs = (graph, id) => {
@@ -7829,12 +7831,12 @@
 		const rows = findPlaces(graph, query).map((h) => `<li><a href="${placeLink(h.id)}" data-place="${esc(h.id)}">${esc(h.label)}</a> <span class="small soft">${esc(h.type)}${h.path.length ? ` · ${esc(h.path.join(" › "))}` : ""}</span></li>`).join("");
 		return `<div class="card" data-plant-results>${rows ? `<ul class="plant-list">${rows}</ul>` : `<p class="small">No place is called “${esc(query)}”.</p>`}</div>`;
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "plant",
 		title: "Plant",
 		icon: "⌗",
 		render(ctx) {
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			const graph = ctx.graph;
 			const tops = topPlaces(graph);
 			const asked = placeFromHash(location.hash);
@@ -7859,7 +7861,7 @@
 			return `${head}${results}${node.type === "Machine" ? machinePage(ctx, graph, node, items, now) : placePage(graph, node.id, items, now)}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$3(ctx);
+			const ui = uiState$4(ctx);
 			ensureFloor(ctx);
 			const form = root.querySelector("[data-plant-search]");
 			const input = form?.querySelector("input");
@@ -7892,6 +7894,385 @@
 			});
 			onAll(root, "[data-plant-refresh]", "click", () => refreshFloor(ctx));
 			onAll(root, "[data-open-warning]", "click", (el) => openWarning(ctx, el.dataset.openWarning ?? ""));
+		}
+	};
+	//#endregion
+	//#region js/lib/onboarding.ts
+	var STEPS = [
+		{
+			key: "site",
+			title: "Create the site",
+			why: "A site holds one plant’s ontology, signals, warnings and people."
+		},
+		{
+			key: "outline",
+			title: "Outline the plant",
+			why: "Lines and machines, each with its controller: where signals and warnings belong."
+		},
+		{
+			key: "agent",
+			title: "Connect an edge agent",
+			why: "It runs on site, reads the controllers and historians, and sends the readings out to Tiles."
+		},
+		{
+			key: "mapping",
+			title: "Map the tags",
+			why: "Each tag linked to its Signal node, so readings land on their machine."
+		},
+		{
+			key: "dashboard",
+			title: "Open the first dashboard",
+			why: "A machine’s page with its live readings, and the Shopfloor view for the line."
+		}
+	];
+	function slugFrom(name) {
+		return name.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 63).replace(/-+$/, "") || "site";
+	}
+	var PROTOCOLS = [
+		"OPC UA",
+		"MQTT (Sparkplug B)",
+		"Modbus TCP",
+		"SQL historian"
+	];
+	function names(text) {
+		return [...new Set(text.split(/\r?\n|,/).map((s) => s.trim()).filter(Boolean))];
+	}
+	function outlineProblem(o) {
+		if (!o.line.trim()) return "Name the line";
+		if (!o.machines.length) return "Name at least one machine";
+		if (o.machines.length > 200) return "Outline up to 200 machines at once";
+		return null;
+	}
+	function outlineOps(graph, o) {
+		const taken = /* @__PURE__ */ new Set([...Object.keys(graph.nodes), ...Object.keys(graph.edges)]);
+		const id = (prefix, label) => {
+			const base = `${prefix}-${slugFrom(label)}`;
+			let candidate = base;
+			for (let n = 2; taken.has(candidate); n++) candidate = `${base}-${n}`;
+			taken.add(candidate);
+			return candidate;
+		};
+		const ops = [];
+		const node = (prefix, type, label, props = {}, named = label) => {
+			const nodeId = id(prefix, named);
+			ops.push({
+				kind: "addNode",
+				node: {
+					id: nodeId,
+					type,
+					label,
+					props
+				}
+			});
+			return nodeId;
+		};
+		const edge = (from, rel, to) => ops.push({
+			kind: "addEdge",
+			edge: {
+				id: id("e", `${from}-${rel}-${to}`),
+				from,
+				rel,
+				to
+			}
+		});
+		let parent = Object.values(graph.nodes).filter((n) => n.type === "Site").sort((a, b) => a.id.localeCompare(b.id))[0]?.id ?? node("site", "Site", o.site.trim() || "Site");
+		if (o.workcenter.trim()) {
+			const wc = node("wc", "Workcenter", o.workcenter.trim());
+			edge(parent, "contains", wc);
+			parent = wc;
+		}
+		const line = node("line", "Line", o.line.trim());
+		edge(parent, "contains", line);
+		for (const label of o.machines) {
+			const machine = node("m", "Machine", label);
+			const plc = node("plc", "PLC", `PLC ${label}`, { protocol: o.protocol }, label);
+			edge(line, "contains", machine);
+			edge(machine, "controlledBy", plc);
+		}
+		return ops;
+	}
+	function agentConfig(apiUrl) {
+		return `[tiles]
+url = "${apiUrl.replace(/\/+$/, "")}"
+token_file = "token"             # the token above, in a file only the agent's user can read
+
+[agent]
+heartbeat_seconds = 30
+
+# Then a connector for each source, e.g. an OPC UA server and one of its tags:
+# [[opcua]]
+# name = "press-line"
+# endpoint = "opc.tcp://10.0.0.5:4840"
+# [[opcua.signals]]
+# node = "ns=2;s=Press1.Temperature"
+# signal = "press1.temperature"
+# See the edge agent's README for OPC UA, MQTT and SQL sources.
+`;
+	}
+	//#endregion
+	//#region js/views/onboarding.ts
+	var uiState$3 = (ctx) => ctx.ui("onboarding", { step: null });
+	var POLL_MS = 5e3;
+	var progress$1 = null;
+	var agents = null;
+	var revealed = null;
+	var created = null;
+	var seq$1 = 0;
+	var busy$2 = false;
+	var timer = null;
+	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
+	onNavigate((hash) => {
+		if (routeOf(hash) === "onboarding") return;
+		if (timer !== null) clearInterval(timer);
+		timer = null;
+		progress$1 = null;
+		agents = null;
+		revealed = null;
+		++seq$1;
+	});
+	async function load$2(ctx) {
+		const site = siteId$3(ctx);
+		if (!ctx.api || !site) return;
+		const mine = ++seq$1;
+		if (progress$1?.site !== site) progress$1 = {
+			site,
+			data: null
+		};
+		try {
+			const [data, list] = await Promise.all([
+				ctx.api.onboarding(site),
+				ctx.api.agents.list(site),
+				ctx.ontology.reload()
+			]);
+			if (mine !== seq$1) return;
+			progress$1 = {
+				site,
+				data
+			};
+			agents = {
+				site,
+				list
+			};
+		} catch {
+			if (mine !== seq$1) return;
+			agents = {
+				site,
+				list: agents?.site === site ? agents.list : []
+			};
+			if (!progress$1.data) progress$1 = {
+				site,
+				data: null
+			};
+		}
+		if (routeOf(location.hash) === "onboarding") ctx.rerender();
+	}
+	var canEdit = (ctx) => ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
+	function stepList(data, current) {
+		return `<ol class="wizard-steps">${STEPS.map((s, i) => {
+			const state = data.steps.find((x) => x.key === s.key);
+			const done = state?.done ?? false;
+			return `<li class="${done ? "done" : ""} ${s.key === current ? "current" : ""}">
+        <button class="wizard-step" data-step="${s.key}" ${s.key === current ? "aria-current=\"step\"" : ""}>
+          <span class="wizard-mark" aria-hidden="true">${done ? "✓" : i + 1}</span>
+          <span><b>${esc(s.title)}</b><span class="small soft">${done ? "Done: " : ""}${esc(state?.detail ?? "")}</span></span>
+        </button>
+      </li>`;
+		}).join("")}</ol>`;
+	}
+	function siteStep(ctx) {
+		const here = ctx.ontology.site;
+		const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+		const made = created ? `<div class="card" role="status"><p><b>${esc(created.name)}</b> is created, with you as its admin.</p>
+        <button class="btn primary" data-open-site="${esc(created.id)}">Set up ${esc(created.name)} now</button></div>` : "";
+		return `<p>You are setting up <b>${esc(here?.name ?? "")}</b>${here ? ` (<code>${esc(here.slug)}</code>)` : ""}. Next: outline its plant.</p>
+    ${made}
+    <h3>A new site</h3>
+    <p class="small soft">Organisation admins create sites. Each is set up on its own: open it, then come back here.</p>
+    <form class="stack" id="new-site" style="gap:10px;max-width:520px">
+      <label class="field">Name<input type="text" name="name" required maxlength="120" placeholder="Plant 2" autocomplete="off"></label>
+      <label class="field">Short name, in links<input type="text" name="slug" required pattern="[a-z0-9][a-z0-9\\-]{0,62}" placeholder="plant-2" autocomplete="off"></label>
+      <label class="field">Time zone<input type="text" name="timezone" required value="${esc(zone)}" autocomplete="off"></label>
+      <div><button class="btn primary" type="submit" ${busy$2 ? "disabled" : ""}>Create the site</button></div>
+    </form>`;
+	}
+	function outlineStep(ctx, data) {
+		const have = data.machines ? `<p>The ontology has ${data.machines} machine${data.machines === 1 ? "" : "s"}. Add another line here, or edit them on the <a href="#/ontology">Ontology</a> page.</p>` : "<p>Name a line and its machines. Each machine gets a controller (PLC), which is where the edge agent’s tags go.</p>";
+		if (!canEdit(ctx)) return `${have}<p class="small soft">Engineers and admins of the site outline the plant.</p>`;
+		const staged = ctx.state.repo.staged.length;
+		return `${have}
+    ${staged ? `<p class="small" role="note">You have ${staged} staged change${staged === 1 ? "" : "s"}: commit or discard them on the <a href="#/ontology">Ontology</a> page first.</p>` : ""}
+    <form class="stack" id="outline" style="gap:10px;max-width:520px">
+      <label class="field">Workcenter (optional)<input type="text" name="workcenter" placeholder="Housing casting" autocomplete="off"></label>
+      <label class="field">Line<input type="text" name="line" required placeholder="Die-cast line 1" autocomplete="off"></label>
+      <label class="field">Machines, one per line<textarea name="machines" rows="4" required placeholder="Die-caster DC-01&#10;Die-caster DC-02"></textarea></label>
+      <label class="field">How their controllers are read<select name="protocol">${PROTOCOLS.map((p) => `<option>${esc(p)}</option>`).join("")}</select></label>
+      <div><button class="btn primary" type="submit" ${busy$2 || staged ? "disabled" : ""}>${ctx.ontology.reviewRequired ? "Send for review" : "Add to the ontology"}</button></div>
+    </form>`;
+	}
+	function agentStep(ctx, data) {
+		const list = agents?.site === siteId$3(ctx) ? agents.list : null;
+		const rows = (list ?? []).map((a) => `<li><span><b>${esc(a.name)}</b> <span class="small soft">${esc(a.hostname ?? "")}</span></span><span class="badge ${a.status === "online" ? "good" : a.status === "offline" ? "warn" : ""}">${esc(a.status)}</span></li>`).join("");
+		const waiting = !data.agents_seen && data.agents ? "<p role=\"status\" class=\"small\">Waiting for the agent’s first heartbeat… this page checks every few seconds.</p>" : "";
+		const token = revealed?.site === siteId$3(ctx) ? `<div class="card stack" style="gap:8px" data-agent-token>
+          <p><b>${esc(revealed.name)}</b>’s token, shown only this once. Save it on the agent’s machine as <code>/etc/tiles-edge/token</code>, readable only by the agent’s user:</p>
+          <pre class="code-block" tabindex="0">${esc(revealed.token)}</pre>
+          <p>Then write <code>/etc/tiles-edge/tiles-edge.toml</code>:</p>
+          <pre class="code-block" tabindex="0">${esc(agentConfig(ctx.dataSource.apiUrl))}</pre>
+          <p>Check it with <code>tiles-edge check -c /etc/tiles-edge/tiles-edge.toml</code>, then run <code>tiles-edge run -c /etc/tiles-edge/tiles-edge.toml</code> as a service. It only connects out, over HTTPS.</p>
+        </div>` : "";
+		const form = ctx.ontology.role === "admin" ? `<form class="row" id="new-agent" style="gap:8px;flex-wrap:wrap">
+          <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(list?.length ? `edge-${String(list.length + 1).padStart(2, "0")}` : "edge-01")}" autocomplete="off"></label>
+          <button class="btn primary" type="submit" ${busy$2 ? "disabled" : ""}>Register an agent</button>
+        </form>` : "<p class=\"small soft\">Admins of the site register edge agents.</p>";
+		return `<p>The edge agent runs on a machine on site that can reach the controllers. It reads them read-only, buffers to disk, and sends readings out to Tiles.</p>
+    ${rows ? `<ul class="plant-list">${rows}</ul>` : ""}
+    ${waiting}${token}${form}`;
+	}
+	function mappingStep(data) {
+		if (!data.tags) return `<p>No tags have arrived yet. They come once the agent’s connectors are configured (OPC UA, MQTT or SQL, in its config file); or <a href="#/import">import a file</a> of past readings.</p>`;
+		return `<p><b>${data.mapped} of ${data.tags}</b> tags are mapped to Signal nodes.</p>
+    <p>On the Signals page, <b>Suggest mappings</b> proposes a Signal node for each tag that has none: one to link, or a new one under its machine’s PLC. Every suggestion says why. Map the tags that matter first; the rest can wait.</p>
+    <p><a class="btn primary" href="#/signals">Map tags on the Signals page</a></p>`;
+	}
+	function dashboardStep(data) {
+		if (!data.dashboard) return "<p>Once a machine has a mapped signal, its page shows the live readings: the first dashboard.</p>";
+		return `<p><b>${esc(data.dashboard.label)}</b> has live signals. Its page shows each one’s latest reading, its open warnings, and what feeds it.</p>
+    <p class="row" style="gap:8px;flex-wrap:wrap">
+      <a class="btn primary" href="#/plant/${encodeURIComponent(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
+      <a class="btn" href="#/shopfloor">Shopfloor view</a>
+      <a class="btn" href="#/explorer">Data explorer</a>
+    </p>
+    ${data.next === null ? "<p role=\"status\"><b>This site is set up.</b> Next, add detectors to raise warnings (Warnings page) and invite the team.</p>" : ""}`;
+	}
+	var view$4 = {
+		id: "onboarding",
+		title: "Set up a site",
+		icon: "◔",
+		render(ctx) {
+			const site = ctx.ontology.site;
+			const head = `<div class="page-head"><div><div class="eyebrow">Settings · onboarding</div><h1>Set up ${esc(site?.name ?? "a site")}</h1>
+        <p class="soft">From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.</p></div>
+        ${ctx.api ? "<button class=\"btn\" data-onboarding-refresh>Refresh</button>" : ""}</div>`;
+			if (!ctx.api) return `${head}<div class="card"><p>Setting up a site needs the Tiles API: sites, edge agents and tags live there. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			if (ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (ctx.ontology.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
+			const data = progress$1?.site === siteId$3(ctx) ? progress$1.data : null;
+			if (!data) return `${head}<div class="card">Loading this site’s progress…</div>`;
+			const current = uiState$3(ctx).step ?? data.next ?? "dashboard";
+			const meta = STEPS.find((s) => s.key === current) ?? STEPS[0];
+			const body = {
+				site: () => siteStep(ctx),
+				outline: () => outlineStep(ctx, data),
+				agent: () => agentStep(ctx, data),
+				mapping: () => mappingStep(data),
+				dashboard: () => dashboardStep(data)
+			};
+			const index = STEPS.findIndex((s) => s.key === current);
+			const nextKey = STEPS[index + 1]?.key;
+			return `${head}<div class="wizard">
+        <nav aria-label="Steps">${stepList(data, current)}</nav>
+        <section class="card wizard-panel" aria-labelledby="wizard-title">
+          <div class="eyebrow">Step ${index + 1} of ${STEPS.length}</div>
+          <h2 id="wizard-title">${esc(meta.title)}</h2>
+          <p class="soft">${esc(meta.why)}</p>
+          <div class="stack" style="gap:12px;margin-top:12px">${body[current]()}</div>
+          ${nextKey ? `<p style="margin-top:16px"><button class="btn" data-step="${nextKey}">Next: ${esc(STEPS[index + 1].title.toLowerCase())}</button></p>` : ""}
+        </section>
+      </div>`;
+		},
+		bind(root, ctx) {
+			if (!ctx.api || ctx.ontology.status !== "ready") return;
+			const site = siteId$3(ctx);
+			if (progress$1?.site !== site) load$2(ctx);
+			const data = progress$1?.site === site ? progress$1.data : null;
+			const waiting = data !== null && data.agents > 0 && data.agents_seen === 0;
+			if (waiting && timer === null) timer = setInterval(() => !document.hidden && void load$2(ctx), POLL_MS);
+			if (!waiting && timer !== null) {
+				clearInterval(timer);
+				timer = null;
+			}
+			const ui = uiState$3(ctx);
+			onAll(root, "[data-step]", "click", (el) => {
+				ui.step = el.dataset.step ?? null;
+				ctx.rerender();
+			});
+			onAll(root, "[data-onboarding-refresh]", "click", () => void load$2(ctx));
+			const form = root.querySelector("#new-site");
+			const slug = form?.querySelector("[name=slug]");
+			let slugEdited = false;
+			slug?.addEventListener("input", () => slugEdited = true);
+			form?.querySelector("[name=name]")?.addEventListener("input", (e) => {
+				if (slug && !slugEdited) slug.value = slugFrom(e.target.value);
+			});
+			onSubmit(root, "#new-site", (form) => void (async () => {
+				if (!ctx.api || busy$2) return;
+				busy$2 = true;
+				try {
+					const made = await ctx.api.createSite({
+						name: field$1(form, "name"),
+						slug: field$1(form, "slug"),
+						timezone: field$1(form, "timezone")
+					});
+					created = {
+						id: made.id,
+						name: made.name
+					};
+					ctx.toast(`${made.name} created`);
+				} catch {} finally {
+					busy$2 = false;
+					ctx.rerender();
+				}
+			})());
+			onAll(root, "[data-open-site]", "click", (el) => {
+				const id = el.dataset.openSite;
+				if (!id) return;
+				created = null;
+				ui.step = null;
+				ctx.setDataSource({
+					...ctx.dataSource,
+					siteId: id
+				});
+			});
+			onSubmit(root, "#outline", (outline) => void (async () => {
+				if (busy$2) return;
+				const o = {
+					site: ctx.ontology.site?.name ?? "Site",
+					workcenter: field$1(outline, "workcenter"),
+					line: field$1(outline, "line"),
+					machines: names(field$1(outline, "machines")),
+					protocol: field$1(outline, "protocol")
+				};
+				const problem = outlineProblem(o);
+				if (problem) return ctx.toast(problem);
+				busy$2 = true;
+				const review = ctx.ontology.reviewRequired;
+				const message = `Outline ${o.line.trim()} (${o.machines.length} machine${o.machines.length === 1 ? "" : "s"})`;
+				const ok = await ctx.ontology.act(async (store, repo) => {
+					if (repo.staged.length) throw new Error("Commit or discard your staged changes on the Ontology page first");
+					const staged = await store.stage(repo, outlineOps(ctx.graph, o));
+					return review ? store.requestReview(staged, { message }) : store.commit(staged, message, ctx.state.user.name);
+				}, review ? "Sent for review: another engineer approves it" : `${o.line.trim()} added to the ontology`);
+				busy$2 = false;
+				if (!ok) return ctx.rerender();
+				ui.step = null;
+				await load$2(ctx);
+			})());
+			onSubmit(root, "#new-agent", (agent) => void (async () => {
+				if (!ctx.api || !site || busy$2) return;
+				busy$2 = true;
+				try {
+					const out = await ctx.api.agents.register(site, field$1(agent, "name"));
+					revealed = {
+						site,
+						name: out.agent.name,
+						token: out.token
+					};
+					ctx.toast(`${out.agent.name} registered`);
+				} catch {} finally {
+					busy$2 = false;
+				}
+				await load$2(ctx);
+			})());
 		}
 	};
 	//#endregion
@@ -9359,44 +9740,45 @@
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$17,
 		view$16,
 		view$15,
-		view$14,
+		view$8,
 		view$7,
 		view$6,
 		view$5,
-		view$4,
 		view$3,
+		view$14,
 		view$13,
 		view$12,
-		view$11,
+		view$10,
 		view$9,
-		view$8,
 		view$2,
 		view$1,
 		view,
-		view$10
+		view$4,
+		view$11
 	];
 	var NAV = [
-		{ items: [view$16, view$15] },
+		{ items: [view$17, view$16] },
 		{
 			group: "Operations",
 			items: [
-				view$5,
-				view$4,
-				view$14,
-				view$7,
 				view$6,
+				view$5,
+				view$15,
+				view$8,
+				view$7,
 				view$3,
-				view$13,
-				view$12
+				view$14,
+				view$13
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$10,
 				view$9,
-				view$8,
 				view$2,
 				view$1,
 				view
@@ -9404,11 +9786,11 @@
 		},
 		{
 			group: "Design",
-			items: [view$11]
+			items: [view$12]
 		},
 		{
 			group: "",
-			items: [view$10]
+			items: [view$4, view$11]
 		}
 	];
 	function freshState() {
@@ -9423,7 +9805,7 @@
 		};
 	}
 	var STATE_KEY = "state-v2";
-	var persisted = load$2(STATE_KEY, null);
+	var persisted = load$3(STATE_KEY, null);
 	var shots = generateShotHistory();
 	var detection = detectFrictionAlerts(shots.history);
 	var state = {
@@ -9445,7 +9827,7 @@
 		});
 	}
 	var DEPLOYED_API = document.querySelector("meta[name=\"tiles-api\"]")?.content ?? "";
-	var dataSource = resolveDataSource(load$2("datasource", null), location.search, DEPLOYED_API);
+	var dataSource = resolveDataSource(load$3("datasource", null), location.search, DEPLOYED_API);
 	var api = makeApi();
 	var localRepo = state.repo;
 	var remote = null;
@@ -9594,7 +9976,7 @@
 			history.replaceState(null, "", cleanCallbackUrl(location.href, e instanceof SignInError ? e.returnTo : void 0));
 			toast(e instanceof Error ? e.message : String(e));
 		}
-		dataSource = resolveDataSource(load$2("datasource", null), location.search, DEPLOYED_API);
+		dataSource = resolveDataSource(load$3("datasource", null), location.search, DEPLOYED_API);
 		api = makeApi();
 		render();
 	}
@@ -9644,7 +10026,7 @@
 		rerender: () => render(),
 		toast,
 		reset() {
-			const chosen = load$2("datasource", null);
+			const chosen = load$3("datasource", null);
 			clearAll();
 			if (chosen) save("datasource", chosen);
 			Object.assign(state, freshState(), { ui: {} });
@@ -9703,7 +10085,7 @@
 	};
 	function currentView() {
 		const id = routeOf(location.hash);
-		return VIEWS.find((v) => v.id === id) ?? view$16;
+		return VIEWS.find((v) => v.id === id) ?? view$17;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -9726,8 +10108,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$16 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$16 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$17 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$17 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
@@ -9778,7 +10160,7 @@
 		if (theme) document.documentElement.dataset.theme = theme;
 		else delete document.documentElement.dataset.theme;
 	}
-	applyTheme(load$2("theme", null));
+	applyTheme(load$3("theme", null));
 	need(document, "#theme").addEventListener("click", () => {
 		const next = (document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches) ? "light" : "dark";
 		applyTheme(next);

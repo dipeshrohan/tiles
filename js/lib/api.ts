@@ -103,6 +103,24 @@ export interface AuditEntry {
   request_id: string | null;
 }
 
+export interface NewSite {
+  name: string;
+  slug: string; // lower case, digits and dashes; new in the organisation
+  timezone: string; // IANA, e.g. Europe/Berlin
+}
+
+// How far a site is set up (T6.06), worked out by the API from the site's data.
+export interface Onboarding {
+  steps: { key: 'site' | 'outline' | 'agent' | 'mapping' | 'dashboard'; done: boolean; detail: string }[];
+  next: 'site' | 'outline' | 'agent' | 'mapping' | 'dashboard' | null; // null: set up
+  machines: number;
+  agents: number;
+  agents_seen: number;
+  tags: number;
+  mapped: number;
+  dashboard: { id: string; label: string } | null; // the machine to open first
+}
+
 export interface EdgeAgent {
   id: string;
   name: string;
@@ -808,6 +826,9 @@ export function createApiClient(options: ApiOptions) {
     authConfig: () => request<AuthConfig>('GET', '/auth/config', undefined, { anonymous: true }),
     me: () => request<Me>('GET', '/me'),
     sites: () => request<Site[]>('GET', '/sites'),
+    // Setting up a site (T6.06): organisation admins create one; its progress, step by step.
+    createSite: (site: NewSite) => request<Site>('POST', '/sites', site),
+    onboarding: (siteId: string) => request<Onboarding>('GET', `/sites/${encodeURIComponent(siteId)}/onboarding`),
     // Your membership (and role) on a site; joins it on first visit.
     membership: (siteId: string) => request<Membership>('GET', `/sites/${encodeURIComponent(siteId)}/me`),
     members: (siteId: string) => request<Membership[]>('GET', `/sites/${encodeURIComponent(siteId)}/members`),
