@@ -20,7 +20,7 @@ from typing import Any
 from fastapi import HTTPException, status
 
 from tiles_api.settings import Settings
-from tiles_api.store import Conn, one
+from tiles_api.store import Conn, all_sites, one
 
 # The ages (seconds) of the questions in the last minute, oldest first: the organisation's and the user's.
 COUNTS = """
@@ -59,7 +59,8 @@ def admit(
     """Takes a question, or raises 429 when a limit is reached; returns its usage row's id. Run in
     the request's transaction: the lock is held until the question is stored."""
     conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", [f"copilot-usage:{org_id}"])
-    c = one(conn.execute(COUNTS, {"o": org_id, "u": user_id}).fetchone())
+    with all_sites(conn):  # the organisation's questions on every site (row security, T5.04)
+        c = one(conn.execute(COUNTS, {"o": org_id, "u": user_id}).fetchone())
     per_user = settings.copilot_user_questions_per_minute
     if per_user and len(c["user_ages"]) >= per_user:
         raise _refuse(
@@ -138,13 +139,14 @@ def over_daily(conn: Conn, settings: Settings, org_id: uuid.UUID) -> str | None:
     daily = settings.copilot_org_daily_tokens
     if not daily:
         return None
-    today = one(
-        conn.execute(
-            "SELECT coalesce(sum(billed_tokens), 0) AS n FROM copilot_usage"
-            " WHERE org_id = %s AND asked_at >= date_trunc('day', now(), 'UTC')",
-            [org_id],
-        ).fetchone()
-    )["n"]
+    with all_sites(conn):
+        today = one(
+            conn.execute(
+                "SELECT coalesce(sum(billed_tokens), 0) AS n FROM copilot_usage"
+                " WHERE org_id = %s AND asked_at >= date_trunc('day', now(), 'UTC')",
+                [org_id],
+            ).fetchone()
+        )["n"]
     return (
         f"Your organisation has used its copilot budget of {daily:,} tokens for today (UTC)" if today >= daily else None
     )
@@ -189,7 +191,8 @@ def dashboard(conn: Conn, settings: Settings, org_id: uuid.UUID, site_id: uuid.U
     """A site's copilot usage over the last `days` UTC days (today included), by day and by user,
     with the limits and how much of today's organisation budget is used."""
     args = {"s": site_id, "o": org_id, "days": days}
-    today = one(conn.execute(TODAY, args).fetchone())
+    with all_sites(conn):  # the organisation's total today, from every site
+        today = one(conn.execute(TODAY, args).fetchone())
     return {
         "days": conn.execute(DAYS, args).fetchall(),
         "users": conn.execute(USERS, args).fetchall(),

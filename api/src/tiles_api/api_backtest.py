@@ -26,7 +26,7 @@ from tiles_api import backtest
 from tiles_api.api_ontology import Editor
 from tiles_api.backtest import Event, Outcome
 from tiles_api.settings import get_settings
-from tiles_api.store import Conn
+from tiles_api.store import UNSCOPED, Conn
 
 router = APIRouter(tags=["detection"])
 
@@ -112,7 +112,7 @@ def run_backtest(conn: Conn, site_id: uuid.UUID, body: BacktestIn) -> dict[str, 
     bounds = [(sql.SQL("AND at >= %s"), body.start), (sql.SQL("AND at < %s"), body.end)]
     given = [(clause, value) for clause, value in bounds if value is not None]
     query = sql.SQL(
-        "SELECT at, value FROM samples WHERE signal_id = %s AND value IS NOT NULL {} ORDER BY at LIMIT %s"
+        "SELECT at, value FROM site_samples WHERE signal_id = %s AND value IS NOT NULL {} ORDER BY at LIMIT %s"
     ).format(sql.SQL(" ").join(clause for clause, _ in given))
     rows = conn.execute(query, [body.signal_id, *(value for _, value in given), most + 1]).fetchall()
     if len(rows) > most:
@@ -215,7 +215,7 @@ def main(argv: list[str] | None = None) -> None:
     except (OSError, ValueError) as e:
         parser.error(str(e))
     settings = get_settings()
-    with psycopg.connect(settings.database_url, row_factory=dict_row) as conn:
+    with psycopg.connect(settings.database_url, row_factory=dict_row, options=UNSCOPED) as conn:
         signal = conn.execute(
             "SELECT id FROM signals WHERE site_id = %s AND tag = %s", [args.site, args.signal]
         ).fetchone()

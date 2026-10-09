@@ -110,7 +110,7 @@ FROM signals g
 LEFT JOIN ontology_nodes n ON n.site_id = g.site_id AND n.id = g.node_id AND n.type = 'Signal'
 LEFT JOIN signal_quality q ON q.signal_id = g.id
 LEFT JOIN LATERAL (
-    SELECT at, value, value_text, value_bool FROM samples s WHERE s.signal_id = g.id ORDER BY at DESC LIMIT 1
+    SELECT at, value, value_text, value_bool FROM site_samples s WHERE s.signal_id = g.id ORDER BY at DESC LIMIT 1
 ) l ON true
 """
 

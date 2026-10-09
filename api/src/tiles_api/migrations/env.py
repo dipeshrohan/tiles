@@ -17,6 +17,9 @@ def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}), prefix="sqlalchemy.", poolclass=pool.NullPool
     )
     with engine.connect() as connection:
+        # Every site's rows, for migrations that move data (row security, 0024).
+        connection.exec_driver_sql("SET tiles.site_id = '*'")
+        connection.commit()
         context.configure(connection=connection, transaction_per_migration=True)
         with context.begin_transaction():
             context.run_migrations()

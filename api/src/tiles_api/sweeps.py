@@ -20,7 +20,7 @@ import sys
 import threading
 import uuid
 from collections.abc import Callable, Iterator
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 from typing import Any
 
 import psycopg
@@ -29,7 +29,7 @@ from psycopg.types.json import Jsonb
 
 from tiles_api.models.registry import Model, ModelError, evaluate, registry
 from tiles_api.settings import get_settings
-from tiles_api.store import Conn
+from tiles_api.store import UNSCOPED, Conn
 
 MAX_STEPS = 200  # on one axis
 MAX_POINTS = 40_000  # in one sweep
@@ -95,11 +95,25 @@ RETURNING id, model_key, version, params, x, y, total
 """
 
 
+def _every_site(connect: Connect) -> Connect:
+    """Connections that see every site's sweeps (row security, T5.04): the API's pooled ones name
+    no site, and sweeps of any site are run."""
+
+    @contextmanager
+    def opened() -> Iterator[Conn]:
+        with connect() as conn:
+            conn.execute("SELECT set_config('tiles.site_id', '*', true)")
+            yield conn
+
+    return opened
+
+
 def run(connect: Connect, sweep_id: uuid.UUID | None = None) -> tuple[uuid.UUID, str] | None:
     """Claims and runs a sweep (this one, or the oldest waiting); its id and how it ended ("done",
     "cancelled", "failed", or "taken" when another run took it over), or None if there was
     nothing to run. Each chunk is its own short transaction."""
     worker = uuid.uuid4()
+    connect = _every_site(connect)
     with connect() as conn:
         conn.execute(END_ABANDONED, {"stale": STALE_SECONDS})
         row = conn.execute(CLAIM, {"id": sweep_id, "stale": STALE_SECONDS, "worker": worker}).fetchone()
@@ -187,7 +201,7 @@ def main() -> None:
     url = get_settings().database_url
 
     def connect() -> AbstractContextManager[Conn]:
-        return psycopg.connect(url, row_factory=dict_row, autocommit=False)
+        return psycopg.connect(url, row_factory=dict_row, autocommit=False, options=UNSCOPED)
 
     failed = False
     while (ran := run(connect)) is not None:

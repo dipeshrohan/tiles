@@ -77,7 +77,7 @@ class WearOut(BaseModel):
 BUCKETS = """
 SELECT time_bucket(%(width)s * interval '1 second', at, %(start)s::timestamptz) AS at,
        percentile_cont(0.5) WITHIN GROUP (ORDER BY coalesce(value, value_bool::int)) AS value, count(*) AS n
-FROM samples
+FROM site_samples
 WHERE signal_id = %(id)s AND at >= %(start)s AND at < %(end)s AND coalesce(value, value_bool::int) IS NOT NULL
 GROUP BY 1 ORDER BY 1
 """

@@ -36,7 +36,7 @@ import psycopg
 from psycopg.rows import dict_row
 
 from tiles_api.settings import Settings, get_settings
-from tiles_api.store import Conn, one
+from tiles_api.store import UNSCOPED, Conn, one
 
 RECENT = timedelta(hours=1)
 MAX_ATTEMPTS = 6
@@ -316,7 +316,7 @@ def main(argv: list[str] | None = None, sender: Callable[[Settings], Sender] = L
     parser = argparse.ArgumentParser(prog="tiles-notify", description=main.__doc__)
     parser.parse_args(argv)
     settings = get_settings()
-    with psycopg.connect(settings.database_url, row_factory=dict_row, autocommit=True) as conn:
+    with psycopg.connect(settings.database_url, row_factory=dict_row, autocommit=True, options=UNSCOPED) as conn:
         r = send_due(conn, sender(settings), settings.app_url)
     print(f"{r.sent} sent, {r.failed} to retry, {r.given_up} given up")
     if r.failed or r.given_up:

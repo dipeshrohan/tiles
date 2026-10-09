@@ -11,7 +11,7 @@ from tiles_api import ontology as o
 from tiles_api import ontology_store as store
 from tiles_api.auth import Principal, authenticate
 from tiles_api.identity import User, ensure_org, ensure_user, resolve_user
-from tiles_api.store import Conn, DbConn
+from tiles_api.store import Conn, DbConn, scope_to_site
 
 router = APIRouter()
 
@@ -120,11 +120,15 @@ def _op_dict(op: AddNode | RemoveNode | AddEdge | RemoveEdge | SetProp) -> o.Op:
 
 
 class SiteContext:
+    """A request (or a copilot tool call) on one site, as one user. Its transaction is scoped to
+    the site (T5.04): the database's row security then shows and accepts only that site's rows."""
+
     def __init__(self, conn: Conn, site_id: uuid.UUID, org_id: uuid.UUID, user: User) -> None:
         self.conn = conn
         self.site_id = site_id
         self.org_id = org_id
         self.user = user
+        scope_to_site(conn, site_id)
 
     def audit(self, action: str, entity_type: str, entity_id: str, before: Any = None, after: Any = None) -> None:
         audit.record(
@@ -150,6 +154,7 @@ def site_context(site_id: uuid.UUID, principal: Auth, conn: DbConn) -> SiteConte
     ).fetchone()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Site not found")
+    scope_to_site(conn, site_id)  # before anything reads or writes the site's rows (T5.04)
     user = resolve_user(conn, principal, site_id, row["org_id"], row["slug"])
     return SiteContext(conn, site_id, row["org_id"], user)
 
