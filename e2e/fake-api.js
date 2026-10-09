@@ -3,6 +3,7 @@
 // loaded through Node's TypeScript type stripping), with one shared head and
 // history and staged changes per user, like the real API.
 import { createHash, randomUUID } from 'node:crypto';
+import { correlationFinder } from '../js/lib/analysis.ts';
 import { createServer } from 'node:http';
 import {
   applyOp,
@@ -171,6 +172,8 @@ export function createFakeApi({
   let failWarningGets = 0; // answer this many reads of one warning with an error
   // Warning performance (T3.10): the report a test sets, and the queries the page asked it with.
   let performanceReport = null;
+  // Batch tables (T3.11): like the API, the correlation finder ranks with the browser's own.
+  const datasets = []; // { id, name, description, columns, rows, created_by, created_at }
   const performanceQueries = [];
   const audit = []; // newest first, like the API
   let auditId = 0;
@@ -275,6 +278,7 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/warnings`) &&
         !url.pathname.startsWith(`/sites/${site.id}/notifications`) &&
         url.pathname !== `/sites/${site.id}/performance` &&
+        !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`)
       )
         return send(404, { detail: 'Site not found' });
@@ -509,6 +513,78 @@ export function createFakeApi({
         return { user_id: who, email: who, name: who.split('@')[0], role: r, site_role: r, org_admin: false };
       };
       members.add(user);
+      const datasetsPath = `/sites/${site.id}/datasets`;
+      if (url.pathname.startsWith(datasetsPath)) {
+        const shown = ({ rows, ...d }) => ({ ...d, row_count: rows.length });
+        const m = url.pathname.slice(datasetsPath.length).match(/^(?:\/([^/]+))?(?:\/(rows|correlate))?$/);
+        const d = m?.[1] ? datasets.find((x) => x.id === m[1]) : null;
+        const writes = req.method !== 'GET' && m?.[2] !== 'correlate';
+        if (writes && role === 'viewer')
+          return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
+        if (!m?.[1] && req.method === 'GET') return send(200, datasets.map(shown));
+        if (!m?.[1] && req.method === 'POST') {
+          const { name, columns } = await body(req);
+          if (datasets.some((x) => x.name === name))
+            return send(409, { detail: `A dataset is already called ${name}` });
+          const created = {
+            id: randomUUID(),
+            name,
+            description: '',
+            columns,
+            rows: [],
+            created_by: user.split('@')[0],
+            created_at: new Date().toISOString(),
+          };
+          datasets.push(created);
+          return send(201, shown(created));
+        }
+        if (!d) return send(404, { detail: 'No such dataset' });
+        if (!m[2] && req.method === 'GET') return send(200, { ...shown(d), preview: d.rows.slice(0, 20) });
+        if (!m[2] && req.method === 'DELETE') {
+          datasets.splice(datasets.indexOf(d), 1);
+          return send(204);
+        }
+        if (m[2] === 'rows') {
+          const { rows } = await body(req);
+          d.rows.push(...rows.map((r) => Object.fromEntries(d.columns.map((c) => [c.name, r[c.name] ?? null]))));
+          return send(200, { received: rows.length, row_count: d.rows.length });
+        }
+        const q = await body(req);
+        const ng = q.ng_values ?? [true];
+        const judged = d.rows.filter((r) => r[q.outcome] !== null && r[q.outcome] !== undefined);
+        const rows = judged.map((r) => ({ ...r, __ng: ng.includes(r[q.outcome]) }));
+        const variables = q.variables.map((key) => ({ key, label: key, unit: '' }));
+        const findings = correlationFinder(rows, variables, { outcome: '__ng', splitBy: q.split || null }).map((f) => {
+          const n = f.ngCount + f.okCount;
+          const se =
+            f.ngCount > 1 && f.okCount > 1 ? Math.sqrt(n / (f.ngCount * f.okCount) + f.effect ** 2 / (2 * n)) : null;
+          const ci = se === null ? [null, null] : [f.effect - 1.96 * se, f.effect + 1.96 * se];
+          return {
+            segment: f.segment,
+            variable: f.variable,
+            ng_mean: Number.isFinite(f.ngMean) ? f.ngMean : null,
+            ok_mean: Number.isFinite(f.okMean) ? f.okMean : null,
+            ng_count: f.ngCount,
+            ok_count: f.okCount,
+            effect: f.effect,
+            ci_low: ci[0],
+            ci_high: ci[1],
+            clear: ci[0] !== null && (ci[0] > 0 || ci[1] < 0),
+            r: f.r,
+          };
+        });
+        const top = new Map();
+        for (const f of findings) if (!top.has(f.segment)) top.set(f.segment, f);
+        const explanations = [...top.values()]
+          .filter((f) => f.clear && Math.abs(f.effect) >= 0.8)
+          .map((f) => ({
+            segment: f.segment,
+            variable: f.variable,
+            text: `${f.segment === 'all' ? '' : `${f.segment}: `}failed batches ran ${f.variable} ${f.effect > 0 ? 'higher' : 'lower'}.`,
+          }));
+        const ngCount = rows.filter((r) => r.__ng).length;
+        return send(200, { rows: rows.length, ng: ngCount, ok: rows.length - ngCount, findings, explanations });
+      }
       if (url.pathname === `/sites/${site.id}/performance`) {
         performanceQueries.push(url.searchParams.toString());
         return performanceReport ? send(200, performanceReport) : send(503, { detail: 'No report set' });

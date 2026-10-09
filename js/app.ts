@@ -43,6 +43,7 @@ import explorer from './views/explorer.ts';
 import reviews from './views/reviews.ts';
 import warnings from './views/warnings.ts';
 import performance from './views/performance.ts';
+import correlate from './views/correlate.ts';
 import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
@@ -59,6 +60,7 @@ const VIEWS: View[] = [
   design,
   signals,
   explorer,
+  correlate,
   imports,
   settings,
 ];
@@ -66,7 +68,7 @@ const VIEWS: View[] = [
 const NAV: { group?: string; items: View[] }[] = [
   { items: [home, chat] },
   { group: 'Operations', items: [ontology, reviews, warnings, performance, quality, physics] },
-  { group: 'Data', items: [signals, explorer, imports] },
+  { group: 'Data', items: [signals, explorer, correlate, imports] },
   { group: 'Design', items: [design] },
   { group: '', items: [settings] },
 ];

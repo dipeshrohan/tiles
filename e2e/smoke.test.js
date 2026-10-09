@@ -10,6 +10,7 @@ import { chromium } from 'playwright';
 import { createTilesServer } from '../server.js';
 import { createFakeApi } from './fake-api.js';
 import { largePlantOps } from '../test/fixtures/large-plant.js';
+import { generateCutterBatches } from '../js/lib/data.ts';
 
 const PAGES = [
   '',
@@ -23,6 +24,7 @@ const PAGES = [
   'design',
   'signals',
   'explorer',
+  'correlate',
   'import',
   'settings',
 ];
@@ -1915,4 +1917,61 @@ test('an asset being typed survives a re-render of the performance page', async 
   await rerender(a.page);
   assert.equal(await a.page.inputValue('[data-asset-form="d2"] [name=asset]'), 'DC-0');
   assert.deepEqual(a.errors, []);
+});
+
+function cutterCsv() {
+  const rows = generateCutterBatches();
+  const keys = ['id', 'material', 'tension', 'speed', 'humidity', 'bladeAge', 'rollDiameter', 'ng'];
+  return [
+    keys.join(','),
+    ...rows.map((r) => keys.map((k) => (k === 'ng' ? (r.ng ? 'yes' : 'no') : r[k])).join(',')),
+  ].join('\n');
+}
+
+test('the correlation finder: upload a batch table, split it, and read the effects', async (t) => {
+  const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const a = await openAs(t, apiUrl, null, 'correlate');
+  await a.page.waitForSelector('#dataset-form');
+  await a.page.click('#dataset-form button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("Choose the CSV file first")');
+  await a.page.setInputFiles('#dataset-form [name=file]', {
+    name: 'cutter.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(cutterCsv()),
+  });
+  await a.page.waitForSelector('[data-chosen-file]:has-text("cutter.csv")');
+  assert.equal(await a.page.inputValue('#dataset-form [name=name]'), 'cutter'); // from the file's name
+  await rerender(a.page); // the list arriving meanwhile keeps the file chosen
+  await a.page.waitForSelector('[data-chosen-file]:has-text("cutter.csv")');
+  await a.page.fill('#dataset-form [name=name]', 'Cutter batches');
+  await a.page.click('#dataset-form button[type=submit]');
+  await a.page.waitForSelector('#toast:has-text("Cutter batches: 720 batch(es) uploaded")');
+  await a.page.waitForSelector('[data-analysis]:has-text("720 batch(es)")');
+  // yes/no became a true/false column, the outcome by default.
+  assert.equal(await a.page.inputValue('#correlate-form [name=outcome]'), 'ng');
+  await a.page.selectOption('#correlate-form [name=split]', 'material');
+  await a.page.uncheck('#correlate-form [name=variable][value=speed]');
+  await rerender(a.page); // the choices survive an answer arriving
+  assert.equal(await a.page.inputValue('#correlate-form [name=split]'), 'material');
+  assert.equal(await a.page.isChecked('#correlate-form [name=variable][value=speed]'), false);
+  await a.page.click('#correlate-form button[type=submit]');
+  await a.page.waitForSelector('[data-explanations]');
+  const said = await a.page.locator('[data-explanations]').innerText();
+  assert.match(said, /anode: failed batches ran tension higher/);
+  assert.match(said, /cathode: failed batches ran tension lower/);
+  assert.equal(await a.page.locator('[data-result] tbody tr').count(), 8); // 4 variables x 2 materials
+  assert.doesNotMatch(await a.page.locator('[data-result] tbody').innerText(), /speed/);
+  assert.equal((await a.page.locator('.forest circle.ci.bad').count()) >= 1, true);
+  assert.equal((await a.page.locator('.forest circle.ci.good').count()) >= 1, true);
+
+  // Viewers read and run it, but don't upload.
+  const v = await openAs(t, apiUrl, 'viewer@example.com', 'correlate');
+  await v.page.click('[data-dataset]');
+  await v.page.waitForSelector('#correlate-form');
+  assert.equal(await v.page.locator('#dataset-form').count(), 0);
+  await v.page.click('#correlate-form button[type=submit]');
+  await v.page.waitForSelector('[data-result]');
+  assert.deepEqual([...a.errors, ...v.errors], []);
 });

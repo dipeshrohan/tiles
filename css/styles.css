@@ -631,6 +631,24 @@ tr.selected td {
 .chart .span {
   fill: var(--band);
 }
+.forest .ci {
+  stroke-width: 2;
+}
+.forest line.ci.bad,
+.forest circle.ci.bad {
+  stroke: var(--bad);
+  fill: var(--bad);
+}
+.forest line.ci.good,
+.forest circle.ci.good {
+  stroke: var(--good);
+  fill: var(--good);
+}
+.forest line.ci.muted,
+.forest circle.ci.muted {
+  stroke: var(--muted);
+  fill: var(--muted);
+}
 .chart .level {
   stroke: var(--soft);
   stroke-width: 1;

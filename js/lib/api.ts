@@ -364,6 +364,45 @@ export interface PerformanceReport {
   }[];
 }
 
+// Batch tables and the correlation finder (T3.11).
+export interface DatasetColumn {
+  name: string;
+  kind: 'number' | 'text' | 'bool';
+}
+export type DatasetValue = number | string | boolean | null;
+
+export interface Dataset {
+  id: string;
+  name: string;
+  description: string;
+  columns: DatasetColumn[];
+  row_count: number;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface CorrelationFinding {
+  segment: string;
+  variable: string;
+  ng_mean: number | null;
+  ok_mean: number | null;
+  ng_count: number;
+  ok_count: number;
+  effect: number; // Cohen's d, failed minus good
+  ci_low: number | null; // its 95% confidence interval
+  ci_high: number | null;
+  clear: boolean; // the interval leaves out 0
+  r: number;
+}
+
+export interface CorrelationResult {
+  rows: number;
+  ng: number;
+  ok: number;
+  findings: CorrelationFinding[];
+  explanations: { segment: string; variable: string; text: string }[];
+}
+
 export interface Me {
   email: string;
   name: string;
@@ -628,6 +667,35 @@ export function createApiClient(options: ApiOptions) {
         `/sites/${encodeURIComponent(siteId)}/detectors/${encodeURIComponent(detectorId)}`,
         { asset },
       ),
+    datasets: {
+      list: (siteId: string) => request<Dataset[]>('GET', `/sites/${encodeURIComponent(siteId)}/datasets`),
+      get: (siteId: string, id: string) =>
+        request<Dataset & { preview: Record<string, DatasetValue>[] }>(
+          'GET',
+          `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}`,
+        ),
+      create: (siteId: string, name: string, columns: DatasetColumn[]) =>
+        request<Dataset>('POST', `/sites/${encodeURIComponent(siteId)}/datasets`, { name, columns }),
+      // At most 5,000 rows a call, appended in order.
+      addRows: (siteId: string, id: string, rows: Record<string, DatasetValue>[]) =>
+        request<{ received: number; row_count: number }>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}/rows`,
+          { rows },
+        ),
+      remove: (siteId: string, id: string) =>
+        request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}`),
+      correlate: (
+        siteId: string,
+        id: string,
+        q: { outcome: string; ng_values?: DatasetValue[]; variables?: string[]; split?: string | null },
+      ) =>
+        request<CorrelationResult>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}/correlate`,
+          q,
+        ),
+    },
     notifications: {
       preferences: (siteId: string) =>
         request<NotificationPrefs>('GET', `/sites/${encodeURIComponent(siteId)}/notifications/preferences`),

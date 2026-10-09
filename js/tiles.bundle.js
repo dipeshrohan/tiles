@@ -891,6 +891,17 @@
 				return request("GET", `/sites/${encodeURIComponent(siteId)}/performance${qs ? `?${qs}` : ""}`);
 			},
 			setDetectorAsset: (siteId, detectorId, asset) => request("PATCH", `/sites/${encodeURIComponent(siteId)}/detectors/${encodeURIComponent(detectorId)}`, { asset }),
+			datasets: {
+				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/datasets`),
+				get: (siteId, id) => request("GET", `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}`),
+				create: (siteId, name, columns) => request("POST", `/sites/${encodeURIComponent(siteId)}/datasets`, {
+					name,
+					columns
+				}),
+				addRows: (siteId, id, rows) => request("POST", `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}/rows`, { rows }),
+				remove: (siteId, id) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}`),
+				correlate: (siteId, id, q) => request("POST", `/sites/${encodeURIComponent(siteId)}/datasets/${encodeURIComponent(id)}/correlate`, q)
+			},
 			notifications: {
 				preferences: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/notifications/preferences`),
 				setPreferences: (siteId, prefs) => request("PUT", `/sites/${encodeURIComponent(siteId)}/notifications/preferences`, prefs),
@@ -1493,7 +1504,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$12 = {
+	var view$13 = {
 		id: "home",
 		title: "Home",
 		icon: "⌂",
@@ -1796,7 +1807,7 @@
 	];
 	//#endregion
 	//#region js/views/chat.ts
-	var view$11 = {
+	var view$12 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "✦",
@@ -2129,7 +2140,7 @@
 	}
 	//#endregion
 	//#region js/views/ontology.ts
-	var uiState$6 = (ctx) => ctx.ui("ontology", {
+	var uiState$7 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
 		hidden: [],
@@ -2140,7 +2151,7 @@
 		match: -1
 	});
 	function showHistory(ctx) {
-		uiState$6(ctx).tab = "history";
+		uiState$7(ctx).tab = "history";
 	}
 	var RELS = [
 		"contains",
@@ -2682,12 +2693,12 @@
       <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$10 = {
+	var view$11 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "⬡",
 		render(ctx) {
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
@@ -2728,7 +2739,7 @@
       ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
@@ -3222,16 +3233,16 @@
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var uiState$5 = (ctx) => ctx.ui("quality", {
+	var uiState$6 = (ctx) => ctx.ui("quality", {
 		split: true,
 		variable: "tension"
 	});
-	var view$9 = {
+	var view$10 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "⌁",
 		render(ctx) {
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
@@ -3347,7 +3358,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
@@ -3363,14 +3374,14 @@
 	};
 	//#endregion
 	//#region js/views/physics.ts
-	var uiState$4 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$8 = {
+	var uiState$5 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var view$9 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "∿",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
@@ -3494,7 +3505,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
 				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
@@ -3522,7 +3533,7 @@
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var uiState$3 = (ctx) => ctx.ui("design", {
+	var uiState$4 = (ctx) => ctx.ui("design", {
 		model: "swelling",
 		params: {},
 		versions: {},
@@ -3530,7 +3541,7 @@
 		sweepY: null
 	});
 	function current(ctx) {
-		const ui = uiState$3(ctx);
+		const ui = uiState$4(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
 			ui,
@@ -3539,7 +3550,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$7 = {
+	var view$8 = {
 		id: "design",
 		title: "Design studio",
 		icon: "◇",
@@ -3984,7 +3995,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "settings",
 		title: "Settings",
 		icon: "⚙",
@@ -4440,7 +4451,7 @@
 			})();
 		});
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "signals",
 		title: "Signals",
 		icon: "≋",
@@ -4740,7 +4751,7 @@
 		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
 		ctx.api.signals.get(site.id, id).then((s) => add(ctx, s), () => void 0);
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "⌁",
@@ -4828,29 +4839,29 @@
 	};
 	//#endregion
 	//#region js/views/reviews.ts
-	var uiState$2 = (ctx) => ctx.ui("reviews", {
+	var uiState$3 = (ctx) => ctx.ui("reviews", {
 		state: "open",
 		selected: null,
 		site: null
 	});
-	var listing$1 = null;
-	var detail$1 = null;
+	var listing$2 = null;
+	var detail$2 = null;
 	var listSeq$1 = 0;
 	var detailSeq$1 = 0;
-	var busy$1 = false;
+	var busy$2 = false;
 	var draft$1 = {
 		key: "",
 		text: ""
 	};
-	var siteId$2 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$3 = (ctx) => ctx.ontology.site?.id ?? null;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/reviews")) {
-			listing$1 = null;
-			detail$1 = null;
+			listing$2 = null;
+			detail$2 = null;
 		}
 	});
-	var listKey$1 = (ctx) => `${siteId$2(ctx)}|${uiState$2(ctx).state}`;
-	var detailKey$1 = (ctx) => `${siteId$2(ctx)}|${uiState$2(ctx).selected}`;
+	var listKey$1 = (ctx) => `${siteId$3(ctx)}|${uiState$3(ctx).state}`;
+	var detailKey$1 = (ctx) => `${siteId$3(ctx)}|${uiState$3(ctx).selected}`;
 	var STATUS$1 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
@@ -4873,9 +4884,9 @@
 		if (r.status !== "open" || role === null || role === "viewer" || r.author_id === me) return false;
 		return r.reviewer_id === null || r.reviewer_id === me || role === "admin";
 	}
-	function listCard$1(ctx, ui) {
+	function listCard$2(ctx, ui) {
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
-		const items = listing$1?.key === listKey$1(ctx) ? listing$1.items : null;
+		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
           <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
@@ -4885,7 +4896,7 @@
 	}
 	function detailCard$1(ctx, ui) {
 		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a change request to see its changes.</div></div>";
-		const r = detail$1?.key === detailKey$1(ctx) ? detail$1.review : null;
+		const r = detail$2?.key === detailKey$1(ctx) ? detail$2.review : null;
 		if (!r) return "<div class=\"card\" data-review-detail><div class=\"empty\">Loading…</div></div>";
 		const o = ctx.ontology;
 		const open = r.status === "open";
@@ -4918,7 +4929,7 @@
       ${waiting}
       ${canWrite ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
         <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$1.key === detailKey$1(ctx) ? esc(draft$1.text) : ""}</textarea>
-        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$1 ? "disabled" : ""}>
+        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$2 ? "disabled" : ""}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
           ${reworkButton(r, mine)}
@@ -4938,22 +4949,22 @@
     </div>`;
 	}
 	async function fetchList$1(ctx) {
-		const site = siteId$2(ctx);
+		const site = siteId$3(ctx);
 		if (!ctx.api || !site) return;
 		const key = listKey$1(ctx);
 		const seq = ++listSeq$1;
-		listing$1 = {
+		listing$2 = {
 			key,
 			items: null
 		};
 		try {
-			const items = await ctx.api.reviews.list(site, uiState$2(ctx).state);
-			if (seq === listSeq$1) listing$1 = {
+			const items = await ctx.api.reviews.list(site, uiState$3(ctx).state);
+			if (seq === listSeq$1) listing$2 = {
 				key,
 				items
 			};
 		} catch {
-			if (seq === listSeq$1) listing$1 = {
+			if (seq === listSeq$1) listing$2 = {
 				key,
 				items: []
 			};
@@ -4961,28 +4972,28 @@
 		if (seq === listSeq$1) ctx.rerender();
 	}
 	async function fetchDetail$1(ctx) {
-		const site = siteId$2(ctx);
-		const n = uiState$2(ctx).selected;
+		const site = siteId$3(ctx);
+		const n = uiState$3(ctx).selected;
 		if (!ctx.api || !site || n === null) return;
 		const key = detailKey$1(ctx);
 		const seq = ++detailSeq$1;
 		try {
 			const review = await ctx.api.reviews.get(site, n);
 			if (seq !== detailSeq$1) return;
-			detail$1 = {
+			detail$2 = {
 				key,
 				review
 			};
 		} catch {
 			if (seq !== detailSeq$1) return;
-			uiState$2(ctx).selected = null;
+			uiState$3(ctx).selected = null;
 		}
 		ctx.rerender();
 	}
 	async function act$1(ctx, action, comment) {
-		const site = siteId$2(ctx);
-		const r = detail$1?.review;
-		if (!ctx.api || !site || !r || busy$1) return;
+		const site = siteId$3(ctx);
+		const r = detail$2?.review;
+		if (!ctx.api || !site || !r || busy$2) return;
 		const reviews = ctx.api.reviews;
 		const call = {
 			comment: () => reviews.comment(site, r.number, comment),
@@ -4991,11 +5002,11 @@
 			rework: () => reviews.rework(site, r.number)
 		}[action];
 		if (!call) return;
-		busy$1 = true;
+		busy$2 = true;
 		ctx.rerender();
 		try {
 			const review = await call();
-			detail$1 = {
+			detail$2 = {
 				key: `${site}|${review.number}`,
 				review
 			};
@@ -5007,7 +5018,7 @@
 			if (action === "approve") ctx.toast(`#${r.number} approved and committed`);
 			if (action === "reject") ctx.toast(`#${r.number} rejected`);
 			if (action !== "comment") {
-				listing$1 = null;
+				listing$2 = null;
 				await ctx.ontology.reload();
 			}
 			if (action === "rework" && r.reverts) ctx.toast(`#${r.number} withdrawn`);
@@ -5016,14 +5027,14 @@
 				location.hash = "#/ontology";
 			}
 		} catch {
-			detail$1 = null;
-			listing$1 = null;
+			detail$2 = null;
+			listing$2 = null;
 		} finally {
-			busy$1 = false;
+			busy$2 = false;
 			ctx.rerender();
 		}
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "✓",
@@ -5034,18 +5045,18 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$2(ctx);
-			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$1(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
+			const ui = uiState$3(ctx);
+			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$2(ctx, ui)}${detailCard$1(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$2(ctx);
-			if (ui.site !== siteId$2(ctx)) Object.assign(ui, {
+			const ui = uiState$3(ctx);
+			if (ui.site !== siteId$3(ctx)) Object.assign(ui, {
 				selected: null,
-				site: siteId$2(ctx)
+				site: siteId$3(ctx)
 			});
-			if (listing$1?.key !== listKey$1(ctx)) fetchList$1(ctx);
-			if (ui.selected !== null && detail$1?.key !== detailKey$1(ctx)) fetchDetail$1(ctx);
+			if (listing$2?.key !== listKey$1(ctx)) fetchList$1(ctx);
+			if (ui.selected !== null && detail$2?.key !== detailKey$1(ctx)) fetchDetail$1(ctx);
 			onAll(root, "[data-state]", "click", (el) => {
 				ui.state = el.dataset.state === "closed" ? "closed" : "open";
 				ctx.rerender();
@@ -5056,8 +5067,8 @@
 			});
 			onAll(root, "[data-history]", "click", () => showHistory(ctx));
 			onAll(root, "[data-refresh-reviews]", "click", () => {
-				listing$1 = null;
-				detail$1 = null;
+				listing$2 = null;
+				detail$2 = null;
 				ctx.ontology.reload();
 				ctx.rerender();
 			});
@@ -5068,7 +5079,7 @@
 				};
 			});
 			onAll(root, "[data-policy]", "change", (el) => {
-				const site = siteId$2(ctx);
+				const site = siteId$3(ctx);
 				const required = el.checked;
 				if (!ctx.api || !site) return;
 				ctx.api.ontology.setReviewPolicy(site, required).then(() => ctx.toast(required ? "Every change now needs a review" : "Reviews are optional again")).catch(() => void 0).finally(() => void ctx.ontology.reload());
@@ -5196,38 +5207,38 @@
 	}
 	//#endregion
 	//#region js/views/warnings.ts
-	var uiState$1 = (ctx) => ctx.ui("warnings", {
+	var uiState$2 = (ctx) => ctx.ui("warnings", {
 		filters: { ...DEFAULT_FILTERS },
 		selected: null,
 		site: null
 	});
-	var listing = null;
-	var detail = null;
+	var listing$1 = null;
+	var detail$1 = null;
 	var detailFailed = null;
 	var series = null;
 	var members = null;
 	var listSeq = 0;
 	var detailSeq = 0;
 	var seriesSeq = 0;
-	var busy = false;
+	var busy$1 = false;
 	var draft = {
 		key: "",
 		text: ""
 	};
 	var PAGE = 100;
 	var ago = (iso) => when(iso, Date.now());
-	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$2 = (ctx) => ctx.ontology.site?.id ?? null;
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/warnings")) {
-			listing = null;
-			detail = null;
+			listing$1 = null;
+			detail$1 = null;
 			detailFailed = null;
 			series = null;
 			members = null;
 		}
 	});
-	var listKey = (ctx) => `${siteId$1(ctx)}|${JSON.stringify(uiState$1(ctx).filters)}`;
-	var detailKey = (ctx) => `${siteId$1(ctx)}|${uiState$1(ctx).selected}`;
+	var listKey = (ctx) => `${siteId$2(ctx)}|${JSON.stringify(uiState$2(ctx).filters)}`;
+	var detailKey = (ctx) => `${siteId$2(ctx)}|${uiState$2(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function badge(w) {
 		const [cls, label] = STATUS[w.status];
@@ -5246,15 +5257,15 @@
       </span>
     </div>`;
 	}
-	function listCard(ctx, ui) {
-		const items = listing?.key === listKey(ctx) ? listing.items : null;
+	function listCard$1(ctx, ui) {
+		const items = listing$1?.key === listKey(ctx) ? listing$1.items : null;
 		const empty = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all" ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
 		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
           <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
+        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing$1?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
@@ -5286,7 +5297,7 @@
 	function actionsForm(ctx, w) {
 		const actions = actionsFor(w, ctx.ontology.role);
 		if (!actions.length) return "";
-		const people = (members?.site === siteId$1(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
+		const people = (members?.site === siteId$2(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
 		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
 		const has = (a) => actions.includes(a);
 		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
@@ -5298,7 +5309,7 @@
       </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>` : "";
 		return `<form class="stack" id="warning-form" style="gap:8px;margin-top:10px">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ""}</textarea>
-      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy ? "disabled" : ""}>
+      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$1 ? "disabled" : ""}>
         ${has("acknowledge") ? "<button class=\"btn primary\" type=\"button\" data-act=\"acknowledge\">Acknowledge</button>" : ""}
         ${assign}
         ${resolve}
@@ -5309,7 +5320,7 @@
 	}
 	function detailCard(ctx, ui) {
 		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a warning to see its signal and what was done.</div></div>";
-		const w = detail?.key === detailKey(ctx) ? detail.warning : null;
+		const w = detail$1?.key === detailKey(ctx) ? detail$1.warning : null;
 		if (!w && detailFailed === detailKey(ctx)) return "<div class=\"card\" data-warning-detail><div class=\"empty\">This warning could not be loaded. Refresh to try again.</div></div>";
 		if (!w) return "<div class=\"card\" data-warning-detail><div class=\"empty\">Loading…</div></div>";
 		const activity = w.activity.map((a) => `
@@ -5340,27 +5351,27 @@
     </div>`;
 	}
 	async function fetchList(ctx) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		if (!ctx.api || !site) return;
 		const key = listKey(ctx);
 		const seq = ++listSeq;
-		listing = {
+		listing$1 = {
 			key,
 			items: null,
 			more: false
 		};
 		try {
 			const items = await ctx.api.warnings.list(site, {
-				...queryFor(uiState$1(ctx).filters),
+				...queryFor(uiState$2(ctx).filters),
 				limit: PAGE
 			});
-			if (seq === listSeq) listing = {
+			if (seq === listSeq) listing$1 = {
 				key,
 				items,
 				more: items.length === PAGE
 			};
 		} catch {
-			if (seq === listSeq) listing = {
+			if (seq === listSeq) listing$1 = {
 				key,
 				items: [],
 				more: false
@@ -5369,27 +5380,27 @@
 		if (seq === listSeq) ctx.rerender();
 	}
 	async function fetchMore(ctx) {
-		const site = siteId$1(ctx);
-		const shown = listing;
+		const site = siteId$2(ctx);
+		const shown = listing$1;
 		if (!ctx.api || !site || !shown?.items || shown.key !== listKey(ctx)) return;
 		const seq = ++listSeq;
 		try {
 			const query = {
-				...queryFor(uiState$1(ctx).filters),
+				...queryFor(uiState$2(ctx).filters),
 				limit: PAGE,
 				offset: shown.items.length
 			};
 			const page = await ctx.api.warnings.list(site, query);
 			if (seq !== listSeq) return;
 			const seen = new Set(shown.items.map((w) => w.id));
-			listing = {
+			listing$1 = {
 				key: shown.key,
 				items: [...shown.items, ...page.filter((w) => !seen.has(w.id))],
 				more: page.length === PAGE
 			};
 		} catch {
 			if (seq !== listSeq) return;
-			listing = {
+			listing$1 = {
 				...shown,
 				more: true
 			};
@@ -5397,7 +5408,7 @@
 		ctx.rerender();
 	}
 	async function fetchSeries(ctx, w) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		if (!ctx.api || !site) return;
 		const key = seriesKey(w);
 		const seq = ++seriesSeq;
@@ -5423,8 +5434,8 @@
 		ctx.rerender();
 	}
 	async function fetchDetail(ctx) {
-		const site = siteId$1(ctx);
-		const id = uiState$1(ctx).selected;
+		const site = siteId$2(ctx);
+		const id = uiState$2(ctx).selected;
 		if (!ctx.api || !site || id === null) return;
 		const key = detailKey(ctx);
 		const seq = ++detailSeq;
@@ -5432,19 +5443,19 @@
 		try {
 			const warning = await ctx.api.warnings.get(site, id);
 			if (seq !== detailSeq) return;
-			detail = {
+			detail$1 = {
 				key,
 				warning
 			};
 		} catch (e) {
 			if (seq !== detailSeq) return;
-			if (e instanceof ApiError && e.status === 404) uiState$1(ctx).selected = null;
+			if (e instanceof ApiError && e.status === 404) uiState$2(ctx).selected = null;
 			else detailFailed = key;
 		}
 		ctx.rerender();
 	}
 	async function fetchMembers(ctx) {
-		const site = siteId$1(ctx);
+		const site = siteId$2(ctx);
 		if (!ctx.api || !site) return;
 		members = {
 			site,
@@ -5460,9 +5471,9 @@
 		ctx.rerender();
 	}
 	async function act(ctx, action, note, form) {
-		const site = siteId$1(ctx);
-		const w = detail?.warning;
-		if (!ctx.api || !site || !w || busy) return;
+		const site = siteId$2(ctx);
+		const w = detail$1?.warning;
+		if (!ctx.api || !site || !w || busy$1) return;
 		const api = ctx.api.warnings;
 		const value = (name) => form.querySelector(`[name="${name}"]`)?.value ?? "";
 		const call = {
@@ -5473,13 +5484,13 @@
 			comment: () => api.comment(site, w.id, note)
 		}[action];
 		if (!call) return;
-		busy = true;
+		busy$1 = true;
 		++detailSeq;
 		ctx.rerender();
 		try {
 			const warning = await call();
 			const key = `${site}|${warning.id}`;
-			detail = {
+			detail$1 = {
 				key,
 				warning
 			};
@@ -5496,16 +5507,16 @@
 				comment: "Comment added"
 			};
 			ctx.toast(done[action] ?? "Done");
-			if (action !== "comment" && !same) listing = null;
+			if (action !== "comment" && !same) listing$1 = null;
 		} catch {
-			detail = null;
-			listing = null;
+			detail$1 = null;
+			listing$1 = null;
 		} finally {
-			busy = false;
+			busy$1 = false;
 			ctx.rerender();
 		}
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "⚠",
@@ -5516,20 +5527,20 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const ui = uiState$1(ctx);
-			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
+			const ui = uiState$2(ctx);
+			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$1(ctx, ui)}${detailCard(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$1(ctx);
-			const site = siteId$1(ctx);
+			const ui = uiState$2(ctx);
+			const site = siteId$2(ctx);
 			if (ui.site !== site) Object.assign(ui, {
 				selected: null,
 				site
 			});
-			if (listing?.key !== listKey(ctx)) fetchList(ctx);
-			if (ui.selected !== null && detail?.key !== detailKey(ctx) && detailFailed !== detailKey(ctx)) fetchDetail(ctx);
-			const shown = detail?.key === detailKey(ctx) ? detail.warning : null;
+			if (listing$1?.key !== listKey(ctx)) fetchList(ctx);
+			if (ui.selected !== null && detail$1?.key !== detailKey(ctx) && detailFailed !== detailKey(ctx)) fetchDetail(ctx);
+			const shown = detail$1?.key === detailKey(ctx) ? detail$1.warning : null;
 			if (shown && series?.key !== seriesKey(shown)) fetchSeries(ctx, shown);
 			if (site && members?.site !== site && actionsFor({ status: "raised" }, ctx.ontology.role).length) fetchMembers(ctx);
 			onAll(root, "[data-show]", "click", (el) => {
@@ -5552,9 +5563,9 @@
 				ctx.rerender();
 			});
 			onAll(root, "[data-refresh-warnings]", "click", () => {
-				if (busy) return;
-				listing = null;
-				detail = null;
+				if (busy$1) return;
+				listing$1 = null;
+				detail$1 = null;
 				detailFailed = null;
 				series = null;
 				ctx.rerender();
@@ -5641,7 +5652,7 @@
 	}
 	//#endregion
 	//#region js/views/performance.ts
-	var uiState = (ctx) => ctx.ui("performance", {
+	var uiState$1 = (ctx) => ctx.ui("performance", {
 		days: 30,
 		horizonHours: 8,
 		codes: ""
@@ -5650,10 +5661,10 @@
 	var seq = 0;
 	var pending = null;
 	var assetDrafts = /* @__PURE__ */ new Map();
-	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var siteId$1 = (ctx) => ctx.ontology.site?.id ?? null;
 	var keyFor = (ctx) => {
-		const u = uiState(ctx);
-		return `${siteId(ctx)}|${u.days}|${u.horizonHours}|${parseCodes(u.codes).join(",")}`;
+		const u = uiState$1(ctx);
+		return `${siteId$1(ctx)}|${u.days}|${u.horizonHours}|${parseCodes(u.codes).join(",")}`;
 	};
 	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
 		if (!location.hash.startsWith("#/performance")) {
@@ -5663,7 +5674,7 @@
 		}
 	});
 	async function load$1(ctx) {
-		const site = siteId(ctx);
+		const site = siteId$1(ctx);
 		if (!ctx.api || !site) return;
 		const key = keyFor(ctx);
 		const mine = ++seq;
@@ -5671,7 +5682,7 @@
 			key,
 			report: null
 		};
-		const u = uiState(ctx);
+		const u = uiState$1(ctx);
 		try {
 			const report = await ctx.api.performance(site, {
 				days: u.days,
@@ -5724,7 +5735,7 @@
       ${r.events.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Asset</th><th>Kind</th><th>Code</th><th>Warning</th></tr></thead><tbody>${rows}</tbody></table></div>` : "<p class=\"small soft\">No events of watched assets in this period. Events are readings on signals marked as downtime or scrap on the Signals page, with their asset.</p>"}
     </div>`;
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "performance",
 		title: "Warning performance",
 		icon: "◎",
@@ -5735,7 +5746,7 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
-			const u = uiState(ctx);
+			const u = uiState$1(ctx);
 			const key = keyFor(ctx);
 			let body;
 			if (fetched?.key === `${key}|failed`) body = "<div class=\"card\"><p>This could not be loaded.</p></div>";
@@ -5751,7 +5762,7 @@
 			const key = keyFor(ctx);
 			if (fetched?.key !== key && fetched?.key !== `${key}|failed`) load$1(ctx);
 			onSubmit(root, "#performance-form", (form) => {
-				const u = uiState(ctx);
+				const u = uiState$1(ctx);
 				const data = new FormData(form);
 				u.days = Number(data.get("days")) || 30;
 				u.horizonHours = Number(data.get("horizon")) || 8;
@@ -5775,7 +5786,7 @@
 			});
 			onAll(root, "[data-asset-form]", "submit", (el, e) => {
 				e.preventDefault();
-				const site = siteId(ctx);
+				const site = siteId$1(ctx);
 				const api = ctx.api;
 				const id = el.dataset.assetForm ?? "";
 				const input = el.querySelector("[name=asset]");
@@ -6124,6 +6135,337 @@
 		if (batch.length) yield batch;
 	}
 	//#endregion
+	//#region js/lib/datasets.ts
+	var TRUE = /* @__PURE__ */ new Set(["true", "yes"]);
+	var FALSE = /* @__PURE__ */ new Set(["false", "no"]);
+	function inferColumns(header, rows) {
+		const seen = /* @__PURE__ */ new Map();
+		return header.map((raw, i) => {
+			let name = raw.trim() || `column ${i + 1}`;
+			const n = (seen.get(name) ?? 0) + 1;
+			seen.set(name, n);
+			if (n > 1) name = `${name} (${n})`;
+			const cells = rows.map((r) => (r[i] ?? "").trim()).filter(Boolean);
+			const kind = cells.length && cells.every((c) => parseNumber(c, false) !== null) ? "number" : cells.length && cells.every((c) => TRUE.has(c.toLowerCase()) || FALSE.has(c.toLowerCase())) ? "bool" : "text";
+			return {
+				name: name.slice(0, 100),
+				kind
+			};
+		});
+	}
+	function typedRows(rows, columns) {
+		return rows.map((r) => Object.fromEntries(columns.map((c, i) => {
+			const cell = (r[i] ?? "").trim();
+			if (!cell) return [c.name, null];
+			if (c.kind === "number") return [c.name, parseNumber(cell, false)];
+			if (c.kind === "bool") return [c.name, TRUE.has(cell.toLowerCase())];
+			return [c.name, cell.slice(0, 1e3)];
+		})));
+	}
+	function parseNgValues(text, kind) {
+		const parts = text.split(",").map((p) => p.trim()).filter(Boolean);
+		if (!parts.length) return kind === "bool" ? [true] : "Type the value(s) that mean a failed batch, e.g. NG";
+		if (kind === "number") {
+			const numbers = parts.map((p) => parseNumber(p, false));
+			return numbers.every((n) => n !== null) ? numbers : "The failed values of a number column are numbers";
+		}
+		if (kind === "bool") {
+			if (!parts.every((p) => TRUE.has(p.toLowerCase()) || FALSE.has(p.toLowerCase()))) return "The failed values of a true/false column are true or false";
+			return parts.map((p) => TRUE.has(p.toLowerCase()));
+		}
+		return parts;
+	}
+	function forestPlot(findings, width = 760) {
+		const shown = findings.filter((f) => f.ci_low !== null && f.ci_high !== null).slice(0, 24);
+		if (!shown.length) return "<p class=\"small soft\">No effect could be measured: each group needs two batches or more.</p>";
+		const label = 220;
+		const rowH = 24;
+		const height = shown.length * rowH + 30;
+		const reach = Math.max(1, ...shown.flatMap((f) => [Math.abs(f.ci_low), Math.abs(f.ci_high)]));
+		const x = (d) => 236 + (d + reach) / (2 * reach) * (width - label - 32);
+		const rows = shown.map((f, i) => {
+			const y = 20 + i * rowH + rowH / 2;
+			const cls = f.clear ? f.effect > 0 ? "bad" : "good" : "muted";
+			const name = f.segment === "all" ? f.variable : `${f.segment} · ${f.variable}`;
+			return `<text class="tick" x="${label}" y="${y + 4}" text-anchor="end">${esc(name)}</text>
+        <line class="ci ${cls}" x1="${x(f.ci_low).toFixed(1)}" x2="${x(f.ci_high).toFixed(1)}" y1="${y}" y2="${y}"/>
+        <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>d = ${f.effect.toFixed(2)} (95% CI ${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)})</title></circle>`;
+		}).join("");
+		return `<svg class="chart forest" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="Effect sizes with their 95% confidence intervals">
+    <line class="grid" x1="${x(0)}" x2="${x(0)}" y1="12" y2="${height - 18}"/>
+    <text class="tick" x="${x(0)}" y="${height - 4}" text-anchor="middle">0</text>
+    <text class="tick" x="${x(-reach)}" y="${height - 4}">failed ran lower</text>
+    <text class="tick" x="${x(reach)}" y="${height - 4}" text-anchor="end">failed ran higher</text>
+    ${rows}
+  </svg>`;
+	}
+	//#endregion
+	//#region js/views/correlate.ts
+	var uiState = (ctx) => ctx.ui("correlate", {
+		selected: null,
+		outcome: "",
+		ngText: "",
+		variables: null,
+		split: ""
+	});
+	var listing = null;
+	var detail = null;
+	var result = null;
+	var busy = "";
+	var upload = null;
+	var chosen = {
+		file: null,
+		name: ""
+	};
+	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
+	var resultKey = (ctx) => JSON.stringify({
+		site: siteId(ctx),
+		...uiState(ctx)
+	});
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/correlate")) {
+			listing = null;
+			detail = null;
+		}
+	});
+	async function loadList(ctx) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		listing = {
+			site,
+			items: null
+		};
+		try {
+			const items = await ctx.api.datasets.list(site);
+			if (listing?.site === site) listing = {
+				site,
+				items
+			};
+		} catch {
+			if (listing?.site === site) listing = {
+				site,
+				items: []
+			};
+		}
+		ctx.rerender();
+	}
+	async function loadDetail(ctx, id) {
+		const site = siteId(ctx);
+		if (!ctx.api || !site) return;
+		try {
+			const data = await ctx.api.datasets.get(site, id);
+			if (uiState(ctx).selected === id) detail = {
+				id,
+				data
+			};
+		} catch {
+			if (uiState(ctx).selected === id) uiState(ctx).selected = null;
+		}
+		ctx.rerender();
+	}
+	function listCard(ctx, ui) {
+		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
+		const items = listing?.items;
+		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? "<div class=\"empty\">Loading…</div>" : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
+              <b>${esc(d.name)}</b>
+              <span class="small muted">${fmt$1(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ""}</span>
+            </button>`).join("") || "<div class=\"empty\">No batch tables yet.</div>"}</div>${canEdit ? `<form class="stack" id="dataset-form" style="gap:8px;margin-top:12px">
+        <h3>Upload a batch table</h3>
+        <p class="small soft">A CSV with one row per batch: its settings and measurements, and a column saying whether it failed.</p>
+        <label class="field">CSV file<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
+        ${chosen.file ? `<p class="small" data-chosen-file>Chosen: ${esc(chosen.file.name)}</p>` : ""}
+        <label class="field">Name<input type="text" name="name" maxlength="200" value="${esc(chosen.name)}" placeholder="e.g. Cutter batches, September"></label>
+        <div><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${upload ? `Uploading ${fmt$1(upload.done, 0)} of ${fmt$1(upload.total, 0)}…` : "Upload"}</button></div>
+      </form>` : ""}</div>`;
+	}
+	function analysisCard(ctx, ui) {
+		if (!ui.selected) return "<div class=\"card\"><div class=\"empty\">Choose a batch table, or upload one.</div></div>";
+		const d = detail?.id === ui.selected ? detail.data : null;
+		if (!d) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
+		const numbers = d.columns.filter((c) => c.kind === "number").map((c) => c.name);
+		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
+		const chosen = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));
+		const option = (name, current) => `<option value="${esc(name)}" ${name === current ? "selected" : ""}>${esc(name)}</option>`;
+		const preview = d.preview.length ? `<details><summary class="small">The first ${d.preview.length} batch(es)</summary><div class="table-wrap"><table class="small"><thead><tr>${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${d.preview.map((r) => `<tr>${d.columns.map((c) => `<td>${esc(r[c.name] === null || r[c.name] === void 0 ? "" : String(r[c.name]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>` : "";
+		const r = result?.key === resultKey(ctx) ? result.data : null;
+		return `<div class="card stack" style="gap:12px" data-analysis>
+      <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt$1(d.row_count, 0)} batch(es)</p></div>
+      ${preview}
+      <form class="stack" id="correlate-form" style="gap:10px">
+        <div class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+          <label class="field">Outcome<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? "")).join("")}</select></label>
+          <label class="field">Failed when it is${outcome?.kind === "bool" ? " (default true)" : ""}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === "bool" ? "true" : "e.g. NG, scrap"}" style="width:12em"></label>
+          <label class="field">Split by<select name="split"><option value="">nothing (pooled)</option>${d.columns.filter((c) => c.kind !== "number" && c.name !== outcome?.name).map((c) => option(c.name, ui.split)).join("")}</select></label>
+          <button class="btn primary" type="submit" ${busy ? "disabled" : ""}>Find</button>
+        </div>
+        <fieldset class="row" style="gap:10px;flex-wrap:wrap;border:0;padding:0;margin:0"><legend class="small soft">Variables</legend>${numbers.filter((n) => n !== outcome?.name).map((n) => `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${chosen.has(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</fieldset>
+      </form>
+      ${r ? resultBlock(r) : ""}
+    </div>`;
+	}
+	function resultBlock(r) {
+		const said = r.explanations.length ? `<ul class="stack" data-explanations style="gap:4px">${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join("")}</ul>` : "<p class=\"small soft\" data-explanations>No large, clear effect (|d| ≥ 0.8 with an interval that leaves out 0).</p>";
+		const rows = r.findings.slice(0, 50).map((f) => `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? "–" : fmt$1(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? "–" : fmt$1(f.ok_mean, 2)}</td><td><b>${f.effect.toFixed(2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? "–" : `${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)}`}${f.clear ? "" : " <span class=\"small soft\">(could be 0)</span>"}</td><td>${f.r.toFixed(2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`).join("");
+		return `<div class="stack" style="gap:10px" data-result>
+      <p class="small soft">${fmt$1(r.rows, 0)} batch(es) with an outcome: ${fmt$1(r.ng, 0)} failed, ${fmt$1(r.ok, 0)} good.</p>
+      ${said}
+      ${forestPlot(r.findings)}
+      <div class="table-wrap"><table><thead><tr><th>Segment</th><th>Variable</th><th>Failed mean</th><th>Good mean</th><th>d</th><th>95% CI</th><th>r</th><th>Failed / good</th></tr></thead><tbody>${rows}</tbody></table></div>
+    </div>`;
+	}
+	async function uploadFile(ctx, file, name) {
+		const site = siteId(ctx);
+		const api = ctx.api;
+		if (!api || !site) return;
+		const text = await file.text();
+		const [header, ...body] = parseCsv(text, detectDelimiter(text)).filter((r) => r.some((c) => c.trim()));
+		if (!header || !body.length) {
+			ctx.toast("The file needs a header row and at least one batch");
+			return;
+		}
+		const columns = inferColumns(header, body);
+		const rows = typedRows(body, columns);
+		busy = "upload";
+		upload = {
+			done: 0,
+			total: rows.length
+		};
+		ctx.rerender();
+		try {
+			const d = await api.datasets.create(site, name, columns);
+			for (let i = 0; i < rows.length; i += 2e3) {
+				upload = {
+					done: (await api.datasets.addRows(site, d.id, rows.slice(i, i + 2e3))).row_count,
+					total: rows.length
+				};
+				ctx.rerender();
+			}
+			ctx.toast(`${name}: ${fmt$1(rows.length, 0)} batch(es) uploaded`);
+			Object.assign(uiState(ctx), {
+				selected: d.id,
+				outcome: "",
+				ngText: "",
+				variables: null,
+				split: ""
+			});
+			detail = null;
+			listing = null;
+		} catch {
+			listing = null;
+		} finally {
+			busy = "";
+			upload = null;
+			ctx.rerender();
+		}
+	}
+	async function find(ctx) {
+		const site = siteId(ctx);
+		const ui = uiState(ctx);
+		const d = detail?.data;
+		if (!ctx.api || !site || !d || !ui.selected) return;
+		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
+		if (!outcome) return;
+		const ng = parseNgValues(ui.ngText, outcome.kind);
+		if (typeof ng === "string") {
+			ctx.toast(ng);
+			return;
+		}
+		const numbers = d.columns.filter((c) => c.kind === "number" && c.name !== outcome.name).map((c) => c.name);
+		const variables = (ui.variables ?? numbers).filter((v) => numbers.includes(v));
+		if (!variables.length) {
+			ctx.toast("Choose at least one variable");
+			return;
+		}
+		const key = resultKey(ctx);
+		busy = "find";
+		ctx.rerender();
+		try {
+			result = {
+				key,
+				data: await ctx.api.datasets.correlate(site, ui.selected, {
+					outcome: outcome.name,
+					ng_values: ng,
+					variables,
+					split: ui.split || null
+				})
+			};
+		} catch {} finally {
+			busy = "";
+			ctx.rerender();
+		}
+	}
+	var view$1 = {
+		id: "correlate",
+		title: "Correlation finder",
+		icon: "⇄",
+		render(ctx) {
+			const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Correlation finder</h1>
+        <p class="soft">Which settings separate failed batches from good ones: each variable’s effect (Cohen’s d) with its 95% confidence interval, overall or per material, line or shift.</p></div></div>`;
+			if (!ctx.api) return `${head}<div class="card"><p>Batch tables are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.</p></div>`;
+			const o = ctx.ontology;
+			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+			const ui = uiState(ctx);
+			return `${head}<div class="reviews">${listCard(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
+		},
+		bind(root, ctx) {
+			if (!ctx.api || ctx.ontology.status !== "ready") return;
+			const ui = uiState(ctx);
+			const site = siteId(ctx);
+			if (site && listing?.site !== site) loadList(ctx);
+			if (ui.selected && detail?.id !== ui.selected) loadDetail(ctx, ui.selected);
+			onAll(root, "[data-dataset]", "click", (el) => {
+				Object.assign(ui, {
+					selected: el.dataset.dataset ?? null,
+					outcome: "",
+					ngText: "",
+					variables: null,
+					split: ""
+				});
+				ctx.rerender();
+			});
+			const uploadForm = root.querySelector("#dataset-form");
+			uploadForm?.querySelector("[name=file]")?.addEventListener("change", (e) => {
+				const file = e.target.files?.[0] ?? null;
+				chosen = {
+					file,
+					name: chosen.name || (file ? file.name.replace(/\.[^.]+$/, "") : "")
+				};
+				ctx.rerender();
+			});
+			uploadForm?.querySelector("[name=name]")?.addEventListener("input", (e) => {
+				chosen.name = e.target.value;
+			});
+			onSubmit(root, "#dataset-form", () => {
+				const name = chosen.name.trim();
+				if (!chosen.file) return void ctx.toast("Choose the CSV file first");
+				if (!name) return void ctx.toast("Give the batch table a name");
+				const file = chosen.file;
+				chosen = {
+					file: null,
+					name: ""
+				};
+				uploadFile(ctx, file, name);
+			});
+			const form = root.querySelector("#correlate-form");
+			form?.addEventListener("change", (e) => {
+				const el = e.target;
+				if (el.name === "outcome") Object.assign(ui, {
+					outcome: el.value,
+					ngText: "",
+					variables: null
+				});
+				if (el.name === "split") ui.split = el.value;
+				if (el.name === "variable") ui.variables = [...form.querySelectorAll("[name=variable]:checked")].map((c) => c.value);
+				if (el.name === "outcome") ctx.rerender();
+			});
+			form?.querySelector("[name=ng]")?.addEventListener("input", (e) => {
+				ui.ngText = e.target.value;
+			});
+			onSubmit(root, "#correlate-form", () => void find(ctx));
+		}
+	};
+	//#endregion
 	//#region js/views/imports.ts
 	var BATCH = 5e3;
 	var PREVIEW_ROWS = 5;
@@ -6385,48 +6727,50 @@
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$13,
 		view$12,
 		view$11,
-		view$10,
+		view$4,
 		view$3,
 		view$2,
-		view$1,
+		view$10,
 		view$9,
 		view$8,
-		view$7,
+		view$6,
 		view$5,
-		view$4,
+		view$1,
 		view,
-		view$6
+		view$7
 	];
 	var NAV = [
-		{ items: [view$12, view$11] },
+		{ items: [view$13, view$12] },
 		{
 			group: "Operations",
 			items: [
-				view$10,
+				view$11,
+				view$4,
 				view$3,
 				view$2,
-				view$1,
-				view$9,
-				view$8
+				view$10,
+				view$9
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$6,
 				view$5,
-				view$4,
+				view$1,
 				view
 			]
 		},
 		{
 			group: "Design",
-			items: [view$7]
+			items: [view$8]
 		},
 		{
 			group: "",
-			items: [view$6]
+			items: [view$7]
 		}
 	];
 	function freshState() {
@@ -6719,7 +7063,7 @@
 	};
 	function currentView() {
 		const id = (location.hash.replace(/^#\/?/, "").split(/[/?]/)[0] || "home").toLowerCase();
-		return VIEWS.find((v) => v.id === id) ?? view$12;
+		return VIEWS.find((v) => v.id === id) ?? view$13;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -6742,8 +7086,8 @@
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$12 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
-		document.title = view === view$12 ? "Tiles" : `${view.title} · Tiles`;
+		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$13 ? "" : `<span>›</span><b>${esc(view.title)}</b>`}`;
+		document.title = view === view$13 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
