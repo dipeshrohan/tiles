@@ -503,6 +503,45 @@ export interface CopilotUsage {
   };
 }
 
+// A stored design run (T4.11): a design model version, its parameters and the output the API
+// computed, its parent and the run it restored (by number on the site), and what changed from its parent.
+export interface RunChange {
+  key: string; // a parameter, or 'version'
+  before: number | string | null;
+  after: number | string | null;
+}
+
+export interface DesignRun {
+  number: number;
+  model: string; // the registry's key, e.g. 'cell-swelling'
+  version: string; // e.g. '2.0.0'
+  model_name: string;
+  params: Record<string, number>;
+  output: Record<string, number | null>;
+  units: Record<string, string>;
+  parent: number | null;
+  restored_from: number | null;
+  note: string;
+  author: { name: string; email: string };
+  created_at: string;
+  changes: RunChange[];
+  lineage?: number[]; // one run's: its parent, that run's parent, … back to the first
+}
+
+export interface RunComparison {
+  a: DesignRun;
+  b: DesignRun;
+  changes: RunChange[];
+  outputs: {
+    name: string;
+    unit: string;
+    a: number | null;
+    b: number | null;
+    delta: number | null;
+    percent: number | null;
+  }[];
+}
+
 // A saved insight (T3.12): a finding with what produced it and the evidence it gave when saved.
 export type InsightStatus = 'proposed' | 'accepted' | 'rejected';
 
@@ -913,6 +952,28 @@ export function createApiClient(options: ApiOptions) {
         unrate: (siteId: string, id: string, seq: number) =>
           request<void>('DELETE', `${conv(siteId, id)}/messages/${seq}/feedback`),
         usage: (siteId: string, days = 30) => request<CopilotUsage>('GET', `${base(siteId)}/usage${query({ days })}`),
+      };
+    })(),
+    runs: (() => {
+      const base = (siteId: string) => `/sites/${encodeURIComponent(siteId)}/runs`;
+      return {
+        list: (siteId: string, q: { model?: string; limit?: number; offset?: number } = {}) =>
+          request<{ runs: DesignRun[]; total: number }>('GET', `${base(siteId)}${query(q)}`),
+        get: (siteId: string, n: number) => request<DesignRun>('GET', `${base(siteId)}/${n}`),
+        create: (
+          siteId: string,
+          run: {
+            model: string;
+            version?: string;
+            params: Record<string, number>;
+            note?: string;
+            parent?: number | null;
+          },
+        ) => request<DesignRun>('POST', base(siteId), run),
+        restore: (siteId: string, n: number, note = '') =>
+          request<DesignRun>('POST', `${base(siteId)}/${n}/restore`, { note }),
+        compare: (siteId: string, a: number, b: number) =>
+          request<RunComparison>('GET', `${base(siteId)}/compare${query({ a, b })}`),
       };
     })(),
     insights: (() => {
