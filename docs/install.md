@@ -33,7 +33,7 @@ The [admin guide](guides/admin.md#1-architecture-at-a-glance) explains each part
 | **A CNI that enforces NetworkPolicy** | Calico, Cilium, or another. The chart limits who may reach the database, Redis and the API. |
 | **An ingress controller** | NGINX, or another. Raise its request body limit to 16 MB (the chart sets NGINX's): agents send up to 10,000 readings at once. |
 | **A storage class on SSDs** | For the database. With `Retain`, deleting the claim keeps the disk. |
-| **Two host names and a certificate for both** | For example `tiles.plant.example.com` (the app) and `tiles-api.plant.example.com` (the API), in a Secret in the namespace (`tls_secret`), or from cert-manager. |
+| **Two host names and a certificate for both** | For example `tiles.plant.example.com` (the app) and `tiles-api.plant.example.com` (the API). Either create the `tiles` namespace and the certificate's Secret (`tls_secret`) before you install, and set `create_namespace = false`: Terraform then labels your namespace. Or let Terraform create the namespace, and have cert-manager issue the certificate into it. |
 | **An OpenID Connect provider** | Entra ID, Keycloak, ADFS… See [Sign-in](#1-sign-in). |
 | **Capacity** | For one site's plant (10,000 readings a second, 50 people): two API pods of up to 1 CPU and 1.5 GB each, and a database with 4 CPUs, 16 GB and fast SSDs. Storage: about 850 GB for the readings' first, uncompressed week, then 8 GB a day. [The load test](load-test.md) has the details. Smaller plants need proportionally less. |
 | **The images** | From `ghcr.io/dipeshrohan`, or your mirror of them (see [Images](#2-images)). |
@@ -65,15 +65,27 @@ Note the issuer: for Entra ID, `https://login.microsoftonline.com/<tenant-id>/v2
 
 ## 2. Images
 
-If the cluster can reach `ghcr.io`, skip this step. Otherwise, copy the release's images into your registry:
+If the cluster can reach `ghcr.io` and Docker Hub, skip this step.
+
+Otherwise, copy the release's images into your registry, with the database's and Redis's images unless you bring your own. `--all` keeps every architecture, whatever the copying machine runs. Take the database's and Redis's tags from the chart's `values.yaml` for that release.
 
 ```sh
-for image in tiles-api tiles-web; do
-  skopeo copy docker://ghcr.io/dipeshrohan/$image:0.1.0 docker://registry.plant.example.com/tiles/$image:0.1.0
-done
+skopeo copy --all docker://ghcr.io/dipeshrohan/tiles-api:0.1.0 docker://registry.plant.example.com/tiles/tiles-api:0.1.0
+skopeo copy --all docker://ghcr.io/dipeshrohan/tiles-web:0.1.0 docker://registry.plant.example.com/tiles/tiles-web:0.1.0
+skopeo copy --all docker://docker.io/timescale/timescaledb:2.30.2-pg17 docker://registry.plant.example.com/tiles/timescaledb:2.30.2-pg17
+skopeo copy --all docker://docker.io/library/redis:7.4-alpine docker://registry.plant.example.com/tiles/redis:7.4-alpine
 ```
 
-Then set `images = { registry = "registry.plant.example.com/tiles", pull_secrets = ["plant-registry"] }`. Leave out `pull_secrets` if your registry needs no credentials.
+Then add to `terraform.tfvars`:
+
+```hcl
+images = {
+  registry     = "registry.plant.example.com/tiles"
+  pull_secrets = ["plant-registry"]   # if your registry needs credentials: a Secret in the namespace
+  database     = "registry.plant.example.com/tiles/timescaledb:2.30.2-pg17"
+  redis        = "registry.plant.example.com/tiles/redis:7.4-alpine"
+}
+```
 
 Releases are listed on GitHub with their notes. Install a release (`0.1.0`), never `main`: production refuses a moving tag.
 
@@ -84,7 +96,7 @@ git clone https://github.com/dipeshrohan/tiles && cd tiles/deploy/terraform/envi
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-Edit `terraform.tfvars`:
+Edit `terraform.tfvars`, which starts as:
 
 ```hcl
 kube_context = "plant-cluster"
@@ -119,6 +131,7 @@ Choices:
   - `existing_secret`, naming it;
   - `database_bundled` and `redis_bundled`: `false` when your Secret holds `tiles_database_url` (or `tiles_redis_url`), `true` for the chart's own pod.
 - **The state backend.** Replace `backend "local" {}` in `main.tf` with yours: S3, azurerm, gcs, or a Terraform server.
+- **The copilot** (optional). Set `copilot_model` and `TF_VAR_anthropic_api_key`, and open the firewall to the model provider. It sends people's questions, and the data its tools read to answer them, to the provider.
 
 ## 4. Install
 
@@ -175,9 +188,12 @@ Then, in a browser:
 
 **Rotating the data key.**
 
-1. Give `data_keys`: a new key first, then the current one. The README explains moving off the generated key.
-2. Apply.
-3. Run `tiles-rotate-keys` in an API pod: `kubectl -n tiles exec deploy/tiles-api -- tiles-rotate-keys`.
+1. Make a new key: `kubectl -n tiles exec deploy/tiles-api -- tiles-rotate-keys --new-key k2` prints `k2:…`.
+2. Read the current key: `kubectl -n tiles get secret tiles-settings -o jsonpath='{.data.tiles_data_keys}' | base64 -d`.
+3. Set `TF_VAR_data_keys` to both, the new one first: `k2:…,k1:…`. Keep the value in your secret store.
+4. The first time only, while Terraform still holds the key it generated, let it go. Terraform refuses to destroy that key, so drop it from the state: `terraform state rm 'module.tiles.random_bytes.data_key[0]'`.
+5. Run `terraform plan`, then `terraform apply`. The API restarts with both keys.
+6. Re-seal everything with the new key: `kubectl -n tiles exec deploy/tiles-api -- tiles-rotate-keys`.
 
 ## Uninstalling
 
@@ -206,13 +222,13 @@ The database's volume follows its storage class's reclaim policy. With `Retain`,
 
 CI's **Install dry run** job follows this guide on a new kind cluster, with the release's images built from the change:
 
-- **Install:** writes a `terraform.tfvars` like the one above (no ingress controller on kind), then runs `terraform init`, `plan` and `apply`.
+- **Install:** starts from `terraform.tfvars.example`, the file shown in step 3. A unit test (`test/install-guide.test.js`) keeps the two the same. The job overrides only what kind needs (its context, the images built from the change, no ingress controller, a small volume on kind's storage class). Then it runs `terraform init`, `plan` and `apply`.
 - **Checks:**
   - the namespace enforces the restricted standard;
   - `/ready` is ok, `/health` says production, and `/sites` wants sign-in;
   - the app points at the API.
 - **Re-plan:** a second `plan` must change nothing.
 - **A changed secret:** the API restarts, and the data key stays the same.
-- **Destroy:** `terraform destroy` is refused while the data key is in Terraform's care.
+- **Destroy:** a destroy plan is refused while the data key is in Terraform's care.
 
 The Helm chart's own job runs alongside it on another cluster, enforcing the same standard. It also covers chart upgrades, a scheduled job running to completion, and refusing a lost Secret.

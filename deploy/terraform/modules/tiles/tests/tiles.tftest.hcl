@@ -216,4 +216,65 @@ run "images_from_a_mirror" {
     condition     = yamldecode(helm_release.tiles.values[0]).imagePullSecrets == [{ name = "plant-registry" }]
     error_message = "Pulled with the given Secret."
   }
+  assert {
+    condition     = !can(yamldecode(helm_release.tiles.values[0]).database.image) && !can(yamldecode(helm_release.tiles.values[0]).redis.image)
+    error_message = "Without overrides, the chart's database and Redis images."
+  }
+}
+
+run "the_database_and_redis_from_the_mirror_too" {
+  command = plan
+  variables {
+    data_keys = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    images = {
+      registry = "registry.plant.example.com/tiles"
+      database = "registry.plant.example.com/tiles/timescaledb:2.30.2-pg17"
+      redis    = "registry.plant.example.com/tiles/redis:7.4-alpine"
+    }
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).database.image == "registry.plant.example.com/tiles/timescaledb:2.30.2-pg17" && yamldecode(helm_release.tiles.values[0]).database.bundled
+    error_message = "The bundled database's image from the mirror."
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).redis.image == "registry.plant.example.com/tiles/redis:7.4-alpine"
+    error_message = "Redis's image from the mirror."
+  }
+}
+
+run "images_given_as_null_take_the_defaults" {
+  command = plan
+  variables {
+    data_keys = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    images    = null
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).images.api.repository == "ghcr.io/dipeshrohan/tiles-api"
+    error_message = "An environment passing null gets the module's defaults (one source of them)."
+  }
+}
+
+run "a_namespace_made_beforehand_is_labelled" {
+  command = plan
+  variables {
+    data_keys        = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    create_namespace = false
+  }
+  assert {
+    condition     = length(kubernetes_namespace_v1.tiles) == 0 && kubernetes_labels.namespace[0].labels["pod-security.kubernetes.io/enforce"] == "restricted"
+    error_message = "Terraform labels the namespace it didn't make."
+  }
+}
+
+run "null_image_settings_take_the_defaults" {
+  command = plan
+  variables {
+    data_keys = "k1:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+    # As an environment passes them: attributes it wasn't given are null.
+    images = { registry = "", pull_policy = "Never", pull_secrets = null, database = null, redis = null }
+  }
+  assert {
+    condition     = yamldecode(helm_release.tiles.values[0]).imagePullSecrets == [] && yamldecode(helm_release.tiles.values[0]).images.api.repository == "tiles-api"
+    error_message = "Null pull_secrets is none; an empty registry is the cluster's own images."
+  }
 }
