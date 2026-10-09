@@ -104,7 +104,7 @@ WHERE site_id = %s AND revoked_at IS NULL
 """
 
 
-def _agent(row: dict[str, Any], now: datetime) -> Agent:
+def agent_view(row: dict[str, Any], now: datetime) -> Agent:
     status_: dict[str, Any] = row["last_status"] or {}
     seen: datetime | None = row["last_seen_at"]
     if seen is None:
@@ -125,7 +125,7 @@ def _agent(row: dict[str, Any], now: datetime) -> Agent:
     )
 
 
-def _now(conn: Any) -> datetime:
+def db_now(conn: Any) -> datetime:
     now: datetime = one(conn.execute("SELECT clock_timestamp() AS now").fetchone())["now"]
     return now
 
@@ -133,8 +133,8 @@ def _now(conn: Any) -> datetime:
 @router.get("/sites/{site_id}/agents", response_model=list[Agent])
 def list_agents(ctx: Ctx) -> list[Agent]:
     """The site's edge agents (not revoked ones) and whether each is online."""
-    now = _now(ctx.conn)
-    return [_agent(r, now) for r in ctx.conn.execute(AGENT_SQL + " ORDER BY name", [ctx.site_id])]
+    now = db_now(ctx.conn)
+    return [agent_view(r, now) for r in ctx.conn.execute(AGENT_SQL + " ORDER BY name", [ctx.site_id])]
 
 
 @router.post("/sites/{site_id}/agents", response_model=NewAgent, status_code=status.HTTP_201_CREATED)
@@ -156,7 +156,7 @@ def register_agent(ctx: Admin, body: AgentIn) -> NewAgent:
     except errors.UniqueViolation:
         raise HTTPException(status.HTTP_409_CONFLICT, f"An agent named {body.name} already exists") from None
     ctx.audit("agent.register", "edge_agent", str(row["id"]), after={"name": body.name})
-    return NewAgent(agent=_agent(row, _now(ctx.conn)), token=token)
+    return NewAgent(agent=agent_view(row, db_now(ctx.conn)), token=token)
 
 
 @router.delete("/sites/{site_id}/agents/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)

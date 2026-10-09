@@ -29,6 +29,7 @@ const PAGES = [
   'correlate',
   'insights',
   'import',
+  'onboarding',
   'settings',
 ];
 const VARIANTS = [
@@ -1907,6 +1908,94 @@ test('the plant navigator in local mode walks the demo plant', async (t) => {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(overflow <= 0, `page scrolls sideways by ${overflow}px`);
   assert.deepEqual(errors, []);
+});
+
+test('setting up a site: outline the plant, connect an agent, map a tag, open the first dashboard', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin', 'viewer@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openAs(t, apiUrl, null, 'onboarding');
+  await page.waitForSelector('.wizard-panel h2:has-text("Outline the plant")'); // the first step not done
+  assert.match(await page.locator('.wizard-steps li.done').first().innerText(), /Create the site/);
+
+  // Another site, by an admin: the slug follows the name.
+  await page.click('[data-step=site]');
+  await page.fill('#new-site [name=name]', 'Plant 2');
+  assert.equal(await page.inputValue('#new-site [name=slug]'), 'plant-2');
+  await page.click('#new-site button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Plant 2 created")');
+  await page.waitForSelector('[data-open-site]:has-text("Set up Plant 2 now")');
+  await page.click('#new-site button[type=submit]');
+  await page.fill('#new-site [name=name]', 'Plant 2');
+  await page.click('#new-site button[type=submit]');
+  await page.waitForSelector('#toast:has-text("already has a site called plant-2")');
+
+  // The plant outlined: a line of two machines, each with its PLC.
+  await page.click('[data-step=outline]');
+  await page.fill('#outline [name=line]', 'Line 1');
+  await page.fill('#outline [name=machines]', 'Press 1\nPress 2');
+  await page.click('#outline button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Line 1 added to the ontology")');
+  await page.waitForSelector('.wizard-steps li.done:has-text("2 machines in the ontology")');
+  await page.waitForSelector('.wizard-panel h2:has-text("Connect an edge agent")');
+
+  // An agent: its token once, with its config; the page sees its first heartbeat by itself.
+  await page.click('#new-agent button[type=submit]');
+  await page.waitForSelector('[data-agent-token]');
+  const token = (await page.locator('[data-agent-token] pre').first().innerText()).trim();
+  assert.match(token, /^tla_/);
+  assert.match(await page.locator('[data-agent-token]').innerText(), new RegExp(`url = "${apiUrl}"`));
+  await page.waitForSelector('[role=status]:has-text("Waiting for the agent’s first heartbeat")');
+  // The page checks every 5 s, and leaves what is being typed alone until there is news.
+  await page.click('[data-step=outline]');
+  await page.fill('#outline [name=line]', 'Line 2');
+  await page.waitForTimeout(6_000);
+  assert.equal(await page.inputValue('#outline [name=line]'), 'Line 2');
+  await page.click('[data-step=agent]');
+  fake.heartbeat(token);
+  await page.waitForSelector('.wizard-steps li.done:has-text("1 agent has called in")', { timeout: 15_000 });
+  await page.waitForSelector('.wizard-panel h2:has-text("Map the tags")');
+  await page.waitForSelector('.wizard-panel:has-text("No tags have arrived yet")');
+
+  // A tag arrives and is mapped to a Signal node of Press 1's PLC: Press 1 is the first dashboard.
+  fake.commitAs(
+    'maria',
+    [
+      { kind: 'addNode', node: { id: 'sig-force', type: 'Signal', label: 'Force', props: { unit: 'kN' } } },
+      { kind: 'addEdge', edge: { id: 'e-force', from: 'plc-press-1', rel: 'emits', to: 'sig-force' } },
+    ],
+    'force',
+  );
+  fake.addSignal('p1.force', { source: 'edge:edge-01' });
+  await page.click('[data-onboarding-refresh]');
+  await page.waitForSelector('.wizard-panel:has-text("0 of 1 tags are mapped")');
+  fake.addSignal('p1.force', { node_id: 'sig-force' });
+  await page.click('[data-onboarding-refresh]');
+  await page.waitForSelector('.wizard-panel h2:has-text("Open the first dashboard")');
+  await page.waitForSelector('.wizard-panel [role=status]:has-text("This site is set up")');
+  assert.equal(await page.locator('.wizard-steps li.done').count(), 5);
+  await page.click('.wizard-panel a:has-text("Open Press 1")');
+  await page.waitForSelector('.page-head h1:has-text("Press 1")');
+  await page.waitForSelector('tr:has-text("Force"):has-text("p1.force")');
+  assert.deepEqual(
+    errors.filter((e) => !/status of 409/.test(e)), // the second Plant 2, refused
+    [],
+  );
+
+  // Viewers follow the progress but leave the steps to engineers and admins.
+  const v = await openAs(t, apiUrl, 'viewer@example.com', 'onboarding');
+  await v.page.click('[data-step=outline]');
+  await v.page.waitForSelector('.wizard-panel:has-text("Engineers and admins of the site outline the plant")');
+  await v.page.click('[data-step=agent]');
+  await v.page.waitForSelector('.wizard-panel:has-text("Admins of the site register edge agents")');
+  assert.equal(await v.page.locator('#outline, #new-agent').count(), 0);
+  assert.deepEqual(v.errors, []);
+
+  // In local mode, the page says the API is needed.
+  const local = await openPage();
+  t.after(() => local.page.close());
+  await local.page.goto(`${httpBase}#/onboarding`);
+  await local.page.waitForSelector('#view:has-text("Setting up a site needs the Tiles API")');
 });
 
 test('assigning never unassigns someone the list of people lacks, and a no-op assign says so', async (t) => {

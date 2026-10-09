@@ -38,6 +38,7 @@ from tiles_api.api_runs import router as runs_router
 from tiles_api.api_samples import router as samples_router
 from tiles_api.api_series import router as series_router
 from tiles_api.api_signals import router as signals_router
+from tiles_api.api_sites import router as sites_router
 from tiles_api.api_suggest import router as suggest_router
 from tiles_api.api_sweeps import router as sweeps_router
 from tiles_api.api_warnings import router as warnings_router
@@ -150,6 +151,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ontology_router)
     app.include_router(ontology_io_router)
     app.include_router(members_router)
+    app.include_router(sites_router)
     app.include_router(models_router)
     app.include_router(bindings_router)
     app.include_router(detectors_router)
