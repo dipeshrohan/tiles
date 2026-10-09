@@ -3910,6 +3910,10 @@
 	var revealed = null;
 	var apiCheck = "";
 	var apiCheckSeq = 0;
+	var sourceDraft = null;
+	if (typeof window !== "undefined") window.addEventListener("hashchange", () => {
+		if (!location.hash.startsWith("#/settings")) sourceDraft = null;
+	});
 	function viewer(ctx) {
 		return `${ctx.auth.signedIn ? "signed-in" : "dev"}:${ctx.state.user.email}`;
 	}
@@ -4021,7 +4025,7 @@
 		icon: "⚙",
 		render(ctx) {
 			const { user } = ctx.state;
-			const ds = ctx.dataSource;
+			const ds = sourceDraft ?? ctx.dataSource;
 			return `
       <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
       <div class="grid g2">
@@ -4070,11 +4074,19 @@
 					return;
 				}
 				apiCheck = "";
+				sourceDraft = null;
 				ctx.setDataSource({
 					mode,
 					apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl
 				});
 				ctx.toast(mode === "api" ? "Using the Tiles API" : "Using this browser only");
+			});
+			const source = root.querySelector("#datasource");
+			source?.addEventListener("input", () => {
+				sourceDraft = {
+					mode: source.elements.namedItem("mode").value === "api" ? "api" : "local",
+					apiUrl: field$1(source, "apiUrl")
+				};
 			});
 			onAll(root, "[data-test-api]", "click", async () => {
 				const url = field$1(need(root, "#datasource"), "apiUrl");

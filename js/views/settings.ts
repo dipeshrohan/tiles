@@ -268,6 +268,13 @@ let revealed: Revealed | null = null;
 // shows it again rather than wiping it.
 let apiCheck = '';
 let apiCheckSeq = 0;
+// The data source as typed and not yet saved: a re-render (the site loading in the background)
+// must not wipe an address being typed or a choice being made.
+let sourceDraft: { mode: 'local' | 'api'; apiUrl: string } | null = null;
+if (typeof window !== 'undefined')
+  window.addEventListener('hashchange', () => {
+    if (!location.hash.startsWith('#/settings')) sourceDraft = null;
+  });
 
 // Who is looking: whether they are signed in, and as whom.
 function viewer(ctx: Context): string {
@@ -416,7 +423,7 @@ const view: View = {
   icon: '⚙',
   render(ctx) {
     const { user } = ctx.state;
-    const ds = ctx.dataSource;
+    const ds = sourceDraft ?? ctx.dataSource;
     return `
       <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
       <div class="grid g2">
@@ -463,8 +470,14 @@ const view: View = {
         return;
       }
       apiCheck = '';
+      sourceDraft = null;
       ctx.setDataSource({ mode, apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl });
       ctx.toast(mode === 'api' ? 'Using the Tiles API' : 'Using this browser only');
+    });
+    const source = root.querySelector<HTMLFormElement>('#datasource');
+    source?.addEventListener('input', () => {
+      const mode = (source.elements.namedItem('mode') as RadioNodeList).value === 'api' ? 'api' : 'local';
+      sourceDraft = { mode, apiUrl: field(source, 'apiUrl') };
     });
     onAll(root, '[data-test-api]', 'click', async () => {
       const url = field(need<HTMLFormElement>(root, '#datasource'), 'apiUrl');
