@@ -192,7 +192,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [ ] `T6.03` [#95](https://github.com/dipeshrohan/tiles/issues/95) **Case study write-up** (anonymised if needed) · PM · 1.5d · T6.02
 
 ### Release
-- [ ] `T6.04` [#96](https://github.com/dipeshrohan/tiles/issues/96) ★ **Versioning and release process:** semantic versions, changelog, release notes, migration testing between versions · TL · 2d
+- [x] `T6.04` [#96](https://github.com/dipeshrohan/tiles/issues/96) ★ **Versioning and release process:** semantic versions, changelog, release notes, migration testing between versions · TL · 2d
 - [ ] `T6.05` [#97](https://github.com/dipeshrohan/tiles/issues/97) ★ **Documentation:** admin guide, user guide, model-author guide, API reference · PM+TL · 4d
 - [ ] `T6.06` [#98](https://github.com/dipeshrohan/tiles/issues/98) **New-site onboarding flow:** a wizard from site creation → edge agent → tag mapping → first dashboard · FE+BE · 4d · T2.11
   *Done when:* onboarding a new machine takes under 1 day.

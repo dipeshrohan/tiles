@@ -27,6 +27,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
+      - run: npm run version:check # one version everywhere, with its changelog section
 
   test:
     name: Unit tests (Node ${{ matrix.node }})
@@ -93,6 +94,24 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run mypy
       - run: uv run pytest -W error
+      - name: Upgrade from main and from the last release, and roll back (T6.04)
+        working-directory: .
+        run: |
+          git fetch --no-tags --depth=1 origin main
+          scripts/upgrade-test.sh FETCH_HEAD "$TILES_TEST_DATABASE_URL"
+          # The latest final release (no -rc): what sites upgrade from. A failed fetch fails the step.
+          code=0; git ls-remote --exit-code --tags origin 'refs/tags/v*' > /dev/null || code=$?
+          case $code in
+            0) git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*' ;;
+            2) ;; # no release tags yet
+            *) exit "$code" ;;
+          esac
+          last=$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)
+          if [ -n "$last" ]; then
+            scripts/upgrade-test.sh "$last" "$TILES_TEST_DATABASE_URL"
+          else
+            echo "No release tagged yet: the upgrade from main covers it"
+          fi
       - name: Edge agent checks
         working-directory: edge
         env:
@@ -109,7 +128,8 @@ jobs:
         working-directory: edge
         run: |
           python3 -m zipapp src -m tiles_edge.cli:entry -p "/usr/bin/env python3" -o "$RUNNER_TEMP/tiles-edge.pyz"
-          "$RUNNER_TEMP/tiles-edge.pyz" --version | grep -q "tiles-edge 0.1.0"
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          "$RUNNER_TEMP/tiles-edge.pyz" --version | grep -qx "tiles-edge $version"
           set +e; "$RUNNER_TEMP/tiles-edge.pyz" check -c /nonexistent.toml; code=$?; set -e
           test "$code" = 2  # exit codes survive the zipapp
 
