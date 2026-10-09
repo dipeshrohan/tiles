@@ -141,6 +141,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
       'chat',
       'onboarding',
       'apps',
+      'documents',
     ]) {
       await page.evaluate((r) => (location.hash = r), `#/${route}`);
       await settled(page);
@@ -158,6 +159,22 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 5000 });
     await page.waitForTimeout(400);
     await check('app');
+    // Documents: an upload, and a search's matches with their words marked.
+    await page.evaluate(() => (location.hash = '#/documents'));
+    await page.waitForSelector('[data-doc-list] .review-row, [data-doc-list] .empty:not(:has-text("Loading"))');
+    await page.setInputFiles('#doc-upload [name=file]', {
+      name: 'sop.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from(`SOP ${colorScheme}\fReplace the plunger tip after 20000 shots.`),
+    });
+    await page.click('#doc-upload button[type=submit]');
+    await page.waitForSelector('#toast:has-text("Uploaded")');
+    await page.fill('#doc-search [name=q]', 'plunger');
+    await page.click('#doc-search button[type=submit]');
+    await page.waitForSelector('[data-matches] mark');
+    await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 5000 });
+    await page.waitForTimeout(400);
+    await check('documents');
     await page.evaluate(() => (location.hash = '#/signals'));
     await page.click('a[href^="#/explorer?signal="]');
     await page.waitForSelector('.explorer-chart svg.chart');

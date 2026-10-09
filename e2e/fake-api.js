@@ -286,6 +286,7 @@ export function createFakeApi({
   const insights = []; // saved insights, as the API returns them, with `evidence`
   const studioApps = []; // App Studio's apps (T6.10), archived ones included
   let lastApp = 0;
+  const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
@@ -597,6 +598,7 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
         !url.pathname.startsWith(`/sites/${site.id}/apps`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/documents`) &&
         !url.pathname.startsWith(`/sites/${site.id}/copilot`) &&
         url.pathname !== `/sites/${site.id}/design-projects` &&
         url.pathname !== `/sites/${site.id}/runs` &&
@@ -969,6 +971,73 @@ export function createFakeApi({
         await emit('done', { stop_reason: 'end_turn', usage: {}, grounded: grounding.grounded });
         res.end();
         return;
+      }
+      // Documents (T4.08): text files are split into pages at form feeds; a word matches its forms
+      // that start with it, roughly as the API's stemming does.
+      const docsPath = `/sites/${site.id}/documents`;
+      if (url.pathname === docsPath || url.pathname.startsWith(`${docsPath}/`)) {
+        const live = siteDocuments.filter((d) => !d.archived);
+        const shown = ({ pages, content: _content, archived: _archived, ...d }) => ({ ...d, pages: pages.length });
+        if (url.pathname === docsPath && req.method === 'GET') return send(200, live.map(shown).reverse());
+        if (url.pathname === docsPath && req.method === 'POST') {
+          if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+          const chunks = [];
+          for await (const c of req) chunks.push(c);
+          const content = Buffer.concat(chunks);
+          const type = (req.headers['content-type'] ?? '').split(';')[0];
+          if (!['application/pdf', 'text/plain', 'text/markdown'].includes(type))
+            return send(422, { detail: 'Send a PDF, a text file or a Markdown file' });
+          const pages = type === 'application/pdf' ? ['A PDF'] : content.toString('utf8').split('\f');
+          if (!pages.some((p) => p.trim()))
+            return send(422, { detail: 'The document has no text to search (a scan needs OCR first)' });
+          const q = url.searchParams;
+          const made = {
+            number: siteDocuments.length + 1,
+            title: q.get('title'),
+            filename: q.get('filename') || 'document',
+            content_type: type,
+            language: q.get('language') || 'english',
+            pages,
+            size: content.length,
+            sha256: createHash('sha256').update(content).digest('hex'),
+            uploaded_by: user,
+            created_at: new Date().toISOString(),
+            content,
+          };
+          siteDocuments.push(made);
+          return send(201, shown(made));
+        }
+        if (url.pathname === `${docsPath}/search`) {
+          const words = (url.searchParams.get('q') ?? '').toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
+          const matches = [];
+          for (const d of live)
+            d.pages.forEach((text, i) => {
+              const hit = (w) => new RegExp(`\\b${w.length > 3 ? w.slice(0, -1) : w}`, 'i').test(text);
+              if (words.length && words.every(hit)) {
+                let snippet = text.slice(0, 200);
+                for (const w of words)
+                  snippet = snippet.replace(
+                    new RegExp(`\\b(${w.length > 3 ? w.slice(0, -1) : w}\\w*)`, 'gi'),
+                    '\u0002$1\u0003',
+                  );
+                matches.push({ document: d.number, title: d.title, page: i + 1, snippet, rank: 1 });
+              }
+            });
+          return send(200, { query: url.searchParams.get('q'), matches });
+        }
+        const m = url.pathname.slice(docsPath.length).match(/^\/(\d+)(\/file)?$/);
+        const doc = m && live.find((d) => d.number === Number(m[1]));
+        if (!doc) return send(404, { detail: 'No such document on this site' });
+        if (m[2]) {
+          res.writeHead(200, { 'content-type': doc.content_type, 'content-security-policy': 'sandbox' });
+          return void res.end(doc.content);
+        }
+        if (req.method === 'DELETE') {
+          if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+          doc.archived = true;
+          return send(204);
+        }
+        return send(405, { detail: 'Method not allowed' });
       }
       // App Studio (T6.10): apps from the templates above; a result made up from the settings.
       const appsPath = `/sites/${site.id}/apps`;
@@ -1787,6 +1856,7 @@ export function createFakeApi({
     },
     insights,
     studioApps,
+    siteDocuments,
     // Makes the next `n` lists of App Studio's templates or apps fail.
     failApps(n) {
       appsFailures = n;

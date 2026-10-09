@@ -49,6 +49,7 @@ import performance from './views/performance.ts';
 import correlate from './views/correlate.ts';
 import insights from './views/insights.ts';
 import apps from './views/apps.ts';
+import documents from './views/documents.ts';
 import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
@@ -70,6 +71,7 @@ const VIEWS: View[] = [
   correlate,
   insights,
   apps,
+  documents,
   imports,
   onboarding,
   settings,
@@ -78,7 +80,7 @@ const VIEWS: View[] = [
 const NAV: { group?: string; items: View[] }[] = [
   { items: [home, chat] },
   { group: 'Operations', items: [shopfloor, plant, ontology, reviews, warnings, performance, quality, physics] },
-  { group: 'Data', items: [signals, explorer, correlate, insights, apps, imports] },
+  { group: 'Data', items: [signals, explorer, correlate, insights, apps, documents, imports] },
   { group: 'Design', items: [design] },
   { group: '', items: [onboarding, settings] },
 ];

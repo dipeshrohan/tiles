@@ -10,9 +10,12 @@ from typing import Any
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from pdfs import make_pdf
 from psycopg.rows import dict_row
 from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 from test_datasets import upload
+from test_documents import SOP
+from test_documents import upload as upload_document
 from test_model_runner import SHOTS, bind, import_shots
 from test_reviews import member, stage
 from test_series import T0, load
@@ -66,6 +69,7 @@ def test_every_tool_is_described_for_the_model(tool: Run) -> None:
         "wear_check",
         "virtual_sensors",
         "events",
+        "search_documents",
         "correlate",
     ]
     for s in specs:
@@ -219,6 +223,23 @@ def test_the_correlation_finder_on_a_batch_table(api: TestClient, site: str, too
     assert (
         refused(tool, "correlate", dataset="cutter batches", outcome="colour") == "No column 'colour' in this dataset"
     )
+
+
+def test_the_sites_documents_by_page(api: TestClient, site: str, tool: Run) -> None:  # noqa: F811
+    assert refused(tool, "search_documents", query="plunger") == "The site has no documents yet"
+    assert upload_document(api, site, make_pdf(SOP)).status_code == 201
+    out = tool("search_documents", query="when to replace the plunger tip")
+    assert out["matches"][0] == {
+        "document": "SOP 14 die-casting start-up",
+        "number": 1,
+        "page": 3,
+        "text": out["matches"][0]["text"],
+    }
+    assert "Replace the plunger tip after 20000 shots" in out["matches"][0]["text"]
+    assert "\x02" not in out["matches"][0]["text"]  # the match markers are the browser's
+    none = tool("search_documents", query="spindle bearing")
+    assert none == {"query": "spindle bearing", "matches": [], "documents": "SOP 14 die-casting start-up"}
+    assert refused(tool, "search_documents", query=" ") == "Give the words to look for in the site's documents"
 
 
 def test_tools_only_read(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811

@@ -26,11 +26,12 @@ Other guides:
 13. [Correlation finder](#correlation-finder)
 14. [Insights](#insights)
 15. [App Studio](#app-studio)
-16. [Design studio](#design-studio)
-17. [Copilot](#copilot)
-18. [Set up a site](#set-up-a-site)
-19. [Settings](#settings)
-20. [Glossary](#glossary)
+16. [Documents](#documents)
+17. [Design studio](#design-studio)
+18. [Copilot](#copilot)
+19. [Set up a site](#set-up-a-site)
+20. [Settings](#settings)
+21. [Glossary](#glossary)
 
 ---
 
@@ -611,6 +612,33 @@ Each app shows:
 
 ---
 
+## Documents
+
+*API mode.* The site's SOPs, manuals, lessons learned and equipment history, searched by their words. Each match shows its document and page. The copilot searches them too, and cites the document and page it answers from.
+
+### Searching
+
+Type words and choose **Search**:
+
+- **Words find their forms:** "valves" finds "valve", "lubricating" finds "lubricate". This uses each document's language.
+- **"Quoted words"** find a phrase.
+- **-word** leaves out passages with that word.
+- **OR** finds either word.
+
+Matches come best first, with the matched words marked. **Open page N** opens the document; a PDF opens at that page.
+
+### Uploading (engineers and admins)
+
+Choose a PDF, text or Markdown file, up to 20 MB, and its language, then **Upload**. The title defaults to the file name. Tiles reads the text page by page:
+
+- A **text or Markdown file** has no pages, so a form feed starts a new one, or else every 3,000 characters do.
+- A **scanned PDF without a text layer** can't be searched: run OCR on it first.
+- An **encrypted PDF** is refused: upload it without its password.
+
+**Archive** takes a document out of the list and out of search. Uploads and archives are in the site's audit log.
+
+---
+
 ## Design studio
 
 **What it's for:** exploring physics models from first principles. Every run records the model version and parameters, so you can trace, compare and export any result for audit.
@@ -802,6 +830,7 @@ Every change on the site: who, what and when. For example staged and committed o
 - **Commit**: A saved set of ontology changes with a message, author and time. Commits can be reverted.
 - **Copilot**: The question-and-answer assistant. It answers from your site's data and cites its sources.
 - **Detector**: A rule that watches a signal and raises a warning when readings move too far from their normal level for long enough.
+- **Document**: An SOP, manual or other file uploaded to a site, searched by its words, page by page.
 - **Edge agent**: A small program on the plant network that reads machines (OPC UA, MQTT, SQL) and sends readings to Tiles.
 - **Event**: A reading on a signal marked as downtime, scrap or other events. Its value is the event code.
 - **Grounding**: The check that every number and name in a copilot answer comes from a cited tool result or your question.

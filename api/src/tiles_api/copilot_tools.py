@@ -8,7 +8,7 @@ may use); the API's own checks (HTTPException, validation) become ToolErrors.
 
 The tools are the browser copilot's skills on the site's real data: the ontology (graph query and
 health check), signals (search, time series, wear check), virtual sensors, warnings and events,
-and the correlation finder on uploaded batch tables.
+the correlation finder on uploaded batch tables, and the site's documents (T4.08).
 """
 
 import math
@@ -23,7 +23,16 @@ from fastapi import HTTPException
 from psycopg.types.json import Jsonb
 from pydantic import TypeAdapter, ValidationError
 
-from tiles_api import api_datasets, api_reviews, api_series, api_signals, api_wear, ontology, ontology_store
+from tiles_api import (
+    api_datasets,
+    api_documents,
+    api_reviews,
+    api_series,
+    api_signals,
+    api_wear,
+    ontology,
+    ontology_store,
+)
 from tiles_api.api_ontology import OpIn, SiteContext, _op_dict, can_edit
 from tiles_api.assistant import Tool, ToolError
 from tiles_api.store import one
@@ -408,6 +417,27 @@ def correlate(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
 
 # ---- the list the model sees ----------------------------------------------------------
 
+
+def search_documents(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
+    query = _text(args, "query", limit=500)
+    if not query:
+        raise ToolError("Give the words to look for in the site's documents")
+    matches = api_documents.search(ctx, query, _int(args, "limit", 5, 1, 10))
+    if not matches:
+        titles = [r["title"] for r in ctx.conn.execute(f"{api_documents.DOC_SQL} ORDER BY number", [ctx.site_id])]
+        if not titles:
+            raise ToolError("The site has no documents yet")
+        return {"query": query, "matches": [], "documents": _names(titles)}
+    plain = str.maketrans("", "", api_documents.MARK_START + api_documents.MARK_END)
+    return {
+        "query": query,
+        "matches": [
+            {"document": m["title"], "number": m["document"], "page": m["page"], "text": m["snippet"].translate(plain)}
+            for m in matches
+        ],
+    }
+
+
 OBJECT = "object"
 MAX_PROPOSED_OPS = 200
 OPS = TypeAdapter(list[OpIn])
@@ -602,6 +632,18 @@ def tools_for(open_ctx: OpenCtx, *, can_propose: bool = False, conversation_id: 
                 "limit": {"type": "integer", "minimum": 1, "maximum": 50},
             },
             events,
+        ),
+        tool(
+            "search_documents",
+            "Search the site's documents (SOPs, manuals, lessons learned, equipment history) by their words: the "
+            "passages that match best, each with its document and page. Cite the document and page. The query is "
+            'a web search: words (stemmed), "quoted phrases", OR, -excluded words.',
+            {
+                "query": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 10},
+            },
+            search_documents,
+            ["query"],
         ),
         tool(
             "correlate",

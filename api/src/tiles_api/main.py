@@ -25,6 +25,7 @@ from tiles_api.api_backtest import router as backtest_router
 from tiles_api.api_copilot import router as copilot_router
 from tiles_api.api_datasets import router as datasets_router
 from tiles_api.api_detectors import router as detectors_router
+from tiles_api.api_documents import router as documents_router
 from tiles_api.api_imports import router as imports_router
 from tiles_api.api_insights import router as insights_router
 from tiles_api.api_members import router as members_router
@@ -160,6 +161,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(org_sign_in_router)
     app.include_router(scim_router)
     app.include_router(apps_router)
+    app.include_router(documents_router)
     app.add_exception_handler(ScimError, error_response)
     app.include_router(models_router)
     app.include_router(bindings_router)
