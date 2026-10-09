@@ -6,8 +6,10 @@ from typing import Any
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.types.json import Jsonb
 from test_agents import ADMIN, ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 
+from tiles_api import api_runs
 from tiles_api.models import design
 from tiles_api.models.registry import registry
 
@@ -89,7 +91,9 @@ def test_what_a_run_may_be(api: TestClient, site: str) -> None:  # noqa: F811
     res = run(api, site, {"model": "swelling", "parent": actuator["number"]})
     assert (res.status_code, res.json()["detail"]) == (422, "Run 1 is of joint-actuator, not cell-swelling")
     assert run(api, site, {"model": "swelling", "parent": 42}).status_code == 404
-    assert run(api, site, {"model": "swelling", "params": {"soc": "high"}}).status_code == 422
+    # Numbers only, and not too many.
+    for params in ({"soc": "high"}, {"soc": "90"}, {"soc": True}, {f"p{i}": 1 for i in range(51)}):
+        assert run(api, site, {"model": "swelling", "params": params}).status_code == 422, params
 
 
 def test_restore_runs_an_earlier_run_again_after_the_latest(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
@@ -129,6 +133,64 @@ def test_restore_refuses_a_model_that_gives_another_output(
     assert res.status_code == 409
     assert res.json()["detail"] == "Run 1 gives another output now: model cell-swelling 1.0.0 changed"
     assert api.get(f"/sites/{site}/runs", headers=ENG).json()["total"] == 1  # nothing stored
+    monkeypatch.undo()
+    assert run(api, site, {"model": "swelling"}).json()["number"] == 2  # and no number used
+
+
+def test_a_version_stored_with_another_spec_is_refused(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    assert run(api, site, {"model": "swelling", "version": "2.0"}).status_code == 201  # stores its models row
+    where = "WHERE key = 'cell-swelling' AND version = '2.0.0'"
+    with psycopg.connect(database_url) as conn:  # as if another deployment had stored another spec
+        [(spec,)] = conn.execute(f"SELECT spec FROM models {where}").fetchall()  # noqa: S608 - a constant
+        conn.execute(f"UPDATE models SET spec = '{{}}' {where}")  # noqa: S608
+    res = run(api, site, {"model": "swelling", "version": "2.0"})
+    assert res.status_code == 409
+    assert "Give the change a new version" in res.json()["detail"]
+    with psycopg.connect(database_url) as conn:  # for the module's other tests
+        conn.execute(f"UPDATE models SET spec = %s {where}", [Jsonb(spec)])  # noqa: S608
+
+
+def test_runs_of_a_version_no_longer_registered_still_show(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    run(api, site, {"model": "swelling", "version": "1.0"})
+    with psycopg.connect(database_url) as conn:  # as if 0.9.0, with another output, had been dropped
+        conn.execute(
+            """
+            INSERT INTO design_runs (site_id, number, model_id, model_key, version, params, output,
+                                     author_name, author_email)
+            SELECT site_id, 2, model_id, model_key, '0.9.0', params, '{"pressure": 3.5}', 'Old', 'old@example.com'
+            FROM design_runs WHERE number = 1
+            """
+        )
+    old = api.get(f"/sites/{site}/runs/2", headers=ENG).json()
+    assert (old["model_name"], old["units"], old["output"]) == ("cell-swelling", {}, {"pressure": 3.5})
+    assert len(api.get(f"/sites/{site}/runs", headers=ENG).json()["runs"]) == 2
+    res = api.post(f"/sites/{site}/runs/2/restore", headers=ENG)
+    assert (res.status_code, res.json()["detail"]) == (
+        409,
+        "Run 2's model cell-swelling 0.9.0 is no longer registered",
+    )
+    # An output only one of the runs has is compared too.
+    c = api.get(f"/sites/{site}/runs/compare?a=2&b=1", headers=ENG).json()
+    assert [(o["name"], o["a"] is None, o["b"] is None) for o in c["outputs"]] == [
+        ("force", True, False),
+        ("pressure", False, True),
+    ]
+
+
+def test_a_long_lineage_says_where_it_was_cut(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run(api, site, {"model": "swelling"})
+    for parent in (1, 2):
+        run(api, site, {"model": "swelling", "parent": parent})
+    full = api.get(f"/sites/{site}/runs/3", headers=ENG).json()
+    assert (full["lineage"], full["lineage_complete"]) == ([2, 1], True)
+    assert api.get(f"/sites/{site}/runs/1", headers=ENG).json()["lineage_complete"] is True
+    monkeypatch.setattr(api_runs, "MAX_LINEAGE", 1)
+    cut = api.get(f"/sites/{site}/runs/3", headers=ENG).json()
+    assert (cut["lineage"], cut["lineage_complete"]) == ([2], False)
 
 
 def test_compare_two_runs(api: TestClient, site: str) -> None:  # noqa: F811

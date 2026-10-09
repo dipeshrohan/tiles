@@ -22,7 +22,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.models import design, store
@@ -38,7 +38,8 @@ class RunIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     model: Annotated[str, Field(min_length=1, max_length=100)]
     version: Annotated[str | None, Field(max_length=40)] = None  # the latest unless named
-    params: dict[str, float] = {}  # those not given take their defaults
+    # Numbers only (not true or "90"); those not given take their defaults.
+    params: Annotated[dict[Annotated[str, Field(max_length=63)], StrictFloat | StrictInt], Field(max_length=50)] = {}
     note: Annotated[str, Field(max_length=500, pattern=r"^[^\x00]*$")] = ""
     parent: Annotated[int | None, Field(ge=1)] = None  # the run this one was changed from
 
@@ -77,6 +78,7 @@ class Run(BaseModel):
 
 class RunDetail(Run):
     lineage: list[int]  # its parent, that run's parent, … back to the first run
+    lineage_complete: bool  # false when cut at MAX_LINEAGE runs
 
 
 class RunPage(BaseModel):
@@ -100,16 +102,18 @@ class Comparison(BaseModel):
     outputs: list[OutputChange]
 
 
+def _key(model: str) -> str:
+    """The registry's key for a model named by it or by the browser's id."""
+    return design.BROWSER_KEYS.get(model, model)
+
+
 def _model(key: str, version: str | None) -> Model:
     """A design model by the registry's key or the browser's id, its latest version unless named."""
     try:
-        if key in design.BROWSER_KEYS:
-            if version is None:
-                model = registry.get(design.BROWSER_KEYS[key])
-            else:
-                model = registry.get(*design.from_browser(key, version))
+        if key in design.BROWSER_KEYS and version is not None:
+            model = registry.get(*design.from_browser(key, version))
         else:
-            model = registry.get(key, version)
+            model = registry.get(_key(key), version)
     except KeyError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e.args[0])) from e
     if model.spec.kind != "design":
@@ -123,6 +127,14 @@ def _model(key: str, version: str | None) -> Model:
 def _units(model: Model) -> dict[str, str]:
     s = model.spec
     return {p.name: p.unit for p in s.params} | {p.name: p.unit for p in s.outputs}
+
+
+def _stored_model(row: dict[str, Any]) -> Model | None:
+    """A stored run's model version, or None if it is no longer registered (the run still shows)."""
+    try:
+        return registry.get(row["model"], row["version"])
+    except KeyError:
+        return None
 
 
 def changes(a: dict[str, Any], b: dict[str, Any]) -> list[dict[str, Any]]:
@@ -148,23 +160,20 @@ WHERE r.site_id = %(site)s
 
 
 OF_MODEL = " AND (%(model)s::text IS NULL OR r.model_key = %(model)s)"
-COUNT = """
-SELECT count(*) AS n FROM design_runs r
-WHERE r.site_id = %(site)s AND (%(model)s::text IS NULL OR r.model_key = %(model)s)
-"""
+COUNT = "SELECT count(*) AS n FROM design_runs r WHERE r.site_id = %(site)s" + OF_MODEL  # noqa: S608 - constants
 
 
 def _shown(row: dict[str, Any]) -> dict[str, Any]:
-    model = registry.get(row["model"], row["version"])
+    model = _stored_model(row)
     parent = {"version": row["parent_version"], "params": row["parent_params"]} if row["parent"] is not None else None
     return {
         "number": row["number"],
         "model": row["model"],
         "version": row["version"],
-        "model_name": model.spec.name,
+        "model_name": model.spec.name if model else row["model"],
         "params": row["params"],
         "output": row["output"],
-        "units": _units(model),
+        "units": _units(model) if model else {},
         "parent": row["parent"],
         "restored_from": row["restored_from"],
         "note": row["note"],
@@ -181,23 +190,37 @@ def _row(ctx: SiteContext, number: int) -> dict[str, Any]:
     return row
 
 
-def _store(
-    ctx: SiteContext,
-    model: Model,
-    params: dict[str, float],
-    note: str,
-    parent_id: uuid.UUID | None,
-    restored_from: uuid.UUID | None,
-) -> int:
-    """Runs the model and stores the run; its number."""
+def _lock(ctx: SiteContext) -> None:
+    """Runs of a site are stored one at a time, so a new run's parent (the model's latest run, on
+    restore) is still the latest when it is stored."""
+    ctx.conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", [f"design-runs:{ctx.site_id}"])
+
+
+def _run(model: Model, params: dict[str, float]) -> tuple[dict[str, float], dict[str, float | None]]:
+    """Every parameter as run (defaults filled in) and the outputs."""
     try:
         out = evaluate(model, {}, params)
     except ModelError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+    full = {p.name: float(params.get(p.name, p.default)) for p in model.spec.params}
+    return full, {name: values[0] if values else None for name, values in out.items()}
+
+
+def _store(
+    ctx: SiteContext,
+    model: Model,
+    run: tuple[dict[str, float], dict[str, float | None]],
+    note: str,
+    parent_id: uuid.UUID | None,
+    restored_from: uuid.UUID | None,
+) -> int:
+    """Stores a run of `model` (its parameters and outputs, from _run); its number."""
     s = model.spec
-    full = {p.name: float(params.get(p.name, p.default)) for p in s.params}  # every parameter, as run
-    output = {name: values[0] if values else None for name, values in out.items()}
-    model_id = store.model_id(ctx.conn, ctx.org_id, model)
+    full, output = run
+    try:
+        model_id = store.model_id(ctx.conn, ctx.org_id, model)
+    except store.ModelChanged as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
     number: int = one(
         ctx.conn.execute(
             """
@@ -240,7 +263,7 @@ def list_runs(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
     """The site's runs, the latest first; of one model (a registry key or the browser's id) if named."""
-    key = design.BROWSER_KEYS.get(model, model) if model else None
+    key = _key(model) if model else None
     args = {"site": ctx.site_id, "model": key, "limit": limit, "offset": offset}
     rows = ctx.conn.execute(RUNS + OF_MODEL + " ORDER BY r.number DESC LIMIT %(limit)s OFFSET %(offset)s", args)
     total = one(ctx.conn.execute(COUNT, args).fetchone())["n"]
@@ -250,6 +273,8 @@ def list_runs(
 @router.post("/sites/{site_id}/runs", response_model=RunDetail, status_code=status.HTTP_201_CREATED)
 def create_run(ctx: Editor, body: RunIn) -> dict[str, Any]:
     model = _model(body.model, body.version)
+    run = _run(model, body.params)
+    _lock(ctx)
     parent_id = None
     if body.parent is not None:
         parent = _row(ctx, body.parent)
@@ -259,7 +284,7 @@ def create_run(ctx: Editor, body: RunIn) -> dict[str, Any]:
                 f"Run {body.parent} is of {parent['model']}, not {model.spec.key}",
             )
         parent_id = parent["id"]
-    number = _store(ctx, model, body.params, body.note.strip(), parent_id, None)
+    number = _store(ctx, model, run, body.note.strip(), parent_id, None)
     ctx.audit(
         "run.create",
         "design_run",
@@ -279,14 +304,14 @@ def compare(ctx: Ctx, a: Annotated[int, Query(ge=1)], b: Annotated[int, Query(ge
         )
     sa, sb = _shown(ra), _shown(rb)
     outputs = []
-    for name, after in sb["output"].items():
-        before = sa["output"].get(name)
+    for name in [*sb["output"], *(n for n in sa["output"] if n not in sb["output"])]:  # one a version dropped too
+        before, after = sa["output"].get(name), sb["output"].get(name)
         delta = after - before if after is not None and before is not None else None
         percent = 100 * delta / abs(before) if delta is not None and before else None
         outputs.append(
             {
                 "name": name,
-                "unit": sb["units"].get(name, ""),
+                "unit": sb["units"].get(name) or sa["units"].get(name, ""),
                 "a": before,
                 "b": after,
                 "delta": delta,
@@ -308,18 +333,30 @@ def get_run(ctx: Ctx, number: int) -> dict[str, Any]:
             SELECT p.id, p.parent_id, p.number, up.depth + 1 FROM design_runs p JOIN up ON p.id = up.parent_id
             WHERE up.depth < %(max)s
         )
-        SELECT number FROM up ORDER BY depth
+        SELECT up.number, p.parent_id IS NULL AS first FROM up JOIN design_runs p ON p.id = up.id ORDER BY depth
         """,
         {"id": row["id"], "max": MAX_LINEAGE},
     ).fetchall()
-    return _shown(row) | {"lineage": [r["number"] for r in lineage]}
+    complete = not lineage or bool(lineage[-1]["first"])
+    return _shown(row) | {"lineage": [r["number"] for r in lineage], "lineage_complete": complete}
 
 
 @router.post("/sites/{site_id}/runs/{number}/restore", response_model=RunDetail, status_code=status.HTTP_201_CREATED)
 def restore_run(ctx: Editor, number: int, body: RestoreIn | None = None) -> dict[str, Any]:
     """Run `number`'s version and parameters again, as a new run after the model's latest run."""
     row = _row(ctx, number)
-    model = registry.get(row["model"], row["version"])
+    model = _stored_model(row)
+    if model is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Run {number}'s model {row['model']} {row['version']} is no longer registered"
+        )
+    run = _run(model, row["params"])
+    if run[1] != row["output"]:  # a published version never changes (models/published.json)
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Run {number} gives another output now: model {row['model']} {row['version']} changed",
+        )
+    _lock(ctx)
     head = one(
         ctx.conn.execute(
             "SELECT id, number FROM design_runs WHERE site_id = %s AND model_key = %s ORDER BY number DESC LIMIT 1",
@@ -327,12 +364,6 @@ def restore_run(ctx: Editor, number: int, body: RestoreIn | None = None) -> dict
         ).fetchone()
     )
     note = (body.note.strip() if body else "") or f"Restored run {number}"
-    new = _store(ctx, model, row["params"], note, head["id"], row["id"])
-    restored = get_run(ctx, new)
-    if restored["output"] != row["output"]:  # a published version never changes (models/published.json)
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"Run {number} gives another output now: model {row['model']} {row['version']} changed",
-        )
+    new = _store(ctx, model, run, note, head["id"], row["id"])
     ctx.audit("run.restore", "design_run", str(new), after={"restored_from": number, "parent": head["number"]})
-    return restored
+    return get_run(ctx, new)

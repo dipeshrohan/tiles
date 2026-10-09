@@ -437,12 +437,13 @@ test('every dataset call hits the documented path with its body', async () => {
 });
 
 test('every design run call hits the documented path with its body', async () => {
-  const f = fakeFetch(...Array.from({ length: 6 }, () => ({ body: {} })));
+  const f = fakeFetch(...Array.from({ length: 7 }, () => ({ body: {} })));
   const api = createApiClient({ baseUrl: 'http://api.test', fetch: f.fn });
   await api.runs.list('s');
   await api.runs.list('s', { model: 'swelling', limit: 10 });
   await api.runs.get('s', 4);
   await api.runs.create('s', { model: 'swelling', version: '2.0', params: { soc: 80 }, note: 'n', parent: 3 });
+  await api.runs.create('s', { model: 'actuator' }); // its defaults
   await api.runs.restore('s', 2, 'Back');
   await api.runs.compare('s', 2, 4);
   assert.deepEqual(
@@ -451,6 +452,7 @@ test('every design run call hits the documented path with its body', async () =>
       'GET /sites/s/runs',
       'GET /sites/s/runs?model=swelling&limit=10',
       'GET /sites/s/runs/4',
+      'POST /sites/s/runs',
       'POST /sites/s/runs',
       'POST /sites/s/runs/2/restore',
       'GET /sites/s/runs/compare?a=2&b=4',
@@ -463,7 +465,8 @@ test('every design run call hits the documented path with its body', async () =>
     note: 'n',
     parent: 3,
   });
-  assert.deepEqual(JSON.parse(f.calls[4].body), { note: 'Back' });
+  assert.deepEqual(JSON.parse(f.calls[4].body), { model: 'actuator' });
+  assert.deepEqual(JSON.parse(f.calls[5].body), { note: 'Back' });
 });
 
 test('every insight call hits the documented path with its body', async () => {

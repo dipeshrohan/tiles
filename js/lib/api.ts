@@ -526,6 +526,7 @@ export interface DesignRun {
   created_at: string;
   changes: RunChange[];
   lineage?: number[]; // one run's: its parent, that run's parent, … back to the first
+  lineage_complete?: boolean; // false when the lineage was cut (it is long)
 }
 
 export interface RunComparison {
@@ -965,7 +966,7 @@ export function createApiClient(options: ApiOptions) {
           run: {
             model: string;
             version?: string;
-            params: Record<string, number>;
+            params?: Record<string, number>;
             note?: string;
             parent?: number | null;
           },
