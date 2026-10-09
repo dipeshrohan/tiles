@@ -8,8 +8,9 @@
 data "azurerm_client_config" "current" {}
 
 locals {
-  # Storage account names: 3 to 24 lower-case letters and digits, unique in Azure.
-  storage_name = substr("${replace(var.name, "-", "")}bk${substr(sha256("${data.azurerm_client_config.current.subscription_id}/${var.name}"), 0, 6)}", 0, 24)
+  # Storage account names: 3 to 24 lower-case letters and digits, unique across Azure. Up to 14 of
+  # the name, "bk", and 8 hex of the subscription and name: never cut short.
+  storage_name = "${substr(replace(var.name, "-", ""), 0, 14)}bk${substr(sha256("${data.azurerm_client_config.current.subscription_id}/${var.name}"), 0, 8)}"
   tags         = merge({ "app" = "tiles", "tiles-installation" = var.name }, var.tags)
 }
 
@@ -26,6 +27,30 @@ resource "azurerm_log_analytics_workspace" "tiles" {
   sku                 = "PerGB2018"
   retention_in_days   = var.log_retention_days
   tags                = local.tags
+}
+
+# The cluster's identities, ours rather than ones AKS makes: the control plane's, and the nodes'
+# (kubelet), which pulls images and, through pgBackRest, writes the database's backups.
+resource "azurerm_user_assigned_identity" "control_plane" {
+  name                = "id-${var.name}-aks"
+  location            = azurerm_resource_group.tiles.location
+  resource_group_name = azurerm_resource_group.tiles.name
+  tags                = local.tags
+}
+
+resource "azurerm_user_assigned_identity" "kubelet" {
+  name                = "id-${var.name}-nodes"
+  location            = azurerm_resource_group.tiles.location
+  resource_group_name = azurerm_resource_group.tiles.name
+  tags                = local.tags
+}
+
+# AKS's control plane assigns the nodes' identity to them.
+resource "azurerm_role_assignment" "control_plane_assigns_kubelet" {
+  scope                = azurerm_user_assigned_identity.kubelet.id
+  role_definition_name = "Managed Identity Operator"
+  principal_id         = azurerm_user_assigned_identity.control_plane.principal_id
+  principal_type       = "ServicePrincipal"
 }
 
 resource "azurerm_kubernetes_cluster" "tiles" {
@@ -48,7 +73,7 @@ resource "azurerm_kubernetes_cluster" "tiles" {
     tenant_id              = data.azurerm_client_config.current.tenant_id
     admin_group_object_ids = var.admin_group_object_ids
   }
-  oidc_issuer_enabled       = true # workload identity, e.g. for backups to storage without keys
+  oidc_issuer_enabled       = true # workload identity, for what runs in the cluster to reach Azure
   workload_identity_enabled = true
 
   api_server_access_profile {
@@ -61,13 +86,22 @@ resource "azurerm_kubernetes_cluster" "tiles" {
     node_count                   = 2
     zones                        = var.zones
     only_critical_addons_enabled = true # Tiles runs on the workload pool
+    # A change of VM size or zones rotates the pool through a temporary one, not the cluster.
+    temporary_name_for_rotation = "systemtmp"
     upgrade_settings {
       max_surge = "33%"
     }
   }
 
   identity {
-    type = "SystemAssigned"
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.control_plane.id]
+  }
+
+  kubelet_identity {
+    client_id                 = azurerm_user_assigned_identity.kubelet.client_id
+    object_id                 = azurerm_user_assigned_identity.kubelet.principal_id
+    user_assigned_identity_id = azurerm_user_assigned_identity.kubelet.id
   }
 
   # Node pools as declared here (not node auto-provisioning).
@@ -93,6 +127,8 @@ resource "azurerm_kubernetes_cluster" "tiles" {
     log_analytics_workspace_id      = azurerm_log_analytics_workspace.tiles.id
     msi_auth_for_monitoring_enabled = true
   }
+
+  depends_on = [azurerm_role_assignment.control_plane_assigns_kubelet]
 }
 
 resource "azurerm_kubernetes_cluster_node_pool" "workload" {
@@ -105,6 +141,9 @@ resource "azurerm_kubernetes_cluster_node_pool" "workload" {
   min_count             = var.workload.min_count
   max_count             = var.workload.max_count
   tags                  = local.tags
+  # A change of VM size rotates the pool through a temporary one, draining its nodes one by one,
+  # rather than deleting every node at once.
+  temporary_name_for_rotation = "workloadtmp"
   upgrade_settings {
     max_surge = "33%"
   }
@@ -120,7 +159,11 @@ resource "azurerm_storage_account" "backups" {
   min_tls_version                 = "TLS1_2"
   https_traffic_only_enabled      = true
   allow_nested_items_to_be_public = false
-  public_network_access           = "Enabled" # pgBackRest reaches it from the cluster's egress
+  # Entra ID sign-in only: no account keys to leak. pgBackRest signs in as the nodes' identity
+  # (repo1-azure-key-type=auto), which may write to its container only (below).
+  shared_access_key_enabled       = false
+  default_to_oauth_authentication = true
+  public_network_access           = "Enabled" # reached from the cluster's egress, with Entra ID only
   tags                            = local.tags
 
   blob_properties {
@@ -138,4 +181,13 @@ resource "azurerm_storage_container" "backups" {
   name                  = "pgbackrest"
   storage_account_id    = azurerm_storage_account.backups.id
   container_access_type = "private"
+}
+
+# The nodes' identity (kubelet) may read and write the backups' container, and nothing else in the
+# account: pgBackRest in the database pod signs in as it.
+resource "azurerm_role_assignment" "backups" {
+  scope                = azurerm_storage_container.backups.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.kubelet.principal_id
+  principal_type       = "ServicePrincipal"
 }

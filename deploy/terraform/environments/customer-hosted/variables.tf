@@ -47,6 +47,32 @@ variable "existing_secret" {
   default     = null
 }
 
+variable "database_bundled" {
+  description = "Run the chart's database pod. Null: unless database_url is given. Set it with existing_secret."
+  type        = bool
+  default     = null
+}
+
+variable "redis_bundled" {
+  description = "Run the chart's Redis pod. Null: unless redis_url is given. Set it with existing_secret."
+  type        = bool
+  default     = null
+}
+
+variable "redis_url" {
+  description = "Your Redis (rediss://…, TF_VAR_redis_url); null: the chart's Redis pod."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "data_keys" {
+  description = "TILES_DATA_KEYS to rotate to: the new key first, then the old ones (TF_VAR_data_keys). Null: the generated one."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "database_url" {
   description = "Your PostgreSQL with TimescaleDB 2.x (TF_VAR_database_url); null: the chart's database pod."
   type        = string

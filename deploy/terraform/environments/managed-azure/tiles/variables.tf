@@ -1,48 +1,17 @@
 variable "subscription_id" {
-  description = "The Azure subscription to install into."
+  description = "The Azure subscription the cluster is in."
   type        = string
 }
 
 variable "name" {
-  description = "This installation's short name, e.g. tiles-eu1."
+  description = "This installation's short name, as in ../cluster."
   type        = string
-}
-
-variable "location" {
-  description = "The Azure region, e.g. westeurope."
-  type        = string
-}
-
-variable "admin_group_object_ids" {
-  description = "Entra ID groups that administer the cluster."
-  type        = list(string)
-}
-
-variable "api_server_authorized_ip_ranges" {
-  description = "Where the cluster's API server may be reached from: your offices and the pipeline's egress."
-  type        = list(string)
 }
 
 variable "kubelogin_mode" {
   description = "How kubelogin signs in to the cluster: azurecli (a person, after az login) or workloadidentity (the pipeline)."
   type        = string
   default     = "azurecli"
-}
-
-variable "workload" {
-  description = "Tiles' node pool: VM size and autoscaling bounds."
-  type = object({
-    vm_size   = optional(string, "Standard_D4s_v5")
-    min_count = optional(number, 2)
-    max_count = optional(number, 6)
-  })
-  default = {}
-}
-
-variable "tags" {
-  description = "Tags on every Azure resource."
-  type        = map(string)
-  default     = {}
 }
 
 variable "image_tag" {
@@ -80,6 +49,19 @@ variable "database_size" {
   description = "The database volume's size; Azure disks grow online. docs/load-test.md sizes it from the reading rate (at 10,000 a second: about 850 GB for the uncompressed first week, then 8 GB a day)."
   type        = string
   default     = "200Gi"
+}
+
+variable "existing_secret" {
+  description = "A Secret you manage (e.g. from Key Vault through External Secrets) with tiles_data_keys and the other secrets: set, Terraform keeps no secrets."
+  type        = string
+  default     = null
+}
+
+variable "data_keys" {
+  description = "TILES_DATA_KEYS to rotate to: the new key first, then the old ones (TF_VAR_data_keys). Null: the generated one."
+  type        = string
+  default     = null
+  sensitive   = true
 }
 
 variable "smtp" {

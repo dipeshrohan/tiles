@@ -3,10 +3,13 @@
 # caller's (see ../azure for Tiles' managed cloud).
 
 locals {
-  chart        = coalesce(var.chart, "${path.module}/../../../helm/tiles")
-  secret_name  = coalesce(var.existing_secret, "${var.release_name}-settings")
-  make_secret  = var.existing_secret == null
-  generate_key = local.make_secret && var.data_keys == null
+  chart       = coalesce(var.chart, "${path.module}/../../../helm/tiles")
+  secret_name = coalesce(var.existing_secret, "${var.release_name}-settings")
+  make_secret = var.existing_secret == null
+  # Whether a value is given isn't secret, though the value is: keep the plan's chart values readable.
+  generate_key     = local.make_secret && nonsensitive(var.data_keys == null)
+  database_bundled = coalesce(var.database_bundled, nonsensitive(var.database_url == null))
+  redis_bundled    = coalesce(var.redis_bundled, nonsensitive(var.redis_url == null))
 
   # The settings the API and jobs read from files (TILES_SECRETS_DIR), one per key. Absent ones
   # are left out: the bundled database and Redis bring their own.
@@ -44,11 +47,11 @@ locals {
       generateDataKey = false # the Secret has tiles_data_keys (generated here, or yours)
     }
     database = {
-      bundled      = var.existing_secret == null ? var.database_url == null : false
+      bundled      = local.database_bundled
       storage      = var.database_storage.size
       storageClass = var.database_storage.storage_class
     }
-    redis = { bundled = var.existing_secret == null ? var.redis_url == null : false }
+    redis = { bundled = local.redis_bundled }
     api = {
       replicas = var.replicas.api
       workers  = var.replicas.api_workers
@@ -89,11 +92,16 @@ resource "kubernetes_namespace_v1" "tiles" {
 }
 
 # One data key, made once and kept in state: it opens the credentials Tiles seals (T5.06), so
-# losing it loses them. Rotate by giving data_keys (new key first, old ones after) and running
-# tiles-rotate-keys.
+# losing it loses them. Rotate by giving data_keys (new key first, then this one: see the README)
+# and running tiles-rotate-keys. Terraform refuses to destroy it: when you no longer need it here
+# (moved into existing_secret or data_keys, and its Secret backed up), drop it with
+# `terraform state rm 'module.tiles.random_bytes.data_key[0]'`.
 resource "random_bytes" "data_key" {
   count  = local.generate_key ? 1 : 0
   length = 32
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "kubernetes_secret_v1" "settings" {

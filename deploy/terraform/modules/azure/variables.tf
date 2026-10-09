@@ -2,8 +2,9 @@ variable "name" {
   description = "A short name for this Tiles installation (e.g. tiles-eu1): resources are named after it."
   type        = string
   validation {
-    condition     = can(regex("^[a-z][a-z0-9-]{2,20}$", var.name))
-    error_message = "name is 3 to 21 lower-case letters, digits and dashes, starting with a letter."
+    # Also the cluster's DNS prefix: a letter first, a letter or digit last, no double dashes.
+    condition     = can(regex("^[a-z][a-z0-9-]{1,19}[a-z0-9]$", var.name)) && !strcontains(var.name, "--")
+    error_message = "name is 3 to 21 lower-case letters, digits and single dashes, starting with a letter and not ending with a dash."
   }
 }
 

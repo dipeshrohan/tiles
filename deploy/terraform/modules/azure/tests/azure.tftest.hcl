@@ -17,6 +17,16 @@ mock_provider "azurerm" {
       }]
     }
   }
+  mock_resource "azurerm_user_assigned_identity" {
+    defaults = {
+      id           = "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/rg-tiles-eu1/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-tiles-eu1"
+      principal_id = "00000000-0000-0000-0000-000000000005"
+      client_id    = "00000000-0000-0000-0000-000000000004"
+    }
+  }
+  mock_resource "azurerm_storage_container" {
+    defaults = { id = "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/rg-tiles-eu1/providers/Microsoft.Storage/storageAccounts/tileseu1bk000000/blobServices/default/containers/pgbackrest" }
+  }
   mock_resource "azurerm_storage_account" {
     defaults = { id = "/subscriptions/00000000-0000-0000-0000-000000000002/resourceGroups/rg-tiles-eu1/providers/Microsoft.Storage/storageAccounts/tileseu1bk000000" }
   }
@@ -84,8 +94,20 @@ run "backups_kept_private_and_recoverable" {
     error_message = "The backup container is private."
   }
   assert {
+    condition     = !azurerm_storage_account.backups.shared_access_key_enabled && azurerm_storage_account.backups.default_to_oauth_authentication
+    error_message = "No account keys: Entra ID sign-in only."
+  }
+  assert {
+    condition     = azurerm_role_assignment.backups.scope == azurerm_storage_container.backups.id && azurerm_role_assignment.backups.principal_id == azurerm_user_assigned_identity.kubelet.principal_id && azurerm_kubernetes_cluster.tiles.kubelet_identity[0].object_id == azurerm_user_assigned_identity.kubelet.principal_id
+    error_message = "The nodes' identity may write the backups' container, and nothing broader."
+  }
+  assert {
     condition     = can(regex("^[a-z0-9]{3,24}$", azurerm_storage_account.backups.name))
     error_message = "The storage account's name is valid in Azure."
+  }
+  assert {
+    condition     = azurerm_kubernetes_cluster.tiles.default_node_pool[0].temporary_name_for_rotation != null && azurerm_kubernetes_cluster_node_pool.workload.temporary_name_for_rotation != null
+    error_message = "A new VM size rotates the pools through temporary ones, not all at once."
   }
 }
 
@@ -103,4 +125,23 @@ run "an_admin_group_is_needed" {
     admin_group_object_ids = []
   }
   expect_failures = [var.admin_group_object_ids]
+}
+
+run "a_long_name_keeps_the_storage_names_unique_part" {
+  command = plan
+  variables {
+    name = "tilescustomerplanteu1"
+  }
+  assert {
+    condition     = length(azurerm_storage_account.backups.name) <= 24 && can(regex("bk[0-9a-f]{8}$", azurerm_storage_account.backups.name))
+    error_message = "All 8 hex of the unique part stay, however long the name."
+  }
+}
+
+run "a_name_ending_in_a_dash_is_refused" {
+  command = plan
+  variables {
+    name = "tiles-eu-"
+  }
+  expect_failures = [var.name]
 }

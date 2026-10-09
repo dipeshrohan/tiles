@@ -85,9 +85,39 @@ variable "oidc" {
 }
 
 variable "existing_secret" {
-  description = "A Secret you manage (External Secrets, Vault) with the tiles_* keys. Set, Terraform makes none and ignores the sensitive variables below."
+  description = "A Secret you manage (External Secrets, Vault) with the tiles_* keys. Set, Terraform makes none: give no secrets here, and say whether the database and Redis are the chart's (database_bundled, redis_bundled)."
   type        = string
   default     = null
+  validation {
+    condition = var.existing_secret == null || nonsensitive(
+      var.database_url == null && var.redis_url == null && var.data_keys == null && var.smtp_password == null && var.anthropic_api_key == null
+    )
+    error_message = "With existing_secret, every secret comes from it: don't give database_url, redis_url, data_keys, smtp_password or anthropic_api_key too."
+  }
+  validation {
+    condition     = var.existing_secret == null || (var.database_bundled != null && var.redis_bundled != null)
+    error_message = "With existing_secret, set database_bundled and redis_bundled: false when your Secret has tiles_database_url (tiles_redis_url), true for the chart's own."
+  }
+}
+
+variable "database_bundled" {
+  description = "Run the chart's database pod. Null: when database_url isn't given."
+  type        = bool
+  default     = null
+  validation {
+    condition     = var.database_bundled != true || nonsensitive(var.database_url == null)
+    error_message = "database_bundled = true and a database_url: choose one."
+  }
+}
+
+variable "redis_bundled" {
+  description = "Run the chart's Redis pod. Null: when redis_url isn't given."
+  type        = bool
+  default     = null
+  validation {
+    condition     = var.redis_bundled != true || nonsensitive(var.redis_url == null)
+    error_message = "redis_bundled = true and a redis_url: choose one."
+  }
 }
 
 variable "database_url" {

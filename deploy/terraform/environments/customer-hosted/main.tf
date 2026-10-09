@@ -48,7 +48,11 @@ module "tiles" {
     size          = var.database_size
     storage_class = var.storage_class
   }
-  existing_secret = var.existing_secret
+  existing_secret  = var.existing_secret
+  database_bundled = var.database_bundled
+  redis_bundled    = var.redis_bundled
+  redis_url        = var.redis_url
+  data_keys        = var.data_keys
   ingress = {
     class_name = var.ingress_class
     tls_secret = var.tls_secret

@@ -1,5 +1,6 @@
-# terraform init -backend-config=backend.hcl
+# Shared by both stages; each adds its own key:
+#   terraform init -backend-config=../backend.hcl -backend-config="key=tiles-eu1-cluster.tfstate"
+#   terraform init -backend-config=../backend.hcl -backend-config="key=tiles-eu1-tiles.tfstate"
 resource_group_name  = "rg-tiles-state"
 storage_account_name = "tilesstate"
 container_name       = "tfstate"
-key                  = "tiles-eu1.tfstate"

@@ -35,10 +35,6 @@ output "ingress_class" {
   value       = "webapprouting.kubernetes.azure.com"
 }
 
-output "storage_class" {
-  description = "Premium SSD, zone-redundant where offered: for the database's volume."
-  value       = "managed-csi-premium"
-}
 
 output "backup_storage" {
   description = "Where pgBackRest keeps the database's backups."
