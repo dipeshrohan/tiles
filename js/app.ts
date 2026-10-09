@@ -447,7 +447,7 @@ function renderNav(active: View): void {
       g.items
         .map(
           (v) =>
-            `<a class="nav-link ${v === active ? 'active' : ''}" href="#/${v.id === 'home' ? '' : v.id}"><span class="ico" aria-hidden="true">${v.icon}</span>${esc(v.title)}${badgeFor(v)}</a>`,
+            `<a class="nav-link ${v === active ? 'active' : ''}" href="#/${v.id === 'home' ? '' : v.id}"${v === active ? ' aria-current="page"' : ''}><span class="ico" aria-hidden="true">${v.icon}</span>${esc(v.title)}${badgeFor(v)}</a>`,
         )
         .join(''),
   ).join('');
@@ -538,8 +538,19 @@ need(document, '#theme').addEventListener('click', () => {
   applyTheme(next);
   save('theme', next);
 });
-need(document, '#menu').addEventListener('click', () => need(document, '#sidebar').classList.toggle('open'));
-need(document, '#nav').addEventListener('click', () => need(document, '#sidebar').classList.remove('open'));
+need(document, '#menu').addEventListener('click', (e) => {
+  const open = need(document, '#sidebar').classList.toggle('open');
+  (e.currentTarget as HTMLElement).setAttribute('aria-expanded', String(open));
+});
+// "Skip to content" moves the focus past the navigation (a #view link would be read as a route).
+need(document, '[data-skip]').addEventListener('click', (e) => {
+  e.preventDefault();
+  need(document, '#view').focus();
+});
+need(document, '#nav').addEventListener('click', () => {
+  need(document, '#sidebar').classList.remove('open');
+  need(document, '#menu').setAttribute('aria-expanded', 'false');
+});
 
 // Charts are drawn to the page's width (fitWidth in svg.ts): draw them again when it changes.
 let drawnWidth = 0;

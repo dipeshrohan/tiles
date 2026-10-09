@@ -240,7 +240,7 @@ function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hie
       <div class="kv">
         ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join('') || '<span class="muted small" style="grid-column:span 3">No properties</span>'}
       </div>
-      ${required.length ? `<p class="small" style="color:var(--warn);margin-top:6px">Missing required: ${required.map(esc).join(', ')}</p>` : ''}
+      ${required.length ? `<p class="small" style="color:var(--warn-ink);margin-top:6px">Missing required: ${required.map(esc).join(', ')}</p>` : ''}
       <form class="row" id="prop-form" style="margin:8px 0 16px">
         <input type="text" name="key" placeholder="key" style="width:90px" value="${esc(required[0] ?? '')}" required aria-label="Property key" />
         <input type="text" name="value" placeholder="value" style="flex:1;width:90px" required aria-label="Property value" />

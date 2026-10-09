@@ -40,6 +40,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - proposals for ontology changes, which go through review;
   - cost controls per question, organisation and day.
 - **Platform:**
+  - **accessibility (WCAG 2.1 AA):** every page tested with axe in light and dark; text contrast raised to 4.5:1; charts described to screen readers, with their numbers; a skip link, the current page marked in the menu, underlined links in text, and less motion when asked (T5.18);
   - single sign-on (OIDC) with site roles;
   - row security per site in the database;
   - credentials sealed with rotatable data keys;

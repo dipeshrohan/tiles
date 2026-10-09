@@ -15,6 +15,8 @@ import { generateCutterBatches } from '../js/lib/data.ts';
 const PAGES = [
   '',
   'chat',
+  'shopfloor',
+  'plant',
   'ontology',
   'reviews',
   'warnings',

@@ -437,7 +437,7 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
     return;
   }
   box.innerHTML = agents.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? '<th></th>' : ''}</tr></thead><tbody>${agents
+    ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? '<th><span class="sr-only">Actions</span></th>' : ''}</tr></thead><tbody>${agents
         .map(
           (a) =>
             `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'}</td><td>${esc(a.hostname ?? '—')}</td><td>${esc(a.version ?? '—')}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${

@@ -199,7 +199,8 @@ const view: View = {
         : ctx.api
           ? ''
           : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
-    const status = `<h1 class="floor-headline ${tone}" role="status">${esc(text)}</h1>${updated}`;
+    // Announced when it changes (a refresh), and still the page's heading.
+    const status = `<div role="status"><h1 class="floor-headline ${tone}">${esc(text)}</h1></div>${updated}`;
     const open = list.filter((i) => i.state !== 'ok');
     // A question about a warning that has left the floor (someone else resolved it) is dropped.
     if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
