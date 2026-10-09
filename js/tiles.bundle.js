@@ -824,7 +824,7 @@
 			if (token) headers.Authorization = `Bearer ${token}`;
 			return headers;
 		}
-		async function request(method, path, body, { anonymous = false, text = false } = {}) {
+		async function request(method, path, body, { anonymous = false, text = false, blob = false } = {}) {
 			const headers = await headersFor(body, anonymous);
 			let res;
 			try {
@@ -839,6 +839,7 @@
 			const requestId = res.headers.get("x-request-id");
 			if (res.status === 204) return void 0;
 			if (text && res.ok) return await res.text();
+			if (blob && res.ok) return await res.blob();
 			let parsed = null;
 			try {
 				parsed = await res.json();
@@ -1017,7 +1018,9 @@
 					compare: (siteId, a, b) => request("GET", `${base(siteId)}/compare${query({
 						a,
 						b
-					})}`)
+					})}`),
+					audit: (siteId, n) => request("GET", `${base(siteId)}/${n}/audit`, void 0, { text: true }),
+					auditPdf: (siteId, n) => request("GET", `${base(siteId)}/${n}/audit.pdf`, void 0, { blob: true })
 				};
 			})(),
 			designProjects: {
@@ -4366,7 +4369,7 @@
         </div>
         <div class="card">
           <div class="card-head"><div><h2>Run history</h2><p>Click a run to restore its exact parameters.</p></div>
-            <button class="btn sm" data-export ${runs.length ? "" : "disabled"}>Export audit record</button>
+            ${site ? `<div class="row" style="gap:6px"><button class="btn sm" data-audit="json" ${runs.length ? "" : "disabled"} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? "" : "disabled"}>Audit report (PDF)</button><button class="btn sm" data-export ${runs.length ? "" : "disabled"} title="Every run of this model in the project, branches too">All runs (JSON)</button></div>` : `<button class="btn sm" data-export ${runs.length ? "" : "disabled"}>Export audit record</button>`}
           </div>
           ${runs.length ? `<div class="table-wrap"><table><thead><tr><th>Run</th><th>Changed vs parent</th><th class="num">${esc(model.output.label)}</th></tr></thead><tbody>
                 ${runs.map((r) => {
@@ -4498,22 +4501,25 @@
 				ctx.rerender();
 				ctx.toast(`Restored run “${run.note || (site ? `#${run.id}` : run.id)}”`);
 			});
-			onAll(root, "[data-export]", "click", () => {
-				const record = auditRecord(shownRuns(), model.id);
-				const body = site && project ? {
-					...record,
-					site,
-					project: {
-						id: project.id,
-						name: project.name
-					}
-				} : record;
-				const blob = new Blob([JSON.stringify(body, null, 2)], { type: "application/json" });
+			const download = (blob, name) => {
 				const a = document.createElement("a");
 				a.href = URL.createObjectURL(blob);
-				a.download = `tiles-audit-${model.id}.json`;
+				a.download = name;
 				a.click();
 				setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
+			};
+			onAll(root, "[data-export]", "click", () => {
+				const record = auditRecord(shownRuns(), model.id);
+				download(new Blob([JSON.stringify(record, null, 2)], { type: "application/json" }), `tiles-audit-${model.id}.json`);
+			});
+			onAll(root, "[data-audit]", "click", async (b) => {
+				const latest = shownRuns()[0];
+				if (!site || !ctx.api || !latest) return;
+				const n = Number(latest.id);
+				try {
+					if (b.dataset.audit === "pdf") download(await ctx.api.runs.auditPdf(site, n), `tiles-run-${n}-audit.pdf`);
+					else download(new Blob([await ctx.api.runs.audit(site, n)], { type: "application/json" }), `tiles-run-${n}-audit.json`);
+				} catch {}
 			});
 		}
 	};

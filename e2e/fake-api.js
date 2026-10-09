@@ -413,6 +413,7 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/copilot`) &&
         url.pathname !== `/sites/${site.id}/design-projects` &&
         url.pathname !== `/sites/${site.id}/runs` &&
+        !url.pathname.startsWith(`/sites/${site.id}/runs/`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`)
       )
         return send(404, { detail: 'Site not found' });
@@ -1038,6 +1039,22 @@ export function createFakeApi({
         };
         designRuns.push(r);
         return send(201, { ...r, lineage: [] });
+      }
+      // A run's audit record (T4.13): its lineage back to the first run, as JSON or a PDF report.
+      const runAudit = url.pathname.match(new RegExp(`^/sites/${site.id}/runs/(\\d+)/audit(\\.pdf)?$`));
+      if (runAudit) {
+        const lineage = [];
+        for (let r = designRuns.find((x) => x.number === Number(runAudit[1])); r;) {
+          lineage.push(r.number);
+          r = r.parent === null ? undefined : designRuns.find((x) => x.number === r.parent);
+        }
+        if (!lineage.length) return send(404, { detail: `No run ${runAudit[1]} on this site` });
+        if (runAudit[2]) {
+          res.writeHead(200, { 'content-type': 'application/pdf' });
+          return res.end(`%PDF-1.4\n% run ${runAudit[1]}\n%%EOF\n`);
+        }
+        const runs = designRuns.filter((r) => lineage.includes(r.number)).reverse();
+        return send(200, { format: 'tiles-design-audit/1', run: Number(runAudit[1]), lineage, runs });
       }
       const warningsPath = `/sites/${site.id}/warnings`;
       if (url.pathname.startsWith(warningsPath))

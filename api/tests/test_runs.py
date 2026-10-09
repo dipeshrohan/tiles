@@ -1,6 +1,9 @@
 """Design runs (T4.11): stored with their parent, version, parameters, the output the API computed
 and their author; restored as a new run; compared; never changed."""
 
+import hashlib
+import json
+import re
 import uuid
 from typing import Any
 
@@ -267,3 +270,87 @@ def test_shared_design_projects(api: TestClient, site: str, database_url: str) -
             "SELECT after FROM audit_log WHERE action = 'design_project.create' AND site_id = %s ORDER BY id", [site]
         ).fetchall()
     assert audit == [({"name": "Pack B"},), ({"name": "Hip joint"},)]
+
+
+def test_the_audit_record_of_a_run(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    run(api, site, {"model": "swelling", "version": "1.0", "note": "First"})
+    run(api, site, {"model": "swelling", "version": "1.1", "params": {"soc": 60}, "parent": 1})
+    run(api, site, {"model": "swelling", "version": "2.0", "params": {"soc": 60}, "parent": 2})
+    api.post(f"/sites/{site}/runs/1/restore", headers=ENG)  # run 4: after 3, restores 1
+    run(api, site, {"model": "actuator"})  # another model: not in the record
+    res = api.get(f"/sites/{site}/runs/4/audit", headers=VIEWER)
+    assert res.status_code == 200
+    assert res.headers["content-disposition"] == 'attachment; filename="tiles-run-4-audit.json"'
+    record = res.json()
+    assert (record["format"], record["run"], record["lineage"], record["complete"]) == (
+        "tiles-design-audit/1",
+        4,
+        [4, 3, 2, 1],
+        True,
+    )
+    assert [r["number"] for r in record["runs"]] == [4, 3, 2, 1]
+    assert record["runs"][0]["restored_from"] == 1
+    assert record["exported_by"]["email"] == "viewer@example.com"
+    assert record["site"]["name"] == "Plant 1" and record["organisation"]
+    assert [(m["key"], m["version"]) for m in record["models"]] == [
+        ("cell-swelling", "1.0.0"),
+        ("cell-swelling", "1.1.0"),
+        ("cell-swelling", "2.0.0"),
+    ]
+    assert record["models"][0]["spec"]["params"][0]["name"] == "soc"
+    # Times are UTC, whatever the database session's zone.
+    assert all(r["created_at"].endswith("+00:00") for r in record["runs"])
+    assert record["exported_at"].endswith("+00:00")
+    # The digest can be checked from the file alone, and covers everything in it.
+    body = {k: v for k, v in record.items() if k != "digest"}
+    canonical = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert record["digest"] == {
+        "algorithm": "sha256",
+        "of": "the record without its digest",
+        "value": hashlib.sha256(canonical.encode()).hexdigest(),
+    }
+    body["models"][0]["spec"]["params"][0]["max"] = 1000  # an edited spec no longer matches
+    edited = json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    assert hashlib.sha256(edited.encode()).hexdigest() != record["digest"]["value"]
+    # A run restored from outside its lineage is in the record too.
+    run(api, site, {"model": "swelling", "note": "A branch"})  # run 6, no parent
+    api.post(f"/sites/{site}/runs/6/restore", headers=ENG)  # run 7: after 6 (the latest), restores 6
+    run(api, site, {"model": "swelling", "parent": 2, "note": "From 2"})  # run 8
+    restored = api.post(f"/sites/{site}/runs/6/restore", headers=ENG).json()  # run 9: after 8, restores 6
+    branch = api.get(f"/sites/{site}/runs/{restored['number']}/audit", headers=ENG).json()
+    assert branch["lineage"] == [9, 8, 2, 1]
+    assert [r["number"] for r in branch["runs"]] == [9, 8, 6, 2, 1]  # 6: what 9 restored
+    assert api.get(f"/sites/{site}/runs/99/audit", headers=ENG).status_code == 404
+    # Each export is in the audit log, with who took it and the digest they got.
+    with psycopg.connect(database_url) as conn:
+        exports = conn.execute(
+            "SELECT actor_name, entity_id, after FROM audit_log WHERE action = 'run.audit_export' AND site_id = %s"
+            " ORDER BY id",
+            [site],
+        ).fetchall()
+    assert [(e[1], e[2]["format"], e[2]["runs"]) for e in exports] == [("4", "json", 4), ("9", "json", 5)]
+    assert exports[0][2]["digest"] == record["digest"]["value"]
+
+
+def test_the_audit_report_as_pdf(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    project = api.post(f"/sites/{site}/design-projects", json={"name": "Pack (B)"}, headers=ENG).json()
+    run(api, site, {"model": "swelling", "note": "First", "project": project["id"]})
+    for i in range(2, 41):  # a long lineage: several pages
+        run(api, site, {"model": "swelling", "params": {"soc": i}, "parent": i - 1, "project": project["id"]})
+    res = api.get(f"/sites/{site}/runs/40/audit.pdf", headers=VIEWER)
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "application/pdf"
+    assert res.headers["content-disposition"] == 'attachment; filename="tiles-run-40-audit.pdf"'
+    doc = res.content
+    assert doc.startswith(b"%PDF-1.4") and doc.endswith(b"%%EOF\n")
+    assert b"(Design run audit: run 40) Tj" in doc
+    assert b"project Pack \\(B\\)" in doc
+    assert b"(Run 1 \xb7 Cell swelling force 2.0.0" in doc
+    assert int(re.search(rb"/Count (\d+)", doc).group(1)) > 1  # type: ignore[union-attr]
+    # Each export has its own digest (it names when it was taken): the one logged is in the footer.
+    with psycopg.connect(database_url) as conn:
+        logged = conn.execute(
+            "SELECT after FROM audit_log WHERE action = 'run.audit_export' AND site_id = %s", [site]
+        ).fetchone()
+    assert logged is not None and logged[0]["format"] == "pdf"
+    assert f"sha256 {logged[0]['digest'][:16]}".encode() in doc

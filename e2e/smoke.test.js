@@ -2488,6 +2488,13 @@ test('design studio with the API: runs are stored in shared projects', async (t)
   assert.equal(fake.designRuns[1].parent, 1);
   assert.equal(fake.designRuns[1].params.soc, 60);
   await b.page.waitForSelector('#project option:has-text("Pack B (2 runs)")', { state: 'attached' }); // counted in place
+  // The latest run's audit record and report, from the API (T4.13).
+  const [json] = await Promise.all([b.page.waitForEvent('download'), b.page.click('[data-audit="json"]')]);
+  assert.equal(json.suggestedFilename(), 'tiles-run-2-audit.json');
+  const record = JSON.parse(await (await import('node:fs/promises')).readFile(await json.path(), 'utf8'));
+  assert.deepEqual([record.format, record.lineage], ['tiles-design-audit/1', [2, 1]]);
+  const [report] = await Promise.all([b.page.waitForEvent('download'), b.page.click('[data-audit="pdf"]')]);
+  assert.equal(report.suggestedFilename(), 'tiles-run-2-audit.pdf');
   // A run's parameters come back with a click.
   await b.page.click('[data-run="1"]');
   await b.page.waitForSelector('#toast:has-text("Restored run “Baseline”")');
