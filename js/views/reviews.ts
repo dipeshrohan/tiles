@@ -29,7 +29,19 @@ let draft = { key: '', text: '' }; // the comment being written, kept across re-
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 
 // Others request, approve and reject while you are elsewhere: each visit to the page fetches afresh.
+// A change request linked to as #/reviews/<number> (the copilot links its proposals so): selected
+// when the page is next drawn.
+const linked = (hash: string): number | null => {
+  const m = /^#\/reviews\/(\d+)/i.exec(hash);
+  return m ? Number(m[1]) : null;
+};
+let wanted: number | null = typeof location === 'undefined' ? null : linked(location.hash);
+
+const COPILOT_BADGE =
+  '<span class="badge accent" title="The copilot wrote these changes for its author; another engineer must approve them">✦ Proposed by the copilot</span>';
+
 onNavigate((hash) => {
+  wanted = linked(hash);
   if (routeOf(hash) !== 'reviews') {
     listing = null;
     detail = null;
@@ -82,7 +94,7 @@ function listCard(ctx: Context, ui: Ui): string {
             (r) => `
         <button class="review-row ${ui.selected === r.number ? 'sel' : ''}" data-review="${r.number}">
           <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
-          <span class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ''}${r.comments ? ` · ${r.comments} comment(s)` : ''}</span>
+          <span class="small muted">${r.source === 'copilot' ? `${COPILOT_BADGE} ` : ''}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ''}${r.comments ? ` · ${r.comments} comment(s)` : ''}</span>
           <span class="small">${stats(r.stats)}</span>
         </button>`,
           )
@@ -131,7 +143,7 @@ function detailCard(ctx: Context, ui: Ui): string {
   return `
     <div class="card" data-review-detail>
       <div class="card-head"><div>
-        ${statusBadge(r.status)}
+        ${statusBadge(r.status)}${r.source === 'copilot' ? ` ${COPILOT_BADGE}` : ''}
         <h2 style="margin-top:6px">#${r.number} ${esc(r.message)}</h2>
         <div class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)} · ${r.reviewer ? `review by ${esc(r.reviewer)}` : 'any engineer may review'}${r.reverts ? ` · reverts <span class="mono">${esc(r.reverts.slice(-7))}</span>` : ''}</div>
       </div></div>
@@ -268,6 +280,10 @@ const view: View = {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
     const ui = uiState(ctx);
     if (ui.site !== siteId(ctx)) Object.assign(ui, { selected: null, site: siteId(ctx) }); // another site's number
+    if (wanted !== null) {
+      ui.selected = wanted;
+      wanted = null;
+    }
     if (listing?.key !== listKey(ctx)) void fetchList(ctx);
     if (ui.selected !== null && detail?.key !== detailKey(ctx)) void fetchDetail(ctx);
 

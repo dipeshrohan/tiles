@@ -129,6 +129,14 @@ test('each tool links to where its evidence is, and its call reads plainly', () 
   assert.equal(evidenceLink({ name: 'events', input: { kind: 'events' } }).href, '#/performance');
   assert.equal(evidenceLink({ name: 'events', input: {} }).href, '#/warnings');
   assert.equal(evidenceLink({ name: 'site_overview', input: {} }), null);
+  // A proposal links to the change request it opened, once its result is stored (T4.09).
+  const proposal = { name: 'propose_ontology_change', input: { message: 'm', ops: [] } };
+  assert.deepEqual(evidenceLink({ ...proposal, preview: '{"change_request": 12, "status": "open"}' }), {
+    href: '#/reviews/12',
+    text: 'Review change request #12',
+  });
+  assert.equal(evidenceLink({ ...proposal, preview: 'Relationship e1 points at a missing node' }), null);
+  assert.equal(evidenceLink(proposal), null); // still running
   assert.equal(
     toolLabel({ name: 'events', input: { kind: 'warnings', tag: '', limit: 5 } }),
     'events(kind=warnings, limit=5)',

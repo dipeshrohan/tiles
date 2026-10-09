@@ -2090,6 +2090,13 @@
 	function evidenceLink(t) {
 		const tag = typeof t.input.tag === "string" ? t.input.tag : "";
 		switch (t.name) {
+			case "propose_ontology_change": {
+				const n = /^\{"change_request":\s*(\d+)/.exec(t.preview ?? "")?.[1];
+				return n ? {
+					href: `#/reviews/${n}`,
+					text: `Review change request #${n}`
+				} : null;
+			}
 			case "time_series":
 			case "wear_check": return tag ? {
 				href: `#/explorer?tag=${encodeURIComponent(tag)}`,
@@ -5917,7 +5924,14 @@
 		text: ""
 	};
 	var siteId$4 = (ctx) => ctx.ontology.site?.id ?? null;
+	var linked = (hash) => {
+		const m = /^#\/reviews\/(\d+)/i.exec(hash);
+		return m ? Number(m[1]) : null;
+	};
+	var wanted = typeof location === "undefined" ? null : linked(location.hash);
+	var COPILOT_BADGE = "<span class=\"badge accent\" title=\"The copilot wrote these changes for its author; another engineer must approve them\">✦ Proposed by the copilot</span>";
 	onNavigate((hash) => {
+		wanted = linked(hash);
 		if (routeOf(hash) !== "reviews") {
 			listing$3 = null;
 			detail$3 = null;
@@ -5953,7 +5967,7 @@
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
           <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
-          <span class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
+          <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
           <span class="small">${stats(r.stats)}</span>
         </button>`).join("") || `<div class="empty">${ui.state === "open" ? "Nothing waits for a review. Send staged changes from the Ontology page." : "No closed change requests yet."}</div>`}</div></div>`;
 	}
@@ -5979,7 +5993,7 @@
 		return `
     <div class="card" data-review-detail>
       <div class="card-head"><div>
-        ${statusBadge(r.status)}
+        ${statusBadge(r.status)}${r.source === "copilot" ? ` ${COPILOT_BADGE}` : ""}
         <h2 style="margin-top:6px">#${r.number} ${esc(r.message)}</h2>
         <div class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)} · ${r.reviewer ? `review by ${esc(r.reviewer)}` : "any engineer may review"}${r.reverts ? ` · reverts <span class="mono">${esc(r.reverts.slice(-7))}</span>` : ""}</div>
       </div></div>
@@ -6118,6 +6132,10 @@
 				selected: null,
 				site: siteId$4(ctx)
 			});
+			if (wanted !== null) {
+				ui.selected = wanted;
+				wanted = null;
+			}
 			if (listing$3?.key !== listKey$2(ctx)) fetchList$1(ctx);
 			if (ui.selected !== null && detail$3?.key !== detailKey$2(ctx)) fetchDetail$1(ctx);
 			onAll(root, "[data-state]", "click", (el) => {

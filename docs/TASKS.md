@@ -134,7 +134,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
   *Done when:* ≥ 85% correct and 0 unsupported claims on the evaluation set.
 - [x] `T4.07` [#66](https://github.com/dipeshrohan/tiles/issues/66) **Cost and latency controls:** prompt caching, token budgets, per-org rate limits, usage dashboard · BE · 2d · T4.01
 - [ ] `T4.08` [#67](https://github.com/dipeshrohan/tiles/issues/67) ◇ **Document search:** upload SOPs and manuals, chunk and embed them, cite with page numbers · BE · 4d · T4.02
-- [ ] `T4.09` [#68](https://github.com/dipeshrohan/tiles/issues/68) ◇ **Copilot can stage ontology changes**, which always need human approval through T2.12 · BE · 2d · T4.02, T2.12
+- [x] `T4.09` [#68](https://github.com/dipeshrohan/tiles/issues/68) ◇ **Copilot can stage ontology changes**, which always need human approval through T2.12 · BE · 2d · T4.02, T2.12
 
 ### Design Studio backend
 - [x] `T4.10` [#69](https://github.com/dipeshrohan/tiles/issues/69) ★ **Shared model registry for Design:** swelling and actuator models ported; versions immutable once published · ML · 3d · T3.01

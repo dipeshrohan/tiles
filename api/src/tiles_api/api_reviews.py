@@ -9,6 +9,10 @@ changes to rework it.
 
 A site admin can require a review for every change (`review-policy`); direct
 commits and reverts are then refused. Every step is audited.
+
+The copilot proposes changes the same way (T4.09, `copilot_tools.propose_ontology_change`): a
+request authored by the person who asked, with `source` "copilot", which that person can't
+approve; it never commits anything itself, whatever the review policy.
 """
 
 import uuid
@@ -57,6 +61,7 @@ class ReviewSummary(BaseModel):
     status: Status
     stats: DiffStats
     reverts: str | None  # the commit it reverts
+    source: Literal["person", "copilot"]  # who wrote the ops: its author, or the copilot for them (T4.09)
     created_at: datetime
     decided_by: str | None
     decided_at: datetime | None
@@ -91,7 +96,7 @@ class DecisionIn(BaseModel):
 
 SUMMARY = """
 SELECT r.number, r.message, r.author_name AS author, r.author_id, ru.name AS reviewer, r.reviewer_id, r.status,
-       r.stats, r.reverts, r.created_at, r.decided_by_name AS decided_by, r.decided_at, r.commit_id,
+       r.stats, r.reverts, r.source, r.created_at, r.decided_by_name AS decided_by, r.decided_at, r.commit_id,
        (SELECT count(*) FROM change_request_comments c
         WHERE c.site_id = r.site_id AND c.number = r.number AND c.body <> '') AS comments
 FROM change_requests r LEFT JOIN users ru ON ru.id = r.reviewer_id
@@ -225,24 +230,43 @@ def request_review(ctx: Editor, body: ReviewIn) -> dict[str, Any]:
             raise HTTPException(status.HTTP_409_CONFLICT, "Nothing to review: stage some changes first")
         if not message:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A change request needs a message")
+    number = open_request(ctx, ops, message, body.reviewer_id, body.reverts)
+    if body.reverts is None:
+        ctx.conn.execute("DELETE FROM staged_ops WHERE site_id = %s AND user_id = %s", [ctx.site_id, ctx.user.id])
+    after = {"message": message, "ops": ops, "reviewer_id": body.reviewer_id and str(body.reviewer_id)}
+    ctx.audit("ontology.review.request", "change_request", str(number), after=after | {"reverts": body.reverts})
+    return _review(ctx, number, fits=True)
+
+
+def open_request(
+    ctx: SiteContext,
+    ops: list[o.Op],
+    message: str,
+    reviewer_id: uuid.UUID | None = None,
+    reverts: str | None = None,
+    source: Literal["person", "copilot"] = "person",
+    conversation_id: uuid.UUID | None = None,
+) -> int:
+    """Opens a change request of `ops` by the user, after checking they fit the committed ontology
+    and the reviewer may review; its number. The caller holds the site's lock and audits it."""
     try:
         o.apply_ops(store.load_head(ctx.conn, ctx.site_id), ops)
     except o.OntologyError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
-    if body.reviewer_id is not None:
-        if body.reviewer_id == ctx.user.id:
+    if reviewer_id is not None:
+        if reviewer_id == ctx.user.id:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Ask someone else to review your change")
-        if not can_edit(ctx.conn, ctx.site_id, ctx.org_id, body.reviewer_id):
+        if not can_edit(ctx.conn, ctx.site_id, ctx.org_id, reviewer_id):
             raise HTTPException(
                 status.HTTP_422_UNPROCESSABLE_CONTENT, "The reviewer must be an engineer or admin of this site"
             )
-    number = one(
+    number: int = one(
         ctx.conn.execute(
             """
             INSERT INTO change_requests (site_id, number, message, author_id, author_name, reviewer_id, ops, stats,
-                                         reverts)
+                                         reverts, source, conversation_id)
             VALUES (%s, (SELECT coalesce(max(number), 0) + 1 FROM change_requests WHERE site_id = %s),
-                    %s, %s, %s, %s, %s, %s, %s)
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING number
             """,
             [
@@ -251,18 +275,16 @@ def request_review(ctx: Editor, body: ReviewIn) -> dict[str, Any]:
                 message,
                 ctx.user.id,
                 ctx.user.name,
-                body.reviewer_id,
+                reviewer_id,
                 Jsonb(ops),
                 Jsonb(o.diff_stats(ops)),
-                body.reverts,
+                reverts,
+                source,
+                conversation_id,
             ],
         ).fetchone()
     )["number"]
-    if body.reverts is None:
-        ctx.conn.execute("DELETE FROM staged_ops WHERE site_id = %s AND user_id = %s", [ctx.site_id, ctx.user.id])
-    after = {"message": message, "ops": ops, "reviewer_id": body.reviewer_id and str(body.reviewer_id)}
-    ctx.audit("ontology.review.request", "change_request", str(number), after=after | {"reverts": body.reverts})
-    return _review(ctx, number, fits=True)
+    return number
 
 
 @router.post("/sites/{site_id}/ontology/reviews/{number}/comments", response_model=Review)

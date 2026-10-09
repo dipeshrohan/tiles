@@ -1220,6 +1220,7 @@ export function createFakeApi({
           status: 'open',
           stats: diffStats(ops),
           reverts,
+          source: 'person',
           created_at: now(),
           decided_by: null,
           decided_at: null,
@@ -1361,6 +1362,29 @@ export function createFakeApi({
       };
       warnings.unshift(w);
       return w.id;
+    },
+    // A change request the copilot proposed for `author` (T4.09), as propose_ontology_change opens it.
+    addCopilotProposal({ message, ops, author }) {
+      const number = reviews.length + 1;
+      reviews.push({
+        number,
+        message,
+        author: author.split('@')[0],
+        author_id: author,
+        reviewer: null,
+        reviewer_id: null,
+        status: 'open',
+        stats: diffStats(ops),
+        reverts: null,
+        source: 'copilot',
+        created_at: new Date().toISOString(),
+        decided_by: null,
+        decided_at: null,
+        commit_id: null,
+        ops,
+        thread: [],
+      });
+      return number;
     },
     // Lets a test set what the warning performance page is shown (T3.10).
     setPerformance(report) {

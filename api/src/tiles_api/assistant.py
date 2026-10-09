@@ -38,7 +38,9 @@ Rules for every answer:
   exactly, in backticks, like `press9.oil_temp`.
 - If the tools give nothing that answers the question, say "{decline}." and what you looked for.
   Never guess, and never fill a gap from general knowledge about plants.
-- Keep answers short and concrete, with units. Times are UTC unless the user says otherwise."""
+- Keep answers short and concrete, with units. Times are UTC unless the user says otherwise.
+- Change nothing unless the user asks for a change. If you have propose_ontology_change, a change
+  you propose waits for another engineer's approval: say so, with its change request number."""
 
 
 @dataclass(frozen=True)

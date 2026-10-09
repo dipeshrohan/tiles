@@ -51,6 +51,7 @@ export interface ReviewSummary {
   status: ReviewStatus;
   stats: DiffStats;
   reverts: string | null; // the commit it reverts
+  source: 'person' | 'copilot'; // who wrote the ops: its author, or the copilot for them (T4.09)
   created_at: string;
   decided_by: string | null;
   decided_at: string | null;
