@@ -137,6 +137,8 @@ async function diff(expected, actual) {
       const pa = ca.getImageData(0, 0, x.width, x.height);
       const pb = canvas(y).getImageData(0, 0, y.width, y.height).data;
       let changed = 0;
+      // Where the changes are, so a log without the images still says what moved.
+      const box = { left: Infinity, top: Infinity, right: -1, bottom: -1 };
       const out = ca.createImageData(x.width, x.height);
       const o = out.data;
       const p = pa.data;
@@ -147,6 +149,12 @@ async function diff(expected, actual) {
           Math.abs(p[i + 2] - pb[i + 2]) > channel;
         if (moved) {
           changed++;
+          const px = (i / 4) % x.width;
+          const py = Math.floor(i / 4 / x.width);
+          box.left = Math.min(box.left, px);
+          box.right = Math.max(box.right, px);
+          box.top = Math.min(box.top, py);
+          box.bottom = Math.max(box.bottom, py);
           o[i] = 230;
           o[i + 1] = 20;
           o[i + 2] = 60;
@@ -163,7 +171,7 @@ async function diff(expected, actual) {
       const bytes = new Uint8Array(await blob.arrayBuffer());
       let s = '';
       for (const byte of bytes) s += String.fromCharCode(byte);
-      return { changed, total: pb.length / 4, png: btoa(s) };
+      return { changed, total: pb.length / 4, png: btoa(s), box };
     },
     { a: expected.toString('base64'), b: actual.toString('base64'), channel: CHANNEL },
   );
@@ -193,7 +201,7 @@ async function check(name, shot) {
   assert.fail(
     result.size
       ? `${name}: the size changed (${result.size})`
-      : `${name}: ${(share * 100).toFixed(2)}% of the pixels changed (at most ${MAX_SHARE * 100}%); see e2e/visual/output/${name}.diff.png`,
+      : `${name}: ${(share * 100).toFixed(2)}% of the pixels changed (at most ${MAX_SHARE * 100}%), within x ${result.box.left}–${result.box.right}, y ${result.box.top}–${result.box.bottom}; see e2e/visual/output/${name}.diff.png`,
   );
 }
 
