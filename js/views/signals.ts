@@ -1,4 +1,4 @@
-import { esc, field, fmt, onAll } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
 import { checkOnSubmit, isFieldError, showErrors, type FieldError } from '../lib/forms.ts';
@@ -6,7 +6,9 @@ import {
   badge,
   button,
   card,
+  emptyState,
   field as labelled,
+  linkButton,
   input,
   needsApi,
   pageHead,
@@ -16,6 +18,7 @@ import {
   apiUnreachable,
   skeleton,
   setBusy,
+  loadFailed,
 } from '../lib/ui.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
@@ -240,8 +243,30 @@ function editRow(ctx: Context, s: SignalInfo): string {
 }
 
 export function resultsTable(ctx: Context, page: { total: number; signals: SignalInfo[] }, canEdit: boolean): string {
-  if (!page.signals.length)
-    return '<p class="small soft">No signals match. Signals appear here once an edge agent or an import sends their readings.</p>';
+  if (!page.signals.length) {
+    const searched = Object.values(ui(ctx).query).some(Boolean);
+    return searched
+      ? emptyState({
+          illustration: 'search',
+          compact: true,
+          level: 3,
+          title: 'No signals match',
+          body: 'Try other words or filters, or clear them to see every signal.',
+          action: button('Clear search', { size: 'sm', attrs: { 'data-clear-search': true } }),
+        })
+      : emptyState({
+          illustration: 'chart',
+          compact: true,
+          level: 3,
+          title: 'No signals yet',
+          body: canEdit
+            ? 'Signals appear here once an edge agent or an import sends their readings.'
+            : 'Signals appear here once an edge agent or an engineer’s import sends their readings.',
+          action: canEdit
+            ? linkButton('Import data', '#/import', { variant: 'primary', size: 'sm', icon: 'upload' })
+            : undefined,
+        });
+  }
   const { editing, open } = ui(ctx);
   const more =
     page.total > page.signals.length
@@ -320,7 +345,7 @@ function fill(root: HTMLElement, ctx: Context): void {
   const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute('name') : null;
   const canEdit = ctx.ontology.role !== 'viewer';
   box.innerHTML = failed
-    ? '<p class="small soft">The signals could not be loaded.</p>'
+    ? loadFailed('The signals')
     : results
       ? resultsTable(ctx, results, canEdit)
       : skeleton.table(6, 9, 'Loading the signals…');
@@ -637,6 +662,13 @@ const view: View = {
     };
     form.addEventListener('input', update);
     form.addEventListener('change', update);
+    // On the results box (drawn afresh with the page), whose contents change as answers arrive.
+    need(root, '[data-signal-results]').addEventListener('click', (e) => {
+      if (!(e.target instanceof Element) || !e.target.closest('[data-clear-search]')) return;
+      for (const el of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[name]')) el.value = '';
+      update();
+      need<HTMLInputElement>(form, '[name=q]').focus();
+    });
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       update();

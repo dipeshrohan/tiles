@@ -108,7 +108,13 @@ function searchCard(ctx: Context): string {
     body = `<p class="small" role="alert">The search could not be run. ${button('Try again', { size: 'sm', attrs: { 'data-retry-search': true } })}</p>`;
   else if (ui.query.trim() && results === null) body = '<p class="small soft">Searching…</p>';
   else if (results && !results.length)
-    body = `<p class="small soft" data-no-matches>Nothing matches “${esc(ui.query)}”.</p>`;
+    body = `<div data-no-matches>${emptyState({
+      illustration: 'search',
+      compact: true,
+      level: 3,
+      title: `Nothing matches “${ui.query.trim()}”`,
+      body: 'Search finds whole words in the documents’ own language. Try fewer words, or other words for the same thing.',
+    })}</div>`;
   else if (results)
     body = `<ol class="stack doc-matches gap-2_5" data-matches>${results
       .map(
@@ -135,7 +141,12 @@ function searchCard(ctx: Context): string {
 function listCard(ctx: Context): string {
   const items = listing?.key === siteId(ctx) ? listing.items : null;
   const rows = listing?.failed
-    ? errorState({ title: 'The documents could not be loaded', retry: 'retry-docs', compact: true })
+    ? errorState({
+        title: 'The documents could not be loaded',
+        body: 'The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.',
+        retry: 'retry-docs',
+        compact: true,
+      })
     : items === null
       ? skeleton.list()
       : items

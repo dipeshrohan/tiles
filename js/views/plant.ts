@@ -17,7 +17,7 @@ import type { Graph, OntologyNode } from '../lib/types.ts';
 import { when } from '../lib/warnings.ts';
 import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } from './floor-data.ts';
 import type { Context, Crumb, View } from './types.ts';
-import { button, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import { button, card, emptyState, linkButton, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 
 // The plant navigator (T5.17): the ontology's hierarchy as places to drill into, site → workcenter
@@ -188,7 +188,15 @@ function placePage(graph: Graph, id: string, items: FloorItem[] | null, now: num
   const warnings = items ? rollUp(graph, items, id).warnings : [];
   const cards = inside.length
     ? `<div class="place-grid">${inside.map((c) => placeCard(graph, graph.nodes[c] as OntologyNode, items)).join('')}</div>`
-    : '<div class="card"><p>Nothing is inside this place yet. Add lines and machines under it on the Ontology page.</p></div>';
+    : card(
+        emptyState({
+          illustration: 'launch',
+          compact: true,
+          title: 'Nothing is inside this place yet',
+          body: 'Lines and machines appear here once the ontology says they are in it (a contains relationship).',
+          action: linkButton('Open the Ontology', '#/ontology', { size: 'sm', icon: 'network' }),
+        }),
+      );
   return `${cards}${warningsCard(warnings, now)}`;
 }
 
@@ -201,7 +209,16 @@ function searchResults(graph: Graph, query: string): string {
         `<li><a href="${placeLink(h.id)}" data-place="${esc(h.id)}">${esc(h.label)}</a> <span class="small soft">${esc(h.type)}${h.path.length ? ` · ${esc(h.path.join(' › '))}` : ''}</span></li>`,
     )
     .join('');
-  return `<div class="card" data-plant-results>${rows ? `<ul class="plant-list">${rows}</ul>` : `<p class="small">No place is called “${esc(query)}”.</p>`}</div>`;
+  return `<div class="card" data-plant-results>${
+    rows
+      ? `<ul class="plant-list">${rows}</ul>`
+      : emptyState({
+          illustration: 'search',
+          compact: true,
+          title: `No place is called “${query.trim()}”`,
+          body: 'Search by a site’s, line’s or machine’s name, or part of it.',
+        })
+  }</div>`;
 }
 
 const view: View = {

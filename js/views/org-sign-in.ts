@@ -6,6 +6,7 @@ import { esc, field, onAll, onSubmit } from '../lib/dom.ts';
 import type { IdentityProvider, ScimToken } from '../lib/api.ts';
 import { groupRolesText, providerFromForm, scimBaseUrl } from '../lib/org-sign-in.ts';
 import type { Context } from './types.ts';
+import { loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 
 // A SCIM token just made: shown until dismissed, to the admin who made it, for that API only.
@@ -66,7 +67,7 @@ function scimHtml(ctx: Context, tokens: ScimToken[]): string {
             `<tr><td>${esc(t.name)}</td><td>${esc(new Date(t.created_at).toLocaleString('en-GB'))}</td><td>${t.last_used_at ? esc(new Date(t.last_used_at).toLocaleString('en-GB')) : 'never'}</td><td><button class="btn sm danger" type="button" data-revoke-scim="${esc(t.id)}" data-scim-name="${esc(t.name)}">Revoke</button></td></tr>`,
         )
         .join('')}</tbody></table></div>`
-    : '<p class="small soft">No SCIM tokens yet.</p>';
+    : '<p class="small soft">No SCIM tokens yet: make one below, then give it and the tenant URL to your identity provider’s provisioning settings.</p>';
   return `<p class="small">Tenant URL for your provider: <code>${esc(scimBaseUrl(api.baseUrl))}</code>. Users only: roles come from sign-in, memberships from site admins.</p>
     ${shown}${rows}
     <form class="row gap-2 wrap" id="scim-token-form">
@@ -83,7 +84,7 @@ async function fillScim(root: HTMLElement, ctx: Context): Promise<void> {
   try {
     tokens = await api.org.scimTokens();
   } catch {
-    box.innerHTML = '<p class="small soft">The SCIM tokens could not be loaded.</p>';
+    box.innerHTML = loadFailed('The SCIM tokens', 4);
     return;
   }
   box.innerHTML = scimHtml(ctx, tokens);

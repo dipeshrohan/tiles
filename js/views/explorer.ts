@@ -6,7 +6,7 @@ import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
 import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
-import { needsApi, pageHead, skeleton } from '../lib/ui.ts';
+import { needsApi, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -197,7 +197,9 @@ function chartFor(series: SignalSeries, range: Range): string {
       : '';
   return `<div class="explorer-chart" data-zoom>${chart}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
-    <p class="small soft" data-series-note>${esc(describe(series))}</p>`;
+    <p class="small soft" data-series-note>${esc(describe(series))}${
+      series.points.length ? '' : ': pick a longer range above, or Latest data for the day up to its last reading.'
+    }</p>`;
 }
 
 const localInput = (isoTime: string): string => {
@@ -240,8 +242,7 @@ function loadCharts(root: HTMLElement, ctx: Context): void {
         bindZoom(box, ctx, range);
       },
       () => {
-        if (mine === latestLoad && box?.isConnected)
-          box.innerHTML = '<p class="small soft">The readings could not be loaded.</p>';
+        if (mine === latestLoad && box?.isConnected) box.innerHTML = loadFailed('The readings');
       },
     );
   }
@@ -316,7 +317,7 @@ function bindSearch(root: HTMLElement, ctx: Context): void {
               `<button class="btn sm" type="button" data-add="${esc(s.id)}">+ ${esc(s.tag)}${s.unit ? ` <span class="soft">${esc(s.unit)}</span>` : ''}</button>`,
           )
           .join('')
-      : '<span class="small soft">No other signals match.</span>';
+      : '<span class="small soft">No other signals match: try part of a tag, or its unit.</span>';
     onAll(list, '[data-add]', 'click', (el) => {
       const s = choices.find((c) => c.id === el.dataset.add);
       if (s) add(ctx, s);

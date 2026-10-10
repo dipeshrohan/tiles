@@ -250,7 +250,7 @@ test('the import page loads a file, describes what it would import, and lists pa
     describeStats(summarize(l.rows, l.mapping, NOW)),
     '1 readings for 1 signal(s) in 1 rows from 2026-10-01 08:00:00 to 2026-10-01 08:00:00 UTC.',
   );
-  assert.equal(historyTable([]), '<p class="small soft">No imports on this site yet.</p>');
+  assert.match(historyTable([]), /No imports yet/);
   const html = historyTable([
     {
       id: 'i',

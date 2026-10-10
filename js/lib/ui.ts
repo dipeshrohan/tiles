@@ -346,6 +346,17 @@ function failedAt(reason: string | null): Date {
   return lastFailure.at;
 }
 
+// A part of a page whose data didn't come: why, and Try again (which loads the site afresh).
+export function loadFailed(what: string, level: 2 | 3 | 4 = 3): string {
+  return errorState({
+    title: `${what} could not be loaded`,
+    body: 'The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.',
+    retry: 'reconnect',
+    compact: true,
+    level,
+  });
+}
+
 // Something failed to load: why, and a button to try again (`retry` is its data attribute).
 export function errorState(o: {
   title: string;

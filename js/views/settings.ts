@@ -14,7 +14,7 @@ import {
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import type { Context, View } from './types.ts';
-import { linkButton, pageHead, skeleton } from '../lib/ui.ts';
+import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
@@ -111,9 +111,14 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
               `<tr><td>${esc(new Date(e.at).toLocaleString('en-GB'))}</td><td>${esc(e.actor_name)}</td><td>${esc(describeAudit(e))}</td></tr>`,
           )
           .join('')}</tbody></table></div>`
-      : '<p class="small soft">No changes yet.</p>';
+      : emptyState({
+          compact: true,
+          level: 3,
+          title: 'No changes yet',
+          body: 'Each change to the site (a commit, a signal edit, a member’s role) is listed here with who made it.',
+        });
   } catch {
-    box.innerHTML = '<p class="small soft">The audit log could not be loaded.</p>';
+    box.innerHTML = loadFailed('The audit log');
   }
 }
 
@@ -141,7 +146,12 @@ function usageHtml(u: CopilotUsage): string {
             `<tr><td>${esc(d.day)}</td><td>${fmt(d.questions)}</td><td>${fmt(d.answered)}</td><td>${fmt(d.failed)}</td><td>${fmt(d.over_budget)}</td><td>${fmt(d.ungrounded)}</td><td>${esc(tokens(d.billed_tokens))}</td><td>${esc(percent(cacheShare(d)))}</td><td>${esc(duration(d.first_text_p50_ms))} · ${esc(duration(d.first_text_p95_ms))}</td><td>${esc(duration(d.total_p50_ms))} · ${esc(duration(d.total_p95_ms))}</td></tr>`,
         )
         .join('')}</tbody></table></div>`
-    : '<p class="small soft">No questions in the last 30 days.</p>';
+    : emptyState({
+        compact: true,
+        level: 3,
+        title: 'No questions in the last 30 days',
+        bodyHtml: 'Questions asked on the <a href="#/chat">Copilot</a> page are counted here, by day and by person.',
+      });
   const users = u.users.length
     ? `<div class="table-wrap"><table><thead><tr><th>Who</th><th>Questions</th><th>Tokens</th></tr></thead><tbody>${u.users
         .map(
@@ -170,7 +180,7 @@ async function fillCopilotUsage(root: HTMLElement, ctx: Context): Promise<void> 
   try {
     box.innerHTML = usageHtml(await ctx.api.copilot.usage(site.id, 30));
   } catch {
-    box.innerHTML = '<p class="small soft">Copilot usage could not be loaded.</p>';
+    box.innerHTML = loadFailed('Copilot usage');
   }
 }
 
@@ -363,9 +373,14 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
               `<tr><td>${esc(new Date(d.created_at).toLocaleString('en-GB'))}</td><td>${d.kind === 'warning_raised' ? 'New warning' : 'Assigned'} · <span class="mono">${esc(d.signal_tag)}</span></td><td>${esc(d.recipient)}</td><td>${deliveryState(d)}</td><td class="small">${esc(d.sent_at ? '' : (d.last_error ?? ''))}</td></tr>`,
           )
           .join('')}</tbody></table></div>`
-      : '<p class="small soft">Nothing sent yet.</p>';
+      : emptyState({
+          compact: true,
+          level: 4,
+          title: 'Nothing sent yet',
+          body: 'Messages appear here when a warning is raised or assigned to someone who asked to hear of it.',
+        });
   } catch {
-    list.innerHTML = '<p class="small soft">The messages could not be loaded.</p>';
+    list.innerHTML = loadFailed('The messages', 4);
   }
 }
 
@@ -489,7 +504,7 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
   try {
     agents = await api.agents.list(site.id);
   } catch {
-    box.innerHTML = '<p class="small soft">The agents could not be loaded.</p>';
+    box.innerHTML = loadFailed('The agents');
     return;
   }
   box.innerHTML = agents.length
@@ -503,7 +518,14 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
             }</tr>`,
         )
         .join('')}</tbody></table></div>`
-    : '<p class="small soft">No agents registered for this site yet.</p>';
+    : emptyState({
+        compact: true,
+        level: 3,
+        title: 'No edge agents yet',
+        body: admin
+          ? 'Register one below, then put its token in the agent’s config on the plant network. It connects out to Tiles; nothing connects in.'
+          : 'An admin of this site registers edge agents; they send the plant’s readings to Tiles.',
+      });
   onAll(box, '[data-revoke-agent]', 'click', async (el) => {
     const name = el.dataset.agentName ?? '';
     const yes = await confirmDialog({
