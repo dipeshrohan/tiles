@@ -274,7 +274,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* the style guide shows each; nothing moves with reduced motion.
 - [x] `U3.05` [#226](https://github.com/dipeshrohan/tiles/issues/226) **State in the URL and restored** · FE · 3d · U3.03
   *Done when:* reloading or opening a copied link shows the same view on those three pages, and back restores the scroll.
-- [ ] `U3.06` [#227](https://github.com/dipeshrohan/tiles/issues/227) **Sidebar v2** · FE · 3d · U1.05
+- [x] `U3.06` [#227](https://github.com/dipeshrohan/tiles/issues/227) **Sidebar v2** · FE · 3d · U1.05
   *Done when:* each of these works by keyboard, is tested, and fits at 320 px wide.
 - [ ] `U3.07` [#228](https://github.com/dipeshrohan/tiles/issues/228) **Performance budget** · FE · 2d · U3.03
   *Done when:* the check fails on a deliberate regression and passes on main.

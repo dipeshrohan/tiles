@@ -1047,6 +1047,13 @@ export function createApiClient(options: ApiOptions) {
       uxAnalytics: () => request<{ enabled: boolean }>('GET', '/org/ux-analytics'),
       setUxAnalytics: (enabled: boolean) => request<{ enabled: boolean }>('PUT', '/org/ux-analytics', { enabled }),
     },
+    // The menu's counts (U3.06): read quietly (a failure leaves the counts as they were, no toast).
+    menu: {
+      openWarnings: (siteId: string) =>
+        request<WarningInfo[]>('GET', `${warning(siteId)}?status=unresolved&limit=100`, undefined, { silent: true }),
+      openReviews: (siteId: string) =>
+        request<ReviewSummary[]>('GET', `${site(siteId)}/reviews?state=open&limit=100`, undefined, { silent: true }),
+    },
     // UX analytics (U1.09): whether a site records them, the events, and their counts (admins).
     ux: {
       enabled: (siteId: string) =>

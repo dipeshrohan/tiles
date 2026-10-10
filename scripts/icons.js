@@ -84,6 +84,11 @@ export const NAMES = [
   'undo-2',
   'redo-2',
   'save',
+  // The menu (U3.06)
+  'pin',
+  'pin-off',
+  'panel-left-close',
+  'panel-left-open',
 ];
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
