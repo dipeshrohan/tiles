@@ -36,9 +36,15 @@ Spinners and shimmers turn at a steady speed (`linear`).
 - **Nothing blocks.** An animation never delays an action: a button works while its toast slides in, and a page can be used while it enters.
 - **Leaving is quicker than entering,** or instant: what goes uses `--dur-fast` and `--ease-in`.
 
+## Page transitions
+
+Moving to another page uses the browser's View Transitions API (U3.02, `navigate` in `js/app.ts`). The old page fades out over `--dur-fast`, and the new one fades and rises in over `--dur-slow`. The page head is kept in place while its words change, and the menu and top bar stay still. A record opened from a link on the same page or in the breadcrumbs (a place on the Plant page, say) grows from that link into its page head. A page drawn again, the first page drawn and a record reached with Back don't move.
+
+Where the browser has no view transitions, or less motion is asked for, nothing moves. Either way the new page's heading takes the focus (its `h1` has `tabindex="-1"`, from `pageHead`; a page drawing its own `h1` gives it one too), and a screen reader reads it. A page without one has its title announced instead. Scrolled down, the old page's head is above the window, so it isn't held; the page only cross-fades.
+
 ## Reduced motion
 
-When the system asks for less motion (`prefers-reduced-motion: reduce`), or a person turns it on in Tiles (U6.06 sets `data-motion="reduce"` on the root element), nothing moves. Things appear and go at once, and spinners and shimmers show without turning. One rule in `css/styles.css` does this for each case, leaving out only the skeletons' wait. A new animation needs nothing extra to follow it. A scroll started from script is out of CSS's reach: pass `behavior: scrollBehavior()` (`js/lib/dom.ts`), never `'smooth'`.
+When the system asks for less motion (`prefers-reduced-motion: reduce`), or a person turns it on in Tiles (U6.06 sets `data-motion="reduce"` on the root element), nothing moves, and no view transition starts (`lessMotion()` in `js/lib/dom.ts`). Things appear and go at once, and spinners and shimmers show without turning. One rule in `css/styles.css` does this for each case, leaving out only the skeletons' wait. A new animation needs nothing extra to follow it. A scroll started from script is out of CSS's reach: pass `behavior: scrollBehavior()` (`js/lib/dom.ts`), never `'smooth'`.
 
 ## Adding motion
 

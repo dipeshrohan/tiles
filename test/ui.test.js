@@ -189,9 +189,10 @@ test('badges, chips and cards', () => {
 test('a page head has an eyebrow, a title, a lead and actions', () => {
   assert.equal(
     pageHead({ eyebrow: 'Data', title: EVIL, lead: 'Why', actionsHtml: '<a>x</a>' }),
-    `<div class="page-head"><div><div class="eyebrow">Data</div><h1 class="page-title">${SAFE}</h1><p class="soft">Why</p></div><a>x</a></div>`,
+    `<div class="page-head"><div><div class="eyebrow">Data</div><h1 class="page-title" tabindex="-1">${SAFE}</h1><p class="soft">Why</p></div><a>x</a></div>`,
   );
-  // An example of one inside a page isn't a second title for it.
+  // Its heading takes the focus when the page opens (U3.02). An example of one inside a page isn't a
+  // second title for it, nor focused.
   assert.match(pageHead({ title: 'Signals', level: 4 }), /<h4 class="page-title">Signals<\/h4>/);
 });
 

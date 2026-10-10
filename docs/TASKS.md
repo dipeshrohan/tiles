@@ -266,7 +266,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 - [x] `U3.01` [#222](https://github.com/dipeshrohan/tiles/issues/222) **Motion system** · PM+FE · 1d · U1.02
   *Done when:* the guide is merged and the tokens from U1.02 implement it.
-- [ ] `U3.02` [#223](https://github.com/dipeshrohan/tiles/issues/223) **Page transitions** · FE · 2d · U3.01, U3.03
+- [x] `U3.02` [#223](https://github.com/dipeshrohan/tiles/issues/223) **Page transitions** · FE · 2d · U3.01, U3.03
   *Done when:* transitions run in Chromium and Safari, are absent with reduced motion, and the a11y and smoke suites pass.
 - [x] `U3.03` [#224](https://github.com/dipeshrohan/tiles/issues/224) **DOM patching that keeps state** · FE · 5d
   *Done when:* typing, scrolling a table and an open trace all survive a background refresh in tests, and the copilot trace flake (#195) can't happen again; render time on the large ontology fixture is no worse.

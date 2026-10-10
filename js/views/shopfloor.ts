@@ -193,13 +193,14 @@ const view: View = {
           <button class="btn floor-btn" data-floor-full aria-pressed="${ui.full}">${fullLabel}</button>
         </div>
       </div>`;
-    if (ctx.api && ctx.ontology.status === 'loading') return `<div class="floor">${head('<h1>Loading…</h1>')}</div>`;
+    if (ctx.api && ctx.ontology.status === 'loading')
+      return `<div class="floor">${head('<h1 tabindex="-1">Loading…</h1>')}</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')
-      return `<div class="floor">${head('<h1>Shopfloor</h1>')}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn), size: 'lg' })}</div>`;
+      return `<div class="floor">${head('<h1 tabindex="-1">Shopfloor</h1>')}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn), size: 'lg' })}</div>`;
     const graph = ctx.graph; // made afresh at each read: once for the whole page
     const list = floorItems(ctx, graph);
     if (list === null)
-      return `<div class="floor">${head('<h1>Shopfloor</h1>')}<div class="card">${skeleton.list(3, 'Loading the warnings…')}</div></div>`;
+      return `<div class="floor">${head('<h1 tabindex="-1">Shopfloor</h1>')}<div class="card">${skeleton.list(3, 'Loading the warnings…')}</div></div>`;
     const now = Date.now();
     const { tone, text } = headline(list);
     const updated =
@@ -213,7 +214,7 @@ const view: View = {
           ? ''
           : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
     shownHeadline = { site: siteId(ctx), text };
-    const status = `<h1 class="floor-headline ${tone}">${esc(text)}</h1>${updated}`;
+    const status = `<h1 class="floor-headline ${tone}" tabindex="-1">${esc(text)}</h1>${updated}`;
     const open = list.filter((i) => i.state !== 'ok');
     // A question about a warning that has left the floor (someone else resolved it) is dropped.
     if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
