@@ -60,7 +60,8 @@
       "id": "die-temperature-trend",
       "question": "Is the die temperature on DC-02 drifting? Run a wear check on it.",
       "tools": ["wear_check"],
-      "facts": [["wear", "rising", "risen", "increas", "drift", "higher", "upward"]]
+      "facts": [["wearing", "rising", "risen", "increas", "higher", "upward"]],
+      "absent": ["not drifting", "isn't drifting", "no drift", "not wearing", "no wear", "stable"]
     },
     {
       "id": "open-warnings",

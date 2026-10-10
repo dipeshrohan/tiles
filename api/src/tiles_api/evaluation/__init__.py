@@ -19,12 +19,13 @@ import re
 import sys
 import uuid
 from collections.abc import Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import psycopg
 from psycopg.rows import dict_row
@@ -32,15 +33,17 @@ from psycopg.rows import dict_row
 from tiles_api import assistant, copilot_tools, grounding
 from tiles_api.api_ontology import SiteContext
 from tiles_api.evaluation import plant
-from tiles_api.identity import User
+from tiles_api.identity import User, ensure_org
 from tiles_api.settings import Settings, get_settings
-from tiles_api.store import UNSCOPED
+from tiles_api.store import UNSCOPED, one
 
 if TYPE_CHECKING:  # the test client needs httpx, a development dependency: evaluating is a developer's job
     from fastapi.testclient import TestClient
 
 EVALUATOR = {"X-Tiles-User": "copilot-evaluation@example.com"}
-NUMBER = re.compile(r"(?<![\w.])-?\d[\d,]*(?:\.\d+)?")
+# A number standing alone: not inside a name (DC-02), a time (14:15), a date (2026-10-15) or a path.
+NUMBER = re.compile(r"(?<![\w.\-:/])\d[\d,]*(?:\.\d+)?(?![\w]|[\-:/]\d)")
+CITATION = re.compile(r"\[\d+\]")
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,7 @@ class Result:
     error: str | None = None
     correct: bool = False
     right_tools: bool = False
+    scores_tools: bool = True  # whether its case names tools (a decline names none: not scored)
     missing: list[str] = field(default_factory=list)  # facts not stated, or "decline"
     wrong: list[str] = field(default_factory=list)  # what it said but must not
     problems: str = ""  # the grounding check's, when it wasn't grounded
@@ -88,12 +92,14 @@ class Summary:
 
     @property
     def unsupported(self) -> int:
-        """Answers kept that state what no cited tool result holds."""
-        return sum(1 for r in self.results if r.error is None and not r.grounded)
+        """Answers kept that state what no cited tool result holds (an empty answer states nothing)."""
+        return sum(1 for r in self.results if r.error is None and r.answer.strip() and not r.grounded)
 
     @property
     def tool_choice(self) -> float:
-        return sum(r.right_tools for r in self.results) / len(self.results) if self.results else 0.0
+        """Of the cases that name tools, the share that called them all."""
+        scored = [r for r in self.results if r.scores_tools]
+        return sum(r.right_tools for r in scored) / len(scored) if scored else 1.0
 
     @property
     def passed(self) -> bool:
@@ -123,7 +129,8 @@ def cases(path: str | Path | None = None) -> list[Case]:
 
 
 def _numbers(text: str) -> list[float]:
-    return [float(n.replace(",", "")) for n in NUMBER.findall(text)]
+    """The numbers an answer states, leaving out its citations ([1])."""
+    return [float(n.replace(",", "").rstrip(",")) for n in NUMBER.findall(CITATION.sub(" ", text)) if n.strip(",")]
 
 
 def states(answer: str, fact: str) -> bool:
@@ -139,6 +146,8 @@ def states(answer: str, fact: str) -> bool:
 
 def score(case: Case, result: Result) -> Result:
     """Fills in how `result` scored on `case`."""
+    result.scores_tools = bool(case.tools)
+    result.right_tools = set(case.tools) <= set(result.tools)
     if result.error is not None:
         result.missing = ["an answer"]
         return result
@@ -152,15 +161,38 @@ def score(case: Case, result: Result) -> Result:
         result.wrong.append("declined")
     result.wrong += [a for a in case.absent if a.lower() in result.answer.lower()]
     result.correct = not result.missing and not result.wrong
-    result.right_tools = set(case.tools) <= set(result.tools)
     return result
 
 
-def ask(model: assistant.Model, case: Case, tools: Sequence[assistant.Tool], system: str, rounds: int = 8) -> Result:
-    """Asks the copilot one case's question, as a new conversation, and scores the answer."""
+def ask(
+    model: assistant.Model,
+    case: Case,
+    tools: Sequence[assistant.Tool],
+    system: str,
+    rounds: int = 8,
+    budget: int = 0,
+) -> Result:
+    """Asks the copilot one case's question, as a new conversation, and scores the answer. A failure
+    (the model's API down, say) is that case's error, not the evaluation's end."""
     result = Result(case.id)
-    history = [{"role": "user", "content": [{"type": "text", "text": case.question}]}]
-    for event in assistant.respond(model, system, history, tools, rounds):
+    history: list[dict[str, Any]] = [{"role": "user", "content": [{"type": "text", "text": case.question}]}]
+    try:
+        _ask(model, history, tools, system, rounds, budget, result)
+    except Exception as e:
+        result.error = f"{type(e).__name__}: {e}"[:300]
+    return score(case, result)
+
+
+def _ask(
+    model: assistant.Model,
+    history: list[dict[str, Any]],
+    tools: Sequence[assistant.Tool],
+    system: str,
+    rounds: int,
+    budget: int,
+    result: Result,
+) -> None:
+    for event in assistant.respond(model, system, history, tools, rounds, budget):
         if event.kind == "tool_use":
             result.tools.append(event.data["name"])
         elif event.kind == "message" and event.data.get("role") == "assistant" and "meta" in event.data:
@@ -172,7 +204,6 @@ def ask(model: assistant.Model, case: Case, tools: Sequence[assistant.Tool], sys
                 result.problems = grounding.Grounding(**event.data).problems()
         elif event.kind == "error":
             result.error = str(event.data.get("detail"))
-    return score(case, result)
 
 
 def run(
@@ -182,47 +213,45 @@ def run(
     selected: Sequence[Case],
     thresholds: Thresholds | None = None,
     now: datetime | None = None,
+    workers: int = 4,
 ) -> Summary:
     """Loads the plant into a new site of the `copilot-evaluation` organisation, then asks every
-    case as an engineer there."""
+    case (`workers` at a time) as an engineer there, with the copilot's own tools and limits."""
     site, org, org_id, name = _site(database_url)
-    api.get(f"/sites/{site}/me", headers=EVALUATOR)  # the evaluator becomes a member
-    with psycopg.connect(database_url, row_factory=dict_row, options=UNSCOPED) as conn:
-        row = conn.execute(
-            "UPDATE site_members SET role = 'engineer' WHERE site_id = %s"
-            " AND user_id = (SELECT id FROM users WHERE email = %s) RETURNING user_id",
-            [site, EVALUATOR["X-Tiles-User"]],
-        ).fetchone()
-    if row is None:
-        raise plant.PlantError("The evaluator didn't become a member of the evaluation site")
+    me = api.get(f"/sites/{site}/me", headers=EVALUATOR)  # the evaluator joins the site
+    if me.status_code != 200 or me.json().get("role") not in ("engineer", "admin"):
+        raise plant.PlantError(f"The evaluator can't work on the evaluation site: {me.status_code} {me.text[:200]}")
     plant.load(api, str(site), EVALUATOR, now or datetime.now(UTC))
-    user = User(row["user_id"], "Copilot evaluation", EVALUATOR["X-Tiles-User"], "engineer")
+    user = User(uuid.UUID(me.json()["user_id"]), "Copilot evaluation", EVALUATOR["X-Tiles-User"], me.json()["role"])
 
     @contextmanager
     def open_ctx() -> Iterator[SiteContext]:
         with psycopg.connect(database_url, row_factory=dict_row) as conn:
             yield SiteContext(conn, site, org_id, user)
 
-    tools = copilot_tools.tools_for(open_ctx)
+    # As api_copilot asks: an engineer's tools (proposals too), the rounds and the token budget.
+    settings = api.app.state.settings  # type: ignore[attr-defined]
+    tools = copilot_tools.tools_for(open_ctx, can_propose=True, conversation_id=uuid.uuid4())
     system = assistant.SYSTEM.format(site=name, org=org, decline=grounding.DECLINE)
-    return Summary([ask(model, c, tools, system) for c in selected], thresholds or Thresholds())
+    rounds, budget = settings.copilot_max_rounds, settings.copilot_question_tokens
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        results = list(pool.map(lambda c: ask(model, c, tools, system, rounds, budget), selected))
+    return Summary(results, thresholds or Thresholds())
 
 
 def _site(database_url: str) -> tuple[uuid.UUID, str, uuid.UUID, str]:
     """A new site, so each evaluation starts from the plant alone."""
     name = f"Evaluation {datetime.now(UTC):%Y-%m-%d %H:%M}"
     with psycopg.connect(database_url, row_factory=dict_row, options=UNSCOPED) as conn:
-        org = conn.execute(
-            "INSERT INTO orgs (slug, name) VALUES ('copilot-evaluation', 'Copilot evaluation')"
-            " ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug RETURNING id, name"
-        ).fetchone()
-        assert org is not None  # noqa: S101 - RETURNING always gives the row
-        site = conn.execute(
-            "INSERT INTO sites (org_id, slug, name) VALUES (%s, %s, %s) RETURNING id",
-            [org["id"], f"eval-{uuid.uuid4().hex[:10]}", name],
-        ).fetchone()
-        assert site is not None  # noqa: S101
-    return site["id"], org["name"], org["id"], name
+        org_id = ensure_org(conn, "copilot-evaluation")
+        org = one(conn.execute("SELECT name FROM orgs WHERE id = %s", [org_id]).fetchone())["name"]
+        site = one(
+            conn.execute(
+                "INSERT INTO sites (org_id, slug, name) VALUES (%s, %s, %s) RETURNING id",
+                [org_id, f"eval-{uuid.uuid4().hex[:10]}", name],
+            ).fetchone()
+        )["id"]
+    return site, org, org_id, name
 
 
 def report(summary: Summary) -> str:
@@ -262,6 +291,7 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--only", nargs="*", help="these cases only (their ids)")
     parser.add_argument("--report", help="also write the report (Markdown) here")
     parser.add_argument("--json", help="also write each case's result (JSON) here")
+    parser.add_argument("--workers", type=int, default=4, help="cases asked at once (4)")
     args = parser.parse_args(argv)
     settings = get_settings()
     key = settings.anthropic_api_key.get_secret_value() if settings.anthropic_api_key else ""
@@ -282,7 +312,7 @@ def main(argv: list[str] | None = None) -> None:
     url = settings.database_url.get_secret_value()
     app_settings = Settings(_env_file=None, database_url=url, env="test", data_keys=settings.data_keys)
     with TestClient(create_app(app_settings)) as api:
-        summary = run(model, api, url, selected)
+        summary = run(model, api, url, selected, workers=args.workers)
     text = report(summary)
     print(text)
     if args.report:

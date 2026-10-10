@@ -73,6 +73,11 @@ def test_facts_are_stated_as_numbers_or_words() -> None:
     assert evaluation.states("152.6 bar", "152")  # within 0.5%
     assert not evaluation.states("153 bar", "152")
     assert not evaluation.states("version 1152", "152")  # whole numbers only
+    # Not a number of the answer's own: a citation, part of a name, a time or a date.
+    assert not evaluation.states("Warnings are open on DC-02 [1]", "2")
+    assert not evaluation.states("It was raised at 14:15 on 2026-10-15 [2]", "15")
+    assert not evaluation.states("See [5].", "5")
+    assert evaluation.states("It went to 15 kN at 14:15 [1]", "15")
     assert evaluation.states("Protocol: mqtt", "MQTT")
     assert not evaluation.states("OPC UA", "MQTT")
 
@@ -92,10 +97,32 @@ def test_a_case_is_scored_on_its_facts_tools_and_declining() -> None:
     assert evaluation.score(case, Result("c", error="Stopped after 8 rounds")).missing == ["an answer"]
 
 
+def test_what_counts_as_tool_choice_and_an_unsupported_claim() -> None:
+    decline = Case("d", "q", decline=True)
+    erred = evaluation.score(Case("c", "q", ("events",), ("2",)), Result("c", tools=["events"], error="Stopped"))
+    assert (erred.right_tools, erred.correct) == (True, False)  # the right tools, though it never answered
+    results = [evaluation.score(decline, Result("d", tools=["find_signals"], declined=True, grounded=True)), erred]
+    summary = Summary(results, Thresholds())
+    assert summary.tool_choice == 1.0  # a decline names no tools: not scored
+    empty = Summary([Result("e", answer="", grounded=False)], Thresholds())
+    assert empty.unsupported == 0  # an empty answer claims nothing
+
+
+class Broken:
+    def stream(self, **_kwargs: Any) -> Iterator[Turn]:
+        raise ConnectionError("overloaded")
+
+
+def test_a_case_that_fails_is_that_cases_error() -> None:
+    result = evaluation.ask(Broken(), Case("c", "q", ("events",), ("2",)), [], "system")
+    assert (result.error, result.correct) == ("ConnectionError: overloaded", False)
+
+
 def test_the_gate() -> None:
     def summary(correct: int, ungrounded: int, tools: int, n: int = 20) -> Summary:
         results = [
-            Result(str(i), correct=i < correct, grounded=i >= ungrounded, right_tools=i < tools) for i in range(n)
+            Result(str(i), answer="x", correct=i < correct, grounded=i >= ungrounded, right_tools=i < tools)
+            for i in range(n)
         ]
         return Summary(results, Thresholds())
 

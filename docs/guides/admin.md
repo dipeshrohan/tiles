@@ -381,7 +381,7 @@ Before you change `TILES_COPILOT_MODEL`, evaluate the copilot with the new model
 - **unsupported claims:** whether the answer it kept states something no tool result it cites holds;
 - **tool choice:** whether it called the expected tools.
 
-It prints a report and exits 1 below the gate: 85% accuracy, no unsupported claims and 90% tool choice. Use a test database, not production: each run adds a site. CI runs it on every push when the repository has the `TILES_ANTHROPIC_API_KEY` secret and the `TILES_COPILOT_MODEL` variable. The partner's own questions (T4.05) join the set in the same form.
+It asks four cases at a time (`--workers`), with the copilot's own tools and limits, prints a report and exits 1 below the gate: 85% accuracy, no unsupported claims and 90% tool choice (counted on the cases that name tools). Use a test database, not production: each run adds a site. CI runs it on every push when the repository has the `TILES_ANTHROPIC_API_KEY` secret and the `TILES_COPILOT_MODEL` variable. The partner's own questions (T4.05) join the set in the same form.
 
 ## 8. Scheduled jobs
 
