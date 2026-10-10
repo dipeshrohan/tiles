@@ -1,9 +1,7 @@
 """`tiles-seed`: create the demo organisation and site if they don't exist."""
 
-import psycopg
-
 from tiles_api.settings import Settings, get_settings
-from tiles_api.store import UNSCOPED, one
+from tiles_api.store import connect_job, one
 
 DEMO_ORG = ("demo", "Demo Manufacturing")
 DEMO_SITE = ("plant-1", "Plant 1")
@@ -12,7 +10,7 @@ DEMO_SITE = ("plant-1", "Plant 1")
 def seed(settings: Settings | None = None) -> str:
     """Returns the demo site's id."""
     settings = settings or get_settings()
-    with psycopg.connect(settings.database_url.get_secret_value(), options=UNSCOPED) as conn:
+    with connect_job(settings) as conn:
         org = one(
             conn.execute(
                 "INSERT INTO orgs (slug, name) VALUES (%s, %s) ON CONFLICT (slug) DO UPDATE SET slug = EXCLUDED.slug"
@@ -24,10 +22,10 @@ def seed(settings: Settings | None = None) -> str:
             conn.execute(
                 "INSERT INTO sites (org_id, slug, name) VALUES (%s, %s, %s)"
                 " ON CONFLICT (org_id, slug) DO UPDATE SET slug = EXCLUDED.slug RETURNING id",
-                [org[0], *DEMO_SITE],
+                [org["id"], *DEMO_SITE],
             ).fetchone()
         )
-        return str(site[0])
+        return str(site["id"])
 
 
 def main() -> None:

@@ -452,9 +452,9 @@ Never put a secret in the repository, an image, `values.yaml` or a log. The [sec
 
 ### Row security
 
-Each site's data is protected by PostgreSQL row-level security as well as by roles. A request sees only its own site's rows, even if a query forgets to filter by site. The API's connections switch to the `tiles_app` role, which can't skip the policies. Jobs and migrations see every site.
+Each site's data is protected by PostgreSQL row-level security as well as by roles. A request sees only its own site's rows, even if a query forgets to filter by site. The API's connections, and the scheduled jobs', switch to the `tiles_app` role, which can't skip the policies or change the schema. Jobs and migrations see every site.
 
-The migration creates `tiles_app`. On a managed database whose login may not create roles, the migration skips it. If the API logs in as a different role from the one that ran the migrations, grant it `tiles_app`. Never give the API's login `BYPASSRLS`. See the [API README](../../api/README.md#site-level-permissions-in-the-database-t504) for details.
+The migration creates `tiles_app`. On a managed database whose login may not create roles, the migration skips it. If the API or the jobs log in as a different role from the one that ran the migrations, grant it `tiles_app`; a login without it, and without superuser powers, works as itself. Never give the API's login `BYPASSRLS`. See the [API README](../../api/README.md#site-level-permissions-in-the-database-t504) for details.
 
 ### Backups
 

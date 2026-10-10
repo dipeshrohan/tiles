@@ -36,13 +36,10 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlsplit
 
-import psycopg
-from psycopg.rows import dict_row
-
 from tiles_api.api_agents import TOKEN_PREFIX, token_hash
 from tiles_api.api_samples import MAX_BATCH
 from tiles_api.settings import get_settings
-from tiles_api.store import UNSCOPED
+from tiles_api.store import connect_job
 
 USER_STEPS = ("signals.search", "signals.page", "series.10min", "series.day", "warnings", "ontology.graph")
 
@@ -410,7 +407,7 @@ def prepare(args: argparse.Namespace) -> int:
     """Registers the load agents `load-0` … on a site (revoking earlier ones) and writes their tokens."""
     settings = get_settings()
     tokens = [TOKEN_PREFIX + secrets.token_urlsafe(32) for _ in range(args.agents)]
-    with psycopg.connect(settings.database_url.get_secret_value(), row_factory=dict_row, options=UNSCOPED) as conn:
+    with connect_job(settings) as conn:
         site = conn.execute(
             "SELECT s.id, s.org_id FROM sites s JOIN orgs o ON o.id = s.org_id"
             " WHERE (%(site)s::uuid IS NULL AND o.slug = 'demo') OR s.id = %(site)s::uuid"

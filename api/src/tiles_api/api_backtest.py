@@ -16,17 +16,15 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-import psycopg
 from fastapi import APIRouter, HTTPException, status
 from psycopg import sql
-from psycopg.rows import dict_row
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from tiles_api import backtest
 from tiles_api.api_ontology import Editor
 from tiles_api.backtest import Event, Outcome
 from tiles_api.settings import get_settings
-from tiles_api.store import UNSCOPED, Conn
+from tiles_api.store import Conn, connect_job
 
 router = APIRouter(tags=["detection"])
 
@@ -215,7 +213,7 @@ def main(argv: list[str] | None = None) -> None:
     except (OSError, ValueError) as e:
         parser.error(str(e))
     settings = get_settings()
-    with psycopg.connect(settings.database_url.get_secret_value(), row_factory=dict_row, options=UNSCOPED) as conn:
+    with connect_job(settings) as conn:
         signal = conn.execute(
             "SELECT id FROM signals WHERE site_id = %s AND tag = %s", [args.site, args.signal]
         ).fetchone()
