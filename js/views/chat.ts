@@ -58,7 +58,9 @@ onNavigate((hash) => {
 async function loadRemote(ctx: Context): Promise<void> {
   const site = siteId(ctx);
   if (!ctx.api || !site) return;
-  remote = { site, configured: null, enabled: false, conversations: null };
+  // Checking again on the same site keeps what is shown meanwhile: a re-render (a click) must not
+  // drop the page to the built-in skills until the answer comes.
+  if (remote?.site !== site) remote = { site, configured: null, enabled: false, conversations: null };
   try {
     const { configured, enabled } = await ctx.api.copilot.status(site);
     const conversations = configured && enabled ? await ctx.api.copilot.conversations(site) : [];
