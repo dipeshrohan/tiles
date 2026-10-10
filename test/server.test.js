@@ -69,7 +69,7 @@ test('every answer carries the security headers (threat model G-B1)', async () =
     const csp = res.headers.get('content-security-policy') ?? '';
     assert.match(csp, /script-src 'self'(;|$)/); // no inline scripts, no eval
     assert.match(csp, /frame-ancestors 'none'/);
-    assert.match(csp, /object-src 'none'/);
+    assert.match(csp, /object-src 'self' blob:(;|$)/); // a document's PDF, nothing from elsewhere
     assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(res.headers.get('x-frame-options'), 'DENY');
     assert.equal(res.headers.get('referrer-policy'), 'no-referrer'); // the sign-in code never leaves in a referrer
@@ -77,9 +77,6 @@ test('every answer carries the security headers (threat model G-B1)', async () =
   // The page has no inline script for the policy to block.
   const html = await (await fetch(`${base}/`)).text();
   assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/);
-  // A deployment's API may be plain http (a local cluster): its origin is allowed by name.
-  assert.match(
-    securityHeaders('http://api.plant.internal:8000/v1')['content-security-policy'],
-    /connect-src [^;]* http:\/\/api\.plant\.internal:8000(;|$)/,
-  );
+  // The API may be plain http on a plant's network (a local cluster, or one a user picks).
+  assert.match(securityHeaders()['content-security-policy'], /connect-src 'self' https: http:(;|$)/);
 });

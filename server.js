@@ -17,16 +17,16 @@ const types = {
 // Security headers (threat model G-B1). Scripts come only from this server (the bundle; no inline
 // script), nothing may frame the app, and the sign-in code in a URL is never sent on as a referrer.
 // Styles allow inline `style` attributes, which the views use. The API and the sign-in provider are
-// wherever a deployment puts them: https anywhere, the configured API's origin, or this machine.
-export function securityHeaders(apiUrl = '') {
-  const api = apiUrl ? new URL(apiUrl).origin : '';
+// wherever a deployment or a user (Settings, `?api=`) puts them, plain http on a plant's network
+// included. Documents' PDFs open in the browser's viewer from a blob.
+export function securityHeaders() {
   const csp = [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
-    `connect-src 'self' https: http://localhost:* http://127.0.0.1:*${api ? ` ${api}` : ''}`,
-    "object-src 'none'",
+    "connect-src 'self' https: http:",
+    "object-src 'self' blob:",
     "base-uri 'none'",
     "form-action 'self'",
     "frame-ancestors 'none'",
@@ -56,7 +56,7 @@ export function createTilesServer({ apiUrl = '' } = {}) {
     if (!tag.test(html)) throw new Error('index.html has no <meta name="tiles-api"> tag to put the API address in');
     page = Buffer.from(html.replace(tag, `<meta name="tiles-api" content="${attr(apiUrl)}" />`));
   }
-  const headers = securityHeaders(apiUrl);
+  const headers = securityHeaders();
   return createServer(async (req, res) => {
     let path;
     try {

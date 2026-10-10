@@ -58,30 +58,15 @@ log = logging.getLogger("tiles_api")
 DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
 
 
-class BodyTooLarge(Exception):
-    """A body sent without a Content-Length went past the limit while it was read."""
-
-
-def _caused_by(error: BaseException, kind: type[BaseException]) -> bool:
-    """Whether `error` is `kind`, or was raised from one, or holds one (an ExceptionGroup)."""
-    seen: set[int] = set()
-    todo = [error]
-    while todo:
-        e = todo.pop()
-        if id(e) in seen:
-            continue
-        seen.add(id(e))
-        if isinstance(e, kind):
-            return True
-        if isinstance(e, BaseExceptionGroup):
-            todo.extend(e.exceptions)
-        todo.extend(x for x in (e.__cause__, e.__context__) if x is not None)
-    return False
+def too_large_detail(limit: int) -> str:
+    return f"The request is larger than {limit / (1024 * 1024):g} MB"
 
 
 class BodyLimit:
-    """Refuses a request body larger than `limit` bytes with 413 (threat model G-A1): at once when its
-    Content-Length says so, or as it arrives when it is sent without one."""
+    """Refuses a request body larger than `limit` bytes with 413 (threat model G-A1), before the
+    route reads it: at once when its Content-Length says so; a body sent without one (chunked) is
+    read here first, up to the limit, then handed on. It sits inside the request middleware, so its
+    answers carry the request ID, the security headers and a log line like any other."""
 
     def __init__(self, app: ASGIApp, limit: int) -> None:
         self.app = app
@@ -91,8 +76,8 @@ class BodyLimit:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        length = dict(scope["headers"]).get(b"content-length")
-        too_large = JSONResponse({"detail": f"The request is larger than {self.limit // (1024 * 1024)} MB"}, 413)
+        headers = dict(scope["headers"])
+        length = headers.get(b"content-length")
         if length is not None:
             try:
                 declared = int(length)
@@ -100,30 +85,36 @@ class BodyLimit:
                 await JSONResponse({"detail": "Content-Length must be a number"}, 400)(scope, receive, send)
                 return
             if declared > self.limit:
-                await too_large(scope, receive, send)
+                await JSONResponse({"detail": too_large_detail(self.limit)}, 413)(scope, receive, send)
                 return
-        seen = 0
-        started = False
-
-        async def counted() -> Message:
-            nonlocal seen
+            await self.app(scope, receive, send)
+            return
+        if headers.get(b"transfer-encoding", b"").lower() != b"chunked":
+            await self.app(scope, receive, send)  # no body
+            return
+        parts: list[bytes] = []
+        size = 0
+        while True:
             message = await receive()
-            if message["type"] == "http.request":
-                seen += len(message.get("body", b""))
-                if seen > self.limit:
-                    raise BodyTooLarge
-            return message
+            if message["type"] != "http.request":  # the client went away
+                return
+            parts.append(message.get("body", b""))
+            size += len(parts[-1])
+            if size > self.limit:
+                await JSONResponse({"detail": too_large_detail(self.limit)}, 413)(scope, receive, send)
+                return
+            if not message.get("more_body", False):
+                break
+        replayed = False
 
-        async def sending(message: Message) -> None:
-            nonlocal started
-            started = started or message["type"] == "http.response.start"
-            await send(message)
+        async def replay() -> Message:
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": b"".join(parts), "more_body": False}
+            return await receive()
 
-        try:
-            await self.app(scope, counted, sending)
-        except BodyTooLarge:
-            if not started:
-                await too_large(scope, receive, send)
+        await self.app(scope, replay, send)
 
 
 VERSION = version("tiles-api")
@@ -169,6 +160,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.copilot_model = None  # tests set a stand-in for Claude
     app.state.copilot_client = None
 
+    # The body limit (G-A1) first, so the request middleware below (added after it) wraps it, and its
+    # 413 has a request ID, the security headers and a log line.
+    app.add_middleware(BodyLimit, limit=settings.max_body_bytes)
+
     @app.middleware("http")
     async def request_context(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         request_id = new_request_id(request.headers.get("x-request-id"))
@@ -177,16 +172,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         started = time.perf_counter()
         try:
             response = await call_next(request)
-        except Exception as e:
-            if _caused_by(e, BodyTooLarge):  # read past BodyLimit's limit (G-A1); Starlette wraps it
-                response = JSONResponse(
-                    {"detail": f"The request is larger than {settings.max_body_bytes // (1024 * 1024)} MB"}, 413
-                )
-            else:
-                # Answer here rather than re-raising, so a failed request keeps its
-                # request ID header and completion log like any other.
-                log.exception("request failed", extra={"method": request.method, "path": request.url.path})
-                response = JSONResponse({"detail": "Internal Server Error"}, status_code=500)
+        except Exception:
+            # Answer here rather than re-raising, so a failed request keeps its
+            # request ID header and completion log like any other.
+            log.exception("request failed", extra={"method": request.method, "path": request.url.path})
+            response = JSONResponse({"detail": "Internal Server Error"}, status_code=500)
         finally:
             request_id_var.reset(token)
         response.headers["X-Request-ID"] = request_id
@@ -208,8 +198,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return response
 
-    # The body limit (G-A1) inside CORS, so a browser sees its 413.
-    app.add_middleware(BodyLimit, limit=settings.max_body_bytes)
     # Added after the request-context middleware so it wraps it and also
     # decorates the 500 responses produced there.
     app.add_middleware(

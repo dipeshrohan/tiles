@@ -132,25 +132,39 @@ def test_responses_carry_security_headers(client: TestClient) -> None:
 
 
 def test_request_bodies_are_capped() -> None:
-    app = create_app(Settings(_env_file=None, env="test", max_body_bytes=1024 * 1024))
+    limit = 21 * 1024 * 1024
+    app = create_app(Settings(_env_file=None, env="test", max_body_bytes=limit))
 
     @app.post("/echo")
     async def echo(request: Request) -> dict[str, int]:
         return {"bytes": len(await request.body())}
 
+    @app.post("/json")
+    def json_body(body: dict[str, str]) -> dict[str, int]:
+        return {"keys": len(body)}
+
+    def chunks(total: int) -> Iterator[bytes]:  # sent without a Content-Length (chunked)
+        piece = b"x" * (1024 * 1024)
+        for _ in range(total // len(piece)):
+            yield piece
+
+    JSON = {"Content-Type": "application/json"}
     with TestClient(app) as c:
         assert c.post("/echo", content=b"x" * 1000).json() == {"bytes": 1000}
-        big = c.post("/echo", content=b"x" * (1024 * 1024 + 1))
-        assert (big.status_code, big.json()["detail"]) == (413, "The request is larger than 1 MB")
-
-        def chunks() -> Iterator[bytes]:  # sent without a Content-Length
-            for _ in range(5):
-                yield b"x" * (300 * 1024)
-
-        streamed = c.post("/echo", content=chunks())
-        assert (streamed.status_code, streamed.json()["detail"]) == (413, "The request is larger than 1 MB")
+        assert c.post("/echo", content=chunks(2 * 1024 * 1024)).json() == {"bytes": 2 * 1024 * 1024}
+        assert c.post("/json", content=iter([b'{"a": "b"}']), headers=JSON).json() == {
+            "keys": 1
+        }  # chunked JSON, read whole
+        big = c.post("/echo", content=b"x" * (limit + 1))
+        streamed = c.post("/json", content=chunks(limit + 1024 * 1024), headers=JSON)
+        for res in (big, streamed):
+            assert (res.status_code, res.json()["detail"]) == (413, "The request is larger than 21 MB")
+            # Like any other answer: a request ID and the security headers.
+            assert res.headers["x-request-id"] and res.headers["x-content-type-options"] == "nosniff"
         bad = c.post("/echo", content=b"x", headers={"Content-Length": "lots"})
         assert bad.status_code == 400
+    with pytest.raises(ValueError, match="greater than or equal"):
+        Settings(_env_file=None, max_body_bytes=5 * 1024 * 1024)  # below a document's 20 MB
 
 
 def test_without_a_token_is_the_dev_user_only_where_nothing_else_signs_in() -> None:
@@ -166,3 +180,4 @@ def test_without_a_token_is_the_dev_user_only_where_nothing_else_signs_in() -> N
     with TestClient(create_app(Settings(_env_file=None, env="development", oidc_issuer=issuer))) as c:
         res = c.get("/me", headers={"X-Tiles-User": "eng@example.com"})
         assert (res.status_code, res.json()["detail"]) == (401, "Sign in to use Tiles")
+        assert c.get("/auth/config").json()["dev_identity"] is False  # the browser is told to sign in

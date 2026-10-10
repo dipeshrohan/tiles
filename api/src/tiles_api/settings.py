@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # comma-separated, the first sealing. Required in production. `tiles-rotate-keys --new-key ID`
     # makes one.
     data_keys: SecretStr | None = None
+    # The largest request body the API reads, in bytes (threat model G-A1): at least 21 MB, above the
+    # 20 MB a document upload may be (documents.MAX_BYTES).
+    max_body_bytes: int = Field(default=25 * 1024 * 1024, ge=21 * 1024 * 1024)
     # Models served over HTTP (T4.15, models/remote.py): the hosts an organisation may register a
     # model endpoint on, as a JSON list (e.g. ["models.example.com"]); none, and none can be. The
     # chart's egress allowlist takes them too. Each call may take `model_timeout` seconds.
@@ -74,8 +77,6 @@ class Settings(BaseSettings):
     copilot_max_rounds: int = 8  # model calls per question (each tool round is one)
     # Cost controls (T4.07), in billed tokens: input, cache writes and output count in full, cache
     # reads a tenth (copilot_usage.billed). 0 turns a limit off.
-    # The largest request body the API reads, in bytes (G-A1); a document upload is 20 MB at most.
-    max_body_bytes: int = Field(default=25 * 1024 * 1024, ge=1024 * 1024)
     copilot_question_tokens: int = 200_000  # one question stops calling the model past this
     copilot_org_daily_tokens: int = 5_000_000  # an organisation's questions wait for the next UTC day
     copilot_org_questions_per_minute: int = 30
