@@ -228,8 +228,9 @@ What the browser records, and nothing else:
 Each event also has the time it arrived and a random id the browser makes for each tab, which the
 API keeps only as a hash. There are no names, e-mail addresses, records' ids, tags or anything
 typed: the API refuses an event whose name isn't a plain lower-case word. Events stay in the
-deployment's own database (`ux_events`, under row security per site) for 90 days and are deleted
-after that. Site admins see the counts, per kind and name, with the number of browser sessions, in
+deployment's own database (`ux_events`, a TimescaleDB hypertable under row security per site) and
+the database's retention policy deletes them after 90 days, whether or not new ones arrive. A site
+stores at most 5,000 events an hour, and one browser session 600; beyond that they are let go. Site admins see the counts, per kind and name, with the number of browser sessions, in
 the **UX analytics** card on the Settings page (`GET /sites/{id}/ux-events/summary`).
 
 ### Models served over HTTP

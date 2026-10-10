@@ -47,7 +47,7 @@ class Events(BaseModel):
 
 
 class Stored(BaseModel):
-    stored: int = Field(description="0 when the organisation hasn't turned the analytics on")
+    stored: int = Field(description="0 when the organisation hasn't turned the analytics on, or past the hour's share")
 
 
 class Count(BaseModel):
@@ -64,14 +64,21 @@ class Summary(BaseModel):
     counts: list[Count]
 
 
+# Per kind and name, and (the row whose kind is null) the sessions over all of them: one scan.
 COUNTS = """
 SELECT kind, name, count(*) AS events, count(DISTINCT session) AS sessions
 FROM ux_events WHERE site_id = %s AND at >= now() - make_interval(days => %s)
-GROUP BY kind, name ORDER BY kind, events DESC, name
+GROUP BY GROUPING SETS ((kind, name), ())
+ORDER BY kind NULLS FIRST, events DESC, name
 """
-SESSIONS = (
-    "SELECT count(DISTINCT session) AS n FROM ux_events WHERE site_id = %s AND at >= now() - make_interval(days => %s)"
-)
+# How much one site, and one browser session, may send an hour: enough for anyone's use, and a
+# script can't fill the table or skew the counts much (beyond it, events are let go, quietly).
+SITE_PER_HOUR = 5000
+SESSION_PER_HOUR = 600
+RECENT = """
+SELECT count(*) AS site, count(*) FILTER (WHERE session = %s) AS session
+FROM ux_events WHERE site_id = %s AND at >= now() - interval '1 hour'
+"""
 
 
 def _enabled(conn: Any, org_id: Any) -> bool:
@@ -122,31 +129,33 @@ def site_ux_analytics(ctx: Ctx) -> dict[str, bool]:
 @router.post("/sites/{site_id}/ux-events", response_model=Stored)
 def record_ux_events(body: Events, ctx: Ctx) -> dict[str, int]:
     """Records a batch of UX events from one browser session (any member). Nothing is stored unless
-    the organisation turned the analytics on; events older than 90 days are let go."""
+    the organisation turned the analytics on, nor beyond an hour's share for the site and the
+    session. A retention policy lets events go 90 days on. Not audited: like a person's own
+    copilot conversations, they change nothing on the site, and are about using the app."""
     if not body.events or not _enabled(ctx.conn, ctx.org_id):
         return {"stored": 0}
     session = session_hash(body.session)
-    with ctx.conn.cursor() as cur:
-        cur.executemany(
-            "INSERT INTO ux_events (site_id, kind, name, session) VALUES (%s, %s, %s, %s)",
-            [(ctx.site_id, e.kind, e.name, session) for e in body.events],
-        )
-    ctx.conn.execute(
-        "DELETE FROM ux_events WHERE site_id = %s AND at < now() - make_interval(days => %s)",
-        [ctx.site_id, KEEP_DAYS],
-    )
-    return {"stored": len(body.events)}
+    recent = ctx.conn.execute(RECENT, [session, ctx.site_id]).fetchone() or {"site": 0, "session": 0}
+    room = min(SITE_PER_HOUR - int(recent["site"]), SESSION_PER_HOUR - int(recent["session"]))
+    events = body.events[: max(room, 0)]
+    if events:
+        with ctx.conn.cursor() as cur:
+            cur.executemany(
+                "INSERT INTO ux_events (site_id, kind, name, session) VALUES (%s, %s, %s, %s)",
+                [(ctx.site_id, e.kind, e.name, session) for e in events],
+            )
+    return {"stored": len(events)}
 
 
 @router.get("/sites/{site_id}/ux-events/summary", response_model=Summary)
 def ux_summary(ctx: Admin, days: int = Query(30, ge=1, le=KEEP_DAYS)) -> dict[str, Any]:
     """How often each page, task, palette use, help topic and error came up on this site over the
     last `days` days, and in how many browser sessions (admins). Counts only."""
-    counts = ctx.conn.execute(COUNTS, [ctx.site_id, days]).fetchall()
-    total = ctx.conn.execute(SESSIONS, [ctx.site_id, days]).fetchone()
+    rows = ctx.conn.execute(COUNTS, [ctx.site_id, days]).fetchall()
+    total = next((r for r in rows if r["kind"] is None), None)
     return {
         "enabled": _enabled(ctx.conn, ctx.org_id),
         "days": days,
-        "sessions": int(total["n"]) if total else 0,
-        "counts": counts,
+        "sessions": int(total["sessions"]) if total else 0,
+        "counts": [r for r in rows if r["kind"] is not None],
     }

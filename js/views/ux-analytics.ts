@@ -91,9 +91,10 @@ export async function bindUx(root: HTMLElement, ctx: Context): Promise<void> {
       .then(
         (r) => {
           box.checked = r.enabled;
+          document.dispatchEvent(new CustomEvent('tiles:ux-setting', { detail: { enabled: r.enabled } }));
           ctx.toast(r.enabled ? 'UX analytics on' : 'UX analytics off', {
             type: 'success',
-            description: 'Pages opened from now on follow it.',
+            description: 'Other open tabs follow it when they are next loaded.',
           });
           void showCounts();
         },

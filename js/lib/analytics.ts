@@ -36,7 +36,10 @@ export interface Tracker {
   track(kind: UxKind, name: string): void;
   flush(): Promise<void>;
   setEnabled(enabled: boolean): void;
+  readonly enabled: boolean;
   readonly waiting: number;
+  // What still waits, taken out (the page is being left: it is kept for the next load to send).
+  drain(): UxEvent[];
 }
 
 export function createTracker(o: {
@@ -46,16 +49,18 @@ export function createTracker(o: {
   let enabled = false;
   let queue: UxEvent[] = [];
   let sending = false;
+  let generation = 0; // a batch that fails comes back only if it was taken from this same queue
 
   const flush = async (): Promise<void> => {
     if (!enabled || sending || !queue.length) return;
-    const batch = queue.slice(0, BATCH);
+    const batch = queue.splice(0, BATCH); // out of the queue while it is on its way
+    const from = generation;
     sending = true;
     try {
       await o.send(batch);
-      queue = queue.slice(batch.length);
     } catch {
-      // kept for the next try (the oldest let go past MAX_WAITING)
+      // Back at the front for the next try (the oldest let go past MAX_WAITING).
+      if (from === generation) queue = [...batch, ...queue].slice(-MAX_WAITING);
     } finally {
       sending = false;
     }
@@ -72,12 +77,62 @@ export function createTracker(o: {
     flush,
     setEnabled(on) {
       enabled = on;
-      if (!on) queue = [];
+      if (!on) {
+        queue = [];
+        generation++;
+      }
+    },
+    get enabled() {
+      return enabled;
     },
     get waiting() {
       return queue.length;
     },
+    drain() {
+      const out = queue;
+      queue = [];
+      generation++;
+      return out;
+    },
   };
+}
+
+// Events a page left unsent, kept (with their session, site and API) for the next load to send.
+export const LEFT_KEY = 'tiles.uxLeft';
+export interface LeftEvents {
+  api: string;
+  site: string;
+  session: string;
+  events: UxEvent[];
+}
+
+export function keepLeft(storage: Pick<Storage, 'setItem'>, left: LeftEvents): void {
+  if (!left.events.length) return;
+  try {
+    storage.setItem(LEFT_KEY, JSON.stringify(left));
+  } catch {
+    // no storage: they are let go
+  }
+}
+
+// The events left by an earlier load for this API and site (taken out of storage), checked again.
+export function takeLeft(
+  storage: Pick<Storage, 'getItem' | 'removeItem'>,
+  api: string,
+  site: string,
+): LeftEvents | null {
+  try {
+    const raw = storage.getItem(LEFT_KEY);
+    storage.removeItem(LEFT_KEY);
+    const left = raw ? (JSON.parse(raw) as Partial<LeftEvents>) : null;
+    if (!left || left.api !== api || left.site !== site || typeof left.session !== 'string') return null;
+    const events = (Array.isArray(left.events) ? left.events : []).filter(
+      (e): e is UxEvent => KINDS.has(e?.kind) && typeof e?.name === 'string' && UX_NAME.test(e.name),
+    );
+    return events.length ? { api, site, session: left.session, events: events.slice(0, 100) } : null;
+  } catch {
+    return null;
+  }
 }
 
 // A random session id for this page load (not stored; the API keeps only its hash).

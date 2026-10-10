@@ -1,7 +1,7 @@
 """UX analytics, privacy first (U1.09): an organisation opts in (off by default), then its sites
 record what people do in the browser as events: a page viewed, a task done, the command palette
 used, help opened, an error shown. An event is a kind, a name from a fixed vocabulary, a time and a
-hashed session; never a user, a record's id or free text. Kept 90 days.
+hashed session; never a user, a record's id or free text. Kept 90 days (a retention policy).
 
 Revision ID: 0033
 Revises: 0032
@@ -23,15 +23,18 @@ SITE_TABLES = ("ux_events",)
 UPGRADE = """
 ALTER TABLE orgs ADD COLUMN ux_analytics boolean NOT NULL DEFAULT false;
 
+-- A hypertable, so TimescaleDB's own job lets go of each week of events 90 days on, whether or
+-- not anything new arrives (never compressed: row security stays on it, as on any table).
 CREATE TABLE ux_events (
-    id      bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     site_id uuid NOT NULL REFERENCES sites (id) ON DELETE CASCADE,
     at      timestamptz NOT NULL DEFAULT now(),
     kind    text NOT NULL CHECK (kind IN ('page', 'task', 'palette', 'help', 'error')),
     name    text NOT NULL CHECK (name ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
     session text NOT NULL CHECK (session ~ '^[0-9a-f]{16}$')
 );
+SELECT create_hypertable('ux_events', by_range('at', INTERVAL '7 days'));
 CREATE INDEX ux_events_site_at ON ux_events (site_id, at);
+SELECT add_retention_policy('ux_events', drop_after => INTERVAL '90 days');
 """
 
 DOWNGRADE = """

@@ -2611,14 +2611,17 @@
 		let enabled = false;
 		let queue = [];
 		let sending = false;
+		let generation = 0;
 		const flush = async () => {
 			if (!enabled || sending || !queue.length) return;
-			const batch = queue.slice(0, BATCH$1);
+			const batch = queue.splice(0, BATCH$1);
+			const from = generation;
 			sending = true;
 			try {
 				await o.send(batch);
-				queue = queue.slice(batch.length);
-			} catch {} finally {
+			} catch {
+				if (from === generation) queue = [...batch, ...queue].slice(-500);
+			} finally {
 				sending = false;
 			}
 		};
@@ -2636,12 +2639,48 @@
 			flush,
 			setEnabled(on) {
 				enabled = on;
-				if (!on) queue = [];
+				if (!on) {
+					queue = [];
+					generation++;
+				}
+			},
+			get enabled() {
+				return enabled;
 			},
 			get waiting() {
 				return queue.length;
+			},
+			drain() {
+				const out = queue;
+				queue = [];
+				generation++;
+				return out;
 			}
 		};
+	}
+	var LEFT_KEY = "tiles.uxLeft";
+	function keepLeft(storage, left) {
+		if (!left.events.length) return;
+		try {
+			storage.setItem(LEFT_KEY, JSON.stringify(left));
+		} catch {}
+	}
+	function takeLeft(storage, api, site) {
+		try {
+			const raw = storage.getItem(LEFT_KEY);
+			storage.removeItem(LEFT_KEY);
+			const left = raw ? JSON.parse(raw) : null;
+			if (!left || left.api !== api || left.site !== site || typeof left.session !== "string") return null;
+			const events = (Array.isArray(left.events) ? left.events : []).filter((e) => KINDS.has(e?.kind) && typeof e?.name === "string" && UX_NAME.test(e.name));
+			return events.length ? {
+				api,
+				site,
+				session: left.session,
+				events: events.slice(0, 100)
+			} : null;
+		} catch {
+			return null;
+		}
 	}
 	function newSession() {
 		const bytes = /* @__PURE__ */ new Uint8Array(16);
@@ -6185,9 +6224,10 @@
 			box.disabled = true;
 			api.org.setUxAnalytics(wanted).then((r) => {
 				box.checked = r.enabled;
+				document.dispatchEvent(new CustomEvent("tiles:ux-setting", { detail: { enabled: r.enabled } }));
 				ctx.toast(r.enabled ? "UX analytics on" : "UX analytics off", {
 					type: "success",
-					description: "Pages opened from now on follow it."
+					description: "Other open tabs follow it when they are next loaded."
 				});
 				showCounts();
 			}, () => box.checked = !wanted).finally(() => box.disabled = false);
@@ -13438,7 +13478,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			getToken: () => accessToken(baseUrl),
 			onError: (e) => {
 				if (e.status === 0 && e.message !== "You're offline: nothing was changed. Try again when the connection is back" && e.message !== "The answer was cut off: the connection to the Tiles API dropped") showOffline("unreachable");
-				ux("error", e.message === "You're offline: nothing was changed. Try again when the connection is back" ? "offline" : `api.${e.status || "unreachable"}`);
+				ux("error", e.message === "You're offline: nothing was changed. Try again when the connection is back" ? "offline" : e.message === "The answer was cut off: the connection to the Tiles API dropped" ? "api.stream-cut" : `api.${e.status || "unreachable"}`);
 				if (e.status === 422 && showApiErrors(e.fields)) return;
 				const d = describeApiError(e);
 				const action = d.action === "back" && history.length > 1 ? {
@@ -13736,15 +13776,34 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const { kind, name } = e.detail;
 		tracker.track(kind, name);
 	});
+	document.addEventListener("tiles:ux-setting", (e) => {
+		if (!uxSite) return;
+		tracker.setEnabled(e.detail.enabled);
+	});
 	async function startUx(client, site) {
+		if (uxSite === site) return;
 		uxSite = site;
 		tracker.setEnabled(false);
 		const on = await client.ux.enabled(site).then((r) => r.enabled, () => false);
 		if (uxSite !== site) return;
 		tracker.setEnabled(on);
-		if (on) tracker.track("page", currentView().id);
+		if (!on) return;
+		tracker.track("page", currentView().id);
+		const left = takeLeft(localStorage, client.baseUrl, site);
+		if (left) await client.ux.send(site, left.session, left.events).catch(() => void 0);
 	}
-	window.addEventListener("pagehide", () => void tracker.flush());
+	window.addEventListener("pagehide", () => {
+		if (api && uxSite && tracker.enabled) keepLeft(localStorage, {
+			api: api.baseUrl,
+			site: uxSite,
+			session: uxSession,
+			events: tracker.drain()
+		});
+	});
+	window.addEventListener("pageshow", (e) => {
+		if (!e.persisted || !api || !uxSite) return;
+		for (const ev of takeLeft(localStorage, api.baseUrl, uxSite)?.events ?? []) tracker.track(ev.kind, ev.name);
+	});
 	window.addEventListener("pagehide", () => saveWaiting(localStorage));
 	window.addEventListener("pageshow", (e) => {
 		if (e.persisted) keepWaiting(localStorage);

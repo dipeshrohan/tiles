@@ -89,7 +89,7 @@ def test_events_are_counted_for_admins_and_keep_no_one_s_identity(
                 )
             ]
             sessions = {r[0] for r in conn.execute("SELECT session FROM ux_events WHERE site_id = %s", [site])}
-        assert columns == ["at", "id", "kind", "name", "session", "site_id"]
+        assert columns == ["at", "kind", "name", "session", "site_id"]
         assert sessions == {session_hash(SESSION)} and SESSION not in sessions
 
         # Admins read counts; others don't.
@@ -104,15 +104,26 @@ def test_events_are_counted_for_admins_and_keep_no_one_s_identity(
         }
         assert api.get(f"/sites/{site}/ux-events/summary?days=91", headers=ADMIN).status_code == 422
 
-        # Events older than 90 days are let go when new ones arrive.
+        # Events older than the period aren't counted; the database lets them go 90 days on.
         with psycopg.connect(database_url) as conn:
             conn.execute("SELECT set_config('tiles.site_id', '*', false)")
             conn.execute(
-                "UPDATE ux_events SET at = now() - interval '91 days' WHERE site_id = %s AND kind = 'error'", [site]
+                "INSERT INTO ux_events (site_id, at, kind, name, session)"
+                " VALUES (%s, now() - interval '91 days', 'error', 'api.500', %s)",
+                [site, session_hash(SESSION)],
             )
-        send(api, site, [{"kind": "help", "name": "warnings"}])
+            policy = conn.execute(
+                "SELECT config->>'drop_after' FROM timescaledb_information.jobs"
+                " WHERE hypertable_name = 'ux_events' AND proc_name = 'policy_retention'"
+            ).fetchone()
+        assert policy is not None and policy[0] == "90 days"
         names = {c["name"] for c in api.get(f"/sites/{site}/ux-events/summary?days=90", headers=ADMIN).json()["counts"]}
-        assert names == {"warnings", "warning.acknowledged"}
+        assert names == {"warnings", "warning.acknowledged", "api.403"}
+
+        # One browser session sends at most an hour's share; beyond it, events are let go.
+        many = [{"kind": "page", "name": "home"}] * 100
+        stored = [send(api, site, many).json()["stored"] for _ in range(7)]
+        assert stored == [100, 100, 100, 100, 100, 95, 0]  # 600 an hour, five were sent above
     finally:
         turn(api, False)
         make_org_admin(database_url, "admin@example.com", False)

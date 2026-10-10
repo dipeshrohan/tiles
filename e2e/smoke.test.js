@@ -996,12 +996,10 @@ test('UX analytics: off until an organisation admin turns it on; then counts, an
   await a.page.waitForSelector('[data-warning-list]');
   assert.equal(sent(), 0);
 
-  // On (organisation admins), from the next load.
+  // On (organisation admins), at once in this tab.
   await a.page.evaluate(() => (location.hash = '#/settings'));
   await a.page.check('[data-ux-enabled]');
   await a.page.waitForSelector('#toast:has-text("UX analytics on")');
-  await a.page.reload();
-  await a.page.waitForSelector('#ux-analytics');
   await a.page.evaluate(() => (location.hash = '#/warnings'));
   await a.page.click(`[data-warning="${out}"]`);
   await a.page.click('[data-act=acknowledge]');
@@ -1011,11 +1009,14 @@ test('UX analytics: off until an organisation admin turns it on; then counts, an
   await palette.locator('input').fill('press');
   await palette.locator('.palette-item:has-text("press1.temperature")').click();
   await a.page.waitForSelector('#view h1:has-text("Data explorer")');
-  await waitFor(() => fake.uxEvents.some((e) => e.kind === 'palette'), 15000); // sent every 10 s
+  // Left before its batch is sent (every 10 s), the next load sends it.
+  assert.equal(fake.uxEvents.length, 0);
+  await a.page.reload();
+  await waitFor(() => fake.uxEvents.some((e) => e.kind === 'palette'));
 
   const kept = new Set(fake.uxEvents.map((e) => `${e.kind}:${e.name}`));
   for (const want of [
-    'page:settings',
+    'page:explorer',
     'page:warnings',
     'task:warning.acknowledge',
     'palette:open',
@@ -1025,12 +1026,13 @@ test('UX analytics: off until an organisation admin turns it on; then counts, an
   // Nothing about who, or which record: no e-mail, no warning or signal id, no tag.
   const all = JSON.stringify(fake.uxEvents);
   for (const secret of ['demo@example.com', out, 'press1.temperature']) assert.ok(!all.includes(secret), secret);
-  assert.equal(new Set(fake.uxEvents.map((e) => e.session)).size, 1);
+  assert.equal(new Set(fake.uxEvents.map((e) => e.session)).size, 1); // the first load's; the second's wait to be sent
 
   // Admins see the counts.
   await a.page.evaluate(() => (location.hash = '#/settings'));
   await a.page.waitForSelector('#ux-analytics [data-ux-sessions]');
   assert.match(await a.page.locator('#ux-analytics table').innerText(), /Task done\s+warning\.acknowledge\s+1\s+1/);
+  assert.match(await a.page.locator('[data-ux-sessions]').innerText(), /^1 browser session\(s\)/);
   assert.deepEqual(a.errors, []);
 
   // Engineers don't see the card.

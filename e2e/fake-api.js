@@ -570,7 +570,7 @@ export function createFakeApi({
       // UX analytics (U1.09): organisation admins (here: admins of the site) turn it on.
       if (url.pathname === '/org/ux-analytics') {
         if ((roles[user] ?? 'engineer') !== 'admin')
-          return send(403, { detail: 'Creating a site needs an organisation admin' });
+          return send(403, { detail: 'Only organisation admins manage UX analytics' });
         if (req.method === 'PUT') uxEnabled = (await body(req)).enabled === true;
         return send(200, { enabled: uxEnabled });
       }
