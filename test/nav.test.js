@@ -53,6 +53,16 @@ test('the menu marks the page shown once, folds groups, and says its counts', ()
   // Recent: not the page shown, nor a pinned one.
   assert.match(html, /data-key="nav-recent-warnings"/);
   assert.doesNotMatch(html, /data-key="nav-recent-signals"/);
+  // Nor the page the one shown belongs to (the style guide's Settings): marked in the menu already.
+  const under = navHtml({
+    groups,
+    active: 'styleguide',
+    under: 'warnings',
+    prefs: { ...DEFAULT_PREFS, recent: ['warnings'] },
+    badges: {},
+  });
+  assert.doesNotMatch(under, /data-key="nav-recent-warnings"/);
+  assert.match(under, /class="nav-link active" href="#\/warnings"/);
   // A folded group: its heading says so, its list is hidden.
   assert.match(html, /data-nav-fold="ops" aria-expanded="false" aria-controls="nav-list-ops"/);
   assert.match(html, /id="nav-list-ops" hidden/);

@@ -639,7 +639,8 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/sweeps`) &&
         !url.pathname.startsWith(`/sites/${site.id}/runs/`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`) &&
-        !url.pathname.startsWith(`/sites/${site.id}/ux-`)
+        !url.pathname.startsWith(`/sites/${site.id}/ux-`) &&
+        url.pathname !== `/sites/${site.id}/menu-counts`
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
@@ -1093,6 +1094,18 @@ export function createFakeApi({
           return send(204);
         }
         return send(405, { detail: 'Method not allowed' });
+      }
+      // The menu's counts (U3.06): open warnings, and reviews an engineer may approve.
+      if (url.pathname === `/sites/${site.id}/menu-counts`) {
+        const editor = role === 'engineer' || role === 'admin';
+        return send(200, {
+          open_warnings: warnings.filter((w) => !w.resolved_at).length,
+          reviews_waiting: editor
+            ? reviews.filter(
+                (r) => r.status === 'open' && r.author_id !== user && (!r.reviewer_id || r.reviewer_id === user),
+              ).length
+            : 0,
+        });
       }
       // UX analytics (U1.09): stored only when on; counts for admins.
       if (url.pathname === `/sites/${site.id}/ux-analytics`) return send(200, { enabled: uxEnabled });

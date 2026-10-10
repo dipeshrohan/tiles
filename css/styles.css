@@ -504,6 +504,9 @@ button.nav-group .icon {
   flex-direction: column;
   gap: var(--space-0_5);
 }
+.nav-section.apart {
+  margin-top: var(--space-5);
+}
 .nav-row {
   position: relative;
   display: flex;

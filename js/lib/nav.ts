@@ -52,11 +52,12 @@ export function visited(prefs: NavPrefs, id: string): NavPrefs {
   return { ...prefs, recent: [id, ...prefs.recent.filter((r) => r !== id)].slice(0, RECENT) };
 }
 
+// Pins or unpins a page. With MAX_PINNED pinned already, another isn't pinned: the same prefs come
+// back (the caller says why), rather than an older pin silently going.
 export function togglePin(prefs: NavPrefs, id: string): NavPrefs {
-  const pinned = prefs.pinned.includes(id)
-    ? prefs.pinned.filter((p) => p !== id)
-    : [...prefs.pinned, id].slice(-MAX_PINNED);
-  return { ...prefs, pinned };
+  if (prefs.pinned.includes(id)) return { ...prefs, pinned: prefs.pinned.filter((p) => p !== id) };
+  if (prefs.pinned.length >= MAX_PINNED) return prefs;
+  return { ...prefs, pinned: [...prefs.pinned, id] };
 }
 
 export function toggleFold(prefs: NavPrefs, group: string): NavPrefs {
@@ -96,8 +97,9 @@ export interface NavDraw {
 }
 
 // A section of the menu: its heading folds it (a named group), or just names it.
-function section(id: string, title: string, rows: string, foldable: boolean, folded: boolean): string {
-  if (!title) return `<div class="nav-section">${rows}</div>`;
+function section(id: string, title: string, rows: string, foldable: boolean, folded: boolean, apart = false): string {
+  // An unnamed group after others stands apart (Settings, below the named groups).
+  if (!title) return `<div class="nav-section${apart ? ' apart' : ''}">${rows}</div>`;
   const list = `nav-list-${esc(id)}`;
   const head = foldable
     ? `<button class="nav-group" type="button" data-nav-fold="${esc(id)}" aria-expanded="${!folded}" aria-controls="${list}"><span class="nav-label">${esc(title)}</span>${icon('chevron-down', { size: 14 })}</button>`
@@ -110,7 +112,7 @@ export function navHtml(o: NavDraw): string {
   const page = (id: string) => all.find((p) => p.id === id);
   const pinned = o.prefs.pinned.flatMap((id) => page(id) ?? []);
   const recent = o.prefs.recent
-    .filter((id) => id !== o.active && !o.prefs.pinned.includes(id))
+    .filter((id) => id !== o.active && id !== o.under && !o.prefs.pinned.includes(id))
     .flatMap((id) => page(id) ?? []);
   const folded = (id: string) => o.prefs.folded.includes(id);
   const rail = `<button class="nav-rail-toggle" type="button" data-nav-rail aria-pressed="${o.prefs.rail}" aria-label="${o.prefs.rail ? 'Show the menu’s names' : 'Show the menu as icons'}" data-tooltip="${o.prefs.rail ? 'Show names' : 'Icons only'}">${icon(o.prefs.rail ? 'panel-left-open' : 'panel-left-close', { size: 16 })}</button>`;
@@ -122,8 +124,8 @@ export function navHtml(o: NavDraw): string {
     recent.length
       ? section('recent', 'Recent', recent.map((p) => row(p, o, 'recent')).join(''), true, folded('recent'))
       : '',
-    ...o.groups.map((g) =>
-      section(g.id, g.title, g.pages.map((p) => row(p, o, 'menu')).join(''), Boolean(g.title), folded(g.id)),
+    ...o.groups.map((g, i) =>
+      section(g.id, g.title, g.pages.map((p) => row(p, o, 'menu')).join(''), Boolean(g.title), folded(g.id), i > 0),
     ),
   ].join('');
 }

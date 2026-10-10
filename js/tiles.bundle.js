@@ -1205,10 +1205,7 @@
 				uxAnalytics: () => request("GET", "/org/ux-analytics"),
 				setUxAnalytics: (enabled) => request("PUT", "/org/ux-analytics", { enabled })
 			},
-			menu: {
-				openWarnings: (siteId) => request("GET", `${warning(siteId)}?status=unresolved&limit=100`, void 0, { silent: true }),
-				openReviews: (siteId) => request("GET", `${site(siteId)}/reviews?state=open&limit=100`, void 0, { silent: true })
-			},
+			menu: { counts: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/menu-counts`, void 0, { silent: true }) },
 			ux: {
 				enabled: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/ux-analytics`, void 0, { silent: true }),
 				send: (siteId, session, events) => request("POST", `/sites/${encodeURIComponent(siteId)}/ux-events`, {
@@ -2078,10 +2075,14 @@
 		};
 	}
 	function togglePin(prefs, id) {
-		const pinned = prefs.pinned.includes(id) ? prefs.pinned.filter((p) => p !== id) : [...prefs.pinned, id].slice(-8);
+		if (prefs.pinned.includes(id)) return {
+			...prefs,
+			pinned: prefs.pinned.filter((p) => p !== id)
+		};
+		if (prefs.pinned.length >= 8) return prefs;
 		return {
 			...prefs,
-			pinned
+			pinned: [...prefs.pinned, id]
 		};
 	}
 	function toggleFold(prefs, group) {
@@ -2106,8 +2107,8 @@
 		const pin = where === "recent" ? "" : `<button class="nav-pin" type="button" data-nav-pin="${esc(p.id)}" aria-pressed="${pinned}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(p.title)}">${icon(pinned ? "pin-off" : "pin", { size: 14 })}</button>`;
 		return `<div class="nav-row" data-key="nav-${where}-${esc(p.id)}"><a class="nav-link${marked ? " active" : ""}" href="${href(p.id)}"${aria}${tip}><span class="ico">${icon(p.icon)}</span><span class="nav-label">${esc(p.title)}</span>${badgeHtml(o.badges[p.id])}</a>${pin}</div>`;
 	}
-	function section(id, title, rows, foldable, folded) {
-		if (!title) return `<div class="nav-section">${rows}</div>`;
+	function section(id, title, rows, foldable, folded, apart = false) {
+		if (!title) return `<div class="nav-section${apart ? " apart" : ""}">${rows}</div>`;
 		const list = `nav-list-${esc(id)}`;
 		const head = foldable ? `<button class="nav-group" type="button" data-nav-fold="${esc(id)}" aria-expanded="${!folded}" aria-controls="${list}"><span class="nav-label">${esc(title)}</span>${icon("chevron-down", { size: 14 })}</button>` : `<div class="nav-group"><span class="nav-label">${esc(title)}</span></div>`;
 		return `<div class="nav-section${folded ? " folded" : ""}">${head}<div class="nav-list" id="${list}"${folded ? " hidden" : ""}>${rows}</div></div>`;
@@ -2116,13 +2117,13 @@
 		const all = o.groups.flatMap((g) => g.pages);
 		const page = (id) => all.find((p) => p.id === id);
 		const pinned = o.prefs.pinned.flatMap((id) => page(id) ?? []);
-		const recent = o.prefs.recent.filter((id) => id !== o.active && !o.prefs.pinned.includes(id)).flatMap((id) => page(id) ?? []);
+		const recent = o.prefs.recent.filter((id) => id !== o.active && id !== o.under && !o.prefs.pinned.includes(id)).flatMap((id) => page(id) ?? []);
 		const folded = (id) => o.prefs.folded.includes(id);
 		return [
 			`<button class="nav-rail-toggle" type="button" data-nav-rail aria-pressed="${o.prefs.rail}" aria-label="${o.prefs.rail ? "Show the menu’s names" : "Show the menu as icons"}" data-tooltip="${o.prefs.rail ? "Show names" : "Icons only"}">${icon(o.prefs.rail ? "panel-left-open" : "panel-left-close", { size: 16 })}</button>`,
 			pinned.length ? section("pinned", "Pinned", pinned.map((p) => row(p, o, "pinned")).join(""), true, folded("pinned")) : "",
 			recent.length ? section("recent", "Recent", recent.map((p) => row(p, o, "recent")).join(""), true, folded("recent")) : "",
-			...o.groups.map((g) => section(g.id, g.title, g.pages.map((p) => row(p, o, "menu")).join(""), Boolean(g.title), folded(g.id)))
+			...o.groups.map((g, i) => section(g.id, g.title, g.pages.map((p) => row(p, o, "menu")).join(""), Boolean(g.title), folded(g.id), i > 0))
 		].join("");
 	}
 	//#endregion
@@ -14471,17 +14472,26 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var NAV_PAGES = NAV_GROUPS.flatMap((g) => g.pages.map((p) => p.id));
 	var navFor = "";
 	var navPrefs = DEFAULT_PREFS;
+	function navOwner() {
+		if (!api) return `nav:local:${state.user.email}`;
+		return ctx.ontology.userId ? `nav:${ctx.ontology.userId}` : null;
+	}
 	function prefs() {
-		const who = `nav:${ctx.ontology.userId ?? state.user.email}`;
-		if (who !== navFor) {
+		const who = navOwner();
+		if (who && who !== navFor) {
+			const waiting = navFor ? null : navPrefs;
 			navFor = who;
 			navPrefs = cleanPrefs(load$4(who, null), NAV_PAGES);
+			if (waiting) {
+				for (const id of [...waiting.recent].reverse()) navPrefs = visited(navPrefs, id);
+				save$1(who, navPrefs);
+			}
 		}
 		return navPrefs;
 	}
 	function setPrefs(next) {
 		navPrefs = next;
-		save$1(navFor, next);
+		if (navFor) save$1(navFor, next);
 		document.body.classList.toggle("nav-rail", next.rail);
 	}
 	var counts = null;
@@ -14491,19 +14501,23 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (!api || !site || ctx.ontology.status !== "ready" || counting) return;
 		if (counts?.site === site.id && Date.now() - counts.at < 6e4) return;
 		counting = true;
-		const me = ctx.ontology.userId;
-		Promise.allSettled([api.menu.openWarnings(site.id), api.menu.openReviews(site.id)]).then(([w, r]) => {
+		api.menu.counts(site.id).then((c) => {
 			counting = false;
-			const was = counts?.site === site.id ? counts : null;
 			counts = {
 				site: site.id,
-				warnings: w.status === "fulfilled" ? w.value.length : was?.warnings ?? 0,
-				reviews: r.status === "fulfilled" ? r.value.filter((x) => x.author_id !== me && (x.reviewer_id === null || x.reviewer_id === me)).length : was?.reviews ?? 0,
+				warnings: c.open_warnings,
+				reviews: c.reviews_waiting,
 				at: Date.now()
 			};
 			renderNav(currentView());
+		}, () => {
+			counting = false;
 		});
 	}
+	document.addEventListener("tiles:ux", (e) => {
+		const { kind, name } = e.detail;
+		if (kind === "task" && /^(warning|review|ontology)\./.test(name) && counts) counts.at = 0;
+	});
 	function badges() {
 		const out = {};
 		const open = state.detection.alerts.length;
@@ -14805,9 +14819,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		else openMenu();
 	});
 	need(document, "#scrim").addEventListener("click", () => closeMenu());
+	var phoneLayout = matchMedia("(max-width: 820px)");
+	phoneLayout.addEventListener("change", () => {
+		if (!phoneLayout.matches) closeMenu();
+	});
 	document.addEventListener("keydown", (e) => {
 		const sidebar = need(document, "#sidebar");
-		if (e.key !== "Tab" || !sidebar.classList.contains("open")) return;
+		if (e.key !== "Tab" || !sidebar.classList.contains("open") || !phoneLayout.matches) return;
 		const stops = [...sidebar.querySelectorAll("a[href], button:not([disabled])")].filter((el) => el.offsetParent !== null);
 		const first = stops[0];
 		const last = stops.at(-1);
@@ -14847,8 +14865,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const fold = el?.closest("[data-nav-fold]");
 		const pin = el?.closest("[data-nav-pin]");
 		if (fold) setPrefs(toggleFold(prefs(), fold.dataset.navFold ?? ""));
-		else if (pin) setPrefs(togglePin(prefs(), pin.dataset.navPin ?? ""));
-		else if (el?.closest("[data-nav-rail]")) setPrefs({
+		else if (pin) {
+			const next = togglePin(prefs(), pin.dataset.navPin ?? "");
+			if (next === prefs()) toast(`Unpin a page first: up to 8 can be pinned`);
+			else setPrefs(next);
+		} else if (el?.closest("[data-nav-rail]")) setPrefs({
 			...prefs(),
 			rail: !prefs().rail
 		});
@@ -14858,7 +14879,6 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	document.addEventListener("keydown", (e) => {
 		if (e.key !== "Escape" || !need(document, "#sidebar").classList.contains("open")) return;
 		closeMenu();
-		need(document, "#menu").focus();
 	});
 	var drawnWidth = 0;
 	var resizeTimer;
@@ -14875,7 +14895,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		need(document, "#sidebar").classList.add("open");
 		need(document, "#menu").setAttribute("aria-expanded", "true");
 		need(document, "#scrim").hidden = false;
-		(document.querySelector("#nav [aria-current=\"page\"]") ?? document.querySelector("#sidebar a[href]"))?.focus({ preventScroll: true });
+		const shown = (el) => el && el.offsetParent !== null ? el : null;
+		(shown(document.querySelector("#nav [aria-current=\"page\"]")) ?? [...document.querySelectorAll("#sidebar a[href]")].find((el) => el.offsetParent !== null))?.focus({ preventScroll: true });
 	}
 	function closeMenu() {
 		const sidebar = need(document, "#sidebar");

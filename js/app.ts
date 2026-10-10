@@ -38,6 +38,7 @@ import { morph, noteSent, replace } from './lib/morph.ts';
 import {
   cleanPrefs,
   DEFAULT_PREFS,
+  MAX_PINNED,
   navHtml,
   toggleFold,
   togglePin,
@@ -545,21 +546,33 @@ const NAV_GROUPS: NavGroup[] = NAV.map((g, i) => ({
 const NAV_PAGES = NAV_GROUPS.flatMap((g) => g.pages.map((p) => p.id));
 let navFor = '';
 let navPrefs: NavPrefs = DEFAULT_PREFS;
+// Whose choices: in API mode the signed-in person (once known: until then, what is chosen waits in
+// memory and joins theirs), otherwise this browser's profile.
+function navOwner(): string | null {
+  if (!api) return `nav:local:${state.user.email}`;
+  return ctx.ontology.userId ? `nav:${ctx.ontology.userId}` : null;
+}
 function prefs(): NavPrefs {
-  const who = `nav:${ctx.ontology.userId ?? state.user.email}`;
-  if (who !== navFor) {
+  const who = navOwner();
+  if (who && who !== navFor) {
+    const waiting = navFor ? null : navPrefs; // chosen before the person was known
     navFor = who;
     navPrefs = cleanPrefs(load<unknown>(who, null), NAV_PAGES);
+    if (waiting) {
+      for (const id of [...waiting.recent].reverse()) navPrefs = visited(navPrefs, id);
+      save(who, navPrefs);
+    }
   }
   return navPrefs;
 }
 function setPrefs(next: NavPrefs): void {
   navPrefs = next;
-  save(navFor, next);
+  if (navFor) save(navFor, next);
   document.body.classList.toggle('nav-rail', next.rail);
 }
 
-// Open warnings and reviews waiting for me (API mode), read at most once a minute.
+// Open warnings and reviews waiting for me (API mode): read at most once a minute, and again after
+// anyone here acts on a warning or a review.
 let counts: { site: string; warnings: number; reviews: number; at: number } | null = null;
 let counting = false;
 function refreshCounts(): void {
@@ -567,22 +580,21 @@ function refreshCounts(): void {
   if (!api || !site || ctx.ontology.status !== 'ready' || counting) return;
   if (counts?.site === site.id && Date.now() - counts.at < 60_000) return;
   counting = true;
-  const me = ctx.ontology.userId;
-  void Promise.allSettled([api.menu.openWarnings(site.id), api.menu.openReviews(site.id)]).then(([w, r]) => {
-    counting = false;
-    const was = counts?.site === site.id ? counts : null;
-    counts = {
-      site: site.id,
-      warnings: w.status === 'fulfilled' ? w.value.length : (was?.warnings ?? 0),
-      reviews:
-        r.status === 'fulfilled'
-          ? r.value.filter((x) => x.author_id !== me && (x.reviewer_id === null || x.reviewer_id === me)).length
-          : (was?.reviews ?? 0),
-      at: Date.now(),
-    };
-    renderNav(currentView());
-  });
+  api.menu.counts(site.id).then(
+    (c) => {
+      counting = false;
+      counts = { site: site.id, warnings: c.open_warnings, reviews: c.reviews_waiting, at: Date.now() };
+      renderNav(currentView());
+    },
+    () => {
+      counting = false; // kept as they were; tried again with the next page
+    },
+  );
 }
+document.addEventListener('tiles:ux', (e) => {
+  const { kind, name } = (e as CustomEvent<{ kind: string; name: string }>).detail;
+  if (kind === 'task' && /^(warning|review|ontology)\./.test(name) && counts) counts.at = 0;
+});
 
 function badges(): Record<string, NavBadge> {
   const out: Record<string, NavBadge> = {};
@@ -928,9 +940,14 @@ need(document, '#menu').addEventListener('click', () => {
 // The phone menu (U3.06): a scrim behind it closes it; the focus stays in it while it is open (Tab
 // goes round); a swipe to the left closes it.
 need(document, '#scrim').addEventListener('click', () => closeMenu());
+// The phone layout's menu, open when the window widens past it: closed (the menu is beside the page).
+const phoneLayout = matchMedia('(max-width: 820px)');
+phoneLayout.addEventListener('change', () => {
+  if (!phoneLayout.matches) closeMenu();
+});
 document.addEventListener('keydown', (e) => {
   const sidebar = need(document, '#sidebar');
-  if (e.key !== 'Tab' || !sidebar.classList.contains('open')) return;
+  if (e.key !== 'Tab' || !sidebar.classList.contains('open') || !phoneLayout.matches) return;
   const stops = [...sidebar.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')].filter(
     (el) => el.offsetParent !== null,
   );
@@ -979,16 +996,18 @@ need(document, '#nav').addEventListener('click', (e) => {
   const fold = el?.closest<HTMLElement>('[data-nav-fold]');
   const pin = el?.closest<HTMLElement>('[data-nav-pin]');
   if (fold) setPrefs(toggleFold(prefs(), fold.dataset.navFold ?? ''));
-  else if (pin) setPrefs(togglePin(prefs(), pin.dataset.navPin ?? ''));
-  else if (el?.closest('[data-nav-rail]')) setPrefs({ ...prefs(), rail: !prefs().rail });
+  else if (pin) {
+    const next = togglePin(prefs(), pin.dataset.navPin ?? '');
+    if (next === prefs()) toast(`Unpin a page first: up to ${MAX_PINNED} can be pinned`);
+    else setPrefs(next);
+  } else if (el?.closest('[data-nav-rail]')) setPrefs({ ...prefs(), rail: !prefs().rail });
   else return closeMenu();
   renderNav(currentView());
 });
 // Escape closes the phone menu, and gives the focus back to its button.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !need(document, '#sidebar').classList.contains('open')) return;
-  closeMenu();
-  need(document, '#menu').focus();
+  closeMenu(); // the focus goes back to the menu button
 });
 
 // Charts are drawn to the page's width (fitWidth in svg.ts): draw them again when it changes.
@@ -1009,9 +1028,11 @@ function openMenu(): void {
   need(document, '#menu').setAttribute('aria-expanded', 'true');
   need(document, '#scrim').hidden = false;
   // Into the menu, at the page shown (or its first link).
+  // (The page shown may be in a folded group: then the first link shown.)
+  const shown = (el: HTMLElement | null) => (el && el.offsetParent !== null ? el : null);
   const here =
-    document.querySelector<HTMLElement>('#nav [aria-current="page"]') ??
-    document.querySelector<HTMLElement>('#sidebar a[href]');
+    shown(document.querySelector<HTMLElement>('#nav [aria-current="page"]')) ??
+    [...document.querySelectorAll<HTMLElement>('#sidebar a[href]')].find((el) => el.offsetParent !== null);
   here?.focus({ preventScroll: true });
 }
 function closeMenu(): void {
