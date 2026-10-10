@@ -8,6 +8,8 @@
 // Times are ISO 8601, day-first or month-first dates, or epoch seconds or
 // milliseconds. Times written without an offset are in the chosen time zone.
 
+import type { FieldError } from './forms.ts';
+
 export type TimeFormat = 'iso' | 'dmy' | 'mdy' | 'epoch-s' | 'epoch-ms';
 
 export interface ImportMapping {
@@ -254,6 +256,17 @@ export function mappingProblems(header: string[], m: ImportMapping): string[] {
     if (new Set(tags).size < tags.length) problems.push('Two columns map to the same signal.');
   }
   return problems;
+}
+
+// The problems that belong to one field of the mapping form, to show under it (U2.07); the others
+// are about several columns and stay in the check below the form.
+export function mappingFieldProblems(header: string[], m: ImportMapping): FieldError[] {
+  const fields: FieldError[] = [];
+  if (!(m.timeColumn >= 0 && m.timeColumn < header.length))
+    fields.push({ name: 'timeColumn', message: 'Choose the column with the times.' });
+  if (!isTimeZone(m.timeZone))
+    fields.push({ name: 'timeZone', message: `“${m.timeZone}” isn't a time zone, e.g. UTC or Europe/Berlin.` });
+  return fields;
 }
 
 function emptyStats(): ImportStats {

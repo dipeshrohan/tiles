@@ -5,6 +5,7 @@ import {
   guessTimeFormat,
   inBatches,
   isoTime,
+  mappingFieldProblems,
   mappingProblems,
   parseNumber,
   parseTime,
@@ -226,6 +227,12 @@ test('rows that cannot be read are skipped and counted, not guessed', () => {
   ]);
   assert.deepEqual(mappingProblems(header, { ...m, columns: {} }), ['Choose at least one column to import.']);
   assert.match(mappingProblems(header, { ...m, timeZone: 'Mars/Base' })[0], /isn't a time zone/);
+  // The ones a single field is to blame for, named to show under it (U2.07).
+  assert.deepEqual(
+    mappingFieldProblems(header, { ...m, timeZone: 'Mars/Base', timeColumn: 9 }).map((p) => p.name),
+    ['timeColumn', 'timeZone'],
+  );
+  assert.deepEqual(mappingFieldProblems(header, m), []);
 });
 
 test('readings go out in batches', () => {

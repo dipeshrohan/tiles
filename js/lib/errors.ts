@@ -53,6 +53,12 @@ export function describeApiError(e: ApiFailure): Described {
         description: `${detail} Refresh to see the latest, then try again.`,
         action: 'refresh',
       };
+    case e.status === 422:
+      return {
+        message: "This wasn't accepted",
+        description: `${detail} Correct it, then try again.`,
+        action: null,
+      };
     case e.status === 429:
       return { message: 'Too many requests', description: `${detail} Wait a moment, then try again.`, action: null };
     case e.status >= 500:

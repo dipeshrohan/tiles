@@ -4,6 +4,7 @@
 import { esc } from './dom.ts';
 import type { AppConfig, AppParam, AppResult, AppTemplate } from './api.ts';
 import type { TimeChartOptions, TimePoint } from './svg.ts';
+import type { FieldError } from './forms.ts';
 
 export const appLink = (n: number): string => `#/apps/${n}`;
 
@@ -65,33 +66,34 @@ export function paramField(p: AppParam, value: unknown, signals: SignalOption[])
 export function readConfig(
   t: AppTemplate,
   values: Record<string, string | string[]>,
-): { config: AppConfig; problems: string[] } {
+): { config: AppConfig; problems: FieldError[] } {
   const config: AppConfig = {};
-  const problems: string[] = [];
+  const problems: FieldError[] = [];
+  const problem = (p: AppParam, message: string) => problems.push({ name: p.name, message });
   for (const p of t.params) {
     const raw = values[p.name];
     if (p.kind === 'choices') {
       const chosen = (Array.isArray(raw) ? raw : []).filter((v) => p.choices.some(([c]) => c === v));
-      if (!chosen.length) problems.push(`${p.label}: choose at least one`);
+      if (!chosen.length) problem(p, `${p.label}: choose at least one`);
       config[p.name] = chosen;
       continue;
     }
     const text = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
     if (text === '') {
-      if (!p.optional) problems.push(`${p.label} is needed`);
+      if (!p.optional) problem(p, `${p.label} is needed`);
       config[p.name] = null;
       continue;
     }
     if (p.kind === 'signal' || p.kind === 'choice') {
-      if (p.kind === 'choice' && !p.choices.some(([c]) => c === text)) problems.push(`${p.label}: choose one`);
+      if (p.kind === 'choice' && !p.choices.some(([c]) => c === text)) problem(p, `${p.label}: choose one`);
       config[p.name] = text;
       continue;
     }
     const n = Number(text);
-    if (!Number.isFinite(n)) problems.push(`${p.label} must be a number`);
-    else if (p.kind === 'integer' && !Number.isInteger(n)) problems.push(`${p.label} must be a whole number`);
+    if (!Number.isFinite(n)) problem(p, `${p.label} must be a number`);
+    else if (p.kind === 'integer' && !Number.isInteger(n)) problem(p, `${p.label} must be a whole number`);
     else if ((p.minimum !== null && n < p.minimum) || (p.maximum !== null && n > p.maximum))
-      problems.push(`${p.label} must be from ${p.minimum ?? '…'} to ${p.maximum ?? '…'}`);
+      problem(p, `${p.label} must be from ${p.minimum ?? '…'} to ${p.maximum ?? '…'}`);
     config[p.name] = n;
   }
   return { config, problems };

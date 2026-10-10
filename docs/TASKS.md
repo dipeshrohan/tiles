@@ -253,7 +253,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* every list and chart in every page has a written empty state, reviewed against the copy guide (U2.09).
 - [x] `U2.06` [#218](https://github.com/dipeshrohan/tiles/issues/218) **Error states and offline** · FE · 2d · U2.02
   *Done when:* each error kind has a test in the smoke suite with the fake API failing on purpose.
-- [ ] `U2.07` [#219](https://github.com/dipeshrohan/tiles/issues/219) **Form validation** · FE · 3d · U1.04
+- [x] `U2.07` [#219](https://github.com/dipeshrohan/tiles/issues/219) **Form validation** · FE · 3d · U1.04
   *Done when:* every form (import mapping, signal edit, detector, notification settings, site creation, app config) shows the API's field errors on the fields.
 - [ ] `U2.08` [#220](https://github.com/dipeshrohan/tiles/issues/220) **Pending and optimistic updates** · FE · 2d · U2.02
   *Done when:* no double submissions in the smoke suite with a slowed API, and every optimistic change rolls back on failure.

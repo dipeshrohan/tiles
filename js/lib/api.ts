@@ -3,6 +3,7 @@
 // failure into an ApiError that is also passed to `onError` (the app shows
 // it as a toast). Pure apart from `fetch`, which tests replace.
 
+import { apiFieldErrors, type FieldError } from './forms.ts';
 import { sseParser, type SseEvent } from './sse.ts';
 import type { Commit, DiffStats, Graph, HealthReport, Op } from './types.ts';
 
@@ -779,11 +780,13 @@ export interface Me {
 export class ApiError extends Error {
   readonly status: number;
   readonly requestId: string | null;
-  constructor(message: string, status: number, requestId: string | null = null) {
+  readonly fields: FieldError[]; // the fields a 422 names (U2.07), shown on the form sent
+  constructor(message: string, status: number, requestId: string | null = null, fields: FieldError[] = []) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.requestId = requestId;
+    this.fields = fields;
   }
 }
 
@@ -810,6 +813,8 @@ export const STREAM_CUT = 'The answer was cut off: the connection to the Tiles A
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
 // FastAPI errors are {"detail": "..."} or, for validation, {"detail": [{loc, msg}, ...]}.
+const fieldsOf = (body: unknown): FieldError[] => apiFieldErrors((body as { detail?: unknown } | null)?.detail);
+
 function errorMessage(body: unknown, status: number): string {
   const detail = (body as { detail?: unknown } | null)?.detail;
   if (typeof detail === 'string' && detail) return detail;
@@ -895,7 +900,7 @@ export function createApiClient(options: ApiOptions) {
       if (res.ok) return fail(new ApiError('The Tiles API sent a response that is not JSON', res.status, requestId));
     }
     if (!res.ok) {
-      const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId);
+      const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId, fieldsOf(parsed));
       if (quiet) throw error; // the caller shows it (e.g. a 403 that only means "not for you")
       return fail(error);
     }

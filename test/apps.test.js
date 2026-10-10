@@ -113,12 +113,13 @@ test('the form is read back and checked as the API checks it', () => {
   const ok = readConfig(SPC, { signal: 's1', sigmas: '2.5', points: '', side: 'up', rules: ['b'] });
   assert.deepEqual(ok, { config: { signal: 's1', sigmas: 2.5, points: null, side: 'up', rules: ['b'] }, problems: [] });
   const bad = readConfig(SPC, { signal: '', sigmas: '9', points: '1.5', side: 'sideways', rules: [] });
+  // Each on its field (U2.07).
   assert.deepEqual(bad.problems, [
-    'Signal is needed',
-    'Limits at (sigma) must be from 1 to 6',
-    'Points must be a whole number',
-    'Side: choose one',
-    'Rules: choose at least one',
+    { name: 'signal', message: 'Signal is needed' },
+    { name: 'sigmas', message: 'Limits at (sigma) must be from 1 to 6' },
+    { name: 'points', message: 'Points must be a whole number' },
+    { name: 'side', message: 'Side: choose one' },
+    { name: 'rules', message: 'Rules: choose at least one' },
   ]);
 });
 

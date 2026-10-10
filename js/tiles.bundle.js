@@ -746,6 +746,206 @@
 		} catch {}
 	}
 	//#endregion
+	//#region js/lib/forms.ts
+	function apiFieldErrors(detail) {
+		if (!Array.isArray(detail)) return [];
+		return detail.flatMap((d) => {
+			const path = (Array.isArray(d.loc) ? d.loc : []).filter((p, k) => !(k === 0 && (p === "body" || p === "query")));
+			if (!path.length || typeof d.msg !== "string") return [];
+			return [{
+				name: path.map(String).join("."),
+				message: sentence$1(d.msg)
+			}];
+		});
+	}
+	var sentence$1 = (s) => {
+		const t = s.trim().replace(/^Value error, /, "");
+		return t ? t[0].toUpperCase() + t.slice(1) : t;
+	};
+	function labelOf(el) {
+		const label = el.labels?.[0];
+		let text = el.getAttribute("aria-label") ?? "";
+		if (!text && label) {
+			const copy = label.cloneNode(true);
+			for (const inner of copy.querySelectorAll("input, select, textarea, .field-error, [id^=\"ui-hint-\"]")) inner.remove();
+			text = copy.textContent ?? "";
+		}
+		return text.replace(/\s+/g, " ").trim();
+	}
+	var lower = (s) => /^[A-Z][A-Z]/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1);
+	function problemWith(el) {
+		const v = el.validity;
+		if (v.valid) return null;
+		const label = labelOf(el) ? `the ${lower(labelOf(el))}` : "a value";
+		if (v.valueMissing) {
+			if (el instanceof HTMLSelectElement) return `Choose ${label}`;
+			if (el instanceof HTMLInputElement && el.type === "file") return "Choose a file";
+			if (el instanceof HTMLInputElement && el.type === "checkbox") return "Tick this to carry on";
+			return `Enter ${label}`;
+		}
+		if (v.badInput) return "Enter a number";
+		if (v.typeMismatch) {
+			const type = el.type;
+			if (type === "email") return "Enter an email address, like name@example.com";
+			if (type === "url") return "Enter a web address, starting with https://";
+		}
+		const input = el;
+		if (v.patternMismatch) return el.title || `Check the format of ${label}`;
+		if (v.rangeUnderflow) return `Enter ${input.min} or more`;
+		if (v.rangeOverflow) return `Enter ${input.max} or less`;
+		if (v.stepMismatch) return `Enter a multiple of ${input.step}`;
+		if (v.tooShort) return `Enter at least ${input.minLength} characters`;
+		if (v.tooLong) return `Enter at most ${input.maxLength} characters`;
+		return el.validationMessage || `Check ${label}`;
+	}
+	var controls$1 = (form, locked = false) => [...form.elements].filter((el) => (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) && (locked || !el.disabled) && el.type !== "hidden");
+	function validate(form) {
+		return controls$1(form).flatMap((el) => {
+			const message = problemWith(el);
+			return message && el.name ? [{
+				name: el.name,
+				message
+			}] : [];
+		});
+	}
+	var isFieldError = (v) => typeof v === "object" && v !== null && typeof v.message === "string" && "name" in v;
+	function controlFor(form, name) {
+		const all = controls$1(form, true);
+		const last = name.split(".").pop() ?? name;
+		const named = (n) => all.find((el) => el.name === n || el.dataset.api === n);
+		return named(name) ?? named(last) ?? null;
+	}
+	var ids = 0;
+	var idFor = (el) => el.id || (el.id = `field-${++ids}`);
+	function describe$2(el, id, on) {
+		const ids = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter((x) => x && x !== id);
+		if (on) ids.unshift(id);
+		if (ids.length) el.setAttribute("aria-describedby", ids.join(" "));
+		else el.removeAttribute("aria-describedby");
+	}
+	function setFieldError(el, message) {
+		const id = `${idFor(el)}-error`;
+		const old = el.ownerDocument.getElementById(id);
+		if (!message) {
+			old?.remove();
+			el.removeAttribute("aria-invalid");
+			describe$2(el, id, false);
+			return;
+		}
+		const note = old ?? el.ownerDocument.createElement("span");
+		note.id = id;
+		note.className = "field-error";
+		note.textContent = message;
+		if (!old) el.after(note);
+		el.setAttribute("aria-invalid", "true");
+		describe$2(el, id, true);
+	}
+	function clearErrors(form) {
+		for (const el of controls$1(form, true)) setFieldError(el, null);
+		form.querySelector(":scope > .error-summary")?.remove();
+	}
+	function showErrors(form, errors) {
+		clearErrors(form);
+		if (!errors.length) return 0;
+		let placed = 0;
+		const doc = form.ownerDocument;
+		const summary = doc.createElement("div");
+		summary.className = "error-summary";
+		summary.setAttribute("role", "alert");
+		summary.tabIndex = -1;
+		const title = doc.createElement("p");
+		title.className = "error-summary-title";
+		title.textContent = errors.length === 1 ? "Check this field" : `Check these ${errors.length} fields`;
+		const list = doc.createElement("ul");
+		for (const e of errors) {
+			const li = doc.createElement("li");
+			const el = controlFor(form, e.name);
+			if (el) {
+				placed++;
+				setFieldError(el, e.message);
+				const a = doc.createElement("a");
+				a.href = `#${idFor(el)}`;
+				a.dataset.errorFor = el.id;
+				a.textContent = e.message;
+				li.append(a);
+			} else li.textContent = e.message;
+			list.append(li);
+		}
+		summary.append(title, list);
+		summary.addEventListener("click", (e) => {
+			const a = e.target.closest("a[data-error-for]");
+			if (!a) return;
+			e.preventDefault();
+			form.ownerDocument.getElementById(a.dataset.errorFor ?? "")?.focus();
+		});
+		form.prepend(summary);
+		summary.focus();
+		return placed;
+	}
+	var lastSent = null;
+	var keeping = null;
+	function sentForm() {
+		if (!lastSent) return null;
+		if (lastSent.form.isConnected) return lastSent.form;
+		const again = lastSent.id ? lastSent.form.ownerDocument.getElementById(lastSent.id) : null;
+		return again instanceof HTMLFormElement ? again : null;
+	}
+	function keepShown(form, errors) {
+		keeping?.stop();
+		if (!form.id || typeof MutationObserver === "undefined") return;
+		let shownOn = form;
+		const doc = form.ownerDocument;
+		const observer = new MutationObserver(() => {
+			const again = doc.getElementById(form.id);
+			if (again instanceof HTMLFormElement && again !== shownOn && !again.querySelector(".error-summary")) {
+				shownOn = again;
+				showErrors(again, errors);
+			}
+		});
+		observer.observe(doc.body, {
+			childList: true,
+			subtree: true
+		});
+		const timer = setTimeout(() => keeping?.stop(), 5e3);
+		keeping = { stop: () => {
+			observer.disconnect();
+			clearTimeout(timer);
+			keeping = null;
+		} };
+	}
+	function checkOnSubmit(form) {
+		if (!form.dataset.checked) {
+			form.dataset.checked = "true";
+			form.addEventListener("focusout", (e) => {
+				if (e.relatedTarget instanceof HTMLButtonElement && e.relatedTarget.form === form) return;
+				const el = e.target;
+				if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)) return;
+				setFieldError(el, problemWith(el));
+				if (!form.querySelector("[aria-invalid=\"true\"]")) form.querySelector(":scope > .error-summary")?.remove();
+			});
+		}
+		keeping?.stop();
+		lastSent = {
+			form,
+			id: form.id
+		};
+		const errors = validate(form);
+		if (errors.length) {
+			showErrors(form, errors);
+			return false;
+		}
+		clearErrors(form);
+		return true;
+	}
+	function showApiErrors(errors) {
+		const form = sentForm();
+		if (!form || !errors.length) return false;
+		if (!errors.some((e) => controlFor(form, e.name))) return false;
+		showErrors(form, errors);
+		keepShown(form, errors);
+		return true;
+	}
+	//#endregion
 	//#region js/lib/sse.ts
 	function sseParser(onEvent) {
 		let buffer = "";
@@ -797,15 +997,18 @@
 	var ApiError = class extends Error {
 		status;
 		requestId;
-		constructor(message, status, requestId = null) {
+		fields;
+		constructor(message, status, requestId = null, fields = []) {
 			super(message);
 			this.name = "ApiError";
 			this.status = status;
 			this.requestId = requestId;
+			this.fields = fields;
 		}
 	};
 	var OFFLINE_WRITE = "You're offline: nothing was changed. Try again when the connection is back";
 	var STREAM_CUT = "The answer was cut off: the connection to the Tiles API dropped";
+	var fieldsOf = (body) => apiFieldErrors(body?.detail);
 	function errorMessage(body, status) {
 		const detail = body?.detail;
 		if (typeof detail === "string" && detail) return detail;
@@ -860,7 +1063,7 @@
 				if (res.ok) return fail(new ApiError("The Tiles API sent a response that is not JSON", res.status, requestId));
 			}
 			if (!res.ok) {
-				const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId);
+				const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId, fieldsOf(parsed));
 				if (quiet) throw error;
 				return fail(error);
 			}
@@ -1471,9 +1674,13 @@
 		root.querySelectorAll(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e)));
 	}
 	function onSubmit(root, sel, handler) {
-		root.querySelector(sel)?.addEventListener("submit", (e) => {
+		const form = root.querySelector(sel);
+		if (!form) return;
+		form.noValidate = true;
+		form.addEventListener("submit", (e) => {
 			e.preventDefault();
-			handler(e.currentTarget, e.submitter);
+			if (!checkOnSubmit(form)) return;
+			handler(form, e.submitter);
 		});
 	}
 	function download(name, text, type) {
@@ -2433,6 +2640,11 @@
 				message: "This changed while you were working",
 				description: `${detail} Refresh to see the latest, then try again.`,
 				action: "refresh"
+			};
+			case e.status === 422: return {
+				message: "This wasn't accepted",
+				description: `${detail} Correct it, then try again.`,
+				action: null
 			};
 			case e.status === 429: return {
 				message: "Too many requests",
@@ -6404,7 +6616,10 @@
 			if (unit !== s.unit) change.unit = unit;
 		}
 		const rate = number(form.rate);
-		if (rate === void 0 || rate !== null && rate <= 0) return "The sample rate is a number of readings per second, above 0.";
+		if (rate === void 0 || rate !== null && rate <= 0) return {
+			name: "rate",
+			message: "The sample rate is a number of readings per second, above 0."
+		};
 		if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
 		if (form.description !== s.description) {
 			const description = form.description.trim();
@@ -6414,12 +6629,21 @@
 		if (node !== s.node_id) change.node_id = node;
 		const min = number(form.min ?? "");
 		const max = number(form.max ?? "");
-		if (min === void 0 || max === void 0) return "The expected range is two numbers (either may be blank).";
-		if (min !== null && max !== null && min >= max) return "The expected range's minimum must be below its maximum.";
+		if (min === void 0 || max === void 0) return {
+			name: min === void 0 ? "min" : "max",
+			message: "The expected range is two numbers (either may be blank)."
+		};
+		if (min !== null && max !== null && min >= max) return {
+			name: "max",
+			message: "The expected range's maximum must be above its minimum."
+		};
 		if (min !== s.range_min) change.range_min = min;
 		if (max !== s.range_max) change.range_max = max;
 		const stuck = number(form.stuck ?? "");
-		if (stuck === void 0 || stuck !== null && (stuck <= 0 || stuck > 43200)) return "Stuck after is a number of minutes, above 0 and at most 30 days.";
+		if (stuck === void 0 || stuck !== null && (stuck <= 0 || stuck > 43200)) return {
+			name: "stuck",
+			message: "Stuck after is a number of minutes, above 0 and at most 30 days."
+		};
 		const stuckS = stuck === null ? null : stuck * 60;
 		if (!(stuckS === null || s.stuck_after_s === null ? stuckS === s.stuck_after_s : Math.abs(stuckS - s.stuck_after_s) < 1e-6)) change.stuck_after_s = stuckS;
 		return change;
@@ -6456,25 +6680,34 @@
 			name: "rate",
 			value: String(s.sample_rate_hz ?? ""),
 			class: "w-7em",
-			attrs: { inputmode: "decimal" }
+			attrs: {
+				inputmode: "decimal",
+				"data-api": "sample_rate_hz"
+			}
 		}))}
         ${field("Description", input({
 			name: "description",
 			value: s.description,
 			attrs: { maxlength: 1e3 }
 		}), { class: "grow min-w-field" })}
-        ${field("Ontology node", select("node", nodeOptions, s.node_id ?? ""))}
+        ${field("Ontology node", select("node", nodeOptions, s.node_id ?? "", { attrs: { "data-api": "node_id" } }))}
         ${field("Expected min", input({
 			name: "min",
 			value: String(s.range_min ?? ""),
 			class: "w-7em",
-			attrs: { inputmode: "decimal" }
+			attrs: {
+				inputmode: "decimal",
+				"data-api": "range_min"
+			}
 		}))}
         ${field("Expected max", input({
 			name: "max",
 			value: String(s.range_max ?? ""),
 			class: "w-7em",
-			attrs: { inputmode: "decimal" }
+			attrs: {
+				inputmode: "decimal",
+				"data-api": "range_max"
+			}
 		}))}
         ${field("Stuck after (min)", input({
 			name: "stuck",
@@ -6482,7 +6715,8 @@
 			class: "w-6em",
 			attrs: {
 				placeholder: "60",
-				inputmode: "decimal"
+				inputmode: "decimal",
+				"data-api": "stuck_after_s"
 			}
 		}))}
         ${field("Events", select("events", [
@@ -6490,7 +6724,7 @@
 			["downtime", "downtime"],
 			["scrap", "scrap"],
 			["other", "other events"]
-		], s.event_kind ?? ""), { title: "Each reading of an event stream is an event: its value is the code" })}
+		], s.event_kind ?? "", { attrs: { "data-api": "event_kind" } }), { title: "Each reading of an event stream is an event: its value is the code" })}
         ${field("Asset", input({
 			name: "asset",
 			value: s.asset ?? "",
@@ -6602,8 +6836,10 @@
 			fill(root, ctx);
 		});
 		const form = root.querySelector("#signal-form");
+		if (form) form.noValidate = true;
 		form?.addEventListener("submit", (e) => {
 			e.preventDefault();
+			if (!checkOnSubmit(form)) return;
 			const site = ctx.ontology.site;
 			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
 			if (!site || !ctx.api || !sig) return;
@@ -6627,8 +6863,8 @@
 				events: field$2(form, "events"),
 				asset: text("asset", sig.asset ?? "")
 			}, sig);
-			if (typeof change === "string") {
-				ctx.toast(change);
+			if (isFieldError(change)) {
+				showErrors(form, [change]);
 				return;
 			}
 			if (!Object.keys(change).length) {
@@ -9569,6 +9805,16 @@ field('Assigned to', select(null, people, current), { inline: true })`,
 			}), { hint: "As the PLC reports it" })}${field("Source", select("sg-source", [["", "Any"], ["edge", "Edge agents"]], ""))}${field("Assigned to", select(null, [["me", "me"], ["none", "nobody"]], "me"), { inline: true })}</div>`
 		},
 		{
+			title: "Field errors",
+			code: `onSubmit(root, '#agent-form', (form) => …)   // checks the form first: required, pattern, min, max
+showErrors(form, [{ name: 'rate', message: 'The sample rate is above 0.' }])   // a check of your own
+// The API's 422 field errors land on the form that was sent; data-api="sample_rate_hz" maps a name.`,
+			html: () => `<div class="stack gap-2 max-w-form"><div class="error-summary"><p class="error-summary-title">Check this field</p><ul><li><a href="#/styleguide">Enter the new agent name</a></li></ul></div>${field("New agent name", input({
+				name: "sg-agent",
+				attrs: { "aria-invalid": "true" }
+			})).replace("</label>", "<span class=\"field-error\">Enter the new agent name</span></label>")}</div>`
+		},
+		{
 			title: "Filter tabs",
 			code: `tabs({ label: 'Status', items: [['todo', 'To do'], ['all', 'All']], current: 'todo', data: 'show' })`,
 			html: () => tabs({
@@ -10223,6 +10469,18 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (new Set(tags).size < tags.length) problems.push("Two columns map to the same signal.");
 		}
 		return problems;
+	}
+	function mappingFieldProblems(header, m) {
+		const fields = [];
+		if (!(m.timeColumn >= 0 && m.timeColumn < header.length)) fields.push({
+			name: "timeColumn",
+			message: "Choose the column with the times."
+		});
+		if (!isTimeZone(m.timeZone)) fields.push({
+			name: "timeZone",
+			message: `“${m.timeZone}” isn't a time zone, e.g. UTC or Europe/Berlin.`
+		});
+		return fields;
 	}
 	function emptyStats() {
 		return {
@@ -11064,29 +11322,33 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function readConfig(t, values) {
 		const config = {};
 		const problems = [];
+		const problem = (p, message) => problems.push({
+			name: p.name,
+			message
+		});
 		for (const p of t.params) {
 			const raw = values[p.name];
 			if (p.kind === "choices") {
 				const chosen = (Array.isArray(raw) ? raw : []).filter((v) => p.choices.some(([c]) => c === v));
-				if (!chosen.length) problems.push(`${p.label}: choose at least one`);
+				if (!chosen.length) problem(p, `${p.label}: choose at least one`);
 				config[p.name] = chosen;
 				continue;
 			}
 			const text = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? "";
 			if (text === "") {
-				if (!p.optional) problems.push(`${p.label} is needed`);
+				if (!p.optional) problem(p, `${p.label} is needed`);
 				config[p.name] = null;
 				continue;
 			}
 			if (p.kind === "signal" || p.kind === "choice") {
-				if (p.kind === "choice" && !p.choices.some(([c]) => c === text)) problems.push(`${p.label}: choose one`);
+				if (p.kind === "choice" && !p.choices.some(([c]) => c === text)) problem(p, `${p.label}: choose one`);
 				config[p.name] = text;
 				continue;
 			}
 			const n = Number(text);
-			if (!Number.isFinite(n)) problems.push(`${p.label} must be a number`);
-			else if (p.kind === "integer" && !Number.isInteger(n)) problems.push(`${p.label} must be a whole number`);
-			else if (p.minimum !== null && n < p.minimum || p.maximum !== null && n > p.maximum) problems.push(`${p.label} must be from ${p.minimum ?? "…"} to ${p.maximum ?? "…"}`);
+			if (!Number.isFinite(n)) problem(p, `${p.label} must be a number`);
+			else if (p.kind === "integer" && !Number.isInteger(n)) problem(p, `${p.label} must be a whole number`);
+			else if (p.minimum !== null && n < p.minimum || p.maximum !== null && n > p.maximum) problem(p, `${p.label} must be from ${p.minimum ?? "…"} to ${p.maximum ?? "…"}`);
 			config[p.name] = n;
 		}
 		return {
@@ -11285,7 +11547,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		return `<form class="card stack gap-2_5" id="app-form">
       <h2>${esc(editing ? `Change #${editing.number} ${editing.name}` : `New app: ${template.title}`)}</h2>
       <p class="small soft">${esc(template.summary)}</p>
-      <label class="field" for="app-name">Name<input id="app-name" type="text" name="__name" value="${esc(d.name)}" maxlength="120" required /></label>
+      <label class="field" for="app-name">Name<input id="app-name" type="text" name="__name" data-api="name" value="${esc(d.name)}" maxlength="120" required /></label>
       <div class="grid g2 app-fields gap-2_5">${fields}</div>
       <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${editing ? "Save" : "Make the app"}</button><a class="btn" href="${editing ? appLink(editing.number) : "#/apps"}">Cancel</a></div>
     </form>`;
@@ -11366,8 +11628,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (!api || !site || !d || !template || busy) return;
 		const { config, problems } = readConfig(template, formValues(form));
 		const name = d.name.trim();
-		if (!name) problems.unshift("Give the app a name");
-		if (problems.length) return void ctx.toast(problems.join(". "));
+		if (!name) problems.unshift({
+			name: "__name",
+			message: "Give the app a name"
+		});
+		if (problems.length) return void showErrors(form, problems);
 		busy = true;
 		ctx.rerender();
 		try {
@@ -11864,6 +12129,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const skipped = Object.entries(s.skipped).map(([reason, n]) => `${fmt$1(n, 0)} ${reason}`).join(", ");
 		return `${fmt$1(s.readings, 0)} readings for ${s.signals.size} signal(s) in ${fmt$1(s.rows, 0)} rows${range}.${skipped ? ` Skipped: ${skipped}.` : ""}`;
 	}
+	function markFields(form, l) {
+		const problems = mappingFieldProblems(l.header, l.mapping);
+		for (const name of ["timeColumn", "timeZone"]) {
+			const el = form.elements.namedItem(name);
+			if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) setFieldError(el, problems.find((p) => p.name === name)?.message ?? null);
+		}
+	}
 	function summaryBox(l) {
 		const problems = mappingProblems(l.header, l.mapping);
 		if (problems.length) return `<div class="stack gap-1">${problems.map((p) => `<p class="small text-bad">${esc(p)}</p>`).join("")}</div>`;
@@ -12001,6 +12273,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				});
 			});
 			const form = root.querySelector("#import-mapping");
+			if (form && loaded) markFields(form, loaded);
 			form?.addEventListener("change", (e) => {
 				const l = loaded;
 				if (!l) return;
@@ -12015,6 +12288,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					return;
 				}
 				need(root, "[data-import-check]").innerHTML = summaryBox(l);
+				markFields(form, l);
 				const run = root.querySelector("[data-import-run]");
 				if (run) run.disabled = running !== null || mappingProblems(l.header, l.mapping).length > 0;
 			});
@@ -12626,6 +12900,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			getToken: () => accessToken(baseUrl),
 			onError: (e) => {
 				if (e.status === 0 && e.message !== "You're offline: nothing was changed. Try again when the connection is back" && e.message !== "The answer was cut off: the connection to the Tiles API dropped") showOffline("unreachable");
+				if (e.status === 422 && showApiErrors(e.fields)) return;
 				const d = describeApiError(e);
 				const action = d.action === "back" && history.length > 1 ? {
 					label: "Go back",

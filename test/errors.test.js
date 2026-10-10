@@ -28,9 +28,15 @@ test('each kind of failure says what happened, why and the way out', () => {
   assert.match(conflict.description, /already approved\. Refresh to see the latest/);
   assert.match(describeApiError({ status: 503, message: 'Busy' }).description, /request ID/);
   assert.equal(describeApiError({ status: 429, message: 'Slow down' }).message, 'Too many requests');
-  // Anything else is said as the API said it.
+  // 422 with no form to show it on: what was refused, and to correct it.
   assert.deepEqual(describeApiError({ status: 422, message: 'unit: too long' }), {
-    message: 'unit: too long',
+    message: "This wasn't accepted",
+    description: 'unit: too long. Correct it, then try again.',
+    action: null,
+  });
+  // Anything else is said as the API said it.
+  assert.deepEqual(describeApiError({ status: 418, message: 'Short and stout' }), {
+    message: 'Short and stout',
     action: null,
   });
 });
