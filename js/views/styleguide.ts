@@ -25,7 +25,7 @@ function sample(g: TokenGroup, token: string): string {
     case 'space':
       return `<span class="sg-bar" ${set('width')}></span>`;
     case 'text':
-      return `<span class="sg-text" ${set('font-size')}>Friction warning</span>`;
+      return `<span class="sg-text" ${set('font-size')}>Aa</span>`;
     case 'radius':
       return `<span class="sg-box" ${set('border-radius')}></span>`;
     case 'shadow':
