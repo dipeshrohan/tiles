@@ -272,7 +272,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* typing, scrolling a table and an open trace all survive a background refresh in tests, and the copilot trace flake (#195) can't happen again; render time on the large ontology fixture is no worse.
 - [x] `U3.04` [#225](https://github.com/dipeshrohan/tiles/issues/225) **Micro-interactions** · FE · 2d · U3.01
   *Done when:* the style guide shows each; nothing moves with reduced motion.
-- [ ] `U3.05` [#226](https://github.com/dipeshrohan/tiles/issues/226) **State in the URL and restored** · FE · 3d · U3.03
+- [x] `U3.05` [#226](https://github.com/dipeshrohan/tiles/issues/226) **State in the URL and restored** · FE · 3d · U3.03
   *Done when:* reloading or opening a copied link shows the same view on those three pages, and back restores the scroll.
 - [ ] `U3.06` [#227](https://github.com/dipeshrohan/tiles/issues/227) **Sidebar v2** · FE · 3d · U1.05
   *Done when:* each of these works by keyboard, is tested, and fits at 320 px wide.

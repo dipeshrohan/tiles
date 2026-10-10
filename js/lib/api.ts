@@ -289,11 +289,16 @@ export interface SignalInfo {
   quality: QualityReport | null; // null until checked
 }
 
+// The values a signal search's filters take (the Signals page's address carries them too, U3.05).
+export const SIGNAL_SOURCES = ['edge', 'import', 'manual'] as const;
+export const LINKED = ['yes', 'no'] as const;
+export const QUALITY_FILTERS = ['good', 'warn', 'bad', 'unknown', 'unchecked'] as const;
+
 export interface SignalQuery {
   q?: string;
-  source?: '' | 'edge' | 'import' | 'manual';
-  linked?: '' | 'yes' | 'no';
-  quality?: '' | QualityBadge | 'unchecked';
+  source?: '' | (typeof SIGNAL_SOURCES)[number];
+  linked?: '' | (typeof LINKED)[number];
+  quality?: '' | (typeof QUALITY_FILTERS)[number];
   limit?: number;
   offset?: number;
 }

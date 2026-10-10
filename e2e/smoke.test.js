@@ -3438,7 +3438,9 @@ test('saved insights: signals over a range, kept as plotted and opened again in 
   const a = await openAs(t, apiUrl, null, `explorer?signals=${temp.id},${force.id}&from=${from}&to=${to}`);
   await a.page.waitForSelector('[data-picked]:has-text("press1.force")');
   await a.page.waitForSelector('[data-chart] svg');
-  assert.equal(await a.page.evaluate(() => location.hash), '#/explorer');
+  // The address keeps showing them (U3.05): a reload or the link copied shows the same charts.
+  const shown = new URLSearchParams((await a.page.evaluate(() => location.hash)).split('?')[1]);
+  assert.deepEqual([shown.get('signals'), shown.get('from'), shown.get('to')], [`${temp.id},${force.id}`, from, to]);
   await a.page.click('[data-save-insight]');
   assert.equal(await a.page.inputValue('#insight-save [name=title]'), 'press1.temperature, press1.force');
   await a.page.fill('#insight-save [name=title]', 'Force climbs while temperature cycles');
@@ -3562,6 +3564,78 @@ test('a background refresh keeps typing, focus, a scrolled table and an open tra
   await a.page.waitForSelector('[data-kpis]'); // drawn again with its data
   assert.equal(await wrap.evaluate((w) => w.scrollLeft), 60);
   assert.deepEqual(a.errors, []);
+});
+
+test('a view is in its address: a reload or a copied link shows the same, and back puts the scroll back (U3.05)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { out } = raiseFrictionWarnings(fake);
+  const temp = fake.addSignal('press1.temperature', { unit: '°C' });
+  fake.addSignal('oven.temp', { unit: '°C' });
+  const end = Date.parse('2026-09-05T06:00:00Z');
+  for (let i = 0; i < 288; i++)
+    fake.samples.set(
+      `press1.temperature|${new Date(end - i * 300_000).toISOString().replace('Z', '000Z')}`,
+      20 + (i % 12),
+    );
+  temp.last_at = new Date(end).toISOString();
+  const a = await openAs(t, apiUrl, null, 'warnings');
+  const hash = () => a.page.evaluate(() => location.hash);
+
+  // Warnings: a filter and the warning open.
+  await a.page.waitForSelector('[data-warning-list] [data-warning]');
+  await a.page.click('[data-show="all"]');
+  await a.page.click(`[data-warning="${out}"]`);
+  await a.page.waitForSelector('[data-warning-detail] .chart');
+  assert.equal(await hash(), `#/warnings?show=all&warning=${out}`);
+  await a.page.reload();
+  await a.page.waitForSelector('[data-warning-detail] .chart');
+  assert.equal(await a.page.getAttribute('[data-show="all"]', 'aria-pressed'), 'true');
+  assert.equal(await a.page.getAttribute(`[data-warning="${out}"]`, 'class'), 'review-row sel');
+  // The same link in another tab.
+  const b = await openPage();
+  t.after(() => b.page.close());
+  await b.page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/warnings?show=all&warning=${out}`);
+  await b.page.waitForSelector(`[data-warning="${out}"].sel`);
+  await b.page.waitForSelector('[data-warning-detail] .chart');
+
+  // Signals: what is searched, as it is typed.
+  await a.page.evaluate(() => (location.hash = '#/signals'));
+  await a.page.waitForSelector('[data-signal-count]:has-text("signal(s)")');
+  await a.page.fill('#signal-search [name=q]', 'press');
+  await a.page.selectOption('#signal-search [name=linked]', 'no');
+  assert.equal(await hash(), '#/signals?q=press&linked=no');
+  await a.page.reload();
+  await a.page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  assert.equal(await a.page.inputValue('#signal-search [name=q]'), 'press');
+  assert.equal(await a.page.inputValue('#signal-search [name=linked]'), 'no');
+
+  // The explorer: the signals plotted and their range.
+  await a.page.click('[data-signal-results] a:has-text("press1.temperature")');
+  await a.page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  const plotted = await hash();
+  assert.match(plotted, new RegExp(`^#/explorer\\?signals=${temp.id}&from=.+&to=.+$`));
+  await a.page.reload();
+  await a.page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  assert.equal(await hash(), plotted);
+
+  // Back: the page where it was scrolled to; a new visit starts at the top.
+  await a.page.setViewportSize({ width: 1280, height: 500 });
+  await a.page.evaluate(() => (location.hash = '#/styleguide'));
+  await a.page.waitForSelector('#sg-sec-motion');
+  // Left straight after scrolling: the place is noted as it is scrolled, not some time later.
+  await a.page.evaluate(() => {
+    scrollTo(0, 1500);
+    requestAnimationFrame(() => (location.hash = '#/settings'));
+  });
+  await a.page.waitForSelector('#view h1:has-text("Settings")');
+  assert.equal(await a.page.evaluate(() => scrollY), 0);
+  await a.page.goBack();
+  await a.page.waitForSelector('#sg-sec-motion');
+  await a.page.waitForFunction(() => Math.abs(scrollY - 1500) < 2);
+  assert.deepEqual(a.errors, []);
+  assert.deepEqual(b.errors, []);
 });
 
 test('the copilot: a streamed answer with its tools, citations, a withdrawn draft and feedback', async (t) => {

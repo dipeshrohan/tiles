@@ -14,6 +14,8 @@ import {
   activityText,
   chartRange,
   DEFAULT_FILTERS,
+  filtersFromQuery,
+  filtersQuery,
   howFar,
   OUTCOMES,
   payload,
@@ -74,6 +76,15 @@ const PAGE = 100;
 const ago = (iso: string): string => when(iso, Date.now());
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
+
+// A warning a link named (U3.05), opened once the site has loaded.
+let linkedWarning: string | null = null;
+function openLinked(ctx: Context): void {
+  const site = siteId(ctx);
+  if (!linkedWarning || !site) return;
+  Object.assign(uiState(ctx), { selected: linkedWarning, site });
+  linkedWarning = null;
+}
 
 // Others act on warnings and detectors raise new ones while you are elsewhere: each visit fetches afresh.
 onNavigate((hash) => {
@@ -471,12 +482,28 @@ const view: View = {
   id: 'warnings',
   title: 'Warnings',
   icon: 'triangle-alert',
+  // Its filters and the warning open, in the address (U3.05): `#/warnings?show=all&warning=12`.
+  query: {
+    read(params, ctx) {
+      const ui = uiState(ctx);
+      ui.filters = filtersFromQuery(params);
+      // The warning a link opens: on this site, once the site is known.
+      linkedWarning = params.get('warning');
+      if (!linkedWarning) Object.assign(ui, { selected: null, site: null });
+      openLinked(ctx);
+    },
+    write(ctx) {
+      const ui = uiState(ctx);
+      return { ...filtersQuery(ui.filters), warning: linkedWarning ?? (ui.site === siteId(ctx) ? ui.selected : null) };
+    },
+  },
   // The warning open beside the list (kept in the page's state, so a reload shows it again).
   crumbs(ctx) {
     const w = uiState(ctx).selected !== null && detail?.key === detailKey(ctx) ? detail.warning : null;
     return ctx.api && w ? [{ label: w.signal_tag }] : [];
   },
   render(ctx) {
+    openLinked(ctx); // a linked warning waiting for the site
     const head = pageHead({
       eyebrow: 'Operations · Detection',
       title: 'Warnings',

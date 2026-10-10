@@ -36,6 +36,20 @@ import {
 import { announce, esc, lessMotion, need, rebind, routeOf } from './lib/dom.ts';
 import { morph, noteSent, replace } from './lib/morph.ts';
 import { after, before, rowMotion, watchSections } from './lib/micro.ts';
+import {
+  forgetUi,
+  loadUi,
+  mergeKept,
+  queryOf,
+  restoreScroll,
+  saveUi,
+  scrollToSaved,
+  session,
+  leaving,
+  showHash,
+  watchScroll,
+  withQuery,
+} from './lib/url-state.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
 import ontology from './views/ontology.ts';
@@ -130,8 +144,10 @@ const state: AppState = {
   shots,
   detection,
   scored: scoreAlerts(detection.alerts, shots.downtime, shots.cycleSeconds),
-  ui: {},
+  ui: loadUi(session()),
 };
+
+const uiChecked = new Set<string>(); // pages whose kept state has had its defaults filled in
 
 function persist(): void {
   // In API mode state.repo mirrors the server; the browser's own copy stays in localRepo.
@@ -422,6 +438,9 @@ const authCtx: AuthContext = {
     }
   },
   async signOut() {
+    // What the pages showed was this person's: not kept for whoever signs in next in this tab.
+    forgetUi(session());
+    state.ui = {};
     const url = await signOut(redirectUri(), location.search + location.hash);
     if (url) location.assign(url);
     else {
@@ -450,10 +469,21 @@ const ctx: Context = {
     if (rerender) render();
   },
   ui<T extends object>(viewId: string, defaults: T): T {
+    // Kept from the tab's last load (U3.05): what it lacks (a field added since) comes from the defaults.
+    if (!uiChecked.has(viewId)) {
+      uiChecked.add(viewId);
+      if (state.ui[viewId]) state.ui[viewId] = mergeKept(defaults, state.ui[viewId]);
+    }
     state.ui[viewId] ??= { ...defaults };
     return state.ui[viewId] as T;
   },
   rerender: () => render(),
+  address() {
+    const view = currentView();
+    if (!view.query) return;
+    showHash(withQuery(location.hash, view.query.write(ctx)));
+    addressed = location.hash;
+  },
   toast,
   reset() {
     // The data source is a preference, not workspace data; kept only if this browser chose one, so
@@ -532,6 +562,7 @@ function renderNav(active: View): void {
     `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 }
 
+let addressed = ''; // the address the page last wrote itself (its query is the page's own)
 let shownView: string | null = null; // the page last shown: drawn again, it is patched in place
 let trackedView = ''; // the page last recorded as viewed (U1.09)
 
@@ -547,6 +578,10 @@ function render(): void {
   renderNav(view);
   document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
   const root = need(document, '#view');
+  // A query that came from outside (a link, a reload, back or forward) sets what the page shows; an
+  // address without one keeps what this tab showed last (U3.05).
+  const params = queryOf(location.hash);
+  if (view.query && location.hash !== addressed && [...params].length) view.query.read(params, ctx);
   resetIds();
   const html = view.render(ctx);
   // Drawn again in place, what changed moves a little (U3.04): rows in and out, highlights, numbers.
@@ -567,6 +602,10 @@ function render(): void {
     ...(view.crumbs?.(ctx) ?? []),
   ]);
   shownView = view.id;
+  // The address says what the page shows, with no history entry of its own.
+  ctx.address();
+  addressed = location.hash;
+  restoreScroll(); // back or forward: the page put back where it was, once it is tall enough
 }
 
 // A form sent without onSubmit (which notes its own once it is checked) is sent once the browser's
@@ -682,6 +721,8 @@ window.addEventListener('pageshow', (e) => {
 // Removals waiting on an Undo toast (U2.03) when the page goes are saved for the next load to send;
 // a page back from the back/forward cache still has its toasts, so they stay with it.
 window.addEventListener('pagehide', () => saveWaiting(localStorage));
+// What each page shows (filters, a tab, a record open) stays for this tab's next load (U3.05).
+window.addEventListener('pagehide', () => saveUi(session(), state.ui));
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) keepWaiting(localStorage);
 });
@@ -878,6 +919,7 @@ type ViewTransitionDocument = Document & {
 
 function navigate(): void {
   closeMenu(); // whatever link was followed: the menu's, the brand, or one in the page
+  leaving(); // the page left keeps the place it was scrolled to (U3.05)
   const root = need(document, '#view');
   const newPage = currentView().id !== shownView;
   // The link followed to this record, when it was a click on a link to exactly this place.
@@ -890,7 +932,7 @@ function navigate(): void {
   const arrive = () => {
     name(from, ''); // the head is the record now
     render();
-    window.scrollTo(0, 0);
+    scrollToSaved(); // the top for a new entry; where it was for one reached with back or forward
     name(head(), from ? 'record' : hold ? '' : 'none');
     // The new page's heading takes the focus, which a screen reader reads; a page without one is said.
     const heading = root.querySelector<HTMLElement>('h1[tabindex]');
@@ -917,6 +959,7 @@ function navigate(): void {
 }
 window.addEventListener('hashchange', navigate);
 watchSections(document); // a section someone opens fades its content in (U3.04)
+watchScroll(); // each history entry keeps its scroll, put back on back and forward (U3.05)
 // In API mode, show the loading state from the first paint (never local data).
 if (api) {
   localRepo = state.repo;

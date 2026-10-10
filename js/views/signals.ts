@@ -1,6 +1,16 @@
 import { ux } from '../lib/analytics.ts';
 import { esc, field, fmt, need, onAll, onSubmit, bound } from '../lib/dom.ts';
-import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
+import {
+  LINKED,
+  QUALITY_FILTERS,
+  SIGNAL_SOURCES,
+  type MappingSuggestion,
+  type QualityReport,
+  type SignalChange,
+  type SignalInfo,
+  type SignalQuery,
+} from '../lib/api.ts';
+import { oneOf } from '../lib/url-state.ts';
 import type { Context, View } from './types.ts';
 import { isFieldError, showErrors, type FieldError } from '../lib/forms.ts';
 import {
@@ -559,6 +569,20 @@ const view: View = {
   id: 'signals',
   title: 'Signals',
   icon: 'activity',
+  // Its search and filters, in the address (U3.05): `#/signals?q=press&linked=no`.
+  query: {
+    read(params, ctx) {
+      ui(ctx).query = {
+        q: (params.get('q') ?? '').slice(0, 200),
+        source: oneOf<(typeof SIGNAL_SOURCES)[number] | ''>(params.get('source'), SIGNAL_SOURCES, ''),
+        linked: oneOf<(typeof LINKED)[number] | ''>(params.get('linked'), LINKED, ''),
+        quality: oneOf<(typeof QUALITY_FILTERS)[number] | ''>(params.get('quality'), QUALITY_FILTERS, ''),
+      };
+    },
+    write(ctx) {
+      return { ...ui(ctx).query };
+    },
+  },
   render(ctx) {
     const head = pageHead({
       eyebrow: 'Data',
@@ -655,6 +679,7 @@ const view: View = {
         quality: field(form, 'quality') as Ui['query']['quality'],
       };
       u.editing = null;
+      ctx.address(); // the search and filters, in the address as they change
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => void search(root, ctx), 250);
     };

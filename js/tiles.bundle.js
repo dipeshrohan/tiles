@@ -1019,6 +1019,19 @@
 	}
 	//#endregion
 	//#region js/lib/api.ts
+	var SIGNAL_SOURCES = [
+		"edge",
+		"import",
+		"manual"
+	];
+	var LINKED = ["yes", "no"];
+	var QUALITY_FILTERS = [
+		"good",
+		"warn",
+		"bad",
+		"unknown",
+		"unchecked"
+	];
 	var ApiError = class extends Error {
 		status;
 		requestId;
@@ -1685,7 +1698,7 @@
 		remember$1(root);
 	}
 	var hooks = {};
-	var leaving = /* @__PURE__ */ new WeakSet();
+	var leaving$1 = /* @__PURE__ */ new WeakSet();
 	function morph(root, html, withHooks = {}) {
 		const template = root.ownerDocument.createElement("template");
 		template.innerHTML = html;
@@ -1699,7 +1712,7 @@
 	}
 	var sentWith = /* @__PURE__ */ new WeakMap();
 	function noteSent(form) {
-		for (const el of form.elements) if (isField(el)) sentWith.set(el, current$1(el));
+		for (const el of form.elements) if (isField(el)) sentWith.set(el, current$2(el));
 	}
 	var keyOf$1 = (node) => node instanceof Element ? node.getAttribute("data-key") ?? (node.id || null) : null;
 	var same = (a, b) => a.nodeType === b.nodeType && (!(a instanceof Element) || b instanceof Element && a.namespaceURI === b.namespaceURI && a.nodeName === b.nodeName);
@@ -1713,7 +1726,7 @@
 		const keyed = /* @__PURE__ */ new Map();
 		for (let n = parent.firstChild; n; n = n.nextSibling) {
 			const k = keyOf$1(n);
-			if (k && wanted.has(k) && !keyed.has(k) && !leaving.has(n)) keyed.set(k, n);
+			if (k && wanted.has(k) && !keyed.has(k) && !leaving$1.has(n)) keyed.set(k, n);
 		}
 		const reserved = (n) => {
 			const k = keyOf$1(n);
@@ -1721,7 +1734,7 @@
 		};
 		const gone = (n) => {
 			const k = keyOf$1(n);
-			return leaving.has(n) || k !== null && !wanted.has(k);
+			return leaving$1.has(n) || k !== null && !wanted.has(k);
 		};
 		const skip = (n) => {
 			while (n && (reserved(n) || gone(n))) n = n.nextSibling;
@@ -1766,10 +1779,10 @@
 		}
 		if (entering.length <= 3) for (const el of entering) hooks.enter?.(el);
 		const going = [];
-		for (let n = parent.firstChild; n; n = n.nextSibling) if (!kept.has(n) && !leaving.has(n) && n instanceof Element && n.hasAttribute("data-key")) going.push(n);
+		for (let n = parent.firstChild; n; n = n.nextSibling) if (!kept.has(n) && !leaving$1.has(n) && n instanceof Element && n.hasAttribute("data-key")) going.push(n);
 		for (let n = parent.firstChild; n;) {
 			const after = n.nextSibling;
-			if (kept.has(n) || leaving.has(n)) {} else if (going.length === 1 && n === going[0] && hooks.leave?.(going[0])) leaving.add(n);
+			if (kept.has(n) || leaving$1.has(n)) {} else if (going.length === 1 && n === going[0] && hooks.leave?.(going[0])) leaving$1.add(n);
 			else parent.removeChild(n);
 			n = after;
 		}
@@ -1780,7 +1793,7 @@
 			return;
 		}
 		const field = isField(old);
-		const typed = field && current$1(old) !== drawnAs(old) && sentWith.get(old) !== current$1(old);
+		const typed = field && current$2(old) !== drawnAs(old) && sentWith.get(old) !== current$2(old);
 		const was = field ? drawnAs(old) : "";
 		attributes(old, next);
 		if (!(old instanceof HTMLTextAreaElement)) children(old, next);
@@ -1789,7 +1802,7 @@
 	}
 	var isField = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 	var toggles = (el) => el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio");
-	function current$1(el) {
+	function current$2(el) {
 		if (toggles(el)) return String(el.checked);
 		if (el instanceof HTMLSelectElement) return [...el.options].map((o) => o.selected).join();
 		return el.value;
@@ -2115,6 +2128,141 @@
 				easing: tokens$2.out
 			});
 		}, true);
+	}
+	//#endregion
+	//#region js/lib/url-state.ts
+	var queryOf = (hash) => new URLSearchParams(hash.split("?")[1] ?? "");
+	function withQuery(hash, values) {
+		const path = hash.split("?")[0] || "#/";
+		const params = new URLSearchParams();
+		for (const [k, v] of Object.entries(values)) if (v !== null && v !== void 0 && v !== "") params.set(k, v);
+		const q = params.toString();
+		return q ? `${path}?${q}` : path;
+	}
+	var oneOf = (value, allowed, fallback) => allowed.includes(value ?? "") ? value : fallback;
+	function showHash(hash) {
+		if (hash === location.hash) return;
+		try {
+			history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+		} catch {}
+	}
+	var RESTORE_FOR_MS = 3e3;
+	var SCROLL_KEY = "tiles:scroll";
+	var positions = /* @__PURE__ */ new Map();
+	var current$1 = "";
+	var pending$2 = null;
+	var growing = null;
+	function entryKey() {
+		const state = history.state;
+		const key = state && typeof state === "object" ? state.key : void 0;
+		if (typeof key === "string") return key;
+		const made = Math.random().toString(36).slice(2, 10);
+		try {
+			history.replaceState({
+				...state && typeof state === "object" ? state : {},
+				key: made
+			}, "");
+		} catch {}
+		return made;
+	}
+	function watchScroll() {
+		if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+		const kept = session();
+		try {
+			const raw = kept?.getItem(SCROLL_KEY);
+			if (raw) positions = new Map(Object.entries(JSON.parse(raw)));
+		} catch {}
+		current$1 = entryKey();
+		addEventListener("scroll", () => {
+			if (!pending$2 && current$1) positions.set(current$1, scrollY);
+		}, { passive: true });
+		const stop = () => settle();
+		for (const type of [
+			"wheel",
+			"touchstart",
+			"keydown",
+			"mousedown"
+		]) addEventListener(type, stop, {
+			passive: true,
+			capture: true
+		});
+		addEventListener("pagehide", () => {
+			try {
+				kept?.setItem(SCROLL_KEY, JSON.stringify(Object.fromEntries([...positions].slice(-50))));
+			} catch {}
+		});
+	}
+	function leaving() {
+		settle();
+		current$1 = "";
+	}
+	function scrollToSaved() {
+		settle();
+		current$1 = entryKey();
+		const y = positions.get(current$1) ?? 0;
+		scrollTo(0, y);
+		if (y > 0 && Math.abs(scrollY - y) >= 2) {
+			pending$2 = {
+				y,
+				until: Date.now() + RESTORE_FOR_MS
+			};
+			if (typeof ResizeObserver === "function") {
+				growing = new ResizeObserver(() => restoreScroll());
+				growing.observe(document.body);
+			}
+		}
+	}
+	function restoreScroll() {
+		if (!pending$2) return;
+		if (Date.now() > pending$2.until) return settle();
+		scrollTo(0, pending$2.y);
+		if (Math.abs(scrollY - pending$2.y) < 2) settle();
+	}
+	function settle() {
+		pending$2 = null;
+		growing?.disconnect();
+		growing = null;
+	}
+	var UI_KEY = "tiles:ui";
+	function session() {
+		try {
+			return window.sessionStorage;
+		} catch {
+			return null;
+		}
+	}
+	function saveUi(storage, ui) {
+		try {
+			storage?.setItem(UI_KEY, JSON.stringify(ui));
+		} catch {}
+	}
+	function forgetUi(storage) {
+		try {
+			storage?.removeItem(UI_KEY);
+		} catch {}
+	}
+	function loadUi(storage) {
+		try {
+			const raw = storage?.getItem(UI_KEY);
+			const ui = raw ? JSON.parse(raw) : null;
+			if (!isPlain(ui)) return {};
+			return Object.fromEntries(Object.entries(ui).filter(([, v]) => isPlain(v)));
+		} catch {
+			return {};
+		}
+	}
+	var isPlain = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+	function mergeKept(defaults, kept) {
+		if (!isPlain(kept)) return { ...defaults };
+		const out = {};
+		for (const [k, d] of Object.entries(defaults)) {
+			const v = kept[k];
+			if (isPlain(d)) out[k] = mergeKept(d, v);
+			else if (d === null) out[k] = v === void 0 ? null : v;
+			else if (Array.isArray(d)) out[k] = Array.isArray(v) ? v : d;
+			else out[k] = typeof v === typeof d ? v : d;
+		}
+		return out;
 	}
 	//#endregion
 	//#region js/lib/design.ts
@@ -7834,6 +7982,19 @@
 		id: "signals",
 		title: "Signals",
 		icon: "activity",
+		query: {
+			read(params, ctx) {
+				ui$1(ctx).query = {
+					q: (params.get("q") ?? "").slice(0, 200),
+					source: oneOf(params.get("source"), SIGNAL_SOURCES, ""),
+					linked: oneOf(params.get("linked"), LINKED, ""),
+					quality: oneOf(params.get("quality"), QUALITY_FILTERS, "")
+				};
+			},
+			write(ctx) {
+				return { ...ui$1(ctx).query };
+			}
+		},
 		render(ctx) {
 			const head = pageHead({
 				eyebrow: "Data",
@@ -7902,6 +8063,7 @@
 					quality: field$2(form, "quality")
 				};
 				u.editing = null;
+				ctx.address();
 				clearTimeout(searchTimer);
 				searchTimer = setTimeout(() => void search$1(root, ctx), 250);
 			};
@@ -8251,15 +8413,17 @@
 			to: iso(to)
 		};
 	}
+	var linkParams = null;
+	var linkIds = (params) => (params.get("signals") ?? "").split(",").filter(Boolean).slice(0, MAX_SIGNALS);
 	function addFromLink(ctx) {
-		const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
-		const id = params.get("signal");
-		const tag = params.get("tag");
-		const ids = (params.get("signals") ?? "").split(",").filter(Boolean).slice(0, MAX_SIGNALS);
 		const site = ctx.ontology.site;
 		const api = ctx.api;
-		if (!id && !tag && !ids.length || !api || !site) return;
-		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
+		if (!linkParams || !api || !site) return;
+		const params = linkParams;
+		linkParams = null;
+		const id = params.get("signal");
+		const tag = params.get("tag");
+		const ids = linkIds(params);
 		if (tag) {
 			api.signals.list(site.id, {
 				q: tag,
@@ -8320,6 +8484,31 @@
 		id: "explorer",
 		title: "Data explorer",
 		icon: "chart-line",
+		query: {
+			read(params, ctx) {
+				const u = ui(ctx);
+				if (params.get("signal") || params.get("tag")) linkParams = params;
+				else if (linkIds(params).length) {
+					if (!(linkIds(params).join() === u.picked.map((p) => p.id).join() && JSON.stringify(linkRange(params)) === JSON.stringify(u.range))) linkParams = params;
+				}
+			},
+			write(ctx) {
+				if (linkParams) return Object.fromEntries([
+					"signal",
+					"tag",
+					"signals",
+					"from",
+					"to"
+				].map((k) => [k, linkParams?.get(k)]));
+				const u = ui(ctx);
+				const ids = u.picked.map((p) => p.id).join(",");
+				return {
+					signals: ids || null,
+					from: ids ? u.range?.from : null,
+					to: ids ? u.range?.to : null
+				};
+			}
+		},
 		render(ctx) {
 			const head = pageHead({
 				eyebrow: "Data",
@@ -8733,6 +8922,37 @@
 		who: "anyone",
 		signal: "all"
 	};
+	var SHOWS = [
+		"unresolved",
+		"raised",
+		"acknowledged",
+		"resolved",
+		"all"
+	];
+	var WHOS = [
+		"anyone",
+		"me",
+		"none"
+	];
+	var SIGNALS = [
+		"all",
+		"open",
+		"ended"
+	];
+	function filtersFromQuery(params) {
+		return {
+			show: oneOf(params.get("show"), SHOWS, DEFAULT_FILTERS.show),
+			who: oneOf(params.get("who"), WHOS, DEFAULT_FILTERS.who),
+			signal: oneOf(params.get("signal"), SIGNALS, DEFAULT_FILTERS.signal)
+		};
+	}
+	function filtersQuery(f) {
+		return {
+			show: f.show === DEFAULT_FILTERS.show ? null : f.show,
+			who: f.who === DEFAULT_FILTERS.who ? null : f.who,
+			signal: f.signal === DEFAULT_FILTERS.signal ? null : f.signal
+		};
+	}
 	var SHOW_LABELS = {
 		unresolved: "To do",
 		raised: "New",
@@ -8856,6 +9076,16 @@
 	var PAGE$1 = 100;
 	var ago = (iso) => when(iso, Date.now());
 	var siteId$8 = (ctx) => ctx.ontology.site?.id ?? null;
+	var linkedWarning = null;
+	function openLinked(ctx) {
+		const site = siteId$8(ctx);
+		if (!linkedWarning || !site) return;
+		Object.assign(uiState$8(ctx), {
+			selected: linkedWarning,
+			site
+		});
+		linkedWarning = null;
+	}
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "warnings") {
 			listing$5 = null;
@@ -9235,11 +9465,31 @@
 		id: "warnings",
 		title: "Warnings",
 		icon: "triangle-alert",
+		query: {
+			read(params, ctx) {
+				const ui = uiState$8(ctx);
+				ui.filters = filtersFromQuery(params);
+				linkedWarning = params.get("warning");
+				if (!linkedWarning) Object.assign(ui, {
+					selected: null,
+					site: null
+				});
+				openLinked(ctx);
+			},
+			write(ctx) {
+				const ui = uiState$8(ctx);
+				return {
+					...filtersQuery(ui.filters),
+					warning: linkedWarning ?? (ui.site === siteId$8(ctx) ? ui.selected : null)
+				};
+			}
+		},
 		crumbs(ctx) {
 			const w = uiState$8(ctx).selected !== null && detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
 			return ctx.api && w ? [{ label: w.signal_tag }] : [];
 		},
 		render(ctx) {
+			openLinked(ctx);
 			const head = pageHead({
 				eyebrow: "Operations · Detection",
 				title: "Warnings",
@@ -11885,7 +12135,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function selectFromLink(ctx) {
 		const id = new URLSearchParams(location.hash.split("?")[1] ?? "").get("dataset");
 		if (!id) return;
-		history.replaceState(null, "", `${location.pathname}${location.search}#/correlate`);
+		history.replaceState(history.state, "", `${location.pathname}${location.search}#/correlate`);
 		Object.assign(uiState$2(ctx), {
 			selected: id,
 			outcome: "",
@@ -13805,8 +14055,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		shots,
 		detection,
 		scored: scoreAlerts(detection.alerts, shots.downtime, shots.cycleSeconds),
-		ui: {}
+		ui: loadUi(session())
 	};
+	var uiChecked = /* @__PURE__ */ new Set();
 	function persist() {
 		save$1(STATE_KEY, {
 			repo: ontologyStatus === "local" ? state.repo : localRepo,
@@ -14035,10 +14286,20 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (rerender) render();
 		},
 		ui(viewId, defaults) {
+			if (!uiChecked.has(viewId)) {
+				uiChecked.add(viewId);
+				if (state.ui[viewId]) state.ui[viewId] = mergeKept(defaults, state.ui[viewId]);
+			}
 			state.ui[viewId] ??= { ...defaults };
 			return state.ui[viewId];
 		},
 		rerender: () => render(),
+		address() {
+			const view = currentView();
+			if (!view.query) return;
+			showHash(withQuery(location.hash, view.query.write(ctx)));
+			addressed = location.hash;
+		},
 		toast,
 		reset() {
 			const chosen = load$4("datasource", null);
@@ -14101,6 +14362,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				}
 			},
 			async signOut() {
+				forgetUi(session());
+				state.ui = {};
 				const url = await signOut(redirectUri(), location.search + location.hash);
 				if (url) location.assign(url);
 				else {
@@ -14133,6 +14396,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
 		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 	}
+	var addressed = "";
 	var shownView = null;
 	var trackedView = "";
 	function render() {
@@ -14144,6 +14408,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		renderNav(view);
 		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
+		const params = queryOf(location.hash);
+		if (view.query && location.hash !== addressed && [...params].length) view.query.read(params, ctx);
 		resetIds();
 		const html = view.render(ctx);
 		const again = view.id === shownView;
@@ -14170,6 +14436,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			...view.crumbs?.(ctx) ?? []
 		]);
 		shownView = view.id;
+		ctx.address();
+		addressed = location.hash;
+		restoreScroll();
 	}
 	need(document, "#view").addEventListener("submit", (e) => {
 		if (e.target instanceof HTMLFormElement && !e.target.noValidate) noteSent(e.target);
@@ -14255,6 +14524,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		for (const ev of takeLeft(localStorage, api.baseUrl, uxSite)?.events ?? []) tracker.track(ev.kind, ev.name);
 	});
 	window.addEventListener("pagehide", () => saveWaiting(localStorage));
+	window.addEventListener("pagehide", () => saveUi(session(), state.ui));
 	window.addEventListener("pageshow", (e) => {
 		if (e.persisted) keepWaiting(localStorage);
 	});
@@ -14408,6 +14678,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}, true);
 	function navigate() {
 		closeMenu();
+		leaving();
 		const root = need(document, "#view");
 		const newPage = currentView().id !== shownView;
 		const from = !newPage && clicked?.isConnected && clicked.hash === location.hash ? clicked : null;
@@ -14418,7 +14689,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const arrive = () => {
 			name(from, "");
 			render();
-			window.scrollTo(0, 0);
+			scrollToSaved();
 			name(head(), from ? "record" : hold ? "" : "none");
 			const heading = root.querySelector("h1[tabindex]");
 			(heading ?? root).focus({ preventScroll: true });
@@ -14440,6 +14711,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}
 	window.addEventListener("hashchange", navigate);
 	watchSections(document);
+	watchScroll();
 	if (api) {
 		localRepo = state.repo;
 		state.repo = createRepo();
