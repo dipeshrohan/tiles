@@ -171,7 +171,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
   const legend = (Object.entries(NODE_TYPES) as [NodeType, { color: string }][])
     .map(
       ([t, def]) =>
-        `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? 'opacity:.4' : ''}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`,
+        `<button class="chip${hidden.has(t) ? ' faded' : ''}" data-type="${t}" aria-pressed="${!hidden.has(t)}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`,
     )
     .join('');
   const level = LEVELS.find(([, , types]) => {
@@ -189,7 +189,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       <div class="onto">
         <div>
           <div class="canvas-tools">
-            <span class="row" style="gap:4px">
+            <span class="row gap-1">
               <button class="btn sm" data-zoom="out" aria-label="Zoom out">−</button>
               <button class="btn sm" data-zoom="in" aria-label="Zoom in">+</button>
               <button class="btn sm" data-zoom="fit">Fit</button>
@@ -211,7 +211,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
             <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ''}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
             <span class="spacer"></span><span class="small soft">Scroll to zoom, drag to move, double-click a node to fold or open it</span>
           </div>
-          <div class="chips" style="margin-top:8px">${legend}</div>
+          <div class="chips mt-2">${legend}</div>
         </div>
         <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, counts, h) : ctx.ontology.role === 'viewer' ? viewOnlyNote() : newNodeForm(graph)}</div>
       </div>`;
@@ -231,28 +231,28 @@ function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hie
     .sort((a, b) => a.label.localeCompare(b.label));
   return `
       <div class="card-head">
-        <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 style="margin-top:6px">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
+        <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 class="mt-1_5">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
         <button class="btn sm" data-deselect aria-label="Close">✕</button>
       </div>
-      ${path.length > 1 ? `<p class="small soft" style="margin-bottom:12px">${path.map((p) => esc(p.label)).join(' → ')}</p>` : ''}
-      ${below || isFolded ? `<p style="margin-bottom:12px"><button class="btn sm" data-fold="${esc(id)}">${isFolded ? `Open (${below} folded)` : `Fold the ${below} below it`}</button></p>` : ''}
-      <h3 style="margin-bottom:6px">Properties</h3>
+      ${path.length > 1 ? `<p class="small soft mb-3">${path.map((p) => esc(p.label)).join(' → ')}</p>` : ''}
+      ${below || isFolded ? `<p class="mb-3"><button class="btn sm" data-fold="${esc(id)}">${isFolded ? `Open (${below} folded)` : `Fold the ${below} below it`}</button></p>` : ''}
+      <h3 class="mb-1_5">Properties</h3>
       <div class="kv">
-        ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join('') || '<span class="muted small" style="grid-column:span 3">No properties</span>'}
+        ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join('') || '<span class="muted small span3">No properties</span>'}
       </div>
-      ${required.length ? `<p class="small" style="color:var(--warn-ink);margin-top:6px">Missing required: ${required.map(esc).join(', ')}</p>` : ''}
-      <form class="row" id="prop-form" style="margin:8px 0 16px">
-        <input type="text" name="key" placeholder="key" style="width:90px" value="${esc(required[0] ?? '')}" required aria-label="Property key" />
-        <input type="text" name="value" placeholder="value" style="flex:1;width:90px" required aria-label="Property value" />
+      ${required.length ? `<p class="small text-warn mt-1_5">Missing required: ${required.map(esc).join(', ')}</p>` : ''}
+      <form class="row mt-2 mb-4 m-0" id="prop-form">
+        <input type="text" name="key" placeholder="key" class="w-6em" value="${esc(required[0] ?? '')}" required aria-label="Property key" />
+        <input type="text" name="value" placeholder="value" class="grow w-6em" required aria-label="Property value" />
         <button class="btn sm" type="submit">Set</button>
       </form>
-      <h3 style="margin-bottom:6px">Relationships</h3>
+      <h3 class="mb-1_5">Relationships</h3>
       <div class="rel-list">
         ${rels.map((r) => `<div class="rel">${r.outgoing ? '' : '<span class="r">←</span>'}<span class="r">${esc(r.edge.rel)}</span><a href="#/ontology" data-goto="${esc(r.node.id)}">${esc(r.node.label)}</a><span class="spacer"></span><button class="btn sm" data-unlink="${esc(r.edge.id)}" aria-label="Remove relationship">✕</button></div>`).join('') || '<span class="muted small">No relationships — this node is an orphan</span>'}
       </div>
-      <form class="row" id="link-form" style="margin:8px 0 16px">
+      <form class="row mt-2 mb-4 m-0" id="link-form">
         <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option>${r}</option>`).join('')}</select>
-        <select name="to" style="flex:1;width:100px" aria-label="Target node">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('')}</select>
+        <select name="to" class="grow w-6em" aria-label="Target node">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('')}</select>
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ''}>Delete node</button>`;
@@ -299,9 +299,9 @@ function importCard(ctx: Context): string {
     : '';
   const more = preview && preview.total > PREVIEW_LINES ? `<div>… ${preview.total - PREVIEW_LINES} more</div>` : '';
   return `
-    <div class="card" id="import-card" style="margin-bottom:16px">
+    <div class="card mb-4" id="import-card">
       <div class="card-head"><h2>Import ${esc(p.name)}</h2>
-        <label class="row small" style="gap:6px">Mode<select name="import-mode" data-import-mode aria-label="Import mode">
+        <label class="row small gap-1_5">Mode<select name="import-mode" data-import-mode aria-label="Import mode">
           <option value="merge" ${p.mode === 'merge' ? 'selected' : ''}>Merge: add and update</option>
           <option value="replace" ${p.mode === 'replace' ? 'selected' : ''}>Replace: the ontology becomes the file</option>
         </select></label></div>
@@ -309,8 +309,8 @@ function importCard(ctx: Context): string {
         preview
           ? `<p class="small" data-import-summary>${esc(importSummary(preview.counts))}.${preview.duplicates.length ? ` ${preview.duplicates.length} relationship(s) already there under another id are skipped.` : ''}</p>
       <div class="diff review-diff">${lines}${more}</div>
-      <p class="small soft" style="margin-top:8px">The changes are staged, not committed: you then commit them, or send them for review.</p>
-      <div class="row" style="gap:8px;margin-top:8px">
+      <p class="small soft mt-2">The changes are staged, not committed: you then commit them, or send them for review.</p>
+      <div class="row gap-2 mt-2">
         <button class="btn primary" data-import-stage ${preview.total ? '' : 'disabled'}>Stage ${preview.total} change(s)</button>
         <button class="btn" data-import-cancel>Cancel</button>
       </div>`
@@ -542,8 +542,8 @@ function newNodeForm(graph: Graph): string {
   const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
   return `
       <div class="card-head"><h2>New node</h2></div>
-      <p class="small soft" style="margin-bottom:12px">Select a node on the canvas to inspect it, or stage a new one here.</p>
-      <form class="stack" id="node-form" style="gap:10px;max-width:520px">
+      <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
+      <form class="stack gap-2_5 max-w-form" id="node-form">
         <label class="field">Type<select name="type">${Object.keys(NODE_TYPES)
           .map((t) => `<option>${t}</option>`)
           .join('')}</select></label>
@@ -561,13 +561,13 @@ function history(ctx: Context, graph: Graph): string {
     .map(
       (c, i) => `
         <div class="commit">
-          <span class="avatar" style="background:${i === 0 ? 'var(--accent)' : 'var(--line-strong)'}">${esc((c.author[0] ?? '?').toUpperCase())}</span>
-          <div style="flex:1;min-width:0">
+          <span class="avatar ${i === 0 ? 'bg-accent' : 'bg-line-strong'}">${esc((c.author[0] ?? '?').toUpperCase())}</span>
+          <div class="grow min-w-0">
             <div><b>${esc(c.message)}</b></div>
             <div class="small muted">${esc(c.author)}${c.reviewer ? ` · approved by ${esc(c.reviewer)}` : ''} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
             <div class="stats">${statBadges(c.stats)}</div>
-            <details style="margin-top:6px"><summary class="small soft" style="cursor:pointer">${c.ops.length} operation(s)</summary>
-              <div class="diff" style="margin-top:6px">${c.ops
+            <details class="mt-1_5"><summary class="small soft cursor-pointer">${c.ops.length} operation(s)</summary>
+              <div class="diff mt-1_5">${c.ops
                 .slice(0, 60)
                 .map((op) => `<div>${esc(describeOp(op, graph))}</div>`)
                 .join('')}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ''}</div>
@@ -587,14 +587,14 @@ function healthTab(health: HealthReport, graph: Graph): string {
     return '';
   };
   return `
-      <div class="grid g3" style="margin-bottom:16px">
+      <div class="grid g3 mb-4">
         <div class="card kpi ${health.score === 100 ? 'good' : ''}"><div class="label">Health score</div><div class="value">${health.score}</div></div>
         <div class="card kpi"><div class="label">Nodes</div><div class="value">${health.counts.nodes}</div></div>
         <div class="card kpi"><div class="label">Relationships</div><div class="value">${health.counts.edges}</div></div>
       </div>
       <div class="card">
         <div class="card-head"><h2>Checks</h2><p>Orphan nodes, dangling and duplicate relationships, and required properties per type.</p></div>
-        ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === 'info' ? '' : 'bad'}">${esc(i.kind)}</span><span style="flex:1">${esc(i.text)}</span>${fix(i)}</div>`).join('') || '<div class="empty">All checks pass ✓</div>'}
+        ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === 'info' ? '' : 'bad'}">${esc(i.kind)}</span><span class="grow">${esc(i.text)}</span>${fix(i)}</div>`).join('') || '<div class="empty">All checks pass ✓</div>'}
       </div>`;
 }
 
@@ -644,12 +644,12 @@ function sourceBar(ctx: Context): string {
   if (o.status === 'loading')
     return '<div class="card source-bar" aria-live="polite">Loading the ontology from the Tiles API…</div>';
   if (o.status === 'error')
-    return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? '<button class="btn sm primary" data-sign-in>Sign in</button>' : ''}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
+    return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row gap-2 mt-2">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? '<button class="btn sm primary" data-sign-in>Sign in</button>' : ''}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
   const { head, history, staged } = ctx.state.repo;
   const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
   return `<div class="card source-bar small" aria-live="polite">
       <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.reviewRequired ? ' Every change needs a review.' : ''}${o.role === 'viewer' ? ' <span class="badge">View only</span>' : ''}</span>
-      <span class="row" style="gap:8px">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === 'viewer' ? '' : `<label class="btn sm" ${staged.length ? 'aria-disabled="true" title="Commit or discard your staged changes first"' : ''}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? 'disabled' : ''} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
+      <span class="row gap-2">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === 'viewer' ? '' : `<label class="btn sm" ${staged.length ? 'aria-disabled="true" title="Commit or discard your staged changes first"' : ''}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? 'disabled' : ''} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 }
 
@@ -670,14 +670,14 @@ const view: View = {
     const stagedBar = conflict
       ? `<div class="staged-bar" role="alert">
           <span class="badge bad">${repo.staged.length} uncommitted</span>
-          <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
+          <span class="grow">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
           <button class="btn" type="button" data-discard>Discard</button>
         </div>`
       : repo.staged.length && ctx.ontology.role === 'viewer'
         ? // Staged before an admin made them a viewer: they can still throw it away.
           `<div class="staged-bar" id="viewer-staged">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
-          <span style="flex:1">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
+          <span class="grow">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
           <button class="btn" type="button" data-discard>Discard</button>
         </div>`
         : repo.staged.length

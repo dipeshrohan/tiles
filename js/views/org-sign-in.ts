@@ -12,7 +12,7 @@ import { confirmDialog } from '../lib/overlay.ts';
 let revealed: { name: string; token: string; apiUrl: string; user: string } | null = null;
 
 export function orgSignInCard(): string {
-  return `<div class="card stack" id="org-sign-in" style="gap:12px;grid-column:1 / -1" hidden>
+  return `<div class="card stack gap-3 span-all" id="org-sign-in" hidden>
       <h2>Organisation sign-in</h2>
       <p class="small soft">Sign your organisation's people in with its own identity provider, such as Microsoft Entra ID, and let it create and deactivate their accounts (SCIM). See <code>docs/guides/entra-id.md</code>. Only organisation admins see this.</p>
       <div data-org-provider aria-live="polite"></div>
@@ -33,17 +33,17 @@ function providerForm(p: IdentityProvider | null, viaProvider: boolean): string 
     ? 'Refuse every other sign-in for your organisation.'
     : 'Refuse every other sign-in. Save the provider first, then sign in through it to turn this on.';
   return `${status}
-    <form class="stack" id="org-provider-form" style="gap:8px">
+    <form class="stack gap-2" id="org-provider-form">
       <label class="field">Issuer (the tokens’ <code>iss</code>; Entra ID: https://login.microsoftonline.com/&lt;tenant ID&gt;/v2.0)<input type="url" name="issuer" value="${v(p?.issuer)}" required autocomplete="off" /></label>
-      <div class="grid g2" style="gap:8px">
+      <div class="grid g2 gap-2">
         <label class="field">Browser client ID (a single-page app registration)<input type="text" name="clientId" value="${v(p?.client_id)}" required autocomplete="off" /></label>
         <label class="field">Audience (the API app’s ID, as the tokens’ <code>aud</code> names it)<input type="text" name="audience" value="${v(p?.audience)}" required autocomplete="off" /></label>
       </div>
       <label class="field">Scope (Entra ID: openid profile email offline_access api://&lt;API app ID&gt;/access)<input type="text" name="scope" value="${v(p?.scope ?? 'openid email profile')}" autocomplete="off" /></label>
       <label class="field">Signing keys (leave empty to find them from the issuer)<input type="url" name="jwksUrl" value="${v(p?.jwks_url)}" autocomplete="off" /></label>
       <label class="field">Groups and the role each grants, one per line: <code>&lt;group ID&gt; = engineer</code><textarea name="groupRoles" rows="3" spellcheck="false">${esc(groupRolesText(p?.group_roles ?? {}))}</textarea></label>
-      <label class="row" style="gap:8px"><input type="checkbox" name="enforced" ${p?.enforced ? 'checked' : ''} /> ${esc(enforceHint)}</label>
-      <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button>${p ? '<button class="btn danger" type="button" data-org-provider-remove>Remove</button>' : ''}</div>
+      <label class="row gap-2"><input type="checkbox" name="enforced" ${p?.enforced ? 'checked' : ''} /> ${esc(enforceHint)}</label>
+      <div class="row gap-2"><button class="btn primary" type="submit">Save</button>${p ? '<button class="btn danger" type="button" data-org-provider-remove>Remove</button>' : ''}</div>
     </form>`;
 }
 
@@ -52,7 +52,7 @@ function scimHtml(ctx: Context, tokens: ScimToken[]): string {
   if (!api) return '';
   const shown =
     revealed && revealed.apiUrl === api.baseUrl && revealed.user === ctx.state.user.email
-      ? `<div class="stack" style="gap:8px" data-scim-token>
+      ? `<div class="stack gap-2" data-scim-token>
           <p><b>Token for ${esc(revealed.name)}.</b> Copy it now into your provider’s provisioning settings as the secret token: Tiles keeps only its hash and won’t show it again.</p>
           <pre class="code-block">${esc(revealed.token)}</pre>
           <div><button class="btn" type="button" data-scim-token-done>Done, I've saved it</button></div>
@@ -69,9 +69,9 @@ function scimHtml(ctx: Context, tokens: ScimToken[]): string {
     : '<p class="small soft">No SCIM tokens yet.</p>';
   return `<p class="small">Tenant URL for your provider: <code>${esc(scimBaseUrl(api.baseUrl))}</code>. Users only: roles come from sign-in, memberships from site admins.</p>
     ${shown}${rows}
-    <form class="row" id="scim-token-form" style="gap:8px;flex-wrap:wrap">
-      <label class="field" style="flex:1;min-width:200px">New token for<input type="text" name="name" placeholder="e.g. Entra ID provisioning" maxlength="120" required /></label>
-      <div style="align-self:end"><button class="btn primary" type="submit">Make a token</button></div>
+    <form class="row gap-2 wrap" id="scim-token-form">
+      <label class="field grow min-w-field">New token for<input type="text" name="name" placeholder="e.g. Entra ID provisioning" maxlength="120" required /></label>
+      <div class="self-end"><button class="btn primary" type="submit">Make a token</button></div>
     </form>`;
 }
 

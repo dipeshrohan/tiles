@@ -54,6 +54,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - **dialogs, toasts and tooltips** after shadcn/ui: confirmations are animated dialogs that say what will happen (what can't be undone asks for its name), toasts stack in the corner with icons, a close button and actions (errors from the API stay until dismissed and show their request ID, with a copy button, and are read out once as an alert, not again when the same failure repeats), and icon buttons explain themselves on hover or focus (U2.01, U2.02);
   - **a shadcn/ui-style look:** Lucide icons for every page and control, buttons in outline, primary, secondary, ghost and destructive variants and three sizes, fields with focus rings, tabs on a tinted track, cards, badges and chips that respond to the pointer, and pages that fade in when opened (U1.05);
   - **design tokens** for spacing, type, radii, shadows, layers and motion, with the light and dark palettes in one place; spacing and type moved onto the scale (U1.02);
+  - **no inline styles**: pages lay out with the stylesheet's utilities (`.gap-*`, `.mt-*`, `.grow`, `.wrap`…) instead of `style` attributes; `npm run lint` refuses a new one unless its value is computed (U1.03);
   - row security per site in the database; the API and the scheduled jobs work as a role that can't skip it or change the schema;
   - credentials sealed with rotatable data keys;
   - an audit log;

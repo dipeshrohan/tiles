@@ -1837,7 +1837,7 @@
           <div class="eyebrow">Tiles</div>
           <h1>Physics and plant data, in one place.</h1>
           <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
-          <div class="row" style="margin-top:18px">
+          <div class="row mt-4">
             <a class="btn primary" href="#/chat">Ask the copilot</a>
             <a class="btn" href="#/physics">See live warnings</a>
           </div>
@@ -1852,23 +1852,23 @@
         </div>
       </section>
 
-      <div class="grid g4" style="margin-bottom:16px">
-        <a class="card kpi bad" href="#/physics" style="color:inherit;text-decoration:none">
+      <div class="grid g4 mb-4">
+        <a class="card kpi bad text-inherit no-underline" href="#/physics">
           <div class="label">Friction warnings · DC-02</div>
           <div class="value">${state.detection.alerts.length}</div>
           <div class="note">${predicted.length}/${state.scored.length} stops predicted, ${fmt$1(lead, 1)} h avg lead</div>
         </a>
-        <a class="card kpi" href="#/quality" style="color:inherit;text-decoration:none">
+        <a class="card kpi text-inherit no-underline" href="#/quality">
           <div class="label">Cutter NG rate</div>
           <div class="value">${fmt$1(100 * ng / state.batches.length, 1)}%</div>
           <div class="note">${ng} of ${state.batches.length} batches · root cause found</div>
         </a>
-        <a class="card kpi ${health.score < 100 ? "" : "good"}" href="#/ontology" style="color:inherit;text-decoration:none">
+        <a class="card kpi text-inherit no-underline ${health.score < 100 ? "" : "good"}" href="#/ontology">
           <div class="label">Ontology health</div>
           <div class="value">${health.score}</div>
           <div class="note">${health.counts.nodes} nodes · ${health.counts.edges} relationships · ${health.issues.length} issue(s)</div>
         </a>
-        <a class="card kpi" href="#/design" style="color:inherit;text-decoration:none">
+        <a class="card kpi text-inherit no-underline" href="#/design">
           <div class="label">Design runs logged</div>
           <div class="value">${state.runs.length}</div>
           <div class="note">${Object.keys(MODELS).length} physics models in library</div>
@@ -1901,7 +1901,7 @@
         <div class="card">
           <div class="card-head"><h2>Recent activity</h2></div>
           <div class="feed">
-            ${feed.map((f) => `<a class="feed-item" href="${f.href}" style="color:inherit;text-decoration:none"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join("") || "<div class=\"empty\">No activity yet</div>"}
+            ${feed.map((f) => `<a class="feed-item text-inherit no-underline" href="${f.href}"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join("") || "<div class=\"empty\">No activity yet</div>"}
           </div>
         </div>
       </div>`;
@@ -2559,17 +2559,17 @@
 		ctx.rerender();
 	}
 	function answerBody(a, cited, conversation) {
-		const tools = a.tools.length ? `<details class="trace" data-trace><summary>Used ${a.tools.length} tool${a.tools.length === 1 ? "" : "s"}</summary><ol class="stack" style="gap:6px;margin:6px 0 0;padding-left:18px">${a.tools.map((t) => {
+		const tools = a.tools.length ? `<details class="trace" data-trace><summary>Used ${a.tools.length} tool${a.tools.length === 1 ? "" : "s"}</summary><ol class="stack gap-1_5 mt-1_5 m-0 pl-5">${a.tools.map((t) => {
 			const link = evidenceLink(t);
 			const state = t.isError === null ? "…" : t.isError ? "✗" : "✓";
-			return `<li ${t.n !== null ? `id="cite-${t.n}"` : ""} data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ""}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? "bad" : "soft"}">${state}</span>${t.preview ? `<pre class="small soft" style="white-space:pre-wrap;margin:4px 0 0">${esc(t.preview)}</pre>` : ""}${link ? ` <a href="${esc(link.href)}">${esc(link.text)} →</a>` : ""}</li>`;
+			return `<li ${t.n !== null ? `id="cite-${t.n}"` : ""} data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ""}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? "bad" : "soft"}">${state}</span>${t.preview ? `<pre class="small soft pre-wrap mt-1 m-0">${esc(t.preview)}</pre>` : ""}${link ? ` <a href="${esc(link.href)}">${esc(link.text)} →</a>` : ""}</li>`;
 		}).join("")}</ol></details>` : "";
 		const withdrawn = a.retracted.map((r) => `<p class="small soft" data-retracted>A first draft was withdrawn: ${esc(r.reason)}.</p>`).join("");
 		const warning = groundingWarning(a.grounding);
 		const vote = (r, label) => `<button class="btn sm ${a.feedback?.rating === r ? "primary" : ""}" type="button" data-rate="${r}" data-seq="${a.seq}" aria-pressed="${a.feedback?.rating === r}" title="${r === "up" ? "Helpful" : "Not helpful"}">${label}</button>`;
 		const rateKey = `${conversation}|${a.seq}`;
-		const feedback = a.done && a.seq !== null && conversation ? `<div class="row" style="gap:6px;margin-top:8px;align-items:center" data-feedback>${vote("up", "👍")}${vote("down", "👎")}${a.feedback?.comment ? `<span class="small soft">“${esc(a.feedback.comment)}”</span>` : ""}</div>${rating?.key === rateKey ? `<form class="row" style="gap:6px;margin-top:6px" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="What was wrong? (goes to your site's admins with this answer)" value="${esc(rating.comment)}" style="flex:1"><button class="btn sm" type="submit">Send</button></form>` : ""}` : "";
-		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn-ink)">⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ""}${feedback}`;
+		const feedback = a.done && a.seq !== null && conversation ? `<div class="row gap-1_5 mt-2 items-center" data-feedback>${vote("up", "👍")}${vote("down", "👎")}${a.feedback?.comment ? `<span class="small soft">“${esc(a.feedback.comment)}”</span>` : ""}</div>${rating?.key === rateKey ? `<form class="row gap-1_5 mt-1_5" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="What was wrong? (goes to your site's admins with this answer)" value="${esc(rating.comment)}" class="grow"><button class="btn sm" type="submit">Send</button></form>` : ""}` : "";
+		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small text-warn" role="note" data-grounding-warning>⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small text-bad" role="alert">${esc(a.error)}</p>` : ""}${feedback}`;
 	}
 	function remoteRender(ctx) {
 		const ui = uiState$13(ctx);
@@ -2597,7 +2597,7 @@
 			return `<div class="msg user">${esc(e.question)}</div><div class="msg bot copilot-answer">${body}</div>`;
 		}), ...live && live.key === key ? [`<div class="msg user">${esc(live.question)}</div><div class="msg bot copilot-answer" data-live>${answerBody(live.answer, [...cited, ...live.answer.tools], null)}</div>`] : []].join("");
 		return `<div class="copilot">
-      <div class="card stack" style="gap:8px">
+      <div class="card stack gap-2">
         <button class="btn primary" type="button" data-new-conversation>New conversation</button>
         <div class="review-list" data-conversations>${items}</div>
       </div>
@@ -2608,13 +2608,13 @@
 			body: "The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer."
 		})}</div>
         <div>
-          <div class="chips" style="margin:10px 0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+          <div class="chips mt-2_5 mb-2_5 m-0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
             <input type="text" name="q" value="${esc(draft$4)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$7 ? "disabled" : ""} />
             <button class="btn primary" type="submit" ${busy$7 ? "disabled" : ""}>Ask</button>
             ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$7 ? "disabled" : ""}>Delete</button>` : ""}
           </form>
-          <p class="small soft" style="margin-top:6px">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
+          <p class="small soft mt-1_5">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
         </div>
       </div>
     </div>`;
@@ -2769,7 +2769,7 @@
 			body: "The copilot picks a skill, runs it on the factory data and shows each step it took."
 		})}</div>
         <div>
-          <div class="chips" style="margin:10px 0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+          <div class="chips mt-2_5 mb-2_5 m-0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
             <input type="text" name="q" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
             <button class="btn primary" type="submit">Ask</button>
@@ -2822,7 +2822,7 @@
       </div>`;
 			if (on) return head + remoteRender(ctx);
 			const checking = ctx.api && remote$1?.configured === null;
-			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : ctx.api && remote$1?.configured && !remote$1.enabled ? `<p class="small soft" data-copilot-site-off style="margin-bottom:8px">The copilot is off on this site: an admin turns it on in <a href="#/settings">Settings</a>. Until then the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
+			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft mb-2" data-copilot-off>The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : ctx.api && remote$1?.configured && !remote$1.enabled ? `<p class="small soft mb-2" data-copilot-site-off>The copilot is off on this site: an admin turns it on in <a href="#/settings">Settings</a>. Until then the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
 		},
 		bind(root, ctx) {
 			const site = siteId$10(ctx);
@@ -3240,7 +3240,7 @@
           <title>${esc(n.type)}: ${esc(n.label)}${fold ? ` (${fold} folded: double-click to open)` : ""}</title>
         </g>`;
 		}).join("");
-		const legend = Object.entries(NODE_TYPES).map(([t, def]) => `<button class="chip" data-type="${t}" aria-pressed="${!hidden.has(t)}" style="${hidden.has(t) ? "opacity:.4" : ""}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`).join("");
+		const legend = Object.entries(NODE_TYPES).map(([t, def]) => `<button class="chip${hidden.has(t) ? " faded" : ""}" data-type="${t}" aria-pressed="${!hidden.has(t)}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`).join("");
 		const level = LEVELS.find(([, , types]) => {
 			if (!ui.collapsed && Object.keys(graph.nodes).length > AUTO_FOLD_ABOVE) return types[0] === "PLC";
 			const nodesAt = levelNodes(graph, h, types);
@@ -3258,7 +3258,7 @@
       <div class="onto">
         <div>
           <div class="canvas-tools">
-            <span class="row" style="gap:4px">
+            <span class="row gap-1">
               <button class="btn sm" data-zoom="out" aria-label="Zoom out">−</button>
               <button class="btn sm" data-zoom="in" aria-label="Zoom in">+</button>
               <button class="btn sm" data-zoom="fit">Fit</button>
@@ -3277,7 +3277,7 @@
             <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ""}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
             <span class="spacer"></span><span class="small soft">Scroll to zoom, drag to move, double-click a node to fold or open it</span>
           </div>
-          <div class="chips" style="margin-top:8px">${legend}</div>
+          <div class="chips mt-2">${legend}</div>
         </div>
         <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, counts, h) : ctx.ontology.role === "viewer" ? viewOnlyNote() : newNodeForm(graph)}</div>
       </div>`;
@@ -3294,28 +3294,28 @@
 		const others = Object.values(graph.nodes).filter((o) => o.id !== id).sort((a, b) => a.label.localeCompare(b.label));
 		return `
       <div class="card-head">
-        <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 style="margin-top:6px">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
+        <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 class="mt-1_5">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
         <button class="btn sm" data-deselect aria-label="Close">✕</button>
       </div>
-      ${path.length > 1 ? `<p class="small soft" style="margin-bottom:12px">${path.map((p) => esc(p.label)).join(" → ")}</p>` : ""}
-      ${below || isFolded ? `<p style="margin-bottom:12px"><button class="btn sm" data-fold="${esc(id)}">${isFolded ? `Open (${below} folded)` : `Fold the ${below} below it`}</button></p>` : ""}
-      <h3 style="margin-bottom:6px">Properties</h3>
+      ${path.length > 1 ? `<p class="small soft mb-3">${path.map((p) => esc(p.label)).join(" → ")}</p>` : ""}
+      ${below || isFolded ? `<p class="mb-3"><button class="btn sm" data-fold="${esc(id)}">${isFolded ? `Open (${below} folded)` : `Fold the ${below} below it`}</button></p>` : ""}
+      <h3 class="mb-1_5">Properties</h3>
       <div class="kv">
-        ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join("") || "<span class=\"muted small\" style=\"grid-column:span 3\">No properties</span>"}
+        ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join("") || "<span class=\"muted small span3\">No properties</span>"}
       </div>
-      ${required.length ? `<p class="small" style="color:var(--warn-ink);margin-top:6px">Missing required: ${required.map(esc).join(", ")}</p>` : ""}
-      <form class="row" id="prop-form" style="margin:8px 0 16px">
-        <input type="text" name="key" placeholder="key" style="width:90px" value="${esc(required[0] ?? "")}" required aria-label="Property key" />
-        <input type="text" name="value" placeholder="value" style="flex:1;width:90px" required aria-label="Property value" />
+      ${required.length ? `<p class="small text-warn mt-1_5">Missing required: ${required.map(esc).join(", ")}</p>` : ""}
+      <form class="row mt-2 mb-4 m-0" id="prop-form">
+        <input type="text" name="key" placeholder="key" class="w-6em" value="${esc(required[0] ?? "")}" required aria-label="Property key" />
+        <input type="text" name="value" placeholder="value" class="grow w-6em" required aria-label="Property value" />
         <button class="btn sm" type="submit">Set</button>
       </form>
-      <h3 style="margin-bottom:6px">Relationships</h3>
+      <h3 class="mb-1_5">Relationships</h3>
       <div class="rel-list">
         ${rels.map((r) => `<div class="rel">${r.outgoing ? "" : "<span class=\"r\">←</span>"}<span class="r">${esc(r.edge.rel)}</span><a href="#/ontology" data-goto="${esc(r.node.id)}">${esc(r.node.label)}</a><span class="spacer"></span><button class="btn sm" data-unlink="${esc(r.edge.id)}" aria-label="Remove relationship">✕</button></div>`).join("") || "<span class=\"muted small\">No relationships — this node is an orphan</span>"}
       </div>
-      <form class="row" id="link-form" style="margin:8px 0 16px">
+      <form class="row mt-2 mb-4 m-0" id="link-form">
         <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option>${r}</option>`).join("")}</select>
-        <select name="to" style="flex:1;width:100px" aria-label="Target node">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
+        <select name="to" class="grow w-6em" aria-label="Target node">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
@@ -3341,16 +3341,16 @@
 		const lines = preview ? describeChanges(ctx.state.repo.head, preview.ops.slice(0, PREVIEW_LINES)).map((c) => `<div class="change ${c.sign === "+" ? "plus" : c.sign === "−" ? "minus" : "mod"}"><span class="sign">${c.sign}</span> ${esc(c.text)}</div>`).join("") : "";
 		const more = preview && preview.total > PREVIEW_LINES ? `<div>… ${preview.total - PREVIEW_LINES} more</div>` : "";
 		return `
-    <div class="card" id="import-card" style="margin-bottom:16px">
+    <div class="card mb-4" id="import-card">
       <div class="card-head"><h2>Import ${esc(p.name)}</h2>
-        <label class="row small" style="gap:6px">Mode<select name="import-mode" data-import-mode aria-label="Import mode">
+        <label class="row small gap-1_5">Mode<select name="import-mode" data-import-mode aria-label="Import mode">
           <option value="merge" ${p.mode === "merge" ? "selected" : ""}>Merge: add and update</option>
           <option value="replace" ${p.mode === "replace" ? "selected" : ""}>Replace: the ontology becomes the file</option>
         </select></label></div>
       ${preview ? `<p class="small" data-import-summary>${esc(importSummary(preview.counts))}.${preview.duplicates.length ? ` ${preview.duplicates.length} relationship(s) already there under another id are skipped.` : ""}</p>
       <div class="diff review-diff">${lines}${more}</div>
-      <p class="small soft" style="margin-top:8px">The changes are staged, not committed: you then commit them, or send them for review.</p>
-      <div class="row" style="gap:8px;margin-top:8px">
+      <p class="small soft mt-2">The changes are staged, not committed: you then commit them, or send them for review.</p>
+      <div class="row gap-2 mt-2">
         <button class="btn primary" data-import-stage ${preview.total ? "" : "disabled"}>Stage ${preview.total} change(s)</button>
         <button class="btn" data-import-cancel>Cancel</button>
       </div>` : "<p class=\"small soft\">Checking the file against the ontology…</p>"}
@@ -3580,8 +3580,8 @@
 		const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
 		return `
       <div class="card-head"><h2>New node</h2></div>
-      <p class="small soft" style="margin-bottom:12px">Select a node on the canvas to inspect it, or stage a new one here.</p>
-      <form class="stack" id="node-form" style="gap:10px;max-width:520px">
+      <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
+      <form class="stack gap-2_5 max-w-form" id="node-form">
         <label class="field">Type<select name="type">${Object.keys(NODE_TYPES).map((t) => `<option>${t}</option>`).join("")}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
         <label class="field">Link from (optional)<select name="from"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join("")}</select></label>
@@ -3594,13 +3594,13 @@
 		const revert = ctx.ontology.reviewRequired ? "Request revert" : "Revert";
 		return `<div class="card">${history.map((c, i) => `
         <div class="commit">
-          <span class="avatar" style="background:${i === 0 ? "var(--accent)" : "var(--line-strong)"}">${esc((c.author[0] ?? "?").toUpperCase())}</span>
-          <div style="flex:1;min-width:0">
+          <span class="avatar ${i === 0 ? "bg-accent" : "bg-line-strong"}">${esc((c.author[0] ?? "?").toUpperCase())}</span>
+          <div class="grow min-w-0">
             <div><b>${esc(c.message)}</b></div>
             <div class="small muted">${esc(c.author)}${c.reviewer ? ` · approved by ${esc(c.reviewer)}` : ""} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
             <div class="stats">${statBadges(c.stats)}</div>
-            <details style="margin-top:6px"><summary class="small soft" style="cursor:pointer">${c.ops.length} operation(s)</summary>
-              <div class="diff" style="margin-top:6px">${c.ops.slice(0, 60).map((op) => `<div>${esc(describeOp(op, graph))}</div>`).join("")}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ""}</div>
+            <details class="mt-1_5"><summary class="small soft cursor-pointer">${c.ops.length} operation(s)</summary>
+              <div class="diff mt-1_5">${c.ops.slice(0, 60).map((op) => `<div>${esc(describeOp(op, graph))}</div>`).join("")}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ""}</div>
             </details>
           </div>
           <button class="btn sm" data-revert="${esc(c.id)}">${revert}</button>
@@ -3614,14 +3614,14 @@
 			return "";
 		};
 		return `
-      <div class="grid g3" style="margin-bottom:16px">
+      <div class="grid g3 mb-4">
         <div class="card kpi ${health.score === 100 ? "good" : ""}"><div class="label">Health score</div><div class="value">${health.score}</div></div>
         <div class="card kpi"><div class="label">Nodes</div><div class="value">${health.counts.nodes}</div></div>
         <div class="card kpi"><div class="label">Relationships</div><div class="value">${health.counts.edges}</div></div>
       </div>
       <div class="card">
         <div class="card-head"><h2>Checks</h2><p>Orphan nodes, dangling and duplicate relationships, and required properties per type.</p></div>
-        ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === "info" ? "" : "bad"}">${esc(i.kind)}</span><span style="flex:1">${esc(i.text)}</span>${fix(i)}</div>`).join("") || "<div class=\"empty\">All checks pass ✓</div>"}
+        ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === "info" ? "" : "bad"}">${esc(i.kind)}</span><span class="grow">${esc(i.text)}</span>${fix(i)}</div>`).join("") || "<div class=\"empty\">All checks pass ✓</div>"}
       </div>`;
 	}
 	function touchedIds(op) {
@@ -3654,12 +3654,12 @@
 		const o = ctx.ontology;
 		if (o.status === "local") return "";
 		if (o.status === "loading") return "<div class=\"card source-bar\" aria-live=\"polite\">Loading the ontology from the Tiles API…</div>";
-		if (o.status === "error") return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row" style="gap:8px;margin-top:8px">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? "<button class=\"btn sm primary\" data-sign-in>Sign in</button>" : ""}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
+		if (o.status === "error") return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row gap-2 mt-2">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? "<button class=\"btn sm primary\" data-sign-in>Sign in</button>" : ""}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
 		const { head, history, staged } = ctx.state.repo;
 		const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
 		return `<div class="card source-bar small" aria-live="polite">
       <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.reviewRequired ? " Every change needs a review." : ""}${o.role === "viewer" ? " <span class=\"badge\">View only</span>" : ""}</span>
-      <span class="row" style="gap:8px">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
+      <span class="row gap-2">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
 	var view$17 = {
@@ -3677,11 +3677,11 @@
 			const { conflict } = safeWorkingGraph(repo);
 			const stagedBar = conflict ? `<div class="staged-bar" role="alert">
           <span class="badge bad">${repo.staged.length} uncommitted</span>
-          <span style="flex:1">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
+          <span class="grow">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
           <button class="btn" type="button" data-discard>Discard</button>
         </div>` : repo.staged.length && ctx.ontology.role === "viewer" ? `<div class="staged-bar" id="viewer-staged">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
-          <span style="flex:1">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
+          <span class="grow">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
           <button class="btn" type="button" data-discard>Discard</button>
         </div>` : repo.staged.length ? `<form class="staged-bar" id="commit-form">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
@@ -4321,7 +4321,7 @@
         </div>
       </div>
 
-      <div class="grid g2" style="margin-bottom:16px">
+      <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head"><h2>Effect size by variable</h2><p>Cohen's d, failed vs healthy · |d| ≥ 0.8 is strong</p></div>
           ${hbars({
@@ -4331,7 +4331,7 @@
 				title: "Effect size by variable (Cohen's d)",
 				format: (x) => (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(2)
 			})}
-          ${ui.split ? "" : "<p class=\"small soft\" style=\"margin-top:8px\">Pooled across materials, nothing stands out. Try <a href=\"#/quality\" data-split=\"1\">splitting by material</a>.</p>"}
+          ${ui.split ? "" : "<p class=\"small soft mt-2\">Pooled across materials, nothing stands out. Try <a href=\"#/quality\" data-split=\"1\">splitting by material</a>.</p>"}
         </div>
         <div class="stack">
           ${top.length ? top.map((f) => `<div class="callout"><div class="arrow">${f.direction === "high" ? "▲" : "▼"}</div><div>
@@ -4345,12 +4345,12 @@
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:16px">
+      <div class="card mb-4">
         <div class="card-head">
           <div><h2>Failed vs healthy average</h2><p>One setting can fail two materials in opposite directions.</p></div>
           <select id="variable" aria-label="Variable">${CUTTER_VARIABLES.map((x) => `<option value="${x.key}" ${x.key === ui.variable ? "selected" : ""}>${esc(x.label)}</option>`).join("")}</select>
         </div>
-        <div class="legend" style="margin-bottom:6px"><span><i class="box" style="background:var(--bad);border-radius:50%"></i>NG (failed) avg</span><span><i class="box" style="background:var(--muted);border-radius:50%"></i>Healthy avg</span></div>
+        <div class="legend mb-1_5"><span><i class="box bg-bad round"></i>NG (failed) avg</span><span><i class="box bg-muted round"></i>Healthy avg</span></div>
         ${dumbbell({
 				rows: dumb,
 				width: fitWidth(1040),
@@ -4365,7 +4365,7 @@
           <p>Tips are swapped on a fixed cycle count. The line's own power data confirms real wear.</p></div>
           <div class="row"><span class="badge bad">Cathode ${signed$1(cat.change * 100, 1)}%</span><span class="badge">Anode ${signed$1(an.change * 100, 1)}%</span></div>
         </div>
-        <div class="legend" style="margin-bottom:6px"><span><i style="background:var(--bad)"></i>Cathode tip</span><span><i style="background:var(--accent)"></i>Anode tip</span><span><i class="box" style="background:var(--band)"></i>Final 24 h before swap</span></div>
+        <div class="legend mb-1_5"><span><i class="bg-bad"></i>Cathode tip</span><span><i class="bg-accent"></i>Anode tip</span><span><i class="box bg-band"></i>Final 24 h before swap</span></div>
         ${lineChart({
 				series: [{
 					values: series.map((s) => s.anode),
@@ -4393,7 +4393,7 @@
 				width: fitWidth(1040),
 				height: 260
 			})}
-        <div class="grid g2" style="margin-top:12px">
+        <div class="grid g2 mt-3">
           <div><h3>Proposed action</h3><p class="soft">Monitor both triggers: cycle counter <i>and</i> median welding power. When power crosses the wear threshold, replace the tip even if the counter hasn't reached its swap point. Wear started around hour ${wearStart}.</p></div>
           <div class="kpi"><div class="label">Power-based warning</div><div class="value">${fmt$1(warnHours)} h</div><div class="note">before the scheduled swap · threshold baseline +5% (${fmt$1(threshold)} W)</div></div>
         </div>
@@ -4442,18 +4442,18 @@
         <span class="badge ${detection.alerts.length ? "bad" : "good"}">● ${detection.alerts.length} warning window(s)</span>
       </div>
 
-      <div class="grid g4" style="margin-bottom:16px">
+      <div class="grid g4 mb-4">
         <div class="card kpi"><div class="label">Shots analysed</div><div class="value">${fmt$1(hist.length)}</div><div class="note">${fmt$1(toH(hist.length), 0)} h of production</div></div>
         <div class="card kpi good"><div class="label">Stops predicted</div><div class="value">${predicted.length}/${scored.length}</div><div class="note">seizure &amp; lubrication codes</div></div>
         <div class="card kpi"><div class="label">Average lead time</div><div class="value">${fmt$1(lead, 1)} h</div><div class="note">from first warning to stop</div></div>
         <div class="card kpi"><div class="label">Downtime covered</div><div class="value">${fmt$1(predicted.reduce((a, x) => a + x.durationMin, 0))} min</div><div class="note">of ${fmt$1(scored.reduce((a, x) => a + x.durationMin, 0))} min recorded</div></div>
       </div>
 
-      <div class="card" style="margin-bottom:16px">
+      <div class="card mb-4">
         <div class="card-head"><div><h2>Run chart</h2><p>Click anywhere on the chart to inspect that shot.</p></div>
-          <div class="legend"><span><i style="background:var(--accent)"></i>Friction (virtual sensor)</span><span><i style="background:var(--warn)"></i>Threshold</span><span><i class="box" style="background:var(--band)"></i>Warning window</span><span><i style="background:var(--bad)"></i>Downtime event</span></div>
+          <div class="legend"><span><i class="bg-accent"></i>Friction (virtual sensor)</span><span><i class="bg-warn"></i>Threshold</span><span><i class="box bg-band"></i>Warning window</span><span><i class="bg-bad"></i>Downtime event</span></div>
         </div>
-        <div id="run-chart" style="cursor:crosshair">
+        <div id="run-chart" class="cursor-crosshair">
         ${lineChart({
 				series: [{
 					values: hist.map((h) => h.friction),
@@ -4492,14 +4492,14 @@
         </div>
       </div>
 
-      <div class="grid g2" style="margin-bottom:16px">
+      <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head">
             <div><h2>Shot ${ui.shot} payload</h2><p>${flagged ? "<span class=\"badge bad\">over threshold</span>" : "<span class=\"badge good\">normal</span>"} · estimated friction <b>${fmt$1(est)} N</b></p></div>
             <div class="row"><button class="btn sm" data-step="-1" aria-label="Previous shot">‹</button><button class="btn sm" data-step="1" aria-label="Next shot">›</button></div>
           </div>
           <input type="range" id="shot" min="0" max="${hist.length - 1}" value="${ui.shot}" aria-label="Shot" />
-          <div class="legend" style="margin:8px 0"><span><i style="background:var(--accent)"></i>Hydraulic pressure (bar)</span><span><i style="background:var(--warm)"></i>Metal pressure (bar)</span></div>
+          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-accent"></i>Hydraulic pressure (bar)</span><span><i class="bg-warm"></i>Metal pressure (bar)</span></div>
           ${lineChart({
 				series: [{
 					values: payload.ph,
@@ -4517,7 +4517,7 @@
 				height: 200,
 				yMin: 0
 			})}
-          <div class="legend" style="margin:8px 0"><span><i style="background:var(--soft)"></i>Plunger velocity (m/s)</span></div>
+          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-soft"></i>Plunger velocity (m/s)</span></div>
           ${lineChart({
 				series: [{
 					values: payload.v,
@@ -4536,13 +4536,13 @@
           <div class="card-head"><h2>How it works</h2><span class="badge">model v1.3</span></div>
           <h3>Input data</h3>
           <ul class="actions-list soft"><li>Shot payloads: plunger displacement, velocity, hydraulic &amp; metal pressure</li><li>Past 200 shots for a rolling baseline</li></ul>
-          <h3 style="margin-top:12px">The physics</h3>
-          <p class="soft" style="margin-top:4px">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the median residual is the shot's friction.</p>
-          <p class="small muted" style="margin-top:4px">m = ${PLUNGER.mass} kg · A<sub>h</sub> = ${PLUNGER.hydraulicArea} m² · A<sub>m</sub> = ${PLUNGER.metalArea} m²</p>
-          <h3 style="margin-top:12px">Output</h3>
+          <h3 class="mt-3">The physics</h3>
+          <p class="soft mt-1">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the median residual is the shot's friction.</p>
+          <p class="small muted mt-1">m = ${PLUNGER.mass} kg · A<sub>h</sub> = ${PLUNGER.hydraulicArea} m² · A<sub>m</sub> = ${PLUNGER.metalArea} m²</p>
+          <h3 class="mt-3">Output</h3>
           <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots above median + 4 robust σ</li></ul>
-          <h3 style="margin-top:12px">How it is used</h3>
-          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
+          <h3 class="mt-3">How it is used</h3>
+          <p class="soft mt-1">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
         </div>
       </div>
 
@@ -4687,15 +4687,15 @@
 	function sweepControls(ctx, key, canStart) {
 		const ui = uiState$9(ctx);
 		const shown = apiSweep?.key === key ? apiSweep.sweep : null;
-		if (shown && sweepRunning(shown)) return `<div class="row" style="gap:8px" data-api-sweep>
+		if (shown && sweepRunning(shown)) return `<div class="row gap-2" data-api-sweep>
       <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="Sweep progress"></progress>
       <span class="small soft" data-sweep-done>${fmt$1(shown.done)} of ${fmt$1(shown.total)} points</span>
       ${canStart && !shown.cancel_requested ? "<button class=\"btn sm\" data-sweep-cancel>Cancel</button>" : ""}
     </div>`;
 		const state = shown?.status === "done" ? `API sweep: ${fmt$1(shown.total)} points${shown.cached ? ", from an identical earlier sweep" : ""}` : shown?.status === "cancelled" ? `Cancelled after ${fmt$1(shown.done)} of ${fmt$1(shown.total)} points` : shown?.status === "failed" ? `The sweep failed: ${esc(shown.error ?? "no reason given")}` : "";
-		return `<div class="row" style="gap:8px;flex-wrap:wrap" data-api-sweep>
+		return `<div class="row gap-2 wrap" data-api-sweep>
       ${state ? `<span class="small soft" data-sweep-state>${state}</span>` : ""}
-      ${canStart ? `<label class="row small" style="gap:6px">Points per axis <select id="sweep-steps" aria-label="Points per axis">${SWEEP_STEPS.map((n) => `<option value="${n}" ${n === ui.sweepSteps ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+      ${canStart ? `<label class="row small gap-1_5">Points per axis <select id="sweep-steps" aria-label="Points per axis">${SWEEP_STEPS.map((n) => `<option value="${n}" ${n === ui.sweepSteps ? "selected" : ""}>${n}</option>`).join("")}</select></label>
              <button class="btn sm" data-sweep-start>Run on the API</button>` : ""}
     </div>`;
 	}
@@ -4769,12 +4769,12 @@
 		const items = projects?.site === site ? projects.items : null;
 		const shown = projectOf(ctx, site);
 		const canWrite = ctx.ontology.role !== null && ctx.ontology.role !== "viewer";
-		const choose = items === null ? "<span class=\"small soft\">Loading projects…</span>" : items.length ? `<label class="row" style="gap:8px">Project <select id="project" aria-label="Design project">${items.map((p) => `<option value="${esc(p.id)}" ${p.id === shown?.id ? "selected" : ""}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? "" : "s"})</option>`).join("")}</select></label>` : "<span class=\"small soft\">No projects yet on this site.</span>";
-		const create = canWrite ? `<form id="new-project" class="row" style="gap:8px"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>` : "";
-		return `<div class="card row" data-projects style="gap:16px;flex-wrap:wrap;justify-content:space-between;margin-bottom:16px">
-      <div class="row" style="gap:16px;flex-wrap:wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ""}</div>
+		const choose = items === null ? "<span class=\"small soft\">Loading projects…</span>" : items.length ? `<label class="row gap-2">Project <select id="project" aria-label="Design project">${items.map((p) => `<option value="${esc(p.id)}" ${p.id === shown?.id ? "selected" : ""}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? "" : "s"})</option>`).join("")}</select></label>` : "<span class=\"small soft\">No projects yet on this site.</span>";
+		const create = canWrite ? `<form id="new-project" class="row gap-2"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>` : "";
+		return `<div class="card row gap-4 wrap justify-between mb-4" data-projects>
+      <div class="row gap-4 wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ""}</div>
       ${create}
-      <span class="small soft" style="flex-basis:100%">Runs in a project are stored on the site and shared with everyone on it.</span>
+      <span class="small soft basis-full">Runs in a project are stored on the site and shared with everyone on it.</span>
     </div>`;
 	}
 	function sweepAxes(model, ui) {
@@ -4831,9 +4831,9 @@
         </div>
         <div class="seg" role="group" aria-label="Model">${Object.values(MODELS).map((m) => `<button data-model="${m.id}" class="${m.id === model.id ? "active" : ""}">${esc(m.name)}</button>`).join("")}</div>
       </div>
-      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card" data-projects style="margin-bottom:16px"><span class="small soft">${ctx.ontology.status === "error" ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : "Connecting to the Tiles API…"}</span></div>` : ""}
+      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === "error" ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : "Connecting to the Tiles API…"}</span></div>` : ""}
 
-      <div class="grid g3" style="margin-bottom:16px">
+      <div class="grid g3 mb-4">
         <div class="card">
           <div class="card-head"><div><h2>${esc(model.name)}</h2><p>${esc(model.domain)}</p></div>
             <select id="version" aria-label="Model version">${Object.keys(model.versions).map((v) => `<option value="${v}" ${v === version ? "selected" : ""}>v${v}${v === model.latest ? " (latest)" : ""}</option>`).join("")}</select>
@@ -4847,11 +4847,11 @@
         </div>
         <div class="card">
           <div class="label soft small">${esc(model.output.label)}</div>
-          <div class="result-big"><span id="result">${fmt$1(value, 2)}</span> <span class="muted" style="font-size:18px">${esc(unit)}</span></div>
-          <div class="small muted" style="margin-bottom:14px">model ${esc(model.id)} v${esc(version)}</div>
+          <div class="result-big"><span id="result">${fmt$1(value, 2)}</span> <span class="muted text-lg">${esc(unit)}</span></div>
+          <div class="small muted mb-3_5">model ${esc(model.id)} v${esc(version)}</div>
           <h3>Across model versions</h3>
-          <table style="margin:6px 0 14px"><tbody>${Object.keys(model.versions).map((v) => `<tr><td>v${v}</td><td class="num"><b>${fmt$1(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`).join("")}</tbody></table>
-          <form id="run-form" class="stack" style="gap:8px">
+          <table class="mt-1_5 mb-3_5 m-0"><tbody>${Object.keys(model.versions).map((v) => `<tr><td>v${v}</td><td class="num"><b>${fmt$1(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`).join("")}</tbody></table>
+          <form id="run-form" class="stack gap-2">
             <input type="text" name="note" maxlength="500" placeholder="Note for this run (optional)" aria-label="Run note" />
             <button class="btn primary" type="submit" ${canSave && !saving$3 ? "" : "disabled"}>Save run${site && project ? ` to ${esc(project.name)}` : ""}</button>
             ${site && !project ? "<span class=\"small soft\">Create a project to save runs on the site.</span>" : ""}
@@ -4873,7 +4873,7 @@
         </div>
       </div>
 
-      <div class="grid g2" style="margin-bottom:16px">
+      <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head"><div><h2>Parameter sweep</h2><p>${fmt$1(sw.min, 2)} – ${fmt$1(sw.max, 2)} ${esc(unit)} · other parameters held at current values</p></div>
             <div class="row">
@@ -4892,7 +4892,7 @@
         </div>
         <div class="card">
           <div class="card-head"><div><h2>Run history</h2><p>Click a run to restore its exact parameters.</p></div>
-            ${site ? `<div class="row" style="gap:6px"><button class="btn sm" data-audit="json" ${runs.length ? "" : "disabled"} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? "" : "disabled"}>Audit report (PDF)</button><button class="btn sm" data-export ${runs.length ? "" : "disabled"} title="Every run of this model in the project, branches too">All runs (JSON)</button></div>` : `<button class="btn sm" data-export ${runs.length ? "" : "disabled"}>Export audit record</button>`}
+            ${site ? `<div class="row gap-1_5"><button class="btn sm" data-audit="json" ${runs.length ? "" : "disabled"} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? "" : "disabled"}>Audit report (PDF)</button><button class="btn sm" data-export ${runs.length ? "" : "disabled"} title="Every run of this model in the project, branches too">All runs (JSON)</button></div>` : `<button class="btn sm" data-export ${runs.length ? "" : "disabled"}>Export audit record</button>`}
           </div>
           ${runs.length ? `<div class="table-wrap"><table><thead><tr><th>Run</th><th>Changed vs parent</th><th class="num">${esc(model.output.label)}</th></tr></thead><tbody>
                 ${runs.map((r) => {
@@ -5196,7 +5196,7 @@
 	//#region js/views/org-sign-in.ts
 	var revealed$2 = null;
 	function orgSignInCard() {
-		return `<div class="card stack" id="org-sign-in" style="gap:12px;grid-column:1 / -1" hidden>
+		return `<div class="card stack gap-3 span-all" id="org-sign-in" hidden>
       <h2>Organisation sign-in</h2>
       <p class="small soft">Sign your organisation's people in with its own identity provider, such as Microsoft Entra ID, and let it create and deactivate their accounts (SCIM). See <code>docs/guides/entra-id.md</code>. Only organisation admins see this.</p>
       <div data-org-provider aria-live="polite"></div>
@@ -5210,23 +5210,23 @@
 		const status = !p ? "<p class=\"small soft\">Your organisation signs in through this deployment’s provider.</p>" : p.verified ? `<p class="small">Signs in through <b>${esc(p.issuer)}</b>${p.enforced ? ", and no other sign-in reaches your organisation" : ""}.${updated}</p>` : `<p class="small" data-org-provider-pending><span class="badge warn">Not confirmed</span> Sign in through <b>${esc(p.issuer)}</b> yourself, with the same email, under <i>Account</i> above: that confirms your organisation controls it. Until then it takes no one else.${updated}</p>`;
 		const enforceHint = viaProvider ? "Refuse every other sign-in for your organisation." : "Refuse every other sign-in. Save the provider first, then sign in through it to turn this on.";
 		return `${status}
-    <form class="stack" id="org-provider-form" style="gap:8px">
+    <form class="stack gap-2" id="org-provider-form">
       <label class="field">Issuer (the tokens’ <code>iss</code>; Entra ID: https://login.microsoftonline.com/&lt;tenant ID&gt;/v2.0)<input type="url" name="issuer" value="${v(p?.issuer)}" required autocomplete="off" /></label>
-      <div class="grid g2" style="gap:8px">
+      <div class="grid g2 gap-2">
         <label class="field">Browser client ID (a single-page app registration)<input type="text" name="clientId" value="${v(p?.client_id)}" required autocomplete="off" /></label>
         <label class="field">Audience (the API app’s ID, as the tokens’ <code>aud</code> names it)<input type="text" name="audience" value="${v(p?.audience)}" required autocomplete="off" /></label>
       </div>
       <label class="field">Scope (Entra ID: openid profile email offline_access api://&lt;API app ID&gt;/access)<input type="text" name="scope" value="${v(p?.scope ?? "openid email profile")}" autocomplete="off" /></label>
       <label class="field">Signing keys (leave empty to find them from the issuer)<input type="url" name="jwksUrl" value="${v(p?.jwks_url)}" autocomplete="off" /></label>
       <label class="field">Groups and the role each grants, one per line: <code>&lt;group ID&gt; = engineer</code><textarea name="groupRoles" rows="3" spellcheck="false">${esc(groupRolesText(p?.group_roles ?? {}))}</textarea></label>
-      <label class="row" style="gap:8px"><input type="checkbox" name="enforced" ${p?.enforced ? "checked" : ""} /> ${esc(enforceHint)}</label>
-      <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button>${p ? "<button class=\"btn danger\" type=\"button\" data-org-provider-remove>Remove</button>" : ""}</div>
+      <label class="row gap-2"><input type="checkbox" name="enforced" ${p?.enforced ? "checked" : ""} /> ${esc(enforceHint)}</label>
+      <div class="row gap-2"><button class="btn primary" type="submit">Save</button>${p ? "<button class=\"btn danger\" type=\"button\" data-org-provider-remove>Remove</button>" : ""}</div>
     </form>`;
 	}
 	function scimHtml(ctx, tokens) {
 		const api = ctx.api;
 		if (!api) return "";
-		const shown = revealed$2 && revealed$2.apiUrl === api.baseUrl && revealed$2.user === ctx.state.user.email ? `<div class="stack" style="gap:8px" data-scim-token>
+		const shown = revealed$2 && revealed$2.apiUrl === api.baseUrl && revealed$2.user === ctx.state.user.email ? `<div class="stack gap-2" data-scim-token>
           <p><b>Token for ${esc(revealed$2.name)}.</b> Copy it now into your provider’s provisioning settings as the secret token: Tiles keeps only its hash and won’t show it again.</p>
           <pre class="code-block">${esc(revealed$2.token)}</pre>
           <div><button class="btn" type="button" data-scim-token-done>Done, I've saved it</button></div>
@@ -5235,9 +5235,9 @@
 		const rows = active.length ? `<div class="table-wrap"><table><thead><tr><th>Token</th><th>Made</th><th>Last used</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${active.map((t) => `<tr><td>${esc(t.name)}</td><td>${esc(new Date(t.created_at).toLocaleString("en-GB"))}</td><td>${t.last_used_at ? esc(new Date(t.last_used_at).toLocaleString("en-GB")) : "never"}</td><td><button class="btn sm danger" type="button" data-revoke-scim="${esc(t.id)}" data-scim-name="${esc(t.name)}">Revoke</button></td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No SCIM tokens yet.</p>";
 		return `<p class="small">Tenant URL for your provider: <code>${esc(scimBaseUrl(api.baseUrl))}</code>. Users only: roles come from sign-in, memberships from site admins.</p>
     ${shown}${rows}
-    <form class="row" id="scim-token-form" style="gap:8px;flex-wrap:wrap">
-      <label class="field" style="flex:1;min-width:200px">New token for<input type="text" name="name" placeholder="e.g. Entra ID provisioning" maxlength="120" required /></label>
-      <div style="align-self:end"><button class="btn primary" type="submit">Make a token</button></div>
+    <form class="row gap-2 wrap" id="scim-token-form">
+      <label class="field grow min-w-field">New token for<input type="text" name="name" placeholder="e.g. Entra ID provisioning" maxlength="120" required /></label>
+      <div class="self-end"><button class="btn primary" type="submit">Make a token</button></div>
     </form>`;
 	}
 	async function fillScim(root, ctx) {
@@ -5335,9 +5335,9 @@
 		const { config, signedIn } = ctx.auth;
 		const { user } = ctx.state;
 		let body;
-		const orgForm = `<form class="row" id="org-sign-in-form" style="gap:8px;flex-wrap:wrap">
-      <label class="field" style="flex:1;min-width:180px">Or with your organisation's own sign-in<input type="text" name="org" value="${esc(ctx.auth.signInOrg)}" placeholder="your organisation, e.g. acme" pattern="[A-Za-z0-9][A-Za-z0-9\\-]{0,62}" required /></label>
-      <div style="align-self:end"><button class="btn" type="submit">Sign in with it</button></div>
+		const orgForm = `<form class="row gap-2 wrap" id="org-sign-in-form">
+      <label class="field grow min-w-field">Or with your organisation's own sign-in<input type="text" name="org" value="${esc(ctx.auth.signInOrg)}" placeholder="your organisation, e.g. acme" pattern="[A-Za-z0-9][A-Za-z0-9\\-]{0,62}" required /></label>
+      <div class="self-end"><button class="btn" type="submit">Sign in with it</button></div>
     </form>`;
 		if (!config) body = "<p class=\"small soft\">Checking how this API signs people in…</p>";
 		else if (signedIn) body = `<p>Signed in as <b>${esc(user.name)}</b> <span class="soft">(${esc(user.email)})</span>${ctx.auth.signInOrg ? ` through <b>${esc(ctx.auth.signInOrg)}</b>'s own sign-in` : ""}</p>
@@ -5345,7 +5345,7 @@
 		else if (!config.enabled) body = `<p class="small soft">This API has no sign-in of its own; requests act as the development user.</p>${orgForm}`;
 		else body = `<p class="small soft">${config.dev_identity ? "Not signed in: until you sign in, you act as the development user." : "Sign in to use this Tiles API."}</p>
       <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>${orgForm}`;
-		return `<div class="card stack" id="account" style="gap:12px"><h2>Account</h2>${body}</div>`;
+		return `<div class="card stack gap-3" id="account"><h2>Account</h2>${body}</div>`;
 	}
 	function describeAudit(e) {
 		const ops = (v) => (v?.ops ?? []).length;
@@ -5382,7 +5382,7 @@
 		}
 	}
 	function auditCard() {
-		return `<div class="card stack" id="audit" style="gap:12px;grid-column:1 / -1">
+		return `<div class="card stack gap-3 span-all" id="audit">
       <h2>Audit log</h2>
       <p class="small soft">Every change on this site: who, what and when. Only site admins see this.</p>
       <div data-audit-rows aria-live="polite"><p class="small soft">Loading…</p></div>
@@ -5400,7 +5400,7 @@
 		}
 	}
 	function copilotUsageCard() {
-		return `<div class="card stack" id="copilot-usage" style="gap:12px;grid-column:1 / -1">
+		return `<div class="card stack gap-3 span-all" id="copilot-usage">
       <h2>Copilot usage</h2>
       <p class="small soft">Questions asked on this site over the last 30 days (UTC), the tokens they used and how long answers took. Tokens are weighted by price, in input tokens: an output token counts five, a prompt-cache write one and a quarter, a cache read a tenth. Only site admins see this.</p>
       <div data-copilot-usage aria-live="polite"><p class="small soft">Loading…</p></div>
@@ -5415,7 +5415,7 @@
 		const days = u.days.length ? `<div class="table-wrap"><table><thead><tr><th>Day</th><th>Questions</th><th>Answered</th><th>Failed</th><th>Over budget</th><th>Ungrounded</th><th>Tokens</th><th>From cache</th><th>First text (median · 95%)</th><th>Whole answer (median · 95%)</th></tr></thead><tbody>${u.days.map((d) => `<tr><td>${esc(d.day)}</td><td>${fmt$1(d.questions)}</td><td>${fmt$1(d.answered)}</td><td>${fmt$1(d.failed)}</td><td>${fmt$1(d.over_budget)}</td><td>${fmt$1(d.ungrounded)}</td><td>${esc(tokens(d.billed_tokens))}</td><td>${esc(percent$1(cacheShare(d)))}</td><td>${esc(duration$2(d.first_text_p50_ms))} · ${esc(duration$2(d.first_text_p95_ms))}</td><td>${esc(duration$2(d.total_p50_ms))} · ${esc(duration$2(d.total_p95_ms))}</td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No questions in the last 30 days.</p>";
 		const users = u.users.length ? `<div class="table-wrap"><table><thead><tr><th>Who</th><th>Questions</th><th>Tokens</th></tr></thead><tbody>${u.users.map((p) => `<tr><td>${esc(p.user)} <span class="soft small">${esc(p.email)}</span></td><td>${fmt$1(p.questions)}</td><td>${esc(tokens(p.billed_tokens))}</td></tr>`).join("")}</tbody></table></div>` : "";
 		return `<p data-copilot-budget>${budget}</p>
-    <div class="row" style="gap:24px;flex-wrap:wrap" data-copilot-totals>
+    <div class="row gap-6 wrap" data-copilot-totals>
       <div><div class="small soft">Questions</div><strong>${fmt$1(t.questions)}</strong></div>
       <div><div class="small soft">Answered</div><strong>${fmt$1(t.answered)}</strong></div>
       <div><div class="small soft">Failed</div><strong>${fmt$1(t.failed)}</strong></div>
@@ -5437,10 +5437,10 @@
 		}
 	}
 	function copilotPolicyCard() {
-		return `<div class="card stack" id="copilot-policy" style="gap:12px">
+		return `<div class="card stack gap-3" id="copilot-policy">
       <h2>Copilot on this site</h2>
       <p class="small soft">When it is on, each question, and the site's data the copilot reads to answer it (only what the person asking may see), goes to Anthropic's API under your deployment's terms. Nothing is sent while it is off: the Copilot page answers with its built-in skills on the demo data.</p>
-      <label class="row" style="gap:8px"><input type="checkbox" name="copilot-enabled" data-copilot-enabled disabled /> Use the copilot on this site</label>
+      <label class="row gap-2"><input type="checkbox" name="copilot-enabled" data-copilot-enabled disabled /> Use the copilot on this site</label>
       <p class="small soft" data-copilot-policy aria-live="polite">Loading…</p>
     </div>`;
 	}
@@ -5475,21 +5475,21 @@
 	}
 	function notificationsCard(ctx) {
 		const role = ctx.ontology.role;
-		return `<div class="card stack" id="notifications" style="gap:12px;grid-column:1 / -1">
+		return `<div class="card stack gap-3 span-all" id="notifications">
       <h2>Notifications</h2>
       <p class="small soft">Emails about warnings on this site, sent by the Tiles API's <code>tiles-notify</code> job.</p>
-      ${role === "engineer" || role === "admin" ? `<form class="stack" id="notify-prefs" style="gap:8px" aria-live="polite">
+      ${role === "engineer" || role === "admin" ? `<form class="stack gap-2" id="notify-prefs" aria-live="polite">
         <p class="small soft" data-notify-email>Loading…</p>
-        <label class="row" style="gap:8px"><input type="checkbox" name="on_assigned" disabled /> A warning someone assigns to me</label>
-        <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" disabled /> Every new warning on this site</label>
+        <label class="row gap-2"><input type="checkbox" name="on_assigned" disabled /> A warning someone assigns to me</label>
+        <label class="row gap-2"><input type="checkbox" name="on_raised" disabled /> Every new warning on this site</label>
         <div><button class="btn primary" type="submit" disabled>Save</button></div>
       </form>` : "<p class=\"small soft\">Engineers and admins of the site choose which warnings they hear about.</p>"}
-      ${role === "admin" ? `<form class="stack" id="teams-form" style="gap:8px">
+      ${role === "admin" ? `<form class="stack gap-2" id="teams-form">
         <h3>Microsoft Teams channel</h3>
         <p class="small soft" data-teams-status>Loading…</p>
         <label class="field">Webhook URL (from the channel's Workflows, or an incoming webhook; leave it empty to keep the one set)<input type="url" name="url" placeholder="https://….webhook.office.com/…" autocomplete="off" /></label>
-        <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" checked /> Post every new warning there</label>
-        <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
+        <label class="row gap-2"><input type="checkbox" name="on_raised" checked /> Post every new warning there</label>
+        <div class="row gap-2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
       </form>
       <h3>Recent messages</h3>
       <div data-deliveries aria-live="polite"><p class="small soft">Loading…</p></div>` : ""}
@@ -5606,14 +5606,14 @@
 		return !!r && admin && r.apiUrl === apiUrl && r.siteId === siteId && r.user === user;
 	}
 	function agentsCard(admin) {
-		return `<div class="card stack" id="agents" style="gap:12px;grid-column:1 / -1">
+		return `<div class="card stack gap-3 span-all" id="agents">
       <h2>Edge agents</h2>
       <p class="small soft">Agents run on the plant network and send data out to Tiles; they open no ports. Each one reports a heartbeat, so you can see whether it is online. See <code>edge/README.md</code> to install one.</p>
       <div data-agent-token aria-live="polite"></div>
       <div data-agent-rows aria-live="polite"><p class="small soft">Loading…</p></div>
-      ${admin ? `<form class="row" id="agent-form" style="gap:8px;flex-wrap:wrap">
-          <label class="field" style="flex:1;min-width:200px">New agent name<input type="text" name="name" placeholder="e.g. press-shop-edge" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="Letters, digits, dot, dash or underscore; up to 63" required /></label>
-          <div style="align-self:end"><button class="btn primary" type="submit">Register agent</button></div>
+      ${admin ? `<form class="row gap-2 wrap" id="agent-form">
+          <label class="field grow min-w-field">New agent name<input type="text" name="name" placeholder="e.g. press-shop-edge" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="Letters, digits, dot, dash or underscore; up to 63" required /></label>
+          <div class="self-end"><button class="btn primary" type="submit">Register agent</button></div>
         </form>` : ""}
     </div>`;
 	}
@@ -5647,7 +5647,7 @@
 			return;
 		}
 		const config = `[tiles]\nurl = "${revealed$1.apiUrl}"\ntoken_file = "token"\n\n[agent]\nheartbeat_seconds = 30`;
-		box.innerHTML = `<div class="stack" style="gap:8px">
+		box.innerHTML = `<div class="stack gap-2">
       <p><b>Token for ${esc(revealed$1.name)}.</b> Copy it now: Tiles keeps only its hash and won't show it again. Save it as <code>token</code> next to the agent's config file, readable only by the agent.</p>
       <pre class="code-block" data-token>${esc(revealed$1.token)}</pre>
       <p class="small soft">Config file (<code>tiles-edge.toml</code>):</p>
@@ -5720,25 +5720,25 @@
 			return `
       <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
       <div class="grid g2">
-        <form class="card stack" id="profile" style="gap:12px">
+        <form class="card stack gap-3" id="profile">
           <h2>Profile</h2>
           <p class="small soft">Your name and email are recorded as the author of ontology commits and design runs.</p>
           <label class="field">Name<input type="text" name="name" value="${esc(user.name)}" required /></label>
           <label class="field">Email<input type="text" name="email" value="${esc(user.email)}" required /></label>
           <div><button class="btn primary" type="submit">Save</button></div>
         </form>
-        <div class="card stack" style="gap:12px">
+        <div class="card stack gap-3">
           <h2>Demo data</h2>
           <p class="small soft">Plant data (cutter batches, welder power, die-cast shots) is synthetic and regenerated from fixed seeds. Your ontology commits, design runs and chat are saved in this browser.</p>
           <div><button class="btn danger" data-reset>Reset workspace</button></div>
         </div>
-        <form class="card stack" id="datasource" style="gap:12px">
+        <form class="card stack gap-3" id="datasource">
           <h2>Data source</h2>
           <p class="small soft">Keep data in this browser, or share it through the Tiles API (<code>docker compose up</code> starts one on port 8000). Pages move to the API one at a time.</p>
-          <label class="row" style="gap:8px"><input type="radio" name="mode" value="local" ${typed.mode === "local" ? "checked" : ""} /> This browser only</label>
-          <label class="row" style="gap:8px"><input type="radio" name="mode" value="api" ${typed.mode === "api" ? "checked" : ""} /> Tiles API</label>
+          <label class="row gap-2"><input type="radio" name="mode" value="local" ${typed.mode === "local" ? "checked" : ""} /> This browser only</label>
+          <label class="row gap-2"><input type="radio" name="mode" value="api" ${typed.mode === "api" ? "checked" : ""} /> Tiles API</label>
           <label class="field">API address<input type="url" name="apiUrl" value="${esc(typed.apiUrl)}" placeholder="http://localhost:8000" /></label>
-          <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
+          <div class="row gap-2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
           <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
         ${ds.mode === "api" ? accountCard(ctx) : ""}
@@ -5879,11 +5879,11 @@
 		timeStyle: "short"
 	});
 	function draftForm(id, text, busy, submit = "Save insight") {
-		return `<form class="stack insight-form" id="${esc(id)}" style="gap:8px">
+		return `<form class="stack insight-form gap-2" id="${esc(id)}">
       <label class="field">Title<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
       <label class="field">Summary<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
       <label class="field">Proposed actions <span class="small soft">(one per line)</span><textarea name="actions" rows="3" placeholder="e.g. Lower anode tension to 1,000 N for a week">${esc(text.actions)}</textarea></label>
-      <div class="row" style="gap:8px"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
     </form>`;
 	}
 	function bindDraft(form, text) {
@@ -6010,7 +6010,7 @@
 			}],
 			width
 		});
-		return `<div class="stack" style="gap:6px" data-wear-result>
+		return `<div class="stack gap-1_5" data-wear-result>
       <p><span class="badge ${cls}">${label}</span> ${esc(r.text)}</p>
       ${chart}
       <p class="small soft">Medians of ${esc(String(r.baseline_buckets + r.recent_buckets))} bucket(s); the shaded part is the recent window.</p>
@@ -6076,7 +6076,7 @@
 			report.coverage === null ? "" : `${percent(report.coverage)} of the time covered`
 		].filter(Boolean);
 		const issues = report.issues.length ? `<ul class="small">${report.issues.map((i) => `<li><span class="badge ${i.severity}">${i.severity === "bad" ? "problem" : "warning"}</span> ${esc(i.message)}</li>`).join("")}</ul>` : `<p class="small">${report.readings ? "No gaps, stuck values, out-of-range values or unit mismatches found." : "No readings to check."}</p>`;
-		return `<div class="stack" style="gap:6px"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(", "))}.</p>${issues}</div>`;
+		return `<div class="stack gap-1_5"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(", "))}.</p>${issues}</div>`;
 	}
 	function number(text) {
 		const t = text.trim().replace(",", ".");
@@ -6136,22 +6136,22 @@
 		].join("");
 		const stuck = s.stuck_after_s === null ? "" : String(+(s.stuck_after_s / 60).toPrecision(12));
 		return `<tr class="edit-row"><td colspan="9">
-      <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
-        <fieldset style="display:contents" ${saving$2 === s.id ? "disabled" : ""}>
-        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
-        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ""))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
+      <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
+        <fieldset class="contents" ${saving$2 === s.id ? "disabled" : ""}>
+        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" class="w-7em"></label>
+        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ""))}" inputmode="decimal" class="w-7em"></label>
+        <label class="field grow min-w-field">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
-        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ""))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ""))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
+        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ""))}" inputmode="decimal" class="w-7em"></label>
+        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ""))}" inputmode="decimal" class="w-7em"></label>
+        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" class="w-6em"></label>
         <label class="field" title="Each reading of an event stream is an event: its value is the code">Events<select name="events">${[
 			["", "none: readings"],
 			["downtime", "downtime"],
 			["scrap", "scrap"],
 			["other", "other events"]
 		].map(([v, label]) => `<option value="${v}" ${v === (s.event_kind ?? "") ? "selected" : ""}>${label}</option>`).join("")}</select></label>
-        <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" style="width:8em"></label>
+        <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" class="w-8em"></label>
         <button class="btn primary" type="submit">${saving$2 === s.id ? "Saving…" : "Save"}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
         </fieldset>
@@ -6286,13 +6286,13 @@
 	function suggestionRow(s, canEdit, busy = false) {
 		const what = s.kind === "link" ? `<span class="badge good">Link to</span> ${esc(s.node_label)}` : `<span class="badge accent">New node</span> ${esc(s.node_label)}`;
 		return `<div class="suggestion" data-suggestion="${esc(s.signal_id)}">
-      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+      <div class="row gap-2 wrap items-center">
         <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
         <span class="small soft" title="How sure Tiles is">${Math.round(s.score * 100)}%</span>
-        <span style="flex:1"></span>
+        <span class="grow"></span>
         ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}" ${busy ? "disabled" : ""}>${s.kind === "link" ? "Link" : "Stage node"}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}" ${busy ? "disabled" : ""}>Skip</button>` : ""}
       </div>
-      <ul class="small soft" style="margin:4px 0 0 18px">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
+      <ul class="small soft mt-1 ml-4 m-0">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
     </div>`;
 	}
 	function mappingHtml(ctx) {
@@ -6308,7 +6308,7 @@
 		const more = mapping.unmapped > shown ? ` for ${mapping.items.length} of ${mapping.unmapped} unlinked tags` : "";
 		return `${staged}<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
     ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links ${linkingAll ? "disabled" : ""}>Link all ${links}</button></div>` : ""}
-    <div class="stack" style="gap:10px">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join("")}</div>`;
+    <div class="stack gap-2_5">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join("")}</div>`;
 	}
 	function fillMapping(root, ctx) {
 		const box = root.querySelector("[data-mapping-results]");
@@ -6392,9 +6392,9 @@
 			if (!ctx.ontology.site) return `${head}<div class="card"><p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p></div>`;
 			const { query } = ui$1(ctx);
 			const opt = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
-			return `${head}<div class="card stack" style="gap:12px">
-        <form id="signal-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
-          <label class="field" style="flex:1;min-width:200px">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
+			return `${head}<div class="card stack gap-3">
+        <form id="signal-search" class="row gap-3 wrap" role="search">
+          <label class="field grow min-w-field">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
           <label class="field">Source<select name="source">${opt("", "Any", query.source)}${opt("edge", "Edge agents", query.source)}${opt("import", "Imports", query.source)}${opt("manual", "Entered by hand", query.source)}</select></label>
           <label class="field">Ontology link<select name="linked">${opt("", "Any", query.linked)}${opt("yes", "Linked", query.linked)}${opt("no", "Not linked", query.linked)}</select></label>
           <label class="field">Quality<select name="quality">${opt("", "Any", query.quality)}${opt("bad", "Problems", query.quality)}${opt("warn", "Warnings", query.quality)}${opt("good", "Good", query.quality)}${opt("unknown", "No data", query.quality)}${opt("unchecked", "Not checked", query.quality)}</select></label>
@@ -6402,8 +6402,8 @@
         </form>
         <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
       </div>
-      <div class="card stack" style="gap:10px;margin-top:12px" data-mapping>
-        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="card stack gap-2_5 mt-3" data-mapping>
+        <div class="row justify-between wrap gap-2">
           <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
           <button class="btn" type="button" data-suggest>Suggest mappings</button>
         </div>
@@ -6508,9 +6508,9 @@
 	function wearForm(id) {
 		const w = wearOf(id);
 		const option = (v, text) => `<option value="${v}" ${w.direction === v ? "selected" : ""}>${text}</option>`;
-		return `<form class="row" style="gap:8px;flex-wrap:wrap;align-items:end" data-wear-form="${esc(id)}">
+		return `<form class="row gap-2 wrap items-end" data-wear-form="${esc(id)}">
       <label class="field">Wear moves it<select name="direction">${option("either", "either way")}${option("up", "up")}${option("down", "down")}</select></label>
-      <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" style="width:8em"></label>
+      <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" class="w-8em"></label>
       <button class="btn sm" type="submit">Check for wear</button>
     </form>
     <div data-wear-out></div>`;
@@ -6852,7 +6852,7 @@
 			const { picked, range } = u;
 			const canSave = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 			const chips = picked.map((p) => `<span class="badge">${esc(p.tag)} <button class="btn-link" type="button" data-remove="${esc(p.id)}" aria-label="Remove ${esc(p.tag)}">×</button></span>`).join(" ");
-			const rangeBar = range ? `<form id="explorer-range" class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
+			const rangeBar = range ? `<form id="explorer-range" class="row gap-2 wrap items-end">
           ${[
 				"1h",
 				"24h",
@@ -6868,21 +6868,21 @@
           <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
           ${canSave && saving$1?.key !== chartsKey(u) ? "<button class=\"btn sm\" type=\"button\" data-save-insight>Save as insight</button>" : ""}
         </form>
-        ${canSave && saving$1?.key === chartsKey(u) ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm("insight-save", saving$1.text, savingBusy)}</div>` : ""}` : "";
-			const charts = picked.map((p) => `<div class="card stack" style="gap:6px">
-          <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? "")}</span></div>
+        ${canSave && saving$1?.key === chartsKey(u) ? `<div class="stack gap-1_5"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm("insight-save", saving$1.text, savingBusy)}</div>` : ""}` : "";
+			const charts = picked.map((p) => `<div class="card stack gap-1_5">
+          <div class="row justify-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? "")}</span></div>
           <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
           <div data-wear="${esc(p.id)}"></div>
         </div>`).join("");
-			return `${head}<div class="card stack" style="gap:12px">
-        <form id="explorer-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
-          <label class="field" style="flex:1;min-width:200px">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"></label>
+			return `${head}<div class="card stack gap-3">
+        <form id="explorer-search" class="row gap-3 wrap" role="search">
+          <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"></label>
         </form>
-        <div class="row" style="gap:6px;flex-wrap:wrap" data-explorer-found></div>
-        ${picked.length ? `<div class="row" style="gap:6px;flex-wrap:wrap" data-picked>${chips}</div>` : "<p class=\"small soft\">Pick up to eight signals to plot them on one time axis.</p>"}
+        <div class="row gap-1_5 wrap" data-explorer-found></div>
+        ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : "<p class=\"small soft\">Pick up to eight signals to plot them on one time axis.</p>"}
         ${rangeBar}
       </div>
-      <div class="stack" style="gap:12px;margin-top:12px" data-charts>${charts}</div>`;
+      <div class="stack gap-3 mt-3" data-charts>${charts}</div>`;
 		},
 		bind(root, ctx) {
 			clearTimeout(findTimer);
@@ -7003,7 +7003,7 @@
 		const items = listing$6?.key === listKey$3(ctx) ? listing$6.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? loadingState() : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
-          <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$1(r.status)}</span>
+          <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$1(r.status)}</span>
           <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
           <span class="small">${stats(r.stats)}</span>
         </button>`).join("") || (ui.state === "open" ? emptyState({
@@ -7044,19 +7044,19 @@
     <div class="card" data-review-detail>
       <div class="card-head"><div>
         ${statusBadge$1(r.status)}${r.source === "copilot" ? ` ${COPILOT_BADGE}` : ""}
-        <h2 style="margin-top:6px">#${r.number} ${esc(r.message)}</h2>
+        <h2 class="mt-1_5">#${r.number} ${esc(r.message)}</h2>
         <div class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)} · ${r.reviewer ? `review by ${esc(r.reviewer)}` : "any engineer may review"}${r.reverts ? ` · reverts <span class="mono">${esc(r.reverts.slice(-7))}</span>` : ""}</div>
       </div></div>
       ${outcome}
       ${open && r.conflict ? `<div class="alert" role="alert"><b>This change no longer fits the ontology</b>: ${esc(r.conflict)}. It can't be approved; its author can rework it.</div>` : ""}
-      <h3 style="margin:12px 0 6px">Changes <span class="small soft">${stats(r.stats)}</span></h3>
+      <h3 class="mt-3 mb-1_5 m-0">Changes <span class="small soft">${stats(r.stats)}</span></h3>
       <div class="diff review-diff">${diff}${changes.length > shown.length ? `<div>… ${changes.length - shown.length} more</div>` : ""}</div>
-      <h3 style="margin:16px 0 6px">Discussion</h3>
+      <h3 class="mt-4 mb-1_5 m-0">Discussion</h3>
       <div class="thread">${thread || "<p class=\"small muted\">No comments yet.</p>"}</div>
       ${waiting}
-      ${canWrite ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
+      ${canWrite ? `<form class="stack gap-2 mt-2_5" id="review-form">
         <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? "A comment, or why you approve or reject it" : "A comment"}" aria-label="Comment">${draft$3.key === detailKey$2(ctx) ? esc(draft$3.text) : ""}</textarea>
-        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy$6 ? "disabled" : ""}>
+        <fieldset class="row gap-2 border-0 p-0 m-0" ${busy$6 ? "disabled" : ""}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? "<button class=\"btn primary\" type=\"button\" data-act=\"approve\" " + (r.conflict ? "disabled title=\"It no longer fits the ontology\"" : "") + ">Approve and commit</button><button class=\"btn danger\" type=\"button\" data-act=\"reject\">Reject</button>" : ""}
           ${reworkButton(r, mine)}
@@ -7072,7 +7072,7 @@
 		const o = ctx.ontology;
 		return `<div class="card source-bar small">
       <span>${o.reviewRequired ? "Every ontology change on this site needs another engineer’s approval before it is committed." : "Engineers commit directly, or ask for a review when they want one."}</span>
-      <span class="row" style="gap:12px">${o.role === "admin" ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? "checked" : ""} /> Require a review for every change</label>` : ""}<button class="btn sm" data-refresh-reviews>Refresh</button></span>
+      <span class="row gap-3">${o.role === "admin" ? `<label class="row gap-1_5"><input type="checkbox" data-policy ${o.reviewRequired ? "checked" : ""} /> Require a review for every change</label>` : ""}<button class="btn sm" data-refresh-reviews>Refresh</button></span>
     </div>`;
 	}
 	async function fetchList$1(ctx) {
@@ -7382,9 +7382,9 @@
 		const option = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${label}</option>`;
 		return `<div class="card source-bar small">
       <div class="tabs" role="tablist" aria-label="Status">${tabs}</div>
-      <span class="row" style="gap:12px;flex-wrap:wrap">
-        <label class="row" style="gap:6px">Assigned to <select data-filter="who">${option("anyone", "anyone", f.who)}${option("me", "me", f.who)}${option("none", "nobody", f.who)}</select></label>
-        <label class="row" style="gap:6px">Signal <select data-filter="signal">${option("all", "out or back", f.signal)}${option("open", "still out", f.signal)}${option("ended", "back in", f.signal)}</select></label>
+      <span class="row gap-3 wrap">
+        <label class="row gap-1_5">Assigned to <select data-filter="who">${option("anyone", "anyone", f.who)}${option("me", "me", f.who)}${option("none", "nobody", f.who)}</select></label>
+        <label class="row gap-1_5">Signal <select data-filter="signal">${option("all", "out or back", f.signal)}${option("open", "still out", f.signal)}${option("ended", "back in", f.signal)}</select></label>
         <button class="btn sm" data-refresh-warnings>Refresh</button>
       </span>
     </div>`;
@@ -7395,7 +7395,7 @@
 		const empty = unfiltered ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
 		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? loadingState() : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
-          <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge$1(w)}</span>
+          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${badge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
         </button>`).join("") || emptyState({
@@ -7438,16 +7438,16 @@
 		const people = (members?.site === siteId$8(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
 		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
 		const has = (a) => actions.includes(a);
-		const assign = has("assign") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
+		const assign = has("assign") ? `<span class="row gap-1_5"><label class="row gap-1_5">Assign to <select name="assignee">
         <option value="">nobody</option>${current}
         ${people.map((m) => `<option value="${esc(m.user_id)}" ${m.user_id === w.assignee_id ? "selected" : ""}>${esc(m.name)}${m.user_id === ctx.ontology.userId ? " (me)" : ""}</option>`).join("")}
       </select></label><button class="btn" type="button" data-act="assign">Assign</button></span>` : "";
-		const resolve = has("resolve") ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Outcome <select name="outcome">
+		const resolve = has("resolve") ? `<span class="row gap-1_5"><label class="row gap-1_5">Outcome <select name="outcome">
         ${Object.keys(OUTCOMES).map((o) => `<option value="${o}">${OUTCOMES[o]}</option>`).join("")}
       </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>` : "";
-		return `<form class="stack" id="warning-form" style="gap:8px;margin-top:10px">
+		return `<form class="stack gap-2 mt-2_5" id="warning-form">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft$2.key === detailKey$1(ctx) ? esc(draft$2.text) : ""}</textarea>
-      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy$5 ? "disabled" : ""}>
+      <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy$5 ? "disabled" : ""}>
         ${has("acknowledge") ? "<button class=\"btn primary\" type=\"button\" data-act=\"acknowledge\">Acknowledge</button>" : ""}
         ${assign}
         ${resolve}
@@ -7482,17 +7482,17 @@
     <div class="card" data-warning-detail>
       <div class="card-head"><div>
         ${badge$1(w)} ${w.ended_at ? "" : "<span class=\"badge bad\">Signal still out</span>"}
-        <h2 style="margin-top:6px" class="mono">${esc(w.signal_tag)}</h2>
+        <h2 class="mono mt-1_5">${esc(w.signal_tag)}</h2>
         <div class="small muted">${esc(w.detector)} · started ${ago(w.started_at)} · ${w.readings} reading(s) out · ${w.assignee ? `for ${esc(w.assignee)}` : "unassigned"}</div>
       </div></div>
       <p class="small" data-how-far>${esc(howFar(w))}</p>
       ${resolved}
       ${chartCard(w)}
-      <h3 style="margin:16px 0 6px">Activity</h3>
+      <h3 class="mt-4 mb-1_5 m-0">Activity</h3>
       <div class="thread">${activity}</div>
       ${readOnly}
       ${actionsForm(ctx, w)}
-      <details style="margin-top:14px"><summary class="small">Payload</summary>
+      <details class="mt-3_5"><summary class="small">Payload</summary>
         <div class="table-wrap"><table class="small"><tbody>${rows}</tbody></table></div>
       </details>
     </div>`;
@@ -8465,7 +8465,7 @@
       </form>`;
 			const head = `<div class="page-head"><div><div class="eyebrow">Operations · ${esc(kind)}</div><h1>${esc(title)}</h1>
         ${crumbs(graph, node ? node.id : null)}</div>
-        <div class="row" style="gap:8px">${search}${ctx.api ? "<button class=\"btn\" data-plant-refresh>Refresh</button>" : ""}</div></div>`;
+        <div class="row gap-2">${search}${ctx.api ? "<button class=\"btn\" data-plant-refresh>Refresh</button>" : ""}</div></div>`;
 			if (ctx.api && ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (ctx.api && ctx.ontology.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
 			const results = searchResults(graph, ui.query);
@@ -8714,7 +8714,7 @@ heartbeat_seconds = 30
     ${made}
     <h3>A new site</h3>
     <p class="small soft">Organisation admins create sites. Each is set up on its own: open it, then come back here.</p>
-    <form class="stack" id="new-site" style="gap:10px;max-width:520px">
+    <form class="stack gap-2_5 max-w-form" id="new-site">
       <label class="field">Name<input type="text" name="name" required maxlength="120" placeholder="Plant 2" autocomplete="off"></label>
       <label class="field">Short name, in links<input type="text" name="slug" required pattern="[a-z0-9][a-z0-9\\-]{0,62}" placeholder="plant-2" autocomplete="off"></label>
       <label class="field">Time zone<input type="text" name="timezone" required value="${esc(zone)}" autocomplete="off"></label>
@@ -8727,7 +8727,7 @@ heartbeat_seconds = 30
 		const staged = ctx.state.repo.staged.length;
 		return `${have}
     ${staged ? `<p class="small" role="note">You have ${staged} staged change${staged === 1 ? "" : "s"}: commit or discard them on the <a href="#/ontology">Ontology</a> page first.</p>` : ""}
-    <form class="stack" id="outline" style="gap:10px;max-width:520px">
+    <form class="stack gap-2_5 max-w-form" id="outline">
       <label class="field">Workcenter (optional)<input type="text" name="workcenter" placeholder="Housing casting" autocomplete="off"></label>
       <label class="field">Line<input type="text" name="line" required placeholder="Die-cast line 1" autocomplete="off"></label>
       <label class="field">Machines, one per line<textarea name="machines" rows="4" required placeholder="Die-caster DC-01&#10;Die-caster DC-02"></textarea></label>
@@ -8739,14 +8739,14 @@ heartbeat_seconds = 30
 		const list = agents?.site === siteId$5(ctx) ? agents.list : null;
 		const rows = (list ?? []).map((a) => `<li><span><b>${esc(a.name)}</b> <span class="small soft">${esc(a.hostname ?? "")}</span></span><span class="badge ${a.status === "online" ? "good" : a.status === "offline" ? "warn" : ""}">${esc(a.status)}</span></li>`).join("");
 		const waiting = !data.agents_seen && data.agents ? "<p role=\"status\" class=\"small\">Waiting for the agent’s first heartbeat… this page checks every few seconds.</p>" : "";
-		const token = revealed?.site === siteId$5(ctx) ? `<div class="card stack" style="gap:8px" data-agent-token>
+		const token = revealed?.site === siteId$5(ctx) ? `<div class="card stack gap-2" data-agent-token>
           <p><b>${esc(revealed.name)}</b>’s token, shown only this once. Save it on the agent’s machine as <code>/etc/tiles-edge/token</code>, readable only by the agent’s user:</p>
           <pre class="code-block" tabindex="0">${esc(revealed.token)}</pre>
           <p>Then write <code>/etc/tiles-edge/tiles-edge.toml</code>:</p>
           <pre class="code-block" tabindex="0">${esc(agentConfig(ctx.dataSource.apiUrl))}</pre>
           <p>Check it with <code>tiles-edge check -c /etc/tiles-edge/tiles-edge.toml</code>, then run <code>tiles-edge run -c /etc/tiles-edge/tiles-edge.toml</code> as a service. It only connects out, over HTTPS.</p>
         </div>` : "";
-		const form = ctx.ontology.role === "admin" ? `<form class="row" id="new-agent" style="gap:8px;flex-wrap:wrap">
+		const form = ctx.ontology.role === "admin" ? `<form class="row gap-2 wrap" id="new-agent">
           <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(freeAgentName((list ?? []).map((a) => a.name)))}" autocomplete="off"></label>
           <button class="btn primary" type="submit" ${busy$3 ? "disabled" : ""}>Register an agent</button>
         </form>` : "<p class=\"small soft\">Admins of the site register edge agents.</p>";
@@ -8763,7 +8763,7 @@ heartbeat_seconds = 30
 	function dashboardStep(data) {
 		if (!data.dashboard) return "<p>Once a machine has a mapped signal, its page shows the live readings: the first dashboard.</p>";
 		return `<p><b>${esc(data.dashboard.label)}</b> has live signals. Its page shows each one’s latest reading, its open warnings, and what feeds it.</p>
-    <p class="row" style="gap:8px;flex-wrap:wrap">
+    <p class="row gap-2 wrap">
       <a class="btn primary" href="${placeLink(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
       <a class="btn" href="#/shopfloor">Shopfloor view</a>
       <a class="btn" href="#/explorer">Data explorer</a>
@@ -8801,8 +8801,8 @@ heartbeat_seconds = 30
           <div class="eyebrow">Step ${index + 1} of ${STEPS.length}</div>
           <h2 id="wizard-title">${esc(meta.title)}</h2>
           <p class="soft">${esc(meta.why)}</p>
-          <div class="stack" style="gap:12px;margin-top:12px">${body[current]()}</div>
-          ${nextKey ? `<p style="margin-top:16px"><button class="btn" data-step="${nextKey}">Next: ${esc(STEPS[index + 1].title.toLowerCase())}</button></p>` : ""}
+          <div class="stack gap-3 mt-3">${body[current]()}</div>
+          ${nextKey ? `<p class="mt-4"><button class="btn" data-step="${nextKey}">Next: ${esc(STEPS[index + 1].title.toLowerCase())}</button></p>` : ""}
         </section>
       </div>`;
 		},
@@ -9015,10 +9015,10 @@ heartbeat_seconds = 30
 		const u = pending ?? shown;
 		const option = (v, label, current) => `<option value="${v}" ${v === current ? "selected" : ""}>${label}</option>`;
 		return `<form class="card source-bar small" id="performance-form">
-      <span class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
-        <label class="row" style="gap:6px">Last <select name="days">${PERIODS.map((d) => option(d, d === 1 ? "day" : `${d} days`, u.days)).join("")}</select></label>
-        <label class="row" style="gap:6px" title="A warning counts for an event when it started this long before it, at most">Warned within <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join("")}</select></label>
-        <label class="row" style="gap:6px;flex:1;min-width:220px">Only codes <input type="text" name="codes" value="${esc(u.codes)}" placeholder="all, or e.g. DT-SEIZURE, DT-LUBRICATION" style="flex:1"></label>
+      <span class="row gap-3 wrap items-end">
+        <label class="row gap-1_5">Last <select name="days">${PERIODS.map((d) => option(d, d === 1 ? "day" : `${d} days`, u.days)).join("")}</select></label>
+        <label class="row gap-1_5" title="A warning counts for an event when it started this long before it, at most">Warned within <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join("")}</select></label>
+        <label class="row gap-1_5 grow min-w-field">Only codes <input type="text" name="codes" value="${esc(u.codes)}" placeholder="all, or e.g. DT-SEIZURE, DT-LUBRICATION" class="grow"></label>
         <button class="btn sm primary" type="submit">Show</button>
       </span>
     </form>`;
@@ -9026,13 +9026,13 @@ heartbeat_seconds = 30
 	function detectorsCard(ctx, r) {
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 		const rows = r.detectors.map((d) => {
-			const asset = canEdit ? `<form class="row" data-asset-form="${esc(d.id)}" style="gap:6px;flex-wrap:nowrap"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" style="width:7em"><button class="btn sm" type="submit">Set</button></form>` : esc(d.asset ?? "–");
+			const asset = canEdit ? `<form class="row gap-1_5 nowrap" data-asset-form="${esc(d.id)}"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" class="w-7em"><button class="btn sm" type="submit">Set</button></form>` : esc(d.asset ?? "–");
 			const c = d.confirmed;
 			const scored = d.matched ? `<td>${d.caught} / ${d.events} · ${share(d.recall)}</td><td>${share(d.precision)}${d.pending_warnings ? ` <span class="small soft">(${d.pending_warnings} pending)</span>` : ""}</td><td>${d.false_per_day === null ? "–" : d.false_per_day.toFixed(2)}</td><td>${spread(d.warning_seconds)}</td>` : "<td colspan=\"4\" class=\"small soft\">Set its asset to match its warnings to that asset’s events.</td>";
 			return `<tr data-detector-row="${esc(d.id)}"><td><b>${esc(d.name)}</b><div class="small soft mono">${esc(d.signal_tag)}</div></td><td>${asset}</td><td>${d.warnings}</td>${scored}<td class="small">${c.true_alarm} true · ${c.false_alarm} false · ${c.unknown} unknown · ${c.unresolved} open</td></tr>`;
 		}).join("");
 		const unwatched = r.unwatched.length ? `<p class="small soft" data-unwatched>No detector watches ${r.unwatched.map((u) => `${esc(u.asset)} (${u.events} event(s))`).join(", ")}: set a detector’s asset to count them.</p>` : "";
-		return `<div class="card stack" style="gap:10px">
+		return `<div class="card stack gap-2_5">
       <h2>By detector</h2>
       ${r.detectors.length ? `<div class="table-wrap"><table><thead><tr><th>Detector</th><th>Asset</th><th>Warnings</th><th>Events warned of</th><th>Followed by an event</th><th>False per day</th><th>Warning time (median, p10 to p90)</th><th>Resolved as</th></tr></thead><tbody>${rows}</tbody></table></div>` : "<p class=\"small soft\">No detectors yet. Detectors are set up through the Tiles API.</p>"}
       ${unwatched}
@@ -9040,7 +9040,7 @@ heartbeat_seconds = 30
 	}
 	function eventsCard(r) {
 		const rows = r.events.map((e) => `<tr><td>${esc(when(e.at, Date.now()))}</td><td>${esc(e.asset)}</td><td>${esc(e.kind)}</td><td class="mono">${esc(e.code)}</td><td>${e.warned_at && e.warning_seconds !== null ? `<span class="badge good">warned</span> ${esc(duration(e.warning_seconds))} ahead, by ${esc(e.detector ?? "a detector")}` : "<span class=\"badge bad\">missed</span>"}</td></tr>`).join("");
-		return `<div class="card stack" style="gap:10px">
+		return `<div class="card stack gap-2_5">
       <h2>Events</h2>
       ${r.events.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Asset</th><th>Kind</th><th>Code</th><th>Warning</th></tr></thead><tbody>${rows}</tbody></table></div>` : "<p class=\"small soft\">No events of watched assets in this period. Events are readings on signals marked as downtime or scrap on the Signals page, with their asset.</p>"}
     </div>`;
@@ -9065,7 +9065,7 @@ heartbeat_seconds = 30
 				const r = fetched.report;
 				body = `<div class="grid g4" data-kpis>${kpis(r.totals).map((k) => `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`).join("")}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
 			}
-			return `${head}${controls(u)}<div class="stack" style="gap:16px;margin-top:16px">${body}</div>`;
+			return `${head}${controls(u)}<div class="stack gap-4 mt-4">${body}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
@@ -9587,7 +9587,7 @@ heartbeat_seconds = 30
 			compact: true,
 			title: "No batch tables yet",
 			body: "Upload one below."
-		})}</div>${canEdit ? `<form class="stack" id="dataset-form" style="gap:8px;margin-top:12px">
+		})}</div>${canEdit ? `<form class="stack gap-2 mt-3" id="dataset-form">
         <h3>Upload a batch table</h3>
         <p class="small soft">A CSV with one row per batch: its settings and measurements, and a column saying whether it failed.</p>
         <label class="field">CSV file<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
@@ -9611,29 +9611,29 @@ heartbeat_seconds = 30
 		const preview = d.preview.length ? `<details><summary class="small">The first ${d.preview.length} batch(es)</summary><div class="table-wrap"><table class="small"><thead><tr>${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join("")}</tr></thead><tbody>${d.preview.map((r) => `<tr>${d.columns.map((c) => `<td>${esc(r[c.name] === null || r[c.name] === void 0 ? "" : String(r[c.name]))}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>` : "";
 		const r = result$1?.key === resultKey$1(ctx) ? result$1 : null;
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
-		return `<div class="card stack" style="gap:12px" data-analysis>
-      <div class="row" style="justify-content:space-between;align-items:start;gap:12px">
+		return `<div class="card stack gap-3" data-analysis>
+      <div class="row justify-between items-start gap-3">
         <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt$1(d.row_count, 0)} batch(es)</p></div>
         ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy$2 ? "disabled" : ""}>Delete</button>` : ""}
       </div>
       ${preview}
-      <form class="stack" id="correlate-form" style="gap:10px">
-        <div class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+      <form class="stack gap-2_5" id="correlate-form">
+        <div class="row gap-3 wrap items-end">
           <label class="field">Outcome<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? "")).join("")}</select></label>
-          <label class="field">Failed when it is${outcome?.kind === "bool" ? " (default true)" : ""}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === "bool" ? "true" : "e.g. NG, scrap"}" style="width:12em"></label>
+          <label class="field">Failed when it is${outcome?.kind === "bool" ? " (default true)" : ""}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === "bool" ? "true" : "e.g. NG, scrap"}" class="w-12em"></label>
           <label class="field">Split by<select name="split"><option value="">nothing (pooled)</option>${d.columns.filter((c) => c.kind !== "number" && c.name !== outcome?.name).map((c) => option(c.name, ui.split)).join("")}</select></label>
           <button class="btn primary" type="submit" ${busy$2 ? "disabled" : ""}>Find</button>
         </div>
-        <fieldset class="row" style="gap:10px;flex-wrap:wrap;border:0;padding:0;margin:0"><legend class="small soft">Variables</legend>${numbers.filter((n) => n !== outcome?.name).map((n) => `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${checked.has(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</fieldset>
+        <fieldset class="row gap-2_5 wrap border-0 p-0 m-0"><legend class="small soft">Variables</legend>${numbers.filter((n) => n !== outcome?.name).map((n) => `<label class="row small gap-1"><input type="checkbox" name="variable" value="${esc(n)}" ${checked.has(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</fieldset>
       </form>
       ${r ? resultBlock(r.data, r.split) : ""}
-      ${r && canEdit ? saving?.key === r.key ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3>${draftForm("insight-save", saving.text, Boolean(busy$2))}</div>` : "<div><button class=\"btn\" type=\"button\" data-save-insight>Save as insight</button></div>" : ""}
+      ${r && canEdit ? saving?.key === r.key ? `<div class="stack gap-1_5"><h3>Save as an insight</h3>${draftForm("insight-save", saving.text, Boolean(busy$2))}</div>` : "<div><button class=\"btn\" type=\"button\" data-save-insight>Save as insight</button></div>" : ""}
     </div>`;
 	}
 	function resultBlock(r, split) {
-		const said = r.explanations.length ? `<ul class="stack" data-explanations style="gap:4px">${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join("")}</ul>` : "<p class=\"small soft\" data-explanations>No large, clear effect (|d| ≥ 0.8 with an interval that leaves out 0).</p>";
+		const said = r.explanations.length ? `<ul class="stack gap-1" data-explanations>${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join("")}</ul>` : "<p class=\"small soft\" data-explanations>No large, clear effect (|d| ≥ 0.8 with an interval that leaves out 0).</p>";
 		const rows = r.findings.slice(0, 50).map((f) => `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? "–" : fmt$1(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? "–" : fmt$1(f.ok_mean, 2)}</td><td><b>${f.effect.toFixed(2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? "–" : `${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)}`}${f.clear ? "" : " <span class=\"small soft\">(could be 0)</span>"}</td><td>${f.r.toFixed(2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`).join("");
-		return `<div class="stack" style="gap:10px" data-result>
+		return `<div class="stack gap-2_5" data-result>
       <p class="small soft">${fmt$1(r.rows, 0)} batch(es) with an outcome: ${fmt$1(r.ng, 0)} failed, ${fmt$1(r.ok, 0)} good.</p>
       ${said}
       ${forestPlot(r.findings, split)}
@@ -9963,7 +9963,7 @@ heartbeat_seconds = 30
 		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		const n = selected$1();
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? loadingState() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
-              <span class="row" style="gap:6px;justify-content:space-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$2(i.status)}</span>
+              <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$2(i.status)}</span>
               <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
             </a>`).join("") || emptyState({
 			illustration: ui.status === "proposed" ? "done" : "inbox",
@@ -9977,7 +9977,7 @@ heartbeat_seconds = 30
 		if (i.query.kind === "correlation" && e.result) {
 			const r = e.result;
 			const split = Boolean(i.query.split);
-			const said = r.explanations.length ? `<ul class="stack" style="gap:4px">${r.explanations.map((x) => `<li>${esc(x.text)}</li>`).join("")}</ul>` : "<p class=\"small soft\">No large, clear effect.</p>";
+			const said = r.explanations.length ? `<ul class="stack gap-1">${r.explanations.map((x) => `<li>${esc(x.text)}</li>`).join("")}</ul>` : "<p class=\"small soft\">No large, clear effect.</p>";
 			const shown = e.findings_total !== void 0 && e.findings_total > r.findings.length ? `<p class="small soft">The ${r.findings.length} largest of ${e.findings_total} effects were kept.</p>` : "";
 			return `<p class="small soft">${r.rows} batch(es) with an outcome: ${r.ng} failed, ${r.ok} good.</p>${said}${forestPlot(r.findings, split)}${shown}`;
 		}
@@ -9992,7 +9992,7 @@ heartbeat_seconds = 30
 				title: s.unit ? `${s.tag} (${s.unit})` : s.tag,
 				width: fitWidth(TIME_CHART.width, .7)
 			});
-			return `<div class="stack" style="gap:4px" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;
+			return `<div class="stack gap-1" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;
 		}).join("");
 	}
 	function detailCard$1(ctx) {
@@ -10011,38 +10011,38 @@ heartbeat_seconds = 30
 		const may = mayDo(i, ctx.ontology.userId, ctx.ontology.role);
 		const key = `${detailKey(ctx)}|${i.updated_at}`;
 		const link = sourceLink(i);
-		const head = `<div class="row" style="justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+		const head = `<div class="row justify-between items-start gap-3 wrap">
       <div><h2>#${i.number} ${esc(i.title)}</h2>
       <p class="small soft">Saved by ${esc(i.author)} on ${esc(when$1(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when$1(i.updated_at))}` : ""}</p></div>
-      <div class="row" style="gap:6px">${statusBadge$2(i.status)}</div>
+      <div class="row gap-1_5">${statusBadge$2(i.status)}</div>
     </div>`;
-		const body = editing?.key === key ? draftForm("insight-edit", editing.text, busy$1, "Save changes") : `${i.summary ? `<p style="white-space:pre-wrap" data-summary>${esc(i.summary)}</p>` : ""}
+		const body = editing?.key === key ? draftForm("insight-edit", editing.text, busy$1, "Save changes") : `${i.summary ? `<p class="pre-wrap" data-summary>${esc(i.summary)}</p>` : ""}
         <div><h3>Proposed actions</h3>${i.actions.length ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>` : "<p class=\"small soft\">None proposed.</p>"}</div>`;
 		const reviewed = i.status !== "proposed" && i.reviewer ? `<p class="small" data-review>${i.status === "accepted" ? "Accepted" : "Rejected"} by ${esc(i.reviewer)}${i.reviewed_at ? ` on ${esc(when$1(i.reviewed_at))}` : ""}${i.review_note ? `: “${esc(i.review_note)}”` : ""}</p>` : "";
 		if (note.key !== key) note = {
 			key,
 			text: ""
 		};
-		const review = may.review ? `<form class="stack" id="insight-review" style="gap:8px">
+		const review = may.review ? `<form class="stack gap-2" id="insight-review">
         <label class="field">Review note <span class="small soft">(needed to reject)</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
-        <div class="row" style="gap:8px"><button class="btn primary" type="submit" data-decision="accepted" ${busy$1 ? "disabled" : ""}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy$1 ? "disabled" : ""}>Reject</button></div>
+        <div class="row gap-2"><button class="btn primary" type="submit" data-decision="accepted" ${busy$1 ? "disabled" : ""}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy$1 ? "disabled" : ""}>Reject</button></div>
       </form>` : "";
 		const tools = [
 			may.edit && editing?.key !== key ? `<button class="btn sm" type="button" data-edit>Edit</button>` : "",
 			may.reopen ? `<button class="btn sm" type="button" data-reopen ${busy$1 ? "disabled" : ""}>Reopen</button>` : "",
 			may.remove ? `<button class="btn sm" type="button" data-remove ${busy$1 ? "disabled" : ""}>Delete</button>` : ""
 		].join("");
-		return `<div class="card stack" style="gap:12px" data-insight-detail>
+		return `<div class="card stack gap-3" data-insight-detail>
       ${head}
       ${body}
-      <div class="stack" style="gap:6px"><h3>Evidence</h3>
+      <div class="stack gap-1_5"><h3>Evidence</h3>
         <p class="small soft" data-source>${esc(sourceText(i))}, as it was on ${esc(when$1(i.created_at))}. <a href="${esc(link.href)}">${esc(link.text)}</a> to see it on today’s data.</p>
         ${evidence(i)}
       </div>
       ${reviewed}
       ${review}
-      ${tools ? `<div class="row" style="gap:8px">${tools}</div>` : ""}
-      <p class="small soft" style="overflow-wrap:anywhere">Link: <a href="${insightLink(i.number)}" data-link>${esc(location.href.split("#")[0] ?? "")}${insightLink(i.number)}</a></p>
+      ${tools ? `<div class="row gap-2">${tools}</div>` : ""}
+      <p class="small soft break-anywhere">Link: <a href="${insightLink(i.number)}" data-link>${esc(location.href.split("#")[0] ?? "")}${insightLink(i.number)}</a></p>
     </div>`;
 	}
 	async function act(ctx, run, done) {
@@ -10161,7 +10161,7 @@ heartbeat_seconds = 30
 		if (p.kind === "choice") return `<label class="field" for="${id}">${label}<select id="${id}" name="${esc(p.name)}">${p.choices.map(([v, l]) => `<option value="${esc(v)}" ${v === value ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
 		if (p.kind === "choices") {
 			const chosen = Array.isArray(value) ? value : [];
-			return `<fieldset class="field app-choices"><legend>${label}</legend>${p.choices.map(([v, l]) => `<label class="row" style="gap:8px"><input type="checkbox" name="${esc(p.name)}" value="${esc(v)}" ${chosen.includes(v) ? "checked" : ""} /> ${esc(l)}</label>`).join("")}</fieldset>`;
+			return `<fieldset class="field app-choices"><legend>${label}</legend>${p.choices.map(([v, l]) => `<label class="row gap-2"><input type="checkbox" name="${esc(p.name)}" value="${esc(v)}" ${chosen.includes(v) ? "checked" : ""} /> ${esc(l)}</label>`).join("")}</fieldset>`;
 		}
 		const bounds = `${p.minimum !== null ? ` min="${p.minimum}"` : ""}${p.maximum !== null ? ` max="${p.maximum}"` : ""}`;
 		const step = p.kind === "integer" ? "1" : "any";
@@ -10379,29 +10379,29 @@ heartbeat_seconds = 30
 			title: "No apps yet",
 			body: canEdit$1(ctx) ? "Make one from a template." : "Engineers make them from templates."
 		});
-		return `<div class="card stack" style="gap:8px"><div class="row" style="justify-content:space-between;gap:8px"><h2>Apps</h2>${canEdit$1(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>New app</a>` : ""}</div><div class="review-list" data-app-list>${rows}</div></div>`;
+		return `<div class="card stack gap-2"><div class="row justify-between gap-2"><h2>Apps</h2>${canEdit$1(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>New app</a>` : ""}</div><div class="review-list" data-app-list>${rows}</div></div>`;
 	}
 	function templateCards(list) {
-		return `<div class="stack" style="gap:8px" data-templates>${list.map((t) => `<button class="card app-template" type="button" data-template="${esc(t.id)}">
+		return `<div class="stack gap-2" data-templates>${list.map((t) => `<button class="card app-template" type="button" data-template="${esc(t.id)}">
         <b>${esc(t.title)}</b><span class="small soft">${esc(t.summary)}</span></button>`).join("")}</div>`;
 	}
 	function formCard(ctx, d, template, editing) {
 		const values = (Object.keys(d.values).length ? readConfig(template, d.values).config : null) ?? (editing ? editing.config : defaultConfig(template));
 		const list = signals?.list ?? [];
 		const fields = template.params.map((p) => paramField(p, values[p.name], list)).join("");
-		return `<form class="card stack" id="app-form" style="gap:10px">
+		return `<form class="card stack gap-2_5" id="app-form">
       <h2>${esc(editing ? `Change #${editing.number} ${editing.name}` : `New app: ${template.title}`)}</h2>
       <p class="small soft">${esc(template.summary)}</p>
       <label class="field" for="app-name">Name<input id="app-name" type="text" name="__name" value="${esc(d.name)}" maxlength="120" required /></label>
-      <div class="grid g2 app-fields" style="gap:10px">${fields}</div>
-      <div class="row" style="gap:8px"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${editing ? "Save" : "Make the app"}</button><a class="btn" href="${editing ? appLink(editing.number) : "#/apps"}">Cancel</a></div>
+      <div class="grid g2 app-fields gap-2_5">${fields}</div>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${editing ? "Save" : "Make the app"}</button><a class="btn" href="${editing ? appLink(editing.number) : "#/apps"}">Cancel</a></div>
     </form>`;
 	}
 	function newCard(ctx) {
 		const list = templates?.list;
 		if (templates?.failed) return `<div class="card">${retry("The templates", "data-retry-templates")}</div>`;
 		if (!list) return `<div class="card">${loadingState("Loading the templates…")}</div>`;
-		if (!draft$1 || draft$1.key !== "new" || !list.some((t) => t.id === draft$1?.template)) return `<div class="card stack" style="gap:10px"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
+		if (!draft$1 || draft$1.key !== "new" || !list.some((t) => t.id === draft$1?.template)) return `<div class="card stack gap-2_5"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
 		const template = list.find((t) => t.id === draft$1?.template);
 		return template ? formCard(ctx, draft$1, template, null) : "";
 	}
@@ -10439,7 +10439,7 @@ heartbeat_seconds = 30
 		}
 		const r = result?.key === resultKey(ctx, app) ? result : null;
 		const settings = `<details><summary class="small">Settings</summary><ul class="small" data-app-settings>${configSummary(template, app.config, app.signal_tag).map((line) => `<li>${esc(line)}</li>`).join("")}</ul></details>`;
-		const tools = canEdit$1(ctx) ? `<div class="row" style="gap:8px"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? "disabled" : ""}>Archive</button></div>` : "";
+		const tools = canEdit$1(ctx) ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? "disabled" : ""}>Archive</button></div>` : "";
 		let body;
 		if (!r) body = "<p class=\"small soft\">Running it on the latest readings…</p>";
 		else if (!r.result) body = "<p class=\"small soft\">It could not run. Check its settings.</p>";
@@ -10449,13 +10449,13 @@ heartbeat_seconds = 30
 				...resultChart(out),
 				width: fitWidth(TIME_CHART.width, .7)
 			});
-			const facts = out.facts.length ? `<div class="row" style="gap:24px;flex-wrap:wrap" data-app-facts>${out.facts.map((f) => `<div><div class="small soft">${esc(f.label)}</div><strong>${esc(factText(f))}</strong></div>`).join("")}</div>` : "";
+			const facts = out.facts.length ? `<div class="row gap-6 wrap" data-app-facts>${out.facts.map((f) => `<div><div class="small soft">${esc(f.label)}</div><strong>${esc(factText(f))}</strong></div>`).join("")}</div>` : "";
 			const marked = out.spans.length ? `<p class="small soft">Shaded: ${esc([...new Set(out.spans.map((s) => s.label))].join("; "))}.</p>` : "";
-			body = `<div class="row" style="gap:8px;align-items:center" data-app-status>${statusBadge(out.status)} <b>${esc(out.headline)}</b></div>
+			body = `<div class="row gap-2 items-center" data-app-status>${statusBadge(out.status)} <b>${esc(out.headline)}</b></div>
       <p data-app-text>${esc(out.text)}</p>${facts}${chart}${marked}`;
 		}
-		return `<div class="card stack" style="gap:12px" data-app-detail>
-      <div class="row" style="justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+		return `<div class="card stack gap-3" data-app-detail>
+      <div class="row justify-between items-start gap-3 wrap">
         <div><h2>#${app.number} ${esc(app.name)}</h2>
         <p class="small soft">${esc(app.template_title)} on <code>${esc(app.signal_tag ?? "a signal no longer on this site")}</code> · made by ${esc(app.created_by)}</p></div>
         <button class="btn sm" type="button" data-rerun>Run again</button>
@@ -10674,17 +10674,17 @@ heartbeat_seconds = 30
 		if (found?.key === searchKey(ctx) && found.failed) body = "<p class=\"small\" role=\"alert\">The search could not be run. <button class=\"btn sm\" type=\"button\" data-retry-search>Try again</button></p>";
 		else if (ui.query.trim() && results === null) body = "<p class=\"small soft\">Searching…</p>";
 		else if (results && !results.length) body = `<p class="small soft" data-no-matches>Nothing matches “${esc(ui.query)}”.</p>`;
-		else if (results) body = `<ol class="stack doc-matches" style="gap:10px" data-matches>${results.map((m) => `<li class="doc-match">
-          <div class="row" style="gap:8px;justify-content:space-between;flex-wrap:wrap">
+		else if (results) body = `<ol class="stack doc-matches gap-2_5" data-matches>${results.map((m) => `<li class="doc-match">
+          <div class="row gap-2 justify-between wrap">
             <b>${esc(m.title)}</b>
             <button class="btn sm" type="button" data-open="${m.document}" data-page="${m.page}">Open page ${m.page}</button>
           </div>
           <p class="small">${snippetHtml(m.snippet)}</p>
         </li>`).join("")}</ol>`;
-		return `<div class="card stack" style="gap:12px">
-      <form class="row" id="doc-search" role="search" style="gap:8px;flex-wrap:wrap">
-        <label class="field" style="flex:1;min-width:220px">Search the documents<input type="search" name="q" value="${esc(ui.query)}" placeholder='e.g. plunger tip replace, "hydraulic pressure"' /></label>
-        <div style="align-self:end"><button class="btn primary" type="submit">Search</button></div>
+		return `<div class="card stack gap-3">
+      <form class="row gap-2 wrap" id="doc-search" role="search">
+        <label class="field grow min-w-field">Search the documents<input type="search" name="q" value="${esc(ui.query)}" placeholder='e.g. plunger tip replace, "hydraulic pressure"' /></label>
+        <div class="self-end"><button class="btn primary" type="submit">Search</button></div>
       </form>
       <p class="small soft">Words find their forms (“valves” finds “valve”); “quoted words” find a phrase; -word leaves a word out.</p>
       <div aria-live="polite">${body}</div>
@@ -10692,22 +10692,22 @@ heartbeat_seconds = 30
 	}
 	function listCard(ctx) {
 		const items = listing?.key === siteId(ctx) ? listing.items : null;
-		return `<div class="card stack" style="gap:8px"><h2>Documents</h2><div class="review-list" data-doc-list>${listing?.failed ? emptyState({
+		return `<div class="card stack gap-2"><h2>Documents</h2><div class="review-list" data-doc-list>${listing?.failed ? emptyState({
 			illustration: "error",
 			compact: true,
 			alert: true,
 			title: "The documents could not be loaded",
 			action: `<button class="btn sm" type="button" data-retry-docs>${icon("refresh-cw")} Try again</button>`
 		}) : items === null ? loadingState() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
-              <span class="row" style="gap:6px;justify-content:space-between"><b>${esc(d.title)}</b>
-              <span class="row" style="gap:4px"><button class="btn sm" type="button" data-open="${d.number}" data-page="1">Open</button>${canEdit(ctx) ? `<button class="btn sm danger" type="button" data-archive-doc="${d.number}" aria-label="Archive ${esc(d.title)}">Archive</button>` : ""}</span></span>
+              <span class="row gap-1_5 justify-between"><b>${esc(d.title)}</b>
+              <span class="row gap-1"><button class="btn sm" type="button" data-open="${d.number}" data-page="1">Open</button>${canEdit(ctx) ? `<button class="btn sm danger" type="button" data-archive-doc="${d.number}" aria-label="Archive ${esc(d.title)}">Archive</button>` : ""}</span></span>
               <span class="small muted">${d.pages} page(s) · ${esc(sizeText(d.size))} · ${esc(d.uploaded_by)}</span>
             </div>`).join("") || emptyState({
 			illustration: "documents",
 			compact: true,
 			title: "No documents yet",
 			body: canEdit(ctx) ? "Upload SOPs, manuals and lessons learned below." : void 0
-		})}</div>${canEdit(ctx) ? `<form class="stack" id="doc-upload" style="gap:8px">
+		})}</div>${canEdit(ctx) ? `<form class="stack gap-2" id="doc-upload">
         <h3>Upload</h3>
         <label class="field">File (PDF, text or Markdown, up to 20 MB)<input type="file" name="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" required /></label>
         <label class="field">Title<input type="text" name="title" maxlength="200" placeholder="From the file name" value="${esc(draft?.title ?? "")}" /></label>
@@ -10844,23 +10844,23 @@ heartbeat_seconds = 30
 	function mappingForm(l) {
 		const m = l.mapping;
 		const long = m.long !== null;
-		const columns = long ? `<div class="row" style="gap:12px;flex-wrap:wrap">
+		const columns = long ? `<div class="row gap-3 wrap">
         <label class="field">Tag column<select name="tagColumn">${options(l.header, m.long?.tagColumn ?? -1, [m.timeColumn])}</select></label>
         <label class="field">Value column<select name="valueColumn">${options(l.header, m.long?.valueColumn ?? -1, [m.timeColumn])}</select></label>
       </div>
       <p class="small soft">Each row is one reading; tags become signal names (TT-101 → tt-101).</p>` : `<div class="table-wrap"><table><thead><tr><th>Import</th><th>Column</th><th>Signal</th></tr></thead><tbody>${l.header.map((h, i) => i === m.timeColumn ? "" : `<tr><td><input type="checkbox" name="use-${i}" ${m.columns[i] ? "checked" : ""} aria-label="Import ${esc(h)}"></td><td>${esc(h)}</td>
-               <td><input type="text" name="tag-${i}" value="${esc(m.columns[i] ?? slugTag(h) ?? "")}" aria-label="Signal for ${esc(h)}" style="width:100%"></td></tr>`).join("")}</tbody></table></div>`;
-		return `<form id="import-mapping" class="stack" style="gap:12px">
-      <fieldset class="row" style="gap:16px;border:0;padding:0">
+               <td><input type="text" name="tag-${i}" value="${esc(m.columns[i] ?? slugTag(h) ?? "")}" aria-label="Signal for ${esc(h)}" class="w-full"></td></tr>`).join("")}</tbody></table></div>`;
+		return `<form id="import-mapping" class="stack gap-3">
+      <fieldset class="row gap-4 border-0 p-0">
         <label><input type="radio" name="shape" value="wide" ${long ? "" : "checked"}> One column per signal</label>
         <label><input type="radio" name="shape" value="long" ${long ? "checked" : ""}> One row per reading (tag, time, value)</label>
       </fieldset>
-      <div class="row" style="gap:12px;flex-wrap:wrap">
+      <div class="row gap-3 wrap">
         <label class="field">Time column<select name="timeColumn">${options(l.header, m.timeColumn)}</select></label>
         <label class="field">Time format<select name="timeFormat">${FORMATS.map(([f, label]) => `<option value="${f}" ${f === m.timeFormat ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
         <label class="field">Time zone (for times without one)<input type="text" name="timeZone" value="${esc(m.timeZone)}"></label>
       </div>
-      <div class="row" style="gap:16px;flex-wrap:wrap">
+      <div class="row gap-4 wrap">
         <label><input type="checkbox" name="decimalComma" ${m.decimalComma ? "checked" : ""}> Decimal comma (21,5)</label>
         <label><input type="checkbox" name="keepText" ${m.keepText ? "checked" : ""}> Keep text cells as text readings</label>
       </div>
@@ -10915,7 +10915,7 @@ heartbeat_seconds = 30
 	}
 	function summaryBox(l) {
 		const problems = mappingProblems(l.header, l.mapping);
-		if (problems.length) return `<div class="stack" style="gap:4px">${problems.map((p) => `<p class="small" style="color:var(--bad)">${esc(p)}</p>`).join("")}</div>`;
+		if (problems.length) return `<div class="stack gap-1">${problems.map((p) => `<p class="small text-bad">${esc(p)}</p>`).join("")}</div>`;
 		const stats = summarize(l.rows, l.mapping);
 		const examples = stats.examples.length ? `<ul class="small soft">${stats.examples.map((e) => `<li>Line ${e.row}: ${esc(e.message)}</li>`).join("")}</ul>` : "";
 		const signals = [...stats.signals].slice(0, 12).map((t) => `<span class="badge">${esc(t)}</span>`).join(" ");
@@ -10926,11 +10926,11 @@ heartbeat_seconds = 30
 		return `<div class="table-wrap"><table><thead><tr>${l.header.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${l.rows.slice(0, PREVIEW_ROWS).map((r) => `<tr>${l.header.map((_, i) => `<td>${esc(r[i] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
 	}
 	function importCard(ctx) {
-		if (!ctx.api || !ctx.ontology.site) return `<div class="card stack" style="gap:8px"><h2>Import readings</h2><p class="small soft">Imports go into the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
-		if (ctx.ontology.role === "viewer") return `<div class="card stack" style="gap:8px"><h2>Import readings</h2><p class="small soft">Your role on this site is viewer: you can see past imports, but engineers and admins run them.</p></div>`;
+		if (!ctx.api || !ctx.ontology.site) return `<div class="card stack gap-2"><h2>Import readings</h2><p class="small soft">Imports go into the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+		if (ctx.ontology.role === "viewer") return `<div class="card stack gap-2"><h2>Import readings</h2><p class="small soft">Your role on this site is viewer: you can see past imports, but engineers and admins run them.</p></div>`;
 		const l = loaded;
 		const busy = running !== null;
-		return `<div class="card stack" style="gap:12px" id="import-card">
+		return `<div class="card stack gap-3" id="import-card">
       <h2>Import readings</h2>
       <p class="small soft">Backfill history from a CSV file or a historian export. The file is read in this browser; readings Tiles already has (same signal and time) are skipped, so importing a file twice is safe.</p>
       <label class="field">File<input type="file" accept=".csv,.tsv,.txt,text/csv" data-import-file ${busy ? "disabled" : ""}></label>
@@ -10938,7 +10938,7 @@ heartbeat_seconds = 30
              ${preview(l)}
              ${mappingForm(l)}
              <div data-import-check aria-live="polite">${summaryBox(l)}</div>
-             <div class="row" style="gap:8px">
+             <div class="row gap-2">
                <button class="btn primary" type="button" data-import-run ${busy || mappingProblems(l.header, l.mapping).length ? "disabled" : ""}>Import</button>
                ${busy ? "<button class=\"btn\" type=\"button\" data-import-cancel>Stop</button>" : ""}
              </div>` : ""}
@@ -10948,10 +10948,10 @@ heartbeat_seconds = 30
 	function progress(r) {
 		const pct = r.total ? Math.round(100 * r.sent / r.total) : 0;
 		return `<p>Sent ${fmt$1(r.sent, 0)} of ${fmt$1(r.total, 0)} readings (${pct}%), ${fmt$1(r.stored, 0)} new.</p>
-    <progress max="${r.total}" value="${r.sent}" style="width:100%"></progress>`;
+    <progress max="${r.total}" value="${r.sent}" class="w-full"></progress>`;
 	}
 	function historyCard() {
-		return `<div class="card stack" style="gap:12px"><h2>Past imports</h2><div data-import-history aria-live="polite"><p class="small soft">Loading…</p></div></div>`;
+		return `<div class="card stack gap-3"><h2>Past imports</h2><div data-import-history aria-live="polite"><p class="small soft">Loading…</p></div></div>`;
 	}
 	function historyTable(runs) {
 		if (!runs.length) return "<p class=\"small soft\">No imports on this site yet.</p>";
@@ -11027,7 +11027,7 @@ heartbeat_seconds = 30
 		render(ctx) {
 			return `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Import data</h1>
         <p class="soft">Backfill readings from CSV files and historian exports, mapped to signals.</p></div></div>
-      <div class="stack" style="gap:16px">${importCard(ctx)}${historyCard()}</div>`;
+      <div class="stack gap-4">${importCard(ctx)}${historyCard()}</div>`;
 		},
 		bind(root, ctx) {
 			fillHistory(root, ctx);

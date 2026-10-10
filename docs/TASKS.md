@@ -222,7 +222,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* the baseline numbers are in the [measures](UI-PLAN.md#goals-and-measures) table and the top 20 problems each map to a task in the plan.
 - [x] `U1.02` [#205](https://github.com/dipeshrohan/tiles/issues/205) **Design tokens** · FE · 3d
   *Done when:* no raw `px` for spacing, font size or radius is left in `styles.css` outside the token block (`test/css-tokens.test.js` checks it), and screenshots of every page before and after differ only by values moving onto the scale (at most 2 px each).
-- [ ] `U1.03` [#206](https://github.com/dipeshrohan/tiles/issues/206) **Remove inline styles** · FE · 4d · U1.02
+- [x] `U1.03` [#206](https://github.com/dipeshrohan/tiles/issues/206) **Remove inline styles** · FE · 4d · U1.02
   *Done when:* ≤ 20 inline styles remain, all computed; the check runs in CI.
 - [ ] `U1.04` [#207](https://github.com/dipeshrohan/tiles/issues/207) **Component module `js/lib/ui.ts`** · FE · 4d · U1.02
   *Done when:* three pages (Signals, Warnings, Documents) use the module for every component it has, with no visual change.

@@ -94,7 +94,7 @@ function listCard(ctx: Context, ui: Ui): string {
           .map(
             (r) => `
         <button class="review-row ${ui.selected === r.number ? 'sel' : ''}" data-review="${r.number}">
-          <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
+          <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
           <span class="small muted">${r.source === 'copilot' ? `${COPILOT_BADGE} ` : ''}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ''}${r.comments ? ` · ${r.comments} comment(s)` : ''}</span>
           <span class="small">${stats(r.stats)}</span>
         </button>`,
@@ -152,21 +152,21 @@ function detailCard(ctx: Context, ui: Ui): string {
     <div class="card" data-review-detail>
       <div class="card-head"><div>
         ${statusBadge(r.status)}${r.source === 'copilot' ? ` ${COPILOT_BADGE}` : ''}
-        <h2 style="margin-top:6px">#${r.number} ${esc(r.message)}</h2>
+        <h2 class="mt-1_5">#${r.number} ${esc(r.message)}</h2>
         <div class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)} · ${r.reviewer ? `review by ${esc(r.reviewer)}` : 'any engineer may review'}${r.reverts ? ` · reverts <span class="mono">${esc(r.reverts.slice(-7))}</span>` : ''}</div>
       </div></div>
       ${outcome}
       ${open && r.conflict ? `<div class="alert" role="alert"><b>This change no longer fits the ontology</b>: ${esc(r.conflict)}. It can't be approved; its author can rework it.</div>` : ''}
-      <h3 style="margin:12px 0 6px">Changes <span class="small soft">${stats(r.stats)}</span></h3>
+      <h3 class="mt-3 mb-1_5 m-0">Changes <span class="small soft">${stats(r.stats)}</span></h3>
       <div class="diff review-diff">${diff}${changes.length > shown.length ? `<div>… ${changes.length - shown.length} more</div>` : ''}</div>
-      <h3 style="margin:16px 0 6px">Discussion</h3>
+      <h3 class="mt-4 mb-1_5 m-0">Discussion</h3>
       <div class="thread">${thread || '<p class="small muted">No comments yet.</p>'}</div>
       ${waiting}
       ${
         canWrite
-          ? `<form class="stack" id="review-form" style="gap:8px;margin-top:10px">
+          ? `<form class="stack gap-2 mt-2_5" id="review-form">
         <textarea name="comment" rows="3" maxlength="4000" placeholder="${decide ? 'A comment, or why you approve or reject it' : 'A comment'}" aria-label="Comment">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
-        <fieldset class="row" style="gap:8px;border:0;padding:0;margin:0" ${busy ? 'disabled' : ''}>
+        <fieldset class="row gap-2 border-0 p-0 m-0" ${busy ? 'disabled' : ''}>
           <button class="btn" type="button" data-act="comment">Comment</button>
           ${decide ? '<button class="btn primary" type="button" data-act="approve" ' + (r.conflict ? 'disabled title="It no longer fits the ontology"' : '') + '>Approve and commit</button><button class="btn danger" type="button" data-act="reject">Reject</button>' : ''}
           ${reworkButton(r, mine)}
@@ -191,7 +191,7 @@ function policyCard(ctx: Context): string {
     : 'Engineers commit directly, or ask for a review when they want one.';
   return `<div class="card source-bar small">
       <span>${text}</span>
-      <span class="row" style="gap:12px">${o.role === 'admin' ? `<label class="row" style="gap:6px"><input type="checkbox" data-policy ${o.reviewRequired ? 'checked' : ''} /> Require a review for every change</label>` : ''}<button class="btn sm" data-refresh-reviews>Refresh</button></span>
+      <span class="row gap-3">${o.role === 'admin' ? `<label class="row gap-1_5"><input type="checkbox" data-policy ${o.reviewRequired ? 'checked' : ''} /> Require a review for every change</label>` : ''}<button class="btn sm" data-refresh-reviews>Refresh</button></span>
     </div>`;
 }
 

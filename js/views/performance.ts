@@ -63,10 +63,10 @@ function controls(shown: Ui): string {
   const option = (v: number, label: string, current: number) =>
     `<option value="${v}" ${v === current ? 'selected' : ''}>${label}</option>`;
   return `<form class="card source-bar small" id="performance-form">
-      <span class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
-        <label class="row" style="gap:6px">Last <select name="days">${PERIODS.map((d) => option(d, d === 1 ? 'day' : `${d} days`, u.days)).join('')}</select></label>
-        <label class="row" style="gap:6px" title="A warning counts for an event when it started this long before it, at most">Warned within <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join('')}</select></label>
-        <label class="row" style="gap:6px;flex:1;min-width:220px">Only codes <input type="text" name="codes" value="${esc(u.codes)}" placeholder="all, or e.g. DT-SEIZURE, DT-LUBRICATION" style="flex:1"></label>
+      <span class="row gap-3 wrap items-end">
+        <label class="row gap-1_5">Last <select name="days">${PERIODS.map((d) => option(d, d === 1 ? 'day' : `${d} days`, u.days)).join('')}</select></label>
+        <label class="row gap-1_5" title="A warning counts for an event when it started this long before it, at most">Warned within <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join('')}</select></label>
+        <label class="row gap-1_5 grow min-w-field">Only codes <input type="text" name="codes" value="${esc(u.codes)}" placeholder="all, or e.g. DT-SEIZURE, DT-LUBRICATION" class="grow"></label>
         <button class="btn sm primary" type="submit">Show</button>
       </span>
     </form>`;
@@ -77,7 +77,7 @@ function detectorsCard(ctx: Context, r: PerformanceReport): string {
   const rows = r.detectors
     .map((d) => {
       const asset = canEdit
-        ? `<form class="row" data-asset-form="${esc(d.id)}" style="gap:6px;flex-wrap:nowrap"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" style="width:7em"><button class="btn sm" type="submit">Set</button></form>`
+        ? `<form class="row gap-1_5 nowrap" data-asset-form="${esc(d.id)}"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" class="w-7em"><button class="btn sm" type="submit">Set</button></form>`
         : esc(d.asset ?? '–');
       const c = d.confirmed;
       const scored = d.matched
@@ -89,7 +89,7 @@ function detectorsCard(ctx: Context, r: PerformanceReport): string {
   const unwatched = r.unwatched.length
     ? `<p class="small soft" data-unwatched>No detector watches ${r.unwatched.map((u) => `${esc(u.asset)} (${u.events} event(s))`).join(', ')}: set a detector’s asset to count them.</p>`
     : '';
-  return `<div class="card stack" style="gap:10px">
+  return `<div class="card stack gap-2_5">
       <h2>By detector</h2>
       ${
         r.detectors.length
@@ -111,7 +111,7 @@ function eventsCard(r: PerformanceReport): string {
         }</td></tr>`,
     )
     .join('');
-  return `<div class="card stack" style="gap:10px">
+  return `<div class="card stack gap-2_5">
       <h2>Events</h2>
       ${
         r.events.length
@@ -149,7 +149,7 @@ const view: View = {
         .join('');
       body = `<div class="grid g4" data-kpis>${tiles}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
     }
-    return `${head}${controls(u)}<div class="stack" style="gap:16px;margin-top:16px">${body}</div>`;
+    return `${head}${controls(u)}<div class="stack gap-4 mt-4">${body}</div>`;
   },
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;

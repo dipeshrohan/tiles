@@ -22,9 +22,9 @@ function accountCard(ctx: Context): string {
   const { user } = ctx.state;
   let body: string;
   // An organisation with its own identity provider (T5.05) signs in through it, by its slug.
-  const orgForm = `<form class="row" id="org-sign-in-form" style="gap:8px;flex-wrap:wrap">
-      <label class="field" style="flex:1;min-width:180px">Or with your organisation's own sign-in<input type="text" name="org" value="${esc(ctx.auth.signInOrg)}" placeholder="your organisation, e.g. acme" pattern="[A-Za-z0-9][A-Za-z0-9\\-]{0,62}" required /></label>
-      <div style="align-self:end"><button class="btn" type="submit">Sign in with it</button></div>
+  const orgForm = `<form class="row gap-2 wrap" id="org-sign-in-form">
+      <label class="field grow min-w-field">Or with your organisation's own sign-in<input type="text" name="org" value="${esc(ctx.auth.signInOrg)}" placeholder="your organisation, e.g. acme" pattern="[A-Za-z0-9][A-Za-z0-9\\-]{0,62}" required /></label>
+      <div class="self-end"><button class="btn" type="submit">Sign in with it</button></div>
     </form>`;
   if (!config) body = '<p class="small soft">Checking how this API signs people in…</p>';
   else if (signedIn)
@@ -41,7 +41,7 @@ function accountCard(ctx: Context): string {
         : 'Sign in to use this Tiles API.'
     }</p>
       <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>${orgForm}`;
-  return `<div class="card stack" id="account" style="gap:12px"><h2>Account</h2>${body}</div>`;
+  return `<div class="card stack gap-3" id="account"><h2>Account</h2>${body}</div>`;
 }
 
 // One line per change: what it did, in words.
@@ -90,7 +90,7 @@ export function describeAudit(e: AuditEntry): string {
 }
 
 function auditCard(): string {
-  return `<div class="card stack" id="audit" style="gap:12px;grid-column:1 / -1">
+  return `<div class="card stack gap-3 span-all" id="audit">
       <h2>Audit log</h2>
       <p class="small soft">Every change on this site: who, what and when. Only site admins see this.</p>
       <div data-audit-rows aria-live="polite"><p class="small soft">Loading…</p></div>
@@ -117,7 +117,7 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
 }
 
 function copilotUsageCard(): string {
-  return `<div class="card stack" id="copilot-usage" style="gap:12px;grid-column:1 / -1">
+  return `<div class="card stack gap-3 span-all" id="copilot-usage">
       <h2>Copilot usage</h2>
       <p class="small soft">Questions asked on this site over the last 30 days (UTC), the tokens they used and how long answers took. Tokens are weighted by price, in input tokens: an output token counts five, a prompt-cache write one and a quarter, a cache read a tenth. Only site admins see this.</p>
       <div data-copilot-usage aria-live="polite"><p class="small soft">Loading…</p></div>
@@ -150,7 +150,7 @@ function usageHtml(u: CopilotUsage): string {
         .join('')}</tbody></table></div>`
     : '';
   return `<p data-copilot-budget>${budget}</p>
-    <div class="row" style="gap:24px;flex-wrap:wrap" data-copilot-totals>
+    <div class="row gap-6 wrap" data-copilot-totals>
       <div><div class="small soft">Questions</div><strong>${fmt(t.questions)}</strong></div>
       <div><div class="small soft">Answered</div><strong>${fmt(t.answered)}</strong></div>
       <div><div class="small soft">Failed</div><strong>${fmt(t.failed)}</strong></div>
@@ -175,10 +175,10 @@ async function fillCopilotUsage(root: HTMLElement, ctx: Context): Promise<void> 
 
 // The copilot on this site (threat model G-A4): admins turn it on, knowing what it sends.
 function copilotPolicyCard(): string {
-  return `<div class="card stack" id="copilot-policy" style="gap:12px">
+  return `<div class="card stack gap-3" id="copilot-policy">
       <h2>Copilot on this site</h2>
       <p class="small soft">When it is on, each question, and the site's data the copilot reads to answer it (only what the person asking may see), goes to Anthropic's API under your deployment's terms. Nothing is sent while it is off: the Copilot page answers with its built-in skills on the demo data.</p>
-      <label class="row" style="gap:8px"><input type="checkbox" name="copilot-enabled" data-copilot-enabled disabled /> Use the copilot on this site</label>
+      <label class="row gap-2"><input type="checkbox" name="copilot-enabled" data-copilot-enabled disabled /> Use the copilot on this site</label>
       <p class="small soft" data-copilot-policy aria-live="polite">Loading…</p>
     </div>`;
 }
@@ -217,26 +217,26 @@ function notificationsCard(ctx: Context): string {
   const role = ctx.ontology.role;
   const canChoose = role === 'engineer' || role === 'admin';
   const mine = canChoose
-    ? `<form class="stack" id="notify-prefs" style="gap:8px" aria-live="polite">
+    ? `<form class="stack gap-2" id="notify-prefs" aria-live="polite">
         <p class="small soft" data-notify-email>Loading…</p>
-        <label class="row" style="gap:8px"><input type="checkbox" name="on_assigned" disabled /> A warning someone assigns to me</label>
-        <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" disabled /> Every new warning on this site</label>
+        <label class="row gap-2"><input type="checkbox" name="on_assigned" disabled /> A warning someone assigns to me</label>
+        <label class="row gap-2"><input type="checkbox" name="on_raised" disabled /> Every new warning on this site</label>
         <div><button class="btn primary" type="submit" disabled>Save</button></div>
       </form>`
     : '<p class="small soft">Engineers and admins of the site choose which warnings they hear about.</p>';
   const teams =
     role === 'admin'
-      ? `<form class="stack" id="teams-form" style="gap:8px">
+      ? `<form class="stack gap-2" id="teams-form">
         <h3>Microsoft Teams channel</h3>
         <p class="small soft" data-teams-status>Loading…</p>
         <label class="field">Webhook URL (from the channel's Workflows, or an incoming webhook; leave it empty to keep the one set)<input type="url" name="url" placeholder="https://….webhook.office.com/…" autocomplete="off" /></label>
-        <label class="row" style="gap:8px"><input type="checkbox" name="on_raised" checked /> Post every new warning there</label>
-        <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
+        <label class="row gap-2"><input type="checkbox" name="on_raised" checked /> Post every new warning there</label>
+        <div class="row gap-2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
       </form>
       <h3>Recent messages</h3>
       <div data-deliveries aria-live="polite"><p class="small soft">Loading…</p></div>`
       : '';
-  return `<div class="card stack" id="notifications" style="gap:12px;grid-column:1 / -1">
+  return `<div class="card stack gap-3 span-all" id="notifications">
       <h2>Notifications</h2>
       <p class="small soft">Emails about warnings on this site, sent by the Tiles API's <code>tiles-notify</code> job.</p>
       ${mine}
@@ -411,16 +411,16 @@ export function tokenStillShown(
 }
 
 function agentsCard(admin: boolean): string {
-  return `<div class="card stack" id="agents" style="gap:12px;grid-column:1 / -1">
+  return `<div class="card stack gap-3 span-all" id="agents">
       <h2>Edge agents</h2>
       <p class="small soft">Agents run on the plant network and send data out to Tiles; they open no ports. Each one reports a heartbeat, so you can see whether it is online. See <code>edge/README.md</code> to install one.</p>
       <div data-agent-token aria-live="polite"></div>
       <div data-agent-rows aria-live="polite"><p class="small soft">Loading…</p></div>
       ${
         admin
-          ? `<form class="row" id="agent-form" style="gap:8px;flex-wrap:wrap">
-          <label class="field" style="flex:1;min-width:200px">New agent name<input type="text" name="name" placeholder="e.g. press-shop-edge" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="Letters, digits, dot, dash or underscore; up to 63" required /></label>
-          <div style="align-self:end"><button class="btn primary" type="submit">Register agent</button></div>
+          ? `<form class="row gap-2 wrap" id="agent-form">
+          <label class="field grow min-w-field">New agent name<input type="text" name="name" placeholder="e.g. press-shop-edge" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="Letters, digits, dot, dash or underscore; up to 63" required /></label>
+          <div class="self-end"><button class="btn primary" type="submit">Register agent</button></div>
         </form>`
           : ''
       }
@@ -465,7 +465,7 @@ function showToken(root: HTMLElement, ctx: Context): void {
     return;
   }
   const config = `[tiles]\nurl = "${revealed.apiUrl}"\ntoken_file = "token"\n\n[agent]\nheartbeat_seconds = 30`;
-  box.innerHTML = `<div class="stack" style="gap:8px">
+  box.innerHTML = `<div class="stack gap-2">
       <p><b>Token for ${esc(revealed.name)}.</b> Copy it now: Tiles keeps only its hash and won't show it again. Save it as <code>token</code> next to the agent's config file, readable only by the agent.</p>
       <pre class="code-block" data-token>${esc(revealed.token)}</pre>
       <p class="small soft">Config file (<code>tiles-edge.toml</code>):</p>
@@ -554,25 +554,25 @@ const view: View = {
     return `
       <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
       <div class="grid g2">
-        <form class="card stack" id="profile" style="gap:12px">
+        <form class="card stack gap-3" id="profile">
           <h2>Profile</h2>
           <p class="small soft">Your name and email are recorded as the author of ontology commits and design runs.</p>
           <label class="field">Name<input type="text" name="name" value="${esc(user.name)}" required /></label>
           <label class="field">Email<input type="text" name="email" value="${esc(user.email)}" required /></label>
           <div><button class="btn primary" type="submit">Save</button></div>
         </form>
-        <div class="card stack" style="gap:12px">
+        <div class="card stack gap-3">
           <h2>Demo data</h2>
           <p class="small soft">Plant data (cutter batches, welder power, die-cast shots) is synthetic and regenerated from fixed seeds. Your ontology commits, design runs and chat are saved in this browser.</p>
           <div><button class="btn danger" data-reset>Reset workspace</button></div>
         </div>
-        <form class="card stack" id="datasource" style="gap:12px">
+        <form class="card stack gap-3" id="datasource">
           <h2>Data source</h2>
           <p class="small soft">Keep data in this browser, or share it through the Tiles API (<code>docker compose up</code> starts one on port 8000). Pages move to the API one at a time.</p>
-          <label class="row" style="gap:8px"><input type="radio" name="mode" value="local" ${typed.mode === 'local' ? 'checked' : ''} /> This browser only</label>
-          <label class="row" style="gap:8px"><input type="radio" name="mode" value="api" ${typed.mode === 'api' ? 'checked' : ''} /> Tiles API</label>
+          <label class="row gap-2"><input type="radio" name="mode" value="local" ${typed.mode === 'local' ? 'checked' : ''} /> This browser only</label>
+          <label class="row gap-2"><input type="radio" name="mode" value="api" ${typed.mode === 'api' ? 'checked' : ''} /> Tiles API</label>
           <label class="field">API address<input type="url" name="apiUrl" value="${esc(typed.apiUrl)}" placeholder="http://localhost:8000" /></label>
-          <div class="row" style="gap:8px"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
+          <div class="row gap-2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
           <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
         ${ds.mode === 'api' ? accountCard(ctx) : ''}

@@ -75,7 +75,7 @@ function mappingForm(l: Loaded): string {
   const m = l.mapping;
   const long = m.long !== null;
   const columns = long
-    ? `<div class="row" style="gap:12px;flex-wrap:wrap">
+    ? `<div class="row gap-3 wrap">
         <label class="field">Tag column<select name="tagColumn">${options(l.header, m.long?.tagColumn ?? -1, [m.timeColumn])}</select></label>
         <label class="field">Value column<select name="valueColumn">${options(l.header, m.long?.valueColumn ?? -1, [m.timeColumn])}</select></label>
       </div>
@@ -85,20 +85,20 @@ function mappingForm(l: Loaded): string {
           i === m.timeColumn
             ? ''
             : `<tr><td><input type="checkbox" name="use-${i}" ${m.columns[i] ? 'checked' : ''} aria-label="Import ${esc(h)}"></td><td>${esc(h)}</td>
-               <td><input type="text" name="tag-${i}" value="${esc(m.columns[i] ?? slugTag(h) ?? '')}" aria-label="Signal for ${esc(h)}" style="width:100%"></td></tr>`,
+               <td><input type="text" name="tag-${i}" value="${esc(m.columns[i] ?? slugTag(h) ?? '')}" aria-label="Signal for ${esc(h)}" class="w-full"></td></tr>`,
         )
         .join('')}</tbody></table></div>`;
-  return `<form id="import-mapping" class="stack" style="gap:12px">
-      <fieldset class="row" style="gap:16px;border:0;padding:0">
+  return `<form id="import-mapping" class="stack gap-3">
+      <fieldset class="row gap-4 border-0 p-0">
         <label><input type="radio" name="shape" value="wide" ${long ? '' : 'checked'}> One column per signal</label>
         <label><input type="radio" name="shape" value="long" ${long ? 'checked' : ''}> One row per reading (tag, time, value)</label>
       </fieldset>
-      <div class="row" style="gap:12px;flex-wrap:wrap">
+      <div class="row gap-3 wrap">
         <label class="field">Time column<select name="timeColumn">${options(l.header, m.timeColumn)}</select></label>
         <label class="field">Time format<select name="timeFormat">${FORMATS.map(([f, label]) => `<option value="${f}" ${f === m.timeFormat ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label>
         <label class="field">Time zone (for times without one)<input type="text" name="timeZone" value="${esc(m.timeZone)}"></label>
       </div>
-      <div class="row" style="gap:16px;flex-wrap:wrap">
+      <div class="row gap-4 wrap">
         <label><input type="checkbox" name="decimalComma" ${m.decimalComma ? 'checked' : ''}> Decimal comma (21,5)</label>
         <label><input type="checkbox" name="keepText" ${m.keepText ? 'checked' : ''}> Keep text cells as text readings</label>
       </div>
@@ -160,7 +160,7 @@ export function describeStats(s: ImportStats): string {
 function summaryBox(l: Loaded): string {
   const problems = mappingProblems(l.header, l.mapping);
   if (problems.length)
-    return `<div class="stack" style="gap:4px">${problems.map((p) => `<p class="small" style="color:var(--bad)">${esc(p)}</p>`).join('')}</div>`;
+    return `<div class="stack gap-1">${problems.map((p) => `<p class="small text-bad">${esc(p)}</p>`).join('')}</div>`;
   const stats = summarize(l.rows, l.mapping);
   const examples = stats.examples.length
     ? `<ul class="small soft">${stats.examples.map((e) => `<li>Line ${e.row}: ${esc(e.message)}</li>`).join('')}</ul>`
@@ -182,12 +182,12 @@ function preview(l: Loaded): string {
 
 function importCard(ctx: Context): string {
   if (!ctx.api || !ctx.ontology.site)
-    return `<div class="card stack" style="gap:8px"><h2>Import readings</h2><p class="small soft">Imports go into the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+    return `<div class="card stack gap-2"><h2>Import readings</h2><p class="small soft">Imports go into the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
   if (ctx.ontology.role === 'viewer')
-    return `<div class="card stack" style="gap:8px"><h2>Import readings</h2><p class="small soft">Your role on this site is viewer: you can see past imports, but engineers and admins run them.</p></div>`;
+    return `<div class="card stack gap-2"><h2>Import readings</h2><p class="small soft">Your role on this site is viewer: you can see past imports, but engineers and admins run them.</p></div>`;
   const l = loaded;
   const busy = running !== null;
-  return `<div class="card stack" style="gap:12px" id="import-card">
+  return `<div class="card stack gap-3" id="import-card">
       <h2>Import readings</h2>
       <p class="small soft">Backfill history from a CSV file or a historian export. The file is read in this browser; readings Tiles already has (same signal and time) are skipped, so importing a file twice is safe.</p>
       <label class="field">File<input type="file" accept=".csv,.tsv,.txt,text/csv" data-import-file ${busy ? 'disabled' : ''}></label>
@@ -197,7 +197,7 @@ function importCard(ctx: Context): string {
              ${preview(l)}
              ${mappingForm(l)}
              <div data-import-check aria-live="polite">${summaryBox(l)}</div>
-             <div class="row" style="gap:8px">
+             <div class="row gap-2">
                <button class="btn primary" type="button" data-import-run ${busy || mappingProblems(l.header, l.mapping).length ? 'disabled' : ''}>Import</button>
                ${busy ? '<button class="btn" type="button" data-import-cancel>Stop</button>' : ''}
              </div>`
@@ -210,11 +210,11 @@ function importCard(ctx: Context): string {
 function progress(r: Running): string {
   const pct = r.total ? Math.round((100 * r.sent) / r.total) : 0;
   return `<p>Sent ${fmt(r.sent, 0)} of ${fmt(r.total, 0)} readings (${pct}%), ${fmt(r.stored, 0)} new.</p>
-    <progress max="${r.total}" value="${r.sent}" style="width:100%"></progress>`;
+    <progress max="${r.total}" value="${r.sent}" class="w-full"></progress>`;
 }
 
 function historyCard(): string {
-  return `<div class="card stack" style="gap:12px"><h2>Past imports</h2><div data-import-history aria-live="polite"><p class="small soft">Loading…</p></div></div>`;
+  return `<div class="card stack gap-3"><h2>Past imports</h2><div data-import-history aria-live="polite"><p class="small soft">Loading…</p></div></div>`;
 }
 
 export function historyTable(runs: ImportRun[]): string {
@@ -306,7 +306,7 @@ const view: View = {
   render(ctx) {
     return `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Import data</h1>
         <p class="soft">Backfill readings from CSV files and historian exports, mapped to signals.</p></div></div>
-      <div class="stack" style="gap:16px">${importCard(ctx)}${historyCard()}</div>`;
+      <div class="stack gap-4">${importCard(ctx)}${historyCard()}</div>`;
   },
   bind(root, ctx) {
     void fillHistory(root, ctx);

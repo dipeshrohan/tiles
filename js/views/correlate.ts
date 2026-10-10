@@ -83,7 +83,7 @@ function listCard(ctx: Context, ui: Ui): string {
           )
           .join('') || emptyState({ compact: true, title: 'No batch tables yet', body: 'Upload one below.' });
   const form = canEdit
-    ? `<form class="stack" id="dataset-form" style="gap:8px;margin-top:12px">
+    ? `<form class="stack gap-2 mt-3" id="dataset-form">
         <h3>Upload a batch table</h3>
         <p class="small soft">A CSV with one row per batch: its settings and measurements, and a column saying whether it failed.</p>
         <label class="field">CSV file<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
@@ -116,38 +116,38 @@ function analysisCard(ctx: Context, ui: Ui): string {
     : '';
   const r = result?.key === resultKey(ctx) ? result : null;
   const canEdit = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
-  return `<div class="card stack" style="gap:12px" data-analysis>
-      <div class="row" style="justify-content:space-between;align-items:start;gap:12px">
+  return `<div class="card stack gap-3" data-analysis>
+      <div class="row justify-between items-start gap-3">
         <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt(d.row_count, 0)} batch(es)</p></div>
         ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy ? 'disabled' : ''}>Delete</button>` : ''}
       </div>
       ${preview}
-      <form class="stack" id="correlate-form" style="gap:10px">
-        <div class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
+      <form class="stack gap-2_5" id="correlate-form">
+        <div class="row gap-3 wrap items-end">
           <label class="field">Outcome<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? '')).join('')}</select></label>
-          <label class="field">Failed when it is${outcome?.kind === 'bool' ? ' (default true)' : ''}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === 'bool' ? 'true' : 'e.g. NG, scrap'}" style="width:12em"></label>
+          <label class="field">Failed when it is${outcome?.kind === 'bool' ? ' (default true)' : ''}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === 'bool' ? 'true' : 'e.g. NG, scrap'}" class="w-12em"></label>
           <label class="field">Split by<select name="split"><option value="">nothing (pooled)</option>${d.columns
             .filter((c) => c.kind !== 'number' && c.name !== outcome?.name)
             .map((c) => option(c.name, ui.split))
             .join('')}</select></label>
           <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Find</button>
         </div>
-        <fieldset class="row" style="gap:10px;flex-wrap:wrap;border:0;padding:0;margin:0"><legend class="small soft">Variables</legend>${numbers
+        <fieldset class="row gap-2_5 wrap border-0 p-0 m-0"><legend class="small soft">Variables</legend>${numbers
           .filter((n) => n !== outcome?.name)
           .map(
             (n) =>
-              `<label class="row small" style="gap:4px"><input type="checkbox" name="variable" value="${esc(n)}" ${checked.has(n) ? 'checked' : ''}> ${esc(n)}</label>`,
+              `<label class="row small gap-1"><input type="checkbox" name="variable" value="${esc(n)}" ${checked.has(n) ? 'checked' : ''}> ${esc(n)}</label>`,
           )
           .join('')}</fieldset>
       </form>
       ${r ? resultBlock(r.data, r.split) : ''}
-      ${r && canEdit ? (saving?.key === r.key ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3>${draftForm('insight-save', saving.text, Boolean(busy))}</div>` : '<div><button class="btn" type="button" data-save-insight>Save as insight</button></div>') : ''}
+      ${r && canEdit ? (saving?.key === r.key ? `<div class="stack gap-1_5"><h3>Save as an insight</h3>${draftForm('insight-save', saving.text, Boolean(busy))}</div>` : '<div><button class="btn" type="button" data-save-insight>Save as insight</button></div>') : ''}
     </div>`;
 }
 
 function resultBlock(r: CorrelationResult, split: boolean): string {
   const said = r.explanations.length
-    ? `<ul class="stack" data-explanations style="gap:4px">${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join('')}</ul>`
+    ? `<ul class="stack gap-1" data-explanations>${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join('')}</ul>`
     : '<p class="small soft" data-explanations>No large, clear effect (|d| ≥ 0.8 with an interval that leaves out 0).</p>';
   const rows = r.findings
     .slice(0, 50)
@@ -156,7 +156,7 @@ function resultBlock(r: CorrelationResult, split: boolean): string {
         `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? '–' : fmt(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? '–' : fmt(f.ok_mean, 2)}</td><td><b>${f.effect.toFixed(2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? '–' : `${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)}`}${f.clear ? '' : ' <span class="small soft">(could be 0)</span>'}</td><td>${f.r.toFixed(2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`,
     )
     .join('');
-  return `<div class="stack" style="gap:10px" data-result>
+  return `<div class="stack gap-2_5" data-result>
       <p class="small soft">${fmt(r.rows, 0)} batch(es) with an outcome: ${fmt(r.ng, 0)} failed, ${fmt(r.ok, 0)} good.</p>
       ${said}
       ${forestPlot(r.findings, split)}

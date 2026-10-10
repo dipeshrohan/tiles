@@ -232,7 +232,7 @@ const view: View = {
       </form>`;
     const head = `<div class="page-head"><div><div class="eyebrow">Operations · ${esc(kind)}</div><h1>${esc(title)}</h1>
         ${crumbs(graph, node ? node.id : null)}</div>
-        <div class="row" style="gap:8px">${search}${ctx.api ? '<button class="btn" data-plant-refresh>Refresh</button>' : ''}</div></div>`;
+        <div class="row gap-2">${search}${ctx.api ? '<button class="btn" data-plant-refresh>Refresh</button>' : ''}</div></div>`;
     if (ctx.api && ctx.ontology.status === 'loading')
       return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')

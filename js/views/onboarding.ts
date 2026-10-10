@@ -106,7 +106,7 @@ function siteStep(ctx: Context): string {
     ${made}
     <h3>A new site</h3>
     <p class="small soft">Organisation admins create sites. Each is set up on its own: open it, then come back here.</p>
-    <form class="stack" id="new-site" style="gap:10px;max-width:520px">
+    <form class="stack gap-2_5 max-w-form" id="new-site">
       <label class="field">Name<input type="text" name="name" required maxlength="120" placeholder="Plant 2" autocomplete="off"></label>
       <label class="field">Short name, in links<input type="text" name="slug" required pattern="[a-z0-9][a-z0-9\\-]{0,62}" placeholder="plant-2" autocomplete="off"></label>
       <label class="field">Time zone<input type="text" name="timezone" required value="${esc(zone)}" autocomplete="off"></label>
@@ -122,7 +122,7 @@ function outlineStep(ctx: Context, data: Onboarding): string {
   const staged = ctx.state.repo.staged.length;
   return `${have}
     ${staged ? `<p class="small" role="note">You have ${staged} staged change${staged === 1 ? '' : 's'}: commit or discard them on the <a href="#/ontology">Ontology</a> page first.</p>` : ''}
-    <form class="stack" id="outline" style="gap:10px;max-width:520px">
+    <form class="stack gap-2_5 max-w-form" id="outline">
       <label class="field">Workcenter (optional)<input type="text" name="workcenter" placeholder="Housing casting" autocomplete="off"></label>
       <label class="field">Line<input type="text" name="line" required placeholder="Die-cast line 1" autocomplete="off"></label>
       <label class="field">Machines, one per line<textarea name="machines" rows="4" required placeholder="Die-caster DC-01&#10;Die-caster DC-02"></textarea></label>
@@ -145,7 +145,7 @@ function agentStep(ctx: Context, data: Onboarding): string {
       : '';
   const token =
     revealed?.site === siteId(ctx)
-      ? `<div class="card stack" style="gap:8px" data-agent-token>
+      ? `<div class="card stack gap-2" data-agent-token>
           <p><b>${esc(revealed.name)}</b>’s token, shown only this once. Save it on the agent’s machine as <code>/etc/tiles-edge/token</code>, readable only by the agent’s user:</p>
           <pre class="code-block" tabindex="0">${esc(revealed.token)}</pre>
           <p>Then write <code>/etc/tiles-edge/tiles-edge.toml</code>:</p>
@@ -155,7 +155,7 @@ function agentStep(ctx: Context, data: Onboarding): string {
       : '';
   const form =
     ctx.ontology.role === 'admin'
-      ? `<form class="row" id="new-agent" style="gap:8px;flex-wrap:wrap">
+      ? `<form class="row gap-2 wrap" id="new-agent">
           <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(freeAgentName((list ?? []).map((a) => a.name)))}" autocomplete="off"></label>
           <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Register an agent</button>
         </form>`
@@ -177,7 +177,7 @@ function dashboardStep(data: Onboarding): string {
   if (!data.dashboard)
     return '<p>Once a machine has a mapped signal, its page shows the live readings: the first dashboard.</p>';
   return `<p><b>${esc(data.dashboard.label)}</b> has live signals. Its page shows each one’s latest reading, its open warnings, and what feeds it.</p>
-    <p class="row" style="gap:8px;flex-wrap:wrap">
+    <p class="row gap-2 wrap">
       <a class="btn primary" href="${placeLink(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
       <a class="btn" href="#/shopfloor">Shopfloor view</a>
       <a class="btn" href="#/explorer">Data explorer</a>
@@ -222,8 +222,8 @@ const view: View = {
           <div class="eyebrow">Step ${index + 1} of ${STEPS.length}</div>
           <h2 id="wizard-title">${esc(meta.title)}</h2>
           <p class="soft">${esc(meta.why)}</p>
-          <div class="stack" style="gap:12px;margin-top:12px">${body[current]()}</div>
-          ${nextKey ? `<p style="margin-top:16px"><button class="btn" data-step="${nextKey}">Next: ${esc(STEPS[index + 1]!.title.toLowerCase())}</button></p>` : ''}
+          <div class="stack gap-3 mt-3">${body[current]()}</div>
+          ${nextKey ? `<p class="mt-4"><button class="btn" data-step="${nextKey}">Next: ${esc(STEPS[index + 1]!.title.toLowerCase())}</button></p>` : ''}
         </section>
       </div>`;
   },

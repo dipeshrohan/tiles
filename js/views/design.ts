@@ -86,7 +86,7 @@ function sweepControls(ctx: Context, key: string, canStart: boolean): string {
   const ui = uiState(ctx);
   const shown = apiSweep?.key === key ? apiSweep.sweep : null;
   if (shown && sweepRunning(shown))
-    return `<div class="row" style="gap:8px" data-api-sweep>
+    return `<div class="row gap-2" data-api-sweep>
       <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="Sweep progress"></progress>
       <span class="small soft" data-sweep-done>${fmt(shown.done)} of ${fmt(shown.total)} points</span>
       ${canStart && !shown.cancel_requested ? '<button class="btn sm" data-sweep-cancel>Cancel</button>' : ''}
@@ -99,11 +99,11 @@ function sweepControls(ctx: Context, key: string, canStart: boolean): string {
         : shown?.status === 'failed'
           ? `The sweep failed: ${esc(shown.error ?? 'no reason given')}`
           : '';
-  return `<div class="row" style="gap:8px;flex-wrap:wrap" data-api-sweep>
+  return `<div class="row gap-2 wrap" data-api-sweep>
       ${state ? `<span class="small soft" data-sweep-state>${state}</span>` : ''}
       ${
         canStart
-          ? `<label class="row small" style="gap:6px">Points per axis <select id="sweep-steps" aria-label="Points per axis">${SWEEP_STEPS.map((n) => `<option value="${n}" ${n === ui.sweepSteps ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+          ? `<label class="row small gap-1_5">Points per axis <select id="sweep-steps" aria-label="Points per axis">${SWEEP_STEPS.map((n) => `<option value="${n}" ${n === ui.sweepSteps ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
              <button class="btn sm" data-sweep-start>Run on the API</button>`
           : ''
       }
@@ -177,7 +177,7 @@ function projectBar(ctx: Context, site: string): string {
     items === null
       ? '<span class="small soft">Loading projects…</span>'
       : items.length
-        ? `<label class="row" style="gap:8px">Project <select id="project" aria-label="Design project">${items
+        ? `<label class="row gap-2">Project <select id="project" aria-label="Design project">${items
             .map(
               (p) =>
                 `<option value="${esc(p.id)}" ${p.id === shown?.id ? 'selected' : ''}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? '' : 's'})</option>`,
@@ -185,12 +185,12 @@ function projectBar(ctx: Context, site: string): string {
             .join('')}</select></label>`
         : '<span class="small soft">No projects yet on this site.</span>';
   const create = canWrite
-    ? `<form id="new-project" class="row" style="gap:8px"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>`
+    ? `<form id="new-project" class="row gap-2"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>`
     : '';
-  return `<div class="card row" data-projects style="gap:16px;flex-wrap:wrap;justify-content:space-between;margin-bottom:16px">
-      <div class="row" style="gap:16px;flex-wrap:wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ''}</div>
+  return `<div class="card row gap-4 wrap justify-between mb-4" data-projects>
+      <div class="row gap-4 wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ''}</div>
       ${create}
-      <span class="small soft" style="flex-basis:100%">Runs in a project are stored on the site and shared with everyone on it.</span>
+      <span class="small soft basis-full">Runs in a project are stored on the site and shared with everyone on it.</span>
     </div>`;
 }
 
@@ -254,9 +254,9 @@ const view: View = {
           )
           .join('')}</div>
       </div>
-      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card" data-projects style="margin-bottom:16px"><span class="small soft">${ctx.ontology.status === 'error' ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : 'Connecting to the Tiles API…'}</span></div>` : ''}
+      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === 'error' ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : 'Connecting to the Tiles API…'}</span></div>` : ''}
 
-      <div class="grid g3" style="margin-bottom:16px">
+      <div class="grid g3 mb-4">
         <div class="card">
           <div class="card-head"><div><h2>${esc(model.name)}</h2><p>${esc(model.domain)}</p></div>
             <select id="version" aria-label="Model version">${Object.keys(model.versions)
@@ -279,16 +279,16 @@ const view: View = {
         </div>
         <div class="card">
           <div class="label soft small">${esc(model.output.label)}</div>
-          <div class="result-big"><span id="result">${fmt(value, 2)}</span> <span class="muted" style="font-size:18px">${esc(unit)}</span></div>
-          <div class="small muted" style="margin-bottom:14px">model ${esc(model.id)} v${esc(version)}</div>
+          <div class="result-big"><span id="result">${fmt(value, 2)}</span> <span class="muted text-lg">${esc(unit)}</span></div>
+          <div class="small muted mb-3_5">model ${esc(model.id)} v${esc(version)}</div>
           <h3>Across model versions</h3>
-          <table style="margin:6px 0 14px"><tbody>${Object.keys(model.versions)
+          <table class="mt-1_5 mb-3_5 m-0"><tbody>${Object.keys(model.versions)
             .map(
               (v) =>
                 `<tr><td>v${v}</td><td class="num"><b>${fmt(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`,
             )
             .join('')}</tbody></table>
-          <form id="run-form" class="stack" style="gap:8px">
+          <form id="run-form" class="stack gap-2">
             <input type="text" name="note" maxlength="500" placeholder="Note for this run (optional)" aria-label="Run note" />
             <button class="btn primary" type="submit" ${canSave && !saving ? '' : 'disabled'}>Save run${site && project ? ` to ${esc(project.name)}` : ''}</button>
             ${site && !project ? '<span class="small soft">Create a project to save runs on the site.</span>' : ''}
@@ -300,7 +300,7 @@ const view: View = {
         </div>
       </div>
 
-      <div class="grid g2" style="margin-bottom:16px">
+      <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head"><div><h2>Parameter sweep</h2><p>${fmt(sw.min, 2)} – ${fmt(sw.max, 2)} ${esc(unit)} · other parameters held at current values</p></div>
             <div class="row">
@@ -319,7 +319,7 @@ const view: View = {
           <div class="card-head"><div><h2>Run history</h2><p>Click a run to restore its exact parameters.</p></div>
             ${
               site
-                ? `<div class="row" style="gap:6px"><button class="btn sm" data-audit="json" ${runs.length ? '' : 'disabled'} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? '' : 'disabled'}>Audit report (PDF)</button><button class="btn sm" data-export ${runs.length ? '' : 'disabled'} title="Every run of this model in the project, branches too">All runs (JSON)</button></div>`
+                ? `<div class="row gap-1_5"><button class="btn sm" data-audit="json" ${runs.length ? '' : 'disabled'} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? '' : 'disabled'}>Audit report (PDF)</button><button class="btn sm" data-export ${runs.length ? '' : 'disabled'} title="Every run of this model in the project, branches too">All runs (JSON)</button></div>`
                 : `<button class="btn sm" data-export ${runs.length ? '' : 'disabled'}>Export audit record</button>`
             }
           </div>

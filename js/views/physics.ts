@@ -34,18 +34,18 @@ const view: View = {
         <span class="badge ${detection.alerts.length ? 'bad' : 'good'}">● ${detection.alerts.length} warning window(s)</span>
       </div>
 
-      <div class="grid g4" style="margin-bottom:16px">
+      <div class="grid g4 mb-4">
         <div class="card kpi"><div class="label">Shots analysed</div><div class="value">${fmt(hist.length)}</div><div class="note">${fmt(toH(hist.length), 0)} h of production</div></div>
         <div class="card kpi good"><div class="label">Stops predicted</div><div class="value">${predicted.length}/${scored.length}</div><div class="note">seizure &amp; lubrication codes</div></div>
         <div class="card kpi"><div class="label">Average lead time</div><div class="value">${fmt(lead, 1)} h</div><div class="note">from first warning to stop</div></div>
         <div class="card kpi"><div class="label">Downtime covered</div><div class="value">${fmt(predicted.reduce((a, x) => a + x.durationMin, 0))} min</div><div class="note">of ${fmt(scored.reduce((a, x) => a + x.durationMin, 0))} min recorded</div></div>
       </div>
 
-      <div class="card" style="margin-bottom:16px">
+      <div class="card mb-4">
         <div class="card-head"><div><h2>Run chart</h2><p>Click anywhere on the chart to inspect that shot.</p></div>
-          <div class="legend"><span><i style="background:var(--accent)"></i>Friction (virtual sensor)</span><span><i style="background:var(--warn)"></i>Threshold</span><span><i class="box" style="background:var(--band)"></i>Warning window</span><span><i style="background:var(--bad)"></i>Downtime event</span></div>
+          <div class="legend"><span><i class="bg-accent"></i>Friction (virtual sensor)</span><span><i class="bg-warn"></i>Threshold</span><span><i class="box bg-band"></i>Warning window</span><span><i class="bg-bad"></i>Downtime event</span></div>
         </div>
-        <div id="run-chart" style="cursor:crosshair">
+        <div id="run-chart" class="cursor-crosshair">
         ${lineChart({
           series: [
             { values: hist.map((h) => h.friction), color: 'var(--accent)', width: 1.2, label: 'friction' },
@@ -65,14 +65,14 @@ const view: View = {
         </div>
       </div>
 
-      <div class="grid g2" style="margin-bottom:16px">
+      <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head">
             <div><h2>Shot ${ui.shot} payload</h2><p>${flagged ? '<span class="badge bad">over threshold</span>' : '<span class="badge good">normal</span>'} · estimated friction <b>${fmt(est)} N</b></p></div>
             <div class="row"><button class="btn sm" data-step="-1" aria-label="Previous shot">‹</button><button class="btn sm" data-step="1" aria-label="Next shot">›</button></div>
           </div>
           <input type="range" id="shot" min="0" max="${hist.length - 1}" value="${ui.shot}" aria-label="Shot" />
-          <div class="legend" style="margin:8px 0"><span><i style="background:var(--accent)"></i>Hydraulic pressure (bar)</span><span><i style="background:var(--warm)"></i>Metal pressure (bar)</span></div>
+          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-accent"></i>Hydraulic pressure (bar)</span><span><i class="bg-warm"></i>Metal pressure (bar)</span></div>
           ${lineChart({
             series: [
               { values: payload.ph, color: 'var(--accent)', label: 'hydraulic pressure' },
@@ -85,20 +85,20 @@ const view: View = {
             height: 200,
             yMin: 0,
           })}
-          <div class="legend" style="margin:8px 0"><span><i style="background:var(--soft)"></i>Plunger velocity (m/s)</span></div>
+          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-soft"></i>Plunger velocity (m/s)</span></div>
           ${lineChart({ series: [{ values: payload.v, color: 'var(--soft)', label: 'velocity' }], xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`, yLabel: 'm/s', title: `Shot ${ui.shot} plunger velocity (m/s)`, width: fitWidth(480, 0.5), height: 150, yMin: 0 })}
         </div>
         <div class="card">
           <div class="card-head"><h2>How it works</h2><span class="badge">model v1.3</span></div>
           <h3>Input data</h3>
           <ul class="actions-list soft"><li>Shot payloads: plunger displacement, velocity, hydraulic &amp; metal pressure</li><li>Past 200 shots for a rolling baseline</li></ul>
-          <h3 style="margin-top:12px">The physics</h3>
-          <p class="soft" style="margin-top:4px">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the median residual is the shot's friction.</p>
-          <p class="small muted" style="margin-top:4px">m = ${PLUNGER.mass} kg · A<sub>h</sub> = ${PLUNGER.hydraulicArea} m² · A<sub>m</sub> = ${PLUNGER.metalArea} m²</p>
-          <h3 style="margin-top:12px">Output</h3>
+          <h3 class="mt-3">The physics</h3>
+          <p class="soft mt-1">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the median residual is the shot's friction.</p>
+          <p class="small muted mt-1">m = ${PLUNGER.mass} kg · A<sub>h</sub> = ${PLUNGER.hydraulicArea} m² · A<sub>m</sub> = ${PLUNGER.metalArea} m²</p>
+          <h3 class="mt-3">Output</h3>
           <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots above median + 4 robust σ</li></ul>
-          <h3 style="margin-top:12px">How it is used</h3>
-          <p class="soft" style="margin-top:4px">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
+          <h3 class="mt-3">How it is used</h3>
+          <p class="soft mt-1">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
         </div>
       </div>
 
