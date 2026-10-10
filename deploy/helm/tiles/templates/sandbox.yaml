@@ -1,0 +1,107 @@
+{{- if .Values.sandbox.enabled }}
+{{- $fullname := include "tiles.fullname" . }}
+{{- /*
+  The sandbox for models from GitHub (T4.15, api/src/tiles_api/sandbox): each evaluation in a new
+  process with resource limits and an audit hook. The pod holds no credentials but its own token,
+  connects to nothing (networkpolicy.yaml, egress.yaml) and accepts only the API and its jobs.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-sandbox
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tiles.selector" (dict "root" . "component" "sandbox") | nindent 4 }}
+  ports:
+    - { name: http, port: 8100, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-sandbox
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandbox
+spec:
+  replicas: {{ .Values.sandbox.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "sandbox") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tiles.labels" . | nindent 8 }}
+        app.kubernetes.io/component: sandbox
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.sandbox.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "tiles.podSecurity" (dict "uid" 10002) | nindent 8 }}
+      containers:
+        - name: sandbox
+          image: {{ include "tiles.image" (dict "image" .Values.images.api "root" .) }}
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          command: [tiles-sandbox]
+          env:
+            - { name: TILES_SANDBOX_HOST, value: "0.0.0.0" }
+            - { name: TILES_SANDBOX_PORT, value: "8100" }
+            # An environment variable, not a file: the server makes its environment unreadable to
+            # the models it runs, as a mounted file could not be.
+            - name: TILES_SANDBOX_TOKEN
+              valueFrom:
+                secretKeyRef: { name: {{ include "tiles.generatedSecret" . }}, key: tiles_sandbox_token }
+            - { name: TILES_SANDBOX_DIR, value: /tmp/code }
+            - { name: TILES_SANDBOX_TIMEOUT, value: {{ .Values.sandbox.timeout | quote }} }
+            - { name: TILES_SANDBOX_MEMORY_MB, value: {{ .Values.sandbox.memoryMb | quote }} }
+            - { name: TILES_SANDBOX_WORKERS, value: {{ .Values.sandbox.workers | quote }} }
+          ports:
+            - { name: http, containerPort: 8100 }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.sandbox.resources | nindent 12 }}
+          securityContext:
+            {{- include "tiles.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        # Models' code, unpacked (up to 200 of 1 MB at most), on the node's disk.
+        - name: tmp
+          emptyDir: { sizeLimit: 512Mi }
+---
+# It accepts only the API and its jobs, and connects to nothing at all: there whenever the sandbox
+# is, whatever networkPolicy.enabled says (it needs a CNI that enforces NetworkPolicy).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-sandbox
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "sandbox") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/instance, operator: In, values: [{{ .Release.Name | quote }}] }
+              - { key: app.kubernetes.io/component, operator: In, values: [api, job] }
+      ports:
+        - port: 8100
+  egress: []
+{{- end }}

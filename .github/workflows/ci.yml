@@ -245,6 +245,7 @@ jobs:
         --set images.web.repository=tiles-web --set images.web.tag=ci --set images.web.pullPolicy=Never
         --set api.replicas=2 --set api.seedDemo=true --set database.storage=1Gi
         --set url=http://localhost:5173 --set apiUrl=http://localhost:8000
+        --set sandbox.enabled=true
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/docker-hub-mirror
@@ -322,6 +323,24 @@ jobs:
             kubectl wait --for=condition=complete "job/$job-now" --timeout=180s
             kubectl logs "job/$job-now"
           done
+      - name: A model from GitHub runs in the sandbox, as the API calls it
+        run: |
+          kubectl exec -i deploy/tiles-api -- python - <<'PY'
+          import base64, hashlib, io, json, os, urllib.request, zipfile
+          code = io.BytesIO()
+          with zipfile.ZipFile(code, "w") as z:
+              z.writestr("model.py", "import math\ndef run(inputs, params):\n    return {'y': [math.sqrt(params['a'])]}\n")
+          raw = code.getvalue()
+          token = open("/var/run/secrets/tiles/tiles_sandbox_token").read().strip()
+          body = {"code_sha256": hashlib.sha256(raw).hexdigest(), "code": base64.b64encode(raw).decode(),
+                  "entry": "model.py", "inputs": {}, "params": {"a": 9}}
+          req = urllib.request.Request(os.environ["TILES_SANDBOX_URL"] + "/run", data=json.dumps(body).encode(),
+                                       headers={"Authorization": f"Bearer {token}"}, method="POST")
+          with urllib.request.urlopen(req, timeout=30) as res:
+              reply = json.load(res)
+          assert reply == {"outputs": {"y": [3.0]}}, reply
+          print(reply)
+          PY
       - name: An upgrade keeps the generated password and data key
         run: |
           before=$(kubectl get secret tiles-generated -o jsonpath='{.data}')

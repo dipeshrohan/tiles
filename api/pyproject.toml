@@ -36,6 +36,7 @@ tiles-run-sweeps = "tiles_api.sweeps:main"
 tiles-rotate-keys = "tiles_api.sealed:main"
 tiles-loadtest = "tiles_api.loadtest:main"
 tiles-apidoc = "tiles_api.apidoc:main"
+tiles-sandbox = "tiles_api.sandbox.server:main"
 
 [dependency-groups]
 dev = [

@@ -38,6 +38,7 @@
 {{- end }}
 {{- end }}
 {{- if $v.copilot.model }}{{ $hosts = append $hosts "api.anthropic.com" }}{{ end }}
+{{- if $v.sandbox.enabled }}{{ $hosts = concat $hosts (list "api.github.com" "codeload.github.com") }}{{ end }}
 {{- $hosts = $hosts | uniq }}
 {{- $namespaces = $namespaces | uniq }}
 {{- /* Microsoft's Teams webhook hosts: the same suffixes as notify.py's TEAMS_HOSTS (a test holds
@@ -63,6 +64,15 @@ spec:
             - { key: app.kubernetes.io/component, operator: In, values: [db, redis] }
       toPorts:
         - ports: [{ port: "5432", protocol: TCP }, { port: "6379", protocol: TCP }]
+    {{- if $v.sandbox.enabled }}
+    # The sandbox for models from GitHub.
+    - toEndpoints:
+        - matchExpressions:
+            - { key: app.kubernetes.io/instance, operator: In, values: [{{ .Release.Name | quote }}] }
+            - { key: app.kubernetes.io/component, operator: In, values: [sandbox] }
+      toPorts:
+        - ports: [{ port: "8100", protocol: TCP }]
+    {{- end }}
     {{- if $hosts }}
     # The identity provider, mail relay, collector, model endpoints, the copilot's model provider and
     # what you added.
