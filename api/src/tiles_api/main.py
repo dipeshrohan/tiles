@@ -34,6 +34,7 @@ from tiles_api.api_models import router as models_router
 from tiles_api.api_notifications import router as notifications_router
 from tiles_api.api_ontology import router as ontology_router
 from tiles_api.api_ontology_io import router as ontology_io_router
+from tiles_api.api_org_models import router as org_models_router
 from tiles_api.api_performance import router as performance_router
 from tiles_api.api_reviews import router as reviews_router
 from tiles_api.api_runs import router as runs_router
@@ -164,6 +165,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(documents_router)
     app.add_exception_handler(ScimError, error_response)
     app.include_router(models_router)
+    app.include_router(org_models_router)
     app.include_router(bindings_router)
     app.include_router(detectors_router)
     app.include_router(backtest_router)

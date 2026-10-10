@@ -47,6 +47,7 @@ The API and its scheduled jobs connect out to these hosts only:
 | The mail relay (`smtp.host`) | Its port, usually 587 | When notifications by e-mail are on |
 | Hosts under `webhook.office.com`, `logic.azure.com` and `api.powerplatform.com` (up to three labels deep: the regional Workflows hosts) | 443 | When a site posts warnings to a Teams channel. Tiles refuses any other host for a webhook |
 | `api.anthropic.com` | 443 | When the copilot is on: it sends people's questions, and the data its tools read to answer them |
+| Model endpoints' hosts (`models.endpointHosts`, `TILES_MODEL_HOSTS`) | 443, or the endpoint's port | When an organisation runs its own models over HTTP: each evaluation sends the model's inputs (a window of readings) and parameters. Tiles refuses an endpoint on any other host |
 | The OpenTelemetry Collector (`monitoring.otlpEndpoint`) | Usually 4318 | When monitoring is on |
 | The database and Redis | 5432, 6379 | In the cluster, or yours |
 

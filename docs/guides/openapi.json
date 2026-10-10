@@ -3089,6 +3089,251 @@
         "title": "HeartbeatOut",
         "type": "object"
       },
+      "HttpModelChange": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Archived: no new uses; runs made with it still show",
+            "title": "Archived"
+          },
+          "clear_token": {
+            "default": false,
+            "description": "Send no token from now on",
+            "title": "Clear Token",
+            "type": "boolean"
+          },
+          "endpoint_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Url"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 4096,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A new token",
+            "title": "Token"
+          }
+        },
+        "title": "HttpModelChange",
+        "type": "object"
+      },
+      "HttpModelIn": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "domain": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Domain",
+            "type": "string"
+          },
+          "endpoint_url": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Endpoint Url",
+            "type": "string"
+          },
+          "inputs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/PortIn"
+            },
+            "maxItems": 20,
+            "title": "Inputs",
+            "type": "array"
+          },
+          "key": {
+            "maxLength": 63,
+            "minLength": 2,
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "virtual-sensor",
+              "design"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/PortIn"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Outputs",
+            "type": "array"
+          },
+          "params": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ParamIn"
+            },
+            "maxItems": 50,
+            "title": "Params",
+            "type": "array"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 4096,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sent as `Authorization: Bearer <token>`; sealed, and never shown again",
+            "title": "Token"
+          },
+          "version": {
+            "description": "MAJOR.MINOR.PATCH",
+            "maxLength": 40,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "version",
+          "name",
+          "kind",
+          "outputs",
+          "endpoint_url"
+        ],
+        "title": "HttpModelIn",
+        "type": "object"
+      },
+      "HttpModelOut": {
+        "properties": {
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "endpoint_url": {
+            "title": "Endpoint Url",
+            "type": "string"
+          },
+          "has_token": {
+            "title": "Has Token",
+            "type": "boolean"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/PortOut"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/PortOut"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/tiles_api__api_org_models__ParamOut"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "version",
+          "name",
+          "kind",
+          "domain",
+          "description",
+          "inputs",
+          "outputs",
+          "params",
+          "endpoint_url",
+          "has_token",
+          "created_at",
+          "archived_at"
+        ],
+        "title": "HttpModelOut",
+        "type": "object"
+      },
       "Import": {
         "properties": {
           "created_at": {
@@ -3828,6 +4073,11 @@
             "title": "Params",
             "type": "array"
           },
+          "source": {
+            "description": "builtin, or http: the organisation's own, served by its endpoint (T4.15)",
+            "title": "Source",
+            "type": "string"
+          },
           "version": {
             "title": "Version",
             "type": "string"
@@ -3839,6 +4089,7 @@
           "name",
           "kind",
           "domain",
+          "source",
           "description",
           "inputs",
           "outputs",
@@ -4196,6 +4447,74 @@
         "title": "OutputChange",
         "type": "object"
       },
+      "ParamIn": {
+        "additionalProperties": false,
+        "properties": {
+          "default": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Default"
+          },
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "name": {
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "unit": {
+            "maxLength": 40,
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "unit",
+          "default"
+        ],
+        "title": "ParamIn",
+        "type": "object"
+      },
       "Policy": {
         "properties": {
           "required": {
@@ -4221,6 +4540,43 @@
           "required"
         ],
         "title": "PolicyIn",
+        "type": "object"
+      },
+      "PortIn": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "per": {
+            "default": "sample",
+            "enum": [
+              "sample",
+              "window"
+            ],
+            "title": "Per",
+            "type": "string"
+          },
+          "unit": {
+            "maxLength": 40,
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "unit"
+        ],
+        "title": "PortIn",
         "type": "object"
       },
       "PortOut": {
@@ -8316,6 +8672,58 @@
         "title": "ImportIn",
         "type": "object"
       },
+      "tiles_api__api_org_models__ParamOut": {
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "number"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "unit",
+          "default",
+          "min",
+          "max",
+          "description"
+        ],
+        "title": "ParamOut",
+        "type": "object"
+      },
       "tiles_api__api_performance__Report": {
         "properties": {
           "detectors": {
@@ -9087,6 +9495,196 @@
         "summary": "Set Provider",
         "tags": [
           "organisation sign-in"
+        ]
+      }
+    },
+    "/org/models": {
+      "get": {
+        "description": "Your organisation's models served over HTTP, archived ones too, by key then version (never\ntheir tokens).",
+        "operationId": "list_http_models_org_models_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HttpModelOut"
+                  },
+                  "title": "Response List Http Models Org Models Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Http Models",
+        "tags": [
+          "models"
+        ]
+      },
+      "post": {
+        "description": "Register a model version computed by your endpoint: its spec (inputs, outputs, bounded\nparameters) and the https address Tiles posts each evaluation to. The host must be one the\ndeployment allows (`TILES_MODEL_HOSTS`). A design model takes no inputs; a virtual sensor at\nleast one. 409 if the version exists already: a version never changes, so give a new one.",
+        "operationId": "register_http_model_org_models_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HttpModelIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpModelOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Http Model",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/org/models/{key}/{version}": {
+      "patch": {
+        "description": "Move a model version's endpoint, set or clear its token, or archive it (or bring it back).\nIts spec never changes.",
+        "operationId": "change_http_model_org_models__key___version__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HttpModelChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HttpModelOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Change Http Model",
+        "tags": [
+          "models"
         ]
       }
     },
@@ -12808,7 +13406,7 @@
     },
     "/sites/{site_id}/models": {
       "get": {
-        "description": "Every registered model version, by key then version.",
+        "description": "Every model version the site can use, by key then version: the built-in ones, then its\norganisation's own served over HTTP.",
         "operationId": "list_models_sites__site_id__models_get",
         "parameters": [
           {
@@ -12913,7 +13511,7 @@
     },
     "/sites/{site_id}/models/{key}/evaluate": {
       "post": {
-        "description": "Run a model on the input series given (all one length) and its parameters (defaults if left out).\n\nNothing is stored: this is for trying a model; the runner (T3.03) writes derived signals.",
+        "description": "Run a model on the input series given (all one length) and its parameters (defaults if left out).\n\nNothing is stored: this is for trying a model; the runner (T3.03) writes derived signals. A\nmodel served over HTTP whose endpoint fails gives 502.",
         "operationId": "evaluate_model_sites__site_id__models__key__evaluate_post",
         "parameters": [
           {

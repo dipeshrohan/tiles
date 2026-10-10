@@ -88,6 +88,10 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 - name: TILES_COPILOT_ORG_DAILY_TOKENS
   value: {{ .Values.copilot.orgDailyTokens | int64 | quote }}
+{{- with .Values.models.endpointHosts }}
+- name: TILES_MODEL_HOSTS
+  value: {{ toJson . | quote }}
+{{- end }}
 {{- with .Values.smtp }}
 {{- if .host }}
 - name: TILES_SMTP_HOST

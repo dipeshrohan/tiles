@@ -39,6 +39,7 @@ within its bounds. A bad spec raises `ModelError` when the module is imported.
 | Design runs | A `design` version on parameters, stored with its lineage | `api_runs.py` |
 | Sweeps | A `design` version over a grid of one or two parameters, as a background job | `sweeps.py`, `api_sweeps.py`, `tiles-run-sweeps` |
 | Browser | The Design Studio's models and the plunger physics, without the API | `js/lib/design.ts`, `js/lib/physics.ts` |
+| An organisation's service | Its own model versions, registered with their spec and called over HTTP ([section 10](#10-models-served-over-http)) | `models/remote.py`, `api_org_models.py` |
 
 All API paths go through one checked entry point, `evaluate(model, inputs, params)` in
 `registry.py`. Do not call a model's `run` directly from new code.
@@ -530,7 +531,79 @@ their signals, without code: the wear check and SPC limits are the first two. A 
 - **Registered with `register(Template(...))`** at import. Test it in `api/tests/test_apps.py`: its
   settings, a result on loaded readings, and too little data.
 
-## 10. Checklist for a model pull request
+## 10. Models served over HTTP
+
+An organisation can also run a model it computes itself, on its own service, without adding code to
+Tiles (T4.15). Tiles keeps the version's spec and calls the endpoint for every evaluation; the model
+then works everywhere a built-in one does: the model list, evaluate, bindings, design runs and
+sweeps. The code is `models/remote.py` (the call), `models/store.py` (`find`, which gives a built-in
+or an HTTP model) and `api_org_models.py` (registering).
+
+### Registering a version
+
+An organisation admin posts the spec and the endpoint to `POST /org/models`:
+
+```json
+{
+  "key": "beam-deflection",
+  "version": "1.0.0",
+  "name": "Beam deflection",
+  "kind": "design",
+  "domain": "structures",
+  "outputs": [{ "name": "deflection", "unit": "mm", "per": "window" }],
+  "params": [{ "name": "load", "unit": "kN", "default": 2, "min": 0, "max": 10 }],
+  "endpoint_url": "https://models.example.com/beam",
+  "token": "…"
+}
+```
+
+The spec follows the same rules as a built-in model's ([section 1](#1-what-a-model-is)), and:
+
+- a `design` model takes parameters only, no inputs; a `virtual-sensor` takes at least one input;
+- the key can't be a built-in model's;
+- the endpoint is https on a host the deployment allows (`TILES_MODEL_HOSTS`); outside production,
+  `http://localhost` works too, for trying a model on your machine;
+- the version is frozen once registered (409 if you register it again). A change in what the model
+  computes is a new version, exactly as in [section 3](#3-versioning). The newest version that isn't
+  archived is the one used when none is named.
+
+`PATCH /org/models/{key}/{version}` moves the endpoint, replaces or clears the token, or archives
+the version (`{"archived": true}`): no new uses, while runs made with it still show.
+
+### What the endpoint receives and answers
+
+Tiles checks the inputs and parameters against the spec first (bounds, defaults filled in), then
+posts JSON, with `Authorization: Bearer <token>` if the version has one:
+
+```json
+{ "model": "beam-deflection", "version": "1.0.0", "inputs": {}, "params": { "load": 3.0 } }
+```
+
+For a virtual sensor, `inputs` holds one list of numbers per input, all one length: one window of
+readings. Answer with one list per output, numbers or `null` where a value can't be computed:
+
+```json
+{ "outputs": { "deflection": [13.5] } }
+```
+
+A `per: "sample"` output has one value per input sample; a `per: "window"` output (and every output
+of a design model) has one. The reply is checked like a built-in model's return value: the wrong
+outputs or lengths are refused (422), and so are values that aren't numbers or `null`.
+
+### When the endpoint fails
+
+An endpoint that can't be reached, times out (`TILES_MODEL_TIMEOUT`, 10 s), redirects, answers an
+error status or something that isn't the JSON above:
+
+- evaluate and design runs answer 502, and nothing is stored;
+- a sweep fails, with the reason;
+- a binding's run stops at that window and records the reason in `last_error`; the window is run
+  again next time, not skipped.
+
+Keep the endpoint deterministic: a restored run is checked against the stored output, and an
+identical sweep is answered from the result kept.
+
+## 11. Checklist for a model pull request
 
 Before you open the pull request:
 

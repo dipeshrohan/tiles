@@ -24,7 +24,7 @@ The trust boundaries, from the inside out:
 - **B2** the agent's outbound HTTPS to the API, the only connection crossing the plant's perimeter, opened from inside;
 - **B3** browsers to the API;
 - **B4** the API to its database;
-- **B5** the API and its jobs to third parties: the identity provider, the Anthropic API, SMTP and Teams;
+- **B5** the API and its jobs to third parties: the identity provider, the Anthropic API, SMTP, Teams and organisations' model endpoints (T4.15);
 - **B6** between sites and organisations within one Tiles database.
 
 ## STRIDE by element
@@ -52,7 +52,7 @@ The trust boundaries, from the inside out:
 | **T**ampering with history | Ontology commits or the audit log are rewritten | Commits are append-only; the audit log refuses UPDATE, DELETE and TRUNCATE; design runs refuse UPDATE (trigger); every write endpoint audits itself | Done |
 | **T**ampering by the copilot | Prompt injection through data (a node label, a document) makes the copilot change things | Tools are read-only transactions. The one writing tool opens a change request that another engineer must approve (T4.09); answers are grounding-checked (T4.03) | Done |
 | **R**epudiation | Who changed what | The audit log with actor, request ID and before/after values; JSON logs with request IDs | Done |
-| **I**nformation disclosure of credentials | The database leaks Teams webhooks or SMTP secrets | Teams URLs are sealed with AES-256-GCM data keys kept outside the database (T5.06); secrets are `SecretStr` and come from files or a secrets manager; stored credentials are never shown again | Done |
+| **I**nformation disclosure of credentials | The database leaks Teams webhooks or SMTP secrets | Teams URLs and model endpoint tokens are sealed with AES-256-GCM data keys kept outside the database (T5.06); secrets are `SecretStr` and come from files or a secrets manager; stored credentials are never shown again | Done |
 | **I**nformation disclosure to the AI provider | Plant data goes to the Anthropic API | Only tool results the copilot asked for, for the user who asked; the copilot is off until it is configured; the data-processing terms are the customer's decision | Partial: per-site opt-in and a data-classification note (G-A4) |
 | **D**enial of service | Floods of requests or huge bodies | Request models bound their lists and strings; the copilot has per-organisation and per-user rate limits and token budgets (T4.07); sweeps run at most two at a time in the API | Partial: no global rate limit or body-size cap (G-A1) |
 | **E**levation of privilege | A viewer writes, or an engineer acts as an admin | Roles are checked per endpoint (`Editor`, `Admin`); the role is re-read for the copilot's writing tool; the API runs as `tiles_app` with no superuser powers | Done |

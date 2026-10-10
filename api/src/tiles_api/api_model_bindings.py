@@ -5,13 +5,13 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Request, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.models import runner, store
-from tiles_api.models.registry import ModelError, check_params, registry
+from tiles_api.models.registry import ModelError, check_params
 
 router = APIRouter(tags=["models"])
 
@@ -121,12 +121,12 @@ def list_bindings(ctx: Ctx) -> list[dict[str, Any]]:
 
 
 @router.post("/sites/{site_id}/model-bindings", response_model=Binding, status_code=status.HTTP_201_CREATED)
-def bind(ctx: Editor, body: BindingIn) -> dict[str, Any]:
+def bind(ctx: Editor, body: BindingIn, request: Request) -> dict[str, Any]:
     """Bind a model version to the site's signals. Its outputs become new signals, <name>.<output>,
     from source model:<key>@<version>; the runner fills them from then on, starting with the
     history already stored."""
     try:
-        model = registry.get(body.model, body.version)
+        model = store.find(ctx.conn, ctx.org_id, request.app.state.settings, body.model, body.version)
     except KeyError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, e.args[0]) from e
     spec = model.spec
@@ -212,12 +212,12 @@ def bind(ctx: Editor, body: BindingIn) -> dict[str, Any]:
 
 
 @router.post("/sites/{site_id}/model-bindings/{binding_id}/run", response_model=RunOut)
-def run_now(ctx: Editor, binding_id: uuid.UUID) -> dict[str, Any]:
+def run_now(ctx: Editor, binding_id: uuid.UUID, request: Request) -> dict[str, Any]:
     """Run the binding on its new data now (one batch of readings: `caught_up` says whether more
     is left, for the next call or the scheduled runs)."""
     if not _get(ctx, binding_id)["enabled"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "This model binding is stopped")
-    result = runner.run(ctx.conn, binding_id, batches=1)
+    result = runner.run(ctx.conn, binding_id, batches=1, settings=request.app.state.settings)
     out = {
         "windows": result.windows,
         "failed": result.failed,

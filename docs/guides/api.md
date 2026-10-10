@@ -692,6 +692,42 @@ Readiness: the database and Redis are reachable. 503 if either is not.
 
 ## models
 
+### `GET /org/models`
+
+**Who:** organisation admin. **Answers:** 200, 422.
+
+Your organisation's models served over HTTP, archived ones too, by key then version (never their tokens).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+### `POST /org/models`
+
+**Who:** organisation admin. **Answers:** 201, 422.
+
+Register a model version computed by your endpoint: its spec (inputs, outputs, bounded parameters) and the https address Tiles posts each evaluation to. The host must be one the deployment allows (`TILES_MODEL_HOSTS`). A design model takes no inputs; a virtual sensor at least one. 409 if the version exists already: a version never changes, so give a new one.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+**Body:** HttpModelIn (see [openapi.json](openapi.json)).
+
+### `PATCH /org/models/{key}/{version}`
+
+**Who:** organisation admin. **Answers:** 200, 422.
+
+Move a model version's endpoint, set or clear its token, or archive it (or bring it back). Its spec never changes.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `key` | path | string | yes |
+| `version` | path | string | yes |
+| `org` | query | string | no |
+
+**Body:** HttpModelChange (see [openapi.json](openapi.json)).
+
 ### `GET /sites/{site_id}/model-bindings`
 
 **Who:** site member. **Answers:** 200, 422.
@@ -740,7 +776,7 @@ Run the binding on its new data now (one batch of readings: `caught_up` says whe
 
 **Who:** site member. **Answers:** 200, 422.
 
-Every registered model version, by key then version.
+Every model version the site can use, by key then version: the built-in ones, then its organisation's own served over HTTP.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
@@ -761,7 +797,7 @@ A model's versions, newest first.
 
 **Who:** site member. **Answers:** 200, 422.
 
-Run a model on the input series given (all one length) and its parameters (defaults if left out). Nothing is stored: this is for trying a model; the runner (T3.03) writes derived signals.
+Run a model on the input series given (all one length) and its parameters (defaults if left out). Nothing is stored: this is for trying a model; the runner (T3.03) writes derived signals. A model served over HTTP whose endpoint fails gives 502.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

@@ -158,28 +158,50 @@ class Resealed:
 
 def reseal(conn: Conn, keys: DataKeys) -> Resealed:
     """Opens every stored credential (so a rotation proves they all still open), re-seals those not
-    sealed with the current key, and names the ones that don't open, leaving them as they are."""
-    rows = conn.execute(
+    sealed with the current key, and names the ones that don't open, leaving them as they are:
+    sites' Teams webhooks, and the tokens of organisations' model endpoints (T4.15)."""
+    out = Resealed()
+    teams = conn.execute(
         "SELECT site_id, teams_webhook_url FROM site_notifications WHERE teams_webhook_url IS NOT NULL FOR UPDATE"
     ).fetchall()
-    out = Resealed()
-    for r in rows:
-        value, context = r["teams_webhook_url"], teams_context(r["site_id"])
-        try:
-            plain = keys.unseal(value, context)
-        except SealError as e:
-            out.failed.append((f"site {r['site_id']}: Teams webhook", str(e)))
-            continue
-        out.checked += 1
-        if keys.needs_resealing(value):
+    for r in teams:
+        plain = _open(
+            out, keys, r["teams_webhook_url"], teams_context(r["site_id"]), f"site {r['site_id']}: Teams webhook"
+        )
+        if plain is not None and keys.needs_resealing(r["teams_webhook_url"]):
             conn.execute(
                 "UPDATE site_notifications SET teams_webhook_url = %s WHERE site_id = %s",
-                [keys.seal(plain, context), r["site_id"]],
+                [keys.seal(plain, teams_context(r["site_id"])), r["site_id"]],
             )
             out.resealed += 1
+    models = conn.execute(
+        "SELECT id, org_id, key, version, endpoint_token FROM models WHERE endpoint_token IS NOT NULL FOR UPDATE"
+    ).fetchall()
+    for r in models:
+        context = model_token_context(r["org_id"], r["key"], r["version"])
+        where = f"organisation {r['org_id']}: model {r['key']} {r['version']} endpoint token"
+        plain = _open(out, keys, r["endpoint_token"], context, where)
+        if plain is not None and keys.needs_resealing(r["endpoint_token"]):
+            conn.execute("UPDATE models SET endpoint_token = %s WHERE id = %s", [keys.seal(plain, context), r["id"]])
+            out.resealed += 1
     return out
+
+
+def _open(out: Resealed, keys: DataKeys, value: str, context: str, where: str) -> str | None:
+    try:
+        plain = keys.unseal(value, context)
+    except SealError as e:
+        out.failed.append((where, str(e)))
+        return None
+    out.checked += 1
+    return plain
 
 
 def teams_context(site_id: uuid.UUID | str) -> str:
     """What a site's Teams webhook URL is sealed as."""
     return f"teams:{site_id}"
+
+
+def model_token_context(org_id: uuid.UUID | str, key: str, version: str) -> str:
+    """What the token of an organisation's model endpoint is sealed as (models/remote.py, T4.15)."""
+    return f"model-endpoint:{org_id}:{key}:{version}"

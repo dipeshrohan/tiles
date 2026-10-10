@@ -28,8 +28,10 @@ from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from tiles_api import telemetry
-from tiles_api.models.registry import Model, ModelError, evaluate, registry
-from tiles_api.settings import get_settings
+from tiles_api.models import store
+from tiles_api.models.registry import Model, ModelError, evaluate
+from tiles_api.models.remote import RemoteError
+from tiles_api.settings import Settings, get_settings
 from tiles_api.store import UNSCOPED, Conn
 
 MAX_STEPS = 200  # on one axis
@@ -68,9 +70,12 @@ def _points(x: dict[str, Any], y: dict[str, Any] | None) -> Iterator[tuple[int, 
 
 
 def _value(model: Model, params: dict[str, float]) -> float | None:
-    """One point, as a run computes it; None where the model refuses the point or can't run it."""
+    """One point, as a run computes it; None where the model refuses the point or can't run it. A
+    model served over HTTP whose endpoint fails stops the sweep (RemoteError), which then fails."""
     try:
         out = evaluate(model, {}, params)
+    except RemoteError:
+        raise
     except (ModelError, ArithmeticError):
         return None
     first = next(iter(out.values()), [])
@@ -92,7 +97,8 @@ WHERE id = (
       AND (status = 'queued' OR (status = 'running' AND heartbeat_at < now() - %(stale)s * interval '1 second'))
     ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED
 )
-RETURNING id, model_key, version, params, x, y, total
+RETURNING id, model_key, version, params, x, y, total,
+          (SELECT org_id FROM sites WHERE sites.id = sweeps.site_id) AS org_id
 """
 
 
@@ -109,10 +115,13 @@ def _every_site(connect: Connect) -> Connect:
     return opened
 
 
-def run(connect: Connect, sweep_id: uuid.UUID | None = None) -> tuple[uuid.UUID, str] | None:
+def run(
+    connect: Connect, sweep_id: uuid.UUID | None = None, settings: Settings | None = None
+) -> tuple[uuid.UUID, str] | None:
     """Claims and runs a sweep (this one, or the oldest waiting); its id and how it ended ("done",
     "cancelled", "failed", or "taken" when another run took it over), or None if there was
-    nothing to run. Each chunk is its own short transaction."""
+    nothing to run. Each chunk is its own short transaction. `settings` (the environment's when
+    not given) reach a model served over HTTP."""
     worker = uuid.uuid4()
     connect = _every_site(connect)
     with connect() as conn:
@@ -130,7 +139,8 @@ def run(connect: Connect, sweep_id: uuid.UUID | None = None) -> tuple[uuid.UUID,
         return result
 
     try:
-        model = registry.get(row["model_key"], row["version"])
+        with connect() as conn:
+            model = store.find(conn, row["org_id"], settings or get_settings(), row["model_key"], row["version"])
         x, y = row["x"], row["y"]
         xs, ys = values(x), values(y) if y else [0.0]
         grid: list[list[float | None]] = [[None] * len(xs) for _ in ys]
@@ -184,13 +194,13 @@ def run(connect: Connect, sweep_id: uuid.UUID | None = None) -> tuple[uuid.UUID,
 _api_workers = threading.BoundedSemaphore(API_WORKERS)
 
 
-def drain(connect: Connect) -> None:
+def drain(connect: Connect, settings: Settings | None = None) -> None:
     """Runs waiting sweeps until there are none, unless `API_WORKERS` runs are already at it (they
     will take this one too): what the API does in the background after taking a sweep."""
     if not _api_workers.acquire(blocking=False):
         return
     try:
-        while run(connect) is not None:
+        while run(connect, settings=settings) is not None:
             pass
     finally:
         _api_workers.release()

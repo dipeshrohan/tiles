@@ -23,7 +23,10 @@ from psycopg import sql
 from psycopg.rows import tuple_row
 
 from tiles_api import jobs, telemetry
-from tiles_api.models.registry import Model, evaluate, registry
+from tiles_api.models import store
+from tiles_api.models.registry import Model, evaluate
+from tiles_api.models.remote import RemoteError
+from tiles_api.settings import Settings, get_settings
 from tiles_api.store import Conn
 
 TIME = "@time"  # an input fed with seconds since the window began
@@ -159,6 +162,7 @@ def run_binding(
             windows = windows[:-1]  # it may go on past this batch: the next batch reads it whole
         written: list[tuple[str, datetime, float]] = []
         ran = 0
+        unreachable = False
         for n, (start, end) in enumerate(windows):
             last = n == len(windows) - 1
             if not complete(times[end - 1], last and not full, kind, size, now, lateness):
@@ -169,6 +173,11 @@ def run_binding(
                     series[name] = [(t - times[start]).total_seconds() for t in times[start:end]]
             try:
                 out = evaluate(model, series, binding["params"])
+            except RemoteError as e:
+                # The endpoint failed, not the window (T4.15): stop, and run this window next time.
+                result.note(f"window ending {times[end - 1].isoformat()}: {e}")
+                unreachable = True
+                break
             except Exception as e:
                 result.failed += 1
                 result.note(f"window ending {times[end - 1].isoformat()}: {e}")
@@ -186,7 +195,7 @@ def run_binding(
             result.done_until = times[end - 1]
         result.windows += ran
         result.written += _write(conn, written)
-        if not ran or not full:
+        if unreachable or not ran or not full:
             break
         if batch == batches - 1:
             result.caught_up = False
@@ -216,12 +225,12 @@ def _write(conn: Conn, readings: list[tuple[str, datetime, float]]) -> int:
     return stored
 
 
-def run(conn: Conn, binding_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunResult:
+def run(conn: Conn, binding_id: uuid.UUID, batches: int = MAX_BATCHES, settings: Settings | None = None) -> RunResult:
     """Runs a binding now: locks it, runs its new windows (at most `batches` batches) and records
-    the outcome."""
+    the outcome. `settings` (the environment's when not given) reach a model served over HTTP."""
     binding = conn.execute(
         """
-        SELECT b.*, m.key AS model_key, m.version AS model_version FROM model_bindings b
+        SELECT b.*, m.key AS model_key, m.version AS model_version, m.org_id AS model_org FROM model_bindings b
         JOIN models m ON m.id = b.model_id WHERE b.id = %s FOR UPDATE OF b
         """,
         [binding_id],
@@ -230,7 +239,9 @@ def run(conn: Conn, binding_id: uuid.UUID, batches: int = MAX_BATCHES) -> RunRes
         raise LookupError("No such binding")
     now: datetime = conn.execute("SELECT now() AS now").fetchone()["now"]  # type: ignore[index]
     try:
-        model = registry.get(binding["model_key"], binding["model_version"])
+        model = store.find(
+            conn, binding["model_org"], settings or get_settings(), binding["model_key"], binding["model_version"]
+        )
     except KeyError:
         result = RunResult(done_until=binding["done_until"], error="the model version is no longer registered")
     else:

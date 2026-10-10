@@ -15,7 +15,7 @@ import math
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
-from typing import Any, ClassVar, Literal, Protocol
+from typing import Any, Literal, Protocol
 
 Kind = Literal["virtual-sensor", "design"]
 KEY = re.compile(r"^[a-z][a-z0-9-]{1,62}$")
@@ -109,7 +109,10 @@ def version_key(version: str) -> tuple[int, ...]:
 
 
 class Model(Protocol):
-    spec: ClassVar[ModelSpec]
+    @property
+    def spec(self) -> ModelSpec:
+        """A class attribute of the built-in models; an HttpModel's own (T4.15)."""
+        ...
 
     def run(self, inputs: Mapping[str, Sequence[float]], params: Mapping[str, float]) -> dict[str, list[float | None]]:
         """Outputs as long as the inputs (or one value each, for a model without inputs); None (or
@@ -223,6 +226,8 @@ def evaluate(
 
     try:
         out = model.run(series, values_by_name)
+    except ModelError:  # said already (an HTTP model's endpoint that failed, T4.15)
+        raise
     except (ArithmeticError, ValueError) as e:  # bad numbers for this model, e.g. a series too short
         raise ModelError(f"Model {spec.key} {spec.version} can't run on these inputs: {e}") from e
     expected = {p.name for p in spec.outputs}

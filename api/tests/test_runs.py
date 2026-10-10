@@ -162,14 +162,28 @@ def test_runs_of_a_version_no_longer_registered_still_show(api: TestClient, site
     with psycopg.connect(database_url) as conn:  # as if 0.9.0, with another output, had been dropped
         conn.execute(
             """
+            WITH old AS (
+                INSERT INTO models (org_id, key, version, name, kind, spec)
+                SELECT org_id, key, '0.9.0', 'Cell swelling (first)', kind,
+                       '{"params": [{"name": "preload_kn", "unit": "kN"}],'
+                       ' "outputs": [{"name": "pressure", "unit": "MPa"}]}'
+                FROM models WHERE id = (SELECT model_id FROM design_runs WHERE number = 1)
+                RETURNING id
+            )
             INSERT INTO design_runs (site_id, number, model_id, model_key, version, params, output,
                                      author_name, author_email)
-            SELECT site_id, 2, model_id, model_key, '0.9.0', params, '{"pressure": 3.5}', 'Old', 'old@example.com'
+            SELECT site_id, 2, (SELECT id FROM old), model_key, '0.9.0', params, '{"pressure": 3.5}', 'Old',
+                   'old@example.com'
             FROM design_runs WHERE number = 1
             """
         )
     old = api.get(f"/sites/{site}/runs/2", headers=ENG).json()
-    assert (old["model_name"], old["units"], old["output"]) == ("cell-swelling", {}, {"pressure": 3.5})
+    # Shown as its version was stored, though the version is no longer registered.
+    assert (old["model_name"], old["units"], old["output"]) == (
+        "Cell swelling (first)",
+        {"preload_kn": "kN", "pressure": "MPa"},
+        {"pressure": 3.5},
+    )
     assert len(api.get(f"/sites/{site}/runs", headers=ENG).json()["runs"]) == 2
     res = api.post(f"/sites/{site}/runs/2/restore", headers=ENG)
     assert (res.status_code, res.json()["detail"]) == (

@@ -27,7 +27,7 @@
 {{- $found := list }}
 {{- range $url := $named }}{{ $found = append $found (regexReplaceAll ":[0-9]+$" (urlParse $url).host "") }}{{ end }}
 {{- if $v.smtp.host }}{{ $found = append $found $v.smtp.host }}{{ end }}
-{{- range $host := concat $found $v.networkPolicy.egressAllowlist.hosts }}
+{{- range $host := concat $found $v.models.endpointHosts $v.networkPolicy.egressAllowlist.hosts }}
 {{- $inCluster := regexFind "^[^.]+(\\.[^.]+\\.svc(\\.cluster\\.local)?)?$" $host }}
 {{- if and $inCluster (not (regexMatch "^[^.]+$" $host)) }}
 {{- $namespaces = append $namespaces (index (splitList "." $host) 1) }}
@@ -64,7 +64,8 @@ spec:
       toPorts:
         - ports: [{ port: "5432", protocol: TCP }, { port: "6379", protocol: TCP }]
     {{- if $hosts }}
-    # The identity provider, mail relay, collector, the copilot's model provider and what you added.
+    # The identity provider, mail relay, collector, model endpoints, the copilot's model provider and
+    # what you added.
     - toFQDNs:
         {{- range $hosts }}
         - matchName: {{ . | quote }}
