@@ -69,6 +69,8 @@ async function settled(page) {
 
 // What axe finds on the page as it is now, as readable lines.
 async function audit(page) {
+  // axe goes in as an inline script, which the app's Content-Security-Policy refuses (as it should):
+  // pages that run it bypass the policy, for the test's script only.
   if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ path: AXE });
   const found = await page.evaluate(
     async ([rules, practices]) => {
@@ -86,7 +88,7 @@ async function audit(page) {
 
 for (const colorScheme of ['light', 'dark']) {
   test(`every page passes the accessibility rules in local mode (${colorScheme})`, async () => {
-    const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 } });
+    const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 }, bypassCSP: true });
     const problems = [];
     for (const route of PAGES) {
       await page.goto(`${httpBase}#/${route}`);
@@ -119,7 +121,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     readings: 29,
   });
   for (const colorScheme of ['light', 'dark']) {
-    const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 } });
+    const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 }, bypassCSP: true });
     const problems = [];
     const check = async (label) => problems.push(...(await audit(page)).map((p) => `${label}: ${p}`));
     await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/warnings`);

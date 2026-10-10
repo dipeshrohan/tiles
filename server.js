@@ -14,6 +14,32 @@ const types = {
   '.svg': 'image/svg+xml',
 };
 
+// Security headers (threat model G-B1). Scripts come only from this server (the bundle; no inline
+// script), nothing may frame the app, and the sign-in code in a URL is never sent on as a referrer.
+// Styles allow inline `style` attributes, which the views use. The API and the sign-in provider are
+// wherever a deployment puts them: https anywhere, the configured API's origin, or this machine.
+export function securityHeaders(apiUrl = '') {
+  const api = apiUrl ? new URL(apiUrl).origin : '';
+  const csp = [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    `connect-src 'self' https: http://localhost:* http://127.0.0.1:*${api ? ` ${api}` : ''}`,
+    "object-src 'none'",
+    "base-uri 'none'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ');
+  return {
+    'content-security-policy': csp,
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'DENY',
+    'referrer-policy': 'no-referrer',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=()',
+  };
+}
+
 const attr = (text) => text.replace(/[&"<>]/g, (c) => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[c]);
 
 // `apiUrl` (TILES_API_URL when run directly, T5.09): the API a deployment serves the app with,
@@ -30,24 +56,25 @@ export function createTilesServer({ apiUrl = '' } = {}) {
     if (!tag.test(html)) throw new Error('index.html has no <meta name="tiles-api"> tag to put the API address in');
     page = Buffer.from(html.replace(tag, `<meta name="tiles-api" content="${attr(apiUrl)}" />`));
   }
+  const headers = securityHeaders(apiUrl);
   return createServer(async (req, res) => {
     let path;
     try {
       path = normalize(decodeURIComponent(new URL(req.url, 'http://x').pathname)).replace(/^([/\\])+/, '');
     } catch {
-      res.writeHead(400).end('Bad request');
+      res.writeHead(400, headers).end('Bad request');
       return;
     }
     if (path.startsWith('..')) {
-      res.writeHead(403).end();
+      res.writeHead(403, headers).end();
       return;
     }
     const file = join(root, path || 'index.html');
     try {
       const body = page && file === index ? page : await readFile(file);
-      res.writeHead(200, { 'content-type': types[extname(file)] ?? 'application/octet-stream' }).end(body);
+      res.writeHead(200, { ...headers, 'content-type': types[extname(file)] ?? 'application/octet-stream' }).end(body);
     } catch {
-      res.writeHead(404).end('Not found');
+      res.writeHead(404, headers).end('Not found');
     }
   });
 }

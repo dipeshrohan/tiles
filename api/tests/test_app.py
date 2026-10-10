@@ -1,7 +1,9 @@
 import json
 import logging
+from collections.abc import Iterator
 
 import pytest
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 from tiles_api import sealed
@@ -118,3 +120,49 @@ def test_unhandled_error_is_500_with_request_id_cors_and_log(
     done = next(e for e in lines if e.get("message") == "request")
     assert done["status"] == 500
     assert done["request_id"] == "err-1"
+
+
+def test_responses_carry_security_headers(client: TestClient) -> None:
+    res = client.get("/health")
+    assert res.headers["x-content-type-options"] == "nosniff"
+    assert res.headers["referrer-policy"] == "no-referrer"
+    assert res.headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
+    # The interactive docs load their own scripts: no policy of ours on them.
+    assert "content-security-policy" not in client.get("/docs").headers
+
+
+def test_request_bodies_are_capped() -> None:
+    app = create_app(Settings(_env_file=None, env="test", max_body_bytes=1024 * 1024))
+
+    @app.post("/echo")
+    async def echo(request: Request) -> dict[str, int]:
+        return {"bytes": len(await request.body())}
+
+    with TestClient(app) as c:
+        assert c.post("/echo", content=b"x" * 1000).json() == {"bytes": 1000}
+        big = c.post("/echo", content=b"x" * (1024 * 1024 + 1))
+        assert (big.status_code, big.json()["detail"]) == (413, "The request is larger than 1 MB")
+
+        def chunks() -> Iterator[bytes]:  # sent without a Content-Length
+            for _ in range(5):
+                yield b"x" * (300 * 1024)
+
+        streamed = c.post("/echo", content=chunks())
+        assert (streamed.status_code, streamed.json()["detail"]) == (413, "The request is larger than 1 MB")
+        bad = c.post("/echo", content=b"x", headers={"Content-Length": "lots"})
+        assert bad.status_code == 400
+
+
+def test_without_a_token_is_the_dev_user_only_where_nothing_else_signs_in() -> None:
+    issuer = "https://idp.example.com/realms/tiles"
+    assert Settings(_env_file=None, env="development").dev_identity_on
+    assert not Settings(_env_file=None, env="development", oidc_issuer=issuer).dev_identity_on  # fail closed
+    assert Settings(_env_file=None, env="development", oidc_issuer=issuer, dev_identity=True).dev_identity_on
+    assert not Settings(_env_file=None, env="test", dev_identity=False).dev_identity_on
+    production = Settings(_env_file=None, env="production", data_keys=PRODUCTION_KEYS, oidc_issuer=issuer)
+    assert not production.dev_identity_on
+    with pytest.raises(ValueError, match="TILES_DEV_IDENTITY can't be set in production"):
+        Settings(_env_file=None, env="production", data_keys=PRODUCTION_KEYS, dev_identity=True)
+    with TestClient(create_app(Settings(_env_file=None, env="development", oidc_issuer=issuer))) as c:
+        res = c.get("/me", headers={"X-Tiles-User": "eng@example.com"})
+        assert (res.status_code, res.json()["detail"]) == (401, "Sign in to use Tiles")

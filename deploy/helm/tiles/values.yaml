@@ -165,8 +165,12 @@ ingress:
   className: ''
   # Edge agents post up to 10,000 readings at once, and imports send batches of rows: raise your
   # controller's request body limit (nginx's default is 1 MB). Other controllers ignore this.
+  # A rate limit per client address (threat model G-A1), generous for agents' batches and a browser's
+  # pages; the API also refuses bodies over TILES_MAX_BODY_BYTES (25 MB) itself.
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: 16m
+    nginx.ingress.kubernetes.io/limit-rps: '50'
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: '5'
   # TLS for both hosts (taken from url and apiUrl); with cert-manager, set its annotation instead.
   tlsSecret: ''
 

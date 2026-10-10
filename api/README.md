@@ -75,7 +75,9 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_OIDC_AUDIENCE` | `tiles-api` | Audience tokens must carry |
 | `TILES_OIDC_CLIENT_ID` | `tiles-web` | Client the browser signs in as (sent to it by `/auth/config`) |
 | `TILES_OIDC_DEFAULT_ORG` | `demo` | Organisation for users whose token has no `tiles_org` claim |
-| `TILES_DEV_USER_EMAIL`, `TILES_DEV_USER_NAME` | `demo@example.com`, `Demo User` | Who requests without a token act as, outside production |
+| `TILES_DEV_USER_EMAIL`, `TILES_DEV_USER_NAME` | `demo@example.com`, `Demo User` | Who requests without a token act as, where that is allowed (`TILES_DEV_IDENTITY`) |
+| `TILES_DEV_IDENTITY` | unset: on outside production when no OIDC issuer is set | Whether a request without a token acts as the dev user. `true` lets a local stack with sign-in (Compose) do both; refused in production |
+| `TILES_MAX_BODY_BYTES` | `26214400` (25 MB) | The largest request body the API reads; larger ones get 413 |
 | `TILES_SMTP_HOST`, `TILES_SMTP_PORT` | unset (no email), `587` | The mail server `tiles-notify` sends through |
 | `TILES_SMTP_STARTTLS` | `true` | Upgrade the SMTP connection to TLS before logging in |
 | `TILES_SMTP_USER`, `TILES_SMTP_PASSWORD` | unset | SMTP login, if the server needs one |
@@ -605,7 +607,7 @@ The API accepts OpenID Connect access tokens (`Authorization: Bearer …`) from 
 
 `GET /auth/config` (public) tells the browser where and as which client to sign in, and `GET /me` says who you are.
 
-Requests without a token are refused in production. Elsewhere they act as `TILES_DEV_USER_EMAIL` (default `demo@example.com`) or as the email in an `X-Tiles-User` header, so tests and curl need no sign-in.
+Requests without a token are refused in production, and wherever an OIDC issuer is set unless `TILES_DEV_IDENTITY=true` (as Compose sets). Elsewhere they act as `TILES_DEV_USER_EMAIL` (default `demo@example.com`) or as the email in an `X-Tiles-User` header, so tests and curl need no sign-in.
 
 In Docker Compose, Keycloak runs at http://localhost:8080 with the `tiles` realm from `keycloak/tiles-realm.json`. It has three users: `demo`/`demo` (engineer), `admin`/`admin` (admin) and `viewer`/`viewer` (viewer). For scripts, the dev-only `tiles-dev-cli` client allows the password grant:
 

@@ -140,7 +140,7 @@ The provider's signing-key rotation needs nothing from you. The API fetches the 
 
 ### The dev identity
 
-Outside production (`TILES_ENV` is `development` or `test`), a request without a token acts as `TILES_DEV_USER_EMAIL` (default `demo@example.com`), or as the email in an `X-Tiles-User` header. This lets tests and `curl` work without sign-in. A token that is present is always checked. In production, a request without a token gets 401. Never run a reachable instance outside production mode.
+Outside production (`TILES_ENV` is `development` or `test`) and without an OIDC issuer, a request without a token acts as `TILES_DEV_USER_EMAIL` (default `demo@example.com`), or as the email in an `X-Tiles-User` header. This lets tests and `curl` work without sign-in. A token that is present is always checked. Once an issuer is set, a request without a token gets 401 whatever `TILES_ENV` says, unless `TILES_DEV_IDENTITY=true` (Compose sets it, to try both); production refuses that setting. Never run a reachable instance outside production mode.
 
 ## 4. Organisations, sites and people
 

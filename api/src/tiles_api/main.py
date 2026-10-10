@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
 from pydantic import BaseModel
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from tiles_api import readiness, telemetry
 from tiles_api.api_agents import router as agents_router
@@ -54,6 +55,76 @@ from tiles_api.settings import Settings, get_settings
 from tiles_api.store import close_pool
 
 log = logging.getLogger("tiles_api")
+DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+class BodyTooLarge(Exception):
+    """A body sent without a Content-Length went past the limit while it was read."""
+
+
+def _caused_by(error: BaseException, kind: type[BaseException]) -> bool:
+    """Whether `error` is `kind`, or was raised from one, or holds one (an ExceptionGroup)."""
+    seen: set[int] = set()
+    todo = [error]
+    while todo:
+        e = todo.pop()
+        if id(e) in seen:
+            continue
+        seen.add(id(e))
+        if isinstance(e, kind):
+            return True
+        if isinstance(e, BaseExceptionGroup):
+            todo.extend(e.exceptions)
+        todo.extend(x for x in (e.__cause__, e.__context__) if x is not None)
+    return False
+
+
+class BodyLimit:
+    """Refuses a request body larger than `limit` bytes with 413 (threat model G-A1): at once when its
+    Content-Length says so, or as it arrives when it is sent without one."""
+
+    def __init__(self, app: ASGIApp, limit: int) -> None:
+        self.app = app
+        self.limit = limit
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        length = dict(scope["headers"]).get(b"content-length")
+        too_large = JSONResponse({"detail": f"The request is larger than {self.limit // (1024 * 1024)} MB"}, 413)
+        if length is not None:
+            try:
+                declared = int(length)
+            except ValueError:
+                await JSONResponse({"detail": "Content-Length must be a number"}, 400)(scope, receive, send)
+                return
+            if declared > self.limit:
+                await too_large(scope, receive, send)
+                return
+        seen = 0
+        started = False
+
+        async def counted() -> Message:
+            nonlocal seen
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > self.limit:
+                    raise BodyTooLarge
+            return message
+
+        async def sending(message: Message) -> None:
+            nonlocal started
+            started = started or message["type"] == "http.response.start"
+            await send(message)
+
+        try:
+            await self.app(scope, counted, sending)
+        except BodyTooLarge:
+            if not started:
+                await too_large(scope, receive, send)
+
 
 VERSION = version("tiles-api")
 
@@ -106,14 +177,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         started = time.perf_counter()
         try:
             response = await call_next(request)
-        except Exception:
-            # Answer here rather than re-raising, so a failed request keeps its
-            # request ID header and completion log like any other.
-            log.exception("request failed", extra={"method": request.method, "path": request.url.path})
-            response = JSONResponse({"detail": "Internal Server Error"}, status_code=500)
+        except Exception as e:
+            if _caused_by(e, BodyTooLarge):  # read past BodyLimit's limit (G-A1); Starlette wraps it
+                response = JSONResponse(
+                    {"detail": f"The request is larger than {settings.max_body_bytes // (1024 * 1024)} MB"}, 413
+                )
+            else:
+                # Answer here rather than re-raising, so a failed request keeps its
+                # request ID header and completion log like any other.
+                log.exception("request failed", extra={"method": request.method, "path": request.url.path})
+                response = JSONResponse({"detail": "Internal Server Error"}, status_code=500)
         finally:
             request_id_var.reset(token)
         response.headers["X-Request-ID"] = request_id
+        # Security headers (G-B1): nothing here is a page to frame or a script to run, but the
+        # interactive docs, and a document's file, which sets its own (sandbox).
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        if not request.url.path.startswith(DOCS_PATHS):
+            response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
         log.info(
             "request",
             extra={
@@ -126,6 +208,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return response
 
+    # The body limit (G-A1) inside CORS, so a browser sees its 413.
+    app.add_middleware(BodyLimit, limit=settings.max_body_bytes)
     # Added after the request-context middleware so it wraps it and also
     # decorates the 500 responses produced there.
     app.add_middleware(

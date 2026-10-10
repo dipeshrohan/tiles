@@ -1,6 +1,6 @@
 import { test, beforeAll as before, afterAll as after } from 'vitest';
 import assert from 'node:assert/strict';
-import { createTilesServer } from '../server.js';
+import { createTilesServer, securityHeaders } from '../server.js';
 
 let server;
 let base;
@@ -61,4 +61,25 @@ test('the API address of a deployment goes into the page, escaped', async () => 
   // Without one, the page keeps the empty tag (as from file://), and the app stays local.
   assert.match(await (await fetch(`${base}/`)).text(), /<meta name="tiles-api" content="" \/>/);
   assert.throws(() => createTilesServer({ apiUrl: 'javascript:alert(1)' }), /Not an http\(s\) URL/);
+});
+
+test('every answer carries the security headers (threat model G-B1)', async () => {
+  for (const path of ['/', '/js/tiles.bundle.js', '/nope.js']) {
+    const res = await fetch(`${base}${path}`);
+    const csp = res.headers.get('content-security-policy') ?? '';
+    assert.match(csp, /script-src 'self'(;|$)/); // no inline scripts, no eval
+    assert.match(csp, /frame-ancestors 'none'/);
+    assert.match(csp, /object-src 'none'/);
+    assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(res.headers.get('x-frame-options'), 'DENY');
+    assert.equal(res.headers.get('referrer-policy'), 'no-referrer'); // the sign-in code never leaves in a referrer
+  }
+  // The page has no inline script for the policy to block.
+  const html = await (await fetch(`${base}/`)).text();
+  assert.doesNotMatch(html, /<script(?![^>]*\bsrc=)[^>]*>/);
+  // A deployment's API may be plain http (a local cluster): its origin is allowed by name.
+  assert.match(
+    securityHeaders('http://api.plant.internal:8000/v1')['content-security-policy'],
+    /connect-src [^;]* http:\/\/api\.plant\.internal:8000(;|$)/,
+  );
 });

@@ -39,8 +39,10 @@ class Settings(BaseSettings):
     oidc_client_id: str = "tiles-web"
     # Organisation for users whose token carries no `tiles_org` claim.
     oidc_default_org: str = "demo"
-    # Outside production, requests without a token act as this user, or as
-    # the email in an X-Tiles-User header. Never in production.
+    # Requests without a token act as this user, or as the email in an X-Tiles-User header: outside
+    # production, and only while no OIDC issuer is set, unless dev_identity says otherwise (a local
+    # stack with both, as Compose). Never in production (threat model G-A5: fail closed).
+    dev_identity: bool | None = None
     dev_user_email: str = "demo@example.com"
     dev_user_name: str = "Demo User"
     # Notifications (T3.09). Email goes out by SMTP when smtp_host is set; links point at app_url.
@@ -72,13 +74,24 @@ class Settings(BaseSettings):
     copilot_max_rounds: int = 8  # model calls per question (each tool round is one)
     # Cost controls (T4.07), in billed tokens: input, cache writes and output count in full, cache
     # reads a tenth (copilot_usage.billed). 0 turns a limit off.
+    # The largest request body the API reads, in bytes (G-A1); a document upload is 20 MB at most.
+    max_body_bytes: int = Field(default=25 * 1024 * 1024, ge=1024 * 1024)
     copilot_question_tokens: int = 200_000  # one question stops calling the model past this
     copilot_org_daily_tokens: int = 5_000_000  # an organisation's questions wait for the next UTC day
     copilot_org_questions_per_minute: int = 30
     copilot_user_questions_per_minute: int = 6
 
+    @property
+    def dev_identity_on(self) -> bool:
+        """Whether a request without a token acts as the dev user."""
+        if self.env == "production":
+            return False
+        return self.dev_identity if self.dev_identity is not None else self.oidc_issuer is None
+
     @model_validator(mode="after")
     def _keys(self) -> Self:
+        if self.env == "production" and self.dev_identity:
+            raise ValueError("TILES_DEV_IDENTITY can't be set in production: every request there needs a token")
         from tiles_api.sealed import DataKeys
 
         keys = DataKeys.parse(self.data_keys.get_secret_value() if self.data_keys else None)  # malformed: refused

@@ -55,9 +55,16 @@ def bearer(t: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {t}"}
 
 
-def make_client(database_url: str, env: str = "production", issuer: str | None = ISSUER) -> TestClient:
+def make_client(
+    database_url: str, env: str = "production", issuer: str | None = ISSUER, dev_identity: bool | None = None
+) -> TestClient:
     settings = Settings(
-        _env_file=None, env=env, database_url=database_url, oidc_issuer=issuer, data_keys=PRODUCTION_KEYS
+        _env_file=None,
+        env=env,
+        database_url=database_url,
+        oidc_issuer=issuer,
+        data_keys=PRODUCTION_KEYS,
+        dev_identity=dev_identity,
     )
     app = create_app(settings)
     if issuer:
@@ -166,7 +173,7 @@ def test_roles_come_from_the_token_on_first_visit_then_from_the_membership(
 
 
 def test_a_user_known_before_sign_in_is_linked_not_duplicated(database_url: str, site: str) -> None:
-    with make_client(database_url, env="development") as dev:
+    with make_client(database_url, env="development", dev_identity=True) as dev:  # both, as Compose
         dev.get(graph(site), headers={"X-Tiles-User": "ana@example.com"})
         dev.get(graph(site), headers=bearer(token(name="Ana L.")))
     with psycopg.connect(database_url) as conn:
