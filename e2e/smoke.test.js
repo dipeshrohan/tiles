@@ -186,6 +186,34 @@ test('dialogs keep focus, cancel with Escape and give focus back; toasts can be 
   await page.close();
 });
 
+test('the style guide: from Settings, not in the menu, every section shown', async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/settings`);
+  await page.click('#about a:has-text("Style guide")');
+  await page.waitForSelector('#view h1:has-text("Style guide")');
+  assert.equal(await page.locator('#nav a[href="#/styleguide"]').count(), 0);
+  // Tokens with their values, and each example in both themes.
+  assert.ok((await page.locator('[data-sg-value]').count()) >= 80); // every token in :root (test/styleguide.test.js)
+  assert.notEqual(await page.locator('[data-sg-value="--accent"]').innerText(), '');
+  assert.equal(await page.locator('.sg-pair').count(), await page.locator('.sg-pair .sg-scheme.dark').count());
+  // The dark sample is dark whatever the page's theme.
+  const bg = (sel) =>
+    page
+      .locator(sel)
+      .first()
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+  assert.notEqual(await bg('.sg-pair .sg-scheme.light'), await bg('.sg-pair .sg-scheme.dark'));
+  await page.click('[data-jump="icons"]');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'sg-sec-icons');
+  await page.click('[data-sg-toast="error"]');
+  await page.waitForSelector('.toast-item[data-type=error]:has-text("req-000042")');
+  await page.click('[data-sg-dialog]');
+  await page.locator('dialog.dialog [value=cancel]').click();
+  await page.waitForSelector('#toast:has-text("You cancelled")');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Enter goes', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/`);

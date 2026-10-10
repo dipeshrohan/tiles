@@ -45,6 +45,7 @@ import warnings from './views/warnings.ts';
 import shopfloor from './views/shopfloor.ts';
 import plant from './views/plant.ts';
 import onboarding from './views/onboarding.ts';
+import styleguide from './views/styleguide.ts';
 import performance from './views/performance.ts';
 import correlate from './views/correlate.ts';
 import insights from './views/insights.ts';
@@ -79,6 +80,7 @@ const VIEWS: View[] = [
   imports,
   onboarding,
   settings,
+  styleguide, // not in the menu: Settings → About links to it
 ];
 
 const NAV: { group?: string; items: View[] }[] = [

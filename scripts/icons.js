@@ -28,6 +28,7 @@ export const NAMES = [
   'upload',
   'rocket',
   'settings',
+  'palette',
   // Controls and states
   'menu',
   'x',

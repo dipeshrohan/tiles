@@ -15,6 +15,7 @@ import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from 
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
+import { icon } from '../lib/icons.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
 function accountCard(ctx: Context): string {
@@ -582,6 +583,11 @@ const view: View = {
         ${ctx.ontology.role === 'admin' && ctx.ontology.site ? copilotPolicyCard() : ''}
         ${ctx.ontology.role === 'admin' ? copilotUsageCard() : ''}
         ${ctx.ontology.role === 'admin' ? auditCard() : ''}
+        <div class="card stack gap-3" id="about">
+          <h2>About</h2>
+          <p class="small soft">Tiles works from this browser on its own, or with the Tiles API for a shared site. Press Ctrl K (⌘ K on a Mac) or / to find any page or action.</p>
+          <div><a class="btn" href="#/styleguide">${icon('palette')} Style guide</a></div>
+        </div>
       </div>`;
   },
   bind(root, ctx) {
