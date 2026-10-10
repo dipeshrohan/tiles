@@ -55,6 +55,20 @@ after(async () => {
   server?.close();
 });
 
+// Presses Undo on the toast that says `text` (U2.03).
+async function undoToast(page, text) {
+  await page.click(`.toast-item:not([data-state=closed]):has-text("${text}") [data-toast-action]`);
+}
+
+// Waits for something the fake API sees.
+async function waitFor(check, ms = 5000) {
+  const until = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > until) throw new Error('Timed out waiting');
+    await new Promise((r) => setTimeout(r, 50));
+  }
+}
+
 // Confirms the dialog a click opened (js/lib/overlay.ts), typing `typed` first when it asks for it.
 async function confirmIn(page, typed) {
   const dialog = page.locator('dialog.dialog[open]');
@@ -1124,8 +1138,14 @@ test('App Studio: an engineer makes an SPC app from its template, runs it, chang
   assert.equal(await page.inputValue('#app-form [name=sigmas]'), '2.5');
   await page.click('#app-form a.btn:has-text("Cancel")');
 
+  // Archived at once, with Undo (U2.03): Undo brings it back; left alone, it stays archived.
   await page.click('[data-archive-app]');
-  await confirmIn(page);
+  await page.waitForSelector('[data-app-list]:has-text("No apps yet")');
+  await undoToast(page, 'Archived #1');
+  await page.waitForSelector('[data-app-list]:has-text("Oven zone 2")');
+  await page.waitForSelector('#toast:has-text("Restored #1")');
+  await page.click('[data-app="1"]');
+  await page.click('[data-archive-app]');
   await page.waitForSelector('[data-app-list]:has-text("No apps yet")');
   assert.deepEqual(errors, []);
 
@@ -1185,8 +1205,12 @@ test('Documents: an engineer uploads an SOP, searches it, and opens the page a m
   await page.click('[data-retry-search]');
   await page.waitForSelector('[data-matches]:has-text("Open page 2")');
 
+  // Archived at once, with Undo (U2.03).
   await page.click('[data-archive-doc="1"]');
-  await confirmIn(page);
+  await page.waitForSelector('[data-doc-list]:has-text("No documents yet")');
+  await undoToast(page, 'Archived');
+  await page.waitForSelector('[data-doc-list] [data-archive-doc="1"]');
+  await page.click('[data-archive-doc="1"]');
   await page.waitForSelector('[data-doc-list]:has-text("No documents yet")');
   assert.deepEqual(
     errors.filter((e) => !/status of 503/.test(e)),
@@ -3113,11 +3137,18 @@ test('the correlation finder: a failed upload leaves nothing behind, and enginee
   await a.page.waitForSelector('[data-result]');
   assert.equal(fake.correlations.at(-1).split, null);
 
+  // Deleted at once, with Undo (U2.03): nothing is sent until the toast goes.
   await a.page.click('[data-delete-dataset]');
-  await confirmIn(a.page);
-  await a.page.waitForSelector('#toast:has-text("cutter deleted")');
   await a.page.waitForSelector('[data-dataset-list]:has-text("No batch tables yet")');
-  assert.deepEqual(fake.datasets, []);
+  assert.equal(fake.datasets.length, 1);
+  await undoToast(a.page, 'cutter deleted');
+  await a.page.waitForSelector('[data-dataset-list]:has-text("cutter")');
+  assert.equal(fake.datasets.length, 1);
+  await a.page.click('[data-delete-dataset]');
+  await a.page.waitForSelector('[data-dataset-list]:has-text("No batch tables yet")');
+  // Left with its toast showing, it is sent by the next load of the page.
+  await a.page.reload();
+  await waitFor(() => fake.datasets.length === 0);
   assert.deepEqual(
     a.errors.filter((e) => !/Failed to load resource/.test(e)), // the refused batch
     [],
@@ -3451,6 +3482,22 @@ test('the copilot: a streamed answer with its tools, citations, a withdrawn draf
   await a.page.waitForSelector('[data-answer-text]:has-text("reads 42 °C")');
   assert.equal(await a.page.locator('.copilot-answer').count(), 4);
   assert.equal(await a.page.locator('[data-rate="down"]').first().getAttribute('aria-pressed'), 'true');
+
+  // Deleted at once, with Undo (U2.03): nothing is sent until the toast goes.
+  const deletes = () => fake.requests.filter((r) => /^DELETE .*\/copilot\/conversations\/[^/]+$/.test(r)).length;
+  await a.page.click('[data-delete-conversation]');
+  await a.page.waitForSelector('[data-conversations]:not(:has([data-conversation]))');
+  await undoToast(a.page, 'Conversation deleted');
+  await a.page.waitForSelector('[data-answer-text]:has-text("reads 42 °C")'); // open again
+  assert.equal(deletes(), 0);
+  await a.page.click('[data-delete-conversation]');
+  await a.page.waitForSelector('[data-conversations]:not(:has([data-conversation]))');
+  await a.page.click('.toast-item:has-text("Conversation deleted") .toast-close');
+  await waitFor(() => deletes() === 1);
+  await a.page.reload();
+  await a.page.waitForSelector('[data-new-conversation]');
+  assert.equal(await a.page.locator('[data-conversation]').count(), 0);
+
   await a.page.click('[data-new-conversation]');
   await a.page.waitForSelector('#chat-log:has-text("Ask about your plant")');
   assert.deepEqual(

@@ -108,7 +108,8 @@ const view: View = {
           ${['success', 'info', 'warning', 'error'].map((t) => button(`Show ${t}`, { attrs: { 'data-sg-toast': t } })).join('')}
           <button class="btn" type="button" data-tooltip="Says what it does">Point at me</button>
         </div>
-        <pre class="sg-code"><code>${esc(`if (await confirmDialog({ title: 'Archive SOP 14?', body: 'It leaves the list and search.', confirm: 'Archive' })) …
+        <pre class="sg-code"><code>${esc(`if (await confirmDialog({ title: 'Revoke the agent?', confirm: 'Revoke', tone: 'danger' })) …
+removeLater({ toast, message: 'Conversation deleted', hide, restore, send })   // Undo instead
 ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with their request ID
 <button … data-tooltip="Says what it does">`)}</code></pre>`,
         { class: 'stack gap-2' },
@@ -153,12 +154,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
       target?.focus({ preventScroll: true });
     });
     onAll(root, '[data-sg-dialog]', 'click', async () => {
+      // A dialog is for what can't be undone; what can come back gets an Undo toast instead (U2.03).
       const yes = await confirmDialog({
-        title: 'Archive SOP 14?',
-        body: 'It leaves the list and search, and the copilot stops citing it.',
-        confirm: 'Archive',
+        title: 'Revoke press-shop-edge?',
+        body: "The agent stops sending data at once, and its token can't be used again.",
+        confirm: 'Revoke',
+        tone: 'danger',
       });
-      ctx.toast(yes ? 'You chose Archive (nothing was archived)' : 'You cancelled');
+      ctx.toast(yes ? 'You chose Revoke (nothing was revoked)' : 'You cancelled');
     });
     onAll(root, '[data-sg-toast]', 'click', (el) => {
       const type = el.dataset.sgToast as 'success' | 'info' | 'warning' | 'error';

@@ -250,3 +250,18 @@ def archive_document(ctx: Editor, number: int) -> Response:
     )
     ctx.audit("document.archive", "document", str(number), before={"title": doc["title"]})
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/sites/{site_id}/documents/{number}/restore", response_model=DocumentOut)
+def restore_document(ctx: Editor, number: int) -> dict[str, Any]:
+    """Brings an archived document back to the list and search (the Undo after archiving one)."""
+    row = ctx.conn.execute(
+        "UPDATE documents SET archived_at = NULL"
+        " WHERE site_id = %s AND number = %s AND archived_at IS NOT NULL RETURNING number",
+        [ctx.site_id, number],
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No archived document with that number on this site")
+    doc = _document(ctx, number)
+    ctx.audit("document.restore", "document", str(number), after={"title": doc["title"]})
+    return doc

@@ -1,4 +1,4 @@
-import { esc, field, need, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
+import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
 import type { DocumentMatch, SiteDocument } from '../lib/api.ts';
 import {
   contentTypeOf,
@@ -10,7 +10,7 @@ import {
   titleFrom,
 } from '../lib/documents.ts';
 import type { Context, View } from './types.ts';
-import { confirmDialog } from '../lib/overlay.ts';
+import { removeNow } from '../lib/undo.ts';
 import {
   button,
   card,
@@ -224,25 +224,24 @@ const view: View = {
       listing = null;
       ctx.rerender();
     });
-    onAll(root, '[data-archive-doc]', 'click', async (el) => {
+    // Archived at once, with Undo (U2.03): it leaves the list and search until restored.
+    const refresh = () => {
+      listing = null;
+      found = null;
+      ctx.rerender();
+    };
+    onAction(root, '[data-archive-doc]', (el) => {
       const n = Number(el.dataset.archiveDoc);
       const doc = listing?.items?.find((d) => d.number === n);
       if (!doc) return;
-      const yes = await confirmDialog({
-        title: `Archive ${doc.title}?`,
-        body: 'It leaves the list and search, and the copilot stops citing it.',
-        confirm: 'Archive',
+      return removeNow({
+        toast: ctx.toast,
+        message: `Archived ${doc.title}`,
+        send: () => api.documents.archive(site, n).then(refresh),
+        undo: () => api.documents.restore(site, n),
+        restored: refresh,
+        restoredMessage: `Restored ${doc.title}`,
       });
-      if (!yes) return;
-      api.documents.archive(site, n).then(
-        () => {
-          ctx.toast(`Archived ${doc.title}`);
-          listing = null;
-          found = null;
-          ctx.rerender();
-        },
-        () => undefined,
-      );
     });
     const uploadForm = root.querySelector<HTMLFormElement>('#doc-upload');
     if (uploadForm) {

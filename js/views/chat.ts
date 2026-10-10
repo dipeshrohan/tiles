@@ -13,7 +13,7 @@ import {
 import type { CopilotConversation } from '../lib/api.ts';
 import { esc, need, onAction, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
-import { confirmDialog } from '../lib/overlay.ts';
+import { isRemoving, removeLater } from '../lib/undo.ts';
 import { emptyState, loadingState, button, pageHead, skeleton } from '../lib/ui.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
@@ -126,7 +126,10 @@ function answerBody(a: Answer, cited: Answer['tools'], conversation: string | nu
 
 function remoteRender(ctx: Context): string {
   const ui = uiState(ctx);
-  const list = remote?.conversations;
+  const api = ctx.api?.baseUrl ?? '';
+  const site = siteId(ctx) ?? '';
+  // Deleted with an Undo toast still showing (U2.03): kept out of the list.
+  const list = remote?.conversations?.filter((c) => !isRemoving({ kind: 'conversation', api, site, id: c.id }));
   const items =
     list === null || list === undefined
       ? skeleton.list()
@@ -306,24 +309,30 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
     rating = null;
     ctx.rerender();
   });
-  onAll(root, '[data-delete-conversation]', 'click', async () => {
+  // Deleted at once, with Undo (U2.03): sent when the toast goes, so Undo needs nothing back.
+  onAll(root, '[data-delete-conversation]', 'click', () => {
     const id = ui.conversation;
-    if (!ctx.api || !site || !id) return;
-    const yes = await confirmDialog({
-      title: 'Delete this conversation?',
-      body: 'Its questions and answers are deleted for good.',
-      confirm: 'Delete',
-      tone: 'danger',
-    });
-    if (!yes) return;
-    ctx.api.copilot.remove(site, id).then(
-      () => {
-        ui.conversation = null;
-        thread = null;
-        void loadRemote(ctx);
+    const api = ctx.api;
+    if (!api || !site || !id) return;
+    removeLater({
+      toast: ctx.toast,
+      message: 'Conversation deleted',
+      removal: { kind: 'conversation', api: api.baseUrl, site, id },
+      hide: () => {
+        if (ui.conversation === id) {
+          ui.conversation = null;
+          thread = null;
+        }
+        ctx.rerender();
       },
-      () => undefined, // the client showed why
-    );
+      restore: () => {
+        // Opened again only where it was, and if nothing else was opened meanwhile.
+        if (siteId(ctx) === site && !ui.conversation) ui.conversation = id;
+        ctx.rerender();
+      },
+      send: () => api.copilot.remove(site, id),
+      sent: () => loadRemote(ctx),
+    });
   });
   onAll(root, '[data-cite]', 'click', (el, e) => {
     e.preventDefault();

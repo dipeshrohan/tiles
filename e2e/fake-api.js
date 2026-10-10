@@ -1060,6 +1060,15 @@ export function createFakeApi({
             });
           return send(200, { query: url.searchParams.get('q'), matches });
         }
+        // Restore (the Undo after archiving, U2.03): an archived one only.
+        const back = url.pathname.slice(docsPath.length).match(/^\/(\d+)\/restore$/);
+        if (back && req.method === 'POST') {
+          if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+          const gone = siteDocuments.find((d) => d.number === Number(back[1]) && d.archived);
+          if (!gone) return send(404, { detail: 'No archived document with that number on this site' });
+          gone.archived = false;
+          return send(200, shown(gone));
+        }
         const m = url.pathname.slice(docsPath.length).match(/^\/(\d+)(\/file)?$/);
         const doc = m && live.find((d) => d.number === Number(m[1]));
         if (!doc) return send(404, { detail: 'No such document on this site' });
@@ -1077,9 +1086,18 @@ export function createFakeApi({
       // App Studio (T6.10): apps from the templates above; a result made up from the settings.
       const appsPath = `/sites/${site.id}/apps`;
       if (url.pathname === appsPath || url.pathname.startsWith(`${appsPath}/`)) {
+        const shown = (a) => ({ ...a, signal_tag: signals.find((x) => x.id === a.config.signal)?.tag ?? null });
+        // Restore (the Undo after archiving, U2.03): an archived one only.
+        const back = url.pathname.slice(appsPath.length).match(/^\/(\d+)\/restore$/);
+        if (back && req.method === 'POST') {
+          if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+          const gone = studioApps.find((a) => a.number === Number(back[1]) && a.archived);
+          if (!gone) return send(404, { detail: 'No archived app with that number on this site' });
+          gone.archived = false;
+          return send(200, shown(gone));
+        }
         const m = url.pathname.slice(appsPath.length).match(/^(?:\/(\d+))?(\/result)?$/);
         if (!m) return send(404, { detail: 'Not found' });
-        const shown = (a) => ({ ...a, signal_tag: signals.find((x) => x.id === a.config.signal)?.tag ?? null });
         const live = studioApps.filter((a) => !a.archived);
         const app = m[1] ? live.find((a) => a.number === Number(m[1])) : null;
         if (m[1] && !app) return send(404, { detail: 'No such app on this site' });

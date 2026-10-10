@@ -995,6 +995,8 @@ export function createApiClient(options: ApiOptions) {
         request<Blob>('GET', `/sites/${encodeURIComponent(siteId)}/documents/${n}/file`, undefined, { blob: true }),
       archive: (siteId: string, n: number) =>
         request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/documents/${n}`),
+      restore: (siteId: string, n: number) =>
+        request<SiteDocument>('POST', `/sites/${encodeURIComponent(siteId)}/documents/${n}/restore`),
     },
     // App Studio (T6.10): templates, and the site's apps made from them.
     appTemplates: () => request<AppTemplate[]>('GET', '/app-templates'),
@@ -1005,6 +1007,8 @@ export function createApiClient(options: ApiOptions) {
       update: (siteId: string, n: number, app: { name: string; config: AppConfig }) =>
         request<StudioApp>('PUT', `/sites/${encodeURIComponent(siteId)}/apps/${n}`, app),
       archive: (siteId: string, n: number) => request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/apps/${n}`),
+      restore: (siteId: string, n: number) =>
+        request<StudioApp>('POST', `/sites/${encodeURIComponent(siteId)}/apps/${n}/restore`),
       result: (siteId: string, n: number) =>
         request<AppResult>('GET', `/sites/${encodeURIComponent(siteId)}/apps/${n}/result`),
     },

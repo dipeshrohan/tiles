@@ -10806,6 +10806,59 @@
         ]
       }
     },
+    "/sites/{site_id}/apps/{number}/restore": {
+      "post": {
+        "description": "Brings an archived app back to the list (the Undo after archiving one).",
+        "operationId": "restore_app_sites__site_id__apps__number__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore App",
+        "tags": [
+          "apps"
+        ]
+      }
+    },
     "/sites/{site_id}/apps/{number}/result": {
       "get": {
         "description": "Runs the app on its signal's readings now: its status, in words, and the chart.",
@@ -12595,6 +12648,59 @@
           }
         },
         "summary": "Document File",
+        "tags": [
+          "documents"
+        ]
+      }
+    },
+    "/sites/{site_id}/documents/{number}/restore": {
+      "post": {
+        "description": "Brings an archived document back to the list and search (the Undo after archiving one).",
+        "operationId": "restore_document_sites__site_id__documents__number__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Document",
         "tags": [
           "documents"
         ]

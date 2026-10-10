@@ -245,7 +245,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* no `confirm()`, `alert()` or `prompt()` remains (a lint rule enforces it), and the a11y test opens each dialog.
 - [x] `U2.02` [#214](https://github.com/dipeshrohan/tiles/issues/214) **Toasts v2** · FE · 2d · U1.04
   *Done when:* an API error stays on screen with its request ID until dismissed, and screen readers announce it once.
-- [ ] `U2.03` [#215](https://github.com/dipeshrohan/tiles/issues/215) **Undo instead of confirm** · FE+BE · 3d · U2.02
+- [x] `U2.03` [#215](https://github.com/dipeshrohan/tiles/issues/215) **Undo instead of confirm** · FE+BE · 3d · U2.02
   *Done when:* each of the four can be undone from the toast, and a test proves the row is back.
 - [x] `U2.04` [#216](https://github.com/dipeshrohan/tiles/issues/216) **Skeletons and loading** · FE · 3d · U1.04
   *Done when:* every page that loads from the API shows a skeleton in its shape; layout shift (CLS) < 0.05 on page load.
