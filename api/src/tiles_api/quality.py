@@ -31,13 +31,12 @@ from datetime import UTC, datetime
 from typing import Any, Literal, LiteralString
 
 import psycopg
-from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel
 
 from tiles_api import telemetry
 from tiles_api.settings import get_settings
-from tiles_api.store import UNSCOPED
+from tiles_api.store import connect_job
 
 Badge = Literal["good", "warn", "bad", "unknown"]
 Check = Literal["gaps", "stuck", "range", "source", "unit", "silent"]
@@ -326,9 +325,7 @@ def main(argv: list[str] | None = None) -> None:
         parser.error("--hours must be above 0 and at most 720")
     failed = False
     # Autocommit, so each site's checks are their own transaction: one site failing keeps the others'.
-    with psycopg.connect(
-        get_settings().database_url.get_secret_value(), row_factory=dict_row, autocommit=True, options=UNSCOPED
-    ) as conn:
+    with connect_job(get_settings(), autocommit=True) as conn:
         sites = [args.site] if args.site else [r["id"] for r in conn.execute("SELECT id FROM sites ORDER BY slug")]
         for site in sites:
             try:

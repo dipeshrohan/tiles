@@ -49,7 +49,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor, SpanExporter
 from psycopg.rows import dict_row
 
 from tiles_api.settings import Settings, get_settings
-from tiles_api.store import UNSCOPED
+from tiles_api.store import connect_job
 
 VERSION = version("tiles-api")
 METER = metrics.get_meter("tiles")  # a proxy: records nothing until configure() sets a provider
@@ -120,7 +120,7 @@ def instrument(app: FastAPI, settings: Settings) -> None:
 
     # Anchored: only the health checks themselves, not a site's /signals/health or the like.
     FastAPIInstrumentor.instrument_app(app, excluded_urls=r"^https?://[^/]+/(health|ready)$")
-    watch(lambda: psycopg.connect(settings.database_url.get_secret_value(), options=UNSCOPED, connect_timeout=5))
+    watch(lambda: connect_job(settings, connect_timeout=5))
 
 
 def agent_rows(conn: Any) -> list[dict[str, Any]]:
@@ -201,7 +201,7 @@ def watch(connect: Callable[[], Any], max_age_s: float = 10) -> None:
                     with suppress_instrumentation(), connect() as conn:  # not a trace of its own each time
                         for k, query in queries.items():
                             cache[k] = query(conn)
-                except psycopg.Error as e:
+                except (psycopg.Error, RuntimeError) as e:  # RuntimeError: act_as_app refused the login
                     print(f"tiles telemetry: can't read the gauges ({e})", file=sys.stderr)
             return list(cache[kind])
 
@@ -266,9 +266,7 @@ def record_run(
     try:
         with (
             suppress_instrumentation(),
-            psycopg.connect(
-                settings.database_url.get_secret_value(), autocommit=True, options=UNSCOPED, connect_timeout=5
-            ) as conn,
+            connect_job(settings, autocommit=True, connect_timeout=5) as conn,
         ):
             conn.execute(
                 "INSERT INTO job_runs (command, outcome, started_at, finished_at, items_ok, items_failed)"
@@ -279,7 +277,7 @@ def record_run(
                 "DELETE FROM job_runs WHERE command = %s AND finished_at < now() - make_interval(days => %s)",
                 [name, KEEP_RUNS_DAYS],
             )
-    except psycopg.Error as e:
+    except (psycopg.Error, RuntimeError) as e:  # RuntimeError: act_as_app refused the login
         print(f"{name}: run not recorded ({e})", file=sys.stderr)
 
 
