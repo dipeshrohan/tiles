@@ -6,7 +6,7 @@ import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf, timeAgo } 
 import type { ApiSweep, DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
-import { pageHead, skeleton } from '../lib/ui.ts';
+import { emptyState, pageHead, skeleton } from '../lib/ui.ts';
 
 const defaults = (model: DesignModel): Params => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 const stepFor = (p: ParamSpec): number =>
@@ -184,7 +184,7 @@ function projectBar(ctx: Context, site: string): string {
                 `<option value="${esc(p.id)}" ${p.id === shown?.id ? 'selected' : ''}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? '' : 's'})</option>`,
             )
             .join('')}</select></label>`
-        : '<span class="small soft">No projects yet on this site.</span>';
+        : `<span class="small soft">No projects yet on this site${canWrite ? ': create one to keep runs together' : ''}.</span>`;
   const create = canWrite
     ? `<form id="new-project" class="row gap-2"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>`
     : '';
@@ -333,7 +333,25 @@ const view: View = {
                       <td class="num"><b>${fmt(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
                   })
                   .join('')}</tbody></table></div>`
-              : `<div class="empty">${site && !project ? 'Pick or create a project to see its runs.' : site && !fetched?.loaded ? skeleton.list(3, 'Loading runs…') : remote && !site ? '' : 'No runs yet. Adjust parameters and press “Save run”.'}</div>`
+              : site && !project
+                ? emptyState({
+                    illustration: 'select',
+                    compact: true,
+                    level: 3,
+                    title: 'Pick a project to see its runs',
+                    body: 'Runs are kept in a design project shared with the site. Pick one above, or create one.',
+                  })
+                : site && !fetched?.loaded
+                  ? skeleton.list(3, 'Loading runs…')
+                  : remote && !site
+                    ? ''
+                    : emptyState({
+                        illustration: 'chart',
+                        compact: true,
+                        level: 3,
+                        title: 'No runs yet',
+                        body: 'Adjust the parameters, then save a run: it keeps them with the output, so you can compare and restore them.',
+                      })
           }
         </div>
       </div>`;

@@ -108,7 +108,13 @@ function searchCard(ctx: Context): string {
     body = `<p class="small" role="alert">The search could not be run. ${button('Try again', { size: 'sm', attrs: { 'data-retry-search': true } })}</p>`;
   else if (ui.query.trim() && results === null) body = '<p class="small soft">Searching…</p>';
   else if (results && !results.length)
-    body = `<p class="small soft" data-no-matches>Nothing matches “${esc(ui.query)}”.</p>`;
+    body = `<div data-no-matches>${emptyState({
+      illustration: 'search',
+      compact: true,
+      level: 3,
+      title: `Nothing matches “${ui.query.trim()}”`,
+      body: 'Search finds whole words in the documents’ own language. Try fewer words, or other words for the same thing.',
+    })}</div>`;
   else if (results)
     body = `<ol class="stack doc-matches gap-2_5" data-matches>${results
       .map(

@@ -89,6 +89,24 @@ test('buttons and headings are in sentence case', () => {
   assert.deepEqual([...new Set(found)], []);
 });
 
+test('every empty state says why it is empty (a body), not only that it is', () => {
+  const calls = files.flatMap((f) => {
+    const src = source(f);
+    return [...src.matchAll(/\bemptyState\(\{/g)].map((m) => {
+      let depth = 0;
+      let k = m.index + 'emptyState('.length;
+      for (; k < src.length; k++) {
+        if (src[k] === '{') depth++;
+        else if (src[k] === '}' && --depth === 0) break;
+      }
+      return { f, call: src.slice(m.index, k + 1) };
+    });
+  });
+  assert.ok(calls.length > 20);
+  const bare = calls.filter((c) => !/\bbody(Html)?\s*[,:}]/.test(c.call)).map((c) => `${c.f}: ${c.call.slice(0, 80)}`);
+  assert.deepEqual(bare, []);
+});
+
 test('the checks catch what they are for', () => {
   assert.deepEqual(sentenceCase('Export As CSV'), ['As']);
   assert.deepEqual(sentenceCase('Open Settings'), []);

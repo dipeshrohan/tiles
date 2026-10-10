@@ -13,7 +13,7 @@ import {
 } from '../lib/importer.ts';
 import type { ImportRun } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
-import { pageHead, skeleton } from '../lib/ui.ts';
+import { emptyState, pageHead, skeleton } from '../lib/ui.ts';
 
 // Bulk import (T2.07): backfill readings from a CSV file or historian export. The file is
 // read here, in the browser, and sent to the Tiles API in batches; nothing is uploaded
@@ -219,7 +219,14 @@ function historyCard(): string {
 }
 
 export function historyTable(runs: ImportRun[]): string {
-  if (!runs.length) return '<p class="small soft">No imports on this site yet.</p>';
+  if (!runs.length)
+    return emptyState({
+      illustration: 'inbox',
+      compact: true,
+      level: 3,
+      title: 'No imports yet',
+      body: 'Files you import above are listed here, with who imported them and how many readings they added.',
+    });
   return `<div class="table-wrap"><table><thead><tr><th>File</th><th>By</th><th>Started</th><th>Readings</th><th>New</th><th>Status</th></tr></thead><tbody>${runs
     .map(
       (r) =>

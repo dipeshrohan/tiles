@@ -3,6 +3,7 @@ import { MODELS } from '../lib/design.ts';
 import { esc, fmt, timeAgo } from '../lib/dom.ts';
 import { icon } from '../lib/icons.ts';
 import type { View } from './types.ts';
+import { emptyState } from '../lib/ui.ts';
 
 const view: View = {
   id: 'home',
@@ -102,7 +103,21 @@ const view: View = {
         <div class="card">
           <div class="card-head"><h2>Recent activity</h2></div>
           <div class="feed">
-            ${feed.map((f) => `<a class="feed-item text-inherit no-underline" href="${f.href}"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join('') || '<div class="empty">No activity yet</div>'}
+            ${
+              feed
+                .map(
+                  (f) =>
+                    `<a class="feed-item text-inherit no-underline" href="${f.href}"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`,
+                )
+                .join('') ||
+              emptyState({
+                compact: true,
+                level: 3,
+                title: 'No activity yet',
+                bodyHtml:
+                  'Commits, design runs and warnings appear here as they happen. Start on the <a href="#/ontology">Ontology</a> page.',
+              })
+            }
           </div>
         </div>
       </div>`;

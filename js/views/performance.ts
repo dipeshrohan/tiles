@@ -3,7 +3,7 @@ import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
 // reported, live: per detector and in total, with what people resolved them as. Events are
@@ -94,7 +94,13 @@ function detectorsCard(ctx: Context, r: PerformanceReport): string {
       ${
         r.detectors.length
           ? `<div class="table-wrap"><table><thead><tr><th>Detector</th><th>Asset</th><th>Warnings</th><th>Events warned of</th><th>Followed by an event</th><th>False per day</th><th>Warning time (median, p10 to p90)</th><th>Resolved as</th></tr></thead><tbody>${rows}</tbody></table></div>`
-          : '<p class="small soft">No detectors yet. Detectors are set up through the Tiles API.</p>'
+          : emptyState({
+              illustration: 'chart',
+              compact: true,
+              level: 3,
+              title: 'No detectors yet',
+              body: 'Detectors watch a signal and raise warnings; an engineer sets them up through the Tiles API (see the admin guide). Their warnings are scored here against the events that followed.',
+            })
       }
       ${unwatched}
     </div>`;
@@ -116,7 +122,13 @@ function eventsCard(r: PerformanceReport): string {
       ${
         r.events.length
           ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Asset</th><th>Kind</th><th>Code</th><th>Warning</th></tr></thead><tbody>${rows}</tbody></table></div>`
-          : '<p class="small soft">No events of watched assets in this period. Events are readings on signals marked as downtime or scrap on the Signals page, with their asset.</p>'
+          : emptyState({
+              compact: true,
+              level: 3,
+              title: 'No events in this period',
+              bodyHtml:
+                'Events are readings on signals marked as downtime or scrap, with their asset. Mark them on the <a href="#/signals">Signals</a> page, or pick a longer period.',
+            })
       }
     </div>`;
 }

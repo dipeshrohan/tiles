@@ -107,7 +107,12 @@ function listCard(ctx: Context, ui: Ui): string {
               title: 'Nothing waits for a review',
               bodyHtml: 'Send staged changes from the <a href="#/ontology">Ontology</a> page.',
             })
-          : emptyState({ illustration: 'inbox', compact: true, title: 'No closed change requests yet' }));
+          : emptyState({
+              illustration: 'inbox',
+              compact: true,
+              title: 'No closed change requests yet',
+              body: 'Requests that were approved or rejected are kept here, with their discussion.',
+            }));
   return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${rows}</div></div>`;
 }
 
@@ -160,7 +165,7 @@ function detailCard(ctx: Context, ui: Ui): string {
       <h3 class="mt-3 mb-1_5 m-0">Changes <span class="small soft">${stats(r.stats)}</span></h3>
       <div class="diff review-diff">${diff}${changes.length > shown.length ? `<div>… ${changes.length - shown.length} more</div>` : ''}</div>
       <h3 class="mt-4 mb-1_5 m-0">Discussion</h3>
-      <div class="thread">${thread || '<p class="small muted">No comments yet.</p>'}</div>
+      <div class="thread">${thread || `<p class="small muted">No comments yet.${canWrite ? ' Ask a question or note what to change below; the author sees it here.' : ''}</p>`}</div>
       ${waiting}
       ${
         canWrite

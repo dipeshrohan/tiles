@@ -197,7 +197,11 @@ function chartFor(series: SignalSeries, range: Range): string {
       : '';
   return `<div class="explorer-chart" data-zoom>${chart}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
-    <p class="small soft" data-series-note>${esc(describe(series))}</p>`;
+    <p class="small soft" data-series-note>${esc(describe(series))}${
+      series.points.length
+        ? ''
+        : ': choose Latest data to see the 24 hours up to its latest reading, or a longer range.'
+    }</p>`;
 }
 
 const localInput = (isoTime: string): string => {
@@ -316,7 +320,7 @@ function bindSearch(root: HTMLElement, ctx: Context): void {
               `<button class="btn sm" type="button" data-add="${esc(s.id)}">+ ${esc(s.tag)}${s.unit ? ` <span class="soft">${esc(s.unit)}</span>` : ''}</button>`,
           )
           .join('')
-      : '<span class="small soft">No other signals match.</span>';
+      : '<span class="small soft">No other signals match: try part of a tag, or its unit.</span>';
     onAll(list, '[data-add]', 'click', (el) => {
       const s = choices.find((c) => c.id === el.dataset.add);
       if (s) add(ctx, s);

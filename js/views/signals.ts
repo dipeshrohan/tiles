@@ -1,11 +1,13 @@
-import { esc, field, fmt, onAll } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
 import {
   badge,
   button,
   card,
+  emptyState,
   field as labelled,
+  linkButton,
   input,
   needsApi,
   pageHead,
@@ -233,8 +235,26 @@ function editRow(ctx: Context, s: SignalInfo): string {
 }
 
 export function resultsTable(ctx: Context, page: { total: number; signals: SignalInfo[] }, canEdit: boolean): string {
-  if (!page.signals.length)
-    return '<p class="small soft">No signals match. Signals appear here once an edge agent or an import sends their readings.</p>';
+  if (!page.signals.length) {
+    const searched = Object.values(ui(ctx).query).some(Boolean);
+    return searched
+      ? emptyState({
+          illustration: 'search',
+          compact: true,
+          level: 3,
+          title: 'No signals match',
+          body: 'Try other words or filters, or clear them to see every signal.',
+          action: button('Clear search', { size: 'sm', attrs: { 'data-clear-search': true } }),
+        })
+      : emptyState({
+          illustration: 'chart',
+          compact: true,
+          level: 3,
+          title: 'No signals yet',
+          body: 'Signals appear here once an edge agent or an import sends their readings.',
+          action: linkButton('Import data', '#/import', { variant: 'primary', size: 'sm', icon: 'upload' }),
+        });
+  }
   const { editing, open } = ui(ctx);
   const more =
     page.total > page.signals.length
@@ -628,6 +648,12 @@ const view: View = {
     };
     form.addEventListener('input', update);
     form.addEventListener('change', update);
+    root.addEventListener('click', (e) => {
+      if (!(e.target instanceof Element) || !e.target.closest('[data-clear-search]')) return;
+      for (const el of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[name]')) el.value = '';
+      update();
+      need<HTMLInputElement>(form, '[name=q]').focus();
+    });
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       update();

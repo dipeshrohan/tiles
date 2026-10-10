@@ -150,11 +150,11 @@ function evidence(i: Insight): string {
 function detailCard(ctx: Context): string {
   const n = selected();
   if (n === null)
-    return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an insight' })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an insight', body: 'Its evidence, proposed actions and review appear here.' })}</div>`;
   if (detail?.key !== detailKey(ctx)) return `<div class="card">${skeleton.card()}</div>`;
   const i = detail.insight;
   if (!i)
-    return `<div class="card">${emptyState({ illustration: 'error', alert: true, title: `Insight #${n} could not be loaded` })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'error', alert: true, title: `Insight #${n} could not be loaded`, body: 'It may not exist on this site, or the Tiles API didn’t answer (the notice says why). Choose another, or refresh.' })}</div>`;
   const may = mayDo(i, ctx.ontology.userId, ctx.ontology.role);
   const key = `${detailKey(ctx)}|${i.updated_at}`;
   const link = sourceLink(i);
