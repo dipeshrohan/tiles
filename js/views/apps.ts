@@ -330,7 +330,7 @@ const view: View = {
       delete values.__name;
       draft.values = values;
     });
-    onSubmit(root, '#app-form', (f) => void save(ctx, f));
+    onSubmit(root, '#app-form', (f) => save(ctx, f));
     onAll(root, '[data-retry-templates]', 'click', () => {
       templates = null;
       ctx.rerender();

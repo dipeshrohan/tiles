@@ -354,7 +354,7 @@ const view: View = {
       if (!name) return void ctx.toast('Give the batch table a name');
       const file = chosen.file;
       chosen = { file: null, name: '' };
-      void uploadFile(ctx, file, name);
+      return uploadFile(ctx, file, name);
     });
     // Every choice is kept as it is made, so a re-render never loses it.
     const form = root.querySelector<HTMLFormElement>('#correlate-form');
@@ -375,7 +375,7 @@ const view: View = {
     form?.querySelector<HTMLInputElement>('[name=ng]')?.addEventListener('input', (e) => {
       ui.ngText = (e.target as HTMLInputElement).value;
     });
-    onSubmit(root, '#correlate-form', () => void find(ctx));
+    onSubmit(root, '#correlate-form', () => find(ctx));
     onAll(root, '[data-save-insight]', 'click', () => {
       if (!result || !detail) return;
       saving = { key: result.key, text: correlationDraft(result.dataset, result.data) };
@@ -388,7 +388,7 @@ const view: View = {
         saving = null;
         ctx.rerender();
       });
-      onSubmit(root, '#insight-save', () => void saveInsight(ctx));
+      onSubmit(root, '#insight-save', () => saveInsight(ctx));
     }
     onAll(root, '[data-delete-dataset]', 'click', () => void removeDataset(ctx));
   },

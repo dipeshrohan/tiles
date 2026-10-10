@@ -111,7 +111,7 @@ async function fillScim(root: HTMLElement, ctx: Context): Promise<void> {
   });
   onSubmit(box, '#scim-token-form', (form) => {
     const name = field(form, 'name').trim();
-    api.org.createScimToken(name).then(
+    return api.org.createScimToken(name).then(
       ({ token }) => {
         revealed = { name, token, apiUrl: api.baseUrl, user: ctx.state.user.email };
         return fillScim(root, ctx);
@@ -150,7 +150,7 @@ export async function bindOrgSignIn(root: HTMLElement, ctx: Context): Promise<vo
       enforced: (form.elements.namedItem('enforced') as HTMLInputElement).checked,
     });
     if (!body) return ctx.toast(errors.join('. '));
-    api.org.setIdentityProvider(body).then(
+    return api.org.setIdentityProvider(body).then(
       () => {
         ctx.toast('Organisation sign-in saved');
         return bindOrgSignIn(root, ctx);

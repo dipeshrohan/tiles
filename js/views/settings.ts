@@ -303,7 +303,7 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
     });
     onSubmit(root, '#notify-prefs', () => {
       const prefs = { on_raised: box('on_raised').checked, on_assigned: box('on_assigned').checked };
-      api.notifications.setPreferences(site.id, prefs).then(
+      return api.notifications.setPreferences(site.id, prefs).then(
         (p) => {
           delete draft.on_raised;
           delete draft.on_assigned;
@@ -351,7 +351,7 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
       ctx.toast('Paste the channel’s webhook URL');
       return;
     }
-    void save(url || undefined); // no URL: keep the channel, change only what it hears of
+    return save(url || undefined); // no URL: keep the channel, change only what it hears of
   });
   onAll(root, '[data-teams-remove]', 'click', async () => {
     const yes = await confirmDialog({
@@ -553,7 +553,7 @@ function bindAgents(root: HTMLElement, ctx: Context): void {
   void fillAgents(root, ctx);
   onSubmit(root, '#agent-form', (form) => {
     const name = field(form, 'name').trim();
-    api.agents.register(site.id, name).then(
+    return api.agents.register(site.id, name).then(
       ({ token }) => {
         revealed = { name, token, apiUrl: api.baseUrl, siteId: site.id, user: viewer(ctx) };
         form.reset();
@@ -666,7 +666,7 @@ const view: View = {
     bindAgents(root, ctx);
     void fillNotifications(root, ctx);
     onAll(root, '[data-sign-in]', 'click', () => void ctx.auth.signIn());
-    onSubmit(root, '#org-sign-in-form', (form) => void ctx.auth.signIn(field(form, 'org')));
+    onSubmit(root, '#org-sign-in-form', (form) => ctx.auth.signIn(field(form, 'org')));
     onAll(root, '[data-sign-out]', 'click', () => void ctx.auth.signOut());
     void bindOrgSignIn(root, ctx);
     onAll(root, '[data-reset]', 'click', async () => {

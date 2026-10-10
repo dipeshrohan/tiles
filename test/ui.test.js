@@ -76,7 +76,8 @@ test('skeletons come in the shape of what loads', () => {
 test('a busy button keeps its label (and width and name) under a spinner, and waits', () => {
   const html = button('Save', { variant: 'primary', busy: true });
   assert.match(html, /^<button class="btn primary busy" type="button" disabled aria-busy="true">/);
-  assert.match(html, /<span class="btn-label">Save<\/span><span class="btn-spinner" aria-hidden="true"><svg/);
+  // The spinner is drawn by the stylesheet (so dom.ts can make any button busy without the icons).
+  assert.match(html, /<span class="btn-label">Save<\/span><span class="btn-spinner" aria-hidden="true"><\/span>/);
 });
 
 test('every illustration is a decorative picture that follows the theme', () => {

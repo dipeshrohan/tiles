@@ -56,20 +56,71 @@ export function onAll<K extends keyof HTMLElementEventMap>(
   root.querySelectorAll<HTMLElement>(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e)));
 }
 
+// Puts a button already on the page into (or out of) its busy state, as button({ busy }) in ui.ts
+// draws it: disabled, aria-busy, a spinner over its label (which keeps its width).
+export function setBusy(el: HTMLButtonElement, busy: boolean): void {
+  el.disabled = busy;
+  el.classList.toggle('busy', busy);
+  const label = el.querySelector('.btn-label');
+  if (busy) {
+    el.setAttribute('aria-busy', 'true');
+    if (!label)
+      el.innerHTML = `<span class="btn-label">${el.innerHTML}</span><span class="btn-spinner" aria-hidden="true"></span>`;
+  } else {
+    el.removeAttribute('aria-busy');
+    if (label) el.innerHTML = label.innerHTML;
+  }
+}
+
 // Submit handler for a form found by selector, if present.
-// The handler also gets the button that submitted the form, when there is one.
+// The handler also gets the button that submitted the form, when there is one. A handler that
+// returns a promise (its request) holds the form while it runs (U2.08): the button that sent it is
+// busy, and sending it again does nothing until it is done.
 export function onSubmit(
   root: ParentNode,
   sel: string,
-  handler: (form: HTMLFormElement, submitter: HTMLElement | null) => void,
+  handler: (form: HTMLFormElement, submitter: HTMLElement | null) => unknown,
 ): void {
   const form = root.querySelector<HTMLFormElement>(sel);
   if (!form) return;
   form.noValidate = true; // checked here instead, with errors on the fields (U2.07)
   form.addEventListener('submit', (e) => {
     e.preventDefault();
+    if (form.dataset.sending) return;
     if (!checkOnSubmit(form)) return;
-    handler(form, e.submitter);
+    const button =
+      e.submitter instanceof HTMLButtonElement
+        ? e.submitter
+        : form.querySelector<HTMLButtonElement>('button[type=submit], button:not([type])');
+    hold(form, button, handler(form, e.submitter));
+  });
+}
+
+// A button's click handler that returns a promise holds the button the same way: busy, and not
+// pressed twice (a double click sends one request).
+export function onAction(root: ParentNode, sel: string, handler: (el: HTMLButtonElement) => unknown): void {
+  root.querySelectorAll<HTMLButtonElement>(sel).forEach((el) =>
+    el.addEventListener('click', () => {
+      if (el.dataset.sending) return;
+      hold(el, el, handler(el));
+    }),
+  );
+}
+
+// A page that draws itself again at once (to show the change, or its own busy state) replaces the
+// button: the new one shows what the page says, and the page's own flag keeps a second request out.
+function hold(owner: HTMLElement, button: HTMLButtonElement | null, work: unknown): void {
+  if (!(work instanceof Promise)) return;
+  owner.dataset.sending = 'true';
+  const wasDisabled = button?.disabled ?? false;
+  if (button) setBusy(button, true);
+  // A failure is still reported as before (unhandled, so the console and error capture see it).
+  void work.finally(() => {
+    delete owner.dataset.sending;
+    if (button?.isConnected) {
+      setBusy(button, false);
+      button.disabled = wasDisabled;
+    }
   });
 }
 

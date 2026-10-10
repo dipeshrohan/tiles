@@ -292,6 +292,7 @@ export function createFakeApi({
   let requestIds = 0; // numbers the request IDs
   let sitesFailures = 0; // the next lists of sites that fail, as an API still starting would
   const plannedFailures = []; // { method, path (RegExp), status, detail }, from failNext
+  const plannedDelays = []; // { method, path (RegExp), ms }, from slowNext
   let searchFailures = 0; // the next document searches that fail
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
@@ -454,6 +455,12 @@ export function createFakeApi({
     if (req.method === 'OPTIONS') return send(204);
     const url = new URL(req.url, 'http://fake');
     requests.push(`${req.method} ${url.pathname}`);
+    // A slow answer a test asked for (slowNext): the next matching request waits first, once.
+    const slow = plannedDelays.findIndex((d) => d.method === req.method && d.path.test(url.pathname));
+    if (slow >= 0) {
+      const [d] = plannedDelays.splice(slow, 1);
+      await new Promise((r) => setTimeout(r, d.ms));
+    }
     // A failure a test asked for (failNext): the next matching request gets it, once.
     const planned = plannedFailures.findIndex((f) => f.method === req.method && f.path.test(url.pathname));
     if (planned >= 0) {
@@ -1892,6 +1899,10 @@ export function createFakeApi({
     // Answers the next `method` request to a path matching `path` with `status` and `detail`.
     failNext(method, path, status, detail) {
       plannedFailures.push({ method, path, status, detail });
+    },
+    // Makes the next matching request wait `ms` before it is answered (a slow API, U2.08).
+    slowNext(method, path, ms) {
+      plannedDelays.push({ method, path, ms });
     },
     // Makes the next `n` lists of sites fail: the app can't connect until they pass.
     failSites(n) {
