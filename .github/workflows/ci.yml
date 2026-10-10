@@ -359,6 +359,63 @@ jobs:
           kubectl describe pods
           for pod in $(kubectl get pods -o name); do kubectl logs "$pod" --all-containers --tail=80 || true; done
 
+  copilot-eval:
+    # The copilot's evaluation gate (T4.06): every case of api/src/tiles_api/evaluation/cases.json
+    # asked of Claude on the evaluation plant; at least 85% correct, no unsupported claims, 90% of
+    # tools chosen right. It needs the repository's TILES_ANTHROPIC_API_KEY secret and
+    # TILES_COPILOT_MODEL variable; without them it says so and passes.
+    name: Copilot evaluation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: api
+    services:
+      db:
+        image: mirror.gcr.io/timescale/timescaledb:2.30.2-pg17
+        env:
+          POSTGRES_USER: tiles
+          POSTGRES_PASSWORD: tiles-ci
+          POSTGRES_DB: tiles
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U tiles -d tiles"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TILES_DATABASE_URL: postgresql://tiles:tiles-ci@localhost:5432/tiles
+      TILES_ANTHROPIC_API_KEY: ${{ secrets.TILES_ANTHROPIC_API_KEY }}
+      TILES_COPILOT_MODEL: ${{ vars.TILES_COPILOT_MODEL }}
+    steps:
+      - name: Without the copilot's settings there is nothing to evaluate
+        if: env.TILES_ANTHROPIC_API_KEY == '' || env.TILES_COPILOT_MODEL == ''
+        working-directory: .
+        run: echo "::notice::Set the TILES_ANTHROPIC_API_KEY secret and the TILES_COPILOT_MODEL variable to run the copilot's evaluation"
+      - uses: actions/checkout@v4
+        if: env.TILES_ANTHROPIC_API_KEY != '' && env.TILES_COPILOT_MODEL != ''
+      - uses: astral-sh/setup-uv@v6
+        if: env.TILES_ANTHROPIC_API_KEY != '' && env.TILES_COPILOT_MODEL != ''
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - name: Ask every case, and hold the answers to the gate
+        if: env.TILES_ANTHROPIC_API_KEY != '' && env.TILES_COPILOT_MODEL != ''
+        run: |
+          uv sync --locked
+          uv run tiles-migrate upgrade
+          status=0
+          uv run tiles-evaluate --report "$RUNNER_TEMP/evaluation.md" --json "$RUNNER_TEMP/evaluation.json" || status=$?
+          cat "$RUNNER_TEMP/evaluation.md" >> "$GITHUB_STEP_SUMMARY" || true
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always() && env.TILES_ANTHROPIC_API_KEY != '' && env.TILES_COPILOT_MODEL != ''
+        with:
+          name: copilot-evaluation
+          path: ${{ runner.temp }}/evaluation.*
+          if-no-files-found: ignore
+
   monitoring:
     name: Alert rules and collector configuration
     runs-on: ubuntu-latest

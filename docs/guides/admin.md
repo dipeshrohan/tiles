@@ -373,6 +373,16 @@ It also shows usage by person, the limits, and how much of today's organisation 
 
 To rotate the API key, create a new key with Anthropic, update the secret, restart the API, then revoke the old key.
 
+### The evaluation gate
+
+Before you change `TILES_COPILOT_MODEL`, evaluate the copilot with the new model. `uv run tiles-evaluate` (from `api/`, with `TILES_DATABASE_URL`, `TILES_ANTHROPIC_API_KEY` and `TILES_COPILOT_MODEL` set) loads a known plant into a new site of a `copilot-evaluation` organisation. That plant is a die-casting line with its ontology, signals, warnings, downtime events and an SOP. The command asks the evaluation set's questions, from `api/src/tiles_api/evaluation/cases.json`, and scores each answer:
+
+- **accuracy:** the answer states the expected facts, or declines when the data can't answer;
+- **unsupported claims:** whether the answer it kept states something no tool result it cites holds;
+- **tool choice:** whether it called the expected tools.
+
+It prints a report and exits 1 below the gate: 85% accuracy, no unsupported claims and 90% tool choice. Use a test database, not production: each run adds a site. CI runs it on every push when the repository has the `TILES_ANTHROPIC_API_KEY` secret and the `TILES_COPILOT_MODEL` variable. The partner's own questions (T4.05) join the set in the same form.
+
 ## 8. Scheduled jobs
 
 Each job is a command from the API package. It runs over every site, then exits. With Helm, each is a CronJob; schedules are in UTC. A run that overlaps the next makes the next one wait (`concurrencyPolicy: Forbid`), and a run is stopped after 30 minutes (`jobDefaults.activeDeadlineSeconds`).

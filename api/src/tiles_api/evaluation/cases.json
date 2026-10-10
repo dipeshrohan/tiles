@@ -1,0 +1,110 @@
+{
+  "about": "The copilot's evaluation set (T4.06) on the plant in plant.py. A case is a question, the tools the copilot must call, the facts its answer must state (a list inside the list: any one of them; a number matches within 0.5%), what it must not say, and whether the right answer is to decline. T4.05 adds the partner's real questions, on the partner's data, in the same form.",
+  "cases": [
+    {
+      "id": "machines-on-line",
+      "question": "Which machines are on Line 2?",
+      "tools": ["graph_query"],
+      "facts": ["DC-01", "DC-02"],
+      "absent": ["Old trim press"]
+    },
+    {
+      "id": "plc-protocol",
+      "question": "Which PLC controls the DC-02 cell, and which protocol does it use?",
+      "tools": ["graph_query"],
+      "facts": ["PLC DC-02", "MQTT"]
+    },
+    {
+      "id": "machine-vendor",
+      "question": "Who built the DC-01 die-casting cell?",
+      "tools": ["graph_query"],
+      "facts": [["Bühler", "Buhler", "Buehler"]]
+    },
+    {
+      "id": "ontology-problems",
+      "question": "Is anything wrong with how the plant is modelled in the ontology?",
+      "tools": ["ontology_health"],
+      "facts": ["Old trim press"]
+    },
+    {
+      "id": "signal-count",
+      "question": "How many signals does this site have?",
+      "tools": ["site_overview"],
+      "facts": ["5"]
+    },
+    {
+      "id": "signal-unit",
+      "question": "What unit is the shot speed of DC-01 measured in?",
+      "tools": ["find_signals"],
+      "facts": ["m/s"]
+    },
+    {
+      "id": "last-pressure",
+      "question": "What was the last hydraulic pressure reading on DC-01?",
+      "tools": ["time_series"],
+      "facts": ["152"]
+    },
+    {
+      "id": "peak-pressure",
+      "question": "What was the highest hydraulic pressure on DC-01 over the last day?",
+      "tools": ["time_series"],
+      "facts": ["158"]
+    },
+    {
+      "id": "mean-speed",
+      "question": "What was the average shot speed on DC-01 over the last day?",
+      "tools": ["time_series"],
+      "facts": ["4.5"]
+    },
+    {
+      "id": "die-temperature-trend",
+      "question": "Is the die temperature on DC-02 drifting? Run a wear check on it.",
+      "tools": ["wear_check"],
+      "facts": [["wear", "rising", "risen", "increas", "drift", "higher", "upward"]]
+    },
+    {
+      "id": "open-warnings",
+      "question": "How many warnings are open on this site?",
+      "tools": ["events"],
+      "facts": ["2"]
+    },
+    {
+      "id": "warning-signal",
+      "question": "Which signal raised the warnings, and how high did it go?",
+      "tools": ["events"],
+      "facts": ["dc01.plunger_friction", "15"]
+    },
+    {
+      "id": "downtime-codes",
+      "question": "Which downtime events were recorded on DC-01 recently? Give their codes.",
+      "tools": ["events"],
+      "facts": ["DT-HYD", "DT-TIP"]
+    },
+    {
+      "id": "sop-plunger-tip",
+      "question": "According to our SOPs, when should the plunger tip be replaced?",
+      "tools": ["search_documents"],
+      "facts": ["20000"]
+    },
+    {
+      "id": "sop-pressure-range",
+      "question": "What hydraulic pressure does the start-up SOP require before starting a cell?",
+      "tools": ["search_documents"],
+      "facts": ["140", "160"]
+    },
+    {
+      "id": "unknown-machine",
+      "question": "What is the spindle speed of the DC-03 cell right now?",
+      "tools": [],
+      "facts": [],
+      "decline": true
+    },
+    {
+      "id": "unknown-metric",
+      "question": "What was the OEE of Line 2 last month?",
+      "tools": [],
+      "facts": [],
+      "decline": true
+    }
+  ]
+}

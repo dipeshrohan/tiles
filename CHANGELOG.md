@@ -41,7 +41,8 @@ The first version: everything up to the pilot. Not yet tagged.
   - Claude with read-only tools over the site's data;
   - grounded answers;
   - proposals for ontology changes, which go through review;
-  - cost controls per question, organisation and day.
+  - cost controls per question, organisation and day;
+  - **an evaluation gate** (`tiles-evaluate`): questions about a known plant asked of the copilot and scored on accuracy, unsupported claims and tool choice, run in CI when the copilot's key is set (T4.06).
 - **Platform:**
   - **accessibility (WCAG 2.1 AA):** every page tested with axe in light and dark; text contrast raised to 4.5:1; charts described to screen readers, with their numbers; a skip link, the current page marked in the menu, underlined links in text, and less motion when asked (T5.18);
   - single sign-on (OIDC) with site roles;

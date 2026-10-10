@@ -37,6 +37,7 @@ tiles-rotate-keys = "tiles_api.sealed:main"
 tiles-loadtest = "tiles_api.loadtest:main"
 tiles-apidoc = "tiles_api.apidoc:main"
 tiles-sandbox = "tiles_api.sandbox.server:main"
+tiles-evaluate = "tiles_api.evaluation:main"
 
 [dependency-groups]
 dev = [
