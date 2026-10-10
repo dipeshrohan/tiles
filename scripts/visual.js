@@ -33,4 +33,6 @@ const run = spawnSync(
   ],
   { stdio: 'inherit' },
 );
+if (run.error)
+  console.error(`Can't run Docker (${run.error.message}): the visual tests run in its Playwright container.`);
 process.exit(run.status ?? 1);

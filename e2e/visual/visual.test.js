@@ -10,7 +10,7 @@
 // screenshot and a diff (changed pixels in red over a faded copy) to e2e/visual/output/.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { createTilesServer } from '../../server.js';
@@ -19,7 +19,7 @@ import { createFakeApi } from '../fake-api.js';
 const UPDATE = process.argv.includes('--update') || process.env.UPDATE_VISUAL === '1';
 const BASELINES = join(import.meta.dirname, 'baselines');
 const OUTPUT = join(import.meta.dirname, 'output');
-const CHANNEL = 32;
+const CHANNEL = 12; // antialiasing moves a few levels; a colour token change moves more
 const MAX_SHARE = 0.001; // 0.1% of the pixels
 // A fixed clock: the synthetic plant data and every "n min ago" are the same at each run.
 const NOW = new Date('2026-10-01T09:00:00Z');
@@ -59,9 +59,9 @@ let browser;
 let server;
 let base;
 let compare; // a page that compares two PNGs
+const written = new Set(); // baselines this run took
 
 before(async () => {
-  if (UPDATE) rmSync(BASELINES, { recursive: true, force: true });
   rmSync(OUTPUT, { recursive: true, force: true });
   mkdirSync(BASELINES, { recursive: true });
   browser = await chromium.launch();
@@ -72,6 +72,11 @@ before(async () => {
 });
 
 after(async () => {
+  // An update overwrites the baselines it takes; one no test took (a page gone) is named, not deleted.
+  if (UPDATE) {
+    const stale = readdirSync(BASELINES).filter((f) => !written.has(f));
+    if (stale.length) console.log(`Baselines no test took (delete them if their page is gone): ${stale.join(', ')}`);
+  }
   await browser?.close();
   await new Promise((resolve) => server?.close(resolve));
 });
@@ -90,15 +95,28 @@ async function newPage(variant) {
 // Settled: fonts loaded, nothing animating, no caret blinking, the pointer out of the way.
 async function settle(page) {
   await page.mouse.move(0, 0);
+  // Toasts come and go (and an error's carries its request ID): dismissed, as a user would.
+  for (const close of await page.locator('#toast .toast-close').all()) await close.click().catch(() => {});
+  await page.waitForSelector('#toast .toast-item', { state: 'detached' });
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})));
     document.activeElement instanceof HTMLElement && document.activeElement.blur();
-    // Toasts come and go (and an error's carries its request ID): not part of the page.
-    for (const t of document.querySelectorAll('#toast > *')) t.remove();
-    document.querySelector('#toast')?.classList.remove('show');
   });
   await page.waitForTimeout(100);
+}
+
+// A screenshot the page has settled into: taken until two in a row are the same (a long page's
+// full-page capture can catch a layout still moving), as Playwright's own toHaveScreenshot does.
+async function stableShot(page, options = {}) {
+  let last = await page.screenshot(options);
+  for (let i = 0; i < 4; i++) {
+    await page.waitForTimeout(150);
+    const next = await page.screenshot(options);
+    if (next.equals(last)) return next;
+    last = next;
+  }
+  return last;
 }
 
 // How many pixels differ, and a picture of where.
@@ -120,11 +138,23 @@ async function diff(expected, actual) {
       const pb = canvas(y).getImageData(0, 0, y.width, y.height).data;
       let changed = 0;
       const out = ca.createImageData(x.width, x.height);
+      const o = out.data;
+      const p = pa.data;
       for (let i = 0; i < pb.length; i += 4) {
-        const moved = [0, 1, 2].some((k) => Math.abs(pa.data[i + k] - pb[i + k]) > channel);
-        if (moved) changed++;
-        const grey = (pa.data[i] + pa.data[i + 1] + pa.data[i + 2]) / 3;
-        out.data.set(moved ? [230, 20, 60, 255] : [grey, grey, grey, 60], i);
+        const moved =
+          Math.abs(p[i] - pb[i]) > channel ||
+          Math.abs(p[i + 1] - pb[i + 1]) > channel ||
+          Math.abs(p[i + 2] - pb[i + 2]) > channel;
+        if (moved) {
+          changed++;
+          o[i] = 230;
+          o[i + 1] = 20;
+          o[i + 2] = 60;
+          o[i + 3] = 255;
+        } else {
+          o[i] = o[i + 1] = o[i + 2] = (p[i] + p[i + 1] + p[i + 2]) / 3;
+          o[i + 3] = 60;
+        }
       }
       if (!changed) return { changed, total: pb.length / 4, png: null };
       const d = new OffscreenCanvas(x.width, x.height);
@@ -141,12 +171,15 @@ async function diff(expected, actual) {
 
 async function check(name, shot) {
   const file = join(BASELINES, `${name}.png`);
+  written.add(`${name}.png`);
   if (UPDATE || !existsSync(file)) {
     assert.ok(UPDATE, `no baseline for ${name}: run npm run test:visual -- --update`);
     writeFileSync(file, shot);
     return;
   }
-  const result = await diff(readFileSync(file), shot);
+  const expected = readFileSync(file);
+  if (expected.equals(shot)) return; // the same browser makes the same file: nothing to compare
+  const result = await diff(expected, shot);
   const share = result.changed / result.total;
   if (share <= MAX_SHARE) return;
   mkdirSync(OUTPUT, { recursive: true });
@@ -162,40 +195,56 @@ async function check(name, shot) {
 
 const slug = (route) => (route || 'home').replace(/\//g, '-');
 
+test('every page is in the list', () => {
+  const views = join(import.meta.dirname, '../../js/views');
+  const ids = readdirSync(views)
+    .flatMap((f) => [...readFileSync(join(views, f), 'utf8').matchAll(/^ {2}id: '([\w-]+)',$/gm)].map((m) => m[1]))
+    .map((id) => (id === 'home' ? '' : id));
+  assert.deepEqual(
+    ids.filter((id) => !PAGES.includes(id)),
+    [],
+  );
+});
+
 for (const variant of VARIANTS) {
   test(`every page looks as it did (${variant.name})`, async () => {
-    const page = await newPage(variant);
     const failures = [];
+    // Each page in a fresh tab: nothing carries over from the page before, and it is the page asked
+    // for that has rendered (its title is in the tab's).
     for (const route of PAGES) {
-      await page.goto(`${base}#/${route}`);
-      await page.waitForSelector('#view > *');
-      await settle(page);
+      const page = await newPage(variant);
       try {
-        await check(`${slug(route)}.${variant.name}`, await page.screenshot());
+        await page.goto(`${base}#/${route}`);
+        await page.waitForSelector('#view > *');
+        await settle(page);
+        await check(`${slug(route)}.${variant.name}`, await stableShot(page, { fullPage: true }));
       } catch (e) {
-        failures.push(e.message);
+        failures.push(`${route || 'home'}: ${e.message}`);
+      } finally {
+        await page.close();
       }
     }
-    await page.close();
     assert.deepEqual(failures, []);
   });
 }
 
 // States a page only shows now and then: with the API (fake, answering at once), and a dialog open.
-test('states look as they did: empty, error, a dialog', async () => {
+test('states look as they did: empty, error, a dialog', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
+  t.after(() => fake.close());
   const failures = [];
   const shoot = async (name, variant, go) => {
     const page = await newPage(variant);
     try {
       await go(page);
       await settle(page);
-      await check(`state-${name}.${variant.name}`, await page.screenshot());
+      await check(`state-${name}.${variant.name}`, await stableShot(page));
     } catch (e) {
       failures.push(`${name}.${variant.name}: ${e.message}`);
+    } finally {
+      await page.close();
     }
-    await page.close();
   };
   const api = `${base}?api=${encodeURIComponent(apiUrl)}`;
   for (const variant of VARIANTS.slice(0, 2)) {
@@ -218,6 +267,5 @@ test('states look as they did: empty, error, a dialog', async () => {
       await page.waitForSelector('dialog.dialog[open]');
     });
   }
-  await fake.close();
   assert.deepEqual(failures, []);
 });

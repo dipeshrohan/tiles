@@ -10,7 +10,7 @@ Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontolog
 - `npm run lint`: ESLint and Prettier check. `npm run format` fixes formatting and rebuilds.
 - `npm run typecheck`: strict TypeScript (`tsc`, includes `noUncheckedIndexedAccess`).
 - `npm test`: Vitest unit tests, including the bundle freshness check.
-- `npm run test:visual`: visual regression tests (U1.08, `e2e/visual/`): every page in light, dark and on a phone, plus empty, error and dialog states, compared with the PNG baselines in `e2e/visual/baselines/`, in the Playwright container (Docker) so fonts match CI's Visual regression job; differences land in `e2e/visual/output/` (a CI artefact). After a deliberate visual change run `npm run test:visual -- --update` and say why in the PR.
+- `npm run test:visual`: visual regression tests (U1.08, `e2e/visual/`): every page (full length, each in a fresh tab; a test fails when a page in `js/views/` is missing from its list) in light, dark and on a phone, plus empty, error and dialog states, compared with the PNG baselines in `e2e/visual/baselines/`, in the Playwright container (Docker) so fonts match CI's Visual regression job; differences land in `e2e/visual/output/` (a CI artefact). After a deliberate visual change run `npm run test:visual -- --update` and say why in the PR.
 - `npm run test:e2e`: Playwright smoke tests. In Claude Code cloud sessions Chromium is preinstalled; do not run `playwright install` there.
 - `npm start`: serve on http://localhost:5173.
 - `docker compose up --build --wait`: full stack (TimescaleDB, Redis, API on 8000, web on 5173); `docker compose down -v` resets it. In cloud sessions Docker Hub may rate-limit and the TLS proxy breaks in-container `pip`; see CONTRIBUTING for the workaround.
