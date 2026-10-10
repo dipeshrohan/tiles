@@ -2246,7 +2246,7 @@
 	async function loadRemote(ctx) {
 		const site = siteId$10(ctx);
 		if (!ctx.api || !site) return;
-		remote$1 = {
+		if (remote$1?.site !== site) remote$1 = {
 			site,
 			configured: null,
 			enabled: false,
