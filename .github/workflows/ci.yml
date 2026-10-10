@@ -359,6 +359,76 @@ jobs:
           kubectl describe pods
           for pod in $(kubectl get pods -o name); do kubectl logs "$pod" --all-containers --tail=80 || true; done
 
+  copilot-eval-setup:
+    # Whether the copilot's evaluation can run: secrets can't decide a job's `if`, so a step does.
+    name: Copilot evaluation settings
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          KEY: ${{ secrets.TILES_ANTHROPIC_API_KEY }}
+          MODEL: ${{ vars.TILES_COPILOT_MODEL }}
+        run: |
+          if [ -n "$KEY" ] && [ -n "$MODEL" ]; then
+            echo configured=true >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Set the TILES_ANTHROPIC_API_KEY secret and the TILES_COPILOT_MODEL variable to run the copilot's evaluation"
+            echo configured=false >> "$GITHUB_OUTPUT"
+          fi
+
+  copilot-eval:
+    # The copilot's evaluation gate (T4.06): every case of api/src/tiles_api/evaluation/cases.json
+    # asked of Claude on the evaluation plant; at least 85% correct, no unsupported claims, 90% of
+    # tools chosen right. Only when the repository has the copilot's key and model.
+    name: Copilot evaluation
+    needs: copilot-eval-setup
+    if: needs.copilot-eval-setup.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: api
+    services:
+      db:
+        image: mirror.gcr.io/timescale/timescaledb:2.30.2-pg17
+        env:
+          POSTGRES_USER: tiles
+          POSTGRES_PASSWORD: tiles-ci
+          POSTGRES_DB: tiles
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U tiles -d tiles"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      TILES_DATABASE_URL: postgresql://tiles:tiles-ci@localhost:5432/tiles
+      TILES_ANTHROPIC_API_KEY: ${{ secrets.TILES_ANTHROPIC_API_KEY }}
+      TILES_COPILOT_MODEL: ${{ vars.TILES_COPILOT_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: api/uv.lock
+      - name: Ask every case, and hold the answers to the gate
+        run: |
+          uv sync --locked
+          uv run tiles-migrate upgrade
+          status=0
+          uv run tiles-evaluate --report "$RUNNER_TEMP/evaluation.md" --json "$RUNNER_TEMP/evaluation.json" || status=$?
+          cat "$RUNNER_TEMP/evaluation.md" >> "$GITHUB_STEP_SUMMARY" || true
+          exit "$status"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: copilot-evaluation
+          path: ${{ runner.temp }}/evaluation.*
+          if-no-files-found: ignore
+
   monitoring:
     name: Alert rules and collector configuration
     runs-on: ubuntu-latest

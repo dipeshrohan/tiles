@@ -8,7 +8,7 @@ The demo copilot routes questions to skills with regular expressions and works o
 ## Decision
 - Use the Claude API with tool use. The existing skills (graph query, correlation, virtual sensor status, wear check, health check) become tools, plus time-series and event lookup.
 - Answers may only state facts that come from tool results, and show which tools ran with what inputs. With no supporting tool result, the copilot says it cannot answer.
-- A partner-sourced evaluation set (100+ questions) runs in CI and blocks merges when accuracy drops below 85% or any unsupported claim appears.
+- A partner-sourced evaluation set (100+ questions) runs in CI and blocks merges when accuracy drops below 85% or any unsupported claim appears. The harness (`tiles-evaluate`, T4.06) runs a starting set on a known plant until the partner's set arrives.
 - Prompt caching, token budgets and per-organisation rate limits control cost.
 
 ## Consequences

@@ -130,7 +130,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T4.03` [#62](https://github.com/dipeshrohan/tiles/issues/62) ★ **Grounding rules:** answers may only state facts from tool results; cite tool and inputs; decline when nothing supports an answer · BE · 2d · T4.02
 - [x] `T4.04` [#63](https://github.com/dipeshrohan/tiles/issues/63) **Copilot UI v2:** streaming, expandable tool traces, links to evidence, feedback on each answer · FE · 3d · T4.01
 - [ ] `T4.05` [#64](https://github.com/dipeshrohan/tiles/issues/64) ★ **Evaluation set:** 100+ real partner questions with expected answers and the tools they should use · PM+FDE · 3d · T3.14
-- [ ] `T4.06` [#65](https://github.com/dipeshrohan/tiles/issues/65) ★ **Evaluation harness in the automated checks:** scores accuracy, grounding and tool choice; fails under the thresholds · BE · 3d · T4.05, T4.03
+- [ ] `T4.06` [#65](https://github.com/dipeshrohan/tiles/issues/65) ★ **Evaluation harness in the automated checks:** scores accuracy, grounding and tool choice; fails under the thresholds · BE · 3d · T4.05, T4.03 · The harness is built (`tiles-evaluate`, CI's Copilot evaluation job), with 17 cases on a known plant; it is done when T4.05's partner set passes it
   *Done when:* ≥ 85% correct and 0 unsupported claims on the evaluation set.
 - [x] `T4.07` [#66](https://github.com/dipeshrohan/tiles/issues/66) **Cost and latency controls:** prompt caching, token budgets, per-org rate limits, usage dashboard · BE · 2d · T4.01
 - [x] `T4.08` [#67](https://github.com/dipeshrohan/tiles/issues/67) ◇ **Document search:** upload SOPs and manuals, chunk and embed them, cite with page numbers · BE · 4d · T4.02
