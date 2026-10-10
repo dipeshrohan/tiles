@@ -8,6 +8,7 @@ import {
   normalizeBaseUrl,
   resolveDataSource,
   DEFAULT_DATA_SOURCE,
+  OFFLINE_WRITE,
 } from '../js/lib/api.ts';
 
 // A fetch stand-in that records calls and answers from a queue.
@@ -624,4 +625,45 @@ test('an answer cut off mid-stream is reported, not silently dropped', async () 
   );
   assert.deepEqual(events, [{ event: 'text', data: { text: 'Par' } }]);
   assert.deepEqual(errors, ['The answer was cut off: the connection to the Tiles API dropped']);
+});
+
+test('offline, a change is refused with the reason and never sent; reading still goes', async () => {
+  const f = fakeFetch({ body: [] });
+  const seen = [];
+  const answers = [];
+  const api = createApiClient({
+    baseUrl: 'http://a',
+    fetch: f.fn,
+    isOffline: () => true,
+    onError: (e) => seen.push(e),
+    onAnswer: (status) => answers.push(status),
+  });
+  await assert.rejects(api.ontology.stage('s', op), (e) => e instanceof ApiError && e.status === 0);
+  assert.equal(f.calls.length, 0);
+  assert.equal(seen[0].message, OFFLINE_WRITE);
+  // A read is tried (the browser may be wrong about being offline); its answer says the API is back.
+  await api.sites();
+  assert.equal(f.calls.length, 1);
+  assert.deepEqual(answers, [200]);
+  // A copilot question is a change too: refused before it is sent.
+  await assert.rejects(
+    api.copilot.ask('s', 'c', 'Hi?', () => {}),
+    (e) => e.message === OFFLINE_WRITE,
+  );
+  assert.equal(f.calls.length, 1);
+});
+
+test('a stream that answers reports its status, so a 503 is not taken as the API being back', async () => {
+  const answers = [];
+  const api = createApiClient({
+    baseUrl: 'http://a',
+    fetch: async () => new Response('{"detail":"Down"}', { status: 503 }),
+    onError: () => {},
+    onAnswer: (status) => answers.push(status),
+  });
+  await assert.rejects(
+    api.copilot.ask('s', 'c', 'Hi?', () => {}),
+    /Down/,
+  );
+  assert.deepEqual(answers, [503]);
 });
