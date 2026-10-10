@@ -171,7 +171,18 @@ async function diff(expected, actual) {
       const bytes = new Uint8Array(await blob.arrayBuffer());
       let s = '';
       for (const byte of bytes) s += String.fromCharCode(byte);
-      return { changed, total: pb.length / 4, png: btoa(s), box };
+      // The changed box, before and after, small enough to print in a CI log.
+      const crop = async (img) => {
+        const w = Math.min(img.width, box.right + 11) - Math.max(0, box.left - 10);
+        const h = Math.min(img.height, box.bottom + 11) - Math.max(0, box.top - 10);
+        const c = new OffscreenCanvas(w, h);
+        c.getContext('2d').drawImage(img, -Math.max(0, box.left - 10), -Math.max(0, box.top - 10));
+        const b = new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer());
+        let t = '';
+        for (const byte of b) t += String.fromCharCode(byte);
+        return btoa(t);
+      };
+      return { changed, total: pb.length / 4, png: btoa(s), box, before: await crop(x), after: await crop(y) };
     },
     { a: expected.toString('base64'), b: actual.toString('base64'), channel: CHANNEL },
   );
@@ -198,6 +209,11 @@ async function check(name, shot) {
   writeFileSync(join(OUTPUT, `${name}.actual.png`), shot);
   writeFileSync(join(OUTPUT, `${name}.expected.png`), readFileSync(file));
   if (result.png) writeFileSync(join(OUTPUT, `${name}.diff.png`), Buffer.from(result.png, 'base64'));
+  // In CI, the changed box itself goes to the log too (the artefact isn't always reachable).
+  if (process.env.CI && result.before)
+    console.log(
+      `::group::${name} changed box (PNG, base64)\nbefore ${result.before}\nafter ${result.after}\n::endgroup::`,
+    );
   assert.fail(
     result.size
       ? `${name}: the size changed (${result.size})`
