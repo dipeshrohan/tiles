@@ -795,8 +795,14 @@ export interface ApiOptions {
   token?: string;
   getToken?: () => Promise<string | null>;
   onError?: (error: ApiError) => void;
+  // A request answered (any status): the API is reachable again.
+  onAnswer?: () => void;
+  // Offline (U2.06): a change isn't sent, and says why, rather than fail on the way.
+  isOffline?: () => boolean;
   fetch?: typeof fetch;
 }
+
+export const OFFLINE_WRITE = "You're offline: nothing was changed. Try again when the connection is back";
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -861,6 +867,7 @@ export function createApiClient(options: ApiOptions) {
       file?: { body: Blob; type: string };
     } = {},
   ): Promise<T> {
+    if (method !== 'GET' && options.isOffline?.()) return fail(new ApiError(OFFLINE_WRITE, 0));
     // `file`: sent as it is, with its own type (a document upload), instead of JSON.
     const headers = await headersFor(body, anonymous, 'application/json', file?.type);
     let res: Response;
@@ -873,6 +880,7 @@ export function createApiClient(options: ApiOptions) {
     } catch {
       return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
     }
+    options.onAnswer?.();
     const requestId = res.headers.get('x-request-id');
     if (res.status === 204) return undefined as T;
     if (text && res.ok) return (await res.text()) as T;

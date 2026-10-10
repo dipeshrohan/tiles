@@ -804,6 +804,7 @@
 			this.requestId = requestId;
 		}
 	};
+	var OFFLINE_WRITE = "You're offline: nothing was changed. Try again when the connection is back";
 	function errorMessage(body, status) {
 		const detail = body?.detail;
 		if (typeof detail === "string" && detail) return detail;
@@ -834,6 +835,7 @@
 			return headers;
 		}
 		async function request(method, path, body, { anonymous = false, text = false, blob = false, quiet = false, file } = {}) {
+			if (method !== "GET" && options.isOffline?.()) return fail(new ApiError(OFFLINE_WRITE, 0));
 			const headers = await headersFor(body, anonymous, "application/json", file?.type);
 			let res;
 			try {
@@ -845,6 +847,7 @@
 			} catch {
 				return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
 			}
+			options.onAnswer?.();
 			const requestId = res.headers.get("x-request-id");
 			if (res.status === 204) return void 0;
 			if (text && res.ok) return await res.text();
@@ -1749,6 +1752,8 @@
 		"rocket": "<path d=\"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5\" /><path d=\"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09\" /><path d=\"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z\" /><path d=\"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05\" />",
 		"settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
 		"palette": "<path d=\"M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z\" /><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
+		"wifi-off": "<path d=\"M12 20h.01\" /><path d=\"M8.5 16.429a5 5 0 0 1 7 0\" /><path d=\"M5 12.859a10 10 0 0 1 5.17-2.69\" /><path d=\"M19 12.859a10 10 0 0 0-2.007-1.523\" /><path d=\"M2 8.82a15 15 0 0 1 4.177-2.643\" /><path d=\"M22 8.82a15 15 0 0 0-11.288-3.764\" /><path d=\"m2 2 20 20\" />",
+		"cloud-off": "<path d=\"M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057\" /><path d=\"M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78\" /><path d=\"m2 2 20 20\" />",
 		"menu": "<path d=\"M4 5h16\" /><path d=\"M4 12h16\" /><path d=\"M4 19h16\" />",
 		"x": "<path d=\"M18 6 6 18\" /><path d=\"m6 6 12 12\" />",
 		"sun": "<circle cx=\"12\" cy=\"12\" r=\"4\" /><path d=\"M12 2v2\" /><path d=\"M12 20v2\" /><path d=\"m4.93 4.93 1.41 1.41\" /><path d=\"m17.66 17.66 1.41 1.41\" /><path d=\"M2 12h2\" /><path d=\"M20 12h2\" /><path d=\"m6.34 17.66-1.41 1.41\" /><path d=\"m19.07 4.93-1.41 1.41\" />",
@@ -2390,6 +2395,71 @@
 		});
 	}
 	//#endregion
+	//#region js/lib/errors.ts
+	var sentence = (s) => {
+		const t = s.trim();
+		return !t || /[.!?)]$/.test(t) ? t : `${t}.`;
+	};
+	function describeApiError(e) {
+		const detail = sentence(e.message);
+		switch (true) {
+			case e.status === 0: return e.message.startsWith("You're offline") ? {
+				message: e.message,
+				action: null
+			} : {
+				message: "Can't reach the Tiles API",
+				description: `${detail} Check your connection, and that the API is running.`,
+				action: null
+			};
+			case e.status === 401: return {
+				message: "Your session has ended",
+				description: `${detail} Sign in again to carry on.`,
+				action: "sign-in"
+			};
+			case e.status === 403: return {
+				message: "You don't have access to this",
+				description: `${detail} A site admin can give you the role it needs (engineer to change things, admin to manage the site).`,
+				action: null
+			};
+			case e.status === 404: return {
+				message: "Not found",
+				description: `${detail} It may have been archived or removed.`,
+				action: "back"
+			};
+			case e.status === 409: return {
+				message: "This changed while you were working",
+				description: `${detail} Refresh to see the latest, then try again.`,
+				action: "refresh"
+			};
+			case e.status === 429: return {
+				message: "Too many requests",
+				description: `${detail} Wait a moment, then try again.`,
+				action: null
+			};
+			case e.status >= 500: return {
+				message: "The Tiles API had a problem",
+				description: `${detail} Try again; if it keeps happening, give the request ID to your administrator.`,
+				action: null
+			};
+			default: return {
+				message: e.message,
+				action: null
+			};
+		}
+	}
+	function errorDetails(o) {
+		return [
+			`What: ${o.what}`,
+			o.requestId ? `Request ID: ${o.requestId}` : "",
+			`Page: ${o.page}`,
+			`Time: ${o.at.toISOString()}`,
+			`Tiles: ${o.version}`
+		].filter(Boolean).join("\n");
+	}
+	//#endregion
+	//#region js/lib/version.ts
+	var VERSION = "0.1.0";
+	//#endregion
 	//#region js/lib/illustrations.ts
 	var backdrop = "<ellipse class=\"il-bg\" cx=\"80\" cy=\"66\" rx=\"70\" ry=\"46\"/>";
 	var lines = (x, y, widths) => widths.map((w, i) => `<rect class="il-text" x="${x}" y="${y + i * 9}" width="${w}" height="4" rx="2"/>`).join("");
@@ -2671,7 +2741,13 @@
 				variant: "primary",
 				size,
 				attrs: { "data-app-sign-in": true }
-			}) : ""} ${linkButton("Open Settings", "#/settings", { size })}`
+			}) : ""} ${linkButton("Open Settings", "#/settings", { size })}`,
+			details: errorDetails({
+				what: reason ?? "Can't reach the Tiles API",
+				page: typeof location === "undefined" ? "" : location.hash || "#/",
+				at: /* @__PURE__ */ new Date(),
+				version: VERSION
+			})
 		}));
 	}
 	function errorState(o) {
@@ -2681,6 +2757,12 @@
 			icon: "refresh-cw",
 			attrs: { [`data-${o.retry}`]: true }
 		}) : "";
+		const copy = o.details ? button("Copy details", {
+			size,
+			variant: "ghost",
+			icon: "copy",
+			attrs: { "data-copy-details": o.details }
+		}) : "";
 		return emptyState({
 			illustration: "error",
 			compact: o.compact,
@@ -2688,7 +2770,11 @@
 			level: o.level,
 			title: o.title,
 			body: o.body,
-			action: retry || o.actionsHtml ? [retry, o.actionsHtml].filter(Boolean).join(" ") : void 0
+			action: retry || o.actionsHtml || copy ? [
+				retry,
+				o.actionsHtml,
+				copy
+			].filter(Boolean).join(" ") : void 0
 		});
 	}
 	//#endregion
@@ -8259,6 +8345,7 @@
 	});
 	var listed = () => ({
 		at: listing$4?.at ?? null,
+		stale: listing$4?.stale ?? false,
 		more: listing$4?.more ?? false
 	});
 	async function fetchWarnings(ctx, quiet = false) {
@@ -8289,6 +8376,7 @@
 				at: null,
 				more: false
 			};
+			else if (seq === listSeq && listing$4) listing$4.stale = true;
 		}
 		if (seq === listSeq && shown()) ctx.rerender();
 	}
@@ -8516,10 +8604,13 @@
 			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">${skeleton.list(3, "Loading the warnings…")}</div></div>`;
 			const now = Date.now();
 			const { tone, text } = headline(list);
-			const updated = listed().at && ctx.api ? `<div class="small soft">Updated ${new Date(listed().at ?? 0).toLocaleTimeString("en-GB", {
+			const updated = listed().at && ctx.api ? `<div class="small soft" data-floor-updated>${listed().stale ? `As of ${new Date(listed().at ?? 0).toLocaleTimeString("en-GB", {
 				hour: "2-digit",
 				minute: "2-digit"
-			})}; refreshes every 30 seconds</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
+			})}: the last refresh failed, trying again in 30 seconds` : `Updated ${new Date(listed().at ?? 0).toLocaleTimeString("en-GB", {
+				hour: "2-digit",
+				minute: "2-digit"
+			})}; refreshes every 30 seconds`}</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
 			shownHeadline = {
 				site: siteId$6(ctx),
 				text
@@ -12524,10 +12615,28 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			baseUrl,
 			userEmail: state.user.email,
 			getToken: () => accessToken(baseUrl),
-			onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message, {
-				type: "error",
-				requestId: e.requestId
-			})
+			onError: (e) => {
+				if (e.status === 0 && !e.message.startsWith("You're offline")) showOffline("unreachable");
+				const d = describeApiError(e);
+				const action = d.action === "back" ? {
+					label: "Go back",
+					run: () => history.back()
+				} : d.action === "refresh" ? {
+					label: "Refresh",
+					run: () => location.reload()
+				} : d.action === "sign-in" && authConfig?.enabled ? {
+					label: "Sign in",
+					run: () => void ctx.auth.signIn()
+				} : void 0;
+				toast(d.message, {
+					type: "error",
+					description: d.description,
+					requestId: e.requestId,
+					action
+				});
+			},
+			onAnswer: () => hideOffline("unreachable"),
+			isOffline: () => !navigator.onLine
 		});
 	}
 	var authConfig = null;
@@ -12763,7 +12872,45 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (!el || el.closest(".sg-pair")) return;
 		if (el.closest("[data-reconnect]")) connectOntology();
 		else if (el.closest("[data-app-sign-in]")) ctx.auth.signIn();
+		else {
+			const copy = el.closest("[data-copy-details]");
+			if (copy) (navigator.clipboard?.writeText(copy.dataset.copyDetails ?? "") ?? Promise.reject(/* @__PURE__ */ new Error())).then(() => toast("Details copied", { type: "success" }), () => toast("Can't copy here", {
+				description: copy.dataset.copyDetails,
+				duration: 15e3
+			}));
+		}
 	});
+	var offline = null;
+	var offlineSince = 0;
+	function showOffline(kind) {
+		if (offline === "offline" && kind === "unreachable") return;
+		if (!offline) offlineSince = Date.now();
+		offline = kind;
+		const banner = need(document, "#offline");
+		const since = new Date(offlineSince).toLocaleTimeString("en-GB", {
+			hour: "2-digit",
+			minute: "2-digit"
+		});
+		banner.innerHTML = `${icon(kind === "offline" ? "wifi-off" : "cloud-off")}<span>${kind === "offline" ? `You're offline. What you see is as of ${since}; changes wait until the connection is back.` : `Can't reach the Tiles API. What you see is as of ${since}.`}</span>${api ? "<button class=\"btn sm\" type=\"button\" data-offline-retry>Try again</button>" : ""}`;
+		banner.hidden = false;
+	}
+	function hideOffline(kind) {
+		if (!offline || kind && offline !== kind) return;
+		offline = null;
+		need(document, "#offline").hidden = true;
+	}
+	window.addEventListener("offline", () => showOffline("offline"));
+	window.addEventListener("online", () => {
+		hideOffline("offline");
+		if (api) connectOntology();
+	});
+	need(document, "#offline").addEventListener("click", (e) => {
+		if (!(e.target instanceof Element) || !e.target.closest("[data-offline-retry]")) return;
+		hideOffline("unreachable");
+		if (navigator.onLine) connectOntology();
+		else showOffline("offline");
+	});
+	if (!navigator.onLine) showOffline("offline");
 	var isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 	function applyTheme(theme) {
 		if (theme) document.documentElement.dataset.theme = theme;

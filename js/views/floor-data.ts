@@ -16,7 +16,9 @@ const MAX_LINKS = 10_000; // a site's linked tags fetched; beyond, warnings are 
 
 const ROUTES = new Set(['shopfloor', 'plant']);
 
-let listing: { site: string; items: WarningInfo[] | null; at: number | null; more: boolean } | null = null;
+// `stale`: the last refresh failed, so the list is as of `at` (kept, rather than emptied).
+let listing: { site: string; items: WarningInfo[] | null; at: number | null; more: boolean; stale?: boolean } | null =
+  null;
 // `links`: tag → Signal node, made once per fetch.
 let catalogue: { site: string; signals: SignalInfo[] | null; links: Map<string, string> } | null = null;
 let stale = false; // moved between the two pages: fetch again, showing the last meanwhile
@@ -42,8 +44,9 @@ onNavigate((hash) => {
 });
 
 // When the open warnings were last fetched, and whether more than a page of them are open.
-export const listed = (): { at: number | null; more: boolean } => ({
+export const listed = (): { at: number | null; more: boolean; stale: boolean } => ({
   at: listing?.at ?? null,
+  stale: listing?.stale ?? false,
   more: listing?.more ?? false,
 });
 
@@ -59,6 +62,7 @@ export async function fetchWarnings(ctx: Context, quiet = false): Promise<void> 
   } catch {
     // The client showed why. A quiet refresh keeps the last list; otherwise nothing to show.
     if (seq === listSeq && !quiet) listing = { site, items: [], at: null, more: false };
+    else if (seq === listSeq && listing) listing.stale = true;
   }
   if (seq === listSeq && shown()) ctx.rerender();
 }

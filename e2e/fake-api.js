@@ -290,7 +290,8 @@ export function createFakeApi({
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
   let requestIds = 0; // numbers the request IDs
-  let sitesFailures = 0; // the next lists of sites that fail, as an API still starting would
+  let sitesFailures = 0;
+  const plannedFailures = []; // { method, path (RegExp), status, detail }, from failNext // the next lists of sites that fail, as an API still starting would
   let searchFailures = 0; // the next document searches that fail
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
@@ -453,6 +454,12 @@ export function createFakeApi({
     if (req.method === 'OPTIONS') return send(204);
     const url = new URL(req.url, 'http://fake');
     requests.push(`${req.method} ${url.pathname}`);
+    // A failure a test asked for (failNext): the next matching request gets it, once.
+    const planned = plannedFailures.findIndex((f) => f.method === req.method && f.path.test(url.pathname));
+    if (planned >= 0) {
+      const [f] = plannedFailures.splice(planned, 1);
+      return send(f.status, { detail: f.detail });
+    }
 
     // ---- the sign-in provider -------------------------------------------------
     if (url.pathname === '/idp/.well-known/openid-configuration')
@@ -1881,6 +1888,10 @@ export function createFakeApi({
     // Makes the next `n` document searches fail.
     failDocumentSearch(n) {
       searchFailures = n;
+    },
+    // Answers the next `method` request to a path matching `path` with `status` and `detail`.
+    failNext(method, path, status, detail) {
+      plannedFailures.push({ method, path, status, detail });
     },
     // Makes the next `n` lists of sites fail: the app can't connect until they pass.
     failSites(n) {

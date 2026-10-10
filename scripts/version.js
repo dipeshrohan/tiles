@@ -29,6 +29,7 @@ export const PLACES = [
   { file: 'deploy/helm/tiles/Chart.yaml', pattern: /^version: (\S+)$/m },
   { file: 'docs/guides/openapi.json', pattern: /^ {4}"title": "Tiles API",\n {4}"version": "([^"]+)"/m },
   { file: 'deploy/helm/tiles/Chart.yaml', pattern: /^appVersion: ['"]([^'"]+)['"]$/m },
+  { file: 'js/lib/version.ts', pattern: /^export const VERSION = '([^']+)';$/m },
 ];
 
 const read = (file) => readFileSync(join(root, file), 'utf8');

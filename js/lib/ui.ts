@@ -1,6 +1,8 @@
 // Shared page components (U1.04), as HTML strings like the views. Text is escaped here; `*Html`
 // options and `action` take markup the caller has built (with esc() on anything interpolated).
 import { esc } from './dom.ts';
+import { errorDetails } from './errors.ts';
+import { VERSION } from './version.ts';
 import { icon, type IconName } from './icons.ts';
 import { illustration, type IllustrationName } from './illustrations.ts';
 
@@ -322,6 +324,12 @@ export function apiUnreachable(reason: string | null, o: { signIn?: boolean; siz
       compact: true,
       size,
       actionsHtml: `${o.signIn ? button('Sign in', { variant: 'primary', size, attrs: { 'data-app-sign-in': true } }) : ''} ${linkButton('Open Settings', '#/settings', { size })}`,
+      details: errorDetails({
+        what: reason ?? "Can't reach the Tiles API",
+        page: typeof location === 'undefined' ? '' : location.hash || '#/',
+        at: new Date(),
+        version: VERSION,
+      }),
     }),
   );
 }
@@ -336,9 +344,13 @@ export function errorState(o: {
   level?: 2 | 3 | 4;
   actionsHtml?: string; // more ways out, after Try again (built by the caller)
   size?: 'sm' | 'lg'; // its buttons ('lg' on the shopfloor tablet)
+  details?: string; // what "Copy details" copies for support (errorDetails); app.ts copies it
 }): string {
   const size = o.size ?? 'sm';
   const retry = o.retry ? button('Try again', { size, icon: 'refresh-cw', attrs: { [`data-${o.retry}`]: true } }) : '';
+  const copy = o.details
+    ? button('Copy details', { size, variant: 'ghost', icon: 'copy', attrs: { 'data-copy-details': o.details } })
+    : '';
   return emptyState({
     illustration: 'error',
     compact: o.compact,
@@ -346,6 +358,6 @@ export function errorState(o: {
     level: o.level,
     title: o.title,
     body: o.body,
-    action: retry || o.actionsHtml ? [retry, o.actionsHtml].filter(Boolean).join(' ') : undefined,
+    action: retry || o.actionsHtml || copy ? [retry, o.actionsHtml, copy].filter(Boolean).join(' ') : undefined,
   });
 }

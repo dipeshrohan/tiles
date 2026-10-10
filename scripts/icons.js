@@ -29,6 +29,8 @@ export const NAMES = [
   'rocket',
   'settings',
   'palette',
+  'wifi-off',
+  'cloud-off',
   // Controls and states
   'menu',
   'x',

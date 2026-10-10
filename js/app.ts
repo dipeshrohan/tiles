@@ -55,6 +55,7 @@ import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import { icon } from './lib/icons.ts';
+import { describeApiError } from './lib/errors.ts';
 import { breadcrumbs } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
@@ -279,8 +280,22 @@ function makeApi(): ApiClient | null {
     userEmail: state.user.email,
     // Only a session obtained for this very API is ever sent to it.
     getToken: () => accessToken(baseUrl),
-    onError: (e) =>
-      toast(e.status ? `${e.message} (${e.status})` : e.message, { type: 'error', requestId: e.requestId }),
+    // What happened, why and what to do (U2.06), with the way out when there is one.
+    onError: (e) => {
+      if (e.status === 0 && !e.message.startsWith("You're offline")) showOffline('unreachable');
+      const d = describeApiError(e);
+      const action =
+        d.action === 'back'
+          ? { label: 'Go back', run: () => history.back() }
+          : d.action === 'refresh'
+            ? { label: 'Refresh', run: () => location.reload() }
+            : d.action === 'sign-in' && authConfig?.enabled
+              ? { label: 'Sign in', run: () => void ctx.auth.signIn() }
+              : undefined;
+      toast(d.message, { type: 'error', description: d.description, requestId: e.requestId, action });
+    },
+    onAnswer: () => hideOffline('unreachable'),
+    isOffline: () => !navigator.onLine,
   });
 }
 
@@ -572,7 +587,53 @@ need(document, '#view').addEventListener('click', (e) => {
   if (!el || el.closest('.sg-pair')) return;
   if (el.closest('[data-reconnect]')) void connectOntology();
   else if (el.closest('[data-app-sign-in]')) void ctx.auth.signIn();
+  else {
+    // "Copy details" on an error: what support needs to find it (request ID, page, time, version).
+    const copy = el.closest<HTMLElement>('[data-copy-details]');
+    if (copy)
+      void (navigator.clipboard?.writeText(copy.dataset.copyDetails ?? '') ?? Promise.reject(new Error())).then(
+        () => toast('Details copied', { type: 'success' }),
+        () => toast("Can't copy here", { description: copy.dataset.copyDetails, duration: 15000 }),
+      );
+  }
 });
+
+// ---- offline (U2.06) -----------------------------------------------------------
+// A banner while the browser is offline, or the API doesn't answer: what is on screen stays, changes
+// aren't sent (the client refuses them with a reason), and Try again connects afresh.
+
+let offline: 'offline' | 'unreachable' | null = null;
+let offlineSince = 0;
+function showOffline(kind: 'offline' | 'unreachable'): void {
+  if (offline === 'offline' && kind === 'unreachable') return; // offline says more
+  if (!offline) offlineSince = Date.now();
+  offline = kind;
+  const banner = need(document, '#offline');
+  const since = new Date(offlineSince).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  banner.innerHTML = `${icon(kind === 'offline' ? 'wifi-off' : 'cloud-off')}<span>${
+    kind === 'offline'
+      ? `You're offline. What you see is as of ${since}; changes wait until the connection is back.`
+      : `Can't reach the Tiles API. What you see is as of ${since}.`
+  }</span>${api ? '<button class="btn sm" type="button" data-offline-retry>Try again</button>' : ''}`;
+  banner.hidden = false;
+}
+function hideOffline(kind?: 'offline' | 'unreachable'): void {
+  if (!offline || (kind && offline !== kind)) return;
+  offline = null;
+  need(document, '#offline').hidden = true;
+}
+window.addEventListener('offline', () => showOffline('offline'));
+window.addEventListener('online', () => {
+  hideOffline('offline');
+  if (api) void connectOntology();
+});
+need(document, '#offline').addEventListener('click', (e) => {
+  if (!(e.target instanceof Element) || !e.target.closest('[data-offline-retry]')) return;
+  hideOffline('unreachable');
+  if (navigator.onLine) void connectOntology();
+  else showOffline('offline');
+});
+if (!navigator.onLine) showOffline('offline');
 
 // ---- theme & mobile nav ---------------------------------------------------
 

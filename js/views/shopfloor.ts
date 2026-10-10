@@ -204,7 +204,11 @@ const view: View = {
     const { tone, text } = headline(list);
     const updated =
       listed().at && ctx.api
-        ? `<div class="small soft">Updated ${new Date(listed().at ?? 0).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}; refreshes every 30 seconds</div>`
+        ? `<div class="small soft" data-floor-updated>${
+            listed().stale
+              ? `As of ${new Date(listed().at ?? 0).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}: the last refresh failed, trying again in 30 seconds`
+              : `Updated ${new Date(listed().at ?? 0).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}; refreshes every 30 seconds`
+          }</div>`
         : ctx.api
           ? ''
           : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
