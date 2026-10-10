@@ -65,7 +65,7 @@ export function wearBlock(r: WearCheckResult, limit: number | null, width = TIME
     spans: [{ from: Date.parse(r.recent_from), to: Date.parse(r.end) }],
     width,
   });
-  return `<div class="stack" style="gap:6px" data-wear-result>
+  return `<div class="stack gap-1_5" data-wear-result>
       <p><span class="badge ${cls}">${label}</span> ${esc(r.text)}</p>
       ${chart}
       <p class="small soft">Medians of ${esc(String(r.baseline_buckets + r.recent_buckets))} bucket(s); the shaded part is the recent window.</p>

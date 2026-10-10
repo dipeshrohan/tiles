@@ -65,9 +65,9 @@ function wearForm(id: string): string {
   const w = wearOf(id);
   const option = (v: WearState['direction'], text: string) =>
     `<option value="${v}" ${w.direction === v ? 'selected' : ''}>${text}</option>`;
-  return `<form class="row" style="gap:8px;flex-wrap:wrap;align-items:end" data-wear-form="${esc(id)}">
+  return `<form class="row gap-2 wrap items-end" data-wear-form="${esc(id)}">
       <label class="field">Wear moves it<select name="direction">${option('either', 'either way')}${option('up', 'up')}${option('down', 'down')}</select></label>
-      <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" style="width:8em"></label>
+      <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" class="w-8em"></label>
       <button class="btn sm" type="submit">Check for wear</button>
     </form>
     <div data-wear-out></div>`;
@@ -440,7 +440,7 @@ const view: View = {
       )
       .join(' ');
     const rangeBar = range
-      ? `<form id="explorer-range" class="row" style="gap:8px;flex-wrap:wrap;align-items:end">
+      ? `<form id="explorer-range" class="row gap-2 wrap items-end">
           ${(['1h', '24h', '7d', '30d'] as const).map((p) => `<button class="btn sm" type="button" data-preset="${p}">Last ${p}</button>`).join('')}
           <button class="btn sm" type="button" data-preset="data" title="The 24 hours up to the latest reading">Latest data</button>
           <label class="field">From<input type="datetime-local" name="from" value="${localInput(range.from)}"></label>
@@ -451,26 +451,26 @@ const view: View = {
           <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
           ${canSave && saving?.key !== chartsKey(u) ? '<button class="btn sm" type="button" data-save-insight>Save as insight</button>' : ''}
         </form>
-        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack" style="gap:6px"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm('insight-save', saving.text, savingBusy)}</div>` : ''}`
+        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack gap-1_5"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm('insight-save', saving.text, savingBusy)}</div>` : ''}`
       : '';
     const charts = picked
       .map(
-        (p) => `<div class="card stack" style="gap:6px">
-          <div class="row" style="justify-content:space-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? '')}</span></div>
+        (p) => `<div class="card stack gap-1_5">
+          <div class="row justify-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? '')}</span></div>
           <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
           <div data-wear="${esc(p.id)}"></div>
         </div>`,
       )
       .join('');
-    return `${head}<div class="card stack" style="gap:12px">
-        <form id="explorer-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
-          <label class="field" style="flex:1;min-width:200px">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"></label>
+    return `${head}<div class="card stack gap-3">
+        <form id="explorer-search" class="row gap-3 wrap" role="search">
+          <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"></label>
         </form>
-        <div class="row" style="gap:6px;flex-wrap:wrap" data-explorer-found></div>
-        ${picked.length ? `<div class="row" style="gap:6px;flex-wrap:wrap" data-picked>${chips}</div>` : '<p class="small soft">Pick up to eight signals to plot them on one time axis.</p>'}
+        <div class="row gap-1_5 wrap" data-explorer-found></div>
+        ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : '<p class="small soft">Pick up to eight signals to plot them on one time axis.</p>'}
         ${rangeBar}
       </div>
-      <div class="stack" style="gap:12px;margin-top:12px" data-charts>${charts}</div>`;
+      <div class="stack gap-3 mt-3" data-charts>${charts}</div>`;
   },
   bind(root, ctx) {
     clearTimeout(findTimer);

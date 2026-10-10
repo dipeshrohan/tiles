@@ -93,9 +93,9 @@ function filterBar(ctx: Context, f: Filters): string {
     `<option value="${value}" ${value === current ? 'selected' : ''}>${label}</option>`;
   return `<div class="card source-bar small">
       <div class="tabs" role="tablist" aria-label="Status">${tabs}</div>
-      <span class="row" style="gap:12px;flex-wrap:wrap">
-        <label class="row" style="gap:6px">Assigned to <select data-filter="who">${option('anyone', 'anyone', f.who)}${option('me', 'me', f.who)}${option('none', 'nobody', f.who)}</select></label>
-        <label class="row" style="gap:6px">Signal <select data-filter="signal">${option('all', 'out or back', f.signal)}${option('open', 'still out', f.signal)}${option('ended', 'back in', f.signal)}</select></label>
+      <span class="row gap-3 wrap">
+        <label class="row gap-1_5">Assigned to <select data-filter="who">${option('anyone', 'anyone', f.who)}${option('me', 'me', f.who)}${option('none', 'nobody', f.who)}</select></label>
+        <label class="row gap-1_5">Signal <select data-filter="signal">${option('all', 'out or back', f.signal)}${option('open', 'still out', f.signal)}${option('ended', 'back in', f.signal)}</select></label>
         <button class="btn sm" data-refresh-warnings>Refresh</button>
       </span>
     </div>`;
@@ -112,7 +112,7 @@ function listCard(ctx: Context, ui: Ui): string {
           .map(
             (w) => `
         <button class="review-row ${ui.selected === w.id ? 'sel' : ''}" data-warning="${esc(w.id)}">
-          <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge(w)}</span>
+          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${badge(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : 'Unassigned'}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ''}</span>
         </button>`,
@@ -157,19 +157,19 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
       : '';
   const has = (a: string) => actions.includes(a as never);
   const assign = has('assign')
-    ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Assign to <select name="assignee">
+    ? `<span class="row gap-1_5"><label class="row gap-1_5">Assign to <select name="assignee">
         <option value="">nobody</option>${current}
         ${people.map((m) => `<option value="${esc(m.user_id)}" ${m.user_id === w.assignee_id ? 'selected' : ''}>${esc(m.name)}${m.user_id === ctx.ontology.userId ? ' (me)' : ''}</option>`).join('')}
       </select></label><button class="btn" type="button" data-act="assign">Assign</button></span>`
     : '';
   const resolve = has('resolve')
-    ? `<span class="row" style="gap:6px"><label class="row" style="gap:6px">Outcome <select name="outcome">
+    ? `<span class="row gap-1_5"><label class="row gap-1_5">Outcome <select name="outcome">
         ${(Object.keys(OUTCOMES) as WarningOutcome[]).map((o) => `<option value="${o}">${OUTCOMES[o]}</option>`).join('')}
       </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>`
     : '';
-  return `<form class="stack" id="warning-form" style="gap:8px;margin-top:10px">
+  return `<form class="stack gap-2 mt-2_5" id="warning-form">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
-      <fieldset class="row" style="gap:8px 16px;border:0;padding:0;margin:0;flex-wrap:wrap" ${busy ? 'disabled' : ''}>
+      <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy ? 'disabled' : ''}>
         ${has('acknowledge') ? '<button class="btn primary" type="button" data-act="acknowledge">Acknowledge</button>' : ''}
         ${assign}
         ${resolve}
@@ -208,17 +208,17 @@ function detailCard(ctx: Context, ui: Ui): string {
     <div class="card" data-warning-detail>
       <div class="card-head"><div>
         ${badge(w)} ${w.ended_at ? '' : '<span class="badge bad">Signal still out</span>'}
-        <h2 style="margin-top:6px" class="mono">${esc(w.signal_tag)}</h2>
+        <h2 class="mono mt-1_5">${esc(w.signal_tag)}</h2>
         <div class="small muted">${esc(w.detector)} · started ${ago(w.started_at)} · ${w.readings} reading(s) out · ${w.assignee ? `for ${esc(w.assignee)}` : 'unassigned'}</div>
       </div></div>
       <p class="small" data-how-far>${esc(howFar(w))}</p>
       ${resolved}
       ${chartCard(w)}
-      <h3 style="margin:16px 0 6px">Activity</h3>
+      <h3 class="mt-4 mb-1_5 m-0">Activity</h3>
       <div class="thread">${activity}</div>
       ${readOnly}
       ${actionsForm(ctx, w)}
-      <details style="margin-top:14px"><summary class="small">Payload</summary>
+      <details class="mt-3_5"><summary class="small">Payload</summary>
         <div class="table-wrap"><table class="small"><tbody>${rows}</tbody></table></div>
       </details>
     </div>`;

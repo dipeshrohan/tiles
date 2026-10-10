@@ -82,7 +82,7 @@ export function qualityDetail(report: QualityReport): string {
   const issues = report.issues.length
     ? `<ul class="small">${report.issues.map((i) => `<li><span class="badge ${i.severity}">${i.severity === 'bad' ? 'problem' : 'warning'}</span> ${esc(i.message)}</li>`).join('')}</ul>`
     : `<p class="small">${report.readings ? 'No gaps, stuck values, out-of-range values or unit mismatches found.' : 'No readings to check.'}</p>`;
-  return `<div class="stack" style="gap:6px"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(', '))}.</p>${issues}</div>`;
+  return `<div class="stack gap-1_5"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(', '))}.</p>${issues}</div>`;
 }
 
 function number(text: string): number | null | undefined {
@@ -180,15 +180,15 @@ function editRow(ctx: Context, s: SignalInfo): string {
   ].join('');
   const stuck = s.stuck_after_s === null ? '' : String(+(s.stuck_after_s / 60).toPrecision(12));
   return `<tr class="edit-row"><td colspan="9">
-      <form id="signal-form" data-signal="${esc(s.id)}" class="row" style="gap:12px;flex-wrap:wrap;align-items:end">
-        <fieldset style="display:contents" ${saving === s.id ? 'disabled' : ''}>
-        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? '')}" placeholder="e.g. °C" maxlength="40" style="width:7em"></label>
-        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ''))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field" style="flex:1;min-width:200px">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
+      <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
+        <fieldset class="contents" ${saving === s.id ? 'disabled' : ''}>
+        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? '')}" placeholder="e.g. °C" maxlength="40" class="w-7em"></label>
+        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ''))}" inputmode="decimal" class="w-7em"></label>
+        <label class="field grow min-w-field">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
         <label class="field">Ontology node<select name="node">${options}</select></label>
-        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ''))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ''))}" inputmode="decimal" style="width:7em"></label>
-        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" style="width:6em"></label>
+        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ''))}" inputmode="decimal" class="w-7em"></label>
+        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ''))}" inputmode="decimal" class="w-7em"></label>
+        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" class="w-6em"></label>
         <label class="field" title="Each reading of an event stream is an event: its value is the code">Events<select name="events">${(
           [
             ['', 'none: readings'],
@@ -199,7 +199,7 @@ function editRow(ctx: Context, s: SignalInfo): string {
         )
           .map(([v, label]) => `<option value="${v}" ${v === (s.event_kind ?? '') ? 'selected' : ''}>${label}</option>`)
           .join('')}</select></label>
-        <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" style="width:8em"></label>
+        <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" class="w-8em"></label>
         <button class="btn primary" type="submit">${saving === s.id ? 'Saving…' : 'Save'}</button>
         <button class="btn" type="button" data-cancel-edit>Cancel</button>
         </fieldset>
@@ -377,13 +377,13 @@ export function suggestionRow(s: MappingSuggestion, canEdit: boolean, busy = fal
       ? `<span class="badge good">Link to</span> ${esc(s.node_label)}`
       : `<span class="badge accent">New node</span> ${esc(s.node_label)}`;
   return `<div class="suggestion" data-suggestion="${esc(s.signal_id)}">
-      <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center">
+      <div class="row gap-2 wrap items-center">
         <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
         <span class="small soft" title="How sure Tiles is">${Math.round(s.score * 100)}%</span>
-        <span style="flex:1"></span>
+        <span class="grow"></span>
         ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}" ${busy ? 'disabled' : ''}>${s.kind === 'link' ? 'Link' : 'Stage node'}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}" ${busy ? 'disabled' : ''}>Skip</button>` : ''}
       </div>
-      <ul class="small soft" style="margin:4px 0 0 18px">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+      <ul class="small soft mt-1 ml-4 m-0">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
     </div>`;
 }
 
@@ -403,7 +403,7 @@ function mappingHtml(ctx: Context): string {
   const more = mapping.unmapped > shown ? ` for ${mapping.items.length} of ${mapping.unmapped} unlinked tags` : '';
   return `${staged}<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
     ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links ${linkingAll ? 'disabled' : ''}>Link all ${links}</button></div>` : ''}
-    <div class="stack" style="gap:10px">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join('')}</div>`;
+    <div class="stack gap-2_5">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join('')}</div>`;
 }
 
 function fillMapping(root: HTMLElement, ctx: Context): void {
@@ -503,9 +503,9 @@ const view: View = {
     const { query } = ui(ctx);
     const opt = (value: string, label: string, current: string) =>
       `<option value="${value}" ${value === current ? 'selected' : ''}>${esc(label)}</option>`;
-    return `${head}<div class="card stack" style="gap:12px">
-        <form id="signal-search" class="row" style="gap:12px;flex-wrap:wrap" role="search">
-          <label class="field" style="flex:1;min-width:200px">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
+    return `${head}<div class="card stack gap-3">
+        <form id="signal-search" class="row gap-3 wrap" role="search">
+          <label class="field grow min-w-field">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
           <label class="field">Source<select name="source">${opt('', 'Any', query.source)}${opt('edge', 'Edge agents', query.source)}${opt('import', 'Imports', query.source)}${opt('manual', 'Entered by hand', query.source)}</select></label>
           <label class="field">Ontology link<select name="linked">${opt('', 'Any', query.linked)}${opt('yes', 'Linked', query.linked)}${opt('no', 'Not linked', query.linked)}</select></label>
           <label class="field">Quality<select name="quality">${opt('', 'Any', query.quality)}${opt('bad', 'Problems', query.quality)}${opt('warn', 'Warnings', query.quality)}${opt('good', 'Good', query.quality)}${opt('unknown', 'No data', query.quality)}${opt('unchecked', 'Not checked', query.quality)}</select></label>
@@ -513,8 +513,8 @@ const view: View = {
         </form>
         <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
       </div>
-      <div class="card stack" style="gap:10px;margin-top:12px" data-mapping>
-        <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div class="card stack gap-2_5 mt-3" data-mapping>
+        <div class="row justify-between wrap gap-2">
           <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
           <button class="btn" type="button" data-suggest>Suggest mappings</button>
         </div>

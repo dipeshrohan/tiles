@@ -10,7 +10,7 @@
     "build": "vite build",
     "dev": "vite build --watch",
     "typecheck": "tsc -p .",
-    "lint": "eslint . && prettier --check .",
+    "lint": "eslint . && prettier --check . && node scripts/check-inline-styles.js",
     "format": "prettier --write . && vite build",
     "test": "vitest run",
     "test:e2e": "node --test --test-concurrency=1 --test-timeout=600000 e2e/*.test.js",

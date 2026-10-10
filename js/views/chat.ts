@@ -92,14 +92,12 @@ async function loadThread(ctx: Context, id: string): Promise<void> {
 // `cited`: every tool result of the conversation so far, which an answer may cite.
 function answerBody(a: Answer, cited: Answer['tools'], conversation: string | null): string {
   const tools = a.tools.length
-    ? `<details class="trace" data-trace><summary>Used ${a.tools.length} tool${a.tools.length === 1 ? '' : 's'}</summary><ol class="stack" style="gap:6px;margin:6px 0 0;padding-left:18px">${a.tools
+    ? `<details class="trace" data-trace><summary>Used ${a.tools.length} tool${a.tools.length === 1 ? '' : 's'}</summary><ol class="stack gap-1_5 mt-1_5 m-0 pl-5">${a.tools
         .map((t) => {
           const link = evidenceLink(t);
           const state = t.isError === null ? '…' : t.isError ? '✗' : '✓';
           return `<li ${t.n !== null ? `id="cite-${t.n}"` : ''} data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ''}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? 'bad' : 'soft'}">${state}</span>${
-            t.preview
-              ? `<pre class="small soft" style="white-space:pre-wrap;margin:4px 0 0">${esc(t.preview)}</pre>`
-              : ''
+            t.preview ? `<pre class="small soft pre-wrap mt-1 m-0">${esc(t.preview)}</pre>` : ''
           }${link ? ` <a href="${esc(link.href)}">${esc(link.text)} →</a>` : ''}</li>`;
         })
         .join('')}</ol></details>`
@@ -113,19 +111,17 @@ function answerBody(a: Answer, cited: Answer['tools'], conversation: string | nu
   const rateKey = `${conversation}|${a.seq}`;
   const feedback =
     a.done && a.seq !== null && conversation
-      ? `<div class="row" style="gap:6px;margin-top:8px;align-items:center" data-feedback>${vote('up', '👍')}${vote('down', '👎')}${
+      ? `<div class="row gap-1_5 mt-2 items-center" data-feedback>${vote('up', '👍')}${vote('down', '👎')}${
           a.feedback?.comment ? `<span class="small soft">“${esc(a.feedback.comment)}”</span>` : ''
         }</div>${
           rating?.key === rateKey
-            ? `<form class="row" style="gap:6px;margin-top:6px" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="What was wrong? (goes to your site's admins with this answer)" value="${esc(rating.comment)}" style="flex:1"><button class="btn sm" type="submit">Send</button></form>`
+            ? `<form class="row gap-1_5 mt-1_5" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="What was wrong? (goes to your site's admins with this answer)" value="${esc(rating.comment)}" class="grow"><button class="btn sm" type="submit">Send</button></form>`
             : ''
         }`
       : '';
   return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? '' : '<span class="soft"> …</span>'}</div>${
-    warning
-      ? `<p class="small" role="note" data-grounding-warning style="color:var(--warn-ink)">⚠ ${esc(warning)}</p>`
-      : ''
-  }${a.error ? `<p class="small" role="alert" style="color:var(--bad)">${esc(a.error)}</p>` : ''}${feedback}`;
+    warning ? `<p class="small text-warn" role="note" data-grounding-warning>⚠ ${esc(warning)}</p>` : ''
+  }${a.error ? `<p class="small text-bad" role="alert">${esc(a.error)}</p>` : ''}${feedback}`;
 }
 
 function remoteRender(ctx: Context): string {
@@ -164,7 +160,7 @@ function remoteRender(ctx: Context): string {
   ].join('');
   const loading = ui.conversation && thread?.key !== key && !live;
   return `<div class="copilot">
-      <div class="card stack" style="gap:8px">
+      <div class="card stack gap-2">
         <button class="btn primary" type="button" data-new-conversation>New conversation</button>
         <div class="review-list" data-conversations>${items}</div>
       </div>
@@ -180,13 +176,13 @@ function remoteRender(ctx: Context): string {
               })
         }</div>
         <div>
-          <div class="chips" style="margin:10px 0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+          <div class="chips mt-2_5 mb-2_5 m-0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
           <form class="composer" id="composer">
             <input type="text" name="q" value="${esc(draft)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy ? 'disabled' : ''} />
             <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Ask</button>
             ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy ? 'disabled' : ''}>Delete</button>` : ''}
           </form>
-          <p class="small soft" style="margin-top:6px">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
+          <p class="small soft mt-1_5">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
         </div>
       </div>
     </div>`;
@@ -346,7 +342,7 @@ function localRender(ctx: Context, note = ''): string {
       <div class="chat">
         <div class="chat-log" id="chat-log">${messages}</div>
         <div>
-          <div class="chips" style="margin:10px 0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+          <div class="chips mt-2_5 mb-2_5 m-0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
           <form class="composer" id="composer">
             <input type="text" name="q" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
             <button class="btn primary" type="submit">Ask</button>
@@ -398,9 +394,9 @@ const view: View = {
     const checking = ctx.api && remote?.configured === null;
     const note =
       ctx.api && remote?.configured === false
-        ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>`
+        ? `<p class="small soft mb-2" data-copilot-off>The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>`
         : ctx.api && remote?.configured && !remote.enabled
-          ? `<p class="small soft" data-copilot-site-off style="margin-bottom:8px">The copilot is off on this site: an admin turns it on in <a href="#/settings">Settings</a>. Until then the built-in skills answer on the demo data.</p>`
+          ? `<p class="small soft mb-2" data-copilot-site-off>The copilot is off on this site: an admin turns it on in <a href="#/settings">Settings</a>. Until then the built-in skills answer on the demo data.</p>`
           : checking
             ? '<p class="small soft">Checking the copilot service…</p>'
             : '';
