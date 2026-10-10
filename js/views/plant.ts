@@ -16,7 +16,7 @@ import type { FloorItem } from '../lib/shopfloor.ts';
 import type { Graph, OntologyNode } from '../lib/types.ts';
 import { when } from '../lib/warnings.ts';
 import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } from './floor-data.ts';
-import type { Context, View } from './types.ts';
+import type { Context, Crumb, View } from './types.ts';
 import { button, pageHead } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 
@@ -34,11 +34,8 @@ const uiState = (ctx: Context) => ctx.ui<Ui>('plant', { query: '' });
 let searching = false; // the search box has the focus
 let typing: ReturnType<typeof setTimeout> | undefined;
 
-// The place the URL names; with one site, the page opens on it.
-const placeOf = (graph: Graph): string | null => {
-  const tops = topPlaces(graph);
-  return placeFromHash(location.hash) ?? (tops.length === 1 ? (tops[0] ?? null) : null);
-};
+// The trail to the place the page last showed, for the breadcrumbs (worked out once, in render).
+let shownTrail: Crumb[] = [];
 
 const badge = (state: FloorItem['state'], count: number): string => {
   if (!count) return '<span class="badge good">OK</span>';
@@ -211,17 +208,16 @@ const view: View = {
   id: 'plant',
   title: 'Plant',
   icon: 'factory',
-  crumbs(ctx) {
-    const graph = ctx.graph;
-    const id = placeOf(graph);
-    return id && graph.nodes[id] ? trail(graph, id).map((n) => ({ label: n.label, href: placeLink(n.id) })) : [];
-  },
+  crumbs: () => shownTrail,
   render(ctx) {
     const ui = uiState(ctx);
     const graph = ctx.graph; // made afresh at each read: once for the whole page
     const tops = topPlaces(graph);
-    const id = placeOf(graph);
+    // The place the URL names; with one site, the page opens on it.
+    const asked = placeFromHash(location.hash);
+    const id = asked ?? (tops.length === 1 ? (tops[0] ?? null) : null);
     const node = id ? graph.nodes[id] : undefined;
+    shownTrail = node ? trail(graph, node.id).map((n) => ({ label: n.label, href: placeLink(n.id) })) : [];
     const title = node?.label ?? 'Plant';
     const kind = node ? node.type : 'Site → line → machine';
     const search = `<form class="plant-search" data-plant-search role="search">
@@ -241,7 +237,7 @@ const view: View = {
       return `${head}${results}<div class="card"><p>The ontology has no sites, lines or machines yet. Build the hierarchy on the <a href="#/ontology">Ontology</a> page: a site contains workcenters, which contain lines and cells, which contain machines.</p></div>`;
     const items = floorItems(ctx, graph);
     const now = Date.now();
-    if (placeFromHash(location.hash) && !node)
+    if (asked && !node)
       return `${head}${results}<div class="card" role="alert"><p>This place isn’t in the ontology any more. <a href="#/plant">Start from the top</a>.</p></div>`;
     if (!node) {
       const cards = tops.map((t) => placeCard(graph, graph.nodes[t] as OntologyNode, items)).join('');

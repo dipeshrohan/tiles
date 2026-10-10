@@ -288,11 +288,14 @@ const view: View = {
   id: 'apps',
   title: 'App Studio',
   icon: 'layout-grid',
-  crumbs() {
-    if (isNew()) return [{ label: 'New app' }];
+  crumbs(ctx) {
+    if (!ctx.api || ctx.ontology.status !== 'ready') return [];
+    if (isNew()) return canEdit(ctx) ? [{ label: 'New app' }] : [];
     const n = selected();
-    if (n === null) return [];
-    return [{ label: `#${n}`, href: appLink(n) }, ...(editKey() ? [{ label: 'Change' }] : [])];
+    // Not one the list says is gone.
+    if (n === null || (listing?.key === listKey(ctx) && listing.items && !listing.items.some((a) => a.number === n)))
+      return [];
+    return [{ label: `#${n}`, href: appLink(n) }, ...(editKey() && canEdit(ctx) ? [{ label: 'Change' }] : [])];
   },
   render(ctx) {
     const head = pageHead({

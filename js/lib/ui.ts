@@ -122,16 +122,9 @@ export function breadcrumbs(trail: readonly { label: string; href?: string }[]):
 }
 
 // The top of a page: where it sits, its name, what it is for, and its actions on the right.
-export function pageHead(o: {
-  eyebrow?: string;
-  title: string;
-  lead?: string;
-  leadHtml?: string; // a lead with links or emphasis, built by the caller
-  actionsHtml?: string;
-}): string {
-  const lead = o.leadHtml ?? (o.lead ? esc(o.lead) : '');
+export function pageHead(o: { eyebrow?: string; title: string; lead?: string; actionsHtml?: string }): string {
   return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ''}<h1>${esc(o.title)}</h1>${
-    lead ? `<p class="soft">${lead}</p>` : ''
+    o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ''
   }</div>${o.actionsHtml ?? ''}</div>`;
 }
 

@@ -2522,8 +2522,7 @@
 		}).join("")}</ol>`;
 	}
 	function pageHead(o) {
-		const lead = o.leadHtml ?? (o.lead ? esc(o.lead) : "");
-		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<h1>${esc(o.title)}</h1>${lead ? `<p class="soft">${lead}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
+		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<h1>${esc(o.title)}</h1>${o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
 	}
 	function input(o) {
 		return `<input${attrs({
@@ -7376,12 +7375,12 @@
 		id: "reviews",
 		title: "Change reviews",
 		icon: "git-pull-request",
-		crumbs() {
-			const n = linked(location.hash);
-			return n === null ? [] : [{
+		crumbs(ctx) {
+			const n = uiState$8(ctx).selected;
+			return ctx.api && ctx.ontology.status === "ready" && n !== null ? [{
 				label: `#${n}`,
 				href: `#/reviews/${n}`
-			}];
+			}] : [];
 		},
 		render(ctx) {
 			const head = pageHead({
@@ -7909,6 +7908,10 @@
 		id: "warnings",
 		title: "Warnings",
 		icon: "triangle-alert",
+		crumbs(ctx) {
+			const w = uiState$7(ctx).selected !== null && detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
+			return ctx.api && w ? [{ label: w.signal_tag }] : [];
+		},
 		render(ctx) {
 			const head = pageHead({
 				eyebrow: "Operations · Detection",
@@ -8579,10 +8582,7 @@
 	var uiState$5 = (ctx) => ctx.ui("plant", { query: "" });
 	var searching = false;
 	var typing$1;
-	var placeOf = (graph) => {
-		const tops = topPlaces(graph);
-		return placeFromHash(location.hash) ?? (tops.length === 1 ? tops[0] ?? null : null);
-	};
+	var shownTrail = [];
 	var badge = (state, count) => {
 		if (!count) return "<span class=\"badge good\">OK</span>";
 		const [cls, label] = STATE_LABEL[state];
@@ -8689,20 +8689,18 @@
 		id: "plant",
 		title: "Plant",
 		icon: "factory",
-		crumbs(ctx) {
-			const graph = ctx.graph;
-			const id = placeOf(graph);
-			return id && graph.nodes[id] ? trail(graph, id).map((n) => ({
-				label: n.label,
-				href: placeLink(n.id)
-			})) : [];
-		},
+		crumbs: () => shownTrail,
 		render(ctx) {
 			const ui = uiState$5(ctx);
 			const graph = ctx.graph;
 			const tops = topPlaces(graph);
-			const id = placeOf(graph);
+			const asked = placeFromHash(location.hash);
+			const id = asked ?? (tops.length === 1 ? tops[0] ?? null : null);
 			const node = id ? graph.nodes[id] : void 0;
+			shownTrail = node ? trail(graph, node.id).map((n) => ({
+				label: n.label,
+				href: placeLink(n.id)
+			})) : [];
 			const title = node?.label ?? "Plant";
 			const kind = node ? node.type : "Site → line → machine";
 			const search = `<form class="plant-search" data-plant-search role="search">
@@ -8719,7 +8717,7 @@
 			if (!tops.length) return `${head}${results}<div class="card"><p>The ontology has no sites, lines or machines yet. Build the hierarchy on the <a href="#/ontology">Ontology</a> page: a site contains workcenters, which contain lines and cells, which contain machines.</p></div>`;
 			const items = floorItems(ctx, graph);
 			const now = Date.now();
-			if (placeFromHash(location.hash) && !node) return `${head}${results}<div class="card" role="alert"><p>This place isn’t in the ontology any more. <a href="#/plant">Start from the top</a>.</p></div>`;
+			if (asked && !node) return `${head}${results}<div class="card" role="alert"><p>This place isn’t in the ontology any more. <a href="#/plant">Start from the top</a>.</p></div>`;
 			if (!node) return `${head}${results}<div class="place-grid">${tops.map((t) => placeCard(graph, graph.nodes[t], items)).join("")}</div>`;
 			return `${head}${results}${node.type === "Machine" ? machinePage(ctx, graph, node, items, now) : placePage(graph, node.id, items, now)}`;
 		},
@@ -10326,12 +10324,12 @@ heartbeat_seconds = 30
 		id: "insights",
 		title: "Insights",
 		icon: "lightbulb",
-		crumbs() {
+		crumbs(ctx) {
 			const n = selected$1();
-			return n === null ? [] : [{
+			return ctx.api && ctx.ontology.status === "ready" && n !== null ? [{
 				label: `#${n}`,
 				href: insightLink(n)
-			}];
+			}] : [];
 		},
 		render(ctx) {
 			const head = pageHead({
@@ -10767,14 +10765,15 @@ heartbeat_seconds = 30
 		id: "apps",
 		title: "App Studio",
 		icon: "layout-grid",
-		crumbs() {
-			if (isNew()) return [{ label: "New app" }];
+		crumbs(ctx) {
+			if (!ctx.api || ctx.ontology.status !== "ready") return [];
+			if (isNew()) return canEdit$1(ctx) ? [{ label: "New app" }] : [];
 			const n = selected();
-			if (n === null) return [];
+			if (n === null || listing$1?.key === listKey(ctx) && listing$1.items && !listing$1.items.some((a) => a.number === n)) return [];
 			return [{
 				label: `#${n}`,
 				href: appLink(n)
-			}, ...editKey() ? [{ label: "Change" }] : []];
+			}, ...editKey() && canEdit$1(ctx) ? [{ label: "Change" }] : []];
 		},
 		render(ctx) {
 			const head = pageHead({
@@ -12167,6 +12166,10 @@ heartbeat_seconds = 30
 	function render() {
 		const view = currentView();
 		renderNav(view);
+		document.title = view === view$19 ? "Tiles" : `${view.title} · Tiles`;
+		const root = need(document, "#view");
+		root.innerHTML = view.render(ctx);
+		view.bind?.(root, ctx);
 		need(document, "#crumbs").innerHTML = breadcrumbs([
 			{
 				label: "Home",
@@ -12178,10 +12181,6 @@ heartbeat_seconds = 30
 			}],
 			...view.crumbs?.(ctx) ?? []
 		]);
-		document.title = view === view$19 ? "Tiles" : `${view.title} · Tiles`;
-		const root = need(document, "#view");
-		root.innerHTML = view.render(ctx);
-		view.bind?.(root, ctx);
 		if (view.id !== shownView) {
 			shownView = view.id;
 			root.classList.remove("view-enter");

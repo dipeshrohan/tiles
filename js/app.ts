@@ -499,16 +499,17 @@ let enterTimer: ReturnType<typeof setTimeout> | undefined;
 function render(): void {
   const view = currentView();
   renderNav(view);
-  // Home › the page › where in it the URL points: from the URL, so a reload or a shared link shows the same.
+  document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
+  const root = need(document, '#view');
+  root.innerHTML = view.render(ctx);
+  view.bind?.(root, ctx);
+  // Home › the page › the record or place it shows (after render and bind, from what they show; the
+  // record comes from the URL, so a reload or a shared link shows the same).
   need(document, '#crumbs').innerHTML = breadcrumbs([
     { label: 'Home', href: '#/' },
     ...(view === home ? [] : [{ label: view.title, href: `#/${view.id}` }]),
     ...(view.crumbs?.(ctx) ?? []),
   ]);
-  document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
-  const root = need(document, '#view');
-  root.innerHTML = view.render(ctx);
-  view.bind?.(root, ctx);
   // A new page fades in (U3.02, ahead of the View Transitions version); a re-render of the same
   // page, or another record on it, doesn't move. Reduced motion turns it off in the stylesheet.
   if (view.id !== shownView) {

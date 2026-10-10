@@ -272,9 +272,9 @@ const view: View = {
   id: 'reviews',
   title: 'Change reviews',
   icon: 'git-pull-request',
-  crumbs() {
-    const n = linked(location.hash);
-    return n === null ? [] : [{ label: `#${n}`, href: `#/reviews/${n}` }];
+  crumbs(ctx) {
+    const n = uiState(ctx).selected;
+    return ctx.api && ctx.ontology.status === 'ready' && n !== null ? [{ label: `#${n}`, href: `#/reviews/${n}` }] : [];
   },
   render(ctx) {
     const head = pageHead({

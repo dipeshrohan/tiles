@@ -2466,6 +2466,7 @@ test('the inbox pages through older warnings, and a warning that fails to load s
   assert.equal(await a.page.locator(`[data-warning="${ids[0]}"].sel`).count(), 1); // still selected
   await a.page.click('[data-refresh-warnings]');
   await a.page.waitForSelector('[data-warning-detail]:has-text("line000.friction")');
+  await a.page.waitForSelector('#crumbs [aria-current=page]:has-text("line000.friction")');
   // The failed read showed a toast; nothing else went wrong.
   assert.deepEqual(
     a.errors.filter((e) => !/503/.test(e)),
@@ -3285,6 +3286,8 @@ test('the copilot proposes an ontology change, which waits for another engineer'
   await link.click();
   await a.page.waitForSelector('[data-review-detail]:has-text("Add Assembly Line 3")');
   assert.equal(await a.page.evaluate(() => location.hash), '#/reviews'); // picked once
+  // The breadcrumbs follow the request shown, not the link that is gone.
+  await a.page.waitForSelector('#crumbs [aria-current=page]:has-text("#1")');
   const detail = a.page.locator('[data-review-detail]');
   assert.match(await detail.innerText(), /Proposed by the copilot/);
   assert.match(await a.page.locator('[data-review="1"]').innerText(), /Proposed by the copilot/);

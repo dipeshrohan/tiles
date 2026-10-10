@@ -552,10 +552,25 @@ nav {
   align-items: center;
   white-space: nowrap;
 }
-/* On a narrow screen the places above give way first; this one stays. */
-.crumbs li:not(:last-child) {
-  flex-shrink: 1;
+/* Short of room, the places above give way first (to an ellipsis), then this one; on a phone only
+   the place above and this one are shown. */
+.crumbs li {
   min-width: 0;
+}
+.crumbs li:not(:last-child) {
+  flex-shrink: 100;
+}
+.crumbs b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .crumbs li:not(:last-child):not(:nth-last-child(2)) {
+    display: none;
+  }
+  .crumbs li:nth-last-child(2) .crumb-sep {
+    display: none;
+  }
 }
 .crumbs a {
   color: var(--muted);

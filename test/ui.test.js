@@ -245,11 +245,3 @@ test('breadcrumbs link each place above, and mark this one current', () => {
   // A place without a link of its own is plain text.
   assert.match(breadcrumbs([{ label: 'New app' }, { label: 'x' }]), /<li><span>New app<\/span><\/li>/);
 });
-
-test('a page head takes a lead with markup the caller built', () => {
-  assert.match(
-    pageHead({ title: 'T', leadHtml: 'See <a href="#/x">x</a>' }),
-    /<p class="soft">See <a href="#\/x">x<\/a><\/p>/,
-  );
-  assert.doesNotMatch(pageHead({ title: 'T' }), /<p/);
-});

@@ -428,6 +428,11 @@ const view: View = {
   id: 'warnings',
   title: 'Warnings',
   icon: 'triangle-alert',
+  // The warning open beside the list (kept in the page's state, so a reload shows it again).
+  crumbs(ctx) {
+    const w = uiState(ctx).selected !== null && detail?.key === detailKey(ctx) ? detail.warning : null;
+    return ctx.api && w ? [{ label: w.signal_tag }] : [];
+  },
   render(ctx) {
     const head = pageHead({
       eyebrow: 'Operations · Detection',

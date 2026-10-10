@@ -231,9 +231,9 @@ const view: View = {
   id: 'insights',
   title: 'Insights',
   icon: 'lightbulb',
-  crumbs() {
+  crumbs(ctx) {
     const n = selected();
-    return n === null ? [] : [{ label: `#${n}`, href: insightLink(n) }];
+    return ctx.api && ctx.ontology.status === 'ready' && n !== null ? [{ label: `#${n}`, href: insightLink(n) }] : [];
   },
   render(ctx) {
     const head = pageHead({
