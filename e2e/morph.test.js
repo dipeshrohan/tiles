@@ -210,6 +210,34 @@ test('a file chosen stays until its form is sent, then the field is empty', asyn
   await page.close();
 });
 
+test('rows with a key say when they come and go; one fading out is not matched again', async () => {
+  const page = await blank();
+  const list = (ids) => `<ul>${ids.map((id) => `<li data-key="${id}">${id}</li>`).join('')}</ul>`;
+  await draw(page, list(['a', 'b']), 'replace');
+  const result = await page.evaluate(
+    (html) => {
+      const root = document.getElementById('root');
+      const seen = { entered: [], left: [] };
+      const hooks = {
+        enter: (el) => seen.entered.push(el.dataset.key),
+        leave: (el) => (seen.left.push(el.dataset.key), true), // it stays, fading, until its hook removes it
+      };
+      window.morphing.morph(root, html[0], hooks);
+      const fading = root.querySelector('[data-key=a]');
+      // Drawn again before it has gone: it isn't taken for the new row, which comes in new.
+      window.morphing.morph(root, html[1], hooks);
+      return {
+        ...seen,
+        fadingStill: fading.isConnected,
+        keys: [...root.querySelectorAll('li')].map((li) => li.dataset.key).join(),
+      };
+    },
+    [list(['b', 'c']), list(['a2', 'b', 'c'])],
+  );
+  assert.deepEqual(result, { entered: ['c', 'a2'], left: ['a'], fadingStill: true, keys: 'a,a2,b,c' }); // the fading row stays where it was
+  await page.close();
+});
+
 test('the result is what the HTML says: attributes, text, SVG and a changed tag', async () => {
   const page = await blank();
   await draw(

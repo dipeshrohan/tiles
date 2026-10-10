@@ -1,11 +1,11 @@
-import { esc, onAll, scrollBehavior } from '../lib/dom.ts';
+import { esc, fmt, onAll, scrollBehavior } from '../lib/dom.ts';
 import { icon, type IconName } from '../lib/icons.ts';
 import { ICONS } from '../lib/icon-data.ts';
 import { ILLUSTRATIONS, illustration } from '../lib/illustrations.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { COMPONENTS, STATES, TOKEN_GROUPS, type Example, type TokenGroup } from '../lib/styleguide.ts';
-import { button, card, pageHead } from '../lib/ui.ts';
-import type { View } from './types.ts';
+import { button, card, pageHead, tabs } from '../lib/ui.ts';
+import type { Context, View } from './types.ts';
 
 // The style guide (U1.07): every design token, component, state, icon and illustration, in the light
 // and the dark theme side by side, with the code that makes each. Not in the menu: Settings → About
@@ -64,11 +64,67 @@ function example(e: Example): string {
     </section>`;
 }
 
+// The motion samples (U3.04) are drawn by the page, like any page's state: each change draws it again,
+// and what changed moves as it would anywhere (js/lib/micro.ts), or not at all with less motion.
+interface MotionUi {
+  tab: string;
+  rows: string[];
+  next: number;
+  selected: string;
+  readings: number;
+}
+const uiState = (ctx: Context) =>
+  ctx.ui<MotionUi>('styleguide', {
+    tab: 'open',
+    rows: ['DC-01', 'DC-02', 'DC-03'],
+    next: 4,
+    selected: 'DC-01',
+    readings: 1204,
+  });
+
+function motionCard(motion: MotionUi): string {
+  const rows = motion.rows
+    .map(
+      (id) =>
+        `<button class="review-row ${motion.selected === id ? 'sel' : ''}" type="button" data-key="sg-row-${esc(id)}" data-sg-row="${esc(id)}"><b>Die-caster ${esc(id)}</b><span class="small muted">A warning on its machine</span></button>`,
+    )
+    .join('');
+  return card(
+    `<p class="small soft">A page drawn again moves what changed, a little: try them. With less motion asked for, they change at once.</p>
+    ${tabs({
+      label: 'Status',
+      items: [
+        ['open', 'Open'],
+        ['taken', 'Taken'],
+        ['resolved', 'Resolved'],
+      ],
+      current: motion.tab,
+      data: 'sg-motion-tab',
+    })}
+    <div class="sg-motion">
+      <div class="stack gap-2">
+        <div class="review-list">${rows}</div>
+        <div class="row gap-2 wrap">${button('Add a row', { size: 'sm', attrs: { 'data-sg-add': true } })}${button('Remove the first', { size: 'sm', attrs: { 'data-sg-remove': true } })}</div>
+      </div>
+      <div class="stack gap-2">
+        <div class="kpi"><div class="label">Readings today</div><div class="value">${fmt(motion.readings)}</div></div>
+        <div>${button('Add 250 readings', { size: 'sm', attrs: { 'data-sg-count': true } })}</div>
+        <details class="sg-details"><summary>A section that opens</summary><p class="small">Its content fades and rises in; it closes at once.</p></details>
+      </div>
+    </div>
+    <pre class="sg-code"><code>${esc(`<li data-key="warning-12">…</li>     // a row with a key fades in when added and out when removed
+<div class="kpi"><div class="value">1,204</div></div>   // or data-tick: a number ticks to its new value
+tabs({ … }), .review-row.sel, .seg button.active      // the highlight moves from the one selected before`)}</code></pre>`,
+    { class: 'stack gap-3' },
+  );
+}
+
 const SECTIONS = [
   ['tokens', 'Tokens'],
   ['components', 'Components'],
   ['states', 'States'],
   ['overlays', 'Dialogs, toasts and tooltips'],
+  ['motion', 'Motion'],
   ['icons', 'Icons'],
   ['illustrations', 'Illustrations'],
 ] as const;
@@ -78,7 +134,7 @@ const view: View = {
   title: 'Style guide',
   icon: 'palette',
   under: 'settings',
-  render() {
+  render(ctx) {
     const head = pageHead({
       eyebrow: 'Settings · About',
       title: 'Style guide',
@@ -114,12 +170,15 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 <button … data-tooltip="Says what it does">`)}</code></pre>`,
         { class: 'stack gap-2' },
       )}
+      <h2 class="mt-4 mb-2" id="sg-sec-motion">Motion</h2>
+      ${motionCard(uiState(ctx))}
       <h2 class="mt-4 mb-2" id="sg-sec-icons">Icons</h2>
       ${card(`<p class="small soft">Lucide, drawn with the text colour: <code>icon('house')</code>, decorative unless given a <code>label</code>.</p><ul class="sg-icons">${icons}</ul>`, { class: 'stack gap-2' })}
       <h2 class="mt-4 mb-2" id="sg-sec-illustrations">Illustrations</h2>
       ${card(`<p class="small soft">For empty, waiting and error states: <code>illustration('inbox')</code>, coloured by the theme.</p><ul class="sg-illustrations">${pictures}</ul>`, { class: 'stack gap-2' })}`;
   },
   bind(root, ctx) {
+    const motion = uiState(ctx);
     for (const el of root.querySelectorAll<HTMLElement>('[data-sg-token]')) {
       el.style.setProperty(el.dataset.sgProp ?? 'background', `var(${el.dataset.sgToken})`);
     }
@@ -152,6 +211,26 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
       target?.scrollIntoView({ behavior: scrollBehavior() });
       target?.setAttribute('tabindex', '-1');
       target?.focus({ preventScroll: true });
+    });
+    onAll(root, '[data-sg-motion-tab]', 'click', (el) => {
+      motion.tab = el.dataset.sgMotionTab ?? 'open';
+      ctx.rerender();
+    });
+    onAll(root, '[data-sg-row]', 'click', (el) => {
+      motion.selected = el.dataset.sgRow ?? '';
+      ctx.rerender();
+    });
+    onAll(root, '[data-sg-add]', 'click', () => {
+      motion.rows.unshift(`DC-${String(motion.next++).padStart(2, '0')}`);
+      ctx.rerender();
+    });
+    onAll(root, '[data-sg-remove]', 'click', () => {
+      motion.rows.shift();
+      ctx.rerender();
+    });
+    onAll(root, '[data-sg-count]', 'click', () => {
+      motion.readings += 250;
+      ctx.rerender();
     });
     onAll(root, '[data-sg-dialog]', 'click', async () => {
       // A dialog is for what can't be undone; what can come back gets an Undo toast instead (U2.03).
