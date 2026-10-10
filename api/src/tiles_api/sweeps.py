@@ -24,8 +24,6 @@ from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
 from typing import Any
 
-import psycopg
-from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 
 from tiles_api import telemetry
@@ -33,7 +31,7 @@ from tiles_api.models import store
 from tiles_api.models.registry import Model, ModelError, evaluate
 from tiles_api.models.remote import RemoteError
 from tiles_api.settings import Settings, get_settings
-from tiles_api.store import UNSCOPED, Conn
+from tiles_api.store import Conn, connect_job
 
 MAX_STEPS = 200  # on one axis
 MAX_POINTS = 40_000  # in one sweep
@@ -221,10 +219,10 @@ def drain(connect: Connect, settings: Settings | None = None) -> None:
 def main() -> None:
     """tiles-run-sweeps: runs every waiting sweep (queued, or left running by a worker that went
     quiet), oldest first; the exit code is 1 if one failed."""
-    url = get_settings().database_url.get_secret_value()
+    settings = get_settings()
 
     def connect() -> AbstractContextManager[Conn]:
-        return psycopg.connect(url, row_factory=dict_row, autocommit=False, options=UNSCOPED)
+        return connect_job(settings, autocommit=False)
 
     failed = False
     while (ran := run(connect)) is not None:

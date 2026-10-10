@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 import psycopg
 from fastapi import Depends, HTTPException, Request, status
-from psycopg.rows import DictRow, dict_row
+from psycopg.rows import DictRow, dict_row, tuple_row
 from psycopg_pool import ConnectionPool
 
 from tiles_api.settings import Settings
@@ -20,21 +20,52 @@ Conn = psycopg.Connection[DictRow]
 APP_ROLE = "tiles_app"  # migration 0024
 
 
-def act_as_app(conn: Conn) -> None:
-    """Makes the connection's work subject to row security (T5.04): a login that would skip it (a
-    superuser, as Compose's is, or one with BYPASSRLS) works as `tiles_app` from here on. A login
-    without those powers is left as it is: its own tables' policies are forced."""
-    row = conn.execute("SELECT rolsuper OR rolbypassrls AS skips FROM pg_roles WHERE rolname = current_user").fetchone()
-    if row is not None and row["skips"]:
-        if conn.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", [APP_ROLE]).fetchone() is None:
-            raise RuntimeError(f"Run the migrations: the {APP_ROLE} role (row security, 0024) is missing")
+def act_as_app(conn: psycopg.Connection[Any]) -> None:
+    """Makes the connection's work subject to row security (T5.04) and to no more than the API's
+    grants: a login that can work as `tiles_app` (a superuser, as Compose's is, or the migration
+    login, which migration 0024 made a member) does so from here on, so it neither skips the
+    policies nor changes the schema. A login that would skip them and can't is refused; any other
+    login is left as it is, as its own tables' policies are forced. `SET ROLE` bounds what this
+    code does, not what someone holding the login can do."""
+    with conn.cursor(row_factory=tuple_row) as cur:
+        skips, can = one(cur.execute(CAN_ACT_AS_APP, {"role": APP_ROLE}).fetchone())
+    if can:
         conn.execute(f"SET ROLE {APP_ROLE}")
+    elif skips:
+        raise RuntimeError(
+            f"This database login skips row security and can't work as {APP_ROLE}: run the migrations,"
+            f" or GRANT {APP_ROLE} to it"
+        )
     conn.commit()
 
 
+# Whether the login skips row security, and whether it may SET ROLE to the app's role ('SET' is
+# PostgreSQL 16's; before it, membership was the right to SET ROLE).
+CAN_ACT_AS_APP = """
+SELECT r.rolsuper OR r.rolbypassrls,
+       a.oid IS NOT NULL AND CASE WHEN current_setting('server_version_num')::int >= 160000
+                                  THEN pg_has_role(current_user, a.oid, 'SET')
+                                  ELSE pg_has_role(current_user, a.oid, 'MEMBER') END
+FROM pg_roles r LEFT JOIN pg_roles a ON a.rolname = %(role)s
+WHERE r.rolname = current_user
+"""
+
+
+def connect_job(settings: Settings, **kwargs: Any) -> Conn:
+    """A scheduled job's connection (threat model G-D1): every site's rows, working as `tiles_app`
+    (`act_as_app`), so a job can do no more than the API can, whatever login it is given."""
+    conn = psycopg.connect(settings.database_url.get_secret_value(), row_factory=dict_row, options=UNSCOPED, **kwargs)
+    try:
+        act_as_app(conn)
+    except BaseException:
+        conn.close()
+        raise
+    return conn
+
+
 def open_pool(settings: Settings, size: int | None = None) -> ConnectionPool[Conn]:
-    """The API's connections: every one subject to row security (`act_as_app`). Scheduled jobs and
-    migrations connect on their own, as the login they are given."""
+    """The API's connections: every one subject to row security (`act_as_app`). Scheduled jobs
+    connect on their own (`connect_job`), and migrations as the login they are given."""
     return ConnectionPool(
         settings.database_url.get_secret_value(),
         min_size=1,

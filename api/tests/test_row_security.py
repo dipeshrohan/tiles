@@ -9,6 +9,7 @@ from typing import Any
 import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from psycopg import errors
 from psycopg.rows import dict_row
 from test_agents import ADMIN, ENG, api, site  # noqa: F401 - api and site are fixtures
 from test_reviews import member
@@ -17,7 +18,7 @@ from tiles_api import copilot_usage
 from tiles_api.api_ontology import SiteContext
 from tiles_api.identity import User
 from tiles_api.settings import Settings
-from tiles_api.store import UNSCOPED, act_as_app, all_sites, open_pool
+from tiles_api.store import UNSCOPED, act_as_app, all_sites, connect_job, one, open_pool
 
 RLS = importlib.import_module("tiles_api.migrations.versions.0024_site_row_security")
 # Tables of a site's data made after 0024, each with its policy in its own migration.
@@ -231,3 +232,54 @@ def test_the_api_works_as_a_role_that_cant_skip_row_security(api: TestClient) ->
             "SELECT current_user AS who, rolsuper OR rolbypassrls AS skips FROM pg_roles WHERE rolname = current_user"
         ).fetchone()
     assert row == {"who": "tiles_app", "skips": False}
+
+
+def test_jobs_work_as_the_apps_role_on_every_site(database_url: str, two_sites: dict[str, Any]) -> None:
+    """Threat model G-D1: a scheduled job sees every site but can do no more than the API can."""
+    settings = Settings(database_url=database_url)
+    with connect_job(settings, autocommit=True) as conn:
+        assert one(conn.execute("SELECT current_user AS who").fetchone())["who"] == "tiles_app"
+        sites = {r["site_id"] for r in conn.execute("SELECT DISTINCT site_id FROM signals")}
+        assert {two_sites["site"], two_sites["other"]} <= sites
+        for statement in (
+            "CREATE TABLE job_scratch (x int)",  # no schema changes
+            "DROP TABLE signals",
+            "DELETE FROM samples",  # readings only through the view and tiles_store_samples
+        ):
+            with pytest.raises(errors.InsufficientPrivilege):
+                conn.execute(statement)
+
+
+def login(database_url: str, attributes: str, grant: bool) -> tuple[str, str]:
+    """A new login role (name, URL) on the test server, for a test to drop."""
+    name, password = f"tiles_test_{uuid.uuid4().hex[:12]}", uuid.uuid4().hex
+    with psycopg.connect(database_url, autocommit=True) as admin:
+        admin.execute(f"CREATE ROLE {name} LOGIN PASSWORD '{password}' {attributes}")
+        if grant:
+            admin.execute(f"GRANT tiles_app TO {name}")  # as migration 0024 does for its login
+    return name, psycopg.conninfo.make_conninfo(database_url, user=name, password=password)
+
+
+def drop(database_url: str, name: str) -> None:
+    with psycopg.connect(database_url, autocommit=True) as admin:
+        admin.execute(f"DROP ROLE {name}")
+
+
+def test_a_migration_login_without_superuser_powers_works_as_the_apps_role_too(database_url: str) -> None:
+    """The migration login of a managed database (no superuser) is a member of tiles_app (0024):
+    jobs and the API given it still work as tiles_app, not as the tables' owner."""
+    name, url = login(database_url, "NOSUPERUSER NOBYPASSRLS", grant=True)
+    try:
+        with connect_job(Settings(database_url=url)) as conn:
+            assert one(conn.execute("SELECT current_user AS who").fetchone())["who"] == "tiles_app"
+    finally:
+        drop(database_url, name)
+
+
+def test_a_login_that_skips_row_security_must_work_as_the_apps_role(database_url: str) -> None:
+    name, url = login(database_url, "NOSUPERUSER BYPASSRLS", grant=False)
+    try:
+        with pytest.raises(RuntimeError, match="skips row security and can't work as tiles_app"):
+            connect_job(Settings(database_url=url))
+    finally:
+        drop(database_url, name)

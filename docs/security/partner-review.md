@@ -105,7 +105,8 @@ plainly in the review, and agree with the plant when each must close:
 
 - **Not certified:** no penetration test yet (T6.07) and no SOC 2 or ISO 27001 certification
   ([timeline](compliance-readiness.md#timeline)).
-- **G-D1:** the scheduled jobs' own database role.
+- **G-D2:** a database login for the API and the jobs that can't change the schema. They already
+  work as a role that can't (G-D1), but they hold the login that can.
 - **G-E1:** edge-agent tokens that expire.
 - **G-E3:** signed reading batches, so the API can tell they weren't changed on the agent's host.
 - **G-E4 / G-S2:** signed releases and images.

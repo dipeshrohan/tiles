@@ -71,7 +71,7 @@ The trust boundaries, from the inside out:
 | Threat | What could happen | Mitigation | Status |
 |---|---|---|---|
 | **I**nformation disclosure at rest | A disk or backup is stolen | Credentials sealed in the database (T5.06); volume and backup encryption with KMS ([runbook](../runbooks/secrets-and-encryption.md)) | Partial: the customer's or our deployment must enable it (T5.09, T5.14) |
-| **T**ampering | Direct access to the database bypasses the API | Network isolation (internal only); the API's role can't skip row security | Partial: least-privilege jobs role (G-D1) |
+| **T**ampering | Direct access to the database bypasses the API | Network isolation (internal only); the API and the scheduled jobs work as `tiles_app`, which can't skip row security, change the schema or touch the `samples` table (G-D1). `SET ROLE` limits what their code does, not what someone holding the login can do: that is the network's and the secret store's job | Partial: the API and the jobs hold the migration login (G-D2) |
 | **D**enial of service | The disk fills with readings | Compression after 7 days, retention for 5 years (migration 0004) | Done; monitoring in T5.13 |
 
 ## IEC 62443 gap list
@@ -122,7 +122,8 @@ The trust boundaries, from the inside out:
 | G-A4 | Per-site opt-in for the copilot, and a note on what it sends to the AI provider | Done: `sites.copilot_enabled` (migration 0032), set by the site's admins in Settings; the [admin guide](../guides/admin.md#enable-it) lists what is sent |
 | G-A5 | Fail closed: refuse requests without a token whenever OIDC is configured, not only when `TILES_ENV=production`; the Helm chart sets production | Done: `Settings.dev_identity_on` (`TILES_DEV_IDENTITY` to opt in a local stack, refused in production) |
 | G-B1 | Security headers from the web server: a Content-Security-Policy without `unsafe-inline` scripts, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy` | Done: `securityHeaders` in `server.js` (the API sets `nosniff`, `no-referrer` and a closed policy on its own answers) |
-| G-D1 | Jobs connect as their own role, not the migration login | T5.09 |
+| G-D1 | Jobs connect as their own role, not the migration login | Done: `store.connect_job` works as `tiles_app` (every site's rows, the API's grants, no schema changes); a login that skips row security and can't is refused. Where a managed database's login may not create roles, `tiles_app` doesn't exist and the login works as itself, under the forced policies |
+| G-D2 | Give the API and the jobs a login of their own that can't migrate, so only the migration step holds the migration login | Follow-up (the chart runs migrations in each API pod) |
 | G-E1 | Edge tokens expire (with rotation from the UI) | Follow-up |
 | G-E2 | Run the agent under systemd sandboxing (or a read-only container) with only outbound network | Done: `edge/deploy/tiles-edge.service` (exposure 1.1, checked in CI), T5.11 |
 | G-E3 | Sign reading batches with a per-agent key, so the API can tell they weren't changed on the host | Later; weigh against SL target |

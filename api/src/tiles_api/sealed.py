@@ -18,12 +18,10 @@ import sys
 import uuid
 from dataclasses import dataclass, field
 
-import psycopg
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from psycopg.rows import dict_row
 
 from tiles_api.settings import Settings, get_settings
-from tiles_api.store import UNSCOPED, Conn
+from tiles_api.store import Conn, connect_job
 
 PREFIX = "tiles:v1:"
 KEY_ID = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
@@ -136,7 +134,7 @@ def main(argv: list[str] | None = None) -> None:
     if keys is None:
         print("TILES_DATA_KEYS isn't set: nothing to seal with", file=sys.stderr)
         sys.exit(2)
-    with psycopg.connect(settings.database_url.get_secret_value(), row_factory=dict_row, options=UNSCOPED) as conn:
+    with connect_job(settings) as conn:
         result = reseal(conn, keys)
     print(f"{result.resealed} value(s) sealed with key {keys.current}; {result.checked} checked")
     for where, why in result.failed:
