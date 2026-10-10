@@ -2181,6 +2181,35 @@ kbd {
 .toast-item button {
   pointer-events: auto;
 }
+/* An error's request ID, to quote to support: selectable in one click, and a copy button. */
+.toast-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  color: var(--soft);
+  font-size: var(--text-xs);
+}
+.toast-meta code {
+  pointer-events: auto;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.toast-copy {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.toast-copy:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
 .toast-close {
   display: inline-grid;
   place-items: center;
