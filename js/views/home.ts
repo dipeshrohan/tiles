@@ -37,7 +37,7 @@ const view: View = {
       <section class="hero">
         <div>
           <div class="eyebrow">Tiles</div>
-          <h1>Physics and plant data, in one place.</h1>
+          <h1 tabindex="-1">Physics and plant data, in one place.</h1>
           <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
           <div class="row mt-4">
             <a class="btn primary" href="#/chat">Ask the copilot</a>

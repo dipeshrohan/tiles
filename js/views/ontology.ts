@@ -479,9 +479,17 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     if (ui.view) centerAfterRender = id; // zoomed in: stay on the node in the new drawing
     ctx.rerender();
   };
-  onAll(root, '[data-node]', 'dblclick', (el) => {
-    if (el.dataset.node) toggleFold(el.dataset.node);
-  });
+  // A double click folds or opens the node it began on: the first click selects it and the canvas
+  // is drawn again, which can move the node from under the second click (onto the background).
+  svg.addEventListener(
+    'click',
+    (e) => {
+      if (e.detail !== 2 || !pressedNode) return;
+      clearTimeout(inspectorTimer); // opening it, not showing the inspector
+      toggleFold(pressedNode);
+    },
+    { signal: bound() },
+  );
   onAll(root, '[data-fold]', 'click', (el) => {
     if (el.dataset.fold) toggleFold(el.dataset.fold);
   });
@@ -659,6 +667,11 @@ function sourceBar(ctx: Context): string {
     </div>`;
 }
 
+// How long a click waits to be sure it isn't the first of a double click.
+const DOUBLE_CLICK_MS = 400;
+let inspectorTimer: ReturnType<typeof setTimeout> | undefined;
+let pressedNode: string | null = null; // the node a click began on: a double click opens that one
+
 const view: View = {
   id: 'ontology',
   title: 'Ontology builder',
@@ -805,16 +818,35 @@ const view: View = {
       if (tab === 'canvas' || tab === 'history' || tab === 'health') ui.tab = tab;
       ctx.rerender();
     });
-    const select = (id: string | undefined) => {
-      if (!id) return;
-      ui.selected = id;
-      ctx.rerender();
+    const toInspector = () => {
       const panel = document.getElementById('inspector');
       const r = panel?.getBoundingClientRect();
       if (panel && r && (r.top > window.innerHeight || r.bottom < 0))
         panel.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
     };
-    onAll(root, '[data-node]', 'click', (el) => select(el.dataset.node));
+    const select = (id: string | undefined, scroll = true) => {
+      if (!id) return;
+      ui.selected = id;
+      ctx.rerender();
+      if (scroll) toInspector();
+    };
+    // A click away from the nodes forgets the node pressed last.
+    root.querySelector<SVGSVGElement>('svg[data-canvas]')?.addEventListener(
+      'click',
+      (e) => {
+        if (e.detail === 1 && !(e.target instanceof Element && e.target.closest('[data-node]'))) pressedNode = null;
+      },
+      { signal: bound() },
+    );
+    // A click shows the inspector once it is clearly not the first of a double click (which opens
+    // the node): the page moving between the two clicks would send the second elsewhere.
+    onAll(root, '[data-node]', 'click', (el, e) => {
+      if (e.detail > 1) return; // the second of a double click: it folds or opens (bindCanvas)
+      pressedNode = el.dataset.node ?? null;
+      select(el.dataset.node, false);
+      clearTimeout(inspectorTimer);
+      inspectorTimer = setTimeout(toInspector, DOUBLE_CLICK_MS);
+    });
     onAll(root, '[data-node]', 'keydown', (el, e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();

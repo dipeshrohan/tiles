@@ -856,12 +856,13 @@ function closeMenu(): void {
 // list on the same page grows from the row that was clicked into its page head. Only where the
 // browser has view transitions and less motion isn't asked for: otherwise nothing moves. Either way
 // the new page's heading takes the focus, so a screen reader reads where it is, and it is announced.
-let clicked: { el: Element; at: number } | null = null;
-need(document, '#view').addEventListener(
+// The link last clicked in the page or its breadcrumbs: a record opened from it grows from it.
+let clicked: HTMLAnchorElement | null = null;
+document.addEventListener(
   'click',
   (e) => {
-    const el = e.target instanceof Element ? e.target.closest('a[href^="#/"], [data-key]') : null;
-    if (el) clicked = { el, at: Date.now() };
+    const el = e.target instanceof Element ? e.target.closest<HTMLAnchorElement>('a[href^="#/"]') : null;
+    clicked = el && el.closest('#view, #crumbs') ? el : null;
   },
   true,
 );
@@ -874,24 +875,27 @@ function navigate(): void {
   closeMenu(); // whatever link was followed: the menu's, the brand, or one in the page
   const root = need(document, '#view');
   const newPage = currentView().id !== shownView;
-  // The row the record was opened from, if it was opened by a click just now.
-  const from = !newPage && clicked && Date.now() - clicked.at < 1000 && clicked.el.isConnected ? clicked.el : null;
+  // The link followed to this record, when it was a click on a link to exactly this place.
+  const from = !newPage && clicked?.isConnected && clicked.hash === location.hash ? clicked : null;
   clicked = null;
+  // Scrolled down, the old page's head is above the window: it isn't held (it would slide down).
+  const head = (): HTMLElement | null => root.querySelector<HTMLElement>(':scope > .page-head');
+  const hold = window.scrollY < (head()?.offsetHeight ?? 0);
+  const name = (el: HTMLElement | null, value: string) => el?.style.setProperty('view-transition-name', value);
   const arrive = () => {
-    if (from instanceof HTMLElement) from.style.viewTransitionName = ''; // the head is the record now
+    name(from, ''); // the head is the record now
     render();
-    if (from) {
-      const head = root.querySelector<HTMLElement>(':scope > .page-head');
-      if (head) head.style.viewTransitionName = 'record';
-    }
-    const heading = root.querySelector<HTMLElement>(':scope > .page-head h1');
-    (heading ?? root).focus({ preventScroll: true });
-    announce(document.title);
     window.scrollTo(0, 0);
+    name(head(), from ? 'record' : hold ? '' : 'none');
+    // The new page's heading takes the focus, which a screen reader reads; a page without one is said.
+    const heading = root.querySelector<HTMLElement>('h1[tabindex]');
+    (heading ?? root).focus({ preventScroll: true });
+    if (!heading) announce(document.title);
   };
   const doc = document as ViewTransitionDocument;
   if (!(newPage || from) || !doc.startViewTransition || lessMotion() || document.hidden) return arrive();
-  if (from instanceof HTMLElement) from.style.viewTransitionName = 'record';
+  name(from, 'record');
+  if (!hold) name(head(), 'none');
   const transition = doc.startViewTransition(() => {
     try {
       arrive();
@@ -902,7 +906,7 @@ function navigate(): void {
   // Skipped (another navigation came first) or done: the page is drawn either way.
   void transition.ready.catch(() => undefined);
   void transition.finished.then(
-    () => root.querySelector<HTMLElement>(':scope > .page-head')?.style.removeProperty('view-transition-name'),
+    () => head()?.style.removeProperty('view-transition-name'),
     () => undefined,
   );
 }

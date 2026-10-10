@@ -78,8 +78,10 @@ async function confirmIn(page, typed) {
   await page.waitForSelector('dialog.dialog', { state: 'detached' });
 }
 
+// Pages open asking for less motion, so a page changes in the same task as its URL (no view
+// transition, U3.02) and a test can act on it at once; the transition test asks for motion.
 async function openPage(options = {}) {
-  const page = await browser.newPage(options);
+  const page = await browser.newPage({ reducedMotion: 'reduce', ...options });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
@@ -112,7 +114,7 @@ test('works when index.html is opened from disk', async () => {
 });
 
 test('pages change with a view transition: a new page cross-fades, a record grows from its row (U3.02)', async () => {
-  const { page, errors } = await openPage();
+  const { page, errors } = await openPage({ reducedMotion: 'no-preference' });
   // Each transition started, with what was named "record" as it started (the row it grows from).
   await page.addInitScript(() => {
     window.transitions = [];
@@ -133,8 +135,7 @@ test('pages change with a view transition: a new page cross-fades, a record grow
   await page.evaluate(() => (location.hash = '#/warnings'));
   await page.waitForSelector('#view h1:has-text("Warnings")');
   assert.deepEqual(await transitions(), ['']); // another page: a cross-fade
-  assert.equal(await focused(), 'H1:Warnings'); // its heading has the focus, and it is said
-  assert.equal(await page.textContent('#announcer'), await page.title());
+  assert.equal(await focused(), 'H1:Warnings'); // its heading has the focus: a screen reader reads it
   await rerender(page);
   assert.equal((await transitions()).length, 1); // a refresh of the same page doesn't move
   // A machine opened from its card grows from the card into its page.
@@ -156,6 +157,10 @@ test('pages change with a view transition: a new page cross-fades, a record grow
   await page.waitForSelector('#view h1:has-text("Signals")');
   assert.equal((await transitions()).length, count);
   assert.equal(await focused(), 'H1:Signals');
+  // Home's heading, drawn without pageHead, takes the focus too.
+  await page.evaluate(() => (location.hash = '#/'));
+  await page.waitForSelector('#view h1:has-text("Physics and plant data")');
+  assert.match(await focused(), /^H1:Physics and plant data/);
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -2525,7 +2530,10 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
   assert.match(await cards.nth(0).innerText(), /Die-caster DC-01[\s\S]*dc1\.friction[\s\S]*Signal still out/);
   assert.match(await cards.nth(1).innerText(), /dc2\.friction[\s\S]*Nobody has it/);
   // Gloves: every button is at least 64 px each way (measured once the page has settled).
-  await page.waitForFunction(() => document.getAnimations().length === 0);
+  // (Progress that loops, a spinner or a shimmer, never settles: only what ends is waited for.)
+  await page.waitForFunction(() =>
+    document.getAnimations().every((a) => a.effect?.getTiming().iterations === Infinity),
+  );
   for (const box of await page.locator('.floor-btn').evaluateAll((els) => els.map((e) => e.getBoundingClientRect())))
     assert.ok(box.height >= 64 && box.width >= 64, `a ${box.width}×${box.height} button`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

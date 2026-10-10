@@ -2682,7 +2682,7 @@
       <section class="hero">
         <div>
           <div class="eyebrow">Tiles</div>
-          <h1>Physics and plant data, in one place.</h1>
+          <h1 tabindex="-1">Physics and plant data, in one place.</h1>
           <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
           <div class="row mt-4">
             <a class="btn primary" href="#/chat">Ask the copilot</a>
@@ -4446,9 +4446,11 @@
 			if (ui.view) centerAfterRender = id;
 			ctx.rerender();
 		};
-		onAll(root, "[data-node]", "dblclick", (el) => {
-			if (el.dataset.node) toggleFold(el.dataset.node);
-		});
+		svg.addEventListener("click", (e) => {
+			if (e.detail !== 2 || !pressedNode) return;
+			clearTimeout(inspectorTimer);
+			toggleFold(pressedNode);
+		}, { signal: bound() });
 		onAll(root, "[data-fold]", "click", (el) => {
 			if (el.dataset.fold) toggleFold(el.dataset.fold);
 		});
@@ -4585,6 +4587,9 @@
       <span class="row gap-2">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
+	var DOUBLE_CLICK_MS = 400;
+	var inspectorTimer;
+	var pressedNode = null;
 	var view$18 = {
 		id: "ontology",
 		title: "Ontology builder",
@@ -4710,10 +4715,7 @@
 				if (tab === "canvas" || tab === "history" || tab === "health") ui.tab = tab;
 				ctx.rerender();
 			});
-			const select = (id) => {
-				if (!id) return;
-				ui.selected = id;
-				ctx.rerender();
+			const toInspector = () => {
 				const panel = document.getElementById("inspector");
 				const r = panel?.getBoundingClientRect();
 				if (panel && r && (r.top > window.innerHeight || r.bottom < 0)) panel.scrollIntoView({
@@ -4721,7 +4723,22 @@
 					block: "start"
 				});
 			};
-			onAll(root, "[data-node]", "click", (el) => select(el.dataset.node));
+			const select = (id, scroll = true) => {
+				if (!id) return;
+				ui.selected = id;
+				ctx.rerender();
+				if (scroll) toInspector();
+			};
+			root.querySelector("svg[data-canvas]")?.addEventListener("click", (e) => {
+				if (e.detail === 1 && !(e.target instanceof Element && e.target.closest("[data-node]"))) pressedNode = null;
+			}, { signal: bound() });
+			onAll(root, "[data-node]", "click", (el, e) => {
+				if (e.detail > 1) return;
+				pressedNode = el.dataset.node ?? null;
+				select(el.dataset.node, false);
+				clearTimeout(inspectorTimer);
+				inspectorTimer = setTimeout(toInspector, DOUBLE_CLICK_MS);
+			});
 			onAll(root, "[data-node]", "keydown", (el, e) => {
 				if (e.key === "Enter" || e.key === " ") {
 					e.preventDefault();
@@ -9536,14 +9553,14 @@
           <button class="btn floor-btn" data-floor-full aria-pressed="${ui.full}">${fullLabel}</button>
         </div>
       </div>`;
-			if (ctx.api && ctx.ontology.status === "loading") return `<div class="floor">${head("<h1>Loading…</h1>")}</div>`;
-			if (ctx.api && ctx.ontology.status !== "ready") return `<div class="floor">${head("<h1>Shopfloor</h1>")}${apiUnreachable(ctx.ontology.error, {
+			if (ctx.api && ctx.ontology.status === "loading") return `<div class="floor">${head("<h1 tabindex=\"-1\">Loading…</h1>")}</div>`;
+			if (ctx.api && ctx.ontology.status !== "ready") return `<div class="floor">${head("<h1 tabindex=\"-1\">Shopfloor</h1>")}${apiUnreachable(ctx.ontology.error, {
 				signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn),
 				size: "lg"
 			})}</div>`;
 			const graph = ctx.graph;
 			const list = floorItems(ctx, graph);
-			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">${skeleton.list(3, "Loading the warnings…")}</div></div>`;
+			if (list === null) return `<div class="floor">${head("<h1 tabindex=\"-1\">Shopfloor</h1>")}<div class="card">${skeleton.list(3, "Loading the warnings…")}</div></div>`;
 			const now = Date.now();
 			const { tone, text } = headline(list);
 			const updated = listed().at && ctx.api ? `<div class="small soft" data-floor-updated>${listed().stale ? `As of ${clockTime(listed().at ?? 0)}: the last refresh failed, trying again in 30 seconds` : `Updated ${clockTime(listed().at ?? 0)}; refreshes every 30 seconds`}</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
@@ -9551,7 +9568,7 @@
 				site: siteId$6(ctx),
 				text
 			};
-			const status = `<h1 class="floor-headline ${tone}">${esc(text)}</h1>${updated}`;
+			const status = `<h1 class="floor-headline ${tone}" tabindex="-1">${esc(text)}</h1>${updated}`;
 			const open = list.filter((i) => i.state !== "ok");
 			if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
 			if (ui.taking && !open.some((i) => i.id === ui.taking)) ui.taking = null;
@@ -14125,33 +14142,32 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		need(document, "#menu").setAttribute("aria-expanded", "false");
 	}
 	var clicked = null;
-	need(document, "#view").addEventListener("click", (e) => {
-		const el = e.target instanceof Element ? e.target.closest("a[href^=\"#/\"], [data-key]") : null;
-		if (el) clicked = {
-			el,
-			at: Date.now()
-		};
+	document.addEventListener("click", (e) => {
+		const el = e.target instanceof Element ? e.target.closest("a[href^=\"#/\"]") : null;
+		clicked = el && el.closest("#view, #crumbs") ? el : null;
 	}, true);
 	function navigate() {
 		closeMenu();
 		const root = need(document, "#view");
 		const newPage = currentView().id !== shownView;
-		const from = !newPage && clicked && Date.now() - clicked.at < 1e3 && clicked.el.isConnected ? clicked.el : null;
+		const from = !newPage && clicked?.isConnected && clicked.hash === location.hash ? clicked : null;
 		clicked = null;
+		const head = () => root.querySelector(":scope > .page-head");
+		const hold = window.scrollY < (head()?.offsetHeight ?? 0);
+		const name = (el, value) => el?.style.setProperty("view-transition-name", value);
 		const arrive = () => {
-			if (from instanceof HTMLElement) from.style.viewTransitionName = "";
+			name(from, "");
 			render();
-			if (from) {
-				const head = root.querySelector(":scope > .page-head");
-				if (head) head.style.viewTransitionName = "record";
-			}
-			(root.querySelector(":scope > .page-head h1") ?? root).focus({ preventScroll: true });
-			announce(document.title);
 			window.scrollTo(0, 0);
+			name(head(), from ? "record" : hold ? "" : "none");
+			const heading = root.querySelector("h1[tabindex]");
+			(heading ?? root).focus({ preventScroll: true });
+			if (!heading) announce(document.title);
 		};
 		const doc = document;
 		if (!(newPage || from) || !doc.startViewTransition || lessMotion() || document.hidden) return arrive();
-		if (from instanceof HTMLElement) from.style.viewTransitionName = "record";
+		name(from, "record");
+		if (!hold) name(head(), "none");
 		const transition = doc.startViewTransition(() => {
 			try {
 				arrive();
@@ -14160,7 +14176,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}
 		});
 		transition.ready.catch(() => void 0);
-		transition.finished.then(() => root.querySelector(":scope > .page-head")?.style.removeProperty("view-transition-name"), () => void 0);
+		transition.finished.then(() => head()?.style.removeProperty("view-transition-name"), () => void 0);
 	}
 	window.addEventListener("hashchange", navigate);
 	if (api) {

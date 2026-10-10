@@ -38,9 +38,9 @@ Spinners and shimmers turn at a steady speed (`linear`).
 
 ## Page transitions
 
-Moving to another page uses the browser's View Transitions API (U3.02, `navigate` in `js/app.ts`). The old page fades out over `--dur-fast`, and the new one fades and rises in over `--dur-slow`. The page head is kept in place while its words change, and the menu and top bar stay still. A record opened from a list on the same page (a place on the Plant page, say) grows from the row that was clicked into its page head. A page drawn again, the first page drawn and a record reached with Back don't move.
+Moving to another page uses the browser's View Transitions API (U3.02, `navigate` in `js/app.ts`). The old page fades out over `--dur-fast`, and the new one fades and rises in over `--dur-slow`. The page head is kept in place while its words change, and the menu and top bar stay still. A record opened from a link on the same page or in the breadcrumbs (a place on the Plant page, say) grows from that link into its page head. A page drawn again, the first page drawn and a record reached with Back don't move.
 
-Where the browser has no view transitions, or less motion is asked for, nothing moves. Either way the new page's heading takes the focus (its `h1` has `tabindex="-1"`, from `pageHead`), and the page's title is announced.
+Where the browser has no view transitions, or less motion is asked for, nothing moves. Either way the new page's heading takes the focus (its `h1` has `tabindex="-1"`, from `pageHead`; a page drawing its own `h1` gives it one too), and a screen reader reads it. A page without one has its title announced instead. Scrolled down, the old page's head is above the window, so it isn't held; the page only cross-fades.
 
 ## Reduced motion
 
