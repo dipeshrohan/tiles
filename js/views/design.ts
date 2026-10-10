@@ -253,7 +253,7 @@ const view: View = {
           )
           .join('')}</div>`,
       })}
-      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === 'error' ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : 'Connecting to the Tiles API…'}</span></div>` : ''}
+      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === 'error' ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : 'Connecting to the Tiles API…'}</span>${ctx.ontology.status === 'error' ? ` <button class="btn sm" type="button" data-reconnect>Try again</button>` : ''}</div>` : ''}
 
       <div class="grid g3 mb-4">
         <div class="card">

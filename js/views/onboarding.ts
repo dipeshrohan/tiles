@@ -13,7 +13,7 @@ import {
   type StepKey,
 } from '../lib/onboarding.ts';
 import type { Context, View } from './types.ts';
-import { needsApi, button, pageHead, skeleton } from '../lib/ui.ts';
+import { needsApi, button, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 
 // Setting up a site (T6.06): a wizard from creating the site, through outlining its plant in the
 // ontology and connecting an edge agent, to mapping its tags and opening the first dashboard (a
@@ -202,7 +202,7 @@ const view: View = {
     if (ctx.ontology.status === 'loading')
       return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (ctx.ontology.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
+      return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const data = progress?.site === siteId(ctx) ? progress.data : null;
     if (!data)
       return progress?.failed

@@ -257,7 +257,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* every form (import mapping, signal edit, detector, notification settings, site creation, app config) shows the API's field errors on the fields.
 - [ ] `U2.08` [#220](https://github.com/dipeshrohan/tiles/issues/220) **Pending and optimistic updates** · FE · 2d · U2.02
   *Done when:* no double submissions in the smoke suite with a slowed API, and every optimistic change rolls back on failure.
-- [ ] `U2.09` [#221](https://github.com/dipeshrohan/tiles/issues/221) **Words and tone guide** · PM · 1.5d
+- [x] `U2.09` [#221](https://github.com/dipeshrohan/tiles/issues/221) **Words and tone guide** · PM · 1.5d
   *Done when:* the guide is merged and every page's copy reviewed against it.
 
 **UI Month 2 exit check:** no native dialogs; every page has loading, empty and error states; the API's field errors appear on fields.

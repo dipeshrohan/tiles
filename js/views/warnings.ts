@@ -37,6 +37,7 @@ import {
   select,
   tabs,
   skeleton,
+  apiUnreachable,
 } from '../lib/ui.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
@@ -444,7 +445,7 @@ const view: View = {
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}${card(skeleton.card('Loading from the Tiles API…'))}`;
     if (o.status !== 'ready')
-      return `${head}${card(`Can't reach the Tiles API: ${esc(o.error)}`, { attrs: { role: 'alert' } })}`;
+      return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
     return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
   },

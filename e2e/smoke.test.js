@@ -447,6 +447,27 @@ test('a deployment opens its API by default, and a reset keeps it a default', as
   assert.deepEqual(errors, []);
 });
 
+test("a page that can't reach the API says why and what to do, and tries again", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.failSites(1);
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  // The API answered, with a reason: that is what the card says (not to check the address).
+  const card = page.locator('#view [role=alert]:has-text("The site couldn\'t be loaded")');
+  await card.waitFor();
+  assert.match(await card.innerText(), /The API is starting\./);
+  assert.doesNotMatch(await card.innerText(), /address/);
+  assert.equal(await card.locator('a:has-text("Open Settings")').getAttribute('href'), '#/settings');
+  // The API is up now: Try again connects, and the page fills.
+  await card.locator('[data-reconnect]').click();
+  await page.waitForSelector('[data-warning-list]');
+  assert.deepEqual(
+    errors.filter((e) => !/503/.test(e)),
+    [],
+  );
+});
+
 test('settings can switch to the Tiles API and test the connection', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
@@ -604,8 +625,11 @@ test('the signals page says why it has no site, rather than asking to connect ag
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=http://127.0.0.1:1#/signals`);
-  await page.waitForSelector('#view:has-text("The site could not be loaded from the Tiles API: Can\'t reach")');
-  assert.equal(await page.locator('#view a[href="#/settings"]').count(), 0);
+  // What failed and what to do (check the API, try again), not "Connect to the Tiles API".
+  await page.waitForSelector('#view [role=alert]:has-text("Can\'t reach the Tiles API")');
+  assert.match(await page.locator('#view [role=alert]').innerText(), /Check that the API is running/);
+  assert.equal(await page.locator('#view [data-reconnect]').count(), 1);
+  assert.equal(await page.locator('#view:has-text("Connect to the Tiles API")').count(), 0);
   assert.deepEqual(
     errors.filter((e) => !/Failed to load resource|ERR_CONNECTION_REFUSED/.test(e)),
     [],

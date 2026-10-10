@@ -22,6 +22,7 @@ import {
   pageHead,
   select,
   skeleton,
+  apiUnreachable,
 } from '../lib/ui.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
@@ -188,7 +189,7 @@ const view: View = {
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}${card(skeleton.card('Loading from the Tiles API…'))}`;
     if (o.status !== 'ready')
-      return `${head}${card(`Can't reach the Tiles API: ${esc(o.error)}`, { attrs: { role: 'alert' } })}`;
+      return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
   },
   bind(root, ctx) {

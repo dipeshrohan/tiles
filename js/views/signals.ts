@@ -12,6 +12,7 @@ import {
   select,
   table,
   type Tone,
+  apiUnreachable,
   skeleton,
   setBusy,
 } from '../lib/ui.ts';
@@ -534,11 +535,11 @@ const view: View = {
     });
     if (!ctx.api) return `${head}${card(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
     if (!ctx.ontology.site)
-      return `${head}${card(
+      return `${head}${
         ctx.ontology.status === 'error'
-          ? `<p class="small soft">The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}</p>`
-          : skeleton.card('Loading the site from the Tiles API…'),
-      )}`;
+          ? apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })
+          : card(skeleton.card('Loading the site from the Tiles API…'))
+      }`;
     const { query } = ui(ctx);
     const search = `<form id="signal-search" class="row gap-3 wrap" role="search">
           ${labelled('Search', input({ type: 'search', name: 'q', value: query.q, placeholder: 'Tag, description or node' }), { class: 'grow min-w-field' })}

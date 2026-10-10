@@ -2,6 +2,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import {
+  apiUnreachable,
   attrs,
   badge,
   breadcrumbs,
@@ -274,6 +275,25 @@ test('breadcrumbs link each place above, and mark this one current', () => {
   assert.equal(html.match(/aria-current/g)?.length, 1);
   // A place without a link of its own is plain text.
   assert.match(breadcrumbs([{ label: 'New app' }, { label: 'x' }]), /<li><span>New app<\/span><\/li>/);
+});
+
+test("a site that didn't load: a failed connection says to check the API, an answer says its reason", () => {
+  const down = apiUnreachable("Can't reach the Tiles API at http://127.0.0.1:1: Failed to fetch");
+  assert.match(down, /Can&#39;t reach the Tiles API<\/h2>/);
+  assert.match(down, /Check that the API is running and its address in Settings is right/);
+  assert.doesNotMatch(down, /<p>Can&#39;t reach/); // the title isn't said twice
+  const answered = apiUnreachable(
+    'The Tiles API has no sites yet. Run `tiles-seed` (Docker Compose does this for you).',
+  );
+  assert.match(answered, /The site couldn&#39;t be loaded<\/h2>/);
+  assert.doesNotMatch(answered, /\)\.\./);
+  assert.doesNotMatch(answered, /address/);
+  // Ways out: Try again and Settings, and Sign in when signed out; big buttons on the shopfloor.
+  assert.match(answered, /data-reconnect/);
+  assert.match(answered, /href="#\/settings"/);
+  assert.doesNotMatch(answered, /data-app-sign-in/);
+  assert.match(apiUnreachable('Sign in first', { signIn: true }), /data-app-sign-in/);
+  assert.match(apiUnreachable(null, { size: 'lg' }), /class="btn lg"/);
 });
 
 test('the wait counts from when loading began, not from each render', async () => {
