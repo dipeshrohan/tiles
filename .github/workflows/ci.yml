@@ -125,7 +125,7 @@ jobs:
       TILES_TEST_DATABASE_URL: postgresql://tiles:tiles-ci@localhost:5432/tiles
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -192,7 +192,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
       # Each check runs whatever the others found, so one run reports every problem.
       - name: npm dependencies (npm audit)
         if: ${{ !cancelled() }}
@@ -262,7 +262,7 @@ jobs:
         with:
           images: >-
             timescale/timescaledb:2.30.2-pg17
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
@@ -449,7 +449,7 @@ jobs:
       TILES_COPILOT_MODEL: ${{ vars.TILES_COPILOT_MODEL }}
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
           cache-dependency-glob: api/uv.lock
