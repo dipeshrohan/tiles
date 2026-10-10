@@ -66,11 +66,11 @@ const view: View = {
         </div>
       </div>
 
-      <div class="grid g2" style="margin-bottom:16px">
+      <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head"><h2>Effect size by variable</h2><p>Cohen's d, failed vs healthy · |d| ≥ 0.8 is strong</p></div>
           ${hbars({ items: effects, width: 480, left: 200, title: "Effect size by variable (Cohen's d)", format: (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2) })}
-          ${ui.split ? '' : '<p class="small soft" style="margin-top:8px">Pooled across materials, nothing stands out. Try <a href="#/quality" data-split="1">splitting by material</a>.</p>'}
+          ${ui.split ? '' : '<p class="small soft mt-2">Pooled across materials, nothing stands out. Try <a href="#/quality" data-split="1">splitting by material</a>.</p>'}
         </div>
         <div class="stack">
           ${
@@ -96,12 +96,12 @@ const view: View = {
         </div>
       </div>
 
-      <div class="card" style="margin-bottom:16px">
+      <div class="card mb-4">
         <div class="card-head">
           <div><h2>Failed vs healthy average</h2><p>One setting can fail two materials in opposite directions.</p></div>
           <select id="variable" aria-label="Variable">${CUTTER_VARIABLES.map((x) => `<option value="${x.key}" ${x.key === ui.variable ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
         </div>
-        <div class="legend" style="margin-bottom:6px"><span><i class="box" style="background:var(--bad);border-radius:50%"></i>NG (failed) avg</span><span><i class="box" style="background:var(--muted);border-radius:50%"></i>Healthy avg</span></div>
+        <div class="legend mb-1_5"><span><i class="box bg-bad round"></i>NG (failed) avg</span><span><i class="box bg-muted round"></i>Healthy avg</span></div>
         ${dumbbell({ rows: dumb, width: fitWidth(1040), domain: [Math.min(...all) - pad, Math.max(...all) + pad], xLabel: `Average ${v.label.toLowerCase()} (${v.unit})` })}
       </div>
 
@@ -111,7 +111,7 @@ const view: View = {
           <p>Tips are swapped on a fixed cycle count. The line's own power data confirms real wear.</p></div>
           <div class="row"><span class="badge bad">Cathode ${signed(cat.change * 100, 1)}%</span><span class="badge">Anode ${signed(an.change * 100, 1)}%</span></div>
         </div>
-        <div class="legend" style="margin-bottom:6px"><span><i style="background:var(--bad)"></i>Cathode tip</span><span><i style="background:var(--accent)"></i>Anode tip</span><span><i class="box" style="background:var(--band)"></i>Final 24 h before swap</span></div>
+        <div class="legend mb-1_5"><span><i class="bg-bad"></i>Cathode tip</span><span><i class="bg-accent"></i>Anode tip</span><span><i class="box bg-band"></i>Final 24 h before swap</span></div>
         ${lineChart({
           series: [
             { values: series.map((s) => s.anode), color: 'var(--accent)', label: 'anode tip' },
@@ -125,7 +125,7 @@ const view: View = {
           width: fitWidth(1040),
           height: 260,
         })}
-        <div class="grid g2" style="margin-top:12px">
+        <div class="grid g2 mt-3">
           <div><h3>Proposed action</h3><p class="soft">Monitor both triggers: cycle counter <i>and</i> median welding power. When power crosses the wear threshold, replace the tip even if the counter hasn't reached its swap point. Wear started around hour ${wearStart}.</p></div>
           <div class="kpi"><div class="label">Power-based warning</div><div class="value">${fmt(warnHours)} h</div><div class="note">before the scheduled swap · threshold baseline +5% (${fmt(threshold)} W)</div></div>
         </div>

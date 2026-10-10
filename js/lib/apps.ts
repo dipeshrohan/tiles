@@ -50,7 +50,7 @@ export function paramField(p: AppParam, value: unknown, signals: SignalOption[])
     return `<fieldset class="field app-choices"><legend>${label}</legend>${p.choices
       .map(
         ([v, l]) =>
-          `<label class="row" style="gap:8px"><input type="checkbox" name="${esc(p.name)}" value="${esc(v)}" ${chosen.includes(v) ? 'checked' : ''} /> ${esc(l)}</label>`,
+          `<label class="row gap-2"><input type="checkbox" name="${esc(p.name)}" value="${esc(v)}" ${chosen.includes(v) ? 'checked' : ''} /> ${esc(l)}</label>`,
       )
       .join('')}</fieldset>`;
   }

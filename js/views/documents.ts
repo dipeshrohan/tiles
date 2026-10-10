@@ -100,10 +100,10 @@ function searchCard(ctx: Context): string {
   else if (results && !results.length)
     body = `<p class="small soft" data-no-matches>Nothing matches “${esc(ui.query)}”.</p>`;
   else if (results)
-    body = `<ol class="stack doc-matches" style="gap:10px" data-matches>${results
+    body = `<ol class="stack doc-matches gap-2_5" data-matches>${results
       .map(
         (m) => `<li class="doc-match">
-          <div class="row" style="gap:8px;justify-content:space-between;flex-wrap:wrap">
+          <div class="row gap-2 justify-between wrap">
             <b>${esc(m.title)}</b>
             <button class="btn sm" type="button" data-open="${m.document}" data-page="${m.page}">Open page ${m.page}</button>
           </div>
@@ -111,10 +111,10 @@ function searchCard(ctx: Context): string {
         </li>`,
       )
       .join('')}</ol>`;
-  return `<div class="card stack" style="gap:12px">
-      <form class="row" id="doc-search" role="search" style="gap:8px;flex-wrap:wrap">
-        <label class="field" style="flex:1;min-width:220px">Search the documents<input type="search" name="q" value="${esc(ui.query)}" placeholder='e.g. plunger tip replace, "hydraulic pressure"' /></label>
-        <div style="align-self:end"><button class="btn primary" type="submit">Search</button></div>
+  return `<div class="card stack gap-3">
+      <form class="row gap-2 wrap" id="doc-search" role="search">
+        <label class="field grow min-w-field">Search the documents<input type="search" name="q" value="${esc(ui.query)}" placeholder='e.g. plunger tip replace, "hydraulic pressure"' /></label>
+        <div class="self-end"><button class="btn primary" type="submit">Search</button></div>
       </form>
       <p class="small soft">Words find their forms (“valves” finds “valve”); “quoted words” find a phrase; -word leaves a word out.</p>
       <div aria-live="polite">${body}</div>
@@ -136,8 +136,8 @@ function listCard(ctx: Context): string {
       : items
           .map(
             (d) => `<div class="review-row" data-doc="${d.number}">
-              <span class="row" style="gap:6px;justify-content:space-between"><b>${esc(d.title)}</b>
-              <span class="row" style="gap:4px"><button class="btn sm" type="button" data-open="${d.number}" data-page="1">Open</button>${
+              <span class="row gap-1_5 justify-between"><b>${esc(d.title)}</b>
+              <span class="row gap-1"><button class="btn sm" type="button" data-open="${d.number}" data-page="1">Open</button>${
                 canEdit(ctx)
                   ? `<button class="btn sm danger" type="button" data-archive-doc="${d.number}" aria-label="Archive ${esc(d.title)}">Archive</button>`
                   : ''
@@ -153,7 +153,7 @@ function listCard(ctx: Context): string {
           body: canEdit(ctx) ? 'Upload SOPs, manuals and lessons learned below.' : undefined,
         });
   const upload = canEdit(ctx)
-    ? `<form class="stack" id="doc-upload" style="gap:8px">
+    ? `<form class="stack gap-2" id="doc-upload">
         <h3>Upload</h3>
         <label class="field">File (PDF, text or Markdown, up to 20 MB)<input type="file" name="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" required /></label>
         <label class="field">Title<input type="text" name="title" maxlength="200" placeholder="From the file name" value="${esc(draft?.title ?? '')}" /></label>
@@ -161,7 +161,7 @@ function listCard(ctx: Context): string {
         <div><button class="btn primary" type="submit" ${uploading ? 'disabled' : ''}>${uploading ? 'Uploading…' : 'Upload'}</button></div>
       </form>`
     : '';
-  return `<div class="card stack" style="gap:8px"><h2>Documents</h2><div class="review-list" data-doc-list>${rows}</div>${upload}</div>`;
+  return `<div class="card stack gap-2"><h2>Documents</h2><div class="review-list" data-doc-list>${rows}</div>${upload}</div>`;
 }
 
 const view: View = {

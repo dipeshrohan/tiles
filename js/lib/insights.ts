@@ -76,11 +76,11 @@ export const when = (iso: string): string =>
 
 // The form to save (or edit) an insight. `id` tells the page's forms apart.
 export function draftForm(id: string, text: DraftText, busy: boolean, submit = 'Save insight'): string {
-  return `<form class="stack insight-form" id="${esc(id)}" style="gap:8px">
+  return `<form class="stack insight-form gap-2" id="${esc(id)}">
       <label class="field">Title<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
       <label class="field">Summary<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
       <label class="field">Proposed actions <span class="small soft">(one per line)</span><textarea name="actions" rows="3" placeholder="e.g. Lower anode tension to 1,000 N for a week">${esc(text.actions)}</textarea></label>
-      <div class="row" style="gap:8px"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
     </form>`;
 }
 

@@ -98,7 +98,7 @@ function listCard(ctx: Context, ui: Ui): string {
             (
               i,
             ) => `<a class="review-row ${n === i.number ? 'sel' : ''}" href="${insightLink(i.number)}" data-insight="${i.number}">
-              <span class="row" style="gap:6px;justify-content:space-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge(i.status)}</span>
+              <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge(i.status)}</span>
               <span class="small muted">${i.kind === 'correlation' ? 'Correlation' : 'Signals'} · ${esc(i.author)} · ${esc(when(i.created_at))}</span>
             </a>`,
           )
@@ -122,7 +122,7 @@ function evidence(i: Insight): string {
     const r = e.result;
     const split = Boolean(i.query.split);
     const said = r.explanations.length
-      ? `<ul class="stack" style="gap:4px">${r.explanations.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>`
+      ? `<ul class="stack gap-1">${r.explanations.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>`
       : '<p class="small soft">No large, clear effect.</p>';
     const shown =
       e.findings_total !== undefined && e.findings_total > r.findings.length
@@ -142,7 +142,7 @@ function evidence(i: Insight): string {
         title: s.unit ? `${s.tag} (${s.unit})` : s.tag,
         width: fitWidth(TIME_CHART.width, 0.7),
       });
-      return `<div class="stack" style="gap:4px" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;
+      return `<div class="stack gap-1" data-evidence-series><strong><code>${esc(s.tag)}</code></strong>${chart}</div>`;
     })
     .join('');
 }
@@ -158,15 +158,15 @@ function detailCard(ctx: Context): string {
   const may = mayDo(i, ctx.ontology.userId, ctx.ontology.role);
   const key = `${detailKey(ctx)}|${i.updated_at}`;
   const link = sourceLink(i);
-  const head = `<div class="row" style="justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+  const head = `<div class="row justify-between items-start gap-3 wrap">
       <div><h2>#${i.number} ${esc(i.title)}</h2>
       <p class="small soft">Saved by ${esc(i.author)} on ${esc(when(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when(i.updated_at))}` : ''}</p></div>
-      <div class="row" style="gap:6px">${statusBadge(i.status)}</div>
+      <div class="row gap-1_5">${statusBadge(i.status)}</div>
     </div>`;
   const body =
     editing?.key === key
       ? draftForm('insight-edit', editing.text, busy, 'Save changes')
-      : `${i.summary ? `<p style="white-space:pre-wrap" data-summary>${esc(i.summary)}</p>` : ''}
+      : `${i.summary ? `<p class="pre-wrap" data-summary>${esc(i.summary)}</p>` : ''}
         <div><h3>Proposed actions</h3>${
           i.actions.length
             ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join('')}</ol>`
@@ -178,9 +178,9 @@ function detailCard(ctx: Context): string {
       : '';
   if (note.key !== key) note = { key, text: '' };
   const review = may.review
-    ? `<form class="stack" id="insight-review" style="gap:8px">
+    ? `<form class="stack gap-2" id="insight-review">
         <label class="field">Review note <span class="small soft">(needed to reject)</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
-        <div class="row" style="gap:8px"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? 'disabled' : ''}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy ? 'disabled' : ''}>Reject</button></div>
+        <div class="row gap-2"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? 'disabled' : ''}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy ? 'disabled' : ''}>Reject</button></div>
       </form>`
     : '';
   const tools = [
@@ -188,17 +188,17 @@ function detailCard(ctx: Context): string {
     may.reopen ? `<button class="btn sm" type="button" data-reopen ${busy ? 'disabled' : ''}>Reopen</button>` : '',
     may.remove ? `<button class="btn sm" type="button" data-remove ${busy ? 'disabled' : ''}>Delete</button>` : '',
   ].join('');
-  return `<div class="card stack" style="gap:12px" data-insight-detail>
+  return `<div class="card stack gap-3" data-insight-detail>
       ${head}
       ${body}
-      <div class="stack" style="gap:6px"><h3>Evidence</h3>
+      <div class="stack gap-1_5"><h3>Evidence</h3>
         <p class="small soft" data-source>${esc(sourceText(i))}, as it was on ${esc(when(i.created_at))}. <a href="${esc(link.href)}">${esc(link.text)}</a> to see it on today’s data.</p>
         ${evidence(i)}
       </div>
       ${reviewed}
       ${review}
-      ${tools ? `<div class="row" style="gap:8px">${tools}</div>` : ''}
-      <p class="small soft" style="overflow-wrap:anywhere">Link: <a href="${insightLink(i.number)}" data-link>${esc(location.href.split('#')[0] ?? '')}${insightLink(i.number)}</a></p>
+      ${tools ? `<div class="row gap-2">${tools}</div>` : ''}
+      <p class="small soft break-anywhere">Link: <a href="${insightLink(i.number)}" data-link>${esc(location.href.split('#')[0] ?? '')}${insightLink(i.number)}</a></p>
     </div>`;
 }
 

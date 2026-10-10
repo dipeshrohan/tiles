@@ -38,7 +38,7 @@ const view: View = {
           <div class="eyebrow">Tiles</div>
           <h1>Physics and plant data, in one place.</h1>
           <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
-          <div class="row" style="margin-top:18px">
+          <div class="row mt-4">
             <a class="btn primary" href="#/chat">Ask the copilot</a>
             <a class="btn" href="#/physics">See live warnings</a>
           </div>
@@ -53,23 +53,23 @@ const view: View = {
         </div>
       </section>
 
-      <div class="grid g4" style="margin-bottom:16px">
-        <a class="card kpi bad" href="#/physics" style="color:inherit;text-decoration:none">
+      <div class="grid g4 mb-4">
+        <a class="card kpi bad text-inherit no-underline" href="#/physics">
           <div class="label">Friction warnings · DC-02</div>
           <div class="value">${state.detection.alerts.length}</div>
           <div class="note">${predicted.length}/${state.scored.length} stops predicted, ${fmt(lead, 1)} h avg lead</div>
         </a>
-        <a class="card kpi" href="#/quality" style="color:inherit;text-decoration:none">
+        <a class="card kpi text-inherit no-underline" href="#/quality">
           <div class="label">Cutter NG rate</div>
           <div class="value">${fmt((100 * ng) / state.batches.length, 1)}%</div>
           <div class="note">${ng} of ${state.batches.length} batches · root cause found</div>
         </a>
-        <a class="card kpi ${health.score < 100 ? '' : 'good'}" href="#/ontology" style="color:inherit;text-decoration:none">
+        <a class="card kpi text-inherit no-underline ${health.score < 100 ? '' : 'good'}" href="#/ontology">
           <div class="label">Ontology health</div>
           <div class="value">${health.score}</div>
           <div class="note">${health.counts.nodes} nodes · ${health.counts.edges} relationships · ${health.issues.length} issue(s)</div>
         </a>
-        <a class="card kpi" href="#/design" style="color:inherit;text-decoration:none">
+        <a class="card kpi text-inherit no-underline" href="#/design">
           <div class="label">Design runs logged</div>
           <div class="value">${state.runs.length}</div>
           <div class="note">${Object.keys(MODELS).length} physics models in library</div>
@@ -102,7 +102,7 @@ const view: View = {
         <div class="card">
           <div class="card-head"><h2>Recent activity</h2></div>
           <div class="feed">
-            ${feed.map((f) => `<a class="feed-item" href="${f.href}" style="color:inherit;text-decoration:none"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join('') || '<div class="empty">No activity yet</div>'}
+            ${feed.map((f) => `<a class="feed-item text-inherit no-underline" href="${f.href}"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join('') || '<div class="empty">No activity yet</div>'}
           </div>
         </div>
       </div>`;

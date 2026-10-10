@@ -2568,3 +2568,264 @@ body.floor-full .topbar {
     font-size: var(--text-2xl);
   }
 }
+
+/* ---- Utilities (U1.03): layout and spacing for one-off needs in the views, instead of inline
+   styles (`scripts/check-inline-styles.js` keeps those out). They stand where an inline style did,
+   so they win over component rules (!important; a media query can't change them, so a layout that
+   changes with the screen gets a component class instead); the margin reset comes before the sides
+   it leaves, and `hidden` still hides `.contents`. */
+.m-0 {
+  margin: 0 !important;
+}
+.p-0 {
+  padding: 0 !important;
+}
+.border-0 {
+  border: 0 !important;
+}
+.pl-5 {
+  padding-left: var(--space-5) !important;
+}
+.gap-0_5 {
+  gap: var(--space-0_5) !important;
+}
+.gap-1 {
+  gap: var(--space-1) !important;
+}
+.gap-1_5 {
+  gap: var(--space-1_5) !important;
+}
+.gap-2 {
+  gap: var(--space-2) !important;
+}
+.gap-2_5 {
+  gap: var(--space-2_5) !important;
+}
+.gap-3 {
+  gap: var(--space-3) !important;
+}
+.gap-3_5 {
+  gap: var(--space-3_5) !important;
+}
+.gap-4 {
+  gap: var(--space-4) !important;
+}
+.gap-5 {
+  gap: var(--space-5) !important;
+}
+.gap-6 {
+  gap: var(--space-6) !important;
+}
+.gap-y-2 {
+  row-gap: var(--space-2) !important;
+}
+.gap-x-4 {
+  column-gap: var(--space-4) !important;
+}
+.mt-0_5 {
+  margin-top: var(--space-0_5) !important;
+}
+.mt-1 {
+  margin-top: var(--space-1) !important;
+}
+.mt-1_5 {
+  margin-top: var(--space-1_5) !important;
+}
+.mt-2 {
+  margin-top: var(--space-2) !important;
+}
+.mt-2_5 {
+  margin-top: var(--space-2_5) !important;
+}
+.mt-3 {
+  margin-top: var(--space-3) !important;
+}
+.mt-3_5 {
+  margin-top: var(--space-3_5) !important;
+}
+.mt-4 {
+  margin-top: var(--space-4) !important;
+}
+.mt-5 {
+  margin-top: var(--space-5) !important;
+}
+.mt-6 {
+  margin-top: var(--space-6) !important;
+}
+.mb-0_5 {
+  margin-bottom: var(--space-0_5) !important;
+}
+.mb-1 {
+  margin-bottom: var(--space-1) !important;
+}
+.mb-1_5 {
+  margin-bottom: var(--space-1_5) !important;
+}
+.mb-2 {
+  margin-bottom: var(--space-2) !important;
+}
+.mb-2_5 {
+  margin-bottom: var(--space-2_5) !important;
+}
+.mb-3 {
+  margin-bottom: var(--space-3) !important;
+}
+.mb-3_5 {
+  margin-bottom: var(--space-3_5) !important;
+}
+.mb-4 {
+  margin-bottom: var(--space-4) !important;
+}
+.mb-5 {
+  margin-bottom: var(--space-5) !important;
+}
+.mb-6 {
+  margin-bottom: var(--space-6) !important;
+}
+.ml-0_5 {
+  margin-left: var(--space-0_5) !important;
+}
+.ml-1 {
+  margin-left: var(--space-1) !important;
+}
+.ml-1_5 {
+  margin-left: var(--space-1_5) !important;
+}
+.ml-2 {
+  margin-left: var(--space-2) !important;
+}
+.ml-2_5 {
+  margin-left: var(--space-2_5) !important;
+}
+.ml-3 {
+  margin-left: var(--space-3) !important;
+}
+.ml-3_5 {
+  margin-left: var(--space-3_5) !important;
+}
+.ml-4 {
+  margin-left: var(--space-4) !important;
+}
+.ml-5 {
+  margin-left: var(--space-5) !important;
+}
+.ml-6 {
+  margin-left: var(--space-6) !important;
+}
+.wrap {
+  flex-wrap: wrap !important;
+}
+.nowrap {
+  flex-wrap: nowrap !important;
+}
+.items-center {
+  align-items: center !important;
+}
+.items-end {
+  align-items: end !important;
+}
+.items-start {
+  align-items: start !important;
+}
+.justify-between {
+  justify-content: space-between !important;
+}
+.self-end {
+  align-self: end !important;
+}
+.grow {
+  flex: 1 !important;
+}
+.basis-full {
+  flex-basis: 100% !important;
+}
+.min-w-0 {
+  min-width: 0 !important;
+}
+.min-w-field {
+  min-width: 200px !important;
+}
+.w-6em {
+  width: 6em !important;
+}
+.w-7em {
+  width: 7em !important;
+}
+.w-8em {
+  width: 8em !important;
+}
+.w-12em {
+  width: 12em !important;
+}
+.w-full {
+  width: 100% !important;
+}
+.max-w-form {
+  max-width: 520px !important;
+}
+.span-all {
+  grid-column: 1 / -1 !important;
+}
+.span3 {
+  grid-column: span 3 !important;
+}
+.contents:not([hidden]) {
+  display: contents !important;
+}
+.text-inherit {
+  color: inherit !important;
+}
+.text-bad {
+  color: var(--bad) !important;
+}
+.text-warn {
+  color: var(--warn-ink) !important;
+}
+.text-lg {
+  font-size: var(--text-lg) !important;
+}
+.no-underline {
+  text-decoration: none !important;
+}
+.pre-wrap {
+  white-space: pre-wrap !important;
+}
+.break-anywhere {
+  overflow-wrap: anywhere !important;
+}
+.cursor-pointer {
+  cursor: pointer !important;
+}
+.cursor-crosshair {
+  cursor: crosshair !important;
+}
+.round {
+  border-radius: var(--radius-full) !important;
+}
+.faded {
+  opacity: 0.4 !important;
+}
+.bg-accent {
+  background: var(--accent) !important;
+}
+.bg-bad {
+  background: var(--bad) !important;
+}
+.bg-band {
+  background: var(--band) !important;
+}
+.bg-muted {
+  background: var(--muted) !important;
+}
+.bg-soft {
+  background: var(--soft) !important;
+}
+.bg-warm {
+  background: var(--warm) !important;
+}
+.bg-warn {
+  background: var(--warn) !important;
+}
+.bg-line-strong {
+  background: var(--line-strong) !important;
+}

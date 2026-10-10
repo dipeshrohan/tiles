@@ -158,11 +158,11 @@ function listCard(ctx: Context): string {
             body: canEdit(ctx) ? 'Make one from a template.' : 'Engineers make them from templates.',
           });
   const make = canEdit(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>New app</a>` : '';
-  return `<div class="card stack" style="gap:8px"><div class="row" style="justify-content:space-between;gap:8px"><h2>Apps</h2>${make}</div><div class="review-list" data-app-list>${rows}</div></div>`;
+  return `<div class="card stack gap-2"><div class="row justify-between gap-2"><h2>Apps</h2>${make}</div><div class="review-list" data-app-list>${rows}</div></div>`;
 }
 
 function templateCards(list: AppTemplate[]): string {
-  return `<div class="stack" style="gap:8px" data-templates>${list
+  return `<div class="stack gap-2" data-templates>${list
     .map(
       (t) => `<button class="card app-template" type="button" data-template="${esc(t.id)}">
         <b>${esc(t.title)}</b><span class="small soft">${esc(t.summary)}</span></button>`,
@@ -176,12 +176,12 @@ function formCard(ctx: Context, d: Draft, template: AppTemplate, editing: Studio
   const list = signals?.list ?? [];
   const fields = template.params.map((p) => paramField(p, values[p.name], list)).join('');
   const title = editing ? `Change #${editing.number} ${editing.name}` : `New app: ${template.title}`;
-  return `<form class="card stack" id="app-form" style="gap:10px">
+  return `<form class="card stack gap-2_5" id="app-form">
       <h2>${esc(title)}</h2>
       <p class="small soft">${esc(template.summary)}</p>
       <label class="field" for="app-name">Name<input id="app-name" type="text" name="__name" value="${esc(d.name)}" maxlength="120" required /></label>
-      <div class="grid g2 app-fields" style="gap:10px">${fields}</div>
-      <div class="row" style="gap:8px"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${editing ? 'Save' : 'Make the app'}</button><a class="btn" href="${editing ? appLink(editing.number) : '#/apps'}">Cancel</a></div>
+      <div class="grid g2 app-fields gap-2_5">${fields}</div>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${editing ? 'Save' : 'Make the app'}</button><a class="btn" href="${editing ? appLink(editing.number) : '#/apps'}">Cancel</a></div>
     </form>`;
 }
 
@@ -190,7 +190,7 @@ function newCard(ctx: Context): string {
   if (templates?.failed) return `<div class="card">${retry('The templates', 'data-retry-templates')}</div>`;
   if (!list) return `<div class="card">${loadingState('Loading the templates…')}</div>`;
   if (!draft || draft.key !== 'new' || !list.some((t) => t.id === draft?.template))
-    return `<div class="card stack" style="gap:10px"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
+    return `<div class="card stack gap-2_5"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
   const template = list.find((t) => t.id === draft?.template);
   return template ? formCard(ctx, draft, template, null) : '';
 }
@@ -223,7 +223,7 @@ function detailCard(ctx: Context): string {
     .map((line) => `<li>${esc(line)}</li>`)
     .join('')}</ul></details>`;
   const tools = canEdit(ctx)
-    ? `<div class="row" style="gap:8px"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? 'disabled' : ''}>Archive</button></div>`
+    ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? 'disabled' : ''}>Archive</button></div>`
     : '';
   let body: string;
   if (!r) body = '<p class="small soft">Running it on the latest readings…</p>';
@@ -232,18 +232,18 @@ function detailCard(ctx: Context): string {
     const out = r.result;
     const chart = timeChart({ ...resultChart(out), width: fitWidth(TIME_CHART.width, 0.7) });
     const facts = out.facts.length
-      ? `<div class="row" style="gap:24px;flex-wrap:wrap" data-app-facts>${out.facts
+      ? `<div class="row gap-6 wrap" data-app-facts>${out.facts
           .map((f) => `<div><div class="small soft">${esc(f.label)}</div><strong>${esc(factText(f))}</strong></div>`)
           .join('')}</div>`
       : '';
     const marked = out.spans.length
       ? `<p class="small soft">Shaded: ${esc([...new Set(out.spans.map((s) => s.label))].join('; '))}.</p>`
       : '';
-    body = `<div class="row" style="gap:8px;align-items:center" data-app-status>${statusBadge(out.status)} <b>${esc(out.headline)}</b></div>
+    body = `<div class="row gap-2 items-center" data-app-status>${statusBadge(out.status)} <b>${esc(out.headline)}</b></div>
       <p data-app-text>${esc(out.text)}</p>${facts}${chart}${marked}`;
   }
-  return `<div class="card stack" style="gap:12px" data-app-detail>
-      <div class="row" style="justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap">
+  return `<div class="card stack gap-3" data-app-detail>
+      <div class="row justify-between items-start gap-3 wrap">
         <div><h2>#${app.number} ${esc(app.name)}</h2>
         <p class="small soft">${esc(app.template_title)} on <code>${esc(app.signal_tag ?? 'a signal no longer on this site')}</code> · made by ${esc(app.created_by)}</p></div>
         <button class="btn sm" type="button" data-rerun>Run again</button>
