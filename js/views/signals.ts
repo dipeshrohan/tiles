@@ -49,6 +49,9 @@ export const catalogue = (ctx: Context): string =>
   [ctx.api?.baseUrl ?? '', ctx.ontology.site?.id ?? '', ctx.state.user.email, ctx.auth.signedIn].join('|');
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
+// The quality filter's values (the address may carry one).
+const QUALITY_FILTERS = ['good', 'warn', 'bad', 'unknown', 'unchecked'] as const;
+
 const ui = (ctx: Context): Ui =>
   ctx.ui<Ui>('signals', {
     query: { q: '', source: '', linked: '', quality: '' },
@@ -559,6 +562,22 @@ const view: View = {
   id: 'signals',
   title: 'Signals',
   icon: 'activity',
+  // Its search and filters, in the address (U3.05): `#/signals?q=press&linked=no`.
+  query: {
+    read(params, ctx) {
+      const pick = <T extends string>(v: string | null, allowed: readonly T[]): T | '' =>
+        (allowed as readonly string[]).includes(v ?? '') ? (v as T) : '';
+      ui(ctx).query = {
+        q: (params.get('q') ?? '').slice(0, 200),
+        source: pick(params.get('source'), ['edge', 'import', 'manual'] as const),
+        linked: pick(params.get('linked'), ['yes', 'no'] as const),
+        quality: pick(params.get('quality'), QUALITY_FILTERS),
+      };
+    },
+    write(ctx) {
+      return { ...ui(ctx).query };
+    },
+  },
   render(ctx) {
     const head = pageHead({
       eyebrow: 'Data',
@@ -655,6 +674,7 @@ const view: View = {
         quality: field(form, 'quality') as Ui['query']['quality'],
       };
       u.editing = null;
+      ctx.address(); // the search and filters, in the address as they change
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => void search(root, ctx), 250);
     };

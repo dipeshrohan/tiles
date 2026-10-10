@@ -16,6 +16,28 @@ export interface Filters {
 
 export const DEFAULT_FILTERS: Filters = { show: 'unresolved', who: 'anyone', signal: 'all' };
 
+const SHOWS: readonly Show[] = ['unresolved', 'raised', 'acknowledged', 'resolved', 'all'];
+const WHOS: readonly Who[] = ['anyone', 'me', 'none'];
+const SIGNALS: readonly SignalState[] = ['all', 'open', 'ended'];
+const one = <T extends string>(v: string | null, allowed: readonly T[], fallback: T): T =>
+  (allowed as readonly string[]).includes(v ?? '') ? (v as T) : fallback;
+
+// The filters in the page's address (U3.05): `?show=all&who=me&signal=open`, defaults left out.
+export function filtersFromQuery(params: URLSearchParams): Filters {
+  return {
+    show: one(params.get('show'), SHOWS, DEFAULT_FILTERS.show),
+    who: one(params.get('who'), WHOS, DEFAULT_FILTERS.who),
+    signal: one(params.get('signal'), SIGNALS, DEFAULT_FILTERS.signal),
+  };
+}
+export function filtersQuery(f: Filters): Record<string, string | null> {
+  return {
+    show: f.show === DEFAULT_FILTERS.show ? null : f.show,
+    who: f.who === DEFAULT_FILTERS.who ? null : f.who,
+    signal: f.signal === DEFAULT_FILTERS.signal ? null : f.signal,
+  };
+}
+
 export const SHOW_LABELS: Record<Show, string> = {
   unresolved: 'To do',
   raised: 'New',

@@ -44,6 +44,8 @@ export interface Context {
   update(mutate: (state: AppState) => void, options?: { rerender?: boolean }): void;
   ui<T extends object>(viewId: string, defaults: T): T;
   rerender(): void;
+  // Puts what the page shows into its address (U3.05), for a change that doesn't draw it again.
+  address(): void;
   // A toast: `type` (success, error…) picks its icon; `action` adds a button (Undo, Retry).
   toast(message: string, opts?: ToastOptions): void;
   reset(): void;
@@ -101,6 +103,13 @@ export interface View {
   // A page outside the menu that belongs to another (the style guide to Settings): that page is
   // marked in the menu and comes before it in the breadcrumbs.
   under?: string;
+  // What the page shows, in its address (U3.05, js/lib/url-state.ts): `read` takes a link's query
+  // into the page's state before it is drawn; `write` gives the state as query values (a default
+  // left out), which the address then shows, so a copied link or a reload shows the same.
+  query?: {
+    read(params: URLSearchParams, ctx: Context): void;
+    write(ctx: Context): Record<string, string | null | undefined>;
+  };
 }
 
 export interface Crumb {

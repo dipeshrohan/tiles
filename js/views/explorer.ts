@@ -384,15 +384,21 @@ export function linkRange(params: URLSearchParams): Range | null {
 // `#/explorer?signal=<id>` (the Signals page links here) adds that signal;
 // `#/explorer?signals=<id>,<id>&from=…&to=…` (a saved insight links here) shows those over that range;
 // `#/explorer?tag=<tag>` (the copilot's evidence links) adds the signal with that tag.
+// The page's own address is the last (U3.05): a reload or a copied link shows the same charts.
+// A link's query, read before the page is drawn (`query.read`), waits here for the site.
+let linkParams: URLSearchParams | null = null;
+const linkIds = (params: URLSearchParams): string[] =>
+  (params.get('signals') ?? '').split(',').filter(Boolean).slice(0, MAX_SIGNALS);
+
 function addFromLink(ctx: Context): void {
-  const params = new URLSearchParams(location.hash.split('?')[1] ?? '');
-  const id = params.get('signal');
-  const tag = params.get('tag');
-  const ids = (params.get('signals') ?? '').split(',').filter(Boolean).slice(0, MAX_SIGNALS);
   const site = ctx.ontology.site;
   const api = ctx.api;
-  if ((!id && !tag && !ids.length) || !api || !site) return;
-  history.replaceState(null, '', `${location.pathname}${location.search}#/explorer`);
+  if (!linkParams || !api || !site) return;
+  const params = linkParams;
+  linkParams = null;
+  const id = params.get('signal');
+  const tag = params.get('tag');
+  const ids = linkIds(params);
   if (tag) {
     api.signals.list(site.id, { q: tag, limit: 500 }).then(
       (page) => {
@@ -458,6 +464,26 @@ const view: View = {
   id: 'explorer',
   title: 'Data explorer',
   icon: 'chart-line',
+  // The signals plotted and the range, in the address (U3.05): `?signals=<id>,<id>&from=…&to=…`.
+  query: {
+    read(params, ctx) {
+      const u = ui(ctx);
+      if (params.get('signal') || params.get('tag')) linkParams = params;
+      else if (linkIds(params).length) {
+        const same =
+          linkIds(params).join() === u.picked.map((p) => p.id).join() &&
+          JSON.stringify(linkRange(params)) === JSON.stringify(u.range);
+        if (!same) linkParams = params;
+      }
+    },
+    write(ctx) {
+      if (linkParams?.get('signals'))
+        return { signals: linkParams.get('signals'), from: linkParams.get('from'), to: linkParams.get('to') };
+      const u = ui(ctx);
+      const ids = u.picked.map((p) => p.id).join(',');
+      return { signals: ids || null, from: ids ? u.range?.from : null, to: ids ? u.range?.to : null };
+    },
+  },
   render(ctx) {
     const head = pageHead({
       eyebrow: 'Data',

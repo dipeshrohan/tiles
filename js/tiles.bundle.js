@@ -2117,6 +2117,87 @@
 		}, true);
 	}
 	//#endregion
+	//#region js/lib/url-state.ts
+	var queryOf = (hash) => new URLSearchParams(hash.split("?")[1] ?? "");
+	function withQuery(hash, values) {
+		const path = hash.split("?")[0] || "#/";
+		const params = new URLSearchParams();
+		for (const [k, v] of Object.entries(values)) if (v !== null && v !== void 0 && v !== "") params.set(k, v);
+		const q = params.toString();
+		return q ? `${path}?${q}` : path;
+	}
+	function showHash(hash) {
+		if (hash === location.hash) return;
+		history.replaceState(history.state, "", `${location.pathname}${location.search}${hash}`);
+	}
+	var SAVE_MS = 150;
+	var RESTORE_FOR_MS = 3e3;
+	var saveTimer;
+	var pending$2 = null;
+	function watchScroll() {
+		if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+		addEventListener("scroll", () => {
+			if (pending$2) return;
+			clearTimeout(saveTimer);
+			saveTimer = setTimeout(() => {
+				const state = history.state;
+				history.replaceState({
+					...state && typeof state === "object" ? state : {},
+					scrollY
+				}, "");
+			}, SAVE_MS);
+		}, { passive: true });
+		const stop = () => pending$2 = null;
+		for (const type of [
+			"wheel",
+			"touchstart",
+			"keydown",
+			"mousedown"
+		]) addEventListener(type, stop, {
+			passive: true,
+			capture: true
+		});
+	}
+	function savedScroll() {
+		const state = history.state;
+		const y = state && typeof state === "object" ? state.scrollY : void 0;
+		return typeof y === "number" && Number.isFinite(y) ? y : 0;
+	}
+	function scrollToSaved() {
+		const y = savedScroll();
+		pending$2 = y > 0 ? {
+			y,
+			until: Date.now() + RESTORE_FOR_MS
+		} : null;
+		scrollTo(0, y);
+		restoreScroll();
+	}
+	function restoreScroll() {
+		if (!pending$2) return;
+		if (Date.now() > pending$2.until) {
+			pending$2 = null;
+			return;
+		}
+		scrollTo(0, pending$2.y);
+		if (Math.abs(scrollY - pending$2.y) < 2) pending$2 = null;
+	}
+	var UI_KEY = "tiles.ui";
+	function saveUi(storage, ui) {
+		try {
+			storage.setItem(UI_KEY, JSON.stringify(ui));
+		} catch {}
+	}
+	function loadUi(storage) {
+		try {
+			const raw = storage.getItem(UI_KEY);
+			const ui = raw ? JSON.parse(raw) : null;
+			if (!ui || typeof ui !== "object" || Array.isArray(ui)) return {};
+			return Object.fromEntries(Object.entries(ui).filter(([, v]) => v !== null && typeof v === "object" && !Array.isArray(v)));
+		} catch {
+			return {};
+		}
+	}
+	//#endregion
 	//#region js/lib/design.ts
 	var MODELS = {
 		swelling: {
@@ -7361,6 +7442,13 @@
 		ctx.auth.signedIn
 	].join("|");
 	var searchTimer;
+	var QUALITY_FILTERS = [
+		"good",
+		"warn",
+		"bad",
+		"unknown",
+		"unchecked"
+	];
 	var ui$1 = (ctx) => ctx.ui("signals", {
 		query: {
 			q: "",
@@ -7834,6 +7922,24 @@
 		id: "signals",
 		title: "Signals",
 		icon: "activity",
+		query: {
+			read(params, ctx) {
+				const pick = (v, allowed) => allowed.includes(v ?? "") ? v : "";
+				ui$1(ctx).query = {
+					q: (params.get("q") ?? "").slice(0, 200),
+					source: pick(params.get("source"), [
+						"edge",
+						"import",
+						"manual"
+					]),
+					linked: pick(params.get("linked"), ["yes", "no"]),
+					quality: pick(params.get("quality"), QUALITY_FILTERS)
+				};
+			},
+			write(ctx) {
+				return { ...ui$1(ctx).query };
+			}
+		},
 		render(ctx) {
 			const head = pageHead({
 				eyebrow: "Data",
@@ -7902,6 +8008,7 @@
 					quality: field$2(form, "quality")
 				};
 				u.editing = null;
+				ctx.address();
 				clearTimeout(searchTimer);
 				searchTimer = setTimeout(() => void search$1(root, ctx), 250);
 			};
@@ -8251,15 +8358,17 @@
 			to: iso(to)
 		};
 	}
+	var linkParams = null;
+	var linkIds = (params) => (params.get("signals") ?? "").split(",").filter(Boolean).slice(0, MAX_SIGNALS);
 	function addFromLink(ctx) {
-		const params = new URLSearchParams(location.hash.split("?")[1] ?? "");
-		const id = params.get("signal");
-		const tag = params.get("tag");
-		const ids = (params.get("signals") ?? "").split(",").filter(Boolean).slice(0, MAX_SIGNALS);
 		const site = ctx.ontology.site;
 		const api = ctx.api;
-		if (!id && !tag && !ids.length || !api || !site) return;
-		history.replaceState(null, "", `${location.pathname}${location.search}#/explorer`);
+		if (!linkParams || !api || !site) return;
+		const params = linkParams;
+		linkParams = null;
+		const id = params.get("signal");
+		const tag = params.get("tag");
+		const ids = linkIds(params);
 		if (tag) {
 			api.signals.list(site.id, {
 				q: tag,
@@ -8320,6 +8429,29 @@
 		id: "explorer",
 		title: "Data explorer",
 		icon: "chart-line",
+		query: {
+			read(params, ctx) {
+				const u = ui(ctx);
+				if (params.get("signal") || params.get("tag")) linkParams = params;
+				else if (linkIds(params).length) {
+					if (!(linkIds(params).join() === u.picked.map((p) => p.id).join() && JSON.stringify(linkRange(params)) === JSON.stringify(u.range))) linkParams = params;
+				}
+			},
+			write(ctx) {
+				if (linkParams?.get("signals")) return {
+					signals: linkParams.get("signals"),
+					from: linkParams.get("from"),
+					to: linkParams.get("to")
+				};
+				const u = ui(ctx);
+				const ids = u.picked.map((p) => p.id).join(",");
+				return {
+					signals: ids || null,
+					from: ids ? u.range?.from : null,
+					to: ids ? u.range?.to : null
+				};
+			}
+		},
 		render(ctx) {
 			const head = pageHead({
 				eyebrow: "Data",
@@ -8733,6 +8865,38 @@
 		who: "anyone",
 		signal: "all"
 	};
+	var SHOWS = [
+		"unresolved",
+		"raised",
+		"acknowledged",
+		"resolved",
+		"all"
+	];
+	var WHOS = [
+		"anyone",
+		"me",
+		"none"
+	];
+	var SIGNALS = [
+		"all",
+		"open",
+		"ended"
+	];
+	var one = (v, allowed, fallback) => allowed.includes(v ?? "") ? v : fallback;
+	function filtersFromQuery(params) {
+		return {
+			show: one(params.get("show"), SHOWS, DEFAULT_FILTERS.show),
+			who: one(params.get("who"), WHOS, DEFAULT_FILTERS.who),
+			signal: one(params.get("signal"), SIGNALS, DEFAULT_FILTERS.signal)
+		};
+	}
+	function filtersQuery(f) {
+		return {
+			show: f.show === DEFAULT_FILTERS.show ? null : f.show,
+			who: f.who === DEFAULT_FILTERS.who ? null : f.who,
+			signal: f.signal === DEFAULT_FILTERS.signal ? null : f.signal
+		};
+	}
 	var SHOW_LABELS = {
 		unresolved: "To do",
 		raised: "New",
@@ -8856,6 +9020,16 @@
 	var PAGE$1 = 100;
 	var ago = (iso) => when(iso, Date.now());
 	var siteId$8 = (ctx) => ctx.ontology.site?.id ?? null;
+	var linkedWarning = null;
+	function openLinked(ctx) {
+		const site = siteId$8(ctx);
+		if (!linkedWarning || !site) return;
+		Object.assign(uiState$8(ctx), {
+			selected: linkedWarning,
+			site
+		});
+		linkedWarning = null;
+	}
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "warnings") {
 			listing$5 = null;
@@ -9235,11 +9409,31 @@
 		id: "warnings",
 		title: "Warnings",
 		icon: "triangle-alert",
+		query: {
+			read(params, ctx) {
+				const ui = uiState$8(ctx);
+				ui.filters = filtersFromQuery(params);
+				linkedWarning = params.get("warning");
+				if (!linkedWarning) Object.assign(ui, {
+					selected: null,
+					site: null
+				});
+				openLinked(ctx);
+			},
+			write(ctx) {
+				const ui = uiState$8(ctx);
+				return {
+					...filtersQuery(ui.filters),
+					warning: linkedWarning ?? (ui.site === siteId$8(ctx) ? ui.selected : null)
+				};
+			}
+		},
 		crumbs(ctx) {
 			const w = uiState$8(ctx).selected !== null && detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
 			return ctx.api && w ? [{ label: w.signal_tag }] : [];
 		},
 		render(ctx) {
+			openLinked(ctx);
 			const head = pageHead({
 				eyebrow: "Operations · Detection",
 				title: "Warnings",
@@ -13805,8 +13999,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		shots,
 		detection,
 		scored: scoreAlerts(detection.alerts, shots.downtime, shots.cycleSeconds),
-		ui: {}
+		ui: loadUi(sessionStorage)
 	};
+	var uiChecked = /* @__PURE__ */ new Set();
 	function persist() {
 		save$1(STATE_KEY, {
 			repo: ontologyStatus === "local" ? state.repo : localRepo,
@@ -14035,10 +14230,23 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (rerender) render();
 		},
 		ui(viewId, defaults) {
+			if (!uiChecked.has(viewId)) {
+				uiChecked.add(viewId);
+				state.ui[viewId] = {
+					...defaults,
+					...state.ui[viewId] ?? {}
+				};
+			}
 			state.ui[viewId] ??= { ...defaults };
 			return state.ui[viewId];
 		},
 		rerender: () => render(),
+		address() {
+			const view = currentView();
+			if (!view.query) return;
+			showHash(withQuery(location.hash, view.query.write(ctx)));
+			addressed = location.hash;
+		},
 		toast,
 		reset() {
 			const chosen = load$4("datasource", null);
@@ -14133,6 +14341,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
 		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 	}
+	var addressed = "";
 	var shownView = null;
 	var trackedView = "";
 	function render() {
@@ -14144,6 +14353,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		renderNav(view);
 		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
+		const params = queryOf(location.hash);
+		if (view.query && location.hash !== addressed && [...params].length) view.query.read(params, ctx);
 		resetIds();
 		const html = view.render(ctx);
 		const again = view.id === shownView;
@@ -14170,6 +14381,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			...view.crumbs?.(ctx) ?? []
 		]);
 		shownView = view.id;
+		ctx.address();
+		addressed = location.hash;
+		restoreScroll();
 	}
 	need(document, "#view").addEventListener("submit", (e) => {
 		if (e.target instanceof HTMLFormElement && !e.target.noValidate) noteSent(e.target);
@@ -14255,6 +14469,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		for (const ev of takeLeft(localStorage, api.baseUrl, uxSite)?.events ?? []) tracker.track(ev.kind, ev.name);
 	});
 	window.addEventListener("pagehide", () => saveWaiting(localStorage));
+	window.addEventListener("pagehide", () => saveUi(sessionStorage, state.ui));
 	window.addEventListener("pageshow", (e) => {
 		if (e.persisted) keepWaiting(localStorage);
 	});
@@ -14418,7 +14633,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const arrive = () => {
 			name(from, "");
 			render();
-			window.scrollTo(0, 0);
+			scrollToSaved();
 			name(head(), from ? "record" : hold ? "" : "none");
 			const heading = root.querySelector("h1[tabindex]");
 			(heading ?? root).focus({ preventScroll: true });
@@ -14440,6 +14655,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}
 	window.addEventListener("hashchange", navigate);
 	watchSections(document);
+	watchScroll();
 	if (api) {
 		localRepo = state.repo;
 		state.repo = createRepo();
