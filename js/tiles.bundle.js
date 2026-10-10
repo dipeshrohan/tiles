@@ -2489,21 +2489,29 @@
 		70
 	];
 	var bar = (w) => `<span class="skeleton" style="--w:${w}%"></span>`;
-	var loading = (label, kind, shapes) => `<div class="loading loading-${kind}" aria-busy="true"><span class="sr-only">${esc(label)}</span><div class="loading-shapes" aria-hidden="true">${shapes}</div></div>`;
+	var loadingSince = 0;
+	var lastLoading = -Infinity;
+	var wait = () => {
+		const now = typeof performance === "undefined" ? Date.now() : performance.now();
+		if (now - lastLoading > 1e3) loadingSince = now;
+		lastLoading = now;
+		return Math.max(0, Math.round(300 - (now - loadingSince)));
+	};
+	var loading = (label, kind, shapes) => `<div class="loading loading-${kind}"><span class="sr-only">${esc(label)}</span><div class="loading-shapes" aria-hidden="true" aria-busy="true" style="--wait:${wait()}ms">${shapes}</div></div>`;
 	var skeleton = {
 		text(lines = 3, label = "Loading…") {
 			return loading(label, "text", Array.from({ length: lines }, (_, i) => bar(WIDTHS[i % WIDTHS.length] ?? 80)).join(""));
 		},
 		table(rows = 5, cols = 4, label = "Loading…") {
-			const row = (head) => `<div class="skeleton-row${head ? " head" : ""}">${Array.from({ length: cols }, (_, c) => bar(head ? 50 : WIDTHS[(c + rows) % WIDTHS.length] ?? 80)).join("")}</div>`;
-			return loading(label, "table", [row(true), ...Array.from({ length: rows }, () => row(false))].join(""));
+			const row = (r) => `<div class="skeleton-row${r < 0 ? " head" : ""}">${Array.from({ length: cols }, (_, c) => bar(r < 0 ? 50 : WIDTHS[(c + r) % WIDTHS.length] ?? 80)).join("")}</div>`;
+			return loading(label, "table", [row(-1), ...Array.from({ length: rows }, (_, r) => row(r))].join(""));
 		},
-		card(label = "Loading…") {
+		card(label = "Loading…", o = {}) {
 			return loading(label, "card", `<span class="skeleton skeleton-title"></span>${[
 				88,
 				72,
 				80
-			].map(bar).join("")}`);
+			].map(bar).join("")}${o.chart ? `<span class="skeleton skeleton-chart" style="--h:${o.chart}px"></span>` : ""}`);
 		},
 		chart(label = "Loading the chart…", height = 240) {
 			return loading(label, "chart", `<span class="skeleton skeleton-chart" style="--h:${height}px"></span>`);
@@ -4938,7 +4946,7 @@
 		const items = projects?.site === site ? projects.items : null;
 		const shown = projectOf(ctx, site);
 		const canWrite = ctx.ontology.role !== null && ctx.ontology.role !== "viewer";
-		const choose = items === null ? "<span class=\"small soft\">Loading projects…</span>" : items.length ? `<label class="row gap-2">Project <select id="project" aria-label="Design project">${items.map((p) => `<option value="${esc(p.id)}" ${p.id === shown?.id ? "selected" : ""}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? "" : "s"})</option>`).join("")}</select></label>` : "<span class=\"small soft\">No projects yet on this site.</span>";
+		const choose = items === null ? "<span class=\"small soft\" aria-busy=\"true\">Loading projects…</span>" : items.length ? `<label class="row gap-2">Project <select id="project" aria-label="Design project">${items.map((p) => `<option value="${esc(p.id)}" ${p.id === shown?.id ? "selected" : ""}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? "" : "s"})</option>`).join("")}</select></label>` : "<span class=\"small soft\">No projects yet on this site.</span>";
 		const create = canWrite ? `<form id="new-project" class="row gap-2"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>` : "";
 		return `<div class="card row gap-4 wrap justify-between mb-4" data-projects>
       <div class="row gap-4 wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ""}</div>
@@ -5067,7 +5075,7 @@
 				return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : "<span class=\"muted\">untitled</span>"}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
                       <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show$1(d.from)} → ${show$1(d.to)}`).join("<br>") || "no change" : "first run"}</td>
                       <td class="num"><b>${fmt$1(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
-			}).join("")}</tbody></table></div>` : `<div class="empty">${site && !project ? "Pick or create a project to see its runs." : site && !fetched?.loaded ? "Loading runs…" : remote && !site ? "" : "No runs yet. Adjust parameters and press “Save run”."}</div>`}
+			}).join("")}</tbody></table></div>` : `<div class="empty">${site && !project ? "Pick or create a project to see its runs." : site && !fetched?.loaded ? skeleton.list(3, "Loading runs…") : remote && !site ? "" : "No runs yet. Adjust parameters and press “Save run”."}</div>`}
         </div>
       </div>`;
 		},
@@ -6646,7 +6654,7 @@
 				lead: "Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to."
 			});
 			if (!ctx.api) return `${head}${card$1(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
-			if (!ctx.ontology.site) return `${head}${card$1(`<p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p>`)}`;
+			if (!ctx.ontology.site) return `${head}${card$1(ctx.ontology.status === "error" ? `<p class="small soft">The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}</p>` : skeleton.card("Loading the site from the Tiles API…"))}`;
 			const { query } = ui$1(ctx);
 			return `${head}${card$1(`${`<form id="signal-search" class="row gap-3 wrap" role="search">
           ${field("Search", input({
@@ -8481,7 +8489,7 @@
 			if (ctx.api && ctx.ontology.status !== "ready") return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div></div>`;
 			const graph = ctx.graph;
 			const list = floorItems(ctx, graph);
-			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">Loading the warnings…</div></div>`;
+			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">${skeleton.list(3, "Loading the warnings…")}</div></div>`;
 			const now = Date.now();
 			const { tone, text } = headline(list);
 			const updated = listed().at && ctx.api ? `<div class="small soft">Updated ${new Date(listed().at ?? 0).toLocaleTimeString("en-GB", {
@@ -9104,7 +9112,7 @@ heartbeat_seconds = 30
 			if (ctx.ontology.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (ctx.ontology.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
 			const data = progress$1?.site === siteId$5(ctx) ? progress$1.data : null;
-			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">Loading this site’s progress…</div>`;
+			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">${skeleton.list(4, "Loading this site’s progress…")}</div>`;
 			const current = uiState$4(ctx).step ?? data.next ?? "dashboard";
 			const meta = STEPS.find((s) => s.key === current) ?? STEPS[0];
 			const body = {
@@ -9508,8 +9516,13 @@ kv([['Peak', '3,580 N'], ['Baseline', '1,800 N']], { valueClass: 'mono' })`,
 		},
 		{
 			title: "Loading",
-			code: `loadingState('Loading the signal…', 3)`,
-			html: () => loadingState("Loading the signal…", 3)
+			code: `skeleton.table(3, 4, 'Loading the signals…')   // after 300 ms; also .list(), .card(), .chart(), .text()
+skeleton.card('Loading the effects…', { chart: 120 })
+button('Save', { variant: 'primary', busy: true })   // or setBusy(el, true) on one already shown`,
+			html: () => `${skeleton.table(3, 4, "Loading the signals…")}${skeleton.card("Loading the effects…", { chart: 120 })}<div class="mt-3">${button("Save", {
+				variant: "primary",
+				busy: true
+			})}</div>`
 		},
 		{
 			title: "Needs the API",
@@ -10346,7 +10359,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			body: "Or upload one: its settings are compared between good and failed batches."
 		})}</div>`;
 		const d = detail$1?.id === ui.selected ? detail$1.data : null;
-		if (!d) return `<div class="card">${skeleton.card()}${skeleton.chart("Loading the effects…", 200)}</div>`;
+		if (!d) return `<div class="card">${skeleton.card("Loading the effects…", { chart: 200 })}</div>`;
 		const numbers = d.columns.filter((c) => c.kind === "number").map((c) => c.name);
 		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
 		const checked = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));

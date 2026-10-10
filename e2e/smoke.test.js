@@ -215,7 +215,9 @@ test('pages that load from the API hold still as they fill: layout shift under 0
     });
     await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/${route}`);
     await page.waitForSelector('#view h1');
+    // Settled: nothing busy, and no request in flight (a phase that loads later shifts it too).
     await page.waitForFunction(() => !document.querySelector('#view [aria-busy=true]'), null, { timeout: 10000 });
+    await page.waitForLoadState('networkidle');
     await page.waitForTimeout(500);
     shifts[route] = await page.evaluate(() => window.__cls);
     assert.deepEqual(errors, [], route);

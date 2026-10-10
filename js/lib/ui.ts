@@ -40,8 +40,19 @@ export function needsApi(bodyHtml: string, level?: 2 | 3 | 4): string {
 // render as its text isn't announced).
 const WIDTHS = [92, 76, 84, 64, 88, 70];
 const bar = (w: number): string => `<span class="skeleton" style="--w:${w}%"></span>`;
+// The wait is counted from when loading began, not from each render: a page that re-renders while it
+// loads (one phase to the next, a keystroke) doesn't hide its shapes for another 300 ms each time.
+let loadingSince = 0;
+let lastLoading = -Infinity;
+const wait = (): number => {
+  const now = typeof performance === 'undefined' ? Date.now() : performance.now();
+  if (now - lastLoading > 1000) loadingSince = now; // a new wait after a pause in loading
+  lastLoading = now;
+  return Math.max(0, Math.round(300 - (now - loadingSince)));
+};
+// The words are beside the busy shapes (some screen readers hold back what is inside a busy region).
 const loading = (label: string, kind: string, shapes: string): string =>
-  `<div class="loading loading-${kind}" aria-busy="true"><span class="sr-only">${esc(label)}</span><div class="loading-shapes" aria-hidden="true">${shapes}</div></div>`;
+  `<div class="loading loading-${kind}"><span class="sr-only">${esc(label)}</span><div class="loading-shapes" aria-hidden="true" aria-busy="true" style="--wait:${wait()}ms">${shapes}</div></div>`;
 
 export const skeleton = {
   // Lines of text.
@@ -54,13 +65,19 @@ export const skeleton = {
   },
   // A table: a header and rows of cells.
   table(rows = 5, cols = 4, label = 'Loading…'): string {
-    const row = (head: boolean) =>
-      `<div class="skeleton-row${head ? ' head' : ''}">${Array.from({ length: cols }, (_, c) => bar(head ? 50 : (WIDTHS[(c + rows) % WIDTHS.length] ?? 80))).join('')}</div>`;
-    return loading(label, 'table', [row(true), ...Array.from({ length: rows }, () => row(false))].join(''));
+    const row = (r: number) =>
+      `<div class="skeleton-row${r < 0 ? ' head' : ''}">${Array.from({ length: cols }, (_, c) => bar(r < 0 ? 50 : (WIDTHS[(c + r) % WIDTHS.length] ?? 80))).join('')}</div>`;
+    return loading(label, 'table', [row(-1), ...Array.from({ length: rows }, (_, r) => row(r))].join(''));
   },
-  // A card's worth: a title and a few lines.
-  card(label = 'Loading…'): string {
-    return loading(label, 'card', `<span class="skeleton skeleton-title"></span>${[88, 72, 80].map(bar).join('')}`);
+  // A card's worth: a title and a few lines, and a chart under them when it has one.
+  card(label = 'Loading…', o: { chart?: number } = {}): string {
+    return loading(
+      label,
+      'card',
+      `<span class="skeleton skeleton-title"></span>${[88, 72, 80].map(bar).join('')}${
+        o.chart ? `<span class="skeleton skeleton-chart" style="--h:${o.chart}px"></span>` : ''
+      }`,
+    );
   },
   // A chart: a box the chart's height.
   chart(label = 'Loading the chart…', height = 240): string {

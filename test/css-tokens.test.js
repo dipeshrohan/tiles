@@ -45,9 +45,9 @@ test('colours below the tokens come from tokens, so the fallback covers them', (
 
 test('every token used is defined', () => {
   const defined = new Set([...tokens.matchAll(/(--[\w-]+):/g)].map((m) => m[1]));
-  // --w and --h are set per element (a skeleton's width and height), not tokens.
+  // --w, --h and --wait are set per element (a skeleton's width, height and wait), not tokens.
   const used = new Set(
-    [...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]).filter((t) => t !== '--w' && t !== '--h'),
+    [...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]).filter((t) => !['--w', '--h', '--wait'].includes(t)),
   );
   assert.deepEqual(
     [...used].filter((t) => !defined.has(t)),

@@ -6,7 +6,7 @@ import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf, timeAgo } 
 import type { ApiSweep, DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
-import { pageHead } from '../lib/ui.ts';
+import { pageHead, skeleton } from '../lib/ui.ts';
 
 const defaults = (model: DesignModel): Params => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 const stepFor = (p: ParamSpec): number =>
@@ -176,7 +176,7 @@ function projectBar(ctx: Context, site: string): string {
   const canWrite = ctx.ontology.role !== null && ctx.ontology.role !== 'viewer';
   const choose =
     items === null
-      ? '<span class="small soft">Loading projects…</span>'
+      ? '<span class="small soft" aria-busy="true">Loading projects…</span>'
       : items.length
         ? `<label class="row gap-2">Project <select id="project" aria-label="Design project">${items
             .map(
@@ -333,7 +333,7 @@ const view: View = {
                       <td class="num"><b>${fmt(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
                   })
                   .join('')}</tbody></table></div>`
-              : `<div class="empty">${site && !project ? 'Pick or create a project to see its runs.' : site && !fetched?.loaded ? 'Loading runs…' : remote && !site ? '' : 'No runs yet. Adjust parameters and press “Save run”.'}</div>`
+              : `<div class="empty">${site && !project ? 'Pick or create a project to see its runs.' : site && !fetched?.loaded ? skeleton.list(3, 'Loading runs…') : remote && !site ? '' : 'No runs yet. Adjust parameters and press “Save run”.'}</div>`
           }
         </div>
       </div>`;

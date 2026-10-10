@@ -535,11 +535,9 @@ const view: View = {
     if (!ctx.api) return `${head}${card(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
     if (!ctx.ontology.site)
       return `${head}${card(
-        `<p class="small soft">${
-          ctx.ontology.status === 'error'
-            ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}`
-            : 'Loading the site from the Tiles API…'
-        }</p>`,
+        ctx.ontology.status === 'error'
+          ? `<p class="small soft">The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}</p>`
+          : skeleton.card('Loading the site from the Tiles API…'),
       )}`;
     const { query } = ui(ctx);
     const search = `<form id="signal-search" class="row gap-3 wrap" role="search">

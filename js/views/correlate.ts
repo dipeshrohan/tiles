@@ -99,7 +99,7 @@ function analysisCard(ctx: Context, ui: Ui): string {
   if (!ui.selected)
     return `<div class="card">${emptyState({ illustration: 'chart', title: 'Choose a batch table', body: 'Or upload one: its settings are compared between good and failed batches.' })}</div>`;
   const d = detail?.id === ui.selected ? detail.data : null;
-  if (!d) return `<div class="card">${skeleton.card()}${skeleton.chart('Loading the effects…', 200)}</div>`;
+  if (!d) return `<div class="card">${skeleton.card('Loading the effects…', { chart: 200 })}</div>`;
   const numbers = d.columns.filter((c) => c.kind === 'number').map((c) => c.name);
   const outcome =
     d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === 'bool') ?? d.columns[0];

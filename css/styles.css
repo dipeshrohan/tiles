@@ -1343,7 +1343,9 @@ tr.selected td {
   padding: var(--space-5);
 }
 .loading-card,
-.loading-chart {
+.loading-chart,
+.loading-list,
+.loading-table {
   padding: 0;
 }
 /* Shown after 300 ms: a quick answer replaces them before they appear. */
@@ -1351,12 +1353,12 @@ tr.selected td {
   display: flex;
   flex-direction: column;
   gap: var(--space-2_5);
-  animation: skeleton-wait 300ms step-end both;
+  animation: skeleton-wait var(--wait, 300ms) step-end both;
 }
 @media (prefers-reduced-motion: reduce) {
   /* A wait, not motion: still 300 ms. */
   .loading-shapes {
-    animation-duration: 300ms !important;
+    animation-duration: var(--wait, 300ms) !important;
   }
 }
 @keyframes skeleton-wait {

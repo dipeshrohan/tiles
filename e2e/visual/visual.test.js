@@ -172,7 +172,7 @@ async function diff(expected, actual) {
 async function check(name, shot) {
   const file = join(BASELINES, `${name}.png`);
   written.add(`${name}.png`);
-  if (UPDATE || !existsSync(file)) {
+  if (!existsSync(file)) {
     assert.ok(UPDATE, `no baseline for ${name}: run npm run test:visual -- --update`);
     writeFileSync(file, shot);
     return;
@@ -181,7 +181,11 @@ async function check(name, shot) {
   if (expected.equals(shot)) return; // the same browser makes the same file: nothing to compare
   const result = await diff(expected, shot);
   const share = result.changed / result.total;
-  if (share <= MAX_SHARE) return;
+  if (share <= MAX_SHARE) return; // the same, to the eye: an update keeps the baseline as it is
+  if (UPDATE) {
+    writeFileSync(file, shot);
+    return;
+  }
   mkdirSync(OUTPUT, { recursive: true });
   writeFileSync(join(OUTPUT, `${name}.actual.png`), shot);
   writeFileSync(join(OUTPUT, `${name}.expected.png`), readFileSync(file));

@@ -13,10 +13,10 @@ import {
   input,
   kv,
   linkButton,
-  loadingState,
   needsApi,
   pageHead,
   select,
+  skeleton,
   table,
   tabs,
 } from './ui.ts';
@@ -309,8 +309,11 @@ export const STATES: Example[] = [
   },
   {
     title: 'Loading',
-    code: `loadingState('Loading the signal…', 3)`,
-    html: () => loadingState('Loading the signal…', 3),
+    code: `skeleton.table(3, 4, 'Loading the signals…')   // after 300 ms; also .list(), .card(), .chart(), .text()
+skeleton.card('Loading the effects…', { chart: 120 })
+button('Save', { variant: 'primary', busy: true })   // or setBusy(el, true) on one already shown`,
+    html: () =>
+      `${skeleton.table(3, 4, 'Loading the signals…')}${skeleton.card('Loading the effects…', { chart: 120 })}<div class="mt-3">${button('Save', { variant: 'primary', busy: true })}</div>`,
   },
   {
     title: 'Needs the API',

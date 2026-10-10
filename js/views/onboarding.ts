@@ -207,7 +207,7 @@ const view: View = {
     if (!data)
       return progress?.failed
         ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>`
-        : `${head}<div class="card">Loading this site’s progress…</div>`;
+        : `${head}<div class="card">${skeleton.list(4, 'Loading this site’s progress…')}</div>`;
     const ui = uiState(ctx);
     const current = ui.step ?? data.next ?? 'dashboard';
     const meta = STEPS.find((s) => s.key === current) ?? STEPS[0]!;
