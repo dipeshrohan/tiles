@@ -12,6 +12,7 @@ export interface EmptyOptions {
   action?: string; // a button or link, e.g. `<a class="btn primary" href="#/settings">…</a>`
   compact?: boolean; // inside a card or a list: a smaller picture
   alert?: boolean; // something failed: read out at once
+  level?: 2 | 3 | 4; // its heading's level, under the page's (2)
 }
 
 // What a place shows when it has nothing (U2.05): why, and what to do next.
@@ -19,12 +20,13 @@ export function emptyState(o: EmptyOptions): string {
   const body = o.bodyHtml ?? (o.body ? esc(o.body) : '');
   return `<div class="empty empty-state${o.compact ? ' compact' : ''}"${o.alert ? ' role="alert"' : ''}>${
     o.illustration ? illustration(o.illustration, o.compact ? 112 : 160) : ''
-  }<h2 class="empty-title">${esc(o.title)}</h2>${body ? `<p>${body}</p>` : ''}${o.action ? `<div class="empty-action">${o.action}</div>` : ''}</div>`;
+  }<h${o.level ?? 2} class="empty-title">${esc(o.title)}</h${o.level ?? 2}>${body ? `<p>${body}</p>` : ''}${o.action ? `<div class="empty-action">${o.action}</div>` : ''}</div>`;
 }
 
 // A page that needs the Tiles API, in local mode: why, and the way to Settings.
-export function needsApi(bodyHtml: string): string {
+export function needsApi(bodyHtml: string, level?: 2 | 3 | 4): string {
   return emptyState({
+    level,
     illustration: 'connect',
     title: 'Connect to the Tiles API',
     bodyHtml,
@@ -122,8 +124,15 @@ export function breadcrumbs(trail: readonly { label: string; href?: string }[]):
 }
 
 // The top of a page: where it sits, its name, what it is for, and its actions on the right.
-export function pageHead(o: { eyebrow?: string; title: string; lead?: string; actionsHtml?: string }): string {
-  return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ''}<h1>${esc(o.title)}</h1>${
+export function pageHead(o: {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  actionsHtml?: string;
+  level?: 1 | 4; // 1 on a page; 4 for an example inside one
+}): string {
+  const h = `h${o.level ?? 1}`;
+  return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ''}<${h} class="page-title">${esc(o.title)}</${h}>${
     o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ''
   }</div>${o.actionsHtml ?? ''}</div>`;
 }
@@ -216,11 +225,19 @@ export function tabs(o: {
 }
 
 // Something failed to load: why, and a button to try again (`retry` is its data attribute).
-export function errorState(o: { title: string; body?: string; retry?: string; compact?: boolean }): string {
+export function errorState(o: {
+  title: string;
+  body?: string;
+  retry?: string;
+  compact?: boolean;
+  alert?: boolean; // false for one shown as an example, not a failure
+  level?: 2 | 3 | 4;
+}): string {
   return emptyState({
     illustration: 'error',
     compact: o.compact,
-    alert: true,
+    alert: o.alert ?? true,
+    level: o.level,
     title: o.title,
     body: o.body,
     action: o.retry

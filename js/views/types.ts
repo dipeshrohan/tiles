@@ -98,6 +98,9 @@ export interface View {
   // The record or place the page shows, after the page itself (U1.06): #12, or Line 2 › DC-01, each
   // with its link. Read after render and bind, from what they showed; shown in the top bar.
   crumbs?(ctx: Context): Crumb[];
+  // A page outside the menu that belongs to another (the style guide to Settings): that page is
+  // marked in the menu and comes before it in the breadcrumbs.
+  under?: string;
 }
 
 export interface Crumb {
