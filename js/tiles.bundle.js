@@ -9487,7 +9487,7 @@ kv([['Peak', '3,580 N'], ['Baseline', '1,800 N']], { valueClass: 'mono' })`,
 		switch (g.kind) {
 			case "colour": return `<span class="sg-swatch" ${set("background")}></span>`;
 			case "space": return `<span class="sg-bar" ${set("width")}></span>`;
-			case "text": return `<span class="sg-text" ${set("font-size")}>Friction warning</span>`;
+			case "text": return `<span class="sg-text" ${set("font-size")}>Aa</span>`;
 			case "radius": return `<span class="sg-box" ${set("border-radius")}></span>`;
 			case "shadow": return `<span class="sg-box" ${set("box-shadow")}></span>`;
 			default: return "";

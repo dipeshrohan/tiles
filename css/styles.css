@@ -2679,6 +2679,11 @@ td.sg-scheme {
 .sg-tokens th {
   vertical-align: middle;
 }
+/* Long names and values wrap rather than make the table scroll (whatever the fonts' widths). */
+.sg-tokens code,
+.sg-tokens [data-sg-value] {
+  overflow-wrap: anywhere;
+}
 .sg-swatch {
   display: block;
   width: 56px;
