@@ -289,6 +289,7 @@ export function createFakeApi({
   let lastApp = 0;
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
+  let requestIds = 0; // numbers the request IDs
   let searchFailures = 0; // the next document searches that fail
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
@@ -445,6 +446,9 @@ export function createFakeApi({
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-headers', 'content-type, x-tiles-user, authorization');
     res.setHeader('access-control-allow-methods', 'GET, POST, PUT, PATCH, DELETE');
+    // Like the API: every answer carries its request ID, which the browser may read.
+    res.setHeader('x-request-id', `req-${String(++requestIds).padStart(6, '0')}`);
+    res.setHeader('access-control-expose-headers', 'x-request-id');
     if (req.method === 'OPTIONS') return send(204);
     const url = new URL(req.url, 'http://fake');
     requests.push(`${req.method} ${url.pathname}`);
