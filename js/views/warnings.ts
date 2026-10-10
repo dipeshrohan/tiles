@@ -24,7 +24,20 @@ import {
   when,
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
+import {
+  badge as tag,
+  button,
+  card,
+  emptyState,
+  errorState,
+  field,
+  kv,
+  needsApi,
+  pageHead,
+  select,
+  skeleton,
+  tabs,
+} from '../lib/ui.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
 // are in their workflow and who has them; each with a chart of its signal around it, its payload
@@ -77,28 +90,48 @@ const seriesKey = (w: WarningDetail): string => `${w.signal_id}|${w.started_at}|
 
 function badge(w: Pick<WarningInfo, 'status'>): string {
   const [cls, label] = STATUS[w.status];
-  return `<span class="badge ${cls}">${label}</span>`;
+  return tag(label, cls);
 }
 
 const signalState = (w: WarningInfo): string => (w.ended_at ? `back ${ago(w.ended_at)}` : '<b>still out</b>');
 
 function filterBar(ctx: Context, f: Filters): string {
-  const tabs = (Object.keys(SHOW_LABELS) as Show[])
-    .map(
-      (s) =>
-        `<button class="tab ${f.show === s ? 'active' : ''}" data-show="${s}" role="tab">${SHOW_LABELS[s]}</button>`,
-    )
-    .join('');
-  const option = (value: string, label: string, current: string) =>
-    `<option value="${value}" ${value === current ? 'selected' : ''}>${label}</option>`;
-  return `<div class="card source-bar small">
-      <div class="tabs" role="tablist" aria-label="Status">${tabs}</div>
+  const shows = (Object.keys(SHOW_LABELS) as Show[]).map((s) => [s, SHOW_LABELS[s]] as const);
+  return card(
+    `${tabs({ label: 'Status', items: shows, current: f.show, data: 'show' })}
       <span class="row gap-3 wrap">
-        <label class="row gap-1_5">Assigned to <select data-filter="who">${option('anyone', 'anyone', f.who)}${option('me', 'me', f.who)}${option('none', 'nobody', f.who)}</select></label>
-        <label class="row gap-1_5">Signal <select data-filter="signal">${option('all', 'out or back', f.signal)}${option('open', 'still out', f.signal)}${option('ended', 'back in', f.signal)}</select></label>
-        <button class="btn sm" data-refresh-warnings>Refresh</button>
-      </span>
-    </div>`;
+        ${field(
+          'Assigned to',
+          select(
+            null,
+            [
+              ['anyone', 'anyone'],
+              ['me', 'me'],
+              ['none', 'nobody'],
+            ],
+            f.who,
+            { attrs: { 'data-filter': 'who' } },
+          ),
+          { inline: true },
+        )}
+        ${field(
+          'Signal',
+          select(
+            null,
+            [
+              ['all', 'out or back'],
+              ['open', 'still out'],
+              ['ended', 'back in'],
+            ],
+            f.signal,
+            { attrs: { 'data-filter': 'signal' } },
+          ),
+          { inline: true },
+        )}
+        ${button('Refresh', { size: 'sm', attrs: { 'data-refresh-warnings': true } })}
+      </span>`,
+    { class: 'source-bar small' },
+  );
 }
 
 function listCard(ctx: Context, ui: Ui): string {
@@ -107,7 +140,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const empty = unfiltered ? 'Nothing to do: no warning waits for anyone.' : 'No warnings match these filters.';
   const rows =
     items === null
-      ? loadingState()
+      ? skeleton()
       : items
           .map(
             (w) => `
@@ -118,14 +151,15 @@ function listCard(ctx: Context, ui: Ui): string {
         </button>`,
           )
           .join('') || emptyState({ illustration: unfiltered ? 'done' : 'search', compact: true, title: empty });
-  const more = items && listing?.more ? '<button class="btn sm" data-more-warnings>Show older warnings</button>' : '';
-  return `<div class="card"><div class="review-list" data-warning-list>${rows}</div>${more}</div>`;
+  const more =
+    items && listing?.more ? button('Show older warnings', { size: 'sm', attrs: { 'data-more-warnings': true } }) : '';
+  return card(`<div class="review-list" data-warning-list>${rows}</div>${more}`);
 }
 
 function chartCard(w: WarningDetail): string {
   const fetched = series?.key === seriesKey(w) ? series : null;
   const s = fetched?.data;
-  if (!fetched || s === undefined) return loadingState('Loading the signal…', 4);
+  if (!fetched || s === undefined) return skeleton('Loading the signal…', 4);
   if (s === null) return '<p class="small muted">The signal’s readings could not be loaded.</p>';
   const { from, to, start, end } = fetched.range; // the range the readings were fetched for
   const points = toPoints(s);
@@ -151,41 +185,58 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
   const people = (members?.site === siteId(ctx) ? members.people : []).filter((m) => m.role !== 'viewer');
   // The current assignee stays chosen even when not listed (members still loading, or since demoted),
   // so Assign never unassigns by accident.
-  const current =
+  const current: [string, string][] =
     w.assignee_id && !people.some((m) => m.user_id === w.assignee_id)
-      ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? 'current assignee')}</option>`
-      : '';
+      ? [[w.assignee_id, w.assignee ?? 'current assignee']]
+      : [];
   const has = (a: string) => actions.includes(a as never);
+  const act = (label: string, a: string, variant?: 'primary') => button(label, { variant, attrs: { 'data-act': a } });
   const assign = has('assign')
-    ? `<span class="row gap-1_5"><label class="row gap-1_5">Assign to <select name="assignee">
-        <option value="">nobody</option>${current}
-        ${people.map((m) => `<option value="${esc(m.user_id)}" ${m.user_id === w.assignee_id ? 'selected' : ''}>${esc(m.name)}${m.user_id === ctx.ontology.userId ? ' (me)' : ''}</option>`).join('')}
-      </select></label><button class="btn" type="button" data-act="assign">Assign</button></span>`
+    ? `<span class="row gap-1_5">${field(
+        'Assign to',
+        select(
+          'assignee',
+          [
+            ['', 'nobody'],
+            ...current,
+            ...people.map((m) => [m.user_id, `${m.name}${m.user_id === ctx.ontology.userId ? ' (me)' : ''}`] as const),
+          ],
+          w.assignee_id ?? '',
+        ),
+        { inline: true },
+      )}${act('Assign', 'assign')}</span>`
     : '';
+  const outcomes = (Object.keys(OUTCOMES) as WarningOutcome[]).map((o) => [o, OUTCOMES[o]] as const);
   const resolve = has('resolve')
-    ? `<span class="row gap-1_5"><label class="row gap-1_5">Outcome <select name="outcome">
-        ${(Object.keys(OUTCOMES) as WarningOutcome[]).map((o) => `<option value="${o}">${OUTCOMES[o]}</option>`).join('')}
-      </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>`
+    ? `<span class="row gap-1_5">${field('Outcome', select('outcome', outcomes, ''), { inline: true })}${act('Resolve', 'resolve', 'primary')}</span>`
     : '';
   return `<form class="stack gap-2 mt-2_5" id="warning-form">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
       <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy ? 'disabled' : ''}>
-        ${has('acknowledge') ? '<button class="btn primary" type="button" data-act="acknowledge">Acknowledge</button>' : ''}
+        ${has('acknowledge') ? act('Acknowledge', 'acknowledge', 'primary') : ''}
         ${assign}
         ${resolve}
-        ${has('reopen') ? '<button class="btn" type="button" data-act="reopen">Reopen</button>' : ''}
-        <button class="btn" type="button" data-act="comment">Comment</button>
+        ${has('reopen') ? act('Reopen', 'reopen') : ''}
+        ${act('Comment', 'comment')}
       </fieldset>
     </form>`;
 }
 
 function detailCard(ctx: Context, ui: Ui): string {
   if (ui.selected === null)
-    return `<div class="card">${emptyState({ illustration: 'select', title: 'Select a warning', body: 'Its signal and what was done about it show here.' })}</div>`;
+    return card(
+      emptyState({
+        illustration: 'select',
+        title: 'Select a warning',
+        body: 'Its signal and what was done about it show here.',
+      }),
+    );
   const w = detail?.key === detailKey(ctx) ? detail.warning : null;
   if (!w && detailFailed === detailKey(ctx))
-    return `<div class="card" data-warning-detail>${emptyState({ illustration: 'error', alert: true, title: 'This warning could not be loaded', body: 'Refresh to try again.' })}</div>`;
-  if (!w) return `<div class="card" data-warning-detail>${loadingState()}</div>`;
+    return card(errorState({ title: 'This warning could not be loaded', body: 'Refresh to try again.' }), {
+      attrs: { 'data-warning-detail': true },
+    });
+  if (!w) return card(skeleton(), { attrs: { 'data-warning-detail': true } });
   const activity = w.activity
     .map(
       (a) => `
@@ -195,19 +246,16 @@ function detailCard(ctx: Context, ui: Ui): string {
       </div>`,
     )
     .join('');
-  const rows = payload(w)
-    .map(([k, v]) => `<tr><th scope="row">${esc(k)}</th><td class="mono">${esc(v)}</td></tr>`)
-    .join('');
   const resolved =
     w.status === 'resolved' && w.outcome
       ? `<p class="small">${OUTCOMES[w.outcome]}, resolved by ${esc(w.resolved_by ?? 'someone')} ${w.resolved_at ? ago(w.resolved_at) : ''}${w.resolution_note ? `: ${esc(w.resolution_note)}` : '.'}</p>`
       : '';
   const readOnly =
     ctx.ontology.role === 'viewer' ? '<p class="small soft">Engineers and admins of the site act on warnings.</p>' : '';
-  return `
-    <div class="card" data-warning-detail>
+  return card(
+    `
       <div class="card-head"><div>
-        ${badge(w)} ${w.ended_at ? '' : '<span class="badge bad">Signal still out</span>'}
+        ${badge(w)} ${w.ended_at ? '' : tag('Signal still out', 'bad')}
         <h2 class="mono mt-1_5">${esc(w.signal_tag)}</h2>
         <div class="small muted">${esc(w.detector)} · started ${ago(w.started_at)} · ${w.readings} reading(s) out · ${w.assignee ? `for ${esc(w.assignee)}` : 'unassigned'}</div>
       </div></div>
@@ -219,9 +267,10 @@ function detailCard(ctx: Context, ui: Ui): string {
       ${readOnly}
       ${actionsForm(ctx, w)}
       <details class="mt-3_5"><summary class="small">Payload</summary>
-        <div class="table-wrap"><table class="small"><tbody>${rows}</tbody></table></div>
-      </details>
-    </div>`;
+        ${kv(payload(w), { valueClass: 'mono' })}
+      </details>`,
+    { attrs: { 'data-warning-detail': true } },
+  );
 }
 
 async function fetchList(ctx: Context): Promise<void> {
@@ -379,14 +428,17 @@ const view: View = {
   title: 'Warnings',
   icon: 'triangle-alert',
   render(ctx) {
-    const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warnings</h1>
-        <p class="soft">What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be.</p></div></div>`;
+    const head = pageHead({
+      eyebrow: 'Operations · Detection',
+      title: 'Warnings',
+      lead: 'What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be.',
+    });
     if (!ctx.api)
-      return `${head}<div class="card">${needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`)}</div>`;
+      return `${head}${card(needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`))}`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
+    if (o.status === 'loading') return `${head}${card('Loading from the Tiles API…')}`;
     if (o.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+      return `${head}${card(`Can't reach the Tiles API: ${esc(o.error)}`, { attrs: { role: 'alert' } })}`;
     const ui = uiState(ctx);
     return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
   },

@@ -102,7 +102,7 @@ test('the expected range and stuck limit are numbers, sent only when changed', (
 });
 
 test('quality badges and the report behind them', () => {
-  assert.match(qualityBadge(null), /class="badge "[^>]*>Not checked</);
+  assert.match(qualityBadge(null), /class="badge"[^>]*>Not checked</);
   assert.match(qualityBadge({ ...REPORT, badge: 'bad' }), /class="badge bad"[^>]*>Problems</);
   assert.match(qualityBadge({ ...REPORT, badge: 'unknown', issues: [] }), />No data</);
   const badge = qualityBadge(REPORT);
@@ -190,7 +190,7 @@ test('a mapping suggestion shows what it would do and why, with actions for edit
   assert.match(row, />80%</);
   assert.match(row, /<li>emitted by PLC Press 1: the tag names Press 1 &amp; co<\/li>/);
   assert.match(row, /data-accept="s1"\s*>Stage node</);
-  assert.match(suggestionRow(s, true, true), /data-accept="s1" disabled>/); // while Link all runs
+  assert.match(suggestionRow(s, true, true), /<button[^>]* disabled data-accept="s1">/); // while Link all runs
   assert.match(suggestionRow({ ...s, kind: 'link' }, true), /Link to<\/span>[\s\S]*>Link</);
   assert.doesNotMatch(suggestionRow(s, false), /data-accept/);
 });

@@ -1,7 +1,7 @@
 import { esc, field, fmt, onAll } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
-import { needsApi } from '../lib/ui.ts';
+import { badge, button, card, field as labelled, input, needsApi, pageHead, select, table } from '../lib/ui.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
@@ -65,7 +65,7 @@ const QUALITY: Record<QualityReport['badge'] | 'unchecked', [string, string]> = 
 export function qualityBadge(report: QualityReport | null): string {
   const [label, tone] = QUALITY[report ? report.badge : 'unchecked'];
   const title = report?.issues.length ? report.issues.map((i) => i.message).join('\n') : label;
-  return `<span class="badge ${tone}" title="${esc(title)}">${esc(label)}</span>`;
+  return badge(label, tone, { title });
 }
 
 // Rounded down, as the API does, so a share just below a limit doesn't read as on it.
@@ -80,7 +80,7 @@ export function qualityDetail(report: QualityReport): string {
     report.coverage === null ? '' : `${percent(report.coverage)} of the time covered`,
   ].filter(Boolean);
   const issues = report.issues.length
-    ? `<ul class="small">${report.issues.map((i) => `<li><span class="badge ${i.severity}">${i.severity === 'bad' ? 'problem' : 'warning'}</span> ${esc(i.message)}</li>`).join('')}</ul>`
+    ? `<ul class="small">${report.issues.map((i) => `<li>${badge(i.severity === 'bad' ? 'problem' : 'warning', i.severity)} ${esc(i.message)}</li>`).join('')}</ul>`
     : `<p class="small">${report.readings ? 'No gaps, stuck values, out-of-range values or unit mismatches found.' : 'No readings to check.'}</p>`;
   return `<div class="stack gap-1_5"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(', '))}.</p>${issues}</div>`;
 }
@@ -154,54 +154,57 @@ export function changeFrom(
 function eventBadge(s: SignalInfo): string {
   if (!s.event_kind && !s.asset) return '';
   const text = [s.event_kind ? `${s.event_kind} events` : '', s.asset ?? ''].filter(Boolean).join(' · ');
-  return ` <span class="badge" data-event-badge>${esc(text)}</span>`;
+  return ` ${badge(text, '', { attrs: { 'data-event-badge': true } })}`;
 }
 
 function linkCell(s: SignalInfo): string {
   if (!s.node_id) return '<span class="soft">—</span>';
   return s.node_label !== null // a label may be empty: the node is still there
     ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>`
-    : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
+    : badge('missing node', 'warn', { title: `${s.node_id} is no longer a Signal node of the committed ontology` });
 }
 
 function editRow(ctx: Context, s: SignalInfo): string {
   const nodes = Object.values(ctx.state.repo.head.nodes)
     .filter((n) => n.type === 'Signal')
     .sort((a, b) => a.label.localeCompare(b.label));
-  const options = [
-    `<option value="">— not linked —</option>`,
-    ...(s.node_id && !nodes.some((n) => n.id === s.node_id)
-      ? [`<option value="${esc(s.node_id)}" selected>${esc(s.node_id)} (missing)</option>`]
-      : []),
-    ...nodes.map(
-      (n) =>
-        `<option value="${esc(n.id)}" ${n.id === s.node_id ? 'selected' : ''}>${esc(n.label)} (${esc(n.id)})</option>`,
-    ),
-  ].join('');
+  const nodeOptions: (readonly [string, string])[] = [
+    ['', '— not linked —'],
+    ...(s.node_id && !nodes.some((n) => n.id === s.node_id) ? [[s.node_id, `${s.node_id} (missing)`] as const] : []),
+    ...nodes.map((n) => [n.id, `${n.label} (${n.id})`] as const),
+  ];
+  const text = (name: string, value: string, cls: string, attrs: Record<string, string | number> = {}) =>
+    input({ name, value, class: cls || undefined, attrs });
   const stuck = s.stuck_after_s === null ? '' : String(+(s.stuck_after_s / 60).toPrecision(12));
   return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
         <fieldset class="contents" ${saving === s.id ? 'disabled' : ''}>
-        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? '')}" placeholder="e.g. °C" maxlength="40" class="w-7em"></label>
-        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ''))}" inputmode="decimal" class="w-7em"></label>
-        <label class="field grow min-w-field">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
-        <label class="field">Ontology node<select name="node">${options}</select></label>
-        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ''))}" inputmode="decimal" class="w-7em"></label>
-        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ''))}" inputmode="decimal" class="w-7em"></label>
-        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" class="w-6em"></label>
-        <label class="field" title="Each reading of an event stream is an event: its value is the code">Events<select name="events">${(
-          [
-            ['', 'none: readings'],
-            ['downtime', 'downtime'],
-            ['scrap', 'scrap'],
-            ['other', 'other events'],
-          ] as const
-        )
-          .map(([v, label]) => `<option value="${v}" ${v === (s.event_kind ?? '') ? 'selected' : ''}>${label}</option>`)
-          .join('')}</select></label>
-        <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" class="w-8em"></label>
-        <button class="btn primary" type="submit">${saving === s.id ? 'Saving…' : 'Save'}</button>
-        <button class="btn" type="button" data-cancel-edit>Cancel</button>
+        ${labelled('Unit', text('unit', s.unit ?? '', 'w-7em', { placeholder: 'e.g. °C', maxlength: 40 }))}
+        ${labelled('Sample rate (Hz)', text('rate', String(s.sample_rate_hz ?? ''), 'w-7em', { inputmode: 'decimal' }))}
+        ${labelled('Description', text('description', s.description, '', { maxlength: 1000 }), { class: 'grow min-w-field' })}
+        ${labelled('Ontology node', select('node', nodeOptions, s.node_id ?? ''))}
+        ${labelled('Expected min', text('min', String(s.range_min ?? ''), 'w-7em', { inputmode: 'decimal' }))}
+        ${labelled('Expected max', text('max', String(s.range_max ?? ''), 'w-7em', { inputmode: 'decimal' }))}
+        ${labelled('Stuck after (min)', text('stuck', stuck, 'w-6em', { placeholder: '60', inputmode: 'decimal' }))}
+        ${labelled(
+          'Events',
+          select(
+            'events',
+            [
+              ['', 'none: readings'],
+              ['downtime', 'downtime'],
+              ['scrap', 'scrap'],
+              ['other', 'other events'],
+            ],
+            s.event_kind ?? '',
+          ),
+          { title: 'Each reading of an event stream is an event: its value is the code' },
+        )}
+        ${labelled('Asset', text('asset', s.asset ?? '', 'w-8em', { placeholder: 'e.g. DC-01', maxlength: 100 }), {
+          title: "The machine, as the MES names it: its events are matched to its detectors' warnings",
+        })}
+        ${button(saving === s.id ? 'Saving…' : 'Save', { variant: 'primary', type: 'submit' })}
+        ${button('Cancel', { attrs: { 'data-cancel-edit': true } })}
         </fieldset>
       </form>
       ${nodes.length ? '' : '<p class="small soft">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>'}
@@ -217,18 +220,31 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
       ? ` Showing the first ${page.signals.length}; narrow the search to see others.`
       : '';
   return `<p class="small soft" data-signal-count>${esc(fmt(page.total, 0))} signal(s).${esc(more)}</p>
-    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${page.signals
-      .map(
-        (s) =>
-          `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
+    ${table({
+      headers: [
+        'Tag',
+        'Description',
+        'Unit',
+        'Rate',
+        'Source',
+        'Ontology node',
+        'Latest reading',
+        'Quality',
+        { label: 'Actions', srOnly: true },
+      ],
+      rowsHtml: page.signals
+        .map(
+          (s) =>
+            `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
             <td>${esc(s.unit ?? '—')}</td><td>${s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
             <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
-            <td>${canEdit && editing !== s.id ? `<button class="btn sm" type="button" data-edit="${esc(s.id)}">Edit</button>` : ''}</td></tr>
+            <td>${canEdit && editing !== s.id ? button('Edit', { size: 'sm', attrs: { 'data-edit': s.id } }) : ''}</td></tr>
           ${open === s.id && s.quality ? `<tr class="quality-row"><td colspan="9">${qualityDetail(s.quality)}</td></tr>` : ''}
           ${canEdit && editing === s.id ? editRow(ctx, s) : ''}`,
-      )
-      .join('')}</tbody></table></div>`;
+        )
+        .join(''),
+    })}`;
 }
 
 async function search(root: HTMLElement, ctx: Context): Promise<void> {
@@ -374,14 +390,14 @@ let linkingAll = false; // while Link all runs, the other buttons wait
 export function suggestionRow(s: MappingSuggestion, canEdit: boolean, busy = false): string {
   const what =
     s.kind === 'link'
-      ? `<span class="badge good">Link to</span> ${esc(s.node_label)}`
-      : `<span class="badge accent">New node</span> ${esc(s.node_label)}`;
+      ? `${badge('Link to', 'good')} ${esc(s.node_label)}`
+      : `${badge('New node', 'accent')} ${esc(s.node_label)}`;
   return `<div class="suggestion" data-suggestion="${esc(s.signal_id)}">
       <div class="row gap-2 wrap items-center">
         <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
         <span class="small soft" title="How sure Tiles is">${Math.round(s.score * 100)}%</span>
         <span class="grow"></span>
-        ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}" ${busy ? 'disabled' : ''}>${s.kind === 'link' ? 'Link' : 'Stage node'}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}" ${busy ? 'disabled' : ''}>Skip</button>` : ''}
+        ${canEdit ? `${button(s.kind === 'link' ? 'Link' : 'Stage node', { size: 'sm', variant: 'primary', disabled: busy, attrs: { 'data-accept': s.signal_id } })}${button('Skip', { size: 'sm', disabled: busy, attrs: { 'data-skip': s.signal_id } })}` : ''}
       </div>
       <ul class="small soft mt-1 ml-4 m-0">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
     </div>`;
@@ -402,7 +418,7 @@ function mappingHtml(ctx: Context): string {
   const shown = mapping.items.length + mapping.staged.length;
   const more = mapping.unmapped > shown ? ` for ${mapping.items.length} of ${mapping.unmapped} unlinked tags` : '';
   return `${staged}<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
-    ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links ${linkingAll ? 'disabled' : ''}>Link all ${links}</button></div>` : ''}
+    ${canEdit && links > 1 ? `<div>${button(`Link all ${links}`, { size: 'sm', disabled: linkingAll, attrs: { 'data-accept-links': true } })}</div>` : ''}
     <div class="stack gap-2_5">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join('')}</div>`;
 }
 
@@ -491,35 +507,85 @@ const view: View = {
   title: 'Signals',
   icon: 'activity',
   render(ctx) {
-    const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
-        <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
-    if (!ctx.api) return `${head}<div class="card">${needsApi(`The signal catalogue is kept in the Tiles API.`)}</div>`;
+    const head = pageHead({
+      eyebrow: 'Data',
+      title: 'Signals',
+      lead: 'Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.',
+    });
+    if (!ctx.api) return `${head}${card(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
     if (!ctx.ontology.site)
-      return `${head}<div class="card"><p class="small soft">${
-        ctx.ontology.status === 'error'
-          ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}`
-          : 'Loading the site from the Tiles API…'
-      }</p></div>`;
+      return `${head}${card(
+        `<p class="small soft">${
+          ctx.ontology.status === 'error'
+            ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}`
+            : 'Loading the site from the Tiles API…'
+        }</p>`,
+      )}`;
     const { query } = ui(ctx);
-    const opt = (value: string, label: string, current: string) =>
-      `<option value="${value}" ${value === current ? 'selected' : ''}>${esc(label)}</option>`;
-    return `${head}<div class="card stack gap-3">
-        <form id="signal-search" class="row gap-3 wrap" role="search">
-          <label class="field grow min-w-field">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
-          <label class="field">Source<select name="source">${opt('', 'Any', query.source)}${opt('edge', 'Edge agents', query.source)}${opt('import', 'Imports', query.source)}${opt('manual', 'Entered by hand', query.source)}</select></label>
-          <label class="field">Ontology link<select name="linked">${opt('', 'Any', query.linked)}${opt('yes', 'Linked', query.linked)}${opt('no', 'Not linked', query.linked)}</select></label>
-          <label class="field">Quality<select name="quality">${opt('', 'Any', query.quality)}${opt('bad', 'Problems', query.quality)}${opt('warn', 'Warnings', query.quality)}${opt('good', 'Good', query.quality)}${opt('unknown', 'No data', query.quality)}${opt('unchecked', 'Not checked', query.quality)}</select></label>
-          ${ctx.ontology.role !== 'viewer' ? `<button class="btn" type="button" data-check-quality ${checking ? 'disabled' : ''} title="Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed">${checking ? 'Checking…' : 'Check quality'}</button>` : ''}
-        </form>
-        <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
-      </div>
-      <div class="card stack gap-2_5 mt-3" data-mapping>
-        <div class="row justify-between wrap gap-2">
+    const search = `<form id="signal-search" class="row gap-3 wrap" role="search">
+          ${labelled('Search', input({ type: 'search', name: 'q', value: query.q, placeholder: 'Tag, description or node' }), { class: 'grow min-w-field' })}
+          ${labelled(
+            'Source',
+            select(
+              'source',
+              [
+                ['', 'Any'],
+                ['edge', 'Edge agents'],
+                ['import', 'Imports'],
+                ['manual', 'Entered by hand'],
+              ],
+              query.source,
+            ),
+          )}
+          ${labelled(
+            'Ontology link',
+            select(
+              'linked',
+              [
+                ['', 'Any'],
+                ['yes', 'Linked'],
+                ['no', 'Not linked'],
+              ],
+              query.linked,
+            ),
+          )}
+          ${labelled(
+            'Quality',
+            select(
+              'quality',
+              [
+                ['', 'Any'],
+                ['bad', 'Problems'],
+                ['warn', 'Warnings'],
+                ['good', 'Good'],
+                ['unknown', 'No data'],
+                ['unchecked', 'Not checked'],
+              ],
+              query.quality,
+            ),
+          )}
+          ${
+            ctx.ontology.role !== 'viewer'
+              ? button(checking ? 'Checking…' : 'Check quality', {
+                  disabled: checking,
+                  attrs: {
+                    'data-check-quality': true,
+                    title:
+                      'Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed',
+                  },
+                })
+              : ''
+          }
+        </form>`;
+    return `${head}${card(`${search}<div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>`, { class: 'stack gap-3' })}
+      ${card(
+        `<div class="row justify-between wrap gap-2">
           <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
-          <button class="btn" type="button" data-suggest>Suggest mappings</button>
+          ${button('Suggest mappings', { attrs: { 'data-suggest': true } })}
         </div>
-        <div data-mapping-results aria-live="polite">${mappingHtml(ctx)}</div>
-      </div>`;
+        <div data-mapping-results aria-live="polite">${mappingHtml(ctx)}</div>`,
+        { class: 'stack gap-2_5 mt-3', attrs: { 'data-mapping': true } },
+      )}`;
   },
   bind(root, ctx) {
     const form = root.querySelector<HTMLFormElement>('#signal-search');

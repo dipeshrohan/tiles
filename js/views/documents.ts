@@ -11,8 +11,18 @@ import {
 } from '../lib/documents.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
-import { icon } from '../lib/icons.ts';
+import {
+  button,
+  card,
+  emptyState,
+  errorState,
+  field as labelled,
+  input,
+  needsApi,
+  pageHead,
+  select,
+  skeleton,
+} from '../lib/ui.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
 // match with its document and page; the copilot searches them too. Engineers upload and archive.
@@ -94,8 +104,7 @@ function searchCard(ctx: Context): string {
   const results = found?.key === searchKey(ctx) ? found.matches : undefined;
   let body = '';
   if (found?.key === searchKey(ctx) && found.failed)
-    body =
-      '<p class="small" role="alert">The search could not be run. <button class="btn sm" type="button" data-retry-search>Try again</button></p>';
+    body = `<p class="small" role="alert">The search could not be run. ${button('Try again', { size: 'sm', attrs: { 'data-retry-search': true } })}</p>`;
   else if (ui.query.trim() && results === null) body = '<p class="small soft">Searching…</p>';
   else if (results && !results.length)
     body = `<p class="small soft" data-no-matches>Nothing matches “${esc(ui.query)}”.</p>`;
@@ -105,41 +114,40 @@ function searchCard(ctx: Context): string {
         (m) => `<li class="doc-match">
           <div class="row gap-2 justify-between wrap">
             <b>${esc(m.title)}</b>
-            <button class="btn sm" type="button" data-open="${m.document}" data-page="${m.page}">Open page ${m.page}</button>
+            ${button(`Open page ${m.page}`, { size: 'sm', attrs: { 'data-open': m.document, 'data-page': m.page } })}
           </div>
           <p class="small">${snippetHtml(m.snippet)}</p>
         </li>`,
       )
       .join('')}</ol>`;
-  return `<div class="card stack gap-3">
-      <form class="row gap-2 wrap" id="doc-search" role="search">
-        <label class="field grow min-w-field">Search the documents<input type="search" name="q" value="${esc(ui.query)}" placeholder='e.g. plunger tip replace, "hydraulic pressure"' /></label>
-        <div class="self-end"><button class="btn primary" type="submit">Search</button></div>
+  return card(
+    `<form class="row gap-2 wrap" id="doc-search" role="search">
+        ${labelled('Search the documents', input({ type: 'search', name: 'q', value: ui.query, placeholder: 'e.g. plunger tip replace, "hydraulic pressure"' }), { class: 'grow min-w-field' })}
+        <div class="self-end">${button('Search', { variant: 'primary', type: 'submit' })}</div>
       </form>
       <p class="small soft">Words find their forms (“valves” finds “valve”); “quoted words” find a phrase; -word leaves a word out.</p>
-      <div aria-live="polite">${body}</div>
-    </div>`;
+      <div aria-live="polite">${body}</div>`,
+    { class: 'stack gap-3' },
+  );
 }
 
 function listCard(ctx: Context): string {
   const items = listing?.key === siteId(ctx) ? listing.items : null;
   const rows = listing?.failed
-    ? emptyState({
-        illustration: 'error',
-        compact: true,
-        alert: true,
-        title: 'The documents could not be loaded',
-        action: `<button class="btn sm" type="button" data-retry-docs>${icon('refresh-cw')} Try again</button>`,
-      })
+    ? errorState({ title: 'The documents could not be loaded', retry: 'retry-docs', compact: true })
     : items === null
-      ? loadingState()
+      ? skeleton()
       : items
           .map(
             (d) => `<div class="review-row" data-doc="${d.number}">
               <span class="row gap-1_5 justify-between"><b>${esc(d.title)}</b>
-              <span class="row gap-1"><button class="btn sm" type="button" data-open="${d.number}" data-page="1">Open</button>${
+              <span class="row gap-1">${button('Open', { size: 'sm', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
                 canEdit(ctx)
-                  ? `<button class="btn sm danger" type="button" data-archive-doc="${d.number}" aria-label="Archive ${esc(d.title)}">Archive</button>`
+                  ? button('Archive', {
+                      size: 'sm',
+                      variant: 'danger',
+                      attrs: { 'data-archive-doc': d.number, 'aria-label': `Archive ${d.title}` },
+                    })
                   : ''
               }</span></span>
               <span class="small muted">${d.pages} page(s) · ${esc(sizeText(d.size))} · ${esc(d.uploaded_by)}</span>
@@ -155,13 +163,15 @@ function listCard(ctx: Context): string {
   const upload = canEdit(ctx)
     ? `<form class="stack gap-2" id="doc-upload">
         <h3>Upload</h3>
-        <label class="field">File (PDF, text or Markdown, up to 20 MB)<input type="file" name="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" required /></label>
-        <label class="field">Title<input type="text" name="title" maxlength="200" placeholder="From the file name" value="${esc(draft?.title ?? '')}" /></label>
-        <label class="field">Language<select name="language">${LANGUAGES.map(([v, l]) => `<option value="${v}" ${draft?.language === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
-        <div><button class="btn primary" type="submit" ${uploading ? 'disabled' : ''}>${uploading ? 'Uploading…' : 'Upload'}</button></div>
+        ${labelled('File (PDF, text or Markdown, up to 20 MB)', input({ type: 'file', name: 'file', attrs: { accept: '.pdf,.txt,.md,application/pdf,text/plain,text/markdown', required: true } }))}
+        ${labelled('Title', input({ name: 'title', value: draft?.title ?? '', placeholder: 'From the file name', attrs: { maxlength: 200 } }))}
+        ${labelled('Language', select('language', LANGUAGES, draft?.language ?? ''))}
+        <div>${button(uploading ? 'Uploading…' : 'Upload', { variant: 'primary', type: 'submit', disabled: uploading })}</div>
       </form>`
     : '';
-  return `<div class="card stack gap-2"><h2>Documents</h2><div class="review-list" data-doc-list>${rows}</div>${upload}</div>`;
+  return card(`<h2>Documents</h2><div class="review-list" data-doc-list>${rows}</div>${upload}`, {
+    class: 'stack gap-2',
+  });
 }
 
 const view: View = {
@@ -169,13 +179,16 @@ const view: View = {
   title: 'Documents',
   icon: 'file-text',
   render(ctx) {
-    const head = `<div class="page-head"><div><div class="eyebrow">Data · Knowledge</div><h1>Documents</h1>
-        <p class="soft">SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page.</p></div></div>`;
-    if (!ctx.api) return `${head}<div class="card">${needsApi(`Documents are kept by the Tiles API.`)}</div>`;
+    const head = pageHead({
+      eyebrow: 'Data · Knowledge',
+      title: 'Documents',
+      lead: 'SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page.',
+    });
+    if (!ctx.api) return `${head}${card(needsApi(`Documents are kept by the Tiles API.`))}`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
+    if (o.status === 'loading') return `${head}${card('Loading from the Tiles API…')}`;
     if (o.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+      return `${head}${card(`Can't reach the Tiles API: ${esc(o.error)}`, { attrs: { role: 'alert' } })}`;
     return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
   },
   bind(root, ctx) {
