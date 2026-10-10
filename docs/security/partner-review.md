@@ -105,12 +105,7 @@ plainly in the review, and agree with the plant when each must close:
 
 - **Not certified:** no penetration test yet (T6.07) and no SOC 2 or ISO 27001 certification
   ([timeline](compliance-readiness.md#timeline)).
-- **G-A1:** a body-size cap and a general rate limit for every endpoint (the copilot already has
-  its own).
 - **G-A4:** turning the copilot on per site, with a note on what it sends.
-- **G-A5:** refusing requests without a token whenever sign-in is configured, whatever the
-  environment says.
-- **G-B1:** security headers on the web app (a Content-Security-Policy, `frame-ancestors`).
 - **G-D1:** the scheduled jobs' own database role.
 - **G-E1:** edge-agent tokens that expire.
 - **G-E3:** signed reading batches, so the API can tell they weren't changed on the agent's host.

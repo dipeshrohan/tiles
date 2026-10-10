@@ -320,7 +320,7 @@ def authenticate(request: Request) -> Principal:
         if scheme.lower() != "bearer" or not token:
             raise unauthorized("Authorization must be a Bearer token")
         return verifiers(request).principal(token.strip())
-    if settings.env == "production":
+    if not settings.dev_identity_on:  # production, or sign-in configured: fail closed (G-A5)
         raise unauthorized("Sign in to use Tiles")
     email = (request.headers.get("x-tiles-user") or settings.dev_user_email).strip().lower()
     if not EMAIL.match(email):

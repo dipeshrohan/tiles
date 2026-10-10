@@ -89,6 +89,9 @@ services:
     image: tiles-api:dev
     environment:
       TILES_ENV: development
+      # Requests without a token act as the demo user, beside Keycloak's sign-in: for trying Tiles
+      # locally only. With an issuer set, nothing else allows that (threat model G-A5).
+      TILES_DEV_IDENTITY: 'true'
       TILES_OIDC_ISSUER: http://localhost:8080/realms/tiles
       TILES_OIDC_JWKS_URL: http://keycloak:8080/realms/tiles/protocol/openid-connect/certs
       TILES_DATABASE_URL: postgresql://tiles:${TILES_DB_PASSWORD:-tiles-dev}@db:5432/tiles

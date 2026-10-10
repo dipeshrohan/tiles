@@ -46,7 +46,7 @@ The trust boundaries, from the inside out:
 
 | Threat | What could happen | Mitigation | Status |
 |---|---|---|---|
-| **S**poofing a user | Forged or replayed tokens; a request with no token naming any user | OIDC tokens are verified (signature through JWKS, issuer, audience, expiry; `auth.py`); PKCE in the browser. With `TILES_ENV=production` every request needs a token; outside production a request without one acts as the development user, or as whoever `X-Tiles-User` names | Partial: a deployment that leaves `TILES_ENV` unset accepts any identity (G-A5) |
+| **S**poofing a user | Forged or replayed tokens; a request with no token naming any user | OIDC tokens are verified (signature through JWKS, issuer, audience, expiry; `auth.py`); PKCE in the browser. Every request needs a token in production, and wherever sign-in is configured (an OIDC issuer), whatever `TILES_ENV` says; only a local stack with no issuer, or one that opts in with `TILES_DEV_IDENTITY` (refused in production), lets a request without one act as the development user or whoever `X-Tiles-User` names | Done (G-A5) |
 | **S**poofing an agent | Guessed tokens | 256-bit random tokens (`secrets.token_urlsafe(32)`), stored and looked up only as their SHA-256 hash | Done |
 | **T**ampering across sites | A request on site A reads or writes site B's rows | Every query is scoped by `SiteContext`, and the database enforces it: forced row security, closed when no site is named; readings only through the `site_samples` view and `tiles_store_samples` (T5.04) | Done |
 | **T**ampering with history | Ontology commits or the audit log are rewritten | Commits are append-only; the audit log refuses UPDATE, DELETE and TRUNCATE; design runs refuse UPDATE (trigger); every write endpoint audits itself | Done |
@@ -54,7 +54,7 @@ The trust boundaries, from the inside out:
 | **R**epudiation | Who changed what | The audit log with actor, request ID and before/after values; JSON logs with request IDs | Done |
 | **I**nformation disclosure of credentials | The database leaks Teams webhooks or SMTP secrets | Teams URLs and model endpoint tokens are sealed with AES-256-GCM data keys kept outside the database (T5.06); secrets are `SecretStr` and come from files or a secrets manager; stored credentials are never shown again | Done |
 | **I**nformation disclosure to the AI provider | Plant data goes to the Anthropic API | Only tool results the copilot asked for, for the user who asked; the copilot is off until it is configured; the data-processing terms are the customer's decision | Partial: per-site opt-in and a data-classification note (G-A4) |
-| **D**enial of service | Floods of requests or huge bodies | Request models bound their lists and strings; the copilot has per-organisation and per-user rate limits and token budgets (T4.07); sweeps run at most two at a time in the API | Partial: no global rate limit or body-size cap (G-A1) |
+| **D**enial of service | Floods of requests or huge bodies | Request models bound their lists and strings; the copilot has per-organisation and per-user rate limits and token budgets (T4.07); sweeps run at most two at a time in the API; the API refuses bodies over 25 MB (`TILES_MAX_BODY_BYTES`, also when sent without a length), and the chart's ingress limits each client address to 50 requests a second | Done (G-A1); another ingress controller needs its own rate limit |
 | **E**levation of privilege | A viewer writes, or an engineer acts as an admin | Roles are checked per endpoint (`Editor`, `Admin`); the role is re-read for the copilot's writing tool; the API runs as `tiles_app` with no superuser powers | Done |
 | **E**levation of privilege through a model's code | A model from GitHub (T4.15) reads secrets, reaches the network or the database, or attacks the host | The code never runs in the API: the sandbox (`tiles-sandbox`) runs each evaluation in a new process, the standard library only, with limits (CPU time, 512 MB, no files written, no new processes, its output capped) and an audit hook refusing sockets, processes, foreign code and files outside the model's directory (a second wall: Python code can work around an audit hook). The boundary is the process and the pod: no network out (a NetworkPolicy whenever the sandbox is on), no service-account token, a read-only filesystem, a non-root user, and only its own token, in the server's environment, which it makes unreadable to the models it runs; a runtime class (gVisor) can give it a kernel of its own. Only organisation admins register a model, at a full commit SHA, and the code kept is the code run | Done; a runtime class is the operator's choice |
 
@@ -63,8 +63,8 @@ The trust boundaries, from the inside out:
 | Threat | What could happen | Mitigation | Status |
 |---|---|---|---|
 | **T**ampering / XSS | Data (tags, notes, node labels) runs as script | Every interpolation goes through `esc()`: a rule in CLAUDE.md and CONTRIBUTING, checked in review (no lint rule enforces it); no runtime dependencies | Partial: no Content-Security-Policy from `server.js` (G-B1) |
-| **I**nformation disclosure | Tokens are stolen from storage | Tokens are in sessionStorage, not localStorage, and are refreshed before expiry | Partial: CSP and `frame-ancestors` (G-B1) |
-| **S**poofing / clickjacking | The app is framed by another site | None yet | Gap (G-B1) |
+| **I**nformation disclosure | Tokens are stolen from storage | Tokens are in sessionStorage, not localStorage, and are refreshed before expiry; a Content-Security-Policy allows scripts from the app's own server only (`server.js`), and the sign-in code never leaves in a referrer | Done (G-B1) |
+| **S**poofing / clickjacking | The app is framed by another site | `frame-ancestors 'none'` and `X-Frame-Options: DENY` (`server.js`, tested) | Done (G-B1) |
 
 ### Database and backups
 
@@ -110,7 +110,7 @@ The trust boundaries, from the inside out:
 | SR 5.2 Zone boundary protection | Done | Outbound-only design; the API's egress allowlist is documented and enforced by host name with Cilium ([hybrid mode](../hybrid.md), T5.11), or by the deployment's firewall |
 | SR 6.1 Audit log accessibility | Done | Admins read it in Settings |
 | SR 6.2 Continuous monitoring | Gap | T5.13: OpenTelemetry, alerts for ingest lag and job failures |
-| SR 7.1 / 7.2 DoS protection | Partial | G-A1 |
+| SR 7.1 / 7.2 DoS protection | Done | A body-size cap in the API and a rate limit per client at the ingress (G-A1); the copilot's own limits (T4.07) |
 | SR 7.3 / 7.4 Backup, recovery | Partial | T5.14: point-in-time recovery policy and procedure ([runbook](../runbooks/backups.md)), a restore drill in CI; the deployment must run the backups and the monthly drill |
 | SR 7.6 Network and security configuration settings | Partial | Settings documented; Helm values with secure defaults (T5.09) |
 
@@ -118,10 +118,10 @@ The trust boundaries, from the inside out:
 
 | ID | Action | Where |
 |---|---|---|
-| G-A1 | A request body-size cap and a general rate limit per token and IP in front of the API (ingress) and in the app for the agent endpoints | T5.09 (ingress) and a follow-up issue |
+| G-A1 | A request body-size cap and a general rate limit per token and IP in front of the API (ingress) and in the app for the agent endpoints | Done: `main.BodyLimit` (413 over `TILES_MAX_BODY_BYTES`) and the chart's nginx `limit-rps` |
 | G-A4 | Per-site opt-in for the copilot, and a note on what it sends to the AI provider | Follow-up before go-live (T5.01) |
-| G-A5 | Fail closed: refuse requests without a token whenever OIDC is configured, not only when `TILES_ENV=production`; the Helm chart sets production | T5.09, and a follow-up in `auth.py` |
-| G-B1 | Security headers from the web server: a Content-Security-Policy without `unsafe-inline` scripts, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy` | Follow-up issue (small) |
+| G-A5 | Fail closed: refuse requests without a token whenever OIDC is configured, not only when `TILES_ENV=production`; the Helm chart sets production | Done: `Settings.dev_identity_on` (`TILES_DEV_IDENTITY` to opt in a local stack, refused in production) |
+| G-B1 | Security headers from the web server: a Content-Security-Policy without `unsafe-inline` scripts, `frame-ancestors 'none'`, `X-Content-Type-Options`, `Referrer-Policy` | Done: `securityHeaders` in `server.js` (the API sets `nosniff`, `no-referrer` and a closed policy on its own answers) |
 | G-D1 | Jobs connect as their own role, not the migration login | T5.09 |
 | G-E1 | Edge tokens expire (with rotation from the UI) | Follow-up |
 | G-E2 | Run the agent under systemd sandboxing (or a read-only container) with only outbound network | Done: `edge/deploy/tiles-edge.service` (exposure 1.1, checked in CI), T5.11 |

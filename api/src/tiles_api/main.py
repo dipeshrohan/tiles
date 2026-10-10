@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
 from pydantic import BaseModel
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from tiles_api import readiness, telemetry
 from tiles_api.api_agents import router as agents_router
@@ -54,6 +55,67 @@ from tiles_api.settings import Settings, get_settings
 from tiles_api.store import close_pool
 
 log = logging.getLogger("tiles_api")
+DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+def too_large_detail(limit: int) -> str:
+    return f"The request is larger than {limit / (1024 * 1024):g} MB"
+
+
+class BodyLimit:
+    """Refuses a request body larger than `limit` bytes with 413 (threat model G-A1), before the
+    route reads it: at once when its Content-Length says so; a body sent without one (chunked) is
+    read here first, up to the limit, then handed on. It sits inside the request middleware, so its
+    answers carry the request ID, the security headers and a log line like any other."""
+
+    def __init__(self, app: ASGIApp, limit: int) -> None:
+        self.app = app
+        self.limit = limit
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        headers = dict(scope["headers"])
+        length = headers.get(b"content-length")
+        if length is not None:
+            try:
+                declared = int(length)
+            except ValueError:
+                await JSONResponse({"detail": "Content-Length must be a number"}, 400)(scope, receive, send)
+                return
+            if declared > self.limit:
+                await JSONResponse({"detail": too_large_detail(self.limit)}, 413)(scope, receive, send)
+                return
+            await self.app(scope, receive, send)
+            return
+        if headers.get(b"transfer-encoding", b"").lower() != b"chunked":
+            await self.app(scope, receive, send)  # no body
+            return
+        parts: list[bytes] = []
+        size = 0
+        while True:
+            message = await receive()
+            if message["type"] != "http.request":  # the client went away
+                return
+            parts.append(message.get("body", b""))
+            size += len(parts[-1])
+            if size > self.limit:
+                await JSONResponse({"detail": too_large_detail(self.limit)}, 413)(scope, receive, send)
+                return
+            if not message.get("more_body", False):
+                break
+        replayed = False
+
+        async def replay() -> Message:
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": b"".join(parts), "more_body": False}
+            return await receive()
+
+        await self.app(scope, replay, send)
+
 
 VERSION = version("tiles-api")
 
@@ -98,6 +160,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.copilot_model = None  # tests set a stand-in for Claude
     app.state.copilot_client = None
 
+    # The body limit (G-A1) first, so the request middleware below (added after it) wraps it, and its
+    # 413 has a request ID, the security headers and a log line.
+    app.add_middleware(BodyLimit, limit=settings.max_body_bytes)
+
     @app.middleware("http")
     async def request_context(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         request_id = new_request_id(request.headers.get("x-request-id"))
@@ -114,6 +180,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         finally:
             request_id_var.reset(token)
         response.headers["X-Request-ID"] = request_id
+        # Security headers (G-B1): nothing here is a page to frame or a script to run, but the
+        # interactive docs, and a document's file, which sets its own (sandbox).
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
+        if not request.url.path.startswith(DOCS_PATHS):
+            response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
         log.info(
             "request",
             extra={

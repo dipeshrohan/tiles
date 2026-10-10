@@ -49,13 +49,13 @@ def auth_config(request: Request, org: Annotated[str | None, Query(max_length=63
             client_id=provider.client_id,
             scope=provider.scope,
             org=provider.org,
-            dev_identity=settings.env != "production",
+            dev_identity=settings.dev_identity_on,
         )
     return AuthConfig(
         enabled=bool(settings.oidc_issuer),
         issuer=settings.oidc_issuer,
         client_id=settings.oidc_client_id,
-        dev_identity=settings.env != "production",
+        dev_identity=settings.dev_identity_on,
     )
 
 

@@ -215,7 +215,7 @@ variable "ingress" {
     enabled     = optional(bool, true)
     class_name  = optional(string, "")
     tls_secret  = optional(string, "")
-    annotations = optional(map(string), { "nginx.ingress.kubernetes.io/proxy-body-size" = "16m" })
+    annotations = optional(map(string), { "nginx.ingress.kubernetes.io/proxy-body-size" = "25m" })
   })
   default = {}
 }
