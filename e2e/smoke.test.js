@@ -1034,7 +1034,16 @@ test('App Studio: an engineer makes an SPC app from its template, runs it, chang
   // The templates to start from, then the form made from the chosen one's settings.
   await page.click('[data-template="spc-limits"]');
   await page.waitForSelector('#app-form');
+  // Sent without a signal, and limits out of range: each error under its field.
   await page.fill('#app-form [name=__name]', 'Oven zone 2');
+  await page.fill('#app-form [name=sigmas]', '9');
+  await page.click('#app-form button[type=submit]');
+  await page.waitForSelector('#app-form .error-summary:has-text("Check these 2 fields")');
+  assert.equal(await page.getAttribute('#app-form [name=signal]', 'aria-invalid'), 'true');
+  // Named by its label alone, not the help beside it.
+  assert.equal(await page.locator('#app-form .field-error').first().innerText(), 'Choose the signal');
+  assert.match(await page.locator('#app-form .field-error').nth(1).innerText(), /^Enter 6 or less$/);
+  await page.fill('#app-form [name=sigmas]', '3');
   await page.selectOption('#app-form [name=signal]', { label: 'oven.zone2_temp' });
   assert.equal(await page.inputValue('#app-form [name=sigmas]'), '3'); // the template's default
   await page.uncheck('#app-form [name=rules][value=trend_of_six]');
@@ -1187,6 +1196,70 @@ test('site admins register edge agents and see them come online', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test('forms show errors on their fields: missing, in the wrong form, and refused by the API (U2.07)', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
+  await page.waitForSelector('#agents table, #agents .empty, #agents p');
+  const name = page.locator('#agent-form [name=name]');
+  const posts = () => fake.requests.filter((r) => /^POST .*\/agents$/.test(r)).length;
+
+  // Sent empty: the error is under the field, and a summary at the top takes the focus. Nothing sent.
+  await page.click('#agent-form button[type=submit]');
+  await page.waitForSelector('#agent-form .error-summary:has-text("Check this field")');
+  assert.equal(await name.getAttribute('aria-invalid'), 'true');
+  const errorId = await name.getAttribute('aria-describedby');
+  assert.match(await page.locator(`#${errorId}`).innerText(), /^Enter the new agent name$/);
+  assert.equal(await page.evaluate(() => document.activeElement?.className), 'error-summary');
+  assert.equal(posts(), 0);
+  // Its link moves to the field, not to another page.
+  await page.click('#agent-form .error-summary a');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'name');
+  assert.match(page.url(), /#\/settings$/);
+
+  // Checked again as it is left (not while typing): the format, then put right.
+  await name.fill('bad name!');
+  assert.match(await page.locator('#agent-form .field-error').innerText(), /^Enter the new agent name$/);
+  await name.blur();
+  await page.waitForSelector('#agent-form .field-error:has-text("Letters, digits, dot, dash or underscore")');
+  await name.fill('press-shop-edge');
+  await name.blur();
+  await page.waitForSelector('#agent-form .field-error', { state: 'detached' });
+  assert.equal(await name.getAttribute('aria-invalid'), null);
+  assert.equal(await page.locator('#agent-form .error-summary').count(), 0);
+
+  // The API refuses the name: its words, on the field (no toast).
+  fake.failNext('POST', /\/agents$/, 422, [{ loc: ['body', 'name'], msg: 'An agent of that name exists' }]);
+  await page.click('#agent-form button[type=submit]');
+  await page.waitForSelector('#agent-form .field-error:has-text("An agent of that name exists")');
+  assert.equal(await page.locator('.toast-item:has-text("accepted")').count(), 0);
+
+  // The signal form: its own checks and the API's, under the field, also once it is drawn again.
+  fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge' });
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
+  await page.locator('tr', { hasText: 'press1.temperature' }).first().locator('[data-edit]').click();
+  await page.fill('#signal-form [name=rate]', '0');
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#signal-form .field-error:has-text("readings per second, above 0")');
+  assert.equal(await page.locator('#signal-form [name=rate]').getAttribute('aria-invalid'), 'true');
+  // Leaving the field unchanged keeps the page's own error (the browser alone finds nothing wrong).
+  await page.focus('#signal-form [name=rate]');
+  await page.locator('#signal-form [name=rate]').blur();
+  assert.equal(await page.locator('#signal-form [name=rate]').getAttribute('aria-invalid'), 'true');
+  await page.fill('#signal-form [name=rate]', '10');
+  fake.failNext('PATCH', /\/signals\/[^/]+$/, 422, [{ loc: ['body', 'sample_rate_hz'], msg: 'Must be at most 1000' }]);
+  await page.click('#signal-form button[type=submit]');
+  await page.waitForSelector('#signal-form .field-error:has-text("Must be at most 1000")');
+  assert.equal(await page.locator('#signal-form [name=rate]').getAttribute('aria-invalid'), 'true');
+  assert.deepEqual(
+    errors.filter((e) => !/422/.test(e)),
+    [],
+  );
+});
+
 test('a revealed agent token never follows you to another API', async (t) => {
   const first = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const second = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
@@ -1238,8 +1311,14 @@ test('an engineer imports a CSV file, mapped to signals, and importing it again 
   assert.equal(await page.isChecked('[name=decimalComma]'), true);
   assert.equal(await page.inputValue('[name=tag-1]'), 'presse-1-temperatur');
   assert.equal(await page.isChecked('[name=use-3]'), false);
+  // A time zone that isn't one is marked on its field (U2.07), and goes once put right.
+  await page.fill('[name=timeZone]', 'Mars/Base');
+  await page.locator('[name=timeZone]').dispatchEvent('change');
+  await page.waitForSelector('#import-mapping .field-error:has-text("isn\'t a time zone")');
+  assert.equal(await page.getAttribute('[name=timeZone]', 'aria-invalid'), 'true');
   await page.fill('[name=timeZone]', 'Europe/Berlin');
   await page.locator('[name=timeZone]').dispatchEvent('change');
+  assert.equal(await page.locator('#import-mapping .field-error').count(), 0);
   await page.fill('[name=tag-2]', 'press1.pressure');
   await page.locator('[name=tag-2]').dispatchEvent('change');
   assert.match(
@@ -1630,7 +1709,11 @@ test('quality badges: check the signals listed, read a report, filter by badge',
   await page.fill('#signal-form [name=min]', '5');
   await page.fill('#signal-form [name=max]', '5');
   await page.click('#signal-form button[type=submit]');
-  await page.waitForSelector('#toast:has-text("The expected range\'s minimum must be below its maximum.")');
+  // Said under the field to change (U2.07), not in a toast.
+  await page.waitForSelector(
+    '#signal-form .field-error:has-text("The expected range\'s maximum must be above its minimum.")',
+  );
+  assert.equal(await page.getAttribute('#signal-form [name=max]', 'aria-invalid'), 'true');
   await page.fill('#signal-form [name=max]', '250');
   await page.click('#signal-form button[type=submit]');
   await page.waitForSelector('#toast:has-text("Saved press1.temperature")');

@@ -238,6 +238,17 @@ field('Assigned to', select(null, people, current), { inline: true })`,
       )}</div>`,
   },
   {
+    title: 'Field errors',
+    code: `onSubmit(root, '#agent-form', (form) => …)   // checks the form first: required, pattern, min, max
+showErrors(form, [{ name: 'rate', message: 'The sample rate is above 0.' }])   // a check of your own
+// The API's 422 field errors land on the form that was sent; data-api="sample_rate_hz" maps a name.`,
+    html: () =>
+      `<div class="stack gap-2 max-w-form"><div class="error-summary"><p class="error-summary-title">Check this field</p><ul><li><a href="#/styleguide">Enter the new agent name</a></li></ul></div>${field(
+        'New agent name',
+        input({ name: 'sg-agent', attrs: { 'aria-invalid': 'true' } }),
+      ).replace('</label>', '<span class="field-error">Enter the new agent name</span></label>')}</div>`,
+  },
+  {
     title: 'Filter tabs',
     code: `tabs({ label: 'Status', items: [['todo', 'To do'], ['all', 'All']], current: 'todo', data: 'show' })`,
     html: () => tabs({ label: 'Status', items: STATUS, current: 'todo', data: 'sg-show' }),

@@ -1956,6 +1956,70 @@ tr.selected td {
   color: var(--ink);
 }
 
+/* ---- form validation (U2.07): an error under its field, and a summary at the top ---- */
+input[aria-invalid='true'],
+select[aria-invalid='true'],
+textarea[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+input[aria-invalid='true']:focus,
+select[aria-invalid='true']:focus,
+textarea[aria-invalid='true']:focus {
+  box-shadow: 0 0 0 3px var(--bad-soft);
+}
+.field-error,
+.error-summary-title {
+  display: flex;
+  gap: var(--space-1_5);
+  align-items: flex-start;
+  color: var(--bad);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+.field-error::before,
+.error-summary-title::before {
+  content: '';
+  flex: none;
+  width: 1em;
+  height: 1em;
+  margin-top: 0.15em;
+  background: currentColor;
+  /* Lucide's circle-alert */
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' x2='12' y1='8' y2='12'/%3E%3Cline x1='12' x2='12.01' y1='16' y2='16'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+.error-summary {
+  flex-basis: 100%;
+  padding: var(--space-2_5) var(--space-3);
+  border: 1px solid var(--bad-line);
+  border-radius: var(--radius-md);
+  background: var(--bad-soft);
+  color: var(--ink);
+}
+.error-summary:focus {
+  outline: 2px solid var(--bad);
+  outline-offset: 2px;
+}
+.error-summary ul {
+  margin: var(--space-1_5) 0 0;
+  padding-left: var(--space-5);
+}
+.error-summary-title {
+  color: var(--ink); /* on the soft red; the icon keeps the colour */
+}
+.error-summary-title::before {
+  background: var(--bad);
+}
+.error-summary a {
+  color: var(--ink);
+}
+@media (forced-colors: active) {
+  .field-error::before,
+  .error-summary-title::before {
+    background: CanvasText;
+  }
+}
+
 /* ---- the search button and command palette (U4.02), after shadcn/ui's Command ---- */
 .search-btn {
   display: inline-flex;

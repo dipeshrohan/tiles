@@ -1,6 +1,7 @@
-import { esc, field, fmt, need, onAll } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll, onSubmit } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
+import { isFieldError, showErrors, type FieldError } from '../lib/forms.ts';
 import {
   badge,
   button,
@@ -123,7 +124,7 @@ export function changeFrom(
     asset?: string;
   },
   s: SignalInfo,
-): SignalChange | string {
+): SignalChange | FieldError {
   const change: SignalChange = {};
   if (form.events !== undefined) {
     const kind = (form.events || null) as SignalInfo['event_kind'];
@@ -140,7 +141,7 @@ export function changeFrom(
   }
   const rate = number(form.rate);
   if (rate === undefined || (rate !== null && rate <= 0))
-    return 'The sample rate is a number of readings per second, above 0.';
+    return { name: 'rate', message: 'The sample rate is a number of readings per second, above 0.' };
   if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
   if (form.description !== s.description) {
     const description = form.description.trim();
@@ -150,13 +151,18 @@ export function changeFrom(
   if (node !== s.node_id) change.node_id = node;
   const min = number(form.min ?? '');
   const max = number(form.max ?? '');
-  if (min === undefined || max === undefined) return 'The expected range is two numbers (either may be blank).';
-  if (min !== null && max !== null && min >= max) return "The expected range's minimum must be below its maximum.";
+  if (min === undefined || max === undefined)
+    return {
+      name: min === undefined ? 'min' : 'max',
+      message: 'The expected range is two numbers (either may be blank).',
+    };
+  if (min !== null && max !== null && min >= max)
+    return { name: 'max', message: "The expected range's maximum must be above its minimum." };
   if (min !== s.range_min) change.range_min = min;
   if (max !== s.range_max) change.range_max = max;
   const stuck = number(form.stuck ?? '');
   if (stuck === undefined || (stuck !== null && (stuck <= 0 || stuck > 30 * 24 * 60)))
-    return 'Stuck after is a number of minutes, above 0 and at most 30 days.';
+    return { name: 'stuck', message: 'Stuck after is a number of minutes, above 0 and at most 30 days.' };
   const stuckS = stuck === null ? null : stuck * 60;
   // Minutes shown and read back can differ from the stored seconds in the last digits: not an edit.
   const sameStuck =
@@ -195,12 +201,12 @@ function editRow(ctx: Context, s: SignalInfo): string {
       <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
         <fieldset class="contents" ${saving === s.id ? 'disabled' : ''}>
         ${labelled('Unit', input({ name: 'unit', value: s.unit ?? '', class: 'w-7em', attrs: { placeholder: 'e.g. °C', maxlength: 40 } }))}
-        ${labelled('Sample rate (Hz)', input({ name: 'rate', value: String(s.sample_rate_hz ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal' } }))}
+        ${labelled('Sample rate (Hz)', input({ name: 'rate', value: String(s.sample_rate_hz ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'sample_rate_hz' } }))}
         ${labelled('Description', input({ name: 'description', value: s.description, attrs: { maxlength: 1000 } }), { class: 'grow min-w-field' })}
-        ${labelled('Ontology node', select('node', nodeOptions, s.node_id ?? ''))}
-        ${labelled('Expected min', input({ name: 'min', value: String(s.range_min ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal' } }))}
-        ${labelled('Expected max', input({ name: 'max', value: String(s.range_max ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal' } }))}
-        ${labelled('Stuck after (min)', input({ name: 'stuck', value: stuck, class: 'w-6em', attrs: { placeholder: '60', inputmode: 'decimal' } }))}
+        ${labelled('Ontology node', select('node', nodeOptions, s.node_id ?? '', { attrs: { 'data-api': 'node_id' } }))}
+        ${labelled('Expected min', input({ name: 'min', value: String(s.range_min ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'range_min' } }))}
+        ${labelled('Expected max', input({ name: 'max', value: String(s.range_max ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'range_max' } }))}
+        ${labelled('Stuck after (min)', input({ name: 'stuck', value: stuck, class: 'w-6em', attrs: { placeholder: '60', inputmode: 'decimal', 'data-api': 'stuck_after_s' } }))}
         ${labelled(
           'Events',
           select(
@@ -212,6 +218,7 @@ function editRow(ctx: Context, s: SignalInfo): string {
               ['other', 'other events'],
             ],
             s.event_kind ?? '',
+            { attrs: { 'data-api': 'event_kind' } },
           ),
           { title: 'Each reading of an event stream is an event: its value is the code' },
         )}
@@ -367,9 +374,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
     ui(ctx).editing = null;
     fill(root, ctx);
   });
-  const form = root.querySelector<HTMLFormElement>('#signal-form');
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
+  onSubmit(root, '#signal-form', (form) => {
     const site = ctx.ontology.site;
     const sig = results?.signals.find((s) => s.id === form.dataset.signal);
     if (!site || !ctx.api || !sig) return;
@@ -398,8 +403,8 @@ function bindResults(root: HTMLElement, ctx: Context): void {
       },
       sig,
     );
-    if (typeof change === 'string') {
-      ctx.toast(change);
+    if (isFieldError(change)) {
+      showErrors(form, [change]);
       return;
     }
     if (!Object.keys(change).length) {

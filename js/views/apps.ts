@@ -15,6 +15,7 @@ import {
 } from '../lib/apps.ts';
 import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
+import { showErrors } from '../lib/forms.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { emptyState, errorState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 
@@ -177,7 +178,7 @@ function formCard(ctx: Context, d: Draft, template: AppTemplate, editing: Studio
   return `<form class="card stack gap-2_5" id="app-form">
       <h2>${esc(title)}</h2>
       <p class="small soft">${esc(template.summary)}</p>
-      <label class="field" for="app-name">Name<input id="app-name" type="text" name="__name" value="${esc(d.name)}" maxlength="120" required /></label>
+      <label class="field" for="app-name">Name<input id="app-name" type="text" name="__name" data-api="name" value="${esc(d.name)}" maxlength="120" required /></label>
       <div class="grid g2 app-fields gap-2_5">${fields}</div>
       <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${editing ? 'Save' : 'Make the app'}</button><a class="btn" href="${editing ? appLink(editing.number) : '#/apps'}">Cancel</a></div>
     </form>`;
@@ -261,8 +262,8 @@ async function save(ctx: Context, form: HTMLFormElement): Promise<void> {
   if (!api || !site || !d || !template || busy) return;
   const { config, problems } = readConfig(template, formValues(form));
   const name = d.name.trim();
-  if (!name) problems.unshift('Give the app a name');
-  if (problems.length) return void ctx.toast(problems.join('. '));
+  if (!name) problems.unshift({ name: '__name', message: 'Give the app a name' });
+  if (problems.length) return void showErrors(form, problems);
   busy = true;
   ctx.rerender();
   try {

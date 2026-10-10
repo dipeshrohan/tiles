@@ -2,6 +2,7 @@ import { esc, field, fmt, need, onAll } from '../lib/dom.ts';
 import { detectDelimiter, parseCsv } from '../lib/csv.ts';
 import {
   inBatches,
+  mappingFieldProblems,
   mappingProblems,
   readings,
   slugTag,
@@ -13,6 +14,7 @@ import {
 } from '../lib/importer.ts';
 import type { ImportRun } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
+import { setFieldError } from '../lib/forms.ts';
 import { emptyState, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 
 // Bulk import (T2.07): backfill readings from a CSV file or historian export. The file is
@@ -158,8 +160,21 @@ export function describeStats(s: ImportStats): string {
   return `${fmt(s.readings, 0)} readings for ${s.signals.size} signal(s) in ${fmt(s.rows, 0)} rows${range}.${skipped ? ` Skipped: ${skipped}.` : ''}`;
 }
 
+// The mapping's own fields that are wrong, marked where they are (the rest is in the check below).
+function markFields(form: HTMLFormElement, l: Loaded): void {
+  const problems = mappingFieldProblems(l.header, l.mapping);
+  for (const name of ['timeColumn', 'timeZone']) {
+    const el = form.elements.namedItem(name);
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement)
+      setFieldError(el, problems.find((p) => p.name === name)?.message ?? null);
+  }
+}
+
 function summaryBox(l: Loaded): string {
-  const problems = mappingProblems(l.header, l.mapping);
+  // A field's own problem is said under it; here, that there is one, and the rest.
+  const fields = mappingFieldProblems(l.header, l.mapping).map((p) => p.message);
+  const problems = mappingProblems(l.header, l.mapping).filter((p) => !fields.includes(p));
+  if (fields.length) problems.unshift('Correct the fields marked above.');
   if (problems.length)
     return `<div class="stack gap-1">${problems.map((p) => `<p class="small text-bad">${esc(p)}</p>`).join('')}</div>`;
   const stats = summarize(l.rows, l.mapping);
@@ -333,6 +348,7 @@ const view: View = {
       });
     });
     const form = root.querySelector<HTMLFormElement>('#import-mapping');
+    if (form && loaded) markFields(form, loaded);
     form?.addEventListener('change', (e) => {
       const l = loaded;
       if (!l) return;
@@ -346,6 +362,7 @@ const view: View = {
         return;
       }
       need(root, '[data-import-check]').innerHTML = summaryBox(l);
+      markFields(form, l);
       const run = root.querySelector<HTMLButtonElement>('[data-import-run]');
       if (run) run.disabled = running !== null || mappingProblems(l.header, l.mapping).length > 0;
     });

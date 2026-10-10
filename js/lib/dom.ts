@@ -1,3 +1,5 @@
+import { checkOnSubmit } from './forms.ts';
+
 const ENTITIES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
 export const esc = (v: unknown): string => String(v ?? '').replace(/[&<>"']/g, (c) => ENTITIES[c] ?? c);
@@ -61,9 +63,13 @@ export function onSubmit(
   sel: string,
   handler: (form: HTMLFormElement, submitter: HTMLElement | null) => void,
 ): void {
-  root.querySelector<HTMLFormElement>(sel)?.addEventListener('submit', (e) => {
+  const form = root.querySelector<HTMLFormElement>(sel);
+  if (!form) return;
+  form.noValidate = true; // checked here instead, with errors on the fields (U2.07)
+  form.addEventListener('submit', (e) => {
     e.preventDefault();
-    handler(e.currentTarget as HTMLFormElement, e.submitter);
+    if (!checkOnSubmit(form)) return;
+    handler(form, e.submitter);
   });
 }
 

@@ -58,6 +58,7 @@ import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
+import { showApiErrors } from './lib/forms.ts';
 import { breadcrumbs, button, clockTime } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
@@ -286,6 +287,8 @@ function makeApi(): ApiClient | null {
     onError: (e) => {
       // Offline says so itself, and a stream cut off mid-answer was reached.
       if (e.status === 0 && e.message !== OFFLINE_WRITE && e.message !== STREAM_CUT) showOffline('unreachable');
+      // Fields the API refused, shown on the form that sent them (which takes the focus): no toast.
+      if (e.status === 422 && showApiErrors(e.fields)) return;
       const d = describeApiError(e);
       const action =
         // Only where there is somewhere to go back to.

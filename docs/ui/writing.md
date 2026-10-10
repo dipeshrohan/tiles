@@ -44,6 +44,10 @@ Each error says what failed, why when Tiles knows, and what the user can do abou
 - Offer the way out: Try again, Sign in, Open Settings, or the field to fix.
 - Field errors sit under the field and say what is expected: "The sample rate is a number of readings per second, above 0."
 
+### Form errors: under the field, saying what to do
+
+"Enter the new agent name", "Enter 6 or less", "The sample rate is a number of readings per second, above 0." Each error is under its field and in the summary at the top of the form, which links to it. Say what to enter, not that it is invalid. A pattern's message is the field's `title` (say what it accepts: "Letters, digits, dot, dash or underscore; up to 63"). Forms sent with `onSubmit` (`js/lib/dom.ts`) are checked by `js/lib/forms.ts`; a check of your own returns `{ name, message }` and shows it with `showErrors`.
+
 ### Empty states: why it's empty, and the next step
 
 "No warnings yet. Detectors raise them when a signal leaves its usual range." Then the action that fills it, when the user can take it: "Set up a detector".

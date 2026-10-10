@@ -72,11 +72,11 @@ test('the edit form sends only what changed; blanks clear', () => {
     node_id: 'sig-1',
   });
   assert.deepEqual(changeFrom({ ...same, rate: '' }, SIG), { sample_rate_hz: null });
-  assert.equal(changeFrom({ ...same, rate: '0' }, SIG), 'The sample rate is a number of readings per second, above 0.');
-  assert.equal(
-    changeFrom({ ...same, rate: 'fast' }, SIG),
-    'The sample rate is a number of readings per second, above 0.',
-  );
+  assert.deepEqual(changeFrom({ ...same, rate: '0' }, SIG), {
+    name: 'rate',
+    message: 'The sample rate is a number of readings per second, above 0.',
+  });
+  assert.equal(changeFrom({ ...same, rate: 'fast' }, SIG).name, 'rate');
 });
 
 test('the expected range and stuck limit are numbers, sent only when changed', () => {
@@ -90,15 +90,20 @@ test('the expected range and stuck limit are numbers, sent only when changed', (
   const set = { ...SIG, range_min: -10, range_max: 250.5, stuck_after_s: 5400 };
   assert.deepEqual(changeFrom({ ...same, min: '-10', max: '250.5', stuck: '90' }, set), {});
   assert.deepEqual(changeFrom(same, set), { range_min: null, range_max: null, stuck_after_s: null });
-  assert.equal(
-    changeFrom({ ...same, min: '5', max: '5' }, SIG),
-    "The expected range's minimum must be below its maximum.",
-  );
-  assert.equal(changeFrom({ ...same, max: 'hot' }, SIG), 'The expected range is two numbers (either may be blank).');
-  assert.equal(
-    changeFrom({ ...same, stuck: '0' }, SIG),
-    'Stuck after is a number of minutes, above 0 and at most 30 days.',
-  );
+  // Each problem names the field it is about, to be shown under it.
+  assert.deepEqual(changeFrom({ ...same, min: '5', max: '5' }, SIG), {
+    name: 'max',
+    message: "The expected range's maximum must be above its minimum.",
+  });
+  assert.deepEqual(changeFrom({ ...same, max: 'hot' }, SIG), {
+    name: 'max',
+    message: 'The expected range is two numbers (either may be blank).',
+  });
+  assert.equal(changeFrom({ ...same, min: 'cold' }, SIG).name, 'min');
+  assert.deepEqual(changeFrom({ ...same, stuck: '0' }, SIG), {
+    name: 'stuck',
+    message: 'Stuck after is a number of minutes, above 0 and at most 30 days.',
+  });
 });
 
 test('quality badges and the report behind them', () => {
