@@ -60,6 +60,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - **monitoring:** OpenTelemetry traces and metrics (ingest lag from the agents' buffers, job runs, notifications, requests), alert rules tested with promtool, a Grafana dashboard and a collector configuration (T5.13);
   - **guides:** a user guide, an administrator guide, a model-author guide and an API reference generated from the code, with a test that keeps it current (T6.05);
   - **pilot kit:** the partner assessment's checklist, interview guide, problem scoring and report outline (T2.15);
+  - **a security review pack** for a partner's IT and OT teams: what connects where, the data end to end, a questionnaire quick reference, the open items and the review meeting's agenda (T3.15);
   - **setting up a site:** organisation admins create sites (`POST /sites`), and a wizard takes each from new to its first dashboard (outline the plant, connect an edge agent, map tags), with its progress worked out from the site's data (`GET /sites/{id}/onboarding`) (T6.06);
   - **release process:** one version across the browser app, the API, the edge agent and the Helm chart; this changelog; release notes and assets made from a version tag; an upgrade test that migrates the previous version's database, with its data, to the new one and back (T6.04).
 
