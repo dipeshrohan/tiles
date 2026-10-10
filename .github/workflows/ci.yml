@@ -60,6 +60,29 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
+  visual:
+    name: Visual regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # The Playwright container: the browser and fonts the baselines were made with (npm run
+    # test:visual uses the same image). Keep its tag equal to package.json's playwright version.
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      options: --ipc=host
+    env:
+      HOME: /root
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci
+      - run: node --test --test-concurrency=1 e2e/visual/visual.test.js
+      - name: Upload the differences
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-differences
+          path: e2e/visual/output/
+          if-no-files-found: ignore
+
   api:
     name: API (Python)
     runs-on: ubuntu-latest

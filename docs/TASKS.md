@@ -232,7 +232,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* every page with a record or a place shows where it is, and a reload or shared link shows the same breadcrumb.
 - [x] `U1.07` [#210](https://github.com/dipeshrohan/tiles/issues/210) **Style guide page** · FE · 2d · U1.04, U1.05
   *Done when:* a new contributor can build a page from it alone, as tried in one PR.
-- [ ] `U1.08` [#211](https://github.com/dipeshrohan/tiles/issues/211) **Visual regression tests** · FE · 2d
+- [x] `U1.08` [#211](https://github.com/dipeshrohan/tiles/issues/211) **Visual regression tests** · FE · 2d
   *Done when:* a 2 px padding change on `.card` fails CI with a readable diff.
 - [ ] `U1.09` [#212](https://github.com/dipeshrohan/tiles/issues/212) **UX analytics, privacy first** · FE+BE · 2d
   *Done when:* U1.01's key tasks can be measured from events on the pilot site, and the data stays in the deployment.
