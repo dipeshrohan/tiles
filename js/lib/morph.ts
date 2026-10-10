@@ -5,7 +5,8 @@
 // field's own HTML (it was put back, or filled in) or its form was sent with what it holds now
 // (sending is done with it: the page's empty field comes back). Elements are matched by
 // `id` or `data-key` first (a list row keeps its element when rows are added above it), otherwise by
-// position and tag. No dependencies, and nothing here imports: the browser tests load it on its own.
+// position, tag, name and first class (another kind of element is drawn new, not reshaped). No
+// dependencies, and nothing here imports: the browser tests load it on its own.
 
 // What each <details> was drawn as, to tell a section someone opened or closed (kept) from one the
 // page opens or closes itself (follows the HTML).
@@ -109,7 +110,7 @@ function children(parent: Node, next: Node): void {
         if (ahead && alike(ahead, n)) cursor = ahead;
         else if (following && alike(cursor, following)) added = true;
       }
-      if (!added && cursor && same(cursor, n)) match = cursor;
+      if (!added && cursor && alike(cursor, n)) match = cursor; // else drawn new: kept, another kind of element would seem to move
     }
     if (match) {
       if (match !== cursor) parent.insertBefore(match, cursor);

@@ -1741,7 +1741,7 @@
 					if (ahead && alike(ahead, n)) cursor = ahead;
 					else if (following && alike(cursor, following)) added = true;
 				}
-				if (!added && cursor && same(cursor, n)) match = cursor;
+				if (!added && cursor && alike(cursor, n)) match = cursor;
 			}
 			if (match) {
 				if (match !== cursor) parent.insertBefore(match, cursor);
@@ -11461,7 +11461,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			id
 		});
 		const items = listing$3?.items?.filter((d) => !removing(d.id));
-		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? skeleton.list() : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
+		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? skeleton.list(1) : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
               <b>${esc(d.name)}</b>
               <span class="small muted">${fmt$1(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ""}</span>
             </button>`).join("") || emptyState({

@@ -75,7 +75,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.items?.filter((d) => !removing(d.id));
   const rows =
     items === null || items === undefined
-      ? skeleton.list()
+      ? skeleton.list(1)
       : items
           .map(
             (d) => `<button class="review-row ${ui.selected === d.id ? 'sel' : ''}" data-dataset="${esc(d.id)}">
