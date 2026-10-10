@@ -356,9 +356,16 @@ test('an API error stays with its request ID until dismissed, and is read out on
   const item = a.page.locator('.toast-item[data-type=error]:not([data-state=closed])');
   await item.waitFor();
   await a.page.clock.runFor(500);
-  assert.match(await item.innerText(), /The catalogue is busy \(503\)[\s\S]*Request ID\s+req-\d{6}/);
+  // What happened (the API had a problem), why (its words) and what to do, with the request ID.
+  assert.match(
+    await item.innerText(),
+    /The Tiles API had a problem[\s\S]*The catalogue is busy\. Try again[\s\S]*Request ID\s+req-\d{6}/,
+  );
   // Read once, as an alert; the visible stack isn't a live region too.
-  assert.match(await a.page.locator('[data-toast-announce=alert]').innerText(), /catalogue is busy.*req-\d{6}/);
+  assert.match(
+    await a.page.locator('[data-toast-announce=alert]').innerText(),
+    /had a problem.*catalogue is busy.*req-\d{6}/,
+  );
   assert.equal(await a.page.locator('#toast').getAttribute('aria-live'), null);
   // The same failure again refreshes the toast without reading it out again.
   await a.page.evaluate(() => (document.querySelector('[data-toast-announce=alert]').textContent = ''));
@@ -459,11 +466,69 @@ test("a page that can't reach the API says why and what to do, and tries again",
   assert.match(await card.innerText(), /The API is starting\./);
   assert.doesNotMatch(await card.innerText(), /address/);
   assert.equal(await card.locator('a:has-text("Open Settings")').getAttribute('href'), '#/settings');
+  // Copy details: what support needs to find it.
+  assert.match(
+    (await card.locator('[data-copy-details]').getAttribute('data-copy-details')) ?? '',
+    /^What: The API is starting\nPage: #\/warnings\nTime: .+\nTiles: \d+\.\d+\.\d+$/,
+  );
   // The API is up now: Try again connects, and the page fills.
   await card.locator('[data-reconnect]').click();
   await page.waitForSelector('[data-warning-list]');
   assert.deepEqual(
     errors.filter((e) => !/503/.test(e)),
+    [],
+  );
+});
+
+test('errors say what happened and the way out: no access, a conflict, not found, offline', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { out } = raiseFrictionWarnings(fake);
+  const a = await openAs(t, apiUrl, null, 'warnings');
+  await a.page.click(`[data-warning="${out}"]`);
+  await a.page.waitForSelector('[data-act=acknowledge]');
+  const toast = (text) => a.page.locator(`.toast-item:not([data-state=closed]):has-text("${text}")`);
+  const ack = /\/warnings\/[^/]+\/acknowledge$/;
+
+  // 403: what access is missing, and who gives it.
+  fake.failNext('POST', ack, 403, 'Engineers and admins of the site act on warnings');
+  await a.page.click('[data-act=acknowledge]');
+  await toast("You don't have access to this").waitFor();
+  assert.match(
+    await toast("You don't have access to this").innerText(),
+    /act on warnings\. A site admin can give you the role/,
+  );
+  // 409: what changed, and Refresh.
+  fake.failNext('POST', ack, 409, 'The warning was resolved meanwhile');
+  await a.page.click('[data-act=acknowledge]');
+  await toast('This changed while you were working').waitFor();
+  assert.equal(
+    await toast('This changed while you were working').locator('[data-toast-action]').innerText(),
+    'Refresh',
+  );
+  // 404: a way back.
+  fake.failNext('GET', new RegExp(`/warnings/${out}$`), 404, 'No such warning');
+  await a.page.click('[data-refresh-warnings]');
+  await toast('Not found').waitFor();
+  assert.equal(await toast('Not found').locator('[data-toast-action]').innerText(), 'Go back');
+
+  // Offline: a banner says so, and a change isn't sent but says why.
+  await a.page.context().setOffline(true);
+  await a.page.waitForSelector('#offline:not([hidden]):has-text("You\'re offline")');
+  assert.match(await a.page.locator('#offline').innerText(), /changes can't be sent until the connection is back/);
+  const sent = fake.requests.length;
+  await a.page.click('[data-act=acknowledge]');
+  await toast("You're offline: nothing was changed").waitFor();
+  assert.equal(fake.requests.slice(sent).filter((r) => r.startsWith('POST')).length, 0);
+  const before = fake.requests.length;
+  await a.page.context().setOffline(false);
+  await a.page.waitForSelector('#offline', { state: 'hidden' });
+  // Back online, what was on screen stays: the page is drawn again, not the whole site loaded afresh.
+  await a.page.waitForSelector('[data-refresh-warnings]');
+  assert.equal(fake.requests.slice(before).filter((r) => /\/ontology(\?|$)/.test(r)).length, 0);
+  assert.deepEqual(
+    a.errors.filter((e) => !/40[349]|Failed to load resource|ERR_INTERNET_DISCONNECTED/.test(e)),
     [],
   );
 });
