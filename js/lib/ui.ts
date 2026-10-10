@@ -195,7 +195,9 @@ export function pageHead(o: {
   level?: 1 | 4; // 1 on a page; 4 for an example inside one
 }): string {
   const h = `h${o.level ?? 1}`;
-  return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ''}<${h} class="page-title">${esc(o.title)}</${h}>${
+  // A page's heading takes the focus when the page opens (U3.02): focusable by script, not by Tab.
+  const focusable = h === 'h1' ? ' tabindex="-1"' : '';
+  return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ''}<${h} class="page-title"${focusable}>${esc(o.title)}</${h}>${
     o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ''
   }</div>${o.actionsHtml ?? ''}</div>`;
 }

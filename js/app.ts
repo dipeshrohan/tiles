@@ -33,7 +33,7 @@ import {
   type OntologyStore,
   type RemoteStore,
 } from './lib/ontology-store.ts';
-import { esc, need, rebind, routeOf } from './lib/dom.ts';
+import { announce, esc, lessMotion, need, rebind, routeOf } from './lib/dom.ts';
 import { morph, noteSent, replace } from './lib/morph.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
@@ -531,8 +531,7 @@ function renderNav(active: View): void {
     `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 }
 
-let enterWatched = false;
-let shownView: string | null = null; // the page last shown, to animate only a change of page
+let shownView: string | null = null; // the page last shown: drawn again, it is patched in place
 let trackedView = ''; // the page last recorded as viewed (U1.09)
 
 // Draws the current page. A new page replaces what was there; the same page drawn again is patched
@@ -562,22 +561,7 @@ function render(): void {
     ...(view === home ? [] : [{ label: view.title, href: `#/${view.id}` }]),
     ...(view.crumbs?.(ctx) ?? []),
   ]);
-  // A new page fades in (U3.02, ahead of the View Transitions version); a re-render of the same
-  // page, or another record on it, doesn't move. Reduced motion turns it off in the stylesheet.
-  if (view.id !== shownView) {
-    shownView = view.id;
-    root.classList.remove('view-enter');
-    void root.offsetWidth; // restart the animation
-    root.classList.add('view-enter');
-    // Removed once its own animation ends (however long --dur-slow is), so a later re-render (a
-    // refresh) doesn't play it again. A child's animation ending bubbles here too: not that one.
-    if (!enterWatched) {
-      enterWatched = true;
-      root.addEventListener('animationend', (e) => {
-        if (e.target === root) root.classList.remove('view-enter');
-      });
-    }
-  }
+  shownView = view.id;
 }
 
 // A form sent without onSubmit (which notes its own once it is checked) is sent once the browser's
@@ -867,12 +851,62 @@ function closeMenu(): void {
   need(document, '#menu').setAttribute('aria-expanded', 'false');
 }
 
-window.addEventListener('hashchange', () => {
+// ---- page transitions (U3.02) ---------------------------------------------------------
+// Another page cross-fades in, with its head kept in place (css/styles.css); a record opened from a
+// list on the same page grows from the row that was clicked into its page head. Only where the
+// browser has view transitions and less motion isn't asked for: otherwise nothing moves. Either way
+// the new page's heading takes the focus, so a screen reader reads where it is, and it is announced.
+let clicked: { el: Element; at: number } | null = null;
+need(document, '#view').addEventListener(
+  'click',
+  (e) => {
+    const el = e.target instanceof Element ? e.target.closest('a[href^="#/"], [data-key]') : null;
+    if (el) clicked = { el, at: Date.now() };
+  },
+  true,
+);
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => { ready: Promise<void>; finished: Promise<void> };
+};
+
+function navigate(): void {
   closeMenu(); // whatever link was followed: the menu's, the brand, or one in the page
-  render();
-  need(document, '#view').focus({ preventScroll: true });
-  window.scrollTo(0, 0);
-});
+  const root = need(document, '#view');
+  const newPage = currentView().id !== shownView;
+  // The row the record was opened from, if it was opened by a click just now.
+  const from = !newPage && clicked && Date.now() - clicked.at < 1000 && clicked.el.isConnected ? clicked.el : null;
+  clicked = null;
+  const arrive = () => {
+    if (from instanceof HTMLElement) from.style.viewTransitionName = ''; // the head is the record now
+    render();
+    if (from) {
+      const head = root.querySelector<HTMLElement>(':scope > .page-head');
+      if (head) head.style.viewTransitionName = 'record';
+    }
+    const heading = root.querySelector<HTMLElement>(':scope > .page-head h1');
+    (heading ?? root).focus({ preventScroll: true });
+    announce(document.title);
+    window.scrollTo(0, 0);
+  };
+  const doc = document as ViewTransitionDocument;
+  if (!(newPage || from) || !doc.startViewTransition || lessMotion() || document.hidden) return arrive();
+  if (from instanceof HTMLElement) from.style.viewTransitionName = 'record';
+  const transition = doc.startViewTransition(() => {
+    try {
+      arrive();
+    } catch (e) {
+      reportError(e); // reported as any page error is, not as a transition that failed
+    }
+  });
+  // Skipped (another navigation came first) or done: the page is drawn either way.
+  void transition.ready.catch(() => undefined);
+  void transition.finished.then(
+    () => root.querySelector<HTMLElement>(':scope > .page-head')?.style.removeProperty('view-transition-name'),
+    () => undefined,
+  );
+}
+window.addEventListener('hashchange', navigate);
 // In API mode, show the loading state from the first paint (never local data).
 if (api) {
   localRepo = state.repo;

@@ -111,21 +111,51 @@ test('works when index.html is opened from disk', async () => {
   await page.close();
 });
 
-test('a page fades in when it opens, once: not on a re-render or another record on it', async () => {
+test('pages change with a view transition: a new page cross-fades, a record grows from its row (U3.02)', async () => {
   const { page, errors } = await openPage();
+  // Each transition started, with what was named "record" as it started (the row it grows from).
+  await page.addInitScript(() => {
+    window.transitions = [];
+    const start = document.startViewTransition.bind(document);
+    document.startViewTransition = (update) => {
+      const record = [...document.querySelectorAll('#view *')].find(
+        (el) => getComputedStyle(el).viewTransitionName === 'record',
+      );
+      window.transitions.push(record ? record.textContent.trim() : '');
+      return start(update);
+    };
+  });
+  const transitions = () => page.evaluate(() => window.transitions);
+  const focused = () => page.evaluate(() => `${document.activeElement.tagName}:${document.activeElement.textContent}`);
   await page.goto(`${httpBase}#/plant`);
   await page.waitForSelector('#view h1');
-  const entering = () => page.evaluate(() => document.querySelector('#view').classList.contains('view-enter'));
-  assert.equal(await entering(), true);
-  await page.waitForFunction(() => !document.querySelector('#view').classList.contains('view-enter'));
-  await rerender(page);
-  assert.equal(await entering(), false); // a refresh of the same page doesn't move
-  await page.goto(`${httpBase}#/plant/m-dc02`);
-  await page.waitForSelector('#view h1:has-text("DC-02")');
-  assert.equal(await entering(), false); // nor does another place on it
-  await page.goto(`${httpBase}#/warnings`);
+  assert.deepEqual(await transitions(), []); // the first page is drawn, not changed to
+  await page.evaluate(() => (location.hash = '#/warnings'));
   await page.waitForSelector('#view h1:has-text("Warnings")');
-  assert.equal(await entering(), true);
+  assert.deepEqual(await transitions(), ['']); // another page: a cross-fade
+  assert.equal(await focused(), 'H1:Warnings'); // its heading has the focus, and it is said
+  assert.equal(await page.textContent('#announcer'), await page.title());
+  await rerender(page);
+  assert.equal((await transitions()).length, 1); // a refresh of the same page doesn't move
+  // A machine opened from its card grows from the card into its page.
+  await page.evaluate(() => (location.hash = '#/plant/wc-cast'));
+  await page.waitForSelector('.place-card:has-text("Die-cast Line 1")');
+  await page.click('.place-card:has-text("Die-cast Line 1")');
+  await page.waitForSelector('#view h1:has-text("Die-cast Line 1")');
+  assert.match((await transitions()).at(-1), /Die-cast Line 1/);
+  assert.match(await focused(), /^H1:Die-cast Line 1/);
+  // Back to another place without a click (the browser's Back): no transition, the heading still focused.
+  const count = (await transitions()).length;
+  await page.goBack();
+  await page.waitForSelector('#view h1:has-text("Housing Casting")');
+  assert.equal((await transitions()).length, count);
+  assert.match(await focused(), /^H1:Housing Casting/);
+  // Less motion asked for: nothing moves, the focus still goes to the heading.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.waitForSelector('#view h1:has-text("Signals")');
+  assert.equal((await transitions()).length, count);
+  assert.equal(await focused(), 'H1:Signals');
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -2495,7 +2525,7 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
   assert.match(await cards.nth(0).innerText(), /Die-caster DC-01[\s\S]*dc1\.friction[\s\S]*Signal still out/);
   assert.match(await cards.nth(1).innerText(), /dc2\.friction[\s\S]*Nobody has it/);
   // Gloves: every button is at least 64 px each way (measured once the page has settled).
-  await page.waitForFunction(() => !document.querySelector('#view').classList.contains('view-enter'));
+  await page.waitForFunction(() => document.getAnimations().length === 0);
   for (const box of await page.locator('.floor-btn').evaluateAll((els) => els.map((e) => e.getBoundingClientRect())))
     assert.ok(box.height >= 64 && box.width >= 64, `a ${box.width}×${box.height} button`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

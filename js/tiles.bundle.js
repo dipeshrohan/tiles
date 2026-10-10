@@ -1862,7 +1862,10 @@
 		root.querySelectorAll(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e), { signal: bound() }));
 	}
 	function scrollBehavior() {
-		return document.documentElement.dataset.motion === "reduce" || typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+		return lessMotion() ? "auto" : "smooth";
+	}
+	function lessMotion() {
+		return document.documentElement.dataset.motion === "reduce" || typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 	}
 	function setBusy(el, busy) {
 		el.disabled = busy;
@@ -2517,7 +2520,8 @@
 	}
 	function pageHead(o) {
 		const h = `h${o.level ?? 1}`;
-		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<${h} class="page-title">${esc(o.title)}</${h}>${o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
+		const focusable = h === "h1" ? " tabindex=\"-1\"" : "";
+		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<${h} class="page-title"${focusable}>${esc(o.title)}</${h}>${o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
 	}
 	function input(o) {
 		return `<input${attrs({
@@ -13855,7 +13859,6 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
 		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 	}
-	var enterWatched = false;
 	var shownView = null;
 	var trackedView = "";
 	function render() {
@@ -13889,18 +13892,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}],
 			...view.crumbs?.(ctx) ?? []
 		]);
-		if (view.id !== shownView) {
-			shownView = view.id;
-			root.classList.remove("view-enter");
-			root.offsetWidth;
-			root.classList.add("view-enter");
-			if (!enterWatched) {
-				enterWatched = true;
-				root.addEventListener("animationend", (e) => {
-					if (e.target === root) root.classList.remove("view-enter");
-				});
-			}
-		}
+		shownView = view.id;
 	}
 	need(document, "#view").addEventListener("submit", (e) => {
 		if (e.target instanceof HTMLFormElement && !e.target.noValidate) noteSent(e.target);
@@ -14132,12 +14124,45 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		need(document, "#sidebar").classList.remove("open");
 		need(document, "#menu").setAttribute("aria-expanded", "false");
 	}
-	window.addEventListener("hashchange", () => {
+	var clicked = null;
+	need(document, "#view").addEventListener("click", (e) => {
+		const el = e.target instanceof Element ? e.target.closest("a[href^=\"#/\"], [data-key]") : null;
+		if (el) clicked = {
+			el,
+			at: Date.now()
+		};
+	}, true);
+	function navigate() {
 		closeMenu();
-		render();
-		need(document, "#view").focus({ preventScroll: true });
-		window.scrollTo(0, 0);
-	});
+		const root = need(document, "#view");
+		const newPage = currentView().id !== shownView;
+		const from = !newPage && clicked && Date.now() - clicked.at < 1e3 && clicked.el.isConnected ? clicked.el : null;
+		clicked = null;
+		const arrive = () => {
+			if (from instanceof HTMLElement) from.style.viewTransitionName = "";
+			render();
+			if (from) {
+				const head = root.querySelector(":scope > .page-head");
+				if (head) head.style.viewTransitionName = "record";
+			}
+			(root.querySelector(":scope > .page-head h1") ?? root).focus({ preventScroll: true });
+			announce(document.title);
+			window.scrollTo(0, 0);
+		};
+		const doc = document;
+		if (!(newPage || from) || !doc.startViewTransition || lessMotion() || document.hidden) return arrive();
+		if (from instanceof HTMLElement) from.style.viewTransitionName = "record";
+		const transition = doc.startViewTransition(() => {
+			try {
+				arrive();
+			} catch (e) {
+				reportError(e);
+			}
+		});
+		transition.ready.catch(() => void 0);
+		transition.finished.then(() => root.querySelector(":scope > .page-head")?.style.removeProperty("view-transition-name"), () => void 0);
+	}
+	window.addEventListener("hashchange", navigate);
 	if (api) {
 		localRepo = state.repo;
 		state.repo = createRepo();

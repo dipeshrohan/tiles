@@ -73,10 +73,15 @@ export function onAll<K extends keyof HTMLElementEventMap>(
 // How a scroll the app starts should move: smoothly, unless the system or Tiles (data-motion,
 // U6.06) asks for less motion (docs/ui/motion.md). CSS can't reach a scroll started from script.
 export function scrollBehavior(): ScrollBehavior {
-  const reduce =
+  return lessMotion() ? 'auto' : 'smooth';
+}
+
+// Whether less motion is asked for: by the system, or in Tiles (data-motion, U6.06).
+export function lessMotion(): boolean {
+  return (
     document.documentElement.dataset.motion === 'reduce' ||
-    (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
-  return reduce ? 'auto' : 'smooth';
+    (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches)
+  );
 }
 
 // Puts a button already on the page into (or out of) its busy state, as button({ busy }) in ui.ts
