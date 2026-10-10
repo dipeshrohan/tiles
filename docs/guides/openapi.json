@@ -1643,6 +1643,41 @@
         "title": "CorrelationSource",
         "type": "object"
       },
+      "Count": {
+        "properties": {
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "page",
+              "task",
+              "palette",
+              "help",
+              "error"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "events",
+          "sessions"
+        ],
+        "title": "Count",
+        "type": "object"
+      },
       "Dataset": {
         "properties": {
           "columns": {
@@ -2493,6 +2528,34 @@
         "title": "EvaluateOut",
         "type": "object"
       },
+      "Event": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "page",
+              "task",
+              "palette",
+              "help",
+              "error"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "description": "From the app's vocabulary: a page id, a task, an error's kind",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name"
+        ],
+        "title": "Event",
+        "type": "object"
+      },
       "EventIn": {
         "additionalProperties": false,
         "properties": {
@@ -2632,6 +2695,31 @@
           "detector"
         ],
         "title": "EventRow",
+        "type": "object"
+      },
+      "Events": {
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            },
+            "maxItems": 100,
+            "title": "Events",
+            "type": "array"
+          },
+          "session": {
+            "description": "A random id the browser makes per tab; it is stored hashed",
+            "pattern": "^[A-Za-z0-9-]{16,64}$",
+            "title": "Session",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session",
+          "events"
+        ],
+        "title": "Events",
         "type": "object"
       },
       "Explanation": {
@@ -6367,6 +6455,34 @@
         "title": "SetProp",
         "type": "object"
       },
+      "Setting": {
+        "properties": {
+          "enabled": {
+            "description": "Whether the organisation's sites record UX events",
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "Setting",
+        "type": "object"
+      },
+      "SettingIn": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "SettingIn",
+        "type": "object"
+      },
       "SettingOut": {
         "properties": {
           "caught": {
@@ -6977,6 +7093,20 @@
         "title": "Step",
         "type": "object"
       },
+      "Stored": {
+        "properties": {
+          "stored": {
+            "description": "0 when the organisation hasn't turned the analytics on, or past the hour's share",
+            "title": "Stored",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stored"
+        ],
+        "title": "Stored",
+        "type": "object"
+      },
       "SuggestionOut": {
         "properties": {
           "kind": {
@@ -7063,6 +7193,38 @@
           "suggestions"
         ],
         "title": "Suggestions",
+        "type": "object"
+      },
+      "Summary": {
+        "properties": {
+          "counts": {
+            "items": {
+              "$ref": "#/components/schemas/Count"
+            },
+            "title": "Counts",
+            "type": "array"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "sessions": {
+            "description": "Browser sessions that sent events in the period",
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled",
+          "days",
+          "sessions",
+          "counts"
+        ],
+        "title": "Summary",
         "type": "object"
       },
       "Sweep": {
@@ -9981,6 +10143,114 @@
         "summary": "Revoke Scim Token",
         "tags": [
           "organisation sign-in"
+        ]
+      }
+    },
+    "/org/ux-analytics": {
+      "get": {
+        "description": "Whether your organisation's sites record UX events (organisation admins).",
+        "operationId": "get_ux_analytics_org_ux_analytics_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Setting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ux Analytics",
+        "tags": [
+          "UX analytics"
+        ]
+      },
+      "put": {
+        "description": "Turn UX analytics on or off for your organisation's sites (organisation admins). Off, nothing\nis recorded; the events already kept stay until they are 90 days old.",
+        "operationId": "set_ux_analytics_org_ux_analytics_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Setting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Ux Analytics",
+        "tags": [
+          "UX analytics"
         ]
       }
     },
@@ -16612,6 +16882,160 @@
         "summary": "Cancel Sweep",
         "tags": [
           "sweeps"
+        ]
+      }
+    },
+    "/sites/{site_id}/ux-analytics": {
+      "get": {
+        "description": "Whether this site records UX events (its organisation turned them on): the browser sends\nnone otherwise.",
+        "operationId": "site_ux_analytics_sites__site_id__ux_analytics_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Setting"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Site Ux Analytics",
+        "tags": [
+          "UX analytics"
+        ]
+      }
+    },
+    "/sites/{site_id}/ux-events": {
+      "post": {
+        "description": "Records a batch of UX events from one browser session (any member). Nothing is stored unless\nthe organisation turned the analytics on, nor beyond an hour's share for the site and the\nsession. A retention policy lets events go 90 days on. Not audited: like a person's own\ncopilot conversations, they change nothing on the site, and are about using the app.",
+        "operationId": "record_ux_events_sites__site_id__ux_events_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Events"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stored"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Ux Events",
+        "tags": [
+          "UX analytics"
+        ]
+      }
+    },
+    "/sites/{site_id}/ux-events/summary": {
+      "get": {
+        "description": "How often each page, task, palette use, help topic and error came up on this site over the\nlast `days` days, and in how many browser sessions (admins). Counts only.",
+        "operationId": "ux_summary_sites__site_id__ux_events_summary_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 90,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ux Summary",
+        "tags": [
+          "UX analytics"
         ]
       }
     },

@@ -22,7 +22,10 @@ from tiles_api.store import UNSCOPED, act_as_app, all_sites, connect_job, one, o
 
 RLS = importlib.import_module("tiles_api.migrations.versions.0024_site_row_security")
 # Tables of a site's data made after 0024, each with its policy in its own migration.
-LATER = [importlib.import_module(f"tiles_api.migrations.versions.{m}") for m in ("0028_apps", "0029_documents")]
+LATER = [
+    importlib.import_module(f"tiles_api.migrations.versions.{m}")
+    for m in ("0028_apps", "0029_documents", "0033_ux_analytics")
+]
 SITE_TABLES = {*RLS.SITE_TABLES, *(t for m in LATER for t in m.SITE_TABLES)}
 # Tables of no one site: the organisation's, people, and the readings hypertable (TimescaleDB
 # refuses row security on a compressed hypertable: the API reads it through `site_samples` and

@@ -1,3 +1,4 @@
+import { ux } from '../lib/analytics.ts';
 import { esc, onAction, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
 import type { AppResult, AppTemplate, StudioApp } from '../lib/api.ts';
 import {
@@ -272,6 +273,7 @@ async function save(ctx: Context, form: HTMLFormElement): Promise<void> {
       ? await api.apps.update(site, Number(editing[1]), { name, config })
       : await api.apps.create(site, { name, template: template.id, config });
     ctx.toast(editing ? 'App saved' : `App #${saved.number} made`);
+    ux('task', editing ? 'app.changed' : 'app.made');
     draft = null;
     listing = null;
     result = null;

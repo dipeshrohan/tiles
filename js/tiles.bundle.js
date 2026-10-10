@@ -1051,8 +1051,8 @@
 			if (token) headers.Authorization = `Bearer ${token}`;
 			return headers;
 		}
-		async function request(method, path, body, { anonymous = false, text = false, blob = false, quiet = false, file } = {}) {
-			if (method !== "GET" && options.isOffline?.()) return fail(new ApiError(OFFLINE_WRITE, 0));
+		async function request(method, path, body, { anonymous = false, text = false, blob = false, quiet = false, silent = false, file } = {}) {
+			if (method !== "GET" && options.isOffline?.()) return (silent ? raise : fail)(new ApiError(OFFLINE_WRITE, 0));
 			const headers = await headersFor(body, anonymous, "application/json", file?.type);
 			let res;
 			try {
@@ -1062,9 +1062,9 @@
 					body: file ? file.body : body === void 0 ? void 0 : JSON.stringify(body)
 				});
 			} catch {
-				return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
+				return (silent ? raise : fail)(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
 			}
-			options.onAnswer?.(res.status);
+			if (!silent) options.onAnswer?.(res.status);
 			const requestId = res.headers.get("x-request-id");
 			if (res.status === 204) return void 0;
 			if (text && res.ok) return await res.text();
@@ -1073,14 +1073,17 @@
 			try {
 				parsed = await res.json();
 			} catch {
-				if (res.ok) return fail(new ApiError("The Tiles API sent a response that is not JSON", res.status, requestId));
+				if (res.ok) return (silent ? raise : fail)(new ApiError("The Tiles API sent a response that is not JSON", res.status, requestId));
 			}
 			if (!res.ok) {
 				const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId, fieldsOf(parsed));
 				if (quiet) throw error;
-				return fail(error);
+				return (silent ? raise : fail)(error);
 			}
 			return parsed;
+		}
+		function raise(error) {
+			throw error;
 		}
 		function fail(error) {
 			options.onError?.(error);
@@ -1173,7 +1176,17 @@
 				removeIdentityProvider: () => request("DELETE", "/org/identity-provider"),
 				scimTokens: () => request("GET", "/org/scim-tokens"),
 				createScimToken: (name) => request("POST", "/org/scim-tokens", { name }),
-				revokeScimToken: (id) => request("DELETE", `/org/scim-tokens/${encodeURIComponent(id)}`)
+				revokeScimToken: (id) => request("DELETE", `/org/scim-tokens/${encodeURIComponent(id)}`),
+				uxAnalytics: () => request("GET", "/org/ux-analytics"),
+				setUxAnalytics: (enabled) => request("PUT", "/org/ux-analytics", { enabled })
+			},
+			ux: {
+				enabled: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/ux-analytics`, void 0, { silent: true }),
+				send: (siteId, session, events) => request("POST", `/sites/${encodeURIComponent(siteId)}/ux-events`, {
+					session,
+					events
+				}, { silent: true }),
+				summary: (siteId, days = 30) => request("GET", `/sites/${encodeURIComponent(siteId)}/ux-events/summary?days=${days}`)
 			},
 			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
 			members: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/members`),
@@ -2574,6 +2587,107 @@
 		}
 	};
 	//#endregion
+	//#region js/lib/analytics.ts
+	var UX_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+	var KINDS = /* @__PURE__ */ new Set([
+		"page",
+		"task",
+		"palette",
+		"help",
+		"error"
+	]);
+	var FLUSH_MS = 1e4;
+	var BATCH$1 = 50;
+	var MAX_WAITING = 500;
+	function ux(kind, name) {
+		if (typeof document === "undefined") return;
+		document.dispatchEvent(new CustomEvent("tiles:ux", { detail: {
+			kind,
+			name
+		} }));
+	}
+	var uxName = (s) => s.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^[^a-z0-9]+|-+$/g, "").slice(0, 64);
+	function createTracker(o) {
+		let enabled = false;
+		let queue = [];
+		let sending = false;
+		let generation = 0;
+		const flush = async () => {
+			if (!enabled || sending || !queue.length) return;
+			const batch = queue.splice(0, BATCH$1);
+			const from = generation;
+			sending = true;
+			try {
+				await o.send(batch);
+			} catch {
+				if (from === generation) queue = [...batch, ...queue].slice(-500);
+			} finally {
+				sending = false;
+			}
+		};
+		(o.schedule ?? setInterval)(() => void flush(), FLUSH_MS);
+		return {
+			track(kind, name) {
+				if (!enabled || !KINDS.has(kind) || !UX_NAME.test(name)) return;
+				queue.push({
+					kind,
+					name
+				});
+				if (queue.length > MAX_WAITING) queue = queue.slice(-500);
+				if (queue.length >= BATCH$1) flush();
+			},
+			flush,
+			setEnabled(on) {
+				enabled = on;
+				if (!on) {
+					queue = [];
+					generation++;
+				}
+			},
+			get enabled() {
+				return enabled;
+			},
+			get waiting() {
+				return queue.length;
+			},
+			drain() {
+				const out = queue;
+				queue = [];
+				generation++;
+				return out;
+			}
+		};
+	}
+	var LEFT_KEY = "tiles.uxLeft";
+	function keepLeft(storage, left) {
+		if (!left.events.length) return;
+		try {
+			storage.setItem(LEFT_KEY, JSON.stringify(left));
+		} catch {}
+	}
+	function takeLeft(storage, api, site) {
+		try {
+			const raw = storage.getItem(LEFT_KEY);
+			storage.removeItem(LEFT_KEY);
+			const left = raw ? JSON.parse(raw) : null;
+			if (!left || left.api !== api || left.site !== site || typeof left.session !== "string") return null;
+			const events = (Array.isArray(left.events) ? left.events : []).filter((e) => KINDS.has(e?.kind) && typeof e?.name === "string" && UX_NAME.test(e.name));
+			return events.length ? {
+				api,
+				site,
+				session: left.session,
+				events: events.slice(0, 100)
+			} : null;
+		} catch {
+			return null;
+		}
+	}
+	function newSession() {
+		const bytes = /* @__PURE__ */ new Uint8Array(16);
+		crypto.getRandomValues(bytes);
+		return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+	}
+	//#endregion
 	//#region js/lib/analysis.ts
 	var field = (row, key) => row[key];
 	var num$2 = (row, key) => Number(field(row, key));
@@ -3005,6 +3119,7 @@
 					settled = true;
 					waiting.delete(key);
 					hidden.delete(key);
+					ux("task", "undo");
 					o.restore();
 				}
 			},
@@ -3051,10 +3166,13 @@
 			distinct: true,
 			action: {
 				label: "Undo",
-				run: () => void o.undo().then(() => {
-					o.restored();
-					o.toast(o.restoredMessage, { type: "success" });
-				}, () => void 0)
+				run: () => {
+					ux("task", "undo");
+					o.undo().then(() => {
+						o.restored();
+						o.toast(o.restoredMessage, { type: "success" });
+					}, () => void 0);
+				}
 			}
 		});
 		return true;
@@ -3210,6 +3328,7 @@
 		const api = ctx.api;
 		const text = question.trim();
 		if (!api || !site || !text || busy$7) return;
+		ux("task", "copilot.asked");
 		busy$7 = true;
 		draft$4 = "";
 		failure = null;
@@ -4476,12 +4595,12 @@
 			});
 			onSubmit(root, "#commit-form", (form, submitter) => {
 				const message = field$2(form, "message");
-				if (!(submitter ? submitter.hasAttribute("data-request-review") : !form.querySelector("[value=commit]"))) return ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Committed");
+				if (!(submitter ? submitter.hasAttribute("data-request-review") : !form.querySelector("[value=commit]"))) return ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Committed").then((ok) => ok && ux("task", "ontology.committed"));
 				const reviewerId = field$2(form, "reviewer") || void 0;
 				return ctx.ontology.act((store, repo) => store.requestReview(repo, {
 					message,
 					reviewerId
-				}), "Sent for review");
+				}), "Sent for review").then((ok) => ok && ux("task", "ontology.review-requested"));
 			});
 			onSubmit(root, "#prop-form", (form) => {
 				const id = selected();
@@ -6031,6 +6150,91 @@
 		await fillScim(root, ctx);
 	}
 	//#endregion
+	//#region js/views/ux-analytics.ts
+	var KIND_LABELS = {
+		page: "Page viewed",
+		task: "Task done",
+		palette: "Command palette",
+		help: "Help opened",
+		error: "Error shown"
+	};
+	function uxCard() {
+		return `<div class="card stack gap-3 span-all" id="ux-analytics" hidden>
+      <h2>UX analytics</h2>
+      <p class="small soft">When your organisation turns it on, its sites record how Tiles is used, to make it easier: pages viewed, tasks done (a warning acknowledged, an app made), the command palette, help and errors shown. Each event is its kind and name, the time, and a random id for the browser tab, stored hashed. No names, e-mail addresses, records or anything typed. Events stay in this deployment for 90 days.</p>
+      <div data-ux-setting aria-live="polite">${skeleton.text(1, "Loading…")}</div>
+      <div data-ux-counts aria-live="polite"></div>
+    </div>`;
+	}
+	function countsHtml(s) {
+		if (!s.counts.length) return emptyState({
+			compact: true,
+			level: 3,
+			title: `Nothing recorded in the last ${s.days} days`,
+			body: s.enabled ? "Events appear here as people use this site." : "Your organisation hasn’t turned UX analytics on, so nothing is recorded."
+		});
+		const rows = s.counts.map((c) => `<tr><td>${esc(KIND_LABELS[c.kind])}</td><td><code>${esc(c.name)}</code></td><td class="num">${fmt$1(c.events)}</td><td class="num">${fmt$1(c.sessions)}</td></tr>`).join("");
+		return `<p class="small" data-ux-sessions>${fmt$1(s.sessions)} browser session(s) in the last ${s.days} days.</p>
+    ${table({
+			headers: [
+				"Kind",
+				"Name",
+				"Events",
+				"Sessions"
+			],
+			rowsHtml: rows
+		})}`;
+	}
+	async function bindUx(root, ctx) {
+		const card = root.querySelector("#ux-analytics");
+		const setting = root.querySelector("[data-ux-setting]");
+		const counts = root.querySelector("[data-ux-counts]");
+		const api = ctx.api;
+		const site = ctx.ontology.site;
+		if (!card || !setting || !counts || !api) return;
+		const siteAdmin = ctx.ontology.role === "admin" && site !== null;
+		const orgAdmin = await api.org.me().then((o) => o.admin, () => false);
+		if (!card.isConnected) return;
+		if (!orgAdmin && !siteAdmin) return card.remove();
+		card.hidden = false;
+		const showCounts = async () => {
+			if (!siteAdmin || !site) return;
+			counts.innerHTML = skeleton.table(3, 4, "Loading the counts…");
+			try {
+				counts.innerHTML = countsHtml(await api.ux.summary(site.id, 30));
+			} catch {
+				counts.innerHTML = loadFailed("The counts");
+			}
+		};
+		if (!orgAdmin) {
+			setting.innerHTML = `<p class="small">${(site ? (await api.ux.enabled(site.id).catch(() => ({ enabled: false }))).enabled : false) ? "On for your organisation." : "Off for your organisation."} Your organisation’s admins turn it on or off.</p>`;
+			return showCounts();
+		}
+		let on;
+		try {
+			on = (await api.org.uxAnalytics()).enabled;
+		} catch {
+			setting.innerHTML = loadFailed("The setting", 3);
+			return showCounts();
+		}
+		setting.innerHTML = `<label class="row gap-2"><input type="checkbox" name="ux-enabled" data-ux-enabled ${on ? "checked" : ""} /> Record UX analytics on your organisation’s sites</label>`;
+		const box = setting.querySelector("[data-ux-enabled]");
+		box?.addEventListener("change", () => {
+			const wanted = box.checked;
+			box.disabled = true;
+			api.org.setUxAnalytics(wanted).then((r) => {
+				box.checked = r.enabled;
+				document.dispatchEvent(new CustomEvent("tiles:ux-setting", { detail: { enabled: r.enabled } }));
+				ctx.toast(r.enabled ? "UX analytics on" : "UX analytics off", {
+					type: "success",
+					description: "Other open tabs follow it when they are next loaded."
+				});
+				showCounts();
+			}, () => box.checked = !wanted).finally(() => box.disabled = false);
+		});
+		return showCounts();
+	}
+	//#endregion
 	//#region js/views/settings.ts
 	function accountCard(ctx) {
 		const { config, signedIn } = ctx.auth;
@@ -6471,6 +6675,7 @@
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === "admin") : ""}
         ${ctx.ontology.role === "admin" && ctx.ontology.site ? copilotPolicyCard() : ""}
         ${ctx.ontology.role === "admin" ? copilotUsageCard() : ""}
+        ${ds.mode === "api" ? uxCard() : ""}
         ${ctx.ontology.role === "admin" ? auditCard() : ""}
         <div class="card stack gap-3" id="about">
           <h2>About</h2>
@@ -6542,6 +6747,7 @@
 			onSubmit(root, "#org-sign-in-form", (form) => ctx.auth.signIn(field$2(form, "org")));
 			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
 			bindOrgSignIn(root, ctx);
+			bindUx(root, ctx);
 			onAll(root, "[data-reset]", "click", async () => {
 				if (await confirmDialog({
 					title: "Reset this browser’s workspace?",
@@ -7108,6 +7314,7 @@
 				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
 				if (ui$1(ctx).editing === sig.id) ui$1(ctx).editing = null;
 				ctx.toast(`Saved ${updated.tag}`);
+				ux("task", "signal.saved");
 				fill(root, ctx);
 				search$1(root, ctx);
 			}, () => {
@@ -7537,6 +7744,7 @@
 			unit: s.unit,
 			last_at: s.last_at
 		}];
+		ux("task", "signal.plotted");
 		const last = s.last_at ? Date.parse(s.last_at) : null;
 		const outside = u.range && last !== null && (last < Date.parse(u.range.from) || last >= Date.parse(u.range.to));
 		if (!u.range || outside) u.range = presetRange("data", [{ ...s }], Date.now());
@@ -8605,6 +8813,7 @@
 				comment: "Comment added"
 			};
 			ctx.toast(done[action] ?? "Done");
+			ux("task", `warning.${action}`);
 			if (action !== "comment" && !same) listing$5 = null;
 		} catch {
 			if (action === "acknowledge" && before.detail) {
@@ -11980,6 +12189,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				config
 			});
 			ctx.toast(editing ? "App saved" : `App #${saved.number} made`);
+			ux("task", editing ? "app.changed" : "app.made");
 			draft$1 = null;
 			listing$1 = null;
 			result = null;
@@ -12365,6 +12575,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					language: field$2(form, "language")
 				}).then((doc) => {
 					ctx.toast(`Uploaded ${doc.title}: ${doc.pages} page(s)`);
+					ux("task", "document.uploaded");
 					draft = null;
 					listing = null;
 					found = null;
@@ -12589,6 +12800,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		let unfinished = null;
 		try {
 			await api.imports.finish(site.id, run.id);
+			ux("task", "import.finished");
 		} catch (e) {
 			unfinished = e instanceof Error ? e.message : String(e);
 		}
@@ -12881,6 +13093,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		let dialog = null;
 		const open = () => {
 			if (dialog) return;
+			ux("palette", "open");
 			const d = document.createElement("dialog");
 			dialog = d;
 			d.className = "dialog palette";
@@ -12948,6 +13161,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const choose = (n) => {
 				const item = shown[n];
 				if (!item) return;
+				ux("palette", `chose.${uxName(item.group)}`);
 				if (source.items().some((i) => i.id === item.id)) remember(item.id);
 				close();
 				item.run();
@@ -13173,6 +13387,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			state.repo = repo;
 			setPeople(people);
 			ontologyStatus = "ready";
+			startUx(api, site.id);
 		} catch (e) {
 			if (seq !== connectSeq) return;
 			ontologyStatus = "error";
@@ -13263,6 +13478,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			getToken: () => accessToken(baseUrl),
 			onError: (e) => {
 				if (e.status === 0 && e.message !== "You're offline: nothing was changed. Try again when the connection is back" && e.message !== "The answer was cut off: the connection to the Tiles API dropped") showOffline("unreachable");
+				ux("error", e.message === "You're offline: nothing was changed. Try again when the connection is back" ? "offline" : e.message === "The answer was cut off: the connection to the Tiles API dropped" ? "api.stream-cut" : `api.${e.status || "unreachable"}`);
 				if (e.status === 422 && showApiErrors(e.fields)) return;
 				const d = describeApiError(e);
 				const action = d.action === "back" && history.length > 1 ? {
@@ -13450,9 +13666,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 	}
 	var shownView = null;
+	var trackedView = "";
 	var enterTimer;
 	function render() {
 		const view = currentView();
+		if (view.id !== trackedView) {
+			trackedView = view.id;
+			ux("page", view.id);
+		}
 		renderNav(view);
 		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
@@ -13548,6 +13769,41 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		offline = null;
 		need(document, "#offline").hidden = true;
 	}
+	var uxSession = newSession();
+	var uxSite = null;
+	var tracker = createTracker({ send: (events) => api && uxSite ? api.ux.send(uxSite, uxSession, events) : Promise.resolve() });
+	document.addEventListener("tiles:ux", (e) => {
+		const { kind, name } = e.detail;
+		tracker.track(kind, name);
+	});
+	document.addEventListener("tiles:ux-setting", (e) => {
+		if (!uxSite) return;
+		tracker.setEnabled(e.detail.enabled);
+	});
+	async function startUx(client, site) {
+		if (uxSite === site) return;
+		uxSite = site;
+		tracker.setEnabled(false);
+		const on = await client.ux.enabled(site).then((r) => r.enabled, () => false);
+		if (uxSite !== site) return;
+		tracker.setEnabled(on);
+		if (!on) return;
+		tracker.track("page", currentView().id);
+		const left = takeLeft(localStorage, client.baseUrl, site);
+		if (left) await client.ux.send(site, left.session, left.events).catch(() => void 0);
+	}
+	window.addEventListener("pagehide", () => {
+		if (api && uxSite && tracker.enabled) keepLeft(localStorage, {
+			api: api.baseUrl,
+			site: uxSite,
+			session: uxSession,
+			events: tracker.drain()
+		});
+	});
+	window.addEventListener("pageshow", (e) => {
+		if (!e.persisted || !api || !uxSite) return;
+		for (const ev of takeLeft(localStorage, api.baseUrl, uxSite)?.events ?? []) tracker.track(ev.kind, ev.name);
+	});
 	window.addEventListener("pagehide", () => saveWaiting(localStorage));
 	window.addEventListener("pageshow", (e) => {
 		if (e.persisted) keepWaiting(localStorage);

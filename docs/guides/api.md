@@ -38,7 +38,64 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+
+## UX analytics
+
+### `GET /org/ux-analytics`
+
+**Who:** organisation admin. **Answers:** 200, 422.
+
+Whether your organisation's sites record UX events (organisation admins).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+### `PUT /org/ux-analytics`
+
+**Who:** organisation admin. **Answers:** 200, 422.
+
+Turn UX analytics on or off for your organisation's sites (organisation admins). Off, nothing is recorded; the events already kept stay until they are 90 days old.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+**Body:** SettingIn (see [openapi.json](openapi.json)).
+
+### `GET /sites/{site_id}/ux-analytics`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Whether this site records UX events (its organisation turned them on): the browser sends none otherwise.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/ux-events`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Records a batch of UX events from one browser session (any member). Nothing is stored unless the organisation turned the analytics on, nor beyond an hour's share for the site and the session. A retention policy lets events go 90 days on. Not audited: like a person's own copilot conversations, they change nothing on the site, and are about using the app.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** Events (see [openapi.json](openapi.json)).
+
+### `GET /sites/{site_id}/ux-events/summary`
+
+**Who:** admin. **Answers:** 200, 422.
+
+How often each page, task, palette use, help topic and error came up on this site over the last `days` days, and in how many browser sessions (admins). Counts only.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `days` | query | integer | no |
 
 ## apps
 

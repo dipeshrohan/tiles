@@ -1,3 +1,4 @@
+import { ux } from '../lib/analytics.ts';
 import { ask, SUGGESTIONS } from '../lib/copilot.ts';
 import {
   answerHtml,
@@ -205,6 +206,7 @@ async function send(ctx: Context, question: string): Promise<void> {
   const api = ctx.api;
   const text = question.trim();
   if (!api || !site || !text || busy) return;
+  ux('task', 'copilot.asked');
   busy = true;
   draft = '';
   failure = null;

@@ -60,6 +60,7 @@ import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
 import { showApiErrors } from './lib/forms.ts';
 import { keepWaiting, saveWaiting, takeSaved } from './lib/undo.ts';
+import { createTracker, keepLeft, newSession, takeLeft, ux, type UxEvent } from './lib/analytics.ts';
 import { breadcrumbs, button, clockTime } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
@@ -188,6 +189,7 @@ async function connectOntology(): Promise<void> {
     state.repo = repo;
     setPeople(people);
     ontologyStatus = 'ready';
+    void startUx(api, site.id);
   } catch (e) {
     if (seq !== connectSeq) return;
     ontologyStatus = 'error';
@@ -288,6 +290,14 @@ function makeApi(): ApiClient | null {
     onError: (e) => {
       // Offline says so itself, and a stream cut off mid-answer was reached.
       if (e.status === 0 && e.message !== OFFLINE_WRITE && e.message !== STREAM_CUT) showOffline('unreachable');
+      ux(
+        'error',
+        e.message === OFFLINE_WRITE
+          ? 'offline'
+          : e.message === STREAM_CUT
+            ? 'api.stream-cut'
+            : `api.${e.status || 'unreachable'}`,
+      );
       // Fields the API refused, shown on the form that sent them (which takes the focus): no toast.
       if (e.status === 422 && showApiErrors(e.fields)) return;
       const d = describeApiError(e);
@@ -521,10 +531,15 @@ function renderNav(active: View): void {
 }
 
 let shownView: string | null = null; // the page last shown, to animate only a change of page
+let trackedView = ''; // the page last recorded as viewed (U1.09)
 let enterTimer: ReturnType<typeof setTimeout> | undefined;
 
 function render(): void {
   const view = currentView();
+  if (view.id !== trackedView) {
+    trackedView = view.id;
+    ux('page', view.id);
+  }
   renderNav(view);
   document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
   const root = need(document, '#view');
@@ -632,6 +647,50 @@ function hideOffline(kind?: 'offline' | 'unreachable'): void {
   offline = null;
   need(document, '#offline').hidden = true;
 }
+// ---- UX analytics (U1.09) ---------------------------------------------------
+// On only where the organisation turned it on (the API says so for each site). Events come from
+// anywhere as `ux(kind, name)`; a new session id per page load, kept nowhere. What a page leaves
+// unsent is kept for the next load to send (a request started as the page goes doesn't arrive).
+
+const uxSession = newSession();
+let uxSite: string | null = null;
+const tracker = createTracker({
+  send: (events) => (api && uxSite ? api.ux.send(uxSite, uxSession, events) : Promise.resolve()),
+});
+document.addEventListener('tiles:ux', (e) => {
+  const { kind, name } = (e as CustomEvent<UxEvent>).detail;
+  tracker.track(kind, name);
+});
+// The organisation's admin turned it on or off on the Settings page: this tab follows at once.
+document.addEventListener('tiles:ux-setting', (e) => {
+  if (!uxSite) return;
+  tracker.setEnabled((e as CustomEvent<{ enabled: boolean }>).detail.enabled);
+});
+async function startUx(client: ApiClient, site: string): Promise<void> {
+  if (uxSite === site) return; // connected again to the same site: carry on as it was
+  uxSite = site;
+  tracker.setEnabled(false);
+  const on = await client.ux.enabled(site).then(
+    (r) => r.enabled,
+    () => false,
+  );
+  if (uxSite !== site) return;
+  tracker.setEnabled(on);
+  if (!on) return;
+  tracker.track('page', currentView().id); // the page already open
+  const left = takeLeft(localStorage, client.baseUrl, site);
+  if (left) await client.ux.send(site, left.session, left.events).catch(() => undefined);
+}
+window.addEventListener('pagehide', () => {
+  if (api && uxSite && tracker.enabled)
+    keepLeft(localStorage, { api: api.baseUrl, site: uxSite, session: uxSession, events: tracker.drain() });
+});
+window.addEventListener('pageshow', (e) => {
+  // Back from the back/forward cache: the same page, so its events go back in its own queue.
+  if (!e.persisted || !api || !uxSite) return;
+  for (const ev of takeLeft(localStorage, api.baseUrl, uxSite)?.events ?? []) tracker.track(ev.kind, ev.name);
+});
+
 // Removals waiting on an Undo toast (U2.03) when the page goes are saved for the next load to send;
 // a page back from the back/forward cache still has its toasts, so they stay with it.
 window.addEventListener('pagehide', () => saveWaiting(localStorage));

@@ -1,3 +1,4 @@
+import { ux } from '../lib/analytics.ts';
 import { esc, field, fmt, need, onAll, onSubmit } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
@@ -421,6 +422,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
         if (results) results.signals = results.signals.map((s) => (s.id === updated.id ? updated : s));
         if (ui(ctx).editing === sig.id) ui(ctx).editing = null; // not another signal opened meanwhile
         ctx.toast(`Saved ${updated.tag}`);
+        ux('task', 'signal.saved');
         fill(root, ctx);
         void search(root, ctx); // the change may take it out of (or into) the current search
       },

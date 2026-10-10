@@ -208,6 +208,31 @@ done
 
 The request ID in each entry matches the `request_id` in the API's logs.
 
+### UX analytics
+
+To learn how Tiles is used and make it easier, your organisation can turn on UX analytics. It is
+off until an organisation admin ticks **Record UX analytics on your organisation's sites** on the
+Settings page (`PUT /org/ux-analytics`, recorded in the organisation's audit entries). Pages opened
+after that follow it.
+
+What the browser records, and nothing else:
+
+| Kind | Name | Example |
+| --- | --- | --- |
+| Page viewed | The page's id | `warnings` |
+| Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo` |
+| Command palette | Opened, or the kind of thing chosen | `open`, `chose.signals` |
+| Help opened | The help topic | (with in-app help) |
+| Error shown | Its kind | `api.403`, `offline` |
+
+Each event also has the time it arrived and a random id the browser makes for each tab, which the
+API keeps only as a hash. There are no names, e-mail addresses, records' ids, tags or anything
+typed: the API refuses an event whose name isn't a plain lower-case word. Events stay in the
+deployment's own database (`ux_events`, a TimescaleDB hypertable under row security per site) and
+the database's retention policy deletes them after 90 days, whether or not new ones arrive. A site
+stores at most 5,000 events an hour, and one browser session 600; beyond that they are let go. Site admins see the counts, per kind and name, with the number of browser sessions, in
+the **UX analytics** card on the Settings page (`GET /sites/{id}/ux-events/summary`).
+
 ### Models served over HTTP
 
 An organisation can run its own models, computed by its own service, beside the built-in ones (T4.15). The [model-author guide](model-author.md#10-models-served-over-http) describes what the service receives and answers. As the operator:

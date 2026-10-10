@@ -13,6 +13,7 @@ import {
 } from '../lib/api.ts';
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
+import { bindUx, uxCard } from './ux-analytics.ts';
 import type { Context, View } from './types.ts';
 import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
@@ -604,6 +605,7 @@ const view: View = {
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === 'admin') : ''}
         ${ctx.ontology.role === 'admin' && ctx.ontology.site ? copilotPolicyCard() : ''}
         ${ctx.ontology.role === 'admin' ? copilotUsageCard() : ''}
+        ${ds.mode === 'api' ? uxCard() : ''}
         ${ctx.ontology.role === 'admin' ? auditCard() : ''}
         <div class="card stack gap-3" id="about">
           <h2>About</h2>
@@ -669,6 +671,7 @@ const view: View = {
     onSubmit(root, '#org-sign-in-form', (form) => ctx.auth.signIn(field(form, 'org')));
     onAll(root, '[data-sign-out]', 'click', () => void ctx.auth.signOut());
     void bindOrgSignIn(root, ctx);
+    void bindUx(root, ctx);
     onAll(root, '[data-reset]', 'click', async () => {
       const yes = await confirmDialog({
         title: 'Reset this browser’s workspace?',

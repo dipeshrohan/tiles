@@ -1,6 +1,7 @@
 // The command palette (U4.02), after shadcn/ui's Command (cmdk): Ctrl/⌘ K, or "/" outside a field,
 // opens a search over pages and actions, and the site's signals when there is an API. Arrow keys
 // move, Enter runs, Escape closes; the last picks come first. An accessible combobox in a <dialog>.
+import { ux, uxName } from './analytics.ts';
 import { esc } from './dom.ts';
 import { icon, type IconName } from './icons.ts';
 import { load, save } from './store.ts';
@@ -71,6 +72,7 @@ export function installPalette(source: PaletteSource): { open(): void } {
 
   const open = (): void => {
     if (dialog) return;
+    ux('palette', 'open');
     const d = document.createElement('dialog');
     dialog = d;
     d.className = 'dialog palette';
@@ -153,6 +155,7 @@ export function installPalette(source: PaletteSource): { open(): void } {
     const choose = (n: number): void => {
       const item = shown[n];
       if (!item) return;
+      ux('palette', `chose.${uxName(item.group)}`); // the kind of thing chosen, not which (U1.09)
       if (source.items().some((i) => i.id === item.id)) remember(item.id);
       close();
       item.run();
