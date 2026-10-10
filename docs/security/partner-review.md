@@ -57,14 +57,14 @@ nowhere at all ([hybrid mode](../hybrid.md#in-the-cloud)).
 | Credentials Tiles keeps (Teams webhooks, model endpoints' tokens) | Admins | The database, sealed (AES-256-GCM) with a data key kept outside it | Never shown again after they are set | Until removed |
 | People's identity | The plant's identity provider (or SCIM) | Name, e-mail and role in the database | Deactivated and deleted users can't sign in | Until deleted |
 | Copilot questions and answers | People | The asker's own conversations | Visible to the asker; an answer the asker rates, with its question, is also visible to the site's admins | Until the asker deletes them |
-| What the copilot sends to Anthropic | Each question, and the tool results it reads to answer it, for the user who asked | Anthropic, under its commercial terms | TLS; the copilot is off unless the deployment configures it | Anthropic's API data policy |
+| What the copilot sends to Anthropic | Each question, and the tool results it reads to answer it, for the user who asked | Anthropic, under its commercial terms | TLS; the copilot is off unless the deployment configures it and the site's admins turn it on | Anthropic's API data policy |
 | Backups | The database | Encrypted backup storage | Encryption with the same key policy; restore drilled in CI | 35 days of point-in-time recovery ([backups](../runbooks/backups.md)) |
 
 Plant data leaves Tiles only where something is turned on, each to the place named above:
 
-- **The copilot:** the questions, and the tool results it reads, go to Anthropic. It is turned on
-  for a whole deployment by its operator. In our managed cloud, that means only if the plant agrees.
-  Turning it on per site is an open item (G-A4).
+- **The copilot:** the questions, and the tool results it reads, go to Anthropic. The operator sets
+  it up for a deployment, and then each site's admins turn it on for their site; it is off on a new
+  site. The [admin guide](../guides/admin.md#enable-it) lists what it sends.
 - **Notifications:** a warning's details (its signal, values and machine) go to the mail relay and
   to the site's Teams channel, if they are set up.
 - **The plant's own models:** each evaluation sends a window of readings to the endpoint the plant
@@ -105,7 +105,6 @@ plainly in the review, and agree with the plant when each must close:
 
 - **Not certified:** no penetration test yet (T6.07) and no SOC 2 or ISO 27001 certification
   ([timeline](compliance-readiness.md#timeline)).
-- **G-A4:** turning the copilot on per site, with a note on what it sends.
 - **G-D1:** the scheduled jobs' own database role.
 - **G-E1:** edge-agent tokens that expire.
 - **G-E3:** signed reading batches, so the API can tell they weren't changed on the agent's host.

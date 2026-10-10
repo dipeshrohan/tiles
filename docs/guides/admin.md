@@ -340,7 +340,17 @@ The copilot is off until both settings are set:
 | `TILES_ANTHROPIC_API_KEY` | `tiles_anthropic_api_key` in the Secret | Your Anthropic API key. Keep it in a secret store. |
 | `TILES_COPILOT_MODEL` | `copilot.model` | The model ID to answer with. Choose a current one from Anthropic's model documentation. |
 
-Restart the API after setting them (with Helm, change `secrets.revision`). `GET /sites/{site_id}/copilot` answers `{"configured": true}` once it is on. While it is off, asking returns 503 and the Copilot page falls back to its built-in skills.
+Restart the API after setting them (with Helm, change `secrets.revision`). `GET /sites/{site_id}/copilot` answers `"configured": true` once it is set up. While it isn't, asking returns 503 and the Copilot page falls back to its built-in skills.
+
+Then each site's admins turn it on for their site, in **Settings → Copilot on this site** (`PUT /sites/{site_id}/copilot/policy` with `{"enabled": true}`, audited as `copilot.policy`). It is off on a new site, and asking there returns 403. Sites that had used the copilot before this setting existed were left on when the API was upgraded.
+
+Before turning it on, agree with the plant on what the copilot sends to Anthropic:
+
+- each question, and the conversation before it;
+- the tool results the copilot reads to answer it: the site's ontology, signals and readings, warnings and events, analyses and document passages, only as far as the person asking may see them;
+- nothing else: no credentials, no other site's data, and nothing while the copilot is off on the site.
+
+Anthropic handles it under your organisation's commercial terms and its API data policy.
 
 The API must be able to reach the Anthropic API over HTTPS.
 
@@ -509,5 +519,6 @@ The edge agent logs one JSON object per line to standard error. The jobs print o
 | `/ready` returns 503 | The database or Redis is unreachable | Check the log line for which check failed, then the service, the Secret's URL and the network policy. |
 | The API won't start: "Set TILES_DATA_KEYS in production" | No data keys | Add `tiles_data_keys` to the Secret, or let the chart generate one. |
 | The copilot returns 503 | It is off | Set both `TILES_ANTHROPIC_API_KEY` and `TILES_COPILOT_MODEL`, then restart the API. |
+| The copilot returns 403 "off on this site" | The site's admins haven't turned it on | An admin turns it on in Settings → Copilot on this site. |
 | The copilot returns 429 | A rate limit or the daily budget is reached | Wait for `Retry-After`, or raise the limit. Check Settings → Copilot usage. |
 | A job's CronJob keeps failing | One item failed | Read the Job's output: each failed item is named on stderr. |

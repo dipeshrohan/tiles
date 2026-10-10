@@ -31,7 +31,12 @@ const API_SUGGESTIONS = [
   'Is anything wearing on the welders?',
 ];
 
-let remote: { site: string; configured: boolean | null; conversations: CopilotConversation[] | null } | null = null;
+let remote: {
+  site: string;
+  configured: boolean | null;
+  enabled: boolean;
+  conversations: CopilotConversation[] | null;
+} | null = null;
 let thread: { key: string; exchanges: Exchange[] } | null = null;
 let live: { key: string; question: string; answer: Answer } | null = null;
 let busy = false;
@@ -53,13 +58,15 @@ onNavigate((hash) => {
 async function loadRemote(ctx: Context): Promise<void> {
   const site = siteId(ctx);
   if (!ctx.api || !site) return;
-  remote = { site, configured: null, conversations: null };
+  // Checking again on the same site keeps what is shown meanwhile: a re-render (a click) must not
+  // drop the page to the built-in skills until the answer comes.
+  if (remote?.site !== site) remote = { site, configured: null, enabled: false, conversations: null };
   try {
-    const { configured } = await ctx.api.copilot.status(site);
-    const conversations = configured ? await ctx.api.copilot.conversations(site) : [];
-    if (remote?.site === site) remote = { site, configured, conversations };
+    const { configured, enabled } = await ctx.api.copilot.status(site);
+    const conversations = configured && enabled ? await ctx.api.copilot.conversations(site) : [];
+    if (remote?.site === site) remote = { site, configured, enabled, conversations };
   } catch {
-    if (remote?.site === site) remote = { site, configured: false, conversations: [] };
+    if (remote?.site === site) remote = { site, configured: false, enabled: false, conversations: [] };
   }
   ctx.rerender();
 }
@@ -354,7 +361,9 @@ function localBind(root: HTMLElement, ctx: Context): void {
 }
 
 const remoteOn = (ctx: Context): boolean =>
-  Boolean(ctx.api && ctx.ontology.status === 'ready' && remote?.site === siteId(ctx) && remote?.configured);
+  Boolean(
+    ctx.api && ctx.ontology.status === 'ready' && remote?.site === siteId(ctx) && remote?.configured && remote.enabled,
+  );
 
 const view: View = {
   id: 'chat',
@@ -372,9 +381,11 @@ const view: View = {
     const note =
       ctx.api && remote?.configured === false
         ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>`
-        : checking
-          ? '<p class="small soft">Checking the copilot service…</p>'
-          : '';
+        : ctx.api && remote?.configured && !remote.enabled
+          ? `<p class="small soft" data-copilot-site-off style="margin-bottom:8px">The copilot is off on this site: an admin turns it on in <a href="#/settings">Settings</a>. Until then the built-in skills answer on the demo data.</p>`
+          : checking
+            ? '<p class="small soft">Checking the copilot service…</p>'
+            : '';
     return head + localRender(ctx, note);
   },
   bind(root, ctx) {

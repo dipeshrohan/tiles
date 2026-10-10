@@ -696,7 +696,7 @@ In API mode, engineers can run a larger sweep on the server:
 ### Two kinds of copilot
 
 - **With the Tiles API and its copilot turned on**, the copilot answers from your site's own data. Your conversations are saved on the server and are yours alone.
-- **Otherwise** (local mode, or the server's copilot is off), built-in skills answer on the demo data. They show each step they took and link to the evidence. Questions like "Why are cutter batches failing on tab width?", "Is the welder tip wearing?" or "Where is Tab Welder W-03?" work. **Clear conversation** clears the chat.
+- **Otherwise** (local mode, the server's copilot is off, or a site admin hasn't turned it on for the site in Settings), built-in skills answer on the demo data. They show each step they took and link to the evidence. Questions like "Why are cutter batches failing on tab width?", "Is the welder tip wearing?" or "Where is Tab Welder W-03?" work. **Clear conversation** clears the chat.
 
 ### What it can answer (API mode)
 

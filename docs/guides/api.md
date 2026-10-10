@@ -129,7 +129,7 @@ Who the request is from: email, name, organisation, and whether it signed in thr
 
 **Who:** site member. **Answers:** 200, 422.
 
-Whether the copilot is set up on this API (an Anthropic API key and a model are configured).
+Whether the copilot is set up on this API (an Anthropic API key and a model are configured), and whether this site's admins have turned it on.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
@@ -229,6 +229,18 @@ The site's rated answers, newest first, with their question (admins).
 | `site_id` | path | uuid | yes |
 | `rating` | query | `up` \| `down` | no |
 | `limit` | query | integer | no |
+
+### `PUT /sites/{site_id}/copilot/policy`
+
+**Who:** admin. **Answers:** 200, 422.
+
+Turn the copilot on or off for this site (admins). On, each question and the tool results the copilot reads to answer it (the site's data, as the user who asked may see it) go to the AI provider.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** tiles_api__api_copilot__PolicyIn (see [openapi.json](openapi.json)).
 
 ### `GET /sites/{site_id}/copilot/usage`
 
@@ -1173,7 +1185,7 @@ Require (or stop requiring) a review for every ontology change on this site (adm
 |---|---|---|---|
 | `site_id` | path | uuid | yes |
 
-**Body:** PolicyIn (see [openapi.json](openapi.json)).
+**Body:** tiles_api__api_reviews__PolicyIn (see [openapi.json](openapi.json)).
 
 ### `GET /sites/{site_id}/ontology/reviews`
 

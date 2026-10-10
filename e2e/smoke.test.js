@@ -2916,6 +2916,50 @@ test('the copilot: with the service off, the built-in skills answer and say so',
   assert.deepEqual(a.errors, []);
 });
 
+test('the copilot per site: off until an admin turns it on in Settings, knowing what it sends', async (t) => {
+  const fake = createFakeApi({
+    copilot: true,
+    copilotEnabled: false,
+    roles: { 'admin@example.com': 'admin' },
+  });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const e = await openAs(t, apiUrl, null, 'chat');
+  await e.page.waitForSelector('[data-copilot-site-off]');
+  await e.page.click('.chip >> nth=0'); // the built-in skills still answer
+  await e.page.waitForSelector('.msg.bot');
+  assert.deepEqual(fake.copilotQuestions, []); // nothing reached the copilot service
+
+  const a = await openAs(t, apiUrl, 'admin@example.com', 'settings');
+  const box = a.page.locator('[data-copilot-enabled]');
+  await a.page.waitForSelector('[data-copilot-enabled]:not([disabled])');
+  assert.equal(await box.isChecked(), false);
+  assert.match(await a.page.locator('#copilot-policy').innerText(), /goes to Anthropic's API/);
+  await box.check();
+  await a.page.waitForSelector('text=The copilot is on for this site');
+  assert.match(await a.page.locator('[data-copilot-policy]').innerText(), /^On for this site\.$/);
+
+  await e.page.reload();
+  await e.page.waitForSelector('[data-new-conversation]'); // the copilot service answers now
+  assert.equal(await e.page.locator('[data-copilot-site-off]').count(), 0);
+  // Turned off while the page is open: the next question is refused, and the page falls back.
+  await a.page.locator('[data-copilot-enabled]').uncheck();
+  await a.page.waitForSelector('text=The copilot is off for this site');
+  await e.page.fill('#composer [name=q]', 'How hot is the press oil?');
+  await e.page.click('#composer button[type=submit]');
+  await e.page.waitForSelector('[data-copilot-site-off]');
+  assert.deepEqual(fake.copilotQuestions, []);
+  // Not for engineers.
+  await e.page.goto(`${e.page.url().split('#')[0]}#/settings`);
+  await e.page.waitForSelector('#notifications');
+  assert.equal(await e.page.locator('#copilot-policy').count(), 0);
+  assert.deepEqual(a.errors, []);
+  assert.deepEqual(
+    e.errors.filter((m) => !/status of 403/.test(m)), // the refused question
+    [],
+  );
+});
+
 test('copilot usage: admins see questions, tokens, the cache and times; a refused question says why', async (t) => {
   const fake = createFakeApi({ copilot: true, roles: { 'admin@example.com': 'admin' } });
   const apiUrl = await fake.listen();

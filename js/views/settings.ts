@@ -172,6 +172,46 @@ async function fillCopilotUsage(root: HTMLElement, ctx: Context): Promise<void> 
   }
 }
 
+// The copilot on this site (threat model G-A4): admins turn it on, knowing what it sends.
+function copilotPolicyCard(): string {
+  return `<div class="card stack" id="copilot-policy" style="gap:12px">
+      <h2>Copilot on this site</h2>
+      <p class="small soft">When it is on, each question, and the site's data the copilot reads to answer it (only what the person asking may see), goes to Anthropic's API under your deployment's terms. Nothing is sent while it is off: the Copilot page answers with its built-in skills on the demo data.</p>
+      <label class="row" style="gap:8px"><input type="checkbox" name="copilot-enabled" data-copilot-enabled disabled /> Use the copilot on this site</label>
+      <p class="small soft" data-copilot-policy aria-live="polite">Loading…</p>
+    </div>`;
+}
+
+async function bindCopilotPolicy(root: HTMLElement, ctx: Context): Promise<void> {
+  const box = root.querySelector<HTMLInputElement>('[data-copilot-enabled]');
+  const note = root.querySelector('[data-copilot-policy]');
+  const site = ctx.ontology.site;
+  if (!box || !note || !site || !ctx.api) return;
+  const api = ctx.api;
+  const show = (s: { configured: boolean; enabled: boolean }) => {
+    box.checked = s.enabled;
+    box.disabled = false;
+    note.textContent = `${s.enabled ? 'On' : 'Off'} for this site.${s.configured ? '' : ' The copilot service is not set up on this Tiles API yet (TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL), so it answers nothing until it is.'}`;
+  };
+  try {
+    show(await api.copilot.status(site.id));
+  } catch {
+    note.textContent = 'Whether the copilot is on could not be loaded.';
+    return;
+  }
+  box.addEventListener('change', async () => {
+    const wanted = box.checked;
+    box.disabled = true;
+    try {
+      show(await api.copilot.setEnabled(site.id, wanted));
+      ctx.toast(wanted ? 'The copilot is on for this site' : 'The copilot is off for this site');
+    } catch {
+      box.checked = !wanted;
+      box.disabled = false;
+    }
+  });
+}
+
 function notificationsCard(ctx: Context): string {
   const role = ctx.ontology.role;
   const canChoose = role === 'engineer' || role === 'admin';
@@ -526,6 +566,7 @@ const view: View = {
         ${ds.mode === 'api' ? orgSignInCard() : ''}
         ${ctx.ontology.site ? notificationsCard(ctx) : ''}
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === 'admin') : ''}
+        ${ctx.ontology.role === 'admin' && ctx.ontology.site ? copilotPolicyCard() : ''}
         ${ctx.ontology.role === 'admin' ? copilotUsageCard() : ''}
         ${ctx.ontology.role === 'admin' ? auditCard() : ''}
       </div>`;
@@ -577,6 +618,7 @@ const view: View = {
       }
     });
     if (ctx.ontology.role === 'admin') {
+      void bindCopilotPolicy(root, ctx);
       void fillCopilotUsage(root, ctx);
       void fillAudit(root, ctx);
     }

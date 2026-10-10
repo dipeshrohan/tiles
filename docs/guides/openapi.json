@@ -4632,20 +4632,6 @@
         "title": "Policy",
         "type": "object"
       },
-      "PolicyIn": {
-        "additionalProperties": false,
-        "properties": {
-          "required": {
-            "title": "Required",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "required"
-        ],
-        "title": "PolicyIn",
-        "type": "object"
-      },
       "PortIn": {
         "additionalProperties": false,
         "properties": {
@@ -6948,10 +6934,15 @@
           "configured": {
             "title": "Configured",
             "type": "boolean"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
           }
         },
         "required": [
-          "configured"
+          "configured",
+          "enabled"
         ],
         "title": "Status",
         "type": "object"
@@ -8532,6 +8523,20 @@
         "title": "Point",
         "type": "object"
       },
+      "tiles_api__api_copilot__PolicyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "PolicyIn",
+        "type": "object"
+      },
       "tiles_api__api_detectors__RunOut": {
         "properties": {
           "caught_up": {
@@ -8843,6 +8848,20 @@
           "body"
         ],
         "title": "CommentIn",
+        "type": "object"
+      },
+      "tiles_api__api_reviews__PolicyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "required": {
+            "title": "Required",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "required"
+        ],
+        "title": "PolicyIn",
         "type": "object"
       },
       "tiles_api__api_reviews__ReviewIn": {
@@ -10968,7 +10987,7 @@
     },
     "/sites/{site_id}/copilot": {
       "get": {
-        "description": "Whether the copilot is set up on this API (an Anthropic API key and a model are configured).",
+        "description": "Whether the copilot is set up on this API (an Anthropic API key and a model are configured),\nand whether this site's admins have turned it on.",
         "operationId": "copilot_status_sites__site_id__copilot_get",
         "parameters": [
           {
@@ -11473,6 +11492,60 @@
           }
         },
         "summary": "List Feedback",
+        "tags": [
+          "copilot"
+        ]
+      }
+    },
+    "/sites/{site_id}/copilot/policy": {
+      "put": {
+        "description": "Turn the copilot on or off for this site (admins). On, each question and the tool results the\ncopilot reads to answer it (the site's data, as the user who asked may see it) go to the AI\nprovider.",
+        "operationId": "set_copilot_policy_sites__site_id__copilot_policy_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/tiles_api__api_copilot__PolicyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Copilot Policy",
         "tags": [
           "copilot"
         ]
@@ -14460,7 +14533,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PolicyIn"
+                "$ref": "#/components/schemas/tiles_api__api_reviews__PolicyIn"
               }
             }
           },
