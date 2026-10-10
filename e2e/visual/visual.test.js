@@ -98,6 +98,9 @@ async function settle(page) {
   // Toasts come and go (and an error's carries its request ID): dismissed, as a user would.
   for (const close of await page.locator('#toast .toast-close').all()) await close.click().catch(() => {});
   await page.waitForSelector('#toast .toast-item', { state: 'detached' });
+  // The page-enter class leaves the cards on their own layer, where text is drawn a little
+  // differently, until app.ts takes it off (600 ms after a page opens): wait for that.
+  await page.waitForFunction(() => !document.querySelector('#view.view-enter'));
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})));
