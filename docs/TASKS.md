@@ -2,6 +2,8 @@
 
 This list breaks [ROADMAP.md](ROADMAP.md) into tasks. Each task links to its GitHub issue, and the issues are grouped under one parent issue per month: [Month 1](https://github.com/dipeshrohan/tiles/issues/2) · [Month 2](https://github.com/dipeshrohan/tiles/issues/3) · [Month 3](https://github.com/dipeshrohan/tiles/issues/4) · [Month 4](https://github.com/dipeshrohan/tiles/issues/5) · [Month 5](https://github.com/dipeshrohan/tiles/issues/6) · [Month 6](https://github.com/dipeshrohan/tiles/issues/7) · [Ongoing](https://github.com/dipeshrohan/tiles/issues/8).
 
+A parallel [UI and UX track](#ui-and-ux-track-nov-2026--apr-2027) (tasks `U1.01` …, plan in [UI-PLAN.md](UI-PLAN.md)) has its own monthly parent issues.
+
 GitHub issues are the live tracker; close the issue when a task is done. Filter by the labels `month-N`, `critical-path`, `stretch` and `role:*`.
 
 **How to read a task:** `ID` · **title** · owner · estimate in engineer-days · depends on. Each task ends with *Done when*, the criteria for checking it off.
@@ -205,6 +207,155 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [ ] `T6.11` [#103](https://github.com/dipeshrohan/tiles/issues/103) **Retrospective** and roadmap for the next 6 months: second line or site, cross-site benchmarking, new physics models · PM+TL · 1d · T6.09
 
 **Month 6 exit check:** v1.0 tagged, ROI report signed off, production deployment quoted.
+
+---
+
+## UI and UX track (Nov 2026 – Apr 2027)
+
+A parallel track that turns the 20 pages into one consistent, quick and self-explanatory app; the why, the measures and the full detail of each task are in [UI-PLAN.md](UI-PLAN.md). Its issues are grouped under one parent issue per month: [UI Month 1](https://github.com/dipeshrohan/tiles/issues/197) · [UI Month 2](https://github.com/dipeshrohan/tiles/issues/198) · [UI Month 3](https://github.com/dipeshrohan/tiles/issues/199) · [UI Month 4](https://github.com/dipeshrohan/tiles/issues/200) · [UI Month 5](https://github.com/dipeshrohan/tiles/issues/201) · [UI Month 6](https://github.com/dipeshrohan/tiles/issues/202) · [Every month](https://github.com/dipeshrohan/tiles/issues/203). Filter by the labels `ui` and `ui-month-N`.
+
+**Totals:** 53 tasks plus 2 ongoing, about 148.5 engineer-days, mostly FE with PM for research, copy and help.
+
+### UI Month 1: Foundations (Nov 2026)
+
+- [ ] `U1.01` [#204](https://github.com/dipeshrohan/tiles/issues/204) **Baseline usability study** · PM+FDE · 3d
+  *Done when:* the baseline numbers are in the [measures](UI-PLAN.md#goals-and-measures) table and the top 20 problems each map to a task in the plan.
+- [ ] `U1.02` [#205](https://github.com/dipeshrohan/tiles/issues/205) **Design tokens** · FE · 3d
+  *Done when:* no raw `px` for spacing, font size or radius is left in `styles.css` outside the token block, and screenshots match before and after (±1 px).
+- [ ] `U1.03` [#206](https://github.com/dipeshrohan/tiles/issues/206) **Remove inline styles** · FE · 4d · U1.02
+  *Done when:* ≤ 20 inline styles remain, all computed; the check runs in CI.
+- [ ] `U1.04` [#207](https://github.com/dipeshrohan/tiles/issues/207) **Component module `js/lib/ui.ts`** · FE · 4d · U1.02
+  *Done when:* three pages (Signals, Warnings, Documents) use the module for every component it has, with no visual change.
+- [ ] `U1.05` [#208](https://github.com/dipeshrohan/tiles/issues/208) **Icon set** · FE+PM · 2d
+  *Done when:* no page shares an icon, icons follow the theme, and they look the same on Windows, macOS, Android and iOS.
+- [ ] `U1.06` [#209](https://github.com/dipeshrohan/tiles/issues/209) **Page head and breadcrumbs** · FE · 2d · U1.04
+  *Done when:* every page with a record or a place shows where it is, and a reload or shared link shows the same breadcrumb.
+- [ ] `U1.07` [#210](https://github.com/dipeshrohan/tiles/issues/210) **Style guide page** · FE · 2d · U1.04, U1.05
+  *Done when:* a new contributor can build a page from it alone, as tried in one PR.
+- [ ] `U1.08` [#211](https://github.com/dipeshrohan/tiles/issues/211) **Visual regression tests** · FE · 2d
+  *Done when:* a 2 px padding change on `.card` fails CI with a readable diff.
+- [ ] `U1.09` [#212](https://github.com/dipeshrohan/tiles/issues/212) **UX analytics, privacy first** · FE+BE · 2d
+  *Done when:* U1.01's key tasks can be measured from events on the pilot site, and the data stays in the deployment.
+
+**UI Month 1 exit check:** baseline measured; tokens and `ui.ts` used by at least three pages; style guide and visual tests in CI.
+
+### UI Month 2: Feedback and states (Dec 2026)
+
+- [ ] `U2.01` [#213](https://github.com/dipeshrohan/tiles/issues/213) **Dialogs** · FE · 3d · U1.04
+  *Done when:* no `confirm()`, `alert()` or `prompt()` remains (a lint rule enforces it), and the a11y test opens each dialog.
+- [ ] `U2.02` [#214](https://github.com/dipeshrohan/tiles/issues/214) **Toasts v2** · FE · 2d · U1.04
+  *Done when:* an API error stays on screen with its request ID until dismissed, and screen readers announce it once.
+- [ ] `U2.03` [#215](https://github.com/dipeshrohan/tiles/issues/215) **Undo instead of confirm** · FE+BE · 3d · U2.02
+  *Done when:* each of the four can be undone from the toast, and a test proves the row is back.
+- [ ] `U2.04` [#216](https://github.com/dipeshrohan/tiles/issues/216) **Skeletons and loading** · FE · 3d · U1.04
+  *Done when:* every page that loads from the API shows a skeleton in its shape; layout shift (CLS) < 0.05 on page load.
+- [ ] `U2.05` [#217](https://github.com/dipeshrohan/tiles/issues/217) **Empty states with a next step** · PM+FE · 3d · U1.04, U1.05
+  *Done when:* every list and chart in every page has a written empty state, reviewed against the copy guide (U2.09).
+- [ ] `U2.06` [#218](https://github.com/dipeshrohan/tiles/issues/218) **Error states and offline** · FE · 2d · U2.02
+  *Done when:* each error kind has a test in the smoke suite with the fake API failing on purpose.
+- [ ] `U2.07` [#219](https://github.com/dipeshrohan/tiles/issues/219) **Form validation** · FE · 3d · U1.04
+  *Done when:* every form (import mapping, signal edit, detector, notification settings, site creation, app config) shows the API's field errors on the fields.
+- [ ] `U2.08` [#220](https://github.com/dipeshrohan/tiles/issues/220) **Pending and optimistic updates** · FE · 2d · U2.02
+  *Done when:* no double submissions in the smoke suite with a slowed API, and every optimistic change rolls back on failure.
+- [ ] `U2.09` [#221](https://github.com/dipeshrohan/tiles/issues/221) **Words and tone guide** · PM · 1.5d
+  *Done when:* the guide is merged and every page's copy reviewed against it.
+
+**UI Month 2 exit check:** no native dialogs; every page has loading, empty and error states; the API's field errors appear on fields.
+
+### UI Month 3: Motion, rendering and navigation (Jan 2027)
+
+- [ ] `U3.01` [#222](https://github.com/dipeshrohan/tiles/issues/222) **Motion system** · PM+FE · 1d · U1.02
+  *Done when:* the guide is merged and the tokens from U1.02 implement it.
+- [ ] `U3.02` [#223](https://github.com/dipeshrohan/tiles/issues/223) **Page transitions** · FE · 2d · U3.01, U3.03
+  *Done when:* transitions run in Chromium and Safari, are absent with reduced motion, and the a11y and smoke suites pass.
+- [ ] `U3.03` [#224](https://github.com/dipeshrohan/tiles/issues/224) **DOM patching that keeps state** · FE · 5d
+  *Done when:* typing, scrolling a table and an open trace all survive a background refresh in tests, and the copilot trace flake (#195) can't happen again; render time on the large ontology fixture is no worse.
+- [ ] `U3.04` [#225](https://github.com/dipeshrohan/tiles/issues/225) **Micro-interactions** · FE · 2d · U3.01
+  *Done when:* the style guide shows each; nothing moves with reduced motion.
+- [ ] `U3.05` [#226](https://github.com/dipeshrohan/tiles/issues/226) **State in the URL and restored** · FE · 3d · U3.03
+  *Done when:* reloading or opening a copied link shows the same view on those three pages, and back restores the scroll.
+- [ ] `U3.06` [#227](https://github.com/dipeshrohan/tiles/issues/227) **Sidebar v2** · FE · 3d · U1.05
+  *Done when:* each of these works by keyboard, is tested, and fits at 320 px wide.
+- [ ] `U3.07` [#228](https://github.com/dipeshrohan/tiles/issues/228) **Performance budget** · FE · 2d · U3.03
+  *Done when:* the check fails on a deliberate regression and passes on main.
+- [ ] `U3.08` [#229](https://github.com/dipeshrohan/tiles/issues/229) ◇ **Split view for records** · FE · 3d · U3.03
+  *Done when:* the four pages work in split view and fall back to a single column on narrow screens.
+
+**UI Month 3 exit check:** no lost focus or scroll on re-render; links carry filters; the performance check is green.
+
+### UI Month 4: Help, onboarding and discoverability (Feb 2027)
+
+- [ ] `U4.01` [#230](https://github.com/dipeshrohan/tiles/issues/230) **Search across the site (API)** · BE · 3d
+  *Done when:* the endpoint is in the API reference, with tests for ranking and row security.
+- [ ] `U4.02` [#231](https://github.com/dipeshrohan/tiles/issues/231) **Command palette** · FE · 4d · U4.01, U2.01
+  *Done when:* each of the 6 key tasks can start from the palette, and the a11y test opens it.
+- [ ] `U4.03` [#232](https://github.com/dipeshrohan/tiles/issues/232) **Keyboard shortcuts** · FE · 2d · U4.02
+  *Done when:* the shortcuts work, are listed, and are tested; nothing clashes with screen-reader keys.
+- [ ] `U4.04` [#233](https://github.com/dipeshrohan/tiles/issues/233) **Contextual help panel** · PM+FE · 3d · U1.06, U2.01
+  *Done when:* every page has help, the build fails if a page has none, and links from help land on the right section.
+- [ ] `U4.05` [#234](https://github.com/dipeshrohan/tiles/issues/234) **Glossary and term tooltips** · PM+FE · 3d · U2.01
+  *Done when:* the analytics pages (correlate, wear, performance, detectors) explain every statistical term in place.
+- [ ] `U4.06` [#235](https://github.com/dipeshrohan/tiles/issues/235) **First run** · PM+FE · 3d · U2.01
+  *Done when:* a new user on the pilot site reaches their first useful page in under 2 minutes in U6.07's test.
+- [ ] `U4.07` [#236](https://github.com/dipeshrohan/tiles/issues/236) **Guided tours** · FE · 4d · U4.06
+  *Done when:* the four tours run end to end in CI.
+- [ ] `U4.08` [#237](https://github.com/dipeshrohan/tiles/issues/237) **What's new** · FE · 1.5d
+  *Done when:* updating the CHANGELOG updates the sheet with no other change.
+- [ ] `U4.09` [#238](https://github.com/dipeshrohan/tiles/issues/238) **In-app feedback** · BE+FE · 2d · U2.01
+  *Done when:* feedback is sent, stored, listed and audited, with tests.
+- [ ] `U4.10` [#239](https://github.com/dipeshrohan/tiles/issues/239) ◇ **Onboarding wizard in local mode** · FE · 2d · U4.06
+  *Done when:* the wizard runs to its end in local mode.
+
+**UI Month 4 exit check:** every page has help; the palette, shortcuts, glossary and four tours are live; first run is on for new users.
+
+### UI Month 5: Workflow polish for the live pilot (Mar 2027)
+
+- [ ] `U5.01` [#240](https://github.com/dipeshrohan/tiles/issues/240) **Home by role** · PM+FE · 4d · U4.06
+  *Done when:* each role's home answers "what needs me now?" in U6.07's test.
+- [ ] `U5.02` [#241](https://github.com/dipeshrohan/tiles/issues/241) **Tables v2** · FE · 4d · U1.04, U3.05
+  *Done when:* the seven tables use it and 5,000 signal rows scroll at 60 fps.
+- [ ] `U5.03` [#242](https://github.com/dipeshrohan/tiles/issues/242) **Charts v2** · FE · 4d · U3.01
+  *Done when:* exact values can be read with a mouse, touch and keyboard, with a11y tests.
+- [ ] `U5.04` [#243](https://github.com/dipeshrohan/tiles/issues/243) **Warning triage flow** · FE · 3d · U3.08, U5.02
+  *Done when:* triaging 10 warnings takes under half the U1.01 time.
+- [ ] `U5.05` [#244](https://github.com/dipeshrohan/tiles/issues/244) **Ontology builder UX** · FE · 5d · U3.03
+  *Done when:* committing a 5-node change takes under half the U1.01 time, and the performance check stays green.
+- [ ] `U5.06` [#245](https://github.com/dipeshrohan/tiles/issues/245) **Filter bar and saved views** · FE+BE · 3d · U3.05
+  *Done when:* Warnings, Signals and Documents have saved views shared on the pilot site.
+- [ ] `U5.07` [#246](https://github.com/dipeshrohan/tiles/issues/246) **Notification centre** · FE+BE · 3d · U2.02
+  *Done when:* a review request reaches the reviewer's bell within a minute, with tests.
+- [ ] `U5.08` [#247](https://github.com/dipeshrohan/tiles/issues/247) **Shopfloor field round** · FDE+FE · 2d · U2.06
+  *Done when:* technicians on the line can triage with gloves in sunlight, as tested with them.
+- [ ] `U5.09` [#248](https://github.com/dipeshrohan/tiles/issues/248) ◇ **Compare mode** · FE · 3d · U5.03
+  *Done when:* engineers on the pilot use it to compare before and after a change.
+
+**UI Month 5 exit check:** the pilot's daily pages (home, warnings, signals, explorer, ontology) are reworked and tested with pilot users.
+
+### UI Month 6: Language, accessibility and v1.0 polish (Apr 2027)
+
+- [ ] `U6.01` [#249](https://github.com/dipeshrohan/tiles/issues/249) **Internationalisation** · FE · 4d · U1.04
+  *Done when:* every view's text comes from the catalogue, and the check runs in CI.
+- [ ] `U6.02` [#250](https://github.com/dipeshrohan/tiles/issues/250) **Numbers, dates and units by locale** · FE · 2d · U6.01
+  *Done when:* no `toLocaleString` with a hard-coded locale remains, and tests cover three locales.
+- [ ] `U6.03` [#251](https://github.com/dipeshrohan/tiles/issues/251) **German, and a pseudo-locale** · PM+FE · 3d · U6.01
+  *Done when:* the pilot's users can use Tiles in German, and no layout breaks in the pseudo-locale.
+- [ ] `U6.04` [#252](https://github.com/dipeshrohan/tiles/issues/252) **Accessibility round 2** · FE · 3d
+  *Done when:* the report is merged, and the five flows work with both screen readers.
+- [ ] `U6.05` [#253](https://github.com/dipeshrohan/tiles/issues/253) **Print styles** · FE · 2d
+  *Done when:* each prints on A4 and Letter without cut content.
+- [ ] `U6.06` [#254](https://github.com/dipeshrohan/tiles/issues/254) **Preferences** · FE+BE · 2d · U6.01
+  *Done when:* each preference applies at once and survives sign-out and sign-in.
+- [ ] `U6.07` [#255](https://github.com/dipeshrohan/tiles/issues/255) **Usability study 2 and fixes** · PM+FE · 5d · U5.01–U5.05
+  *Done when:* the [measures](UI-PLAN.md#goals-and-measures) are reported against their targets in `docs/ui/research/2027-04-v1.md`.
+- [ ] `U6.08` [#256](https://github.com/dipeshrohan/tiles/issues/256) **UI handbook** · FE · 1.5d · U1.07
+  *Done when:* a new page built from the handbook passes review with no UI comments.
+
+**UI Month 6 exit check:** v1.0 in English and German; the measures met or explained; the handbook merged.
+
+### UI, every month
+
+- [ ] `U0.01` [#257](https://github.com/dipeshrohan/tiles/issues/257) **Design review on every UI PR** · PM+FE
+- [ ] `U0.02` [#258](https://github.com/dipeshrohan/tiles/issues/258) **Monthly UX check** · PM
 
 ---
 
