@@ -23,6 +23,7 @@ You can also open `index.html` straight from disk.
 | `npm run typecheck` | Strict TypeScript check of everything in `js/`. |
 | `npm test` | Vitest unit tests in `test/`, including a check that the bundle is current. |
 | `npm run test:e2e` | Browser smoke tests in `e2e/`: every page in light, dark and phone layouts, over http and `file://`. |
+| `npm run test:visual` | Visual regression tests in the Playwright container (needs Docker): screenshots of every page and key states against `e2e/visual/baselines/`; differences go to `e2e/visual/output/`. After a deliberate change, `npm run test:visual -- --update` and say why in the PR. |
 
 ### Backend (`api/`)
 

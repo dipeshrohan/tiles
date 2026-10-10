@@ -8,3 +8,5 @@ __pycache__/
 api/.env
 # Root .env holds docker compose overrides such as TILES_DB_PASSWORD.
 .env
+# Screenshots and diffs of a failed visual regression run (npm run test:visual).
+e2e/visual/output/
