@@ -2185,6 +2185,15 @@
 		};
 		return lastFailure.at;
 	}
+	function loadFailed(what, level = 3) {
+		return errorState({
+			title: `${what} could not be loaded`,
+			body: "The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.",
+			retry: "reconnect",
+			compact: true,
+			level
+		});
+	}
 	function errorState(o) {
 		const size = o.size ?? "sm";
 		const retry = o.retry ? button("Try again", {
@@ -5207,13 +5216,13 @@
 				compact: true,
 				level: 3,
 				title: "Pick a project to see its runs",
-				body: "Runs are kept in a design project shared with the site. Pick one above, or create one."
+				body: `Runs are kept in a design project shared with the site. Pick one above${ctx.ontology.role !== null && ctx.ontology.role !== "viewer" ? ", or create one" : ""}.`
 			}) : site && !fetched?.loaded ? skeleton.list(3, "Loading runs…") : remote && !site ? "" : emptyState({
 				illustration: "chart",
 				compact: true,
 				level: 3,
 				title: "No runs yet",
-				body: "Adjust the parameters, then save a run: it keeps them with the output, so you can compare and restore them."
+				body: remote && ctx.ontology.role === "viewer" ? "Engineers save runs here: each keeps its parameters with the output, to compare and restore them." : "Adjust the parameters, then save a run: it keeps them with the output, so you can compare and restore them."
 			})}
         </div>
       </div>`;
@@ -5562,7 +5571,7 @@
 		try {
 			tokens = await api.org.scimTokens();
 		} catch {
-			box.innerHTML = "<p class=\"small soft\">The SCIM tokens could not be loaded.</p>";
+			box.innerHTML = loadFailed("The SCIM tokens", 4);
 			return;
 		}
 		box.innerHTML = scimHtml(ctx, tokens);
@@ -5715,7 +5724,7 @@
 				body: "Each change to the site (a commit, a signal edit, a member’s role) is listed here with who made it."
 			});
 		} catch {
-			box.innerHTML = "<p class=\"small soft\">The audit log could not be loaded.</p>";
+			box.innerHTML = loadFailed("The audit log");
 		}
 	}
 	function copilotUsageCard() {
@@ -5757,7 +5766,7 @@
 		try {
 			box.innerHTML = usageHtml(await ctx.api.copilot.usage(site.id, 30));
 		} catch {
-			box.innerHTML = "<p class=\"small soft\">Copilot usage could not be loaded.</p>";
+			box.innerHTML = loadFailed("Copilot usage");
 		}
 	}
 	function copilotPolicyCard() {
@@ -5914,7 +5923,7 @@
 				body: "Messages appear here when a warning is raised or assigned to someone who asked to hear of it."
 			});
 		} catch {
-			list.innerHTML = "<p class=\"small soft\">The messages could not be loaded.</p>";
+			list.innerHTML = loadFailed("The messages", 4);
 		}
 	}
 	var revealed$1 = null;
@@ -5998,7 +6007,7 @@
 		try {
 			agents = await api.agents.list(site.id);
 		} catch {
-			box.innerHTML = "<p class=\"small soft\">The agents could not be loaded.</p>";
+			box.innerHTML = loadFailed("The agents");
 			return;
 		}
 		box.innerHTML = agents.length ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? "<th><span class=\"sr-only\">Actions</span></th>" : ""}</tr></thead><tbody>${agents.map((a) => `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"}</td><td>${esc(a.hostname ?? "—")}</td><td>${esc(a.version ?? "—")}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${admin ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>` : ""}</tr>`).join("")}</tbody></table></div>` : emptyState({
@@ -6564,12 +6573,12 @@
 			compact: true,
 			level: 3,
 			title: "No signals yet",
-			body: "Signals appear here once an edge agent or an import sends their readings.",
-			action: linkButton("Import data", "#/import", {
+			body: canEdit ? "Signals appear here once an edge agent or an import sends their readings." : "Signals appear here once an edge agent or an engineer’s import sends their readings.",
+			action: canEdit ? linkButton("Import data", "#/import", {
 				variant: "primary",
 				size: "sm",
 				icon: "upload"
-			})
+			}) : void 0
 		});
 		const { editing, open } = ui$1(ctx);
 		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
@@ -6634,7 +6643,7 @@
 		} : null;
 		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
 		const canEdit = ctx.ontology.role !== "viewer";
-		box.innerHTML = failed ? "<p class=\"small soft\">The signals could not be loaded.</p>" : results ? resultsTable(ctx, results, canEdit) : skeleton.table(6, 9, "Loading the signals…");
+		box.innerHTML = failed ? loadFailed("The signals") : results ? resultsTable(ctx, results, canEdit) : skeleton.table(6, 9, "Loading the signals…");
 		const again = box.querySelector("#signal-form");
 		if (typed && again && again.dataset.signal === typed.signal) {
 			for (const [name, value] of typed.values) {
@@ -6900,7 +6909,7 @@
 			};
 			form.addEventListener("input", update);
 			form.addEventListener("change", update);
-			root.addEventListener("click", (e) => {
+			need(root, "[data-signal-results]").addEventListener("click", (e) => {
 				if (!(e.target instanceof Element) || !e.target.closest("[data-clear-search]")) return;
 				for (const el of form.querySelectorAll("[name]")) el.value = "";
 				update();
@@ -7106,7 +7115,7 @@
 			width: fitWidth(TIME_CHART.width)
 		}) : ""}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
-    <p class="small soft" data-series-note>${esc(describe(series))}${series.points.length ? "" : ": choose Latest data to see the 24 hours up to its latest reading, or a longer range."}</p>`;
+    <p class="small soft" data-series-note>${esc(describe(series))}${series.points.length ? "" : ": pick a longer range above, or Latest data for the day up to its last reading."}</p>`;
 	}
 	var localInput = (isoTime) => {
 		const d = new Date(isoTime);
@@ -7147,7 +7156,7 @@
 				box.innerHTML = chartFor(series, range);
 				bindZoom(box, ctx, range);
 			}, () => {
-				if (mine === latestLoad && box?.isConnected) box.innerHTML = "<p class=\"small soft\">The readings could not be loaded.</p>";
+				if (mine === latestLoad && box?.isConnected) box.innerHTML = loadFailed("The readings");
 			});
 		}
 	}
@@ -7891,7 +7900,13 @@
 	}
 	function listCard$4(ctx, ui) {
 		const items = listing$5?.key === listKey$2(ctx) ? listing$5.items : null;
-		const empty = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all" ? emptyState({
+		const unfiltered = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all";
+		const empty = ui.filters.show === "all" && ui.filters.who === "anyone" && ui.filters.signal === "all" ? emptyState({
+			illustration: "inbox",
+			compact: true,
+			title: "No warnings yet",
+			body: "Detectors raise a warning when a signal leaves its usual range; they are listed here as they come."
+		}) : unfiltered ? emptyState({
 			illustration: "done",
 			compact: true,
 			title: "Nothing to do: no warning waits for anyone",
@@ -9725,9 +9740,11 @@ kv([['Peak', '3,580 N'], ['Baseline', '1,800 N']], { valueClass: 'mono' })`,
 		},
 		{
 			title: "Error",
-			code: `errorState({ title: 'The documents could not be loaded', retry: 'retry-docs' })`,
+			code: `errorState({ title: 'The documents could not be loaded', body: 'The Tiles API didn’t send them…', retry: 'retry-docs' })
+loadFailed('The audit log')   // the same, for a part of a page; Try again loads the site afresh`,
 			html: () => errorState({
 				title: "The documents could not be loaded",
+				body: "The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.",
 				retry: "sg-retry",
 				compact: true,
 				alert: false,
@@ -10046,7 +10063,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const u = uiState$3(ctx);
 			const key = keyFor(ctx);
 			let body;
-			if (fetched?.key === `${key}|failed`) body = "<div class=\"card\"><p>This could not be loaded.</p></div>";
+			if (fetched?.key === `${key}|failed`) body = card$1(loadFailed("The report", 2));
 			else if (fetched?.key !== key || !fetched.report) body = `<div class="card">${skeleton.table(4, 6, "Loading the warnings and events…")}</div>`;
 			else {
 				const r = fetched.report;
@@ -11414,7 +11431,12 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			title: "Choose an app",
 			body: "Or make one from a template."
 		})}</div>`;
-		if (listing$1?.failed) return `<div class="card">${retry("The apps", "data-retry-apps")}</div>`;
+		if (listing$1?.failed) return `<div class="card">${emptyState({
+			illustration: "error",
+			compact: true,
+			title: `App #${n} could not be loaded`,
+			body: "The list of apps didn’t load; try again there."
+		})}</div>`;
 		if (items === null) return `<div class="card">${skeleton.card()}</div>`;
 		const app = items.find((a) => a.number === n);
 		if (!app) return `<div class="card">${emptyState({
@@ -11726,6 +11748,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const items = listing?.key === siteId(ctx) ? listing.items : null;
 		return card$1(`<h2>Documents</h2><div class="review-list" data-doc-list>${listing?.failed ? errorState({
 			title: "The documents could not be loaded",
+			body: "The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.",
 			retry: "retry-docs",
 			compact: true
 		}) : items === null ? skeleton.list() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
@@ -12036,7 +12059,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		try {
 			box.innerHTML = historyTable(await ctx.api.imports.list(site.id));
 		} catch {
-			box.innerHTML = "<p class=\"small soft\">The imports could not be loaded.</p>";
+			box.innerHTML = loadFailed("The imports");
 		}
 	}
 	async function runImport(ctx) {

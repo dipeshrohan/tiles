@@ -937,6 +937,14 @@ test('site admins see the audit log in settings; others do not', async (t) => {
   assert.match(await page.locator('#audit').innerText(), /demo\s+Committed “Import demo ontology”/);
   assert.deepEqual(errors, []);
 
+  // When it fails: what and why, and Try again loads it.
+  fake.failNext('GET', /\/audit$/, 500, 'Database unavailable');
+  await page.reload();
+  await page.waitForSelector('#audit [role=alert]:has-text("The audit log could not be loaded")');
+  await page.click('#audit [data-reconnect]');
+  await page.waitForSelector('#audit table');
+  errors.length = 0; // the failed request, on purpose
+
   const engineer = createFakeApi();
   const engineerUrl = await engineer.listen();
   t.after(() => engineer.close());

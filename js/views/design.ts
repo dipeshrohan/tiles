@@ -339,7 +339,7 @@ const view: View = {
                     compact: true,
                     level: 3,
                     title: 'Pick a project to see its runs',
-                    body: 'Runs are kept in a design project shared with the site. Pick one above, or create one.',
+                    body: `Runs are kept in a design project shared with the site. Pick one above${ctx.ontology.role !== null && ctx.ontology.role !== 'viewer' ? ', or create one' : ''}.`,
                   })
                 : site && !fetched?.loaded
                   ? skeleton.list(3, 'Loading runs…')
@@ -350,7 +350,10 @@ const view: View = {
                         compact: true,
                         level: 3,
                         title: 'No runs yet',
-                        body: 'Adjust the parameters, then save a run: it keeps them with the output, so you can compare and restore them.',
+                        body:
+                          remote && ctx.ontology.role === 'viewer'
+                            ? 'Engineers save runs here: each keeps its parameters with the output, to compare and restore them.'
+                            : 'Adjust the parameters, then save a run: it keeps them with the output, so you can compare and restore them.',
                       })
           }
         </div>

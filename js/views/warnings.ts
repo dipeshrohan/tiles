@@ -138,21 +138,30 @@ function filterBar(ctx: Context, f: Filters): string {
 function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   const unfiltered = ui.filters.show === 'unresolved' && ui.filters.who === 'anyone' && ui.filters.signal === 'all';
-  const empty = unfiltered
+  // Every warning shown, and none: the site has none yet (not a filter hiding them).
+  const none = ui.filters.show === 'all' && ui.filters.who === 'anyone' && ui.filters.signal === 'all';
+  const empty = none
     ? emptyState({
-        illustration: 'done',
+        illustration: 'inbox',
         compact: true,
-        title: 'Nothing to do: no warning waits for anyone',
-        body: 'Detectors raise a warning when a signal leaves its usual range. Resolved ones are under All.',
-        action: button('Show all warnings', { size: 'sm', attrs: { 'data-show': 'all' } }),
+        title: 'No warnings yet',
+        body: 'Detectors raise a warning when a signal leaves its usual range; they are listed here as they come.',
       })
-    : emptyState({
-        illustration: 'search',
-        compact: true,
-        title: 'No warnings match these filters',
-        body: 'Try other filters, or clear them to see what waits for anyone.',
-        action: button('Clear filters', { size: 'sm', attrs: { 'data-clear-filters': true } }),
-      });
+    : unfiltered
+      ? emptyState({
+          illustration: 'done',
+          compact: true,
+          title: 'Nothing to do: no warning waits for anyone',
+          body: 'Detectors raise a warning when a signal leaves its usual range. Resolved ones are under All.',
+          action: button('Show all warnings', { size: 'sm', attrs: { 'data-show': 'all' } }),
+        })
+      : emptyState({
+          illustration: 'search',
+          compact: true,
+          title: 'No warnings match these filters',
+          body: 'Try other filters, or clear them to see what waits for anyone.',
+          action: button('Clear filters', { size: 'sm', attrs: { 'data-clear-filters': true } }),
+        });
   const rows =
     items === null
       ? skeleton.list()

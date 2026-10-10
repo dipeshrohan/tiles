@@ -3,7 +3,7 @@ import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import { card, emptyState, needsApi, pageHead, skeleton, apiUnreachable, loadFailed } from '../lib/ui.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
 // reported, live: per detector and in total, with what people resolved them as. Events are
@@ -152,7 +152,7 @@ const view: View = {
     const u = uiState(ctx);
     const key = keyFor(ctx);
     let body: string;
-    if (fetched?.key === `${key}|failed`) body = '<div class="card"><p>This could not be loaded.</p></div>';
+    if (fetched?.key === `${key}|failed`) body = card(loadFailed('The report', 2));
     else if (fetched?.key !== key || !fetched.report)
       body = `<div class="card">${skeleton.table(4, 6, 'Loading the warnings and events…')}</div>`;
     else {

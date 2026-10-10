@@ -13,7 +13,7 @@ import {
 } from '../lib/importer.ts';
 import type { ImportRun } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
-import { emptyState, pageHead, skeleton } from '../lib/ui.ts';
+import { emptyState, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 
 // Bulk import (T2.07): backfill readings from a CSV file or historian export. The file is
 // read here, in the browser, and sent to the Tiles API in batches; nothing is uploaded
@@ -246,7 +246,7 @@ async function fillHistory(root: HTMLElement, ctx: Context): Promise<void> {
   try {
     box.innerHTML = historyTable(await ctx.api.imports.list(site.id));
   } catch {
-    box.innerHTML = '<p class="small soft">The imports could not be loaded.</p>';
+    box.innerHTML = loadFailed('The imports');
   }
 }
 

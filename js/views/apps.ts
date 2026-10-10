@@ -198,7 +198,9 @@ function detailCard(ctx: Context): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   if (n === null)
     return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an app', body: 'Or make one from a template.' })}</div>`;
-  if (listing?.failed) return `<div class="card">${retry('The apps', 'data-retry-apps')}</div>`;
+  // The list beside it says what failed, with Try again: not a second alert here.
+  if (listing?.failed)
+    return `<div class="card">${emptyState({ illustration: 'error', compact: true, title: `App #${n} could not be loaded`, body: 'The list of apps didn’t load; try again there.' })}</div>`;
   if (items === null) return `<div class="card">${skeleton.card()}</div>`;
   const app = items.find((a) => a.number === n);
   if (!app)

@@ -92,9 +92,9 @@ test('buttons and headings are in sentence case', () => {
 test('every empty state says why it is empty (a body), not only that it is', () => {
   const calls = files.flatMap((f) => {
     const src = source(f);
-    return [...src.matchAll(/\bemptyState\(\{/g)].map((m) => {
+    return [...src.matchAll(/\b(?:emptyState|errorState)\(\{/g)].map((m) => {
       let depth = 0;
-      let k = m.index + 'emptyState('.length;
+      let k = src.indexOf('{', m.index);
       for (; k < src.length; k++) {
         if (src[k] === '{') depth++;
         else if (src[k] === '}' && --depth === 0) break;

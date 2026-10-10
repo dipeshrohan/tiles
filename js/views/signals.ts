@@ -17,6 +17,7 @@ import {
   apiUnreachable,
   skeleton,
   setBusy,
+  loadFailed,
 } from '../lib/ui.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
@@ -251,8 +252,12 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
           compact: true,
           level: 3,
           title: 'No signals yet',
-          body: 'Signals appear here once an edge agent or an import sends their readings.',
-          action: linkButton('Import data', '#/import', { variant: 'primary', size: 'sm', icon: 'upload' }),
+          body: canEdit
+            ? 'Signals appear here once an edge agent or an import sends their readings.'
+            : 'Signals appear here once an edge agent or an engineer’s import sends their readings.',
+          action: canEdit
+            ? linkButton('Import data', '#/import', { variant: 'primary', size: 'sm', icon: 'upload' })
+            : undefined,
         });
   }
   const { editing, open } = ui(ctx);
@@ -333,7 +338,7 @@ function fill(root: HTMLElement, ctx: Context): void {
   const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute('name') : null;
   const canEdit = ctx.ontology.role !== 'viewer';
   box.innerHTML = failed
-    ? '<p class="small soft">The signals could not be loaded.</p>'
+    ? loadFailed('The signals')
     : results
       ? resultsTable(ctx, results, canEdit)
       : skeleton.table(6, 9, 'Loading the signals…');
@@ -648,7 +653,8 @@ const view: View = {
     };
     form.addEventListener('input', update);
     form.addEventListener('change', update);
-    root.addEventListener('click', (e) => {
+    // On the results box (drawn afresh with the page), whose contents change as answers arrive.
+    need(root, '[data-signal-results]').addEventListener('click', (e) => {
       if (!(e.target instanceof Element) || !e.target.closest('[data-clear-search]')) return;
       for (const el of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[name]')) el.value = '';
       update();

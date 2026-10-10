@@ -6,7 +6,7 @@ import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
 import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
-import { needsApi, pageHead, skeleton } from '../lib/ui.ts';
+import { needsApi, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -198,9 +198,7 @@ function chartFor(series: SignalSeries, range: Range): string {
   return `<div class="explorer-chart" data-zoom>${chart}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
     <p class="small soft" data-series-note>${esc(describe(series))}${
-      series.points.length
-        ? ''
-        : ': choose Latest data to see the 24 hours up to its latest reading, or a longer range.'
+      series.points.length ? '' : ': pick a longer range above, or Latest data for the day up to its last reading.'
     }</p>`;
 }
 
@@ -244,8 +242,7 @@ function loadCharts(root: HTMLElement, ctx: Context): void {
         bindZoom(box, ctx, range);
       },
       () => {
-        if (mine === latestLoad && box?.isConnected)
-          box.innerHTML = '<p class="small soft">The readings could not be loaded.</p>';
+        if (mine === latestLoad && box?.isConnected) box.innerHTML = loadFailed('The readings');
       },
     );
   }

@@ -14,7 +14,7 @@ import {
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import type { Context, View } from './types.ts';
-import { emptyState, linkButton, pageHead, skeleton } from '../lib/ui.ts';
+import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
@@ -118,7 +118,7 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
           body: 'Each change to the site (a commit, a signal edit, a member’s role) is listed here with who made it.',
         });
   } catch {
-    box.innerHTML = '<p class="small soft">The audit log could not be loaded.</p>';
+    box.innerHTML = loadFailed('The audit log');
   }
 }
 
@@ -180,7 +180,7 @@ async function fillCopilotUsage(root: HTMLElement, ctx: Context): Promise<void> 
   try {
     box.innerHTML = usageHtml(await ctx.api.copilot.usage(site.id, 30));
   } catch {
-    box.innerHTML = '<p class="small soft">Copilot usage could not be loaded.</p>';
+    box.innerHTML = loadFailed('Copilot usage');
   }
 }
 
@@ -380,7 +380,7 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
           body: 'Messages appear here when a warning is raised or assigned to someone who asked to hear of it.',
         });
   } catch {
-    list.innerHTML = '<p class="small soft">The messages could not be loaded.</p>';
+    list.innerHTML = loadFailed('The messages', 4);
   }
 }
 
@@ -504,7 +504,7 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
   try {
     agents = await api.agents.list(site.id);
   } catch {
-    box.innerHTML = '<p class="small soft">The agents could not be loaded.</p>';
+    box.innerHTML = loadFailed('The agents');
     return;
   }
   box.innerHTML = agents.length

@@ -141,7 +141,12 @@ function searchCard(ctx: Context): string {
 function listCard(ctx: Context): string {
   const items = listing?.key === siteId(ctx) ? listing.items : null;
   const rows = listing?.failed
-    ? errorState({ title: 'The documents could not be loaded', retry: 'retry-docs', compact: true })
+    ? errorState({
+        title: 'The documents could not be loaded',
+        body: 'The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.',
+        retry: 'retry-docs',
+        compact: true,
+      })
     : items === null
       ? skeleton.list()
       : items

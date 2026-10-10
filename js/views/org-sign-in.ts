@@ -6,6 +6,7 @@ import { esc, field, onAll, onSubmit } from '../lib/dom.ts';
 import type { IdentityProvider, ScimToken } from '../lib/api.ts';
 import { groupRolesText, providerFromForm, scimBaseUrl } from '../lib/org-sign-in.ts';
 import type { Context } from './types.ts';
+import { loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 
 // A SCIM token just made: shown until dismissed, to the admin who made it, for that API only.
@@ -83,7 +84,7 @@ async function fillScim(root: HTMLElement, ctx: Context): Promise<void> {
   try {
     tokens = await api.org.scimTokens();
   } catch {
-    box.innerHTML = '<p class="small soft">The SCIM tokens could not be loaded.</p>';
+    box.innerHTML = loadFailed('The SCIM tokens', 4);
     return;
   }
   box.innerHTML = scimHtml(ctx, tokens);
