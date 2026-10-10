@@ -14,8 +14,8 @@ import {
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import type { Context, View } from './types.ts';
+import { linkButton, pageHead } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { icon } from '../lib/icons.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
 function accountCard(ctx: Context): string {
@@ -553,7 +553,7 @@ const view: View = {
     // The form shows what is being typed; the page follows what is saved.
     const typed = sourceDraft?.base === sourceKey(ds) ? sourceDraft : ds;
     return `
-      <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
+      ${pageHead({ eyebrow: 'Workspace', title: 'Settings' })}
       <div class="grid g2">
         <form class="card stack gap-3" id="profile">
           <h2>Profile</h2>
@@ -586,7 +586,7 @@ const view: View = {
         <div class="card stack gap-3" id="about">
           <h2>About</h2>
           <p class="small soft">Tiles works from this browser on its own, or with the Tiles API for a shared site. Press Ctrl K (⌘ K on a Mac) or / to find any page or action.</p>
-          <div><a class="btn" href="#/styleguide">${icon('palette')} Style guide</a></div>
+          <div>${linkButton('Style guide', '#/styleguide', { icon: 'palette' })}</div>
         </div>
       </div>`;
   },

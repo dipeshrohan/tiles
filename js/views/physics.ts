@@ -3,6 +3,7 @@ import { createRng } from '../lib/rng.ts';
 import { fitWidth, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
+import { badge, pageHead } from '../lib/ui.ts';
 
 const uiState = (ctx: Context) =>
   ctx.ui<{ shot: number }>('physics', { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
@@ -25,14 +26,12 @@ const view: View = {
     const flagged = detection.flags[ui.shot];
 
     return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Virtual sensor</div>
-          <h1>Plunger friction · Die-caster DC-02</h1>
-          <p>Friction can't be measured directly. Solving the plunger's equation of motion for every shot turns pressure and velocity payloads into a friction value, which climbs before the plunger seizes.</p>
-        </div>
-        <span class="badge ${detection.alerts.length ? 'bad' : 'good'}">● ${detection.alerts.length} warning window(s)</span>
-      </div>
+      ${pageHead({
+        eyebrow: 'Operations · Virtual sensor',
+        title: 'Plunger friction · Die-caster DC-02',
+        lead: "Friction can't be measured directly. Solving the plunger's equation of motion for every shot turns pressure and velocity payloads into a friction value, which climbs before the plunger seizes.",
+        actionsHtml: badge(`● ${detection.alerts.length} warning window(s)`, detection.alerts.length ? 'bad' : 'good'),
+      })}
 
       <div class="grid g4 mb-4">
         <div class="card kpi"><div class="label">Shots analysed</div><div class="value">${fmt(hist.length)}</div><div class="note">${fmt(toH(hist.length), 0)} h of production</div></div>

@@ -242,7 +242,7 @@ test('the keyboard reaches the content first, and the menu says whether it is op
   // A place opens with the keyboard.
   await page.focus('.place-card');
   await page.keyboard.press('Enter');
-  await page.waitForSelector('.plant-trail a');
+  await page.waitForSelector('#crumbs li:nth-child(3) a');
   await page.close();
 
   const phone = await browser.newPage({ viewport: { width: 390, height: 844 } });

@@ -13,6 +13,7 @@ import {
 } from '../lib/importer.ts';
 import type { ImportRun } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
+import { pageHead } from '../lib/ui.ts';
 
 // Bulk import (T2.07): backfill readings from a CSV file or historian export. The file is
 // read here, in the browser, and sent to the Tiles API in batches; nothing is uploaded
@@ -304,8 +305,7 @@ const view: View = {
   title: 'Import data',
   icon: 'upload',
   render(ctx) {
-    return `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Import data</h1>
-        <p class="soft">Backfill readings from CSV files and historian exports, mapped to signals.</p></div></div>
+    return `${pageHead({ eyebrow: 'Data', title: 'Import data', lead: 'Backfill readings from CSV files and historian exports, mapped to signals.' })}
       <div class="stack gap-4">${importCard(ctx)}${historyCard()}</div>`;
   },
   bind(root, ctx) {

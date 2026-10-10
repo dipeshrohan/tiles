@@ -344,7 +344,8 @@ h4 {
   line-height: var(--leading-tight);
   letter-spacing: -0.01em;
 }
-h1 {
+h1,
+.page-title {
   font-size: var(--text-2xl);
   font-weight: 650;
 }
@@ -528,12 +529,59 @@ nav {
 }
 .crumbs {
   display: flex;
+  flex-direction: row; /* not the sidebar's column (the global nav rule) */
   gap: var(--space-1_5);
   align-items: center;
   color: var(--muted);
   font-size: var(--text-sm);
   flex: 1;
   min-width: 0;
+}
+.crumbs ol {
+  display: flex;
+  gap: var(--space-1_5);
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+.crumbs li {
+  display: flex;
+  gap: var(--space-1_5);
+  align-items: center;
+  white-space: nowrap;
+}
+/* Short of room, the places above give way first (to an ellipsis), then this one; on a phone only
+   the place above and this one are shown. */
+.crumbs li {
+  min-width: 0;
+}
+.crumbs li:not(:last-child) {
+  flex-shrink: 100;
+}
+.crumbs b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  .crumbs li:not(:last-child):not(:nth-last-child(2)) {
+    display: none;
+  }
+  .crumbs li:nth-last-child(2) .crumb-sep {
+    display: none;
+  }
+}
+.crumbs a {
+  color: var(--muted);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumbs a:hover {
+  color: var(--ink);
+  text-decoration: underline;
 }
 .crumb-sep {
   display: inline-grid;
@@ -2361,17 +2409,6 @@ body.floor-full .topbar {
 }
 
 /* ---- plant navigator (T5.17) ---- */
-.plant-trail {
-  display: flex;
-  flex-direction: row; /* not the sidebar's column (the global nav rule) */
-  flex: none;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: baseline;
-  margin-top: var(--space-1_5);
-  font-size: var(--text-base);
-  color: var(--soft);
-}
 .plant-search input {
   min-width: min(280px, 60vw);
   border: 1px solid var(--line-strong);

@@ -52,12 +52,13 @@ function tokens(g: TokenGroup): string {
     </section>`;
 }
 
-// An example in both themes, then its code.
+// An example in both themes (the same markup), then its code.
 function example(e: Example): string {
+  const html = e.html();
   return `<section class="card stack gap-2" aria-label="${esc(e.title)}">
       <h3>${esc(e.title)}</h3>
       <div class="sg-pair">${SCHEMES.map(
-        ([s, l]) => `<div class="sg-scheme ${s}"><span class="sg-scheme-name">${l}</span>${e.html()}</div>`,
+        ([s, l]) => `<div class="sg-scheme ${s}"><span class="sg-scheme-name">${l}</span>${html}</div>`,
       ).join('')}</div>
       <pre class="sg-code"><code>${esc(e.code)}</code></pre>
     </section>`;
@@ -76,6 +77,7 @@ const view: View = {
   id: 'styleguide',
   title: 'Style guide',
   icon: 'palette',
+  under: 'settings',
   render() {
     const head = pageHead({
       eyebrow: 'Settings · About',
@@ -120,11 +122,30 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
     for (const el of root.querySelectorAll<HTMLElement>('[data-sg-token]')) {
       el.style.setProperty(el.dataset.sgProp ?? 'background', `var(${el.dataset.sgToken})`);
     }
-    // Each token's value as the browser has it (a colour as the current theme resolves it).
+    // Each token's value as the stylesheet writes it (a colour as its light and dark pair).
     const styles = getComputedStyle(document.documentElement);
     for (const el of root.querySelectorAll<HTMLElement>('[data-sg-value]')) {
       el.textContent = styles.getPropertyValue(el.dataset.sgValue ?? '').trim();
     }
+    // A browser without light-dark() has one palette at a time: say so, rather than show it twice.
+    if (typeof CSS !== 'undefined' && !CSS.supports('color', 'light-dark(red, blue)'))
+      root
+        .querySelector('.page-head')
+        ?.insertAdjacentHTML(
+          'afterend',
+          '<p class="card small" role="note">This browser shows one theme at a time: the Light and Dark samples both follow the page. Switch the theme to see the other.</p>',
+        );
+    // The examples work like the real ones: filters and chips toggle, Try again answers.
+    onAll(root, '[data-sg-show]', 'click', (el) => {
+      for (const b of el.parentElement?.querySelectorAll<HTMLElement>('[data-sg-show]') ?? []) {
+        b.classList.toggle('active', b === el);
+        b.setAttribute('aria-pressed', String(b === el));
+      }
+    });
+    onAll(root, '.sg-pair .chip', 'click', (el) =>
+      el.setAttribute('aria-pressed', String(el.getAttribute('aria-pressed') !== 'true')),
+    );
+    onAll(root, '[data-sg-retry]', 'click', () => ctx.toast('Try again: a page would load it again here'));
     onAll(root, '[data-jump]', 'click', (el) => {
       const target = root.querySelector<HTMLElement>(`#sg-sec-${el.dataset.jump}`);
       target?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });

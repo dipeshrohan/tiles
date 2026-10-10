@@ -275,6 +275,7 @@ kv([['Peak', '3,580 N'], ['Baseline', '1,800 N']], { valueClass: 'mono' })`,
         title: 'Signals',
         lead: 'Every tag with readings on this site.',
         actionsHtml: button('Refresh'),
+        level: 4, // an example: not a second title for this page
       }),
   },
 ];
@@ -287,6 +288,7 @@ export const STATES: Example[] = [
       emptyState({
         illustration: 'inbox',
         compact: true,
+        level: 4,
         title: 'No apps yet',
         body: 'Make one from a template.',
         action: button('New app', { variant: 'primary', size: 'sm' }),
@@ -295,7 +297,15 @@ export const STATES: Example[] = [
   {
     title: 'Error',
     code: `errorState({ title: 'The documents could not be loaded', retry: 'retry-docs' })`,
-    html: () => errorState({ title: 'The documents could not be loaded', retry: 'sg-retry', compact: true }),
+    // Not an alert here: nothing failed.
+    html: () =>
+      errorState({
+        title: 'The documents could not be loaded',
+        retry: 'sg-retry',
+        compact: true,
+        alert: false,
+        level: 4,
+      }),
   },
   {
     title: 'Loading',
@@ -305,6 +315,6 @@ export const STATES: Example[] = [
   {
     title: 'Needs the API',
     code: 'needsApi(`Documents are kept by the Tiles API.`)',
-    html: () => needsApi('Documents are kept by the Tiles API.'),
+    html: () => needsApi('Documents are kept by the Tiles API.', 4),
   },
 ];

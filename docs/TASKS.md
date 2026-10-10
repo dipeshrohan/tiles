@@ -228,7 +228,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* three pages (Signals, Warnings, Documents) use the module for every component it has, with no visual change.
 - [x] `U1.05` [#208](https://github.com/dipeshrohan/tiles/issues/208) **Icon set** · FE+PM · 2d
   *Done when:* no page shares an icon, icons follow the theme, and they look the same on Windows, macOS, Android and iOS.
-- [ ] `U1.06` [#209](https://github.com/dipeshrohan/tiles/issues/209) **Page head and breadcrumbs** · FE · 2d · U1.04
+- [x] `U1.06` [#209](https://github.com/dipeshrohan/tiles/issues/209) **Page head and breadcrumbs** · FE · 2d · U1.04
   *Done when:* every page with a record or a place shows where it is, and a reload or shared link shows the same breadcrumb.
 - [x] `U1.07` [#210](https://github.com/dipeshrohan/tiles/issues/210) **Style guide page** · FE · 2d · U1.04, U1.05
   *Done when:* a new contributor can build a page from it alone, as tried in one PR.

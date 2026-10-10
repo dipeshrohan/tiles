@@ -16,7 +16,7 @@ import {
 import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
+import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
 import { icon } from '../lib/icons.ts';
 
 // App Studio (T6.10): use cases configured from templates, without code. A template (a wear check,
@@ -288,9 +288,21 @@ const view: View = {
   id: 'apps',
   title: 'App Studio',
   icon: 'layout-grid',
+  crumbs(ctx) {
+    if (!ctx.api || ctx.ontology.status !== 'ready') return [];
+    if (isNew()) return canEdit(ctx) ? [{ label: 'New app' }] : [];
+    const n = selected();
+    // Not one the list says is gone.
+    if (n === null || (listing?.key === listKey(ctx) && listing.items && !listing.items.some((a) => a.number === n)))
+      return [];
+    return [{ label: `#${n}`, href: appLink(n) }, ...(editKey() && canEdit(ctx) ? [{ label: 'Change' }] : [])];
+  },
   render(ctx) {
-    const head = `<div class="page-head"><div><div class="eyebrow">Data · Apps</div><h1>App Studio</h1>
-        <p class="soft">Checks set up from templates, without code: a tool's wear, a process's control limits. Each one runs on a signal's latest readings when you open it.</p></div></div>`;
+    const head = pageHead({
+      eyebrow: 'Data · Apps',
+      title: 'App Studio',
+      lead: `Checks set up from templates, without code: a tool's wear, a process's control limits. Each one runs on a signal's latest readings when you open it.`,
+    });
     if (!ctx.api) return `${head}<div class="card">${needsApi(`Apps are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;

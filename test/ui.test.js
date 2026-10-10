@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   attrs,
   badge,
+  breadcrumbs,
   button,
   card,
   chip,
@@ -40,6 +41,9 @@ test('an empty state says why, and what to do next, with its text escaped', () =
   const failed = emptyState({ title: 'Failed', compact: true, alert: true });
   assert.match(failed, /class="empty empty-state compact" role="alert"/);
   assert.doesNotMatch(failed, /<svg/);
+  // At another heading level, and as an example rather than an alert.
+  assert.match(emptyState({ title: 'x', level: 4 }), /<h4 class="empty-title">x<\/h4>/);
+  assert.doesNotMatch(errorState({ title: 'x', alert: false }), /role="alert"/);
 });
 
 test('loading shows bars for the eye and words for screen readers', () => {
@@ -158,8 +162,10 @@ test('badges, chips and cards', () => {
 test('a page head has an eyebrow, a title, a lead and actions', () => {
   assert.equal(
     pageHead({ eyebrow: 'Data', title: EVIL, lead: 'Why', actionsHtml: '<a>x</a>' }),
-    `<div class="page-head"><div><div class="eyebrow">Data</div><h1>${SAFE}</h1><p class="soft">Why</p></div><a>x</a></div>`,
+    `<div class="page-head"><div><div class="eyebrow">Data</div><h1 class="page-title">${SAFE}</h1><p class="soft">Why</p></div><a>x</a></div>`,
   );
+  // An example of one inside a page isn't a second title for it.
+  assert.match(pageHead({ title: 'Signals', level: 4 }), /<h4 class="page-title">Signals<\/h4>/);
 });
 
 test('fields: the label wraps the control, a hint is read with it', () => {
@@ -227,4 +233,20 @@ test('an error state is an alert, with a way to try again', () => {
   assert.match(html, /role="alert"/);
   assert.match(html, /<button class="btn sm" type="button" data-retry-docs><svg[\s\S]*<\/svg> Try again<\/button>/);
   assert.doesNotMatch(errorState({ title: 'Failed' }), /<button/);
+});
+
+test('breadcrumbs link each place above, and mark this one current', () => {
+  const html = breadcrumbs([
+    { label: 'Home', href: '#/' },
+    { label: 'Plant', href: '#/plant' },
+    { label: EVIL, href: '#/plant/x' },
+  ]);
+  assert.match(html, /^<ol><li><a href="#\/">Home<\/a><\/li><li><span class="crumb-sep" aria-hidden="true"><svg/);
+  assert.match(
+    html,
+    new RegExp(`<li><span class="crumb-sep"[^]*?</span><b aria-current="page">${SAFE}</b></li></ol>$`),
+  );
+  assert.equal(html.match(/aria-current/g)?.length, 1);
+  // A place without a link of its own is plain text.
+  assert.match(breadcrumbs([{ label: 'New app' }, { label: 'x' }]), /<li><span>New app<\/span><\/li>/);
 });

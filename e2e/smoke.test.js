@@ -192,6 +192,20 @@ test('the style guide: from Settings, not in the menu, every section shown', asy
   await page.click('#about a:has-text("Style guide")');
   await page.waitForSelector('#view h1:has-text("Style guide")');
   assert.equal(await page.locator('#nav a[href="#/styleguide"]').count(), 0);
+  // It sits under Settings: marked in the menu, and before it in the breadcrumbs.
+  assert.equal(await page.locator('#nav a.active').getAttribute('href'), '#/settings');
+  assert.deepEqual(await page.$$eval('#crumbs li', (lis) => lis.map((li) => li.textContent?.trim())), [
+    'Home',
+    'Settings',
+    'Style guide',
+  ]);
+  // Its examples are examples: one page title, nothing read out as an alert.
+  assert.equal(await page.locator('#view h1').count(), 1);
+  assert.equal(await page.locator('#view [role=alert]').count(), 0);
+  const chip = page.locator('.sg-pair .chip').first();
+  const pressed = await chip.getAttribute('aria-pressed');
+  await chip.click();
+  assert.notEqual(await chip.getAttribute('aria-pressed'), pressed);
   // Tokens with their values, and each example in both themes.
   assert.ok((await page.locator('[data-sg-value]').count()) >= 80); // every token in :root (test/styleguide.test.js)
   assert.notEqual(await page.locator('[data-sg-value="--accent"]').innerText(), '');
@@ -889,6 +903,8 @@ test('App Studio: an engineer makes an SPC app from its template, runs it, chang
   await page.waitForSelector('#toast:has-text("App #1 made")');
   await page.waitForSelector('[data-app-status]:has-text("Out of control")');
   assert.equal(new URL(page.url()).hash, '#/apps/1');
+  assert.equal(await page.locator('#crumbs [aria-current=page]').innerText(), '#1');
+  assert.equal(await page.getAttribute('#crumbs a:has-text("App Studio")', 'href'), '#/apps');
   assert.match(await page.locator('[data-app-text]').innerText(), /Out of control: 1 signal/);
   assert.equal(await page.locator('[data-app-detail] svg.chart .span').count(), 1);
   assert.deepEqual(fake.studioApps[0].config.rules, ['beyond_limits']);
@@ -2261,8 +2277,20 @@ test('the plant navigator: drill from the workcenter to a machine, with its warn
   await page.waitForSelector('.page-head h1:has-text("Casting")');
   await page.waitForSelector('.place-card:has-text("DC line 1"):has-text("1 warning")');
   await page.click('.place-card:has-text("DC line 1")');
-  await page.waitForSelector('.plant-trail:has-text("Casting")');
+  // The breadcrumbs say where: links above, this place current; a reload shows the same.
+  const trail = async () =>
+    page.$$eval('#crumbs li', (lis) =>
+      lis.map(
+        (li) =>
+          `${li.querySelector('a') ? 'a' : 'b'}:${li.textContent?.trim()}${li.querySelector('[aria-current=page]') ? '*' : ''}`,
+      ),
+    );
+  await page.waitForSelector('#crumbs [aria-current=page]:has-text("DC line 1")');
+  assert.deepEqual(await trail(), ['a:Home', 'a:Plant', 'a:Casting', 'b:DC line 1*']);
   assert.match(await page.evaluate(() => location.hash), /^#\/plant\/ln-dc$/);
+  await page.reload();
+  await page.waitForSelector('#crumbs [aria-current=page]:has-text("DC line 1")');
+  assert.deepEqual(await trail(), ['a:Home', 'a:Plant', 'a:Casting', 'b:DC line 1*']);
   await page.waitForSelector('.place-card.s-out:has-text("Die-caster DC-01")');
   await page.waitForSelector('.place-card.s-ok:has-text("Die-caster DC-02")');
   // The state shows as the card's colour, not only in its badge.
@@ -2293,7 +2321,7 @@ test('the plant navigator: drill from the workcenter to a machine, with its warn
     assert.ok(sheet.includes(text), `${text} missing`);
 
   // Back up the trail, and on to the next machine through what it feeds.
-  await page.click('.plant-trail a:has-text("DC line 1")');
+  await page.click('#crumbs a:has-text("DC line 1")');
   await page.waitForSelector('.place-grid');
   await page.goBack();
   await page.click('.plant-sheet a:has-text("Die-caster DC-02")');
@@ -2480,6 +2508,7 @@ test('the inbox pages through older warnings, and a warning that fails to load s
   assert.equal(await a.page.locator(`[data-warning="${ids[0]}"].sel`).count(), 1); // still selected
   await a.page.click('[data-refresh-warnings]');
   await a.page.waitForSelector('[data-warning-detail]:has-text("line000.friction")');
+  await a.page.waitForSelector('#crumbs [aria-current=page]:has-text("line000.friction")');
   // The failed read showed a toast; nothing else went wrong.
   assert.deepEqual(
     a.errors.filter((e) => !/503/.test(e)),
@@ -2870,6 +2899,13 @@ test('saved insights: save a correlation, another engineer reviews it, its autho
   // Another engineer, following the link: rejecting says why.
   const b = await openAs(t, apiUrl, 'eng2@example.com', 'insights/1');
   await b.page.waitForSelector('#insight-review');
+  // The shared link shows the record in the breadcrumbs.
+  assert.deepEqual(await b.page.$$eval('#crumbs li', (lis) => lis.map((li) => li.textContent?.trim())), [
+    'Home',
+    'Insights',
+    '#1',
+  ]);
+  assert.equal(await b.page.locator('#crumbs [aria-current=page]').innerText(), '#1');
   assert.equal(await b.page.locator('[data-insight-list] [data-insight="1"].sel').count(), 1);
   await b.page.click('#insight-review [data-decision=rejected]');
   await b.page.waitForSelector('#toast:has-text("Say why the insight is rejected")');
@@ -3292,6 +3328,8 @@ test('the copilot proposes an ontology change, which waits for another engineer'
   await link.click();
   await a.page.waitForSelector('[data-review-detail]:has-text("Add Assembly Line 3")');
   assert.equal(await a.page.evaluate(() => location.hash), '#/reviews'); // picked once
+  // The breadcrumbs follow the request shown, not the link that is gone.
+  await a.page.waitForSelector('#crumbs [aria-current=page]:has-text("#1")');
   const detail = a.page.locator('[data-review-detail]');
   assert.match(await detail.innerText(), /Proposed by the copilot/);
   assert.match(await a.page.locator('[data-review="1"]').innerText(), /Proposed by the copilot/);
