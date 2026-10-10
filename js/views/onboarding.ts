@@ -13,7 +13,7 @@ import {
   type StepKey,
 } from '../lib/onboarding.ts';
 import type { Context, View } from './types.ts';
-import { needsApi } from '../lib/ui.ts';
+import { needsApi, button, pageHead } from '../lib/ui.ts';
 
 // Setting up a site (T6.06): a wizard from creating the site, through outlining its plant in the
 // ontology and connecting an edge agent, to mapping its tags and opening the first dashboard (a
@@ -191,9 +191,12 @@ const view: View = {
   icon: 'rocket',
   render(ctx) {
     const site = ctx.ontology.site;
-    const head = `<div class="page-head"><div><div class="eyebrow">Settings · onboarding</div><h1>Set up ${esc(site?.name ?? 'a site')}</h1>
-        <p class="soft">From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.</p></div>
-        ${ctx.api ? '<button class="btn" data-onboarding-refresh>Refresh</button>' : ''}</div>`;
+    const head = pageHead({
+      eyebrow: 'Settings · onboarding',
+      title: `Set up ${site?.name ?? 'a site'}`,
+      lead: 'From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.',
+      actionsHtml: ctx.api ? button('Refresh', { attrs: { 'data-onboarding-refresh': true } }) : '',
+    });
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`Setting up a site needs the Tiles API: sites, edge agents and tags live there.`)}</div>`;
     if (ctx.ontology.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;

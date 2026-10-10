@@ -54,6 +54,7 @@ import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import { icon } from './lib/icons.ts';
+import { breadcrumbs } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
@@ -498,8 +499,12 @@ let enterTimer: ReturnType<typeof setTimeout> | undefined;
 function render(): void {
   const view = currentView();
   renderNav(view);
-  need(document, '#crumbs').innerHTML =
-    `<span>Home</span>${view === home ? '' : `<span class="crumb-sep">${icon('chevron-right', { size: 14 })}</span><b>${esc(view.title)}</b>`}`;
+  // Home › the page › where in it the URL points: from the URL, so a reload or a shared link shows the same.
+  need(document, '#crumbs').innerHTML = breadcrumbs([
+    { label: 'Home', href: '#/' },
+    ...(view === home ? [] : [{ label: view.title, href: `#/${view.id}` }]),
+    ...(view.crumbs?.(ctx) ?? []),
+  ]);
   document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
   const root = need(document, '#view');
   root.innerHTML = view.render(ctx);

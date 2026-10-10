@@ -3,7 +3,7 @@ import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { loadingState, needsApi } from '../lib/ui.ts';
+import { loadingState, needsApi, pageHead } from '../lib/ui.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
 // reported, live: per detector and in total, with what people resolved them as. Events are
@@ -126,8 +126,11 @@ const view: View = {
   title: 'Warning performance',
   icon: 'target',
   render(ctx) {
-    const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warning performance</h1>
-        <p class="soft">How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead.</p></div></div>`;
+    const head = pageHead({
+      eyebrow: 'Operations · Detection',
+      title: 'Warning performance',
+      lead: 'How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead.',
+    });
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
     const o = ctx.ontology;

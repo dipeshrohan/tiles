@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   attrs,
   badge,
+  breadcrumbs,
   button,
   card,
   chip,
@@ -227,4 +228,28 @@ test('an error state is an alert, with a way to try again', () => {
   assert.match(html, /role="alert"/);
   assert.match(html, /<button class="btn sm" type="button" data-retry-docs><svg[\s\S]*<\/svg> Try again<\/button>/);
   assert.doesNotMatch(errorState({ title: 'Failed' }), /<button/);
+});
+
+test('breadcrumbs link each place above, and mark this one current', () => {
+  const html = breadcrumbs([
+    { label: 'Home', href: '#/' },
+    { label: 'Plant', href: '#/plant' },
+    { label: EVIL, href: '#/plant/x' },
+  ]);
+  assert.match(html, /^<ol><li><a href="#\/">Home<\/a><\/li><li><span class="crumb-sep" aria-hidden="true"><svg/);
+  assert.match(
+    html,
+    new RegExp(`<li><span class="crumb-sep"[^]*?</span><b aria-current="page">${SAFE}</b></li></ol>$`),
+  );
+  assert.equal(html.match(/aria-current/g)?.length, 1);
+  // A place without a link of its own is plain text.
+  assert.match(breadcrumbs([{ label: 'New app' }, { label: 'x' }]), /<li><span>New app<\/span><\/li>/);
+});
+
+test('a page head takes a lead with markup the caller built', () => {
+  assert.match(
+    pageHead({ title: 'T', leadHtml: 'See <a href="#/x">x</a>' }),
+    /<p class="soft">See <a href="#\/x">x<\/a><\/p>/,
+  );
+  assert.doesNotMatch(pageHead({ title: 'T' }), /<p/);
 });

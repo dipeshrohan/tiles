@@ -18,7 +18,7 @@ import {
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
+import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
 
 // Saved insights (T3.12): findings saved from the correlation finder or the Data explorer, with the
 // question asked, the evidence it gave then and the actions proposed; another engineer accepts or
@@ -231,9 +231,16 @@ const view: View = {
   id: 'insights',
   title: 'Insights',
   icon: 'lightbulb',
+  crumbs() {
+    const n = selected();
+    return n === null ? [] : [{ label: `#${n}`, href: insightLink(n) }];
+  },
   render(ctx) {
-    const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Insights</h1>
-        <p class="soft">Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer.</p></div></div>`;
+    const head = pageHead({
+      eyebrow: 'Data · Analysis',
+      title: 'Insights',
+      lead: 'Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer.',
+    });
     if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;

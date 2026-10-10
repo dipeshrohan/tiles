@@ -95,4 +95,12 @@ export interface View {
   icon: IconName; // a Lucide icon (js/lib/icons.ts), unique to the page
   render(ctx: Context): string;
   bind?(root: HTMLElement, ctx: Context): void;
+  // Where in the page the URL points, after the page itself (U1.06): a record (#12) or a place
+  // (Line 2 › DC-01), each with its link. Shown in the top bar's breadcrumbs.
+  crumbs?(ctx: Context): Crumb[];
+}
+
+export interface Crumb {
+  label: string;
+  href?: string;
 }

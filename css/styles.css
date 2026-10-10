@@ -528,12 +528,44 @@ nav {
 }
 .crumbs {
   display: flex;
+  flex-direction: row; /* not the sidebar's column (the global nav rule) */
   gap: var(--space-1_5);
   align-items: center;
   color: var(--muted);
   font-size: var(--text-sm);
   flex: 1;
   min-width: 0;
+}
+.crumbs ol {
+  display: flex;
+  gap: var(--space-1_5);
+  align-items: center;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+.crumbs li {
+  display: flex;
+  gap: var(--space-1_5);
+  align-items: center;
+  white-space: nowrap;
+}
+/* On a narrow screen the places above give way first; this one stays. */
+.crumbs li:not(:last-child) {
+  flex-shrink: 1;
+  min-width: 0;
+}
+.crumbs a {
+  color: var(--muted);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumbs a:hover {
+  color: var(--ink);
+  text-decoration: underline;
 }
 .crumb-sep {
   display: inline-grid;
@@ -2361,17 +2393,6 @@ body.floor-full .topbar {
 }
 
 /* ---- plant navigator (T5.17) ---- */
-.plant-trail {
-  display: flex;
-  flex-direction: row; /* not the sidebar's column (the global nav rule) */
-  flex: none;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: baseline;
-  margin-top: var(--space-1_5);
-  font-size: var(--text-base);
-  color: var(--soft);
-}
 .plant-search input {
   min-width: min(280px, 60vw);
   border: 1px solid var(--line-strong);

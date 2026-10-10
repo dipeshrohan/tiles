@@ -14,7 +14,7 @@ import type { CopilotConversation } from '../lib/api.ts';
 import { esc, need, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState } from '../lib/ui.ts';
+import { emptyState, loadingState, button, pageHead } from '../lib/ui.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
 // answer streamed in with the tools it used (expandable, each citation linked to its result and
@@ -386,10 +386,14 @@ const view: View = {
   render(ctx) {
     const on = remoteOn(ctx);
     const head = `
-      <div class="page-head">
-        <div><div class="eyebrow">Copilot</div><h1>Talk to your data &amp; docs</h1></div>
-        ${!on && ctx.state.chat.length ? '<button class="btn sm" data-clear>Clear conversation</button>' : ''}
-      </div>`;
+      ${pageHead({
+        eyebrow: 'Copilot',
+        title: 'Talk to your data & docs',
+        actionsHtml:
+          !on && ctx.state.chat.length
+            ? button('Clear conversation', { size: 'sm', attrs: { 'data-clear': true } })
+            : '',
+      })}`;
     if (on) return head + remoteRender(ctx);
     const checking = ctx.api && remote?.configured === null;
     const note =

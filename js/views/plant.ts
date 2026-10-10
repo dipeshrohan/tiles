@@ -17,6 +17,7 @@ import type { Graph, OntologyNode } from '../lib/types.ts';
 import { when } from '../lib/warnings.ts';
 import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } from './floor-data.ts';
 import type { Context, View } from './types.ts';
+import { button, pageHead } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 
 // The plant navigator (T5.17): the ontology's hierarchy as places to drill into, site → workcenter
@@ -33,17 +34,10 @@ const uiState = (ctx: Context) => ctx.ui<Ui>('plant', { query: '' });
 let searching = false; // the search box has the focus
 let typing: ReturnType<typeof setTimeout> | undefined;
 
-const crumbs = (graph: Graph, id: string | null): string => {
-  const path = id ? trail(graph, id) : [];
-  const links = [
-    `<a href="#/plant">Plant</a>`,
-    ...path.map((n, i) =>
-      i === path.length - 1
-        ? `<b aria-current="page">${esc(n.label)}</b>`
-        : `<a href="${placeLink(n.id)}">${esc(n.label)}</a>`,
-    ),
-  ];
-  return `<nav class="plant-trail" aria-label="Where you are">${links.join('<span aria-hidden="true">›</span>')}</nav>`;
+// The place the URL names; with one site, the page opens on it.
+const placeOf = (graph: Graph): string | null => {
+  const tops = topPlaces(graph);
+  return placeFromHash(location.hash) ?? (tops.length === 1 ? (tops[0] ?? null) : null);
 };
 
 const badge = (state: FloorItem['state'], count: number): string => {
@@ -217,22 +211,27 @@ const view: View = {
   id: 'plant',
   title: 'Plant',
   icon: 'factory',
+  crumbs(ctx) {
+    const graph = ctx.graph;
+    const id = placeOf(graph);
+    return id && graph.nodes[id] ? trail(graph, id).map((n) => ({ label: n.label, href: placeLink(n.id) })) : [];
+  },
   render(ctx) {
     const ui = uiState(ctx);
     const graph = ctx.graph; // made afresh at each read: once for the whole page
     const tops = topPlaces(graph);
-    // One site: the page opens on it.
-    const asked = placeFromHash(location.hash);
-    const id = asked ?? (tops.length === 1 ? (tops[0] ?? null) : null);
+    const id = placeOf(graph);
     const node = id ? graph.nodes[id] : undefined;
     const title = node?.label ?? 'Plant';
     const kind = node ? node.type : 'Site → line → machine';
     const search = `<form class="plant-search" data-plant-search role="search">
         <input name="q" type="search" placeholder="Find a line or machine" aria-label="Find a place" value="${esc(ui.query)}" autocomplete="off">
       </form>`;
-    const head = `<div class="page-head"><div><div class="eyebrow">Operations · ${esc(kind)}</div><h1>${esc(title)}</h1>
-        ${crumbs(graph, node ? node.id : null)}</div>
-        <div class="row gap-2">${search}${ctx.api ? '<button class="btn" data-plant-refresh>Refresh</button>' : ''}</div></div>`;
+    const head = pageHead({
+      eyebrow: `Operations · ${kind}`,
+      title,
+      actionsHtml: `<div class="row gap-2">${search}${ctx.api ? button('Refresh', { attrs: { 'data-plant-refresh': true } }) : ''}</div>`,
+    });
     if (ctx.api && ctx.ontology.status === 'loading')
       return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')
@@ -242,7 +241,7 @@ const view: View = {
       return `${head}${results}<div class="card"><p>The ontology has no sites, lines or machines yet. Build the hierarchy on the <a href="#/ontology">Ontology</a> page: a site contains workcenters, which contain lines and cells, which contain machines.</p></div>`;
     const items = floorItems(ctx, graph);
     const now = Date.now();
-    if (asked && !node)
+    if (placeFromHash(location.hash) && !node)
       return `${head}${results}<div class="card" role="alert"><p>This place isn’t in the ontology any more. <a href="#/plant">Start from the top</a>.</p></div>`;
     if (!node) {
       const cards = tops.map((t) => placeCard(graph, graph.nodes[t] as OntologyNode, items)).join('');

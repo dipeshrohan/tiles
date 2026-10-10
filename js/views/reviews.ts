@@ -4,7 +4,7 @@ import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
 import { showHistory } from './ontology.ts';
 import type { Context, View } from './types.ts';
-import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
+import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
 
 // Change reviews (T2.12): ontology changes another engineer approves (which
 // commits them) or rejects, with the diff and a comment thread. Requests are
@@ -272,9 +272,16 @@ const view: View = {
   id: 'reviews',
   title: 'Change reviews',
   icon: 'git-pull-request',
+  crumbs() {
+    const n = linked(location.hash);
+    return n === null ? [] : [{ label: `#${n}`, href: `#/reviews/${n}` }];
+  },
   render(ctx) {
-    const head = `<div class="page-head"><div><div class="eyebrow">Operations · Ontology</div><h1>Change reviews</h1>
-        <p class="soft">Ontology changes waiting for a second engineer: read the diff, discuss it, then approve (which commits it) or reject it.</p></div></div>`;
+    const head = pageHead({
+      eyebrow: 'Operations · Ontology',
+      title: 'Change reviews',
+      lead: 'Ontology changes waiting for a second engineer: read the diff, discuss it, then approve (which commits it) or reject it.',
+    });
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
     const o = ctx.ontology;
