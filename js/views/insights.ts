@@ -18,7 +18,7 @@ import {
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
+import { emptyState, needsApi, pageHead, skeleton } from '../lib/ui.ts';
 
 // Saved insights (T3.12): findings saved from the correlation finder or the Data explorer, with the
 // question asked, the evidence it gave then and the actions proposed; another engineer accepts or
@@ -92,7 +92,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const n = selected();
   const rows =
     items === null
-      ? loadingState()
+      ? skeleton.list()
       : items
           .map(
             (
@@ -151,7 +151,7 @@ function detailCard(ctx: Context): string {
   const n = selected();
   if (n === null)
     return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an insight' })}</div>`;
-  if (detail?.key !== detailKey(ctx)) return `<div class="card">${loadingState()}</div>`;
+  if (detail?.key !== detailKey(ctx)) return `<div class="card">${skeleton.card()}</div>`;
   const i = detail.insight;
   if (!i)
     return `<div class="card">${emptyState({ illustration: 'error', alert: true, title: `Insight #${n} could not be loaded` })}</div>`;
@@ -243,7 +243,7 @@ const view: View = {
     });
     if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
+    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (o.status !== 'ready')
       return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
     return `${head}<div class="reviews">${listCard(ctx, uiState(ctx))}${detailCard(ctx)}</div>`;

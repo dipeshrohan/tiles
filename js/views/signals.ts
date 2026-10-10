@@ -12,6 +12,8 @@ import {
   select,
   table,
   type Tone,
+  skeleton,
+  setBusy,
 } from '../lib/ui.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
@@ -221,7 +223,7 @@ function editRow(ctx: Context, s: SignalInfo): string {
             title: "The machine, as the MES names it: its events are matched to its detectors' warnings",
           },
         )}
-        ${button(saving === s.id ? 'Saving…' : 'Save', { variant: 'primary', type: 'submit' })}
+        ${button('Save', { variant: 'primary', type: 'submit', busy: saving === s.id })}
         ${button('Cancel', { attrs: { 'data-cancel-edit': true } })}
         </fieldset>
       </form>
@@ -313,7 +315,7 @@ function fill(root: HTMLElement, ctx: Context): void {
     ? '<p class="small soft">The signals could not be loaded.</p>'
     : results
       ? resultsTable(ctx, results, canEdit)
-      : '<p class="small soft">Loading…</p>';
+      : skeleton.table(6, 9, 'Loading the signals…');
   const again = box.querySelector<HTMLFormElement>('#signal-form');
   if (typed && again && again.dataset.signal === typed.signal) {
     for (const [name, value] of typed.values) {
@@ -533,11 +535,9 @@ const view: View = {
     if (!ctx.api) return `${head}${card(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
     if (!ctx.ontology.site)
       return `${head}${card(
-        `<p class="small soft">${
-          ctx.ontology.status === 'error'
-            ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}`
-            : 'Loading the site from the Tiles API…'
-        }</p>`,
+        ctx.ontology.status === 'error'
+          ? `<p class="small soft">The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}</p>`
+          : skeleton.card('Loading the site from the Tiles API…'),
       )}`;
     const { query } = ui(ctx);
     const search = `<form id="signal-search" class="row gap-3 wrap" role="search">
@@ -584,8 +584,8 @@ const view: View = {
           )}
           ${
             ctx.ontology.role !== 'viewer'
-              ? button(checking ? 'Checking…' : 'Check quality', {
-                  disabled: checking,
+              ? button('Check quality', {
+                  busy: checking,
                   attrs: {
                     'data-check-quality': true,
                     title:
@@ -595,7 +595,7 @@ const view: View = {
               : ''
           }
         </form>`;
-    return `${head}${card(`${search}<div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>`, { class: 'stack gap-3' })}
+    return `${head}${card(`${search}<div data-signal-results aria-live="polite">${skeleton.table(6, 9, 'Loading the signals…')}</div>`, { class: 'stack gap-3' })}
       ${card(
         `<div class="row justify-between wrap gap-2">
           <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
@@ -638,8 +638,7 @@ const view: View = {
     const setButton = (busy: boolean) => {
       const button = root.querySelector<HTMLButtonElement>('[data-check-quality]');
       if (!button) return;
-      button.disabled = busy;
-      button.textContent = busy ? 'Checking…' : 'Check quality';
+      setBusy(button, busy);
     };
     checkButton?.addEventListener('click', () => {
       const site = ctx.ontology.site;

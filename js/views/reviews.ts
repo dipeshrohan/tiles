@@ -4,7 +4,7 @@ import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
 import { showHistory } from './ontology.ts';
 import type { Context, View } from './types.ts';
-import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
+import { emptyState, needsApi, pageHead, skeleton } from '../lib/ui.ts';
 
 // Change reviews (T2.12): ontology changes another engineer approves (which
 // commits them) or rejects, with the diff and a comment thread. Requests are
@@ -89,7 +89,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   const rows =
     items === null
-      ? loadingState()
+      ? skeleton.list()
       : items
           .map(
             (r) => `
@@ -115,7 +115,7 @@ function detailCard(ctx: Context, ui: Ui): string {
   if (ui.selected === null)
     return `<div class="card">${emptyState({ illustration: 'select', title: 'Select a change request', body: 'Its changes, discussion and decision show here.' })}</div>`;
   const r = detail?.key === detailKey(ctx) ? detail.review : null;
-  if (!r) return `<div class="card" data-review-detail>${loadingState()}</div>`;
+  if (!r) return `<div class="card" data-review-detail>${skeleton.card()}</div>`;
   const o = ctx.ontology;
   const open = r.status === 'open';
   const changes = describeChanges(ctx.state.repo.head, r.ops, { compare: open });
@@ -285,7 +285,7 @@ const view: View = {
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
+    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (o.status !== 'ready')
       return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
     const ui = uiState(ctx);

@@ -5,7 +5,7 @@ import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '..
 import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
+import { emptyState, needsApi, pageHead, skeleton } from '../lib/ui.ts';
 
 // The correlation finder (T3.11): which settings separate failed batches from good ones, on real
 // batch tables kept by the Tiles API. Upload a CSV (one row per batch), choose the outcome and what
@@ -73,7 +73,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.items;
   const rows =
     items === null || items === undefined
-      ? loadingState()
+      ? skeleton.list()
       : items
           .map(
             (d) => `<button class="review-row ${ui.selected === d.id ? 'sel' : ''}" data-dataset="${esc(d.id)}">
@@ -99,7 +99,7 @@ function analysisCard(ctx: Context, ui: Ui): string {
   if (!ui.selected)
     return `<div class="card">${emptyState({ illustration: 'chart', title: 'Choose a batch table', body: 'Or upload one: its settings are compared between good and failed batches.' })}</div>`;
   const d = detail?.id === ui.selected ? detail.data : null;
-  if (!d) return `<div class="card">${loadingState()}</div>`;
+  if (!d) return `<div class="card">${skeleton.card('Loading the effects…', { chart: 200 })}</div>`;
   const numbers = d.columns.filter((c) => c.kind === 'number').map((c) => c.name);
   const outcome =
     d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === 'bool') ?? d.columns[0];
@@ -311,7 +311,7 @@ const view: View = {
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
+    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (o.status !== 'ready')
       return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
     const ui = uiState(ctx);

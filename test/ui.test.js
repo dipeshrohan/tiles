@@ -18,6 +18,7 @@ import {
   loadingState,
   options,
   pageHead,
+  skeleton,
   select,
   table,
   tabs,
@@ -46,11 +47,35 @@ test('an empty state says why, and what to do next, with its text escaped', () =
   assert.doesNotMatch(errorState({ title: 'x', alert: false }), /role="alert"/);
 });
 
-test('loading shows bars for the eye and words for screen readers', () => {
+test('loading shows shapes for the eye, after a moment, and words for screen readers', () => {
   const html = loadingState('Loading <runs>…', 2);
-  assert.match(html, /^<div class="empty loading">/);
-  assert.match(html, /<span class="sr-only">Loading &lt;runs&gt;…<\/span>/);
+  assert.match(html, /^<div class="loading loading-text"><span class="sr-only">Loading &lt;runs&gt;…<\/span>/);
+  // The words are beside the busy shapes, which wait until 300 ms after loading began.
+  assert.match(html, /<div class="loading-shapes" aria-hidden="true" aria-busy="true" style="--wait:\d+ms">/);
   assert.equal(html.match(/class="skeleton"/g)?.length, 2);
+});
+
+test('skeletons come in the shape of what loads', () => {
+  // A table: a header row and the rows, each with its cells.
+  const table = skeleton.table(3, 4, 'Loading the signals…');
+  assert.equal(table.match(/class="skeleton-row/g)?.length, 4);
+  assert.equal(table.match(/class="skeleton"/g)?.length, 16);
+  assert.match(table, /<span class="sr-only">Loading the signals…<\/span>/);
+  assert.match(skeleton.card(), /skeleton-title/);
+  assert.match(skeleton.chart('Loading', 180), /class="skeleton skeleton-chart" style="--h:180px"/);
+  assert.equal(skeleton.list(2).match(/class="skeleton-item"/g)?.length, 2);
+  for (const html of [table, skeleton.card(), skeleton.chart(), skeleton.list(), skeleton.text()])
+    assert.match(html, /aria-busy="true"/);
+  // Rows differ, as text does; a card can hold a chart.
+  const rows = table.split('class="skeleton-row"').slice(1);
+  assert.notEqual(rows[0], rows[1]);
+  assert.match(skeleton.card('Loading', { chart: 120 }), /skeleton-chart" style="--h:120px"/);
+});
+
+test('a busy button keeps its label (and width and name) under a spinner, and waits', () => {
+  const html = button('Save', { variant: 'primary', busy: true });
+  assert.match(html, /^<button class="btn primary busy" type="button" disabled aria-busy="true">/);
+  assert.match(html, /<span class="btn-label">Save<\/span><span class="btn-spinner" aria-hidden="true"><svg/);
 });
 
 test('every illustration is a decorative picture that follows the theme', () => {
@@ -249,4 +274,14 @@ test('breadcrumbs link each place above, and mark this one current', () => {
   assert.equal(html.match(/aria-current/g)?.length, 1);
   // A place without a link of its own is plain text.
   assert.match(breadcrumbs([{ label: 'New app' }, { label: 'x' }]), /<li><span>New app<\/span><\/li>/);
+});
+
+test('the wait counts from when loading began, not from each render', async () => {
+  const waitOf = (html) => Number(/--wait:(\d+)ms/.exec(html)?.[1]);
+  const first = waitOf(skeleton.text());
+  await new Promise((r) => setTimeout(r, 120));
+  const again = waitOf(skeleton.list()); // a re-render while still loading
+  assert.ok(again <= first - 100, `${first} then ${again}`);
+  await new Promise((r) => setTimeout(r, 1100)); // loading stopped, then something new loads
+  assert.equal(waitOf(skeleton.card()), 300);
 });

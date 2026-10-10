@@ -14,7 +14,7 @@ import type { CopilotConversation } from '../lib/api.ts';
 import { esc, need, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, button, pageHead } from '../lib/ui.ts';
+import { emptyState, loadingState, button, pageHead, skeleton } from '../lib/ui.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
 // answer streamed in with the tools it used (expandable, each citation linked to its result and
@@ -129,7 +129,7 @@ function remoteRender(ctx: Context): string {
   const list = remote?.conversations;
   const items =
     list === null || list === undefined
-      ? loadingState()
+      ? skeleton.list()
       : list
           .map(
             (c) =>

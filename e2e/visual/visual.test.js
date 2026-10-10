@@ -98,6 +98,9 @@ async function settle(page) {
   // Toasts come and go (and an error's carries its request ID): dismissed, as a user would.
   for (const close of await page.locator('#toast .toast-close').all()) await close.click().catch(() => {});
   await page.waitForSelector('#toast .toast-item', { state: 'detached' });
+  // The page-enter class leaves the cards on their own layer, where text is drawn a little
+  // differently, until app.ts takes it off (600 ms after a page opens): wait for that.
+  await page.waitForFunction(() => !document.querySelector('#view.view-enter'));
   await page.evaluate(async () => {
     await document.fonts.ready;
     await Promise.all(document.getAnimations().map((a) => a.finished.catch(() => {})));
@@ -137,6 +140,8 @@ async function diff(expected, actual) {
       const pa = ca.getImageData(0, 0, x.width, x.height);
       const pb = canvas(y).getImageData(0, 0, y.width, y.height).data;
       let changed = 0;
+      // Where the changes are, so a log without the images still says what moved.
+      const box = { left: Infinity, top: Infinity, right: -1, bottom: -1 };
       const out = ca.createImageData(x.width, x.height);
       const o = out.data;
       const p = pa.data;
@@ -147,6 +152,12 @@ async function diff(expected, actual) {
           Math.abs(p[i + 2] - pb[i + 2]) > channel;
         if (moved) {
           changed++;
+          const px = (i / 4) % x.width;
+          const py = Math.floor(i / 4 / x.width);
+          box.left = Math.min(box.left, px);
+          box.right = Math.max(box.right, px);
+          box.top = Math.min(box.top, py);
+          box.bottom = Math.max(box.bottom, py);
           o[i] = 230;
           o[i + 1] = 20;
           o[i + 2] = 60;
@@ -163,7 +174,18 @@ async function diff(expected, actual) {
       const bytes = new Uint8Array(await blob.arrayBuffer());
       let s = '';
       for (const byte of bytes) s += String.fromCharCode(byte);
-      return { changed, total: pb.length / 4, png: btoa(s) };
+      // The changed box, before and after, small enough to print in a CI log.
+      const crop = async (img) => {
+        const w = Math.min(img.width, box.right + 11) - Math.max(0, box.left - 10);
+        const h = Math.min(img.height, box.bottom + 11) - Math.max(0, box.top - 10);
+        const c = new OffscreenCanvas(w, h);
+        c.getContext('2d').drawImage(img, -Math.max(0, box.left - 10), -Math.max(0, box.top - 10));
+        const b = new Uint8Array(await (await c.convertToBlob({ type: 'image/png' })).arrayBuffer());
+        let t = '';
+        for (const byte of b) t += String.fromCharCode(byte);
+        return btoa(t);
+      };
+      return { changed, total: pb.length / 4, png: btoa(s), box, before: await crop(x), after: await crop(y) };
     },
     { a: expected.toString('base64'), b: actual.toString('base64'), channel: CHANNEL },
   );
@@ -172,7 +194,7 @@ async function diff(expected, actual) {
 async function check(name, shot) {
   const file = join(BASELINES, `${name}.png`);
   written.add(`${name}.png`);
-  if (UPDATE || !existsSync(file)) {
+  if (!existsSync(file)) {
     assert.ok(UPDATE, `no baseline for ${name}: run npm run test:visual -- --update`);
     writeFileSync(file, shot);
     return;
@@ -181,15 +203,24 @@ async function check(name, shot) {
   if (expected.equals(shot)) return; // the same browser makes the same file: nothing to compare
   const result = await diff(expected, shot);
   const share = result.changed / result.total;
-  if (share <= MAX_SHARE) return;
+  if (share <= MAX_SHARE) return; // the same, to the eye: an update keeps the baseline as it is
+  if (UPDATE) {
+    writeFileSync(file, shot);
+    return;
+  }
   mkdirSync(OUTPUT, { recursive: true });
   writeFileSync(join(OUTPUT, `${name}.actual.png`), shot);
   writeFileSync(join(OUTPUT, `${name}.expected.png`), readFileSync(file));
   if (result.png) writeFileSync(join(OUTPUT, `${name}.diff.png`), Buffer.from(result.png, 'base64'));
+  // In CI, the changed box itself goes to the log too (the artefact isn't always reachable).
+  if (process.env.CI && result.before)
+    console.log(
+      `::group::${name} changed box (PNG, base64)\nbefore ${result.before}\nafter ${result.after}\n::endgroup::`,
+    );
   assert.fail(
     result.size
       ? `${name}: the size changed (${result.size})`
-      : `${name}: ${(share * 100).toFixed(2)}% of the pixels changed (at most ${MAX_SHARE * 100}%); see e2e/visual/output/${name}.diff.png`,
+      : `${name}: ${(share * 100).toFixed(2)}% of the pixels changed (at most ${MAX_SHARE * 100}%), within x ${result.box.left}–${result.box.right}, y ${result.box.top}–${result.box.bottom}; see e2e/visual/output/${name}.diff.png`,
   );
 }
 

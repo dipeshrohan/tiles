@@ -34,15 +34,71 @@ export function needsApi(bodyHtml: string, level?: 2 | 3 | 4): string {
   });
 }
 
-// While something loads (U2.04): grey bars in the shape of what is coming, which shimmer (not with
-// reduced motion), and the words for screen readers (read where they are: a live region made in the
-// same render as its text isn't announced).
+// While something loads (U2.04): grey shapes like what is coming, so nothing jumps when it arrives.
+// They show after 300 ms (a quick answer doesn't flash them) and shimmer (not with reduced motion);
+// the region is aria-busy, and its words are read where they are (a live region made in the same
+// render as its text isn't announced).
+const WIDTHS = [92, 76, 84, 64, 88, 70];
+const bar = (w: number): string => `<span class="skeleton" style="--w:${w}%"></span>`;
+// The wait is counted from when loading began, not from each render: a page that re-renders while it
+// loads (one phase to the next, a keystroke) doesn't hide its shapes for another 300 ms each time.
+let loadingSince = 0;
+let lastLoading = -Infinity;
+const wait = (): number => {
+  const now = typeof performance === 'undefined' ? Date.now() : performance.now();
+  if (now - lastLoading > 1000) loadingSince = now; // a new wait after a pause in loading
+  lastLoading = now;
+  return Math.max(0, Math.round(300 - (now - loadingSince)));
+};
+// The words are beside the busy shapes (some screen readers hold back what is inside a busy region).
+const loading = (label: string, kind: string, shapes: string): string =>
+  `<div class="loading loading-${kind}"><span class="sr-only">${esc(label)}</span><div class="loading-shapes" aria-hidden="true" aria-busy="true" style="--wait:${wait()}ms">${shapes}</div></div>`;
+
+export const skeleton = {
+  // Lines of text.
+  text(lines = 3, label = 'Loading…'): string {
+    return loading(
+      label,
+      'text',
+      Array.from({ length: lines }, (_, i) => bar(WIDTHS[i % WIDTHS.length] ?? 80)).join(''),
+    );
+  },
+  // A table: a header and rows of cells.
+  table(rows = 5, cols = 4, label = 'Loading…'): string {
+    const row = (r: number) =>
+      `<div class="skeleton-row${r < 0 ? ' head' : ''}">${Array.from({ length: cols }, (_, c) => bar(r < 0 ? 50 : (WIDTHS[(c + r) % WIDTHS.length] ?? 80))).join('')}</div>`;
+    return loading(label, 'table', [row(-1), ...Array.from({ length: rows }, (_, r) => row(r))].join(''));
+  },
+  // A card's worth: a title and a few lines, and a chart under them when it has one.
+  card(label = 'Loading…', o: { chart?: number } = {}): string {
+    return loading(
+      label,
+      'card',
+      `<span class="skeleton skeleton-title"></span>${[88, 72, 80].map(bar).join('')}${
+        o.chart ? `<span class="skeleton skeleton-chart" style="--h:${o.chart}px"></span>` : ''
+      }`,
+    );
+  },
+  // A chart: a box the chart's height.
+  chart(label = 'Loading the chart…', height = 240): string {
+    return loading(label, 'chart', `<span class="skeleton skeleton-chart" style="--h:${height}px"></span>`);
+  },
+  // Rows of a list (requests, warnings, documents): a title line and a detail line each.
+  list(items = 4, label = 'Loading…'): string {
+    return loading(
+      label,
+      'list',
+      Array.from(
+        { length: items },
+        (_, i) => `<div class="skeleton-item">${bar(WIDTHS[i % WIDTHS.length] ?? 80)}${bar(48)}</div>`,
+      ).join(''),
+    );
+  },
+};
+
+// Lines of text loading: skeleton.text with the label first.
 export function loadingState(label = 'Loading…', rows = 3): string {
-  const widths = [92, 76, 84, 64, 88, 70];
-  return `<div class="empty loading"><span class="sr-only">${esc(label)}</span>${Array.from(
-    { length: rows },
-    (_, i) => `<span class="skeleton" style="--w:${widths[i % widths.length]}%"></span>`,
-  ).join('')}</div>`;
+  return skeleton.text(rows, label);
 }
 
 // ---- Components (U1.04), after shadcn/ui's: each returns HTML with every text escaped. Options
@@ -64,6 +120,7 @@ export function attrs(a: Attrs = {}): string {
 const classes = (...c: (string | false | null | undefined)[]): string => c.filter(Boolean).join(' ');
 
 export interface ButtonOptions {
+  busy?: boolean; // its work is under way: a spinner over the label, the same width, disabled
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger' | 'destructive';
   size?: 'sm' | 'lg';
   icon?: IconName; // before the label
@@ -76,9 +133,27 @@ export interface ButtonOptions {
 const buttonClass = (o: ButtonOptions, extra?: string): string => classes('btn', o.size, o.variant, extra, o.class);
 
 export function button(label: string, o: ButtonOptions = {}): string {
-  return `<button${attrs({ class: buttonClass(o), type: o.type ?? 'button', disabled: o.disabled, ...o.attrs })}>${
-    o.icon ? `${icon(o.icon)} ` : ''
-  }${esc(label)}</button>`;
+  const content = `${o.icon ? `${icon(o.icon)} ` : ''}${esc(label)}`;
+  return `<button${attrs({ class: buttonClass(o, o.busy ? 'busy' : undefined), type: o.type ?? 'button', disabled: o.disabled || o.busy, 'aria-busy': o.busy ? 'true' : undefined, ...o.attrs })}>${
+    o.busy
+      ? `<span class="btn-label">${content}</span><span class="btn-spinner" aria-hidden="true">${icon('loader-circle')}</span>`
+      : content
+  }</button>`;
+}
+
+// Puts a button already on the page into (or out of) its busy state, as button({ busy }) draws it.
+export function setBusy(el: HTMLButtonElement, busy: boolean): void {
+  el.disabled = busy;
+  el.classList.toggle('busy', busy);
+  const label = el.querySelector('.btn-label');
+  if (busy) {
+    el.setAttribute('aria-busy', 'true');
+    if (!label)
+      el.innerHTML = `<span class="btn-label">${el.innerHTML}</span><span class="btn-spinner" aria-hidden="true">${icon('loader-circle')}</span>`;
+  } else {
+    el.removeAttribute('aria-busy');
+    if (label) el.innerHTML = label.innerHTML;
+  }
 }
 
 // A button with only an icon: named for screen readers, and in a tooltip for the eye.

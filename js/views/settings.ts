@@ -14,7 +14,7 @@ import {
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import type { Context, View } from './types.ts';
-import { linkButton, pageHead } from '../lib/ui.ts';
+import { linkButton, pageHead, skeleton } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
@@ -94,7 +94,7 @@ function auditCard(): string {
   return `<div class="card stack gap-3 span-all" id="audit">
       <h2>Audit log</h2>
       <p class="small soft">Every change on this site: who, what and when. Only site admins see this.</p>
-      <div data-audit-rows aria-live="polite"><p class="small soft">Loading…</p></div>
+      <div data-audit-rows aria-live="polite">${skeleton.table(4, 4, 'Loading the audit log…')}</div>
     </div>`;
 }
 
@@ -121,7 +121,7 @@ function copilotUsageCard(): string {
   return `<div class="card stack gap-3 span-all" id="copilot-usage">
       <h2>Copilot usage</h2>
       <p class="small soft">Questions asked on this site over the last 30 days (UTC), the tokens they used and how long answers took. Tokens are weighted by price, in input tokens: an output token counts five, a prompt-cache write one and a quarter, a cache read a tenth. Only site admins see this.</p>
-      <div data-copilot-usage aria-live="polite"><p class="small soft">Loading…</p></div>
+      <div data-copilot-usage aria-live="polite">${skeleton.text(3, 'Loading the usage…')}</div>
     </div>`;
 }
 
@@ -235,7 +235,7 @@ function notificationsCard(ctx: Context): string {
         <div class="row gap-2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
       </form>
       <h3>Recent messages</h3>
-      <div data-deliveries aria-live="polite"><p class="small soft">Loading…</p></div>`
+      <div data-deliveries aria-live="polite">${skeleton.table(3, 4, 'Loading the deliveries…')}</div>`
       : '';
   return `<div class="card stack gap-3 span-all" id="notifications">
       <h2>Notifications</h2>
@@ -416,7 +416,7 @@ function agentsCard(admin: boolean): string {
       <h2>Edge agents</h2>
       <p class="small soft">Agents run on the plant network and send data out to Tiles; they open no ports. Each one reports a heartbeat, so you can see whether it is online. See <code>edge/README.md</code> to install one.</p>
       <div data-agent-token aria-live="polite"></div>
-      <div data-agent-rows aria-live="polite"><p class="small soft">Loading…</p></div>
+      <div data-agent-rows aria-live="polite">${skeleton.table(2, 5, 'Loading the edge agents…')}</div>
       ${
         admin
           ? `<form class="row gap-2 wrap" id="agent-form">
