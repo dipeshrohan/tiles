@@ -44,6 +44,30 @@ spec:
     - ports:
         - port: 8000
         - port: 5173
+{{- if .Values.sandbox.enabled }}
+---
+# The sandbox (T4.15) accepts only the API and its jobs, and connects to nothing at all.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-sandbox
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "sandbox") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/instance, operator: In, values: [{{ .Release.Name | quote }}] }
+              - { key: app.kubernetes.io/component, operator: In, values: [api, job] }
+      ports:
+        - port: 8100
+  egress: []
+{{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

@@ -40,6 +40,7 @@ within its bounds. A bad spec raises `ModelError` when the module is imported.
 | Sweeps | A `design` version over a grid of one or two parameters, as a background job | `sweeps.py`, `api_sweeps.py`, `tiles-run-sweeps` |
 | Browser | The Design Studio's models and the plunger physics, without the API | `js/lib/design.ts`, `js/lib/physics.ts` |
 | An organisation's service | Its own model versions, registered with their spec and called over HTTP ([section 10](#10-models-served-over-http)) | `models/remote.py`, `api_org_models.py` |
+| The sandbox | An organisation's model versions from GitHub, each evaluation in a new restricted process ([section 11](#11-models-from-github-run-in-the-sandbox)) | `models/github.py`, `sandbox/` |
 
 All API paths go through one checked entry point, `evaluate(model, inputs, params)` in
 `registry.py`. Do not call a model's `run` directly from new code.
@@ -612,7 +613,63 @@ the next run.
 Keep the endpoint deterministic: a restored run is checked against the stored output, and an
 identical sweep is answered from the result kept.
 
-## 11. Checklist for a model pull request
+## 11. Models from GitHub, run in the sandbox
+
+An organisation can also keep a model's code in a GitHub repository and register a version of it at
+a commit (T4.15). Tiles fetches the code once and runs it only in its sandbox, `tiles-sandbox`
+(`api/src/tiles_api/sandbox/`), never in the API; the model then works everywhere a built-in one
+does, like an HTTP model ([section 10](#10-models-served-over-http)). The code is
+`models/github.py`.
+
+### The model's directory
+
+```text
+models/beam/
+  tiles-model.json   the spec, as in section 10, and "entry" (model.py if left out)
+  model.py           defines run(inputs, params)
+  stiffness.py       any other modules it imports
+```
+
+`run(inputs, params)` gets a dict of each input's name to a list of numbers (empty for a design
+model) and a dict of each parameter's name to a number, and returns a dict of each output's name to
+a list of numbers or `None`, as section 10's reply. For example:
+
+```python
+from stiffness import FACTOR
+
+
+def run(inputs, params):
+    return {"deflection": [params["load"] ** 2 * FACTOR]}
+```
+
+### Registering a version
+
+An organisation admin posts `POST /org/models/github` with `repo` (`owner/name`), `commit` (the
+full 40-character SHA: a branch or tag could move) and `path` (the directory; empty for the root),
+and a `token` for a private repository, used for that fetch only and never kept. Tiles takes the
+directory's `tiles-model.json` and Python files (up to 1 MB), checks the spec like any other, and
+keeps the files with their SHA-256. A new commit is a new version.
+
+### What the sandbox allows
+
+Each evaluation runs in a new Python process:
+
+- **the standard library only:** no packages, and not the modules for networks, processes or
+  foreign code (`socket`, `urllib`, `http`, `subprocess`, `multiprocessing`, `ctypes` and the like);
+- **no files written**, and none read outside the model's directory and the standard library;
+- **at most 5 s and 512 MB** by default (`sandbox.timeout`, `sandbox.memoryMb`); no new processes.
+
+Whatever `run` prints is dropped. An exception, or a limit reached, refuses that evaluation with
+its reason, such as `The model failed: ZeroDivisionError: division by zero`: a binding skips that
+window, a sweep leaves that point null, and evaluate and design runs answer 502 with the reason.
+The sandbox being down stops a binding, which runs the window again later, as for an HTTP
+endpoint.
+
+Try a model before you register it with the sandbox on your machine: `TILES_SANDBOX_TOKEN=<16 or
+more characters> uv run tiles-sandbox`, then point a local API at it with `TILES_SANDBOX_URL` and
+`TILES_SANDBOX_TOKEN`.
+
+## 12. Checklist for a model pull request
 
 Before you open the pull request:
 

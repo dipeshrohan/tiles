@@ -88,6 +88,10 @@ app.kubernetes.io/component: {{ .component }}
 {{- end }}
 - name: TILES_COPILOT_ORG_DAILY_TOKENS
   value: {{ .Values.copilot.orgDailyTokens | int64 | quote }}
+{{- if .Values.sandbox.enabled }}
+- name: TILES_SANDBOX_URL
+  value: {{ printf "http://%s-sandbox:8100" (include "tiles.fullname" .) | quote }}
+{{- end }}
 {{- with .Values.models.endpointHosts }}
 - name: TILES_MODEL_HOSTS
   value: {{ toJson . | quote }}
@@ -121,7 +125,7 @@ app.kubernetes.io/component: {{ .component }}
   projected:
     defaultMode: 0400
     sources:
-      {{- if or .Values.database.bundled .Values.secrets.generateDataKey }}
+      {{- if or .Values.database.bundled .Values.secrets.generateDataKey .Values.sandbox.enabled }}
       - secret:
           name: {{ include "tiles.generatedSecret" . }}
           items:
@@ -130,6 +134,9 @@ app.kubernetes.io/component: {{ .component }}
             {{- end }}
             {{- if .Values.secrets.generateDataKey }}
             - { key: tiles_data_keys, path: tiles_data_keys }
+            {{- end }}
+            {{- if .Values.sandbox.enabled }}
+            - { key: tiles_sandbox_token, path: tiles_sandbox_token }
             {{- end }}
       {{- end }}
       {{- with .Values.secrets.existingSecret }}

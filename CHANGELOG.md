@@ -23,7 +23,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - suggested tag mappings.
 - **Models and warnings:**
   - a model registry and a model runner that writes derived signals;
-  - an organisation's own models, computed by its service and registered with their spec and an https endpoint on a host the deployment allows; they are tried, bound, run and swept like the built-in ones, every call checked against the spec, the endpoint's token sealed (T4.15);
+  - an organisation's own models, computed by its service and registered with their spec and an https endpoint on a host the deployment allows; they are tried, bound, run and swept like the built-in ones, every call checked against the spec, the endpoint's token sealed; or from a GitHub repository at a commit, the code kept and run only in a sandbox: a new process per evaluation, the standard library only, within limits, in a pod that reaches nothing (T4.15);
   - streaming detectors, with backtests;
   - a warnings inbox with acknowledgement, assignment and outcomes;
   - a shopfloor view for tablets on the line: warnings first on their machines, large type, buttons big enough for gloves, a board of every machine, and a full view without the menu (T5.16);

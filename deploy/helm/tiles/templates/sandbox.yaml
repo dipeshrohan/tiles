@@ -1,0 +1,87 @@
+{{- if .Values.sandbox.enabled }}
+{{- $fullname := include "tiles.fullname" . }}
+{{- /*
+  The sandbox for models from GitHub (T4.15, api/src/tiles_api/sandbox): each evaluation in a new
+  process with resource limits and an audit hook. The pod holds no credentials but its own token,
+  connects to nothing (networkpolicy.yaml, egress.yaml) and accepts only the API and its jobs.
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $fullname }}-sandbox
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  selector:
+    {{- include "tiles.selector" (dict "root" . "component" "sandbox") | nindent 4 }}
+  ports:
+    - { name: http, port: 8100, targetPort: http }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $fullname }}-sandbox
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+    app.kubernetes.io/component: sandbox
+spec:
+  replicas: {{ .Values.sandbox.replicas }}
+  selector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "sandbox") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "tiles.labels" . | nindent 8 }}
+        app.kubernetes.io/component: sandbox
+    spec:
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.sandbox.runtimeClassName }}
+      runtimeClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "tiles.podSecurity" (dict "uid" 10002) | nindent 8 }}
+      containers:
+        - name: sandbox
+          image: {{ include "tiles.image" (dict "image" .Values.images.api "root" .) }}
+          imagePullPolicy: {{ .Values.images.api.pullPolicy }}
+          command: [tiles-sandbox]
+          env:
+            - { name: TILES_SANDBOX_HOST, value: "0.0.0.0" }
+            - { name: TILES_SANDBOX_PORT, value: "8100" }
+            - { name: TILES_SANDBOX_TOKEN_FILE, value: /var/run/secrets/tiles-sandbox/token }
+            - { name: TILES_SANDBOX_DIR, value: /tmp/code }
+            - { name: TILES_SANDBOX_TIMEOUT, value: {{ .Values.sandbox.timeout | quote }} }
+            - { name: TILES_SANDBOX_MEMORY_MB, value: {{ .Values.sandbox.memoryMb | quote }} }
+            - { name: TILES_SANDBOX_WORKERS, value: {{ .Values.sandbox.workers | quote }} }
+          ports:
+            - { name: http, containerPort: 8100 }
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.sandbox.resources | nindent 12 }}
+          securityContext:
+            {{- include "tiles.containerSecurity" . | nindent 12 }}
+          volumeMounts:
+            - { name: token, mountPath: /var/run/secrets/tiles-sandbox, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        # Its own token only: none of the API's secrets.
+        - name: token
+          secret:
+            secretName: {{ include "tiles.generatedSecret" . }}
+            defaultMode: 0400
+            items:
+              - { key: tiles_sandbox_token, path: token }
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 256Mi }
+{{- end }}

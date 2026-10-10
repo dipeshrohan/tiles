@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     # chart's egress allowlist takes them too. Each call may take `model_timeout` seconds.
     model_hosts: list[str] = []
     model_timeout: float = Field(default=10.0, gt=0, le=45)  # le: sweeps.HEARTBEAT_SECONDS
+    # Models from GitHub (T4.15, models/github.py) run in the sandbox (`tiles-sandbox`) at this
+    # address, with this token (the sandbox's TILES_SANDBOX_TOKEN). Unset: they can't be registered.
+    sandbox_url: str | None = None
+    sandbox_token: SecretStr | None = None
     # The copilot (T4.01): Claude through the Anthropic API. Off until both are set; the model is a
     # current Claude model ID from Anthropic's documentation.
     anthropic_api_key: SecretStr | None = None

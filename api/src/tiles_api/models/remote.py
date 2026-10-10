@@ -47,9 +47,10 @@ class RemoteError(ModelError):
     built-in model refuses.
     """
 
-    def __init__(self, message: str, *, retry: bool = True) -> None:
+    def __init__(self, message: str, *, retry: bool = True, status: int | None = None) -> None:
         super().__init__(message)
         self.retry = retry
+        self.status = status  # the HTTP status the endpoint answered, if it answered
 
 
 def endpoint_problem(url: str, settings: Settings) -> str | None:
@@ -130,12 +131,47 @@ def post(url: str, body: bytes, headers: dict[str, str], timeout: float) -> byte
                 if time.monotonic() > deadline:
                     raise TimeoutError
     except urllib.error.HTTPError as e:
-        e.close()
+        why = _detail(e)
         busy = e.code >= 500 or e.code in (408, 429) or 300 <= e.code < 400
-        raise RemoteError(f"The model's endpoint answered {e.code}", retry=busy) from None
+        raise RemoteError(
+            f"The model's endpoint answered {e.code}" + (f": {why}" if why else ""), retry=busy, status=e.code
+        ) from None
     except (OSError, http.client.HTTPException) as e:  # unreachable, refused, timed out, cut off
         raise RemoteError(f"The model's endpoint can't be reached ({type(e).__name__})") from None
     return b"".join(parts)
+
+
+def _detail(e: urllib.error.HTTPError) -> str:
+    """The `detail` of an error answered as JSON ({"detail": "…"}, as FastAPI and the sandbox give
+    it), shortened; nothing otherwise."""
+    try:
+        body = e.read(4096) if 400 <= e.code < 500 else b""
+        found = json.loads(body) if body else None
+    except (OSError, ValueError, http.client.HTTPException):
+        found = None
+    finally:
+        e.close()
+    why = found.get("detail") if isinstance(found, dict) else None
+    return " ".join(why.split())[:300] if isinstance(why, str) else ""
+
+
+def outputs_of(reply: bytes) -> dict[str, list[float | None]]:
+    """The outputs in a reply, `{"outputs": {"<name>": [numbers or null…]}}`, or a RemoteError."""
+    try:
+        found = json.loads(reply, parse_constant=_refuse_constant)
+    except ValueError as e:  # not JSON (or NaN, Infinity)
+        raise RemoteError(f"The model's endpoint didn't answer JSON: {e}", retry=False) from None
+    outputs = found.get("outputs") if isinstance(found, dict) else None
+    if not isinstance(outputs, dict):
+        raise RemoteError('The model\'s endpoint must answer {"outputs": {...}}', retry=False)
+    result: dict[str, list[float | None]] = {}
+    for name, values in outputs.items():
+        if not isinstance(values, list) or not all(
+            v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)) for v in values
+        ):
+            raise RemoteError(f"The model's endpoint must give {name} as a list of numbers or nulls", retry=False)
+        result[str(name)] = [None if v is None else float(v) for v in values]
+    return result
 
 
 def _refuse_constant(name: str) -> None:
@@ -188,20 +224,4 @@ class HttpModel:
         token = self.token()
         if token:
             headers["Authorization"] = f"Bearer {token}"
-        reply = self.transport(self.url, body, headers, self.settings.model_timeout)
-        try:
-            found = json.loads(reply, parse_constant=_refuse_constant)
-        except ValueError as e:  # not JSON (or NaN, Infinity)
-            raise RemoteError(f"The model's endpoint didn't answer JSON: {e}", retry=False) from None
-        outputs = found.get("outputs") if isinstance(found, dict) else None
-        if not isinstance(outputs, dict):
-            raise RemoteError('The model\'s endpoint must answer {"outputs": {...}}', retry=False)
-        result: dict[str, list[float | None]] = {}
-        for name, values in outputs.items():
-            if not isinstance(values, list) or not all(
-                v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v))
-                for v in values
-            ):
-                raise RemoteError(f"The model's endpoint must give {name} as a list of numbers or nulls", retry=False)
-            result[str(name)] = [None if v is None else float(v) for v in values]
-        return result
+        return outputs_of(self.transport(self.url, body, headers, self.settings.model_timeout))

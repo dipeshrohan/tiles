@@ -62,6 +62,21 @@ copilot:
 models:
   endpointHosts: [] # e.g. [models.example.com]
 
+# The sandbox for models from GitHub (T4.15): `tiles-sandbox`, from the API's image, runs each
+# evaluation of such a model in a new process with resource limits, in a pod with no network out
+# and no credentials but its own token (generated). The API fetches a model's code from GitHub
+# (api.github.com, codeload.github.com) once, when it is registered. Off: no GitHub models.
+sandbox:
+  enabled: false
+  replicas: 1
+  timeout: 5 # seconds per evaluation; keep under TILES_MODEL_TIMEOUT (10)
+  memoryMb: 512 # per evaluation
+  workers: 2 # evaluations at once, per replica
+  runtimeClassName: '' # e.g. gvisor, for a kernel of its own (needs the runtime on the nodes)
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 1536Mi }
+
 smtp:
   host: ''
   port: 587

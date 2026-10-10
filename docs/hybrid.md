@@ -47,6 +47,7 @@ The API and its scheduled jobs connect out to these hosts only:
 | The mail relay (`smtp.host`) | Its port, usually 587 | When notifications by e-mail are on |
 | Hosts under `webhook.office.com`, `logic.azure.com` and `api.powerplatform.com` (up to three labels deep: the regional Workflows hosts) | 443 | When a site posts warnings to a Teams channel. Tiles refuses any other host for a webhook |
 | `api.anthropic.com` | 443 | When the copilot is on: it sends people's questions, and the data its tools read to answer them |
+| `api.github.com`, `codeload.github.com` | 443 | With the sandbox on (`sandbox.enabled`): when an organisation admin registers a model from GitHub, the API fetches that commit's code, once |
 | Model endpoints' hosts (`models.endpointHosts`, `TILES_MODEL_HOSTS`) | 443, or the endpoint's port | When an organisation runs its own models over HTTP: each evaluation sends the model's inputs (a window of readings) and parameters. Tiles refuses an endpoint on any other host |
 | The OpenTelemetry Collector (`monitoring.otlpEndpoint`) | Usually 4318 | When monitoring is on |
 | The database and Redis | 5432, 6379 | In the cluster, or yours |
@@ -55,6 +56,7 @@ The API and its scheduled jobs connect out to these hosts only:
 
 - **The API and jobs** may reach only the hosts above, worked out from the settings, plus any you add: `hosts` for an external database's or Redis's host, `namespaces` for in-cluster services, `cidrs` for addresses. A host in the cluster can't be named this way, so the chart allows its namespace instead: write it as `name.namespace.svc` (as in `http://otel-collector.monitoring.svc:4318`), or a bare name for one in Tiles' own namespace; a two-part `name.namespace` would be taken for a host outside.
 - **The web app, the database and Redis** may only look up names: they need nothing outside.
+- **The sandbox** for models from GitHub connects to nothing at all, and accepts only the API and its jobs (a NetworkPolicy, enforced without Cilium too).
 - **Where it works:** on AKS, this needs Advanced Container Networking Services' security, which the Azure module turns on (`fqdn_policies`), and the managed environment enables the allowlist by default. Without Cilium, use your firewall's FQDN rules for the same list, for example Azure Firewall in front of the cluster's egress.
 
 ## Installing the agent

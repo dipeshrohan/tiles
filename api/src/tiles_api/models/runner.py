@@ -25,15 +25,15 @@ from psycopg.rows import tuple_row
 from tiles_api import jobs, telemetry
 from tiles_api.models import store
 from tiles_api.models.registry import Model, evaluate
-from tiles_api.models.remote import HttpModel, RemoteError
+from tiles_api.models.remote import RemoteError
 from tiles_api.settings import Settings, get_settings
 from tiles_api.store import Conn
 
 TIME = "@time"  # an input fed with seconds since the window began
 MAX_ROWS = 100_000  # joined readings read per batch; a run reads batches until caught up
 MAX_BATCHES = 50  # per run, so one binding can't hold the runner forever
-# Windows a model served over HTTP (T4.15) runs per run, one call each: the job's, and "run now"'s,
-# which a person waits for. The rest wait for the next run.
+# Windows an organisation's own model (over HTTP or from GitHub, T4.15) runs per run, one call
+# each: the job's, and "run now"'s, which a person waits for. The rest wait for the next run.
 REMOTE_WINDOWS = 500
 REMOTE_WINDOWS_NOW = 20
 
@@ -151,7 +151,7 @@ def run_binding(
     names = [name for name, sig in inputs.items() if sig != TIME]
     result = RunResult(done_until=binding["done_until"])
     per = {p.name: p.per for p in model.spec.outputs}
-    calls_left = remote_windows if isinstance(model, HttpModel) else None
+    calls_left = remote_windows if store.source_of(model) != "builtin" else None
     for batch in range(batches):
         rows = _read(conn, inputs, result.done_until, MAX_ROWS, align)
         if not rows:

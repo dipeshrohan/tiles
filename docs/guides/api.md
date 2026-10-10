@@ -696,7 +696,7 @@ Readiness: the database and Redis are reachable. 503 if either is not.
 
 **Who:** organisation admin. **Answers:** 200, 422.
 
-Your organisation's models served over HTTP, archived ones too, by key then version (never their tokens).
+Your organisation's own models, over HTTP and from GitHub, archived ones too, by key then version (never their tokens or code).
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
@@ -714,11 +714,23 @@ Register a model version computed by your endpoint: its spec (inputs, outputs, b
 
 **Body:** HttpModelIn (see [openapi.json](openapi.json)).
 
+### `POST /org/models/github`
+
+**Who:** organisation admin. **Answers:** 201, 422.
+
+Register a model version from a GitHub repository at a full commit SHA: the directory (`path`) holds `tiles-model.json` (the spec, and the `entry` file, `model.py` unless named) and the Python files, whose `run(inputs, params)` the sandbox calls (the standard library only). The code is fetched once and kept, with its SHA-256; a private repository's token is used for that and not kept. Needs the deployment's sandbox (`TILES_SANDBOX_URL`).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `org` | query | string | no |
+
+**Body:** GithubModelIn (see [openapi.json](openapi.json)).
+
 ### `PATCH /org/models/{key}/{version}`
 
 **Who:** organisation admin. **Answers:** 200, 422.
 
-Move a model version's endpoint, set or clear its token, or archive it (or bring it back). Its spec never changes.
+Archive a model version (or bring it back); for one over HTTP, also move its endpoint or set or clear its token. Its spec, and a GitHub model's code, never change.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
@@ -726,7 +738,7 @@ Move a model version's endpoint, set or clear its token, or archive it (or bring
 | `version` | path | string | yes |
 | `org` | query | string | no |
 
-**Body:** HttpModelChange (see [openapi.json](openapi.json)).
+**Body:** ModelChange (see [openapi.json](openapi.json)).
 
 ### `GET /sites/{site_id}/model-bindings`
 

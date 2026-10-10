@@ -2869,6 +2869,51 @@
         "title": "FindingOut",
         "type": "object"
       },
+      "GithubModelIn": {
+        "additionalProperties": false,
+        "properties": {
+          "commit": {
+            "description": "The full commit SHA: the code never changes",
+            "maxLength": 40,
+            "title": "Commit",
+            "type": "string"
+          },
+          "path": {
+            "default": "",
+            "description": "The model's directory; empty for the root",
+            "maxLength": 500,
+            "title": "Path",
+            "type": "string"
+          },
+          "repo": {
+            "description": "owner/name",
+            "maxLength": 140,
+            "title": "Repo",
+            "type": "string"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 4096,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a private repository: used to fetch the code this once, never kept",
+            "title": "Token"
+          }
+        },
+        "required": [
+          "repo",
+          "commit"
+        ],
+        "title": "GithubModelIn",
+        "type": "object"
+      },
       "Graph": {
         "properties": {
           "edges": {
@@ -3089,59 +3134,6 @@
         "title": "HeartbeatOut",
         "type": "object"
       },
-      "HttpModelChange": {
-        "additionalProperties": false,
-        "properties": {
-          "archived": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Archived: no new uses; runs made with it still show",
-            "title": "Archived"
-          },
-          "clear_token": {
-            "default": false,
-            "description": "Send no token from now on",
-            "title": "Clear Token",
-            "type": "boolean"
-          },
-          "endpoint_url": {
-            "anyOf": [
-              {
-                "maxLength": 2000,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Endpoint Url"
-          },
-          "token": {
-            "anyOf": [
-              {
-                "format": "password",
-                "maxLength": 4096,
-                "type": "string",
-                "writeOnly": true
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "A new token",
-            "title": "Token"
-          }
-        },
-        "title": "HttpModelChange",
-        "type": "object"
-      },
       "HttpModelIn": {
         "additionalProperties": false,
         "properties": {
@@ -3241,103 +3233,6 @@
           "endpoint_url"
         ],
         "title": "HttpModelIn",
-        "type": "object"
-      },
-      "HttpModelOut": {
-        "properties": {
-          "archived_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Archived At"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "description": {
-            "title": "Description",
-            "type": "string"
-          },
-          "domain": {
-            "title": "Domain",
-            "type": "string"
-          },
-          "endpoint_url": {
-            "title": "Endpoint Url",
-            "type": "string"
-          },
-          "has_token": {
-            "title": "Has Token",
-            "type": "boolean"
-          },
-          "inputs": {
-            "items": {
-              "$ref": "#/components/schemas/PortOut"
-            },
-            "title": "Inputs",
-            "type": "array"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "outputs": {
-            "items": {
-              "$ref": "#/components/schemas/PortOut"
-            },
-            "title": "Outputs",
-            "type": "array"
-          },
-          "params": {
-            "items": {
-              "$ref": "#/components/schemas/tiles_api__api_models__ParamOut"
-            },
-            "title": "Params",
-            "type": "array"
-          },
-          "source": {
-            "description": "builtin, or http: the organisation's own, served by its endpoint (T4.15)",
-            "title": "Source",
-            "type": "string"
-          },
-          "version": {
-            "title": "Version",
-            "type": "string"
-          }
-        },
-        "required": [
-          "key",
-          "version",
-          "name",
-          "kind",
-          "domain",
-          "source",
-          "description",
-          "inputs",
-          "outputs",
-          "params",
-          "endpoint_url",
-          "has_token",
-          "created_at",
-          "archived_at"
-        ],
-        "title": "HttpModelOut",
         "type": "object"
       },
       "Import": {
@@ -4036,6 +3931,59 @@
         "title": "Message",
         "type": "object"
       },
+      "ModelChange": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Archived: no new uses; runs made with it still show",
+            "title": "Archived"
+          },
+          "clear_token": {
+            "default": false,
+            "description": "Send no token from now on",
+            "title": "Clear Token",
+            "type": "boolean"
+          },
+          "endpoint_url": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint Url"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 4096,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A new token",
+            "title": "Token"
+          }
+        },
+        "title": "ModelChange",
+        "type": "object"
+      },
       "ModelOut": {
         "properties": {
           "description": {
@@ -4451,6 +4399,156 @@
           "percent"
         ],
         "title": "OutputChange",
+        "type": "object"
+      },
+      "OwnModelOut": {
+        "properties": {
+          "archived_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Archived At"
+          },
+          "code_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From GitHub: the SHA-256 of the code kept",
+            "title": "Code Sha256"
+          },
+          "commit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commit"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "endpoint_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Over HTTP: where it is computed",
+            "title": "Endpoint Url"
+          },
+          "has_token": {
+            "default": false,
+            "title": "Has Token",
+            "type": "boolean"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/PortOut"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/PortOut"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "params": {
+            "items": {
+              "$ref": "#/components/schemas/tiles_api__api_models__ParamOut"
+            },
+            "title": "Params",
+            "type": "array"
+          },
+          "path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "repo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From GitHub: the repository, commit and directory",
+            "title": "Repo"
+          },
+          "source": {
+            "description": "builtin, or http: the organisation's own, served by its endpoint (T4.15)",
+            "title": "Source",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "version",
+          "name",
+          "kind",
+          "domain",
+          "source",
+          "description",
+          "inputs",
+          "outputs",
+          "params",
+          "created_at",
+          "archived_at"
+        ],
+        "title": "OwnModelOut",
         "type": "object"
       },
       "ParamIn": {
@@ -9454,8 +9552,8 @@
     },
     "/org/models": {
       "get": {
-        "description": "Your organisation's models served over HTTP, archived ones too, by key then version (never\ntheir tokens).",
-        "operationId": "list_http_models_org_models_get",
+        "description": "Your organisation's own models, over HTTP and from GitHub, archived ones too, by key then\nversion (never their tokens or code).",
+        "operationId": "list_own_models_org_models_get",
         "parameters": [
           {
             "in": "query",
@@ -9480,9 +9578,9 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/HttpModelOut"
+                    "$ref": "#/components/schemas/OwnModelOut"
                   },
-                  "title": "Response List Http Models Org Models Get",
+                  "title": "Response List Own Models Org Models Get",
                   "type": "array"
                 }
               }
@@ -9500,7 +9598,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "List Http Models",
+        "summary": "List Own Models",
         "tags": [
           "models"
         ]
@@ -9541,7 +9639,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HttpModelOut"
+                  "$ref": "#/components/schemas/OwnModelOut"
                 }
               }
             },
@@ -9564,10 +9662,70 @@
         ]
       }
     },
+    "/org/models/github": {
+      "post": {
+        "description": "Register a model version from a GitHub repository at a full commit SHA: the directory\n(`path`) holds `tiles-model.json` (the spec, and the `entry` file, `model.py` unless named) and\nthe Python files, whose `run(inputs, params)` the sandbox calls (the standard library only).\nThe code is fetched once and kept, with its SHA-256; a private repository's token is used for\nthat and not kept. Needs the deployment's sandbox (`TILES_SANDBOX_URL`).",
+        "operationId": "register_github_model_org_models_github_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GithubModelIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnModelOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Github Model",
+        "tags": [
+          "models"
+        ]
+      }
+    },
     "/org/models/{key}/{version}": {
       "patch": {
-        "description": "Move a model version's endpoint, set or clear its token, or archive it (or bring it back).\nIts spec never changes.",
-        "operationId": "change_http_model_org_models__key___version__patch",
+        "description": "Archive a model version (or bring it back); for one over HTTP, also move its endpoint or set\nor clear its token. Its spec, and a GitHub model's code, never change.",
+        "operationId": "change_own_model_org_models__key___version__patch",
         "parameters": [
           {
             "in": "path",
@@ -9608,7 +9766,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/HttpModelChange"
+                "$ref": "#/components/schemas/ModelChange"
               }
             }
           },
@@ -9619,7 +9777,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/HttpModelOut"
+                  "$ref": "#/components/schemas/OwnModelOut"
                 }
               }
             },
@@ -9636,7 +9794,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Change Http Model",
+        "summary": "Change Own Model",
         "tags": [
           "models"
         ]
