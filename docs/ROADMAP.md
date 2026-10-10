@@ -1,6 +1,6 @@
 # Tiles: 6-month roadmap
 
-**Window:** 2 Nov 2026 – 30 Apr 2027 · **Task breakdown:** [TASKS.md](TASKS.md)
+**Window:** 2 Nov 2026 – 30 Apr 2027 · **Task breakdown:** [TASKS.md](TASKS.md) · **UI and UX plan:** [UI-PLAN.md](UI-PLAN.md)
 
 ## Where Tiles is today
 
