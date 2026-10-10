@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # comma-separated, the first sealing. Required in production. `tiles-rotate-keys --new-key ID`
     # makes one.
     data_keys: SecretStr | None = None
+    # Models served over HTTP (T4.15, models/remote.py): the hosts an organisation may register a
+    # model endpoint on, as a JSON list (e.g. ["models.example.com"]); none, and none can be. The
+    # chart's egress allowlist takes them too. Each call may take `model_timeout` seconds.
+    model_hosts: list[str] = []
+    model_timeout: float = Field(default=10.0, gt=0, le=45)  # le: sweeps.HEARTBEAT_SECONDS
     # The copilot (T4.01): Claude through the Anthropic API. Off until both are set; the model is a
     # current Claude model ID from Anthropic's documentation.
     anthropic_api_key: SecretStr | None = None

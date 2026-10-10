@@ -29,14 +29,15 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 from tiles_api import pdf
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.models import design, store
-from tiles_api.models.registry import Model, ModelError, evaluate, registry, version_key
+from tiles_api.models.registry import Model, ModelError, evaluate, version_key
+from tiles_api.models.remote import RemoteError
 from tiles_api.store import one
 
 router = APIRouter(tags=["runs"])
@@ -135,12 +136,13 @@ def _key(model: str) -> str:
     return design.BROWSER_KEYS.get(model, model)
 
 
-def _model(key: str, version: str | None) -> Model:
-    """A design model by the registry's key or the browser's id, its latest version unless named."""
+def _model(ctx: SiteContext, request: Request, key: str, version: str | None) -> Model:
+    """A design model by the registry's key or the browser's id, its latest version unless named:
+    a built-in one, or one of the organisation's served over HTTP (T4.15)."""
     # The browser's versions have no patch number ("2.0"), whichever name the model is given by.
     full = None if version is None else version if version.count(".") == 2 else f"{version}.0"
     try:
-        model = registry.get(_key(key), full)
+        model = store.find(ctx.conn, ctx.org_id, request.app.state.settings, _key(key), full)
     except KeyError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(e.args[0])) from e
     if model.spec.kind != "design":
@@ -151,15 +153,16 @@ def _model(key: str, version: str | None) -> Model:
     return model
 
 
-def _units(model: Model) -> dict[str, str]:
-    s = model.spec
-    return {p.name: p.unit for p in s.params} | {p.name: p.unit for p in s.outputs}
+def _units(spec: dict[str, Any]) -> dict[str, str]:
+    """Each parameter's and output's unit, from a model version's stored spec."""
+    return {p["name"]: p["unit"] for p in [*spec.get("params", []), *spec.get("outputs", [])]}
 
 
-def _stored_model(row: dict[str, Any]) -> Model | None:
-    """A stored run's model version, or None if it is no longer registered (the run still shows)."""
+def _stored_model(ctx: SiteContext, request: Request, row: dict[str, Any]) -> Model | None:
+    """A stored run's model version, or None if it is no longer registered or archived (the run
+    still shows, from the version's stored spec)."""
     try:
-        return registry.get(row["model"], row["version"])
+        return store.find(ctx.conn, ctx.org_id, request.app.state.settings, row["model"], row["version"])
     except KeyError:
         return None
 
@@ -178,8 +181,9 @@ def changes(a: dict[str, Any], b: dict[str, Any]) -> list[dict[str, Any]]:
 RUNS = """
 SELECT r.id, r.number, r.model_key AS model, r.version, r.params, r.output, r.note, r.created_at,
        r.author_name, r.author_email, p.number AS parent, p.params AS parent_params, p.version AS parent_version,
-       s.number AS restored_from, r.project_id AS project
+       s.number AS restored_from, r.project_id AS project, m.name AS model_name, m.spec AS model_spec
 FROM design_runs r
+JOIN models m ON m.id = r.model_id
 LEFT JOIN design_runs p ON p.id = r.parent_id
 LEFT JOIN design_runs s ON s.id = r.restored_from
 WHERE r.site_id = %(site)s
@@ -194,16 +198,15 @@ COUNT = "SELECT count(*) AS n FROM design_runs r WHERE r.site_id = %(site)s" + O
 
 
 def _shown(row: dict[str, Any]) -> dict[str, Any]:
-    model = _stored_model(row)
     parent = {"version": row["parent_version"], "params": row["parent_params"]} if row["parent"] is not None else None
     return {
         "number": row["number"],
         "model": row["model"],
         "version": row["version"],
-        "model_name": model.spec.name if model else row["model"],
+        "model_name": row["model_name"],
         "params": row["params"],
         "output": row["output"],
-        "units": _units(model) if model else {},
+        "units": _units(row["model_spec"]),
         "parent": row["parent"],
         "restored_from": row["restored_from"],
         "project": row["project"],
@@ -231,6 +234,8 @@ def _run(model: Model, params: dict[str, float]) -> tuple[dict[str, float], dict
     """Every parameter as run (defaults filled in) and the outputs."""
     try:
         out = evaluate(model, {}, params)
+    except RemoteError as e:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from e
     except ModelError as e:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
     full = {p.name: float(params.get(p.name, p.default)) for p in model.spec.params}
@@ -306,10 +311,10 @@ def list_runs(
 
 
 @router.post("/sites/{site_id}/runs", response_model=RunDetail, status_code=status.HTTP_201_CREATED)
-def create_run(ctx: Editor, body: RunIn) -> dict[str, Any]:
+def create_run(ctx: Editor, body: RunIn, request: Request) -> dict[str, Any]:
     """Run a registered design model with these parameters and keep the result, computed here, as the
     site's next numbered run, in a project and after a parent run if given."""
-    model = _model(body.model, body.version)
+    model = _model(ctx, request, body.model, body.version)
     run = _run(model, body.params)
     _lock(ctx)
     if (
@@ -394,10 +399,10 @@ def get_run(ctx: Ctx, number: int) -> dict[str, Any]:
 
 
 @router.post("/sites/{site_id}/runs/{number}/restore", response_model=RunDetail, status_code=status.HTTP_201_CREATED)
-def restore_run(ctx: Editor, number: int, body: RestoreIn | None = None) -> dict[str, Any]:
+def restore_run(ctx: Editor, number: int, request: Request, body: RestoreIn | None = None) -> dict[str, Any]:
     """Run `number`'s version and parameters again, as a new run after its model's latest run in its project."""
     row = _row(ctx, number)
-    model = _stored_model(row)
+    model = _stored_model(ctx, request, row)
     if model is None:
         raise HTTPException(
             status.HTTP_409_CONFLICT, f"Run {number}'s model {row['model']} {row['version']} is no longer registered"

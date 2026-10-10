@@ -298,7 +298,7 @@ def test_windows_the_model_refuses_are_counted_and_the_first_reason_kept(databas
             "window_s": 2.0,
             "done_until": None,
         }
-        result = runner.run_binding(conn, binding, Picky(), now=T0 + timedelta(days=1))  # type: ignore[arg-type]
+        result = runner.run_binding(conn, binding, Picky(), now=T0 + timedelta(days=1))
         assert (result.windows, result.failed) == (4, 2)  # skipped, not stopping the run
         assert result.error is not None and "second window: no such sample" in result.error
         frictions = conn.execute("SELECT count(*) AS n FROM samples WHERE signal_id = %s", [ids["friction"]]).fetchone()

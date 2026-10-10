@@ -313,3 +313,29 @@ def test_the_api_runs_at_most_two_sweeps_at_once(api: TestClient, site: str, dat
             sweeps._api_workers.release()
     sweeps.drain(connect)
     assert api.get(f"/sites/{site}/sweeps/{sweep_id}", headers=ENG).json()["status"] == "done"
+
+
+def test_a_slow_model_still_beats(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+    connect: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Points slow to come (a model served over HTTP, T4.15) still send heartbeats, every
+    HEARTBEAT_SECONDS, so the sweep isn't taken as abandoned between chunks."""
+    start(api, site, {"model": "swelling", "version": "2.0", "x": X})
+    sweep_id = queue(database_url, site, steps=3)
+    monkeypatch.setattr(sweeps, "CHUNK", 1_000_000)  # no chunk ends before the last point
+    monkeypatch.setattr(sweeps, "HEARTBEAT_SECONDS", 0)  # as if every point were slow
+    opened = 0
+
+    @contextmanager
+    def counted() -> Iterator[Conn]:
+        nonlocal opened
+        opened += 1
+        with connect() as conn:
+            yield conn
+
+    assert sweeps.run(counted, sweep_id) == (sweep_id, "done")
+    assert opened >= 9 + 2  # a beat per point, besides claiming the sweep and saving its result

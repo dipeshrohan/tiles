@@ -277,6 +277,11 @@ jobs:
               --set monitoring.otlpEndpoint=http://otel-collector.monitoring.svc:4318 --show-only templates/egress.yaml > egress.txt
           grep -q 'k8s:io.kubernetes.pod.namespace: "monitoring"' egress.txt
           if grep -q otel-collector egress.txt; then echo "an in-cluster host in toFQDNs"; exit 1; fi
+          # Model endpoints' hosts (T4.15) reach the API's settings and the allowlist.
+          helm template t "$CHART" --kube-version 1.33.0 $VALUES --set networkPolicy.egressAllowlist.enabled=true \
+              --set 'models.endpointHosts[0]=models.example.com' > models.txt
+          grep -q 'matchName: "models.example.com"' models.txt
+          grep -q 'value: "\[\\"models.example.com\\"\]"' models.txt
           # Settings that can't work are refused before anything is installed. (Not `! a && b`:
           # errexit ignores a failure there, so the check could never fail.)
           refused() { if helm template t "$CHART" --kube-version 1.33.0 "${@:2}" 2> err.txt; then exit 1; fi; grep -q "$1" err.txt; }

@@ -208,6 +208,14 @@ done
 
 The request ID in each entry matches the `request_id` in the API's logs.
 
+### Models served over HTTP
+
+An organisation can run its own models, computed by its own service, beside the built-in ones (T4.15). The [model-author guide](model-author.md#10-models-served-over-http) describes what the service receives and answers. As the operator:
+
+- **Allow the hosts.** List the hosts endpoints may be on in `TILES_MODEL_HOSTS` (Helm `models.endpointHosts`), for example `["models.example.com"]`. With none listed, no endpoint can be registered. The chart's egress allowlist opens the same hosts. Endpoints must be https; outside production, `http://localhost` is accepted too, for trying a model.
+- **Calls.** Each call may take `TILES_MODEL_TIMEOUT` seconds (10, at most 45) in all. Redirects aren't followed and replies over 32 MB are refused. A failing endpoint gives 502 on evaluate and design runs, fails a sweep with the reason, and leaves a binding's window to run again next time; a binding makes at most 500 calls per scheduled run.
+- **Organisation admins register them** with `POST /org/models` (the spec and the endpoint, with an optional token), list them with `GET /org/models`, and move, re-token or archive a version with `PATCH /org/models/{key}/{version}` (moving to another host needs its token, or none). Archiving stops new uses; bindings already using the version keep running. Each step is in the organisation's audit log. The token is sealed with the data keys and never shown again.
+
 ## 5. Edge agents
 
 An edge agent runs on the plant network, reads OPC UA servers, MQTT brokers (including Sparkplug B) and SQL databases, and sends readings to the API. It buffers readings on disk, so a network cut or a restart loses nothing. Each agent authenticates with its own token, not a person's sign-in.
@@ -401,7 +409,7 @@ Other commands you run by hand:
 
 ### Data keys and rotation
 
-Credentials stored in the database (today, the Teams webhook URLs) are sealed with AES-256-GCM using a data key from `TILES_DATA_KEYS`. The value is `id:base64key`, comma-separated; the first key seals and any key opens. In production the API won't start without data keys.
+Credentials stored in the database (today, the Teams webhook URLs and model endpoint tokens) are sealed with AES-256-GCM using a data key from `TILES_DATA_KEYS`. The value is `id:base64key`, comma-separated; the first key seals and any key opens. In production the API won't start without data keys.
 
 - Make a key with `tiles-rotate-keys --new-key k1`.
 - With Helm and no `tiles_data_keys` in your Secret, the chart generates a key in `<release>-generated`. **Back that Secret up**: without it, sealed credentials can't be opened.

@@ -95,7 +95,7 @@ def start_sweep(
     ctx: Editor, request: Request, response: Response, background: BackgroundTasks, body: SweepIn
 ) -> dict[str, Any]:
     """Start a sweep (202: it runs in the background), or answer from an identical one's result (200)."""
-    model = api_runs._model(body.model, body.version)
+    model = api_runs._model(ctx, request, body.model, body.version)
     spec = model.spec
     try:
         full = check_params(spec, body.params)
@@ -158,7 +158,9 @@ def start_sweep(
         after={"model": spec.key, "version": spec.version, "x": x, "y": y, "points": total},
     )
     pool = side_pool(request.app.state)  # it runs after the request, outside its connection count
-    background.add_task(sweeps.drain, pool.connection)  # after the request's transaction commits
+    background.add_task(
+        sweeps.drain, pool.connection, request.app.state.settings
+    )  # after the request's transaction commits
     return _sweep(ctx, sweep_id)
 
 

@@ -11,6 +11,7 @@ This runbook says where Tiles' secrets live, how to supply them from a secrets m
 | Anthropic API key | The copilot | `TILES_ANTHROPIC_API_KEY` |
 | SMTP password | `tiles-notify` | `TILES_SMTP_PASSWORD` |
 | Teams webhook URLs | `tiles-notify` | In the database, sealed with a data key |
+| Model endpoint tokens (T4.15) | the API, `tiles-run-models`, `tiles-run-sweeps` | In the database, sealed with a data key; set by organisation admins, never shown again |
 | Edge agent tokens | Each edge agent | On the agent's host (the token file, mode 0600); the database keeps only a hash |
 | OIDC signing keys | The identity provider signs tokens; the API checks them against its published keys (JWKS) | At the identity provider; the API holds no secret, since the browser signs in with PKCE |
 
@@ -33,7 +34,7 @@ Never put a secret in the repository, an image or a log. `api/.env` is for devel
   - Your own hosts: LUKS (dm-crypt) on the data volume.
 
   Tiles adds no database-level encryption of its own, except for credentials (below), because readings must stay queryable by time.
-- **Credentials in the database** are sealed by Tiles with AES-256-GCM (`api/src/tiles_api/sealed.py`) using a data key from `TILES_DATA_KEYS`. Each sealed value is bound to what it is (for example `teams:<site id>`), so it can't be copied to another row. Today this covers the Teams webhook URLs. In production the API won't start without data keys.
+- **Credentials in the database** are sealed by Tiles with AES-256-GCM (`api/src/tiles_api/sealed.py`) using a data key from `TILES_DATA_KEYS`. Each sealed value is bound to what it is (for example `teams:<site id>`), so it can't be copied to another row. Today this covers the Teams webhook URLs and the tokens of organisations' model endpoints (`model-endpoint:<org>:<key>:<version>`). In production the API won't start without data keys.
 - **Backups and WAL archives** must be encrypted too: pgBackRest's repository cipher, or the cloud provider's snapshot encryption with the same KMS key policy as the database. They hold everything the database holds, sealed credentials included; the data keys are not in them.
 - **Edge agent buffer.** The SQLite buffer on the agent's host holds readings not yet sent, and the token file holds the agent's token. Put both on an encrypted disk. Keep the token file readable only by the agent's user (UID 10001 in the image).
 - **In transit**, everything goes over TLS:
@@ -82,6 +83,6 @@ The identity provider rotates its signing keys. The API fetches the published ke
 
 ## If a secret leaks
 
-1. Rotate it now, as above. For a data key, rotate the key, then also rotate every credential it sealed (the Teams webhooks): whoever has the key and a copy of the database can open them.
+1. Rotate it now, as above. For a data key, rotate the key, then also rotate every credential it sealed (the Teams webhooks, and the model endpoints' tokens with their owners): whoever has the key and a copy of the database can open them.
 2. Look in the audit log (Settings → Audit log) for what was done with it, and in the API's request logs (each line carries its request ID).
 3. Record what happened, when, and what was rotated.

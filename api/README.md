@@ -82,6 +82,8 @@ Settings come from environment variables prefixed `TILES_` (or an `.env` file in
 | `TILES_SMTP_FROM` | `Tiles <tiles@example.com>` | The sender of notification emails |
 | `TILES_APP_URL` | `http://localhost:5173` | Where the web app is, for links in notifications |
 | `TILES_DATA_KEYS` | unset (values stored as they are) | Data keys sealing credentials kept in the database (T5.06): `id:base64key`, comma-separated, the first sealing; required in production. `uv run tiles-rotate-keys --new-key k1` makes one, and `uv run tiles-rotate-keys` re-seals stored values with the first. See [the runbook](../docs/runbooks/secrets-and-encryption.md) |
+| `TILES_MODEL_HOSTS` | `[]` (none) | JSON list of the hosts an organisation may register a model endpoint on (T4.15), e.g. `["models.example.com"]`. Endpoints are https; outside production, http to localhost too |
+| `TILES_MODEL_TIMEOUT` | `10` | Seconds each call to a model endpoint may take in all (at most 45) |
 | `TILES_SECRETS_DIR` | unset | A directory of secret files, one per setting named as its variable (a secrets manager's mount, `/run/secrets`); environment variables and `.env` win over them |
 | `TILES_ANTHROPIC_API_KEY` | unset (copilot off) | The Anthropic API key the copilot calls Claude with; keep it in a secret store, never in the repository |
 | `TILES_COPILOT_MODEL` | unset (copilot off) | The Claude model ID to answer with: a current one from Anthropic's model documentation |
@@ -175,6 +177,8 @@ Every write is recorded in `audit_log` in the same transaction as the change, so
 | `import.start`, `import.finish` | the import | | its name; when finished, the counts |
 | `signal.update` | the signal | its tag and the fields' old values | its tag and the fields' new values |
 | `signal.quality_check` | the site | | `{"hours": …, "checked": …}` and how many got each badge |
+| `model.register` (organisation's log) | the model version (`key@version`) | | its name, kind, endpoint and whether it has a token (never the token) |
+| `model.change` (organisation's log) | the model version | endpoint, whether it had a token, archived | the same after, and `token_replaced` |
 
 Writes that fail, and no-ops (discarding nothing, setting the same role), leave no entry. The table refuses UPDATE, DELETE and TRUNCATE. New write endpoints should call `ctx.audit(...)`. `uv run tiles-seed` creates the demo org and site; Compose runs it for you.
 
