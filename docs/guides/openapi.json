@@ -7096,7 +7096,7 @@
       "Stored": {
         "properties": {
           "stored": {
-            "description": "0 when the organisation hasn't turned the analytics on",
+            "description": "0 when the organisation hasn't turned the analytics on, or past the hour's share",
             "title": "Stored",
             "type": "integer"
           }
@@ -16931,7 +16931,7 @@
     },
     "/sites/{site_id}/ux-events": {
       "post": {
-        "description": "Records a batch of UX events from one browser session (any member). Nothing is stored unless\nthe organisation turned the analytics on; events older than 90 days are let go.",
+        "description": "Records a batch of UX events from one browser session (any member). Nothing is stored unless\nthe organisation turned the analytics on, nor beyond an hour's share for the site and the\nsession. A retention policy lets events go 90 days on. Not audited: like a person's own\ncopilot conversations, they change nothing on the site, and are about using the app.",
         "operationId": "record_ux_events_sites__site_id__ux_events_post",
         "parameters": [
           {

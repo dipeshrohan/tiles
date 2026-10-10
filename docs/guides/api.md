@@ -78,7 +78,7 @@ Whether this site records UX events (its organisation turned them on): the brows
 
 **Who:** site member. **Answers:** 200, 422.
 
-Records a batch of UX events from one browser session (any member). Nothing is stored unless the organisation turned the analytics on; events older than 90 days are let go.
+Records a batch of UX events from one browser session (any member). Nothing is stored unless the organisation turned the analytics on, nor beyond an hour's share for the site and the session. A retention policy lets events go 90 days on. Not audited: like a person's own copilot conversations, they change nothing on the site, and are about using the app.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
