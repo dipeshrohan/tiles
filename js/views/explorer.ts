@@ -98,7 +98,7 @@ function drawWear(box: HTMLElement, ctx: Context): void {
     w.limit = field(form, 'limit');
     showWear(box, ctx); // an answer to another question goes, or comes back
   });
-  onSubmit(box, 'form', () => void checkWear(ctx, box));
+  onSubmit(box, 'form', () => checkWear(ctx, box));
   showWear(box, ctx);
 }
 
@@ -534,7 +534,7 @@ const view: View = {
         saving = null;
         ctx.rerender();
       });
-      onSubmit(root, '#insight-save', () => void saveInsight(ctx));
+      onSubmit(root, '#insight-save', () => saveInsight(ctx));
     }
     root.querySelectorAll<HTMLElement>('[data-wear]').forEach((box) => drawWear(box, ctx));
     loadCharts(root, ctx);

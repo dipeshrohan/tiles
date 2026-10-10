@@ -65,7 +65,7 @@ let members: { site: string; people: Membership[] } | null = null;
 let listSeq = 0;
 let detailSeq = 0;
 let seriesSeq = 0;
-let busy = false; // a step is on its way; the buttons wait
+let busy: string | false = false; // the step on its way (its button shows it); the others wait
 let draft = { key: '', text: '' }; // the note being written, kept across re-renders
 
 const PAGE = 100;
@@ -215,7 +215,7 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
       : [];
   const has = (a: string) => actions.includes(a as never);
   const actButton = (label: string, a: string, variant?: 'primary') =>
-    button(label, { variant, attrs: { 'data-act': a } });
+    button(label, { variant, busy: busy === a, attrs: { 'data-act': a } });
   const assign = has('assign')
     ? `<span class="row gap-1_5">${field(
         'Assign to',
@@ -409,8 +409,16 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
   };
   const call = calls[action];
   if (!call) return;
-  busy = true;
+  busy = action;
   ++detailSeq; // a fetch of the warning started before this step must not replace its result
+  // Acknowledging is shown at once (U2.08), and undone if the API refuses it.
+  const before = { detail, item: listing?.items?.find((i) => i.id === w.id) };
+  if (action === 'acknowledge' && detail) {
+    const now = new Date().toISOString();
+    const shown = { status: 'acknowledged' as const, acknowledged_at: now, acknowledged_by: ctx.state.user.name };
+    detail = { ...detail, warning: { ...detail.warning, ...shown } };
+    if (listing?.items) listing.items = listing.items.map((i) => (i.id === w.id ? { ...i, ...shown } : i));
+  }
   ctx.rerender();
   try {
     const warning = await call();
@@ -433,9 +441,16 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
     ctx.toast(done[action] ?? 'Done');
     if (action !== 'comment' && !same) listing = null; // it may have left the list's filters
   } catch {
-    // The client showed why; show the warning as it is now.
-    detail = null;
-    listing = null;
+    // The client showed why. An acknowledgement shown at once is taken back; after anything else,
+    // the warning is fetched again to show it as it is now.
+    if (action === 'acknowledge' && before.detail) {
+      detail = before.detail;
+      const item = before.item;
+      if (listing?.items && item) listing.items = listing.items.map((i) => (i.id === w.id ? item : i));
+    } else {
+      detail = null;
+      listing = null;
+    }
   } finally {
     busy = false;
     ctx.rerender();

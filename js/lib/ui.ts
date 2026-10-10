@@ -1,6 +1,8 @@
 // Shared page components (U1.04), as HTML strings like the views. Text is escaped here; `*Html`
 // options and `action` take markup the caller has built (with esc() on anything interpolated).
-import { esc } from './dom.ts';
+import { esc, setBusy } from './dom.ts';
+
+export { setBusy }; // kept here with the other components; it lives in dom.ts (onSubmit uses it)
 import { errorDetails } from './errors.ts';
 import { VERSION } from './version.ts';
 import { icon, type IconName } from './icons.ts';
@@ -137,25 +139,8 @@ const buttonClass = (o: ButtonOptions, extra?: string): string => classes('btn',
 export function button(label: string, o: ButtonOptions = {}): string {
   const content = `${o.icon ? `${icon(o.icon)} ` : ''}${esc(label)}`;
   return `<button${attrs({ class: buttonClass(o, o.busy ? 'busy' : undefined), type: o.type ?? 'button', disabled: o.disabled || o.busy, 'aria-busy': o.busy ? 'true' : undefined, ...o.attrs })}>${
-    o.busy
-      ? `<span class="btn-label">${content}</span><span class="btn-spinner" aria-hidden="true">${icon('loader-circle')}</span>`
-      : content
+    o.busy ? `<span class="btn-label">${content}</span><span class="btn-spinner" aria-hidden="true"></span>` : content
   }</button>`;
-}
-
-// Puts a button already on the page into (or out of) its busy state, as button({ busy }) draws it.
-export function setBusy(el: HTMLButtonElement, busy: boolean): void {
-  el.disabled = busy;
-  el.classList.toggle('busy', busy);
-  const label = el.querySelector('.btn-label');
-  if (busy) {
-    el.setAttribute('aria-busy', 'true');
-    if (!label)
-      el.innerHTML = `<span class="btn-label">${el.innerHTML}</span><span class="btn-spinner" aria-hidden="true">${icon('loader-circle')}</span>`;
-  } else {
-    el.removeAttribute('aria-busy');
-    if (label) el.innerHTML = label.innerHTML;
-  }
 }
 
 // A button with only an icon: named for screen readers, and in a tooltip for the eye.

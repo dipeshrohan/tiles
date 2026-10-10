@@ -415,7 +415,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
     // The form is locked while the change is saved: nothing typed meanwhile is lost, nothing sent twice.
     saving = sig.id;
     fill(root, ctx);
-    ctx.api.signals.update(site.id, sig.id, change).then(
+    return ctx.api.signals.update(site.id, sig.id, change).then(
       (updated) => {
         saving = null;
         if (results) results.signals = results.signals.map((s) => (s.id === updated.id ? updated : s));

@@ -1686,15 +1686,45 @@
 	function onAll(root, sel, type, handler) {
 		root.querySelectorAll(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e)));
 	}
+	function setBusy(el, busy) {
+		el.disabled = busy;
+		el.classList.toggle("busy", busy);
+		const label = el.querySelector(".btn-label");
+		if (busy) {
+			el.setAttribute("aria-busy", "true");
+			if (!label) el.innerHTML = `<span class="btn-label">${el.innerHTML}</span><span class="btn-spinner" aria-hidden="true"></span>`;
+		} else {
+			el.removeAttribute("aria-busy");
+			if (label) el.innerHTML = label.innerHTML;
+		}
+	}
 	function onSubmit(root, sel, handler) {
 		const form = root.querySelector(sel);
 		if (!form) return;
 		form.noValidate = true;
 		form.addEventListener("submit", (e) => {
 			e.preventDefault();
+			if (form.dataset.sending) return;
 			if (!checkOnSubmit(form)) return;
-			handler(form, e.submitter);
+			const button = e.submitter instanceof HTMLButtonElement ? e.submitter : form.querySelector("button[type=submit], button:not([type])");
+			hold(form, button, handler(form, e.submitter));
 		});
+	}
+	function onAction(root, sel, handler) {
+		root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", () => {
+			if (el.dataset.sending) return;
+			hold(el, el, handler(el));
+		}));
+	}
+	function hold(owner, button, work) {
+		if (!(work instanceof Promise)) return;
+		owner.dataset.sending = "true";
+		if (button) setBusy(button, true);
+		const done = () => {
+			delete owner.dataset.sending;
+			if (button?.isConnected) setBusy(button, false);
+		};
+		work.then(done, done);
 	}
 	function download(name, text, type) {
 		const url = URL.createObjectURL(new Blob([text], { type }));
@@ -2254,19 +2284,7 @@
 			disabled: o.disabled || o.busy,
 			"aria-busy": o.busy ? "true" : void 0,
 			...o.attrs
-		})}>${o.busy ? `<span class="btn-label">${content}</span><span class="btn-spinner" aria-hidden="true">${icon("loader-circle")}</span>` : content}</button>`;
-	}
-	function setBusy(el, busy) {
-		el.disabled = busy;
-		el.classList.toggle("busy", busy);
-		const label = el.querySelector(".btn-label");
-		if (busy) {
-			el.setAttribute("aria-busy", "true");
-			if (!label) el.innerHTML = `<span class="btn-label">${el.innerHTML}</span><span class="btn-spinner" aria-hidden="true">${icon("loader-circle")}</span>`;
-		} else {
-			el.removeAttribute("aria-busy");
-			if (label) el.innerHTML = label.innerHTML;
-		}
+		})}>${o.busy ? `<span class="btn-label">${content}</span><span class="btn-spinner" aria-hidden="true"></span>` : content}</button>`;
 	}
 	function iconButton(name, label, o = {}) {
 		return `<button${attrs({
@@ -3219,23 +3237,36 @@
 			loadRemote(ctx);
 		}
 	}
+	var ratingSent = /* @__PURE__ */ new Set();
 	async function rate(ctx, seq, value, comment) {
 		const site = siteId$10(ctx);
 		const id = uiState$13(ctx).conversation;
-		if (!ctx.api || !site || !id) return;
+		if (!ctx.api || !site || !id || ratingSent.has(seq)) return;
 		const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
+		const current = answer?.feedback ?? null;
+		const clear = current?.rating === value && !comment;
+		const prompt = rating;
+		if (answer) answer.feedback = clear ? null : {
+			rating: value,
+			comment
+		};
+		rating = value === "down" && !comment && current?.rating !== "down" ? {
+			key: `${id}|${seq}`,
+			comment: ""
+		} : null;
+		ratingSent.add(seq);
+		ctx.rerender();
 		try {
-			const current = answer?.feedback;
-			let saved = null;
-			if (current?.rating === value && !comment) await ctx.api.copilot.unrate(site, id, seq);
-			else saved = await ctx.api.copilot.rate(site, id, seq, value, comment);
+			const saved = clear ? null : await ctx.api.copilot.rate(site, id, seq, value, comment);
+			if (clear) await ctx.api.copilot.unrate(site, id, seq);
 			if (answer) answer.feedback = saved;
-			rating = value === "down" && !comment && current?.rating !== "down" ? {
-				key: `${id}|${seq}`,
-				comment: ""
-			} : null;
 			if (comment) ctx.toast("Thanks: your site’s admins will see it");
-		} catch {}
+		} catch {
+			if (answer) answer.feedback = current;
+			rating = prompt;
+		} finally {
+			ratingSent.delete(seq);
+		}
 		ctx.rerender();
 	}
 	function remoteBind(root, ctx) {
@@ -3247,7 +3278,7 @@
 		root.querySelector("#composer [name=q]")?.addEventListener("input", (e) => {
 			draft$4 = e.target.value;
 		});
-		onSubmit(root, "#composer", (form) => void send(ctx, field$2(form, "q")));
+		onSubmit(root, "#composer", (form) => send(ctx, field$2(form, "q")));
 		onAll(root, "[data-q]", "click", (b) => void send(ctx, b.dataset.q ?? ""));
 		onAll(root, "[data-new-conversation]", "click", () => {
 			ui.conversation = null;
@@ -3287,9 +3318,7 @@
 			target?.classList.add("flash");
 			setTimeout(() => target?.classList.remove("flash"), 1200);
 		});
-		onAll(root, "[data-rate]", "click", (el) => {
-			rate(ctx, Number(el.dataset.seq), el.dataset.rate === "up" ? "up" : "down", "");
-		});
+		onAction(root, "[data-rate]", (el) => rate(ctx, Number(el.dataset.seq), el.dataset.rate === "up" ? "up" : "down", ""));
 		root.querySelectorAll("[data-rate-form]").forEach((form) => {
 			form.querySelector("[name=comment]")?.addEventListener("input", (e) => {
 				if (rating) rating.comment = e.target.value;
@@ -4406,12 +4435,9 @@
 			});
 			onSubmit(root, "#commit-form", (form, submitter) => {
 				const message = field$2(form, "message");
-				if (!(submitter ? submitter.hasAttribute("data-request-review") : !form.querySelector("[value=commit]"))) {
-					ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Committed");
-					return;
-				}
+				if (!(submitter ? submitter.hasAttribute("data-request-review") : !form.querySelector("[value=commit]"))) return ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Committed");
 				const reviewerId = field$2(form, "reviewer") || void 0;
-				ctx.ontology.act((store, repo) => store.requestReview(repo, {
+				return ctx.ontology.act((store, repo) => store.requestReview(repo, {
 					message,
 					reviewerId
 				}), "Sent for review");
@@ -5819,7 +5845,7 @@
 		});
 		onSubmit(box, "#scim-token-form", (form) => {
 			const name = field$2(form, "name").trim();
-			api.org.createScimToken(name).then(({ token }) => {
+			return api.org.createScimToken(name).then(({ token }) => {
 				revealed$2 = {
 					name,
 					token,
@@ -5858,7 +5884,7 @@
 				enforced: form.elements.namedItem("enforced").checked
 			});
 			if (!body) return ctx.toast(errors.join(". "));
-			api.org.setIdentityProvider(body).then(() => {
+			return api.org.setIdentityProvider(body).then(() => {
 				ctx.toast("Organisation sign-in saved");
 				return bindOrgSignIn(root, ctx);
 			}, () => void 0);
@@ -6090,7 +6116,7 @@
 					on_raised: box("on_raised").checked,
 					on_assigned: box("on_assigned").checked
 				};
-				api.notifications.setPreferences(site.id, prefs).then((p) => {
+				return api.notifications.setPreferences(site.id, prefs).then((p) => {
 					delete draft.on_raised;
 					delete draft.on_assigned;
 					show(p);
@@ -6127,7 +6153,7 @@
 				ctx.toast("Paste the channel’s webhook URL");
 				return;
 			}
-			save(url || void 0);
+			return save(url || void 0);
 		});
 		onAll(root, "[data-teams-remove]", "click", async () => {
 			if (await confirmDialog({
@@ -6263,7 +6289,7 @@
 		fillAgents(root, ctx);
 		onSubmit(root, "#agent-form", (form) => {
 			const name = field$2(form, "name").trim();
-			api.agents.register(site.id, name).then(({ token }) => {
+			return api.agents.register(site.id, name).then(({ token }) => {
 				revealed$1 = {
 					name,
 					token,
@@ -6386,7 +6412,7 @@
 			bindAgents(root, ctx);
 			fillNotifications(root, ctx);
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
-			onSubmit(root, "#org-sign-in-form", (form) => void ctx.auth.signIn(field$2(form, "org")));
+			onSubmit(root, "#org-sign-in-form", (form) => ctx.auth.signIn(field$2(form, "org")));
 			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
 			bindOrgSignIn(root, ctx);
 			onAll(root, "[data-reset]", "click", async () => {
@@ -6950,7 +6976,7 @@
 			}
 			saving$2 = sig.id;
 			fill(root, ctx);
-			ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
+			return ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
 				saving$2 = null;
 				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
 				if (ui$1(ctx).editing === sig.id) ui$1(ctx).editing = null;
@@ -7265,7 +7291,7 @@
 			w.limit = field$2(form, "limit");
 			showWear(box, ctx);
 		});
-		onSubmit(box, "form", () => void checkWear(ctx, box));
+		onSubmit(box, "form", () => checkWear(ctx, box));
 		showWear(box, ctx);
 	}
 	async function checkWear(ctx, box) {
@@ -7669,7 +7695,7 @@
 					saving$1 = null;
 					ctx.rerender();
 				});
-				onSubmit(root, "#insight-save", () => void saveInsight$1(ctx));
+				onSubmit(root, "#insight-save", () => saveInsight$1(ctx));
 			}
 			root.querySelectorAll("[data-wear]").forEach((box) => drawWear(box, ctx));
 			loadCharts(root, ctx);
@@ -8216,6 +8242,7 @@
 		const has = (a) => actions.includes(a);
 		const actButton = (label, a, variant) => button(label, {
 			variant,
+			busy: busy$5 === a,
 			attrs: { "data-act": a }
 		});
 		const assign = has("assign") ? `<span class="row gap-1_5">${field$1("Assign to", select("assignee", [
@@ -8406,8 +8433,30 @@
 			comment: () => api.comment(site, w.id, note)
 		}[action];
 		if (!call) return;
-		busy$5 = true;
+		busy$5 = action;
 		++detailSeq;
+		const before = {
+			detail: detail$2,
+			item: listing$5?.items?.find((i) => i.id === w.id)
+		};
+		if (action === "acknowledge" && detail$2) {
+			const shown = {
+				status: "acknowledged",
+				acknowledged_at: (/* @__PURE__ */ new Date()).toISOString(),
+				acknowledged_by: ctx.state.user.name
+			};
+			detail$2 = {
+				...detail$2,
+				warning: {
+					...detail$2.warning,
+					...shown
+				}
+			};
+			if (listing$5?.items) listing$5.items = listing$5.items.map((i) => i.id === w.id ? {
+				...i,
+				...shown
+			} : i);
+		}
 		ctx.rerender();
 		try {
 			const warning = await call();
@@ -8431,8 +8480,14 @@
 			ctx.toast(done[action] ?? "Done");
 			if (action !== "comment" && !same) listing$5 = null;
 		} catch {
-			detail$2 = null;
-			listing$5 = null;
+			if (action === "acknowledge" && before.detail) {
+				detail$2 = before.detail;
+				const item = before.item;
+				if (listing$5?.items && item) listing$5.items = listing$5.items.map((i) => i.id === w.id ? item : i);
+			} else {
+				detail$2 = null;
+				listing$5 = null;
+			}
 		} finally {
 			busy$5 = false;
 			ctx.rerender();
@@ -9639,7 +9694,7 @@ heartbeat_seconds = 30
 			form?.querySelector("[name=name]")?.addEventListener("input", (e) => {
 				if (slug && !slugEdited) slug.value = slugFrom(e.target.value);
 			});
-			onSubmit(root, "#new-site", (form) => void (async () => {
+			onSubmit(root, "#new-site", (form) => (async () => {
 				if (!ctx.api || busy$3) return;
 				busy$3 = true;
 				try {
@@ -9668,7 +9723,7 @@ heartbeat_seconds = 30
 					siteId: id
 				});
 			});
-			onSubmit(root, "#outline", (outline) => void (async () => {
+			onSubmit(root, "#outline", (outline) => (async () => {
 				if (busy$3) return;
 				const o = {
 					site: ctx.ontology.site?.name ?? "Site",
@@ -9692,7 +9747,7 @@ heartbeat_seconds = 30
 				ui.step = null;
 				await load$3(ctx, { withOntology: true });
 			})());
-			onSubmit(root, "#new-agent", (agent) => void (async () => {
+			onSubmit(root, "#new-agent", (agent) => (async () => {
 				if (!ctx.api || !site || busy$3) return;
 				busy$3 = true;
 				try {
@@ -11120,7 +11175,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					file: null,
 					name: ""
 				};
-				uploadFile(ctx, file, name);
+				return uploadFile(ctx, file, name);
 			});
 			const form = root.querySelector("#correlate-form");
 			form?.addEventListener("change", (e) => {
@@ -11138,7 +11193,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			form?.querySelector("[name=ng]")?.addEventListener("input", (e) => {
 				ui.ngText = e.target.value;
 			});
-			onSubmit(root, "#correlate-form", () => void find(ctx));
+			onSubmit(root, "#correlate-form", () => find(ctx));
 			onAll(root, "[data-save-insight]", "click", () => {
 				if (!result$1 || !detail$1) return;
 				saving = {
@@ -11154,7 +11209,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					saving = null;
 					ctx.rerender();
 				});
-				onSubmit(root, "#insight-save", () => void saveInsight(ctx));
+				onSubmit(root, "#insight-save", () => saveInsight(ctx));
 			}
 			onAll(root, "[data-delete-dataset]", "click", () => void removeDataset(ctx));
 		}
@@ -11394,7 +11449,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				onSubmit(root, "#insight-edit", () => {
 					const draft = editing && readDraft(editing.text);
 					if (typeof draft === "string") return void ctx.toast(draft);
-					if (draft) act(ctx, (site, num) => api.insights.edit(site, num, draft), "Insight saved");
+					if (draft) return act(ctx, (site, num) => api.insights.edit(site, num, draft), "Insight saved");
 				});
 			}
 			root.querySelector("#insight-review [name=note]")?.addEventListener("input", (e) => {
@@ -11405,7 +11460,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				if (decision !== "accepted" && decision !== "rejected") return;
 				if (decision === "rejected" && !note.text.trim()) return void ctx.toast("Say why the insight is rejected");
 				const text = note.text.trim();
-				act(ctx, (site, num) => api.insights.review(site, num, decision, text), decision === "accepted" ? "Insight accepted" : "Insight rejected");
+				return act(ctx, (site, num) => api.insights.review(site, num, decision, text), decision === "accepted" ? "Insight accepted" : "Insight rejected");
 			});
 			onAll(root, "[data-reopen]", "click", () => void act(ctx, (site, num) => api.insights.reopen(site, num), "Insight reopened"));
 			onAll(root, "[data-remove]", "click", async () => {
@@ -11839,7 +11894,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				delete values.__name;
 				draft$1.values = values;
 			});
-			onSubmit(root, "#app-form", (f) => void save(ctx, f));
+			onSubmit(root, "#app-form", (f) => save(ctx, f));
 			onAll(root, "[data-retry-templates]", "click", () => {
 				templates = null;
 				ctx.rerender();
@@ -12152,7 +12207,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				const title = field$2(form, "title").trim() || titleFrom(file.name) || "Document";
 				uploading = true;
 				ctx.rerender();
-				api.documents.upload(site, file, type, {
+				return api.documents.upload(site, file, type, {
 					title,
 					filename: file.name,
 					language: field$2(form, "language")

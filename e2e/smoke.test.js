@@ -533,6 +533,50 @@ test('errors say what happened and the way out: no access, a conflict, not found
   );
 });
 
+test('with a slow API, buttons wait and nothing is sent twice; quick changes roll back (U2.08)', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { out } = raiseFrictionWarnings(fake);
+  const a = await openAs(t, apiUrl, null, 'settings');
+  const count = (re) => fake.requests.filter((r) => re.test(r)).length;
+
+  // A form sent twice while its request runs: one request, its button busy meanwhile.
+  await a.page.fill('#agent-form [name=name]', 'press-shop-edge');
+  fake.slowNext('POST', /\/agents$/, 1200);
+  const register = a.page.locator('#agent-form button[type=submit]');
+  await register.click();
+  assert.equal(await register.getAttribute('aria-busy'), 'true');
+  await a.page.locator('#agent-form').evaluate((f) => f.requestSubmit());
+  await a.page.waitForSelector('[data-token]');
+  assert.equal(count(/^POST .*\/agents$/), 1);
+
+  // Acknowledging shows at once, before the API answers…
+  await a.page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/warnings`);
+  await a.page.click(`[data-warning="${out}"]`);
+  await a.page.waitForSelector('[data-act=acknowledge]');
+  const ack = /\/warnings\/[^/]+\/acknowledge$/;
+  const badge = a.page.locator('[data-warning-detail] .badge').first();
+  fake.slowNext('POST', ack, 1500);
+  fake.failNext('POST', ack, 503, 'The API is restarting');
+  await a.page.click('[data-act=acknowledge]');
+  await a.page.waitForSelector('[data-warning-detail] .badge:has-text("Acknowledged")', { timeout: 1000 });
+  assert.equal(await a.page.locator('[data-act=acknowledge]').count(), 0);
+  // …and is taken back when the API refuses it, with the reason.
+  await a.page.waitForSelector('.toast-item:has-text("The Tiles API had a problem")');
+  await a.page.waitForSelector('[data-warning-detail] [data-act=acknowledge]');
+  assert.equal(await badge.innerText(), 'New');
+  assert.equal(count(new RegExp(`^POST .*${ack.source.slice(2, -1)}`)), 1);
+  // Accepted, it stays.
+  await a.page.click('[data-act=acknowledge]');
+  await a.page.waitForSelector('#toast:has-text("Acknowledged")');
+  assert.equal(await a.page.locator('[data-warning-detail] .badge').first().innerText(), 'Acknowledged');
+  assert.deepEqual(
+    a.errors.filter((e) => !/503/.test(e)),
+    [],
+  );
+});
+
 test('settings can switch to the Tiles API and test the connection', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
@@ -3346,6 +3390,15 @@ test('the copilot: a streamed answer with its tools, citations, a withdrawn draf
   await a.page.click('[data-rate-form] button[type=submit]');
   await a.page.waitForSelector('[data-feedback]:has-text("It should say which press")');
 
+  // A rating shows at once (U2.08); refused, it goes back to what it was.
+  fake.slowNext('PUT', /\/feedback$/, 800);
+  fake.failNext('PUT', /\/feedback$/, 500, 'Database unavailable');
+  await answer.locator('[data-rate="up"]').click();
+  await a.page.waitForSelector('[data-rate="up"][aria-pressed="true"]', { timeout: 600 });
+  await a.page.waitForSelector('[data-rate="down"][aria-pressed="true"]');
+  assert.equal(await a.page.locator('[data-rate="up"]').getAttribute('aria-pressed'), 'false');
+  assert.match(await a.page.locator('[data-feedback]').innerText(), /It should say which press/);
+
   // A later answer can cite an earlier one's result; its link opens that result.
   fake.copilotScripts.push({ answer: 'As before, `press9.oil_temp` reads 42 °C [1].' });
   await a.page.fill('#composer [name=q]', 'Still 42?');
@@ -3400,7 +3453,10 @@ test('the copilot: a streamed answer with its tools, citations, a withdrawn draf
   assert.equal(await a.page.locator('[data-rate="down"]').first().getAttribute('aria-pressed'), 'true');
   await a.page.click('[data-new-conversation]');
   await a.page.waitForSelector('#chat-log:has-text("Ask about your plant")');
-  assert.deepEqual(a.errors, []);
+  assert.deepEqual(
+    a.errors.filter((e) => !/status of 500/.test(e)), // the rating refused on purpose
+    [],
+  );
 });
 
 test('the copilot: with the service off, the built-in skills answer and say so', async (t) => {

@@ -276,7 +276,7 @@ const view: View = {
       onSubmit(root, '#insight-edit', () => {
         const draft = editing && readDraft(editing.text);
         if (typeof draft === 'string') return void ctx.toast(draft);
-        if (draft) void act(ctx, (site, num) => api.insights.edit(site, num, draft), 'Insight saved');
+        if (draft) return act(ctx, (site, num) => api.insights.edit(site, num, draft), 'Insight saved');
       });
     }
     root.querySelector<HTMLTextAreaElement>('#insight-review [name=note]')?.addEventListener('input', (e) => {
@@ -287,7 +287,7 @@ const view: View = {
       if (decision !== 'accepted' && decision !== 'rejected') return;
       if (decision === 'rejected' && !note.text.trim()) return void ctx.toast('Say why the insight is rejected');
       const text = note.text.trim();
-      void act(
+      return act(
         ctx,
         (site, num) => api.insights.review(site, num, decision, text),
         decision === 'accepted' ? 'Insight accepted' : 'Insight rejected',

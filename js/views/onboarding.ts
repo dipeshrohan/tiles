@@ -259,28 +259,25 @@ const view: View = {
     form?.querySelector<HTMLInputElement>('[name=name]')?.addEventListener('input', (e) => {
       if (slug && !slugEdited) slug.value = slugFrom((e.target as HTMLInputElement).value);
     });
-    onSubmit(
-      root,
-      '#new-site',
-      (form) =>
-        void (async () => {
-          if (!ctx.api || busy) return;
-          busy = true;
-          try {
-            const made = await ctx.api.createSite({
-              name: field(form, 'name'),
-              slug: field(form, 'slug'),
-              timezone: field(form, 'timezone'),
-            });
-            created = { id: made.id, name: made.name };
-            ctx.toast(`${made.name} created`);
-          } catch {
-            // The client showed why (403: only organisation admins create sites).
-          } finally {
-            busy = false;
-            ctx.rerender();
-          }
-        })(),
+    onSubmit(root, '#new-site', (form) =>
+      (async () => {
+        if (!ctx.api || busy) return;
+        busy = true;
+        try {
+          const made = await ctx.api.createSite({
+            name: field(form, 'name'),
+            slug: field(form, 'slug'),
+            timezone: field(form, 'timezone'),
+          });
+          created = { id: made.id, name: made.name };
+          ctx.toast(`${made.name} created`);
+        } catch {
+          // The client showed why (403: only organisation admins create sites).
+        } finally {
+          busy = false;
+          ctx.rerender();
+        }
+      })(),
     );
     onAll(root, '[data-open-site]', 'click', (el) => {
       const id = el.dataset.openSite;
@@ -290,60 +287,53 @@ const view: View = {
       ctx.setDataSource({ ...ctx.dataSource, siteId: id });
     });
 
-    onSubmit(
-      root,
-      '#outline',
-      (outline) =>
-        void (async () => {
-          if (busy) return;
-          const o = {
-            site: ctx.ontology.site?.name ?? 'Site',
-            workcenter: field(outline, 'workcenter'),
-            line: field(outline, 'line'),
-            machines: names(field(outline, 'machines')),
-            protocol: field(outline, 'protocol'),
-          };
-          const problem = outlineProblem(o);
-          if (problem) return ctx.toast(problem);
-          busy = true;
-          const review = ctx.ontology.reviewRequired;
-          const message = `Outline ${o.line.trim()} (${o.machines.length} machine${o.machines.length === 1 ? '' : 's'})`;
-          const ok = await ctx.ontology.act(
-            async (store, repo) => {
-              if (repo.staged.length)
-                throw new Error('Commit or discard your staged changes on the Ontology page first');
-              const staged = await store.stage(repo, outlineOps(ctx.graph, o));
-              return review
-                ? store.requestReview(staged, { message })
-                : store.commit(staged, message, ctx.state.user.name);
-            },
-            review ? 'Sent for review: another engineer approves it' : `${o.line.trim()} added to the ontology`,
-          );
-          busy = false;
-          if (!ok) return ctx.rerender();
-          ui.step = null; // done: on to the first step left
-          await load(ctx, { withOntology: true });
-        })(),
+    onSubmit(root, '#outline', (outline) =>
+      (async () => {
+        if (busy) return;
+        const o = {
+          site: ctx.ontology.site?.name ?? 'Site',
+          workcenter: field(outline, 'workcenter'),
+          line: field(outline, 'line'),
+          machines: names(field(outline, 'machines')),
+          protocol: field(outline, 'protocol'),
+        };
+        const problem = outlineProblem(o);
+        if (problem) return ctx.toast(problem);
+        busy = true;
+        const review = ctx.ontology.reviewRequired;
+        const message = `Outline ${o.line.trim()} (${o.machines.length} machine${o.machines.length === 1 ? '' : 's'})`;
+        const ok = await ctx.ontology.act(
+          async (store, repo) => {
+            if (repo.staged.length) throw new Error('Commit or discard your staged changes on the Ontology page first');
+            const staged = await store.stage(repo, outlineOps(ctx.graph, o));
+            return review
+              ? store.requestReview(staged, { message })
+              : store.commit(staged, message, ctx.state.user.name);
+          },
+          review ? 'Sent for review: another engineer approves it' : `${o.line.trim()} added to the ontology`,
+        );
+        busy = false;
+        if (!ok) return ctx.rerender();
+        ui.step = null; // done: on to the first step left
+        await load(ctx, { withOntology: true });
+      })(),
     );
 
-    onSubmit(
-      root,
-      '#new-agent',
-      (agent) =>
-        void (async () => {
-          if (!ctx.api || !site || busy) return;
-          busy = true;
-          try {
-            const out = await ctx.api.agents.register(site, field(agent, 'name'));
-            revealed = { site, name: out.agent.name, token: out.token };
-            ctx.toast(`${out.agent.name} registered`);
-          } catch {
-            // The client showed why.
-          } finally {
-            busy = false;
-          }
-          await load(ctx);
-        })(),
+    onSubmit(root, '#new-agent', (agent) =>
+      (async () => {
+        if (!ctx.api || !site || busy) return;
+        busy = true;
+        try {
+          const out = await ctx.api.agents.register(site, field(agent, 'name'));
+          revealed = { site, name: out.agent.name, token: out.token };
+          ctx.toast(`${out.agent.name} registered`);
+        } catch {
+          // The client showed why.
+        } finally {
+          busy = false;
+        }
+        await load(ctx);
+      })(),
     );
   },
 };

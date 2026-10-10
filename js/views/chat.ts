@@ -11,7 +11,7 @@ import {
   type Exchange,
 } from '../lib/copilot-chat.ts';
 import type { CopilotConversation } from '../lib/api.ts';
-import { esc, need, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
+import { esc, need, onAction, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { emptyState, loadingState, button, pageHead, skeleton } from '../lib/ui.ts';
@@ -235,21 +235,31 @@ async function send(ctx: Context, question: string): Promise<void> {
   }
 }
 
+// A rating is shown at once (U2.08) and taken back if the API refuses it; one at a time per answer.
+const ratingSent = new Set<number>();
 async function rate(ctx: Context, seq: number, value: 'up' | 'down', comment: string): Promise<void> {
   const site = siteId(ctx);
   const id = uiState(ctx).conversation;
-  if (!ctx.api || !site || !id) return;
+  if (!ctx.api || !site || !id || ratingSent.has(seq)) return;
   const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
+  const current = answer?.feedback ?? null;
+  const clear = current?.rating === value && !comment;
+  const prompt = rating;
+  if (answer) answer.feedback = clear ? null : { rating: value, comment };
+  rating = value === 'down' && !comment && current?.rating !== 'down' ? { key: `${id}|${seq}`, comment: '' } : null;
+  ratingSent.add(seq);
+  ctx.rerender();
   try {
-    const current = answer?.feedback;
-    let saved: Answer['feedback'] = null;
-    if (current?.rating === value && !comment) await ctx.api.copilot.unrate(site, id, seq);
-    else saved = await ctx.api.copilot.rate(site, id, seq, value, comment);
+    const saved = clear ? null : await ctx.api.copilot.rate(site, id, seq, value, comment);
+    if (clear) await ctx.api.copilot.unrate(site, id, seq);
     if (answer) answer.feedback = saved; // as stored; no need to fetch the conversation again
-    rating = value === 'down' && !comment && current?.rating !== 'down' ? { key: `${id}|${seq}`, comment: '' } : null;
     if (comment) ctx.toast('Thanks: your site’s admins will see it');
   } catch {
-    // the client showed why
+    // The client showed why; the rating goes back to what it was.
+    if (answer) answer.feedback = current;
+    rating = prompt;
+  } finally {
+    ratingSent.delete(seq);
   }
   ctx.rerender();
 }
@@ -263,7 +273,7 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
   root.querySelector<HTMLInputElement>('#composer [name=q]')?.addEventListener('input', (e) => {
     draft = (e.target as HTMLInputElement).value;
   });
-  onSubmit(root, '#composer', (form) => void send(ctx, field(form, 'q')));
+  onSubmit(root, '#composer', (form) => send(ctx, field(form, 'q')));
   onAll(root, '[data-q]', 'click', (b) => void send(ctx, b.dataset.q ?? ''));
   onAll(root, '[data-new-conversation]', 'click', () => {
     ui.conversation = null;
@@ -304,10 +314,9 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
     target?.classList.add('flash');
     setTimeout(() => target?.classList.remove('flash'), 1200);
   });
-  onAll(root, '[data-rate]', 'click', (el) => {
-    const seq = Number(el.dataset.seq);
-    void rate(ctx, seq, el.dataset.rate === 'up' ? 'up' : 'down', '');
-  });
+  onAction(root, '[data-rate]', (el) =>
+    rate(ctx, Number(el.dataset.seq), el.dataset.rate === 'up' ? 'up' : 'down', ''),
+  );
   root.querySelectorAll<HTMLFormElement>('[data-rate-form]').forEach((form) => {
     form.querySelector<HTMLInputElement>('[name=comment]')?.addEventListener('input', (e) => {
       if (rating) rating.comment = (e.target as HTMLInputElement).value;

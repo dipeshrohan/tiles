@@ -269,7 +269,7 @@ const view: View = {
       const title = field(form, 'title').trim() || titleFrom(file.name) || 'Document';
       uploading = true;
       ctx.rerender();
-      api.documents
+      return api.documents
         .upload(site, file, type, { title, filename: file.name, language: field(form, 'language') })
         .then(
           (doc) => {
