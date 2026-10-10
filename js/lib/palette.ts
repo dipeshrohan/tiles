@@ -91,6 +91,7 @@ export function installPalette(source: PaletteSource): { open(): void } {
     let extra: PaletteItem[] = [];
     let searching = false;
     let seq = 0;
+    let waiting: ReturnType<typeof setInterval> | undefined;
 
     const draw = (): void => {
       const q = input.value;
@@ -138,6 +139,7 @@ export function installPalette(source: PaletteSource): { open(): void } {
     const close = (): void => {
       if (!dialog) return;
       dialog = null;
+      clearInterval(waiting);
       d.dataset.state = 'closed';
       const done = (): void => {
         d.close();
@@ -163,6 +165,14 @@ export function installPalette(source: PaletteSource): { open(): void } {
       const mine = ++seq;
       // Asked as each query is typed: the site may have loaded since the palette opened.
       searching = Boolean(source.search) && source.canSearch?.() !== false && q.length >= 2;
+      clearInterval(waiting);
+      // Typed before there was anything to ask (the site still loading): ask once there is.
+      if (source.search && !searching && q.length >= 2)
+        waiting = setInterval(() => {
+          if (source.canSearch?.() === false) return;
+          clearInterval(waiting);
+          if (mine === seq && dialog) input.dispatchEvent(new Event('input'));
+        }, 250);
       draw();
       if (!searching || !source.search) return;
       const ask = source.search;

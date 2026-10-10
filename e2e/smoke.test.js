@@ -234,6 +234,20 @@ test('the palette finds the site’s signals through the API', async (t) => {
   assert.deepEqual(a.errors, []);
 });
 
+test('the palette asks for signals typed before the site has loaded', async (t) => {
+  // The sign-in settings answer late, so the site loads after the query is typed.
+  const fake = createFakeApi({ slowAuthConfigMs: 1500 });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { unit: '°C' });
+  const a = await openAs(t, apiUrl, null, '');
+  await a.page.keyboard.press('Control+k');
+  const palette = a.page.locator('dialog.palette[open]');
+  await palette.locator('input').fill('press');
+  await palette.locator('.palette-item:has-text("press1.temperature")').waitFor();
+  assert.deepEqual(a.errors, []);
+});
+
 test('copilot answers a suggested question with its steps', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/chat`);

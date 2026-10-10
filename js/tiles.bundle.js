@@ -11263,6 +11263,7 @@ heartbeat_seconds = 30
 			let extra = [];
 			let searching = false;
 			let seq = 0;
+			let waiting;
 			const draw = () => {
 				const q = input.value;
 				const all = source.items();
@@ -11296,6 +11297,7 @@ heartbeat_seconds = 30
 			const close = () => {
 				if (!dialog) return;
 				dialog = null;
+				clearInterval(waiting);
 				d.dataset.state = "closed";
 				const done = () => {
 					d.close();
@@ -11319,6 +11321,12 @@ heartbeat_seconds = 30
 				const q = input.value.trim();
 				const mine = ++seq;
 				searching = Boolean(source.search) && source.canSearch?.() !== false && q.length >= 2;
+				clearInterval(waiting);
+				if (source.search && !searching && q.length >= 2) waiting = setInterval(() => {
+					if (source.canSearch?.() === false) return;
+					clearInterval(waiting);
+					if (mine === seq && dialog) input.dispatchEvent(new Event("input"));
+				}, 250);
 				draw();
 				if (!searching || !source.search) return;
 				const ask = source.search;
