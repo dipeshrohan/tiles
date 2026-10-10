@@ -35,6 +35,18 @@ import {
 } from './lib/ontology-store.ts';
 import { announce, esc, lessMotion, need, rebind, routeOf } from './lib/dom.ts';
 import { morph, noteSent, replace } from './lib/morph.ts';
+import {
+  cleanPrefs,
+  DEFAULT_PREFS,
+  MAX_PINNED,
+  navHtml,
+  toggleFold,
+  togglePin,
+  visited,
+  type NavBadge,
+  type NavGroup,
+  type NavPrefs,
+} from './lib/nav.ts';
 import { after, before, rowMotion, watchSections } from './lib/micro.ts';
 import {
   forgetUi,
@@ -523,35 +535,93 @@ function currentView(): View {
   return VIEWS.find((v) => v.id === id) ?? home;
 }
 
-function badgeFor(view: View): string {
-  if (view.id === 'physics') {
-    const open = state.detection.alerts.length;
-    return open ? `<span class="badge bad">${open}</span>` : '';
+// ---- the menu (U3.06) --------------------------------------------------------------------
+// Groups that fold, pins and recent pages, counts, and the icon rail; each person's choices kept in
+// this browser (js/lib/nav.ts).
+const NAV_GROUPS: NavGroup[] = NAV.map((g, i) => ({
+  id: g.group ? g.group.toLowerCase() : `g${i}`,
+  title: g.group ?? '',
+  pages: g.items.map((v) => ({ id: v.id, title: v.title, icon: v.icon })),
+}));
+const NAV_PAGES = NAV_GROUPS.flatMap((g) => g.pages.map((p) => p.id));
+let navFor = '';
+let navPrefs: NavPrefs = DEFAULT_PREFS;
+// Whose choices: in API mode the signed-in person (once known: until then, what is chosen waits in
+// memory and joins theirs), otherwise this browser's profile.
+function navOwner(): string | null {
+  if (!api) return `nav:local:${state.user.email}`;
+  return ctx.ontology.userId ? `nav:${ctx.ontology.userId}` : null;
+}
+function prefs(): NavPrefs {
+  const who = navOwner();
+  if (who && who !== navFor) {
+    const waiting = navFor ? null : navPrefs; // chosen before the person was known
+    navFor = who;
+    navPrefs = cleanPrefs(load<unknown>(who, null), NAV_PAGES);
+    if (waiting) {
+      for (const id of [...waiting.recent].reverse()) navPrefs = visited(navPrefs, id);
+      save(who, navPrefs);
+    }
   }
-  if (view.id === 'ontology') {
-    const staged = state.repo.staged.length;
-    if (staged) return `<span class="badge warn">${staged}</span>`;
-    const issues = healthCheck(ctx.graph).issues.filter((i) => i.level !== 'info').length;
-    return issues ? `<span class="badge">${issues}</span>` : '';
+  return navPrefs;
+}
+function setPrefs(next: NavPrefs): void {
+  navPrefs = next;
+  if (navFor) save(navFor, next);
+  document.body.classList.toggle('nav-rail', next.rail);
+}
+
+// Open warnings and reviews waiting for me (API mode): read at most once a minute, and again after
+// anyone here acts on a warning or a review.
+let counts: { site: string; warnings: number; reviews: number; at: number } | null = null;
+let counting = false;
+function refreshCounts(): void {
+  const site = ctx.ontology.site;
+  if (!api || !site || ctx.ontology.status !== 'ready' || counting) return;
+  if (counts?.site === site.id && Date.now() - counts.at < 60_000) return;
+  counting = true;
+  api.menu.counts(site.id).then(
+    (c) => {
+      counting = false;
+      counts = { site: site.id, warnings: c.open_warnings, reviews: c.reviews_waiting, at: Date.now() };
+      renderNav(currentView());
+    },
+    () => {
+      counting = false; // kept as they were; tried again with the next page
+    },
+  );
+}
+document.addEventListener('tiles:ux', (e) => {
+  const { kind, name } = (e as CustomEvent<{ kind: string; name: string }>).detail;
+  if (kind === 'task' && /^(warning|review|ontology)\./.test(name) && counts) counts.at = 0;
+});
+
+function badges(): Record<string, NavBadge> {
+  const out: Record<string, NavBadge> = {};
+  const open = state.detection.alerts.length;
+  if (open) out.physics = { count: open, tone: 'bad', says: `${open} warning(s) on the demo data` };
+  const staged = state.repo.staged.length;
+  const issues = staged ? 0 : healthCheck(ctx.graph).issues.filter((i) => i.level !== 'info').length;
+  if (staged) out.ontology = { count: staged, tone: 'warn', says: `${staged} staged change(s)` };
+  else if (issues) out.ontology = { count: issues, tone: '', says: `${issues} health issue(s)` };
+  const site = ctx.ontology.site;
+  if (counts && site && counts.site === site.id) {
+    if (counts.warnings)
+      out.warnings = { count: counts.warnings, tone: 'bad', says: `${counts.warnings} open warning(s)` };
+    if (counts.reviews)
+      out.reviews = { count: counts.reviews, tone: 'warn', says: `${counts.reviews} review(s) waiting for you` };
   }
-  return '';
+  return out;
 }
 
 function renderNav(active: View): void {
-  need(document, '#nav').innerHTML = NAV.map(
-    (g) =>
-      (g.group
-        ? `<div class="nav-group">${esc(g.group)}</div>`
-        : g.group === ''
-          ? '<div class="nav-group">&nbsp;</div>'
-          : '') +
-      g.items
-        .map(
-          (v) =>
-            `<a class="nav-link ${v === active || v.id === active.under ? 'active' : ''}" href="#/${v.id === 'home' ? '' : v.id}"${v === active ? ' aria-current="page"' : ''}><span class="ico">${icon(v.icon)}</span>${esc(v.title)}${badgeFor(v)}</a>`,
-        )
-        .join(''),
-  ).join('');
+  const p = prefs();
+  document.body.classList.toggle('nav-rail', p.rail);
+  morph(
+    need(document, '#nav'),
+    navHtml({ groups: NAV_GROUPS, active: active.id, under: active.under, prefs: p, badges: badges() }),
+  );
+  refreshCounts();
   const initials = state.user.name
     .split(/\s+/)
     .map((p) => p[0] ?? '')
@@ -574,6 +644,7 @@ function render(): void {
   if (view.id !== trackedView) {
     trackedView = view.id;
     ux('page', view.id);
+    if (NAV_PAGES.includes(view.id)) setPrefs(visited(prefs(), view.id)); // the last pages, in the menu
   }
   renderNav(view);
   document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
@@ -862,21 +933,81 @@ const searchButton = need(document, '#palette-open');
 searchButton.insertAdjacentHTML('afterbegin', icon('search'));
 if (/Mac|iPhone|iPad/.test(navigator.platform)) need(searchButton, 'kbd').textContent = '⌘K';
 searchButton.addEventListener('click', () => palette.open());
-need(document, '#menu').addEventListener('click', (e) => {
-  const open = need(document, '#sidebar').classList.toggle('open');
-  (e.currentTarget as HTMLElement).setAttribute('aria-expanded', String(open));
+need(document, '#menu').addEventListener('click', () => {
+  if (need(document, '#sidebar').classList.contains('open')) closeMenu();
+  else openMenu();
 });
+// The phone menu (U3.06): a scrim behind it closes it; the focus stays in it while it is open (Tab
+// goes round); a swipe to the left closes it.
+need(document, '#scrim').addEventListener('click', () => closeMenu());
+// The phone layout's menu, open when the window widens past it: closed (the menu is beside the page).
+const phoneLayout = matchMedia('(max-width: 820px)');
+phoneLayout.addEventListener('change', () => {
+  if (!phoneLayout.matches) closeMenu();
+});
+document.addEventListener('keydown', (e) => {
+  const sidebar = need(document, '#sidebar');
+  if (e.key !== 'Tab' || !sidebar.classList.contains('open') || !phoneLayout.matches) return;
+  const stops = [...sidebar.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')].filter(
+    (el) => el.offsetParent !== null,
+  );
+  const first = stops[0];
+  const last = stops.at(-1);
+  if (!first || !last) return;
+  const at = document.activeElement;
+  if (e.shiftKey && (at === first || !sidebar.contains(at))) {
+    e.preventDefault();
+    last.focus();
+  } else if (!e.shiftKey && (at === last || !sidebar.contains(at))) {
+    e.preventDefault();
+    first.focus();
+  }
+});
+let swipe: { x: number; y: number } | null = null;
+need(document, '#sidebar').addEventListener(
+  'touchstart',
+  (e) => {
+    const t = e.touches[0];
+    swipe = t ? { x: t.clientX, y: t.clientY } : null;
+  },
+  { passive: true },
+);
+need(document, '#sidebar').addEventListener(
+  'touchmove',
+  (e) => {
+    const t = e.touches[0];
+    if (!swipe || !t) return;
+    const dx = t.clientX - swipe.x;
+    if (dx < -60 && Math.abs(t.clientY - swipe.y) < Math.abs(dx)) {
+      swipe = null;
+      closeMenu();
+    }
+  },
+  { passive: true },
+);
 // "Skip to content" moves the focus past the navigation (a #view link would be read as a route).
 need(document, '[data-skip]').addEventListener('click', (e) => {
   e.preventDefault();
   need(document, '#view').focus();
 });
-need(document, '#nav').addEventListener('click', () => closeMenu());
+// The menu's own buttons: fold a group, pin a page, the icon rail. A link closes the phone menu.
+need(document, '#nav').addEventListener('click', (e) => {
+  const el = e.target instanceof Element ? e.target : null;
+  const fold = el?.closest<HTMLElement>('[data-nav-fold]');
+  const pin = el?.closest<HTMLElement>('[data-nav-pin]');
+  if (fold) setPrefs(toggleFold(prefs(), fold.dataset.navFold ?? ''));
+  else if (pin) {
+    const next = togglePin(prefs(), pin.dataset.navPin ?? '');
+    if (next === prefs()) toast(`Unpin a page first: up to ${MAX_PINNED} can be pinned`);
+    else setPrefs(next);
+  } else if (el?.closest('[data-nav-rail]')) setPrefs({ ...prefs(), rail: !prefs().rail });
+  else return closeMenu();
+  renderNav(currentView());
+});
 // Escape closes the phone menu, and gives the focus back to its button.
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape' || !need(document, '#sidebar').classList.contains('open')) return;
-  closeMenu();
-  need(document, '#menu').focus();
+  closeMenu(); // the focus goes back to the menu button
 });
 
 // Charts are drawn to the page's width (fitWidth in svg.ts): draw them again when it changes.
@@ -892,9 +1023,29 @@ window.addEventListener('resize', () => {
   }, 200);
 });
 
+function openMenu(): void {
+  need(document, '#sidebar').classList.add('open');
+  need(document, '#menu').setAttribute('aria-expanded', 'true');
+  need(document, '#scrim').hidden = false;
+  // Into the menu, at the page shown (or its first link).
+  // (The page shown may be in a folded group: then the first link shown.)
+  const shown = (el: HTMLElement | null) => (el && el.offsetParent !== null ? el : null);
+  const here =
+    shown(document.querySelector<HTMLElement>('#nav [aria-current="page"]')) ??
+    [...document.querySelectorAll<HTMLElement>('#sidebar a[href]')].find((el) => el.offsetParent !== null);
+  here?.focus({ preventScroll: true });
+}
 function closeMenu(): void {
-  need(document, '#sidebar').classList.remove('open');
+  const sidebar = need(document, '#sidebar');
+  const wasOpen = sidebar.classList.contains('open');
+  sidebar.classList.remove('open');
   need(document, '#menu').setAttribute('aria-expanded', 'false');
+  need(document, '#scrim').hidden = true;
+  // Closed by the scrim or a swipe with the focus in it: the focus goes back to the menu button.
+  // (Pressing the scrim has already moved the focus to the page's body.)
+  const at = document.activeElement;
+  if (wasOpen && (!at || at === document.body || sidebar.contains(at)))
+    need(document, '#menu').focus({ preventScroll: true });
 }
 
 // ---- page transitions (U3.02) ---------------------------------------------------------

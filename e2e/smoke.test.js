@@ -3638,6 +3638,94 @@ test('a view is in its address: a reload or a copied link shows the same, and ba
   assert.deepEqual(b.errors, []);
 });
 
+test('the menu: groups fold, pages pin, recent pages, counts and an icon rail, all by keyboard; a phone menu with a scrim (U3.06)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  raiseFrictionWarnings(fake); // two open warnings
+  fake.requestReviewAs(
+    'maria@example.com',
+    [{ kind: 'addNode', node: { id: 'line-9', type: 'Line', label: 'Line 9', props: {} } }],
+    'add line 9',
+  );
+  const a = await openAs(t, apiUrl, null, 'plant');
+  const page = a.page;
+  await page.waitForSelector('#view h1');
+  // Counts: open warnings, and reviews waiting for me, each said in words too.
+  const warnings = page.locator('#nav [data-key="nav-menu-warnings"] a');
+  await warnings.locator('.badge').waitFor();
+  assert.match(await warnings.innerText(), /Warnings\s*2/);
+  assert.match(await warnings.locator('.sr-only').innerText(), /2 open warning\(s\)/);
+  assert.match(await page.locator('#nav [data-key="nav-menu-reviews"] a').innerText(), /1/);
+
+  // A group folds from the keyboard, and stays folded after a reload.
+  await page.focus('[data-nav-fold="design"]');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.getAttribute('[data-nav-fold="design"]', 'aria-expanded'), 'false');
+  assert.equal(await page.locator('#nav-list-design').isHidden(), true);
+  // A page pinned from the keyboard (its pin is reached with Tab after its link).
+  await page.focus('#nav [data-key="nav-menu-explorer"] a');
+  await page.keyboard.press('Tab');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Pin Data explorer');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#nav [data-key="nav-pinned-explorer"]');
+  // Pages visited show as recent (not the one shown, nor a pinned one).
+  for (const p of ['signals', 'warnings', 'documents']) {
+    await page.evaluate((h) => (location.hash = h), `#/${p}`);
+    await page.waitForSelector(`#nav a[aria-current="page"][href="#/${p}"]`);
+  }
+  const recent = () =>
+    page.locator('#nav-list-recent .nav-link').evaluateAll((els) => els.map((e) => e.getAttribute('href')));
+  assert.deepEqual(await recent(), ['#/warnings', '#/signals', '#/plant']);
+  await page.reload();
+  await page.waitForSelector('#nav [data-key="nav-pinned-explorer"]');
+  assert.equal(await page.getAttribute('[data-nav-fold="design"]', 'aria-expanded'), 'false');
+  assert.deepEqual(await recent(), ['#/warnings', '#/signals', '#/plant']);
+
+  // The icon rail: names in tooltips (and for screen readers), kept too.
+  await page.focus('[data-nav-rail]');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => document.body.classList.contains('nav-rail')), true);
+  assert.equal(await page.getAttribute('#nav [data-key="nav-menu-signals"] a', 'data-tooltip'), 'Signals');
+  await page.waitForFunction(() => document.querySelector('#sidebar').getBoundingClientRect().width < 80);
+  await page.reload();
+  await page.waitForSelector('#view h1');
+  assert.equal(await page.evaluate(() => document.body.classList.contains('nav-rail')), true);
+  await page.click('[data-nav-rail]');
+  assert.deepEqual(a.errors, []);
+
+  // A phone 320 px wide: the menu opens over a scrim with the focus in it, Tab stays in it, the scrim
+  // or a swipe to the left closes it and the focus goes back to the menu button.
+  const phone = await browser.newPage({
+    viewport: { width: 320, height: 640 },
+    hasTouch: true,
+    reducedMotion: 'reduce',
+  });
+  t.after(() => phone.close());
+  await phone.goto(`${httpBase}#/plant`);
+  await phone.waitForSelector('#view h1');
+  assert.equal(await phone.evaluate(() => document.documentElement.scrollWidth - innerWidth), 0);
+  await phone.focus('#menu');
+  await phone.keyboard.press('Enter');
+  await phone.waitForSelector('#scrim:not([hidden])');
+  assert.equal(await phone.evaluate(() => document.activeElement?.getAttribute('href')), '#/plant');
+  for (let i = 0; i < 40; i++) await phone.keyboard.press('Tab');
+  assert.ok(await phone.evaluate(() => document.querySelector('#sidebar').contains(document.activeElement)));
+  await phone.mouse.click(300, 300); // the scrim, beside the menu
+  await phone.waitForSelector('#sidebar:not(.open)');
+  assert.equal(await phone.evaluate(() => document.activeElement?.id), 'menu');
+  await phone.keyboard.press('Enter');
+  await phone.waitForSelector('#sidebar.open');
+  await phone.evaluate(() => {
+    const sidebar = document.querySelector('#sidebar');
+    const touch = (x) => new Touch({ identifier: 1, target: sidebar, clientX: x, clientY: 300 });
+    sidebar.dispatchEvent(new TouchEvent('touchstart', { touches: [touch(200)], bubbles: true }));
+    sidebar.dispatchEvent(new TouchEvent('touchmove', { touches: [touch(100)], bubbles: true }));
+  });
+  await phone.waitForSelector('#sidebar:not(.open)');
+  await phone.waitForSelector('#scrim[hidden]', { state: 'attached' });
+});
+
 test('the copilot: a streamed answer with its tools, citations, a withdrawn draft and feedback', async (t) => {
   const fake = createFakeApi({ copilot: true });
   const apiUrl = await fake.listen();

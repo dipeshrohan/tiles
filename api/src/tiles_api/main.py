@@ -30,6 +30,7 @@ from tiles_api.api_documents import router as documents_router
 from tiles_api.api_imports import router as imports_router
 from tiles_api.api_insights import router as insights_router
 from tiles_api.api_members import router as members_router
+from tiles_api.api_menu import router as menu_router
 from tiles_api.api_model_bindings import router as bindings_router
 from tiles_api.api_models import router as models_router
 from tiles_api.api_notifications import router as notifications_router
@@ -259,6 +260,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(sweeps_router)
     app.include_router(copilot_router)
     app.include_router(ux_router)
+    app.include_router(menu_router)
     telemetry.instrument(app, settings)
     return app
 

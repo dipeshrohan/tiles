@@ -3970,6 +3970,24 @@
         "title": "Member",
         "type": "object"
       },
+      "MenuCounts": {
+        "properties": {
+          "open_warnings": {
+            "title": "Open Warnings",
+            "type": "integer"
+          },
+          "reviews_waiting": {
+            "title": "Reviews Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open_warnings",
+          "reviews_waiting"
+        ],
+        "title": "MenuCounts",
+        "type": "object"
+      },
       "Message": {
         "properties": {
           "content": {
@@ -13761,6 +13779,50 @@
         "summary": "Set Role",
         "tags": [
           "members"
+        ]
+      }
+    },
+    "/sites/{site_id}/menu-counts": {
+      "get": {
+        "description": "What the menu counts for you: the site's warnings not yet resolved, and the open change\nrequests you may approve (engineers and admins: not your own, asked of you or of anyone).",
+        "operationId": "menu_counts_sites__site_id__menu_counts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MenuCounts"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Menu Counts",
+        "tags": [
+          "menu"
         ]
       }
     },

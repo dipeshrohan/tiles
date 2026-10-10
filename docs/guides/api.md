@@ -38,7 +38,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
 
 ## UX analytics
 
@@ -766,6 +766,18 @@ Change a member's role on this site (admins only; not your own).
 | `site_id` | path | uuid | yes |
 
 **Body:** RoleIn (see [openapi.json](openapi.json)).
+
+## menu
+
+### `GET /sites/{site_id}/menu-counts`
+
+**Who:** site member. **Answers:** 200, 422.
+
+What the menu counts for you: the site's warnings not yet resolved, and the open change requests you may approve (engineers and admins: not your own, asked of you or of anyone).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
 
 ## meta
 

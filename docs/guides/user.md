@@ -108,7 +108,8 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 
 - The left menu groups pages: **Home** and **Copilot** at the top, then **Operations** (starting with **Shopfloor**, the view for a tablet on the line), **Data**, **Design** and **Settings**.
 - A small badge on **Ontology builder** shows your uncommitted changes, or the number of health issues. A badge on **Factory physics** shows its open warning windows.
-- The button at the top switches between light and dark themes. On a phone, the menu button opens the left menu.
+- **The menu remembers you:** a group's name folds it away; the pin beside a page (shown when you point at it or Tab to it) keeps it under **Pinned** at the top; **Recent** lists the last five pages you opened. **Warnings** and **Change reviews** show how many are open or waiting for you. On a wide screen the button at the top of the menu shrinks it to a rail of icons, each named when you point at it. Tiles keeps these choices for you in this browser.
+- The button at the top switches between light and dark themes. On a phone, the menu button opens the left menu over the page; tap beside it, swipe it to the left or press Escape to close it.
 - Short messages ("toasts") appear at the bottom of the screen when something is saved or fails.
 - **With a keyboard:** the first Tab offers **Skip to content**, past the menu. Every control is reachable with Tab and works with Enter or Space; ontology nodes too. **With a screen reader:** each chart is described with the numbers it shows (its span, range, latest value, thresholds and shaded warnings), and toasts and the Shopfloor's headline are announced. Tiles follows the system's reduced-motion setting.
 
