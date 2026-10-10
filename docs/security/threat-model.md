@@ -1,6 +1,6 @@
 # Threat model and IEC 62443 gap list (T5.07)
 
-This covers Tiles as built in October 2026: the edge agent on a plant's network, the Tiles API and its database, the browser app, and the services they call. It is a STRIDE analysis of each part and data flow, then a gap list against IEC 62443 for the edge agent (a component, 62443-4-2) and the whole system (62443-3-3). It is written to share with a partner's IT/OT security team (T3.15), and to be reviewed whenever an ADR changes a trust boundary.
+This covers Tiles as built in October 2026: the edge agent on a plant's network, the Tiles API and its database, the browser app, and the services they call. It is a STRIDE analysis of each part and data flow, then a gap list against IEC 62443 for the edge agent (a component, 62443-4-2) and the whole system (62443-3-3). It is written to share with a partner's IT/OT security team (T3.15), with the [security review pack](partner-review.md) as its cover, and to be reviewed whenever an ADR changes a trust boundary.
 
 Status keys: **Done** (in place, with where), **Partial** and **Gap** (an action, with its task where there is one).
 

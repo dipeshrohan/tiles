@@ -118,7 +118,7 @@ The references are SOC 2's criteria (CC, A, C) and the ISO 27001:2022 clauses an
 | ID | Control | SOC 2 | ISO 27001 | Owner | Status | Evidence, or the action |
 |---|---|---|---|---|---|---|
 | VD-1 | Vendors that touch customer data reviewed, with agreements | CC9.2 | A.5.19–A.5.23 | CEO | Gap | A list of subprocessors: the cloud provider, GitHub, the copilot's model provider and the mail service. For each: its SOC 2 or ISO report, a data processing agreement, and a yearly review |
-| COM-1 | Customers can see how Tiles is secured, and report a problem | CC2.3 | A.5.14, A.5.24 | Product manager | Partial | The [threat model](threat-model.md), the [install guide](../install.md) and the admin guide describe it. Action: a security overview for customers, a `security.txt` and a contact for vulnerability reports, and a status page |
+| COM-1 | Customers can see how Tiles is secured, and report a problem | CC2.3 | A.5.14, A.5.24 | Product manager | Partial | The [security review pack](partner-review.md) (what connects where, the data end to end, a questionnaire quick reference), the [threat model](threat-model.md), the [install guide](../install.md) and the admin guide describe it. Action: a security overview for customers, a `security.txt` and a contact for vulnerability reports, and a status page |
 
 ## Timeline
 

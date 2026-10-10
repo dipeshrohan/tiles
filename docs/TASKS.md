@@ -116,7 +116,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 
 ### Pilot
 - [ ] `T3.14` [#58](https://github.com/dipeshrohan/tiles/issues/58) ★ **Pilot kickoff:** on-site engineer on site, success criteria signed, weekly review cadence set · FDE+PM · 2d · T2.16
-- [ ] `T3.15` [#59](https://github.com/dipeshrohan/tiles/issues/59) **Start the security review early:** share the architecture and data-flow diagram with partner IT/OT · TL · 1d · T2.17
+- [ ] `T3.15` [#59](https://github.com/dipeshrohan/tiles/issues/59) **Start the security review early:** share the architecture and data-flow diagram with partner IT/OT · TL · 1d · T2.17 · The pack to share is ready: [security/partner-review.md](security/partner-review.md)
 
 **Month 3 exit check:** backtest shows ≥ 50% of targeted downtime events warned, with an accepted false-alarm rate.
 
