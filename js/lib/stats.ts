@@ -23,6 +23,73 @@ export function mad(xs: readonly number[]): number {
   return 1.4826 * median(xs.map((x) => Math.abs(x - m)));
 }
 
+// The last values of a series, kept sorted as values come and go (U3.07): the median and MAD of a
+// rolling window without sorting each window again, exactly as median() and mad() give them.
+export class SortedWindow {
+  private readonly s: number[] = [];
+  private nan = 0; // NaNs in the window: not sortable, so counted apart (the median is NaN meanwhile)
+
+  // The first place x could go in the sorted values.
+  private place(x: number): number {
+    let lo = 0;
+    let hi = this.s.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.s[mid]! < x) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo;
+  }
+
+  add(x: number): void {
+    if (Number.isNaN(x)) this.nan++;
+    else this.s.splice(this.place(x), 0, x);
+  }
+
+  // Takes out one value equal to x (one added before).
+  remove(x: number): void {
+    if (Number.isNaN(x)) {
+      this.nan = Math.max(0, this.nan - 1);
+      return;
+    }
+    const i = this.place(x);
+    if (this.s[i] === x) this.s.splice(i, 1);
+  }
+
+  median(): number {
+    const s = this.s;
+    if (!s.length || this.nan) return NaN;
+    const mid = s.length >> 1;
+    return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
+  }
+
+  // The deviations from the median grow outwards from it on both sides: merged, the middle ones
+  // are the median deviation.
+  mad(): number {
+    const s = this.s;
+    if (!s.length || this.nan) return NaN;
+    const m = this.median();
+    let left = this.place(m) - 1;
+    let right = left + 1;
+    const mid = s.length >> 1;
+    let previous = NaN;
+    let current = NaN;
+    for (let i = 0; i <= mid; i++) {
+      const l = left >= 0 ? Math.abs(s[left]! - m) : Infinity;
+      const r = right < s.length ? Math.abs(s[right]! - m) : Infinity;
+      previous = current;
+      if (l <= r) {
+        current = l;
+        left--;
+      } else {
+        current = r;
+        right++;
+      }
+    }
+    return 1.4826 * (s.length % 2 ? current : (previous + current) / 2);
+  }
+}
+
 export function pearson(xs: readonly number[], ys: readonly number[]): number {
   const n = Math.min(xs.length, ys.length);
   if (n < 3) return 0;

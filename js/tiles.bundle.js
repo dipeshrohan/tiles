@@ -267,6 +267,12 @@
 			date
 		});
 	}
+	var checked = /* @__PURE__ */ new WeakMap();
+	function graphHealth(graph) {
+		let report = checked.get(graph);
+		if (!report) checked.set(graph, report = healthCheck(graph));
+		return report;
+	}
 	function healthCheck(graph) {
 		const nodes = Object.values(graph.nodes);
 		const edges = Object.values(graph.edges);
@@ -556,10 +562,61 @@
 		const mid = s.length >> 1;
 		return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 	}
-	function mad(xs) {
-		const m = median(xs);
-		return 1.4826 * median(xs.map((x) => Math.abs(x - m)));
-	}
+	var SortedWindow = class {
+		s = [];
+		nan = 0;
+		place(x) {
+			let lo = 0;
+			let hi = this.s.length;
+			while (lo < hi) {
+				const mid = lo + hi >> 1;
+				if (this.s[mid] < x) lo = mid + 1;
+				else hi = mid;
+			}
+			return lo;
+		}
+		add(x) {
+			if (Number.isNaN(x)) this.nan++;
+			else this.s.splice(this.place(x), 0, x);
+		}
+		remove(x) {
+			if (Number.isNaN(x)) {
+				this.nan = Math.max(0, this.nan - 1);
+				return;
+			}
+			const i = this.place(x);
+			if (this.s[i] === x) this.s.splice(i, 1);
+		}
+		median() {
+			const s = this.s;
+			if (!s.length || this.nan) return NaN;
+			const mid = s.length >> 1;
+			return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+		}
+		mad() {
+			const s = this.s;
+			if (!s.length || this.nan) return NaN;
+			const m = this.median();
+			let left = this.place(m) - 1;
+			let right = left + 1;
+			const mid = s.length >> 1;
+			let previous = NaN;
+			let current = NaN;
+			for (let i = 0; i <= mid; i++) {
+				const l = left >= 0 ? Math.abs(s[left] - m) : Infinity;
+				const r = right < s.length ? Math.abs(s[right] - m) : Infinity;
+				previous = current;
+				if (l <= r) {
+					current = l;
+					left--;
+				} else {
+					current = r;
+					right++;
+				}
+			}
+			return 1.4826 * (s.length % 2 ? current : (previous + current) / 2);
+		}
+	};
 	function pearson(xs, ys) {
 		const n = Math.min(xs.length, ys.length);
 		if (n < 3) return 0;
@@ -632,7 +689,7 @@
 		}
 		return median(residuals);
 	}
-	function generateShotHistory({ seed = 7, shots = 1600, cycleSeconds = 95 } = {}) {
+	function* shotHistorySteps({ seed = 7, shots = 1600, cycleSeconds = 95 } = {}, every = 100) {
 		const rng = createRng(seed);
 		const episodes = [
 			{
@@ -669,6 +726,7 @@
 				trueFriction: friction,
 				friction: estimateFriction(shot)
 			});
+			if ((i + 1) % every === 0) yield;
 		}
 		return {
 			history,
@@ -682,9 +740,14 @@
 		const alerts = [];
 		let run = 0;
 		let open = null;
+		const past = new SortedWindow();
+		for (let i = 0; i < Math.min(window, history.length); i++) past.add(history[i].friction);
 		for (let i = window; i < history.length; i++) {
-			const past = history.slice(i - window, i).map((s) => s.friction);
-			const limit = median(past) + k * (mad(past) || 1);
+			if (i > window) {
+				past.remove(history[i - window - 1].friction);
+				past.add(history[i - 1].friction);
+			}
+			const limit = past.median() + k * (past.mad() || 1);
 			const friction = history[i].friction;
 			thresholds[i] = limit;
 			if (friction > limit) {
@@ -1691,8 +1754,10 @@
 	//#endregion
 	//#region js/lib/morph.ts
 	var drawn$1 = /* @__PURE__ */ new WeakMap();
+	var drawnFrom = /* @__PURE__ */ new WeakMap();
 	function remember$1(root) {
 		root.querySelectorAll("details").forEach((d) => drawn$1.has(d) || drawn$1.set(d, d.open));
+		root.querySelectorAll("[data-morph=\"if-changed\"]").forEach((el) => drawnFrom.has(el) || drawnFrom.set(el, el.cloneNode(true)));
 	}
 	function replace(root, html) {
 		root.innerHTML = html;
@@ -1794,12 +1859,35 @@
 			return;
 		}
 		const field = isField(old);
+		const how = next.getAttribute("data-morph");
+		if (how === "if-changed" && unchanged(old, next)) {
+			attributes(old, next);
+			const sent = field ? sentWith.get(old) : void 0;
+			if (field && sent !== void 0 && sent === current$2(old)) values(old);
+			return;
+		}
 		const typed = field && current$2(old) !== drawnAs(old) && sentWith.get(old) !== current$2(old);
 		const was = field ? drawnAs(old) : "";
 		attributes(old, next);
-		if (!(old instanceof HTMLTextAreaElement)) children(old, next);
+		if (how === "replace") wholesale(old, next);
+		else if (!(old instanceof HTMLTextAreaElement)) children(old, next);
 		else if (old.defaultValue !== next.textContent) old.defaultValue = next.textContent ?? "";
 		if (field && (!typed || drawnAs(old) !== was)) values(old);
+	}
+	function wholesale(old, next) {
+		const active = old.ownerDocument.activeElement;
+		const key = active && old.contains(active) ? keyOf$1(active) : null;
+		old.replaceChildren(...next.childNodes);
+		if (!key) return;
+		for (const el of old.querySelectorAll("[id], [data-key]")) if (keyOf$1(el) === key && (el instanceof HTMLElement || el instanceof SVGElement)) {
+			el.focus({ preventScroll: true });
+			return;
+		}
+	}
+	function unchanged(old, next) {
+		if (drawnFrom.get(old)?.isEqualNode(next)) return true;
+		drawnFrom.set(old, next.cloneNode(true));
+		return false;
 	}
 	var isField = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 	var toggles = (el) => el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio");
@@ -3077,10 +3165,16 @@
 		icon: "house",
 		render(ctx) {
 			const { state } = ctx;
-			const health = healthCheck(ctx.graph);
+			const health = graphHealth(ctx.graph);
 			const ng = state.batches.filter((b) => b.ng).length;
-			const predicted = state.scored.filter((s) => s.predicted);
-			const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
+			const friction = ctx.demoReady ? (() => {
+				const predicted = state.scored.filter((s) => s.predicted);
+				const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
+				return {
+					value: String(state.detection.alerts.length),
+					note: `${predicted.length}/${state.scored.length} stops predicted, ${fmt$1(lead, 1)} h avg lead`
+				};
+			})() : null;
 			const feed = [...state.repo.history.map((c) => ({
 				date: c.date,
 				icon: "git-commit-horizontal",
@@ -3114,10 +3208,9 @@
       </section>
 
       <div class="grid g4 mb-4">
-        <a class="card kpi bad text-inherit no-underline" href="#/physics">
+        <a class="card kpi bad text-inherit no-underline" href="#/physics"${friction ? "" : " aria-busy=\"true\""}>
           <div class="label">Friction warnings · DC-02</div>
-          <div class="value">${state.detection.alerts.length}</div>
-          <div class="note">${predicted.length}/${state.scored.length} stops predicted, ${fmt$1(lead, 1)} h avg lead</div>
+          ${friction ? `<div class="value">${friction.value}</div><div class="note">${friction.note}</div>` : `<div class="value"><span class="skeleton kpi-wait"></span><span class="sr-only">Working out the warnings</span></div><div class="note"><span class="skeleton kpi-wait wide"></span></div>`}
         </a>
         <a class="card kpi text-inherit no-underline" href="#/quality">
           <div class="label">Cutter NG rate</div>
@@ -4509,6 +4602,7 @@
 	}
 	var drawn = null;
 	var centerAfterRender = null;
+	var canvasTall = "";
 	var short = (s, n = 19) => s.length > n ? `${s.slice(0, n - 1)}…` : s;
 	function describeOp(op, graph) {
 		const label = (id) => graph.nodes[id]?.label ?? id;
@@ -4524,9 +4618,37 @@
 		const b = (n, what) => n ? `<span class="badge"><span class="${n > 0 ? "plus" : "minus"}">${n > 0 ? "+" : "−"}${Math.abs(n)}</span> ${what}</span>` : "";
 		return b(s.nodes, "node") + b(s.edges, "edge") + b(s.props, "prop");
 	}
+	var hierarchies = /* @__PURE__ */ new WeakMap();
+	function hierarchyOf(graph) {
+		let h = hierarchies.get(graph);
+		if (!h) hierarchies.set(graph, h = hierarchy(graph));
+		return h;
+	}
+	var optionLists = /* @__PURE__ */ new WeakMap();
+	var versions = /* @__PURE__ */ new WeakMap();
+	var lastVersion = 0;
+	function versionOf(graph) {
+		let v = versions.get(graph);
+		if (v === void 0) versions.set(graph, v = ++lastVersion);
+		return v;
+	}
+	function fillNodeOptions(select, graph) {
+		if (select.options.length > 1) return;
+		select.insertAdjacentHTML("beforeend", nodeOptions(graph));
+		const except = select.dataset.except;
+		if (except) [...select.options].find((o) => o.value === except)?.remove();
+	}
+	function nodeOptions(graph) {
+		let html = optionLists.get(graph);
+		if (html === void 0) {
+			html = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label)).map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join("");
+			optionLists.set(graph, html);
+		}
+		return html;
+	}
 	function canvas(ctx, graph, health, ui) {
 		const hidden = new Set(ui.hidden);
-		const h = hierarchy(graph);
+		const h = hierarchyOf(graph);
 		const collapsed = collapsedSet(graph, h, ui);
 		const folded = hiddenByCollapse(graph, collapsed, h);
 		const show = (id) => {
@@ -4569,7 +4691,7 @@
 				stagedIds.has(id) && "staged",
 				matches.has(id) && "match",
 				fold && "folded"
-			].filter(Boolean).join(" ")}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ""}">
+			].filter(Boolean).join(" ")}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ""}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
           <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ""}
@@ -4607,7 +4729,7 @@
             </span>
           </div>
           <div class="canvas-wrap">
-            <svg data-canvas viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
+            <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
           </div>
           <div class="statusbar">
             <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ""}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
@@ -4627,7 +4749,6 @@
 		const path = pathTo(graph, id);
 		const props = Object.entries(n.props ?? {});
 		const required = NODE_TYPES[n.type].required.filter((r) => n.props?.[r] === void 0);
-		const others = Object.values(graph.nodes).filter((o) => o.id !== id).sort((a, b) => a.label.localeCompare(b.label));
 		return `
       <div class="card-head">
         <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 class="mt-1_5">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
@@ -4651,7 +4772,7 @@
       </div>
       <form class="row mt-2 mb-4 m-0" id="link-form">
         <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option>${r}</option>`).join("")}</select>
-        <select name="to" class="grow w-6em" aria-label="Target node">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
+        <select name="to" class="grow w-6em" aria-label="Target node" required data-morph="if-changed" data-node-options="${versionOf(graph)}" data-except="${esc(id)}"><option value="">Choose a node</option></select>
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
@@ -4712,7 +4833,7 @@
 		ctx.rerender();
 	}
 	function reveal(graph, ui, id) {
-		const h = hierarchy(graph);
+		const h = hierarchyOf(graph);
 		const collapsed = collapsedSet(graph, h, ui);
 		for (const above of revealPath(graph, id, collapsed, h)) collapsed.delete(above);
 		ui.collapsed = [...collapsed];
@@ -4723,8 +4844,10 @@
 		const svg = root.querySelector("svg[data-canvas]");
 		const layoutNow = drawn;
 		const center = centerAfterRender;
-		centerAfterRender = null;
-		if (!svg || !layoutNow) return;
+		if (!svg || !layoutNow) {
+			centerAfterRender = null;
+			return;
+		}
 		const limits = {
 			width: layoutNow.width,
 			height: layoutNow.height
@@ -4766,11 +4889,6 @@
 				y: p.y
 			};
 		};
-		const wrap = svg.parentElement;
-		if (wrap) {
-			const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * .75);
-			wrap.style.height = `${tall}px`;
-		}
 		const showAll = () => {
 			const aspect = svg.clientWidth / svg.clientHeight;
 			const v = Number.isFinite(aspect) && aspect > 0 ? fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE) : {
@@ -4781,7 +4899,6 @@
 			};
 			svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
 		};
-		if (!ui.view) showAll();
 		const zoom = (factor, at) => {
 			const v = shaped();
 			setView(zoomAt(v, factor, at ?? {
@@ -4789,10 +4906,20 @@
 				y: v.y + v.h / 2
 			}, limits));
 		};
-		if (center) {
-			const p = layoutNow.pos.get(center);
+		const wrap = svg.parentElement;
+		if (wrap && canvasTall) wrap.style.height = canvasTall;
+		const signal = bound();
+		requestAnimationFrame(() => {
+			if (signal.aborted) return;
+			if (wrap) {
+				const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * .75);
+				wrap.style.height = canvasTall = `${tall}px`;
+			}
+			if (!ui.view) showAll();
+			if (centerAfterRender === center) centerAfterRender = null;
+			const p = center ? layoutNow.pos.get(center) : void 0;
 			if (p) setView(centerOn(shaped(), p));
-		}
+		});
 		svg.addEventListener("wheel", (e) => {
 			e.preventDefault();
 			zoom(Math.exp(-e.deltaY * .0015), toDrawing(e.clientX, e.clientY));
@@ -4851,7 +4978,7 @@
 			signal: bound()
 		});
 		const toggleFold = (id) => {
-			const h = hierarchy(ctx.graph);
+			const h = hierarchyOf(ctx.graph);
 			const collapsed = collapsedSet(ctx.graph, h, ui);
 			if (collapsed.has(id)) collapsed.delete(id);
 			else if (h.children.get(id)?.length) collapsed.add(id);
@@ -4871,7 +4998,7 @@
 		onAll(root, "[data-fold-level]", "change", (el) => {
 			const value = el.value;
 			const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
-			ui.collapsed = levelNodes(ctx.graph, hierarchy(ctx.graph), types);
+			ui.collapsed = levelNodes(ctx.graph, hierarchyOf(ctx.graph), types);
 			ui.view = null;
 			ctx.rerender();
 		});
@@ -4921,14 +5048,13 @@
       <p class="small soft">Your role on this site is viewer. Select a node on the canvas to inspect it. To make changes, ask a site admin for the engineer role.</p>`;
 	}
 	function newNodeForm(graph) {
-		const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
 		return `
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
       <form class="stack gap-2_5 max-w-form" id="node-form">
         <label class="field">Type<select name="type">${Object.keys(NODE_TYPES).map((t) => `<option>${t}</option>`).join("")}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
-        <label class="field">Link from (optional)<select name="from"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join("")}</select></label>
+        <label class="field">Link from (optional)<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">— none —</option></select></label>
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join("")}</select></label>
         <button class="btn primary" type="submit">+ Stage node</button>
       </form>`;
@@ -5014,7 +5140,7 @@
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
 			if (ctx.ontology.status === "loading" || ctx.ontology.status === "error") return ontologyHead() + source;
-			const health = healthCheck(graph);
+			const health = graphHealth(graph);
 			if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 			const { conflict } = safeWorkingGraph(repo);
 			const stagedBar = conflict ? `<div class="staged-bar" role="alert">
@@ -5253,6 +5379,11 @@
 					}
 				});
 			});
+			for (const type of [
+				"focus",
+				"pointerdown",
+				"keydown"
+			]) onAll(root, "select[data-node-options]", type, (el) => fillNodeOptions(el, ctx.graph));
 			onSubmit(root, "#node-form", (form) => {
 				const type = field$2(form, "type");
 				const label = field$2(form, "label").trim();
@@ -14127,18 +14258,51 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}
 	var STATE_KEY = "state-v2";
 	var persisted = load$4(STATE_KEY, null);
-	var shots = generateShotHistory();
-	var detection = detectFrictionAlerts(shots.history);
 	var state = {
 		...freshState(),
 		...persisted ?? {},
-		batches: generateCutterBatches(),
-		weld: generateWeldPower(),
-		shots,
-		detection,
-		scored: scoreAlerts(detection.alerts, shots.downtime, shots.cycleSeconds),
 		ui: loadUi(session())
 	};
+	var made = /* @__PURE__ */ new Set();
+	function demo(key, make) {
+		let value;
+		Object.defineProperty(state, key, {
+			enumerable: true,
+			get: () => {
+				if (!made.has(key)) {
+					value = make();
+					made.add(key);
+				}
+				return value;
+			}
+		});
+	}
+	var shotSteps = shotHistorySteps();
+	var shotHistory = null;
+	function stepShots(toTheEnd) {
+		while (!shotHistory) {
+			const step = shotSteps.next();
+			if (step.done) shotHistory = step.value;
+			else if (!toTheEnd) break;
+		}
+		return shotHistory;
+	}
+	demo("batches", generateCutterBatches);
+	demo("weld", generateWeldPower);
+	demo("shots", () => stepShots(true));
+	demo("detection", () => detectFrictionAlerts(state.shots.history));
+	demo("scored", () => scoreAlerts(state.detection.alerts, state.shots.downtime, state.shots.cycleSeconds));
+	var demoReady = () => made.has("scored");
+	function makeDemoSoon() {
+		if (demoReady()) return;
+		if (!stepShots(false)) {
+			setTimeout(makeDemoSoon, 0);
+			return;
+		}
+		state.scored;
+		if (currentView() === view$20) renderSoon();
+		else renderNav(currentView());
+	}
 	var uiChecked = /* @__PURE__ */ new Set();
 	function persist() {
 		save$1(STATE_KEY, {
@@ -14352,10 +14516,63 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		} catch {}
 		renderSoon();
 	}
+	var authCtx = {
+		get config() {
+			return authConfig;
+		},
+		get signedIn() {
+			return sessionForApi();
+		},
+		get signInOrg() {
+			return load$4("signin-org", "");
+		},
+		async signIn(org) {
+			if (!canRedirect()) return toast("Open Tiles over http(s) to sign in");
+			let config = authConfig;
+			const slug = org?.trim().toLowerCase();
+			if (slug && api) try {
+				config = await api.authConfig(slug);
+			} catch (e) {
+				const status = e.status;
+				return toast(status === 404 ? `${slug} has no sign-in of its own` : `Can't start sign-in: ${String(e)}`);
+			}
+			if (!config?.enabled || !config.issuer) return toast("This Tiles API has no sign-in configured");
+			save$1("signin-org", slug ?? "");
+			try {
+				location.assign(await beginSignIn({
+					issuer: config.issuer,
+					clientId: config.client_id,
+					redirectUri: redirectUri(),
+					apiUrl: api?.baseUrl ?? "",
+					...config.scope ? { scope: config.scope } : {}
+				}, location.search + (location.hash || "#/")));
+			} catch (e) {
+				toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
+			}
+		},
+		async signOut() {
+			forgetUi(session());
+			state.ui = {};
+			const url = await signOut(redirectUri(), location.search + location.hash);
+			if (url) location.assign(url);
+			else {
+				toast("Signed out");
+				await refreshAuth();
+				connectOntology();
+			}
+		}
+	};
+	var working = null;
 	var ctx = {
 		state,
 		get graph() {
-			return safeWorkingGraph(state.repo).graph;
+			const { head, staged } = state.repo;
+			if (working?.head !== head || working.staged !== staged) working = {
+				head,
+				staged,
+				graph: safeWorkingGraph(state.repo).graph
+			};
+			return working.graph;
 		},
 		update(mutate, { rerender = true } = {}) {
 			const email = state.user.email;
@@ -14394,6 +14611,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			toast("Demo data reset");
 			connectOntology();
 		},
+		get demoReady() {
+			return demoReady();
+		},
 		get dataSource() {
 			return dataSource;
 		},
@@ -14409,52 +14629,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			render();
 		},
 		ontology: ontologyCtx,
-		auth: {
-			get config() {
-				return authConfig;
-			},
-			get signedIn() {
-				return sessionForApi();
-			},
-			get signInOrg() {
-				return load$4("signin-org", "");
-			},
-			async signIn(org) {
-				if (!canRedirect()) return toast("Open Tiles over http(s) to sign in");
-				let config = authConfig;
-				const slug = org?.trim().toLowerCase();
-				if (slug && api) try {
-					config = await api.authConfig(slug);
-				} catch (e) {
-					const status = e.status;
-					return toast(status === 404 ? `${slug} has no sign-in of its own` : `Can't start sign-in: ${String(e)}`);
-				}
-				if (!config?.enabled || !config.issuer) return toast("This Tiles API has no sign-in configured");
-				save$1("signin-org", slug ?? "");
-				try {
-					location.assign(await beginSignIn({
-						issuer: config.issuer,
-						clientId: config.client_id,
-						redirectUri: redirectUri(),
-						apiUrl: api?.baseUrl ?? "",
-						...config.scope ? { scope: config.scope } : {}
-					}, location.search + (location.hash || "#/")));
-				} catch (e) {
-					toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
-				}
-			},
-			async signOut() {
-				forgetUi(session());
-				state.ui = {};
-				const url = await signOut(redirectUri(), location.search + location.hash);
-				if (url) location.assign(url);
-				else {
-					toast("Signed out");
-					await refreshAuth();
-					connectOntology();
-				}
-			}
-		}
+		auth: authCtx
 	};
 	function currentView() {
 		const id = routeOf(location.hash);
@@ -14520,14 +14695,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	});
 	function badges() {
 		const out = {};
-		const open = state.detection.alerts.length;
+		const open = demoReady() ? state.detection.alerts.length : 0;
 		if (open) out.physics = {
 			count: open,
 			tone: "bad",
 			says: `${open} warning(s) on the demo data`
 		};
 		const staged = state.repo.staged.length;
-		const issues = staged ? 0 : healthCheck(ctx.graph).issues.filter((i) => i.level !== "info").length;
+		const issues = staged ? 0 : graphHealth(ctx.graph).issues.filter((i) => i.level !== "info").length;
 		if (staged) out.ontology = {
 			count: staged,
 			tone: "warn",
@@ -14556,17 +14731,22 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function renderNav(active) {
 		const p = prefs();
 		document.body.classList.toggle("nav-rail", p.rail);
-		morph(need(document, "#nav"), navHtml({
+		const html = navHtml({
 			groups: NAV_GROUPS,
 			active: active.id,
 			under: active.under,
 			prefs: p,
 			badges: badges()
-		}));
+		});
+		if (html !== navDrawn) morph(need(document, "#nav"), html);
+		navDrawn = html;
 		refreshCounts();
-		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
-		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+		const user = `<span class="avatar">${esc(state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase())}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+		if (user !== userDrawn) need(document, "#user").innerHTML = user;
+		userDrawn = user;
 	}
+	var navDrawn = "";
+	var userDrawn = "";
 	var addressed = "";
 	var shownView = null;
 	var trackedView = "";
@@ -14954,6 +15134,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		ontologyStatus = "loading";
 	}
 	render();
+	setTimeout(makeDemoSoon, 0);
 	(async () => {
 		await finishSignIn();
 		await refreshAuth();

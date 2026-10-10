@@ -24,6 +24,7 @@ You can also open `index.html` straight from disk.
 | `npm test` | Vitest unit tests in `test/`, including a check that the bundle is current. |
 | `npm run test:e2e` | Browser smoke tests in `e2e/`: every page in light, dark and phone layouts, over http and `file://`. |
 | `npm run test:visual` | Visual regression tests in the Playwright container (needs Docker): screenshots of every page and key states against `e2e/visual/baselines/`; differences go to `e2e/visual/output/`. After a deliberate change, `npm run test:visual -- --update` and say why in the PR. |
+| `npm run test:perf` | The performance budget (U3.07, `e2e/perf/perf.test.js`): no task over 50 ms and every click or key painted within 200 ms on the ontology with 2,069 nodes, 5,000 signals and the Data explorer with 4 signals over 30 days; Lighthouse performance of at least 90 on Home; the bundle and stylesheet under their gzipped sizes. Its `BUDGET` holds the numbers. |
 
 ### Backend (`api/`)
 

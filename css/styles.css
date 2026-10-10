@@ -1620,6 +1620,16 @@ tr.selected td {
   background: linear-gradient(90deg, var(--panel-2) 25%, var(--line) 50%, var(--panel-2) 75%) 0 0 / 200% 100%;
   animation: shimmer var(--dur-shimmer) linear infinite;
 }
+/* A number still being worked out (Home's demo warnings, U3.07): the line keeps its height. */
+.skeleton.kpi-wait {
+  display: inline-block;
+  width: 3ch;
+  height: 0.8em;
+  vertical-align: middle;
+}
+.skeleton.kpi-wait.wide {
+  width: 80%;
+}
 
 /* ---- home ---- */
 .hero {

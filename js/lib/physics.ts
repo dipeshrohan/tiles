@@ -6,7 +6,7 @@
 // which nobody can measure directly but which rises before a seizure.
 
 import { createRng, type Rng } from './rng.ts';
-import { median, mad } from './stats.ts';
+import { median, SortedWindow } from './stats.ts';
 import type {
   Detection,
   DowntimeEvent,
@@ -72,7 +72,22 @@ export function estimateFriction(shot: ShotPayload, p: PlungerSpec = PLUNGER): n
 
 // A history of shots on one machine with a few seizure episodes: friction
 // creeps up over the episode, then the machine goes down.
-export function generateShotHistory({ seed = 7, shots = 1600, cycleSeconds = 95 } = {}): ShotHistory {
+export function generateShotHistory(
+  options: { seed?: number; shots?: number; cycleSeconds?: number } = {},
+): ShotHistory {
+  const steps = shotHistorySteps(options);
+  for (;;) {
+    const step = steps.next();
+    if (step.done) return step.value;
+  }
+}
+
+// The same history made `every` shots at a time (U3.07): between steps the browser can draw and
+// respond, and run to the end it gives exactly what generateShotHistory gives.
+export function* shotHistorySteps(
+  { seed = 7, shots = 1600, cycleSeconds = 95 } = {},
+  every = 100,
+): Generator<void, ShotHistory, void> {
   const rng = createRng(seed);
   const episodes = [
     { start: 420, end: 560 },
@@ -102,6 +117,7 @@ export function generateShotHistory({ seed = 7, shots = 1600, cycleSeconds = 95 
       trueFriction: friction,
       friction: estimateFriction(shot),
     });
+    if ((i + 1) % every === 0) yield;
   }
   return { history, downtime, cycleSeconds };
 }
@@ -117,10 +133,16 @@ export function detectFrictionAlerts(
   const alerts: FrictionAlert[] = [];
   let run = 0;
   let open: FrictionAlert | null = null;
+  // The previous `window` shots, kept sorted as the window moves (the same median and MAD).
+  const past = new SortedWindow();
+  for (let i = 0; i < Math.min(window, history.length); i++) past.add(history[i]!.friction);
   for (let i = window; i < history.length; i++) {
-    const past = history.slice(i - window, i).map((s) => s.friction);
-    const base = median(past);
-    const spread = mad(past) || 1;
+    if (i > window) {
+      past.remove(history[i - window - 1]!.friction);
+      past.add(history[i - 1]!.friction);
+    }
+    const base = past.median();
+    const spread = past.mad() || 1;
     const limit = base + k * spread;
     const friction = history[i]!.friction;
     thresholds[i] = limit;

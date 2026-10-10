@@ -46,6 +46,9 @@ export interface Context {
   rerender(): void;
   // Puts what the page shows into its address (U3.05), for a change that doesn't draw it again.
   address(): void;
+  // Whether the demo plant's shots and warnings are worked out (U3.07): made after the first page is
+  // drawn, or at once when a page reads them. A page that can wait shows a placeholder until then.
+  readonly demoReady: boolean;
   // A toast: `type` (success, error…) picks its icon; `action` adds a button (Undo, Retry).
   toast(message: string, opts?: ToastOptions): void;
   reset(): void;

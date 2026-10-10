@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { NODE_TYPES, healthCheck, neighbors, pathTo, diffStats } from '../lib/ontology.ts';
+import { NODE_TYPES, graphHealth, neighbors, pathTo, diffStats } from '../lib/ontology.ts';
 import {
   BOX,
   MAX_FIT_SCALE,
@@ -84,6 +84,7 @@ function collapsedSet(graph: Graph, h: Hierarchy, ui: OntologyUi): Set<string> {
 // The last canvas drawn, for its handlers (zoom limits, where a node is).
 let drawn: (Layout & { graph: Graph }) | null = null;
 let centerAfterRender: string | null = null; // a search result to bring into view once drawn
+let canvasTall = ''; // the canvas's height, last worked out
 
 const short = (s: string, n = 19): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
@@ -111,9 +112,48 @@ function statBadges(s: DiffStats): string {
   return b(s.nodes, 'node') + b(s.edges, 'edge') + b(s.props, 'prop');
 }
 
+// Worked out once per graph (U3.07): the page's graph is made again only when the ontology changes,
+// never changed in place, and a fold or a selection draws the page again with the same one.
+const hierarchies = new WeakMap<Graph, ReturnType<typeof hierarchy>>();
+function hierarchyOf(graph: Graph): ReturnType<typeof hierarchy> {
+  let h = hierarchies.get(graph);
+  if (!h) hierarchies.set(graph, (h = hierarchy(graph)));
+  return h;
+}
+const optionLists = new WeakMap<Graph, string>();
+// A number per graph: a node picker drawn for another graph is drawn again (its options go).
+const versions = new WeakMap<Graph, number>();
+let lastVersion = 0;
+function versionOf(graph: Graph): number {
+  let v = versions.get(graph);
+  if (v === undefined) versions.set(graph, (v = ++lastVersion));
+  return v;
+}
+// A node picker gets its options as it is first used (U3.07): 2,000 options drawn into the page
+// made every redraw of a large plant slower, the options unchanged.
+function fillNodeOptions(select: HTMLSelectElement, graph: Graph): void {
+  if (select.options.length > 1) return;
+  select.insertAdjacentHTML('beforeend', nodeOptions(graph));
+  // Not the node itself (linking a node to itself).
+  const except = select.dataset.except;
+  if (except) [...select.options].find((o) => o.value === except)?.remove();
+}
+// Every node as an option, by label: 2,000 of them in a large plant.
+function nodeOptions(graph: Graph): string {
+  let html = optionLists.get(graph);
+  if (html === undefined) {
+    html = Object.values(graph.nodes)
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`)
+      .join('');
+    optionLists.set(graph, html);
+  }
+  return html;
+}
+
 function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi): string {
   const hidden = new Set(ui.hidden);
-  const h = hierarchy(graph);
+  const h = hierarchyOf(graph);
   const collapsed = collapsedSet(graph, h, ui);
   const folded = hiddenByCollapse(graph, collapsed, h);
   const show = (id: string) => {
@@ -161,7 +201,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       ]
         .filter(Boolean)
         .join(' ');
-      return `<g class="${cls}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ''}">
+      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ''}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
           <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}
@@ -207,7 +247,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
             </span>
           </div>
           <div class="canvas-wrap">
-            <svg data-canvas viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
+            <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
           </div>
           <div class="statusbar">
             <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ''}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
@@ -228,9 +268,6 @@ function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hie
   const path = pathTo(graph, id);
   const props = Object.entries(n.props ?? {});
   const required = NODE_TYPES[n.type].required.filter((r) => n.props?.[r] === undefined);
-  const others = Object.values(graph.nodes)
-    .filter((o) => o.id !== id)
-    .sort((a, b) => a.label.localeCompare(b.label));
   return `
       <div class="card-head">
         <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 class="mt-1_5">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
@@ -254,7 +291,7 @@ function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hie
       </div>
       <form class="row mt-2 mb-4 m-0" id="link-form">
         <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option>${r}</option>`).join('')}</select>
-        <select name="to" class="grow w-6em" aria-label="Target node">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('')}</select>
+        <select name="to" class="grow w-6em" aria-label="Target node" required data-morph="if-changed" data-node-options="${versionOf(graph)}" data-except="${esc(id)}"><option value="">Choose a node</option></select>
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ''}>Delete node</button>`;
@@ -340,7 +377,7 @@ async function planImport(ctx: Context): Promise<void> {
 
 // Makes `id` show on the canvas: opens the folded nodes above it and shows its type.
 function reveal(graph: Graph, ui: OntologyUi, id: string): void {
-  const h = hierarchy(graph);
+  const h = hierarchyOf(graph);
   const collapsed = collapsedSet(graph, h, ui);
   for (const above of revealPath(graph, id, collapsed, h)) collapsed.delete(above);
   ui.collapsed = [...collapsed];
@@ -353,9 +390,12 @@ function reveal(graph: Graph, ui: OntologyUi, id: string): void {
 function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   const svg = root.querySelector<SVGSVGElement>('svg[data-canvas]');
   const layoutNow = drawn;
+  // A node to bring into view: kept until a frame of this drawing (or a later one) has done it.
   const center = centerAfterRender;
-  centerAfterRender = null; // for this render only, drawn or not
-  if (!svg || !layoutNow) return;
+  if (!svg || !layoutNow) {
+    centerAfterRender = null; // for this render only, when not drawn
+    return;
+  }
   const limits = { width: layoutNow.width, height: layoutNow.height };
   const current = (): ViewBox => {
     const b = svg.viewBox.baseVal;
@@ -381,11 +421,6 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   };
   // The canvas as tall as the drawing needs at its fitted scale, within the window; the whole
   // drawing shows, never blown up past MAX_FIT_SCALE (text stays the size of the page's).
-  const wrap = svg.parentElement;
-  if (wrap) {
-    const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * 0.75);
-    wrap.style.height = `${tall}px`;
-  }
   const showAll = () => {
     const aspect = svg.clientWidth / svg.clientHeight;
     const v =
@@ -394,16 +429,28 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
         : { x: 0, y: 0, w: limits.width, h: limits.height };
     svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); // not kept: the next render fits again
   };
-  if (!ui.view) showAll();
   const zoom = (factor: number, at?: { x: number; y: number }) => {
     const v = shaped();
     setView(zoomAt(v, factor, at ?? { x: v.x + v.w / 2, y: v.y + v.h / 2 }, limits));
   };
-
-  if (center) {
-    const p = layoutNow.pos.get(center);
+  // What needs the canvas's size waits for the next frame (still before it is painted): read now,
+  // it would lay out 2,000 elements inside this task as well as in the frame (U3.07).
+  // Meanwhile the canvas keeps the height it had (drawn again, it would lose it, and the page would
+  // be measured shorter: its scroll put back wrong).
+  const wrap = svg.parentElement;
+  if (wrap && canvasTall) wrap.style.height = canvasTall;
+  const signal = bound();
+  requestAnimationFrame(() => {
+    if (signal.aborted) return; // drawn again since: that drawing's frame does it
+    if (wrap) {
+      const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * 0.75);
+      wrap.style.height = canvasTall = `${tall}px`;
+    }
+    if (!ui.view) showAll();
+    if (centerAfterRender === center) centerAfterRender = null;
+    const p = center ? layoutNow.pos.get(center) : undefined;
     if (p) setView(centerOn(shaped(), p));
-  }
+  });
 
   svg.addEventListener(
     'wheel',
@@ -470,7 +517,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
 
   // Fold or open a node.
   const toggleFold = (id: string) => {
-    const h = hierarchy(ctx.graph);
+    const h = hierarchyOf(ctx.graph);
     const collapsed = collapsedSet(ctx.graph, h, ui);
     if (collapsed.has(id)) collapsed.delete(id);
     else if (h.children.get(id)?.length) collapsed.add(id);
@@ -496,7 +543,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   onAll(root, '[data-fold-level]', 'change', (el) => {
     const value = (el as HTMLSelectElement).value;
     const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
-    ui.collapsed = levelNodes(ctx.graph, hierarchy(ctx.graph), types);
+    ui.collapsed = levelNodes(ctx.graph, hierarchyOf(ctx.graph), types);
     ui.view = null;
     ctx.rerender();
   });
@@ -557,7 +604,6 @@ function viewOnlyNote(): string {
 }
 
 function newNodeForm(graph: Graph): string {
-  const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
   return `
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
@@ -566,7 +612,7 @@ function newNodeForm(graph: Graph): string {
           .map((t) => `<option>${t}</option>`)
           .join('')}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
-        <label class="field">Link from (optional)<select name="from"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join('')}</select></label>
+        <label class="field">Link from (optional)<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">— none —</option></select></label>
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
         <button class="btn primary" type="submit">+ Stage node</button>
       </form>`;
@@ -682,7 +728,7 @@ const view: View = {
     const graph = ctx.graph;
     const source = sourceBar(ctx);
     if (ctx.ontology.status === 'loading' || ctx.ontology.status === 'error') return ontologyHead() + source;
-    const health = healthCheck(graph);
+    const health = graphHealth(graph);
     if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 
     const { conflict } = safeWorkingGraph(repo);
@@ -930,6 +976,8 @@ const view: View = {
       const to = field(form, 'to');
       stageOp({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
     });
+    for (const type of ['focus', 'pointerdown', 'keydown'] as const)
+      onAll(root, 'select[data-node-options]', type, (el) => fillNodeOptions(el as HTMLSelectElement, ctx.graph));
     onSubmit(root, '#node-form', (form) => {
       const type = field(form, 'type') as NodeType;
       const label = field(form, 'label').trim();

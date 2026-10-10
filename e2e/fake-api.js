@@ -159,7 +159,7 @@ export function createFakeApi({
   const imports = []; // newest first: { id, name, created_by, created_at, received, stored, finished_at }
   const samples = new Map(); // "signal|at" -> value: readings stored by imports
   const signals = []; // the catalogue: { id, tag, unit, sample_rate_hz, source, description, node_id, created_at }
-  const addSignal = (tag, extra = {}) => {
+  const addSignal = (tag, extra = {}, sort = true) => {
     let sig = signals.find((x) => x.tag === tag);
     if (!sig) {
       sig = {
@@ -177,7 +177,7 @@ export function createFakeApi({
       };
       sig.created_at = new Date().toISOString();
       signals.push(sig);
-      signals.sort((a, b) => a.tag.localeCompare(b.tag));
+      if (sort) signals.sort((a, b) => a.tag.localeCompare(b.tag));
     }
     return Object.assign(sig, extra);
   };
@@ -2021,6 +2021,16 @@ export function createFakeApi({
       failingSearches.add(q);
     },
     // Lets a test raise a warning on `tag`, as a detector would, with the readings around it.
+    // Many signals at once (the performance check, U3.07): each { tag, readings: [{ at, value }],
+    // ...fields }, the catalogue sorted once. Gives their ids, in the order given.
+    addSignals(list) {
+      const added = list.map(({ tag, readings = [], ...extra }) => {
+        for (const r of readings) samples.set(`${tag}|${r.at}`, r.value);
+        return addSignal(tag, extra, false).id;
+      });
+      signals.sort((a, b) => a.tag.localeCompare(b.tag));
+      return added;
+    },
     raiseWarning(tag, readings, warning) {
       addSignal(tag, { source: 'edge:edge-01' });
       for (const r of readings) samples.set(`${tag}|${r.at}`, r.value);
