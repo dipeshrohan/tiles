@@ -211,8 +211,9 @@ function wholesale(old: Element, next: Element): void {
 
 function unchanged(old: Element, next: Element): boolean {
   const before = drawnFrom.get(old);
-  drawnFrom.set(old, next);
-  return before !== undefined && before.isEqualNode(next);
+  if (before?.isEqualNode(next)) return true;
+  drawnFrom.set(old, next.cloneNode(true) as Element); // a copy: `next` would keep its whole page alive
+  return false;
 }
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;

@@ -267,6 +267,12 @@
 			date
 		});
 	}
+	var checked = /* @__PURE__ */ new WeakMap();
+	function graphHealth(graph) {
+		let report = checked.get(graph);
+		if (!report) checked.set(graph, report = healthCheck(graph));
+		return report;
+	}
 	function healthCheck(graph) {
 		const nodes = Object.values(graph.nodes);
 		const edges = Object.values(graph.edges);
@@ -558,6 +564,7 @@
 	}
 	var SortedWindow = class {
 		s = [];
+		nan = 0;
 		place(x) {
 			let lo = 0;
 			let hi = this.s.length;
@@ -569,21 +576,26 @@
 			return lo;
 		}
 		add(x) {
-			this.s.splice(this.place(x), 0, x);
+			if (Number.isNaN(x)) this.nan++;
+			else this.s.splice(this.place(x), 0, x);
 		}
 		remove(x) {
+			if (Number.isNaN(x)) {
+				this.nan = Math.max(0, this.nan - 1);
+				return;
+			}
 			const i = this.place(x);
 			if (this.s[i] === x) this.s.splice(i, 1);
 		}
 		median() {
 			const s = this.s;
-			if (!s.length) return NaN;
+			if (!s.length || this.nan) return NaN;
 			const mid = s.length >> 1;
 			return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 		}
 		mad() {
 			const s = this.s;
-			if (!s.length) return NaN;
+			if (!s.length || this.nan) return NaN;
 			const m = this.median();
 			let left = this.place(m) - 1;
 			let right = left + 1;
@@ -1873,9 +1885,9 @@
 		}
 	}
 	function unchanged(old, next) {
-		const before = drawnFrom.get(old);
-		drawnFrom.set(old, next);
-		return before !== void 0 && before.isEqualNode(next);
+		if (drawnFrom.get(old)?.isEqualNode(next)) return true;
+		drawnFrom.set(old, next.cloneNode(true));
+		return false;
 	}
 	var isField = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 	var toggles = (el) => el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio");
@@ -3153,7 +3165,7 @@
 		icon: "house",
 		render(ctx) {
 			const { state } = ctx;
-			const health = healthCheck(ctx.graph);
+			const health = graphHealth(ctx.graph);
 			const ng = state.batches.filter((b) => b.ng).length;
 			const friction = ctx.demoReady ? (() => {
 				const predicted = state.scored.filter((s) => s.predicted);
@@ -4590,6 +4602,7 @@
 	}
 	var drawn = null;
 	var centerAfterRender = null;
+	var canvasTall = "";
 	var short = (s, n = 19) => s.length > n ? `${s.slice(0, n - 1)}…` : s;
 	function describeOp(op, graph) {
 		const label = (id) => graph.nodes[id]?.label ?? id;
@@ -4620,7 +4633,10 @@
 		return v;
 	}
 	function fillNodeOptions(select, graph) {
-		if (select.options.length <= 1) select.insertAdjacentHTML("beforeend", nodeOptions(graph));
+		if (select.options.length > 1) return;
+		select.insertAdjacentHTML("beforeend", nodeOptions(graph));
+		const except = select.dataset.except;
+		if (except) [...select.options].find((o) => o.value === except)?.remove();
 	}
 	function nodeOptions(graph) {
 		let html = optionLists.get(graph);
@@ -4733,7 +4749,6 @@
 		const path = pathTo(graph, id);
 		const props = Object.entries(n.props ?? {});
 		const required = NODE_TYPES[n.type].required.filter((r) => n.props?.[r] === void 0);
-		const others = Object.values(graph.nodes).filter((o) => o.id !== id).sort((a, b) => a.label.localeCompare(b.label));
 		return `
       <div class="card-head">
         <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 class="mt-1_5">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
@@ -4757,7 +4772,7 @@
       </div>
       <form class="row mt-2 mb-4 m-0" id="link-form">
         <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option>${r}</option>`).join("")}</select>
-        <select name="to" class="grow w-6em" aria-label="Target node" data-morph="if-changed">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
+        <select name="to" class="grow w-6em" aria-label="Target node" required data-morph="if-changed" data-node-options="${versionOf(graph)}" data-except="${esc(id)}"><option value="">Choose a node</option></select>
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
@@ -4829,8 +4844,10 @@
 		const svg = root.querySelector("svg[data-canvas]");
 		const layoutNow = drawn;
 		const center = centerAfterRender;
-		centerAfterRender = null;
-		if (!svg || !layoutNow) return;
+		if (!svg || !layoutNow) {
+			centerAfterRender = null;
+			return;
+		}
 		const limits = {
 			width: layoutNow.width,
 			height: layoutNow.height
@@ -4889,15 +4906,17 @@
 				y: v.y + v.h / 2
 			}, limits));
 		};
+		const wrap = svg.parentElement;
+		if (wrap && canvasTall) wrap.style.height = canvasTall;
 		const signal = bound();
 		requestAnimationFrame(() => {
 			if (signal.aborted) return;
-			const wrap = svg.parentElement;
 			if (wrap) {
 				const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * .75);
-				wrap.style.height = `${tall}px`;
+				wrap.style.height = canvasTall = `${tall}px`;
 			}
 			if (!ui.view) showAll();
+			if (centerAfterRender === center) centerAfterRender = null;
 			const p = center ? layoutNow.pos.get(center) : void 0;
 			if (p) setView(centerOn(shaped(), p));
 		});
@@ -5121,7 +5140,7 @@
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
 			if (ctx.ontology.status === "loading" || ctx.ontology.status === "error") return ontologyHead() + source;
-			const health = healthCheck(graph);
+			const health = graphHealth(graph);
 			if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 			const { conflict } = safeWorkingGraph(repo);
 			const stagedBar = conflict ? `<div class="staged-bar" role="alert">
@@ -14281,7 +14300,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			return;
 		}
 		state.scored;
-		renderSoon();
+		if (currentView() === view$20) renderSoon();
+		else renderNav(currentView());
 	}
 	var uiChecked = /* @__PURE__ */ new Set();
 	function persist() {
@@ -14543,7 +14563,6 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 	};
 	var working = null;
-	var healthOf = /* @__PURE__ */ new WeakMap();
 	var ctx = {
 		state,
 		get graph() {
@@ -14683,9 +14702,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			says: `${open} warning(s) on the demo data`
 		};
 		const staged = state.repo.staged.length;
-		const graph = ctx.graph;
-		if (!staged && !healthOf.has(graph)) healthOf.set(graph, healthCheck(graph));
-		const issues = staged ? 0 : healthOf.get(graph)?.issues.filter((i) => i.level !== "info").length ?? 0;
+		const issues = staged ? 0 : graphHealth(ctx.graph).issues.filter((i) => i.level !== "info").length;
 		if (staged) out.ontology = {
 			count: staged,
 			tone: "warn",

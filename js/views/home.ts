@@ -1,4 +1,4 @@
-import { healthCheck } from '../lib/ontology.ts';
+import { graphHealth } from '../lib/ontology.ts';
 import { MODELS } from '../lib/design.ts';
 import { esc, fmt, timeAgo } from '../lib/dom.ts';
 import { icon } from '../lib/icons.ts';
@@ -11,7 +11,7 @@ const view: View = {
   icon: 'house',
   render(ctx) {
     const { state } = ctx;
-    const health = healthCheck(ctx.graph);
+    const health = graphHealth(ctx.graph);
     const ng = state.batches.filter((b) => b.ng).length;
     // The demo shots are worked out after the first paint (U3.07): until then, the card waits.
     const friction = ctx.demoReady

@@ -1,6 +1,6 @@
 import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/data.ts';
 import { shotHistorySteps, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
-import { healthCheck } from './lib/ontology.ts';
+import { graphHealth } from './lib/ontology.ts';
 import { load, save, clearAll } from './lib/store.ts';
 import {
   ApiError,
@@ -194,7 +194,10 @@ function makeDemoSoon(): void {
     return;
   }
   void state.scored;
-  renderSoon();
+  // What waited for it: the menu's count, and Home's card if Home is shown (no other page is drawn
+  // again: it would cut short what someone is doing there, a drag on the ontology say).
+  if (currentView() === home) renderSoon();
+  else renderNav(currentView());
 }
 
 const uiChecked = new Set<string>(); // pages whose kept state has had its defaults filled in
@@ -504,7 +507,6 @@ const authCtx: AuthContext = {
 // ---- context passed to views -------------------------------------------
 
 let working: { head: Repo['head']; staged: Repo['staged']; graph: Graph } | null = null;
-const healthOf = new WeakMap<Graph, ReturnType<typeof healthCheck>>();
 
 const ctx: Context = {
   state,
@@ -650,9 +652,7 @@ function badges(): Record<string, NavBadge> {
   const open = demoReady() ? state.detection.alerts.length : 0;
   if (open) out.physics = { count: open, tone: 'bad', says: `${open} warning(s) on the demo data` };
   const staged = state.repo.staged.length;
-  const graph = ctx.graph;
-  if (!staged && !healthOf.has(graph)) healthOf.set(graph, healthCheck(graph));
-  const issues = staged ? 0 : (healthOf.get(graph)?.issues.filter((i) => i.level !== 'info').length ?? 0);
+  const issues = staged ? 0 : graphHealth(ctx.graph).issues.filter((i) => i.level !== 'info').length;
   if (staged) out.ontology = { count: staged, tone: 'warn', says: `${staged} staged change(s)` };
   else if (issues) out.ontology = { count: issues, tone: '', says: `${issues} health issue(s)` };
   const site = ctx.ontology.site;

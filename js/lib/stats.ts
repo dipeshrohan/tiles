@@ -27,6 +27,7 @@ export function mad(xs: readonly number[]): number {
 // rolling window without sorting each window again, exactly as median() and mad() give them.
 export class SortedWindow {
   private readonly s: number[] = [];
+  private nan = 0; // NaNs in the window: not sortable, so counted apart (the median is NaN meanwhile)
 
   // The first place x could go in the sorted values.
   private place(x: number): number {
@@ -41,18 +42,23 @@ export class SortedWindow {
   }
 
   add(x: number): void {
-    this.s.splice(this.place(x), 0, x);
+    if (Number.isNaN(x)) this.nan++;
+    else this.s.splice(this.place(x), 0, x);
   }
 
   // Takes out one value equal to x (one added before).
   remove(x: number): void {
+    if (Number.isNaN(x)) {
+      this.nan = Math.max(0, this.nan - 1);
+      return;
+    }
     const i = this.place(x);
     if (this.s[i] === x) this.s.splice(i, 1);
   }
 
   median(): number {
     const s = this.s;
-    if (!s.length) return NaN;
+    if (!s.length || this.nan) return NaN;
     const mid = s.length >> 1;
     return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
   }
@@ -61,7 +67,7 @@ export class SortedWindow {
   // are the median deviation.
   mad(): number {
     const s = this.s;
-    if (!s.length) return NaN;
+    if (!s.length || this.nan) return NaN;
     const m = this.median();
     let left = this.place(m) - 1;
     let right = left + 1;

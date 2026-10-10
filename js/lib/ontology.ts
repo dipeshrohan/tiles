@@ -186,6 +186,15 @@ export function revert(repo: Repo, id: string, { author, date }: { author: strin
 
 // ---- Health check -------------------------------------------------------
 
+// The health check, once per graph (U3.07): the app's graphs are replaced, never changed in place,
+// so a graph drawn again has the same health. What it gives is shared: read it, don't change it.
+const checked = new WeakMap<Graph, HealthReport>();
+export function graphHealth(graph: Graph): HealthReport {
+  let report = checked.get(graph);
+  if (!report) checked.set(graph, (report = healthCheck(graph)));
+  return report;
+}
+
 export function healthCheck(graph: Graph): HealthReport {
   const nodes = Object.values(graph.nodes);
   const edges = Object.values(graph.edges);

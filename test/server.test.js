@@ -63,6 +63,9 @@ test('sends text compressed when the browser takes it, the same bytes once undon
 test('reads which encoding a browser takes', () => {
   assert.equal(encodingFor('gzip, deflate, br, zstd'), 'br');
   assert.equal(encodingFor('gzip;q=1.0, br;q=0'), 'gzip');
+  assert.equal(encodingFor('br;q=0.1, gzip;q=1.0'), 'gzip'); // the browser's ranking
+  assert.equal(encodingFor('gzip;q=0.5, br;q=0.5'), 'br');
+  assert.equal(encodingFor('gzip;q=0, br;q=0'), null);
   assert.equal(encodingFor('*'), 'br');
   assert.equal(encodingFor('identity'), null);
   assert.equal(encodingFor(''), null);
