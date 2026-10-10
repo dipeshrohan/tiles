@@ -192,11 +192,20 @@ function remoteRender(ctx: Context): string {
     </div>`;
 }
 
-// The log shows its latest message when one arrives; drawn again with the same messages (a refresh
-// keeps the element, U3.03), it stays where it was scrolled to.
+// The log follows its latest message while it is scrolled to the end, and when a message arrives.
+// Scrolled up to read, a refresh (which keeps the element, U3.03) leaves it there.
 const shownCount = new WeakMap<HTMLElement, number>();
+const readingUp = new WeakSet<HTMLElement>();
 function toEnd(log: HTMLElement): void {
-  if (shownCount.get(log) === log.childElementCount) return;
+  log.addEventListener(
+    'scroll',
+    () => {
+      if (log.scrollTop + log.clientHeight >= log.scrollHeight - 8) readingUp.delete(log);
+      else readingUp.add(log);
+    },
+    { signal: bound(), passive: true },
+  );
+  if (shownCount.get(log) === log.childElementCount && readingUp.has(log)) return;
   shownCount.set(log, log.childElementCount);
   log.scrollTop = log.scrollHeight;
 }

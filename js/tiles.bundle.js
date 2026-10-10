@@ -904,23 +904,31 @@
 		let shownOn = form;
 		const doc = form.ownerDocument;
 		const key = keyOf$2(form);
+		const reshow = (again) => {
+			if (!again || again.querySelector(".error-summary")) return;
+			shownOn = again;
+			showErrors(again, errors, { focus: false });
+		};
 		const observer = new MutationObserver(() => {
 			const again = sameForm(doc, key);
-			if (again && again !== shownOn && !again.querySelector(".error-summary")) {
-				shownOn = again;
-				showErrors(again, errors, { focus: false });
-			}
+			if (again !== shownOn) reshow(again);
 		});
 		observer.observe(doc.body, {
 			childList: true,
 			subtree: true
 		});
 		const timer = setTimeout(() => keeping?.stop(), 5e3);
-		keeping = { stop: () => {
-			observer.disconnect();
-			clearTimeout(timer);
-			keeping = null;
-		} };
+		keeping = {
+			drawn: () => reshow(sameForm(doc, key)),
+			stop: () => {
+				observer.disconnect();
+				clearTimeout(timer);
+				keeping = null;
+			}
+		};
+	}
+	function afterRender() {
+		keeping?.drawn();
 	}
 	var watched = /* @__PURE__ */ new WeakSet();
 	function checkOnSubmit(form) {
@@ -933,7 +941,10 @@
 				const problem = problemWith(el);
 				const note = el.id ? el.ownerDocument.getElementById(`${el.id}-error`) : null;
 				if (problem) setFieldError(el, problem, true);
-				else if (note && (note.dataset.checked === "true" || note.dataset.value !== el.value)) setFieldError(el, null);
+				else if (note && (note.dataset.checked === "true" || note.dataset.value !== el.value)) {
+					setFieldError(el, null);
+					keeping?.stop();
+				}
 				if (!form.querySelector("[aria-invalid=\"true\"]")) form.querySelector(":scope > .error-summary")?.remove();
 			});
 		}
@@ -1685,6 +1696,7 @@
 	}
 	var keyOf$1 = (node) => node instanceof Element ? node.getAttribute("data-key") ?? (node.id || null) : null;
 	var same = (a, b) => a.nodeType === b.nodeType && (!(a instanceof Element) || b instanceof Element && a.namespaceURI === b.namespaceURI && a.nodeName === b.nodeName);
+	var alike = (a, b) => same(a, b) && (!(a instanceof Element) || b instanceof Element && a.getAttribute("name") === b.getAttribute("name") && a.classList.item(0) === b.classList.item(0));
 	function children(parent, next) {
 		const wanted = /* @__PURE__ */ new Set();
 		for (let n = next.firstChild; n; n = n.nextSibling) {
@@ -1700,12 +1712,22 @@
 			const k = keyOf$1(n);
 			return k !== null && keyed.get(k) === n;
 		};
+		const gone = (n) => {
+			const k = keyOf$1(n);
+			return k !== null && !wanted.has(k);
+		};
+		const skip = (n) => {
+			while (n && (reserved(n) || gone(n))) n = n.nextSibling;
+			return n;
+		};
 		const kept = /* @__PURE__ */ new Set();
 		let cursor = parent.firstChild;
 		for (let n = next.firstChild; n;) {
 			const following = n.nextSibling;
 			const k = keyOf$1(n);
 			let match = null;
+			let added = false;
+			while (cursor && gone(cursor)) cursor = cursor.nextSibling;
 			if (k && keyed.has(k)) {
 				const found = keyed.get(k) ?? null;
 				keyed.delete(k);
@@ -1713,8 +1735,13 @@
 			} else if (k) {
 				if (cursor && keyOf$1(cursor) === null && same(cursor, n)) match = cursor;
 			} else {
-				while (cursor && reserved(cursor)) cursor = cursor.nextSibling;
-				if (cursor && same(cursor, n)) match = cursor;
+				cursor = skip(cursor);
+				if (cursor && !alike(cursor, n)) {
+					const ahead = skip(cursor.nextSibling);
+					if (ahead && alike(ahead, n)) cursor = ahead;
+					else if (following && alike(cursor, following)) added = true;
+				}
+				if (!added && cursor && same(cursor, n)) match = cursor;
 			}
 			if (match) {
 				if (match !== cursor) parent.insertBefore(match, cursor);
@@ -1761,7 +1788,7 @@
 			const none = !el.multiple && !options.some((o) => o.defaultSelected);
 			return options.map((o, i) => o.defaultSelected || none && i === 0).join();
 		}
-		return el.type === "file" ? el.value : el.defaultValue;
+		return el.type === "file" ? "" : el.defaultValue;
 	}
 	function attributes(old, next) {
 		const was = old instanceof HTMLDetailsElement ? drawn$1.get(old) : void 0;
@@ -1780,7 +1807,7 @@
 		if (el instanceof HTMLInputElement) {
 			if (el.type === "checkbox" || el.type === "radio") {
 				if (el.checked !== el.defaultChecked) el.checked = el.defaultChecked;
-			} else if (el.type !== "file" && el.value !== el.defaultValue) el.value = el.defaultValue;
+			} else if (el.value !== drawnAs(el)) el.value = drawnAs(el);
 		} else if (el instanceof HTMLTextAreaElement) {
 			if (el.value !== el.defaultValue) el.value = el.defaultValue;
 		} else if (el instanceof HTMLSelectElement) {
@@ -1855,7 +1882,7 @@
 		form.noValidate = true;
 		form.addEventListener("submit", (e) => {
 			e.preventDefault();
-			if (form.dataset.sending) return;
+			if (sending.has(form)) return;
 			if (!checkOnSubmit(form)) return;
 			noteSent(form);
 			const button = e.submitter instanceof HTMLButtonElement ? e.submitter : form.querySelector("button[type=submit], button:not([type])");
@@ -1864,18 +1891,20 @@
 	}
 	function onAction(root, sel, handler) {
 		root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", () => {
-			if (el.dataset.sending) return;
+			if (sending.has(el)) return;
 			hold(el, el, handler(el));
 		}, { signal: bound() }));
 	}
+	var sending = /* @__PURE__ */ new WeakSet();
 	function hold(owner, button, work) {
 		if (!(work instanceof Promise)) return;
-		owner.dataset.sending = "true";
+		sending.add(owner);
 		const wasDisabled = button?.disabled ?? false;
+		const drawn = bound();
 		if (button) setBusy(button, true);
 		work.finally(() => {
-			delete owner.dataset.sending;
-			if (button?.isConnected) {
+			sending.delete(owner);
+			if (button?.isConnected && !drawn.aborted) {
 				setBusy(button, false);
 				button.disabled = wasDisabled;
 			}
@@ -2514,6 +2543,9 @@
 		})}>${options$1(list, current)}</select>`;
 	}
 	var hints = 0;
+	function resetIds() {
+		hints = 0;
+	}
 	function describedBy(controlHtml, id) {
 		return controlHtml.replace(/<(input|select|textarea)\b[^>]*>/, (tag) => {
 			const has = /\saria-describedby="([^"]*)"/.exec(tag);
@@ -3453,8 +3485,16 @@
     </div>`;
 	}
 	var shownCount = /* @__PURE__ */ new WeakMap();
+	var readingUp = /* @__PURE__ */ new WeakSet();
 	function toEnd(log) {
-		if (shownCount.get(log) === log.childElementCount) return;
+		log.addEventListener("scroll", () => {
+			if (log.scrollTop + log.clientHeight >= log.scrollHeight - 8) readingUp.delete(log);
+			else readingUp.add(log);
+		}, {
+			signal: bound(),
+			passive: true
+		});
+		if (shownCount.get(log) === log.childElementCount && readingUp.has(log)) return;
 		shownCount.set(log, log.childElementCount);
 		log.scrollTop = log.scrollHeight;
 	}
@@ -9991,6 +10031,7 @@ heartbeat_seconds = 30
 	var busy$3 = false;
 	var timer$1 = null;
 	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
+	var slugEdited = /* @__PURE__ */ new WeakSet();
 	onNavigate((hash) => {
 		if (routeOf(hash) === "onboarding") return;
 		if (timer$1 !== null) clearInterval(timer$1);
@@ -10175,10 +10216,9 @@ heartbeat_seconds = 30
 			onAll(root, "[data-onboarding-refresh]", "click", () => void load$3(ctx, { withOntology: true }));
 			const form = root.querySelector("#new-site");
 			const slug = form?.querySelector("[name=slug]");
-			let slugEdited = false;
-			slug?.addEventListener("input", () => slugEdited = true, { signal: bound() });
+			slug?.addEventListener("input", () => slugEdited.add(slug), { signal: bound() });
 			form?.querySelector("[name=name]")?.addEventListener("input", (e) => {
-				if (slug && !slugEdited) slug.value = slugFrom(e.target.value);
+				if (slug && !slugEdited.has(slug)) slug.value = slugFrom(e.target.value);
 			}, { signal: bound() });
 			onSubmit(root, "#new-site", (form) => (async () => {
 				if (!ctx.api || busy$3) return;
@@ -13827,11 +13867,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		renderNav(view);
 		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
+		resetIds();
 		const html = view.render(ctx);
 		if (view.id === shownView) morph(root, html);
 		else replace(root, html);
 		rebind();
 		view.bind?.(root, ctx);
+		afterRender();
 		need(document, "#crumbs").innerHTML = breadcrumbs([
 			{
 				label: "Home",
@@ -13868,34 +13910,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const key = (el) => {
 			const form = el.closest("form");
 			const name = el.getAttribute("name");
-			return form?.id && name ? `${form.id}:${name}:${el instanceof HTMLInputElement ? el.type : ""}` : null;
+			return form?.id && name ? `${form.id}:${name}` : null;
 		};
-		const edited = /* @__PURE__ */ new Map();
-		view.querySelectorAll("input, select, textarea").forEach((el) => {
-			const k = key(el);
-			if (!k) return;
-			if (el instanceof HTMLInputElement && (el.type === "radio" || el.type === "checkbox")) {
-				if (el.checked !== el.defaultChecked) edited.set(`${k}:${el.value}`, el.checked);
-			} else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-				if (el.value !== el.defaultValue) edited.set(k, el.value);
-			} else if (el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected)) edited.set(k, el.value);
-		});
 		const active = document.activeElement;
 		const focused = active && view.contains(active) ? key(active) : null;
 		render();
-		if (!edited.size && !focused) return;
-		view.querySelectorAll("input, select, textarea").forEach((el) => {
-			const k = key(el);
-			if (!k) return;
-			if (el instanceof HTMLInputElement && (el.type === "radio" || el.type === "checkbox")) {
-				const v = edited.get(`${k}:${el.value}`);
-				if (typeof v === "boolean") el.checked = v;
-			} else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
-				const v = edited.get(k);
-				if (typeof v === "string" && el.value !== v) el.value = v;
-			}
-			if (k === focused && el instanceof HTMLElement && document.activeElement !== el) el.focus({ preventScroll: true });
-		});
+		if (!focused || document.activeElement && view.contains(document.activeElement)) return;
+		[...view.querySelectorAll("input, select, textarea")].find((el) => key(el) === focused)?.focus({ preventScroll: true });
 	}
 	need(document, "#view").addEventListener("click", (e) => {
 		const el = e.target instanceof Element ? e.target : null;

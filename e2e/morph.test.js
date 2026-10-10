@@ -153,6 +153,63 @@ test('rows keep their elements by key when rows are added above them, and go whe
   await page.close();
 });
 
+test('a row removed above the focused one moves nothing else', async () => {
+  const page = await blank();
+  const list = (ids) => `<ul>${ids.map((id) => `<li data-key="${id}"><button>${id}</button></li>`).join('')}</ul>`;
+  await draw(page, list(['a', 'b', 'c', 'd']), 'replace');
+  await page.evaluate(() => {
+    window.moved = 0;
+    new MutationObserver((records) => {
+      for (const r of records) window.moved += r.addedNodes.length;
+    }).observe(document.querySelector('ul'), { childList: true });
+    document.querySelector('[data-key=c] button').focus();
+  });
+  await draw(page, list(['b', 'c', 'd']));
+  await page.evaluate(() => new Promise((r) => setTimeout(r)));
+  assert.deepEqual(await page.evaluate(() => ({ moved: window.moved, focused: document.activeElement.textContent })), {
+    moved: 0,
+    focused: 'c',
+  });
+  await page.close();
+});
+
+test('what a script added before the fields is passed over: typed values stay in their own fields', async () => {
+  const page = await blank();
+  const form =
+    '<form id="f"><div class="field"><input name="a" value=""></div><div class="field"><input name="b" value=""></div></form>';
+  await draw(page, form, 'replace');
+  await page.fill('[name=a]', 'first');
+  await page.evaluate(() =>
+    document.getElementById('f').insertAdjacentHTML('afterbegin', '<div class="error-summary">2 problems</div>'),
+  );
+  const a = await page.evaluate(() => (window.a = document.querySelector('[name=a]')) && true);
+  assert.ok(a);
+  await draw(page, form);
+  assert.deepEqual(
+    await page.evaluate(() => ({
+      a: document.querySelector('[name=a]').value,
+      b: document.querySelector('[name=b]').value,
+      same: document.querySelector('[name=a]') === window.a,
+      summary: !!document.querySelector('.error-summary'),
+    })),
+    { a: 'first', b: '', same: true, summary: false },
+  );
+  await page.close();
+});
+
+test('a file chosen stays until its form is sent, then the field is empty', async () => {
+  const page = await blank();
+  const form = (n) => `<form><span>${n}</span><input type="file" name="file"></form>`;
+  await draw(page, form(0), 'replace');
+  await page.setInputFiles('input[type=file]', { name: 'a.csv', mimeType: 'text/csv', buffer: Buffer.from('x,y') });
+  await draw(page, form(1));
+  assert.equal(await page.evaluate(() => document.querySelector('input').files.length), 1);
+  await page.evaluate(() => window.morphing.noteSent(document.forms[0]));
+  await draw(page, form(2));
+  assert.equal(await page.evaluate(() => document.querySelector('input').files.length), 0);
+  await page.close();
+});
+
 test('the result is what the HTML says: attributes, text, SVG and a changed tag', async () => {
   const page = await blank();
   await draw(

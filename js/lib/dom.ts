@@ -111,7 +111,7 @@ export function onSubmit(
     'submit',
     (e) => {
       e.preventDefault();
-      if (form.dataset.sending) return;
+      if (sending.has(form)) return;
       if (!checkOnSubmit(form)) return;
       noteSent(form); // what it holds now is sent: drawn again, its fields show the page's (U3.03)
       const button =
@@ -131,7 +131,7 @@ export function onAction(root: ParentNode, sel: string, handler: (el: HTMLButton
     el.addEventListener(
       'click',
       () => {
-        if (el.dataset.sending) return;
+        if (sending.has(el)) return;
         hold(el, el, handler(el));
       },
       { signal: bound() },
@@ -139,17 +139,22 @@ export function onAction(root: ParentNode, sel: string, handler: (el: HTMLButton
   );
 }
 
-// A page that draws itself again at once (to show the change, or its own busy state) replaces the
-// button: the new one shows what the page says, and the page's own flag keeps a second request out.
+// What is being sent: a form or a button whose request hasn't answered. Kept here, not in a data-
+// attribute, which a page drawn again would lose (U3.03), letting a second click through.
+const sending = new WeakSet<HTMLElement>();
+
+// The button shows it is busy until the request answers. A page drawn again meanwhile shows what the
+// page says (the morph puts the button back to its HTML), and the page's own state keeps it right.
 function hold(owner: HTMLElement, button: HTMLButtonElement | null, work: unknown): void {
   if (!(work instanceof Promise)) return;
-  owner.dataset.sending = 'true';
+  sending.add(owner);
   const wasDisabled = button?.disabled ?? false;
+  const drawn = bound(); // aborted when the page is drawn again
   if (button) setBusy(button, true);
   // A failure is still reported as before (unhandled, so the console and error capture see it).
   void work.finally(() => {
-    delete owner.dataset.sending;
-    if (button?.isConnected) {
+    sending.delete(owner);
+    if (button?.isConnected && !drawn.aborted) {
       setBusy(button, false);
       button.disabled = wasDisabled;
     }

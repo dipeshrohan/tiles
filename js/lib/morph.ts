@@ -49,6 +49,15 @@ const same = (a: Node, b: Node): boolean =>
   a.nodeType === b.nodeType &&
   (!(a instanceof Element) || (b instanceof Element && a.namespaceURI === b.namespaceURI && a.nodeName === b.nodeName));
 
+// The same kind of node, for a match by position: the same tag, and the same name and first class
+// (a field group isn't taken for the error summary a script put before it).
+const alike = (a: Node, b: Node): boolean =>
+  same(a, b) &&
+  (!(a instanceof Element) ||
+    (b instanceof Element &&
+      a.getAttribute('name') === b.getAttribute('name') &&
+      a.classList.item(0) === b.classList.item(0)));
+
 function children(parent: Node, next: Node): void {
   const wanted = new Set<string>();
   for (let n = next.firstChild; n; n = n.nextSibling) {
@@ -65,24 +74,42 @@ function children(parent: Node, next: Node): void {
     const k = keyOf(n);
     return k !== null && keyed.get(k) === n;
   };
+  // An old keyed node the new HTML no longer has: passed over (and removed at the end), so the
+  // nodes after it stay where they are (moving one would take its focus away).
+  const gone = (n: Node): boolean => {
+    const k = keyOf(n);
+    return k !== null && !wanted.has(k);
+  };
+  const skip = (n: Node | null): Node | null => {
+    while (n && (reserved(n) || gone(n))) n = n.nextSibling;
+    return n;
+  };
 
   const kept = new Set<Node>();
-  let cursor = parent.firstChild;
+  let cursor: Node | null = parent.firstChild;
   for (let n = next.firstChild; n;) {
     const following = n.nextSibling; // read first: an inserted node leaves `next`
     const k = keyOf(n);
     let match: Node | null = null;
+    let added = false;
+    while (cursor && gone(cursor)) cursor = cursor.nextSibling;
     if (k && keyed.has(k)) {
       const found = keyed.get(k) ?? null;
       keyed.delete(k);
       if (found && same(found, n)) match = found;
     } else if (k) {
-      // A new keyed node goes in here, taking only an unkeyed node in its place: the old ones after
-      // it stay where they are (moving one would take its focus away).
+      // A new keyed node goes in here, taking only an unkeyed node in its place.
       if (cursor && keyOf(cursor) === null && same(cursor, n)) match = cursor;
     } else {
-      while (cursor && reserved(cursor)) cursor = cursor.nextSibling;
-      if (cursor && same(cursor, n)) match = cursor;
+      cursor = skip(cursor);
+      if (cursor && !alike(cursor, n)) {
+        // One node too many here (a page's script added it, or the HTML dropped it): pass over it
+        // when the one after is the node wanted. One too few (the HTML added n): n goes in new.
+        const ahead = skip(cursor.nextSibling);
+        if (ahead && alike(ahead, n)) cursor = ahead;
+        else if (following && alike(cursor, following)) added = true;
+      }
+      if (!added && cursor && same(cursor, n)) match = cursor;
     }
     if (match) {
       if (match !== cursor) parent.insertBefore(match, cursor);
@@ -140,7 +167,7 @@ function drawnAs(el: Field): string {
     const none = !el.multiple && !options.some((o) => o.defaultSelected);
     return options.map((o, i) => o.defaultSelected || (none && i === 0)).join();
   }
-  return el.type === 'file' ? el.value : el.defaultValue;
+  return el.type === 'file' ? '' : el.defaultValue; // a file chosen is typed in; sent, it is cleared
 }
 
 function attributes(old: Element, next: Element): void {
@@ -167,7 +194,7 @@ function values(el: Field): void {
   if (el instanceof HTMLInputElement) {
     if (el.type === 'checkbox' || el.type === 'radio') {
       if (el.checked !== el.defaultChecked) el.checked = el.defaultChecked;
-    } else if (el.type !== 'file' && el.value !== el.defaultValue) el.value = el.defaultValue;
+    } else if (el.value !== drawnAs(el)) el.value = drawnAs(el); // a file input can only be emptied
   } else if (el instanceof HTMLTextAreaElement) {
     if (el.value !== el.defaultValue) el.value = el.defaultValue;
   } else if (el instanceof HTMLSelectElement) {

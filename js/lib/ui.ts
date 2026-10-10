@@ -230,6 +230,11 @@ export function select(
 // A labelled control: the label wraps it, so it is named; a hint goes below it, and the control (the
 // first input, select or textarea in it) is described by it, beside whatever describes it already.
 let hints = 0;
+// Hint ids count from the start of each page drawn (app.ts), so the same page drawn again gives its
+// hints the same ids: the patch keeps them (U3.03).
+export function resetIds(): void {
+  hints = 0;
+}
 export function describedBy(controlHtml: string, id: string): string {
   return controlHtml.replace(/<(input|select|textarea)\b[^>]*>/, (tag) => {
     const has = /\saria-describedby="([^"]*)"/.exec(tag);
