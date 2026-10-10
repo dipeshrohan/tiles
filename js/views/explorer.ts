@@ -6,7 +6,7 @@ import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
 import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
-import { needsApi, pageHead } from '../lib/ui.ts';
+import { needsApi, pageHead, skeleton } from '../lib/ui.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -460,7 +460,7 @@ const view: View = {
       .map(
         (p) => `<div class="card stack gap-1_5">
           <div class="row justify-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? '')}</span></div>
-          <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
+          <div data-chart="${esc(p.id)}">${skeleton.chart('Loading the readings…', TIME_CHART.height)}</div>
           <div data-wear="${esc(p.id)}"></div>
         </div>`,
       )

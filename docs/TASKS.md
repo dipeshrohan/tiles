@@ -247,7 +247,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* an API error stays on screen with its request ID until dismissed, and screen readers announce it once.
 - [ ] `U2.03` [#215](https://github.com/dipeshrohan/tiles/issues/215) **Undo instead of confirm** · FE+BE · 3d · U2.02
   *Done when:* each of the four can be undone from the toast, and a test proves the row is back.
-- [ ] `U2.04` [#216](https://github.com/dipeshrohan/tiles/issues/216) **Skeletons and loading** · FE · 3d · U1.04
+- [x] `U2.04` [#216](https://github.com/dipeshrohan/tiles/issues/216) **Skeletons and loading** · FE · 3d · U1.04
   *Done when:* every page that loads from the API shows a skeleton in its shape; layout shift (CLS) < 0.05 on page load.
 - [ ] `U2.05` [#217](https://github.com/dipeshrohan/tiles/issues/217) **Empty states with a next step** · PM+FE · 3d · U1.04, U1.05
   *Done when:* every list and chart in every page has a written empty state, reviewed against the copy guide (U2.09).

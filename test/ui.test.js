@@ -18,6 +18,7 @@ import {
   loadingState,
   options,
   pageHead,
+  skeleton,
   select,
   table,
   tabs,
@@ -43,11 +44,31 @@ test('an empty state says why, and what to do next, with its text escaped', () =
   assert.doesNotMatch(failed, /<svg/);
 });
 
-test('loading shows bars for the eye and words for screen readers', () => {
+test('loading shows shapes for the eye, after a moment, and words for screen readers', () => {
   const html = loadingState('Loading <runs>…', 2);
-  assert.match(html, /^<div class="empty loading">/);
+  assert.match(html, /^<div class="loading loading-text" aria-busy="true">/);
   assert.match(html, /<span class="sr-only">Loading &lt;runs&gt;…<\/span>/);
+  assert.match(html, /<div class="loading-shapes" aria-hidden="true">/);
   assert.equal(html.match(/class="skeleton"/g)?.length, 2);
+});
+
+test('skeletons come in the shape of what loads', () => {
+  // A table: a header row and the rows, each with its cells.
+  const table = skeleton.table(3, 4, 'Loading the signals…');
+  assert.equal(table.match(/class="skeleton-row/g)?.length, 4);
+  assert.equal(table.match(/class="skeleton"/g)?.length, 16);
+  assert.match(table, /<span class="sr-only">Loading the signals…<\/span>/);
+  assert.match(skeleton.card(), /skeleton-title/);
+  assert.match(skeleton.chart('Loading', 180), /class="skeleton skeleton-chart" style="--h:180px"/);
+  assert.equal(skeleton.list(2).match(/class="skeleton-item"/g)?.length, 2);
+  for (const html of [table, skeleton.card(), skeleton.chart(), skeleton.list(), skeleton.text()])
+    assert.match(html, /aria-busy="true"/);
+});
+
+test('a busy button keeps its label (and width and name) under a spinner, and waits', () => {
+  const html = button('Save', { variant: 'primary', busy: true });
+  assert.match(html, /^<button class="btn primary busy" type="button" disabled aria-busy="true">/);
+  assert.match(html, /<span class="btn-label">Save<\/span><span class="btn-spinner" aria-hidden="true"><svg/);
 });
 
 test('every illustration is a decorative picture that follows the theme', () => {
