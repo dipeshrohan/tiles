@@ -13,6 +13,7 @@ import {
   type StepKey,
 } from '../lib/onboarding.ts';
 import type { Context, View } from './types.ts';
+import { needsApi } from '../lib/ui.ts';
 
 // Setting up a site (T6.06): a wizard from creating the site, through outlining its plant in the
 // ontology and connecting an edge agent, to mapping its tags and opening the first dashboard (a
@@ -194,7 +195,7 @@ const view: View = {
         <p class="soft">From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.</p></div>
         ${ctx.api ? '<button class="btn" data-onboarding-refresh>Refresh</button>' : ''}</div>`;
     if (!ctx.api)
-      return `${head}<div class="card"><p>Setting up a site needs the Tiles API: sites, edge agents and tags live there. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+      return `${head}<div class="card">${needsApi(`Setting up a site needs the Tiles API: sites, edge agents and tags live there.`)}</div>`;
     if (ctx.ontology.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (ctx.ontology.status !== 'ready')
       return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;

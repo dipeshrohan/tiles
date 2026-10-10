@@ -1,6 +1,7 @@
 import { esc, field, fmt, onAll } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
+import { needsApi } from '../lib/ui.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
@@ -492,8 +493,7 @@ const view: View = {
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
         <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
-    if (!ctx.api)
-      return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+    if (!ctx.api) return `${head}<div class="card">${needsApi(`The signal catalogue is kept in the Tiles API.`)}</div>`;
     if (!ctx.ontology.site)
       return `${head}<div class="card"><p class="small soft">${
         ctx.ontology.status === 'error'

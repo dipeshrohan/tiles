@@ -11,6 +11,8 @@ import {
 } from '../lib/documents.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
+import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
+import { icon } from '../lib/icons.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
 // match with its document and page; the copilot searches them too. Engineers upload and archive.
@@ -122,9 +124,15 @@ function searchCard(ctx: Context): string {
 function listCard(ctx: Context): string {
   const items = listing?.key === siteId(ctx) ? listing.items : null;
   const rows = listing?.failed
-    ? '<div class="empty" role="alert">The documents could not be loaded. <button class="btn sm" type="button" data-retry-docs>Try again</button></div>'
+    ? emptyState({
+        illustration: 'error',
+        compact: true,
+        alert: true,
+        title: 'The documents could not be loaded',
+        action: `<button class="btn sm" type="button" data-retry-docs>${icon('refresh-cw')} Try again</button>`,
+      })
     : items === null
-      ? '<div class="empty">Loading…</div>'
+      ? loadingState()
       : items
           .map(
             (d) => `<div class="review-row" data-doc="${d.number}">
@@ -138,7 +146,12 @@ function listCard(ctx: Context): string {
             </div>`,
           )
           .join('') ||
-        `<div class="empty">No documents yet.${canEdit(ctx) ? ' Upload SOPs, manuals and lessons learned below.' : ''}</div>`;
+        emptyState({
+          illustration: 'documents',
+          compact: true,
+          title: 'No documents yet',
+          body: canEdit(ctx) ? 'Upload SOPs, manuals and lessons learned below.' : undefined,
+        });
   const upload = canEdit(ctx)
     ? `<form class="stack" id="doc-upload" style="gap:8px">
         <h3>Upload</h3>
@@ -158,8 +171,7 @@ const view: View = {
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data · Knowledge</div><h1>Documents</h1>
         <p class="soft">SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page.</p></div></div>`;
-    if (!ctx.api)
-      return `${head}<div class="card"><p>Documents are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+    if (!ctx.api) return `${head}<div class="card">${needsApi(`Documents are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (o.status !== 'ready')

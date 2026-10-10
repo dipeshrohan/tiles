@@ -14,6 +14,7 @@ import type { CopilotConversation } from '../lib/api.ts';
 import { esc, need, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
+import { emptyState, loadingState } from '../lib/ui.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
 // answer streamed in with the tools it used (expandable, each citation linked to its result and
@@ -132,13 +133,14 @@ function remoteRender(ctx: Context): string {
   const list = remote?.conversations;
   const items =
     list === null || list === undefined
-      ? '<div class="empty">Loading…</div>'
+      ? loadingState()
       : list
           .map(
             (c) =>
               `<button class="review-row ${ui.conversation === c.id ? 'sel' : ''}" data-conversation="${esc(c.id)}"><b>${esc(c.title || 'New conversation')}</b><span class="small muted">${new Date(c.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span></button>`,
           )
-          .join('') || '<div class="empty">No conversations yet.</div>';
+          .join('') ||
+        emptyState({ compact: true, title: 'No conversations yet', body: 'Ask a question to start one.' });
   const key = threadKey(ctx);
   const shown = ui.conversation && thread?.key === key ? thread.exchanges : [];
   const last = shown.at(-1);
@@ -169,9 +171,13 @@ function remoteRender(ctx: Context): string {
       <div class="chat">
         <div class="chat-log" id="chat-log">${
           loading
-            ? '<div class="empty">Loading…</div>'
+            ? loadingState()
             : log ||
-              `<div class="empty"><h2 style="color:var(--ink)">Ask about your plant</h2><p style="margin-top:6px">The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer.</p></div>`
+              emptyState({
+                illustration: 'chat',
+                title: 'Ask about your plant',
+                body: "The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer.",
+              })
         }</div>
         <div>
           <div class="chips" style="margin:10px 0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
@@ -331,7 +337,11 @@ function localRender(ctx: Context, note = ''): string {
             : `<div class="msg bot">${m.steps?.length ? `<div class="trace">${m.steps.map((s) => `<div>${esc(s)}</div>`).join('')}</div>` : ''}${esc(m.text)}${m.link ? `\n<a href="${esc(m.link)}">Open the evidence →</a>` : ''}</div>`,
         )
         .join('')
-    : `<div class="empty"><h2 style="color:var(--ink)">Ask about your plant</h2><p style="margin-top:6px">The copilot picks a skill, runs it on the factory data and shows each step it took.</p></div>`;
+    : emptyState({
+        illustration: 'chat',
+        title: 'Ask about your plant',
+        body: 'The copilot picks a skill, runs it on the factory data and shows each step it took.',
+      });
   return `${note}
       <div class="chat">
         <div class="chat-log" id="chat-log">${messages}</div>

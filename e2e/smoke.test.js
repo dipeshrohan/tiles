@@ -176,6 +176,78 @@ test('dialogs keep focus, cancel with Escape and give focus back; toasts can be 
   await page.close();
 });
 
+test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Enter goes', async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/`);
+  await page.waitForSelector('#view h1');
+  await page.keyboard.press('Control+k');
+  const palette = page.locator('dialog.palette[open]');
+  await palette.waitFor();
+  const input = palette.locator('input[role=combobox]');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('role')), 'combobox');
+  await input.fill('warn');
+  const options = palette.locator('[role=option]');
+  // Both start with it: the menu's order holds.
+  assert.deepEqual(await options.allInnerTexts(), ['Warnings\nOperations', 'Warning performance\nOperations']);
+  assert.equal(await input.getAttribute('aria-activedescendant'), 'palette-0');
+  await page.keyboard.press('ArrowDown');
+  assert.equal(await palette.locator('[aria-selected=true]').innerText(), 'Warning performance\nOperations');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('dialog.palette', { state: 'detached' });
+  await page.waitForSelector('#view h1:text-is("Warnings")');
+  // "/" opens it too (not while typing in a field); the last pick comes first; Escape closes.
+  await page.keyboard.press('/');
+  await palette.waitFor();
+  assert.match(await palette.locator('.palette-group').first().innerText(), /Recent/);
+  assert.match(await options.first().innerText(), /^Warnings/);
+  await input.fill('zzqx');
+  await palette.locator('.palette-status:has-text("Nothing matches")').waitFor();
+  assert.equal(await palette.locator('[role=listbox]').isHidden(), true);
+  assert.equal(await input.getAttribute('aria-activedescendant'), null);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog.palette', { state: 'detached' });
+  // The top bar's button opens it, and actions run from it.
+  await page.click('#palette-open');
+  await palette.waitFor();
+  await input.fill('dark theme');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('the palette finds the site’s signals through the API', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { unit: '°C' });
+  const a = await openAs(t, apiUrl, null, '');
+  await a.page.keyboard.press('Control+k');
+  const palette = a.page.locator('dialog.palette[open]');
+  await palette.locator('input').fill('press');
+  await palette.locator('.palette-group:has-text("Signals")').waitFor();
+  await palette.locator('.palette-item:has-text("press1.temperature")').click();
+  // The Explorer opens with it (and tidies the link to #/explorer).
+  await a.page.waitForSelector('#view h1:has-text("Data explorer")');
+  await a.page.waitForSelector('#view :text("press1.temperature")');
+  assert.deepEqual(a.errors, []);
+});
+
+test('the palette asks for signals typed before the site has loaded', async (t) => {
+  // The sign-in settings answer late, so the site loads after the query is typed.
+  const fake = createFakeApi({ slowAuthConfigMs: 1500 });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { unit: '°C' });
+  const a = await openAs(t, apiUrl, null, '');
+  await a.page.keyboard.press('Control+k');
+  const palette = a.page.locator('dialog.palette[open]');
+  await palette.locator('input').fill('press');
+  await palette.locator('.palette-item:has-text("press1.temperature")').waitFor();
+  assert.deepEqual(a.errors, []);
+});
+
 test('copilot answers a suggested question with its steps', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/chat`);

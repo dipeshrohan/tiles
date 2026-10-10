@@ -5,6 +5,7 @@ import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '..
 import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
+import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
 
 // The correlation finder (T3.11): which settings separate failed batches from good ones, on real
 // batch tables kept by the Tiles API. Upload a CSV (one row per batch), choose the outcome and what
@@ -72,7 +73,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.items;
   const rows =
     items === null || items === undefined
-      ? '<div class="empty">Loading…</div>'
+      ? loadingState()
       : items
           .map(
             (d) => `<button class="review-row ${ui.selected === d.id ? 'sel' : ''}" data-dataset="${esc(d.id)}">
@@ -80,7 +81,7 @@ function listCard(ctx: Context, ui: Ui): string {
               <span class="small muted">${fmt(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ''}</span>
             </button>`,
           )
-          .join('') || '<div class="empty">No batch tables yet.</div>';
+          .join('') || emptyState({ compact: true, title: 'No batch tables yet', body: 'Upload one below.' });
   const form = canEdit
     ? `<form class="stack" id="dataset-form" style="gap:8px;margin-top:12px">
         <h3>Upload a batch table</h3>
@@ -95,9 +96,10 @@ function listCard(ctx: Context, ui: Ui): string {
 }
 
 function analysisCard(ctx: Context, ui: Ui): string {
-  if (!ui.selected) return '<div class="card"><div class="empty">Choose a batch table, or upload one.</div></div>';
+  if (!ui.selected)
+    return `<div class="card">${emptyState({ illustration: 'chart', title: 'Choose a batch table', body: 'Or upload one: its settings are compared between good and failed batches.' })}</div>`;
   const d = detail?.id === ui.selected ? detail.data : null;
-  if (!d) return '<div class="card"><div class="empty">Loading…</div></div>';
+  if (!d) return `<div class="card">${loadingState()}</div>`;
   const numbers = d.columns.filter((c) => c.kind === 'number').map((c) => c.name);
   const outcome =
     d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === 'bool') ?? d.columns[0];
@@ -304,7 +306,7 @@ const view: View = {
     const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Correlation finder</h1>
         <p class="soft">Which settings separate failed batches from good ones: each variable’s effect (Cohen’s d) with its 95% confidence interval, overall or per material, line or shift.</p></div></div>`;
     if (!ctx.api)
-      return `${head}<div class="card"><p>Batch tables are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.</p></div>`;
+      return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (o.status !== 'ready')
