@@ -937,6 +937,14 @@ test('site admins see the audit log in settings; others do not', async (t) => {
   assert.match(await page.locator('#audit').innerText(), /demo\s+Committed “Import demo ontology”/);
   assert.deepEqual(errors, []);
 
+  // When it fails: what and why, and Try again loads it.
+  fake.failNext('GET', /\/audit$/, 500, 'Database unavailable');
+  await page.reload();
+  await page.waitForSelector('#audit [role=alert]:has-text("The audit log could not be loaded")');
+  await page.click('#audit [data-reconnect]');
+  await page.waitForSelector('#audit table');
+  errors.length = 0; // the failed request, on purpose
+
   const engineer = createFakeApi();
   const engineerUrl = await engineer.listen();
   t.after(() => engineer.close());
@@ -1149,7 +1157,7 @@ test('site admins register edge agents and see them come online', async (t) => {
   t.after(() => page.close());
   const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
   await page.goto(`${home}#/settings`);
-  await page.waitForSelector('#agents:has-text("No agents registered")');
+  await page.waitForSelector('#agents:has-text("No edge agents yet")');
   await page.fill('#agent-form [name=name]', 'press-shop-edge');
   await page.click('#agent-form button[type=submit]');
   // The token is shown once, with a config file to copy.
@@ -1175,7 +1183,7 @@ test('site admins register edge agents and see them come online', async (t) => {
   assert.match(await buffered.getAttribute('title'), /1200 waiting\. 5 sent.*can't reach Tiles$/);
   await page.click('[data-revoke-agent]');
   await confirmIn(page);
-  await page.waitForSelector('#agents:has-text("No agents registered")');
+  await page.waitForSelector('#agents:has-text("No edge agents yet")');
   assert.deepEqual(errors, []);
 });
 
@@ -1187,7 +1195,7 @@ test('a revealed agent token never follows you to another API', async (t) => {
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(a)}#/settings`);
-  await page.waitForSelector('#agents:has-text("No agents registered")');
+  await page.waitForSelector('#agents:has-text("No edge agents yet")');
   await page.fill('#agent-form [name=name]', 'edge-01');
   await page.click('#agent-form button[type=submit]');
   await page.waitForSelector('[data-token]');
@@ -1195,7 +1203,7 @@ test('a revealed agent token never follows you to another API', async (t) => {
   await page.fill('#datasource [name=apiUrl]', b);
   await page.click('#datasource button[type=submit]');
   await page.waitForSelector('#toast:has-text("Using the Tiles API")');
-  await page.waitForSelector('#agents:has-text("No agents registered")');
+  await page.waitForSelector('#agents:has-text("No edge agents yet")');
   assert.equal(await page.locator('[data-token]').count(), 0);
   assert.deepEqual(errors, []);
 });
@@ -1207,7 +1215,7 @@ test('non-admins see the edge agents but cannot register them', async (t) => {
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/settings`);
-  await page.waitForSelector('#agents:has-text("No agents registered")');
+  await page.waitForSelector('#agents:has-text("No edge agents yet")');
   assert.equal(await page.locator('#agent-form').count(), 0);
   assert.deepEqual(errors, []);
 });
@@ -1219,7 +1227,7 @@ test('an engineer imports a CSV file, mapped to signals, and importing it again 
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/import`);
-  await page.waitForSelector('[data-import-history]:has-text("No imports on this site yet")');
+  await page.waitForSelector('[data-import-history]:has-text("No imports yet")');
   const csv =
     'Zeitstempel;Presse 1 Temperatur;Presse 1 Druck;Bemerkung\n01.10.2026 08:00;21,5;3,5;ok\n01.10.2026 08:01;22,0;;Bad\n';
   const file = { name: 'presse-1.csv', mimeType: 'text/csv', buffer: Buffer.from(csv) };
@@ -1543,6 +1551,10 @@ test('changing a filter just before leaving never shows the old results on retur
   await page.waitForSelector('[data-signal-results]:has-text("Loading")');
   assert.equal(await page.locator('[data-signal-results] code:has-text("oven.temp")').count(), 0);
   await page.waitForSelector('[data-signal-results]:has-text("No signals match")');
+  // The empty state's way out: clear the search.
+  await page.click('[data-clear-search]');
+  await page.waitForSelector('[data-signal-results] code:has-text("oven.temp")');
+  assert.equal(await page.inputValue('#signal-search [name=source]'), '');
   assert.deepEqual(errors, []);
 });
 
@@ -2199,6 +2211,7 @@ test('the warnings inbox: see a warning on its signal, acknowledge, assign, reso
   await b.page.waitForSelector('#toast:has-text("Resolved as true alarm")');
   await b.page.waitForSelector('[data-warning-detail]:has-text("True alarm, resolved by eng2")');
   await b.page.waitForSelector('[data-warning-list] .empty:has-text("No warnings match these filters")');
+  assert.equal(await b.page.locator('[data-warning-list] [data-clear-filters]').count(), 1);
   await b.page.click('[data-show=resolved]');
   await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("True alarm")`);
 
@@ -3521,7 +3534,7 @@ test('design studio with the API: runs are stored in shared projects', async (t)
   // A run isn't saved before the project's history is known: it would lose its parent.
   fake.slowDesignRuns(1500);
   const c = await openAs(t, apiUrl, 'eng3@example.com', 'design');
-  await c.page.waitForSelector('.empty:has-text("Loading runs…")');
+  await c.page.waitForSelector('.loading:has-text("Loading runs…")');
   assert.equal(await c.page.locator('#run-form button[type=submit]').isDisabled(), true);
   await c.page.waitForSelector('[data-run="2"]');
   assert.equal(await c.page.locator('#run-form button[type=submit]').isDisabled(), false);

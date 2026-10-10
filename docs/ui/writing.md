@@ -48,6 +48,8 @@ Each error says what failed, why when Tiles knows, and what the user can do abou
 
 "No warnings yet. Detectors raise them when a signal leaves its usual range." Then the action that fills it, when the user can take it: "Set up a detector".
 
+Use `emptyState` from `js/lib/ui.ts` for every empty list, table or chart, with a `body` (or `bodyHtml`) that says why (`test/copy.test.js` checks). The title says what is missing ("No signals yet"). A search or filter that finds nothing says so ("No signals match") and offers to clear it, rather than suggesting the data doesn't exist. An action someone can't take (a viewer, or local mode) is left out, and the body says who can.
+
 ### Success and progress
 
 - **Toasts confirm what changed**, naming it: "Archived SOP 14", "Linked 3 of 4 tags". No toast for what the page itself shows.

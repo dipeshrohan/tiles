@@ -296,11 +296,13 @@ export const STATES: Example[] = [
   },
   {
     title: 'Error',
-    code: `errorState({ title: 'The documents could not be loaded', retry: 'retry-docs' })`,
+    code: `errorState({ title: 'The documents could not be loaded', body: 'The Tiles API didn’t send them…', retry: 'retry-docs' })
+loadFailed('The audit log')   // the same, for a part of a page; Try again loads the site afresh`,
     // Not an alert here: nothing failed.
     html: () =>
       errorState({
         title: 'The documents could not be loaded',
+        body: 'The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.',
         retry: 'sg-retry',
         compact: true,
         alert: false,

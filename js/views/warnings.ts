@@ -138,7 +138,30 @@ function filterBar(ctx: Context, f: Filters): string {
 function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   const unfiltered = ui.filters.show === 'unresolved' && ui.filters.who === 'anyone' && ui.filters.signal === 'all';
-  const empty = unfiltered ? 'Nothing to do: no warning waits for anyone.' : 'No warnings match these filters.';
+  // Every warning shown, and none: the site has none yet (not a filter hiding them).
+  const none = ui.filters.show === 'all' && ui.filters.who === 'anyone' && ui.filters.signal === 'all';
+  const empty = none
+    ? emptyState({
+        illustration: 'inbox',
+        compact: true,
+        title: 'No warnings yet',
+        body: 'Detectors raise a warning when a signal leaves its usual range; they are listed here as they come.',
+      })
+    : unfiltered
+      ? emptyState({
+          illustration: 'done',
+          compact: true,
+          title: 'Nothing to do: no warning waits for anyone',
+          body: 'Detectors raise a warning when a signal leaves its usual range. Resolved ones are under All.',
+          action: button('Show all warnings', { size: 'sm', attrs: { 'data-show': 'all' } }),
+        })
+      : emptyState({
+          illustration: 'search',
+          compact: true,
+          title: 'No warnings match these filters',
+          body: 'Try other filters, or clear them to see what waits for anyone.',
+          action: button('Clear filters', { size: 'sm', attrs: { 'data-clear-filters': true } }),
+        });
   const rows =
     items === null
       ? skeleton.list()
@@ -151,7 +174,7 @@ function listCard(ctx: Context, ui: Ui): string {
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : 'Unassigned'}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ''}</span>
         </button>`,
           )
-          .join('') || emptyState({ illustration: unfiltered ? 'done' : 'search', compact: true, title: empty });
+          .join('') || empty;
   const more =
     items && listing?.more ? button('Show older warnings', { size: 'sm', attrs: { 'data-more-warnings': true } }) : '';
   return card(`<div class="review-list" data-warning-list>${rows}</div>${more}`);
@@ -465,6 +488,10 @@ const view: View = {
 
     onAll(root, '[data-show]', 'click', (el) => {
       ui.filters = { ...ui.filters, show: (el.dataset.show as Show | undefined) ?? 'unresolved' };
+      ctx.rerender();
+    });
+    onAll(root, '[data-clear-filters]', 'click', () => {
+      ui.filters = { ...DEFAULT_FILTERS };
       ctx.rerender();
     });
     onAll(root, '[data-filter]', 'change', (el) => {

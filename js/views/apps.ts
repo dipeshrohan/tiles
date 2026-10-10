@@ -16,8 +16,7 @@ import {
 import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
-import { icon } from '../lib/icons.ts';
+import { emptyState, errorState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 
 // App Studio (T6.10): use cases configured from templates, without code. A template (a wear check,
 // SPC limits) says what it needs; its form is made from that; an app is the template configured on
@@ -125,12 +124,11 @@ async function run(ctx: Context, app: StudioApp): Promise<void> {
 }
 
 const retry = (what: string, attr: string): string =>
-  emptyState({
-    illustration: 'error',
-    compact: true,
-    alert: true,
+  errorState({
     title: `${what} could not be loaded`,
-    action: `<button class="btn sm" type="button" ${attr}>${icon('refresh-cw')} Try again</button>`,
+    body: 'The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.',
+    retry: attr.replace(/^data-/, ''),
+    compact: true,
   });
 
 function listCard(ctx: Context): string {
@@ -200,12 +198,13 @@ function detailCard(ctx: Context): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   if (n === null)
     return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an app', body: 'Or make one from a template.' })}</div>`;
+  // The list beside it says what failed, with Try again: not a second alert here.
   if (listing?.failed)
-    return `<div class="card">${emptyState({ illustration: 'error', alert: true, title: 'The apps could not be loaded' })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'error', compact: true, title: `App #${n} could not be loaded`, body: 'The list of apps didn’t load; try again there.' })}</div>`;
   if (items === null) return `<div class="card">${skeleton.card()}</div>`;
   const app = items.find((a) => a.number === n);
   if (!app)
-    return `<div class="card">${emptyState({ illustration: 'search', title: `There is no app #${n} on this site`, action: '<a class="btn" href="#/apps">All apps</a>' })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'search', title: `There is no app #${n} on this site`, body: 'It may have been archived, or the link is for another site.', action: '<a class="btn" href="#/apps">All apps</a>' })}</div>`;
   const template = templates?.list?.find((t) => t.id === app.template);
   if (editKey()) {
     if (templates?.failed) return `<div class="card">${retry('The templates', 'data-retry-templates')}</div>`;

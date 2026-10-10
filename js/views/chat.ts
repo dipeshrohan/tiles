@@ -149,7 +149,7 @@ function remoteRender(ctx: Context): string {
       cited.push(...(e.answer?.tools ?? []));
       const body = e.answer
         ? answerBody(e.answer, [...cited], ui.conversation)
-        : '<p class="small soft">No answer was kept for this question.</p>';
+        : '<p class="small soft">No answer was kept for this question: it may have stopped early. Ask it again below.</p>';
       return `<div class="msg user">${esc(e.question)}</div><div class="msg bot copilot-answer">${body}</div>`;
     }),
     ...(live && live.key === key
