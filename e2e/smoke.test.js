@@ -255,19 +255,26 @@ test('an API error stays with its request ID until dismissed, and is read out on
   fake.addSignal('press1.temperature');
   fake.failSearch('broken');
   const a = await openAs(t, apiUrl, null, 'signals');
+  await a.page.waitForSelector('#signal-search');
+  await a.page.clock.install(); // time is moved on below, rather than waited out
   await a.page.fill('#signal-search [name=q]', 'broken');
   await a.page.press('#signal-search [name=q]', 'Enter');
-  const item = a.page.locator('.toast-item[data-type=error]');
+  const item = a.page.locator('.toast-item[data-type=error]:not([data-state=closed])');
   await item.waitFor();
+  await a.page.clock.runFor(500);
   assert.match(await item.innerText(), /The catalogue is busy \(503\)[\s\S]*Request ID\s+req-\d{6}/);
   // Read once, as an alert; the visible stack isn't a live region too.
-  await a.page.waitForFunction(() =>
-    /catalogue is busy/.test(document.querySelector('[data-toast-announce=alert]')?.textContent ?? ''),
-  );
-  assert.equal(await a.page.locator('#toast').getAttribute('aria-live'), 'off');
+  assert.match(await a.page.locator('[data-toast-announce=alert]').innerText(), /catalogue is busy.*req-\d{6}/);
+  assert.equal(await a.page.locator('#toast').getAttribute('aria-live'), null);
+  // The same failure again refreshes the toast without reading it out again.
+  await a.page.evaluate(() => (document.querySelector('[data-toast-announce=alert]').textContent = ''));
+  await a.page.press('#signal-search [name=q]', 'Enter');
+  await a.page.clock.runFor(500);
+  await item.waitFor();
+  assert.equal(await a.page.locator('[data-toast-announce=alert]').textContent(), '');
   // It doesn't go on its own.
   await a.page.mouse.move(5, 5);
-  await a.page.waitForTimeout(9000);
+  await a.page.clock.runFor(60_000);
   assert.equal(await item.count(), 1);
   await item.locator('.toast-close').click();
   await item.waitFor({ state: 'detached' });

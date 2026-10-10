@@ -11088,7 +11088,6 @@ heartbeat_seconds = 30
 	};
 	var MAX = 3;
 	function createToaster(stack) {
-		stack.setAttribute("aria-live", "off");
 		const region = (role) => {
 			const el = document.createElement("div");
 			el.className = "sr-only";
@@ -11097,13 +11096,13 @@ heartbeat_seconds = 30
 			stack.after(el);
 			return el;
 		};
-		const polite = region("status");
+		const polite = document.querySelector("#announcer") ?? region("status");
 		const urgent = region("alert");
-		let said;
+		const pending = /* @__PURE__ */ new Map();
 		const announce = (el, text) => {
 			el.textContent = "";
-			clearTimeout(said);
-			said = setTimeout(() => el.textContent = text, 100);
+			clearTimeout(pending.get(el));
+			pending.set(el, setTimeout(() => el.textContent = text, 100));
 		};
 		const paused = () => stack.querySelector("button:hover") !== null || stack.contains(document.activeElement);
 		const left = /* @__PURE__ */ new Map();
@@ -11130,14 +11129,19 @@ heartbeat_seconds = 30
 		};
 		return (message, opts = {}) => {
 			const type = opts.type ?? "default";
-			for (const old of stack.querySelectorAll(".toast-item:not([data-state=closed])")) if (old.dataset.message === message) remove(old);
+			let repeat = false;
+			for (const old of stack.querySelectorAll(".toast-item:not([data-state=closed])")) {
+				if (old.dataset.message !== message) continue;
+				repeat = true;
+				remove(old);
+			}
 			const item = document.createElement("li");
 			item.className = "toast-item";
 			item.dataset.type = type;
 			item.dataset.message = message;
 			item.dataset.state = "open";
 			const symbol = ICON[type];
-			item.innerHTML = `${symbol ? `<span class="toast-icon">${icon(symbol)}</span>` : ""}<div class="toast-text"><div class="toast-title">${esc(message)}</div>${opts.description ? `<div class="toast-desc">${esc(opts.description)}</div>` : ""}${opts.requestId ? `<div class="toast-meta">Request ID <code>${esc(opts.requestId)}</code> <button class="toast-copy" type="button" data-toast-copy aria-label="Copy the request ID">${icon("copy", { size: 12 })}</button></div>` : ""}</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ""}<button class="toast-close" type="button" aria-label="Dismiss">${icon("x", { size: 14 })}</button>`;
+			item.innerHTML = `${symbol ? `<span class="toast-icon">${icon(symbol)}</span>` : ""}<div class="toast-text"><div class="toast-title">${esc(message)}</div>${opts.description ? `<div class="toast-desc">${esc(opts.description)}</div>` : ""}${opts.requestId ? `<div class="toast-meta">Request ID <code>${esc(opts.requestId)}</code> <button class="toast-copy" type="button" data-toast-copy aria-label="Copy the request ID" data-tooltip="Copy">${icon("copy", { size: 12 })}</button></div>` : ""}</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ""}<button class="toast-close" type="button" aria-label="Dismiss">${icon("x", { size: 14 })}</button>`;
 			item.querySelector("[data-toast-action]")?.addEventListener("click", () => {
 				opts.action?.run();
 				remove(item);
@@ -11146,9 +11150,9 @@ heartbeat_seconds = 30
 			const copy = item.querySelector("[data-toast-copy]");
 			copy?.addEventListener("click", () => {
 				const done = (label) => {
-					copy.setAttribute("aria-label", label);
 					copy.dataset.tooltip = label;
 					announce(polite, label);
+					setTimeout(() => copy.dataset.tooltip = "Copy", 2e3);
 				};
 				(navigator.clipboard?.writeText(opts.requestId ?? "") ?? Promise.reject(/* @__PURE__ */ new Error("no clipboard"))).then(() => done("Request ID copied"), () => done("Can't copy here: select the ID instead"));
 			});
@@ -11161,8 +11165,8 @@ heartbeat_seconds = 30
 				opts.description,
 				opts.requestId ? `Request ID ${opts.requestId}` : ""
 			].filter(Boolean).join(". ");
-			announce(type === "error" ? urgent : polite, words);
-			const ms = opts.duration ?? DURATION[type];
+			if (!repeat) announce(type === "error" ? urgent : polite, words);
+			const ms = opts.duration ?? (type === "error" && !opts.requestId ? 8e3 : DURATION[type]);
 			if (Number.isFinite(ms)) {
 				left.set(item, ms);
 				timer ??= setInterval(tick, 200);

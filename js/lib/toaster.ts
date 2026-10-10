@@ -1,8 +1,8 @@
 // Toasts (U2.02), after shadcn/ui's Sonner: a stack in the corner, newest at the bottom, up to three
 // at a time. Each slides in, can carry an action (Undo, Retry…) and a close button. Success goes after
-// 5 s, the rest after 4 s; pointing at or focusing a toast's buttons pauses that. Errors stay until
-// dismissed, with the request ID the API gave them, to quote to support. Screen readers hear each
-// once, from two hidden live regions made with the stack: a status for most, an alert for errors.
+// 5 s, the rest after 4 s (errors 8 s); pointing at or focusing a toast's buttons pauses that. Errors
+// from the API stay until dismissed, with the request ID it gave them, to quote to support. Screen
+// readers hear each once: from the page's status region, or an alert region for errors.
 import { esc } from './dom.ts';
 import { icon, type IconName } from './icons.ts';
 
@@ -12,7 +12,7 @@ export interface ToastOptions {
   type?: ToastType;
   description?: string;
   action?: { label: string; run: () => void };
-  duration?: number; // ms; success 5 s, errors until dismissed, the rest 4 s
+  duration?: number; // ms; success 5 s, API errors until dismissed, other errors 8 s, the rest 4 s
   requestId?: string | null; // an API error's X-Request-ID, shown with a copy button
 }
 
@@ -36,8 +36,8 @@ const MAX = 3;
 export type Toast = (message: string, opts?: ToastOptions) => void;
 
 export function createToaster(stack: HTMLElement): Toast {
-  // The visible stack isn't a live region (it would be read as well); these are, from page load.
-  stack.setAttribute('aria-live', 'off');
+  // The visible stack isn't a live region (it would be read as well). Toasts are read from the page's
+  // polite #announcer, and errors from an alert region made here, both there from page load.
   const region = (role: string): HTMLElement => {
     const el = document.createElement('div');
     el.className = 'sr-only';
@@ -46,14 +46,17 @@ export function createToaster(stack: HTMLElement): Toast {
     stack.after(el);
     return el;
   };
-  const polite = region('status');
+  const polite = document.querySelector<HTMLElement>('#announcer') ?? region('status');
   const urgent = region('alert');
-  let said: ReturnType<typeof setTimeout> | undefined;
+  const pending = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
   const announce = (el: HTMLElement, text: string): void => {
-    // Emptied first, so the same words again are read again.
+    // Emptied first, so the same words again are read again; each region keeps its own timer.
     el.textContent = '';
-    clearTimeout(said);
-    said = setTimeout(() => (el.textContent = text), 100);
+    clearTimeout(pending.get(el));
+    pending.set(
+      el,
+      setTimeout(() => (el.textContent = text), 100),
+    );
   };
   // A toast lets clicks through to what it covers (only its buttons take them), so the pointer over
   // one of its buttons, or keyboard focus in it, holds them all. Read afresh at each tick: a button
@@ -88,22 +91,25 @@ export function createToaster(stack: HTMLElement): Toast {
 
   return (message, opts = {}) => {
     const type = opts.type ?? 'default';
-    // The same message again (a repeated failure) refreshes the one shown rather than stacking.
+    // The same message again (a repeated failure) refreshes the one shown rather than stacking, and
+    // isn't read out again: a page polling a failing API would otherwise interrupt every time.
+    let repeat = false;
     for (const old of stack.querySelectorAll<HTMLElement>('.toast-item:not([data-state=closed])')) {
-      if (old.dataset.message === message) remove(old);
+      if (old.dataset.message !== message) continue;
+      repeat = true;
+      remove(old);
     }
     const item = document.createElement('li');
     item.className = 'toast-item';
     item.dataset.type = type;
     item.dataset.message = message;
     item.dataset.state = 'open';
-    // The stack is a polite live region from page load: each toast, errors too, is read once.
     const symbol = ICON[type];
     item.innerHTML = `${symbol ? `<span class="toast-icon">${icon(symbol)}</span>` : ''}<div class="toast-text"><div class="toast-title">${esc(message)}</div>${
       opts.description ? `<div class="toast-desc">${esc(opts.description)}</div>` : ''
     }${
       opts.requestId
-        ? `<div class="toast-meta">Request ID <code>${esc(opts.requestId)}</code> <button class="toast-copy" type="button" data-toast-copy aria-label="Copy the request ID">${icon('copy', { size: 12 })}</button></div>`
+        ? `<div class="toast-meta">Request ID <code>${esc(opts.requestId)}</code> <button class="toast-copy" type="button" data-toast-copy aria-label="Copy the request ID" data-tooltip="Copy">${icon('copy', { size: 12 })}</button></div>`
         : ''
     }</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ''}<button class="toast-close" type="button" aria-label="Dismiss">${icon('x', { size: 14 })}</button>`;
     item.querySelector('[data-toast-action]')?.addEventListener('click', () => {
@@ -113,10 +119,11 @@ export function createToaster(stack: HTMLElement): Toast {
     item.querySelector('.toast-close')?.addEventListener('click', () => remove(item));
     const copy = item.querySelector<HTMLButtonElement>('[data-toast-copy]');
     copy?.addEventListener('click', () => {
+      // Says how it went for a moment, then is the copy button again.
       const done = (label: string): void => {
-        copy.setAttribute('aria-label', label);
         copy.dataset.tooltip = label;
         announce(polite, label);
+        setTimeout(() => (copy.dataset.tooltip = 'Copy'), 2000);
       };
       // The clipboard needs a secure page (not file://): say so rather than fail silently.
       void (navigator.clipboard?.writeText(opts.requestId ?? '') ?? Promise.reject(new Error('no clipboard'))).then(
@@ -131,8 +138,9 @@ export function createToaster(stack: HTMLElement): Toast {
     const words = [message, opts.description, opts.requestId ? `Request ID ${opts.requestId}` : '']
       .filter(Boolean)
       .join('. ');
-    announce(type === 'error' ? urgent : polite, words);
-    const ms = opts.duration ?? DURATION[type];
+    if (!repeat) announce(type === 'error' ? urgent : polite, words);
+    // An API error stays until dismissed, to be quoted with its request ID; other errors go in 8 s.
+    const ms = opts.duration ?? (type === 'error' && !opts.requestId ? 8000 : DURATION[type]);
     if (Number.isFinite(ms)) {
       left.set(item, ms);
       timer ??= setInterval(tick, 200);
