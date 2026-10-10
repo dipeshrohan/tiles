@@ -805,6 +805,7 @@
 		}
 	};
 	var OFFLINE_WRITE = "You're offline: nothing was changed. Try again when the connection is back";
+	var STREAM_CUT = "The answer was cut off: the connection to the Tiles API dropped";
 	function errorMessage(body, status) {
 		const detail = body?.detail;
 		if (typeof detail === "string" && detail) return detail;
@@ -847,7 +848,7 @@
 			} catch {
 				return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
 			}
-			options.onAnswer?.();
+			options.onAnswer?.(res.status);
 			const requestId = res.headers.get("x-request-id");
 			if (res.status === 204) return void 0;
 			if (text && res.ok) return await res.text();
@@ -870,6 +871,7 @@
 			throw error;
 		}
 		async function streamEvents(path, body, onEvent) {
+			if (options.isOffline?.()) return fail(new ApiError(OFFLINE_WRITE, 0));
 			const headers = await headersFor(body, false, "text/event-stream");
 			let res;
 			try {
@@ -881,6 +883,7 @@
 			} catch {
 				return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
 			}
+			options.onAnswer?.(res.status);
 			if (!res.ok || !res.body) {
 				let parsed = null;
 				try {
@@ -896,7 +899,7 @@
 				try {
 					chunk = await reader.read();
 				} catch {
-					return fail(new ApiError("The answer was cut off: the connection to the Tiles API dropped", 0));
+					return fail(new ApiError(STREAM_CUT, 0));
 				}
 				if (chunk.done) break;
 				parser.feed(decoder.decode(chunk.value, { stream: true }));
@@ -2403,7 +2406,7 @@
 	function describeApiError(e) {
 		const detail = sentence(e.message);
 		switch (true) {
-			case e.status === 0: return e.message.startsWith("You're offline") ? {
+			case e.status === 0: return e.message.startsWith("You're offline") || e.message === "The answer was cut off: the connection to the Tiles API dropped" ? {
 				message: e.message,
 				action: null
 			} : {
@@ -2745,10 +2748,22 @@
 			details: errorDetails({
 				what: reason ?? "Can't reach the Tiles API",
 				page: typeof location === "undefined" ? "" : location.hash || "#/",
-				at: /* @__PURE__ */ new Date(),
+				at: failedAt(reason),
 				version: VERSION
 			})
 		}));
+	}
+	var clockTime = (at) => new Date(at).toLocaleTimeString("en-GB", {
+		hour: "2-digit",
+		minute: "2-digit"
+	});
+	var lastFailure = null;
+	function failedAt(reason) {
+		if (lastFailure?.reason !== reason) lastFailure = {
+			reason,
+			at: /* @__PURE__ */ new Date()
+		};
+		return lastFailure.at;
 	}
 	function errorState(o) {
 		const size = o.size ?? "sm";
@@ -8370,7 +8385,7 @@
 				more: items.length === 100
 			};
 		} catch {
-			if (seq === listSeq && !quiet) listing$4 = {
+			if (seq === listSeq && (!quiet || !listing$4?.items)) listing$4 = {
 				site,
 				items: [],
 				at: null,
@@ -8604,13 +8619,7 @@
 			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">${skeleton.list(3, "Loading the warnings…")}</div></div>`;
 			const now = Date.now();
 			const { tone, text } = headline(list);
-			const updated = listed().at && ctx.api ? `<div class="small soft" data-floor-updated>${listed().stale ? `As of ${new Date(listed().at ?? 0).toLocaleTimeString("en-GB", {
-				hour: "2-digit",
-				minute: "2-digit"
-			})}: the last refresh failed, trying again in 30 seconds` : `Updated ${new Date(listed().at ?? 0).toLocaleTimeString("en-GB", {
-				hour: "2-digit",
-				minute: "2-digit"
-			})}; refreshes every 30 seconds`}</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
+			const updated = listed().at && ctx.api ? `<div class="small soft" data-floor-updated>${listed().stale ? `As of ${clockTime(listed().at ?? 0)}: the last refresh failed, trying again in 30 seconds` : `Updated ${clockTime(listed().at ?? 0)}; refreshes every 30 seconds`}</div>` : ctx.api ? "" : "<div class=\"small soft\">Demo data from this browser’s plunger-friction detector</div>";
 			shownHeadline = {
 				site: siteId$6(ctx),
 				text
@@ -12616,9 +12625,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			userEmail: state.user.email,
 			getToken: () => accessToken(baseUrl),
 			onError: (e) => {
-				if (e.status === 0 && !e.message.startsWith("You're offline")) showOffline("unreachable");
+				if (e.status === 0 && e.message !== "You're offline: nothing was changed. Try again when the connection is back" && e.message !== "The answer was cut off: the connection to the Tiles API dropped") showOffline("unreachable");
 				const d = describeApiError(e);
-				const action = d.action === "back" ? {
+				const action = d.action === "back" && history.length > 1 ? {
 					label: "Go back",
 					run: () => history.back()
 				} : d.action === "refresh" ? {
@@ -12635,7 +12644,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					action
 				});
 			},
-			onAnswer: () => hideOffline("unreachable"),
+			onAnswer: (status) => {
+				if (status < 500) hideOffline("unreachable");
+			},
 			isOffline: () => !navigator.onLine
 		});
 	}
@@ -12887,11 +12898,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (!offline) offlineSince = Date.now();
 		offline = kind;
 		const banner = need(document, "#offline");
-		const since = new Date(offlineSince).toLocaleTimeString("en-GB", {
-			hour: "2-digit",
-			minute: "2-digit"
-		});
-		banner.innerHTML = `${icon(kind === "offline" ? "wifi-off" : "cloud-off")}<span>${kind === "offline" ? `You're offline. What you see is as of ${since}; changes wait until the connection is back.` : `Can't reach the Tiles API. What you see is as of ${since}.`}</span>${api ? "<button class=\"btn sm\" type=\"button\" data-offline-retry>Try again</button>" : ""}`;
+		const since = clockTime(offlineSince);
+		banner.innerHTML = `${icon(kind === "offline" ? "wifi-off" : "cloud-off")}<span>${kind === "offline" ? `You're offline. What you see is as of ${since}; changes can't be sent until the connection is back.` : `Can't reach the Tiles API. What you see is as of ${since}.`}</span>${api ? button("Try again", {
+			size: "sm",
+			attrs: { "data-offline-retry": true }
+		}) : ""}`;
 		banner.hidden = false;
 	}
 	function hideOffline(kind) {
@@ -12900,14 +12911,19 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		need(document, "#offline").hidden = true;
 	}
 	window.addEventListener("offline", () => showOffline("offline"));
+	function reconnect() {
+		if (!api) return;
+		if (ontologyStatus === "error") connectOntology();
+		else renderSoon();
+	}
 	window.addEventListener("online", () => {
 		hideOffline("offline");
-		if (api) connectOntology();
+		reconnect();
 	});
 	need(document, "#offline").addEventListener("click", (e) => {
 		if (!(e.target instanceof Element) || !e.target.closest("[data-offline-retry]")) return;
 		hideOffline("unreachable");
-		if (navigator.onLine) connectOntology();
+		if (navigator.onLine) reconnect();
 		else showOffline("offline");
 	});
 	if (!navigator.onLine) showOffline("offline");

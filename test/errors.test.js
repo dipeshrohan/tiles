@@ -2,6 +2,7 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { describeApiError, errorDetails } from '../js/lib/errors.ts';
+import { STREAM_CUT } from '../js/lib/api.ts';
 
 test('each kind of failure says what happened, why and the way out', () => {
   const offline = describeApiError({ status: 0, message: "You're offline: nothing was changed. Try again later" });
@@ -9,6 +10,9 @@ test('each kind of failure says what happened, why and the way out', () => {
   const down = describeApiError({ status: 0, message: "Can't reach the Tiles API at http://h:8000" });
   assert.equal(down.message, "Can't reach the Tiles API");
   assert.match(down.description, /at http:\/\/h:8000\. Check your connection/);
+  // A stream cut off mid-answer: the API was reached, so not "can't reach".
+  const cut = describeApiError({ status: 0, message: STREAM_CUT });
+  assert.deepEqual(cut, { message: STREAM_CUT, action: null });
   assert.deepEqual(describeApiError({ status: 401, message: 'Token expired' }), {
     message: 'Your session has ended',
     description: 'Token expired. Sign in again to carry on.',

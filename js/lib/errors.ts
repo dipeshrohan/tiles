@@ -1,6 +1,8 @@
 // What a failed request to the Tiles API means to the person who made it (U2.06), as the writing
 // guide asks: what happened, why, and what they can do. Pure: the toast and the pages use it.
 
+import { STREAM_CUT } from './api.ts';
+
 export interface ApiFailure {
   status: number; // 0: no answer (offline, or the API is down)
   message: string; // the API's detail, or the client's words
@@ -24,7 +26,7 @@ export function describeApiError(e: ApiFailure): Described {
   const detail = sentence(e.message);
   switch (true) {
     case e.status === 0:
-      return e.message.startsWith("You're offline")
+      return e.message.startsWith("You're offline") || e.message === STREAM_CUT
         ? { message: e.message, action: null }
         : {
             message: "Can't reach the Tiles API",

@@ -6,7 +6,9 @@ import {
   ApiError,
   createApiClient,
   normalizeBaseUrl,
+  OFFLINE_WRITE,
   resolveDataSource,
+  STREAM_CUT,
   type ApiClient,
   type AuthConfig,
   type DataSource,
@@ -56,7 +58,7 @@ import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
-import { breadcrumbs } from './lib/ui.ts';
+import { breadcrumbs, button, clockTime } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
@@ -282,10 +284,12 @@ function makeApi(): ApiClient | null {
     getToken: () => accessToken(baseUrl),
     // What happened, why and what to do (U2.06), with the way out when there is one.
     onError: (e) => {
-      if (e.status === 0 && !e.message.startsWith("You're offline")) showOffline('unreachable');
+      // Offline says so itself, and a stream cut off mid-answer was reached.
+      if (e.status === 0 && e.message !== OFFLINE_WRITE && e.message !== STREAM_CUT) showOffline('unreachable');
       const d = describeApiError(e);
       const action =
-        d.action === 'back'
+        // Only where there is somewhere to go back to.
+        d.action === 'back' && history.length > 1
           ? { label: 'Go back', run: () => history.back() }
           : d.action === 'refresh'
             ? { label: 'Refresh', run: () => location.reload() }
@@ -294,7 +298,9 @@ function makeApi(): ApiClient | null {
               : undefined;
       toast(d.message, { type: 'error', description: d.description, requestId: e.requestId, action });
     },
-    onAnswer: () => hideOffline('unreachable'),
+    onAnswer: (status) => {
+      if (status < 500) hideOffline('unreachable');
+    },
     isOffline: () => !navigator.onLine,
   });
 }
@@ -609,12 +615,12 @@ function showOffline(kind: 'offline' | 'unreachable'): void {
   if (!offline) offlineSince = Date.now();
   offline = kind;
   const banner = need(document, '#offline');
-  const since = new Date(offlineSince).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const since = clockTime(offlineSince);
   banner.innerHTML = `${icon(kind === 'offline' ? 'wifi-off' : 'cloud-off')}<span>${
     kind === 'offline'
-      ? `You're offline. What you see is as of ${since}; changes wait until the connection is back.`
+      ? `You're offline. What you see is as of ${since}; changes can't be sent until the connection is back.`
       : `Can't reach the Tiles API. What you see is as of ${since}.`
-  }</span>${api ? '<button class="btn sm" type="button" data-offline-retry>Try again</button>' : ''}`;
+  }</span>${api ? button('Try again', { size: 'sm', attrs: { 'data-offline-retry': true } }) : ''}`;
   banner.hidden = false;
 }
 function hideOffline(kind?: 'offline' | 'unreachable'): void {
@@ -623,14 +629,21 @@ function hideOffline(kind?: 'offline' | 'unreachable'): void {
   need(document, '#offline').hidden = true;
 }
 window.addEventListener('offline', () => showOffline('offline'));
+// Back again: connect afresh only if the site never loaded; otherwise keep what is on screen and
+// draw the page again, which fetches its data.
+function reconnect(): void {
+  if (!api) return;
+  if (ontologyStatus === 'error') void connectOntology();
+  else renderSoon();
+}
 window.addEventListener('online', () => {
   hideOffline('offline');
-  if (api) void connectOntology();
+  reconnect();
 });
 need(document, '#offline').addEventListener('click', (e) => {
   if (!(e.target instanceof Element) || !e.target.closest('[data-offline-retry]')) return;
   hideOffline('unreachable');
-  if (navigator.onLine) void connectOntology();
+  if (navigator.onLine) reconnect();
   else showOffline('offline');
 });
 if (!navigator.onLine) showOffline('offline');

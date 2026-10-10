@@ -14,7 +14,7 @@ import {
   warningById,
 } from './floor-data.ts';
 import type { Context, View } from './types.ts';
-import { apiUnreachable } from '../lib/ui.ts';
+import { apiUnreachable, clockTime } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 import { skeleton } from '../lib/ui.ts';
 
@@ -206,8 +206,8 @@ const view: View = {
       listed().at && ctx.api
         ? `<div class="small soft" data-floor-updated>${
             listed().stale
-              ? `As of ${new Date(listed().at ?? 0).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}: the last refresh failed, trying again in 30 seconds`
-              : `Updated ${new Date(listed().at ?? 0).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}; refreshes every 30 seconds`
+              ? `As of ${clockTime(listed().at ?? 0)}: the last refresh failed, trying again in 30 seconds`
+              : `Updated ${clockTime(listed().at ?? 0)}; refreshes every 30 seconds`
           }</div>`
         : ctx.api
           ? ''

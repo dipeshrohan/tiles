@@ -290,8 +290,8 @@ export function createFakeApi({
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
   let requestIds = 0; // numbers the request IDs
-  let sitesFailures = 0;
-  const plannedFailures = []; // { method, path (RegExp), status, detail }, from failNext // the next lists of sites that fail, as an API still starting would
+  let sitesFailures = 0; // the next lists of sites that fail, as an API still starting would
+  const plannedFailures = []; // { method, path (RegExp), status, detail }, from failNext
   let searchFailures = 0; // the next document searches that fail
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];

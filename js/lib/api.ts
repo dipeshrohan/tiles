@@ -795,14 +795,17 @@ export interface ApiOptions {
   token?: string;
   getToken?: () => Promise<string | null>;
   onError?: (error: ApiError) => void;
-  // A request answered (any status): the API is reachable again.
-  onAnswer?: () => void;
+  // A request answered, with its status: below 500, the API is reachable again (a 502 or 503 is
+  // often a proxy in front of an API that is down).
+  onAnswer?: (status: number) => void;
   // Offline (U2.06): a change isn't sent, and says why, rather than fail on the way.
   isOffline?: () => boolean;
   fetch?: typeof fetch;
 }
 
 export const OFFLINE_WRITE = "You're offline: nothing was changed. Try again when the connection is back";
+// A stream that began and then stopped: the API did answer, so this isn't "unreachable".
+export const STREAM_CUT = 'The answer was cut off: the connection to the Tiles API dropped';
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -880,7 +883,7 @@ export function createApiClient(options: ApiOptions) {
     } catch {
       return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
     }
-    options.onAnswer?.();
+    options.onAnswer?.(res.status);
     const requestId = res.headers.get('x-request-id');
     if (res.status === 204) return undefined as T;
     if (text && res.ok) return (await res.text()) as T;
@@ -907,6 +910,7 @@ export function createApiClient(options: ApiOptions) {
   // A POST whose answer streams back as server-sent events (the copilot's, T4.04): each event
   // reaches `onEvent` as it arrives; resolves when the stream ends.
   async function streamEvents(path: string, body: unknown, onEvent: (e: SseEvent) => void): Promise<void> {
+    if (options.isOffline?.()) return fail(new ApiError(OFFLINE_WRITE, 0));
     const headers = await headersFor(body, false, 'text/event-stream');
     let res: Response;
     try {
@@ -914,6 +918,7 @@ export function createApiClient(options: ApiOptions) {
     } catch {
       return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
     }
+    options.onAnswer?.(res.status);
     if (!res.ok || !res.body) {
       let parsed: unknown = null;
       try {
@@ -931,7 +936,7 @@ export function createApiClient(options: ApiOptions) {
       try {
         chunk = await reader.read();
       } catch {
-        return fail(new ApiError('The answer was cut off: the connection to the Tiles API dropped', 0));
+        return fail(new ApiError(STREAM_CUT, 0));
       }
       if (chunk.done) break;
       parser.feed(decoder.decode(chunk.value, { stream: true }));

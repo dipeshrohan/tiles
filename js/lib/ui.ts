@@ -327,11 +327,23 @@ export function apiUnreachable(reason: string | null, o: { signIn?: boolean; siz
       details: errorDetails({
         what: reason ?? "Can't reach the Tiles API",
         page: typeof location === 'undefined' ? '' : location.hash || '#/',
-        at: new Date(),
+        at: failedAt(reason),
         version: VERSION,
       }),
     }),
   );
+}
+
+// A time of day as pages show it ("09:05"), for "as of" and "updated" lines.
+export const clockTime = (at: number | Date): string =>
+  new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+// When a failure was first shown: a page drawn again for the same failure (every render) keeps the
+// time it happened, so the copied details point support at the right moment.
+let lastFailure: { reason: string | null; at: Date } | null = null;
+function failedAt(reason: string | null): Date {
+  if (lastFailure?.reason !== reason) lastFailure = { reason, at: new Date() };
+  return lastFailure.at;
 }
 
 // Something failed to load: why, and a button to try again (`retry` is its data attribute).

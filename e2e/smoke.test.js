@@ -516,12 +516,17 @@ test('errors say what happened and the way out: no access, a conflict, not found
   // Offline: a banner says so, and a change isn't sent but says why.
   await a.page.context().setOffline(true);
   await a.page.waitForSelector('#offline:not([hidden]):has-text("You\'re offline")');
+  assert.match(await a.page.locator('#offline').innerText(), /changes can't be sent until the connection is back/);
   const sent = fake.requests.length;
   await a.page.click('[data-act=acknowledge]');
   await toast("You're offline: nothing was changed").waitFor();
   assert.equal(fake.requests.slice(sent).filter((r) => r.startsWith('POST')).length, 0);
+  const before = fake.requests.length;
   await a.page.context().setOffline(false);
   await a.page.waitForSelector('#offline', { state: 'hidden' });
+  // Back online, what was on screen stays: the page is drawn again, not the whole site loaded afresh.
+  await a.page.waitForSelector('[data-refresh-warnings]');
+  assert.equal(fake.requests.slice(before).filter((r) => /\/ontology(\?|$)/.test(r)).length, 0);
   assert.deepEqual(
     a.errors.filter((e) => !/40[349]|Failed to load resource|ERR_INTERNET_DISCONNECTED/.test(e)),
     [],

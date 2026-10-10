@@ -61,7 +61,9 @@ export async function fetchWarnings(ctx: Context, quiet = false): Promise<void> 
     if (seq === listSeq) listing = { site, items, at: Date.now(), more: items.length === PAGE };
   } catch {
     // The client showed why. A quiet refresh keeps the last list; otherwise nothing to show.
-    if (seq === listSeq && !quiet) listing = { site, items: [], at: null, more: false };
+    // Nothing shown yet (a first load, or a quiet one for another site): show none, as a loud failure
+    // does, rather than load for ever; otherwise keep the list, marked as stale.
+    if (seq === listSeq && (!quiet || !listing?.items)) listing = { site, items: [], at: null, more: false };
     else if (seq === listSeq && listing) listing.stale = true;
   }
   if (seq === listSeq && shown()) ctx.rerender();
