@@ -2,6 +2,7 @@
 // actions someone may take on a warning, the stretch of time its chart shows, and how its
 // activity and payload read.
 
+import { oneOf } from './url-state.ts';
 import type { WarningActivity, WarningDetail, WarningInfo, WarningOutcome, WarningQuery } from './api.ts';
 
 export type Show = 'unresolved' | 'raised' | 'acknowledged' | 'resolved' | 'all';
@@ -19,15 +20,13 @@ export const DEFAULT_FILTERS: Filters = { show: 'unresolved', who: 'anyone', sig
 const SHOWS: readonly Show[] = ['unresolved', 'raised', 'acknowledged', 'resolved', 'all'];
 const WHOS: readonly Who[] = ['anyone', 'me', 'none'];
 const SIGNALS: readonly SignalState[] = ['all', 'open', 'ended'];
-const one = <T extends string>(v: string | null, allowed: readonly T[], fallback: T): T =>
-  (allowed as readonly string[]).includes(v ?? '') ? (v as T) : fallback;
 
 // The filters in the page's address (U3.05): `?show=all&who=me&signal=open`, defaults left out.
 export function filtersFromQuery(params: URLSearchParams): Filters {
   return {
-    show: one(params.get('show'), SHOWS, DEFAULT_FILTERS.show),
-    who: one(params.get('who'), WHOS, DEFAULT_FILTERS.who),
-    signal: one(params.get('signal'), SIGNALS, DEFAULT_FILTERS.signal),
+    show: oneOf(params.get('show'), SHOWS, DEFAULT_FILTERS.show),
+    who: oneOf(params.get('who'), WHOS, DEFAULT_FILTERS.who),
+    signal: oneOf(params.get('signal'), SIGNALS, DEFAULT_FILTERS.signal),
   };
 }
 export function filtersQuery(f: Filters): Record<string, string | null> {

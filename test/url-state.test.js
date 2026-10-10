@@ -26,9 +26,9 @@ test("a page's own state is kept for the tab's next load; storage that fails, or
   const storage = { setItem: (k, v) => store.set(k, v), getItem: (k) => store.get(k) ?? null };
   saveUi(storage, { warnings: { selected: '12' }, design: { tab: 'sweep' } });
   assert.deepEqual(loadUi(storage), { warnings: { selected: '12' }, design: { tab: 'sweep' } });
-  store.set('tiles.ui', '{"warnings":3,"signals":{"query":{"q":"x"}},"x":[1]}');
+  store.set('tiles:ui', '{"warnings":3,"signals":{"query":{"q":"x"}},"x":[1]}');
   assert.deepEqual(loadUi(storage), { signals: { query: { q: 'x' } } });
-  store.set('tiles.ui', 'not json');
+  store.set('tiles:ui', 'not json');
   assert.deepEqual(loadUi(storage), {});
   const failing = {
     setItem: () => {
@@ -40,4 +40,18 @@ test("a page's own state is kept for the tab's next load; storage that fails, or
   };
   saveUi(failing, { a: {} });
   assert.deepEqual(loadUi(failing), {});
+});
+
+test("a page's kept state over its defaults: fields of another kind, nested ones too, come from the defaults", async () => {
+  const { mergeKept } = await import('../js/lib/url-state.ts');
+  const defaults = { query: { q: '', quality: '' }, selected: null, skipped: [], tab: 'open' };
+  // Kept before `quality` was added, with a field since removed and one of the wrong kind.
+  const kept = { query: { q: 'press' }, selected: '12', skipped: 'x', tab: 3, gone: true };
+  assert.deepEqual(mergeKept(defaults, kept), {
+    query: { q: 'press', quality: '' },
+    selected: '12',
+    skipped: [],
+    tab: 'open',
+  });
+  assert.deepEqual(mergeKept(defaults, 'junk'), defaults);
 });

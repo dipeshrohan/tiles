@@ -1,6 +1,16 @@
 import { ux } from '../lib/analytics.ts';
 import { esc, field, fmt, need, onAll, onSubmit, bound } from '../lib/dom.ts';
-import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
+import {
+  LINKED,
+  QUALITY_FILTERS,
+  SIGNAL_SOURCES,
+  type MappingSuggestion,
+  type QualityReport,
+  type SignalChange,
+  type SignalInfo,
+  type SignalQuery,
+} from '../lib/api.ts';
+import { oneOf } from '../lib/url-state.ts';
 import type { Context, View } from './types.ts';
 import { isFieldError, showErrors, type FieldError } from '../lib/forms.ts';
 import {
@@ -48,9 +58,6 @@ let saving: string | null = null; // the signal whose change is being saved
 export const catalogue = (ctx: Context): string =>
   [ctx.api?.baseUrl ?? '', ctx.ontology.site?.id ?? '', ctx.state.user.email, ctx.auth.signedIn].join('|');
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
-
-// The quality filter's values (the address may carry one).
-const QUALITY_FILTERS = ['good', 'warn', 'bad', 'unknown', 'unchecked'] as const;
 
 const ui = (ctx: Context): Ui =>
   ctx.ui<Ui>('signals', {
@@ -565,13 +572,11 @@ const view: View = {
   // Its search and filters, in the address (U3.05): `#/signals?q=press&linked=no`.
   query: {
     read(params, ctx) {
-      const pick = <T extends string>(v: string | null, allowed: readonly T[]): T | '' =>
-        (allowed as readonly string[]).includes(v ?? '') ? (v as T) : '';
       ui(ctx).query = {
         q: (params.get('q') ?? '').slice(0, 200),
-        source: pick(params.get('source'), ['edge', 'import', 'manual'] as const),
-        linked: pick(params.get('linked'), ['yes', 'no'] as const),
-        quality: pick(params.get('quality'), QUALITY_FILTERS),
+        source: oneOf<(typeof SIGNAL_SOURCES)[number] | ''>(params.get('source'), SIGNAL_SOURCES, ''),
+        linked: oneOf<(typeof LINKED)[number] | ''>(params.get('linked'), LINKED, ''),
+        quality: oneOf<(typeof QUALITY_FILTERS)[number] | ''>(params.get('quality'), QUALITY_FILTERS, ''),
       };
     },
     write(ctx) {

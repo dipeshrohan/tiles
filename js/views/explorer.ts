@@ -477,8 +477,9 @@ const view: View = {
       }
     },
     write(ctx) {
-      if (linkParams?.get('signals'))
-        return { signals: linkParams.get('signals'), from: linkParams.get('from'), to: linkParams.get('to') };
+      // A link not yet followed (the site still loading) stays in the address as it came.
+      if (linkParams)
+        return Object.fromEntries(['signal', 'tag', 'signals', 'from', 'to'].map((k) => [k, linkParams?.get(k)]));
       const u = ui(ctx);
       const ids = u.picked.map((p) => p.id).join(',');
       return { signals: ids || null, from: ids ? u.range?.from : null, to: ids ? u.range?.to : null };

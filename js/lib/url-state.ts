@@ -15,92 +15,177 @@ export function withQuery(hash: string, values: Record<string, string | null | u
   return q ? `${path}?${q}` : path;
 }
 
+// One of a query's allowed values, or the fallback (a link's nonsense is left out).
+export const oneOf = <T extends string>(value: string | null, allowed: readonly T[], fallback: T): T =>
+  (allowed as readonly string[]).includes(value ?? '') ? (value as T) : fallback;
+
 // Shows `hash` in the address without a navigation (no hashchange, no history entry), keeping the
-// entry's saved scroll.
+// entry's state. A browser that refuses (too many changes too fast) keeps the address it had.
 export function showHash(hash: string): void {
   if (hash === location.hash) return;
-  history.replaceState(history.state, '', `${location.pathname}${location.search}${hash}`);
+  try {
+    history.replaceState(history.state, '', `${location.pathname}${location.search}${hash}`);
+  } catch {
+    // the next change writes it
+  }
 }
 
 // ---- scroll -------------------------------------------------------------------------------
-// Each history entry keeps how far the page was scrolled (in its state, as it is scrolled). Back or
-// forward to it scrolls there again, once the page is tall enough (its data may come later); a new
-// entry starts at the top. Scrolling, a key or a touch first leaves the page where it is.
+// Each history entry has a key (in its state, given once); how far each was scrolled is noted as it
+// is scrolled, in memory and in the tab's session storage, not in the history (no write per scroll).
+// Back or forward to an entry scrolls there again, and keeps trying as the page grows (its data may
+// come later) for a few seconds; a new entry starts at the top. Scrolling, a key or a touch first
+// leaves the page where it is.
 
-const SAVE_MS = 150;
 const RESTORE_FOR_MS = 3000;
-let saveTimer: ReturnType<typeof setTimeout> | undefined;
+const SCROLL_KEY = 'tiles:scroll';
+let positions = new Map<string, number>();
+let current = '';
 let pending: { y: number; until: number } | null = null;
+let growing: ResizeObserver | null = null;
+
+function entryKey(): string {
+  const state: unknown = history.state;
+  const key = state && typeof state === 'object' ? (state as { key?: unknown }).key : undefined;
+  if (typeof key === 'string') return key;
+  const made = Math.random().toString(36).slice(2, 10);
+  try {
+    history.replaceState({ ...(state && typeof state === 'object' ? state : {}), key: made }, '');
+  } catch {
+    // no key: this entry starts at the top
+  }
+  return made;
+}
 
 export function watchScroll(): void {
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  const kept = session();
+  try {
+    const raw = kept?.getItem(SCROLL_KEY);
+    if (raw) positions = new Map(Object.entries(JSON.parse(raw) as Record<string, number>));
+  } catch {
+    // none kept
+  }
+  current = entryKey();
   addEventListener(
     'scroll',
     () => {
-      if (pending) return; // the page being put back, not the person scrolling
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => {
-        const state: unknown = history.state;
-        history.replaceState({ ...(state && typeof state === 'object' ? state : {}), scrollY: scrollY }, '');
-      }, SAVE_MS);
+      // The person's own scroll on the entry showing; not one being put back, nor one while leaving.
+      if (!pending && current) positions.set(current, scrollY);
     },
     { passive: true },
   );
-  const stop = () => (pending = null);
+  const stop = () => settle();
   for (const type of ['wheel', 'touchstart', 'keydown', 'mousedown'] as const)
     addEventListener(type, stop, { passive: true, capture: true });
+  addEventListener('pagehide', () => {
+    try {
+      kept?.setItem(SCROLL_KEY, JSON.stringify(Object.fromEntries([...positions].slice(-50))));
+    } catch {
+      // not kept
+    }
+  });
 }
 
-// Where this history entry was scrolled to (0 for a new one).
-export function savedScroll(): number {
-  const state: unknown = history.state;
-  const y = state && typeof state === 'object' ? (state as { scrollY?: unknown }).scrollY : undefined;
-  return typeof y === 'number' && Number.isFinite(y) ? y : 0;
+// Leaving the entry showing: its place stays as noted (the new page, shorter, may clamp the scroll).
+export function leaving(): void {
+  settle();
+  current = '';
 }
 
-// Scrolls to this entry's place, and keeps trying as the page grows (restoreScroll after each drawing).
+// Where the entry now showing was scrolled to (0 for a new one).
+export const savedScroll = (): number => positions.get(entryKey()) ?? 0;
+
+// Arriving at an entry (a link, back or forward): the last one's place is already noted; this one
+// scrolls to its own, now and as the page grows.
 export function scrollToSaved(): void {
-  const y = savedScroll();
-  pending = y > 0 ? { y, until: Date.now() + RESTORE_FOR_MS } : null;
+  settle();
+  current = entryKey();
+  const y = positions.get(current) ?? 0;
   scrollTo(0, y);
-  restoreScroll();
+  if (y > 0 && Math.abs(scrollY - y) >= 2) {
+    pending = { y, until: Date.now() + RESTORE_FOR_MS };
+    if (typeof ResizeObserver === 'function') {
+      growing = new ResizeObserver(() => restoreScroll());
+      growing.observe(document.body);
+    }
+  }
 }
 
+// Tries again after a drawing (or the page growing); stops once there, or after a few seconds.
 export function restoreScroll(): void {
   if (!pending) return;
-  if (Date.now() > pending.until) {
-    pending = null;
-    return;
-  }
+  if (Date.now() > pending.until) return settle();
   scrollTo(0, pending.y);
-  if (Math.abs(scrollY - pending.y) < 2) pending = null; // there
+  if (Math.abs(scrollY - pending.y) < 2) settle();
+}
+
+// Leaves the page where it is (arrived, given up, or the person took over).
+export function settle(): void {
+  pending = null;
+  growing?.disconnect();
+  growing = null;
 }
 
 // ---- the rest of a page's state -----------------------------------------------------------
 // The pages' own state (ctx.ui: a tab chosen, a record open, a draft's text) is kept in this tab's
 // session storage as the page is left, and read again by its next load: a reload keeps it. Never
-// shared between tabs, and gone when the tab closes. Storage that can't be used keeps nothing.
+// shared between tabs, gone when the tab closes, and dropped on signing out. Storage that can't be
+// used keeps nothing.
 
-const UI_KEY = 'tiles.ui';
+const UI_KEY = 'tiles:ui';
 
-export function saveUi(storage: Pick<Storage, 'setItem'>, ui: Record<string, object>): void {
+// The tab's session storage, or null where it is blocked (reading it can throw).
+export function session(): Storage | null {
   try {
-    storage.setItem(UI_KEY, JSON.stringify(ui));
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function saveUi(storage: Pick<Storage, 'setItem'> | null, ui: Record<string, object>): void {
+  try {
+    storage?.setItem(UI_KEY, JSON.stringify(ui));
   } catch {
     // full, or blocked: the next load starts afresh
   }
 }
 
-export function loadUi(storage: Pick<Storage, 'getItem'>): Record<string, object> {
+export function forgetUi(storage: Pick<Storage, 'removeItem'> | null): void {
   try {
-    const raw = storage.getItem(UI_KEY);
+    storage?.removeItem(UI_KEY);
+  } catch {
+    // nothing kept anyway
+  }
+}
+
+export function loadUi(storage: Pick<Storage, 'getItem'> | null): Record<string, object> {
+  try {
+    const raw = storage?.getItem(UI_KEY);
     const ui: unknown = raw ? JSON.parse(raw) : null;
-    if (!ui || typeof ui !== 'object' || Array.isArray(ui)) return {};
+    if (!isPlain(ui)) return {};
     // Only pages' objects: anything else is left behind.
-    return Object.fromEntries(
-      Object.entries(ui).filter(([, v]) => v !== null && typeof v === 'object' && !Array.isArray(v)),
-    ) as Record<string, object>;
+    return Object.fromEntries(Object.entries(ui).filter(([, v]) => isPlain(v))) as Record<string, object>;
   } catch {
     return {};
   }
+}
+
+const isPlain = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+// A page's kept state over its defaults: a field of another kind than its default (or one added
+// since) comes from the defaults, nested objects field by field; fields the defaults don't name go.
+export function mergeKept<T extends object>(defaults: T, kept: unknown): T {
+  if (!isPlain(kept)) return { ...defaults };
+  const out: Record<string, unknown> = {};
+  for (const [k, d] of Object.entries(defaults)) {
+    const v = kept[k];
+    if (isPlain(d)) out[k] = mergeKept(d, v);
+    else if (d === null)
+      out[k] = v === undefined ? null : v; // null: any kind (a selection, a range)
+    else if (Array.isArray(d)) out[k] = Array.isArray(v) ? v : d;
+    else out[k] = typeof v === typeof d ? v : d;
+  }
+  return out as T;
 }

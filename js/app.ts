@@ -37,11 +37,15 @@ import { announce, esc, lessMotion, need, rebind, routeOf } from './lib/dom.ts';
 import { morph, noteSent, replace } from './lib/morph.ts';
 import { after, before, rowMotion, watchSections } from './lib/micro.ts';
 import {
+  forgetUi,
   loadUi,
+  mergeKept,
   queryOf,
   restoreScroll,
   saveUi,
   scrollToSaved,
+  session,
+  leaving,
   showHash,
   watchScroll,
   withQuery,
@@ -140,7 +144,7 @@ const state: AppState = {
   shots,
   detection,
   scored: scoreAlerts(detection.alerts, shots.downtime, shots.cycleSeconds),
-  ui: loadUi(sessionStorage),
+  ui: loadUi(session()),
 };
 
 const uiChecked = new Set<string>(); // pages whose kept state has had its defaults filled in
@@ -434,6 +438,9 @@ const authCtx: AuthContext = {
     }
   },
   async signOut() {
+    // What the pages showed was this person's: not kept for whoever signs in next in this tab.
+    forgetUi(session());
+    state.ui = {};
     const url = await signOut(redirectUri(), location.search + location.hash);
     if (url) location.assign(url);
     else {
@@ -465,7 +472,7 @@ const ctx: Context = {
     // Kept from the tab's last load (U3.05): what it lacks (a field added since) comes from the defaults.
     if (!uiChecked.has(viewId)) {
       uiChecked.add(viewId);
-      state.ui[viewId] = { ...defaults, ...(state.ui[viewId] ?? {}) };
+      if (state.ui[viewId]) state.ui[viewId] = mergeKept(defaults, state.ui[viewId]);
     }
     state.ui[viewId] ??= { ...defaults };
     return state.ui[viewId] as T;
@@ -715,7 +722,7 @@ window.addEventListener('pageshow', (e) => {
 // a page back from the back/forward cache still has its toasts, so they stay with it.
 window.addEventListener('pagehide', () => saveWaiting(localStorage));
 // What each page shows (filters, a tab, a record open) stays for this tab's next load (U3.05).
-window.addEventListener('pagehide', () => saveUi(sessionStorage, state.ui));
+window.addEventListener('pagehide', () => saveUi(session(), state.ui));
 window.addEventListener('pageshow', (e) => {
   if (e.persisted) keepWaiting(localStorage);
 });
@@ -912,6 +919,7 @@ type ViewTransitionDocument = Document & {
 
 function navigate(): void {
   closeMenu(); // whatever link was followed: the menu's, the brand, or one in the page
+  leaving(); // the page left keeps the place it was scrolled to (U3.05)
   const root = need(document, '#view');
   const newPage = currentView().id !== shownView;
   // The link followed to this record, when it was a click on a link to exactly this place.

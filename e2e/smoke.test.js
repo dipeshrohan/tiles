@@ -3438,7 +3438,9 @@ test('saved insights: signals over a range, kept as plotted and opened again in 
   const a = await openAs(t, apiUrl, null, `explorer?signals=${temp.id},${force.id}&from=${from}&to=${to}`);
   await a.page.waitForSelector('[data-picked]:has-text("press1.force")');
   await a.page.waitForSelector('[data-chart] svg');
-  assert.equal(await a.page.evaluate(() => location.hash), '#/explorer');
+  // The address keeps showing them (U3.05): a reload or the link copied shows the same charts.
+  const shown = new URLSearchParams((await a.page.evaluate(() => location.hash)).split('?')[1]);
+  assert.deepEqual([shown.get('signals'), shown.get('from'), shown.get('to')], [`${temp.id},${force.id}`, from, to]);
   await a.page.click('[data-save-insight]');
   assert.equal(await a.page.inputValue('#insight-save [name=title]'), 'press1.temperature, press1.force');
   await a.page.fill('#insight-save [name=title]', 'Force climbs while temperature cycles');
@@ -3622,9 +3624,11 @@ test('a view is in its address: a reload or a copied link shows the same, and ba
   await a.page.setViewportSize({ width: 1280, height: 500 });
   await a.page.evaluate(() => (location.hash = '#/styleguide'));
   await a.page.waitForSelector('#sg-sec-motion');
-  await a.page.evaluate(() => scrollTo(0, 1500));
-  await a.page.waitForTimeout(300); // saved with the entry
-  await a.page.evaluate(() => (location.hash = '#/settings'));
+  // Left straight after scrolling: the place is noted as it is scrolled, not some time later.
+  await a.page.evaluate(() => {
+    scrollTo(0, 1500);
+    requestAnimationFrame(() => (location.hash = '#/settings'));
+  });
   await a.page.waitForSelector('#view h1:has-text("Settings")');
   assert.equal(await a.page.evaluate(() => scrollY), 0);
   await a.page.goBack();

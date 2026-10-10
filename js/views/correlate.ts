@@ -260,7 +260,7 @@ async function saveInsight(ctx: Context): Promise<void> {
 function selectFromLink(ctx: Context): void {
   const id = new URLSearchParams(location.hash.split('?')[1] ?? '').get('dataset');
   if (!id) return;
-  history.replaceState(null, '', `${location.pathname}${location.search}#/correlate`);
+  history.replaceState(history.state, '', `${location.pathname}${location.search}#/correlate`);
   Object.assign(uiState(ctx), { selected: id, outcome: '', ngText: '', variables: null, split: '' });
   detail = null;
 }
