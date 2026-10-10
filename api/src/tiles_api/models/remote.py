@@ -114,9 +114,9 @@ _opener = urllib.request.build_opener(_NoRedirect)
 Post = Callable[[str, bytes, dict[str, str], float], bytes]
 
 
-def post(url: str, body: bytes, headers: dict[str, str], timeout: float) -> bytes:
+def post(url: str, body: bytes, headers: dict[str, str], timeout: float, who: str = "The model's endpoint") -> bytes:
     """The reply's body. `timeout` bounds the whole call (urllib's bounds each socket operation, so
-    a reply sent slowly is cut off once the time is up)."""
+    a reply sent slowly is cut off once the time is up). Failures name `who` was called."""
     deadline = time.monotonic() + timeout
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")  # noqa: S310 - checked endpoint
     try:
@@ -127,17 +127,15 @@ def post(url: str, body: bytes, headers: dict[str, str], timeout: float) -> byte
                 parts.append(chunk)
                 size += len(chunk)
                 if size > MAX_REPLY_BYTES:
-                    raise RemoteError("The model's endpoint answered more than 32 MB", retry=False)
+                    raise RemoteError(f"{who} answered more than 32 MB", retry=False)
                 if time.monotonic() > deadline:
                     raise TimeoutError
     except urllib.error.HTTPError as e:
         why = _detail(e)
         busy = e.code >= 500 or e.code in (408, 429) or 300 <= e.code < 400
-        raise RemoteError(
-            f"The model's endpoint answered {e.code}" + (f": {why}" if why else ""), retry=busy, status=e.code
-        ) from None
+        raise RemoteError(f"{who} answered {e.code}" + (f": {why}" if why else ""), retry=busy, status=e.code) from None
     except (OSError, http.client.HTTPException) as e:  # unreachable, refused, timed out, cut off
-        raise RemoteError(f"The model's endpoint can't be reached ({type(e).__name__})") from None
+        raise RemoteError(f"{who} can't be reached ({type(e).__name__})") from None
     return b"".join(parts)
 
 
@@ -155,21 +153,22 @@ def _detail(e: urllib.error.HTTPError) -> str:
     return " ".join(why.split())[:300] if isinstance(why, str) else ""
 
 
-def outputs_of(reply: bytes) -> dict[str, list[float | None]]:
-    """The outputs in a reply, `{"outputs": {"<name>": [numbers or null…]}}`, or a RemoteError."""
+def outputs_of(reply: bytes, who: str = "The model's endpoint") -> dict[str, list[float | None]]:
+    """The outputs in a reply, `{"outputs": {"<name>": [numbers or null…]}}`, or a RemoteError
+    naming `who` gave it."""
     try:
         found = json.loads(reply, parse_constant=_refuse_constant)
     except ValueError as e:  # not JSON (or NaN, Infinity)
-        raise RemoteError(f"The model's endpoint didn't answer JSON: {e}", retry=False) from None
+        raise RemoteError(f"{who} didn't answer JSON: {e}", retry=False) from None
     outputs = found.get("outputs") if isinstance(found, dict) else None
     if not isinstance(outputs, dict):
-        raise RemoteError('The model\'s endpoint must answer {"outputs": {...}}', retry=False)
+        raise RemoteError(f'{who} must answer {{"outputs": {{...}}}}', retry=False)
     result: dict[str, list[float | None]] = {}
     for name, values in outputs.items():
         if not isinstance(values, list) or not all(
             v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)) for v in values
         ):
-            raise RemoteError(f"The model's endpoint must give {name} as a list of numbers or nulls", retry=False)
+            raise RemoteError(f"{who} must give {name} as a list of numbers or nulls", retry=False)
         result[str(name)] = [None if v is None else float(v) for v in values]
     return result
 

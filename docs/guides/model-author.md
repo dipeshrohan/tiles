@@ -659,7 +659,7 @@ Each evaluation runs in a new Python process:
 - **no files written**, and none read outside the model's directory and the standard library;
 - **at most 5 s and 512 MB** by default (`sandbox.timeout`, `sandbox.memoryMb`); no new processes.
 
-Whatever `run` prints is dropped. An exception, or a limit reached, refuses that evaluation with
+Whatever `run` prints is dropped (and a model writing more than 32 MB is stopped). An exception, or a limit reached, refuses that evaluation with
 its reason, such as `The model failed: ZeroDivisionError: division by zero`: a binding skips that
 window, a sweep leaves that point null, and evaluate and design runs answer 502 with the reason.
 The sandbox being down stops a binding, which runs the window again later, as for an HTTP

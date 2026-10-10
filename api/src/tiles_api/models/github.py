@@ -13,6 +13,7 @@ output's name to a list of numbers (or None). The standard library only: no pack
 """
 
 import base64
+import functools
 import hashlib
 import http.client
 import io
@@ -30,6 +31,7 @@ from typing import Any
 
 from tiles_api.models.registry import ModelSpec
 from tiles_api.models.remote import Post, RemoteError, outputs_of, post
+from tiles_api.sandbox.server import ENTRY
 from tiles_api.settings import Settings
 
 SOURCE = "github"
@@ -150,8 +152,8 @@ def pack(archive: bytes, path: str) -> tuple[dict[str, Any], bytes]:
     if not isinstance(spec, dict):
         raise GithubError(f"{where} must be a JSON object")
     entry = spec.get("entry", "model.py")
-    if not isinstance(entry, str) or entry not in files or not entry.endswith(".py"):
-        raise GithubError(f"The entry file {entry!r} isn't in the model's directory")
+    if not isinstance(entry, str) or entry not in files or not ENTRY.match(entry) or ".." in entry.split("/"):
+        raise GithubError(f"The entry file {entry!r} isn't in the model's directory (letters, digits, _ . / -)")
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
         for name in sorted(files):
@@ -186,7 +188,7 @@ class SandboxModel:
         self.code = code
         self.org_id = org_id
         self.settings = settings
-        self.transport = transport or post
+        self.transport = transport or functools.partial(post, who="The sandbox")
 
     def _call(self, body: dict[str, Any]) -> dict[str, list[float | None]]:
         url, token = self.settings.sandbox_url, self.settings.sandbox_token
@@ -199,12 +201,15 @@ class SandboxModel:
         }
         data = json.dumps(body, allow_nan=False).encode()
         try:
-            return outputs_of(self.transport(url.rstrip("/") + "/run", data, headers, self.settings.model_timeout))
+            reply = self.transport(url.rstrip("/") + "/run", data, headers, self.settings.model_timeout)
         except RemoteError as e:
-            message = str(e).replace("The model's endpoint answered", "The sandbox answered")
-            raise RemoteError(
-                message.replace("The model's endpoint", "The sandbox"), retry=e.retry, status=e.status
-            ) from None
+            # The model refused these inputs (422), or they are too large (413): that window is
+            # skipped. Anything else (a wrong token, the code refused, the sandbox down) is the
+            # deployment's to fix, so a binding waits rather than skipping windows.
+            if e.status is not None and e.status not in (409, 413, 422):
+                raise RemoteError(str(e), retry=True, status=e.status) from None
+            raise
+        return outputs_of(reply, who="The model")
 
     def run(self, inputs: Mapping[str, Sequence[float]], params: Mapping[str, float]) -> dict[str, list[float | None]]:
         body: dict[str, Any] = {

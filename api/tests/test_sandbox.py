@@ -152,3 +152,54 @@ def test_requests_are_checked(sandbox: str) -> None:
 def test_the_sandbox_wont_start_without_a_token() -> None:
     with pytest.raises(SystemExit, match="TILES_SANDBOX_TOKEN"):
         server.Settings({"TILES_SANDBOX_TOKEN": "short"})
+
+
+def test_a_model_printing_too_much_is_stopped(sandbox: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "MAX_REPLY", 10_000)
+    status, reply = run(sandbox, "import os\ndef run(i, p):\n    os.write(1, b'x' * 100_000)\n    return {}\n")
+    assert (status, reply["detail"]) == (422, "The model wrote more than 32 MB")
+
+
+def test_the_guard_isnt_undone_by_replacing_what_it_calls(sandbox: str) -> None:
+    source = (
+        "import os, os.path\n"
+        "def run(i, p):\n"
+        "    os.path.realpath = lambda path: os.getcwd() + '/model.py'\n"
+        "    os.fsdecode = lambda path: os.getcwd() + '/model.py'\n"
+        "    return {'y': [len(open('/etc/passwd').read())]}\n"
+    )
+    status, reply = run(sandbox, source)
+    assert status == 422 and "not /etc/passwd" in reply["detail"]
+
+
+def test_code_kept_is_bounded_least_recently_used_first(sandbox: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server, "MAX_CACHED", 2)
+    bodies = []
+    for n in range(3):
+        sha, code = zipped({"model.py": f"def run(i, p):\n    return {{'y': [{n}]}}\n"})
+        body = {"code_sha256": sha, "entry": "model.py", "inputs": {}, "params": {}}
+        assert call(sandbox, body | {"code": code}) == (200, {"outputs": {"y": [n]}})
+        bodies.append(body)
+    assert call(sandbox, bodies[0])[0] == 409  # the oldest went
+    assert call(sandbox, bodies[2])[0] == 200
+
+
+def test_the_sandboxs_own_failure_is_a_500(sandbox: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    def full(*_args: Any) -> Any:
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(server, "unpack", full)
+    assert run(sandbox, "def run(i, p):\n    return {}\n") == (500, {"detail": "The sandbox failed: OSError"})
+
+
+def test_the_server_keeps_its_environment_to_itself() -> None:
+    """Its token is in its environment: made unreadable to other processes of its user (Linux)."""
+    import subprocess
+    import sys
+
+    probe = (
+        "import ctypes\nfrom tiles_api.sandbox.server import _not_dumpable\n_not_dumpable()\n"
+        "print(ctypes.CDLL(None).prctl(3, 0, 0, 0, 0))\n"  # PR_GET_DUMPABLE
+    )
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=True)  # noqa: S603
+    assert out.stdout.strip() == "0"

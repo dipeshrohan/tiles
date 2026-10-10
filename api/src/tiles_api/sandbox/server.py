@@ -37,7 +37,9 @@ from pathlib import Path
 from typing import Any
 
 CHILD = Path(__file__).with_name("child.py")
-MAX_BODY = 8 * 1024 * 1024
+MAX_BODY = 32 * 1024 * 1024
+MAX_REPLY = 32 * 1024 * 1024  # what a model may print as its reply
+MAX_CACHED = 200  # models' code kept unpacked; the least recently used goes first
 MAX_CODE_BYTES = 1024 * 1024  # unpacked, per model
 MAX_FILES = 200
 SHA = re.compile(r"^[0-9a-f]{64}$")
@@ -45,17 +47,15 @@ ENTRY = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]{0,200}\.py$")
 
 
 class Settings:
-    """From the environment: TILES_SANDBOX_TOKEN (required), _HOST, _PORT, _TIMEOUT (seconds per
-    evaluation), _MEMORY_MB, _DIR (where code is unpacked) and _WORKERS (evaluations at once)."""
+    """From the environment: TILES_SANDBOX_TOKEN (required; an environment variable, not a file, so
+    nothing a model can open holds it), _HOST, _PORT, _TIMEOUT (seconds per evaluation), _MEMORY_MB,
+    _DIR (where code is unpacked) and _WORKERS (evaluations at once)."""
 
     def __init__(self, env: dict[str, str] | None = None) -> None:
         env = dict(os.environ if env is None else env)
         self.token = env.get("TILES_SANDBOX_TOKEN", "")
-        token_file = env.get("TILES_SANDBOX_TOKEN_FILE")
-        if not self.token and token_file:
-            self.token = Path(token_file).read_text().strip()
         if len(self.token) < 16:
-            raise SystemExit("Set TILES_SANDBOX_TOKEN (or _FILE) to a secret of at least 16 characters")
+            raise SystemExit("Set TILES_SANDBOX_TOKEN to a secret of at least 16 characters")
         self.host = env.get("TILES_SANDBOX_HOST", "127.0.0.1")
         self.port = int(env.get("TILES_SANDBOX_PORT", "8100"))
         self.timeout = float(env.get("TILES_SANDBOX_TIMEOUT", "5"))
@@ -82,6 +82,7 @@ def unpack(settings: Settings, sha: str, code_b64: str) -> Path:
     target = settings.dir / sha
     if target.is_dir():
         return target
+    _evict(settings)
     staging = Path(tempfile.mkdtemp(dir=settings.dir, prefix=".unpack-"))
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as z:
@@ -111,6 +112,64 @@ def unpack(settings: Settings, sha: str, code_b64: str) -> Path:
             shutil.rmtree(staging, ignore_errors=True)
 
 
+def _evict(settings: Settings) -> None:
+    """Keeps at most MAX_CACHED models' code, dropping the least recently used."""
+    kept = sorted((p for p in settings.dir.iterdir() if SHA.match(p.name)), key=lambda p: p.stat().st_mtime)
+    for old in kept[: max(0, len(kept) - MAX_CACHED + 1)]:
+        for f in old.rglob("*"):
+            if f.is_file():
+                f.chmod(0o644)
+        shutil.rmtree(old, ignore_errors=True)
+
+
+def _run_child(settings: Settings, code_dir: Path, request: bytes) -> tuple[int, bytes]:
+    """The child's exit code and reply. Its stdout is read up to MAX_REPLY (a model that prints
+    more is stopped); its stderr is dropped; it is killed at the timeout."""
+    proc = subprocess.Popen(  # noqa: S603 - this interpreter, the sandbox's own child script
+        [sys.executable, "-I", "-S", str(CHILD)],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        cwd=code_dir,
+        env={},
+        start_new_session=True,
+    )
+    assert proc.stdin is not None and proc.stdout is not None  # noqa: S101 - set just above
+    out: list[bytes] = []
+    too_much = threading.Event()
+
+    def read() -> None:
+        size = 0
+        assert proc.stdout is not None  # noqa: S101 - set above
+        while chunk := proc.stdout.read(64 * 1024):
+            size += len(chunk)
+            if size > MAX_REPLY:
+                too_much.set()
+                proc.kill()
+                return
+            out.append(chunk)
+
+    reader = threading.Thread(target=read, daemon=True)
+    reader.start()
+    try:
+        proc.stdin.write(request)
+        proc.stdin.close()
+    except BrokenPipeError:  # it ended before reading: its exit says why
+        pass
+    try:
+        code = proc.wait(timeout=settings.timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        raise Refused(422, f"The model took longer than {settings.timeout:g} s") from None
+    finally:
+        reader.join(timeout=5)
+        proc.stdout.close()
+    if too_much.is_set():
+        raise Refused(422, "The model wrote more than 32 MB")
+    return code, b"".join(out)
+
+
 def evaluate(settings: Settings, body: dict[str, Any], slots: threading.BoundedSemaphore) -> bytes:
     sha = body.get("code_sha256")
     entry = body.get("entry")
@@ -123,6 +182,8 @@ def evaluate(settings: Settings, body: dict[str, Any], slots: threading.BoundedS
         code_dir = unpack(settings, sha, str(body["code"]))
     elif not code_dir.is_dir():
         raise Refused(409, "send the code")
+    else:
+        os.utime(code_dir)  # recently used: the last to be evicted
     request = json.dumps(
         {
             "entry": entry,
@@ -134,31 +195,22 @@ def evaluate(settings: Settings, body: dict[str, Any], slots: threading.BoundedS
         }
     )
     with slots:
-        try:
-            done = subprocess.run(  # noqa: S603 - this interpreter, the sandbox's own child script
-                [sys.executable, "-I", "-S", str(CHILD)],
-                input=request.encode(),
-                capture_output=True,
-                cwd=code_dir,
-                env={},
-                timeout=settings.timeout,
-                start_new_session=True,
-                check=False,
-            )
-        except subprocess.TimeoutExpired:
-            raise Refused(422, f"The model took longer than {settings.timeout:g} s") from None
-    if done.returncode == 0:
-        return done.stdout
+        code, stdout = _run_child(settings, code_dir, request.encode())
+    if code == 0:
+        return stdout
     try:
-        error = json.loads(done.stdout).get("error")
+        error = json.loads(stdout).get("error")
     except (ValueError, AttributeError):
         error = None
     if isinstance(error, str):
         raise Refused(422, f"The model failed: {error}")
-    if done.returncode < 0:
-        why = signal.Signals(-done.returncode).name
+    if code < 0:
+        try:
+            why = signal.Signals(-code).name
+        except ValueError:
+            why = f"signal {-code}"
         raise Refused(422, f"The model was stopped ({why}): it used more than its CPU time or memory")
-    raise Refused(422, f"The model failed (exit code {done.returncode})")
+    raise Refused(422, f"The model failed (exit code {code})")
 
 
 def make_server(settings: Settings) -> ThreadingHTTPServer:
@@ -189,9 +241,12 @@ def make_server(settings: Settings) -> ThreadingHTTPServer:
                 given = (self.headers.get("Authorization") or "").encode()
                 if not hmac.compare_digest(given, expected):
                     raise Refused(401, "Wrong token")
-                size = int(self.headers.get("Content-Length") or 0)
+                try:
+                    size = int(self.headers.get("Content-Length") or 0)
+                except ValueError:
+                    raise Refused(400, "Content-Length must be a number") from None
                 if not 0 < size <= MAX_BODY:
-                    raise Refused(413, "The request is empty or larger than 8 MB")
+                    raise Refused(413, "The request is empty or larger than 32 MB")
                 try:
                     body = json.loads(self.rfile.read(size))
                 except ValueError:
@@ -201,8 +256,9 @@ def make_server(settings: Settings) -> ThreadingHTTPServer:
                 self.reply(200, evaluate(settings, body, slots))
             except Refused as e:
                 self.reply(e.status, json.dumps({"detail": e.detail}).encode())
-            except ValueError:
-                self.reply(400, b'{"detail": "Content-Length must be a number"}')
+            except Exception as e:  # the sandbox's own failure (its disk full, say): said, and logged
+                self.log_message("failed: %s", repr(e))
+                self.reply(500, json.dumps({"detail": f"The sandbox failed: {type(e).__name__}"}).encode())
 
         def log_message(self, format: str, *args: Any) -> None:
             sys.stderr.write(json.dumps({"logger": "tiles_sandbox", "message": format % args}) + "\n")
@@ -210,8 +266,20 @@ def make_server(settings: Settings) -> ThreadingHTTPServer:
     return ThreadingHTTPServer((settings.host, settings.port), Handler)
 
 
+def _not_dumpable() -> None:
+    """On Linux, makes this process's memory and /proc/<pid>/environ unreadable by other processes
+    of its user, the models' among them: the token stays the server's own."""
+    if sys.platform != "linux":
+        return
+    import ctypes  # the server's own use; models may not import it
+
+    pr_set_dumpable = 4
+    ctypes.CDLL(None, use_errno=True).prctl(pr_set_dumpable, 0, 0, 0, 0)
+
+
 def main() -> None:
     """tiles-sandbox: serves evaluations of models from GitHub, each in a sandboxed process."""
+    _not_dumpable()
     settings = Settings()
     settings.dir.mkdir(parents=True, exist_ok=True)
     server = make_server(settings)

@@ -8,9 +8,11 @@ installs an audit hook (PEP 578) that refuses sockets, new processes, writing fi
 the entry file, calls its `run(inputs, params)` and writes `{"outputs": {...}}`, or
 `{"error": "..."}` with exit code 1, to stdout.
 
-The hook is a second wall, not the first: the server's pod has no network and no credentials, a
-read-only filesystem and a non-root user (deploy/helm). Standard library only: keep it importable
-without the rest of tiles_api.
+The hook is a second wall, not the boundary: Python code can work around an audit hook, given
+effort. The boundary is this process (its limits, no environment) and the sandbox's pod: no network
+out, no credentials (the server's token is in its environment, which it makes unreadable to
+others), a read-only filesystem and a non-root user, with an optional runtime class such as gVisor
+(deploy/helm). Standard library only: keep it importable without the rest of tiles_api.
 """
 
 import importlib.util
@@ -117,7 +119,14 @@ def readable_roots(workdir: str) -> tuple[str, ...]:
 def install_guard(workdir: str) -> None:
     roots = readable_roots(workdir)
 
-    def guard(event: str, args: tuple[Any, ...]) -> None:
+    # What the guard calls is bound now, so a model replacing os.path.realpath doesn't change it.
+    def guard(
+        event: str,
+        args: tuple[Any, ...],
+        realpath: Any = os.path.realpath,
+        fsdecode: Any = os.fsdecode,
+        sep: str = os.sep,
+    ) -> None:
         if event == "open":
             path, mode, flags = args
             if path is None or isinstance(path, int):
@@ -125,12 +134,12 @@ def install_guard(workdir: str) -> None:
             writing = bool(flags & WRITE_FLAGS) if isinstance(flags, int) else False
             if writing or (isinstance(mode, str) and any(c in mode for c in "wax+")):
                 raise PermissionError("models may not write files")
-            real = os.path.realpath(os.fsdecode(path))
-            if not (real + os.sep).startswith(roots) and not real.startswith(roots):
+            real = realpath(fsdecode(path))
+            if not (real + sep).startswith(roots) and not real.startswith(roots):
                 raise PermissionError(f"models may read only their own directory, not {real}")
         elif event in ("os.listdir", "os.scandir"):
-            where = os.path.realpath(os.fsdecode(args[0])) if args[0] not in (None, ".") else workdir
-            if not (where + os.sep).startswith(roots):
+            where = realpath(fsdecode(args[0])) if args[0] not in (None, ".") else workdir
+            if not (where + sep).startswith(roots):
                 raise PermissionError(f"models may list only their own directory, not {where}")
         elif event == "import":
             top = str(args[0]).split(".")[0]

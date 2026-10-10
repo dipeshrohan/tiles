@@ -54,7 +54,11 @@ spec:
           env:
             - { name: TILES_SANDBOX_HOST, value: "0.0.0.0" }
             - { name: TILES_SANDBOX_PORT, value: "8100" }
-            - { name: TILES_SANDBOX_TOKEN_FILE, value: /var/run/secrets/tiles-sandbox/token }
+            # An environment variable, not a file: the server makes its environment unreadable to
+            # the models it runs, as a mounted file could not be.
+            - name: TILES_SANDBOX_TOKEN
+              valueFrom:
+                secretKeyRef: { name: {{ include "tiles.generatedSecret" . }}, key: tiles_sandbox_token }
             - { name: TILES_SANDBOX_DIR, value: /tmp/code }
             - { name: TILES_SANDBOX_TIMEOUT, value: {{ .Values.sandbox.timeout | quote }} }
             - { name: TILES_SANDBOX_MEMORY_MB, value: {{ .Values.sandbox.memoryMb | quote }} }
@@ -72,16 +76,32 @@ spec:
           securityContext:
             {{- include "tiles.containerSecurity" . | nindent 12 }}
           volumeMounts:
-            - { name: token, mountPath: /var/run/secrets/tiles-sandbox, readOnly: true }
             - { name: tmp, mountPath: /tmp }
       volumes:
-        # Its own token only: none of the API's secrets.
-        - name: token
-          secret:
-            secretName: {{ include "tiles.generatedSecret" . }}
-            defaultMode: 0400
-            items:
-              - { key: tiles_sandbox_token, path: token }
+        # Models' code, unpacked (up to 200 of 1 MB at most), on the node's disk.
         - name: tmp
-          emptyDir: { medium: Memory, sizeLimit: 256Mi }
+          emptyDir: { sizeLimit: 512Mi }
+---
+# It accepts only the API and its jobs, and connects to nothing at all: there whenever the sandbox
+# is, whatever networkPolicy.enabled says (it needs a CNI that enforces NetworkPolicy).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $fullname }}-sandbox
+  labels:
+    {{- include "tiles.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "tiles.selector" (dict "root" . "component" "sandbox") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app.kubernetes.io/instance, operator: In, values: [{{ .Release.Name | quote }}] }
+              - { key: app.kubernetes.io/component, operator: In, values: [api, job] }
+      ports:
+        - port: 8100
+  egress: []
 {{- end }}

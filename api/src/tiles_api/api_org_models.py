@@ -12,17 +12,18 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictFloat, StrictInt, ValidationError
 
 from tiles_api import audit, sealed
 from tiles_api.api_models import ModelOut
-from tiles_api.api_sites import OrgAdmin, OrgCaller
+from tiles_api.api_ontology import Auth
+from tiles_api.api_sites import OrgAdmin, OrgCaller, org_admin
 from tiles_api.models import github, remote, store
 from tiles_api.models.registry import ModelError, ModelSpec, Param, Port, registry
 from tiles_api.models.store import OWN_MODELS
-from tiles_api.store import one
+from tiles_api.store import one, side_pool
 
 router = APIRouter(tags=["models"])
 
@@ -253,9 +254,15 @@ class Fetched:
     code: bytes
 
 
-def fetched_model(body: GithubModelIn, _caller: OrgAdmin, request: Request) -> Fetched:
-    """The model's code and spec from GitHub, fetched once the caller is known to be an organisation
-    admin (no one else makes Tiles fetch anything); bounded by GITHUB_TIMEOUT."""
+def admin_first(principal: Auth, request: Request, org: Annotated[str | None, Query()] = None) -> None:
+    """The organisation-admin check, on a short connection of its own given back before anything
+    is fetched: no one else makes Tiles fetch, and a slow download holds no connection."""
+    with side_pool(request.app.state).connection() as conn:
+        org_admin(principal, conn, org)
+
+
+def fetched_model(body: GithubModelIn, _admin: Annotated[None, Depends(admin_first)], request: Request) -> Fetched:
+    """The model's code and spec from GitHub, bounded by GITHUB_TIMEOUT."""
     settings = request.app.state.settings
     if not settings.sandbox_url or settings.sandbox_token is None:
         raise HTTPException(

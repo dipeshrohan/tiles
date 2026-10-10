@@ -4,6 +4,7 @@ and run in the sandbox like a built-in model, by every site of the organisation.
 import io
 import json
 import tarfile
+import uuid
 from collections.abc import Iterator
 from typing import Any
 
@@ -17,7 +18,7 @@ from test_onboarding import make_org_admin
 from test_sandbox import TOKEN, sandbox  # noqa: F401 - sandbox is a fixture
 
 from tiles_api.main import create_app
-from tiles_api.models import github, store
+from tiles_api.models import github, remote, store
 from tiles_api.models.remote import RemoteError
 from tiles_api.settings import Settings
 from tiles_api.store import UNSCOPED
@@ -236,3 +237,33 @@ def test_github_redirects_only_to_its_download_host() -> None:
         handler.redirect_request(req, None, 302, "Found", {}, "https://evil.example.com/x")
     with pytest.raises(urllib.error.HTTPError):
         handler.redirect_request(req, None, 302, "Found", {}, "http://codeload.github.com/x")
+
+
+def test_a_models_bad_reply_is_the_models_and_the_deployments_failures_wait(
+    api: TestClient, admin: str, archive: dict[str, Any]
+) -> None:
+    archive["files"] = repo() | {"models/beam/model.py": "def run(inputs, params):\n    return {'deflection': ['x']}\n"}
+    assert register(api).status_code == 201
+    res = api.post(f"/sites/{admin}/models/beam-fe/evaluate", headers=VIEWER, json={})
+    assert res.json()["detail"] == "The model must give deflection as a list of numbers or nulls"
+
+    def answered(status: int) -> Any:
+        def transport(*_args: Any) -> bytes:
+            raise RemoteError(f"The sandbox answered {status}", retry=False, status=status)
+
+        return transport
+
+    settings = Settings(_env_file=None, env="test", sandbox_url="http://sandbox", sandbox_token=TOKEN)
+    for status, retry in ((401, True), (400, True), (500, True), (413, False), (422, False)):
+        spec = remote.spec_of(SPEC | {"spec": SPEC})
+        model = github.SandboxModel(spec, "0" * 64, "model.py", b"", uuid.uuid4(), settings, answered(status))
+        with pytest.raises(RemoteError) as e:
+            model.run({}, {"load": 1.0})
+        assert e.value.retry is retry, status
+
+
+@pytest.mark.parametrize("entry", ["my model.py", "-main.py", "../model.py"])
+def test_an_entry_the_sandbox_would_refuse_is_refused_now(entry: str) -> None:
+    files = repo(SPEC | {"entry": entry}) | {f"models/beam/{entry}": "def run(i, p):\n    return {}\n"}
+    with pytest.raises(github.GithubError, match="isn't in the model's directory"):
+        github.pack(tarball(files), "models/beam")
