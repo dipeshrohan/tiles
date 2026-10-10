@@ -115,6 +115,20 @@ def test_archived_documents_leave_search_and_the_list(api: TestClient, site: str
     assert upload(api, site, make_pdf(SOP)).json()["number"] == 2  # numbers aren't reused
 
 
+def test_an_archived_document_can_be_restored(api: TestClient, site: str) -> None:  # noqa: F811
+    upload(api, site, make_pdf(SOP))
+    assert api.delete(f"/sites/{site}/documents/1", headers=ENG).status_code == 204
+    assert api.post(f"/sites/{site}/documents/1/restore", headers=VIEWER).status_code == 403  # engineers write
+    back = api.post(f"/sites/{site}/documents/1/restore", headers=ENG)
+    assert back.status_code == 200, back.text
+    assert back.json()["number"] == 1
+    assert [d["number"] for d in api.get(f"/sites/{site}/documents", headers=VIEWER).json()] == [1]
+    assert find(api, site, "plunger").json()["matches"] != []  # and in search again
+    # Only an archived one: restoring it twice, or one that doesn't exist, is a 404.
+    assert api.post(f"/sites/{site}/documents/1/restore", headers=ENG).status_code == 404
+    assert api.post(f"/sites/{site}/documents/9/restore", headers=ENG).status_code == 404
+
+
 def test_requests_are_checked(api: TestClient, site: str) -> None:  # noqa: F811
     assert upload(api, site, make_pdf(SOP), headers=VIEWER).status_code == 403  # engineers upload
     bad = upload(api, site, make_pdf([" "]))

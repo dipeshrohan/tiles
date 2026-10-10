@@ -1,4 +1,4 @@
-import { esc, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
+import { esc, onAction, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
 import type { AppResult, AppTemplate, StudioApp } from '../lib/api.ts';
 import {
   appLink,
@@ -16,7 +16,7 @@ import {
 import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { showErrors } from '../lib/forms.ts';
-import { confirmDialog } from '../lib/overlay.ts';
+import { removeNow } from '../lib/undo.ts';
 import { emptyState, errorState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 
 // App Studio (T6.10): use cases configured from templates, without code. A template (a wear check,
@@ -342,24 +342,27 @@ const view: View = {
     onAll(root, '[data-rerun]', 'click', () => {
       if (app) void run(ctx, app);
     });
-    onAll(root, '[data-archive-app]', 'click', async () => {
+    // Archived at once, with Undo (U2.03): back to the list, where Undo brings it back.
+    onAction(root, '[data-archive-app]', () => {
       const api = ctx.api;
       const site = siteId(ctx);
       if (!api || !site || !app) return;
-      const yes = await confirmDialog({
-        title: `Archive app #${app.number}?`,
-        body: `${app.name} leaves the list; its runs and history are kept.`,
-        confirm: 'Archive',
-      });
-      if (!yes) return;
-      api.apps.archive(site, app.number).then(
-        () => {
-          ctx.toast(`Archived #${app.number}`);
+      const n = app.number;
+      return removeNow({
+        toast: ctx.toast,
+        message: `Archived #${n} ${app.name}`,
+        send: () =>
+          api.apps.archive(site, n).then(() => {
+            listing = null;
+            location.hash = '#/apps';
+          }),
+        undo: () => api.apps.restore(site, n),
+        restored: () => {
           listing = null;
-          location.hash = '#/apps';
+          ctx.rerender();
         },
-        () => undefined,
-      );
+        restoredMessage: `Restored #${n} ${app.name}`,
+      });
     });
   },
 };

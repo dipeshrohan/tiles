@@ -59,9 +59,11 @@ Use `emptyState` from `js/lib/ui.ts` for every empty list, table or chart, with 
 - **Toasts confirm what changed**, naming it: "Archived SOP 14", "Linked 3 of 4 tags". No toast for what the page itself shows.
 - **Progress names the work**: "Loading the signals…", "Checking 12 signals…", "Running the sweep (40%)…".
 
-### Confirmations
+### Confirmations and Undo
 
-The title asks the question with the thing in it ("Archive SOP 14?"). The body says what will happen ("It leaves the list and search, and the copilot stops citing it."). The buttons are the verb and Cancel.
+Don't ask about what can come back: do it, and offer Undo. The toast says what happened, with the thing in it ("Archived SOP 14", "Conversation deleted"), and its button is Undo; Undo says what came back ("Restored SOP 14").
+
+Ask only about what can't be undone (revoking a token, resetting the workspace). The title asks the question with the thing in it ("Revoke press-shop-edge?"). The body says what will happen ("It stops sending data at once."). The buttons are the verb and Cancel.
 
 ## Numbers, units and dates
 

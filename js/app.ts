@@ -59,6 +59,7 @@ import type { AppState, AuthContext, Context, OntologyContext, PersistedState, V
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
 import { showApiErrors } from './lib/forms.ts';
+import { sendWaiting } from './lib/undo.ts';
 import { breadcrumbs, button, clockTime } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
@@ -631,6 +632,8 @@ function hideOffline(kind?: 'offline' | 'unreachable'): void {
   offline = null;
   need(document, '#offline').hidden = true;
 }
+// Removals waiting on an Undo toast (U2.03) are sent before the page goes.
+window.addEventListener('pagehide', sendWaiting);
 window.addEventListener('offline', () => showOffline('offline'));
 // Back again: connect afresh only if the site never loaded; otherwise keep what is on screen and
 // draw the page again, which fetches its data.

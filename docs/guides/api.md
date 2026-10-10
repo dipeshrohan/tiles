@@ -94,6 +94,17 @@ Archives an app: it leaves the list, and its number isn't reused.
 | `number` | path | integer | yes |
 | `site_id` | path | uuid | yes |
 
+### `POST /sites/{site_id}/apps/{number}/restore`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Brings an archived app back to the list (the Undo after archiving one).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
 ### `GET /sites/{site_id}/apps/{number}/result`
 
 **Who:** site member. **Answers:** 200, 422.
@@ -450,6 +461,17 @@ Archives a document: it leaves the list and search; its number isn't reused.
 **Who:** site member. **Answers:** 200, 422.
 
 The file as it was uploaded (a PDF opens at a page with `#page=N`).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/documents/{number}/restore`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Brings an archived document back to the list and search (the Undo after archiving one).
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

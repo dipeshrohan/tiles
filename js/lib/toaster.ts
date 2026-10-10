@@ -14,6 +14,9 @@ export interface ToastOptions {
   action?: { label: string; run: () => void };
   duration?: number; // ms; success 5 s, API errors until dismissed, other errors 8 s, the rest 4 s
   requestId?: string | null; // an API error's X-Request-ID, shown with a copy button
+  // Called once when the toast goes without its action pressed (it timed out, was dismissed or
+  // pushed out): an Undo toast's change is then made for good (U2.03).
+  onDone?: () => void;
 }
 
 const DURATION: Record<ToastType, number> = {
@@ -76,11 +79,15 @@ export function createToaster(stack: HTMLElement): Toast {
     stack.classList.toggle('show', stack.querySelector('.toast-item:not([data-state=closed])') !== null);
   };
 
+  const done = new Map<HTMLElement, () => void>(); // onDone, until its toast goes or is acted on
   const remove = (item: HTMLElement): void => {
     left.delete(item);
     if (!left.size) timer = void clearInterval(timer);
     if (item.dataset.state === 'closed') return;
     item.dataset.state = 'closed';
+    const then = done.get(item);
+    done.delete(item);
+    then?.();
     sync();
     const gone = (): void => item.remove();
     const running = item.getAnimations();
@@ -113,9 +120,11 @@ export function createToaster(stack: HTMLElement): Toast {
         : ''
     }</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ''}<button class="toast-close" type="button" aria-label="Dismiss">${icon('x', { size: 14 })}</button>`;
     item.querySelector('[data-toast-action]')?.addEventListener('click', () => {
+      done.delete(item);
       opts.action?.run();
       remove(item);
     });
+    if (opts.onDone) done.set(item, opts.onDone);
     item.querySelector('.toast-close')?.addEventListener('click', () => remove(item));
     const copy = item.querySelector<HTMLButtonElement>('[data-toast-copy]');
     copy?.addEventListener('click', () => {

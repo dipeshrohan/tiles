@@ -1058,6 +1058,7 @@
 			try {
 				res = await doFetch(base + path, {
 					method,
+					keepalive: method === "DELETE",
 					headers,
 					body: file ? file.body : body === void 0 ? void 0 : JSON.stringify(body)
 				});
@@ -1154,7 +1155,8 @@
 					limit: String(limit)
 				})}`),
 				file: (siteId, n) => request("GET", `/sites/${encodeURIComponent(siteId)}/documents/${n}/file`, void 0, { blob: true }),
-				archive: (siteId, n) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/documents/${n}`)
+				archive: (siteId, n) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/documents/${n}`),
+				restore: (siteId, n) => request("POST", `/sites/${encodeURIComponent(siteId)}/documents/${n}/restore`)
 			},
 			appTemplates: () => request("GET", "/app-templates"),
 			apps: {
@@ -1162,6 +1164,7 @@
 				create: (siteId, app) => request("POST", `/sites/${encodeURIComponent(siteId)}/apps`, app),
 				update: (siteId, n, app) => request("PUT", `/sites/${encodeURIComponent(siteId)}/apps/${n}`, app),
 				archive: (siteId, n) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/apps/${n}`),
+				restore: (siteId, n) => request("POST", `/sites/${encodeURIComponent(siteId)}/apps/${n}/restore`),
 				result: (siteId, n) => request("GET", `/sites/${encodeURIComponent(siteId)}/apps/${n}/result`)
 			},
 			org: {
@@ -2967,90 +2970,55 @@
 		return `${t.name}(${args})`;
 	};
 	//#endregion
-	//#region js/lib/overlay.ts
-	var seq$2 = 0;
-	var nextId = () => `overlay-${++seq$2}`;
-	function dismiss(dialog) {
-		return new Promise((resolve) => {
-			if (dialog.dataset.state === "closed") return resolve();
-			dialog.dataset.state = "closed";
-			let done = false;
-			const finish = () => {
-				if (done) return;
-				done = true;
-				dialog.close();
-				dialog.remove();
-				resolve();
-			};
-			const running = dialog.getAnimations({ subtree: true });
-			if (running.length) Promise.all(running.map((a) => a.finished.catch(() => {}))).then(finish);
-			else finish();
-			setTimeout(finish, 400);
-		});
-	}
-	function open$2(dialog) {
-		dialog.dataset.state = "open";
-		document.body.append(dialog);
-		dialog.showModal();
-	}
-	function confirmDialog(o) {
-		const id = nextId();
-		const dialog = document.createElement("dialog");
-		dialog.className = "dialog";
-		dialog.setAttribute("role", "alertdialog");
-		dialog.setAttribute("aria-labelledby", `${id}-title`);
-		if (o.body) dialog.setAttribute("aria-describedby", `${id}-body`);
-		const danger = o.tone === "danger";
-		dialog.innerHTML = `
-    <form method="dialog" class="dialog-panel">
-      <div class="dialog-head">
-        ${danger ? `<span class="dialog-icon danger">${icon("triangle-alert", { size: 18 })}</span>` : ""}
-        <div>
-          <h2 id="${id}-title">${esc(o.title)}</h2>
-          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ""}
-        </div>
-      </div>
-      ${o.typeToConfirm ? `<label class="field"><span>Type <b>${esc(o.typeToConfirm)}</b> to confirm</span><input type="text" name="typed" autocomplete="off" spellcheck="false" autofocus /></label>` : ""}
-      <div class="dialog-foot">
-        <button class="btn" value="cancel" ${danger && !o.typeToConfirm ? "autofocus" : ""}>${esc(o.cancel ?? "Cancel")}</button>
-        <button class="btn ${danger ? "destructive" : "primary"}" value="confirm" data-confirm ${o.typeToConfirm ? "disabled" : ""} ${danger || o.typeToConfirm ? "" : "autofocus"}>${esc(o.confirm ?? "Confirm")}</button>
-      </div>
-    </form>`;
-		const typed = dialog.querySelector("input[name=typed]");
-		const button = dialog.querySelector("[data-confirm]");
-		if (typed && button) typed.addEventListener("input", () => button.disabled = typed.value.trim() !== o.typeToConfirm);
-		const outside = (e) => {
-			const r = dialog.getBoundingClientRect();
-			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+	//#region js/lib/undo.ts
+	var UNDO_MS = 8e3;
+	var waiting = /* @__PURE__ */ new Set();
+	function removeLater(o) {
+		o.hide();
+		let settled = false;
+		const send = () => {
+			if (settled) return;
+			settled = true;
+			waiting.delete(send);
+			o.send().catch(() => o.restore());
 		};
-		let pressedOutside = false;
-		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
-		return new Promise((resolve) => {
-			let answered = false;
-			const answer = (yes) => {
-				if (answered) return;
-				answered = true;
-				dismiss(dialog).then(() => resolve(yes));
-			};
-			dialog.addEventListener("submit", (e) => {
-				e.preventDefault();
-				const submitter = e.submitter;
-				answer(submitter?.value === "confirm" && !button?.disabled);
-			});
-			dialog.addEventListener("cancel", (e) => {
-				e.preventDefault();
-				answer(false);
-			});
-			dialog.addEventListener("click", (e) => {
-				if (pressedOutside && outside(e)) answer(false);
-			});
-			typed?.addEventListener("keydown", (e) => {
-				if (e.key !== "Enter") return;
-				e.preventDefault();
-				if (button && !button.disabled) answer(true);
-			});
-			open$2(dialog);
+		waiting.add(send);
+		o.toast(o.message, {
+			type: "success",
+			duration: UNDO_MS,
+			action: {
+				label: "Undo",
+				run: () => {
+					if (settled) return;
+					settled = true;
+					waiting.delete(send);
+					o.restore();
+				}
+			},
+			onDone: send
 		});
+	}
+	function sendWaiting() {
+		for (const send of [...waiting]) send();
+	}
+	async function removeNow(o) {
+		try {
+			await o.send();
+		} catch {
+			return false;
+		}
+		o.toast(o.message, {
+			type: "success",
+			duration: UNDO_MS,
+			action: {
+				label: "Undo",
+				run: () => void o.undo().then(() => {
+					o.restored();
+					o.toast(o.restoredMessage, { type: "success" });
+				}, () => void 0)
+			}
+		});
+		return true;
 	}
 	//#endregion
 	//#region js/views/chat.ts
@@ -3068,6 +3036,7 @@
 	var draft$4 = "";
 	var rating = null;
 	var failure = null;
+	var deleting$1 = /* @__PURE__ */ new Set();
 	var siteId$10 = (ctx) => ctx.ontology.site?.id ?? null;
 	var threadKey = (ctx) => `${siteId$10(ctx)}|${uiState$13(ctx).conversation}`;
 	onNavigate((hash) => {
@@ -3137,7 +3106,7 @@
 	}
 	function remoteRender(ctx) {
 		const ui = uiState$13(ctx);
-		const list = remote$1?.conversations;
+		const list = remote$1?.conversations?.filter((c) => !deleting$1.has(c.id));
 		const items = list === null || list === void 0 ? skeleton.list() : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
 			dateStyle: "medium",
 			timeStyle: "short"
@@ -3305,20 +3274,31 @@
 			rating = null;
 			ctx.rerender();
 		});
-		onAll(root, "[data-delete-conversation]", "click", async () => {
+		onAll(root, "[data-delete-conversation]", "click", () => {
 			const id = ui.conversation;
-			if (!ctx.api || !site || !id) return;
-			if (!await confirmDialog({
-				title: "Delete this conversation?",
-				body: "Its questions and answers are deleted for good.",
-				confirm: "Delete",
-				tone: "danger"
-			})) return;
-			ctx.api.copilot.remove(site, id).then(() => {
-				ui.conversation = null;
-				thread = null;
-				loadRemote(ctx);
-			}, () => void 0);
+			const api = ctx.api;
+			if (!api || !site || !id) return;
+			removeLater({
+				toast: ctx.toast,
+				message: "Conversation deleted",
+				hide: () => {
+					deleting$1.add(id);
+					if (ui.conversation === id) {
+						ui.conversation = null;
+						thread = null;
+					}
+					ctx.rerender();
+				},
+				restore: () => {
+					deleting$1.delete(id);
+					if (!ui.conversation) ui.conversation = id;
+					ctx.rerender();
+				},
+				send: () => api.copilot.remove(site, id).then(() => {
+					deleting$1.delete(id);
+					loadRemote(ctx);
+				})
+			});
 		});
 		onAll(root, "[data-cite]", "click", (el, e) => {
 			e.preventDefault();
@@ -4548,7 +4528,7 @@
 		const m = raw / p;
 		return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
 	}
-	function open$1(width, height, title, summary, cls = "chart") {
+	function open$2(width, height, title, summary, cls = "chart") {
 		const name = [title, summary].filter(Boolean).join(". ");
 		return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}">`;
 	}
@@ -4599,7 +4579,7 @@
 			});
 			return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ""} stroke-linejoin="round"/>`;
 		});
-		return `${open$1(width, height, title, [
+		return `${open$2(width, height, title, [
 			`${n} points${xLabel ? ` along ${xLabel}` : ""}`,
 			...series.map((s, i) => `${s.label ?? (series.length > 1 ? `line ${i + 1}` : "values")} ${range(s.values.filter((v) => v !== null && Number.isFinite(v)))}`),
 			bands.length ? `${bands.length} shaded window${bands.length === 1 ? "" : "s"}` : "",
@@ -4619,7 +4599,7 @@
 		const summary = listed$1(rows.map((r) => `${r.label}: ${fmt$1(r.a)} against ${fmt$1(r.b)}`));
 		const x = scale(domain[0], domain[1], left, width - 20);
 		const xt = ticks(domain[0], domain[1], 6);
-		return `${open$1(width, height, xLabel, summary)}
+		return `${open$2(width, height, xLabel, summary)}
     ${xt.map((t) => `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="8" y2="${height - 30}"/><text class="tick" x="${x(t)}" y="${height - 16}" text-anchor="middle">${fmt$1(t)}</text>`).join("")}
     ${rows.map((r, i) => {
 			const cy = 30 + i * rowH;
@@ -4639,7 +4619,7 @@
 		const maxAbs = Math.max(...items.map((i) => Math.abs(i.value)), 1e-9);
 		const x = scale(items.some((i) => i.value < 0) ? -maxAbs : 0, maxAbs, left, width - 60);
 		const zero = x(0);
-		return `${open$1(width, height, title, listed$1(items.map((it) => `${it.label} ${format(it.value)}`)))}
+		return `${open$2(width, height, title, listed$1(items.map((it) => `${it.label} ${format(it.value)}`)))}
     <line class="grid" x1="${zero}" x2="${zero}" y1="0" y2="${height}"/>
     ${items.map((it, i) => {
 			const cy = 6 + i * rowH;
@@ -4698,7 +4678,7 @@
 			};
 		}));
 		const cell = (c) => `${format(c.v)} at ${xLabel} ${fmt$1(c.x, 1)}, ${yLabel} ${fmt$1(c.y, 1)}`;
-		return `${open$1(width, height, "Parameter sweep", Number.isFinite(lowest.v) ? `${xs.length} × ${ys.length} grid of ${xLabel} by ${yLabel}; lowest ${cell(lowest)}; highest ${cell(highest)}` : "no values")}
+		return `${open$2(width, height, "Parameter sweep", Number.isFinite(lowest.v) ? `${xs.length} × ${ys.length} grid of ${xLabel} by ${yLabel}; lowest ${cell(lowest)}; highest ${cell(highest)}` : "no values")}
     ${cells.join("")}
     ${xi.map((i) => `<text class="tick" x="${left + (i + .5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt$1(xs[i] ?? NaN, 1)}</text>`).join("")}
     ${yi.map((j) => `<text class="tick" x="50" y="${10 + (ys.length - 1 - j + .5) * ch + 4}" text-anchor="end">${fmt$1(ys[j] ?? NaN, 1)}</text>`).join("")}
@@ -4802,7 +4782,7 @@
 	function timeChart({ points, from, to, gap, color = "var(--accent)", width = TIME_CHART.width, height = TIME_CHART.height, yLabel = "", levels = [], spans = [], title = yLabel }) {
 		const shown = points.filter((p) => p.t >= from && p.t <= to);
 		const when = `from ${at(from)} to ${at(to)}`;
-		if (!shown.length) return `${open$1(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
+		if (!shown.length) return `${open$2(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
 		const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
 		const [dataLo] = extent(shown.map((p) => p.lo));
 		const [, dataHi] = extent(shown.map((p) => p.hi));
@@ -4837,7 +4817,7 @@
 			return `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`;
 		}).join("");
 		const last = shown[shown.length - 1];
-		return `${open$1(width, height, title, [
+		return `${open$2(width, height, title, [
 			`${shown.length} reading${shown.length === 1 ? "" : "s"} ${when}`,
 			`values ${span([dataLo, dataHi])}`,
 			`latest ${num$1(last.v)} at ${at(last.t)}`,
@@ -5779,6 +5759,92 @@
 			},
 			errors
 		};
+	}
+	//#endregion
+	//#region js/lib/overlay.ts
+	var seq$2 = 0;
+	var nextId = () => `overlay-${++seq$2}`;
+	function dismiss(dialog) {
+		return new Promise((resolve) => {
+			if (dialog.dataset.state === "closed") return resolve();
+			dialog.dataset.state = "closed";
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				dialog.close();
+				dialog.remove();
+				resolve();
+			};
+			const running = dialog.getAnimations({ subtree: true });
+			if (running.length) Promise.all(running.map((a) => a.finished.catch(() => {}))).then(finish);
+			else finish();
+			setTimeout(finish, 400);
+		});
+	}
+	function open$1(dialog) {
+		dialog.dataset.state = "open";
+		document.body.append(dialog);
+		dialog.showModal();
+	}
+	function confirmDialog(o) {
+		const id = nextId();
+		const dialog = document.createElement("dialog");
+		dialog.className = "dialog";
+		dialog.setAttribute("role", "alertdialog");
+		dialog.setAttribute("aria-labelledby", `${id}-title`);
+		if (o.body) dialog.setAttribute("aria-describedby", `${id}-body`);
+		const danger = o.tone === "danger";
+		dialog.innerHTML = `
+    <form method="dialog" class="dialog-panel">
+      <div class="dialog-head">
+        ${danger ? `<span class="dialog-icon danger">${icon("triangle-alert", { size: 18 })}</span>` : ""}
+        <div>
+          <h2 id="${id}-title">${esc(o.title)}</h2>
+          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ""}
+        </div>
+      </div>
+      ${o.typeToConfirm ? `<label class="field"><span>Type <b>${esc(o.typeToConfirm)}</b> to confirm</span><input type="text" name="typed" autocomplete="off" spellcheck="false" autofocus /></label>` : ""}
+      <div class="dialog-foot">
+        <button class="btn" value="cancel" ${danger && !o.typeToConfirm ? "autofocus" : ""}>${esc(o.cancel ?? "Cancel")}</button>
+        <button class="btn ${danger ? "destructive" : "primary"}" value="confirm" data-confirm ${o.typeToConfirm ? "disabled" : ""} ${danger || o.typeToConfirm ? "" : "autofocus"}>${esc(o.confirm ?? "Confirm")}</button>
+      </div>
+    </form>`;
+		const typed = dialog.querySelector("input[name=typed]");
+		const button = dialog.querySelector("[data-confirm]");
+		if (typed && button) typed.addEventListener("input", () => button.disabled = typed.value.trim() !== o.typeToConfirm);
+		const outside = (e) => {
+			const r = dialog.getBoundingClientRect();
+			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+		};
+		let pressedOutside = false;
+		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
+		return new Promise((resolve) => {
+			let answered = false;
+			const answer = (yes) => {
+				if (answered) return;
+				answered = true;
+				dismiss(dialog).then(() => resolve(yes));
+			};
+			dialog.addEventListener("submit", (e) => {
+				e.preventDefault();
+				const submitter = e.submitter;
+				answer(submitter?.value === "confirm" && !button?.disabled);
+			});
+			dialog.addEventListener("cancel", (e) => {
+				e.preventDefault();
+				answer(false);
+			});
+			dialog.addEventListener("click", (e) => {
+				if (pressedOutside && outside(e)) answer(false);
+			});
+			typed?.addEventListener("keydown", (e) => {
+				if (e.key !== "Enter") return;
+				e.preventDefault();
+				if (button && !button.disabled) answer(true);
+			});
+			open$1(dialog);
+		});
 	}
 	//#endregion
 	//#region js/views/org-sign-in.ts
@@ -10172,7 +10238,8 @@ button('Save', { variant: 'primary', busy: true })   // or setBusy(el, true) on 
 			].map((t) => button(`Show ${t}`, { attrs: { "data-sg-toast": t } })).join("")}
           <button class="btn" type="button" data-tooltip="Says what it does">Point at me</button>
         </div>
-        <pre class="sg-code"><code>${esc(`if (await confirmDialog({ title: 'Archive SOP 14?', body: 'It leaves the list and search.', confirm: 'Archive' })) …
+        <pre class="sg-code"><code>${esc(`if (await confirmDialog({ title: 'Revoke the agent?', confirm: 'Revoke', tone: 'danger' })) …
+removeLater({ toast, message: 'Conversation deleted', hide, restore, send })   // Undo instead
 ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with their request ID
 <button … data-tooltip="Says what it does">`)}</code></pre>`, { class: "stack gap-2" })}
       <h2 class="mt-4 mb-2" id="sg-sec-icons">Icons</h2>
@@ -10201,11 +10268,12 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			});
 			onAll(root, "[data-sg-dialog]", "click", async () => {
 				const yes = await confirmDialog({
-					title: "Archive SOP 14?",
-					body: "It leaves the list and search, and the copilot stops citing it.",
-					confirm: "Archive"
+					title: "Revoke press-shop-edge?",
+					body: "The agent stops sending data at once, and its token can't be used again.",
+					confirm: "Revoke",
+					tone: "danger"
 				});
-				ctx.toast(yes ? "You chose Archive (nothing was archived)" : "You cancelled");
+				ctx.toast(yes ? "You chose Revoke (nothing was revoked)" : "You cancelled");
 			});
 			onAll(root, "[data-sg-toast]", "click", (el) => {
 				const type = el.dataset.sgToast;
@@ -10919,7 +10987,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}
 	function listCard$3(ctx, ui) {
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
-		const items = listing$3?.items;
+		const items = listing$3?.items?.filter((d) => !deleting.has(d.id));
 		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? skeleton.list() : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
               <b>${esc(d.name)}</b>
               <span class="small muted">${fmt$1(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ""}</span>
@@ -11029,35 +11097,40 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			ctx.rerender();
 		}
 	}
-	async function removeDataset(ctx) {
+	var deleting = /* @__PURE__ */ new Set();
+	function removeDataset(ctx) {
 		const site = siteId$3(ctx);
 		const ui = uiState$2(ctx);
 		const d = detail$1?.id === ui.selected ? detail$1.data : null;
-		if (!ctx.api || !site || !d) return;
-		if (!await confirmDialog({
-			title: `Delete ${d.name}?`,
-			body: `Its ${d.row_count} batch(es) are deleted for good; insights saved from it keep their evidence.`,
-			confirm: "Delete",
-			tone: "danger"
-		})) return;
-		busy$2 = "delete";
-		ctx.rerender();
-		try {
-			await ctx.api.datasets.remove(site, d.id);
-			ctx.toast(`${d.name} deleted`);
-			Object.assign(ui, {
-				selected: null,
-				outcome: "",
-				ngText: "",
-				variables: null,
-				split: ""
-			});
-			detail$1 = null;
-			listing$3 = null;
-		} catch {} finally {
-			busy$2 = "";
-			ctx.rerender();
-		}
+		const api = ctx.api;
+		if (!api || !site || !d) return;
+		const before = { ...ui };
+		removeLater({
+			toast: ctx.toast,
+			message: `${d.name} deleted`,
+			hide: () => {
+				deleting.add(d.id);
+				Object.assign(ui, {
+					selected: null,
+					outcome: "",
+					ngText: "",
+					variables: null,
+					split: ""
+				});
+				ctx.rerender();
+			},
+			restore: () => {
+				deleting.delete(d.id);
+				if (!ui.selected) Object.assign(ui, before);
+				ctx.rerender();
+			},
+			send: () => api.datasets.remove(site, d.id).then(() => {
+				deleting.delete(d.id);
+				if (detail$1?.id === d.id) detail$1 = null;
+				listing$3 = null;
+				ctx.rerender();
+			})
+		});
 	}
 	async function saveInsight(ctx) {
 		const site = siteId$3(ctx);
@@ -11227,7 +11300,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				});
 				onSubmit(root, "#insight-save", () => saveInsight(ctx));
 			}
-			onAll(root, "[data-delete-dataset]", "click", () => void removeDataset(ctx));
+			onAll(root, "[data-delete-dataset]", "click", () => removeDataset(ctx));
 		}
 	};
 	//#endregion
@@ -11922,20 +11995,25 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			onAll(root, "[data-rerun]", "click", () => {
 				if (app) run(ctx, app);
 			});
-			onAll(root, "[data-archive-app]", "click", async () => {
+			onAction(root, "[data-archive-app]", () => {
 				const api = ctx.api;
 				const site = siteId$1(ctx);
 				if (!api || !site || !app) return;
-				if (!await confirmDialog({
-					title: `Archive app #${app.number}?`,
-					body: `${app.name} leaves the list; its runs and history are kept.`,
-					confirm: "Archive"
-				})) return;
-				api.apps.archive(site, app.number).then(() => {
-					ctx.toast(`Archived #${app.number}`);
-					listing$1 = null;
-					location.hash = "#/apps";
-				}, () => void 0);
+				const n = app.number;
+				return removeNow({
+					toast: ctx.toast,
+					message: `Archived #${n} ${app.name}`,
+					send: () => api.apps.archive(site, n).then(() => {
+						listing$1 = null;
+						location.hash = "#/apps";
+					}),
+					undo: () => api.apps.restore(site, n),
+					restored: () => {
+						listing$1 = null;
+						ctx.rerender();
+					},
+					restoredMessage: `Restored #${n} ${app.name}`
+				});
 			});
 		}
 	};
@@ -12177,21 +12255,23 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				listing = null;
 				ctx.rerender();
 			});
-			onAll(root, "[data-archive-doc]", "click", async (el) => {
+			const refresh = () => {
+				listing = null;
+				found = null;
+				ctx.rerender();
+			};
+			onAction(root, "[data-archive-doc]", (el) => {
 				const n = Number(el.dataset.archiveDoc);
 				const doc = listing?.items?.find((d) => d.number === n);
 				if (!doc) return;
-				if (!await confirmDialog({
-					title: `Archive ${doc.title}?`,
-					body: "It leaves the list and search, and the copilot stops citing it.",
-					confirm: "Archive"
-				})) return;
-				api.documents.archive(site, n).then(() => {
-					ctx.toast(`Archived ${doc.title}`);
-					listing = null;
-					found = null;
-					ctx.rerender();
-				}, () => void 0);
+				return removeNow({
+					toast: ctx.toast,
+					message: `Archived ${doc.title}`,
+					send: () => api.documents.archive(site, n).then(refresh),
+					undo: () => api.documents.restore(site, n),
+					restored: refresh,
+					restoredMessage: `Restored ${doc.title}`
+				});
 			});
 			const uploadForm = root.querySelector("#doc-upload");
 			if (uploadForm) {
@@ -12563,11 +12643,15 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const sync = () => {
 			stack.classList.toggle("show", stack.querySelector(".toast-item:not([data-state=closed])") !== null);
 		};
+		const done = /* @__PURE__ */ new Map();
 		const remove = (item) => {
 			left.delete(item);
 			if (!left.size) timer = void clearInterval(timer);
 			if (item.dataset.state === "closed") return;
 			item.dataset.state = "closed";
+			const then = done.get(item);
+			done.delete(item);
+			then?.();
 			sync();
 			const gone = () => item.remove();
 			const running = item.getAnimations();
@@ -12591,9 +12675,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const symbol = ICON[type];
 			item.innerHTML = `${symbol ? `<span class="toast-icon">${icon(symbol)}</span>` : ""}<div class="toast-text"><div class="toast-title">${esc(message)}</div>${opts.description ? `<div class="toast-desc">${esc(opts.description)}</div>` : ""}${opts.requestId ? `<div class="toast-meta">Request ID <code>${esc(opts.requestId)}</code> <button class="toast-copy" type="button" data-toast-copy aria-label="Copy the request ID" data-tooltip="Copy">${icon("copy", { size: 12 })}</button></div>` : ""}</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ""}<button class="toast-close" type="button" aria-label="Dismiss">${icon("x", { size: 14 })}</button>`;
 			item.querySelector("[data-toast-action]")?.addEventListener("click", () => {
+				done.delete(item);
 				opts.action?.run();
 				remove(item);
 			});
+			if (opts.onDone) done.set(item, opts.onDone);
 			item.querySelector(".toast-close")?.addEventListener("click", () => remove(item));
 			const copy = item.querySelector("[data-toast-copy]");
 			copy?.addEventListener("click", () => {
@@ -13405,6 +13491,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		offline = null;
 		need(document, "#offline").hidden = true;
 	}
+	window.addEventListener("pagehide", sendWaiting);
 	window.addEventListener("offline", () => showOffline("offline"));
 	function reconnect() {
 		if (!api) return;

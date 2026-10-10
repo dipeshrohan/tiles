@@ -151,6 +151,12 @@ def test_engineers_change_and_archive_apps_and_everything_is_audited(
     assert api.delete(f"/sites/{site}/apps/1", headers=ENG).status_code == 204
     assert api.get(f"/sites/{site}/apps", headers=VIEWER).json() == []
     assert api.get(f"/sites/{site}/apps/1/result", headers=VIEWER).status_code == 404
+    # Restored (the Undo), it is back; then archived again for good.
+    assert api.post(f"/sites/{site}/apps/1/restore", headers=VIEWER).status_code == 403
+    restored = api.post(f"/sites/{site}/apps/1/restore", headers=ENG)
+    assert (restored.status_code, restored.json()["name"]) == (200, "Oven zone 2")
+    assert api.post(f"/sites/{site}/apps/1/restore", headers=ENG).status_code == 404  # not archived now
+    assert api.delete(f"/sites/{site}/apps/1", headers=ENG).status_code == 204
     # Numbers aren't reused.
     assert make(api, site, "Oven again", "spc-limits", signal=signal).json()["number"] == 2
     with psycopg.connect(database_url) as conn:
@@ -160,7 +166,7 @@ def test_engineers_change_and_archive_apps_and_everything_is_audited(
                 "SELECT action FROM audit_log WHERE entity_type = 'app' AND site_id = %s ORDER BY id", [site]
             )
         ]
-    assert actions == ["app.create", "app.update", "app.archive", "app.create"]
+    assert actions == ["app.create", "app.update", "app.archive", "app.restore", "app.archive", "app.create"]
 
 
 def test_requests_are_checked(api: TestClient, site: str) -> None:  # noqa: F811

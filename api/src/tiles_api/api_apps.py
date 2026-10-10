@@ -218,6 +218,21 @@ def archive_app(ctx: Editor, number: int) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/sites/{site_id}/apps/{number}/restore", response_model=AppOut)
+def restore_app(ctx: Editor, number: int) -> dict[str, Any]:
+    """Brings an archived app back to the list (the Undo after archiving one)."""
+    row = ctx.conn.execute(
+        "UPDATE apps SET archived_at = NULL"
+        " WHERE site_id = %s AND number = %s AND archived_at IS NOT NULL RETURNING number",
+        [ctx.site_id, number],
+    ).fetchone()
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No archived app with that number on this site")
+    app = _app(ctx, number)
+    ctx.audit("app.restore", "app", str(number), after={"name": app["name"], "template": app["template"]})
+    return _out(app)
+
+
 @router.get("/sites/{site_id}/apps/{number}/result", response_model=ResultOut, response_model_by_alias=True)
 def app_result(ctx: Ctx, number: int) -> dict[str, Any]:
     """Runs the app on its signal's readings now: its status, in words, and the chart."""
