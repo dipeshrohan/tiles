@@ -2303,6 +2303,92 @@
 		return `${t.name}(${args})`;
 	};
 	//#endregion
+	//#region js/lib/overlay.ts
+	var seq$2 = 0;
+	var nextId = () => `overlay-${++seq$2}`;
+	function dismiss(dialog) {
+		return new Promise((resolve) => {
+			if (dialog.dataset.state === "closed") return resolve();
+			dialog.dataset.state = "closed";
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				dialog.close();
+				dialog.remove();
+				resolve();
+			};
+			const running = dialog.getAnimations({ subtree: true });
+			if (running.length) Promise.all(running.map((a) => a.finished.catch(() => {}))).then(finish);
+			else finish();
+			setTimeout(finish, 400);
+		});
+	}
+	function open$2(dialog) {
+		dialog.dataset.state = "open";
+		document.body.append(dialog);
+		dialog.showModal();
+	}
+	function confirmDialog(o) {
+		const id = nextId();
+		const dialog = document.createElement("dialog");
+		dialog.className = "dialog";
+		dialog.setAttribute("role", "alertdialog");
+		dialog.setAttribute("aria-labelledby", `${id}-title`);
+		if (o.body) dialog.setAttribute("aria-describedby", `${id}-body`);
+		const danger = o.tone === "danger";
+		dialog.innerHTML = `
+    <form method="dialog" class="dialog-panel">
+      <div class="dialog-head">
+        ${danger ? `<span class="dialog-icon danger">${icon("triangle-alert", { size: 18 })}</span>` : ""}
+        <div>
+          <h2 id="${id}-title">${esc(o.title)}</h2>
+          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ""}
+        </div>
+      </div>
+      ${o.typeToConfirm ? `<label class="field"><span>Type <b>${esc(o.typeToConfirm)}</b> to confirm</span><input type="text" name="typed" autocomplete="off" spellcheck="false" autofocus /></label>` : ""}
+      <div class="dialog-foot">
+        <button class="btn" value="cancel" ${danger && !o.typeToConfirm ? "autofocus" : ""}>${esc(o.cancel ?? "Cancel")}</button>
+        <button class="btn ${danger ? "destructive" : "primary"}" value="confirm" data-confirm ${o.typeToConfirm ? "disabled" : ""} ${danger || o.typeToConfirm ? "" : "autofocus"}>${esc(o.confirm ?? "Confirm")}</button>
+      </div>
+    </form>`;
+		const typed = dialog.querySelector("input[name=typed]");
+		const button = dialog.querySelector("[data-confirm]");
+		if (typed && button) typed.addEventListener("input", () => button.disabled = typed.value.trim() !== o.typeToConfirm);
+		const outside = (e) => {
+			const r = dialog.getBoundingClientRect();
+			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+		};
+		let pressedOutside = false;
+		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
+		return new Promise((resolve) => {
+			let answered = false;
+			const answer = (yes) => {
+				if (answered) return;
+				answered = true;
+				dismiss(dialog).then(() => resolve(yes));
+			};
+			dialog.addEventListener("submit", (e) => {
+				e.preventDefault();
+				const submitter = e.submitter;
+				answer(submitter?.value === "confirm" && !button?.disabled);
+			});
+			dialog.addEventListener("cancel", (e) => {
+				e.preventDefault();
+				answer(false);
+			});
+			dialog.addEventListener("click", (e) => {
+				if (pressedOutside && outside(e)) answer(false);
+			});
+			typed?.addEventListener("keydown", (e) => {
+				if (e.key !== "Enter") return;
+				e.preventDefault();
+				if (button && !button.disabled) answer(true);
+			});
+			open$2(dialog);
+		});
+	}
+	//#endregion
 	//#region js/views/chat.ts
 	var uiState$13 = (ctx) => ctx.ui("chat", { conversation: null });
 	var API_SUGGESTIONS = [
@@ -2523,9 +2609,15 @@
 			rating = null;
 			ctx.rerender();
 		});
-		onAll(root, "[data-delete-conversation]", "click", () => {
+		onAll(root, "[data-delete-conversation]", "click", async () => {
 			const id = ui.conversation;
-			if (!ctx.api || !site || !id || !confirm("Delete this conversation?")) return;
+			if (!ctx.api || !site || !id) return;
+			if (!await confirmDialog({
+				title: "Delete this conversation?",
+				body: "Its questions and answers are deleted for good.",
+				confirm: "Delete",
+				tone: "danger"
+			})) return;
 			ctx.api.copilot.remove(site, id).then(() => {
 				ui.conversation = null;
 				thread = null;
@@ -2840,7 +2932,7 @@
 	}
 	//#endregion
 	//#region js/lib/review.ts
-	var show$1 = (v) => typeof v === "string" ? `“${v}”` : String(v);
+	var show$2 = (v) => typeof v === "string" ? `“${v}”` : String(v);
 	function describeChanges(head, ops, { compare = true } = {}) {
 		let graph = head;
 		return ops.map((op) => {
@@ -2861,7 +2953,7 @@
 	function describe$1(op, graph, label) {
 		switch (op.kind) {
 			case "addNode": {
-				const props = Object.entries(op.node.props ?? {}).map(([k, v]) => `${k} ${show$1(v)}`);
+				const props = Object.entries(op.node.props ?? {}).map(([k, v]) => `${k} ${show$2(v)}`);
 				return {
 					sign: "+",
 					text: `${op.node.type} “${op.node.label}”${props.length ? ` (${props.join(", ")})` : ""}`
@@ -2890,15 +2982,15 @@
 				const what = `${label(op.id)} · ${op.key}`;
 				if (op.value === void 0) return {
 					sign: "−",
-					text: before === void 0 ? what : `${what} (was ${show$1(before)})`
+					text: before === void 0 ? what : `${what} (was ${show$2(before)})`
 				};
 				if (before === void 0) return {
 					sign: "+",
-					text: `${what} = ${show$1(op.value)}`
+					text: `${what} = ${show$2(op.value)}`
 				};
 				return {
 					sign: "~",
-					text: `${what}: ${show$1(before)} → ${show$1(op.value)}`
+					text: `${what}: ${show$2(before)} → ${show$2(op.value)}`
 				};
 			}
 		}
@@ -4428,7 +4520,7 @@
 	//#region js/views/design.ts
 	var defaults = (model) => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
-	var show = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
+	var show$1 = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
 	var uiState$9 = (ctx) => ctx.ui("design", {
 		model: "swelling",
@@ -4694,7 +4786,7 @@
                 ${runs.map((r) => {
 				const diff = diffOf(r);
 				return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : "<span class=\"muted\">untitled</span>"}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
-                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join("<br>") || "no change" : "first run"}</td>
+                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show$1(d.from)} → ${show$1(d.to)}`).join("<br>") || "no change" : "first run"}</td>
                       <td class="num"><b>${fmt$1(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
 			}).join("")}</tbody></table></div>` : `<div class="empty">${site && !project ? "Pick or create a project to see its runs." : site && !fetched?.loaded ? "Loading runs…" : remote && !site ? "" : "No runs yet. Adjust parameters and press “Save run”."}</div>`}
         </div>
@@ -5052,9 +5144,14 @@
 			revealed$2 = null;
 			fillScim(root, ctx);
 		});
-		onAll(box, "[data-revoke-scim]", "click", (el) => {
+		onAll(box, "[data-revoke-scim]", "click", async (el) => {
 			const name = el.dataset.scimName ?? "";
-			if (!confirm(`Revoke ${name}? Provisioning with it stops at once.`)) return;
+			if (!await confirmDialog({
+				title: `Revoke ${name}?`,
+				body: "Provisioning with this token stops at once. It can’t be restored: make a new one.",
+				confirm: "Revoke",
+				tone: "danger"
+			})) return;
 			api.org.revokeScimToken(el.dataset.revokeScim ?? "").then(() => {
 				ctx.toast(`Revoked ${name}`);
 				return fillScim(root, ctx);
@@ -5106,8 +5203,13 @@
 				return bindOrgSignIn(root, ctx);
 			}, () => void 0);
 		});
-		onAll(box, "[data-org-provider-remove]", "click", () => {
-			if (!confirm("Remove your organisation’s provider? Its sign-ins stop working at once.")) return;
+		onAll(box, "[data-org-provider-remove]", "click", async () => {
+			if (!await confirmDialog({
+				title: "Remove your organisation’s provider?",
+				body: "Sign-ins through it stop working at once.",
+				confirm: "Remove",
+				tone: "danger"
+			})) return;
 			api.org.removeIdentityProvider().then(() => {
 				ctx.toast("Organisation sign-in removed");
 				return bindOrgSignIn(root, ctx);
@@ -5357,8 +5459,13 @@
 			}
 			save(url || void 0);
 		});
-		onAll(root, "[data-teams-remove]", "click", () => {
-			if (confirm("Stop posting warnings to the Teams channel?")) save(null);
+		onAll(root, "[data-teams-remove]", "click", async () => {
+			if (await confirmDialog({
+				title: "Stop posting to the Teams channel?",
+				body: "Warnings stop going to the channel. Its address isn’t kept: to post again, set it again.",
+				confirm: "Stop posting",
+				tone: "danger"
+			})) save(null);
 		});
 		const list = root.querySelector("[data-deliveries]");
 		if (!list) return;
@@ -5454,9 +5561,14 @@
 			return;
 		}
 		box.innerHTML = agents.length ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? "<th><span class=\"sr-only\">Actions</span></th>" : ""}</tr></thead><tbody>${agents.map((a) => `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"}</td><td>${esc(a.hostname ?? "—")}</td><td>${esc(a.version ?? "—")}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${admin ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>` : ""}</tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No agents registered for this site yet.</p>";
-		onAll(box, "[data-revoke-agent]", "click", (el) => {
+		onAll(box, "[data-revoke-agent]", "click", async (el) => {
 			const name = el.dataset.agentName ?? "";
-			if (!confirm(`Revoke ${name}? Its token stops working at once.`)) return;
+			if (!await confirmDialog({
+				title: `Revoke ${name}?`,
+				body: "Its token stops working at once, and the agent stops sending readings.",
+				confirm: "Revoke",
+				tone: "danger"
+			})) return;
 			api.agents.revoke(site.id, el.dataset.revokeAgent ?? "").then(() => {
 				ctx.toast(`Revoked ${name}`);
 				return fillAgents(root, ctx);
@@ -5589,8 +5701,14 @@
 			onSubmit(root, "#org-sign-in-form", (form) => void ctx.auth.signIn(field$1(form, "org")));
 			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
 			bindOrgSignIn(root, ctx);
-			onAll(root, "[data-reset]", "click", () => {
-				if (confirm("Reset ontology history, design runs and chat to the demo defaults?")) ctx.reset();
+			onAll(root, "[data-reset]", "click", async () => {
+				if (await confirmDialog({
+					title: "Reset this browser’s workspace?",
+					body: "Ontology history, design runs and chat go back to the demo defaults. This can’t be undone.",
+					confirm: "Reset workspace",
+					tone: "danger",
+					typeToConfirm: "reset"
+				})) ctx.reset();
 			});
 		}
 	};
@@ -7789,11 +7907,11 @@
 	var busy$4 = null;
 	var shownHeadline = null;
 	var toldHeadline = null;
-	var timer$1 = null;
+	var timer$2 = null;
 	var siteId$6 = (ctx) => ctx.ontology.site?.id ?? null;
 	function stop() {
-		if (timer$1 !== null) clearInterval(timer$1);
-		timer$1 = null;
+		if (timer$2 !== null) clearInterval(timer$2);
+		timer$2 = null;
 		document.body.classList.remove("floor-full");
 	}
 	onNavigate((hash) => {
@@ -7944,7 +8062,7 @@
 			if (!ctx.api) return;
 			if (ctx.ontology.status !== "ready") return;
 			ensureFloor(ctx);
-			timer$1 ??= setInterval(() => {
+			timer$2 ??= setInterval(() => {
 				if (routeOf(location.hash) !== "shopfloor") return stop();
 				if (!busy$4 && !document.hidden) fetchWarnings(ctx, true);
 			}, REFRESH_MS);
@@ -8385,12 +8503,12 @@ heartbeat_seconds = 30
 	var created = null;
 	var seq$1 = 0;
 	var busy$3 = false;
-	var timer = null;
+	var timer$1 = null;
 	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
 	onNavigate((hash) => {
 		if (routeOf(hash) === "onboarding") return;
-		if (timer !== null) clearInterval(timer);
-		timer = null;
+		if (timer$1 !== null) clearInterval(timer$1);
+		timer$1 = null;
 		progress$1 = null;
 		agents = null;
 		revealed = null;
@@ -8555,10 +8673,10 @@ heartbeat_seconds = 30
 			if (progress$1?.site !== site) load$3(ctx, { withOntology: true });
 			const data = progress$1?.site === site ? progress$1.data : null;
 			const waiting = data !== null && data.agents > 0 && data.agents_seen === 0;
-			if (waiting && timer === null) timer = setInterval(() => !document.hidden && void load$3(ctx, { quiet: true }), POLL_MS);
-			if (!waiting && timer !== null) {
-				clearInterval(timer);
-				timer = null;
+			if (waiting && timer$1 === null) timer$1 = setInterval(() => !document.hidden && void load$3(ctx, { quiet: true }), POLL_MS);
+			if (!waiting && timer$1 !== null) {
+				clearInterval(timer$1);
+				timer$1 = null;
 			}
 			const ui = uiState$4(ctx);
 			onAll(root, "[data-step]", "click", (el) => {
@@ -9429,7 +9547,12 @@ heartbeat_seconds = 30
 		const ui = uiState$2(ctx);
 		const d = detail$1?.id === ui.selected ? detail$1.data : null;
 		if (!ctx.api || !site || !d) return;
-		if (!confirm(`Delete ${d.name} and its ${d.row_count} batch(es)?`)) return;
+		if (!await confirmDialog({
+			title: `Delete ${d.name}?`,
+			body: `Its ${d.row_count} batch(es) are deleted for good; insights saved from it keep their evidence.`,
+			confirm: "Delete",
+			tone: "danger"
+		})) return;
 		busy$2 = "delete";
 		ctx.rerender();
 		try {
@@ -9842,8 +9965,13 @@ heartbeat_seconds = 30
 				act(ctx, (site, num) => api.insights.review(site, num, decision, text), decision === "accepted" ? "Insight accepted" : "Insight rejected");
 			});
 			onAll(root, "[data-reopen]", "click", () => void act(ctx, (site, num) => api.insights.reopen(site, num), "Insight reopened"));
-			onAll(root, "[data-remove]", "click", () => {
-				if (confirm(`Delete insight #${i.number}, ${i.title}?`)) act(ctx, (site, num) => api.insights.remove(site, num), "Insight deleted");
+			onAll(root, "[data-remove]", "click", async () => {
+				if (await confirmDialog({
+					title: `Delete insight #${i.number}?`,
+					body: `${i.title}, its evidence and its review are deleted for good.`,
+					confirm: "Delete",
+					tone: "danger"
+				}) && selected$1() === i.number) act(ctx, (site, num) => api.insights.remove(site, num), "Insight deleted");
 			});
 		}
 	};
@@ -10236,10 +10364,15 @@ heartbeat_seconds = 30
 			onAll(root, "[data-rerun]", "click", () => {
 				if (app) run(ctx, app);
 			});
-			onAll(root, "[data-archive-app]", "click", () => {
+			onAll(root, "[data-archive-app]", "click", async () => {
 				const api = ctx.api;
 				const site = siteId$1(ctx);
-				if (!api || !site || !app || !confirm(`Archive app #${app.number}, ${app.name}?`)) return;
+				if (!api || !site || !app) return;
+				if (!await confirmDialog({
+					title: `Archive app #${app.number}?`,
+					body: `${app.name} leaves the list; its runs and history are kept.`,
+					confirm: "Archive"
+				})) return;
 				api.apps.archive(site, app.number).then(() => {
 					ctx.toast(`Archived #${app.number}`);
 					listing$1 = null;
@@ -10423,10 +10556,15 @@ heartbeat_seconds = 30
 				listing = null;
 				ctx.rerender();
 			});
-			onAll(root, "[data-archive-doc]", "click", (el) => {
+			onAll(root, "[data-archive-doc]", "click", async (el) => {
 				const n = Number(el.dataset.archiveDoc);
 				const doc = listing?.items?.find((d) => d.number === n);
-				if (!doc || !confirm(`Archive ${doc.title}? It leaves the list and search.`)) return;
+				if (!doc) return;
+				if (!await confirmDialog({
+					title: `Archive ${doc.title}?`,
+					body: "It leaves the list and search, and the copilot stops citing it.",
+					confirm: "Archive"
+				})) return;
 				api.documents.archive(site, n).then(() => {
 					ctx.toast(`Archived ${doc.title}`);
 					listing = null;
@@ -10740,6 +10878,141 @@ heartbeat_seconds = 30
 		}
 	};
 	//#endregion
+	//#region js/lib/toaster.ts
+	var ICON = {
+		default: null,
+		success: "circle-check",
+		info: "info",
+		warning: "triangle-alert",
+		error: "circle-alert"
+	};
+	var MAX = 3;
+	function createToaster(stack) {
+		const paused = () => stack.querySelector("button:hover") !== null || stack.contains(document.activeElement);
+		const left = /* @__PURE__ */ new Map();
+		let timer;
+		const tick = () => {
+			if (paused()) return;
+			for (const [item, ms] of left) if (ms <= 200) remove(item);
+			else left.set(item, ms - 200);
+		};
+		const sync = () => {
+			stack.classList.toggle("show", stack.querySelector(".toast-item:not([data-state=closed])") !== null);
+		};
+		const remove = (item) => {
+			left.delete(item);
+			if (!left.size) timer = void clearInterval(timer);
+			if (item.dataset.state === "closed") return;
+			item.dataset.state = "closed";
+			sync();
+			const gone = () => item.remove();
+			const running = item.getAnimations();
+			if (running.length) Promise.all(running.map((a) => a.finished.catch(() => {}))).then(gone);
+			else gone();
+			setTimeout(gone, 400);
+		};
+		return (message, opts = {}) => {
+			const type = opts.type ?? "default";
+			for (const old of stack.querySelectorAll(".toast-item:not([data-state=closed])")) if (old.dataset.message === message) remove(old);
+			const item = document.createElement("li");
+			item.className = "toast-item";
+			item.dataset.type = type;
+			item.dataset.message = message;
+			item.dataset.state = "open";
+			const symbol = ICON[type];
+			item.innerHTML = `${symbol ? `<span class="toast-icon">${icon(symbol)}</span>` : ""}<div class="toast-text"><div class="toast-title">${esc(message)}</div>${opts.description ? `<div class="toast-desc">${esc(opts.description)}</div>` : ""}</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ""}<button class="toast-close" type="button" aria-label="Dismiss">${icon("x", { size: 14 })}</button>`;
+			item.querySelector("[data-toast-action]")?.addEventListener("click", () => {
+				opts.action?.run();
+				remove(item);
+			});
+			item.querySelector(".toast-close")?.addEventListener("click", () => remove(item));
+			stack.append(item);
+			const open = [...stack.querySelectorAll(".toast-item:not([data-state=closed])")];
+			for (const old of open.slice(0, Math.max(0, open.length - MAX))) remove(old);
+			sync();
+			left.set(item, opts.duration ?? (type === "error" ? 8e3 : 4e3));
+			timer ??= setInterval(tick, 200);
+		};
+	}
+	//#endregion
+	//#region js/lib/tooltip.ts
+	var tip = null;
+	var target = null;
+	var timer;
+	function element() {
+		if (!tip) {
+			tip = document.createElement("div");
+			tip.id = "tooltip";
+			tip.className = "tooltip";
+			tip.setAttribute("role", "tooltip");
+			tip.hidden = true;
+			document.body.append(tip);
+		}
+		return tip;
+	}
+	function show(el) {
+		const text = el.dataset.tooltip;
+		if (!text) return;
+		const t = element();
+		t.textContent = text;
+		t.hidden = false;
+		t.dataset.state = "open";
+		const described = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+		if (!described.includes("tooltip")) el.setAttribute("aria-describedby", [...described, "tooltip"].join(" "));
+		target = el;
+		watch();
+		const r = el.getBoundingClientRect();
+		const w = t.offsetWidth;
+		const h = t.offsetHeight;
+		const below = r.top < h + 12;
+		t.dataset.side = below ? "bottom" : "top";
+		const left = Math.min(Math.max(8, r.left + r.width / 2 - w / 2), window.innerWidth - w - 8);
+		t.style.left = `${left + window.scrollX}px`;
+		t.style.top = `${(below ? r.bottom + 8 : r.top - h - 8) + window.scrollY}px`;
+	}
+	function watch() {
+		requestAnimationFrame(() => {
+			if (!target) return;
+			if (!target.isConnected) hide();
+			else watch();
+		});
+	}
+	function hide() {
+		clearTimeout(timer);
+		if (target) {
+			const rest = (target.getAttribute("aria-describedby") ?? "").split(/\s+/).filter((t) => t && t !== "tooltip");
+			if (rest.length) target.setAttribute("aria-describedby", rest.join(" "));
+			else target.removeAttribute("aria-describedby");
+		}
+		target = null;
+		if (tip) {
+			tip.hidden = true;
+			delete tip.dataset.state;
+		}
+	}
+	var owner = (e) => e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
+	function installTooltips(root = document) {
+		root.addEventListener("pointerover", (e) => {
+			const el = owner(e);
+			if (!el || el === target) return;
+			hide();
+			timer = setTimeout(() => show(el), 400);
+		});
+		root.addEventListener("pointerout", (e) => {
+			if (owner(e) && !(e.relatedTarget instanceof Node && owner(e)?.contains(e.relatedTarget))) hide();
+		});
+		root.addEventListener("focusin", (e) => {
+			const el = owner(e);
+			if (el && el.matches(":focus-visible")) show(el);
+		});
+		root.addEventListener("focusout", hide);
+		root.addEventListener("keydown", (e) => {
+			if (e.key === "Escape" && target) hide();
+		});
+		window.addEventListener("scroll", hide, { passive: true });
+		root.addEventListener("click", hide);
+	}
+	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
 		view$19,
@@ -10799,6 +11072,8 @@ heartbeat_seconds = 30
 			items: [view$6, view$13]
 		}
 	];
+	var toast = createToaster(need(document, "#toast"));
+	installTooltips();
 	function freshState() {
 		return {
 			repo: seedOntology(),
@@ -10960,7 +11235,7 @@ heartbeat_seconds = 30
 			baseUrl,
 			userEmail: state.user.email,
 			getToken: () => accessToken(baseUrl),
-			onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message)
+			onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message, { type: "error" })
 		});
 	}
 	var authConfig = null;
@@ -11176,14 +11451,6 @@ heartbeat_seconds = 30
 			}
 			if (k === focused && el instanceof HTMLElement) el.focus({ preventScroll: true });
 		});
-	}
-	var toastTimer;
-	function toast(message) {
-		const el = need(document, "#toast");
-		el.textContent = message;
-		el.classList.add("show");
-		clearTimeout(toastTimer);
-		toastTimer = setTimeout(() => el.classList.remove("show"), 2400);
 	}
 	var isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 	function applyTheme(theme) {

@@ -15,6 +15,7 @@ import {
 } from '../lib/apps.ts';
 import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
+import { confirmDialog } from '../lib/overlay.ts';
 
 // App Studio (T6.10): use cases configured from templates, without code. A template (a wear check,
 // SPC limits) says what it needs; its form is made from that; an app is the template configured on
@@ -314,10 +315,16 @@ const view: View = {
     onAll(root, '[data-rerun]', 'click', () => {
       if (app) void run(ctx, app);
     });
-    onAll(root, '[data-archive-app]', 'click', () => {
+    onAll(root, '[data-archive-app]', 'click', async () => {
       const api = ctx.api;
       const site = siteId(ctx);
-      if (!api || !site || !app || !confirm(`Archive app #${app.number}, ${app.name}?`)) return;
+      if (!api || !site || !app) return;
+      const yes = await confirmDialog({
+        title: `Archive app #${app.number}?`,
+        body: `${app.name} leaves the list; its runs and history are kept.`,
+        confirm: 'Archive',
+      });
+      if (!yes) return;
       api.apps.archive(site, app.number).then(
         () => {
           ctx.toast(`Archived #${app.number}`);

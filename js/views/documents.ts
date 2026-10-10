@@ -10,6 +10,7 @@ import {
   titleFrom,
 } from '../lib/documents.ts';
 import type { Context, View } from './types.ts';
+import { confirmDialog } from '../lib/overlay.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
 // match with its document and page; the copilot searches them too. Engineers upload and archive.
@@ -186,10 +187,16 @@ const view: View = {
       listing = null;
       ctx.rerender();
     });
-    onAll(root, '[data-archive-doc]', 'click', (el) => {
+    onAll(root, '[data-archive-doc]', 'click', async (el) => {
       const n = Number(el.dataset.archiveDoc);
       const doc = listing?.items?.find((d) => d.number === n);
-      if (!doc || !confirm(`Archive ${doc.title}? It leaves the list and search.`)) return;
+      if (!doc) return;
+      const yes = await confirmDialog({
+        title: `Archive ${doc.title}?`,
+        body: 'It leaves the list and search, and the copilot stops citing it.',
+        confirm: 'Archive',
+      });
+      if (!yes) return;
       api.documents.archive(site, n).then(
         () => {
           ctx.toast(`Archived ${doc.title}`);

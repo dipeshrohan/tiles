@@ -168,7 +168,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await page.click('#app-form button[type=submit]');
     await page.waitForSelector('[data-app-detail] svg.chart');
     // The "App made" toast has faded (axe would read it mid-fade).
-    await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 5000 });
+    await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 10000 });
     await page.waitForTimeout(400);
     await check('app');
     // Documents: an upload, and a search's matches with their words marked.
@@ -184,7 +184,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await page.fill('#doc-search [name=q]', 'plunger');
     await page.click('#doc-search button[type=submit]');
     await page.waitForSelector('[data-matches] mark');
-    await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 5000 });
+    await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 10000 });
     await page.waitForTimeout(400);
     await check('documents');
     await page.evaluate(() => (location.hash = '#/signals'));
@@ -193,6 +193,24 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await check('explorer');
     await page.close();
     assert.deepEqual(problems, [], colorScheme);
+  }
+});
+
+test('dialogs, toasts and tooltips pass the accessibility rules', async () => {
+  for (const colorScheme of ['light', 'dark']) {
+    const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 }, bypassCSP: true });
+    await page.goto(`${httpBase}#/settings`);
+    await page.waitForSelector('#view h1');
+    await page.click('#profile button[type=submit]'); // a toast
+    await page.waitForSelector('.toast-item');
+    await page.focus('#theme'); // a tooltip
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await page.waitForSelector('#tooltip:not([hidden])');
+    await page.click('[data-reset]'); // a dialog
+    await page.waitForSelector('dialog.dialog[open]');
+    assert.deepEqual(await audit(page), [], colorScheme);
+    await page.close();
   }
 });
 

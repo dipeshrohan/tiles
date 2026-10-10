@@ -17,6 +17,7 @@ import {
 } from '../lib/insights.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
+import { confirmDialog } from '../lib/overlay.ts';
 
 // Saved insights (T3.12): findings saved from the correlation finder or the Data explorer, with the
 // question asked, the evidence it gave then and the actions proposed; another engineer accepts or
@@ -284,8 +285,15 @@ const view: View = {
       'click',
       () => void act(ctx, (site, num) => api.insights.reopen(site, num), 'Insight reopened'),
     );
-    onAll(root, '[data-remove]', 'click', () => {
-      if (confirm(`Delete insight #${i.number}, ${i.title}?`))
+    onAll(root, '[data-remove]', 'click', async () => {
+      const yes = await confirmDialog({
+        title: `Delete insight #${i.number}?`,
+        body: `${i.title}, its evidence and its review are deleted for good.`,
+        confirm: 'Delete',
+        tone: 'danger',
+      });
+      // The dialog doesn't block the page: if another insight opened meanwhile, delete nothing.
+      if (yes && selected() === i.number)
         void act(ctx, (site, num) => api.insights.remove(site, num), 'Insight deleted');
     });
   },

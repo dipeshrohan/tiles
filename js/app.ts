@@ -54,6 +54,8 @@ import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import { icon } from './lib/icons.ts';
+import { createToaster } from './lib/toaster.ts';
+import { installTooltips } from './lib/tooltip.ts';
 
 const VIEWS: View[] = [
   home,
@@ -85,6 +87,10 @@ const NAV: { group?: string; items: View[] }[] = [
   { group: 'Design', items: [design] },
   { group: '', items: [onboarding, settings] },
 ];
+
+// Toasts and tooltips are the page's, from the start (a live region must exist before it speaks).
+const toast = createToaster(need(document, '#toast'));
+installTooltips();
 
 // ---- state ------------------------------------------------------------
 
@@ -269,7 +275,7 @@ function makeApi(): ApiClient | null {
     userEmail: state.user.email,
     // Only a session obtained for this very API is ever sent to it.
     getToken: () => accessToken(baseUrl),
-    onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message),
+    onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message, { type: 'error' }),
   });
 }
 
@@ -547,15 +553,6 @@ function renderSoon(): void {
     }
     if (k === focused && el instanceof HTMLElement) el.focus({ preventScroll: true });
   });
-}
-
-let toastTimer: ReturnType<typeof setTimeout> | undefined;
-function toast(message: string): void {
-  const el = need(document, '#toast');
-  el.textContent = message;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
 }
 
 // ---- theme & mobile nav ---------------------------------------------------

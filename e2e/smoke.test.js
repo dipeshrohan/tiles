@@ -55,6 +55,15 @@ after(async () => {
   server?.close();
 });
 
+// Confirms the dialog a click opened (js/lib/overlay.ts), typing `typed` first when it asks for it.
+async function confirmIn(page, typed) {
+  const dialog = page.locator('dialog.dialog[open]');
+  await dialog.waitFor();
+  if (typed) await dialog.locator('input[name=typed]').fill(typed);
+  await dialog.locator('[data-confirm]').click();
+  await page.waitForSelector('dialog.dialog', { state: 'detached' });
+}
+
 async function openPage(options = {}) {
   const page = await browser.newPage(options);
   const errors = [];
@@ -103,6 +112,66 @@ test('a page fades in when it opens, once: not on a re-render or another record 
   await page.goto(`${httpBase}#/warnings`);
   await page.waitForSelector('#view h1:has-text("Warnings")');
   assert.equal(await entering(), true);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('dialogs keep focus, cancel with Escape and give focus back; toasts can be dismissed', async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/settings`);
+  await page.waitForSelector('#view h1');
+  await page.focus('[data-reset]');
+  await page.keyboard.press('Enter');
+  const dialog = page.locator('dialog.dialog[open]');
+  await dialog.waitFor();
+  assert.equal(await dialog.getAttribute('role'), 'alertdialog');
+  assert.match(await dialog.innerText(), /Reset this browser’s workspace\?/);
+  // What can't be undone waits for its name.
+  assert.equal(await dialog.locator('[data-confirm]').isDisabled(), true);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'typed');
+  await dialog.locator('input[name=typed]').fill('rese');
+  assert.equal(await dialog.locator('[data-confirm]').isDisabled(), true);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog.dialog', { state: 'detached' });
+  assert.equal(await page.evaluate(() => document.activeElement?.hasAttribute('data-reset')), true);
+  assert.equal(await page.locator('#toast:has-text("Demo data reset")').count(), 0); // nothing reset
+  // A click on the backdrop cancels too.
+  await page.click('[data-reset]');
+  await dialog.waitFor();
+  await page.mouse.click(5, 5);
+  await page.waitForSelector('dialog.dialog', { state: 'detached' });
+  // A drag that starts in the field and ends outside the panel keeps it open.
+  await page.click('[data-reset]');
+  await dialog.waitFor();
+  const field = await dialog.locator('input[name=typed]').boundingBox();
+  await page.mouse.move(field.x + 10, field.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(5, 5);
+  await page.mouse.up();
+  await page.waitForTimeout(300);
+  assert.equal(await dialog.count(), 1);
+  // Enter in the typed name confirms, once it matches.
+  await dialog.locator('input[name=typed]').fill('reset');
+  await dialog.locator('input[name=typed]').press('Enter');
+  await page.waitForSelector('#toast:has-text("Demo data reset")');
+  await page.waitForSelector('dialog.dialog', { state: 'detached' });
+  // Toasts: shown in the stack, dismissed with their button; the others still go on their own.
+  await page.click('#profile button[type=submit]');
+  const item = page.locator('.toast-item:has-text("Profile saved")');
+  await item.waitFor();
+  await item.locator('.toast-close').click();
+  await item.waitFor({ state: 'detached' });
+  await page.mouse.move(5, 5); // off the stack: a toast's button under the pointer holds it
+  await page.locator('.toast-item:has-text("Demo data reset")').waitFor({ state: 'detached', timeout: 8000 });
+  // A tooltip names an icon button on keyboard focus.
+  await page.focus('#theme');
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab'); // focused from the keyboard: :focus-visible
+  await page.waitForSelector('#tooltip:not([hidden])');
+  assert.equal(await page.locator('#tooltip').innerText(), 'Light or dark theme');
+  assert.equal(await page.getAttribute('#theme', 'aria-describedby'), 'tooltip');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -168,8 +237,8 @@ test('a deployment opens its API by default, and a reset keeps it a default', as
   assert.equal(await page.locator('#datasource [name=mode][value=api]').isChecked(), true);
   assert.equal(await page.inputValue('#datasource [name=apiUrl]'), apiUrl);
   await page.waitForSelector('#notifications'); // the API's site has loaded
-  page.once('dialog', (d) => d.accept());
   await page.click('[data-reset]');
+  await confirmIn(page, 'reset');
   await page.waitForSelector('#toast:has-text("Demo data reset")');
   // Nothing chosen in this browser, so nothing saved: a new address from the deployment still applies.
   assert.equal(await page.evaluate(() => localStorage.getItem('tiles:datasource')), null);
@@ -197,8 +266,8 @@ test('settings can switch to the Tiles API and test the connection', async (t) =
   assert.equal(await page.inputValue('#datasource [name=apiUrl]'), apiUrl);
 
   // Resetting the workspace keeps the data source.
-  page.once('dialog', (d) => d.accept());
   await page.click('[data-reset]');
+  await confirmIn(page, 'reset');
   await page.reload();
   assert.equal(await page.locator('#datasource [name=mode][value=api]').isChecked(), true);
   // Settled: loading the API's site re-renders the page, which would replace the field mid-fill.
@@ -592,7 +661,6 @@ test('organisation admins set their own sign-in and SCIM tokens; people sign in 
   t.after(() => fake.close());
   const { page, errors } = await openPage();
   t.after(() => page.close());
-  page.on('dialog', (d) => void d.accept());
   const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
   await page.goto(`${home}#/settings`);
   await page.waitForSelector('#org-sign-in:has-text("signs in through this deployment")');
@@ -622,6 +690,7 @@ test('organisation admins set their own sign-in and SCIM tokens; people sign in 
   await page.click('[data-scim-token-done]');
   await page.waitForSelector('[data-scim-token]', { state: 'detached' });
   await page.click('[data-revoke-scim]');
+  await confirmIn(page);
   await page.waitForSelector('#org-sign-in:has-text("No SCIM tokens yet")');
 
   // Signing in through the organisation's own provider asks for its scope.
@@ -659,7 +728,6 @@ test('App Studio: an engineer makes an SPC app from its template, runs it, chang
   fake.addSignal('oven.zone2_temp');
   const { page, errors } = await openPage();
   t.after(() => page.close());
-  page.on('dialog', (d) => void d.accept());
   const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
   await page.goto(`${home}#/apps`);
   await page.waitForSelector('[data-app-list]:has-text("No apps yet")');
@@ -703,6 +771,7 @@ test('App Studio: an engineer makes an SPC app from its template, runs it, chang
   await page.click('#app-form a.btn:has-text("Cancel")');
 
   await page.click('[data-archive-app]');
+  await confirmIn(page);
   await page.waitForSelector('[data-app-list]:has-text("No apps yet")');
   assert.deepEqual(errors, []);
 
@@ -728,7 +797,6 @@ test('Documents: an engineer uploads an SOP, searches it, and opens the page a m
   t.after(() => fake.close());
   const { page, errors } = await openPage();
   t.after(() => page.close());
-  page.on('dialog', (d) => void d.accept());
   const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
   await page.goto(`${home}#/documents`);
   await page.waitForSelector('[data-doc-list]:has-text("No documents yet")');
@@ -764,6 +832,7 @@ test('Documents: an engineer uploads an SOP, searches it, and opens the page a m
   await page.waitForSelector('[data-matches]:has-text("Open page 2")');
 
   await page.click('[data-archive-doc="1"]');
+  await confirmIn(page);
   await page.waitForSelector('[data-doc-list]:has-text("No documents yet")');
   assert.deepEqual(
     errors.filter((e) => !/status of 503/.test(e)),
@@ -785,7 +854,6 @@ test('site admins register edge agents and see them come online', async (t) => {
   t.after(() => fake.close());
   const { page, errors } = await openPage();
   t.after(() => page.close());
-  page.on('dialog', (d) => void d.accept());
   const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
   await page.goto(`${home}#/settings`);
   await page.waitForSelector('#agents:has-text("No agents registered")');
@@ -813,6 +881,7 @@ test('site admins register edge agents and see them come online', async (t) => {
   const buffered = page.locator('#agents .badge:has-text("1,200 queued")');
   assert.match(await buffered.getAttribute('title'), /1200 waiting\. 5 sent.*can't reach Tiles$/);
   await page.click('[data-revoke-agent]');
+  await confirmIn(page);
   await page.waitForSelector('#agents:has-text("No agents registered")');
   assert.deepEqual(errors, []);
 });
@@ -1904,7 +1973,8 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
   await page.waitForSelector('.floor-card:first-child:has-text("Casting › DC line 1")');
   assert.match(await cards.nth(0).innerText(), /Die-caster DC-01[\s\S]*dc1\.friction[\s\S]*Signal still out/);
   assert.match(await cards.nth(1).innerText(), /dc2\.friction[\s\S]*Nobody has it/);
-  // Gloves: every button is at least 64 px each way.
+  // Gloves: every button is at least 64 px each way (measured once the page has settled).
+  await page.waitForFunction(() => !document.querySelector('#view').classList.contains('view-enter'));
   for (const box of await page.locator('.floor-btn').evaluateAll((els) => els.map((e) => e.getBoundingClientRect())))
     assert.ok(box.height >= 64 && box.width >= 64, `a ${box.width}×${box.height} button`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -2575,7 +2645,6 @@ test('the correlation finder: a failed upload leaves nothing behind, and enginee
   const apiUrl = await fake.listen();
   t.after(() => fake.close());
   const a = await openAs(t, apiUrl, null, 'correlate');
-  a.page.on('dialog', (d) => void d.accept());
   await a.page.waitForSelector('#dataset-form');
   const file = { name: 'cutter.csv', mimeType: 'text/csv', buffer: Buffer.from(cutterCsv()) };
   await a.page.setInputFiles('#dataset-form [name=file]', file);
@@ -2599,6 +2668,7 @@ test('the correlation finder: a failed upload leaves nothing behind, and enginee
   assert.equal(fake.correlations.at(-1).split, null);
 
   await a.page.click('[data-delete-dataset]');
+  await confirmIn(a.page);
   await a.page.waitForSelector('#toast:has-text("cutter deleted")');
   await a.page.waitForSelector('[data-dataset-list]:has-text("No batch tables yet")');
   assert.deepEqual(fake.datasets, []);
@@ -2693,8 +2763,8 @@ test('saved insights: save a correlation, another engineer reviews it, its autho
   assert.equal(await v.page.locator('[data-save-insight]').count(), 0);
 
   // Its author deletes it.
-  a.page.on('dialog', (d) => void d.accept());
   await a.page.click('[data-remove]');
+  await confirmIn(a.page);
   await a.page.waitForSelector('#toast:has-text("Insight deleted")');
   assert.deepEqual(fake.insights, []);
   assert.deepEqual([...a.errors, ...b.errors, ...v.errors], []);
