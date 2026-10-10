@@ -16,7 +16,7 @@ import {
 import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi, pageHead, apiUnreachable } from '../lib/ui.ts';
+import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 import { icon } from '../lib/icons.ts';
 
 // App Studio (T6.10): use cases configured from templates, without code. A template (a wear check,
@@ -140,7 +140,7 @@ function listCard(ctx: Context): string {
     listing?.key === listKey(ctx) && listing.failed
       ? retry('The apps', 'data-retry-apps')
       : items === null
-        ? loadingState()
+        ? skeleton.list()
         : items
             .map(
               (
@@ -188,7 +188,7 @@ function formCard(ctx: Context, d: Draft, template: AppTemplate, editing: Studio
 function newCard(ctx: Context): string {
   const list = templates?.list;
   if (templates?.failed) return `<div class="card">${retry('The templates', 'data-retry-templates')}</div>`;
-  if (!list) return `<div class="card">${loadingState('Loading the templates…')}</div>`;
+  if (!list) return `<div class="card">${skeleton.list(3, 'Loading the templates…')}</div>`;
   if (!draft || draft.key !== 'new' || !list.some((t) => t.id === draft?.template))
     return `<div class="card stack gap-2_5"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
   const template = list.find((t) => t.id === draft?.template);
@@ -202,14 +202,14 @@ function detailCard(ctx: Context): string {
     return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an app', body: 'Or make one from a template.' })}</div>`;
   if (listing?.failed)
     return `<div class="card">${emptyState({ illustration: 'error', alert: true, title: 'The apps could not be loaded' })}</div>`;
-  if (items === null) return `<div class="card">${loadingState()}</div>`;
+  if (items === null) return `<div class="card">${skeleton.card()}</div>`;
   const app = items.find((a) => a.number === n);
   if (!app)
     return `<div class="card">${emptyState({ illustration: 'search', title: `There is no app #${n} on this site`, action: '<a class="btn" href="#/apps">All apps</a>' })}</div>`;
   const template = templates?.list?.find((t) => t.id === app.template);
   if (editKey()) {
     if (templates?.failed) return `<div class="card">${retry('The templates', 'data-retry-templates')}</div>`;
-    if (!template) return `<div class="card">${loadingState('Loading the template…')}</div>`;
+    if (!template) return `<div class="card">${skeleton.card('Loading the template…')}</div>`;
     if (draft?.key !== `edit|${app.number}`)
       draft = { key: `edit|${app.number}`, template: app.template, name: app.name, values: {} };
     return formCard(ctx, draft, template, app);
@@ -305,7 +305,7 @@ const view: View = {
     });
     if (!ctx.api) return `${head}<div class="card">${needsApi(`Apps are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
+    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     return `${head}<div class="reviews">${listCard(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;

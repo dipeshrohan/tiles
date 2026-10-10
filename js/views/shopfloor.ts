@@ -16,6 +16,7 @@ import {
 import type { Context, View } from './types.ts';
 import { apiUnreachable } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
+import { skeleton } from '../lib/ui.ts';
 
 // The shopfloor view (T5.16): for a tablet on the line, read at arm's length and used with gloves.
 // It shows the open warnings first, worst first, each with big buttons: take it, then resolve it
@@ -198,7 +199,7 @@ const view: View = {
     const graph = ctx.graph; // made afresh at each read: once for the whole page
     const list = floorItems(ctx, graph);
     if (list === null)
-      return `<div class="floor">${head('<h1>Shopfloor</h1>')}<div class="card">Loading the warnings…</div></div>`;
+      return `<div class="floor">${head('<h1>Shopfloor</h1>')}<div class="card">${skeleton.list(3, 'Loading the warnings…')}</div></div>`;
     const now = Date.now();
     const { tone, text } = headline(list);
     const updated =

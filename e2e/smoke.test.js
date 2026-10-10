@@ -186,6 +186,48 @@ test('dialogs keep focus, cancel with Escape and give focus back; toasts can be 
   await page.close();
 });
 
+test('pages that load from the API hold still as they fill: layout shift under 0.05', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { unit: '°C' });
+  fake.addSignal('dc1.pressure', { unit: 'bar' });
+  raiseFrictionWarnings(fake);
+  const shifts = {};
+  for (const route of [
+    'signals',
+    'warnings',
+    'documents',
+    'insights',
+    'apps',
+    'reviews',
+    'correlate',
+    'plant',
+    'onboarding',
+  ]) {
+    const { page, errors } = await openPage({ viewport: { width: 1280, height: 800 } });
+    // Every layout shift not caused by input, added up (Cumulative Layout Shift, as browsers report it).
+    await page.addInitScript(() => {
+      window.__cls = 0;
+      new PerformanceObserver((list) => {
+        for (const e of list.getEntries()) if (!e.hadRecentInput) window.__cls += e.value;
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/${route}`);
+    await page.waitForSelector('#view h1');
+    // Settled: nothing busy, and no request in flight (a phase that loads later shifts it too).
+    await page.waitForFunction(() => !document.querySelector('#view [aria-busy=true]'), null, { timeout: 10000 });
+    await page.waitForLoadState('networkidle');
+    await page.waitForTimeout(500);
+    shifts[route] = await page.evaluate(() => window.__cls);
+    assert.deepEqual(errors, [], route);
+    await page.close();
+  }
+  t.diagnostic(`layout shift ${JSON.stringify(shifts)}`);
+  const over = Object.entries(shifts).filter(([, v]) => v >= 0.05);
+  assert.deepEqual(over, [], JSON.stringify(shifts));
+});
+
 test('the style guide: from Settings, not in the menu, every section shown', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/settings`);
@@ -1388,7 +1430,7 @@ test('the edit form is locked while its change is saved', async (t) => {
   await page.click('[data-edit]');
   await page.fill('#signal-form [name=unit]', '°C');
   await page.click('#signal-form button[type=submit]');
-  await page.waitForSelector('#signal-form button[type=submit]:has-text("Saving")');
+  await page.waitForSelector('#signal-form button[type=submit][aria-busy=true]');
   assert.equal(await page.locator('#signal-form [name=description]').isDisabled(), true);
   await page.locator('#signal-form').evaluate((f) => f.requestSubmit()); // a second submit is ignored
   await page.waitForSelector('#toast:has-text("Saved oven.temp")');
@@ -1531,10 +1573,10 @@ test('a quality check still shows as running after leaving the page and coming b
   await page.click('[data-check-quality]');
   await page.evaluate(() => (location.hash = '#/import'));
   await page.evaluate(() => (location.hash = '#/signals'));
-  await page.waitForSelector('[data-check-quality]:has-text("Checking")');
+  await page.waitForSelector('[data-check-quality][aria-busy=true]');
   assert.equal(await page.locator('[data-check-quality]').isDisabled(), true);
   await page.waitForSelector('#toast:has-text("Checked 1 signal(s)")');
-  await page.waitForSelector('[data-check-quality]:has-text("Check quality")');
+  await page.waitForSelector('[data-check-quality]:not([aria-busy]):not([disabled])');
   assert.equal(await page.locator('[data-check-quality]').isDisabled(), false);
   assert.deepEqual(errors, []);
 });

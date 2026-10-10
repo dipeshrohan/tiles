@@ -32,11 +32,11 @@ import {
   errorState,
   field,
   kv,
-  loadingState,
   needsApi,
   pageHead,
   select,
   tabs,
+  skeleton,
   apiUnreachable,
 } from '../lib/ui.ts';
 
@@ -141,7 +141,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const empty = unfiltered ? 'Nothing to do: no warning waits for anyone.' : 'No warnings match these filters.';
   const rows =
     items === null
-      ? loadingState()
+      ? skeleton.list()
       : items
           .map(
             (w) => `
@@ -160,7 +160,7 @@ function listCard(ctx: Context, ui: Ui): string {
 function chartCard(w: WarningDetail): string {
   const fetched = series?.key === seriesKey(w) ? series : null;
   const s = fetched?.data;
-  if (!fetched || s === undefined) return loadingState('Loading the signal…', 4);
+  if (!fetched || s === undefined) return skeleton.chart('Loading the signal…', TIME_CHART.height);
   if (s === null) return '<p class="small muted">The signal’s readings could not be loaded.</p>';
   const { from, to, start, end } = fetched.range; // the range the readings were fetched for
   const points = toPoints(s);
@@ -238,7 +238,7 @@ function detailCard(ctx: Context, ui: Ui): string {
     return card(errorState({ title: 'This warning could not be loaded', body: 'Refresh to try again.' }), {
       attrs: { 'data-warning-detail': true },
     });
-  if (!w) return card(loadingState(), { attrs: { 'data-warning-detail': true } });
+  if (!w) return card(skeleton.card(), { attrs: { 'data-warning-detail': true } });
   const activity = w.activity
     .map(
       (a) => `
@@ -443,7 +443,7 @@ const view: View = {
     if (!ctx.api)
       return `${head}${card(needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`))}`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}${card('Loading from the Tiles API…')}`;
+    if (o.status === 'loading') return `${head}${card(skeleton.card('Loading from the Tiles API…'))}`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);

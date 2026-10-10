@@ -13,7 +13,7 @@ import {
 } from '../lib/importer.ts';
 import type { ImportRun } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
-import { pageHead } from '../lib/ui.ts';
+import { pageHead, skeleton } from '../lib/ui.ts';
 
 // Bulk import (T2.07): backfill readings from a CSV file or historian export. The file is
 // read here, in the browser, and sent to the Tiles API in batches; nothing is uploaded
@@ -215,7 +215,7 @@ function progress(r: Running): string {
 }
 
 function historyCard(): string {
-  return `<div class="card stack gap-3"><h2>Past imports</h2><div data-import-history aria-live="polite"><p class="small soft">Loading…</p></div></div>`;
+  return `<div class="card stack gap-3"><h2>Past imports</h2><div data-import-history aria-live="polite">${skeleton.table(3, 5, 'Loading the past imports…')}</div></div>`;
 }
 
 export function historyTable(runs: ImportRun[]): string {

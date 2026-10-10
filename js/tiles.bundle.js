@@ -2480,16 +2480,48 @@
 			action: `<a class="btn primary" href="#/settings">${icon("plug")} Open Settings</a>`
 		});
 	}
+	var WIDTHS = [
+		92,
+		76,
+		84,
+		64,
+		88,
+		70
+	];
+	var bar = (w) => `<span class="skeleton" style="--w:${w}%"></span>`;
+	var loadingSince = 0;
+	var lastLoading = -Infinity;
+	var wait = () => {
+		const now = typeof performance === "undefined" ? Date.now() : performance.now();
+		if (now - lastLoading > 1e3) loadingSince = now;
+		lastLoading = now;
+		return Math.max(0, Math.round(300 - (now - loadingSince)));
+	};
+	var loading = (label, kind, shapes) => `<div class="loading loading-${kind}"><span class="sr-only">${esc(label)}</span><div class="loading-shapes" aria-hidden="true" aria-busy="true" style="--wait:${wait()}ms">${shapes}</div></div>`;
+	var skeleton = {
+		text(lines = 3, label = "Loading…") {
+			return loading(label, "text", Array.from({ length: lines }, (_, i) => bar(WIDTHS[i % WIDTHS.length] ?? 80)).join(""));
+		},
+		table(rows = 5, cols = 4, label = "Loading…") {
+			const row = (r) => `<div class="skeleton-row${r < 0 ? " head" : ""}">${Array.from({ length: cols }, (_, c) => bar(r < 0 ? 50 : WIDTHS[(c + r) % WIDTHS.length] ?? 80)).join("")}</div>`;
+			return loading(label, "table", [row(-1), ...Array.from({ length: rows }, (_, r) => row(r))].join(""));
+		},
+		card(label = "Loading…", o = {}) {
+			return loading(label, "card", `<span class="skeleton skeleton-title"></span>${[
+				88,
+				72,
+				80
+			].map(bar).join("")}${o.chart ? `<span class="skeleton skeleton-chart" style="--h:${o.chart}px"></span>` : ""}`);
+		},
+		chart(label = "Loading the chart…", height = 240) {
+			return loading(label, "chart", `<span class="skeleton skeleton-chart" style="--h:${height}px"></span>`);
+		},
+		list(items = 4, label = "Loading…") {
+			return loading(label, "list", Array.from({ length: items }, (_, i) => `<div class="skeleton-item">${bar(WIDTHS[i % WIDTHS.length] ?? 80)}${bar(48)}</div>`).join(""));
+		}
+	};
 	function loadingState(label = "Loading…", rows = 3) {
-		const widths = [
-			92,
-			76,
-			84,
-			64,
-			88,
-			70
-		];
-		return `<div class="empty loading"><span class="sr-only">${esc(label)}</span>${Array.from({ length: rows }, (_, i) => `<span class="skeleton" style="--w:${widths[i % widths.length]}%"></span>`).join("")}</div>`;
+		return skeleton.text(rows, label);
 	}
 	function attrs(a = {}) {
 		return Object.entries(a).map(([k, v]) => v === true ? ` ${k}` : v === false || v === null || v === void 0 ? "" : ` ${k}="${esc(String(v))}"`).join("");
@@ -2497,12 +2529,26 @@
 	var classes = (...c) => c.filter(Boolean).join(" ");
 	var buttonClass = (o, extra) => classes("btn", o.size, o.variant, extra, o.class);
 	function button(label, o = {}) {
+		const content = `${o.icon ? `${icon(o.icon)} ` : ""}${esc(label)}`;
 		return `<button${attrs({
-			class: buttonClass(o),
+			class: buttonClass(o, o.busy ? "busy" : void 0),
 			type: o.type ?? "button",
-			disabled: o.disabled,
+			disabled: o.disabled || o.busy,
+			"aria-busy": o.busy ? "true" : void 0,
 			...o.attrs
-		})}>${o.icon ? `${icon(o.icon)} ` : ""}${esc(label)}</button>`;
+		})}>${o.busy ? `<span class="btn-label">${content}</span><span class="btn-spinner" aria-hidden="true">${icon("loader-circle")}</span>` : content}</button>`;
+	}
+	function setBusy(el, busy) {
+		el.disabled = busy;
+		el.classList.toggle("busy", busy);
+		const label = el.querySelector(".btn-label");
+		if (busy) {
+			el.setAttribute("aria-busy", "true");
+			if (!label) el.innerHTML = `<span class="btn-label">${el.innerHTML}</span><span class="btn-spinner" aria-hidden="true">${icon("loader-circle")}</span>`;
+		} else {
+			el.removeAttribute("aria-busy");
+			if (label) el.innerHTML = label.innerHTML;
+		}
 	}
 	function iconButton(name, label, o = {}) {
 		return `<button${attrs({
@@ -2731,7 +2777,7 @@
 	function remoteRender(ctx) {
 		const ui = uiState$13(ctx);
 		const list = remote$1?.conversations;
-		const items = list === null || list === void 0 ? loadingState() : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
+		const items = list === null || list === void 0 ? skeleton.list() : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
 			dateStyle: "medium",
 			timeStyle: "short"
 		})}</span></button>`).join("") || emptyState({
@@ -4921,7 +4967,7 @@
 		const items = projects?.site === site ? projects.items : null;
 		const shown = projectOf(ctx, site);
 		const canWrite = ctx.ontology.role !== null && ctx.ontology.role !== "viewer";
-		const choose = items === null ? "<span class=\"small soft\">Loading projects…</span>" : items.length ? `<label class="row gap-2">Project <select id="project" aria-label="Design project">${items.map((p) => `<option value="${esc(p.id)}" ${p.id === shown?.id ? "selected" : ""}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? "" : "s"})</option>`).join("")}</select></label>` : "<span class=\"small soft\">No projects yet on this site.</span>";
+		const choose = items === null ? "<span class=\"small soft\" aria-busy=\"true\">Loading projects…</span>" : items.length ? `<label class="row gap-2">Project <select id="project" aria-label="Design project">${items.map((p) => `<option value="${esc(p.id)}" ${p.id === shown?.id ? "selected" : ""}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? "" : "s"})</option>`).join("")}</select></label>` : "<span class=\"small soft\">No projects yet on this site.</span>";
 		const create = canWrite ? `<form id="new-project" class="row gap-2"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>` : "";
 		return `<div class="card row gap-4 wrap justify-between mb-4" data-projects>
       <div class="row gap-4 wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ""}</div>
@@ -5050,7 +5096,7 @@
 				return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : "<span class=\"muted\">untitled</span>"}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
                       <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show$1(d.from)} → ${show$1(d.to)}`).join("<br>") || "no change" : "first run"}</td>
                       <td class="num"><b>${fmt$1(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
-			}).join("")}</tbody></table></div>` : `<div class="empty">${site && !project ? "Pick or create a project to see its runs." : site && !fetched?.loaded ? "Loading runs…" : remote && !site ? "" : "No runs yet. Adjust parameters and press “Save run”."}</div>`}
+			}).join("")}</tbody></table></div>` : `<div class="empty">${site && !project ? "Pick or create a project to see its runs." : site && !fetched?.loaded ? skeleton.list(3, "Loading runs…") : remote && !site ? "" : "No runs yet. Adjust parameters and press “Save run”."}</div>`}
         </div>
       </div>`;
 		},
@@ -5535,7 +5581,7 @@
 		return `<div class="card stack gap-3 span-all" id="audit">
       <h2>Audit log</h2>
       <p class="small soft">Every change on this site: who, what and when. Only site admins see this.</p>
-      <div data-audit-rows aria-live="polite"><p class="small soft">Loading…</p></div>
+      <div data-audit-rows aria-live="polite">${skeleton.table(4, 4, "Loading the audit log…")}</div>
     </div>`;
 	}
 	async function fillAudit(root, ctx) {
@@ -5553,7 +5599,7 @@
 		return `<div class="card stack gap-3 span-all" id="copilot-usage">
       <h2>Copilot usage</h2>
       <p class="small soft">Questions asked on this site over the last 30 days (UTC), the tokens they used and how long answers took. Tokens are weighted by price, in input tokens: an output token counts five, a prompt-cache write one and a quarter, a cache read a tenth. Only site admins see this.</p>
-      <div data-copilot-usage aria-live="polite"><p class="small soft">Loading…</p></div>
+      <div data-copilot-usage aria-live="polite">${skeleton.text(3, "Loading the usage…")}</div>
     </div>`;
 	}
 	function usageHtml(u) {
@@ -5642,7 +5688,7 @@
         <div class="row gap-2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
       </form>
       <h3>Recent messages</h3>
-      <div data-deliveries aria-live="polite"><p class="small soft">Loading…</p></div>` : ""}
+      <div data-deliveries aria-live="polite">${skeleton.table(3, 4, "Loading the deliveries…")}</div>` : ""}
     </div>`;
 	}
 	function deliveryState(d) {
@@ -5760,7 +5806,7 @@
       <h2>Edge agents</h2>
       <p class="small soft">Agents run on the plant network and send data out to Tiles; they open no ports. Each one reports a heartbeat, so you can see whether it is online. See <code>edge/README.md</code> to install one.</p>
       <div data-agent-token aria-live="polite"></div>
-      <div data-agent-rows aria-live="polite"><p class="small soft">Loading…</p></div>
+      <div data-agent-rows aria-live="polite">${skeleton.table(2, 5, "Loading the edge agents…")}</div>
       ${admin ? `<form class="row gap-2 wrap" id="agent-form">
           <label class="field grow min-w-field">New agent name<input type="text" name="name" placeholder="e.g. press-shop-edge" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="Letters, digits, dot, dash or underscore; up to 63" required /></label>
           <div class="self-end"><button class="btn primary" type="submit">Register agent</button></div>
@@ -6353,9 +6399,10 @@
 				maxlength: 100
 			}
 		}), { title: "The machine, as the MES names it: its events are matched to its detectors' warnings" })}
-        ${button(saving$2 === s.id ? "Saving…" : "Save", {
+        ${button("Save", {
 			variant: "primary",
-			type: "submit"
+			type: "submit",
+			busy: saving$2 === s.id
 		})}
         ${button("Cancel", { attrs: { "data-cancel-edit": true } })}
         </fieldset>
@@ -6428,7 +6475,7 @@
 		} : null;
 		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
 		const canEdit = ctx.ontology.role !== "viewer";
-		box.innerHTML = failed ? "<p class=\"small soft\">The signals could not be loaded.</p>" : results ? resultsTable(ctx, results, canEdit) : "<p class=\"small soft\">Loading…</p>";
+		box.innerHTML = failed ? "<p class=\"small soft\">The signals could not be loaded.</p>" : results ? resultsTable(ctx, results, canEdit) : skeleton.table(6, 9, "Loading the signals…");
 		const again = box.querySelector("#signal-form");
 		if (typed && again && again.dataset.signal === typed.signal) {
 			for (const [name, value] of typed.values) {
@@ -6628,7 +6675,7 @@
 				lead: "Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to."
 			});
 			if (!ctx.api) return `${head}${card$1(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
-			if (!ctx.ontology.site) return `${head}${ctx.ontology.status === "error" ? apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) }) : card$1("<p class=\"small soft\">Loading the site from the Tiles API…</p>")}`;
+			if (!ctx.ontology.site) return `${head}${ctx.ontology.status === "error" ? apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) }) : card$1(skeleton.card("Loading the site from the Tiles API…"))}`;
 			const { query } = ui$1(ctx);
 			return `${head}${card$1(`${`<form id="signal-search" class="row gap-3 wrap" role="search">
           ${field("Search", input({
@@ -6656,14 +6703,14 @@
 				["unknown", "No data"],
 				["unchecked", "Not checked"]
 			], query.quality))}
-          ${ctx.ontology.role !== "viewer" ? button(checking ? "Checking…" : "Check quality", {
-				disabled: checking,
+          ${ctx.ontology.role !== "viewer" ? button("Check quality", {
+				busy: checking,
 				attrs: {
 					"data-check-quality": true,
 					title: "Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed"
 				}
 			}) : ""}
-        </form>`}<div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>`, { class: "stack gap-3" })}
+        </form>`}<div data-signal-results aria-live="polite">${skeleton.table(6, 9, "Loading the signals…")}</div>`, { class: "stack gap-3" })}
       ${card$1(`<div class="row justify-between wrap gap-2">
           <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
           ${button("Suggest mappings", { attrs: { "data-suggest": true } })}
@@ -6704,8 +6751,7 @@
 			const setButton = (busy) => {
 				const button = root.querySelector("[data-check-quality]");
 				if (!button) return;
-				button.disabled = busy;
-				button.textContent = busy ? "Checking…" : "Check quality";
+				setBusy(button, busy);
 			};
 			checkButton?.addEventListener("click", () => {
 				const site = ctx.ontology.site;
@@ -7137,7 +7183,7 @@
         ${canSave && saving$1?.key === chartsKey(u) ? `<div class="stack gap-1_5"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm("insight-save", saving$1.text, savingBusy)}</div>` : ""}` : "";
 			const charts = picked.map((p) => `<div class="card stack gap-1_5">
           <div class="row justify-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? "")}</span></div>
-          <div data-chart="${esc(p.id)}"><p class="small soft">Loading…</p></div>
+          <div data-chart="${esc(p.id)}">${skeleton.chart("Loading the readings…", TIME_CHART.height)}</div>
           <div data-wear="${esc(p.id)}"></div>
         </div>`).join("");
 			return `${head}<div class="card stack gap-3">
@@ -7267,7 +7313,7 @@
 	function listCard$5(ctx, ui) {
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
 		const items = listing$6?.key === listKey$3(ctx) ? listing$6.items : null;
-		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? loadingState() : items.map((r) => `
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? skeleton.list() : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
           <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$2(r.status)}</span>
           <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
@@ -7290,7 +7336,7 @@
 			body: "Its changes, discussion and decision show here."
 		})}</div>`;
 		const r = detail$3?.key === detailKey$2(ctx) ? detail$3.review : null;
-		if (!r) return `<div class="card" data-review-detail>${loadingState()}</div>`;
+		if (!r) return `<div class="card" data-review-detail>${skeleton.card()}</div>`;
 		const o = ctx.ontology;
 		const open = r.status === "open";
 		const changes = describeChanges(ctx.state.repo.head, r.ops, { compare: open });
@@ -7446,7 +7492,7 @@
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const ui = uiState$8(ctx);
 			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$5(ctx, ui)}${detailCard$3(ctx, ui)}</div>`;
@@ -7681,7 +7727,7 @@
 		const items = listing$5?.key === listKey$2(ctx) ? listing$5.items : null;
 		const unfiltered = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all";
 		const empty = unfiltered ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
-		return card$1(`<div class="review-list" data-warning-list>${items === null ? loadingState() : items.map((w) => `
+		return card$1(`<div class="review-list" data-warning-list>${items === null ? skeleton.list() : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
           <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
@@ -7698,7 +7744,7 @@
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
 		const s = fetched?.data;
-		if (!fetched || s === void 0) return loadingState("Loading the signal…", 4);
+		if (!fetched || s === void 0) return skeleton.chart("Loading the signal…", TIME_CHART.height);
 		if (s === null) return "<p class=\"small muted\">The signal’s readings could not be loaded.</p>";
 		const { from, to, start, end } = fetched.range;
 		const points = toPoints(s);
@@ -7762,7 +7808,7 @@
 			title: "This warning could not be loaded",
 			body: "Refresh to try again."
 		}), { attrs: { "data-warning-detail": true } });
-		if (!w) return card$1(loadingState(), { attrs: { "data-warning-detail": true } });
+		if (!w) return card$1(skeleton.card(), { attrs: { "data-warning-detail": true } });
 		const activity = w.activity.map((a) => `
       <div class="comment">
         <div class="small muted"><b>${esc(activityText(a))}</b> · ${ago(a.at)}</div>
@@ -7976,7 +8022,7 @@
 			});
 			if (!ctx.api) return `${head}${card$1(needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`))}`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}${card$1("Loading from the Tiles API…")}`;
+			if (o.status === "loading") return `${head}${card$1(skeleton.card("Loading from the Tiles API…"))}`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const ui = uiState$7(ctx);
 			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$4(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
@@ -8467,7 +8513,7 @@
 			})}</div>`;
 			const graph = ctx.graph;
 			const list = floorItems(ctx, graph);
-			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">Loading the warnings…</div></div>`;
+			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">${skeleton.list(3, "Loading the warnings…")}</div></div>`;
 			const now = Date.now();
 			const { tone, text } = headline(list);
 			const updated = listed().at && ctx.api ? `<div class="small soft">Updated ${new Date(listed().at ?? 0).toLocaleTimeString("en-GB", {
@@ -8770,7 +8816,7 @@
 				title,
 				actionsHtml: `<div class="row gap-2">${search}${ctx.api ? button("Refresh", { attrs: { "data-plant-refresh": true } }) : ""}</div>`
 			});
-			if (ctx.api && ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (ctx.api && ctx.ontology.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (ctx.api && ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const results = searchResults(graph, ui.query);
 			if (!tops.length) return `${head}${results}<div class="card"><p>The ontology has no sites, lines or machines yet. Build the hierarchy on the <a href="#/ontology">Ontology</a> page: a site contains workcenters, which contain lines and cells, which contain machines.</p></div>`;
@@ -9087,10 +9133,10 @@ heartbeat_seconds = 30
 				actionsHtml: ctx.api ? button("Refresh", { attrs: { "data-onboarding-refresh": true } }) : ""
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Setting up a site needs the Tiles API: sites, edge agents and tags live there.`)}</div>`;
-			if (ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (ctx.ontology.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const data = progress$1?.site === siteId$5(ctx) ? progress$1.data : null;
-			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">Loading this site’s progress…</div>`;
+			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">${skeleton.list(4, "Loading this site’s progress…")}</div>`;
 			const current = uiState$4(ctx).step ?? data.next ?? "dashboard";
 			const meta = STEPS.find((s) => s.key === current) ?? STEPS[0];
 			const body = {
@@ -9494,8 +9540,13 @@ kv([['Peak', '3,580 N'], ['Baseline', '1,800 N']], { valueClass: 'mono' })`,
 		},
 		{
 			title: "Loading",
-			code: `loadingState('Loading the signal…', 3)`,
-			html: () => loadingState("Loading the signal…", 3)
+			code: `skeleton.table(3, 4, 'Loading the signals…')   // after 300 ms; also .list(), .card(), .chart(), .text()
+skeleton.card('Loading the effects…', { chart: 120 })
+button('Save', { variant: 'primary', busy: true })   // or setBusy(el, true) on one already shown`,
+			html: () => `${skeleton.table(3, 4, "Loading the signals…")}${skeleton.card("Loading the effects…", { chart: 120 })}<div class="mt-3">${button("Save", {
+				variant: "primary",
+				busy: true
+			})}</div>`
 		},
 		{
 			title: "Needs the API",
@@ -9783,13 +9834,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const u = uiState$3(ctx);
 			const key = keyFor(ctx);
 			let body;
 			if (fetched?.key === `${key}|failed`) body = "<div class=\"card\"><p>This could not be loaded.</p></div>";
-			else if (fetched?.key !== key || !fetched.report) body = `<div class="card">${loadingState()}</div>`;
+			else if (fetched?.key !== key || !fetched.report) body = `<div class="card">${skeleton.table(4, 6, "Loading the warnings and events…")}</div>`;
 			else {
 				const r = fetched.report;
 				body = `<div class="grid g4" data-kpis>${kpis(r.totals).map((k) => `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`).join("")}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
@@ -10309,7 +10360,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function listCard$3(ctx, ui) {
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 		const items = listing$3?.items;
-		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? loadingState() : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
+		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? skeleton.list() : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
               <b>${esc(d.name)}</b>
               <span class="small muted">${fmt$1(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ""}</span>
             </button>`).join("") || emptyState({
@@ -10332,7 +10383,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			body: "Or upload one: its settings are compared between good and failed batches."
 		})}</div>`;
 		const d = detail$1?.id === ui.selected ? detail$1.data : null;
-		if (!d) return `<div class="card">${loadingState()}</div>`;
+		if (!d) return `<div class="card">${skeleton.card("Loading the effects…", { chart: 200 })}</div>`;
 		const numbers = d.columns.filter((c) => c.kind === "number").map((c) => c.name);
 		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
 		const checked = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));
@@ -10537,7 +10588,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const ui = uiState$2(ctx);
 			return `${head}<div class="reviews">${listCard$3(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
@@ -10694,7 +10745,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		].map((s) => `<button class="tab ${ui.status === s ? "active" : ""}" data-status="${s}" role="tab">${s === "proposed" ? "To review" : s === "" ? "All" : s === "accepted" ? "Accepted" : "Rejected"}</button>`).join("");
 		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		const n = selected$1();
-		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? loadingState() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? skeleton.list() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
               <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$3(i.status)}</span>
               <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
             </a>`).join("") || emptyState({
@@ -10733,7 +10784,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			illustration: "select",
 			title: "Choose an insight"
 		})}</div>`;
-		if (detail?.key !== detailKey(ctx)) return `<div class="card">${loadingState()}</div>`;
+		if (detail?.key !== detailKey(ctx)) return `<div class="card">${skeleton.card()}</div>`;
 		const i = detail.insight;
 		if (!i) return `<div class="card">${emptyState({
 			illustration: "error",
@@ -10817,7 +10868,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			return `${head}<div class="reviews">${listCard$2(ctx, uiState$1(ctx))}${detailCard$1(ctx)}</div>`;
 		},
@@ -11112,7 +11163,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function listCard$1(ctx) {
 		const items = listing$1?.key === listKey(ctx) ? listing$1.items : null;
 		const n = selected();
-		const rows = listing$1?.key === listKey(ctx) && listing$1.failed ? retry("The apps", "data-retry-apps") : items === null ? loadingState() : items.map((a) => `<a class="review-row ${n === a.number ? "sel" : ""}" href="${appLink(a.number)}" data-app="${a.number}">
+		const rows = listing$1?.key === listKey(ctx) && listing$1.failed ? retry("The apps", "data-retry-apps") : items === null ? skeleton.list() : items.map((a) => `<a class="review-row ${n === a.number ? "sel" : ""}" href="${appLink(a.number)}" data-app="${a.number}">
               <b>#${a.number} ${esc(a.name)}</b>
               <span class="small muted">${esc(a.template_title)} · ${esc(a.signal_tag ?? "signal gone")}</span>
             </a>`).join("") || emptyState({
@@ -11142,7 +11193,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function newCard(ctx) {
 		const list = templates?.list;
 		if (templates?.failed) return `<div class="card">${retry("The templates", "data-retry-templates")}</div>`;
-		if (!list) return `<div class="card">${loadingState("Loading the templates…")}</div>`;
+		if (!list) return `<div class="card">${skeleton.list(3, "Loading the templates…")}</div>`;
 		if (!draft$1 || draft$1.key !== "new" || !list.some((t) => t.id === draft$1?.template)) return `<div class="card stack gap-2_5"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
 		const template = list.find((t) => t.id === draft$1?.template);
 		return template ? formCard(ctx, draft$1, template, null) : "";
@@ -11160,7 +11211,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			alert: true,
 			title: "The apps could not be loaded"
 		})}</div>`;
-		if (items === null) return `<div class="card">${loadingState()}</div>`;
+		if (items === null) return `<div class="card">${skeleton.card()}</div>`;
 		const app = items.find((a) => a.number === n);
 		if (!app) return `<div class="card">${emptyState({
 			illustration: "search",
@@ -11170,7 +11221,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const template = templates?.list?.find((t) => t.id === app.template);
 		if (editKey()) {
 			if (templates?.failed) return `<div class="card">${retry("The templates", "data-retry-templates")}</div>`;
-			if (!template) return `<div class="card">${loadingState("Loading the template…")}</div>`;
+			if (!template) return `<div class="card">${skeleton.card("Loading the template…")}</div>`;
 			if (draft$1?.key !== `edit|${app.number}`) draft$1 = {
 				key: `edit|${app.number}`,
 				template: app.template,
@@ -11261,7 +11312,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Apps are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
+			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			return `${head}<div class="reviews">${listCard$1(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
 		},
@@ -11466,7 +11517,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			title: "The documents could not be loaded",
 			retry: "retry-docs",
 			compact: true
-		}) : items === null ? loadingState() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
+		}) : items === null ? skeleton.list() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
               <span class="row gap-1_5 justify-between"><b>${esc(d.title)}</b>
               <span class="row gap-1">${button("Open", {
 			size: "sm",
@@ -11505,10 +11556,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			attrs: { maxlength: 200 }
 		}))}
         ${field("Language", select("language", LANGUAGES, draft?.language ?? ""))}
-        <div>${button(uploading ? "Uploading…" : "Upload", {
+        <div>${button("Upload", {
 			variant: "primary",
 			type: "submit",
-			disabled: uploading
+			busy: uploading
 		})}</div>
       </form>` : ""}`, { class: "stack gap-2" });
 	}
@@ -11524,7 +11575,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			});
 			if (!ctx.api) return `${head}${card$1(needsApi(`Documents are kept by the Tiles API.`))}`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}${card$1("Loading from the Tiles API…")}`;
+			if (o.status === "loading") return `${head}${card$1(skeleton.card("Loading from the Tiles API…"))}`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
 		},
@@ -11751,7 +11802,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
     <progress max="${r.total}" value="${r.sent}" class="w-full"></progress>`;
 	}
 	function historyCard() {
-		return `<div class="card stack gap-3"><h2>Past imports</h2><div data-import-history aria-live="polite"><p class="small soft">Loading…</p></div></div>`;
+		return `<div class="card stack gap-3"><h2>Past imports</h2><div data-import-history aria-live="polite">${skeleton.table(3, 5, "Loading the past imports…")}</div></div>`;
 	}
 	function historyTable(runs) {
 		if (!runs.length) return "<p class=\"small soft\">No imports on this site yet.</p>";

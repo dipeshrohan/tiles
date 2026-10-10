@@ -17,7 +17,7 @@ import type { Graph, OntologyNode } from '../lib/types.ts';
 import { when } from '../lib/warnings.ts';
 import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } from './floor-data.ts';
 import type { Context, Crumb, View } from './types.ts';
-import { button, pageHead, apiUnreachable } from '../lib/ui.ts';
+import { button, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 
 // The plant navigator (T5.17): the ontology's hierarchy as places to drill into, site → workcenter
@@ -229,7 +229,7 @@ const view: View = {
       actionsHtml: `<div class="row gap-2">${search}${ctx.api ? button('Refresh', { attrs: { 'data-plant-refresh': true } }) : ''}</div>`,
     });
     if (ctx.api && ctx.ontology.status === 'loading')
-      return `${head}<div class="card">Loading from the Tiles API…</div>`;
+      return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')
       return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const results = searchResults(graph, ui.query);

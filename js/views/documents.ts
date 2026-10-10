@@ -18,10 +18,10 @@ import {
   errorState,
   field as labelled,
   input,
-  loadingState,
   needsApi,
   pageHead,
   select,
+  skeleton,
   apiUnreachable,
 } from '../lib/ui.ts';
 
@@ -137,7 +137,7 @@ function listCard(ctx: Context): string {
   const rows = listing?.failed
     ? errorState({ title: 'The documents could not be loaded', retry: 'retry-docs', compact: true })
     : items === null
-      ? loadingState()
+      ? skeleton.list()
       : items
           .map(
             (d) => `<div class="review-row" data-doc="${d.number}">
@@ -167,7 +167,7 @@ function listCard(ctx: Context): string {
         ${labelled('File (PDF, text or Markdown, up to 20 MB)', input({ type: 'file', name: 'file', attrs: { accept: '.pdf,.txt,.md,application/pdf,text/plain,text/markdown', required: true } }))}
         ${labelled('Title', input({ name: 'title', value: draft?.title ?? '', placeholder: 'From the file name', attrs: { maxlength: 200 } }))}
         ${labelled('Language', select('language', LANGUAGES, draft?.language ?? ''))}
-        <div>${button(uploading ? 'Uploading…' : 'Upload', { variant: 'primary', type: 'submit', disabled: uploading })}</div>
+        <div>${button('Upload', { variant: 'primary', type: 'submit', busy: uploading })}</div>
       </form>`
     : '';
   return card(`<h2>Documents</h2><div class="review-list" data-doc-list>${rows}</div>${upload}`, {
@@ -187,7 +187,7 @@ const view: View = {
     });
     if (!ctx.api) return `${head}${card(needsApi(`Documents are kept by the Tiles API.`))}`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}${card('Loading from the Tiles API…')}`;
+    if (o.status === 'loading') return `${head}${card(skeleton.card('Loading from the Tiles API…'))}`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
