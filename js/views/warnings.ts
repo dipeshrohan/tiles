@@ -1,3 +1,4 @@
+import { ux } from '../lib/analytics.ts';
 import { esc, need, onAll, onNavigate, routeOf } from '../lib/dom.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import {
@@ -439,6 +440,7 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
       comment: 'Comment added',
     };
     ctx.toast(done[action] ?? 'Done');
+    ux('task', `warning.${action}`);
     if (action !== 'comment' && !same) listing = null; // it may have left the list's filters
   } catch {
     // The client showed why. An acknowledgement shown at once is taken back at once; then, as after

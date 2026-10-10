@@ -980,6 +980,68 @@ test('Refresh picks up a role change made by an admin', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test('UX analytics: off until an organisation admin turns it on; then counts, and nothing about who', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature', { unit: '°C' });
+  const { out } = raiseFrictionWarnings(fake);
+  const sent = () => fake.requests.filter((r) => /^POST .*\/ux-events$/.test(r)).length;
+
+  // Off: pages are used and nothing is sent.
+  const a = await openAs(t, apiUrl, null, 'settings');
+  await a.page.waitForSelector('#ux-analytics:has-text("Nothing recorded in the last 30 days")');
+  assert.equal(await a.page.isChecked('[data-ux-enabled]'), false);
+  await a.page.evaluate(() => (location.hash = '#/warnings'));
+  await a.page.waitForSelector('[data-warning-list]');
+  assert.equal(sent(), 0);
+
+  // On (organisation admins), from the next load.
+  await a.page.evaluate(() => (location.hash = '#/settings'));
+  await a.page.check('[data-ux-enabled]');
+  await a.page.waitForSelector('#toast:has-text("UX analytics on")');
+  await a.page.reload();
+  await a.page.waitForSelector('#ux-analytics');
+  await a.page.evaluate(() => (location.hash = '#/warnings'));
+  await a.page.click(`[data-warning="${out}"]`);
+  await a.page.click('[data-act=acknowledge]');
+  await a.page.waitForSelector('#toast:has-text("Acknowledged")');
+  await a.page.keyboard.press('Control+k');
+  const palette = a.page.locator('dialog.palette[open]');
+  await palette.locator('input').fill('press');
+  await palette.locator('.palette-item:has-text("press1.temperature")').click();
+  await a.page.waitForSelector('#view h1:has-text("Data explorer")');
+  await waitFor(() => fake.uxEvents.some((e) => e.kind === 'palette'), 15000); // sent every 10 s
+
+  const kept = new Set(fake.uxEvents.map((e) => `${e.kind}:${e.name}`));
+  for (const want of [
+    'page:settings',
+    'page:warnings',
+    'task:warning.acknowledge',
+    'palette:open',
+    'palette:chose.signals',
+  ])
+    assert.ok(kept.has(want), want);
+  // Nothing about who, or which record: no e-mail, no warning or signal id, no tag.
+  const all = JSON.stringify(fake.uxEvents);
+  for (const secret of ['demo@example.com', out, 'press1.temperature']) assert.ok(!all.includes(secret), secret);
+  assert.equal(new Set(fake.uxEvents.map((e) => e.session)).size, 1);
+
+  // Admins see the counts.
+  await a.page.evaluate(() => (location.hash = '#/settings'));
+  await a.page.waitForSelector('#ux-analytics [data-ux-sessions]');
+  assert.match(await a.page.locator('#ux-analytics table').innerText(), /Task done\s+warning\.acknowledge\s+1\s+1/);
+  assert.deepEqual(a.errors, []);
+
+  // Engineers don't see the card.
+  const engineer = createFakeApi();
+  const engineerUrl = await engineer.listen();
+  t.after(() => engineer.close());
+  await a.page.goto(`${httpBase}?api=${encodeURIComponent(engineerUrl)}#/settings`);
+  await a.page.waitForSelector('#account');
+  await a.page.waitForSelector('#ux-analytics', { state: 'detached' });
+});
+
 test('site admins see the audit log in settings; others do not', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();

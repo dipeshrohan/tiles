@@ -1,3 +1,4 @@
+import { ux } from '../lib/analytics.ts';
 import { esc, field, fmt, onAll, onSubmit } from '../lib/dom.ts';
 import type { SignalInfo, SignalSeries } from '../lib/api.ts';
 import { fitWidth, gapFor, TIME_CHART, timeAt, timeChart, toPoints } from '../lib/svg.ts';
@@ -221,6 +222,7 @@ function add(ctx: Context, s: Pick<SignalInfo, 'id' | 'tag' | 'unit' | 'last_at'
     return;
   }
   u.picked = [...u.picked, { id: s.id, tag: s.tag, unit: s.unit, last_at: s.last_at }];
+  ux('task', 'signal.plotted');
   // A signal whose readings are all outside the range shown brings the day up to its latest reading.
   const last = s.last_at ? Date.parse(s.last_at) : null;
   const outside = u.range && last !== null && (last < Date.parse(u.range.from) || last >= Date.parse(u.range.to));

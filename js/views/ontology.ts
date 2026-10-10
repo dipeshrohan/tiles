@@ -1,3 +1,4 @@
+import { ux } from '../lib/analytics.ts';
 import { NODE_TYPES, healthCheck, neighbors, pathTo, diffStats } from '../lib/ontology.ts';
 import {
   BOX,
@@ -857,10 +858,14 @@ const view: View = {
       // Enter in the message field submits with the first button: Commit, or Request review when it's the only one.
       const review = submitter ? submitter.hasAttribute('data-request-review') : !form.querySelector('[value=commit]');
       if (!review) {
-        return ctx.ontology.act((store, repo) => store.commit(repo, message, author), 'Committed');
+        return ctx.ontology
+          .act((store, repo) => store.commit(repo, message, author), 'Committed')
+          .then((ok) => ok && ux('task', 'ontology.committed'));
       }
       const reviewerId = field(form, 'reviewer') || undefined;
-      return ctx.ontology.act((store, repo) => store.requestReview(repo, { message, reviewerId }), 'Sent for review');
+      return ctx.ontology
+        .act((store, repo) => store.requestReview(repo, { message, reviewerId }), 'Sent for review')
+        .then((ok) => ok && ux('task', 'ontology.review-requested'));
     });
     onSubmit(root, '#prop-form', (form) => {
       const id = selected();

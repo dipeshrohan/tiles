@@ -1,3 +1,4 @@
+import { ux } from '../lib/analytics.ts';
 import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
 import type { DocumentMatch, SiteDocument } from '../lib/api.ts';
 import {
@@ -273,6 +274,7 @@ const view: View = {
         .then(
           (doc) => {
             ctx.toast(`Uploaded ${doc.title}: ${doc.pages} page(s)`);
+            ux('task', 'document.uploaded');
             draft = null;
             listing = null;
             found = null;

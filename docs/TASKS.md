@@ -234,7 +234,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* a new contributor can build a page from it alone, as tried in one PR.
 - [x] `U1.08` [#211](https://github.com/dipeshrohan/tiles/issues/211) **Visual regression tests** · FE · 2d
   *Done when:* a 2 px padding change on `.card` fails CI with a readable diff.
-- [ ] `U1.09` [#212](https://github.com/dipeshrohan/tiles/issues/212) **UX analytics, privacy first** · FE+BE · 2d
+- [x] `U1.09` [#212](https://github.com/dipeshrohan/tiles/issues/212) **UX analytics, privacy first** · FE+BE · 2d
   *Done when:* U1.01's key tasks can be measured from events on the pilot site, and the data stays in the deployment.
 
 **UI Month 1 exit check:** baseline measured; tokens and `ui.ts` used by at least three pages; style guide and visual tests in CI.

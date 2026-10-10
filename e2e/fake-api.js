@@ -287,6 +287,9 @@ export function createFakeApi({
   const insights = []; // saved insights, as the API returns them, with `evidence`
   const studioApps = []; // App Studio's apps (T6.10), archived ones included
   let lastApp = 0;
+  // UX analytics (U1.09): the organisation's switch, and the events stored ({ kind, name, session }).
+  let uxEnabled = false;
+  const uxEvents = [];
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
   let requestIds = 0; // numbers the request IDs
@@ -564,6 +567,13 @@ export function createFakeApi({
       }
       if (url.pathname === '/org' && req.method === 'GET')
         return send(200, { slug: 'demo', name: 'Demo', admin: (roles[user] ?? 'engineer') === 'admin' });
+      // UX analytics (U1.09): organisation admins (here: admins of the site) turn it on.
+      if (url.pathname === '/org/ux-analytics') {
+        if ((roles[user] ?? 'engineer') !== 'admin')
+          return send(403, { detail: 'Creating a site needs an organisation admin' });
+        if (req.method === 'PUT') uxEnabled = (await body(req)).enabled === true;
+        return send(200, { enabled: uxEnabled });
+      }
       // The organisation's sign-in: organisation admins only (here: admins of the site).
       if (url.pathname === '/org/identity-provider' || url.pathname.startsWith('/org/scim-tokens')) {
         if ((roles[user] ?? 'engineer') !== 'admin')
@@ -628,7 +638,8 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/runs` &&
         !url.pathname.startsWith(`/sites/${site.id}/sweeps`) &&
         !url.pathname.startsWith(`/sites/${site.id}/runs/`) &&
-        !url.pathname.startsWith(`/sites/${site.id}/detectors/`)
+        !url.pathname.startsWith(`/sites/${site.id}/detectors/`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/ux-`)
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
@@ -1082,6 +1093,35 @@ export function createFakeApi({
           return send(204);
         }
         return send(405, { detail: 'Method not allowed' });
+      }
+      // UX analytics (U1.09): stored only when on; counts for admins.
+      if (url.pathname === `/sites/${site.id}/ux-analytics`) return send(200, { enabled: uxEnabled });
+      if (url.pathname === `/sites/${site.id}/ux-events` && req.method === 'POST') {
+        const b = await body(req);
+        const ok = (e) =>
+          ['page', 'task', 'palette', 'help', 'error'].includes(e.kind) && /^[a-z0-9][a-z0-9._-]{0,63}$/.test(e.name);
+        if (!/^[A-Za-z0-9-]{16,64}$/.test(b.session ?? '') || !Array.isArray(b.events) || !b.events.every(ok))
+          return send(422, { detail: 'Not an event of the vocabulary' });
+        if (!uxEnabled) return send(200, { stored: 0 });
+        for (const e of b.events) uxEvents.push({ kind: e.kind, name: e.name, session: b.session });
+        return send(200, { stored: b.events.length });
+      }
+      if (url.pathname === `/sites/${site.id}/ux-events/summary`) {
+        if ((roles[user] ?? 'engineer') !== 'admin') return send(403, { detail: 'Needs the admin role' });
+        const counts = new Map();
+        for (const e of uxEvents) {
+          const key = `${e.kind}|${e.name}`;
+          const c = counts.get(key) ?? { kind: e.kind, name: e.name, events: 0, sessions: new Set() };
+          c.events++;
+          c.sessions.add(e.session);
+          counts.set(key, c);
+        }
+        return send(200, {
+          enabled: uxEnabled,
+          days: Number(url.searchParams.get('days') ?? 30),
+          sessions: new Set(uxEvents.map((e) => e.session)).size,
+          counts: [...counts.values()].map((c) => ({ ...c, sessions: c.sessions.size })),
+        });
       }
       // App Studio (T6.10): apps from the templates above; a result made up from the settings.
       const appsPath = `/sites/${site.id}/apps`;
@@ -1892,6 +1932,8 @@ export function createFakeApi({
     copilotScripts,
     copilotQuestions,
     copilotFeedback: feedback,
+    // UX analytics stored (U1.09).
+    uxEvents,
     copilotUsage,
     // Design runs stored on the site (T4.11), latest last.
     designRuns,

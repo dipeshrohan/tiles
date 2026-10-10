@@ -8,6 +8,7 @@
 // - `removeNow`: the change is sent at once; Undo asks the API to restore it. For what the API only
 //   archives (a document, an app).
 import type { ToastOptions } from './toaster.ts';
+import { ux } from './analytics.ts';
 
 export const UNDO_MS = 8000;
 export const SAVED_KEY = 'tiles.waitingRemovals';
@@ -70,6 +71,7 @@ export function removeLater(o: {
         settled = true;
         waiting.delete(key);
         hidden.delete(key);
+        ux('task', 'undo');
         o.restore();
       },
     },
@@ -139,14 +141,16 @@ export async function removeNow(o: {
     distinct: true,
     action: {
       label: 'Undo',
-      run: () =>
+      run: () => {
+        ux('task', 'undo');
         void o.undo().then(
           () => {
             o.restored();
             o.toast(o.restoredMessage, { type: 'success' });
           },
           () => undefined, // the client showed why
-        ),
+        );
+      },
     },
   });
   return true;

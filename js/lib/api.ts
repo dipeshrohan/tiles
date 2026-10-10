@@ -777,6 +777,13 @@ export interface Me {
   via: 'oidc' | 'dev';
 }
 
+export interface UxSummary {
+  enabled: boolean;
+  days: number;
+  sessions: number;
+  counts: { kind: 'page' | 'task' | 'palette' | 'help' | 'error'; name: string; events: number; sessions: number }[];
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly requestId: string | null;
@@ -866,16 +873,19 @@ export function createApiClient(options: ApiOptions) {
       text = false,
       blob = false,
       quiet = false,
+      silent = false,
       file,
     }: {
       anonymous?: boolean;
       text?: boolean;
       blob?: boolean;
       quiet?: boolean;
+      // Nothing said at all, success or failure (no toast, no offline banner): UX analytics (U1.09).
+      silent?: boolean;
       file?: { body: Blob; type: string };
     } = {},
   ): Promise<T> {
-    if (method !== 'GET' && options.isOffline?.()) return fail(new ApiError(OFFLINE_WRITE, 0));
+    if (method !== 'GET' && options.isOffline?.()) return (silent ? raise : fail)(new ApiError(OFFLINE_WRITE, 0));
     // `file`: sent as it is, with its own type (a document upload), instead of JSON.
     const headers = await headersFor(body, anonymous, 'application/json', file?.type);
     let res: Response;
@@ -886,9 +896,9 @@ export function createApiClient(options: ApiOptions) {
         body: file ? file.body : body === undefined ? undefined : JSON.stringify(body),
       });
     } catch {
-      return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
+      return (silent ? raise : fail)(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
     }
-    options.onAnswer?.(res.status);
+    if (!silent) options.onAnswer?.(res.status);
     const requestId = res.headers.get('x-request-id');
     if (res.status === 204) return undefined as T;
     if (text && res.ok) return (await res.text()) as T;
@@ -897,14 +907,21 @@ export function createApiClient(options: ApiOptions) {
     try {
       parsed = await res.json();
     } catch {
-      if (res.ok) return fail(new ApiError('The Tiles API sent a response that is not JSON', res.status, requestId));
+      if (res.ok)
+        return (silent ? raise : fail)(
+          new ApiError('The Tiles API sent a response that is not JSON', res.status, requestId),
+        );
     }
     if (!res.ok) {
       const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId, fieldsOf(parsed));
       if (quiet) throw error; // the caller shows it (e.g. a 403 that only means "not for you")
-      return fail(error);
+      return (silent ? raise : fail)(error);
     }
     return parsed as T;
+  }
+
+  function raise(error: ApiError): never {
+    throw error;
   }
 
   function fail(error: ApiError): never {
@@ -1022,6 +1039,24 @@ export function createApiClient(options: ApiOptions) {
       scimTokens: () => request<ScimToken[]>('GET', '/org/scim-tokens'),
       createScimToken: (name: string) => request<ScimToken & { token: string }>('POST', '/org/scim-tokens', { name }),
       revokeScimToken: (id: string) => request<void>('DELETE', `/org/scim-tokens/${encodeURIComponent(id)}`),
+      uxAnalytics: () => request<{ enabled: boolean }>('GET', '/org/ux-analytics'),
+      setUxAnalytics: (enabled: boolean) => request<{ enabled: boolean }>('PUT', '/org/ux-analytics', { enabled }),
+    },
+    // UX analytics (U1.09): whether a site records them, the events, and their counts (admins).
+    ux: {
+      enabled: (siteId: string) =>
+        request<{ enabled: boolean }>('GET', `/sites/${encodeURIComponent(siteId)}/ux-analytics`, undefined, {
+          silent: true,
+        }),
+      send: (siteId: string, session: string, events: { kind: string; name: string }[]) =>
+        request<{ stored: number }>(
+          'POST',
+          `/sites/${encodeURIComponent(siteId)}/ux-events`,
+          { session, events },
+          { silent: true },
+        ),
+      summary: (siteId: string, days = 30) =>
+        request<UxSummary>('GET', `/sites/${encodeURIComponent(siteId)}/ux-events/summary?days=${days}`),
     },
     // Your membership (and role) on a site; joins it on first visit.
     membership: (siteId: string) => request<Membership>('GET', `/sites/${encodeURIComponent(siteId)}/me`),

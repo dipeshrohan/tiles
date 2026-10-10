@@ -1,3 +1,4 @@
+import { ux } from '../lib/analytics.ts';
 import { esc, field, fmt, need, onAll } from '../lib/dom.ts';
 import { detectDelimiter, parseCsv } from '../lib/csv.ts';
 import {
@@ -298,6 +299,7 @@ async function runImport(ctx: Context): Promise<void> {
   let unfinished: string | null = null;
   try {
     await api.imports.finish(site.id, run.id);
+    ux('task', 'import.finished');
   } catch (e) {
     // The readings sent are stored, but the import stays open: say so rather than "done".
     unfinished = e instanceof Error ? e.message : String(e);
