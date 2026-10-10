@@ -5,7 +5,9 @@
 // field's own HTML (it was put back, or filled in) or its form was sent with what it holds now
 // (sending is done with it: the page's empty field comes back). Elements are matched by
 // `id` or `data-key` first (a list row keeps its element when rows are added above it), otherwise by
-// position, tag, name and first class (another kind of element is drawn new, not reshaped). No
+// position, tag, name and first class (another kind of element is drawn new, not reshaped). A large
+// drawing marked data-morph="replace" takes its new content whole (wholesale, below), and one marked
+// data-morph="if-changed" is left alone when drawn the same as before (unchanged). No
 // dependencies, and nothing here imports: the browser tests load it on its own.
 
 // What each <details> was drawn as, to tell a section someone opened or closed (kept) from one the
@@ -56,6 +58,7 @@ export function noteSent(form: HTMLFormElement): void {
 export function resetMorph(): void {
   drawn = new WeakMap();
   sentWith = new WeakMap();
+  drawnFrom = new WeakMap();
 }
 
 const keyOf = (node: Node): string | null =>
@@ -167,9 +170,37 @@ function node(old: Node, next: Node): void {
   const typed = field && current(old) !== drawnAs(old) && sentWith.get(old) !== current(old);
   const was = field ? drawnAs(old) : '';
   attributes(old, next);
-  if (!(old instanceof HTMLTextAreaElement)) children(old, next);
+  const how = next.getAttribute('data-morph');
+  if (how === 'replace') wholesale(old, next);
+  else if (how === 'if-changed' && unchanged(old, next)) {
+    // the same content as last time: nothing to compare (a select of 2,000 nodes, U3.07)
+  } else if (!(old instanceof HTMLTextAreaElement)) children(old, next);
   else if (old.defaultValue !== next.textContent) old.defaultValue = next.textContent ?? '';
   if (field && (!typed || drawnAs(old) !== was)) values(old);
+}
+
+// A large drawing marked data-morph="replace" (the ontology canvas, U3.07) takes the new content
+// whole: comparing thousands of elements one by one cost more than drawing them. The focus goes
+// back to the element with the same key (id or data-key), if the new drawing has one.
+function wholesale(old: Element, next: Element): void {
+  const active = old.ownerDocument.activeElement;
+  const key = active && old.contains(active) ? keyOf(active) : null;
+  old.replaceChildren(...next.childNodes);
+  if (!key) return;
+  for (const el of old.querySelectorAll('[id], [data-key]'))
+    if (keyOf(el) === key && (el instanceof HTMLElement || el instanceof SVGElement)) {
+      el.focus({ preventScroll: true });
+      return;
+    }
+}
+
+// What an element marked data-morph="if-changed" was last drawn from: drawn the same again, its
+// content is left as it is (what lives on it stays; its attributes and value still follow).
+let drawnFrom = new WeakMap<Element, Element>();
+function unchanged(old: Element, next: Element): boolean {
+  const before = drawnFrom.get(old);
+  drawnFrom.set(old, next);
+  return before !== undefined && before.isEqualNode(next);
 }
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;

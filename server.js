@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
 const types = {
@@ -40,6 +41,30 @@ export function securityHeaders() {
   };
 }
 
+// Text is sent compressed when the browser takes it (U3.07: the bundle goes from about 600 kB to
+// under 150 kB), each file compressed once and again only when it changes.
+const COMPRESSIBLE = new Set(['.html', '.js', '.css', '.json', '.svg']);
+export function encodingFor(accept = '') {
+  const taken = new Map();
+  for (const part of accept.split(',')) {
+    const [name = '', ...params] = part.trim().toLowerCase().split(';');
+    const q = params.map((p) => /^\s*q=([\d.]+)\s*$/.exec(p)).find(Boolean);
+    taken.set(name, q ? Number(q[1]) : 1);
+  }
+  const ok = (name) => (taken.get(name) ?? taken.get('*') ?? 0) > 0;
+  return ok('br') ? 'br' : ok('gzip') ? 'gzip' : null;
+}
+const compressed = new Map(); // file → { source, br, gzip }
+function compress(file, body, encoding) {
+  let entry = compressed.get(file);
+  if (!entry || !entry.source.equals(body)) compressed.set(file, (entry = { source: body }));
+  entry[encoding] ??=
+    encoding === 'br'
+      ? brotliCompressSync(body, { params: { [constants.BROTLI_PARAM_QUALITY]: 9 } })
+      : gzipSync(body, { level: 9 });
+  return entry[encoding];
+}
+
 const attr = (text) => text.replace(/[&"<>]/g, (c) => ({ '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;' })[c]);
 
 // `apiUrl` (TILES_API_URL when run directly, T5.09): the API a deployment serves the app with,
@@ -72,7 +97,14 @@ export function createTilesServer({ apiUrl = '' } = {}) {
     const file = join(root, path || 'index.html');
     try {
       const body = page && file === index ? page : await readFile(file);
-      res.writeHead(200, { ...headers, 'content-type': types[extname(file)] ?? 'application/octet-stream' }).end(body);
+      const type = { 'content-type': types[extname(file)] ?? 'application/octet-stream' };
+      const encoding = COMPRESSIBLE.has(extname(file)) ? encodingFor(req.headers['accept-encoding']) : null;
+      if (!encoding) {
+        res.writeHead(200, { ...headers, ...type, vary: 'accept-encoding' }).end(body);
+        return;
+      }
+      const sent = compress(file, body, encoding);
+      res.writeHead(200, { ...headers, ...type, vary: 'accept-encoding', 'content-encoding': encoding }).end(sent);
     } catch {
       res.writeHead(404, headers).end('Not found');
     }

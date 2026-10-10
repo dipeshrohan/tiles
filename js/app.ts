@@ -1,5 +1,5 @@
 import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/data.ts';
-import { generateShotHistory, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
+import { shotHistorySteps, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
 import { healthCheck } from './lib/ontology.ts';
 import { load, save, clearAll } from './lib/store.ts';
 import {
@@ -84,6 +84,7 @@ import documents from './views/documents.ts';
 import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
+import type { Graph, Repo, ShotHistory } from './lib/types.ts';
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
 import { afterRender, showApiErrors } from './lib/forms.ts';
@@ -144,20 +145,57 @@ function freshState(): PersistedState {
 // Bump the key when seed data changes so saved copies of the old seed are dropped.
 const STATE_KEY = 'state-v2';
 const persisted = load<Partial<PersistedState> | null>(STATE_KEY, null);
-const shots = generateShotHistory();
-const detection = detectFrictionAlerts(shots.history);
-
-const state: AppState = {
+const state = {
   ...freshState(),
   ...(persisted ?? {}),
-  // Synthetic plant data is regenerated from fixed seeds on every load.
-  batches: generateCutterBatches(),
-  weld: generateWeldPower(),
-  shots,
-  detection,
-  scored: scoreAlerts(detection.alerts, shots.downtime, shots.cycleSeconds),
   ui: loadUi(session()),
-};
+} as AppState;
+
+// Synthetic plant data is regenerated from fixed seeds on every load, when a page first reads it:
+// made before the first page, it held Home back by a quarter of a second (U3.07).
+const made = new Set<keyof AppState>();
+function demo<K extends 'batches' | 'weld' | 'shots' | 'detection' | 'scored'>(key: K, make: () => AppState[K]): void {
+  let value: AppState[K] | undefined;
+  Object.defineProperty(state, key, {
+    enumerable: true,
+    get: () => {
+      if (!made.has(key)) {
+        value = make();
+        made.add(key);
+      }
+      return value;
+    },
+  });
+}
+// The shot history is the slow part: made a few shots at a time once the first page is drawn
+// (makeDemoSoon), or the rest at once by a page that reads it first.
+const shotSteps = shotHistorySteps();
+let shotHistory: ShotHistory | null = null;
+function stepShots(toTheEnd: boolean): ShotHistory | null {
+  while (!shotHistory) {
+    const step = shotSteps.next();
+    if (step.done) shotHistory = step.value;
+    else if (!toTheEnd) break;
+  }
+  return shotHistory;
+}
+demo('batches', generateCutterBatches);
+demo('weld', generateWeldPower);
+demo('shots', () => stepShots(true)!);
+demo('detection', () => detectFrictionAlerts(state.shots.history));
+demo('scored', () => scoreAlerts(state.detection.alerts, state.shots.downtime, state.shots.cycleSeconds));
+// Whether the demo plant's warnings are worked out: pages that can wait (Home, the menu's count)
+// show them once they are.
+const demoReady = (): boolean => made.has('scored');
+function makeDemoSoon(): void {
+  if (demoReady()) return;
+  if (!stepShots(false)) {
+    setTimeout(makeDemoSoon, 0);
+    return;
+  }
+  void state.scored;
+  renderSoon();
+}
 
 const uiChecked = new Set<string>(); // pages whose kept state has had its defaults filled in
 
@@ -465,10 +503,18 @@ const authCtx: AuthContext = {
 
 // ---- context passed to views -------------------------------------------
 
+let working: { head: Repo['head']; staged: Repo['staged']; graph: Graph } | null = null;
+const healthOf = new WeakMap<Graph, ReturnType<typeof healthCheck>>();
+
 const ctx: Context = {
   state,
   get graph() {
-    return safeWorkingGraph(state.repo).graph;
+    // Made again only when the repository changes, which it does by being replaced, never in place
+    // (U3.07: copying 2,000 nodes at every read slowed each redraw).
+    const { head, staged } = state.repo;
+    if (working?.head !== head || working.staged !== staged)
+      working = { head, staged, graph: safeWorkingGraph(state.repo).graph };
+    return working.graph;
   },
   update(mutate, { rerender = true } = {}) {
     const email = state.user.email;
@@ -509,6 +555,9 @@ const ctx: Context = {
     render();
     toast('Demo data reset');
     void connectOntology();
+  },
+  get demoReady() {
+    return demoReady();
   },
   get dataSource() {
     return dataSource;
@@ -598,10 +647,12 @@ document.addEventListener('tiles:ux', (e) => {
 
 function badges(): Record<string, NavBadge> {
   const out: Record<string, NavBadge> = {};
-  const open = state.detection.alerts.length;
+  const open = demoReady() ? state.detection.alerts.length : 0;
   if (open) out.physics = { count: open, tone: 'bad', says: `${open} warning(s) on the demo data` };
   const staged = state.repo.staged.length;
-  const issues = staged ? 0 : healthCheck(ctx.graph).issues.filter((i) => i.level !== 'info').length;
+  const graph = ctx.graph;
+  if (!staged && !healthOf.has(graph)) healthOf.set(graph, healthCheck(graph));
+  const issues = staged ? 0 : (healthOf.get(graph)?.issues.filter((i) => i.level !== 'info').length ?? 0);
   if (staged) out.ontology = { count: staged, tone: 'warn', says: `${staged} staged change(s)` };
   else if (issues) out.ontology = { count: issues, tone: '', says: `${issues} health issue(s)` };
   const site = ctx.ontology.site;
@@ -1118,6 +1169,7 @@ if (api) {
   ontologyStatus = 'loading';
 }
 render();
+setTimeout(makeDemoSoon, 0);
 void (async () => {
   await finishSignIn(); // so the first API calls carry the new token
   await refreshAuth();

@@ -556,10 +556,55 @@
 		const mid = s.length >> 1;
 		return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 	}
-	function mad(xs) {
-		const m = median(xs);
-		return 1.4826 * median(xs.map((x) => Math.abs(x - m)));
-	}
+	var SortedWindow = class {
+		s = [];
+		place(x) {
+			let lo = 0;
+			let hi = this.s.length;
+			while (lo < hi) {
+				const mid = lo + hi >> 1;
+				if (this.s[mid] < x) lo = mid + 1;
+				else hi = mid;
+			}
+			return lo;
+		}
+		add(x) {
+			this.s.splice(this.place(x), 0, x);
+		}
+		remove(x) {
+			const i = this.place(x);
+			if (this.s[i] === x) this.s.splice(i, 1);
+		}
+		median() {
+			const s = this.s;
+			if (!s.length) return NaN;
+			const mid = s.length >> 1;
+			return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+		}
+		mad() {
+			const s = this.s;
+			if (!s.length) return NaN;
+			const m = this.median();
+			let left = this.place(m) - 1;
+			let right = left + 1;
+			const mid = s.length >> 1;
+			let previous = NaN;
+			let current = NaN;
+			for (let i = 0; i <= mid; i++) {
+				const l = left >= 0 ? Math.abs(s[left] - m) : Infinity;
+				const r = right < s.length ? Math.abs(s[right] - m) : Infinity;
+				previous = current;
+				if (l <= r) {
+					current = l;
+					left--;
+				} else {
+					current = r;
+					right++;
+				}
+			}
+			return 1.4826 * (s.length % 2 ? current : (previous + current) / 2);
+		}
+	};
 	function pearson(xs, ys) {
 		const n = Math.min(xs.length, ys.length);
 		if (n < 3) return 0;
@@ -632,7 +677,7 @@
 		}
 		return median(residuals);
 	}
-	function generateShotHistory({ seed = 7, shots = 1600, cycleSeconds = 95 } = {}) {
+	function* shotHistorySteps({ seed = 7, shots = 1600, cycleSeconds = 95 } = {}, every = 100) {
 		const rng = createRng(seed);
 		const episodes = [
 			{
@@ -669,6 +714,7 @@
 				trueFriction: friction,
 				friction: estimateFriction(shot)
 			});
+			if ((i + 1) % every === 0) yield;
 		}
 		return {
 			history,
@@ -682,9 +728,14 @@
 		const alerts = [];
 		let run = 0;
 		let open = null;
+		const past = new SortedWindow();
+		for (let i = 0; i < Math.min(window, history.length); i++) past.add(history[i].friction);
 		for (let i = window; i < history.length; i++) {
-			const past = history.slice(i - window, i).map((s) => s.friction);
-			const limit = median(past) + k * (mad(past) || 1);
+			if (i > window) {
+				past.remove(history[i - window - 1].friction);
+				past.add(history[i - 1].friction);
+			}
+			const limit = past.median() + k * (past.mad() || 1);
 			const friction = history[i].friction;
 			thresholds[i] = limit;
 			if (friction > limit) {
@@ -1797,9 +1848,27 @@
 		const typed = field && current$2(old) !== drawnAs(old) && sentWith.get(old) !== current$2(old);
 		const was = field ? drawnAs(old) : "";
 		attributes(old, next);
-		if (!(old instanceof HTMLTextAreaElement)) children(old, next);
+		const how = next.getAttribute("data-morph");
+		if (how === "replace") wholesale(old, next);
+		else if (how === "if-changed" && unchanged(old, next)) {} else if (!(old instanceof HTMLTextAreaElement)) children(old, next);
 		else if (old.defaultValue !== next.textContent) old.defaultValue = next.textContent ?? "";
 		if (field && (!typed || drawnAs(old) !== was)) values(old);
+	}
+	function wholesale(old, next) {
+		const active = old.ownerDocument.activeElement;
+		const key = active && old.contains(active) ? keyOf$1(active) : null;
+		old.replaceChildren(...next.childNodes);
+		if (!key) return;
+		for (const el of old.querySelectorAll("[id], [data-key]")) if (keyOf$1(el) === key && (el instanceof HTMLElement || el instanceof SVGElement)) {
+			el.focus({ preventScroll: true });
+			return;
+		}
+	}
+	var drawnFrom = /* @__PURE__ */ new WeakMap();
+	function unchanged(old, next) {
+		const before = drawnFrom.get(old);
+		drawnFrom.set(old, next);
+		return before !== void 0 && before.isEqualNode(next);
 	}
 	var isField = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 	var toggles = (el) => el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio");
@@ -3079,8 +3148,14 @@
 			const { state } = ctx;
 			const health = healthCheck(ctx.graph);
 			const ng = state.batches.filter((b) => b.ng).length;
-			const predicted = state.scored.filter((s) => s.predicted);
-			const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
+			const friction = ctx.demoReady ? (() => {
+				const predicted = state.scored.filter((s) => s.predicted);
+				const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
+				return {
+					value: String(state.detection.alerts.length),
+					note: `${predicted.length}/${state.scored.length} stops predicted, ${fmt$1(lead, 1)} h avg lead`
+				};
+			})() : null;
 			const feed = [...state.repo.history.map((c) => ({
 				date: c.date,
 				icon: "git-commit-horizontal",
@@ -3114,10 +3189,9 @@
       </section>
 
       <div class="grid g4 mb-4">
-        <a class="card kpi bad text-inherit no-underline" href="#/physics">
+        <a class="card kpi bad text-inherit no-underline" href="#/physics"${friction ? "" : " aria-busy=\"true\""}>
           <div class="label">Friction warnings · DC-02</div>
-          <div class="value">${state.detection.alerts.length}</div>
-          <div class="note">${predicted.length}/${state.scored.length} stops predicted, ${fmt$1(lead, 1)} h avg lead</div>
+          ${friction ? `<div class="value">${friction.value}</div><div class="note">${friction.note}</div>` : `<div class="value"><span class="skeleton kpi-wait"></span><span class="sr-only">Working out the warnings</span></div><div class="note"><span class="skeleton kpi-wait wide"></span></div>`}
         </a>
         <a class="card kpi text-inherit no-underline" href="#/quality">
           <div class="label">Cutter NG rate</div>
@@ -4569,7 +4643,7 @@
 				stagedIds.has(id) && "staged",
 				matches.has(id) && "match",
 				fold && "folded"
-			].filter(Boolean).join(" ")}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ""}">
+			].filter(Boolean).join(" ")}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ""}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
           <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ""}
@@ -4607,7 +4681,7 @@
             </span>
           </div>
           <div class="canvas-wrap">
-            <svg data-canvas viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
+            <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
           </div>
           <div class="statusbar">
             <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ""}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
@@ -4651,7 +4725,7 @@
       </div>
       <form class="row mt-2 mb-4 m-0" id="link-form">
         <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option>${r}</option>`).join("")}</select>
-        <select name="to" class="grow w-6em" aria-label="Target node">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
+        <select name="to" class="grow w-6em" aria-label="Target node" data-morph="if-changed">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join("")}</select>
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ""}>Delete node</button>`;
@@ -4766,11 +4840,6 @@
 				y: p.y
 			};
 		};
-		const wrap = svg.parentElement;
-		if (wrap) {
-			const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * .75);
-			wrap.style.height = `${tall}px`;
-		}
 		const showAll = () => {
 			const aspect = svg.clientWidth / svg.clientHeight;
 			const v = Number.isFinite(aspect) && aspect > 0 ? fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE) : {
@@ -4781,7 +4850,6 @@
 			};
 			svg.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
 		};
-		if (!ui.view) showAll();
 		const zoom = (factor, at) => {
 			const v = shaped();
 			setView(zoomAt(v, factor, at ?? {
@@ -4789,10 +4857,18 @@
 				y: v.y + v.h / 2
 			}, limits));
 		};
-		if (center) {
-			const p = layoutNow.pos.get(center);
+		const signal = bound();
+		requestAnimationFrame(() => {
+			if (signal.aborted) return;
+			const wrap = svg.parentElement;
+			if (wrap) {
+				const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * .75);
+				wrap.style.height = `${tall}px`;
+			}
+			if (!ui.view) showAll();
+			const p = center ? layoutNow.pos.get(center) : void 0;
 			if (p) setView(centerOn(shaped(), p));
-		}
+		});
 		svg.addEventListener("wheel", (e) => {
 			e.preventDefault();
 			zoom(Math.exp(-e.deltaY * .0015), toDrawing(e.clientX, e.clientY));
@@ -4928,7 +5004,7 @@
       <form class="stack gap-2_5 max-w-form" id="node-form">
         <label class="field">Type<select name="type">${Object.keys(NODE_TYPES).map((t) => `<option>${t}</option>`).join("")}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
-        <label class="field">Link from (optional)<select name="from"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join("")}</select></label>
+        <label class="field">Link from (optional)<select name="from" data-morph="if-changed"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join("")}</select></label>
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join("")}</select></label>
         <button class="btn primary" type="submit">+ Stage node</button>
       </form>`;
@@ -14127,18 +14203,50 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}
 	var STATE_KEY = "state-v2";
 	var persisted = load$4(STATE_KEY, null);
-	var shots = generateShotHistory();
-	var detection = detectFrictionAlerts(shots.history);
 	var state = {
 		...freshState(),
 		...persisted ?? {},
-		batches: generateCutterBatches(),
-		weld: generateWeldPower(),
-		shots,
-		detection,
-		scored: scoreAlerts(detection.alerts, shots.downtime, shots.cycleSeconds),
 		ui: loadUi(session())
 	};
+	var made = /* @__PURE__ */ new Set();
+	function demo(key, make) {
+		let value;
+		Object.defineProperty(state, key, {
+			enumerable: true,
+			get: () => {
+				if (!made.has(key)) {
+					value = make();
+					made.add(key);
+				}
+				return value;
+			}
+		});
+	}
+	var shotSteps = shotHistorySteps();
+	var shotHistory = null;
+	function stepShots(toTheEnd) {
+		while (!shotHistory) {
+			const step = shotSteps.next();
+			if (step.done) shotHistory = step.value;
+			else if (!toTheEnd) break;
+		}
+		return shotHistory;
+	}
+	demo("batches", generateCutterBatches);
+	demo("weld", generateWeldPower);
+	demo("shots", () => stepShots(true));
+	demo("detection", () => detectFrictionAlerts(state.shots.history));
+	demo("scored", () => scoreAlerts(state.detection.alerts, state.shots.downtime, state.shots.cycleSeconds));
+	var demoReady = () => made.has("scored");
+	function makeDemoSoon() {
+		if (demoReady()) return;
+		if (!stepShots(false)) {
+			setTimeout(makeDemoSoon, 0);
+			return;
+		}
+		state.scored;
+		renderSoon();
+	}
 	var uiChecked = /* @__PURE__ */ new Set();
 	function persist() {
 		save$1(STATE_KEY, {
@@ -14352,10 +14460,64 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		} catch {}
 		renderSoon();
 	}
+	var authCtx = {
+		get config() {
+			return authConfig;
+		},
+		get signedIn() {
+			return sessionForApi();
+		},
+		get signInOrg() {
+			return load$4("signin-org", "");
+		},
+		async signIn(org) {
+			if (!canRedirect()) return toast("Open Tiles over http(s) to sign in");
+			let config = authConfig;
+			const slug = org?.trim().toLowerCase();
+			if (slug && api) try {
+				config = await api.authConfig(slug);
+			} catch (e) {
+				const status = e.status;
+				return toast(status === 404 ? `${slug} has no sign-in of its own` : `Can't start sign-in: ${String(e)}`);
+			}
+			if (!config?.enabled || !config.issuer) return toast("This Tiles API has no sign-in configured");
+			save$1("signin-org", slug ?? "");
+			try {
+				location.assign(await beginSignIn({
+					issuer: config.issuer,
+					clientId: config.client_id,
+					redirectUri: redirectUri(),
+					apiUrl: api?.baseUrl ?? "",
+					...config.scope ? { scope: config.scope } : {}
+				}, location.search + (location.hash || "#/")));
+			} catch (e) {
+				toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
+			}
+		},
+		async signOut() {
+			forgetUi(session());
+			state.ui = {};
+			const url = await signOut(redirectUri(), location.search + location.hash);
+			if (url) location.assign(url);
+			else {
+				toast("Signed out");
+				await refreshAuth();
+				connectOntology();
+			}
+		}
+	};
+	var working = null;
+	var healthOf = /* @__PURE__ */ new WeakMap();
 	var ctx = {
 		state,
 		get graph() {
-			return safeWorkingGraph(state.repo).graph;
+			const { head, staged } = state.repo;
+			if (working?.head !== head || working.staged !== staged) working = {
+				head,
+				staged,
+				graph: safeWorkingGraph(state.repo).graph
+			};
+			return working.graph;
 		},
 		update(mutate, { rerender = true } = {}) {
 			const email = state.user.email;
@@ -14394,6 +14556,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			toast("Demo data reset");
 			connectOntology();
 		},
+		get demoReady() {
+			return demoReady();
+		},
 		get dataSource() {
 			return dataSource;
 		},
@@ -14409,52 +14574,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			render();
 		},
 		ontology: ontologyCtx,
-		auth: {
-			get config() {
-				return authConfig;
-			},
-			get signedIn() {
-				return sessionForApi();
-			},
-			get signInOrg() {
-				return load$4("signin-org", "");
-			},
-			async signIn(org) {
-				if (!canRedirect()) return toast("Open Tiles over http(s) to sign in");
-				let config = authConfig;
-				const slug = org?.trim().toLowerCase();
-				if (slug && api) try {
-					config = await api.authConfig(slug);
-				} catch (e) {
-					const status = e.status;
-					return toast(status === 404 ? `${slug} has no sign-in of its own` : `Can't start sign-in: ${String(e)}`);
-				}
-				if (!config?.enabled || !config.issuer) return toast("This Tiles API has no sign-in configured");
-				save$1("signin-org", slug ?? "");
-				try {
-					location.assign(await beginSignIn({
-						issuer: config.issuer,
-						clientId: config.client_id,
-						redirectUri: redirectUri(),
-						apiUrl: api?.baseUrl ?? "",
-						...config.scope ? { scope: config.scope } : {}
-					}, location.search + (location.hash || "#/")));
-				} catch (e) {
-					toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
-				}
-			},
-			async signOut() {
-				forgetUi(session());
-				state.ui = {};
-				const url = await signOut(redirectUri(), location.search + location.hash);
-				if (url) location.assign(url);
-				else {
-					toast("Signed out");
-					await refreshAuth();
-					connectOntology();
-				}
-			}
-		}
+		auth: authCtx
 	};
 	function currentView() {
 		const id = routeOf(location.hash);
@@ -14520,14 +14640,16 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	});
 	function badges() {
 		const out = {};
-		const open = state.detection.alerts.length;
+		const open = demoReady() ? state.detection.alerts.length : 0;
 		if (open) out.physics = {
 			count: open,
 			tone: "bad",
 			says: `${open} warning(s) on the demo data`
 		};
 		const staged = state.repo.staged.length;
-		const issues = staged ? 0 : healthCheck(ctx.graph).issues.filter((i) => i.level !== "info").length;
+		const graph = ctx.graph;
+		if (!staged && !healthOf.has(graph)) healthOf.set(graph, healthCheck(graph));
+		const issues = staged ? 0 : healthOf.get(graph)?.issues.filter((i) => i.level !== "info").length ?? 0;
 		if (staged) out.ontology = {
 			count: staged,
 			tone: "warn",
@@ -14954,6 +15076,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		ontologyStatus = "loading";
 	}
 	render();
+	setTimeout(makeDemoSoon, 0);
 	(async () => {
 		await finishSignIn();
 		await refreshAuth();

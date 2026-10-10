@@ -161,7 +161,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       ]
         .filter(Boolean)
         .join(' ');
-      return `<g class="${cls}" data-node="${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ''}">
+      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ''}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
           <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}
@@ -207,7 +207,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
             </span>
           </div>
           <div class="canvas-wrap">
-            <svg data-canvas viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
+            <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
           </div>
           <div class="statusbar">
             <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ''}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
@@ -254,7 +254,7 @@ function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hie
       </div>
       <form class="row mt-2 mb-4 m-0" id="link-form">
         <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option>${r}</option>`).join('')}</select>
-        <select name="to" class="grow w-6em" aria-label="Target node">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('')}</select>
+        <select name="to" class="grow w-6em" aria-label="Target node" data-morph="if-changed">${others.map((o) => `<option value="${esc(o.id)}">${esc(o.label)}</option>`).join('')}</select>
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ''}>Delete node</button>`;
@@ -381,11 +381,6 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   };
   // The canvas as tall as the drawing needs at its fitted scale, within the window; the whole
   // drawing shows, never blown up past MAX_FIT_SCALE (text stays the size of the page's).
-  const wrap = svg.parentElement;
-  if (wrap) {
-    const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * 0.75);
-    wrap.style.height = `${tall}px`;
-  }
   const showAll = () => {
     const aspect = svg.clientWidth / svg.clientHeight;
     const v =
@@ -394,16 +389,24 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
         : { x: 0, y: 0, w: limits.width, h: limits.height };
     svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); // not kept: the next render fits again
   };
-  if (!ui.view) showAll();
   const zoom = (factor: number, at?: { x: number; y: number }) => {
     const v = shaped();
     setView(zoomAt(v, factor, at ?? { x: v.x + v.w / 2, y: v.y + v.h / 2 }, limits));
   };
-
-  if (center) {
-    const p = layoutNow.pos.get(center);
+  // What needs the canvas's size waits for the next frame (still before it is painted): read now,
+  // it would lay out 2,000 elements inside this task as well as in the frame (U3.07).
+  const signal = bound();
+  requestAnimationFrame(() => {
+    if (signal.aborted) return; // drawn again since
+    const wrap = svg.parentElement;
+    if (wrap) {
+      const tall = canvasHeight(limits.width, limits.height, wrap.clientWidth, 280, window.innerHeight * 0.75);
+      wrap.style.height = `${tall}px`;
+    }
+    if (!ui.view) showAll();
+    const p = center ? layoutNow.pos.get(center) : undefined;
     if (p) setView(centerOn(shaped(), p));
-  }
+  });
 
   svg.addEventListener(
     'wheel',
@@ -566,7 +569,7 @@ function newNodeForm(graph: Graph): string {
           .map((t) => `<option>${t}</option>`)
           .join('')}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
-        <label class="field">Link from (optional)<select name="from"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join('')}</select></label>
+        <label class="field">Link from (optional)<select name="from" data-morph="if-changed"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join('')}</select></label>
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
         <button class="btn primary" type="submit">+ Stage node</button>
       </form>`;

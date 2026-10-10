@@ -1,6 +1,9 @@
 import { test, beforeAll as before, afterAll as after } from 'vitest';
 import assert from 'node:assert/strict';
-import { createTilesServer, securityHeaders } from '../server.js';
+import { request } from 'node:http';
+import { readFileSync } from 'node:fs';
+import { brotliDecompressSync, gunzipSync } from 'node:zlib';
+import { createTilesServer, encodingFor, securityHeaders } from '../server.js';
 
 let server;
 let base;
@@ -24,6 +27,46 @@ test('serves the bundle as javascript', async () => {
   const res = await fetch(`${base}/js/tiles.bundle.js`);
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type'), /javascript/);
+});
+
+// The raw response, as the browser gets it (fetch would undo the compression).
+function raw(path, acceptEncoding) {
+  return new Promise((resolve, reject) => {
+    const headers = acceptEncoding === undefined ? {} : { 'accept-encoding': acceptEncoding };
+    request(`${base}${path}`, { headers }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ headers: res.headers, body: Buffer.concat(chunks) }));
+    })
+      .on('error', reject)
+      .end();
+  });
+}
+
+test('sends text compressed when the browser takes it, the same bytes once undone (U3.07)', async () => {
+  const bundle = readFileSync(new URL('../js/tiles.bundle.js', import.meta.url));
+  const br = await raw('/js/tiles.bundle.js', 'gzip, deflate, br');
+  assert.equal(br.headers['content-encoding'], 'br');
+  assert.equal(br.headers.vary, 'accept-encoding');
+  assert.ok(br.body.length < bundle.length / 3, `${br.body.length} of ${bundle.length} bytes`);
+  assert.ok(brotliDecompressSync(br.body).equals(bundle));
+  const gz = await raw('/js/tiles.bundle.js', 'gzip');
+  assert.equal(gz.headers['content-encoding'], 'gzip');
+  assert.ok(gunzipSync(gz.body).equals(bundle));
+  const plain = await raw('/js/tiles.bundle.js');
+  assert.equal(plain.headers['content-encoding'], undefined);
+  assert.ok(plain.body.equals(bundle));
+  // Security headers stay on a compressed response.
+  assert.equal(br.headers['x-frame-options'], 'DENY');
+});
+
+test('reads which encoding a browser takes', () => {
+  assert.equal(encodingFor('gzip, deflate, br, zstd'), 'br');
+  assert.equal(encodingFor('gzip;q=1.0, br;q=0'), 'gzip');
+  assert.equal(encodingFor('*'), 'br');
+  assert.equal(encodingFor('identity'), null);
+  assert.equal(encodingFor(''), null);
+  assert.equal(encodingFor(undefined), null);
 });
 
 test('returns 404 for missing files', async () => {

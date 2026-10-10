@@ -13,8 +13,17 @@ const view: View = {
     const { state } = ctx;
     const health = healthCheck(ctx.graph);
     const ng = state.batches.filter((b) => b.ng).length;
-    const predicted = state.scored.filter((s) => s.predicted);
-    const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
+    // The demo shots are worked out after the first paint (U3.07): until then, the card waits.
+    const friction = ctx.demoReady
+      ? (() => {
+          const predicted = state.scored.filter((s) => s.predicted);
+          const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
+          return {
+            value: String(state.detection.alerts.length),
+            note: `${predicted.length}/${state.scored.length} stops predicted, ${fmt(lead, 1)} h avg lead`,
+          };
+        })()
+      : null;
 
     const feed = [
       ...state.repo.history.map((c) => ({
@@ -55,10 +64,13 @@ const view: View = {
       </section>
 
       <div class="grid g4 mb-4">
-        <a class="card kpi bad text-inherit no-underline" href="#/physics">
+        <a class="card kpi bad text-inherit no-underline" href="#/physics"${friction ? '' : ' aria-busy="true"'}>
           <div class="label">Friction warnings · DC-02</div>
-          <div class="value">${state.detection.alerts.length}</div>
-          <div class="note">${predicted.length}/${state.scored.length} stops predicted, ${fmt(lead, 1)} h avg lead</div>
+          ${
+            friction
+              ? `<div class="value">${friction.value}</div><div class="note">${friction.note}</div>`
+              : `<div class="value"><span class="skeleton kpi-wait"></span><span class="sr-only">Working out the warnings</span></div><div class="note"><span class="skeleton kpi-wait wide"></span></div>`
+          }
         </a>
         <a class="card kpi text-inherit no-underline" href="#/quality">
           <div class="label">Cutter NG rate</div>
