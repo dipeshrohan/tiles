@@ -69,6 +69,7 @@ A finding without a fix yet doesn't fail the build. For one that can't be fixed 
 - **Every bug fix ships with a regression test.** Never skip or disable a test to get green.
 - **No runtime dependencies** in the browser app. Dev dependencies are fine.
 - **Synthetic data is seeded**, so results are reproducible; keep it that way.
+- **Build pages from the components** in `js/lib/ui.ts` (`button`, `badge`, `card`, `field`, `select`, `table`, `tabs`, `pageHead`, `errorState`…): they escape what they show and keep pages alike.
 - **No inline styles.** Use a component class, or the utilities at the end of `css/styles.css` (`.gap-2`, `.mt-3`, `.grow`, `.wrap`, `.justify-between`, `.text-bad`…; the number is the `--space-*` step). `npm run lint` refuses a `style` attribute unless its value is computed, like a chart's width.
 - **Escape user-visible strings** with `esc()` from `js/lib/dom.js` when building HTML.
 - **Accessible to keyboard and screen-reader users (WCAG 2.1 AA).** `e2e/a11y.test.js` runs axe on every page, in light and dark, and fails on any violation. So:

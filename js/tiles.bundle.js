@@ -1456,7 +1456,7 @@
 		if (!el) throw new Error(`Missing element ${sel}`);
 		return el;
 	}
-	function field$1(form, name) {
+	function field$2(form, name) {
 		const el = form.elements.namedItem(name);
 		if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) return el.value;
 		throw new Error(`Form has no field ${name}`);
@@ -1909,15 +1909,15 @@
 	};
 	//#endregion
 	//#region js/lib/analysis.ts
-	var field = (row, key) => row[key];
-	var num$2 = (row, key) => Number(field(row, key));
+	var field$1 = (row, key) => row[key];
+	var num$2 = (row, key) => Number(field$1(row, key));
 	function correlationFinder(rows, variables, { outcome = "ng", splitBy = null } = {}) {
-		const segments = splitBy ? [...new Set(rows.map((r) => String(field(r, splitBy))))] : ["all"];
+		const segments = splitBy ? [...new Set(rows.map((r) => String(field$1(r, splitBy))))] : ["all"];
 		const findings = [];
 		for (const seg of segments) {
-			const subset = splitBy ? rows.filter((r) => String(field(r, splitBy)) === seg) : rows;
-			const bad = subset.filter((r) => field(r, outcome));
-			const good = subset.filter((r) => !field(r, outcome));
+			const subset = splitBy ? rows.filter((r) => String(field$1(r, splitBy)) === seg) : rows;
+			const bad = subset.filter((r) => field$1(r, outcome));
+			const good = subset.filter((r) => !field$1(r, outcome));
 			for (const v of variables) {
 				const a = bad.map((r) => num$2(r, v.key));
 				const b = good.map((r) => num$2(r, v.key));
@@ -1929,7 +1929,7 @@
 					ngMean: mean(a),
 					okMean: mean(b),
 					effect: cohensD(a, b),
-					r: pearson(subset.map((r) => num$2(r, v.key)), subset.map((r) => field(r, outcome) ? 1 : 0)),
+					r: pearson(subset.map((r) => num$2(r, v.key)), subset.map((r) => field$1(r, outcome) ? 1 : 0)),
 					ngCount: a.length,
 					okCount: b.length
 				});
@@ -2488,6 +2488,105 @@
 		];
 		return `<div class="empty loading"><span class="sr-only">${esc(label)}</span>${Array.from({ length: rows }, (_, i) => `<span class="skeleton" style="--w:${widths[i % widths.length]}%"></span>`).join("")}</div>`;
 	}
+	function attrs(a = {}) {
+		return Object.entries(a).map(([k, v]) => v === true ? ` ${k}` : v === false || v === null || v === void 0 ? "" : ` ${k}="${esc(String(v))}"`).join("");
+	}
+	var classes = (...c) => c.filter(Boolean).join(" ");
+	var buttonClass = (o, extra) => classes("btn", o.size, o.variant, extra, o.class);
+	function button(label, o = {}) {
+		return `<button${attrs({
+			class: buttonClass(o),
+			type: o.type ?? "button",
+			disabled: o.disabled,
+			...o.attrs
+		})}>${o.icon ? `${icon(o.icon)} ` : ""}${esc(label)}</button>`;
+	}
+	function badge$1(text, tone = "", o = {}) {
+		return `<span${attrs({
+			class: classes("badge", tone),
+			title: o.title,
+			...o.attrs
+		})}>${esc(text)}</span>`;
+	}
+	function card$1(bodyHtml, o = {}) {
+		return `<div${attrs({
+			class: classes("card", o.class),
+			...o.attrs
+		})}>${bodyHtml}</div>`;
+	}
+	function pageHead$1(o) {
+		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<h1>${esc(o.title)}</h1>${o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
+	}
+	function input(o) {
+		return `<input${attrs({
+			type: o.type ?? "text",
+			name: o.name,
+			value: o.value,
+			placeholder: o.placeholder,
+			class: o.class,
+			...o.attrs
+		})}>`;
+	}
+	function options$1(list, current) {
+		return list.map(([v, l]) => `<option${attrs({
+			value: v,
+			selected: v === current
+		})}>${esc(l)}</option>`).join("");
+	}
+	function select(name, list, current, o = {}) {
+		return `<select${attrs({
+			name,
+			class: o.class,
+			...o.attrs
+		})}>${options$1(list, current)}</select>`;
+	}
+	var hints = 0;
+	function describedBy(controlHtml, id) {
+		return controlHtml.replace(/<(input|select|textarea)\b[^>]*>/, (tag) => {
+			const has = /\saria-describedby="([^"]*)"/.exec(tag);
+			return has ? tag.replace(has[0], ` aria-describedby="${has[1] ? `${has[1]} ` : ""}${id}"`) : tag.replace(/^<(\w+)/, `<$1 aria-describedby="${id}"`);
+		});
+	}
+	function field(label, controlHtml, o = {}) {
+		const hint = o.hint ? `ui-hint-${++hints}` : null;
+		const control = hint ? describedBy(controlHtml, hint) : controlHtml;
+		return `<label${attrs({
+			class: classes(o.inline ? "row gap-1_5" : "field", o.class),
+			title: o.title
+		})}>${esc(label)}${o.inline ? " " : ""}${control}${hint ? `<span class="small soft" id="${hint}">${esc(o.hint ?? "")}</span>` : ""}</label>`;
+	}
+	function table(o) {
+		const th = o.headers.map((h) => typeof h === "string" ? {
+			label: h,
+			srOnly: false
+		} : h).map((h) => `<th scope="col">${h.srOnly ? `<span class="sr-only">${esc(h.label)}</span>` : esc(h.label)}</th>`).join("");
+		return `<div class="table-wrap"><table${attrs({ class: o.class })}><thead><tr>${th}</tr></thead><tbody>${o.rowsHtml}</tbody></table></div>`;
+	}
+	function kv(rows, o = {}) {
+		return `<div class="table-wrap"><table class="small"><tbody>${rows.map(([k, v]) => `<tr><th scope="row">${esc(k)}</th><td${attrs({ class: o.valueClass })}>${esc(v)}</td></tr>`).join("")}</tbody></table></div>`;
+	}
+	function tabs(o) {
+		return `<div class="tabs" role="group" aria-label="${esc(o.label)}">${o.items.map(([v, l]) => `<button${attrs({
+			class: classes("tab", v === o.current && "active"),
+			type: "button",
+			"aria-pressed": String(v === o.current),
+			[`data-${o.data}`]: v
+		})}>${esc(l)}</button>`).join("")}</div>`;
+	}
+	function errorState(o) {
+		return emptyState({
+			illustration: "error",
+			compact: o.compact,
+			alert: true,
+			title: o.title,
+			body: o.body,
+			action: o.retry ? button("Try again", {
+				size: "sm",
+				icon: "refresh-cw",
+				attrs: { [`data-${o.retry}`]: true }
+			}) : void 0
+		});
+	}
 	//#endregion
 	//#region js/views/chat.ts
 	var uiState$13 = (ctx) => ctx.ui("chat", { conversation: null });
@@ -2704,7 +2803,7 @@
 		root.querySelector("#composer [name=q]")?.addEventListener("input", (e) => {
 			draft$4 = e.target.value;
 		});
-		onSubmit(root, "#composer", (form) => void send(ctx, field$1(form, "q")));
+		onSubmit(root, "#composer", (form) => void send(ctx, field$2(form, "q")));
 		onAll(root, "[data-q]", "click", (b) => void send(ctx, b.dataset.q ?? ""));
 		onAll(root, "[data-new-conversation]", "click", () => {
 			ui.conversation = null;
@@ -2753,7 +2852,7 @@
 			});
 			form.addEventListener("submit", (e) => {
 				e.preventDefault();
-				const comment = field$1(form, "comment").trim();
+				const comment = field$2(form, "comment").trim();
 				if (!comment) return void ctx.toast("Say what was wrong, or leave the thumbs down as it is");
 				rate(ctx, Number(form.dataset.rateForm), "down", comment);
 			});
@@ -2804,7 +2903,7 @@
 			});
 			document.querySelector("#composer input")?.focus();
 		};
-		onSubmit(root, "#composer", (form) => sendLocal(field$1(form, "q")));
+		onSubmit(root, "#composer", (form) => sendLocal(field$2(form, "q")));
 		onAll(root, "[data-q]", "click", (b) => sendLocal(b.dataset.q ?? ""));
 		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 	}
@@ -3863,12 +3962,12 @@
 				else ctx.ontology.act((store, repo) => store.revert(repo, id, author), "Commit reverted");
 			});
 			onSubmit(root, "#commit-form", (form, submitter) => {
-				const message = field$1(form, "message");
+				const message = field$2(form, "message");
 				if (!(submitter ? submitter.hasAttribute("data-request-review") : !form.querySelector("[value=commit]"))) {
 					ctx.ontology.act((store, repo) => store.commit(repo, message, author), "Committed");
 					return;
 				}
-				const reviewerId = field$1(form, "reviewer") || void 0;
+				const reviewerId = field$2(form, "reviewer") || void 0;
 				ctx.ontology.act((store, repo) => store.requestReview(repo, {
 					message,
 					reviewerId
@@ -3877,8 +3976,8 @@
 			onSubmit(root, "#prop-form", (form) => {
 				const id = selected();
 				if (!id) return;
-				const key = field$1(form, "key").trim();
-				const raw = field$1(form, "value").trim();
+				const key = field$2(form, "key").trim();
+				const raw = field$2(form, "value").trim();
 				const value = raw !== "" && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
 				stageOp({
 					kind: "setProp",
@@ -3890,8 +3989,8 @@
 			onSubmit(root, "#link-form", (form) => {
 				const from = selected();
 				if (!from) return;
-				const rel = field$1(form, "rel");
-				const to = field$1(form, "to");
+				const rel = field$2(form, "rel");
+				const to = field$2(form, "to");
 				stageOp({
 					kind: "addEdge",
 					edge: {
@@ -3903,13 +4002,13 @@
 				});
 			});
 			onSubmit(root, "#node-form", (form) => {
-				const type = field$1(form, "type");
-				const label = field$1(form, "label").trim();
+				const type = field$2(form, "type");
+				const label = field$2(form, "label").trim();
 				const slug = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 30) || "node";
 				let id = `${type.toLowerCase()}-${slug}`;
 				for (let k = 2; ctx.graph.nodes[id]; k++) id = `${type.toLowerCase()}-${slug}-${k}`;
-				const from = field$1(form, "from");
-				const rel = field$1(form, "rel");
+				const from = field$2(form, "from");
+				const rel = field$2(form, "rel");
 				const ops = [{
 					kind: "addNode",
 					node: {
@@ -4961,7 +5060,7 @@
 				ctx.rerender();
 			});
 			onSubmit(root, "#new-project", async (form) => {
-				const name = field$1(form, "name").trim();
+				const name = field$2(form, "name").trim();
 				if (!site || !ctx.api || !name) return;
 				try {
 					const created = await ctx.api.designProjects.create(site, name);
@@ -5008,7 +5107,7 @@
 				ctx.rerender();
 			});
 			onSubmit(root, "#run-form", async (form) => {
-				const note = field$1(form, "note").trim();
+				const note = field$2(form, "note").trim();
 				if (site) {
 					const key = runsKey(site, project?.id ?? "", model.id);
 					if (!ctx.api || !project || saving$3 || apiRuns?.key !== key || !apiRuns.loaded) return;
@@ -5270,7 +5369,7 @@
 			}, () => void 0);
 		});
 		onSubmit(box, "#scim-token-form", (form) => {
-			const name = field$1(form, "name").trim();
+			const name = field$2(form, "name").trim();
 			api.org.createScimToken(name).then(({ token }) => {
 				revealed$2 = {
 					name,
@@ -5301,12 +5400,12 @@
 		box.innerHTML = providerForm(provider, viaProvider);
 		onSubmit(box, "#org-provider-form", (form) => {
 			const { provider: body, errors } = providerFromForm({
-				issuer: field$1(form, "issuer"),
-				clientId: field$1(form, "clientId"),
-				audience: field$1(form, "audience"),
-				scope: field$1(form, "scope"),
-				jwksUrl: field$1(form, "jwksUrl"),
-				groupRoles: field$1(form, "groupRoles"),
+				issuer: field$2(form, "issuer"),
+				clientId: field$2(form, "clientId"),
+				audience: field$2(form, "audience"),
+				scope: field$2(form, "scope"),
+				jwksUrl: field$2(form, "jwksUrl"),
+				groupRoles: field$2(form, "groupRoles"),
 				enforced: form.elements.namedItem("enforced").checked
 			});
 			if (!body) return ctx.toast(errors.join(". "));
@@ -5564,7 +5663,7 @@
 			ctx.toast(url === void 0 ? "Teams channel updated" : t.configured ? "Teams channel saved" : "Teams channel removed");
 		}, () => void 0);
 		onSubmit(root, "#teams-form", (form) => {
-			const url = field$1(form, "url").trim();
+			const url = field$2(form, "url").trim();
 			if (!url && !configured) {
 				ctx.toast("Paste the channel’s webhook URL");
 				return;
@@ -5596,7 +5695,7 @@
 	function readSource(form) {
 		return {
 			mode: form.elements.namedItem("mode").value === "api" ? "api" : "local",
-			apiUrl: field$1(form, "apiUrl")
+			apiUrl: field$2(form, "apiUrl")
 		};
 	}
 	function viewer(ctx) {
@@ -5694,7 +5793,7 @@
 		showToken(root, ctx);
 		fillAgents(root, ctx);
 		onSubmit(root, "#agent-form", (form) => {
-			const name = field$1(form, "name").trim();
+			const name = field$2(form, "name").trim();
 			api.agents.register(site.id, name).then(({ token }) => {
 				revealed$1 = {
 					name,
@@ -5752,8 +5851,8 @@
 		},
 		bind(root, ctx) {
 			onSubmit(root, "#profile", (form) => {
-				const name = field$1(form, "name").trim();
-				const email = field$1(form, "email").trim();
+				const name = field$2(form, "name").trim();
+				const email = field$2(form, "email").trim();
 				ctx.update((s) => s.user = {
 					name,
 					email
@@ -5783,7 +5882,7 @@
 				};
 			});
 			onAll(root, "[data-test-api]", "click", async () => {
-				const url = field$1(need(root, "#datasource"), "apiUrl");
+				const url = field$2(need(root, "#datasource"), "apiUrl");
 				const seq = ++apiCheckSeq;
 				const show = (text) => {
 					if (seq !== apiCheckSeq) return;
@@ -5810,7 +5909,7 @@
 			bindAgents(root, ctx);
 			fillNotifications(root, ctx);
 			onAll(root, "[data-sign-in]", "click", () => void ctx.auth.signIn());
-			onSubmit(root, "#org-sign-in-form", (form) => void ctx.auth.signIn(field$1(form, "org")));
+			onSubmit(root, "#org-sign-in-form", (form) => void ctx.auth.signIn(field$2(form, "org")));
 			onAll(root, "[data-sign-out]", "click", () => void ctx.auth.signOut());
 			bindOrgSignIn(root, ctx);
 			onAll(root, "[data-reset]", "click", async () => {
@@ -5829,7 +5928,7 @@
 		accepted: ["good", "Accepted"],
 		rejected: ["bad", "Rejected"]
 	};
-	function statusBadge$2(status) {
+	function statusBadge$3(status) {
 		const [cls, text] = STATUS$2[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
@@ -6065,7 +6164,7 @@
 	};
 	function qualityBadge(report) {
 		const [label, tone] = QUALITY[report ? report.badge : "unchecked"];
-		return `<span class="badge ${tone}" title="${esc(report?.issues.length ? report.issues.map((i) => i.message).join("\n") : label)}">${esc(label)}</span>`;
+		return badge$1(label, tone, { title: report?.issues.length ? report.issues.map((i) => i.message).join("\n") : label });
 	}
 	var percent = (x) => `${(Math.floor(x * 1e3) / 10).toFixed(1)}%`;
 	function qualityDetail(report) {
@@ -6075,7 +6174,7 @@
 			report.period_s === null ? "" : `expected every ${+report.period_s.toPrecision(3)} s`,
 			report.coverage === null ? "" : `${percent(report.coverage)} of the time covered`
 		].filter(Boolean);
-		const issues = report.issues.length ? `<ul class="small">${report.issues.map((i) => `<li><span class="badge ${i.severity}">${i.severity === "bad" ? "problem" : "warning"}</span> ${esc(i.message)}</li>`).join("")}</ul>` : `<p class="small">${report.readings ? "No gaps, stuck values, out-of-range values or unit mismatches found." : "No readings to check."}</p>`;
+		const issues = report.issues.length ? `<ul class="small">${report.issues.map((i) => `<li>${badge$1(i.severity === "bad" ? "problem" : "warning", i.severity)} ${esc(i.message)}</li>`).join("")}</ul>` : `<p class="small">${report.readings ? "No gaps, stuck values, out-of-range values or unit mismatches found." : "No readings to check."}</p>`;
 		return `<div class="stack gap-1_5"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(", "))}.</p>${issues}</div>`;
 	}
 	function number(text) {
@@ -6121,39 +6220,85 @@
 	}
 	function eventBadge(s) {
 		if (!s.event_kind && !s.asset) return "";
-		return ` <span class="badge" data-event-badge>${esc([s.event_kind ? `${s.event_kind} events` : "", s.asset ?? ""].filter(Boolean).join(" · "))}</span>`;
+		return ` ${badge$1([s.event_kind ? `${s.event_kind} events` : "", s.asset ?? ""].filter(Boolean).join(" · "), "", { attrs: { "data-event-badge": true } })}`;
 	}
 	function linkCell(s) {
 		if (!s.node_id) return "<span class=\"soft\">—</span>";
-		return s.node_label !== null ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>` : `<span class="badge warn" title="${esc(s.node_id)} is no longer a Signal node of the committed ontology">missing node</span>`;
+		return s.node_label !== null ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>` : badge$1("missing node", "warn", { title: `${s.node_id} is no longer a Signal node of the committed ontology` });
 	}
 	function editRow(ctx, s) {
 		const nodes = Object.values(ctx.state.repo.head.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.label.localeCompare(b.label));
-		const options = [
-			`<option value="">— not linked —</option>`,
-			...s.node_id && !nodes.some((n) => n.id === s.node_id) ? [`<option value="${esc(s.node_id)}" selected>${esc(s.node_id)} (missing)</option>`] : [],
-			...nodes.map((n) => `<option value="${esc(n.id)}" ${n.id === s.node_id ? "selected" : ""}>${esc(n.label)} (${esc(n.id)})</option>`)
-		].join("");
+		const nodeOptions = [
+			["", "— not linked —"],
+			...s.node_id && !nodes.some((n) => n.id === s.node_id) ? [[s.node_id, `${s.node_id} (missing)`]] : [],
+			...nodes.map((n) => [n.id, `${n.label} (${n.id})`])
+		];
 		const stuck = s.stuck_after_s === null ? "" : String(+(s.stuck_after_s / 60).toPrecision(12));
 		return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
         <fieldset class="contents" ${saving$2 === s.id ? "disabled" : ""}>
-        <label class="field">Unit<input type="text" name="unit" value="${esc(s.unit ?? "")}" placeholder="e.g. °C" maxlength="40" class="w-7em"></label>
-        <label class="field">Sample rate (Hz)<input type="text" name="rate" value="${esc(String(s.sample_rate_hz ?? ""))}" inputmode="decimal" class="w-7em"></label>
-        <label class="field grow min-w-field">Description<input type="text" name="description" value="${esc(s.description)}" maxlength="1000"></label>
-        <label class="field">Ontology node<select name="node">${options}</select></label>
-        <label class="field">Expected min<input type="text" name="min" value="${esc(String(s.range_min ?? ""))}" inputmode="decimal" class="w-7em"></label>
-        <label class="field">Expected max<input type="text" name="max" value="${esc(String(s.range_max ?? ""))}" inputmode="decimal" class="w-7em"></label>
-        <label class="field">Stuck after (min)<input type="text" name="stuck" value="${esc(stuck)}" placeholder="60" inputmode="decimal" class="w-6em"></label>
-        <label class="field" title="Each reading of an event stream is an event: its value is the code">Events<select name="events">${[
+        ${field("Unit", input({
+			name: "unit",
+			value: s.unit ?? "",
+			class: "w-7em",
+			attrs: {
+				placeholder: "e.g. °C",
+				maxlength: 40
+			}
+		}))}
+        ${field("Sample rate (Hz)", input({
+			name: "rate",
+			value: String(s.sample_rate_hz ?? ""),
+			class: "w-7em",
+			attrs: { inputmode: "decimal" }
+		}))}
+        ${field("Description", input({
+			name: "description",
+			value: s.description,
+			attrs: { maxlength: 1e3 }
+		}), { class: "grow min-w-field" })}
+        ${field("Ontology node", select("node", nodeOptions, s.node_id ?? ""))}
+        ${field("Expected min", input({
+			name: "min",
+			value: String(s.range_min ?? ""),
+			class: "w-7em",
+			attrs: { inputmode: "decimal" }
+		}))}
+        ${field("Expected max", input({
+			name: "max",
+			value: String(s.range_max ?? ""),
+			class: "w-7em",
+			attrs: { inputmode: "decimal" }
+		}))}
+        ${field("Stuck after (min)", input({
+			name: "stuck",
+			value: stuck,
+			class: "w-6em",
+			attrs: {
+				placeholder: "60",
+				inputmode: "decimal"
+			}
+		}))}
+        ${field("Events", select("events", [
 			["", "none: readings"],
 			["downtime", "downtime"],
 			["scrap", "scrap"],
 			["other", "other events"]
-		].map(([v, label]) => `<option value="${v}" ${v === (s.event_kind ?? "") ? "selected" : ""}>${label}</option>`).join("")}</select></label>
-        <label class="field" title="The machine, as the MES names it: its events are matched to its detectors' warnings">Asset<input type="text" name="asset" value="${esc(s.asset ?? "")}" maxlength="100" placeholder="e.g. DC-01" class="w-8em"></label>
-        <button class="btn primary" type="submit">${saving$2 === s.id ? "Saving…" : "Save"}</button>
-        <button class="btn" type="button" data-cancel-edit>Cancel</button>
+		], s.event_kind ?? ""), { title: "Each reading of an event stream is an event: its value is the code" })}
+        ${field("Asset", input({
+			name: "asset",
+			value: s.asset ?? "",
+			class: "w-8em",
+			attrs: {
+				placeholder: "e.g. DC-01",
+				maxlength: 100
+			}
+		}), { title: "The machine, as the MES names it: its events are matched to its detectors' warnings" })}
+        ${button(saving$2 === s.id ? "Saving…" : "Save", {
+			variant: "primary",
+			type: "submit"
+		})}
+        ${button("Cancel", { attrs: { "data-cancel-edit": true } })}
         </fieldset>
       </form>
       ${nodes.length ? "" : "<p class=\"small soft\">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>"}
@@ -6164,13 +6309,32 @@
 		const { editing, open } = ui$1(ctx);
 		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
 		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
-    <div class="table-wrap"><table><thead><tr><th>Tag</th><th>Description</th><th>Unit</th><th>Rate</th><th>Source</th><th>Ontology node</th><th>Latest reading</th><th>Quality</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
+    ${table({
+			headers: [
+				"Tag",
+				"Description",
+				"Unit",
+				"Rate",
+				"Source",
+				"Ontology node",
+				"Latest reading",
+				"Quality",
+				{
+					label: "Actions",
+					srOnly: true
+				}
+			],
+			rowsHtml: page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
             <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
             <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
-            <td>${canEdit && editing !== s.id ? `<button class="btn sm" type="button" data-edit="${esc(s.id)}">Edit</button>` : ""}</td></tr>
+            <td>${canEdit && editing !== s.id ? button("Edit", {
+				size: "sm",
+				attrs: { "data-edit": s.id }
+			}) : ""}</td></tr>
           ${open === s.id && s.quality ? `<tr class="quality-row"><td colspan="9">${qualityDetail(s.quality)}</td></tr>` : ""}
-          ${canEdit && editing === s.id ? editRow(ctx, s) : ""}`).join("")}</tbody></table></div>`;
+          ${canEdit && editing === s.id ? editRow(ctx, s) : ""}`).join("")
+		})}`;
 	}
 	async function search$1(root, ctx) {
 		const site = ctx.ontology.site;
@@ -6243,17 +6407,17 @@
 			}
 			const text = (name, stored) => {
 				const el = form.elements.namedItem(name);
-				return el instanceof HTMLInputElement && untouched(el) ? stored : field$1(form, name);
+				return el instanceof HTMLInputElement && untouched(el) ? stored : field$2(form, name);
 			};
 			const change = changeFrom({
 				unit: text("unit", sig.unit ?? ""),
-				rate: field$1(form, "rate"),
+				rate: field$2(form, "rate"),
 				description: text("description", sig.description),
-				node: field$1(form, "node"),
-				min: field$1(form, "min"),
-				max: field$1(form, "max"),
-				stuck: field$1(form, "stuck"),
-				events: field$1(form, "events"),
+				node: field$2(form, "node"),
+				min: field$2(form, "min"),
+				max: field$2(form, "max"),
+				stuck: field$2(form, "stuck"),
+				events: field$2(form, "events"),
 				asset: text("asset", sig.asset ?? "")
 			}, sig);
 			if (typeof change === "string") {
@@ -6284,13 +6448,22 @@
 	var suggesting = false;
 	var linkingAll = false;
 	function suggestionRow(s, canEdit, busy = false) {
-		const what = s.kind === "link" ? `<span class="badge good">Link to</span> ${esc(s.node_label)}` : `<span class="badge accent">New node</span> ${esc(s.node_label)}`;
+		const what = s.kind === "link" ? `${badge$1("Link to", "good")} ${esc(s.node_label)}` : `${badge$1("New node", "accent")} ${esc(s.node_label)}`;
 		return `<div class="suggestion" data-suggestion="${esc(s.signal_id)}">
       <div class="row gap-2 wrap items-center">
         <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
         <span class="small soft" title="How sure Tiles is">${Math.round(s.score * 100)}%</span>
         <span class="grow"></span>
-        ${canEdit ? `<button class="btn sm primary" type="button" data-accept="${esc(s.signal_id)}" ${busy ? "disabled" : ""}>${s.kind === "link" ? "Link" : "Stage node"}</button><button class="btn sm" type="button" data-skip="${esc(s.signal_id)}" ${busy ? "disabled" : ""}>Skip</button>` : ""}
+        ${canEdit ? `${button(s.kind === "link" ? "Link" : "Stage node", {
+			size: "sm",
+			variant: "primary",
+			disabled: busy,
+			attrs: { "data-accept": s.signal_id }
+		})}${button("Skip", {
+			size: "sm",
+			disabled: busy,
+			attrs: { "data-skip": s.signal_id }
+		})}` : ""}
       </div>
       <ul class="small soft mt-1 ml-4 m-0">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>
     </div>`;
@@ -6307,7 +6480,11 @@
 		const shown = mapping.items.length + mapping.staged.length;
 		const more = mapping.unmapped > shown ? ` for ${mapping.items.length} of ${mapping.unmapped} unlinked tags` : "";
 		return `${staged}<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
-    ${canEdit && links > 1 ? `<div><button class="btn sm" type="button" data-accept-links ${linkingAll ? "disabled" : ""}>Link all ${links}</button></div>` : ""}
+    ${canEdit && links > 1 ? `<div>${button(`Link all ${links}`, {
+			size: "sm",
+			disabled: linkingAll,
+			attrs: { "data-accept-links": true }
+		})}</div>` : ""}
     <div class="stack gap-2_5">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join("")}</div>`;
 	}
 	function fillMapping(root, ctx) {
@@ -6386,29 +6563,56 @@
 		title: "Signals",
 		icon: "activity",
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
-        <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card">${needsApi(`The signal catalogue is kept in the Tiles API.`)}</div>`;
-			if (!ctx.ontology.site) return `${head}<div class="card"><p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p></div>`;
+			const head = pageHead$1({
+				eyebrow: "Data",
+				title: "Signals",
+				lead: "Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to."
+			});
+			if (!ctx.api) return `${head}${card$1(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
+			if (!ctx.ontology.site) return `${head}${card$1(`<p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p>`)}`;
 			const { query } = ui$1(ctx);
-			const opt = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
-			return `${head}<div class="card stack gap-3">
-        <form id="signal-search" class="row gap-3 wrap" role="search">
-          <label class="field grow min-w-field">Search<input type="search" name="q" value="${esc(query.q)}" placeholder="Tag, description or node"></label>
-          <label class="field">Source<select name="source">${opt("", "Any", query.source)}${opt("edge", "Edge agents", query.source)}${opt("import", "Imports", query.source)}${opt("manual", "Entered by hand", query.source)}</select></label>
-          <label class="field">Ontology link<select name="linked">${opt("", "Any", query.linked)}${opt("yes", "Linked", query.linked)}${opt("no", "Not linked", query.linked)}</select></label>
-          <label class="field">Quality<select name="quality">${opt("", "Any", query.quality)}${opt("bad", "Problems", query.quality)}${opt("warn", "Warnings", query.quality)}${opt("good", "Good", query.quality)}${opt("unknown", "No data", query.quality)}${opt("unchecked", "Not checked", query.quality)}</select></label>
-          ${ctx.ontology.role !== "viewer" ? `<button class="btn" type="button" data-check-quality ${checking ? "disabled" : ""} title="Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed">${checking ? "Checking…" : "Check quality"}</button>` : ""}
-        </form>
-        <div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>
-      </div>
-      <div class="card stack gap-2_5 mt-3" data-mapping>
-        <div class="row justify-between wrap gap-2">
+			return `${head}${card$1(`${`<form id="signal-search" class="row gap-3 wrap" role="search">
+          ${field("Search", input({
+				type: "search",
+				name: "q",
+				value: query.q,
+				placeholder: "Tag, description or node"
+			}), { class: "grow min-w-field" })}
+          ${field("Source", select("source", [
+				["", "Any"],
+				["edge", "Edge agents"],
+				["import", "Imports"],
+				["manual", "Entered by hand"]
+			], query.source))}
+          ${field("Ontology link", select("linked", [
+				["", "Any"],
+				["yes", "Linked"],
+				["no", "Not linked"]
+			], query.linked))}
+          ${field("Quality", select("quality", [
+				["", "Any"],
+				["bad", "Problems"],
+				["warn", "Warnings"],
+				["good", "Good"],
+				["unknown", "No data"],
+				["unchecked", "Not checked"]
+			], query.quality))}
+          ${ctx.ontology.role !== "viewer" ? button(checking ? "Checking…" : "Check quality", {
+				disabled: checking,
+				attrs: {
+					"data-check-quality": true,
+					title: "Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed"
+				}
+			}) : ""}
+        </form>`}<div data-signal-results aria-live="polite"><p class="small soft">Loading…</p></div>`, { class: "stack gap-3" })}
+      ${card$1(`<div class="row justify-between wrap gap-2">
           <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
-          <button class="btn" type="button" data-suggest>Suggest mappings</button>
+          ${button("Suggest mappings", { attrs: { "data-suggest": true } })}
         </div>
-        <div data-mapping-results aria-live="polite">${mappingHtml(ctx)}</div>
-      </div>`;
+        <div data-mapping-results aria-live="polite">${mappingHtml(ctx)}</div>`, {
+				class: "stack gap-2_5 mt-3",
+				attrs: { "data-mapping": true }
+			})}`;
 		},
 		bind(root, ctx) {
 			const form = root.querySelector("#signal-search");
@@ -6420,10 +6624,10 @@
 			const update = () => {
 				const u = ui$1(ctx);
 				u.query = {
-					q: field$1(form, "q"),
-					source: field$1(form, "source"),
-					linked: field$1(form, "linked"),
-					quality: field$1(form, "quality")
+					q: field$2(form, "q"),
+					source: field$2(form, "source"),
+					linked: field$2(form, "linked"),
+					quality: field$2(form, "quality")
 				};
 				u.editing = null;
 				clearTimeout(searchTimer);
@@ -6530,11 +6734,11 @@
 		if (!form) return;
 		const w = wearOf(id);
 		form.addEventListener("input", () => {
-			w.limit = field$1(form, "limit");
+			w.limit = field$2(form, "limit");
 		});
 		form.addEventListener("change", () => {
-			w.direction = field$1(form, "direction");
-			w.limit = field$1(form, "limit");
+			w.direction = field$2(form, "direction");
+			w.limit = field$2(form, "limit");
 			showWear(box, ctx);
 		});
 		onSubmit(box, "form", () => void checkWear(ctx, box));
@@ -6903,7 +7107,7 @@
 				form.addEventListener("submit", (e) => {
 					e.preventDefault();
 					const read = (name) => {
-						const typed = field$1(form, name);
+						const typed = field$2(form, name);
 						return typed === localInput(range[name]) ? Date.parse(range[name]) : Date.parse(typed);
 					};
 					const from = read("from");
@@ -6982,7 +7186,7 @@
 		rejected: ["bad", "Rejected"],
 		withdrawn: ["", "Withdrawn"]
 	};
-	function statusBadge$1(status) {
+	function statusBadge$2(status) {
 		const [cls, text] = STATUS$1[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
@@ -7003,7 +7207,7 @@
 		const items = listing$6?.key === listKey$3(ctx) ? listing$6.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? loadingState() : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
-          <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$1(r.status)}</span>
+          <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$2(r.status)}</span>
           <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
           <span class="small">${stats(r.stats)}</span>
         </button>`).join("") || (ui.state === "open" ? emptyState({
@@ -7032,7 +7236,7 @@
 		const diff = shown.map((c) => `<div class="change ${c.sign === "+" ? "plus" : c.sign === "−" ? "minus" : "mod"}"><span class="sign">${c.sign}</span> ${esc(c.text)}${c.problem ? ` <span class="badge bad" title="${esc(c.problem)}">doesn't apply</span>` : ""}</div>`).join("");
 		const thread = r.thread.map((c) => `
       <div class="comment">
-        <div class="small muted"><b>${esc(c.author)}</b> · ${timeAgo(c.created_at)}${c.verdict ? ` ${statusBadge$1(c.verdict)}` : ""}</div>
+        <div class="small muted"><b>${esc(c.author)}</b> · ${timeAgo(c.created_at)}${c.verdict ? ` ${statusBadge$2(c.verdict)}` : ""}</div>
         ${c.body ? `<div class="comment-body">${esc(c.body)}</div>` : ""}
       </div>`).join("");
 		const canWrite = o.role !== null && o.role !== "viewer";
@@ -7043,7 +7247,7 @@
 		return `
     <div class="card" data-review-detail>
       <div class="card-head"><div>
-        ${statusBadge$1(r.status)}${r.source === "copilot" ? ` ${COPILOT_BADGE}` : ""}
+        ${statusBadge$2(r.status)}${r.source === "copilot" ? ` ${COPILOT_BADGE}` : ""}
         <h2 class="mt-1_5">#${r.number} ${esc(r.message)}</h2>
         <div class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)} · ${r.reviewer ? `review by ${esc(r.reviewer)}` : "any engineer may review"}${r.reverts ? ` · reverts <span class="mono">${esc(r.reverts.slice(-7))}</span>` : ""}</div>
       </div></div>
@@ -7372,37 +7576,52 @@
 	var listKey$2 = (ctx) => `${siteId$8(ctx)}|${JSON.stringify(uiState$7(ctx).filters)}`;
 	var detailKey$1 = (ctx) => `${siteId$8(ctx)}|${uiState$7(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
-	function badge$1(w) {
+	function statusBadge$1(w) {
 		const [cls, label] = STATUS[w.status];
-		return `<span class="badge ${cls}">${label}</span>`;
+		return badge$1(label, cls);
 	}
 	var signalState = (w) => w.ended_at ? `back ${ago(w.ended_at)}` : "<b>still out</b>";
 	function filterBar(ctx, f) {
-		const tabs = Object.keys(SHOW_LABELS).map((s) => `<button class="tab ${f.show === s ? "active" : ""}" data-show="${s}" role="tab">${SHOW_LABELS[s]}</button>`).join("");
-		const option = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${label}</option>`;
-		return `<div class="card source-bar small">
-      <div class="tabs" role="tablist" aria-label="Status">${tabs}</div>
+		return card$1(`${tabs({
+			label: "Status",
+			items: Object.keys(SHOW_LABELS).map((s) => [s, SHOW_LABELS[s]]),
+			current: f.show,
+			data: "show"
+		})}
       <span class="row gap-3 wrap">
-        <label class="row gap-1_5">Assigned to <select data-filter="who">${option("anyone", "anyone", f.who)}${option("me", "me", f.who)}${option("none", "nobody", f.who)}</select></label>
-        <label class="row gap-1_5">Signal <select data-filter="signal">${option("all", "out or back", f.signal)}${option("open", "still out", f.signal)}${option("ended", "back in", f.signal)}</select></label>
-        <button class="btn sm" data-refresh-warnings>Refresh</button>
-      </span>
-    </div>`;
+        ${field("Assigned to", select(null, [
+			["anyone", "anyone"],
+			["me", "me"],
+			["none", "nobody"]
+		], f.who, { attrs: { "data-filter": "who" } }), { inline: true })}
+        ${field("Signal", select(null, [
+			["all", "out or back"],
+			["open", "still out"],
+			["ended", "back in"]
+		], f.signal, { attrs: { "data-filter": "signal" } }), { inline: true })}
+        ${button("Refresh", {
+			size: "sm",
+			attrs: { "data-refresh-warnings": true }
+		})}
+      </span>`, { class: "source-bar small" });
 	}
 	function listCard$4(ctx, ui) {
 		const items = listing$5?.key === listKey$2(ctx) ? listing$5.items : null;
 		const unfiltered = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all";
 		const empty = unfiltered ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
-		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? loadingState() : items.map((w) => `
+		return card$1(`<div class="review-list" data-warning-list>${items === null ? loadingState() : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
-          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${badge$1(w)}</span>
+          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
         </button>`).join("") || emptyState({
 			illustration: unfiltered ? "done" : "search",
 			compact: true,
 			title: empty
-		})}</div>${items && listing$5?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
+		})}</div>${items && listing$5?.more ? button("Show older warnings", {
+			size: "sm",
+			attrs: { "data-more-warnings": true }
+		}) : ""}`);
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
@@ -7436,52 +7655,52 @@
 		const actions = actionsFor(w, ctx.ontology.role);
 		if (!actions.length) return "";
 		const people = (members?.site === siteId$8(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
-		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? `<option value="${esc(w.assignee_id)}" selected>${esc(w.assignee ?? "current assignee")}</option>` : "";
+		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? [[w.assignee_id, w.assignee ?? "current assignee"]] : [];
 		const has = (a) => actions.includes(a);
-		const assign = has("assign") ? `<span class="row gap-1_5"><label class="row gap-1_5">Assign to <select name="assignee">
-        <option value="">nobody</option>${current}
-        ${people.map((m) => `<option value="${esc(m.user_id)}" ${m.user_id === w.assignee_id ? "selected" : ""}>${esc(m.name)}${m.user_id === ctx.ontology.userId ? " (me)" : ""}</option>`).join("")}
-      </select></label><button class="btn" type="button" data-act="assign">Assign</button></span>` : "";
-		const resolve = has("resolve") ? `<span class="row gap-1_5"><label class="row gap-1_5">Outcome <select name="outcome">
-        ${Object.keys(OUTCOMES).map((o) => `<option value="${o}">${OUTCOMES[o]}</option>`).join("")}
-      </select></label><button class="btn primary" type="button" data-act="resolve">Resolve</button></span>` : "";
+		const actButton = (label, a, variant) => button(label, {
+			variant,
+			attrs: { "data-act": a }
+		});
+		const assign = has("assign") ? `<span class="row gap-1_5">${field("Assign to", select("assignee", [
+			["", "nobody"],
+			...current,
+			...people.map((m) => [m.user_id, `${m.name}${m.user_id === ctx.ontology.userId ? " (me)" : ""}`])
+		], w.assignee_id ?? ""), { inline: true })}${actButton("Assign", "assign")}</span>` : "";
+		const outcomes = Object.keys(OUTCOMES).map((o) => [o, OUTCOMES[o]]);
+		const resolve = has("resolve") ? `<span class="row gap-1_5">${field("Outcome", select("outcome", outcomes, ""), { inline: true })}${actButton("Resolve", "resolve", "primary")}</span>` : "";
 		return `<form class="stack gap-2 mt-2_5" id="warning-form">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft$2.key === detailKey$1(ctx) ? esc(draft$2.text) : ""}</textarea>
       <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy$5 ? "disabled" : ""}>
-        ${has("acknowledge") ? "<button class=\"btn primary\" type=\"button\" data-act=\"acknowledge\">Acknowledge</button>" : ""}
+        ${has("acknowledge") ? actButton("Acknowledge", "acknowledge", "primary") : ""}
         ${assign}
         ${resolve}
-        ${has("reopen") ? "<button class=\"btn\" type=\"button\" data-act=\"reopen\">Reopen</button>" : ""}
-        <button class="btn" type="button" data-act="comment">Comment</button>
+        ${has("reopen") ? actButton("Reopen", "reopen") : ""}
+        ${actButton("Comment", "comment")}
       </fieldset>
     </form>`;
 	}
 	function detailCard$2(ctx, ui) {
-		if (ui.selected === null) return `<div class="card">${emptyState({
+		if (ui.selected === null) return card$1(emptyState({
 			illustration: "select",
 			title: "Select a warning",
 			body: "Its signal and what was done about it show here."
-		})}</div>`;
+		}));
 		const w = detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
-		if (!w && detailFailed === detailKey$1(ctx)) return `<div class="card" data-warning-detail>${emptyState({
-			illustration: "error",
-			alert: true,
+		if (!w && detailFailed === detailKey$1(ctx)) return card$1(errorState({
 			title: "This warning could not be loaded",
 			body: "Refresh to try again."
-		})}</div>`;
-		if (!w) return `<div class="card" data-warning-detail>${loadingState()}</div>`;
+		}), { attrs: { "data-warning-detail": true } });
+		if (!w) return card$1(loadingState(), { attrs: { "data-warning-detail": true } });
 		const activity = w.activity.map((a) => `
       <div class="comment">
         <div class="small muted"><b>${esc(activityText(a))}</b> · ${ago(a.at)}</div>
         ${a.note ? `<div class="comment-body">${esc(a.note)}</div>` : ""}
       </div>`).join("");
-		const rows = payload(w).map(([k, v]) => `<tr><th scope="row">${esc(k)}</th><td class="mono">${esc(v)}</td></tr>`).join("");
 		const resolved = w.status === "resolved" && w.outcome ? `<p class="small">${OUTCOMES[w.outcome]}, resolved by ${esc(w.resolved_by ?? "someone")} ${w.resolved_at ? ago(w.resolved_at) : ""}${w.resolution_note ? `: ${esc(w.resolution_note)}` : "."}</p>` : "";
 		const readOnly = ctx.ontology.role === "viewer" ? "<p class=\"small soft\">Engineers and admins of the site act on warnings.</p>" : "";
-		return `
-    <div class="card" data-warning-detail>
+		return card$1(`
       <div class="card-head"><div>
-        ${badge$1(w)} ${w.ended_at ? "" : "<span class=\"badge bad\">Signal still out</span>"}
+        ${statusBadge$1(w)} ${w.ended_at ? "" : badge$1("Signal still out", "bad")}
         <h2 class="mono mt-1_5">${esc(w.signal_tag)}</h2>
         <div class="small muted">${esc(w.detector)} · started ${ago(w.started_at)} · ${w.readings} reading(s) out · ${w.assignee ? `for ${esc(w.assignee)}` : "unassigned"}</div>
       </div></div>
@@ -7493,9 +7712,8 @@
       ${readOnly}
       ${actionsForm(ctx, w)}
       <details class="mt-3_5"><summary class="small">Payload</summary>
-        <div class="table-wrap"><table class="small"><tbody>${rows}</tbody></table></div>
-      </details>
-    </div>`;
+        ${kv(payload(w), { valueClass: "mono" })}
+      </details>`, { attrs: { "data-warning-detail": true } });
 	}
 	async function fetchList(ctx) {
 		const site = siteId$8(ctx);
@@ -7675,12 +7893,15 @@
 		title: "Warnings",
 		icon: "triangle-alert",
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warnings</h1>
-        <p class="soft">What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card">${needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`)}</div>`;
+			const head = pageHead$1({
+				eyebrow: "Operations · Detection",
+				title: "Warnings",
+				lead: "What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be."
+			});
+			if (!ctx.api) return `${head}${card$1(needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`))}`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+			if (o.status === "loading") return `${head}${card$1("Loading from the Tiles API…")}`;
+			if (o.status !== "ready") return `${head}${card$1(`Can't reach the Tiles API: ${esc(o.error)}`, { attrs: { role: "alert" } })}`;
 			const ui = uiState$7(ctx);
 			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$4(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
 		},
@@ -8835,9 +9056,9 @@ heartbeat_seconds = 30
 				busy$3 = true;
 				try {
 					const made = await ctx.api.createSite({
-						name: field$1(form, "name"),
-						slug: field$1(form, "slug"),
-						timezone: field$1(form, "timezone")
+						name: field$2(form, "name"),
+						slug: field$2(form, "slug"),
+						timezone: field$2(form, "timezone")
 					});
 					created = {
 						id: made.id,
@@ -8863,10 +9084,10 @@ heartbeat_seconds = 30
 				if (busy$3) return;
 				const o = {
 					site: ctx.ontology.site?.name ?? "Site",
-					workcenter: field$1(outline, "workcenter"),
-					line: field$1(outline, "line"),
-					machines: names(field$1(outline, "machines")),
-					protocol: field$1(outline, "protocol")
+					workcenter: field$2(outline, "workcenter"),
+					line: field$2(outline, "line"),
+					machines: names(field$2(outline, "machines")),
+					protocol: field$2(outline, "protocol")
 				};
 				const problem = outlineProblem(o);
 				if (problem) return ctx.toast(problem);
@@ -8887,7 +9108,7 @@ heartbeat_seconds = 30
 				if (!ctx.api || !site || busy$3) return;
 				busy$3 = true;
 				try {
-					const out = await ctx.api.agents.register(site, field$1(agent, "name"));
+					const out = await ctx.api.agents.register(site, field$2(agent, "name"));
 					revealed = {
 						site,
 						name: out.agent.name,
@@ -9963,7 +10184,7 @@ heartbeat_seconds = 30
 		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		const n = selected$1();
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? loadingState() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
-              <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$2(i.status)}</span>
+              <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$3(i.status)}</span>
               <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
             </a>`).join("") || emptyState({
 			illustration: ui.status === "proposed" ? "done" : "inbox",
@@ -10014,7 +10235,7 @@ heartbeat_seconds = 30
 		const head = `<div class="row justify-between items-start gap-3 wrap">
       <div><h2>#${i.number} ${esc(i.title)}</h2>
       <p class="small soft">Saved by ${esc(i.author)} on ${esc(when$1(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when$1(i.updated_at))}` : ""}</p></div>
-      <div class="row gap-1_5">${statusBadge$2(i.status)}</div>
+      <div class="row gap-1_5">${statusBadge$3(i.status)}</div>
     </div>`;
 		const body = editing?.key === key ? draftForm("insight-edit", editing.text, busy$1, "Save changes") : `${i.summary ? `<p class="pre-wrap" data-summary>${esc(i.summary)}</p>` : ""}
         <div><h3>Proposed actions</h3>${i.actions.length ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>` : "<p class=\"small soft\">None proposed.</p>"}</div>`;
@@ -10671,36 +10892,62 @@ heartbeat_seconds = 30
 		const ui = uiState(ctx);
 		const results = found?.key === searchKey(ctx) ? found.matches : void 0;
 		let body = "";
-		if (found?.key === searchKey(ctx) && found.failed) body = "<p class=\"small\" role=\"alert\">The search could not be run. <button class=\"btn sm\" type=\"button\" data-retry-search>Try again</button></p>";
+		if (found?.key === searchKey(ctx) && found.failed) body = `<p class="small" role="alert">The search could not be run. ${button("Try again", {
+			size: "sm",
+			attrs: { "data-retry-search": true }
+		})}</p>`;
 		else if (ui.query.trim() && results === null) body = "<p class=\"small soft\">Searching…</p>";
 		else if (results && !results.length) body = `<p class="small soft" data-no-matches>Nothing matches “${esc(ui.query)}”.</p>`;
 		else if (results) body = `<ol class="stack doc-matches gap-2_5" data-matches>${results.map((m) => `<li class="doc-match">
           <div class="row gap-2 justify-between wrap">
             <b>${esc(m.title)}</b>
-            <button class="btn sm" type="button" data-open="${m.document}" data-page="${m.page}">Open page ${m.page}</button>
+            ${button(`Open page ${m.page}`, {
+			size: "sm",
+			attrs: {
+				"data-open": m.document,
+				"data-page": m.page
+			}
+		})}
           </div>
           <p class="small">${snippetHtml(m.snippet)}</p>
         </li>`).join("")}</ol>`;
-		return `<div class="card stack gap-3">
-      <form class="row gap-2 wrap" id="doc-search" role="search">
-        <label class="field grow min-w-field">Search the documents<input type="search" name="q" value="${esc(ui.query)}" placeholder='e.g. plunger tip replace, "hydraulic pressure"' /></label>
-        <div class="self-end"><button class="btn primary" type="submit">Search</button></div>
+		return card$1(`<form class="row gap-2 wrap" id="doc-search" role="search">
+        ${field("Search the documents", input({
+			type: "search",
+			name: "q",
+			value: ui.query,
+			placeholder: "e.g. plunger tip replace, \"hydraulic pressure\""
+		}), { class: "grow min-w-field" })}
+        <div class="self-end">${button("Search", {
+			variant: "primary",
+			type: "submit"
+		})}</div>
       </form>
       <p class="small soft">Words find their forms (“valves” finds “valve”); “quoted words” find a phrase; -word leaves a word out.</p>
-      <div aria-live="polite">${body}</div>
-    </div>`;
+      <div aria-live="polite">${body}</div>`, { class: "stack gap-3" });
 	}
 	function listCard(ctx) {
 		const items = listing?.key === siteId(ctx) ? listing.items : null;
-		return `<div class="card stack gap-2"><h2>Documents</h2><div class="review-list" data-doc-list>${listing?.failed ? emptyState({
-			illustration: "error",
-			compact: true,
-			alert: true,
+		return card$1(`<h2>Documents</h2><div class="review-list" data-doc-list>${listing?.failed ? errorState({
 			title: "The documents could not be loaded",
-			action: `<button class="btn sm" type="button" data-retry-docs>${icon("refresh-cw")} Try again</button>`
+			retry: "retry-docs",
+			compact: true
 		}) : items === null ? loadingState() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
               <span class="row gap-1_5 justify-between"><b>${esc(d.title)}</b>
-              <span class="row gap-1"><button class="btn sm" type="button" data-open="${d.number}" data-page="1">Open</button>${canEdit(ctx) ? `<button class="btn sm danger" type="button" data-archive-doc="${d.number}" aria-label="Archive ${esc(d.title)}">Archive</button>` : ""}</span></span>
+              <span class="row gap-1">${button("Open", {
+			size: "sm",
+			attrs: {
+				"data-open": d.number,
+				"data-page": 1
+			}
+		})}${canEdit(ctx) ? button("Archive", {
+			size: "sm",
+			variant: "danger",
+			attrs: {
+				"data-archive-doc": d.number,
+				"aria-label": `Archive ${d.title}`
+			}
+		}) : ""}</span></span>
               <span class="small muted">${d.pages} page(s) · ${esc(sizeText(d.size))} · ${esc(d.uploaded_by)}</span>
             </div>`).join("") || emptyState({
 			illustration: "documents",
@@ -10709,23 +10956,42 @@ heartbeat_seconds = 30
 			body: canEdit(ctx) ? "Upload SOPs, manuals and lessons learned below." : void 0
 		})}</div>${canEdit(ctx) ? `<form class="stack gap-2" id="doc-upload">
         <h3>Upload</h3>
-        <label class="field">File (PDF, text or Markdown, up to 20 MB)<input type="file" name="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" required /></label>
-        <label class="field">Title<input type="text" name="title" maxlength="200" placeholder="From the file name" value="${esc(draft?.title ?? "")}" /></label>
-        <label class="field">Language<select name="language">${LANGUAGES.map(([v, l]) => `<option value="${v}" ${draft?.language === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
-        <div><button class="btn primary" type="submit" ${uploading ? "disabled" : ""}>${uploading ? "Uploading…" : "Upload"}</button></div>
-      </form>` : ""}</div>`;
+        ${field("File (PDF, text or Markdown, up to 20 MB)", input({
+			type: "file",
+			name: "file",
+			attrs: {
+				accept: ".pdf,.txt,.md,application/pdf,text/plain,text/markdown",
+				required: true
+			}
+		}))}
+        ${field("Title", input({
+			name: "title",
+			value: draft?.title ?? "",
+			placeholder: "From the file name",
+			attrs: { maxlength: 200 }
+		}))}
+        ${field("Language", select("language", LANGUAGES, draft?.language ?? ""))}
+        <div>${button(uploading ? "Uploading…" : "Upload", {
+			variant: "primary",
+			type: "submit",
+			disabled: uploading
+		})}</div>
+      </form>` : ""}`, { class: "stack gap-2" });
 	}
 	var view$1 = {
 		id: "documents",
 		title: "Documents",
 		icon: "file-text",
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Data · Knowledge</div><h1>Documents</h1>
-        <p class="soft">SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card">${needsApi(`Documents are kept by the Tiles API.`)}</div>`;
+			const head = pageHead$1({
+				eyebrow: "Data · Knowledge",
+				title: "Documents",
+				lead: "SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page."
+			});
+			if (!ctx.api) return `${head}${card$1(needsApi(`Documents are kept by the Tiles API.`))}`;
 			const o = ctx.ontology;
-			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+			if (o.status === "loading") return `${head}${card$1("Loading from the Tiles API…")}`;
+			if (o.status !== "ready") return `${head}${card$1(`Can't reach the Tiles API: ${esc(o.error)}`, { attrs: { role: "alert" } })}`;
 			return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
 		},
 		bind(root, ctx) {
@@ -10736,7 +11002,7 @@ heartbeat_seconds = 30
 			const ui = uiState(ctx);
 			if (ui.query.trim() && found?.key !== searchKey(ctx)) search(ctx);
 			onSubmit(root, "#doc-search", (form) => {
-				ui.query = field$1(form, "q").trim();
+				ui.query = field$2(form, "q").trim();
 				found = null;
 				ctx.rerender();
 			});
@@ -10782,8 +11048,8 @@ heartbeat_seconds = 30
 				uploadForm.addEventListener("input", () => {
 					if (!draft) return;
 					draft.file = input.files?.[0] ?? null;
-					draft.title = field$1(uploadForm, "title");
-					draft.language = field$1(uploadForm, "language");
+					draft.title = field$2(uploadForm, "title");
+					draft.language = field$2(uploadForm, "language");
 				});
 			}
 			onSubmit(root, "#doc-upload", (form) => {
@@ -10792,13 +11058,13 @@ heartbeat_seconds = 30
 				const type = contentTypeOf(file);
 				if (!type) return void ctx.toast("Upload a PDF, a text file or a Markdown file");
 				if (file.size > 20971520) return void ctx.toast("The file is larger than 20 MB");
-				const title = field$1(form, "title").trim() || titleFrom(file.name) || "Document";
+				const title = field$2(form, "title").trim() || titleFrom(file.name) || "Document";
 				uploading = true;
 				ctx.rerender();
 				api.documents.upload(site, file, type, {
 					title,
 					filename: file.name,
-					language: field$1(form, "language")
+					language: field$2(form, "language")
 				}).then((doc) => {
 					ctx.toast(`Uploaded ${doc.title}: ${doc.pages} page(s)`);
 					draft = null;
@@ -10868,11 +11134,11 @@ heartbeat_seconds = 30
     </form>`;
 	}
 	function readMapping(form, header, before) {
-		const timeColumn = Number(field$1(form, "timeColumn"));
+		const timeColumn = Number(field$2(form, "timeColumn"));
 		const base = {
 			timeColumn,
-			timeFormat: field$1(form, "timeFormat"),
-			timeZone: field$1(form, "timeZone").trim(),
+			timeFormat: field$2(form, "timeFormat"),
+			timeZone: field$2(form, "timeZone").trim(),
 			decimalComma: form.elements.namedItem("decimalComma")?.checked ?? false,
 			keepText: form.elements.namedItem("keepText")?.checked ?? false
 		};
@@ -11197,7 +11463,7 @@ heartbeat_seconds = 30
 		t.hidden = false;
 		t.dataset.state = "open";
 		const described = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
-		if (!described.includes("tooltip")) el.setAttribute("aria-describedby", [...described, "tooltip"].join(" "));
+		if (!((el.getAttribute("aria-label") ?? el.textContent ?? "").trim() === text.trim()) && !described.includes("tooltip")) el.setAttribute("aria-describedby", [...described, "tooltip"].join(" "));
 		target = el;
 		watch();
 		const r = el.getBoundingClientRect();

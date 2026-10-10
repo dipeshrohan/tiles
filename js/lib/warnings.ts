@@ -24,7 +24,7 @@ export const SHOW_LABELS: Record<Show, string> = {
   all: 'All',
 };
 
-export const STATUS: Record<WarningInfo['status'], [cls: string, label: string]> = {
+export const STATUS: Record<WarningInfo['status'], [cls: 'bad' | 'warn' | 'good', label: string]> = {
   raised: ['bad', 'New'],
   acknowledged: ['warn', 'Acknowledged'],
   resolved: ['good', 'Resolved'],

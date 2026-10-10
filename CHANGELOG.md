@@ -55,6 +55,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - **a shadcn/ui-style look:** Lucide icons for every page and control, buttons in outline, primary, secondary, ghost and destructive variants and three sizes, fields with focus rings, tabs on a tinted track, cards, badges and chips that respond to the pointer, and pages that fade in when opened (U1.05);
   - **design tokens** for spacing, type, radii, shadows, layers and motion, with the light and dark palettes in one place; spacing and type moved onto the scale (U1.02);
   - **no inline styles**: pages lay out with the stylesheet's utilities (`.gap-*`, `.mt-*`, `.grow`, `.wrap`…) instead of `style` attributes; `npm run lint` refuses a new one unless its value is computed (U1.03);
+  - **shared components** in `js/lib/ui.ts` (buttons, badges, cards, fields, selects, tables, tabs, page heads, empty and error states) that escape what they show; Signals, Warnings and Documents are built from them, the warning filters say which is on, and a tooltip that repeats a button's name isn't read twice (U1.04);
   - row security per site in the database; the API and the scheduled jobs work as a role that can't skip it or change the schema;
   - credentials sealed with rotatable data keys;
   - an audit log;
