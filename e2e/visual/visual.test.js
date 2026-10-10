@@ -92,11 +92,12 @@ async function newPage(variant) {
   return page;
 }
 
-// Settled: nothing loading, fonts loaded, nothing animating, no caret blinking, the pointer out of the way.
+// Settled: Home's demo numbers in, fonts loaded, nothing animating, no caret blinking, the pointer out of the way.
 async function settle(page) {
   await page.mouse.move(0, 0);
-  // Nothing still loading (Home's demo warnings are worked out just after the first paint, U3.07).
-  await page.waitForFunction(() => !document.querySelector('#view [aria-busy="true"]'));
+  // Home's demo warnings worked out (just after the first paint, U3.07). Not every [aria-busy]: the
+  // style guide shows a loading state that never ends.
+  await page.waitForFunction(() => !document.querySelector('#view .kpi-wait'));
   // Toasts come and go (and an error's carries its request ID): dismissed, as a user would.
   for (const close of await page.locator('#toast .toast-close').all()) await close.click().catch(() => {});
   await page.waitForSelector('#toast .toast-item', { state: 'detached' });
