@@ -4,6 +4,7 @@ import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
 import { showHistory } from './ontology.ts';
 import type { Context, View } from './types.ts';
+import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
 
 // Change reviews (T2.12): ontology changes another engineer approves (which
 // commits them) or rejects, with the diff and a comment thread. Requests are
@@ -88,7 +89,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   const rows =
     items === null
-      ? '<div class="empty">Loading…</div>'
+      ? loadingState()
       : items
           .map(
             (r) => `
@@ -99,15 +100,22 @@ function listCard(ctx: Context, ui: Ui): string {
         </button>`,
           )
           .join('') ||
-        `<div class="empty">${ui.state === 'open' ? 'Nothing waits for a review. Send staged changes from the Ontology page.' : 'No closed change requests yet.'}</div>`;
+        (ui.state === 'open'
+          ? emptyState({
+              illustration: 'done',
+              compact: true,
+              title: 'Nothing waits for a review',
+              bodyHtml: 'Send staged changes from the <a href="#/ontology">Ontology</a> page.',
+            })
+          : emptyState({ illustration: 'inbox', compact: true, title: 'No closed change requests yet' }));
   return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${rows}</div></div>`;
 }
 
 function detailCard(ctx: Context, ui: Ui): string {
   if (ui.selected === null)
-    return '<div class="card"><div class="empty">Select a change request to see its changes.</div></div>';
+    return `<div class="card">${emptyState({ illustration: 'select', title: 'Select a change request', body: 'Its changes, discussion and decision show here.' })}</div>`;
   const r = detail?.key === detailKey(ctx) ? detail.review : null;
-  if (!r) return '<div class="card" data-review-detail><div class="empty">Loading…</div></div>';
+  if (!r) return `<div class="card" data-review-detail>${loadingState()}</div>`;
   const o = ctx.ontology;
   const open = r.status === 'open';
   const changes = describeChanges(ctx.state.repo.head, r.ops, { compare: open });
@@ -268,7 +276,7 @@ const view: View = {
     const head = `<div class="page-head"><div><div class="eyebrow">Operations · Ontology</div><h1>Change reviews</h1>
         <p class="soft">Ontology changes waiting for a second engineer: read the diff, discuss it, then approve (which commits it) or reject it.</p></div></div>`;
     if (!ctx.api)
-      return `${head}<div class="card"><p>Change reviews are shared by everyone on a site, so they need the Tiles API. Connect to it in <a href="#/settings">Settings</a>; in this browser’s own ontology you commit directly.</p></div>`;
+      return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (o.status !== 'ready')

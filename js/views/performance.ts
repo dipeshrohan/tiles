@@ -3,6 +3,7 @@ import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
+import { loadingState, needsApi } from '../lib/ui.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
 // reported, live: per detector and in total, with what people resolved them as. Events are
@@ -128,7 +129,7 @@ const view: View = {
     const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warning performance</h1>
         <p class="soft">How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead.</p></div></div>`;
     if (!ctx.api)
-      return `${head}<div class="card"><p>This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+      return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (o.status !== 'ready')
@@ -137,8 +138,7 @@ const view: View = {
     const key = keyFor(ctx);
     let body: string;
     if (fetched?.key === `${key}|failed`) body = '<div class="card"><p>This could not be loaded.</p></div>';
-    else if (fetched?.key !== key || !fetched.report)
-      body = '<div class="card"><div class="empty">Loading…</div></div>';
+    else if (fetched?.key !== key || !fetched.report) body = `<div class="card">${loadingState()}</div>`;
     else {
       const r = fetched.report;
       const tiles = kpis(r.totals)

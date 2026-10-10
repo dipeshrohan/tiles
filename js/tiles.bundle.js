@@ -2389,6 +2389,106 @@
 		});
 	}
 	//#endregion
+	//#region js/lib/illustrations.ts
+	var backdrop = "<ellipse class=\"il-bg\" cx=\"80\" cy=\"66\" rx=\"70\" ry=\"46\"/>";
+	var lines = (x, y, widths) => widths.map((w, i) => `<rect class="il-text" x="${x}" y="${y + i * 9}" width="${w}" height="4" rx="2"/>`).join("");
+	var SCENES = {
+		connect: `${backdrop}
+    <rect class="il-card" x="18" y="40" width="44" height="50" rx="8"/>
+    <rect class="il-accent-soft" x="26" y="50" width="28" height="6" rx="3"/>${lines(26, 62, [
+			28,
+			20,
+			24
+		])}
+    <rect class="il-card" x="98" y="40" width="44" height="50" rx="8"/>
+    <circle class="il-accent" cx="120" cy="58" r="7"/>${lines(106, 72, [28, 18])}
+    <path class="il-dash" d="M62 65 H98"/>
+    <g class="il-float"><circle class="il-card" cx="80" cy="65" r="11"/><path class="il-stroke" d="M76 61v-4M84 61v-4M74 61h12v4a6 6 0 0 1-12 0z"/></g>`,
+		inbox: `${backdrop}
+    <g class="il-float"><rect class="il-card" x="50" y="18" width="60" height="40" rx="6"/>${lines(58, 28, [
+			44,
+			34,
+			40
+		])}</g>
+    <path class="il-card" d="M32 66 L46 46 H114 L128 66 V96 a6 6 0 0 1-6 6 H38 a6 6 0 0 1-6-6z"/>
+    <path class="il-stroke" d="M32 66 H60 a20 10 0 0 0 40 0 H128"/>`,
+		search: `${backdrop}
+    <rect class="il-card" x="34" y="24" width="64" height="80" rx="8"/>${lines(44, 38, [
+			44,
+			36,
+			40,
+			28,
+			38,
+			24
+		])}
+    <g class="il-float"><circle class="il-lens" cx="104" cy="70" r="20"/><path class="il-handle" d="M118 84 L134 100"/></g>`,
+		chart: `${backdrop}
+    <rect class="il-card" x="24" y="26" width="112" height="76" rx="8"/>
+    <path class="il-grid" d="M36 88 H124 M36 70 H124 M36 52 H124"/>
+    <path class="il-line" d="M36 82 L56 66 L74 72 L94 46 L112 54 L124 40"/>
+    <g class="il-float"><circle class="il-accent" cx="94" cy="46" r="5"/><circle class="il-warm" cx="124" cy="40" r="5"/></g>`,
+		documents: `${backdrop}
+    <rect class="il-card il-tilt-l" x="34" y="30" width="56" height="70" rx="6"/>
+    <rect class="il-card" x="52" y="22" width="56" height="74" rx="6"/>${lines(60, 36, [
+			40,
+			32,
+			38,
+			26,
+			36
+		])}
+    <g class="il-float"><rect class="il-accent-soft" x="92" y="70" width="38" height="24" rx="6"/><path class="il-stroke" d="M100 82 h22"/></g>`,
+		chat: `${backdrop}
+    <path class="il-card" d="M26 34 h70 a8 8 0 0 1 8 8 v26 a8 8 0 0 1-8 8 H48 l-12 10 v-10 h-10 a8 8 0 0 1-8-8 V42 a8 8 0 0 1 8-8z"/>${lines(30, 46, [56, 44])}
+    <g class="il-float"><path class="il-accent-card" d="M70 64 h58 a8 8 0 0 1 8 8 v18 a8 8 0 0 1-8 8 h-8 v9 l-11-9 H70 a8 8 0 0 1-8-8 V72 a8 8 0 0 1 8-8z"/>
+    <path class="il-spark" d="M86 74 l3 7 7 3 -7 3 -3 7 -3-7 -7-3 7-3z"/></g>`,
+		select: `${backdrop}
+    <rect class="il-card" x="26" y="24" width="80" height="22" rx="6"/>${lines(34, 33, [52])}
+    <rect class="il-card il-picked" x="26" y="52" width="80" height="22" rx="6"/>${lines(34, 61, [44])}
+    <rect class="il-card" x="26" y="80" width="80" height="22" rx="6"/>${lines(34, 89, [56])}
+    <g class="il-float"><path class="il-cursor" d="M104 58 l22 9 -10 3 -3 10z"/></g>`,
+		error: `${backdrop}
+    <path class="il-card" d="M48 90 a20 20 0 0 1 2-40 a26 26 0 0 1 50-4 a18 18 0 0 1 10 44z"/>
+    <g class="il-float"><circle class="il-bad" cx="80" cy="74" r="13"/><path class="il-x" d="M75 69 l10 10 M85 69 l-10 10"/></g>`,
+		done: `${backdrop}
+    <g class="il-float"><circle class="il-accent" cx="80" cy="62" r="26"/><path class="il-check" d="M68 62 l8 8 16-16"/></g>
+    <circle class="il-warm" cx="40" cy="40" r="4"/><circle class="il-accent-soft-dot" cx="124" cy="38" r="5"/>
+    <rect class="il-warm" x="118" y="86" width="8" height="8" rx="2" transform="rotate(20 122 90)"/><circle class="il-accent" cx="36" cy="88" r="3"/>`,
+		launch: `${backdrop}
+    <g class="il-float"><path class="il-card" d="M80 18 c14 10 20 28 18 48 l-36 0 c-2-20 4-38 18-48z"/>
+    <circle class="il-accent" cx="80" cy="44" r="7"/>
+    <path class="il-warm-fill" d="M62 66 l-10 14 14-4z M98 66 l10 14 -14-4z"/>
+    <path class="il-flame" d="M72 68 h16 l-8 20z"/></g>
+    <path class="il-dash" d="M30 100 H130"/>`
+	};
+	function illustration(name, size = 160) {
+		return `<svg class="illustration" viewBox="0 0 160 120" width="${size}" height="${Math.round(size * 3 / 4)}" aria-hidden="true" focusable="false">${SCENES[name]}</svg>`;
+	}
+	//#endregion
+	//#region js/lib/ui.ts
+	function emptyState(o) {
+		const body = o.bodyHtml ?? (o.body ? esc(o.body) : "");
+		return `<div class="empty empty-state${o.compact ? " compact" : ""}"${o.alert ? " role=\"alert\"" : ""}>${o.illustration ? illustration(o.illustration, o.compact ? 112 : 160) : ""}<h2 class="empty-title">${esc(o.title)}</h2>${body ? `<p>${body}</p>` : ""}${o.action ? `<div class="empty-action">${o.action}</div>` : ""}</div>`;
+	}
+	function needsApi(bodyHtml) {
+		return emptyState({
+			illustration: "connect",
+			title: "Connect to the Tiles API",
+			bodyHtml,
+			action: `<a class="btn primary" href="#/settings">${icon("plug")} Open Settings</a>`
+		});
+	}
+	function loadingState(label = "Loading…", rows = 3) {
+		const widths = [
+			92,
+			76,
+			84,
+			64,
+			88,
+			70
+		];
+		return `<div class="empty loading"><span class="sr-only">${esc(label)}</span>${Array.from({ length: rows }, (_, i) => `<span class="skeleton" style="--w:${widths[i % widths.length]}%"></span>`).join("")}</div>`;
+	}
+	//#endregion
 	//#region js/views/chat.ts
 	var uiState$13 = (ctx) => ctx.ui("chat", { conversation: null });
 	var API_SUGGESTIONS = [
@@ -2474,10 +2574,14 @@
 	function remoteRender(ctx) {
 		const ui = uiState$13(ctx);
 		const list = remote$1?.conversations;
-		const items = list === null || list === void 0 ? "<div class=\"empty\">Loading…</div>" : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
+		const items = list === null || list === void 0 ? loadingState() : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
 			dateStyle: "medium",
 			timeStyle: "short"
-		})}</span></button>`).join("") || "<div class=\"empty\">No conversations yet.</div>";
+		})}</span></button>`).join("") || emptyState({
+			compact: true,
+			title: "No conversations yet",
+			body: "Ask a question to start one."
+		});
 		const key = threadKey(ctx);
 		const shown = ui.conversation && thread?.key === key ? thread.exchanges : [];
 		const last = shown.at(-1);
@@ -2498,7 +2602,11 @@
         <div class="review-list" data-conversations>${items}</div>
       </div>
       <div class="chat">
-        <div class="chat-log" id="chat-log">${ui.conversation && thread?.key !== key && !live ? "<div class=\"empty\">Loading…</div>" : log || `<div class="empty"><h2 style="color:var(--ink)">Ask about your plant</h2><p style="margin-top:6px">The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer.</p></div>`}</div>
+        <div class="chat-log" id="chat-log">${ui.conversation && thread?.key !== key && !live ? loadingState() : log || emptyState({
+			illustration: "chat",
+			title: "Ask about your plant",
+			body: "The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer."
+		})}</div>
         <div>
           <div class="chips" style="margin:10px 0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
@@ -2655,7 +2763,11 @@
 		const log = ctx.state.chat;
 		return `${note}
       <div class="chat">
-        <div class="chat-log" id="chat-log">${log.length ? log.map((m) => m.role === "user" ? `<div class="msg user">${esc(m.text)}</div>` : `<div class="msg bot">${m.steps?.length ? `<div class="trace">${m.steps.map((s) => `<div>${esc(s)}</div>`).join("")}</div>` : ""}${esc(m.text)}${m.link ? `\n<a href="${esc(m.link)}">Open the evidence →</a>` : ""}</div>`).join("") : `<div class="empty"><h2 style="color:var(--ink)">Ask about your plant</h2><p style="margin-top:6px">The copilot picks a skill, runs it on the factory data and shows each step it took.</p></div>`}</div>
+        <div class="chat-log" id="chat-log">${log.length ? log.map((m) => m.role === "user" ? `<div class="msg user">${esc(m.text)}</div>` : `<div class="msg bot">${m.steps?.length ? `<div class="trace">${m.steps.map((s) => `<div>${esc(s)}</div>`).join("")}</div>` : ""}${esc(m.text)}${m.link ? `\n<a href="${esc(m.link)}">Open the evidence →</a>` : ""}</div>`).join("") : emptyState({
+			illustration: "chat",
+			title: "Ask about your plant",
+			body: "The copilot picks a skill, runs it on the factory data and shows each step it took."
+		})}</div>
         <div>
           <div class="chips" style="margin:10px 0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
@@ -6276,7 +6388,7 @@
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
         <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p class="small soft">The signal catalogue is kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`The signal catalogue is kept in the Tiles API.`)}</div>`;
 			if (!ctx.ontology.site) return `${head}<div class="card"><p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p></div>`;
 			const { query } = ui$1(ctx);
 			const opt = (value, label, current) => `<option value="${value}" ${value === current ? "selected" : ""}>${esc(label)}</option>`;
@@ -6729,7 +6841,7 @@
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Data explorer</h1>
         <p class="soft">Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in.</p></div></div>`;
-			if (!ctx.api || !ctx.ontology.site) return `${head}<div class="card"><p class="small soft">Readings are kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+			if (!ctx.api || !ctx.ontology.site) return `${head}<div class="card">${needsApi(`Readings are kept in the Tiles API.`)}</div>`;
 			const u = ui(ctx);
 			if (u.catalogue !== catalogue$1(ctx)) Object.assign(u, {
 				picked: [],
@@ -6889,17 +7001,30 @@
 	function listCard$5(ctx, ui) {
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
 		const items = listing$6?.key === listKey$3(ctx) ? listing$6.items : null;
-		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((r) => `
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? loadingState() : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
           <span class="row" style="gap:8px;justify-content:space-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$1(r.status)}</span>
           <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
           <span class="small">${stats(r.stats)}</span>
-        </button>`).join("") || `<div class="empty">${ui.state === "open" ? "Nothing waits for a review. Send staged changes from the Ontology page." : "No closed change requests yet."}</div>`}</div></div>`;
+        </button>`).join("") || (ui.state === "open" ? emptyState({
+			illustration: "done",
+			compact: true,
+			title: "Nothing waits for a review",
+			bodyHtml: "Send staged changes from the <a href=\"#/ontology\">Ontology</a> page."
+		}) : emptyState({
+			illustration: "inbox",
+			compact: true,
+			title: "No closed change requests yet"
+		}))}</div></div>`;
 	}
 	function detailCard$3(ctx, ui) {
-		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a change request to see its changes.</div></div>";
+		if (ui.selected === null) return `<div class="card">${emptyState({
+			illustration: "select",
+			title: "Select a change request",
+			body: "Its changes, discussion and decision show here."
+		})}</div>`;
 		const r = detail$3?.key === detailKey$2(ctx) ? detail$3.review : null;
-		if (!r) return "<div class=\"card\" data-review-detail><div class=\"empty\">Loading…</div></div>";
+		if (!r) return `<div class="card" data-review-detail>${loadingState()}</div>`;
 		const o = ctx.ontology;
 		const open = r.status === "open";
 		const changes = describeChanges(ctx.state.repo.head, r.ops, { compare: open });
@@ -7043,7 +7168,7 @@
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Ontology</div><h1>Change reviews</h1>
         <p class="soft">Ontology changes waiting for a second engineer: read the diff, discuss it, then approve (which commits it) or reject it.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p>Change reviews are shared by everyone on a site, so they need the Tiles API. Connect to it in <a href="#/settings">Settings</a>; in this browser’s own ontology you commit directly.</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
@@ -7266,18 +7391,23 @@
 	}
 	function listCard$4(ctx, ui) {
 		const items = listing$5?.key === listKey$2(ctx) ? listing$5.items : null;
-		const empty = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all" ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
-		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((w) => `
+		const unfiltered = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all";
+		const empty = unfiltered ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
+		return `<div class="card"><div class="review-list" data-warning-list>${items === null ? loadingState() : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
           <span class="row" style="gap:8px;justify-content:space-between"><b class="mono">${esc(w.signal_tag)}</b>${badge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || `<div class="empty">${empty}</div>`}</div>${items && listing$5?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
+        </button>`).join("") || emptyState({
+			illustration: unfiltered ? "done" : "search",
+			compact: true,
+			title: empty
+		})}</div>${items && listing$5?.more ? "<button class=\"btn sm\" data-more-warnings>Show older warnings</button>" : ""}</div>`;
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
 		const s = fetched?.data;
-		if (!fetched || s === void 0) return "<div class=\"empty\">Loading the signal…</div>";
+		if (!fetched || s === void 0) return loadingState("Loading the signal…", 4);
 		if (s === null) return "<p class=\"small muted\">The signal’s readings could not be loaded.</p>";
 		const { from, to, start, end } = fetched.range;
 		const points = toPoints(s);
@@ -7327,10 +7457,19 @@
     </form>`;
 	}
 	function detailCard$2(ctx, ui) {
-		if (ui.selected === null) return "<div class=\"card\"><div class=\"empty\">Select a warning to see its signal and what was done.</div></div>";
+		if (ui.selected === null) return `<div class="card">${emptyState({
+			illustration: "select",
+			title: "Select a warning",
+			body: "Its signal and what was done about it show here."
+		})}</div>`;
 		const w = detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
-		if (!w && detailFailed === detailKey$1(ctx)) return "<div class=\"card\" data-warning-detail><div class=\"empty\">This warning could not be loaded. Refresh to try again.</div></div>";
-		if (!w) return "<div class=\"card\" data-warning-detail><div class=\"empty\">Loading…</div></div>";
+		if (!w && detailFailed === detailKey$1(ctx)) return `<div class="card" data-warning-detail>${emptyState({
+			illustration: "error",
+			alert: true,
+			title: "This warning could not be loaded",
+			body: "Refresh to try again."
+		})}</div>`;
+		if (!w) return `<div class="card" data-warning-detail>${loadingState()}</div>`;
 		const activity = w.activity.map((a) => `
       <div class="comment">
         <div class="small muted"><b>${esc(activityText(a))}</b> · ${ago(a.at)}</div>
@@ -7538,7 +7677,7 @@
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warnings</h1>
         <p class="soft">What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p>Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
@@ -8201,7 +8340,7 @@
 	//#region js/views/plant.ts
 	var uiState$5 = (ctx) => ctx.ui("plant", { query: "" });
 	var searching = false;
-	var typing;
+	var typing$1;
 	var crumbs = (graph, id) => {
 		const path = id ? trail(graph, id) : [];
 		return `<nav class="plant-trail" aria-label="Where you are">${[`<a href="#/plant">Plant</a>`, ...path.map((n, i) => i === path.length - 1 ? `<b aria-current="page">${esc(n.label)}</b>` : `<a href="${placeLink(n.id)}">${esc(n.label)}</a>`)].join("<span aria-hidden=\"true\">›</span>")}</nav>`;
@@ -8352,12 +8491,12 @@
 			}));
 			input?.addEventListener("input", () => {
 				ui.query = input.value;
-				clearTimeout(typing);
-				typing = setTimeout(() => ctx.rerender(), 200);
+				clearTimeout(typing$1);
+				typing$1 = setTimeout(() => ctx.rerender(), 200);
 			});
 			form?.addEventListener("submit", (e) => {
 				e.preventDefault();
-				clearTimeout(typing);
+				clearTimeout(typing$1);
 				const best = findPlaces(ctx.graph, input?.value ?? "", 1)[0];
 				if (!best) return ctx.rerender();
 				ui.query = "";
@@ -8640,7 +8779,7 @@ heartbeat_seconds = 30
 			const head = `<div class="page-head"><div><div class="eyebrow">Settings · onboarding</div><h1>Set up ${esc(site?.name ?? "a site")}</h1>
         <p class="soft">From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.</p></div>
         ${ctx.api ? "<button class=\"btn\" data-onboarding-refresh>Refresh</button>" : ""}</div>`;
-			if (!ctx.api) return `${head}<div class="card"><p>Setting up a site needs the Tiles API: sites, edge agents and tags live there. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`Setting up a site needs the Tiles API: sites, edge agents and tags live there.`)}</div>`;
 			if (ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (ctx.ontology.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
 			const data = progress$1?.site === siteId$5(ctx) ? progress$1.data : null;
@@ -8913,7 +9052,7 @@ heartbeat_seconds = 30
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warning performance</h1>
         <p class="soft">How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p>This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
@@ -8921,7 +9060,7 @@ heartbeat_seconds = 30
 			const key = keyFor(ctx);
 			let body;
 			if (fetched?.key === `${key}|failed`) body = "<div class=\"card\"><p>This could not be loaded.</p></div>";
-			else if (fetched?.key !== key || !fetched.report) body = "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
+			else if (fetched?.key !== key || !fetched.report) body = `<div class="card">${loadingState()}</div>`;
 			else {
 				const r = fetched.report;
 				body = `<div class="grid g4" data-kpis>${kpis(r.totals).map((k) => `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`).join("")}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
@@ -9441,10 +9580,14 @@ heartbeat_seconds = 30
 	function listCard$3(ctx, ui) {
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 		const items = listing$3?.items;
-		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? "<div class=\"empty\">Loading…</div>" : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
+		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? loadingState() : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
               <b>${esc(d.name)}</b>
               <span class="small muted">${fmt$1(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ""}</span>
-            </button>`).join("") || "<div class=\"empty\">No batch tables yet.</div>"}</div>${canEdit ? `<form class="stack" id="dataset-form" style="gap:8px;margin-top:12px">
+            </button>`).join("") || emptyState({
+			compact: true,
+			title: "No batch tables yet",
+			body: "Upload one below."
+		})}</div>${canEdit ? `<form class="stack" id="dataset-form" style="gap:8px;margin-top:12px">
         <h3>Upload a batch table</h3>
         <p class="small soft">A CSV with one row per batch: its settings and measurements, and a column saying whether it failed.</p>
         <label class="field">CSV file<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
@@ -9454,9 +9597,13 @@ heartbeat_seconds = 30
       </form>` : ""}</div>`;
 	}
 	function analysisCard(ctx, ui) {
-		if (!ui.selected) return "<div class=\"card\"><div class=\"empty\">Choose a batch table, or upload one.</div></div>";
+		if (!ui.selected) return `<div class="card">${emptyState({
+			illustration: "chart",
+			title: "Choose a batch table",
+			body: "Or upload one: its settings are compared between good and failed batches."
+		})}</div>`;
 		const d = detail$1?.id === ui.selected ? detail$1.data : null;
-		if (!d) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
+		if (!d) return `<div class="card">${loadingState()}</div>`;
 		const numbers = d.columns.filter((c) => c.kind === "number").map((c) => c.name);
 		const outcome = d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === "bool") ?? d.columns[0];
 		const checked = new Set(ui.variables ?? numbers.filter((n) => n !== outcome?.name));
@@ -9656,7 +9803,7 @@ heartbeat_seconds = 30
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Correlation finder</h1>
         <p class="soft">Which settings separate failed batches from good ones: each variable’s effect (Cohen’s d) with its 95% confidence interval, overall or per material, line or shift.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p>Batch tables are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
@@ -9815,10 +9962,15 @@ heartbeat_seconds = 30
 		].map((s) => `<button class="tab ${ui.status === s ? "active" : ""}" data-status="${s}" role="tab">${s === "proposed" ? "To review" : s === "" ? "All" : s === "accepted" ? "Accepted" : "Rejected"}</button>`).join("");
 		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		const n = selected$1();
-		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? "<div class=\"empty\">Loading…</div>" : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? loadingState() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
               <span class="row" style="gap:6px;justify-content:space-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$2(i.status)}</span>
               <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
-            </a>`).join("") || `<div class="empty">${ui.status === "proposed" ? "Nothing waits for review." : "No insights here yet."} Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.</div>`}</div>${items && listing$2 && listing$2.total > items.length ? `<p class="small soft">The newest ${items.length} of ${listing$2.total}.</p>` : ""}</div>`;
+            </a>`).join("") || emptyState({
+			illustration: ui.status === "proposed" ? "done" : "inbox",
+			compact: true,
+			title: ui.status === "proposed" ? "Nothing waits for review" : "No insights here yet",
+			bodyHtml: `Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.`
+		})}</div>${items && listing$2 && listing$2.total > items.length ? `<p class="small soft">The newest ${items.length} of ${listing$2.total}.</p>` : ""}</div>`;
 	}
 	function evidence(i) {
 		const e = i.evidence;
@@ -9845,10 +9997,17 @@ heartbeat_seconds = 30
 	}
 	function detailCard$1(ctx) {
 		const n = selected$1();
-		if (n === null) return "<div class=\"card\"><div class=\"empty\">Choose an insight.</div></div>";
-		if (detail?.key !== detailKey(ctx)) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
+		if (n === null) return `<div class="card">${emptyState({
+			illustration: "select",
+			title: "Choose an insight"
+		})}</div>`;
+		if (detail?.key !== detailKey(ctx)) return `<div class="card">${loadingState()}</div>`;
 		const i = detail.insight;
-		if (!i) return `<div class="card"><div class="empty">Insight #${n} could not be loaded.</div></div>`;
+		if (!i) return `<div class="card">${emptyState({
+			illustration: "error",
+			alert: true,
+			title: `Insight #${n} could not be loaded`
+		})}</div>`;
 		const may = mayDo(i, ctx.ontology.userId, ctx.ontology.role);
 		const key = `${detailKey(ctx)}|${i.updated_at}`;
 		const link = sourceLink(i);
@@ -9914,7 +10073,7 @@ heartbeat_seconds = 30
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Insights</h1>
         <p class="soft">Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p>Insights are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
@@ -10201,14 +10360,25 @@ heartbeat_seconds = 30
 		};
 		ctx.rerender();
 	}
-	var retry = (what, attr) => `<div class="empty" role="alert">${what} could not be loaded. <button class="btn sm" type="button" ${attr}>Try again</button></div>`;
+	var retry = (what, attr) => emptyState({
+		illustration: "error",
+		compact: true,
+		alert: true,
+		title: `${what} could not be loaded`,
+		action: `<button class="btn sm" type="button" ${attr}>${icon("refresh-cw")} Try again</button>`
+	});
 	function listCard$1(ctx) {
 		const items = listing$1?.key === listKey(ctx) ? listing$1.items : null;
 		const n = selected();
-		const rows = listing$1?.key === listKey(ctx) && listing$1.failed ? retry("The apps", "data-retry-apps") : items === null ? "<div class=\"empty\">Loading…</div>" : items.map((a) => `<a class="review-row ${n === a.number ? "sel" : ""}" href="${appLink(a.number)}" data-app="${a.number}">
+		const rows = listing$1?.key === listKey(ctx) && listing$1.failed ? retry("The apps", "data-retry-apps") : items === null ? loadingState() : items.map((a) => `<a class="review-row ${n === a.number ? "sel" : ""}" href="${appLink(a.number)}" data-app="${a.number}">
               <b>#${a.number} ${esc(a.name)}</b>
               <span class="small muted">${esc(a.template_title)} · ${esc(a.signal_tag ?? "signal gone")}</span>
-            </a>`).join("") || `<div class="empty">No apps yet.${canEdit$1(ctx) ? " Make one from a template." : " Engineers make them from templates."}</div>`;
+            </a>`).join("") || emptyState({
+			illustration: "inbox",
+			compact: true,
+			title: "No apps yet",
+			body: canEdit$1(ctx) ? "Make one from a template." : "Engineers make them from templates."
+		});
 		return `<div class="card stack" style="gap:8px"><div class="row" style="justify-content:space-between;gap:8px"><h2>Apps</h2>${canEdit$1(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>New app</a>` : ""}</div><div class="review-list" data-app-list>${rows}</div></div>`;
 	}
 	function templateCards(list) {
@@ -10230,7 +10400,7 @@ heartbeat_seconds = 30
 	function newCard(ctx) {
 		const list = templates?.list;
 		if (templates?.failed) return `<div class="card">${retry("The templates", "data-retry-templates")}</div>`;
-		if (!list) return "<div class=\"card\"><div class=\"empty\">Loading the templates…</div></div>";
+		if (!list) return `<div class="card">${loadingState("Loading the templates…")}</div>`;
 		if (!draft$1 || draft$1.key !== "new" || !list.some((t) => t.id === draft$1?.template)) return `<div class="card stack" style="gap:10px"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
 		const template = list.find((t) => t.id === draft$1?.template);
 		return template ? formCard(ctx, draft$1, template, null) : "";
@@ -10238,15 +10408,27 @@ heartbeat_seconds = 30
 	function detailCard(ctx) {
 		const n = selected();
 		const items = listing$1?.key === listKey(ctx) ? listing$1.items : null;
-		if (n === null) return "<div class=\"card\"><div class=\"empty\">Choose an app, or make one from a template.</div></div>";
-		if (listing$1?.failed) return "<div class=\"card\"><div class=\"empty\">The apps could not be loaded.</div></div>";
-		if (items === null) return "<div class=\"card\"><div class=\"empty\">Loading…</div></div>";
+		if (n === null) return `<div class="card">${emptyState({
+			illustration: "select",
+			title: "Choose an app",
+			body: "Or make one from a template."
+		})}</div>`;
+		if (listing$1?.failed) return `<div class="card">${emptyState({
+			illustration: "error",
+			alert: true,
+			title: "The apps could not be loaded"
+		})}</div>`;
+		if (items === null) return `<div class="card">${loadingState()}</div>`;
 		const app = items.find((a) => a.number === n);
-		if (!app) return `<div class="card"><div class="empty">There is no app #${n} on this site.</div></div>`;
+		if (!app) return `<div class="card">${emptyState({
+			illustration: "search",
+			title: `There is no app #${n} on this site`,
+			action: "<a class=\"btn\" href=\"#/apps\">All apps</a>"
+		})}</div>`;
 		const template = templates?.list?.find((t) => t.id === app.template);
 		if (editKey()) {
 			if (templates?.failed) return `<div class="card">${retry("The templates", "data-retry-templates")}</div>`;
-			if (!template) return "<div class=\"card\"><div class=\"empty\">Loading the template…</div></div>";
+			if (!template) return `<div class="card">${loadingState("Loading the template…")}</div>`;
 			if (draft$1?.key !== `edit|${app.number}`) draft$1 = {
 				key: `edit|${app.number}`,
 				template: app.template,
@@ -10322,7 +10504,7 @@ heartbeat_seconds = 30
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Data · Apps</div><h1>App Studio</h1>
         <p class="soft">Checks set up from templates, without code: a tool's wear, a process's control limits. Each one runs on a signal's latest readings when you open it.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p>Apps are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`Apps are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
@@ -10510,11 +10692,22 @@ heartbeat_seconds = 30
 	}
 	function listCard(ctx) {
 		const items = listing?.key === siteId(ctx) ? listing.items : null;
-		return `<div class="card stack" style="gap:8px"><h2>Documents</h2><div class="review-list" data-doc-list>${listing?.failed ? "<div class=\"empty\" role=\"alert\">The documents could not be loaded. <button class=\"btn sm\" type=\"button\" data-retry-docs>Try again</button></div>" : items === null ? "<div class=\"empty\">Loading…</div>" : items.map((d) => `<div class="review-row" data-doc="${d.number}">
+		return `<div class="card stack" style="gap:8px"><h2>Documents</h2><div class="review-list" data-doc-list>${listing?.failed ? emptyState({
+			illustration: "error",
+			compact: true,
+			alert: true,
+			title: "The documents could not be loaded",
+			action: `<button class="btn sm" type="button" data-retry-docs>${icon("refresh-cw")} Try again</button>`
+		}) : items === null ? loadingState() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
               <span class="row" style="gap:6px;justify-content:space-between"><b>${esc(d.title)}</b>
               <span class="row" style="gap:4px"><button class="btn sm" type="button" data-open="${d.number}" data-page="1">Open</button>${canEdit(ctx) ? `<button class="btn sm danger" type="button" data-archive-doc="${d.number}" aria-label="Archive ${esc(d.title)}">Archive</button>` : ""}</span></span>
               <span class="small muted">${d.pages} page(s) · ${esc(sizeText(d.size))} · ${esc(d.uploaded_by)}</span>
-            </div>`).join("") || `<div class="empty">No documents yet.${canEdit(ctx) ? " Upload SOPs, manuals and lessons learned below." : ""}</div>`}</div>${canEdit(ctx) ? `<form class="stack" id="doc-upload" style="gap:8px">
+            </div>`).join("") || emptyState({
+			illustration: "documents",
+			compact: true,
+			title: "No documents yet",
+			body: canEdit(ctx) ? "Upload SOPs, manuals and lessons learned below." : void 0
+		})}</div>${canEdit(ctx) ? `<form class="stack" id="doc-upload" style="gap:8px">
         <h3>Upload</h3>
         <label class="field">File (PDF, text or Markdown, up to 20 MB)<input type="file" name="file" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" required /></label>
         <label class="field">Title<input type="text" name="title" maxlength="200" placeholder="From the file name" value="${esc(draft?.title ?? "")}" /></label>
@@ -10529,7 +10722,7 @@ heartbeat_seconds = 30
 		render(ctx) {
 			const head = `<div class="page-head"><div><div class="eyebrow">Data · Knowledge</div><h1>Documents</h1>
         <p class="soft">SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page.</p></div></div>`;
-			if (!ctx.api) return `${head}<div class="card"><p>Documents are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+			if (!ctx.api) return `${head}<div class="card">${needsApi(`Documents are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (o.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
@@ -11013,6 +11206,193 @@ heartbeat_seconds = 30
 		root.addEventListener("click", hide);
 	}
 	//#endregion
+	//#region js/lib/palette.ts
+	function score(item, query) {
+		const q = query.trim().toLowerCase();
+		if (!q) return 1;
+		const test = (text, weight, fuzzy) => {
+			const t = text.toLowerCase();
+			if (t.startsWith(q)) return 100 * weight;
+			if (t.split(/[\s·/,.-]+/).some((w) => w.startsWith(q))) return 80 * weight;
+			if (t.includes(q)) return 60 * weight;
+			if (!fuzzy) return 0;
+			let i = 0;
+			for (const c of t) if (c === q[i]) i++;
+			return i === q.length ? 20 * weight : 0;
+		};
+		return Math.max(test(item.label, 1, true), item.keywords ? test(item.keywords, .9, false) : 0);
+	}
+	function rank(items, query) {
+		return items.map((item, i) => ({
+			item,
+			i,
+			s: score(item, query)
+		})).filter((r) => r.s > 0).sort((a, b) => b.s - a.s || a.i - b.i).map((r) => r.item);
+	}
+	function grouped(items) {
+		const order = [];
+		for (const i of items) if (!order.includes(i.group)) order.push(i.group);
+		return order.flatMap((g) => items.filter((i) => i.group === g));
+	}
+	var recent = () => {
+		const v = load$4("palette-recent", []);
+		return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+	};
+	var remember = (id) => save$1("palette-recent", [id, ...recent().filter((r) => r !== id)].slice(0, 5));
+	var typing = (el) => el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
+	function installPalette(source) {
+		let dialog = null;
+		const open = () => {
+			if (dialog) return;
+			const d = document.createElement("dialog");
+			dialog = d;
+			d.className = "dialog palette";
+			d.dataset.state = "open";
+			d.setAttribute("aria-label", "Search pages and actions");
+			const what = Boolean(source.search && source.canSearch?.() !== false) ? "pages, actions and signals" : "pages and actions";
+			d.innerHTML = `
+      <div class="palette-input">${icon("search", { size: 18 })}<input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="Search ${what}" placeholder="Search ${what}…" autocomplete="off" spellcheck="false" /><kbd>Esc</kbd></div>
+      <div class="palette-list" id="palette-list" role="listbox" aria-label="Results"></div>
+      <div class="palette-status" role="status"></div>
+      <div class="palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> to move</span><span><kbd>Enter</kbd> to open</span></div>`;
+			const input = d.querySelector("input");
+			const list = d.querySelector("#palette-list");
+			const status = d.querySelector(".palette-status");
+			let shown = [];
+			let active = 0;
+			let extra = [];
+			let searching = false;
+			let seq = 0;
+			const draw = () => {
+				const q = input.value;
+				const all = source.items();
+				let items;
+				if (q.trim()) items = grouped([...rank(all, q), ...extra]);
+				else {
+					const byId = new Map(all.map((i) => [i.id, i]));
+					const recents = recent().map((id) => byId.get(id)).filter((i) => i !== void 0).map((i) => ({
+						...i,
+						group: "Recent"
+					}));
+					items = [...recents, ...all.filter((i) => !recents.some((r) => r.id === i.id))];
+				}
+				shown = items;
+				active = Math.min(active, Math.max(0, items.length - 1));
+				const groups = [];
+				items.forEach((item, n) => {
+					if (groups.at(-1)?.name !== item.group) groups.push({
+						name: item.group,
+						html: []
+					});
+					groups.at(-1)?.html.push(`<div class="palette-item" role="option" id="palette-${n}" data-n="${n}" aria-selected="${n === active}">${icon(item.icon)}<span class="palette-label">${esc(item.label)}</span>${item.hint ? `<span class="palette-hint">${esc(item.hint)}</span>` : ""}</div>`);
+				});
+				list.innerHTML = groups.map((g, k) => `<div role="group" aria-labelledby="palette-g${k}"><div class="palette-group" id="palette-g${k}">${esc(g.name)}</div>${g.html.join("")}</div>`).join("");
+				list.hidden = !items.length;
+				status.innerHTML = searching ? `${icon("loader-circle", { size: 14 })} Searching signals…` : !items.length ? `Nothing matches “${esc(q.trim())}”.` : "";
+				if (items.length) input.setAttribute("aria-activedescendant", `palette-${active}`);
+				else input.removeAttribute("aria-activedescendant");
+				list.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
+			};
+			const close = () => {
+				if (!dialog) return;
+				dialog = null;
+				d.dataset.state = "closed";
+				const done = () => {
+					d.close();
+					d.remove();
+				};
+				const running = d.getAnimations({ subtree: true });
+				if (running.length) Promise.all(running.map((a) => a.finished.catch(() => {}))).then(done);
+				else done();
+				setTimeout(done, 400);
+			};
+			const choose = (n) => {
+				const item = shown[n];
+				if (!item) return;
+				if (source.items().some((i) => i.id === item.id)) remember(item.id);
+				close();
+				item.run();
+			};
+			input.addEventListener("input", () => {
+				active = 0;
+				extra = [];
+				const q = input.value.trim();
+				const mine = ++seq;
+				searching = Boolean(source.search) && source.canSearch?.() !== false && q.length >= 2;
+				draw();
+				if (!searching || !source.search) return;
+				const ask = source.search;
+				setTimeout(() => {
+					if (mine !== seq) return;
+					ask(q).then((found) => {
+						if (mine !== seq || !dialog) return;
+						extra = found;
+						searching = false;
+						draw();
+					}, () => {
+						if (mine !== seq || !dialog) return;
+						searching = false;
+						draw();
+					});
+				}, 200);
+			});
+			input.addEventListener("keydown", (e) => {
+				if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+					e.preventDefault();
+					if (!shown.length) return;
+					active = (active + (e.key === "ArrowDown" ? 1 : -1) + shown.length) % shown.length;
+					draw();
+				} else if (e.key === "Home" || e.key === "End") {
+					e.preventDefault();
+					active = e.key === "Home" ? 0 : Math.max(0, shown.length - 1);
+					draw();
+				} else if (e.key === "Enter") {
+					e.preventDefault();
+					choose(active);
+				}
+			});
+			list.addEventListener("pointermove", (e) => {
+				const n = Number(e.target.closest("[data-n]")?.dataset.n ?? NaN);
+				if (!Number.isNaN(n) && n !== active) {
+					active = n;
+					for (const li of list.querySelectorAll("[role=option]")) li.setAttribute("aria-selected", String(li.getAttribute("data-n") === String(n)));
+					input.setAttribute("aria-activedescendant", `palette-${n}`);
+				}
+			});
+			list.addEventListener("click", (e) => {
+				const n = Number(e.target.closest("[data-n]")?.dataset.n ?? NaN);
+				if (!Number.isNaN(n)) choose(n);
+			});
+			d.addEventListener("cancel", (e) => {
+				e.preventDefault();
+				close();
+			});
+			let pressedOutside = false;
+			const outside = (e) => {
+				const r = d.getBoundingClientRect();
+				return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+			};
+			d.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
+			d.addEventListener("click", (e) => {
+				if (pressedOutside && outside(e)) close();
+			});
+			document.body.append(d);
+			d.showModal();
+			draw();
+			input.focus();
+		};
+		document.addEventListener("keydown", (e) => {
+			const combo = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k";
+			const slash = e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !typing(e.target);
+			if (!combo && !slash) return;
+			if (dialog) return void (combo && e.preventDefault());
+			if (document.querySelector("dialog[open]")) return;
+			e.preventDefault();
+			open();
+		});
+		return { open };
+	}
+	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
 		view$19,
@@ -11466,6 +11846,84 @@ heartbeat_seconds = 30
 		save$1("theme", next);
 	});
 	need(document, "#menu").innerHTML = icon("menu", { size: 18 });
+	var go = (hash) => () => {
+		location.hash = hash;
+	};
+	var palette = installPalette({
+		items() {
+			const pages = NAV.flatMap((g) => g.items.map((v) => ({
+				id: `page:${v.id}`,
+				label: v.title,
+				group: "Pages",
+				icon: v.icon,
+				hint: g.group || void 0,
+				run: go(`#/${v.id === "home" ? "" : v.id}`)
+			})));
+			const actions = [
+				{
+					id: "do:ask",
+					label: "Ask the copilot",
+					group: "Actions",
+					icon: "sparkles",
+					keywords: "question chat ai",
+					run: go("#/chat")
+				},
+				{
+					id: "do:plot",
+					label: "Plot a signal",
+					group: "Actions",
+					icon: "chart-line",
+					keywords: "explorer chart readings",
+					run: go("#/explorer")
+				},
+				{
+					id: "do:import",
+					label: "Import readings from a file",
+					group: "Actions",
+					icon: "upload",
+					keywords: "csv historian upload",
+					run: go("#/import")
+				},
+				{
+					id: "do:docs",
+					label: "Search documents and SOPs",
+					group: "Actions",
+					icon: "book-open",
+					keywords: "manual procedure pdf",
+					run: go("#/documents")
+				},
+				{
+					id: "do:theme",
+					label: isDark() ? "Switch to the light theme" : "Switch to the dark theme",
+					group: "Actions",
+					icon: isDark() ? "sun" : "moon",
+					keywords: "theme dark light mode appearance",
+					run: () => need(document, "#theme").click()
+				}
+			];
+			return [...pages, ...actions];
+		},
+		canSearch: () => Boolean(api && ctx.ontology.site),
+		async search(q) {
+			const site = ctx.ontology.site;
+			if (!api || !site) return [];
+			return (await api.signals.list(site.id, {
+				q,
+				limit: 8
+			})).signals.map((s) => ({
+				id: `signal:${s.id}`,
+				label: s.tag,
+				group: "Signals",
+				icon: "activity",
+				hint: [s.unit, s.node_label].filter(Boolean).join(" · ") || void 0,
+				run: go(`#/explorer?signal=${encodeURIComponent(s.id)}`)
+			}));
+		}
+	});
+	var searchButton = need(document, "#palette-open");
+	searchButton.insertAdjacentHTML("afterbegin", icon("search"));
+	if (/Mac|iPhone|iPad/.test(navigator.platform)) need(searchButton, "kbd").textContent = "⌘K";
+	searchButton.addEventListener("click", () => palette.open());
 	need(document, "#menu").addEventListener("click", (e) => {
 		const open = need(document, "#sidebar").classList.toggle("open");
 		e.currentTarget.setAttribute("aria-expanded", String(open));

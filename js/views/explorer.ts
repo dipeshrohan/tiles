@@ -6,6 +6,7 @@ import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
 import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
+import { needsApi } from '../lib/ui.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -426,7 +427,7 @@ const view: View = {
     const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Data explorer</h1>
         <p class="soft">Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in.</p></div></div>`;
     if (!ctx.api || !ctx.ontology.site)
-      return `${head}<div class="card"><p class="small soft">Readings are kept in the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+      return `${head}<div class="card">${needsApi(`Readings are kept in the Tiles API.`)}</div>`;
     const u = ui(ctx);
     if (u.catalogue !== catalogue(ctx)) Object.assign(u, { picked: [], range: null, catalogue: catalogue(ctx) });
     for (const id of wearStates.keys()) if (!u.picked.some((p) => p.id === id)) wearStates.delete(id);

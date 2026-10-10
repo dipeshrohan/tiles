@@ -196,7 +196,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
   }
 });
 
-test('dialogs, toasts and tooltips pass the accessibility rules', async () => {
+test('dialogs, toasts, tooltips and the command palette pass the accessibility rules', async () => {
   for (const colorScheme of ['light', 'dark']) {
     const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 }, bypassCSP: true });
     await page.goto(`${httpBase}#/settings`);
@@ -210,6 +210,14 @@ test('dialogs, toasts and tooltips pass the accessibility rules', async () => {
     await page.click('[data-reset]'); // a dialog
     await page.waitForSelector('dialog.dialog[open]');
     assert.deepEqual(await audit(page), [], colorScheme);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog.dialog', { state: 'detached' });
+    await page.keyboard.press('Control+k'); // the command palette
+    await page.locator('dialog.palette input').fill('si');
+    assert.deepEqual(await audit(page), [], `${colorScheme} palette`);
+    await page.locator('dialog.palette input').fill('zzqx'); // nothing matches
+    await page.waitForSelector('.palette-status:has-text("Nothing matches")');
+    assert.deepEqual(await audit(page), [], `${colorScheme} palette, no match`);
     await page.close();
   }
 });

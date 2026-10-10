@@ -18,6 +18,7 @@ import {
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
+import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
 
 // Saved insights (T3.12): findings saved from the correlation finder or the Data explorer, with the
 // question asked, the evidence it gave then and the actions proposed; another engineer accepts or
@@ -91,7 +92,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const n = selected();
   const rows =
     items === null
-      ? '<div class="empty">Loading…</div>'
+      ? loadingState()
       : items
           .map(
             (
@@ -102,7 +103,12 @@ function listCard(ctx: Context, ui: Ui): string {
             </a>`,
           )
           .join('') ||
-        `<div class="empty">${ui.status === 'proposed' ? 'Nothing waits for review.' : 'No insights here yet.'} Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.</div>`;
+        emptyState({
+          illustration: ui.status === 'proposed' ? 'done' : 'inbox',
+          compact: true,
+          title: ui.status === 'proposed' ? 'Nothing waits for review' : 'No insights here yet',
+          bodyHtml: `Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.`,
+        });
   const more =
     items && listing && listing.total > items.length
       ? `<p class="small soft">The newest ${items.length} of ${listing.total}.</p>`
@@ -143,10 +149,12 @@ function evidence(i: Insight): string {
 
 function detailCard(ctx: Context): string {
   const n = selected();
-  if (n === null) return '<div class="card"><div class="empty">Choose an insight.</div></div>';
-  if (detail?.key !== detailKey(ctx)) return '<div class="card"><div class="empty">Loading…</div></div>';
+  if (n === null)
+    return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an insight' })}</div>`;
+  if (detail?.key !== detailKey(ctx)) return `<div class="card">${loadingState()}</div>`;
   const i = detail.insight;
-  if (!i) return `<div class="card"><div class="empty">Insight #${n} could not be loaded.</div></div>`;
+  if (!i)
+    return `<div class="card">${emptyState({ illustration: 'error', alert: true, title: `Insight #${n} could not be loaded` })}</div>`;
   const may = mayDo(i, ctx.ontology.userId, ctx.ontology.role);
   const key = `${detailKey(ctx)}|${i.updated_at}`;
   const link = sourceLink(i);
@@ -226,8 +234,7 @@ const view: View = {
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Insights</h1>
         <p class="soft">Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer.</p></div></div>`;
-    if (!ctx.api)
-      return `${head}<div class="card"><p>Insights are kept by the Tiles API: connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+    if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (o.status !== 'ready')

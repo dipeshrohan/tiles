@@ -24,6 +24,7 @@ import {
   when,
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
+import { emptyState, loadingState, needsApi } from '../lib/ui.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
 // are in their workflow and who has them; each with a chart of its signal around it, its payload
@@ -102,13 +103,11 @@ function filterBar(ctx: Context, f: Filters): string {
 
 function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
-  const empty =
-    ui.filters.show === 'unresolved' && ui.filters.who === 'anyone' && ui.filters.signal === 'all'
-      ? 'Nothing to do: no warning waits for anyone.'
-      : 'No warnings match these filters.';
+  const unfiltered = ui.filters.show === 'unresolved' && ui.filters.who === 'anyone' && ui.filters.signal === 'all';
+  const empty = unfiltered ? 'Nothing to do: no warning waits for anyone.' : 'No warnings match these filters.';
   const rows =
     items === null
-      ? '<div class="empty">Loading…</div>'
+      ? loadingState()
       : items
           .map(
             (w) => `
@@ -118,7 +117,7 @@ function listCard(ctx: Context, ui: Ui): string {
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : 'Unassigned'}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ''}</span>
         </button>`,
           )
-          .join('') || `<div class="empty">${empty}</div>`;
+          .join('') || emptyState({ illustration: unfiltered ? 'done' : 'search', compact: true, title: empty });
   const more = items && listing?.more ? '<button class="btn sm" data-more-warnings>Show older warnings</button>' : '';
   return `<div class="card"><div class="review-list" data-warning-list>${rows}</div>${more}</div>`;
 }
@@ -126,7 +125,7 @@ function listCard(ctx: Context, ui: Ui): string {
 function chartCard(w: WarningDetail): string {
   const fetched = series?.key === seriesKey(w) ? series : null;
   const s = fetched?.data;
-  if (!fetched || s === undefined) return '<div class="empty">Loading the signal…</div>';
+  if (!fetched || s === undefined) return loadingState('Loading the signal…', 4);
   if (s === null) return '<p class="small muted">The signal’s readings could not be loaded.</p>';
   const { from, to, start, end } = fetched.range; // the range the readings were fetched for
   const points = toPoints(s);
@@ -182,11 +181,11 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
 
 function detailCard(ctx: Context, ui: Ui): string {
   if (ui.selected === null)
-    return '<div class="card"><div class="empty">Select a warning to see its signal and what was done.</div></div>';
+    return `<div class="card">${emptyState({ illustration: 'select', title: 'Select a warning', body: 'Its signal and what was done about it show here.' })}</div>`;
   const w = detail?.key === detailKey(ctx) ? detail.warning : null;
   if (!w && detailFailed === detailKey(ctx))
-    return '<div class="card" data-warning-detail><div class="empty">This warning could not be loaded. Refresh to try again.</div></div>';
-  if (!w) return '<div class="card" data-warning-detail><div class="empty">Loading…</div></div>';
+    return `<div class="card" data-warning-detail>${emptyState({ illustration: 'error', alert: true, title: 'This warning could not be loaded', body: 'Refresh to try again.' })}</div>`;
+  if (!w) return `<div class="card" data-warning-detail>${loadingState()}</div>`;
   const activity = w.activity
     .map(
       (a) => `
@@ -383,7 +382,7 @@ const view: View = {
     const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warnings</h1>
         <p class="soft">What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be.</p></div></div>`;
     if (!ctx.api)
-      return `${head}<div class="card"><p>Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones. Connect to it in <a href="#/settings">Settings</a>.</p></div>`;
+      return `${head}<div class="card">${needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (o.status !== 'ready')

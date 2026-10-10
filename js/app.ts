@@ -56,6 +56,7 @@ import type { AppState, AuthContext, Context, OntologyContext, PersistedState, V
 import { icon } from './lib/icons.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
+import { installPalette, type PaletteItem } from './lib/palette.ts';
 
 const VIEWS: View[] = [
   home,
@@ -580,6 +581,87 @@ need(document, '#theme').addEventListener('click', () => {
   save('theme', next);
 });
 need(document, '#menu').innerHTML = icon('menu', { size: 18 });
+
+// ---- command palette (U4.02) ------------------------------------------------
+
+const go = (hash: string) => () => {
+  location.hash = hash;
+};
+const palette = installPalette({
+  items(): PaletteItem[] {
+    const pages = NAV.flatMap((g) =>
+      g.items.map((v) => ({
+        id: `page:${v.id}`,
+        label: v.title,
+        group: 'Pages',
+        icon: v.icon,
+        hint: g.group || undefined,
+        run: go(`#/${v.id === 'home' ? '' : v.id}`),
+      })),
+    );
+    const actions: PaletteItem[] = [
+      {
+        id: 'do:ask',
+        label: 'Ask the copilot',
+        group: 'Actions',
+        icon: 'sparkles',
+        keywords: 'question chat ai',
+        run: go('#/chat'),
+      },
+      {
+        id: 'do:plot',
+        label: 'Plot a signal',
+        group: 'Actions',
+        icon: 'chart-line',
+        keywords: 'explorer chart readings',
+        run: go('#/explorer'),
+      },
+      {
+        id: 'do:import',
+        label: 'Import readings from a file',
+        group: 'Actions',
+        icon: 'upload',
+        keywords: 'csv historian upload',
+        run: go('#/import'),
+      },
+      {
+        id: 'do:docs',
+        label: 'Search documents and SOPs',
+        group: 'Actions',
+        icon: 'book-open',
+        keywords: 'manual procedure pdf',
+        run: go('#/documents'),
+      },
+      {
+        id: 'do:theme',
+        label: isDark() ? 'Switch to the light theme' : 'Switch to the dark theme',
+        group: 'Actions',
+        icon: isDark() ? 'sun' : 'moon',
+        keywords: 'theme dark light mode appearance',
+        run: () => need(document, '#theme').click(),
+      },
+    ];
+    return [...pages, ...actions];
+  },
+  canSearch: () => Boolean(api && ctx.ontology.site),
+  async search(q) {
+    const site = ctx.ontology.site;
+    if (!api || !site) return [];
+    const found = await api.signals.list(site.id, { q, limit: 8 });
+    return found.signals.map((s) => ({
+      id: `signal:${s.id}`,
+      label: s.tag,
+      group: 'Signals',
+      icon: 'activity' as const,
+      hint: [s.unit, s.node_label].filter(Boolean).join(' · ') || undefined,
+      run: go(`#/explorer?signal=${encodeURIComponent(s.id)}`),
+    }));
+  },
+});
+const searchButton = need(document, '#palette-open');
+searchButton.insertAdjacentHTML('afterbegin', icon('search'));
+if (/Mac|iPhone|iPad/.test(navigator.platform)) need(searchButton, 'kbd').textContent = '⌘K';
+searchButton.addEventListener('click', () => palette.open());
 need(document, '#menu').addEventListener('click', (e) => {
   const open = need(document, '#sidebar').classList.toggle('open');
   (e.currentTarget as HTMLElement).setAttribute('aria-expanded', String(open));
