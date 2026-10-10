@@ -290,6 +290,7 @@ export function createFakeApi({
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
   let requestIds = 0; // numbers the request IDs
+  let sitesFailures = 0; // the next lists of sites that fail, as an API still starting would
   let searchFailures = 0; // the next document searches that fail
   // Design projects and runs (T4.11, T4.14), as the API returns them; outputs from js/lib/design.ts.
   const designProjects = [];
@@ -530,7 +531,10 @@ export function createFakeApi({
     const base = `/sites/${site.id}/ontology`;
     try {
       if (url.pathname === '/health') return send(200, { status: 'ok', version: 'fake', env: 'test' });
-      if (url.pathname === '/sites' && req.method === 'GET') return send(200, sites);
+      if (url.pathname === '/sites' && req.method === 'GET') {
+        if (sitesFailures > 0 && sitesFailures--) return send(503, { detail: 'The API is starting' });
+        return send(200, sites);
+      }
       // Creating a site (T6.06): admins only here (the API: organisation admins). Listed, not served.
       if (url.pathname === '/sites' && req.method === 'POST') {
         if ((roles[user] ?? 'engineer') !== 'admin')
@@ -1877,6 +1881,10 @@ export function createFakeApi({
     // Makes the next `n` document searches fail.
     failDocumentSearch(n) {
       searchFailures = n;
+    },
+    // Makes the next `n` lists of sites fail: the app can't connect until they pass.
+    failSites(n) {
+      sitesFailures = n;
     },
     // Makes the next `n` lists of App Studio's templates or apps fail.
     failApps(n) {

@@ -17,7 +17,7 @@ import type { Graph, OntologyNode } from '../lib/types.ts';
 import { when } from '../lib/warnings.ts';
 import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } from './floor-data.ts';
 import type { Context, Crumb, View } from './types.ts';
-import { button, pageHead } from '../lib/ui.ts';
+import { button, pageHead, apiUnreachable } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 
 // The plant navigator (T5.17): the ontology's hierarchy as places to drill into, site → workcenter
@@ -230,8 +230,7 @@ const view: View = {
     });
     if (ctx.api && ctx.ontology.status === 'loading')
       return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (ctx.api && ctx.ontology.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
+    if (ctx.api && ctx.ontology.status !== 'ready') return `${head}${apiUnreachable(ctx.ontology.error)}`;
     const results = searchResults(graph, ui.query);
     if (!tops.length)
       return `${head}${results}<div class="card"><p>The ontology has no sites, lines or machines yet. Build the hierarchy on the <a href="#/ontology">Ontology</a> page: a site contains workcenters, which contain lines and cells, which contain machines.</p></div>`;

@@ -224,6 +224,21 @@ export function tabs(o: {
     .join('')}</div>`;
 }
 
+// The page needs the Tiles API and couldn't reach it: what happened, why, and what to do (Try again
+// reconnects, app.ts; Settings has the address).
+export function apiUnreachable(reason: string | null): string {
+  return card(
+    emptyState({
+      illustration: 'error',
+      compact: true,
+      alert: true,
+      title: "Can't reach the Tiles API",
+      body: `${reason ? `${reason}. ` : ''}Check that it is running and its address in Settings is right, then try again.`,
+      action: `${button('Try again', { variant: 'primary', size: 'sm', icon: 'refresh-cw', attrs: { 'data-reconnect': true } })} ${linkButton('Open Settings', '#/settings', { size: 'sm' })}`,
+    }),
+  );
+}
+
 // Something failed to load: why, and a button to try again (`retry` is its data attribute).
 export function errorState(o: {
   title: string;

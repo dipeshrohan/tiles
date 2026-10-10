@@ -566,6 +566,11 @@ function renderSoon(): void {
   });
 }
 
+// "Try again" on a page that couldn't reach the API (apiUnreachable): connect afresh.
+document.addEventListener('click', (e) => {
+  if (e.target instanceof Element && e.target.closest('[data-reconnect]')) void connectOntology();
+});
+
 // ---- theme & mobile nav ---------------------------------------------------
 
 type Theme = 'light' | 'dark';

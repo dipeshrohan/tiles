@@ -71,6 +71,7 @@ A finding without a fix yet doesn't fail the build. For one that can't be fixed 
 - **No runtime dependencies** in the browser app. Dev dependencies are fine.
 - **Synthetic data is seeded**, so results are reproducible; keep it that way.
 - **Start from the style guide** (`#/styleguide`, linked from Settings → About): it shows each token and component with the code for it.
+- **Write as [docs/ui/writing.md](docs/ui/writing.md) says**: sentence case, buttons that are verbs, errors that say what happened, why and what to do. `test/copy.test.js` checks what it can.
 - **Build pages from the components** in `js/lib/ui.ts` (`button`, `badge`, `card`, `field`, `select`, `table`, `tabs`, `pageHead`, `errorState`…): they escape what they show and keep pages alike.
 - **No inline styles.** Use a component class, or the utilities at the end of `css/styles.css` (`.gap-2`, `.mt-3`, `.grow`, `.wrap`, `.justify-between`, `.text-bad`…; the number is the `--space-*` step). `npm run lint` refuses a `style` attribute unless its value is computed, like a chart's width.
 - **Escape user-visible strings** with `esc()` from `js/lib/dom.js` when building HTML.

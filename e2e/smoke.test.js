@@ -405,6 +405,28 @@ test('a deployment opens its API by default, and a reset keeps it a default', as
   assert.deepEqual(errors, []);
 });
 
+test("a page that can't reach the API says why and what to do, and tries again", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.failSites(1);
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  const card = page.locator('#view [role=alert]:has-text("Can\'t reach the Tiles API")');
+  await card.waitFor();
+  assert.match(
+    await card.innerText(),
+    /The API is starting[\s\S]*Check that it is running and its address in Settings is right/,
+  );
+  assert.equal(await card.locator('a:has-text("Open Settings")').getAttribute('href'), '#/settings');
+  // The API is up now: Try again connects, and the page fills.
+  await card.locator('[data-reconnect]').click();
+  await page.waitForSelector('[data-warning-list]');
+  assert.deepEqual(
+    errors.filter((e) => !/503/.test(e)),
+    [],
+  );
+});
+
 test('settings can switch to the Tiles API and test the connection', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

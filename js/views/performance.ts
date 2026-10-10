@@ -3,7 +3,7 @@ import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { loadingState, needsApi, pageHead } from '../lib/ui.ts';
+import { loadingState, needsApi, pageHead, apiUnreachable } from '../lib/ui.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
 // reported, live: per detector and in total, with what people resolved them as. Events are
@@ -135,8 +135,7 @@ const view: View = {
       return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
     const u = uiState(ctx);
     const key = keyFor(ctx);
     let body: string;

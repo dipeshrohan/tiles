@@ -16,7 +16,7 @@ import {
 import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
+import { emptyState, loadingState, needsApi, pageHead, apiUnreachable } from '../lib/ui.ts';
 import { icon } from '../lib/icons.ts';
 
 // App Studio (T6.10): use cases configured from templates, without code. A template (a wear check,
@@ -306,8 +306,7 @@ const view: View = {
     if (!ctx.api) return `${head}<div class="card">${needsApi(`Apps are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
     return `${head}<div class="reviews">${listCard(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
   },
   bind(root, ctx) {

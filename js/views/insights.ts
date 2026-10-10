@@ -18,7 +18,7 @@ import {
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
+import { emptyState, loadingState, needsApi, pageHead, apiUnreachable } from '../lib/ui.ts';
 
 // Saved insights (T3.12): findings saved from the correlation finder or the Data explorer, with the
 // question asked, the evidence it gave then and the actions proposed; another engineer accepts or
@@ -244,8 +244,7 @@ const view: View = {
     if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
     return `${head}<div class="reviews">${listCard(ctx, uiState(ctx))}${detailCard(ctx)}</div>`;
   },
   bind(root, ctx) {

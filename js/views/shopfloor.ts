@@ -14,6 +14,7 @@ import {
   warningById,
 } from './floor-data.ts';
 import type { Context, View } from './types.ts';
+import { apiUnreachable } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 
 // The shopfloor view (T5.16): for a tablet on the line, read at arm's length and used with gloves.
@@ -193,7 +194,7 @@ const view: View = {
       </div>`;
     if (ctx.api && ctx.ontology.status === 'loading') return `<div class="floor">${head('<h1>Loading…</h1>')}</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')
-      return `<div class="floor">${head('<h1>Shopfloor</h1>')}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div></div>`;
+      return `<div class="floor">${head('<h1>Shopfloor</h1>')}${apiUnreachable(ctx.ontology.error)}</div>`;
     const graph = ctx.graph; // made afresh at each read: once for the whole page
     const list = floorItems(ctx, graph);
     if (list === null)

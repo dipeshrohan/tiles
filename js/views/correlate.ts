@@ -5,7 +5,7 @@ import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '..
 import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
 import { confirmDialog } from '../lib/overlay.ts';
-import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
+import { emptyState, loadingState, needsApi, pageHead, apiUnreachable } from '../lib/ui.ts';
 
 // The correlation finder (T3.11): which settings separate failed batches from good ones, on real
 // batch tables kept by the Tiles API. Upload a CSV (one row per batch), choose the outcome and what
@@ -312,8 +312,7 @@ const view: View = {
       return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
     const ui = uiState(ctx);
     return `${head}<div class="reviews">${listCard(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
   },

@@ -22,6 +22,7 @@ import {
   needsApi,
   pageHead,
   select,
+  apiUnreachable,
 } from '../lib/ui.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
@@ -187,8 +188,7 @@ const view: View = {
     if (!ctx.api) return `${head}${card(needsApi(`Documents are kept by the Tiles API.`))}`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}${card('Loading from the Tiles API…')}`;
-    if (o.status !== 'ready')
-      return `${head}${card(`Can't reach the Tiles API: ${esc(o.error)}`, { attrs: { role: 'alert' } })}`;
+    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
     return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
   },
   bind(root, ctx) {

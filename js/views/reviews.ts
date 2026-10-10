@@ -4,7 +4,7 @@ import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
 import { showHistory } from './ontology.ts';
 import type { Context, View } from './types.ts';
-import { emptyState, loadingState, needsApi, pageHead } from '../lib/ui.ts';
+import { emptyState, loadingState, needsApi, pageHead, apiUnreachable } from '../lib/ui.ts';
 
 // Change reviews (T2.12): ontology changes another engineer approves (which
 // commits them) or rejects, with the diff and a comment thread. Requests are
@@ -286,8 +286,7 @@ const view: View = {
       return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready')
-      return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(o.error)}</div>`;
+    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
     const ui = uiState(ctx);
     return `${head}${policyCard(ctx)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
   },
