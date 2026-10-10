@@ -2571,7 +2571,9 @@ body.floor-full .topbar {
 
 /* ---- Utilities (U1.03): layout and spacing for one-off needs in the views, instead of inline
    styles (`scripts/check-inline-styles.js` keeps those out). They stand where an inline style did,
-   so they win over component rules (!important); the margin reset comes before the sides it leaves. */
+   so they win over component rules (!important; a media query can't change them, so a layout that
+   changes with the screen gets a component class instead); the margin reset comes before the sides
+   it leaves, and `hidden` still hides `.contents`. */
 .m-0 {
   margin: 0 !important;
 }
@@ -2767,7 +2769,7 @@ body.floor-full .topbar {
 .span3 {
   grid-column: span 3 !important;
 }
-.contents {
+.contents:not([hidden]) {
   display: contents !important;
 }
 .text-inherit {
