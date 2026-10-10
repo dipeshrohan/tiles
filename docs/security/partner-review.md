@@ -42,6 +42,7 @@ The firewall rules, for the plant and for the cloud, are in [hybrid mode](../hyb
 | Tiles API | Mail relay, Teams | SMTP with STARTTLS, HTTPS | Tiles | Only if notifications are turned on; Teams only to Microsoft's webhook hosts |
 | Tiles API | Anthropic API | HTTPS | Tiles | Only if the copilot is turned on: see [the data](#the-data-end-to-end) |
 | Tiles API | Organisations' model endpoints, GitHub | HTTPS | Tiles | Only for models the plant registers itself (T4.15) |
+| Tiles API and jobs | An OpenTelemetry Collector | OTLP over HTTP(S) | Tiles | Only if monitoring is set up (`monitoring.otlpEndpoint`): traces and metrics about requests and jobs, not readings |
 
 With Cilium, Tiles' own egress is enforced as an allowlist by host name. The model sandbox connects
 nowhere at all ([hybrid mode](../hybrid.md#in-the-cloud)).
@@ -50,17 +51,27 @@ nowhere at all ([hybrid mode](../hybrid.md#in-the-cloud)).
 
 | Data | Where it comes from | Where it is kept | How it is protected | How long |
 | --- | --- | --- | --- | --- |
-| Machine readings | The edge agent, or file imports | The site's database (TimescaleDB) | TLS in transit; volume and backup encryption at rest ([runbook](../runbooks/secrets-and-encryption.md)); row security per site | 5 years, compressed after 7 days |
+| Machine readings | The edge agent, or file imports | The site's database (TimescaleDB) | TLS in transit; encryption at rest, which the deployment enables (in our managed cloud, Azure's encrypted disks and backup storage; on the plant's own cluster, its storage must be: see the [runbook](../runbooks/secrets-and-encryption.md)); row security per site | 5 years, compressed after 7 days |
 | Readings not yet sent | The edge agent | The agent's disk buffer on the plant's host | The host's own disk encryption; the agent's sandbox | Until the API accepts them (bounded) |
 | The plant model (ontology), warnings, analyses, documents | People, through the app | The site's database | As above; every change in the audit log | For the contract's term |
 | Credentials Tiles keeps (Teams webhooks, model endpoints' tokens) | Admins | The database, sealed (AES-256-GCM) with a data key kept outside it | Never shown again after they are set | Until removed |
 | People's identity | The plant's identity provider (or SCIM) | Name, e-mail and role in the database | Deactivated and deleted users can't sign in | Until deleted |
-| Copilot questions and answers | People | The asker's own conversations | Visible to the asker only | Until the asker deletes them |
-| What the copilot sends to Anthropic | Each question, and the tool results it reads to answer it, for the user who asked | Anthropic, under its commercial terms | TLS; the copilot is off unless configured | Anthropic's API data policy |
+| Copilot questions and answers | People | The asker's own conversations | Visible to the asker; an answer the asker rates, with its question, is also visible to the site's admins | Until the asker deletes them |
+| What the copilot sends to Anthropic | Each question, and the tool results it reads to answer it, for the user who asked | Anthropic, under its commercial terms | TLS; the copilot is off unless the deployment configures it | Anthropic's API data policy |
 | Backups | The database | Encrypted backup storage | Encryption with the same key policy; restore drilled in CI | 35 days of point-in-time recovery ([backups](../runbooks/backups.md)) |
 
-Nothing from the plant goes to any other third party. The copilot is the one place where plant data
-leaves Tiles, and it is off until an administrator turns it on.
+Plant data leaves Tiles only where something is turned on, each to the place named above:
+
+- **The copilot:** the questions, and the tool results it reads, go to Anthropic. It is turned on
+  for a whole deployment by its operator. In our managed cloud, that means only if the plant agrees.
+  Turning it on per site is an open item (G-A4).
+- **Notifications:** a warning's details (its signal, values and machine) go to the mail relay and
+  to the site's Teams channel, if they are set up.
+- **The plant's own models:** each evaluation sends a window of readings to the endpoint the plant
+  registered.
+- **Monitoring:** request and job metadata, not readings, go to the collector, if one is set.
+
+Nothing goes anywhere else.
 
 ## Hosting choices
 
@@ -83,20 +94,27 @@ leaves Tiles, and it is off until an administrator turns it on.
 | Is there an audit trail? | Every change, with who, when, before and after, and a request ID; the log can't be edited | [Admin guide](../guides/admin.md#the-audit-log) |
 | How are secrets handled? | Sealed in the database with a data key outside it, or mounted from a secret store; rotation documented | [Secrets runbook](../runbooks/secrets-and-encryption.md) |
 | How are vulnerabilities found? | Dependency and image scanning with SBOMs in CI; a penetration test before v1.0 (T6.07) | [Readiness plan](compliance-readiness.md) |
-| Is the AI grounded? | Its answers must cite tool results; numbers and names it can't support are withdrawn; an evaluation gate runs in CI | [ADR 005](../adr/005-ai-copilot.md) |
+| Is the AI grounded? | Its answers must cite tool results; numbers and names it can't support are withdrawn and asked again. An evaluation harness scores it against expected answers, and runs in CI once the copilot's key is set there (T4.06) | [ADR 005](../adr/005-ai-copilot.md) |
 | Can the plant run its own code in Tiles? | Only in a sandbox with no network and no credentials, or on its own endpoint | [Model-author guide](../guides/model-author.md#11-models-from-github-run-in-the-sandbox) |
 | SOC 2 / ISO 27001? | Not certified yet; the controls are mapped with their evidence and a timeline | [Readiness plan](compliance-readiness.md) |
 
 ## Open items
 
-These are the gaps the [threat model](threat-model.md#actions) lists. Say so plainly in the review,
-with the date each will close:
+These are the threat model's open [actions](threat-model.md#actions), as they stand. Say them
+plainly in the review, and agree with the plant when each must close:
 
 - **Not certified:** no penetration test yet (T6.07) and no SOC 2 or ISO 27001 certification
   ([timeline](compliance-readiness.md#timeline)).
-- **Remaining actions:** the threat model's open actions (security headers, failing closed without a
-  token, the jobs' own database role, edge-token expiry, signed images), each with its status
-  there.
+- **G-A1:** a body-size cap and a general rate limit for every endpoint (the copilot already has
+  its own).
+- **G-A4:** turning the copilot on per site, with a note on what it sends.
+- **G-A5:** refusing requests without a token whenever sign-in is configured, whatever the
+  environment says.
+- **G-B1:** security headers on the web app (a Content-Security-Policy, `frame-ancestors`).
+- **G-D1:** the scheduled jobs' own database role.
+- **G-E1:** edge-agent tokens that expire.
+- **G-E3:** signed reading batches, so the API can tell they weren't changed on the agent's host.
+- **G-E4 / G-S2:** signed releases and images.
 
 ## The review meeting
 
