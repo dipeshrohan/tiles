@@ -241,7 +241,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 ### UI Month 2: Feedback and states (Dec 2026)
 
-- [ ] `U2.01` [#213](https://github.com/dipeshrohan/tiles/issues/213) **Dialogs** · FE · 3d · U1.04
+- [x] `U2.01` [#213](https://github.com/dipeshrohan/tiles/issues/213) **Dialogs** · FE · 3d · U1.04
   *Done when:* no `confirm()`, `alert()` or `prompt()` remains (a lint rule enforces it), and the a11y test opens each dialog.
 - [ ] `U2.02` [#214](https://github.com/dipeshrohan/tiles/issues/214) **Toasts v2** · FE · 2d · U1.04
   *Done when:* an API error stays on screen with its request ID until dismissed, and screen readers announce it once.

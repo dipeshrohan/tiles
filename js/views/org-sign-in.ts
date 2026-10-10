@@ -6,6 +6,7 @@ import { esc, field, onAll, onSubmit } from '../lib/dom.ts';
 import type { IdentityProvider, ScimToken } from '../lib/api.ts';
 import { groupRolesText, providerFromForm, scimBaseUrl } from '../lib/org-sign-in.ts';
 import type { Context } from './types.ts';
+import { confirmDialog } from '../lib/overlay.ts';
 
 // A SCIM token just made: shown until dismissed, to the admin who made it, for that API only.
 let revealed: { name: string; token: string; apiUrl: string; user: string } | null = null;
@@ -90,9 +91,15 @@ async function fillScim(root: HTMLElement, ctx: Context): Promise<void> {
     revealed = null;
     void fillScim(root, ctx);
   });
-  onAll(box, '[data-revoke-scim]', 'click', (el) => {
+  onAll(box, '[data-revoke-scim]', 'click', async (el) => {
     const name = el.dataset.scimName ?? '';
-    if (!confirm(`Revoke ${name}? Provisioning with it stops at once.`)) return;
+    const yes = await confirmDialog({
+      title: `Revoke ${name}?`,
+      body: 'Provisioning with this token stops at once. It can’t be restored: make a new one.',
+      confirm: 'Revoke',
+      tone: 'danger',
+    });
+    if (!yes) return;
     api.org.revokeScimToken(el.dataset.revokeScim ?? '').then(
       () => {
         ctx.toast(`Revoked ${name}`);
@@ -150,8 +157,14 @@ export async function bindOrgSignIn(root: HTMLElement, ctx: Context): Promise<vo
       () => undefined,
     );
   });
-  onAll(box, '[data-org-provider-remove]', 'click', () => {
-    if (!confirm('Remove your organisation’s provider? Its sign-ins stop working at once.')) return;
+  onAll(box, '[data-org-provider-remove]', 'click', async () => {
+    const yes = await confirmDialog({
+      title: 'Remove your organisation’s provider?',
+      body: 'Sign-ins through it stop working at once.',
+      confirm: 'Remove',
+      tone: 'danger',
+    });
+    if (!yes) return;
     api.org.removeIdentityProvider().then(
       () => {
         ctx.toast('Organisation sign-in removed');

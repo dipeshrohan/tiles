@@ -4,6 +4,7 @@ import { forestPlot, inferColumns, parseNgValues, typedRows } from '../lib/datas
 import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '../lib/api.ts';
 import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
+import { confirmDialog } from '../lib/overlay.ts';
 
 // The correlation finder (T3.11): which settings separate failed batches from good ones, on real
 // batch tables kept by the Tiles API. Upload a CSV (one row per batch), choose the outcome and what
@@ -207,7 +208,13 @@ async function removeDataset(ctx: Context): Promise<void> {
   const ui = uiState(ctx);
   const d = detail?.id === ui.selected ? detail.data : null;
   if (!ctx.api || !site || !d) return;
-  if (!confirm(`Delete ${d.name} and its ${d.row_count} batch(es)?`)) return;
+  const yes = await confirmDialog({
+    title: `Delete ${d.name}?`,
+    body: `Its ${d.row_count} batch(es) are deleted for good; insights saved from it keep their evidence.`,
+    confirm: 'Delete',
+    tone: 'danger',
+  });
+  if (!yes) return;
   busy = 'delete';
   ctx.rerender();
   try {

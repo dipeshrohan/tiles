@@ -14,6 +14,7 @@ import {
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import type { Context, View } from './types.ts';
+import { confirmDialog } from '../lib/overlay.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
 function accountCard(ctx: Context): string {
@@ -341,8 +342,14 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
     }
     void save(url || undefined); // no URL: keep the channel, change only what it hears of
   });
-  onAll(root, '[data-teams-remove]', 'click', () => {
-    if (confirm('Stop posting warnings to the Teams channel?')) void save(null);
+  onAll(root, '[data-teams-remove]', 'click', async () => {
+    const yes = await confirmDialog({
+      title: 'Stop posting to the Teams channel?',
+      body: 'Warnings stop going to the channel. Its address isn’t kept: to post again, set it again.',
+      confirm: 'Stop posting',
+      tone: 'danger',
+    });
+    if (yes) void save(null);
   });
   const list = root.querySelector('[data-deliveries]');
   if (!list) return;
@@ -496,9 +503,15 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
         )
         .join('')}</tbody></table></div>`
     : '<p class="small soft">No agents registered for this site yet.</p>';
-  onAll(box, '[data-revoke-agent]', 'click', (el) => {
+  onAll(box, '[data-revoke-agent]', 'click', async (el) => {
     const name = el.dataset.agentName ?? '';
-    if (!confirm(`Revoke ${name}? Its token stops working at once.`)) return;
+    const yes = await confirmDialog({
+      title: `Revoke ${name}?`,
+      body: 'Its token stops working at once, and the agent stops sending readings.',
+      confirm: 'Revoke',
+      tone: 'danger',
+    });
+    if (!yes) return;
     api.agents.revoke(site.id, el.dataset.revokeAgent ?? '').then(
       () => {
         ctx.toast(`Revoked ${name}`);
@@ -628,8 +641,15 @@ const view: View = {
     onSubmit(root, '#org-sign-in-form', (form) => void ctx.auth.signIn(field(form, 'org')));
     onAll(root, '[data-sign-out]', 'click', () => void ctx.auth.signOut());
     void bindOrgSignIn(root, ctx);
-    onAll(root, '[data-reset]', 'click', () => {
-      if (confirm('Reset ontology history, design runs and chat to the demo defaults?')) ctx.reset();
+    onAll(root, '[data-reset]', 'click', async () => {
+      const yes = await confirmDialog({
+        title: 'Reset this browser’s workspace?',
+        body: 'Ontology history, design runs and chat go back to the demo defaults. This can’t be undone.',
+        confirm: 'Reset workspace',
+        tone: 'danger',
+        typeToConfirm: 'reset',
+      });
+      if (yes) ctx.reset();
     });
   },
 };

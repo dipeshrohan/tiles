@@ -1,6 +1,7 @@
 // Types shared by the app shell and the page views.
 
 import type { IconName } from '../lib/icons.ts';
+import type { ToastOptions } from '../lib/toaster.ts';
 import type { ApiClient, AuthConfig, DataSource, Membership, Site } from '../lib/api.ts';
 import type { OntologyStore } from '../lib/ontology-store.ts';
 import type { CutterBatch, Detection, Graph, Repo, Run, ScoredEvent, ShotHistory, WeldData } from '../lib/types.ts';
@@ -43,7 +44,8 @@ export interface Context {
   update(mutate: (state: AppState) => void, options?: { rerender?: boolean }): void;
   ui<T extends object>(viewId: string, defaults: T): T;
   rerender(): void;
-  toast(message: string): void;
+  // A toast: `type` (success, error…) picks its icon; `action` adds a button (Undo, Retry).
+  toast(message: string, opts?: ToastOptions): void;
   reset(): void;
   // Where shared data lives; see DataSource in js/lib/api.ts.
   readonly dataSource: DataSource;

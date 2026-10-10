@@ -13,6 +13,7 @@ import {
 import type { CopilotConversation } from '../lib/api.ts';
 import { esc, need, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
+import { confirmDialog } from '../lib/overlay.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
 // answer streamed in with the tools it used (expandable, each citation linked to its result and
@@ -273,9 +274,16 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
     rating = null;
     ctx.rerender();
   });
-  onAll(root, '[data-delete-conversation]', 'click', () => {
+  onAll(root, '[data-delete-conversation]', 'click', async () => {
     const id = ui.conversation;
-    if (!ctx.api || !site || !id || !confirm('Delete this conversation?')) return;
+    if (!ctx.api || !site || !id) return;
+    const yes = await confirmDialog({
+      title: 'Delete this conversation?',
+      body: 'Its questions and answers are deleted for good.',
+      confirm: 'Delete',
+      tone: 'danger',
+    });
+    if (!yes) return;
     ctx.api.copilot.remove(site, id).then(
       () => {
         ui.conversation = null;
