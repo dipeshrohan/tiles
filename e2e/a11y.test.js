@@ -72,6 +72,16 @@ async function audit(page) {
   // axe goes in as an inline script, which the app's Content-Security-Policy refuses (as it should):
   // pages that run it bypass the policy, for the test's script only.
   if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ path: AXE });
+  // Colours are checked as the page settles: a page fades in when it opens, and axe would measure
+  // text half way there. Endless animations (a spinner) aren't waited for.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished.catch(() => {})),
+    ),
+  );
   const found = await page.evaluate(
     async ([rules, practices]) => {
       const wcag = await window.axe.run(document, rules);

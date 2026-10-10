@@ -10,7 +10,7 @@ const uiState = (ctx: Context) =>
 const view: View = {
   id: 'physics',
   title: 'Factory physics',
-  icon: '∿',
+  icon: 'atom',
   render(ctx) {
     const { shots, detection, scored } = ctx.state;
     const ui = uiState(ctx);

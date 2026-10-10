@@ -270,7 +270,7 @@ async function save(ctx: Context, form: HTMLFormElement): Promise<void> {
 const view: View = {
   id: 'apps',
   title: 'App Studio',
-  icon: '▦',
+  icon: 'layout-grid',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data · Apps</div><h1>App Studio</h1>
         <p class="soft">Checks set up from templates, without code: a tool's wear, a process's control limits. Each one runs on a signal's latest readings when you open it.</p></div></div>`;

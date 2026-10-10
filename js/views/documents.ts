@@ -153,7 +153,7 @@ function listCard(ctx: Context): string {
 const view: View = {
   id: 'documents',
   title: 'Documents',
-  icon: '▤',
+  icon: 'file-text',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data · Knowledge</div><h1>Documents</h1>
         <p class="soft">SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page.</p></div></div>`;

@@ -18,7 +18,7 @@ const uiState = (ctx: Context) => ctx.ui<QualityUi>('quality', { split: true, va
 const view: View = {
   id: 'quality',
   title: 'Process & quality',
-  icon: '⌁',
+  icon: 'gauge',
   render(ctx) {
     const ui = uiState(ctx);
     const rows = ctx.state.batches;

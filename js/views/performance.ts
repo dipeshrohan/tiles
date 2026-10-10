@@ -123,7 +123,7 @@ function eventsCard(r: PerformanceReport): string {
 const view: View = {
   id: 'performance',
   title: 'Warning performance',
-  icon: '◎',
+  icon: 'target',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warning performance</h1>
         <p class="soft">How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead.</p></div></div>`;

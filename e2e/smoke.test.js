@@ -88,6 +88,25 @@ test('works when index.html is opened from disk', async () => {
   await page.close();
 });
 
+test('a page fades in when it opens, once: not on a re-render or another record on it', async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/plant`);
+  await page.waitForSelector('#view h1');
+  const entering = () => page.evaluate(() => document.querySelector('#view').classList.contains('view-enter'));
+  assert.equal(await entering(), true);
+  await page.waitForFunction(() => !document.querySelector('#view').classList.contains('view-enter'));
+  await rerender(page);
+  assert.equal(await entering(), false); // a refresh of the same page doesn't move
+  await page.goto(`${httpBase}#/plant/m-dc02`);
+  await page.waitForSelector('#view h1:has-text("DC-02")');
+  assert.equal(await entering(), false); // nor does another place on it
+  await page.goto(`${httpBase}#/warnings`);
+  await page.waitForSelector('#view h1:has-text("Warnings")');
+  assert.equal(await entering(), true);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('copilot answers a suggested question with its steps', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/chat`);

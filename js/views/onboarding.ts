@@ -187,7 +187,7 @@ function dashboardStep(data: Onboarding): string {
 const view: View = {
   id: 'onboarding',
   title: 'Set up a site',
-  icon: '◔',
+  icon: 'rocket',
   render(ctx) {
     const site = ctx.ontology.site;
     const head = `<div class="page-head"><div><div class="eyebrow">Settings · onboarding</div><h1>Set up ${esc(site?.name ?? 'a site')}</h1>

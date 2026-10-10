@@ -179,7 +179,7 @@ async function resolve(ctx: Context, id: string, outcome: WarningOutcome): Promi
 const view: View = {
   id: 'shopfloor',
   title: 'Shopfloor',
-  icon: '▣',
+  icon: 'hard-hat',
   render(ctx) {
     const ui = uiState(ctx);
     const site = ctx.ontology.site?.name ?? (ctx.api ? '' : 'Demo plant');
