@@ -19,7 +19,7 @@ jobs:
     # A hung step (e.g. a stalled download) fails the job instead of running for hours.
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -38,7 +38,7 @@ jobs:
       matrix:
         node: [22, 24]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
@@ -51,7 +51,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -72,7 +72,7 @@ jobs:
     env:
       HOME: /root
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: npm ci
       - run: node --test --test-concurrency=1 e2e/visual/visual.test.js
       - name: Upload the differences
@@ -108,7 +108,7 @@ jobs:
     env:
       TILES_TEST_DATABASE_URL: postgresql://tiles:tiles-ci@localhost:5432/tiles
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -166,7 +166,7 @@ jobs:
       # Trivy's vulnerability database from Google's mirror, which rate-limits CI less than ghcr.io.
       TRIVY_DB_REPOSITORY: mirror.gcr.io/aquasec/trivy-db:2
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/docker-hub-mirror
         with:
           images: >-
@@ -241,7 +241,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/docker-hub-mirror
         with:
           images: >-
@@ -270,7 +270,7 @@ jobs:
         --set url=http://localhost:5173 --set apiUrl=http://localhost:8000
         --set sandbox.enabled=true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/docker-hub-mirror
         with:
           images: >-
@@ -432,7 +432,7 @@ jobs:
       TILES_ANTHROPIC_API_KEY: ${{ secrets.TILES_ANTHROPIC_API_KEY }}
       TILES_COPILOT_MODEL: ${{ vars.TILES_COPILOT_MODEL }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
@@ -457,7 +457,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Google's mirror of Docker Hub, which rate-limits CI less.
       - name: The alert rules fire when they should (promtool)
         run: |
@@ -480,7 +480,7 @@ jobs:
       run:
         working-directory: deploy/terraform
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.16.3
@@ -509,7 +509,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/docker-hub-mirror
         with:
           images: >-
@@ -605,7 +605,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/docker-hub-mirror
         with:
           images: >-
