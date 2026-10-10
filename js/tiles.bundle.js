@@ -1748,6 +1748,7 @@
 		"upload": "<path d=\"M12 3v12\" /><path d=\"m17 8-5-5-5 5\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />",
 		"rocket": "<path d=\"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5\" /><path d=\"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09\" /><path d=\"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z\" /><path d=\"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05\" />",
 		"settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
+		"palette": "<path d=\"M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z\" /><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
 		"menu": "<path d=\"M4 5h16\" /><path d=\"M4 12h16\" /><path d=\"M4 19h16\" />",
 		"x": "<path d=\"M18 6 6 18\" /><path d=\"m6 6 12 12\" />",
 		"sun": "<circle cx=\"12\" cy=\"12\" r=\"4\" /><path d=\"M12 2v2\" /><path d=\"M12 20v2\" /><path d=\"m4.93 4.93 1.41 1.41\" /><path d=\"m17.66 17.66 1.41 1.41\" /><path d=\"M2 12h2\" /><path d=\"M20 12h2\" /><path d=\"m6.34 17.66-1.41 1.41\" /><path d=\"m19.07 4.93-1.41 1.41\" />",
@@ -1810,7 +1811,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$19 = {
+	var view$20 = {
 		id: "home",
 		title: "Home",
 		icon: "house",
@@ -2463,14 +2464,16 @@
 	function illustration(name, size = 160) {
 		return `<svg class="illustration" viewBox="0 0 160 120" width="${size}" height="${Math.round(size * 3 / 4)}" aria-hidden="true" focusable="false">${SCENES[name]}</svg>`;
 	}
+	var ILLUSTRATIONS = Object.keys(SCENES);
 	//#endregion
 	//#region js/lib/ui.ts
 	function emptyState(o) {
 		const body = o.bodyHtml ?? (o.body ? esc(o.body) : "");
-		return `<div class="empty empty-state${o.compact ? " compact" : ""}"${o.alert ? " role=\"alert\"" : ""}>${o.illustration ? illustration(o.illustration, o.compact ? 112 : 160) : ""}<h2 class="empty-title">${esc(o.title)}</h2>${body ? `<p>${body}</p>` : ""}${o.action ? `<div class="empty-action">${o.action}</div>` : ""}</div>`;
+		return `<div class="empty empty-state${o.compact ? " compact" : ""}"${o.alert ? " role=\"alert\"" : ""}>${o.illustration ? illustration(o.illustration, o.compact ? 112 : 160) : ""}<h${o.level ?? 2} class="empty-title">${esc(o.title)}</h${o.level ?? 2}>${body ? `<p>${body}</p>` : ""}${o.action ? `<div class="empty-action">${o.action}</div>` : ""}</div>`;
 	}
-	function needsApi(bodyHtml) {
+	function needsApi(bodyHtml, level) {
 		return emptyState({
+			level,
 			illustration: "connect",
 			title: "Connect to the Tiles API",
 			bodyHtml,
@@ -2539,12 +2542,37 @@
 			if (label) el.innerHTML = label.innerHTML;
 		}
 	}
+	function iconButton(name, label, o = {}) {
+		return `<button${attrs({
+			class: buttonClass(o, "icon"),
+			type: o.type ?? "button",
+			"aria-label": label,
+			"data-tooltip": label,
+			disabled: o.disabled,
+			...o.attrs
+		})}>${icon(name)}</button>`;
+	}
+	function linkButton(label, href, o = {}) {
+		return `<a${attrs({
+			class: buttonClass(o),
+			href,
+			...o.attrs
+		})}>${o.icon ? `${icon(o.icon)} ` : ""}${esc(label)}</a>`;
+	}
 	function badge$1(text, tone = "", o = {}) {
 		return `<span${attrs({
 			class: classes("badge", tone),
 			title: o.title,
 			...o.attrs
 		})}>${esc(text)}</span>`;
+	}
+	function chip(label, o = {}) {
+		return `<button${attrs({
+			class: "chip",
+			type: "button",
+			"aria-pressed": o.pressed === void 0 ? void 0 : String(o.pressed),
+			...o.attrs
+		})}>${esc(label)}</button>`;
 	}
 	function card$1(bodyHtml, o = {}) {
 		return `<div${attrs({
@@ -2560,7 +2588,8 @@
 		}).join("")}</ol>`;
 	}
 	function pageHead(o) {
-		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<h1>${esc(o.title)}</h1>${o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
+		const h = `h${o.level ?? 1}`;
+		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<${h} class="page-title">${esc(o.title)}</${h}>${o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
 	}
 	function input(o) {
 		return `<input${attrs({
@@ -2622,7 +2651,8 @@
 		return emptyState({
 			illustration: "error",
 			compact: o.compact,
-			alert: true,
+			alert: o.alert ?? true,
+			level: o.level,
 			title: o.title,
 			body: o.body,
 			action: o.retry ? button("Try again", {
@@ -2953,7 +2983,7 @@
 		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 	}
 	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$10(ctx) && remote$1?.configured && remote$1.enabled);
-	var view$18 = {
+	var view$19 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "sparkles",
@@ -3805,7 +3835,7 @@
       <span class="row gap-2">${empty ? "<button class=\"btn sm primary\" data-import-demo>Load demo ontology</button>" : ""}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === "viewer" ? "" : `<label class="btn sm" ${staged.length ? "aria-disabled=\"true\" title=\"Commit or discard your staged changes first\"" : ""}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? "disabled" : ""} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
     </div>`;
 	}
-	var view$17 = {
+	var view$18 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "network",
@@ -4418,7 +4448,7 @@
 		split: true,
 		variable: "tension"
 	});
-	var view$16 = {
+	var view$17 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "gauge",
@@ -4558,7 +4588,7 @@
 	//#endregion
 	//#region js/views/physics.ts
 	var uiState$10 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$15 = {
+	var view$16 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "atom",
@@ -4936,7 +4966,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$14 = {
+	var view$15 = {
 		id: "design",
 		title: "Design studio",
 		icon: "drafting-compass",
@@ -5260,7 +5290,7 @@
 			share: limit ? Math.min(1, used / limit) : null
 		};
 	}
-	function tokens(n) {
+	function tokens$1(n) {
 		if (n < 1e3) return String(n);
 		const k = +(n / 1e3).toPrecision(3);
 		return k < 1e3 ? `${k}k` : `${+(n / 1e6).toPrecision(3)}M`;
@@ -5548,16 +5578,16 @@
 		const b = budgetToday(u);
 		const l = u.limits;
 		const limit = (n, what) => n ? `${fmt$1(n)} ${what}` : `no limit on ${what}`;
-		const budget = b.limit === null ? `Today the organisation has used ${esc(tokens(b.used))} tokens (no daily limit).` : `Today the organisation has used ${esc(tokens(b.used))} of its ${esc(tokens(b.limit))} tokens (${esc(percent$1(b.share))}); this site ${esc(tokens(u.today.site_billed_tokens))}.`;
-		const days = u.days.length ? `<div class="table-wrap"><table><thead><tr><th>Day</th><th>Questions</th><th>Answered</th><th>Failed</th><th>Over budget</th><th>Ungrounded</th><th>Tokens</th><th>From cache</th><th>First text (median · 95%)</th><th>Whole answer (median · 95%)</th></tr></thead><tbody>${u.days.map((d) => `<tr><td>${esc(d.day)}</td><td>${fmt$1(d.questions)}</td><td>${fmt$1(d.answered)}</td><td>${fmt$1(d.failed)}</td><td>${fmt$1(d.over_budget)}</td><td>${fmt$1(d.ungrounded)}</td><td>${esc(tokens(d.billed_tokens))}</td><td>${esc(percent$1(cacheShare(d)))}</td><td>${esc(duration$2(d.first_text_p50_ms))} · ${esc(duration$2(d.first_text_p95_ms))}</td><td>${esc(duration$2(d.total_p50_ms))} · ${esc(duration$2(d.total_p95_ms))}</td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No questions in the last 30 days.</p>";
-		const users = u.users.length ? `<div class="table-wrap"><table><thead><tr><th>Who</th><th>Questions</th><th>Tokens</th></tr></thead><tbody>${u.users.map((p) => `<tr><td>${esc(p.user)} <span class="soft small">${esc(p.email)}</span></td><td>${fmt$1(p.questions)}</td><td>${esc(tokens(p.billed_tokens))}</td></tr>`).join("")}</tbody></table></div>` : "";
+		const budget = b.limit === null ? `Today the organisation has used ${esc(tokens$1(b.used))} tokens (no daily limit).` : `Today the organisation has used ${esc(tokens$1(b.used))} of its ${esc(tokens$1(b.limit))} tokens (${esc(percent$1(b.share))}); this site ${esc(tokens$1(u.today.site_billed_tokens))}.`;
+		const days = u.days.length ? `<div class="table-wrap"><table><thead><tr><th>Day</th><th>Questions</th><th>Answered</th><th>Failed</th><th>Over budget</th><th>Ungrounded</th><th>Tokens</th><th>From cache</th><th>First text (median · 95%)</th><th>Whole answer (median · 95%)</th></tr></thead><tbody>${u.days.map((d) => `<tr><td>${esc(d.day)}</td><td>${fmt$1(d.questions)}</td><td>${fmt$1(d.answered)}</td><td>${fmt$1(d.failed)}</td><td>${fmt$1(d.over_budget)}</td><td>${fmt$1(d.ungrounded)}</td><td>${esc(tokens$1(d.billed_tokens))}</td><td>${esc(percent$1(cacheShare(d)))}</td><td>${esc(duration$2(d.first_text_p50_ms))} · ${esc(duration$2(d.first_text_p95_ms))}</td><td>${esc(duration$2(d.total_p50_ms))} · ${esc(duration$2(d.total_p95_ms))}</td></tr>`).join("")}</tbody></table></div>` : "<p class=\"small soft\">No questions in the last 30 days.</p>";
+		const users = u.users.length ? `<div class="table-wrap"><table><thead><tr><th>Who</th><th>Questions</th><th>Tokens</th></tr></thead><tbody>${u.users.map((p) => `<tr><td>${esc(p.user)} <span class="soft small">${esc(p.email)}</span></td><td>${fmt$1(p.questions)}</td><td>${esc(tokens$1(p.billed_tokens))}</td></tr>`).join("")}</tbody></table></div>` : "";
 		return `<p data-copilot-budget>${budget}</p>
     <div class="row gap-6 wrap" data-copilot-totals>
       <div><div class="small soft">Questions</div><strong>${fmt$1(t.questions)}</strong></div>
       <div><div class="small soft">Answered</div><strong>${fmt$1(t.answered)}</strong></div>
       <div><div class="small soft">Failed</div><strong>${fmt$1(t.failed)}</strong></div>
       <div><div class="small soft">Over budget</div><strong>${fmt$1(t.overBudget)}</strong></div>
-      <div><div class="small soft">Tokens</div><strong>${esc(tokens(t.billed))}</strong></div>
+      <div><div class="small soft">Tokens</div><strong>${esc(tokens$1(t.billed))}</strong></div>
       <div><div class="small soft">From cache</div><strong>${esc(percent$1(t.cacheShare))}</strong></div>
     </div>
     ${days}${users}
@@ -5846,7 +5876,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$13 = {
+	var view$14 = {
 		id: "settings",
 		title: "Settings",
 		icon: "settings",
@@ -5888,6 +5918,11 @@
         ${ctx.ontology.role === "admin" && ctx.ontology.site ? copilotPolicyCard() : ""}
         ${ctx.ontology.role === "admin" ? copilotUsageCard() : ""}
         ${ctx.ontology.role === "admin" ? auditCard() : ""}
+        <div class="card stack gap-3" id="about">
+          <h2>About</h2>
+          <p class="small soft">Tiles works from this browser on its own, or with the Tiles API for a shared site. Press Ctrl K (⌘ K on a Mac) or / to find any page or action.</p>
+          <div>${linkButton("Style guide", "#/styleguide", { icon: "palette" })}</div>
+        </div>
       </div>`;
 		},
 		bind(root, ctx) {
@@ -5964,13 +5999,13 @@
 			});
 		}
 	};
-	var STATUS$2 = {
+	var STATUS$3 = {
 		proposed: ["warn", "Waiting for review"],
 		accepted: ["good", "Accepted"],
 		rejected: ["bad", "Rejected"]
 	};
 	function statusBadge$3(status) {
-		const [cls, text] = STATUS$2[status];
+		const [cls, text] = STATUS$3[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
 	function parseActions(text) {
@@ -6600,7 +6635,7 @@
 			})();
 		});
 	}
-	var view$12 = {
+	var view$13 = {
 		id: "signals",
 		title: "Signals",
 		icon: "activity",
@@ -7079,7 +7114,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$11 = {
+	var view$12 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "chart-line",
@@ -7224,14 +7259,14 @@
 	});
 	var listKey$3 = (ctx) => `${siteId$9(ctx)}|${uiState$8(ctx).state}`;
 	var detailKey$2 = (ctx) => `${siteId$9(ctx)}|${uiState$8(ctx).selected}`;
-	var STATUS$1 = {
+	var STATUS$2 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
 		rejected: ["bad", "Rejected"],
 		withdrawn: ["", "Withdrawn"]
 	};
 	function statusBadge$2(status) {
-		const [cls, text] = STATUS$1[status];
+		const [cls, text] = STATUS$2[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
 	function stats(s) {
@@ -7286,7 +7321,7 @@
 		const canWrite = o.role !== null && o.role !== "viewer";
 		const decide = mayDecide(r, o.userId, o.role);
 		const mine = r.author_id !== null && r.author_id === o.userId;
-		const outcome = r.status === "approved" && r.commit_id ? `<p class="small">Committed as <a class="mono" href="#/ontology" data-history>${esc(r.commit_id.slice(-7))}</a> by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : r.status !== "open" ? `<p class="small soft">${STATUS$1[r.status][1]} by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : "";
+		const outcome = r.status === "approved" && r.commit_id ? `<p class="small">Committed as <a class="mono" href="#/ontology" data-history>${esc(r.commit_id.slice(-7))}</a> by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : r.status !== "open" ? `<p class="small soft">${STATUS$2[r.status][1]} by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : "";
 		const waiting = open && !decide && canWrite && !mine && r.reviewer ? `<p class="small soft">Waiting for ${esc(r.reviewer)} (or an admin) to review it.</p>` : "";
 		return `
     <div class="card" data-review-detail>
@@ -7409,7 +7444,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$10 = {
+	var view$11 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "git-pull-request",
@@ -7502,7 +7537,7 @@
 		resolved: "Resolved",
 		all: "All"
 	};
-	var STATUS = {
+	var STATUS$1 = {
 		raised: ["bad", "New"],
 		acknowledged: ["warn", "Acknowledged"],
 		resolved: ["good", "Resolved"]
@@ -7631,7 +7666,7 @@
 	var detailKey$1 = (ctx) => `${siteId$8(ctx)}|${uiState$7(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function statusBadge$1(w) {
-		const [cls, label] = STATUS[w.status];
+		const [cls, label] = STATUS$1[w.status];
 		return badge$1(label, cls);
 	}
 	var signalState = (w) => w.ended_at ? `back ${ago(w.ended_at)}` : "<b>still out</b>";
@@ -7942,7 +7977,7 @@
 		});
 		location.hash = "#/warnings";
 	}
-	var view$9 = {
+	var view$10 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "triangle-alert",
@@ -8427,7 +8462,7 @@
 		}
 		await fetchWarnings(ctx, true);
 	}
-	var view$8 = {
+	var view$9 = {
 		id: "shopfloor",
 		title: "Shopfloor",
 		icon: "hard-hat",
@@ -8723,7 +8758,7 @@
 		const rows = findPlaces(graph, query).map((h) => `<li><a href="${placeLink(h.id)}" data-place="${esc(h.id)}">${esc(h.label)}</a> <span class="small soft">${esc(h.type)}${h.path.length ? ` · ${esc(h.path.join(" › "))}` : ""}</span></li>`).join("");
 		return `<div class="card" data-plant-results>${rows ? `<ul class="plant-list">${rows}</ul>` : `<p class="small">No place is called “${esc(query)}”.</p>`}</div>`;
 	}
-	var view$7 = {
+	var view$8 = {
 		id: "plant",
 		title: "Plant",
 		icon: "factory",
@@ -9053,7 +9088,7 @@ heartbeat_seconds = 30
     </p>
     ${data.next === null ? "<p role=\"status\"><b>This site is set up.</b> Next, add detectors to raise warnings (Warnings page) and invite the team.</p>" : ""}`;
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "onboarding",
 		title: "Set up a site",
 		icon: "rocket",
@@ -9185,6 +9220,425 @@ heartbeat_seconds = 30
 				}
 				await load$3(ctx);
 			})());
+		}
+	};
+	//#endregion
+	//#region js/lib/styleguide.ts
+	var TOKEN_GROUPS = [
+		{
+			id: "surfaces",
+			title: "Surfaces and text",
+			kind: "colour",
+			note: "Page, panels and lines; ink for text. --muted and --soft meet 4.5:1 on panels.",
+			tokens: [
+				"--bg",
+				"--panel",
+				"--panel-2",
+				"--ink",
+				"--muted",
+				"--soft",
+				"--line",
+				"--line-strong",
+				"--hover"
+			]
+		},
+		{
+			id: "accents",
+			title: "Accent and states",
+			kind: "colour",
+			note: "The accent for actions and the current place; bad, warn and good for states, with soft backgrounds. Text in warn colour uses --warn-ink.",
+			tokens: [
+				"--accent",
+				"--accent-hover",
+				"--accent-ink",
+				"--accent-soft",
+				"--accent-soft-hover",
+				"--ring",
+				"--warm",
+				"--bad",
+				"--bad-ink",
+				"--bad-line",
+				"--bad-soft",
+				"--band",
+				"--warn",
+				"--warn-ink",
+				"--warn-soft",
+				"--good",
+				"--good-soft",
+				"--control-shadow",
+				"--tab-shadow"
+			]
+		},
+		{
+			id: "hero",
+			title: "Hero",
+			kind: "colour",
+			note: "The Home hero is dark teal in both themes.",
+			tokens: [
+				"--hero-from",
+				"--hero-to",
+				"--hero-ink",
+				"--hero-soft",
+				"--hero-line",
+				"--hero-surface",
+				"--hero-surface-line",
+				"--hero-pill"
+			]
+		},
+		{
+			id: "space",
+			title: "Spacing",
+			kind: "space",
+			note: "A 4 px scale with half steps: --space-N is N × 4 px. Utilities use the same steps (.gap-2, .mt-3).",
+			tokens: [
+				"--space-px",
+				"--space-0_5",
+				"--space-1",
+				"--space-1_5",
+				"--space-2",
+				"--space-2_5",
+				"--space-3",
+				"--space-3_5",
+				"--space-4",
+				"--space-5",
+				"--space-6",
+				"--space-7",
+				"--space-8"
+			]
+		},
+		{
+			id: "type",
+			title: "Type",
+			kind: "text",
+			note: "Sizes for text; body text is --text-base.",
+			tokens: [
+				"--text-2xs",
+				"--text-xs",
+				"--text-sm",
+				"--text-base",
+				"--text-md",
+				"--text-lg",
+				"--text-xl",
+				"--text-2xl",
+				"--text-3xl",
+				"--text-4xl",
+				"--text-5xl"
+			]
+		},
+		{
+			id: "leading",
+			title: "Line height and fonts",
+			kind: "value",
+			note: "Line heights, and the text and code fonts.",
+			tokens: [
+				"--leading-none",
+				"--leading-snug",
+				"--leading-tight",
+				"--leading",
+				"--font",
+				"--mono"
+			]
+		},
+		{
+			id: "radius",
+			title: "Radii",
+			kind: "radius",
+			note: "--radius is the default for controls.",
+			tokens: [
+				"--radius-xs",
+				"--radius-sm",
+				"--radius-md",
+				"--radius-lg",
+				"--radius-xl",
+				"--radius-full",
+				"--radius"
+			]
+		},
+		{
+			id: "shadow",
+			title: "Shadows",
+			kind: "shadow",
+			note: "Cards use --shadow (the first step); menus and dialogs the higher ones.",
+			tokens: [
+				"--shadow-1",
+				"--shadow-2",
+				"--shadow-3",
+				"--shadow"
+			]
+		},
+		{
+			id: "layers",
+			title: "Layers and motion",
+			kind: "value",
+			note: "z-index for what sits above the page; durations and easings for transitions (off with reduced motion).",
+			tokens: [
+				"--z-raised",
+				"--z-nav",
+				"--z-dialog",
+				"--z-toast",
+				"--z-tooltip",
+				"--z-top",
+				"--dur-fast",
+				"--dur",
+				"--dur-slow",
+				"--ease-out",
+				"--ease-in"
+			]
+		}
+	];
+	var STATUS = [["todo", "To do"], ["all", "All"]];
+	var COMPONENTS = [
+		{
+			title: "Buttons",
+			code: `button('Save', { variant: 'primary', type: 'submit' })
+button('Cancel')
+button('Archive', { variant: 'danger', size: 'sm' })
+button('Delete', { variant: 'destructive' })
+button('More', { variant: 'ghost' })
+button('Retry', { icon: 'refresh-cw', disabled: true })`,
+			html: () => `<div class="row gap-2 wrap">${[
+				button("Save", {
+					variant: "primary",
+					type: "submit"
+				}),
+				button("Cancel"),
+				button("Archive", {
+					variant: "danger",
+					size: "sm"
+				}),
+				button("Delete", { variant: "destructive" }),
+				button("More", { variant: "ghost" }),
+				button("Retry", {
+					icon: "refresh-cw",
+					disabled: true
+				})
+			].join("")}</div>`
+		},
+		{
+			title: "Icon buttons and links",
+			code: `iconButton('x', 'Close')   // named, and a tooltip
+linkButton('Open Settings', '#/settings', { icon: 'settings' })`,
+			html: () => `<div class="row gap-2 wrap">${iconButton("x", "Close")}${linkButton("Open Settings", "#/settings", { icon: "settings" })}</div>`
+		},
+		{
+			title: "Badges and chips",
+			code: `badge('New', 'bad')  // tones: good, bad, warn, accent, info or none
+chip('Machines', { pressed: true })`,
+			html: () => `<div class="row gap-2 wrap">${badge$1("Plain")}${badge$1("Resolved", "good")}${badge$1("New", "bad")}${badge$1("Acknowledged", "warn")}${badge$1("Link to", "accent")}${chip("Machines", { pressed: true })}${chip("Lines", { pressed: false })}</div>`
+		},
+		{
+			title: "Fields",
+			code: `field('Unit', input({ name: 'unit', placeholder: 'e.g. °C' }), { hint: 'As the PLC reports it' })
+field('Source', select('source', [['', 'Any'], ['edge', 'Edge agents']], ''))
+field('Assigned to', select(null, people, current), { inline: true })`,
+			html: () => `<div class="row gap-3 wrap items-end">${field("Unit", input({
+				name: "sg-unit",
+				placeholder: "e.g. °C"
+			}), { hint: "As the PLC reports it" })}${field("Source", select("sg-source", [["", "Any"], ["edge", "Edge agents"]], ""))}${field("Assigned to", select(null, [["me", "me"], ["none", "nobody"]], "me"), { inline: true })}</div>`
+		},
+		{
+			title: "Filter tabs",
+			code: `tabs({ label: 'Status', items: [['todo', 'To do'], ['all', 'All']], current: 'todo', data: 'show' })`,
+			html: () => tabs({
+				label: "Status",
+				items: STATUS,
+				current: "todo",
+				data: "sg-show"
+			})
+		},
+		{
+			title: "Card",
+			code: `card('<h2>Documents</h2><p class="small soft">…</p>', { class: 'stack gap-2' })`,
+			html: () => card$1("<h2>Documents</h2><p class=\"small soft\">SOPs and manuals, searched by their words.</p>", { class: "stack gap-2" })
+		},
+		{
+			title: "Tables",
+			code: `table({ headers: ['Tag', 'Unit', { label: 'Actions', srOnly: true }], rowsHtml })
+kv([['Peak', '3,580 N'], ['Baseline', '1,800 N']], { valueClass: 'mono' })`,
+			html: () => `${table({
+				headers: [
+					"Tag",
+					"Unit",
+					{
+						label: "Actions",
+						srOnly: true
+					}
+				],
+				rowsHtml: `<tr><td><code>press1.temperature</code></td><td>°C</td><td>${button("Edit", { size: "sm" })}</td></tr>`
+			})}${kv([["Peak", "3,580 N"], ["Baseline", "1,800 N"]], { valueClass: "mono" })}`
+		},
+		{
+			title: "Page head",
+			code: `pageHead({ eyebrow: 'Data', title: 'Signals', lead: 'Every tag with readings…', actionsHtml })`,
+			html: () => pageHead({
+				eyebrow: "Data",
+				title: "Signals",
+				lead: "Every tag with readings on this site.",
+				actionsHtml: button("Refresh"),
+				level: 4
+			})
+		}
+	];
+	var STATES = [
+		{
+			title: "Empty",
+			code: `emptyState({ illustration: 'inbox', title: 'No apps yet', body: 'Make one from a template.', action })`,
+			html: () => emptyState({
+				illustration: "inbox",
+				compact: true,
+				level: 4,
+				title: "No apps yet",
+				body: "Make one from a template.",
+				action: button("New app", {
+					variant: "primary",
+					size: "sm"
+				})
+			})
+		},
+		{
+			title: "Error",
+			code: `errorState({ title: 'The documents could not be loaded', retry: 'retry-docs' })`,
+			html: () => errorState({
+				title: "The documents could not be loaded",
+				retry: "sg-retry",
+				compact: true,
+				alert: false,
+				level: 4
+			})
+		},
+		{
+			title: "Loading",
+			code: `loadingState('Loading the signal…', 3)`,
+			html: () => loadingState("Loading the signal…", 3)
+		},
+		{
+			title: "Needs the API",
+			code: "needsApi(`Documents are kept by the Tiles API.`)",
+			html: () => needsApi("Documents are kept by the Tiles API.", 4)
+		}
+	];
+	//#endregion
+	//#region js/views/styleguide.ts
+	var SCHEMES = [["light", "Light"], ["dark", "Dark"]];
+	function sample(g, token) {
+		const set = (prop) => `data-sg-prop="${prop}" data-sg-token="${esc(token)}"`;
+		switch (g.kind) {
+			case "colour": return `<span class="sg-swatch" ${set("background")}></span>`;
+			case "space": return `<span class="sg-bar" ${set("width")}></span>`;
+			case "text": return `<span class="sg-text" ${set("font-size")}>Aa</span>`;
+			case "radius": return `<span class="sg-box" ${set("border-radius")}></span>`;
+			case "shadow": return `<span class="sg-box" ${set("box-shadow")}></span>`;
+			default: return "";
+		}
+	}
+	function tokens(g) {
+		const themed = g.kind === "colour" || g.kind === "shadow";
+		const rows = g.tokens.map((t) => {
+			const cells = themed ? SCHEMES.map(([s]) => `<td class="sg-scheme ${s}">${sample(g, t)}</td>`).join("") : `<td>${sample(g, t)}</td>`;
+			return `<tr><th scope="row"><code>${esc(t)}</code></th>${cells}<td class="small soft mono" data-sg-value="${esc(t)}"></td></tr>`;
+		}).join("");
+		const heads = themed ? SCHEMES.map(([, l]) => `<th scope="col">${l}</th>`).join("") : "<th scope=\"col\">Sample</th>";
+		return `<section class="card stack gap-2" aria-labelledby="sg-${g.id}">
+      <h3 id="sg-${g.id}">${esc(g.title)}</h3><p class="small soft">${esc(g.note)}</p>
+      <div class="table-wrap"><table class="sg-tokens"><thead><tr><th scope="col">Token</th>${heads}<th scope="col">Value</th></tr></thead><tbody>${rows}</tbody></table></div>
+    </section>`;
+	}
+	function example(e) {
+		const html = e.html();
+		return `<section class="card stack gap-2" aria-label="${esc(e.title)}">
+      <h3>${esc(e.title)}</h3>
+      <div class="sg-pair">${SCHEMES.map(([s, l]) => `<div class="sg-scheme ${s}"><span class="sg-scheme-name">${l}</span>${html}</div>`).join("")}</div>
+      <pre class="sg-code"><code>${esc(e.code)}</code></pre>
+    </section>`;
+	}
+	var SECTIONS = [
+		["tokens", "Tokens"],
+		["components", "Components"],
+		["states", "States"],
+		["overlays", "Dialogs, toasts and tooltips"],
+		["icons", "Icons"],
+		["illustrations", "Illustrations"]
+	];
+	var view$6 = {
+		id: "styleguide",
+		title: "Style guide",
+		icon: "palette",
+		under: "settings",
+		render() {
+			const head = pageHead({
+				eyebrow: "Settings · About",
+				title: "Style guide",
+				lead: "The tokens, components and states pages are built from, in the light and the dark theme, with the code for each. Components come from js/lib/ui.ts, tokens from css/styles.css."
+			});
+			const jump = `<div class="row gap-2 wrap" role="group" aria-label="Sections">${SECTIONS.map(([id, l]) => button(l, {
+				size: "sm",
+				variant: "ghost",
+				attrs: { "data-jump": id }
+			})).join("")}</div>`;
+			const icons = Object.keys(ICONS).map((n) => `<li class="sg-icon">${icon(n, { size: 20 })}<code>${esc(n)}</code></li>`).join("");
+			const pictures = ILLUSTRATIONS.map((n) => `<li class="sg-illustration">${illustration(n, 120)}<code>${esc(n)}</code></li>`).join("");
+			return `${head}${jump}
+      <h2 class="mt-4 mb-2" id="sg-sec-tokens">Tokens</h2>
+      <div class="sg-grid">${TOKEN_GROUPS.map(tokens).join("")}</div>
+      <h2 class="mt-4 mb-2" id="sg-sec-components">Components</h2>
+      <div class="stack gap-3">${COMPONENTS.map(example).join("")}</div>
+      <h2 class="mt-4 mb-2" id="sg-sec-states">States</h2>
+      <div class="stack gap-3">${STATES.map(example).join("")}</div>
+      <h2 class="mt-4 mb-2" id="sg-sec-overlays">Dialogs, toasts and tooltips</h2>
+      ${card$1(`<p class="small soft">They open over the page: try them.</p>
+        <div class="row gap-2 wrap">
+          ${button("Open a dialog", { attrs: { "data-sg-dialog": true } })}
+          ${[
+				"success",
+				"info",
+				"warning",
+				"error"
+			].map((t) => button(`Show ${t}`, { attrs: { "data-sg-toast": t } })).join("")}
+          <button class="btn" type="button" data-tooltip="Says what it does">Point at me</button>
+        </div>
+        <pre class="sg-code"><code>${esc(`if (await confirmDialog({ title: 'Archive SOP 14?', body: 'It leaves the list and search.', confirm: 'Archive' })) …
+ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with their request ID
+<button … data-tooltip="Says what it does">`)}</code></pre>`, { class: "stack gap-2" })}
+      <h2 class="mt-4 mb-2" id="sg-sec-icons">Icons</h2>
+      ${card$1(`<p class="small soft">Lucide, drawn with the text colour: <code>icon('house')</code>, decorative unless given a <code>label</code>.</p><ul class="sg-icons">${icons}</ul>`, { class: "stack gap-2" })}
+      <h2 class="mt-4 mb-2" id="sg-sec-illustrations">Illustrations</h2>
+      ${card$1(`<p class="small soft">For empty, waiting and error states: <code>illustration('inbox')</code>, coloured by the theme.</p><ul class="sg-illustrations">${pictures}</ul>`, { class: "stack gap-2" })}`;
+		},
+		bind(root, ctx) {
+			for (const el of root.querySelectorAll("[data-sg-token]")) el.style.setProperty(el.dataset.sgProp ?? "background", `var(${el.dataset.sgToken})`);
+			const styles = getComputedStyle(document.documentElement);
+			for (const el of root.querySelectorAll("[data-sg-value]")) el.textContent = styles.getPropertyValue(el.dataset.sgValue ?? "").trim();
+			if (typeof CSS !== "undefined" && !CSS.supports("color", "light-dark(red, blue)")) root.querySelector(".page-head")?.insertAdjacentHTML("afterend", "<p class=\"card small\" role=\"note\">This browser shows one theme at a time: the Light and Dark samples both follow the page. Switch the theme to see the other.</p>");
+			onAll(root, "[data-sg-show]", "click", (el) => {
+				for (const b of el.parentElement?.querySelectorAll("[data-sg-show]") ?? []) {
+					b.classList.toggle("active", b === el);
+					b.setAttribute("aria-pressed", String(b === el));
+				}
+			});
+			onAll(root, ".sg-pair .chip", "click", (el) => el.setAttribute("aria-pressed", String(el.getAttribute("aria-pressed") !== "true")));
+			onAll(root, "[data-sg-retry]", "click", () => ctx.toast("Try again: a page would load it again here"));
+			onAll(root, "[data-jump]", "click", (el) => {
+				const target = root.querySelector(`#sg-sec-${el.dataset.jump}`);
+				target?.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+				target?.setAttribute("tabindex", "-1");
+				target?.focus({ preventScroll: true });
+			});
+			onAll(root, "[data-sg-dialog]", "click", async () => {
+				const yes = await confirmDialog({
+					title: "Archive SOP 14?",
+					body: "It leaves the list and search, and the copilot stops citing it.",
+					confirm: "Archive"
+				});
+				ctx.toast(yes ? "You chose Archive (nothing was archived)" : "You cancelled");
+			});
+			onAll(root, "[data-sg-toast]", "click", (el) => {
+				const type = el.dataset.sgToast;
+				ctx.toast(`A ${type} toast`, {
+					type,
+					description: type === "error" ? "Errors from the API stay until dismissed." : void 0,
+					requestId: type === "error" ? "req-000042" : void 0
+				});
+			});
 		}
 	};
 	//#endregion
@@ -11812,47 +12266,48 @@ heartbeat_seconds = 30
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$20,
 		view$19,
 		view$18,
-		view$17,
+		view$11,
 		view$10,
 		view$9,
 		view$8,
-		view$7,
 		view$5,
+		view$17,
 		view$16,
 		view$15,
-		view$14,
+		view$13,
 		view$12,
-		view$11,
 		view$4,
 		view$3,
 		view$2,
 		view$1,
 		view,
-		view$6,
-		view$13
+		view$7,
+		view$14,
+		view$6
 	];
 	var NAV = [
-		{ items: [view$19, view$18] },
+		{ items: [view$20, view$19] },
 		{
 			group: "Operations",
 			items: [
-				view$8,
-				view$7,
-				view$17,
-				view$10,
 				view$9,
+				view$8,
+				view$18,
+				view$11,
+				view$10,
 				view$5,
-				view$16,
-				view$15
+				view$17,
+				view$16
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$13,
 				view$12,
-				view$11,
 				view$4,
 				view$3,
 				view$2,
@@ -11862,11 +12317,11 @@ heartbeat_seconds = 30
 		},
 		{
 			group: "Design",
-			items: [view$14]
+			items: [view$15]
 		},
 		{
 			group: "",
-			items: [view$6, view$13]
+			items: [view$7, view$14]
 		}
 	];
 	var toast = createToaster(need(document, "#toast"));
@@ -12179,7 +12634,7 @@ heartbeat_seconds = 30
 	};
 	function currentView() {
 		const id = routeOf(location.hash);
-		return VIEWS.find((v) => v.id === id) ?? view$19;
+		return VIEWS.find((v) => v.id === id) ?? view$20;
 	}
 	function badgeFor(view) {
 		if (view.id === "physics") {
@@ -12195,7 +12650,7 @@ heartbeat_seconds = 30
 		return "";
 	}
 	function renderNav(active) {
-		need(document, "#nav").innerHTML = NAV.map((g) => (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === "" ? "<div class=\"nav-group\">&nbsp;</div>" : "") + g.items.map((v) => `<a class="nav-link ${v === active ? "active" : ""}" href="#/${v.id === "home" ? "" : v.id}"${v === active ? " aria-current=\"page\"" : ""}><span class="ico">${icon(v.icon)}</span>${esc(v.title)}${badgeFor(v)}</a>`).join("")).join("");
+		need(document, "#nav").innerHTML = NAV.map((g) => (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === "" ? "<div class=\"nav-group\">&nbsp;</div>" : "") + g.items.map((v) => `<a class="nav-link ${v === active || v.id === active.under ? "active" : ""}" href="#/${v.id === "home" ? "" : v.id}"${v === active ? " aria-current=\"page\"" : ""}><span class="ico">${icon(v.icon)}</span>${esc(v.title)}${badgeFor(v)}</a>`).join("")).join("");
 		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
 		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 	}
@@ -12204,7 +12659,7 @@ heartbeat_seconds = 30
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		document.title = view === view$19 ? "Tiles" : `${view.title} · Tiles`;
+		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
@@ -12213,7 +12668,11 @@ heartbeat_seconds = 30
 				label: "Home",
 				href: "#/"
 			},
-			...view === view$19 ? [] : [{
+			...VIEWS.filter((v) => v.id === view.under).map((v) => ({
+				label: v.title,
+				href: `#/${v.id}`
+			})),
+			...view === view$20 ? [] : [{
 				label: view.title,
 				href: `#/${view.id}`
 			}],

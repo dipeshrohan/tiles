@@ -32,6 +32,7 @@ const PAGES = [
   'import',
   'onboarding',
   'settings',
+  'styleguide',
 ];
 // WCAG 2.1 A and AA, and the best practices that matter to these pages.
 const RULES = {

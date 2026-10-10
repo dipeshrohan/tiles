@@ -14,7 +14,8 @@
     "format": "prettier --write . && vite build",
     "test": "vitest run",
     "test:e2e": "node --test --test-concurrency=1 --test-timeout=600000 e2e/*.test.js",
-    "icons": "node scripts/icons.js"
+    "icons": "node scripts/icons.js",
+    "test:visual": "node scripts/visual.js"
   },
   "engines": {
     "node": ">=22.12"

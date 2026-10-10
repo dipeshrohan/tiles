@@ -344,7 +344,8 @@ h4 {
   line-height: var(--leading-tight);
   letter-spacing: -0.01em;
 }
-h1 {
+h1,
+.page-title {
   font-size: var(--text-2xl);
   font-weight: 650;
 }
@@ -2704,6 +2705,117 @@ body.floor-full .topbar {
   .kpi .value {
     font-size: var(--text-2xl);
   }
+}
+
+/* ---- style guide (U1.07) ---- */
+.sg-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr));
+  gap: var(--space-3);
+}
+/* A theme shown whatever the page's: the colour tokens follow color-scheme. */
+.sg-scheme.light {
+  color-scheme: light;
+}
+.sg-scheme.dark {
+  color-scheme: dark;
+}
+.sg-pair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-3);
+}
+.sg-pair > .sg-scheme {
+  position: relative;
+  padding: var(--space-6) var(--space-4) var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  color: var(--ink);
+  min-width: 0;
+}
+.sg-scheme-name {
+  position: absolute;
+  top: var(--space-1_5);
+  left: var(--space-3);
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--soft);
+}
+td.sg-scheme {
+  background: var(--bg);
+}
+.sg-tokens td,
+.sg-tokens th {
+  vertical-align: middle;
+}
+/* Long names and values wrap rather than make the table scroll (whatever the fonts' widths). */
+.sg-tokens code,
+.sg-tokens [data-sg-value] {
+  overflow-wrap: anywhere;
+}
+.sg-swatch {
+  display: block;
+  width: 56px;
+  height: 24px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+.sg-bar {
+  display: block;
+  height: 10px;
+  background: var(--accent);
+  border-radius: var(--radius-xs);
+}
+.sg-box {
+  display: block;
+  width: 56px;
+  height: 32px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+}
+.sg-text {
+  white-space: nowrap;
+}
+.sg-code {
+  margin: 0;
+  padding: var(--space-3);
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font: var(--text-xs) / var(--leading) var(--mono);
+  white-space: pre;
+}
+.sg-icons,
+.sg-illustrations {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.sg-icons {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+.sg-illustrations {
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+.sg-icon,
+.sg-illustration {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  min-width: 0;
+}
+.sg-illustration {
+  flex-direction: column;
 }
 
 /* ---- Utilities (U1.03): layout and spacing for one-off needs in the views, instead of inline

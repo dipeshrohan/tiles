@@ -45,6 +45,7 @@ import warnings from './views/warnings.ts';
 import shopfloor from './views/shopfloor.ts';
 import plant from './views/plant.ts';
 import onboarding from './views/onboarding.ts';
+import styleguide from './views/styleguide.ts';
 import performance from './views/performance.ts';
 import correlate from './views/correlate.ts';
 import insights from './views/insights.ts';
@@ -80,6 +81,7 @@ const VIEWS: View[] = [
   imports,
   onboarding,
   settings,
+  styleguide, // not in the menu: Settings → About links to it
 ];
 
 const NAV: { group?: string; items: View[] }[] = [
@@ -479,7 +481,7 @@ function renderNav(active: View): void {
       g.items
         .map(
           (v) =>
-            `<a class="nav-link ${v === active ? 'active' : ''}" href="#/${v.id === 'home' ? '' : v.id}"${v === active ? ' aria-current="page"' : ''}><span class="ico">${icon(v.icon)}</span>${esc(v.title)}${badgeFor(v)}</a>`,
+            `<a class="nav-link ${v === active || v.id === active.under ? 'active' : ''}" href="#/${v.id === 'home' ? '' : v.id}"${v === active ? ' aria-current="page"' : ''}><span class="ico">${icon(v.icon)}</span>${esc(v.title)}${badgeFor(v)}</a>`,
         )
         .join(''),
   ).join('');
@@ -507,6 +509,7 @@ function render(): void {
   // record comes from the URL, so a reload or a shared link shows the same).
   need(document, '#crumbs').innerHTML = breadcrumbs([
     { label: 'Home', href: '#/' },
+    ...VIEWS.filter((v) => v.id === view.under).map((v) => ({ label: v.title, href: `#/${v.id}` })),
     ...(view === home ? [] : [{ label: view.title, href: `#/${view.id}` }]),
     ...(view.crumbs?.(ctx) ?? []),
   ]);

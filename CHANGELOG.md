@@ -58,6 +58,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - **shared components** in `js/lib/ui.ts` (buttons, badges, cards, fields, selects, tables, tabs, page heads, empty and error states) that escape what they show; Signals, Warnings and Documents are built from them, the warning filters say which is on, and a tooltip that repeats a button's name isn't read twice (U1.04);
   - **loading in the shape of what is coming**: tables, lists, cards and charts load as grey shapes of their size, shown only after 300 ms so quick answers don't flash, marked busy for screen readers; buttons at work show a spinner and keep their width; pages that load from the API move less than 0.05 (layout shift) as they fill (U2.04);
   - **breadcrumbs** in the top bar say where you are, from the link: Home › Plant › Casting › DC line 1, Insights › #12, App Studio › #3 › Change; each place above is a link, and every page starts with the same page head (U1.06);
+  - **a style guide** (`#/styleguide`, from Settings → About): every token, component, state, icon and illustration in the light and the dark theme side by side, with the code for each (U1.07);
   - row security per site in the database; the API and the scheduled jobs work as a role that can't skip it or change the schema;
   - credentials sealed with rotatable data keys;
   - an audit log;

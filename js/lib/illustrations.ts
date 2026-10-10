@@ -61,3 +61,5 @@ const SCENES: Record<IllustrationName, string> = {
 export function illustration(name: IllustrationName, size = 160): string {
   return `<svg class="illustration" viewBox="0 0 160 120" width="${size}" height="${Math.round((size * 3) / 4)}" aria-hidden="true" focusable="false">${SCENES[name]}</svg>`;
 }
+
+export const ILLUSTRATIONS = Object.keys(SCENES) as IllustrationName[];
