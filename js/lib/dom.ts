@@ -56,6 +56,15 @@ export function onAll<K extends keyof HTMLElementEventMap>(
   root.querySelectorAll<HTMLElement>(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e)));
 }
 
+// How a scroll the app starts should move: smoothly, unless the system or Tiles (data-motion,
+// U6.06) asks for less motion (docs/ui/motion.md). CSS can't reach a scroll started from script.
+export function scrollBehavior(): ScrollBehavior {
+  const reduce =
+    document.documentElement.dataset.motion === 'reduce' ||
+    (typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+  return reduce ? 'auto' : 'smooth';
+}
+
 // Puts a button already on the page into (or out of) its busy state, as button({ busy }) in ui.ts
 // draws it: disabled, aria-busy, a spinner over its label (which keeps its width).
 export function setBusy(el: HTMLButtonElement, busy: boolean): void {

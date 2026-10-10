@@ -12,7 +12,7 @@ import {
   type Exchange,
 } from '../lib/copilot-chat.ts';
 import type { CopilotConversation } from '../lib/api.ts';
-import { esc, need, onAction, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
+import { esc, need, onAction, onAll, onSubmit, field, onNavigate, routeOf, scrollBehavior } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 import { isRemoving, removeLater } from '../lib/undo.ts';
 import { emptyState, loadingState, button, pageHead, skeleton } from '../lib/ui.ts';
@@ -341,7 +341,7 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
     const target = [...document.querySelectorAll<HTMLElement>(`[id="cite-${el.dataset.cite ?? ''}"]`)].at(-1);
     const details = target?.closest('details');
     if (details) details.open = true;
-    target?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    target?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
     target?.classList.add('flash');
     setTimeout(() => target?.classList.remove('flash'), 1200);
   });

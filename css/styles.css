@@ -107,6 +107,9 @@
   --dur-fast: 120ms;
   --dur: 200ms;
   --dur-slow: 320ms;
+  /* Progress only (docs/ui/motion.md): a spinner's turn, a skeleton's shimmer. */
+  --dur-spin: 900ms;
+  --dur-shimmer: 1400ms;
   --ease-out: cubic-bezier(0.2, 0, 0, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
 
@@ -307,26 +310,17 @@ summary:focus-visible {
     transform: rotate(360deg);
   }
 }
+/* A new page comes in as one (docs/ui/motion.md: one thing moves at a time in one place). */
 .view-enter {
   animation: enter var(--dur-slow) var(--ease-out);
 }
-.view-enter :is(.grid, .stack) > :is(.card, .kpi) {
-  animation: enter var(--dur-slow) var(--ease-out) both;
-}
-.view-enter :is(.grid, .stack) > :is(.card, .kpi):nth-child(2) {
-  animation-delay: 40ms;
-}
-.view-enter :is(.grid, .stack) > :is(.card, .kpi):nth-child(3) {
-  animation-delay: 80ms;
-}
-.view-enter :is(.grid, .stack) > :is(.card, .kpi):nth-child(n + 4) {
-  animation-delay: 120ms;
-}
 .icon-loader-circle {
-  animation: spin 0.8s linear infinite;
+  animation: spin var(--dur-spin) linear infinite;
 }
+/* Reduced motion, asked by the system or (U6.06) in Tiles: nothing moves; things appear. */
+/* The skeletons' 300 ms wait isn't motion, so both rules leave it alone. */
 @media (prefers-reduced-motion: reduce) {
-  *,
+  *:not(.loading-shapes),
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
@@ -335,6 +329,15 @@ summary:focus-visible {
     animation-delay: 0s !important;
     scroll-behavior: auto !important;
   }
+}
+:root[data-motion='reduce'] *:not(.loading-shapes),
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  animation-delay: 0s !important;
+  scroll-behavior: auto !important;
 }
 h1,
 h2,
@@ -954,9 +957,9 @@ main {
   font-weight: 550;
   white-space: nowrap;
   transition:
-    background-color var(--dur) var(--ease-out),
-    color var(--dur) var(--ease-out),
-    box-shadow var(--dur) var(--ease-out);
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 .tab:hover {
   color: var(--ink);
@@ -984,9 +987,9 @@ main {
   color: var(--soft);
   font-size: var(--text-sm);
   transition:
-    background-color var(--dur) var(--ease-out),
-    color var(--dur) var(--ease-out),
-    box-shadow var(--dur) var(--ease-out);
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 .seg button:hover {
   color: var(--ink);
@@ -1218,11 +1221,6 @@ tr.selected td {
 }
 
 /* ---- empty and loading states (U2.04, U2.05) ---- */
-@keyframes float {
-  50% {
-    transform: translateY(-4px);
-  }
-}
 @keyframes shimmer {
   to {
     background-position: -200% 0;
@@ -1341,9 +1339,6 @@ tr.selected td {
   transform: rotate(-8deg);
   transform-origin: 62px 65px;
 }
-.illustration .il-float {
-  animation: float 3.2s ease-in-out infinite;
-}
 .loading {
   padding: var(--space-5);
 }
@@ -1359,12 +1354,6 @@ tr.selected td {
   flex-direction: column;
   gap: var(--space-2_5);
   animation: skeleton-wait var(--wait, 300ms) step-end both;
-}
-@media (prefers-reduced-motion: reduce) {
-  /* A wait, not motion: still 300 ms. */
-  .loading-shapes {
-    animation-duration: var(--wait, 300ms) !important;
-  }
 }
 @keyframes skeleton-wait {
   from {
@@ -1409,7 +1398,7 @@ tr.selected td {
   height: 12px;
   border-radius: var(--radius-sm);
   background: linear-gradient(90deg, var(--panel-2) 25%, var(--line) 50%, var(--panel-2) 75%) 0 0 / 200% 100%;
-  animation: shimmer 1.4s linear infinite;
+  animation: shimmer var(--dur-shimmer) linear infinite;
 }
 
 /* ---- home ---- */
@@ -2313,10 +2302,10 @@ kbd {
   box-shadow: var(--shadow-2);
   font-size: var(--text-sm);
   pointer-events: none; /* clicks go through to what it covers; its buttons take them */
-  animation: toast-in var(--dur-slow) var(--ease-out);
+  animation: toast-in var(--dur) var(--ease-out);
 }
 .toast-item[data-state='closed'] {
-  animation: toast-out var(--dur) var(--ease-in) forwards;
+  animation: toast-out var(--dur-fast) var(--ease-in) forwards;
 }
 .toast-icon {
   display: inline-grid;
@@ -2391,7 +2380,7 @@ kbd {
   /* Lucide's loader-circle, drawn here so a button can be made busy without the icon module */
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12a9 9 0 1 1-6.219-8.56'/%3E%3C/svg%3E")
     center / contain no-repeat;
-  animation: spin 0.9s linear infinite;
+  animation: spin var(--dur-spin) linear infinite;
 }
 @media (forced-colors: active) {
   .btn-spinner::before {
@@ -2441,7 +2430,7 @@ kbd {
   font-size: var(--text-xs);
   line-height: var(--leading-tight);
   pointer-events: none;
-  animation: overlay-in var(--dur-fast) var(--ease-out);
+  animation: overlay-in var(--dur) var(--ease-out);
 }
 
 /* ---- shopfloor view (T5.16): read at arm's length, used with gloves ---- */
@@ -2595,9 +2584,9 @@ body.floor-full .topbar {
   text-decoration: none;
   font-size: var(--text-lg);
   transition:
-    border-color var(--dur) var(--ease-out),
-    transform var(--dur) var(--ease-out),
-    box-shadow var(--dur) var(--ease-out);
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 .place-card:hover,
 .place-card:focus-visible {
@@ -2754,7 +2743,7 @@ body.floor-full .topbar {
     z-index: var(--z-nav);
     width: 250px;
     transform: translateX(-100%);
-    transition: transform var(--dur) var(--ease-out);
+    transition: transform var(--dur-slow) var(--ease-out);
     box-shadow: var(--shadow);
   }
   .sidebar.open {

@@ -264,7 +264,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 ### UI Month 3: Motion, rendering and navigation (Jan 2027)
 
-- [ ] `U3.01` [#222](https://github.com/dipeshrohan/tiles/issues/222) **Motion system** · PM+FE · 1d · U1.02
+- [x] `U3.01` [#222](https://github.com/dipeshrohan/tiles/issues/222) **Motion system** · PM+FE · 1d · U1.02
   *Done when:* the guide is merged and the tokens from U1.02 implement it.
 - [ ] `U3.02` [#223](https://github.com/dipeshrohan/tiles/issues/223) **Page transitions** · FE · 2d · U3.01, U3.03
   *Done when:* transitions run in Chromium and Safari, are absent with reduced motion, and the a11y and smoke suites pass.

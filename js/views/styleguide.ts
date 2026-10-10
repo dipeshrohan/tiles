@@ -1,4 +1,4 @@
-import { esc, onAll } from '../lib/dom.ts';
+import { esc, onAll, scrollBehavior } from '../lib/dom.ts';
 import { icon, type IconName } from '../lib/icons.ts';
 import { ICONS } from '../lib/icon-data.ts';
 import { ILLUSTRATIONS, illustration } from '../lib/illustrations.ts';
@@ -149,7 +149,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
     onAll(root, '[data-sg-retry]', 'click', () => ctx.toast('Try again: a page would load it again here'));
     onAll(root, '[data-jump]', 'click', (el) => {
       const target = root.querySelector<HTMLElement>(`#sg-sec-${el.dataset.jump}`);
-      target?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+      target?.scrollIntoView({ behavior: scrollBehavior() });
       target?.setAttribute('tabindex', '-1');
       target?.focus({ preventScroll: true });
     });

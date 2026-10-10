@@ -22,7 +22,7 @@ import {
 } from '../lib/canvas.ts';
 import { historyOps, safeWorkingGraph, type RemoteStore } from '../lib/ontology-store.ts';
 import { seedOntology } from '../lib/data.ts';
-import { download, esc, field, need, onAll, onSubmit, timeAgo } from '../lib/dom.ts';
+import { download, esc, field, need, onAll, onSubmit, scrollBehavior, timeAgo } from '../lib/dom.ts';
 import { describeChanges } from '../lib/review.ts';
 import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
@@ -796,7 +796,7 @@ const view: View = {
       const panel = document.getElementById('inspector');
       const r = panel?.getBoundingClientRect();
       if (panel && r && (r.top > window.innerHeight || r.bottom < 0))
-        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        panel.scrollIntoView({ behavior: scrollBehavior(), block: 'start' });
     };
     onAll(root, '[data-node]', 'click', (el) => select(el.dataset.node));
     onAll(root, '[data-node]', 'keydown', (el, e) => {
