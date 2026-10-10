@@ -1751,12 +1751,12 @@
 			return `
       <section class="hero">
         <div>
-          <div class="eyebrow" style="color:#a9d6cf">Tiles</div>
+          <div class="eyebrow">Tiles</div>
           <h1>Physics and plant data, in one place.</h1>
           <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
           <div class="row" style="margin-top:18px">
-            <a class="btn primary" href="#/chat" style="background:#fff;color:#173f3c;border-color:#fff">Ask the copilot</a>
-            <a class="btn" href="#/physics" style="background:transparent;color:#fff;border-color:rgba(255,255,255,.4)">See live warnings</a>
+            <a class="btn primary" href="#/chat">Ask the copilot</a>
+            <a class="btn" href="#/physics">See live warnings</a>
           </div>
         </div>
         <div class="engine" aria-label="How it works">
