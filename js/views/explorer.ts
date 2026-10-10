@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, field, fmt, onAll, onSubmit } from '../lib/dom.ts';
+import { esc, field, fmt, onAll, onSubmit, bound } from '../lib/dom.ts';
 import type { SignalInfo, SignalSeries } from '../lib/api.ts';
 import { fitWidth, gapFor, TIME_CHART, timeAt, timeChart, toPoints } from '../lib/svg.ts';
 import { bindDraft, draftForm, insightLink, readDraft, seriesDraft, type DraftText } from '../lib/insights.ts';
@@ -91,14 +91,22 @@ function drawWear(box: HTMLElement, ctx: Context): void {
   const form = box.querySelector<HTMLFormElement>('form');
   if (!form) return;
   const w = wearOf(id);
-  form.addEventListener('input', () => {
-    w.limit = field(form, 'limit');
-  });
-  form.addEventListener('change', () => {
-    w.direction = field(form, 'direction') as WearState['direction'];
-    w.limit = field(form, 'limit');
-    showWear(box, ctx); // an answer to another question goes, or comes back
-  });
+  form.addEventListener(
+    'input',
+    () => {
+      w.limit = field(form, 'limit');
+    },
+    { signal: bound() },
+  );
+  form.addEventListener(
+    'change',
+    () => {
+      w.direction = field(form, 'direction') as WearState['direction'];
+      w.limit = field(form, 'limit');
+      showWear(box, ctx); // an answer to another question goes, or comes back
+    },
+    { signal: bound() },
+  );
   onSubmit(box, 'form', () => checkWear(ctx, box));
   showWear(box, ctx);
 }
@@ -268,31 +276,47 @@ function bindZoom(box: HTMLElement, ctx: Context, range: Range): void {
     start = null;
     marker.hidden = true;
   };
-  area.addEventListener('pointerdown', (e) => {
-    if (e.button !== 0) return; // the main button only
-    start = e.clientX;
-    area.setPointerCapture(e.pointerId);
-  });
-  area.addEventListener('pointercancel', cancel);
-  area.addEventListener('lostpointercapture', () => {
-    if (start !== null) cancel(); // e.g. a context menu took the pointer
-  });
-  area.addEventListener('pointermove', (e) => {
-    if (start === null) return;
-    const rect = area.getBoundingClientRect();
-    marker.hidden = false;
-    marker.style.left = `${Math.min(start, e.clientX) - rect.left}px`;
-    marker.style.width = `${Math.abs(e.clientX - start)}px`;
-  });
-  area.addEventListener('pointerup', (e) => {
-    if (start === null) return;
-    const [a, b] = [units(start), units(e.clientX)].sort((p, q) => p - q) as [number, number];
-    cancel();
-    if (b - a < 8) return; // a click, not a drag
-    const t0 = timeAt(a, from, to, width);
-    const t1 = timeAt(b, from, to, width);
-    if (t1 - t0 >= 1) setRange(ctx, { from: iso(t0), to: iso(t1) });
-  });
+  area.addEventListener(
+    'pointerdown',
+    (e) => {
+      if (e.button !== 0) return; // the main button only
+      start = e.clientX;
+      area.setPointerCapture(e.pointerId);
+    },
+    { signal: bound() },
+  );
+  area.addEventListener('pointercancel', cancel, { signal: bound() });
+  area.addEventListener(
+    'lostpointercapture',
+    () => {
+      if (start !== null) cancel(); // e.g. a context menu took the pointer
+    },
+    { signal: bound() },
+  );
+  area.addEventListener(
+    'pointermove',
+    (e) => {
+      if (start === null) return;
+      const rect = area.getBoundingClientRect();
+      marker.hidden = false;
+      marker.style.left = `${Math.min(start, e.clientX) - rect.left}px`;
+      marker.style.width = `${Math.abs(e.clientX - start)}px`;
+    },
+    { signal: bound() },
+  );
+  area.addEventListener(
+    'pointerup',
+    (e) => {
+      if (start === null) return;
+      const [a, b] = [units(start), units(e.clientX)].sort((p, q) => p - q) as [number, number];
+      cancel();
+      if (b - a < 8) return; // a click, not a drag
+      const t0 = timeAt(a, from, to, width);
+      const t1 = timeAt(b, from, to, width);
+      if (t1 - t0 >= 1) setRange(ctx, { from: iso(t0), to: iso(t1) });
+    },
+    { signal: bound() },
+  );
 }
 
 function bindSearch(root: HTMLElement, ctx: Context): void {
@@ -326,15 +350,23 @@ function bindSearch(root: HTMLElement, ctx: Context): void {
     });
   };
   input.value = searchText; // kept across re-renders (adding a signal re-renders the page)
-  input.addEventListener('input', () => {
-    searchText = input.value;
-    clearTimeout(findTimer);
-    findTimer = setTimeout(() => void find(), 250);
-  });
-  root.querySelector('#explorer-search')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    void find();
-  });
+  input.addEventListener(
+    'input',
+    () => {
+      searchText = input.value;
+      clearTimeout(findTimer);
+      findTimer = setTimeout(() => void find(), 250);
+    },
+    { signal: bound() },
+  );
+  root.querySelector('#explorer-search')?.addEventListener(
+    'submit',
+    (e) => {
+      e.preventDefault();
+      void find();
+    },
+    { signal: bound() },
+  );
   void find();
 }
 
@@ -496,25 +528,29 @@ const view: View = {
       );
       onAll(form, '[data-pan]', 'click', (el) => setRange(ctx, pan(range, el.dataset.pan === '-1' ? -1 : 1)));
       onAll(form, '[data-zoom-out]', 'click', () => setRange(ctx, zoomOut(range)));
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        // The inputs show whole minutes: one left as shown keeps its exact time.
-        const read = (name: 'from' | 'to') => {
-          const typed = field(form, name);
-          return typed === localInput(range[name]) ? Date.parse(range[name]) : Date.parse(typed);
-        };
-        const from = read('from');
-        const to = read('to');
-        if (!(Number.isFinite(from) && Number.isFinite(to) && to > from)) {
-          ctx.toast('Choose a start before the end');
-          return;
-        }
-        if (to - from > MAX_SPAN) {
-          ctx.toast('Choose at most five years');
-          return;
-        }
-        setRange(ctx, { from: iso(from), to: iso(to) });
-      });
+      form.addEventListener(
+        'submit',
+        (e) => {
+          e.preventDefault();
+          // The inputs show whole minutes: one left as shown keeps its exact time.
+          const read = (name: 'from' | 'to') => {
+            const typed = field(form, name);
+            return typed === localInput(range[name]) ? Date.parse(range[name]) : Date.parse(typed);
+          };
+          const from = read('from');
+          const to = read('to');
+          if (!(Number.isFinite(from) && Number.isFinite(to) && to > from)) {
+            ctx.toast('Choose a start before the end');
+            return;
+          }
+          if (to - from > MAX_SPAN) {
+            ctx.toast('Choose at most five years');
+            return;
+          }
+          setRange(ctx, { from: iso(from), to: iso(to) });
+        },
+        { signal: bound() },
+      );
     }
     onAll(root, '[data-save-insight]', 'click', () => {
       const u = ui(ctx);

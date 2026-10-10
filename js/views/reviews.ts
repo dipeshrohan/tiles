@@ -1,4 +1,4 @@
-import { esc, need, onAll, timeAgo, onNavigate, routeOf } from '../lib/dom.ts';
+import { esc, need, onAll, timeAgo, onNavigate, routeOf, bound } from '../lib/dom.ts';
 import { describeChanges } from '../lib/review.ts';
 import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
@@ -324,9 +324,13 @@ const view: View = {
       void ctx.ontology.reload();
       ctx.rerender();
     });
-    root.querySelector<HTMLTextAreaElement>('#review-form textarea')?.addEventListener('input', (e) => {
-      draft = { key: detailKey(ctx), text: (e.target as HTMLTextAreaElement).value };
-    });
+    root.querySelector<HTMLTextAreaElement>('#review-form textarea')?.addEventListener(
+      'input',
+      (e) => {
+        draft = { key: detailKey(ctx), text: (e.target as HTMLTextAreaElement).value };
+      },
+      { signal: bound() },
+    );
     onAll(root, '[data-policy]', 'change', (el) => {
       const site = siteId(ctx);
       const required = (el as HTMLInputElement).checked;

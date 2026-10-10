@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, field, fmt, need, onAll, onSubmit } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll, onSubmit, bound } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
 import { isFieldError, showErrors, type FieldError } from '../lib/forms.ts';
@@ -289,7 +289,7 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
       rowsHtml: page.signals
         .map(
           (s) =>
-            `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
+            `<tr data-row="${esc(s.id)}" data-key="signal-${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
             <td>${esc(s.unit ?? '—')}</td><td>${s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
             <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
@@ -658,20 +658,28 @@ const view: View = {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => void search(root, ctx), 250);
     };
-    form.addEventListener('input', update);
-    form.addEventListener('change', update);
+    form.addEventListener('input', update, { signal: bound() });
+    form.addEventListener('change', update, { signal: bound() });
     // On the results box (drawn afresh with the page), whose contents change as answers arrive.
-    need(root, '[data-signal-results]').addEventListener('click', (e) => {
-      if (!(e.target instanceof Element) || !e.target.closest('[data-clear-search]')) return;
-      for (const el of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[name]')) el.value = '';
-      update();
-      need<HTMLInputElement>(form, '[name=q]').focus();
-    });
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      update();
-    });
-    root.querySelector('[data-suggest]')?.addEventListener('click', () => void suggest(root, ctx));
+    need(root, '[data-signal-results]').addEventListener(
+      'click',
+      (e) => {
+        if (!(e.target instanceof Element) || !e.target.closest('[data-clear-search]')) return;
+        for (const el of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[name]')) el.value = '';
+        update();
+        need<HTMLInputElement>(form, '[name=q]').focus();
+      },
+      { signal: bound() },
+    );
+    form.addEventListener(
+      'submit',
+      (e) => {
+        e.preventDefault();
+        update();
+      },
+      { signal: bound() },
+    );
+    root.querySelector('[data-suggest]')?.addEventListener('click', () => void suggest(root, ctx), { signal: bound() });
     bindMapping(root, ctx);
     const checkButton = root.querySelector<HTMLButtonElement>('[data-check-quality]');
     // The button as it is now: the page may have been left and shown again while a check ran.
@@ -680,35 +688,39 @@ const view: View = {
       if (!button) return;
       setBusy(button, busy);
     };
-    checkButton?.addEventListener('click', () => {
-      const site = ctx.ontology.site;
-      if (!ctx.api || !site || checking) return;
-      // Only the signals listed for this site and search, not an answer to an earlier one.
-      const current = results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query);
-      const ids = current ? (results?.signals.map((s) => s.id) ?? []) : [];
-      if (!ids.length) {
-        ctx.toast(current ? 'No signals listed to check' : 'Wait for the list to load, then check it');
-        return;
-      }
-      checking = true;
-      setButton(true);
-      ctx.api.signals
-        .checkQuality(site.id, ids)
-        .then(
-          (out) => {
-            const { good, warn, bad, unknown } = out.badges;
-            ctx.toast(
-              `Checked ${out.checked} signal(s): ${good} good, ${warn} with warnings, ${bad} with problems${unknown ? `, ${unknown} without data` : ''}`,
-            );
-            void search(root, ctx);
-          },
-          () => undefined, // the client showed why
-        )
-        .finally(() => {
-          checking = false;
-          setButton(false);
-        });
-    });
+    checkButton?.addEventListener(
+      'click',
+      () => {
+        const site = ctx.ontology.site;
+        if (!ctx.api || !site || checking) return;
+        // Only the signals listed for this site and search, not an answer to an earlier one.
+        const current = results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query);
+        const ids = current ? (results?.signals.map((s) => s.id) ?? []) : [];
+        if (!ids.length) {
+          ctx.toast(current ? 'No signals listed to check' : 'Wait for the list to load, then check it');
+          return;
+        }
+        checking = true;
+        setButton(true);
+        ctx.api.signals
+          .checkQuality(site.id, ids)
+          .then(
+            (out) => {
+              const { good, warn, bad, unknown } = out.badges;
+              ctx.toast(
+                `Checked ${out.checked} signal(s): ${good} good, ${warn} with warnings, ${bad} with problems${unknown ? `, ${unknown} without data` : ''}`,
+              );
+              void search(root, ctx);
+            },
+            () => undefined, // the client showed why
+          )
+          .finally(() => {
+            checking = false;
+            setButton(false);
+          });
+      },
+      { signal: bound() },
+    );
   },
 };
 

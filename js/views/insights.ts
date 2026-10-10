@@ -1,4 +1,4 @@
-import { esc, onAll, onSubmit, onNavigate, routeOf } from '../lib/dom.ts';
+import { esc, onAll, onSubmit, onNavigate, routeOf, bound } from '../lib/dom.ts';
 import { forestPlot } from '../lib/datasets.ts';
 import type { Insight, InsightStatus, InsightSummary } from '../lib/api.ts';
 import {
@@ -279,9 +279,13 @@ const view: View = {
         if (draft) return act(ctx, (site, num) => api.insights.edit(site, num, draft), 'Insight saved');
       });
     }
-    root.querySelector<HTMLTextAreaElement>('#insight-review [name=note]')?.addEventListener('input', (e) => {
-      note.text = (e.target as HTMLTextAreaElement).value;
-    });
+    root.querySelector<HTMLTextAreaElement>('#insight-review [name=note]')?.addEventListener(
+      'input',
+      (e) => {
+        note.text = (e.target as HTMLTextAreaElement).value;
+      },
+      { signal: bound() },
+    );
     onSubmit(root, '#insight-review', (_form, submitter) => {
       const decision = submitter?.dataset.decision;
       if (decision !== 'accepted' && decision !== 'rejected') return;

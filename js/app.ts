@@ -33,7 +33,8 @@ import {
   type OntologyStore,
   type RemoteStore,
 } from './lib/ontology-store.ts';
-import { esc, need, routeOf } from './lib/dom.ts';
+import { esc, need, rebind, routeOf } from './lib/dom.ts';
+import { morph, noteSent, replace } from './lib/morph.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
 import ontology from './views/ontology.ts';
@@ -58,10 +59,10 @@ import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
-import { showApiErrors } from './lib/forms.ts';
+import { afterRender, showApiErrors } from './lib/forms.ts';
 import { keepWaiting, saveWaiting, takeSaved } from './lib/undo.ts';
 import { createTracker, keepLeft, newSession, takeLeft, ux, type UxEvent } from './lib/analytics.ts';
-import { breadcrumbs, button, clockTime } from './lib/ui.ts';
+import { breadcrumbs, button, clockTime, resetIds } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
@@ -534,6 +535,9 @@ let enterWatched = false;
 let shownView: string | null = null; // the page last shown, to animate only a change of page
 let trackedView = ''; // the page last recorded as viewed (U1.09)
 
+// Draws the current page. A new page replaces what was there; the same page drawn again is patched
+// in place (U3.03, js/lib/morph.ts), so focus, scroll, open sections and selections stay, and its
+// listeners are bound afresh (the last binding's dropped: `rebind`).
 function render(): void {
   const view = currentView();
   if (view.id !== trackedView) {
@@ -543,8 +547,13 @@ function render(): void {
   renderNav(view);
   document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
   const root = need(document, '#view');
-  root.innerHTML = view.render(ctx);
+  resetIds();
+  const html = view.render(ctx);
+  if (view.id === shownView) morph(root, html);
+  else replace(root, html);
+  rebind();
   view.bind?.(root, ctx);
+  afterRender(); // the API's field errors on the form sent last stay (js/lib/forms.ts)
   // Home › the page › the record or place it shows (after render and bind, from what they show; the
   // record comes from the URL, so a reload or a shared link shows the same).
   need(document, '#crumbs').innerHTML = breadcrumbs([
@@ -571,44 +580,29 @@ function render(): void {
   }
 }
 
-// Re-render after something finished in the background (a fetch, a sign-in
-// check). Form fields the user has changed but not submitted keep their values
-// (and focus), so a background update never wipes what they are entering.
+// A form sent without onSubmit (which notes its own once it is checked) is sent once the browser's
+// checks pass: drawn again, its fields show what the page says, not what was sent (js/lib/morph.ts).
+need(document, '#view').addEventListener('submit', (e) => {
+  if (e.target instanceof HTMLFormElement && !e.target.noValidate) noteSent(e.target);
+});
+
+// Re-render after something finished in the background (a fetch, a sign-in check). The page is
+// patched in place (js/lib/morph.ts), so what is being typed, and where, stays. A focused field the
+// patch had to draw anew (its place in the page changed) gets the focus back, found by its form and
+// name.
 function renderSoon(): void {
   const view = need(document, '#view');
   const key = (el: Element) => {
     const form = el.closest('form');
     const name = el.getAttribute('name');
-    return form?.id && name ? `${form.id}:${name}:${el instanceof HTMLInputElement ? el.type : ''}` : null;
+    return form?.id && name ? `${form.id}:${name}` : null;
   };
-  const edited = new Map<string, string | boolean>();
-  view.querySelectorAll('input, select, textarea').forEach((el) => {
-    const k = key(el);
-    if (!k) return;
-    if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
-      if (el.checked !== el.defaultChecked) edited.set(`${k}:${el.value}`, el.checked);
-    } else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-      if (el.value !== el.defaultValue) edited.set(k, el.value);
-    } else if (el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected)) {
-      edited.set(k, el.value);
-    }
-  });
   const active = document.activeElement;
   const focused = active && view.contains(active) ? key(active) : null;
   render();
-  if (!edited.size && !focused) return;
-  view.querySelectorAll('input, select, textarea').forEach((el) => {
-    const k = key(el);
-    if (!k) return;
-    if (el instanceof HTMLInputElement && (el.type === 'radio' || el.type === 'checkbox')) {
-      const v = edited.get(`${k}:${el.value}`);
-      if (typeof v === 'boolean') el.checked = v;
-    } else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
-      const v = edited.get(k);
-      if (typeof v === 'string') el.value = v;
-    }
-    if (k === focused && el instanceof HTMLElement) el.focus({ preventScroll: true });
-  });
+  if (!focused || (document.activeElement && view.contains(document.activeElement))) return;
+  const again = [...view.querySelectorAll<HTMLElement>('input, select, textarea')].find((el) => key(el) === focused);
+  again?.focus({ preventScroll: true });
 }
 
 // "Try again" and "Sign in" on a page whose site didn't load (apiUnreachable), not on a sample of it.

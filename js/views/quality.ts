@@ -2,7 +2,7 @@ import { correlationFinder, explain, wearCheck } from '../lib/analysis.ts';
 import { CUTTER_VARIABLES, type CutterVariable } from '../lib/data.ts';
 import { mean } from '../lib/stats.ts';
 import { dumbbell, fitWidth, hbars, lineChart } from '../lib/svg.ts';
-import { esc, fmt, need, onAll, signed } from '../lib/dom.ts';
+import { esc, fmt, need, onAll, signed, bound } from '../lib/dom.ts';
 import type { Material } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { pageHead } from '../lib/ui.ts';
@@ -138,11 +138,15 @@ const view: View = {
       ctx.rerender();
     });
     const select = need<HTMLSelectElement>(root, '#variable');
-    select.addEventListener('change', () => {
-      const chosen = CUTTER_VARIABLES.find((x) => x.key === select.value);
-      if (chosen) ui.variable = chosen.key;
-      ctx.rerender();
-    });
+    select.addEventListener(
+      'change',
+      () => {
+        const chosen = CUTTER_VARIABLES.find((x) => x.key === select.value);
+        if (chosen) ui.variable = chosen.key;
+        ctx.rerender();
+      },
+      { signal: bound() },
+    );
   },
 };
 

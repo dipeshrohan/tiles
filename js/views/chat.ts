@@ -12,7 +12,7 @@ import {
   type Exchange,
 } from '../lib/copilot-chat.ts';
 import type { CopilotConversation } from '../lib/api.ts';
-import { esc, need, onAction, onAll, onSubmit, field, onNavigate, routeOf, scrollBehavior } from '../lib/dom.ts';
+import { esc, need, onAction, onAll, onSubmit, field, onNavigate, routeOf, scrollBehavior, bound } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 import { isRemoving, removeLater } from '../lib/undo.ts';
 import { emptyState, loadingState, button, pageHead, skeleton } from '../lib/ui.ts';
@@ -137,7 +137,7 @@ function remoteRender(ctx: Context): string {
       : list
           .map(
             (c) =>
-              `<button class="review-row ${ui.conversation === c.id ? 'sel' : ''}" data-conversation="${esc(c.id)}"><b>${esc(c.title || 'New conversation')}</b><span class="small muted">${new Date(c.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span></button>`,
+              `<button class="review-row ${ui.conversation === c.id ? 'sel' : ''}" data-conversation="${esc(c.id)}" data-key="conversation-${esc(c.id)}"><b>${esc(c.title || 'New conversation')}</b><span class="small muted">${new Date(c.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span></button>`,
           )
           .join('') ||
         emptyState({ compact: true, title: 'No conversations yet', body: 'Ask a question to start one.' });
@@ -190,6 +190,24 @@ function remoteRender(ctx: Context): string {
         </div>
       </div>
     </div>`;
+}
+
+// The log follows its latest message while it is scrolled to the end, and when a message arrives.
+// Scrolled up to read, a refresh (which keeps the element, U3.03) leaves it there.
+const shownCount = new WeakMap<HTMLElement, number>();
+const readingUp = new WeakSet<HTMLElement>();
+function toEnd(log: HTMLElement): void {
+  log.addEventListener(
+    'scroll',
+    () => {
+      if (log.scrollTop + log.clientHeight >= log.scrollHeight - 8) readingUp.delete(log);
+      else readingUp.add(log);
+    },
+    { signal: bound(), passive: true },
+  );
+  if (shownCount.get(log) === log.childElementCount && readingUp.has(log)) return;
+  shownCount.set(log, log.childElementCount);
+  log.scrollTop = log.scrollHeight;
 }
 
 function drawLive(): void {
@@ -294,10 +312,14 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
   const site = siteId(ctx);
   if (ui.conversation && thread?.key !== threadKey(ctx) && !live) void loadThread(ctx, ui.conversation);
   const logEl = root.querySelector<HTMLElement>('#chat-log');
-  if (logEl) logEl.scrollTop = logEl.scrollHeight;
-  root.querySelector<HTMLInputElement>('#composer [name=q]')?.addEventListener('input', (e) => {
-    draft = (e.target as HTMLInputElement).value;
-  });
+  if (logEl) toEnd(logEl);
+  root.querySelector<HTMLInputElement>('#composer [name=q]')?.addEventListener(
+    'input',
+    (e) => {
+      draft = (e.target as HTMLInputElement).value;
+    },
+    { signal: bound() },
+  );
   onSubmit(root, '#composer', (form) => send(ctx, field(form, 'q')));
   onAll(root, '[data-q]', 'click', (b) => void send(ctx, b.dataset.q ?? ''));
   onAll(root, '[data-new-conversation]', 'click', () => {
@@ -349,15 +371,23 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
     rate(ctx, Number(el.dataset.seq), el.dataset.rate === 'up' ? 'up' : 'down', ''),
   );
   root.querySelectorAll<HTMLFormElement>('[data-rate-form]').forEach((form) => {
-    form.querySelector<HTMLInputElement>('[name=comment]')?.addEventListener('input', (e) => {
-      if (rating) rating.comment = (e.target as HTMLInputElement).value;
-    });
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const comment = field(form, 'comment').trim();
-      if (!comment) return void ctx.toast('Say what was wrong, or leave the thumbs down as it is');
-      void rate(ctx, Number(form.dataset.rateForm), 'down', comment);
-    });
+    form.querySelector<HTMLInputElement>('[name=comment]')?.addEventListener(
+      'input',
+      (e) => {
+        if (rating) rating.comment = (e.target as HTMLInputElement).value;
+      },
+      { signal: bound() },
+    );
+    form.addEventListener(
+      'submit',
+      (e) => {
+        e.preventDefault();
+        const comment = field(form, 'comment').trim();
+        if (!comment) return void ctx.toast('Say what was wrong, or leave the thumbs down as it is');
+        void rate(ctx, Number(form.dataset.rateForm), 'down', comment);
+      },
+      { signal: bound() },
+    );
   });
 }
 
@@ -393,7 +423,7 @@ function localRender(ctx: Context, note = ''): string {
 
 function localBind(root: HTMLElement, ctx: Context): void {
   const logEl = need(root, '#chat-log');
-  logEl.scrollTop = logEl.scrollHeight;
+  toEnd(logEl);
   const sendLocal = (q: string) => {
     if (!q.trim()) return;
     const answer = ask(q, {

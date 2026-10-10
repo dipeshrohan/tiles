@@ -3,7 +3,7 @@
 // what with it (the API checks the same).
 
 import type { CorrelationResult, Insight, InsightDraft, InsightStatus, InsightSummary } from './api.ts';
-import { esc } from './dom.ts';
+import { esc, bound } from './dom.ts';
 
 export const MAX_ACTIONS = 20;
 
@@ -86,10 +86,14 @@ export function draftForm(id: string, text: DraftText, busy: boolean, submit = '
 
 // Keeps what is typed in a draft form in `text` as it is typed, so a re-render never loses it.
 export function bindDraft(form: HTMLFormElement, text: DraftText): void {
-  form.addEventListener('input', (e) => {
-    const el = e.target as HTMLInputElement | HTMLTextAreaElement;
-    if (el.name === 'title' || el.name === 'summary' || el.name === 'actions') text[el.name] = el.value;
-  });
+  form.addEventListener(
+    'input',
+    (e) => {
+      const el = e.target as HTMLInputElement | HTMLTextAreaElement;
+      if (el.name === 'title' || el.name === 'summary' || el.name === 'actions') text[el.name] = el.value;
+    },
+    { signal: bound() },
+  );
 }
 
 // What produced the evidence, in words.

@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, onAction, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
+import { esc, onAction, onAll, onNavigate, onSubmit, routeOf, bound } from '../lib/dom.ts';
 import type { AppResult, AppTemplate, StudioApp } from '../lib/api.ts';
 import {
   appLink,
@@ -325,13 +325,17 @@ const view: View = {
       ctx.rerender();
     });
     const form = root.querySelector<HTMLFormElement>('#app-form');
-    form?.addEventListener('input', () => {
-      if (!draft) return;
-      const values = formValues(form);
-      draft.name = String(values.__name ?? '');
-      delete values.__name;
-      draft.values = values;
-    });
+    form?.addEventListener(
+      'input',
+      () => {
+        if (!draft) return;
+        const values = formValues(form);
+        draft.name = String(values.__name ?? '');
+        delete values.__name;
+        draft.values = values;
+      },
+      { signal: bound() },
+    );
     onSubmit(root, '#app-form', (f) => save(ctx, f));
     onAll(root, '[data-retry-templates]', 'click', () => {
       templates = null;

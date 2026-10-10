@@ -22,7 +22,7 @@ import {
 } from '../lib/canvas.ts';
 import { historyOps, safeWorkingGraph, type RemoteStore } from '../lib/ontology-store.ts';
 import { seedOntology } from '../lib/data.ts';
-import { download, esc, field, need, onAll, onSubmit, scrollBehavior, timeAgo } from '../lib/dom.ts';
+import { download, esc, field, need, onAll, onSubmit, scrollBehavior, timeAgo, bound } from '../lib/dom.ts';
 import { describeChanges } from '../lib/review.ts';
 import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
@@ -411,7 +411,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
       e.preventDefault();
       zoom(Math.exp(-e.deltaY * 0.0015), toDrawing(e.clientX, e.clientY));
     },
-    { passive: false },
+    { passive: false, signal: bound() },
   );
   onAll(root, '[data-zoom]', 'click', (el) => {
     if (el.dataset.zoom === 'in') zoom(1.5);
@@ -425,31 +425,39 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   // Drag to pan; a drag ends without the click that would select a node.
   let drag: { x: number; y: number; view: ViewBox; scale: number; moved: boolean; id: number } | null = null;
   let swallowClick = false;
-  svg.addEventListener('pointerdown', (e) => {
-    swallowClick = false; // a drag the browser cancelled has no click to swallow
-    if (e.button !== 0) return;
-    const view = shaped();
-    const scale = Math.max(view.w / Math.max(1, svg.clientWidth), view.h / Math.max(1, svg.clientHeight));
-    drag = { x: e.clientX, y: e.clientY, view, scale, moved: false, id: e.pointerId };
-  });
-  svg.addEventListener('pointermove', (e) => {
-    if (!drag || e.pointerId !== drag.id) return;
-    const dx = e.clientX - drag.x;
-    const dy = e.clientY - drag.y;
-    if (!drag.moved && Math.hypot(dx, dy) < 4) return;
-    if (!drag.moved) svg.setPointerCapture(e.pointerId);
-    drag.moved = true;
-    svg.classList.add('panning');
-    setView(panBy(drag.view, -dx * drag.scale, -dy * drag.scale));
-  });
+  svg.addEventListener(
+    'pointerdown',
+    (e) => {
+      swallowClick = false; // a drag the browser cancelled has no click to swallow
+      if (e.button !== 0) return;
+      const view = shaped();
+      const scale = Math.max(view.w / Math.max(1, svg.clientWidth), view.h / Math.max(1, svg.clientHeight));
+      drag = { x: e.clientX, y: e.clientY, view, scale, moved: false, id: e.pointerId };
+    },
+    { signal: bound() },
+  );
+  svg.addEventListener(
+    'pointermove',
+    (e) => {
+      if (!drag || e.pointerId !== drag.id) return;
+      const dx = e.clientX - drag.x;
+      const dy = e.clientY - drag.y;
+      if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+      if (!drag.moved) svg.setPointerCapture(e.pointerId);
+      drag.moved = true;
+      svg.classList.add('panning');
+      setView(panBy(drag.view, -dx * drag.scale, -dy * drag.scale));
+    },
+    { signal: bound() },
+  );
   const endDrag = (e: PointerEvent) => {
     if (!drag || e.pointerId !== drag.id) return;
     swallowClick = drag.moved;
     drag = null;
     svg.classList.remove('panning');
   };
-  svg.addEventListener('pointerup', endDrag);
-  svg.addEventListener('pointercancel', endDrag);
+  svg.addEventListener('pointerup', endDrag, { signal: bound() });
+  svg.addEventListener('pointercancel', endDrag, { signal: bound() });
   svg.addEventListener(
     'click',
     (e) => {
@@ -457,7 +465,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
       swallowClick = false;
       e.stopPropagation(); // the end of a drag, not a click on a node
     },
-    true,
+    { capture: true, signal: bound() },
   );
 
   // Fold or open a node.
@@ -729,23 +737,31 @@ const view: View = {
         // the client showed why
       }
     });
-    root.querySelector<HTMLInputElement>('[data-import-file]')?.addEventListener('change', (e) => {
-      const input = e.target as HTMLInputElement;
-      const file = input.files?.[0];
-      const site = ctx.ontology.site;
-      input.value = ''; // choosing the same file again still counts
-      if (!file || !site) return;
-      void file.text().then((content) => {
-        const format = /\.csv$/i.test(file.name) || file.type === 'text/csv' ? 'csv' : 'json';
-        pending = { site: site.id, name: file.name, format, content, mode: 'merge', preview: null, plans: 0 };
+    root.querySelector<HTMLInputElement>('[data-import-file]')?.addEventListener(
+      'change',
+      (e) => {
+        const input = e.target as HTMLInputElement;
+        const file = input.files?.[0];
+        const site = ctx.ontology.site;
+        input.value = ''; // choosing the same file again still counts
+        if (!file || !site) return;
+        void file.text().then((content) => {
+          const format = /\.csv$/i.test(file.name) || file.type === 'text/csv' ? 'csv' : 'json';
+          pending = { site: site.id, name: file.name, format, content, mode: 'merge', preview: null, plans: 0 };
+          void planImport(ctx);
+        });
+      },
+      { signal: bound() },
+    );
+    root.querySelector<HTMLSelectElement>('[data-import-mode]')?.addEventListener(
+      'change',
+      (e) => {
+        if (!pending) return;
+        pending.mode = (e.target as HTMLSelectElement).value === 'replace' ? 'replace' : 'merge';
         void planImport(ctx);
-      });
-    });
-    root.querySelector<HTMLSelectElement>('[data-import-mode]')?.addEventListener('change', (e) => {
-      if (!pending) return;
-      pending.mode = (e.target as HTMLSelectElement).value === 'replace' ? 'replace' : 'merge';
-      void planImport(ctx);
-    });
+      },
+      { signal: bound() },
+    );
     onAll(root, '[data-import-cancel]', 'click', () => {
       pending = null;
       ctx.rerender();

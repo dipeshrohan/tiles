@@ -887,11 +887,11 @@
 	var SENT_FOR = 3e4;
 	var lastSent = null;
 	var keeping = null;
-	var keyOf$1 = (form) => JSON.stringify([form.id, Object.entries(form.dataset).filter(([k]) => k !== "checked")]);
+	var keyOf$2 = (form) => JSON.stringify([form.id, Object.entries(form.dataset).filter(([k]) => k !== "checked")]);
 	function sameForm(doc, key) {
 		const id = JSON.parse(key)[0];
 		const again = id ? doc.getElementById(id) : null;
-		return again instanceof HTMLFormElement && keyOf$1(again) === key ? again : null;
+		return again instanceof HTMLFormElement && keyOf$2(again) === key ? again : null;
 	}
 	function sentForm() {
 		if (!lastSent || Date.now() - lastSent.at > SENT_FOR) return null;
@@ -903,28 +903,37 @@
 		if (!form.id || typeof MutationObserver === "undefined") return;
 		let shownOn = form;
 		const doc = form.ownerDocument;
-		const key = keyOf$1(form);
+		const key = keyOf$2(form);
+		const reshow = (again) => {
+			if (!again || again.querySelector(".error-summary")) return;
+			shownOn = again;
+			showErrors(again, errors, { focus: false });
+		};
 		const observer = new MutationObserver(() => {
 			const again = sameForm(doc, key);
-			if (again && again !== shownOn && !again.querySelector(".error-summary")) {
-				shownOn = again;
-				showErrors(again, errors, { focus: false });
-			}
+			if (again !== shownOn) reshow(again);
 		});
 		observer.observe(doc.body, {
 			childList: true,
 			subtree: true
 		});
 		const timer = setTimeout(() => keeping?.stop(), 5e3);
-		keeping = { stop: () => {
-			observer.disconnect();
-			clearTimeout(timer);
-			keeping = null;
-		} };
+		keeping = {
+			drawn: () => reshow(sameForm(doc, key)),
+			stop: () => {
+				observer.disconnect();
+				clearTimeout(timer);
+				keeping = null;
+			}
+		};
 	}
+	function afterRender() {
+		keeping?.drawn();
+	}
+	var watched = /* @__PURE__ */ new WeakSet();
 	function checkOnSubmit(form) {
-		if (!form.dataset.checked) {
-			form.dataset.checked = "true";
+		if (!watched.has(form)) {
+			watched.add(form);
 			form.addEventListener("focusout", (e) => {
 				if (e.relatedTarget instanceof HTMLButtonElement && e.relatedTarget.form === form) return;
 				const el = e.target;
@@ -932,14 +941,17 @@
 				const problem = problemWith(el);
 				const note = el.id ? el.ownerDocument.getElementById(`${el.id}-error`) : null;
 				if (problem) setFieldError(el, problem, true);
-				else if (note && (note.dataset.checked === "true" || note.dataset.value !== el.value)) setFieldError(el, null);
+				else if (note && (note.dataset.checked === "true" || note.dataset.value !== el.value)) {
+					setFieldError(el, null);
+					keeping?.stop();
+				}
 				if (!form.querySelector("[aria-invalid=\"true\"]")) form.querySelector(":scope > .error-summary")?.remove();
 			});
 		}
 		keeping?.stop();
 		lastSent = {
 			form,
-			key: keyOf$1(form),
+			key: keyOf$2(form),
 			at: Date.now()
 		};
 		const errors = validate(form);
@@ -1663,6 +1675,147 @@
 		return [...repo.history].reverse().flatMap((c) => c.ops);
 	}
 	//#endregion
+	//#region js/lib/morph.ts
+	var drawn$1 = /* @__PURE__ */ new WeakMap();
+	function remember$1(root) {
+		root.querySelectorAll("details").forEach((d) => drawn$1.has(d) || drawn$1.set(d, d.open));
+	}
+	function replace(root, html) {
+		root.innerHTML = html;
+		remember$1(root);
+	}
+	function morph(root, html) {
+		const template = root.ownerDocument.createElement("template");
+		template.innerHTML = html;
+		children(root, template.content);
+		remember$1(root);
+	}
+	var sentWith = /* @__PURE__ */ new WeakMap();
+	function noteSent(form) {
+		for (const el of form.elements) if (isField(el)) sentWith.set(el, current$1(el));
+	}
+	var keyOf$1 = (node) => node instanceof Element ? node.getAttribute("data-key") ?? (node.id || null) : null;
+	var same = (a, b) => a.nodeType === b.nodeType && (!(a instanceof Element) || b instanceof Element && a.namespaceURI === b.namespaceURI && a.nodeName === b.nodeName);
+	var alike = (a, b) => same(a, b) && (!(a instanceof Element) || b instanceof Element && a.getAttribute("name") === b.getAttribute("name") && a.classList.item(0) === b.classList.item(0));
+	function children(parent, next) {
+		const wanted = /* @__PURE__ */ new Set();
+		for (let n = next.firstChild; n; n = n.nextSibling) {
+			const k = keyOf$1(n);
+			if (k) wanted.add(k);
+		}
+		const keyed = /* @__PURE__ */ new Map();
+		for (let n = parent.firstChild; n; n = n.nextSibling) {
+			const k = keyOf$1(n);
+			if (k && wanted.has(k) && !keyed.has(k)) keyed.set(k, n);
+		}
+		const reserved = (n) => {
+			const k = keyOf$1(n);
+			return k !== null && keyed.get(k) === n;
+		};
+		const gone = (n) => {
+			const k = keyOf$1(n);
+			return k !== null && !wanted.has(k);
+		};
+		const skip = (n) => {
+			while (n && (reserved(n) || gone(n))) n = n.nextSibling;
+			return n;
+		};
+		const kept = /* @__PURE__ */ new Set();
+		let cursor = parent.firstChild;
+		for (let n = next.firstChild; n;) {
+			const following = n.nextSibling;
+			const k = keyOf$1(n);
+			let match = null;
+			let added = false;
+			while (cursor && gone(cursor)) cursor = cursor.nextSibling;
+			if (k && keyed.has(k)) {
+				const found = keyed.get(k) ?? null;
+				keyed.delete(k);
+				if (found && same(found, n)) match = found;
+			} else if (k) {
+				if (cursor && keyOf$1(cursor) === null && same(cursor, n)) match = cursor;
+			} else {
+				cursor = skip(cursor);
+				if (cursor && !alike(cursor, n)) {
+					const ahead = skip(cursor.nextSibling);
+					if (ahead && alike(ahead, n)) cursor = ahead;
+					else if (following && alike(cursor, following)) added = true;
+				}
+				if (!added && cursor && same(cursor, n)) match = cursor;
+			}
+			if (match) {
+				if (match !== cursor) parent.insertBefore(match, cursor);
+				else cursor = cursor.nextSibling;
+				node(match, n);
+				kept.add(match);
+			} else {
+				const fresh = parent.ownerDocument?.importNode(n, true) ?? n.cloneNode(true);
+				parent.insertBefore(fresh, cursor);
+				kept.add(fresh);
+			}
+			n = following;
+		}
+		for (let n = parent.firstChild; n;) {
+			const after = n.nextSibling;
+			if (!kept.has(n)) parent.removeChild(n);
+			n = after;
+		}
+	}
+	function node(old, next) {
+		if (!(old instanceof Element) || !(next instanceof Element)) {
+			if (old.nodeValue !== next.nodeValue) old.nodeValue = next.nodeValue;
+			return;
+		}
+		const field = isField(old);
+		const typed = field && current$1(old) !== drawnAs(old) && sentWith.get(old) !== current$1(old);
+		const was = field ? drawnAs(old) : "";
+		attributes(old, next);
+		if (!(old instanceof HTMLTextAreaElement)) children(old, next);
+		else if (old.defaultValue !== next.textContent) old.defaultValue = next.textContent ?? "";
+		if (field && (!typed || drawnAs(old) !== was)) values(old);
+	}
+	var isField = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
+	var toggles = (el) => el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio");
+	function current$1(el) {
+		if (toggles(el)) return String(el.checked);
+		if (el instanceof HTMLSelectElement) return [...el.options].map((o) => o.selected).join();
+		return el.value;
+	}
+	function drawnAs(el) {
+		if (toggles(el)) return String(el.defaultChecked);
+		if (el instanceof HTMLSelectElement) {
+			const options = [...el.options];
+			const none = !el.multiple && !options.some((o) => o.defaultSelected);
+			return options.map((o, i) => o.defaultSelected || none && i === 0).join();
+		}
+		return el.type === "file" ? "" : el.defaultValue;
+	}
+	function attributes(old, next) {
+		const was = old instanceof HTMLDetailsElement ? drawn$1.get(old) : void 0;
+		const keepOpen = was !== void 0 && was !== old.open && was === next.hasAttribute("open") || old instanceof HTMLDialogElement;
+		for (const { name } of [...old.attributes]) {
+			if (keepOpen && name === "open") continue;
+			if (!next.hasAttribute(name)) old.removeAttribute(name);
+		}
+		for (const { name, value } of [...next.attributes]) {
+			if (keepOpen && name === "open") continue;
+			if (old.getAttribute(name) !== value) old.setAttribute(name, value);
+		}
+		if (old instanceof HTMLDetailsElement) drawn$1.set(old, next.hasAttribute("open"));
+	}
+	function values(el) {
+		if (el instanceof HTMLInputElement) {
+			if (el.type === "checkbox" || el.type === "radio") {
+				if (el.checked !== el.defaultChecked) el.checked = el.defaultChecked;
+			} else if (el.value !== drawnAs(el)) el.value = drawnAs(el);
+		} else if (el instanceof HTMLTextAreaElement) {
+			if (el.value !== el.defaultValue) el.value = el.defaultValue;
+		} else if (el instanceof HTMLSelectElement) {
+			for (const o of el.options) if (o.selected !== o.defaultSelected) o.selected = o.defaultSelected;
+			if (!el.multiple && ![...el.options].some((o) => o.defaultSelected) && el.options.length && el.selectedIndex !== 0) el.selectedIndex = 0;
+		}
+	}
+	//#endregion
 	//#region js/lib/dom.ts
 	var ENTITIES = {
 		"&": "&amp;",
@@ -1698,8 +1851,15 @@
 		if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) return el.value;
 		throw new Error(`Form has no field ${name}`);
 	}
+	var binding = new AbortController();
+	var bound = () => binding.signal;
+	function rebind() {
+		binding.abort();
+		binding = new AbortController();
+		return binding.signal;
+	}
 	function onAll(root, sel, type, handler) {
-		root.querySelectorAll(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e)));
+		root.querySelectorAll(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e), { signal: bound() }));
 	}
 	function scrollBehavior() {
 		return document.documentElement.dataset.motion === "reduce" || typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
@@ -1722,26 +1882,29 @@
 		form.noValidate = true;
 		form.addEventListener("submit", (e) => {
 			e.preventDefault();
-			if (form.dataset.sending) return;
+			if (sending.has(form)) return;
 			if (!checkOnSubmit(form)) return;
+			noteSent(form);
 			const button = e.submitter instanceof HTMLButtonElement ? e.submitter : form.querySelector("button[type=submit], button:not([type])");
 			hold(form, button, handler(form, e.submitter));
-		});
+		}, { signal: bound() });
 	}
 	function onAction(root, sel, handler) {
 		root.querySelectorAll(sel).forEach((el) => el.addEventListener("click", () => {
-			if (el.dataset.sending) return;
+			if (sending.has(el)) return;
 			hold(el, el, handler(el));
-		}));
+		}, { signal: bound() }));
 	}
+	var sending = /* @__PURE__ */ new WeakSet();
 	function hold(owner, button, work) {
 		if (!(work instanceof Promise)) return;
-		owner.dataset.sending = "true";
+		sending.add(owner);
 		const wasDisabled = button?.disabled ?? false;
+		const drawn = bound();
 		if (button) setBusy(button, true);
 		work.finally(() => {
-			delete owner.dataset.sending;
-			if (button?.isConnected) {
+			sending.delete(owner);
+			if (button?.isConnected && !drawn.aborted) {
 				setBusy(button, false);
 				button.disabled = wasDisabled;
 			}
@@ -2380,6 +2543,9 @@
 		})}>${options$1(list, current)}</select>`;
 	}
 	var hints = 0;
+	function resetIds() {
+		hints = 0;
+	}
 	function describedBy(controlHtml, id) {
 		return controlHtml.replace(/<(input|select|textarea)\b[^>]*>/, (tag) => {
 			const has = /\saria-describedby="([^"]*)"/.exec(tag);
@@ -3273,7 +3439,7 @@
 			site,
 			id: c.id
 		}));
-		const items = list === null || list === void 0 ? skeleton.list() : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
+		const items = list === null || list === void 0 ? skeleton.list() : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}" data-key="conversation-${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
 			dateStyle: "medium",
 			timeStyle: "short"
 		})}</span></button>`).join("") || emptyState({
@@ -3317,6 +3483,20 @@
         </div>
       </div>
     </div>`;
+	}
+	var shownCount = /* @__PURE__ */ new WeakMap();
+	var readingUp = /* @__PURE__ */ new WeakSet();
+	function toEnd(log) {
+		log.addEventListener("scroll", () => {
+			if (log.scrollTop + log.clientHeight >= log.scrollHeight - 8) readingUp.delete(log);
+			else readingUp.add(log);
+		}, {
+			signal: bound(),
+			passive: true
+		});
+		if (shownCount.get(log) === log.childElementCount && readingUp.has(log)) return;
+		shownCount.set(log, log.childElementCount);
+		log.scrollTop = log.scrollHeight;
 	}
 	function drawLive() {
 		const el = document.querySelector("[data-live]");
@@ -3424,10 +3604,10 @@
 		const site = siteId$10(ctx);
 		if (ui.conversation && thread?.key !== threadKey(ctx) && !live) loadThread(ctx, ui.conversation);
 		const logEl = root.querySelector("#chat-log");
-		if (logEl) logEl.scrollTop = logEl.scrollHeight;
+		if (logEl) toEnd(logEl);
 		root.querySelector("#composer [name=q]")?.addEventListener("input", (e) => {
 			draft$4 = e.target.value;
-		});
+		}, { signal: bound() });
 		onSubmit(root, "#composer", (form) => send(ctx, field$2(form, "q")));
 		onAll(root, "[data-q]", "click", (b) => void send(ctx, b.dataset.q ?? ""));
 		onAll(root, "[data-new-conversation]", "click", () => {
@@ -3485,13 +3665,13 @@
 		root.querySelectorAll("[data-rate-form]").forEach((form) => {
 			form.querySelector("[name=comment]")?.addEventListener("input", (e) => {
 				if (rating) rating.comment = e.target.value;
-			});
+			}, { signal: bound() });
 			form.addEventListener("submit", (e) => {
 				e.preventDefault();
 				const comment = field$2(form, "comment").trim();
 				if (!comment) return void ctx.toast("Say what was wrong, or leave the thumbs down as it is");
 				rate(ctx, Number(form.dataset.rateForm), "down", comment);
-			});
+			}, { signal: bound() });
 		});
 	}
 	function localRender(ctx, note = "") {
@@ -3513,8 +3693,7 @@
       </div>`;
 	}
 	function localBind(root, ctx) {
-		const logEl = need(root, "#chat-log");
-		logEl.scrollTop = logEl.scrollHeight;
+		toEnd(need(root, "#chat-log"));
 		const sendLocal = (q) => {
 			if (!q.trim()) return;
 			const answer = ask(q, {
@@ -4199,7 +4378,10 @@
 		svg.addEventListener("wheel", (e) => {
 			e.preventDefault();
 			zoom(Math.exp(-e.deltaY * .0015), toDrawing(e.clientX, e.clientY));
-		}, { passive: false });
+		}, {
+			passive: false,
+			signal: bound()
+		});
 		onAll(root, "[data-zoom]", "click", (el) => {
 			if (el.dataset.zoom === "in") zoom(1.5);
 			else if (el.dataset.zoom === "out") zoom(1 / 1.5);
@@ -4223,7 +4405,7 @@
 				moved: false,
 				id: e.pointerId
 			};
-		});
+		}, { signal: bound() });
 		svg.addEventListener("pointermove", (e) => {
 			if (!drag || e.pointerId !== drag.id) return;
 			const dx = e.clientX - drag.x;
@@ -4233,20 +4415,23 @@
 			drag.moved = true;
 			svg.classList.add("panning");
 			setView(panBy(drag.view, -dx * drag.scale, -dy * drag.scale));
-		});
+		}, { signal: bound() });
 		const endDrag = (e) => {
 			if (!drag || e.pointerId !== drag.id) return;
 			swallowClick = drag.moved;
 			drag = null;
 			svg.classList.remove("panning");
 		};
-		svg.addEventListener("pointerup", endDrag);
-		svg.addEventListener("pointercancel", endDrag);
+		svg.addEventListener("pointerup", endDrag, { signal: bound() });
+		svg.addEventListener("pointercancel", endDrag, { signal: bound() });
 		svg.addEventListener("click", (e) => {
 			if (!swallowClick) return;
 			swallowClick = false;
 			e.stopPropagation();
-		}, true);
+		}, {
+			capture: true,
+			signal: bound()
+		});
 		const toggleFold = (id) => {
 			const h = hierarchy(ctx.graph);
 			const collapsed = collapsedSet(ctx.graph, h, ui);
@@ -4476,12 +4661,12 @@
 					};
 					planImport(ctx);
 				});
-			});
+			}, { signal: bound() });
 			root.querySelector("[data-import-mode]")?.addEventListener("change", (e) => {
 				if (!pending$1) return;
 				pending$1.mode = e.target.value === "replace" ? "replace" : "merge";
 				planImport(ctx);
-			});
+			}, { signal: bound() });
 			onAll(root, "[data-import-cancel]", "click", () => {
 				pending$1 = null;
 				ctx.rerender();
@@ -5140,7 +5325,7 @@
 				const chosen = CUTTER_VARIABLES.find((x) => x.key === select.value);
 				if (chosen) ui.variable = chosen.key;
 				ctx.rerender();
-			});
+			}, { signal: bound() });
 		}
 	};
 	//#endregion
@@ -5289,7 +5474,7 @@
 				ctx.rerender();
 			};
 			const slider = need(root, "#shot");
-			slider.addEventListener("change", () => go(Number(slider.value)));
+			slider.addEventListener("change", () => go(Number(slider.value)), { signal: bound() });
 			onAll(root, "[data-step]", "click", (b) => go(ui.shot + Number(b.dataset.step)));
 			onAll(root, "[data-goto]", "click", (r) => go(Number(r.dataset.goto)));
 			const chart = need(root, "#run-chart");
@@ -5301,7 +5486,7 @@
 				const left = 52;
 				const right = vb.width - 16;
 				go(Math.round((x - left) / (right - left) * (n - 1)));
-			});
+			}, { signal: bound() });
 		}
 	};
 	//#endregion
@@ -5650,7 +5835,7 @@
 			root.querySelector("#sweep-steps")?.addEventListener("change", (e) => {
 				ui.sweepSteps = Number(e.target.value);
 				ctx.rerender();
-			});
+			}, { signal: bound() });
 			onAll(root, "[data-sweep-start]", "click", async () => {
 				if (!site || !ctx.api) return;
 				const { xKey, yKey } = sweepAxes(model, ui);
@@ -5696,7 +5881,7 @@
 			root.querySelector("#project")?.addEventListener("change", (e) => {
 				ui.project = e.target.value;
 				ctx.rerender();
-			});
+			}, { signal: bound() });
 			onSubmit(root, "#new-project", async (form) => {
 				const name = field$2(form, "name").trim();
 				if (!site || !ctx.api || !name) return;
@@ -5719,7 +5904,7 @@
 			versionSelect.addEventListener("change", () => {
 				ui.versions[model.id] = versionSelect.value;
 				ctx.rerender();
-			});
+			}, { signal: bound() });
 			root.querySelectorAll("[data-param]").forEach((input) => {
 				const p = model.params.find((x) => x.key === input.dataset.param);
 				if (!p) return;
@@ -5727,8 +5912,8 @@
 					params[p.key] = Number(input.value);
 					need(root, `[data-val="${p.key}"]`).textContent = fmt$1(params[p.key] ?? p.default, digits(p));
 					need(root, "#result").textContent = fmt$1(evaluate(model.id, ui.versions[model.id] ?? model.latest, params), 2);
-				});
-				input.addEventListener("change", () => ctx.rerender());
+				}, { signal: bound() });
+				input.addEventListener("change", () => ctx.rerender(), { signal: bound() });
 			});
 			onAll(root, "[data-reset]", "click", () => {
 				ui.params[model.id] = defaults(model);
@@ -5738,12 +5923,12 @@
 			sweepX.addEventListener("change", () => {
 				ui.sweepX = sweepX.value;
 				ctx.rerender();
-			});
+			}, { signal: bound() });
 			const sweepY = need(root, "#sweep-y");
 			sweepY.addEventListener("change", () => {
 				ui.sweepY = sweepY.value;
 				ctx.rerender();
-			});
+			}, { signal: bound() });
 			onSubmit(root, "#run-form", async (form) => {
 				const note = field$2(form, "note").trim();
 				if (site) {
@@ -6234,7 +6419,7 @@
 				});
 				showCounts();
 			}, () => box.checked = !wanted).finally(() => box.disabled = false);
-		});
+		}, { signal: bound() });
 		return showCounts();
 	}
 	//#endregion
@@ -6389,7 +6574,7 @@
 				box.checked = !wanted;
 				box.disabled = false;
 			}
-		});
+		}, { signal: bound() });
 	}
 	function notificationsCard(ctx) {
 		const role = ctx.ontology.role;
@@ -6441,7 +6626,7 @@
 				box("on_assigned").checked = draft.on_assigned ?? p.on_assigned;
 				for (const el of prefsForm.querySelectorAll("input, button")) el.disabled = false;
 			};
-			for (const name of ["on_raised", "on_assigned"]) box(name).addEventListener("change", () => draft[name] = box(name).checked);
+			for (const name of ["on_raised", "on_assigned"]) box(name).addEventListener("change", () => draft[name] = box(name).checked, { signal: bound() });
 			api.notifications.preferences(site.id).then(show, () => {
 				need(prefsForm, "[data-notify-email]").textContent = "Your preferences could not be loaded.";
 			});
@@ -6471,8 +6656,8 @@
 		const onRaisedBox = need(teamsForm, "[name=on_raised]");
 		urlBox.value = draft.url ?? "";
 		if (draft.teams_on_raised !== void 0) onRaisedBox.checked = draft.teams_on_raised;
-		urlBox.addEventListener("input", () => draft.url = urlBox.value);
-		onRaisedBox.addEventListener("change", () => draft.teams_on_raised = onRaisedBox.checked);
+		urlBox.addEventListener("input", () => draft.url = urlBox.value, { signal: bound() });
+		onRaisedBox.addEventListener("change", () => draft.teams_on_raised = onRaisedBox.checked, { signal: bound() });
 		api.notifications.teams(site.id).then(showTeams, () => status.textContent = "The channel could not be loaded.");
 		const save = (url) => api.notifications.setTeams(site.id, url, need(teamsForm, "[name=on_raised]").checked).then((t) => {
 			delete draft.url;
@@ -6718,7 +6903,7 @@
 					base: sourceKey(ctx.dataSource),
 					...readSource(source)
 				};
-			});
+			}, { signal: bound() });
 			onAll(root, "[data-test-api]", "click", async () => {
 				const url = field$2(need(root, "#datasource"), "apiUrl");
 				const seq = ++apiCheckSeq;
@@ -6828,7 +7013,7 @@
 		form.addEventListener("input", (e) => {
 			const el = e.target;
 			if (el.name === "title" || el.name === "summary" || el.name === "actions") text[el.name] = el.value;
-		});
+		}, { signal: bound() });
 	}
 	function sourceText(i) {
 		const q = i.query;
@@ -7207,7 +7392,7 @@
 					srOnly: true
 				}
 			],
-			rowsHtml: page.signals.map((s) => `<tr data-row="${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
+			rowsHtml: page.signals.map((s) => `<tr data-row="${esc(s.id)}" data-key="signal-${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
             <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
             <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
             <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
@@ -7515,19 +7700,19 @@
 				clearTimeout(searchTimer);
 				searchTimer = setTimeout(() => void search$1(root, ctx), 250);
 			};
-			form.addEventListener("input", update);
-			form.addEventListener("change", update);
+			form.addEventListener("input", update, { signal: bound() });
+			form.addEventListener("change", update, { signal: bound() });
 			need(root, "[data-signal-results]").addEventListener("click", (e) => {
 				if (!(e.target instanceof Element) || !e.target.closest("[data-clear-search]")) return;
 				for (const el of form.querySelectorAll("[name]")) el.value = "";
 				update();
 				need(form, "[name=q]").focus();
-			});
+			}, { signal: bound() });
 			form.addEventListener("submit", (e) => {
 				e.preventDefault();
 				update();
-			});
-			root.querySelector("[data-suggest]")?.addEventListener("click", () => void suggest(root, ctx));
+			}, { signal: bound() });
+			root.querySelector("[data-suggest]")?.addEventListener("click", () => void suggest(root, ctx), { signal: bound() });
 			bindMapping(root, ctx);
 			const checkButton = root.querySelector("[data-check-quality]");
 			const setButton = (busy) => {
@@ -7554,7 +7739,7 @@
 					checking = false;
 					setButton(false);
 				});
-			});
+			}, { signal: bound() });
 		}
 	};
 	//#endregion
@@ -7622,12 +7807,12 @@
 		const w = wearOf(id);
 		form.addEventListener("input", () => {
 			w.limit = field$2(form, "limit");
-		});
+		}, { signal: bound() });
 		form.addEventListener("change", () => {
 			w.direction = field$2(form, "direction");
 			w.limit = field$2(form, "limit");
 			showWear(box, ctx);
-		});
+		}, { signal: bound() });
 		onSubmit(box, "form", () => checkWear(ctx, box));
 		showWear(box, ctx);
 	}
@@ -7790,18 +7975,18 @@
 			if (e.button !== 0) return;
 			start = e.clientX;
 			area.setPointerCapture(e.pointerId);
-		});
-		area.addEventListener("pointercancel", cancel);
+		}, { signal: bound() });
+		area.addEventListener("pointercancel", cancel, { signal: bound() });
 		area.addEventListener("lostpointercapture", () => {
 			if (start !== null) cancel();
-		});
+		}, { signal: bound() });
 		area.addEventListener("pointermove", (e) => {
 			if (start === null) return;
 			const rect = area.getBoundingClientRect();
 			marker.hidden = false;
 			marker.style.left = `${Math.min(start, e.clientX) - rect.left}px`;
 			marker.style.width = `${Math.abs(e.clientX - start)}px`;
-		});
+		}, { signal: bound() });
 		area.addEventListener("pointerup", (e) => {
 			if (start === null) return;
 			const [a, b] = [units(start), units(e.clientX)].sort((p, q) => p - q);
@@ -7813,7 +7998,7 @@
 				from: iso(t0),
 				to: iso(t1)
 			});
-		});
+		}, { signal: bound() });
 	}
 	function bindSearch(root, ctx) {
 		const input = root.querySelector("#explorer-search [name=q]");
@@ -7844,11 +8029,11 @@
 			searchText = input.value;
 			clearTimeout(findTimer);
 			findTimer = setTimeout(() => void find(), 250);
-		});
+		}, { signal: bound() });
 		root.querySelector("#explorer-search")?.addEventListener("submit", (e) => {
 			e.preventDefault();
 			find();
-		});
+		}, { signal: bound() });
 		find();
 	}
 	var chartsKey = (u) => JSON.stringify([u.picked.map((p) => p.id), u.range]);
@@ -8015,7 +8200,7 @@
 						from: iso(from),
 						to: iso(to)
 					});
-				});
+				}, { signal: bound() });
 			}
 			onAll(root, "[data-save-insight]", "click", () => {
 				const u = ui(ctx);
@@ -8315,7 +8500,7 @@
 					key: detailKey$2(ctx),
 					text: e.target.value
 				};
-			});
+			}, { signal: bound() });
 			onAll(root, "[data-policy]", "change", (el) => {
 				const site = siteId$9(ctx);
 				const required = el.checked;
@@ -8535,7 +8720,7 @@
 			})
 		});
 		return card$1(`<div class="review-list" data-warning-list>${items === null ? skeleton.list() : items.map((w) => `
-        <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
+        <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}">
           <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
@@ -8912,7 +9097,7 @@
 					key: detailKey$1(ctx),
 					text: e.target.value
 				};
-			});
+			}, { signal: bound() });
 			onAll(root, "[data-act]", "click", (el) => {
 				const form = need(root, "#warning-form");
 				const box = need(form, "textarea");
@@ -9687,15 +9872,15 @@
 				input.focus();
 				input.setSelectionRange(input.value.length, input.value.length);
 			}
-			input?.addEventListener("focus", () => searching = true);
+			input?.addEventListener("focus", () => searching = true, { signal: bound() });
 			input?.addEventListener("blur", () => queueMicrotask(() => {
 				if (input.isConnected) searching = false;
-			}));
+			}), { signal: bound() });
 			input?.addEventListener("input", () => {
 				ui.query = input.value;
 				clearTimeout(typing$1);
 				typing$1 = setTimeout(() => ctx.rerender(), 200);
-			});
+			}, { signal: bound() });
 			form?.addEventListener("submit", (e) => {
 				e.preventDefault();
 				clearTimeout(typing$1);
@@ -9706,7 +9891,7 @@
 				const to = placeLink(best.id);
 				if (location.hash === to) ctx.rerender();
 				else location.hash = to;
-			});
+			}, { signal: bound() });
 			onAll(root, "[data-place]", "click", () => {
 				ui.query = "";
 			});
@@ -9846,6 +10031,7 @@ heartbeat_seconds = 30
 	var busy$3 = false;
 	var timer$1 = null;
 	var siteId$5 = (ctx) => ctx.ontology.site?.id ?? null;
+	var slugEdited = /* @__PURE__ */ new WeakSet();
 	onNavigate((hash) => {
 		if (routeOf(hash) === "onboarding") return;
 		if (timer$1 !== null) clearInterval(timer$1);
@@ -10030,11 +10216,10 @@ heartbeat_seconds = 30
 			onAll(root, "[data-onboarding-refresh]", "click", () => void load$3(ctx, { withOntology: true }));
 			const form = root.querySelector("#new-site");
 			const slug = form?.querySelector("[name=slug]");
-			let slugEdited = false;
-			slug?.addEventListener("input", () => slugEdited = true);
+			slug?.addEventListener("input", () => slugEdited.add(slug), { signal: bound() });
 			form?.querySelector("[name=name]")?.addEventListener("input", (e) => {
-				if (slug && !slugEdited) slug.value = slugFrom(e.target.value);
-			});
+				if (slug && !slugEdited.has(slug)) slug.value = slugFrom(e.target.value);
+			}, { signal: bound() });
 			onSubmit(root, "#new-site", (form) => (async () => {
 				if (!ctx.api || busy$3) return;
 				busy$3 = true;
@@ -10748,7 +10933,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					horizonHours: Number(data.get("horizon")) || 8,
 					codes: String(data.get("codes") ?? "")
 				};
-			});
+			}, { signal: bound() });
 			onAll(root, "[data-asset-form] [name=asset]", "input", (el) => {
 				const id = el.closest("[data-asset-form]")?.dataset.assetForm;
 				if (id) assetDrafts.set(id, el.value);
@@ -11521,10 +11706,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					name: chosen.name || (file ? file.name.replace(/\.[^.]+$/, "").trim().slice(0, 200).trim() : "")
 				};
 				ctx.rerender();
-			});
+			}, { signal: bound() });
 			uploadForm?.querySelector("[name=name]")?.addEventListener("input", (e) => {
 				chosen.name = e.target.value;
-			});
+			}, { signal: bound() });
 			onSubmit(root, "#dataset-form", () => {
 				const name = chosen.name.trim();
 				if (!chosen.file) return void ctx.toast("Choose the CSV file first");
@@ -11548,10 +11733,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				if (el.name === "split") ui.split = el.value;
 				if (el.name === "variable") ui.variables = [...form.querySelectorAll("[name=variable]:checked")].map((c) => c.value);
 				if (el.name === "outcome") ctx.rerender();
-			});
+			}, { signal: bound() });
 			form?.querySelector("[name=ng]")?.addEventListener("input", (e) => {
 				ui.ngText = e.target.value;
-			});
+			}, { signal: bound() });
 			onSubmit(root, "#correlate-form", () => find(ctx));
 			onAll(root, "[data-save-insight]", "click", () => {
 				if (!result$1 || !detail$1) return;
@@ -11813,7 +11998,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}
 			root.querySelector("#insight-review [name=note]")?.addEventListener("input", (e) => {
 				note.text = e.target.value;
-			});
+			}, { signal: bound() });
 			onSubmit(root, "#insight-review", (_form, submitter) => {
 				const decision = submitter?.dataset.decision;
 				if (decision !== "accepted" && decision !== "rejected") return;
@@ -12253,7 +12438,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				draft$1.name = String(values.__name ?? "");
 				delete values.__name;
 				draft$1.values = values;
-			});
+			}, { signal: bound() });
 			onSubmit(root, "#app-form", (f) => save(ctx, f));
 			onAll(root, "[data-retry-templates]", "click", () => {
 				templates = null;
@@ -12563,7 +12748,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					draft.file = input.files?.[0] ?? null;
 					draft.title = field$2(uploadForm, "title");
 					draft.language = field$2(uploadForm, "language");
-				});
+				}, { signal: bound() });
 			}
 			onSubmit(root, "#doc-upload", (form) => {
 				const file = need(form, "[name=file]").files?.[0];
@@ -12844,7 +13029,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					lastResult = null;
 					ctx.rerender();
 				});
-			});
+			}, { signal: bound() });
 			const form = root.querySelector("#import-mapping");
 			if (form && loaded) markFields(form, loaded);
 			form?.addEventListener("change", (e) => {
@@ -12864,7 +13049,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				markFields(form, l);
 				const run = root.querySelector("[data-import-run]");
 				if (run) run.disabled = running !== null || mappingProblems(l.header, l.mapping).length > 0;
-			});
+			}, { signal: bound() });
 			onAll(root, "[data-import-run]", "click", () => void runImport(ctx));
 			onAll(root, "[data-import-cancel]", "click", () => {
 				if (running) running.cancelled = true;
@@ -13682,8 +13867,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		renderNav(view);
 		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
-		root.innerHTML = view.render(ctx);
+		resetIds();
+		const html = view.render(ctx);
+		if (view.id === shownView) morph(root, html);
+		else replace(root, html);
+		rebind();
 		view.bind?.(root, ctx);
+		afterRender();
 		need(document, "#crumbs").innerHTML = breadcrumbs([
 			{
 				label: "Home",
@@ -13712,39 +13902,21 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}
 		}
 	}
+	need(document, "#view").addEventListener("submit", (e) => {
+		if (e.target instanceof HTMLFormElement && !e.target.noValidate) noteSent(e.target);
+	});
 	function renderSoon() {
 		const view = need(document, "#view");
 		const key = (el) => {
 			const form = el.closest("form");
 			const name = el.getAttribute("name");
-			return form?.id && name ? `${form.id}:${name}:${el instanceof HTMLInputElement ? el.type : ""}` : null;
+			return form?.id && name ? `${form.id}:${name}` : null;
 		};
-		const edited = /* @__PURE__ */ new Map();
-		view.querySelectorAll("input, select, textarea").forEach((el) => {
-			const k = key(el);
-			if (!k) return;
-			if (el instanceof HTMLInputElement && (el.type === "radio" || el.type === "checkbox")) {
-				if (el.checked !== el.defaultChecked) edited.set(`${k}:${el.value}`, el.checked);
-			} else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
-				if (el.value !== el.defaultValue) edited.set(k, el.value);
-			} else if (el instanceof HTMLSelectElement && [...el.options].some((o) => o.selected !== o.defaultSelected)) edited.set(k, el.value);
-		});
 		const active = document.activeElement;
 		const focused = active && view.contains(active) ? key(active) : null;
 		render();
-		if (!edited.size && !focused) return;
-		view.querySelectorAll("input, select, textarea").forEach((el) => {
-			const k = key(el);
-			if (!k) return;
-			if (el instanceof HTMLInputElement && (el.type === "radio" || el.type === "checkbox")) {
-				const v = edited.get(`${k}:${el.value}`);
-				if (typeof v === "boolean") el.checked = v;
-			} else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
-				const v = edited.get(k);
-				if (typeof v === "string") el.value = v;
-			}
-			if (k === focused && el instanceof HTMLElement) el.focus({ preventScroll: true });
-		});
+		if (!focused || document.activeElement && view.contains(document.activeElement)) return;
+		[...view.querySelectorAll("input, select, textarea")].find((el) => key(el) === focused)?.focus({ preventScroll: true });
 	}
 	need(document, "#view").addEventListener("click", (e) => {
 		const el = e.target instanceof Element ? e.target : null;

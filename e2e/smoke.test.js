@@ -2653,7 +2653,11 @@ test('the plant navigator: drill from the workcenter to a machine, with its warn
   await page.waitForSelector('.place-card.s-out:has-text("Die-caster DC-01")');
   await page.waitForSelector('.place-card.s-ok:has-text("Die-caster DC-02")');
   // The state shows as the card's colour, not only in its badge.
-  const border = (sel) => page.$eval(sel, (el) => getComputedStyle(el).borderLeftColor);
+  // Kept from the loading state and recoloured (U3.03): read once the colour has faded in.
+  const border = async (sel) => {
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    return page.$eval(sel, (el) => getComputedStyle(el).borderLeftColor);
+  };
   const bad = await page.evaluate(() => {
     const probe = document.body.appendChild(document.createElement('i'));
     probe.style.color = 'var(--bad)';
@@ -2972,6 +2976,16 @@ test('notifications: people choose their emails; admins set the Teams channel an
 });
 
 // Re-renders the current page, as the app does when an answer from the API arrives.
+// Draws the page again as a background refresh does (the browser back online: js/app.ts), not as a
+// navigation: focus stays where it is.
+async function refresh(page) {
+  await page.evaluate(() => {
+    document.querySelector('#view').insertAdjacentHTML('beforeend', '<i data-rerender-mark></i>');
+    window.dispatchEvent(new Event('online'));
+  });
+  await page.waitForFunction(() => !document.querySelector('[data-rerender-mark]'));
+}
+
 async function rerender(page) {
   await page.evaluate(() => {
     document.querySelector('#view').insertAdjacentHTML('beforeend', '<i data-rerender-mark></i>');
@@ -3412,6 +3426,54 @@ test('the wear check: a welder tip climbing in its last day, with a limit', asyn
   assert.equal(fake.wearChecks.at(-1).limit, 1900);
   await a.page.click('[data-preset="24h"]');
   await a.page.waitForSelector('[data-wear-result]', { state: 'detached' });
+  assert.deepEqual(a.errors, []);
+});
+
+test('a background refresh keeps typing, focus, a scrolled table and an open trace (U3.03)', async (t) => {
+  const fake = createFakeApi({ copilot: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.copilotScripts.push({
+    tools: [{ name: 'find_signals', input: { query: 'oil' }, result: { signals: [{ tag: 'press9.oil_temp' }] } }],
+    answer: '`press9.oil_temp` is the press oil [1].',
+  });
+  const a = await openAs(t, apiUrl, null, 'chat');
+  await a.page.waitForSelector('[data-new-conversation]');
+  await a.page.fill('#composer [name=q]', 'Which signal is the press oil?');
+  await a.page.press('#composer [name=q]', 'Enter');
+  await a.page.waitForSelector('[data-answer-text]:has-text("is the press oil")');
+  await a.page.waitForSelector('[data-live]', { state: 'detached' });
+  // Open the trace, start the next question, and leave the caret mid-word.
+  await a.page.click('details[data-trace] summary');
+  await a.page.click('#composer [name=q]');
+  await a.page.keyboard.type('And the coolant');
+  await a.page.keyboard.press('Home');
+  const trace = await a.page.locator('details[data-trace]').elementHandle();
+  for (let i = 0; i < 3; i++) await refresh(a.page);
+  assert.deepEqual(
+    await a.page.evaluate((trace) => {
+      const q = document.querySelector('#composer [name=q]');
+      return {
+        open: trace.isConnected && trace.open, // the same element, still open
+        typed: q.value,
+        focused: document.activeElement === q,
+        caret: q.selectionStart,
+      };
+    }, trace),
+    { open: true, typed: 'And the coolant', focused: true, caret: 0 },
+  );
+
+  // A table scrolled sideways on a phone stays where it was.
+  fake.setPerformance(performanceReport());
+  await a.page.setViewportSize({ width: 390, height: 844 });
+  await a.page.evaluate(() => (location.hash = '#/performance'));
+  const wrap = a.page.locator('.table-wrap', { hasText: 'False per day' });
+  await wrap.waitFor();
+  assert.ok(await wrap.evaluate((w) => w.scrollWidth > w.clientWidth), 'the table is wider than the phone');
+  await wrap.evaluate((w) => (w.scrollLeft = 60));
+  await refresh(a.page);
+  await a.page.waitForSelector('[data-kpis]'); // drawn again with its data
+  assert.equal(await wrap.evaluate((w) => w.scrollLeft), 60);
   assert.deepEqual(a.errors, []);
 });
 

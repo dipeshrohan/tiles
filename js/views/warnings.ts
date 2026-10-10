@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, need, onAll, onNavigate, routeOf } from '../lib/dom.ts';
+import { esc, need, onAll, onNavigate, routeOf, bound } from '../lib/dom.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import {
   ApiError,
@@ -169,7 +169,7 @@ function listCard(ctx: Context, ui: Ui): string {
       : items
           .map(
             (w) => `
-        <button class="review-row ${ui.selected === w.id ? 'sel' : ''}" data-warning="${esc(w.id)}">
+        <button class="review-row ${ui.selected === w.id ? 'sel' : ''}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}">
           <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : 'Unassigned'}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ''}</span>
@@ -531,9 +531,13 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-more-warnings]', 'click', () => void fetchMore(ctx));
-    root.querySelector<HTMLTextAreaElement>('#warning-form textarea')?.addEventListener('input', (e) => {
-      draft = { key: detailKey(ctx), text: (e.target as HTMLTextAreaElement).value };
-    });
+    root.querySelector<HTMLTextAreaElement>('#warning-form textarea')?.addEventListener(
+      'input',
+      (e) => {
+        draft = { key: detailKey(ctx), text: (e.target as HTMLTextAreaElement).value };
+      },
+      { signal: bound() },
+    );
     onAll(root, '[data-act]', 'click', (el) => {
       const form = need<HTMLFormElement>(root, '#warning-form');
       const box = need<HTMLTextAreaElement>(form, 'textarea');

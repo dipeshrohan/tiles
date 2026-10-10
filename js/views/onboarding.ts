@@ -1,4 +1,4 @@
-import { esc, field, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
+import { esc, field, onAll, onNavigate, onSubmit, routeOf, bound } from '../lib/dom.ts';
 import type { EdgeAgent, Onboarding } from '../lib/api.ts';
 import { placeLink } from '../lib/plant.ts';
 import {
@@ -38,6 +38,9 @@ let busy = false;
 let timer: ReturnType<typeof setInterval> | null = null;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
+
+// Slugs someone typed (the element is kept when the page is drawn again, U3.03, and so is this).
+const slugEdited = new WeakSet<HTMLInputElement>();
 
 onNavigate((hash) => {
   if (routeOf(hash) === 'onboarding') return;
@@ -254,11 +257,14 @@ const view: View = {
     // The slug follows the name until it is edited.
     const form = root.querySelector<HTMLFormElement>('#new-site');
     const slug = form?.querySelector<HTMLInputElement>('[name=slug]');
-    let slugEdited = false;
-    slug?.addEventListener('input', () => (slugEdited = true));
-    form?.querySelector<HTMLInputElement>('[name=name]')?.addEventListener('input', (e) => {
-      if (slug && !slugEdited) slug.value = slugFrom((e.target as HTMLInputElement).value);
-    });
+    slug?.addEventListener('input', () => slugEdited.add(slug), { signal: bound() });
+    form?.querySelector<HTMLInputElement>('[name=name]')?.addEventListener(
+      'input',
+      (e) => {
+        if (slug && !slugEdited.has(slug)) slug.value = slugFrom((e.target as HTMLInputElement).value);
+      },
+      { signal: bound() },
+    );
     onSubmit(root, '#new-site', (form) =>
       (async () => {
         if (!ctx.api || busy) return;

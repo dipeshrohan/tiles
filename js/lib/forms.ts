@@ -204,7 +204,7 @@ export function showErrors(
 // SENT_FOR of the sending, or it isn't to that form (a later action, not from a form, refused).
 const SENT_FOR = 30_000;
 let lastSent: { form: HTMLFormElement; key: string; at: number } | null = null;
-let keeping: { stop: () => void } | null = null;
+let keeping: { stop: () => void; drawn: () => void } | null = null;
 
 const keyOf = (form: HTMLFormElement): string =>
   JSON.stringify([form.id, Object.entries(form.dataset).filter(([k]) => k !== 'checked')]);
@@ -227,16 +227,21 @@ function keepShown(form: HTMLFormElement, errors: FieldError[]): void {
   let shownOn = form;
   const doc = form.ownerDocument;
   const key = keyOf(form);
+  const reshow = (again: HTMLFormElement | null) => {
+    if (!again || again.querySelector('.error-summary')) return;
+    shownOn = again;
+    showErrors(again, errors, { focus: false });
+  };
+  // Another form element drawn in its place (a page's script redrew it).
   const observer = new MutationObserver(() => {
     const again = sameForm(doc, key);
-    if (again && again !== shownOn && !again.querySelector('.error-summary')) {
-      shownOn = again;
-      showErrors(again, errors, { focus: false });
-    }
+    if (again !== shownOn) reshow(again);
   });
   observer.observe(doc.body, { childList: true, subtree: true });
   const timer = setTimeout(() => keeping?.stop(), 5000);
   keeping = {
+    // The page drawn again: the same form element, patched to its HTML, lost them (U3.03).
+    drawn: () => reshow(sameForm(doc, key)),
     stop: () => {
       observer.disconnect();
       clearTimeout(timer);
@@ -245,11 +250,19 @@ function keepShown(form: HTMLFormElement, errors: FieldError[]): void {
   };
 }
 
+// After the page is drawn again (app.ts): errors the API gave the form sent last are put back.
+export function afterRender(): void {
+  keeping?.drawn();
+}
+
+const watched = new WeakSet<HTMLFormElement>();
+
 // Checks a form as it is sent: false (and the errors shown) when it isn't ready. After its first
 // sending, each field is checked again as it is left, and its error cleared once it is put right.
 export function checkOnSubmit(form: HTMLFormElement): boolean {
-  if (!form.dataset.checked) {
-    form.dataset.checked = 'true';
+  // Once per form element: a page drawn again keeps its forms (js/lib/morph.ts), and their listener.
+  if (!watched.has(form)) {
+    watched.add(form);
     form.addEventListener('focusout', (e) => {
       // Leaving for one of the form's buttons: it is being sent, and checked then. Changing the
       // errors now would move the button from under the pointer before the click lands.
@@ -261,7 +274,10 @@ export function checkOnSubmit(form: HTMLFormElement): boolean {
       const note = el.id ? el.ownerDocument.getElementById(`${el.id}-error`) : null;
       // The browser's own problem is said again or cleared; another stays until the value changes.
       if (problem) setFieldError(el, problem, true);
-      else if (note && (note.dataset.checked === 'true' || note.dataset.value !== el.value)) setFieldError(el, null);
+      else if (note && (note.dataset.checked === 'true' || note.dataset.value !== el.value)) {
+        setFieldError(el, null);
+        keeping?.stop(); // put right: the API's errors aren't put back any more
+      }
       if (!form.querySelector('[aria-invalid="true"]')) form.querySelector(':scope > .error-summary')?.remove();
     });
   }

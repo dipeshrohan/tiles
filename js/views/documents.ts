@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf } from '../lib/dom.ts';
+import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf, bound } from '../lib/dom.ts';
 import type { DocumentMatch, SiteDocument } from '../lib/api.ts';
 import {
   contentTypeOf,
@@ -253,12 +253,16 @@ const view: View = {
         chosen.items.add(draft.file);
         input.files = chosen.files;
       }
-      uploadForm.addEventListener('input', () => {
-        if (!draft) return;
-        draft.file = input.files?.[0] ?? null;
-        draft.title = field(uploadForm, 'title');
-        draft.language = field(uploadForm, 'language');
-      });
+      uploadForm.addEventListener(
+        'input',
+        () => {
+          if (!draft) return;
+          draft.file = input.files?.[0] ?? null;
+          draft.title = field(uploadForm, 'title');
+          draft.language = field(uploadForm, 'language');
+        },
+        { signal: bound() },
+      );
     }
     onSubmit(root, '#doc-upload', (form) => {
       const file = need<HTMLInputElement>(form, '[name=file]').files?.[0];

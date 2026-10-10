@@ -2,7 +2,7 @@ import { MODELS, evaluate, sweep, sensitivity, makeRun, runDiff, auditRecord, ge
 import type { RunChange } from '../lib/design.ts';
 import { API_MODEL, asRun, changesOf, headOf, sweepGrid, sweepKey } from '../lib/design-runs.ts';
 import { heatmap, hbars } from '../lib/svg.ts';
-import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf, timeAgo } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf, timeAgo, bound } from '../lib/dom.ts';
 import type { ApiSweep, DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
@@ -366,10 +366,14 @@ const view: View = {
     const project = site ? projectOf(ctx, site) : null;
     if (site && project && apiRuns?.key !== runsKey(site, project.id, model.id))
       void fetchRuns(ctx, site, project.id, model.id);
-    root.querySelector<HTMLSelectElement>('#sweep-steps')?.addEventListener('change', (e) => {
-      ui.sweepSteps = Number((e.target as HTMLSelectElement).value);
-      ctx.rerender();
-    });
+    root.querySelector<HTMLSelectElement>('#sweep-steps')?.addEventListener(
+      'change',
+      (e) => {
+        ui.sweepSteps = Number((e.target as HTMLSelectElement).value);
+        ctx.rerender();
+      },
+      { signal: bound() },
+    );
     onAll(root, '[data-sweep-start]', 'click', async () => {
       if (!site || !ctx.api) return;
       const { xKey, yKey } = sweepAxes(model, ui);
@@ -405,10 +409,14 @@ const view: View = {
         // The client showed why (it may have just finished).
       }
     });
-    root.querySelector<HTMLSelectElement>('#project')?.addEventListener('change', (e) => {
-      ui.project = (e.target as HTMLSelectElement).value;
-      ctx.rerender();
-    });
+    root.querySelector<HTMLSelectElement>('#project')?.addEventListener(
+      'change',
+      (e) => {
+        ui.project = (e.target as HTMLSelectElement).value;
+        ctx.rerender();
+      },
+      { signal: bound() },
+    );
     onSubmit(root, '#new-project', async (form) => {
       const name = field(form, 'name').trim();
       if (!site || !ctx.api || !name) return;
@@ -427,34 +435,50 @@ const view: View = {
       ctx.rerender();
     });
     const versionSelect = need<HTMLSelectElement>(root, '#version');
-    versionSelect.addEventListener('change', () => {
-      ui.versions[model.id] = versionSelect.value;
-      ctx.rerender();
-    });
+    versionSelect.addEventListener(
+      'change',
+      () => {
+        ui.versions[model.id] = versionSelect.value;
+        ctx.rerender();
+      },
+      { signal: bound() },
+    );
     root.querySelectorAll<HTMLInputElement>('[data-param]').forEach((input) => {
       const p = model.params.find((x) => x.key === input.dataset.param);
       if (!p) return;
-      input.addEventListener('input', () => {
-        params[p.key] = Number(input.value);
-        need(root, `[data-val="${p.key}"]`).textContent = fmt(params[p.key] ?? p.default, digits(p));
-        need(root, '#result').textContent = fmt(evaluate(model.id, ui.versions[model.id] ?? model.latest, params), 2);
-      });
-      input.addEventListener('change', () => ctx.rerender());
+      input.addEventListener(
+        'input',
+        () => {
+          params[p.key] = Number(input.value);
+          need(root, `[data-val="${p.key}"]`).textContent = fmt(params[p.key] ?? p.default, digits(p));
+          need(root, '#result').textContent = fmt(evaluate(model.id, ui.versions[model.id] ?? model.latest, params), 2);
+        },
+        { signal: bound() },
+      );
+      input.addEventListener('change', () => ctx.rerender(), { signal: bound() });
     });
     onAll(root, '[data-reset]', 'click', () => {
       ui.params[model.id] = defaults(model);
       ctx.rerender();
     });
     const sweepX = need<HTMLSelectElement>(root, '#sweep-x');
-    sweepX.addEventListener('change', () => {
-      ui.sweepX = sweepX.value;
-      ctx.rerender();
-    });
+    sweepX.addEventListener(
+      'change',
+      () => {
+        ui.sweepX = sweepX.value;
+        ctx.rerender();
+      },
+      { signal: bound() },
+    );
     const sweepY = need<HTMLSelectElement>(root, '#sweep-y');
-    sweepY.addEventListener('change', () => {
-      ui.sweepY = sweepY.value;
-      ctx.rerender();
-    });
+    sweepY.addEventListener(
+      'change',
+      () => {
+        ui.sweepY = sweepY.value;
+        ctx.rerender();
+      },
+      { signal: bound() },
+    );
     onSubmit(root, '#run-form', async (form) => {
       const note = field(form, 'note').trim();
       if (site) {

@@ -1,4 +1,4 @@
-import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf, bound } from '../lib/dom.ts';
 import {
   createApiClient,
   isHttpUrl,
@@ -212,17 +212,21 @@ async function bindCopilotPolicy(root: HTMLElement, ctx: Context): Promise<void>
     note.textContent = 'Whether the copilot is on could not be loaded.';
     return;
   }
-  box.addEventListener('change', async () => {
-    const wanted = box.checked;
-    box.disabled = true;
-    try {
-      show(await api.copilot.setEnabled(site.id, wanted));
-      ctx.toast(wanted ? 'The copilot is on for this site' : 'The copilot is off for this site');
-    } catch {
-      box.checked = !wanted;
-      box.disabled = false;
-    }
-  });
+  box.addEventListener(
+    'change',
+    async () => {
+      const wanted = box.checked;
+      box.disabled = true;
+      try {
+        show(await api.copilot.setEnabled(site.id, wanted));
+        ctx.toast(wanted ? 'The copilot is on for this site' : 'The copilot is off for this site');
+      } catch {
+        box.checked = !wanted;
+        box.disabled = false;
+      }
+    },
+    { signal: bound() },
+  );
 }
 
 function notificationsCard(ctx: Context): string {
@@ -298,7 +302,7 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
         el.disabled = false;
     };
     for (const name of ['on_raised', 'on_assigned'] as const)
-      box(name).addEventListener('change', () => (draft[name] = box(name).checked));
+      box(name).addEventListener('change', () => (draft[name] = box(name).checked), { signal: bound() });
     api.notifications.preferences(site.id).then(show, () => {
       need(prefsForm, '[data-notify-email]').textContent = 'Your preferences could not be loaded.';
     });
@@ -330,8 +334,8 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
   const onRaisedBox = need<HTMLInputElement>(teamsForm, '[name=on_raised]');
   urlBox.value = draft.url ?? '';
   if (draft.teams_on_raised !== undefined) onRaisedBox.checked = draft.teams_on_raised;
-  urlBox.addEventListener('input', () => (draft.url = urlBox.value));
-  onRaisedBox.addEventListener('change', () => (draft.teams_on_raised = onRaisedBox.checked));
+  urlBox.addEventListener('input', () => (draft.url = urlBox.value), { signal: bound() });
+  onRaisedBox.addEventListener('change', () => (draft.teams_on_raised = onRaisedBox.checked), { signal: bound() });
   api.notifications.teams(site.id).then(showTeams, () => (status.textContent = 'The channel could not be loaded.'));
   const save = (url: string | null | undefined) =>
     api.notifications.setTeams(site.id, url, need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked).then(
@@ -635,9 +639,13 @@ const view: View = {
       ctx.toast(mode === 'api' ? 'Using the Tiles API' : 'Using this browser only');
     });
     const source = need<HTMLFormElement>(root, '#datasource');
-    source.addEventListener('input', () => {
-      sourceDraft = { base: sourceKey(ctx.dataSource), ...readSource(source) };
-    });
+    source.addEventListener(
+      'input',
+      () => {
+        sourceDraft = { base: sourceKey(ctx.dataSource), ...readSource(source) };
+      },
+      { signal: bound() },
+    );
     onAll(root, '[data-test-api]', 'click', async () => {
       const url = field(need<HTMLFormElement>(root, '#datasource'), 'apiUrl');
       const seq = ++apiCheckSeq;

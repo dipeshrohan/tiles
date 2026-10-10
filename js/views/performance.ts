@@ -1,4 +1,4 @@
-import { esc, onAll, onSubmit, onNavigate, routeOf } from '../lib/dom.ts';
+import { esc, onAll, onSubmit, onNavigate, routeOf, bound } from '../lib/dom.ts';
 import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
@@ -182,14 +182,18 @@ const view: View = {
       ctx.rerender();
     });
     const form = root.querySelector<HTMLFormElement>('#performance-form');
-    form?.addEventListener('input', () => {
-      const data = new FormData(form);
-      pending = {
-        days: Number(data.get('days')) || 30,
-        horizonHours: Number(data.get('horizon')) || 8,
-        codes: String(data.get('codes') ?? ''),
-      };
-    });
+    form?.addEventListener(
+      'input',
+      () => {
+        const data = new FormData(form);
+        pending = {
+          days: Number(data.get('days')) || 30,
+          horizonHours: Number(data.get('horizon')) || 8,
+          codes: String(data.get('codes') ?? ''),
+        };
+      },
+      { signal: bound() },
+    );
     onAll(root, '[data-asset-form] [name=asset]', 'input', (el) => {
       const id = el.closest<HTMLElement>('[data-asset-form]')?.dataset.assetForm;
       if (id) assetDrafts.set(id, (el as HTMLInputElement).value);
