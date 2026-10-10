@@ -10262,6 +10262,8 @@ heartbeat_seconds = 30
 				"--dur-fast",
 				"--dur",
 				"--dur-slow",
+				"--dur-spin",
+				"--dur-shimmer",
 				"--ease-out",
 				"--ease-in"
 			]

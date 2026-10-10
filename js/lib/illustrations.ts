@@ -1,6 +1,7 @@
 // Illustrations (U2.05) for empty, waiting and error states: small line-art scenes drawn for Tiles,
-// coloured by the theme (CSS classes .il-*, so they follow light and dark), with one part that floats
-// gently (stopped by reduced motion). Decorative: the words beside them carry the meaning.
+// coloured by the theme (CSS classes .il-*, so they follow light and dark). The empty state rises
+// once as it appears; nothing in it loops (docs/ui/motion.md). The .il-float group marks the part a
+// scene is about. Decorative: the words beside them carry the meaning.
 
 export type IllustrationName =
   'connect' | 'inbox' | 'search' | 'chart' | 'documents' | 'chat' | 'select' | 'error' | 'done' | 'launch';

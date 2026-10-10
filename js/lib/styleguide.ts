@@ -158,6 +158,8 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--dur-fast',
       '--dur',
       '--dur-slow',
+      '--dur-spin',
+      '--dur-shimmer',
       '--ease-out',
       '--ease-in',
     ],
