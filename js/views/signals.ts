@@ -1,7 +1,7 @@
-import { esc, field, fmt, need, onAll } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll, onSubmit } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
-import { checkOnSubmit, isFieldError, showErrors, type FieldError } from '../lib/forms.ts';
+import { isFieldError, showErrors, type FieldError } from '../lib/forms.ts';
 import {
   badge,
   button,
@@ -374,11 +374,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
     ui(ctx).editing = null;
     fill(root, ctx);
   });
-  const form = root.querySelector<HTMLFormElement>('#signal-form');
-  if (form) form.noValidate = true; // checked by checkOnSubmit, with errors on the fields (U2.07)
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (!checkOnSubmit(form)) return;
+  onSubmit(root, '#signal-form', (form) => {
     const site = ctx.ontology.site;
     const sig = results?.signals.find((s) => s.id === form.dataset.signal);
     if (!site || !ctx.api || !sig) return;

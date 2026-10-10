@@ -1040,6 +1040,8 @@ test('App Studio: an engineer makes an SPC app from its template, runs it, chang
   await page.click('#app-form button[type=submit]');
   await page.waitForSelector('#app-form .error-summary:has-text("Check these 2 fields")');
   assert.equal(await page.getAttribute('#app-form [name=signal]', 'aria-invalid'), 'true');
+  // Named by its label alone, not the help beside it.
+  assert.equal(await page.locator('#app-form .field-error').first().innerText(), 'Choose the signal');
   assert.match(await page.locator('#app-form .field-error').nth(1).innerText(), /^Enter 6 or less$/);
   await page.fill('#app-form [name=sigmas]', '3');
   await page.selectOption('#app-form [name=signal]', { label: 'oven.zone2_temp' });
@@ -1242,6 +1244,10 @@ test('forms show errors on their fields: missing, in the wrong form, and refused
   await page.fill('#signal-form [name=rate]', '0');
   await page.click('#signal-form button[type=submit]');
   await page.waitForSelector('#signal-form .field-error:has-text("readings per second, above 0")');
+  assert.equal(await page.locator('#signal-form [name=rate]').getAttribute('aria-invalid'), 'true');
+  // Leaving the field unchanged keeps the page's own error (the browser alone finds nothing wrong).
+  await page.focus('#signal-form [name=rate]');
+  await page.locator('#signal-form [name=rate]').blur();
   assert.equal(await page.locator('#signal-form [name=rate]').getAttribute('aria-invalid'), 'true');
   await page.fill('#signal-form [name=rate]', '10');
   fake.failNext('PATCH', /\/signals\/[^/]+$/, 422, [{ loc: ['body', 'sample_rate_hz'], msg: 'Must be at most 1000' }]);

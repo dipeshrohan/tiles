@@ -236,9 +236,7 @@ export function suggestMapping(header: string[], rows: string[][], timeZone: str
 
 // Problems with the mapping itself, before any row is read.
 export function mappingProblems(header: string[], m: ImportMapping): string[] {
-  const problems: string[] = [];
-  if (!(m.timeColumn >= 0 && m.timeColumn < header.length)) problems.push('Choose the column with the times.');
-  if (!isTimeZone(m.timeZone)) problems.push(`“${m.timeZone}” isn't a time zone, e.g. UTC or Europe/Berlin.`);
+  const problems: string[] = mappingFieldProblems(header, m).map((p) => p.message);
   if (m.long) {
     const { tagColumn, valueColumn } = m.long;
     const inFile = (i: number) => i >= 0 && i < header.length;

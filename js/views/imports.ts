@@ -171,7 +171,10 @@ function markFields(form: HTMLFormElement, l: Loaded): void {
 }
 
 function summaryBox(l: Loaded): string {
-  const problems = mappingProblems(l.header, l.mapping);
+  // A field's own problem is said under it; here, that there is one, and the rest.
+  const fields = mappingFieldProblems(l.header, l.mapping).map((p) => p.message);
+  const problems = mappingProblems(l.header, l.mapping).filter((p) => !fields.includes(p));
+  if (fields.length) problems.unshift('Correct the fields marked above.');
   if (problems.length)
     return `<div class="stack gap-1">${problems.map((p) => `<p class="small text-bad">${esc(p)}</p>`).join('')}</div>`;
   const stats = summarize(l.rows, l.mapping);

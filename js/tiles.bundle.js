@@ -765,11 +765,7 @@
 	function labelOf(el) {
 		const label = el.labels?.[0];
 		let text = el.getAttribute("aria-label") ?? "";
-		if (!text && label) {
-			const copy = label.cloneNode(true);
-			for (const inner of copy.querySelectorAll("input, select, textarea, .field-error, [id^=\"ui-hint-\"]")) inner.remove();
-			text = copy.textContent ?? "";
-		}
+		if (!text && label) text = [...label.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join(" ");
 		return text.replace(/\s+/g, " ").trim();
 	}
 	var lower = (s) => /^[A-Z][A-Z]/.test(s) ? s : s.charAt(0).toLowerCase() + s.slice(1);
@@ -783,7 +779,10 @@
 			if (el instanceof HTMLInputElement && el.type === "checkbox") return "Tick this to carry on";
 			return `Enter ${label}`;
 		}
-		if (v.badInput) return "Enter a number";
+		if (v.badInput) {
+			const type = el.type;
+			return type === "number" || type === "range" ? "Enter a number" : `Enter all of ${label}`;
+		}
 		if (v.typeMismatch) {
 			const type = el.type;
 			if (type === "email") return "Enter an email address, like name@example.com";
@@ -802,8 +801,8 @@
 	function validate(form) {
 		return controls$1(form).flatMap((el) => {
 			const message = problemWith(el);
-			return message && el.name ? [{
-				name: el.name,
+			return message ? [{
+				name: el.name || idFor(el),
 				message
 			}] : [];
 		});
@@ -811,8 +810,8 @@
 	var isFieldError = (v) => typeof v === "object" && v !== null && typeof v.message === "string" && "name" in v;
 	function controlFor(form, name) {
 		const all = controls$1(form, true);
-		const last = name.split(".").pop() ?? name;
-		const named = (n) => all.find((el) => el.name === n || el.dataset.api === n);
+		const last = name.split(".").filter((p) => !/^\d+$/.test(p)).pop() ?? name;
+		const named = (n) => all.find((el) => el.name === n || el.dataset.api === n || el.id === n);
 		return named(name) ?? named(last) ?? null;
 	}
 	var ids = 0;
@@ -823,7 +822,7 @@
 		if (ids.length) el.setAttribute("aria-describedby", ids.join(" "));
 		else el.removeAttribute("aria-describedby");
 	}
-	function setFieldError(el, message) {
+	function setFieldError(el, message, checked = false) {
 		const id = `${idFor(el)}-error`;
 		const old = el.ownerDocument.getElementById(id);
 		if (!message) {
@@ -836,6 +835,8 @@
 		note.id = id;
 		note.className = "field-error";
 		note.textContent = message;
+		note.dataset.checked = String(checked);
+		note.dataset.value = el.value;
 		if (!old) el.after(note);
 		el.setAttribute("aria-invalid", "true");
 		describe$2(el, id, true);
@@ -844,7 +845,7 @@
 		for (const el of controls$1(form, true)) setFieldError(el, null);
 		form.querySelector(":scope > .error-summary")?.remove();
 	}
-	function showErrors(form, errors) {
+	function showErrors(form, errors, { focus = true, checked = false } = {}) {
 		clearErrors(form);
 		if (!errors.length) return 0;
 		let placed = 0;
@@ -862,7 +863,7 @@
 			const el = controlFor(form, e.name);
 			if (el) {
 				placed++;
-				setFieldError(el, e.message);
+				setFieldError(el, e.message, checked);
 				const a = doc.createElement("a");
 				a.href = `#${idFor(el)}`;
 				a.dataset.errorFor = el.id;
@@ -878,28 +879,36 @@
 			e.preventDefault();
 			form.ownerDocument.getElementById(a.dataset.errorFor ?? "")?.focus();
 		});
+		if (!focus) summary.removeAttribute("role");
 		form.prepend(summary);
-		summary.focus();
+		if (focus) summary.focus();
 		return placed;
 	}
+	var SENT_FOR = 3e4;
 	var lastSent = null;
 	var keeping = null;
+	var keyOf = (form) => JSON.stringify([form.id, Object.entries(form.dataset).filter(([k]) => k !== "checked")]);
+	function sameForm(doc, key) {
+		const id = JSON.parse(key)[0];
+		const again = id ? doc.getElementById(id) : null;
+		return again instanceof HTMLFormElement && keyOf(again) === key ? again : null;
+	}
 	function sentForm() {
-		if (!lastSent) return null;
+		if (!lastSent || Date.now() - lastSent.at > SENT_FOR) return null;
 		if (lastSent.form.isConnected) return lastSent.form;
-		const again = lastSent.id ? lastSent.form.ownerDocument.getElementById(lastSent.id) : null;
-		return again instanceof HTMLFormElement ? again : null;
+		return sameForm(lastSent.form.ownerDocument, lastSent.key);
 	}
 	function keepShown(form, errors) {
 		keeping?.stop();
 		if (!form.id || typeof MutationObserver === "undefined") return;
 		let shownOn = form;
 		const doc = form.ownerDocument;
+		const key = keyOf(form);
 		const observer = new MutationObserver(() => {
-			const again = doc.getElementById(form.id);
-			if (again instanceof HTMLFormElement && again !== shownOn && !again.querySelector(".error-summary")) {
+			const again = sameForm(doc, key);
+			if (again && again !== shownOn && !again.querySelector(".error-summary")) {
 				shownOn = again;
-				showErrors(again, errors);
+				showErrors(again, errors, { focus: false });
 			}
 		});
 		observer.observe(doc.body, {
@@ -920,18 +929,22 @@
 				if (e.relatedTarget instanceof HTMLButtonElement && e.relatedTarget.form === form) return;
 				const el = e.target;
 				if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement)) return;
-				setFieldError(el, problemWith(el));
+				const problem = problemWith(el);
+				const note = el.id ? el.ownerDocument.getElementById(`${el.id}-error`) : null;
+				if (problem) setFieldError(el, problem, true);
+				else if (note && (note.dataset.checked === "true" || note.dataset.value !== el.value)) setFieldError(el, null);
 				if (!form.querySelector("[aria-invalid=\"true\"]")) form.querySelector(":scope > .error-summary")?.remove();
 			});
 		}
 		keeping?.stop();
 		lastSent = {
 			form,
-			id: form.id
+			key: keyOf(form),
+			at: Date.now()
 		};
 		const errors = validate(form);
 		if (errors.length) {
-			showErrors(form, errors);
+			showErrors(form, errors, { checked: true });
 			return false;
 		}
 		clearErrors(form);
@@ -6902,11 +6915,7 @@
 			ui$1(ctx).editing = null;
 			fill(root, ctx);
 		});
-		const form = root.querySelector("#signal-form");
-		if (form) form.noValidate = true;
-		form?.addEventListener("submit", (e) => {
-			e.preventDefault();
-			if (!checkOnSubmit(form)) return;
+		onSubmit(root, "#signal-form", (form) => {
 			const site = ctx.ontology.site;
 			const sig = results?.signals.find((s) => s.id === form.dataset.signal);
 			if (!site || !ctx.api || !sig) return;
@@ -10573,9 +10582,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		};
 	}
 	function mappingProblems(header, m) {
-		const problems = [];
-		if (!(m.timeColumn >= 0 && m.timeColumn < header.length)) problems.push("Choose the column with the times.");
-		if (!isTimeZone(m.timeZone)) problems.push(`“${m.timeZone}” isn't a time zone, e.g. UTC or Europe/Berlin.`);
+		const problems = mappingFieldProblems(header, m).map((p) => p.message);
 		if (m.long) {
 			const { tagColumn, valueColumn } = m.long;
 			const inFile = (i) => i >= 0 && i < header.length;
@@ -12271,7 +12278,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 	}
 	function summaryBox(l) {
-		const problems = mappingProblems(l.header, l.mapping);
+		const fields = mappingFieldProblems(l.header, l.mapping).map((p) => p.message);
+		const problems = mappingProblems(l.header, l.mapping).filter((p) => !fields.includes(p));
+		if (fields.length) problems.unshift("Correct the fields marked above.");
 		if (problems.length) return `<div class="stack gap-1">${problems.map((p) => `<p class="small text-bad">${esc(p)}</p>`).join("")}</div>`;
 		const stats = summarize(l.rows, l.mapping);
 		const examples = stats.examples.length ? `<ul class="small soft">${stats.examples.map((e) => `<li>Line ${e.row}: ${esc(e.message)}</li>`).join("")}</ul>` : "";
