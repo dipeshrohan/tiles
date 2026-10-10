@@ -1205,6 +1205,10 @@
 				uxAnalytics: () => request("GET", "/org/ux-analytics"),
 				setUxAnalytics: (enabled) => request("PUT", "/org/ux-analytics", { enabled })
 			},
+			menu: {
+				openWarnings: (siteId) => request("GET", `${warning(siteId)}?status=unresolved&limit=100`, void 0, { silent: true }),
+				openReviews: (siteId) => request("GET", `${site(siteId)}/reviews?state=open&limit=100`, void 0, { silent: true })
+			},
 			ux: {
 				enabled: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/ux-analytics`, void 0, { silent: true }),
 				send: (siteId, session, events) => request("POST", `/sites/${encodeURIComponent(siteId)}/ux-events`, {
@@ -1959,6 +1963,169 @@
 		if (typeof window !== "undefined") window.addEventListener("hashchange", (e) => fn(e.newURL ? new URL(e.newURL).hash : location.hash));
 	}
 	//#endregion
+	//#region js/lib/icon-data.ts
+	var ICONS = {
+		"house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\" /><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\" />",
+		"sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" /><path d=\"M20 2v4\" /><path d=\"M22 4h-4\" /><circle cx=\"4\" cy=\"20\" r=\"2\" />",
+		"hard-hat": "<path d=\"M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5\" /><path d=\"M14 6a6 6 0 0 1 6 6v3\" /><path d=\"M4 15v-3a6 6 0 0 1 6-6\" /><rect x=\"2\" y=\"15\" width=\"20\" height=\"4\" rx=\"1\" />",
+		"factory": "<path d=\"M12 16h.01\" /><path d=\"M16 16h.01\" /><path d=\"M3 19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5a.5.5 0 0 0-.769-.422l-4.462 2.844A.5.5 0 0 1 15 10.5v-2a.5.5 0 0 0-.769-.422L9.77 10.922A.5.5 0 0 1 9 10.5V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z\" /><path d=\"M8 16h.01\" />",
+		"network": "<rect x=\"16\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\" /><rect x=\"2\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\" /><rect x=\"9\" y=\"2\" width=\"6\" height=\"6\" rx=\"1\" /><path d=\"M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3\" /><path d=\"M12 12V8\" />",
+		"git-pull-request": "<circle cx=\"18\" cy=\"18\" r=\"3\" /><circle cx=\"6\" cy=\"6\" r=\"3\" /><path d=\"M13 6h3a2 2 0 0 1 2 2v7\" /><line x1=\"6\" x2=\"6\" y1=\"9\" y2=\"21\" />",
+		"triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /><path d=\"M12 9v4\" /><path d=\"M12 17h.01\" />",
+		"target": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><circle cx=\"12\" cy=\"12\" r=\"6\" /><circle cx=\"12\" cy=\"12\" r=\"2\" />",
+		"gauge": "<path d=\"m12 14 4-4\" /><path d=\"M3.34 19a10 10 0 1 1 17.32 0\" />",
+		"atom": "<circle cx=\"12\" cy=\"12\" r=\"1\" /><path d=\"M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z\" /><path d=\"M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z\" />",
+		"drafting-compass": "<path d=\"m12.99 6.74 1.93 3.44\" /><path d=\"M19.136 12a10 10 0 0 1-14.271 0\" /><path d=\"m21 21-2.16-3.84\" /><path d=\"m3 21 8.02-14.26\" /><circle cx=\"12\" cy=\"5\" r=\"2\" />",
+		"activity": "<path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\" />",
+		"chart-line": "<path d=\"M3 3v16a2 2 0 0 0 2 2h16\" /><path d=\"m19 9-5 5-4-4-3 3\" />",
+		"chart-scatter": "<circle cx=\"7.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"18.5\" cy=\"5.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"11.5\" cy=\"11.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"7.5\" cy=\"16.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"17.5\" cy=\"14.5\" r=\".5\" fill=\"currentColor\" /><path d=\"M3 3v16a2 2 0 0 0 2 2h16\" />",
+		"lightbulb": "<path d=\"M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5\" /><path d=\"M9 18h6\" /><path d=\"M10 22h4\" />",
+		"layout-grid": "<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\" />",
+		"file-text": "<path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\" /><path d=\"M14 2v5a1 1 0 0 0 1 1h5\" /><path d=\"M10 9H8\" /><path d=\"M16 13H8\" /><path d=\"M16 17H8\" />",
+		"upload": "<path d=\"M12 3v12\" /><path d=\"m17 8-5-5-5 5\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />",
+		"rocket": "<path d=\"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5\" /><path d=\"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09\" /><path d=\"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z\" /><path d=\"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05\" />",
+		"settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
+		"palette": "<path d=\"M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z\" /><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
+		"wifi-off": "<path d=\"M12 20h.01\" /><path d=\"M8.5 16.429a5 5 0 0 1 7 0\" /><path d=\"M5 12.859a10 10 0 0 1 5.17-2.69\" /><path d=\"M19 12.859a10 10 0 0 0-2.007-1.523\" /><path d=\"M2 8.82a15 15 0 0 1 4.177-2.643\" /><path d=\"M22 8.82a15 15 0 0 0-11.288-3.764\" /><path d=\"m2 2 20 20\" />",
+		"cloud-off": "<path d=\"M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057\" /><path d=\"M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78\" /><path d=\"m2 2 20 20\" />",
+		"menu": "<path d=\"M4 5h16\" /><path d=\"M4 12h16\" /><path d=\"M4 19h16\" />",
+		"x": "<path d=\"M18 6 6 18\" /><path d=\"m6 6 12 12\" />",
+		"sun": "<circle cx=\"12\" cy=\"12\" r=\"4\" /><path d=\"M12 2v2\" /><path d=\"M12 20v2\" /><path d=\"m4.93 4.93 1.41 1.41\" /><path d=\"m17.66 17.66 1.41 1.41\" /><path d=\"M2 12h2\" /><path d=\"M20 12h2\" /><path d=\"m6.34 17.66-1.41 1.41\" /><path d=\"m19.07 4.93-1.41 1.41\" />",
+		"moon": "<path d=\"M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401\" />",
+		"search": "<path d=\"m21 21-4.34-4.34\" /><circle cx=\"11\" cy=\"11\" r=\"8\" />",
+		"chevron-right": "<path d=\"m9 18 6-6-6-6\" />",
+		"chevron-down": "<path d=\"m6 9 6 6 6-6\" />",
+		"check": "<path d=\"M20 6 9 17l-5-5\" />",
+		"plus": "<path d=\"M5 12h14\" /><path d=\"M12 5v14\" />",
+		"trash-2": "<path d=\"M10 11v6\" /><path d=\"M14 11v6\" /><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\" /><path d=\"M3 6h18\" /><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\" />",
+		"pencil": "<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" /><path d=\"m15 5 4 4\" />",
+		"external-link": "<path d=\"M15 3h6v6\" /><path d=\"M10 14 21 3\" /><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" />",
+		"info": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M12 16v-4\" /><path d=\"M12 8h.01\" />",
+		"circle-alert": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\" /><line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\" />",
+		"circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m16 9-5.5 5.5L8 12\" />",
+		"circle-x": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m15 9-6 6\" /><path d=\"m9 9 6 6\" />",
+		"circle-help": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\" /><path d=\"M12 17h.01\" />",
+		"loader-circle": "<path d=\"M21 12a9 9 0 1 1-6.219-8.56\" />",
+		"log-out": "<path d=\"m16 17 5-5-5-5\" /><path d=\"M21 12H9\" /><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\" />",
+		"copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" />",
+		"download": "<path d=\"M12 15V3\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" /><path d=\"m7 10 5 5 5-5\" />",
+		"filter": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\" />",
+		"arrow-right": "<path d=\"M5 12h14\" /><path d=\"m12 5 7 7-7 7\" />",
+		"bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\" /><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" />",
+		"command": "<path d=\"M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3\" />",
+		"keyboard": "<path d=\"M10 8h.01\" /><path d=\"M12 12h.01\" /><path d=\"M14 8h.01\" /><path d=\"M16 12h.01\" /><path d=\"M18 8h.01\" /><path d=\"M6 8h.01\" /><path d=\"M7 16h10\" /><path d=\"M8 12h.01\" /><rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\" />",
+		"refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\" /><path d=\"M21 3v5h-5\" /><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\" /><path d=\"M8 16H3v5\" />",
+		"inbox": "<polyline points=\"22 12 16 12 14 15 10 15 8 12 2 12\" /><path d=\"M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\" />",
+		"git-commit-horizontal": "<circle cx=\"12\" cy=\"12\" r=\"3\" /><line x1=\"3\" x2=\"9\" y1=\"12\" y2=\"12\" /><line x1=\"15\" x2=\"21\" y1=\"12\" y2=\"12\" />",
+		"history": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /><path d=\"M3 3v5h5\" /><path d=\"M12 7v5l4 2\" />",
+		"zoom-in": "<circle cx=\"11\" cy=\"11\" r=\"8\" /><line x1=\"21\" x2=\"16.65\" y1=\"21\" y2=\"16.65\" /><line x1=\"11\" x2=\"11\" y1=\"8\" y2=\"14\" /><line x1=\"8\" x2=\"14\" y1=\"11\" y2=\"11\" />",
+		"zoom-out": "<circle cx=\"11\" cy=\"11\" r=\"8\" /><line x1=\"21\" x2=\"16.65\" y1=\"21\" y2=\"16.65\" /><line x1=\"8\" x2=\"14\" y1=\"11\" y2=\"11\" />",
+		"maximize": "<path d=\"M8 3H5a2 2 0 0 0-2 2v3\" /><path d=\"M21 8V5a2 2 0 0 0-2-2h-3\" /><path d=\"M3 16v3a2 2 0 0 0 2 2h3\" /><path d=\"M16 21h3a2 2 0 0 0 2-2v-3\" />",
+		"sliders-horizontal": "<path d=\"M10 5H3\" /><path d=\"M12 19H3\" /><path d=\"M14 3v4\" /><path d=\"M16 17v4\" /><path d=\"M21 12h-9\" /><path d=\"M21 19h-5\" /><path d=\"M21 5h-7\" /><path d=\"M8 10v4\" /><path d=\"M8 12H3\" />",
+		"play": "<path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\" />",
+		"square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" />",
+		"ellipsis": "<circle cx=\"12\" cy=\"12\" r=\"1\" /><circle cx=\"19\" cy=\"12\" r=\"1\" /><circle cx=\"5\" cy=\"12\" r=\"1\" />",
+		"send": "<path d=\"M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z\" /><path d=\"m21.854 2.147-10.94 10.939\" />",
+		"thumbs-up": "<path d=\"M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z\" /><path d=\"M7 10v12\" />",
+		"thumbs-down": "<path d=\"M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z\" /><path d=\"M17 14V2\" />",
+		"user": "<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\" /><circle cx=\"12\" cy=\"7\" r=\"4\" />",
+		"users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /><path d=\"M16 3.128a4 4 0 0 1 0 7.744\" /><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\" /><circle cx=\"9\" cy=\"7\" r=\"4\" />",
+		"key-round": "<path d=\"M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z\" /><circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
+		"shield": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" />",
+		"plug": "<path d=\"M12 22v-5\" /><path d=\"M15 8V2\" /><path d=\"M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z\" /><path d=\"M9 8V2\" />",
+		"cpu": "<path d=\"M12 20v2\" /><path d=\"M12 2v2\" /><path d=\"M17 20v2\" /><path d=\"M17 2v2\" /><path d=\"M2 12h2\" /><path d=\"M2 17h2\" /><path d=\"M2 7h2\" /><path d=\"M20 12h2\" /><path d=\"M20 17h2\" /><path d=\"M20 7h2\" /><path d=\"M7 20v2\" /><path d=\"M7 2v2\" /><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\" /><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\" />",
+		"database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\" /><path d=\"M3 5V19A9 3 0 0 0 21 19V5\" /><path d=\"M3 12A9 3 0 0 0 21 12\" />",
+		"book-open": "<path d=\"M12 5v16\" /><path d=\"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z\" />",
+		"message-square": "<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\" />",
+		"undo-2": "<path d=\"M9 14 4 9l5-5\" /><path d=\"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11\" />",
+		"redo-2": "<path d=\"m15 14 5-5-5-5\" /><path d=\"M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13\" />",
+		"save": "<path d=\"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z\" /><path d=\"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7\" /><path d=\"M7 3v4a1 1 0 0 0 1 1h7\" />",
+		"pin": "<path d=\"M12 17v5\" /><path d=\"M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z\" />",
+		"pin-off": "<path d=\"M12 17v5\" /><path d=\"M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89\" /><path d=\"m2 2 20 20\" /><path d=\"M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11\" />",
+		"panel-left-close": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /><path d=\"m16 15-3-3 3-3\" />",
+		"panel-left-open": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /><path d=\"m14 9 3 3-3 3\" />"
+	};
+	//#endregion
+	//#region js/lib/icons.ts
+	function icon(name, opts = {}) {
+		const size = opts.size ?? 16;
+		const a11y = opts.label ? `role="img" aria-label="${esc(opts.label)}"` : "aria-hidden=\"true\"";
+		return `<svg class="${`icon icon-${name}${opts.className ? ` ${esc(opts.className)}` : ""}`}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" focusable="false" ${a11y}>${ICONS[name]}</svg>`;
+	}
+	//#endregion
+	//#region js/lib/nav.ts
+	var DEFAULT_PREFS = {
+		folded: [],
+		pinned: [],
+		recent: [],
+		rail: false
+	};
+	function cleanPrefs(raw, pages) {
+		const o = raw && typeof raw === "object" ? raw : {};
+		const ids = (v, max) => Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === "string" && pages.includes(x)))].slice(0, max) : [];
+		return {
+			folded: Array.isArray(o.folded) ? o.folded.filter((x) => typeof x === "string") : [],
+			pinned: ids(o.pinned, 8),
+			recent: ids(o.recent, 5),
+			rail: o.rail === true
+		};
+	}
+	function visited(prefs, id) {
+		if (id === "home" || prefs.recent[0] === id) return prefs;
+		return {
+			...prefs,
+			recent: [id, ...prefs.recent.filter((r) => r !== id)].slice(0, 5)
+		};
+	}
+	function togglePin(prefs, id) {
+		const pinned = prefs.pinned.includes(id) ? prefs.pinned.filter((p) => p !== id) : [...prefs.pinned, id].slice(-8);
+		return {
+			...prefs,
+			pinned
+		};
+	}
+	function toggleFold(prefs, group) {
+		const folded = prefs.folded.includes(group) ? prefs.folded.filter((g) => g !== group) : [...prefs.folded, group];
+		return {
+			...prefs,
+			folded
+		};
+	}
+	var href = (id) => `#/${id === "home" ? "" : id}`;
+	function badgeHtml(b) {
+		if (!b || b.count <= 0) return "";
+		const shown = b.count > 99 ? "99+" : String(b.count);
+		return `<span class="badge${b.tone ? ` ${b.tone}` : ""}" aria-hidden="true">${shown}</span><span class="sr-only">, ${esc(b.says)}</span>`;
+	}
+	function row(p, o, where) {
+		const current = p.id === o.active;
+		const pinned = o.prefs.pinned.includes(p.id);
+		const marked = current || p.id === o.under;
+		const aria = current && where === "menu" ? " aria-current=\"page\"" : "";
+		const tip = o.prefs.rail ? ` data-tooltip="${esc(p.title)}"` : "";
+		const pin = where === "recent" ? "" : `<button class="nav-pin" type="button" data-nav-pin="${esc(p.id)}" aria-pressed="${pinned}" aria-label="${pinned ? "Unpin" : "Pin"} ${esc(p.title)}">${icon(pinned ? "pin-off" : "pin", { size: 14 })}</button>`;
+		return `<div class="nav-row" data-key="nav-${where}-${esc(p.id)}"><a class="nav-link${marked ? " active" : ""}" href="${href(p.id)}"${aria}${tip}><span class="ico">${icon(p.icon)}</span><span class="nav-label">${esc(p.title)}</span>${badgeHtml(o.badges[p.id])}</a>${pin}</div>`;
+	}
+	function section(id, title, rows, foldable, folded) {
+		if (!title) return `<div class="nav-section">${rows}</div>`;
+		const list = `nav-list-${esc(id)}`;
+		const head = foldable ? `<button class="nav-group" type="button" data-nav-fold="${esc(id)}" aria-expanded="${!folded}" aria-controls="${list}"><span class="nav-label">${esc(title)}</span>${icon("chevron-down", { size: 14 })}</button>` : `<div class="nav-group"><span class="nav-label">${esc(title)}</span></div>`;
+		return `<div class="nav-section${folded ? " folded" : ""}">${head}<div class="nav-list" id="${list}"${folded ? " hidden" : ""}>${rows}</div></div>`;
+	}
+	function navHtml(o) {
+		const all = o.groups.flatMap((g) => g.pages);
+		const page = (id) => all.find((p) => p.id === id);
+		const pinned = o.prefs.pinned.flatMap((id) => page(id) ?? []);
+		const recent = o.prefs.recent.filter((id) => id !== o.active && !o.prefs.pinned.includes(id)).flatMap((id) => page(id) ?? []);
+		const folded = (id) => o.prefs.folded.includes(id);
+		return [
+			`<button class="nav-rail-toggle" type="button" data-nav-rail aria-pressed="${o.prefs.rail}" aria-label="${o.prefs.rail ? "Show the menu’s names" : "Show the menu as icons"}" data-tooltip="${o.prefs.rail ? "Show names" : "Icons only"}">${icon(o.prefs.rail ? "panel-left-open" : "panel-left-close", { size: 16 })}</button>`,
+			pinned.length ? section("pinned", "Pinned", pinned.map((p) => row(p, o, "pinned")).join(""), true, folded("pinned")) : "",
+			recent.length ? section("recent", "Recent", recent.map((p) => row(p, o, "recent")).join(""), true, folded("recent")) : "",
+			...o.groups.map((g) => section(g.id, g.title, g.pages.map((p) => row(p, o, "menu")).join(""), Boolean(g.title), folded(g.id)))
+		].join("");
+	}
+	//#endregion
 	//#region js/lib/micro.ts
 	var tokens$2 = {
 		fast: 120,
@@ -2499,92 +2666,6 @@
 				}
 			}))
 		};
-	}
-	//#endregion
-	//#region js/lib/icon-data.ts
-	var ICONS = {
-		"house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\" /><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\" />",
-		"sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" /><path d=\"M20 2v4\" /><path d=\"M22 4h-4\" /><circle cx=\"4\" cy=\"20\" r=\"2\" />",
-		"hard-hat": "<path d=\"M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5\" /><path d=\"M14 6a6 6 0 0 1 6 6v3\" /><path d=\"M4 15v-3a6 6 0 0 1 6-6\" /><rect x=\"2\" y=\"15\" width=\"20\" height=\"4\" rx=\"1\" />",
-		"factory": "<path d=\"M12 16h.01\" /><path d=\"M16 16h.01\" /><path d=\"M3 19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.5a.5.5 0 0 0-.769-.422l-4.462 2.844A.5.5 0 0 1 15 10.5v-2a.5.5 0 0 0-.769-.422L9.77 10.922A.5.5 0 0 1 9 10.5V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2z\" /><path d=\"M8 16h.01\" />",
-		"network": "<rect x=\"16\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\" /><rect x=\"2\" y=\"16\" width=\"6\" height=\"6\" rx=\"1\" /><rect x=\"9\" y=\"2\" width=\"6\" height=\"6\" rx=\"1\" /><path d=\"M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3\" /><path d=\"M12 12V8\" />",
-		"git-pull-request": "<circle cx=\"18\" cy=\"18\" r=\"3\" /><circle cx=\"6\" cy=\"6\" r=\"3\" /><path d=\"M13 6h3a2 2 0 0 1 2 2v7\" /><line x1=\"6\" x2=\"6\" y1=\"9\" y2=\"21\" />",
-		"triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\" /><path d=\"M12 9v4\" /><path d=\"M12 17h.01\" />",
-		"target": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><circle cx=\"12\" cy=\"12\" r=\"6\" /><circle cx=\"12\" cy=\"12\" r=\"2\" />",
-		"gauge": "<path d=\"m12 14 4-4\" /><path d=\"M3.34 19a10 10 0 1 1 17.32 0\" />",
-		"atom": "<circle cx=\"12\" cy=\"12\" r=\"1\" /><path d=\"M20.2 20.2c2.04-2.03.02-7.36-4.5-11.9-4.54-4.52-9.87-6.54-11.9-4.5-2.04 2.03-.02 7.36 4.5 11.9 4.54 4.52 9.87 6.54 11.9 4.5Z\" /><path d=\"M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z\" />",
-		"drafting-compass": "<path d=\"m12.99 6.74 1.93 3.44\" /><path d=\"M19.136 12a10 10 0 0 1-14.271 0\" /><path d=\"m21 21-2.16-3.84\" /><path d=\"m3 21 8.02-14.26\" /><circle cx=\"12\" cy=\"5\" r=\"2\" />",
-		"activity": "<path d=\"M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2\" />",
-		"chart-line": "<path d=\"M3 3v16a2 2 0 0 0 2 2h16\" /><path d=\"m19 9-5 5-4-4-3 3\" />",
-		"chart-scatter": "<circle cx=\"7.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"18.5\" cy=\"5.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"11.5\" cy=\"11.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"7.5\" cy=\"16.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"17.5\" cy=\"14.5\" r=\".5\" fill=\"currentColor\" /><path d=\"M3 3v16a2 2 0 0 0 2 2h16\" />",
-		"lightbulb": "<path d=\"M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5\" /><path d=\"M9 18h6\" /><path d=\"M10 22h4\" />",
-		"layout-grid": "<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\" /><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\" />",
-		"file-text": "<path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z\" /><path d=\"M14 2v5a1 1 0 0 0 1 1h5\" /><path d=\"M10 9H8\" /><path d=\"M16 13H8\" /><path d=\"M16 17H8\" />",
-		"upload": "<path d=\"M12 3v12\" /><path d=\"m17 8-5-5-5 5\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" />",
-		"rocket": "<path d=\"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5\" /><path d=\"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09\" /><path d=\"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z\" /><path d=\"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05\" />",
-		"settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
-		"palette": "<path d=\"M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z\" /><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
-		"wifi-off": "<path d=\"M12 20h.01\" /><path d=\"M8.5 16.429a5 5 0 0 1 7 0\" /><path d=\"M5 12.859a10 10 0 0 1 5.17-2.69\" /><path d=\"M19 12.859a10 10 0 0 0-2.007-1.523\" /><path d=\"M2 8.82a15 15 0 0 1 4.177-2.643\" /><path d=\"M22 8.82a15 15 0 0 0-11.288-3.764\" /><path d=\"m2 2 20 20\" />",
-		"cloud-off": "<path d=\"M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057\" /><path d=\"M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78\" /><path d=\"m2 2 20 20\" />",
-		"menu": "<path d=\"M4 5h16\" /><path d=\"M4 12h16\" /><path d=\"M4 19h16\" />",
-		"x": "<path d=\"M18 6 6 18\" /><path d=\"m6 6 12 12\" />",
-		"sun": "<circle cx=\"12\" cy=\"12\" r=\"4\" /><path d=\"M12 2v2\" /><path d=\"M12 20v2\" /><path d=\"m4.93 4.93 1.41 1.41\" /><path d=\"m17.66 17.66 1.41 1.41\" /><path d=\"M2 12h2\" /><path d=\"M20 12h2\" /><path d=\"m6.34 17.66-1.41 1.41\" /><path d=\"m19.07 4.93-1.41 1.41\" />",
-		"moon": "<path d=\"M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401\" />",
-		"search": "<path d=\"m21 21-4.34-4.34\" /><circle cx=\"11\" cy=\"11\" r=\"8\" />",
-		"chevron-right": "<path d=\"m9 18 6-6-6-6\" />",
-		"chevron-down": "<path d=\"m6 9 6 6 6-6\" />",
-		"check": "<path d=\"M20 6 9 17l-5-5\" />",
-		"plus": "<path d=\"M5 12h14\" /><path d=\"M12 5v14\" />",
-		"trash-2": "<path d=\"M10 11v6\" /><path d=\"M14 11v6\" /><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\" /><path d=\"M3 6h18\" /><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\" />",
-		"pencil": "<path d=\"M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z\" /><path d=\"m15 5 4 4\" />",
-		"external-link": "<path d=\"M15 3h6v6\" /><path d=\"M10 14 21 3\" /><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\" />",
-		"info": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M12 16v-4\" /><path d=\"M12 8h.01\" />",
-		"circle-alert": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><line x1=\"12\" x2=\"12\" y1=\"8\" y2=\"12\" /><line x1=\"12\" x2=\"12.01\" y1=\"16\" y2=\"16\" />",
-		"circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m16 9-5.5 5.5L8 12\" />",
-		"circle-x": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"m15 9-6 6\" /><path d=\"m9 9 6 6\" />",
-		"circle-help": "<circle cx=\"12\" cy=\"12\" r=\"10\" /><path d=\"M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3\" /><path d=\"M12 17h.01\" />",
-		"loader-circle": "<path d=\"M21 12a9 9 0 1 1-6.219-8.56\" />",
-		"log-out": "<path d=\"m16 17 5-5-5-5\" /><path d=\"M21 12H9\" /><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\" />",
-		"copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" />",
-		"download": "<path d=\"M12 15V3\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" /><path d=\"m7 10 5 5 5-5\" />",
-		"filter": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\" />",
-		"arrow-right": "<path d=\"M5 12h14\" /><path d=\"m12 5 7 7-7 7\" />",
-		"bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\" /><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" />",
-		"command": "<path d=\"M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3\" />",
-		"keyboard": "<path d=\"M10 8h.01\" /><path d=\"M12 12h.01\" /><path d=\"M14 8h.01\" /><path d=\"M16 12h.01\" /><path d=\"M18 8h.01\" /><path d=\"M6 8h.01\" /><path d=\"M7 16h10\" /><path d=\"M8 12h.01\" /><rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\" />",
-		"refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\" /><path d=\"M21 3v5h-5\" /><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\" /><path d=\"M8 16H3v5\" />",
-		"inbox": "<polyline points=\"22 12 16 12 14 15 10 15 8 12 2 12\" /><path d=\"M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\" />",
-		"git-commit-horizontal": "<circle cx=\"12\" cy=\"12\" r=\"3\" /><line x1=\"3\" x2=\"9\" y1=\"12\" y2=\"12\" /><line x1=\"15\" x2=\"21\" y1=\"12\" y2=\"12\" />",
-		"history": "<path d=\"M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8\" /><path d=\"M3 3v5h5\" /><path d=\"M12 7v5l4 2\" />",
-		"zoom-in": "<circle cx=\"11\" cy=\"11\" r=\"8\" /><line x1=\"21\" x2=\"16.65\" y1=\"21\" y2=\"16.65\" /><line x1=\"11\" x2=\"11\" y1=\"8\" y2=\"14\" /><line x1=\"8\" x2=\"14\" y1=\"11\" y2=\"11\" />",
-		"zoom-out": "<circle cx=\"11\" cy=\"11\" r=\"8\" /><line x1=\"21\" x2=\"16.65\" y1=\"21\" y2=\"16.65\" /><line x1=\"8\" x2=\"14\" y1=\"11\" y2=\"11\" />",
-		"maximize": "<path d=\"M8 3H5a2 2 0 0 0-2 2v3\" /><path d=\"M21 8V5a2 2 0 0 0-2-2h-3\" /><path d=\"M3 16v3a2 2 0 0 0 2 2h3\" /><path d=\"M16 21h3a2 2 0 0 0 2-2v-3\" />",
-		"sliders-horizontal": "<path d=\"M10 5H3\" /><path d=\"M12 19H3\" /><path d=\"M14 3v4\" /><path d=\"M16 17v4\" /><path d=\"M21 12h-9\" /><path d=\"M21 19h-5\" /><path d=\"M21 5h-7\" /><path d=\"M8 10v4\" /><path d=\"M8 12H3\" />",
-		"play": "<path d=\"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z\" />",
-		"square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" />",
-		"ellipsis": "<circle cx=\"12\" cy=\"12\" r=\"1\" /><circle cx=\"19\" cy=\"12\" r=\"1\" /><circle cx=\"5\" cy=\"12\" r=\"1\" />",
-		"send": "<path d=\"M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z\" /><path d=\"m21.854 2.147-10.94 10.939\" />",
-		"thumbs-up": "<path d=\"M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z\" /><path d=\"M7 10v12\" />",
-		"thumbs-down": "<path d=\"M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z\" /><path d=\"M17 14V2\" />",
-		"user": "<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\" /><circle cx=\"12\" cy=\"7\" r=\"4\" />",
-		"users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\" /><path d=\"M16 3.128a4 4 0 0 1 0 7.744\" /><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\" /><circle cx=\"9\" cy=\"7\" r=\"4\" />",
-		"key-round": "<path d=\"M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z\" /><circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
-		"shield": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\" />",
-		"plug": "<path d=\"M12 22v-5\" /><path d=\"M15 8V2\" /><path d=\"M17 8a1 1 0 0 1 1 1v4a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V9a1 1 0 0 1 1-1z\" /><path d=\"M9 8V2\" />",
-		"cpu": "<path d=\"M12 20v2\" /><path d=\"M12 2v2\" /><path d=\"M17 20v2\" /><path d=\"M17 2v2\" /><path d=\"M2 12h2\" /><path d=\"M2 17h2\" /><path d=\"M2 7h2\" /><path d=\"M20 12h2\" /><path d=\"M20 17h2\" /><path d=\"M20 7h2\" /><path d=\"M7 20v2\" /><path d=\"M7 2v2\" /><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\" /><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\" />",
-		"database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\" /><path d=\"M3 5V19A9 3 0 0 0 21 19V5\" /><path d=\"M3 12A9 3 0 0 0 21 12\" />",
-		"book-open": "<path d=\"M12 5v16\" /><path d=\"M20.001 19A2 2 0 0022 17V5a2 2 0 00-1.999-2L16 3.002A5 5 0 0012 5a5 5 0 00-4-2H4a2 2 0 00-2 2v12a2 2 0 001.999 2H8a5 5 0 014 2 5 5 0 014-2z\" />",
-		"message-square": "<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\" />",
-		"undo-2": "<path d=\"M9 14 4 9l5-5\" /><path d=\"M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11\" />",
-		"redo-2": "<path d=\"m15 14 5-5-5-5\" /><path d=\"M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13\" />",
-		"save": "<path d=\"M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z\" /><path d=\"M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7\" /><path d=\"M7 3v4a1 1 0 0 0 1 1h7\" />"
-	};
-	//#endregion
-	//#region js/lib/icons.ts
-	function icon(name, opts = {}) {
-		const size = opts.size ?? 16;
-		const a11y = opts.label ? `role="img" aria-label="${esc(opts.label)}"` : "aria-hidden=\"true\"";
-		return `<svg class="${`icon icon-${name}${opts.className ? ` ${esc(opts.className)}` : ""}`}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" focusable="false" ${a11y}>${ICONS[name]}</svg>`;
 	}
 	//#endregion
 	//#region js/lib/errors.ts
@@ -14378,21 +14459,97 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const id = routeOf(location.hash);
 		return VIEWS.find((v) => v.id === id) ?? view$20;
 	}
-	function badgeFor(view) {
-		if (view.id === "physics") {
-			const open = state.detection.alerts.length;
-			return open ? `<span class="badge bad">${open}</span>` : "";
+	var NAV_GROUPS = NAV.map((g, i) => ({
+		id: g.group ? g.group.toLowerCase() : `g${i}`,
+		title: g.group ?? "",
+		pages: g.items.map((v) => ({
+			id: v.id,
+			title: v.title,
+			icon: v.icon
+		}))
+	}));
+	var NAV_PAGES = NAV_GROUPS.flatMap((g) => g.pages.map((p) => p.id));
+	var navFor = "";
+	var navPrefs = DEFAULT_PREFS;
+	function prefs() {
+		const who = `nav:${ctx.ontology.userId ?? state.user.email}`;
+		if (who !== navFor) {
+			navFor = who;
+			navPrefs = cleanPrefs(load$4(who, null), NAV_PAGES);
 		}
-		if (view.id === "ontology") {
-			const staged = state.repo.staged.length;
-			if (staged) return `<span class="badge warn">${staged}</span>`;
-			const issues = healthCheck(ctx.graph).issues.filter((i) => i.level !== "info").length;
-			return issues ? `<span class="badge">${issues}</span>` : "";
+		return navPrefs;
+	}
+	function setPrefs(next) {
+		navPrefs = next;
+		save$1(navFor, next);
+		document.body.classList.toggle("nav-rail", next.rail);
+	}
+	var counts = null;
+	var counting = false;
+	function refreshCounts() {
+		const site = ctx.ontology.site;
+		if (!api || !site || ctx.ontology.status !== "ready" || counting) return;
+		if (counts?.site === site.id && Date.now() - counts.at < 6e4) return;
+		counting = true;
+		const me = ctx.ontology.userId;
+		Promise.allSettled([api.menu.openWarnings(site.id), api.menu.openReviews(site.id)]).then(([w, r]) => {
+			counting = false;
+			const was = counts?.site === site.id ? counts : null;
+			counts = {
+				site: site.id,
+				warnings: w.status === "fulfilled" ? w.value.length : was?.warnings ?? 0,
+				reviews: r.status === "fulfilled" ? r.value.filter((x) => x.author_id !== me && (x.reviewer_id === null || x.reviewer_id === me)).length : was?.reviews ?? 0,
+				at: Date.now()
+			};
+			renderNav(currentView());
+		});
+	}
+	function badges() {
+		const out = {};
+		const open = state.detection.alerts.length;
+		if (open) out.physics = {
+			count: open,
+			tone: "bad",
+			says: `${open} warning(s) on the demo data`
+		};
+		const staged = state.repo.staged.length;
+		const issues = staged ? 0 : healthCheck(ctx.graph).issues.filter((i) => i.level !== "info").length;
+		if (staged) out.ontology = {
+			count: staged,
+			tone: "warn",
+			says: `${staged} staged change(s)`
+		};
+		else if (issues) out.ontology = {
+			count: issues,
+			tone: "",
+			says: `${issues} health issue(s)`
+		};
+		const site = ctx.ontology.site;
+		if (counts && site && counts.site === site.id) {
+			if (counts.warnings) out.warnings = {
+				count: counts.warnings,
+				tone: "bad",
+				says: `${counts.warnings} open warning(s)`
+			};
+			if (counts.reviews) out.reviews = {
+				count: counts.reviews,
+				tone: "warn",
+				says: `${counts.reviews} review(s) waiting for you`
+			};
 		}
-		return "";
+		return out;
 	}
 	function renderNav(active) {
-		need(document, "#nav").innerHTML = NAV.map((g) => (g.group ? `<div class="nav-group">${esc(g.group)}</div>` : g.group === "" ? "<div class=\"nav-group\">&nbsp;</div>" : "") + g.items.map((v) => `<a class="nav-link ${v === active || v.id === active.under ? "active" : ""}" href="#/${v.id === "home" ? "" : v.id}"${v === active ? " aria-current=\"page\"" : ""}><span class="ico">${icon(v.icon)}</span>${esc(v.title)}${badgeFor(v)}</a>`).join("")).join("");
+		const p = prefs();
+		document.body.classList.toggle("nav-rail", p.rail);
+		morph(need(document, "#nav"), navHtml({
+			groups: NAV_GROUPS,
+			active: active.id,
+			under: active.under,
+			prefs: p,
+			badges: badges()
+		}));
+		refreshCounts();
 		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
 		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 	}
@@ -14404,6 +14561,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (view.id !== trackedView) {
 			trackedView = view.id;
 			ux("page", view.id);
+			if (NAV_PAGES.includes(view.id)) setPrefs(visited(prefs(), view.id));
 		}
 		renderNav(view);
 		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;
@@ -14642,15 +14800,61 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	searchButton.insertAdjacentHTML("afterbegin", icon("search"));
 	if (/Mac|iPhone|iPad/.test(navigator.platform)) need(searchButton, "kbd").textContent = "⌘K";
 	searchButton.addEventListener("click", () => palette.open());
-	need(document, "#menu").addEventListener("click", (e) => {
-		const open = need(document, "#sidebar").classList.toggle("open");
-		e.currentTarget.setAttribute("aria-expanded", String(open));
+	need(document, "#menu").addEventListener("click", () => {
+		if (need(document, "#sidebar").classList.contains("open")) closeMenu();
+		else openMenu();
 	});
+	need(document, "#scrim").addEventListener("click", () => closeMenu());
+	document.addEventListener("keydown", (e) => {
+		const sidebar = need(document, "#sidebar");
+		if (e.key !== "Tab" || !sidebar.classList.contains("open")) return;
+		const stops = [...sidebar.querySelectorAll("a[href], button:not([disabled])")].filter((el) => el.offsetParent !== null);
+		const first = stops[0];
+		const last = stops.at(-1);
+		if (!first || !last) return;
+		const at = document.activeElement;
+		if (e.shiftKey && (at === first || !sidebar.contains(at))) {
+			e.preventDefault();
+			last.focus();
+		} else if (!e.shiftKey && (at === last || !sidebar.contains(at))) {
+			e.preventDefault();
+			first.focus();
+		}
+	});
+	var swipe = null;
+	need(document, "#sidebar").addEventListener("touchstart", (e) => {
+		const t = e.touches[0];
+		swipe = t ? {
+			x: t.clientX,
+			y: t.clientY
+		} : null;
+	}, { passive: true });
+	need(document, "#sidebar").addEventListener("touchmove", (e) => {
+		const t = e.touches[0];
+		if (!swipe || !t) return;
+		const dx = t.clientX - swipe.x;
+		if (dx < -60 && Math.abs(t.clientY - swipe.y) < Math.abs(dx)) {
+			swipe = null;
+			closeMenu();
+		}
+	}, { passive: true });
 	need(document, "[data-skip]").addEventListener("click", (e) => {
 		e.preventDefault();
 		need(document, "#view").focus();
 	});
-	need(document, "#nav").addEventListener("click", () => closeMenu());
+	need(document, "#nav").addEventListener("click", (e) => {
+		const el = e.target instanceof Element ? e.target : null;
+		const fold = el?.closest("[data-nav-fold]");
+		const pin = el?.closest("[data-nav-pin]");
+		if (fold) setPrefs(toggleFold(prefs(), fold.dataset.navFold ?? ""));
+		else if (pin) setPrefs(togglePin(prefs(), pin.dataset.navPin ?? ""));
+		else if (el?.closest("[data-nav-rail]")) setPrefs({
+			...prefs(),
+			rail: !prefs().rail
+		});
+		else return closeMenu();
+		renderNav(currentView());
+	});
 	document.addEventListener("keydown", (e) => {
 		if (e.key !== "Escape" || !need(document, "#sidebar").classList.contains("open")) return;
 		closeMenu();
@@ -14667,9 +14871,20 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			renderSoon();
 		}, 200);
 	});
+	function openMenu() {
+		need(document, "#sidebar").classList.add("open");
+		need(document, "#menu").setAttribute("aria-expanded", "true");
+		need(document, "#scrim").hidden = false;
+		(document.querySelector("#nav [aria-current=\"page\"]") ?? document.querySelector("#sidebar a[href]"))?.focus({ preventScroll: true });
+	}
 	function closeMenu() {
-		need(document, "#sidebar").classList.remove("open");
+		const sidebar = need(document, "#sidebar");
+		const wasOpen = sidebar.classList.contains("open");
+		sidebar.classList.remove("open");
 		need(document, "#menu").setAttribute("aria-expanded", "false");
+		need(document, "#scrim").hidden = true;
+		const at = document.activeElement;
+		if (wasOpen && (!at || at === document.body || sidebar.contains(at))) need(document, "#menu").focus({ preventScroll: true });
 	}
 	var clicked = null;
 	document.addEventListener("click", (e) => {
