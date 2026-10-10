@@ -102,6 +102,7 @@ function children(parent: Node, next: Node): void {
   };
 
   const kept = new Set<Node>();
+  const entering: Element[] = [];
   let cursor: Node | null = parent.firstChild;
   for (let n = next.firstChild; n;) {
     const following = n.nextSibling; // read first: an inserted node leaves `next`
@@ -136,16 +137,21 @@ function children(parent: Node, next: Node): void {
       const fresh = parent.ownerDocument?.importNode(n, true) ?? n.cloneNode(true);
       parent.insertBefore(fresh, cursor);
       kept.add(fresh);
-      if (keyOf(fresh) !== null && fresh instanceof Element) hooks.enter?.(fresh);
+      if (fresh instanceof Element && fresh.hasAttribute('data-key')) entering.push(fresh);
     }
     n = following;
   }
+  // A few rows coming or one going (a list changed, not replaced) say so: rows with a data-key only.
+  if (entering.length <= 3) for (const el of entering) hooks.enter?.(el);
+  const going: Element[] = [];
+  for (let n = parent.firstChild; n; n = n.nextSibling)
+    if (!kept.has(n) && !leaving.has(n) && n instanceof Element && n.hasAttribute('data-key')) going.push(n);
   // Whatever wasn't matched goes (including a keyed node whose tag changed).
   for (let n = parent.firstChild; n;) {
     const after = n.nextSibling;
     if (kept.has(n) || leaving.has(n)) {
       // kept, or fading out (its hook removes it)
-    } else if (keyOf(n) !== null && n instanceof Element && hooks.leave?.(n)) leaving.add(n);
+    } else if (going.length === 1 && n === going[0] && hooks.leave?.(going[0])) leaving.add(n);
     else parent.removeChild(n);
     n = after;
   }

@@ -287,6 +287,7 @@ test('micro-interactions: rows fade in and out, a number ticks, a highlight move
       document
         .getAnimations()
         .filter((a) => !a.effect?.target?.closest?.('.loading-shapes')) // a skeleton's wait isn't motion
+        .filter((a) => Number(a.effect?.getComputedTiming().duration) > 1) // 0.01 ms with less motion: instant
         .map((a) => {
           const t = a.effect?.target;
           const pseudo = a.effect?.pseudoElement ?? '';

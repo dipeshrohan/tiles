@@ -312,11 +312,6 @@ summary:focus-visible {
     transform: rotate(360deg);
   }
 }
-/* A section opened shows its content fading and rising in (U3.04); closed, it goes at once. Its
-   height changes in one step: motion is opacity and transform only (docs/ui/motion.md). */
-details[open]::details-content {
-  animation: enter var(--dur) var(--ease-out);
-}
 /* Page transitions (U3.02), where the browser has view transitions and less motion isn't asked for
    (js/app.ts starts them; without them nothing moves). The page cross-fades as one; its head is kept
    in place, the menu and top bar stay still, and a record opened from a list grows from its row. */
@@ -358,8 +353,7 @@ details[open]::details-content {
 @media (prefers-reduced-motion: reduce) {
   *:not(.loading-shapes),
   *::before,
-  *::after,
-  *::details-content {
+  *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -369,8 +363,7 @@ details[open]::details-content {
 }
 :root[data-motion='reduce'] *:not(.loading-shapes),
 :root[data-motion='reduce'] *::before,
-:root[data-motion='reduce'] *::after,
-:root[data-motion='reduce'] *::details-content {
+:root[data-motion='reduce'] *::after {
   transition-duration: 0.01ms !important;
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;

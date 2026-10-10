@@ -1728,6 +1728,7 @@
 			return n;
 		};
 		const kept = /* @__PURE__ */ new Set();
+		const entering = [];
 		let cursor = parent.firstChild;
 		for (let n = next.firstChild; n;) {
 			const following = n.nextSibling;
@@ -1759,13 +1760,16 @@
 				const fresh = parent.ownerDocument?.importNode(n, true) ?? n.cloneNode(true);
 				parent.insertBefore(fresh, cursor);
 				kept.add(fresh);
-				if (keyOf$1(fresh) !== null && fresh instanceof Element) hooks.enter?.(fresh);
+				if (fresh instanceof Element && fresh.hasAttribute("data-key")) entering.push(fresh);
 			}
 			n = following;
 		}
+		if (entering.length <= 3) for (const el of entering) hooks.enter?.(el);
+		const going = [];
+		for (let n = parent.firstChild; n; n = n.nextSibling) if (!kept.has(n) && !leaving.has(n) && n instanceof Element && n.hasAttribute("data-key")) going.push(n);
 		for (let n = parent.firstChild; n;) {
 			const after = n.nextSibling;
-			if (kept.has(n) || leaving.has(n)) {} else if (keyOf$1(n) !== null && n instanceof Element && hooks.leave?.(n)) leaving.add(n);
+			if (kept.has(n) || leaving.has(n)) {} else if (going.length === 1 && n === going[0] && hooks.leave?.(going[0])) leaving.add(n);
 			else parent.removeChild(n);
 			n = after;
 		}
@@ -1943,15 +1947,32 @@
 	}
 	//#endregion
 	//#region js/lib/micro.ts
-	var token = (name, fallback) => {
-		const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-		const ms = Number.parseFloat(v);
-		return Number.isFinite(ms) ? ms : fallback;
+	var tokens$2 = {
+		fast: 120,
+		standard: 200,
+		slow: 320,
+		in: "ease-in",
+		out: "ease-out"
 	};
-	var ease = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "ease";
+	function readTokens() {
+		const css = getComputedStyle(document.documentElement);
+		const ms = (name, fallback) => {
+			const v = Number.parseFloat(css.getPropertyValue(name));
+			return Number.isFinite(v) ? v : fallback;
+		};
+		const curve = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+		return {
+			fast: ms("--dur-fast", 120),
+			standard: ms("--dur", 200),
+			slow: ms("--dur-slow", 320),
+			in: curve("--ease-in", "ease-in"),
+			out: curve("--ease-out", "ease-out")
+		};
+	}
+	var canAnimate = (el) => typeof el.animate === "function";
 	var rowMotion = {
 		enter(el) {
-			if (lessMotion() || typeof el.animate !== "function") return;
+			if (lessMotion() || !canAnimate(el)) return;
 			el.animate([{
 				opacity: 0,
 				transform: "translateY(-4px)"
@@ -1959,17 +1980,17 @@
 				opacity: 1,
 				transform: "none"
 			}], {
-				duration: token("--dur", 200),
-				easing: ease("--ease-out")
+				duration: tokens$2.standard,
+				easing: tokens$2.out
 			});
 		},
 		leave(el) {
-			if (lessMotion() || typeof el.animate !== "function" || !el.isConnected) return false;
+			if (lessMotion() || !canAnimate(el) || !el.isConnected) return false;
 			el.setAttribute("inert", "");
 			el.setAttribute("aria-hidden", "true");
 			const fade = el.animate([{ opacity: 1 }, { opacity: 0 }], {
-				duration: token("--dur-fast", 120),
-				easing: ease("--ease-in"),
+				duration: tokens$2.fast,
+				easing: tokens$2.in,
 				fill: "forwards"
 			});
 			const remove = () => el.remove();
@@ -1981,10 +2002,15 @@
 	var HIGHLIGHTED_IN = ".tabs, .seg, .review-list";
 	var NUMBERS = ".kpi .value, [data-tick]";
 	function before(root) {
+		if (lessMotion()) return null;
+		tokens$2 = readTokens();
 		const highlights = /* @__PURE__ */ new Map();
 		for (const group of root.querySelectorAll(HIGHLIGHTED_IN)) {
 			const on = group.querySelector(`:scope > :is(${HIGHLIGHT})`);
-			if (on) highlights.set(group, on.getBoundingClientRect());
+			if (on) highlights.set(group, {
+				on,
+				at: within(on, group)
+			});
 		}
 		const numbers = /* @__PURE__ */ new Map();
 		for (const el of root.querySelectorAll(NUMBERS)) {
@@ -1996,29 +2022,32 @@
 			numbers
 		};
 	}
+	function within(el, group) {
+		const a = el.getBoundingClientRect();
+		const g = group.getBoundingClientRect();
+		return new DOMRect(a.x - g.x, a.y - g.y, a.width, a.height);
+	}
 	function after(root, was) {
-		if (lessMotion()) return;
+		if (!was || lessMotion()) return;
 		for (const [group, from] of was.highlights) {
 			if (!group.isConnected || !root.contains(group)) continue;
 			const on = group.querySelector(`:scope > :is(${HIGHLIGHT})`);
-			if (on) glide(on, from);
+			if (on && on !== from.on) glide(on, from.at, within(on, group));
 		}
-		for (const [el, text] of was.numbers) if (el.isConnected && el.textContent !== text) tick(el, text, el.textContent ?? "");
+		for (const [el, text] of was.numbers) if (el.isConnected && el.textContent !== text) tick(el, text);
 	}
-	function glide(on, from) {
-		const to = on.getBoundingClientRect();
-		if (!to.width || !to.height || from.x === to.x && from.y === to.y && from.width === to.width) return;
-		const dx = from.x - to.x;
-		const dy = from.y - to.y;
+	var pseudo = typeof KeyframeEffect !== "undefined" && "pseudoElement" in KeyframeEffect.prototype;
+	function glide(on, from, to) {
+		if (!pseudo || !canAnimate(on) || !to.width || !to.height) return;
 		on.animate([{
-			transform: `translate(${dx}px, ${dy}px) scale(${from.width / to.width}, ${from.height / to.height})`,
+			transform: `translate(${from.x - to.x}px, ${from.y - to.y}px) scale(${from.width / to.width}, ${from.height / to.height})`,
 			transformOrigin: "top left"
 		}, {
 			transform: "none",
 			transformOrigin: "top left"
 		}], {
-			duration: token("--dur", 200),
-			easing: ease("--ease-out"),
+			duration: tokens$2.standard,
+			easing: tokens$2.out,
 			pseudoElement: "::before"
 		});
 	}
@@ -2039,29 +2068,53 @@
 		};
 	}
 	function formatNumber(n, like) {
-		return n.toLocaleString("en-GB", {
-			minimumFractionDigits: like.decimals,
-			maximumFractionDigits: like.decimals,
-			useGrouping: like.grouped
-		});
+		const s = fmt$1(n, like.decimals);
+		return like.grouped ? s : s.replace(/,/g, "");
 	}
-	function tick(el, from, to) {
+	function tick(el, from) {
+		const text = el.firstChild;
+		if (el.childNodes.length !== 1 || !(text instanceof Text)) return;
+		const to = text.data;
 		const a = parseNumber$1(from);
 		const b = parseNumber$1(to);
 		if (!a || !b || a.prefix !== b.prefix || a.suffix !== b.suffix || a.value === b.value) return;
-		const duration = token("--dur-slow", 320);
 		const start = performance.now();
 		const run = { to };
 		running$1.set(el, run);
 		const frame = (now) => {
-			if (running$1.get(el) !== run || !el.isConnected) return;
-			const t = Math.min(1, (now - start) / duration);
+			if (running$1.get(el) !== run || !text.isConnected) return;
+			const t = Math.min(1, (now - start) / tokens$2.slow);
 			const eased = 1 - (1 - t) ** 3;
-			el.textContent = t < 1 ? `${b.prefix}${formatNumber(a.value + (b.value - a.value) * eased, b)}${b.suffix}` : to;
+			text.data = t < 1 ? `${b.prefix}${formatNumber(a.value + (b.value - a.value) * eased, b)}${b.suffix}` : to;
 			if (t < 1) requestAnimationFrame(frame);
 			else running$1.delete(el);
 		};
 		requestAnimationFrame(frame);
+	}
+	var opening = /* @__PURE__ */ new WeakSet();
+	function watchSections(doc) {
+		doc.addEventListener("click", (e) => {
+			const summary = e.target instanceof Element ? e.target.closest("summary") : null;
+			const d = summary?.parentElement;
+			if (d instanceof HTMLDetailsElement && summary === d.querySelector(":scope > summary") && !d.open) opening.add(d);
+		}, true);
+		doc.addEventListener("toggle", (e) => {
+			const d = e.target;
+			if (!(d instanceof HTMLDetailsElement) || !opening.has(d)) return;
+			opening.delete(d);
+			if (!d.open || lessMotion()) return;
+			tokens$2 = readTokens();
+			for (const child of d.children) if (child.tagName !== "SUMMARY" && canAnimate(child)) child.animate([{
+				opacity: 0,
+				transform: "translateY(-4px)"
+			}, {
+				opacity: 1,
+				transform: "none"
+			}], {
+				duration: tokens$2.standard,
+				easing: tokens$2.out
+			});
+		}, true);
 	}
 	//#endregion
 	//#region js/lib/design.ts
@@ -3483,7 +3536,7 @@
 	}
 	//#endregion
 	//#region js/views/chat.ts
-	var uiState$13 = (ctx) => ctx.ui("chat", { conversation: null });
+	var uiState$14 = (ctx) => ctx.ui("chat", { conversation: null });
 	var API_SUGGESTIONS = [
 		"Which warnings are open?",
 		"How healthy is the ontology?",
@@ -3498,7 +3551,7 @@
 	var rating = null;
 	var failure = null;
 	var siteId$10 = (ctx) => ctx.ontology.site?.id ?? null;
-	var threadKey = (ctx) => `${siteId$10(ctx)}|${uiState$13(ctx).conversation}`;
+	var threadKey = (ctx) => `${siteId$10(ctx)}|${uiState$14(ctx).conversation}`;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "chat") {
 			remote$1 = null;
@@ -3545,7 +3598,7 @@
 			};
 		} catch {
 			if (threadKey(ctx) === key) {
-				uiState$13(ctx).conversation = null;
+				uiState$14(ctx).conversation = null;
 				thread = null;
 			}
 		}
@@ -3565,7 +3618,7 @@
 		return `${withdrawn}${tools}<div data-answer-text>${answerHtml(a.text, cited)}${a.done ? "" : "<span class=\"soft\"> …</span>"}</div>${warning ? `<p class="small text-warn" role="note" data-grounding-warning>⚠ ${esc(warning)}</p>` : ""}${a.error ? `<p class="small text-bad" role="alert">${esc(a.error)}</p>` : ""}${feedback}`;
 	}
 	function remoteRender(ctx) {
-		const ui = uiState$13(ctx);
+		const ui = uiState$14(ctx);
 		const api = ctx.api?.baseUrl ?? "";
 		const site = siteId$10(ctx) ?? "";
 		const list = remote$1?.conversations?.filter((c) => !isRemoving({
@@ -3650,7 +3703,7 @@
 		busy$7 = true;
 		draft$4 = "";
 		failure = null;
-		const ui = uiState$13(ctx);
+		const ui = uiState$14(ctx);
 		let sent = false;
 		try {
 			if (!ui.conversation) {
@@ -3694,7 +3747,7 @@
 	var ratingSent = /* @__PURE__ */ new Map();
 	async function rate(ctx, seq, value, comment) {
 		const site = siteId$10(ctx);
-		const id = uiState$13(ctx).conversation;
+		const id = uiState$14(ctx).conversation;
 		if (!ctx.api || !site || !id) return;
 		const key = `${id}|${seq}`;
 		const pending = ratingSent.get(key);
@@ -3735,7 +3788,7 @@
 		ctx.rerender();
 	}
 	function remoteBind(root, ctx) {
-		const ui = uiState$13(ctx);
+		const ui = uiState$14(ctx);
 		const site = siteId$10(ctx);
 		if (ui.conversation && thread?.key !== threadKey(ctx) && !live) loadThread(ctx, ui.conversation);
 		const logEl = root.querySelector("#chat-log");
@@ -4162,7 +4215,7 @@
 	}
 	//#endregion
 	//#region js/views/ontology.ts
-	var uiState$12 = (ctx) => ctx.ui("ontology", {
+	var uiState$13 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
 		selected: null,
 		hidden: [],
@@ -4173,7 +4226,7 @@
 		match: -1
 	});
 	function showHistory(ctx) {
-		uiState$12(ctx).tab = "history";
+		uiState$13(ctx).tab = "history";
 	}
 	var RELS = [
 		"contains",
@@ -4726,7 +4779,7 @@
 		title: "Ontology builder",
 		icon: "network",
 		render(ctx) {
-			const ui = uiState$12(ctx);
+			const ui = uiState$13(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
@@ -4767,7 +4820,7 @@
       ${body}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$12(ctx);
+			const ui = uiState$13(ctx);
 			if (ctx.ontology.role === "viewer") root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
 			const author = ctx.state.user.email;
 			const stageOps = (ops, ok) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
@@ -5339,7 +5392,7 @@
 	//#endregion
 	//#region js/views/quality.ts
 	var cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-	var uiState$11 = (ctx) => ctx.ui("quality", {
+	var uiState$12 = (ctx) => ctx.ui("quality", {
 		split: true,
 		variable: "tension"
 	});
@@ -5348,7 +5401,7 @@
 		title: "Process & quality",
 		icon: "gauge",
 		render(ctx) {
-			const ui = uiState$11(ctx);
+			const ui = uiState$12(ctx);
 			const rows = ctx.state.batches;
 			const findings = correlationFinder(rows, CUTTER_VARIABLES, { splitBy: ui.split ? "material" : null });
 			const top = explain(findings);
@@ -5466,7 +5519,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$11(ctx);
+			const ui = uiState$12(ctx);
 			onAll(root, "[data-split]", "click", (b, e) => {
 				e.preventDefault();
 				ui.split = b.dataset.split === "1";
@@ -5482,14 +5535,14 @@
 	};
 	//#endregion
 	//#region js/views/physics.ts
-	var uiState$10 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
+	var uiState$11 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
 	var view$16 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "atom",
 		render(ctx) {
 			const { shots, detection, scored } = ctx.state;
-			const ui = uiState$10(ctx);
+			const ui = uiState$11(ctx);
 			const hist = shots.history;
 			const toH = (i) => i * shots.cycleSeconds / 3600;
 			const predicted = scored.filter((s) => s.predicted);
@@ -5619,7 +5672,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$10(ctx);
+			const ui = uiState$11(ctx);
 			const n = ctx.state.shots.history.length;
 			const go = (i) => {
 				ui.shot = Math.max(0, Math.min(n - 1, Number.isFinite(i) ? i : 0));
@@ -5698,7 +5751,7 @@
 	var stepFor = (p) => (p.max - p.min) / 200 < 1 ? Number(((p.max - p.min) / 200).toPrecision(1)) : 1;
 	var show$1 = (v) => typeof v === "number" ? fmt$1(v, 2) : esc(v);
 	var digits = (p) => stepFor(p) < 1 ? Math.max(0, -Math.floor(Math.log10(stepFor(p)))) : 0;
-	var uiState$9 = (ctx) => ctx.ui("design", {
+	var uiState$10 = (ctx) => ctx.ui("design", {
 		model: "swelling",
 		params: {},
 		versions: {},
@@ -5749,7 +5802,7 @@
 		}, POLL_MS$1 * Math.min(2 ** failures, 16));
 	}
 	function sweepControls(ctx, key, canStart) {
-		const ui = uiState$9(ctx);
+		const ui = uiState$10(ctx);
 		const shown = apiSweep?.key === key ? apiSweep.sweep : null;
 		if (shown && sweepRunning(shown)) return `<div class="row gap-2" data-api-sweep>
       <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="Sweep progress"></progress>
@@ -5778,7 +5831,7 @@
 	var siteOf = (ctx) => ctx.api && ctx.ontology.status === "ready" ? ctx.ontology.site?.id ?? null : null;
 	var apiWaiting = (ctx) => ctx.api !== null && siteOf(ctx) === null;
 	function projectOf(ctx, site) {
-		const ui = uiState$9(ctx);
+		const ui = uiState$10(ctx);
 		const items = projects?.site === site ? projects.items : [];
 		if (ui.projectSite !== site) Object.assign(ui, {
 			project: null,
@@ -5852,7 +5905,7 @@
 		};
 	}
 	function current(ctx) {
-		const ui = uiState$9(ctx);
+		const ui = uiState$10(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
 			ui,
@@ -8378,7 +8431,7 @@
 	};
 	//#endregion
 	//#region js/views/reviews.ts
-	var uiState$8 = (ctx) => ctx.ui("reviews", {
+	var uiState$9 = (ctx) => ctx.ui("reviews", {
 		state: "open",
 		selected: null,
 		site: null
@@ -8406,8 +8459,8 @@
 			detail$3 = null;
 		}
 	});
-	var listKey$3 = (ctx) => `${siteId$9(ctx)}|${uiState$8(ctx).state}`;
-	var detailKey$2 = (ctx) => `${siteId$9(ctx)}|${uiState$8(ctx).selected}`;
+	var listKey$3 = (ctx) => `${siteId$9(ctx)}|${uiState$9(ctx).state}`;
+	var detailKey$2 = (ctx) => `${siteId$9(ctx)}|${uiState$9(ctx).selected}`;
 	var STATUS$2 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
@@ -8518,7 +8571,7 @@
 			items: null
 		};
 		try {
-			const items = await ctx.api.reviews.list(site, uiState$8(ctx).state);
+			const items = await ctx.api.reviews.list(site, uiState$9(ctx).state);
 			if (seq === listSeq$2) listing$6 = {
 				key,
 				items
@@ -8533,7 +8586,7 @@
 	}
 	async function fetchDetail$1(ctx) {
 		const site = siteId$9(ctx);
-		const n = uiState$8(ctx).selected;
+		const n = uiState$9(ctx).selected;
 		if (!ctx.api || !site || n === null) return;
 		const key = detailKey$2(ctx);
 		const seq = ++detailSeq$1;
@@ -8546,7 +8599,7 @@
 			};
 		} catch {
 			if (seq !== detailSeq$1) return;
-			uiState$8(ctx).selected = null;
+			uiState$9(ctx).selected = null;
 		}
 		ctx.rerender();
 	}
@@ -8599,7 +8652,7 @@
 		title: "Change reviews",
 		icon: "git-pull-request",
 		crumbs(ctx) {
-			const n = uiState$8(ctx).selected;
+			const n = uiState$9(ctx).selected;
 			return ctx.api && ctx.ontology.status === "ready" && n !== null ? [{
 				label: `#${n}`,
 				href: `#/reviews/${n}`
@@ -8615,12 +8668,12 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-			const ui = uiState$8(ctx);
+			const ui = uiState$9(ctx);
 			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$5(ctx, ui)}${detailCard$3(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$8(ctx);
+			const ui = uiState$9(ctx);
 			if (ui.site !== siteId$9(ctx)) Object.assign(ui, {
 				selected: null,
 				site: siteId$9(ctx)
@@ -8782,7 +8835,7 @@
 	}
 	//#endregion
 	//#region js/views/warnings.ts
-	var uiState$7 = (ctx) => ctx.ui("warnings", {
+	var uiState$8 = (ctx) => ctx.ui("warnings", {
 		filters: { ...DEFAULT_FILTERS },
 		selected: null,
 		site: null
@@ -8812,8 +8865,8 @@
 			members = null;
 		}
 	});
-	var listKey$2 = (ctx) => `${siteId$8(ctx)}|${JSON.stringify(uiState$7(ctx).filters)}`;
-	var detailKey$1 = (ctx) => `${siteId$8(ctx)}|${uiState$7(ctx).selected}`;
+	var listKey$2 = (ctx) => `${siteId$8(ctx)}|${JSON.stringify(uiState$8(ctx).filters)}`;
+	var detailKey$1 = (ctx) => `${siteId$8(ctx)}|${uiState$8(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function statusBadge$1(w) {
 		const [cls, label] = STATUS$1[w.status];
@@ -8986,7 +9039,7 @@
 		};
 		try {
 			const items = await ctx.api.warnings.list(site, {
-				...queryFor(uiState$7(ctx).filters),
+				...queryFor(uiState$8(ctx).filters),
 				limit: PAGE$1
 			});
 			if (seq === listSeq$1) listing$5 = {
@@ -9010,7 +9063,7 @@
 		const seq = ++listSeq$1;
 		try {
 			const query = {
-				...queryFor(uiState$7(ctx).filters),
+				...queryFor(uiState$8(ctx).filters),
 				limit: PAGE$1,
 				offset: shown.items.length
 			};
@@ -9059,7 +9112,7 @@
 	}
 	async function fetchDetail(ctx) {
 		const site = siteId$8(ctx);
-		const id = uiState$7(ctx).selected;
+		const id = uiState$8(ctx).selected;
 		if (!ctx.api || !site || id === null) return;
 		const key = detailKey$1(ctx);
 		const seq = ++detailSeq;
@@ -9073,7 +9126,7 @@
 			};
 		} catch (e) {
 			if (seq !== detailSeq) return;
-			if (e instanceof ApiError && e.status === 404) uiState$7(ctx).selected = null;
+			if (e instanceof ApiError && e.status === 404) uiState$8(ctx).selected = null;
 			else detailFailed = key;
 		}
 		ctx.rerender();
@@ -9172,7 +9225,7 @@
 		}
 	}
 	function openWarning(ctx, id) {
-		Object.assign(uiState$7(ctx), {
+		Object.assign(uiState$8(ctx), {
 			selected: id,
 			site: siteId$8(ctx)
 		});
@@ -9183,7 +9236,7 @@
 		title: "Warnings",
 		icon: "triangle-alert",
 		crumbs(ctx) {
-			const w = uiState$7(ctx).selected !== null && detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
+			const w = uiState$8(ctx).selected !== null && detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
 			return ctx.api && w ? [{ label: w.signal_tag }] : [];
 		},
 		render(ctx) {
@@ -9196,12 +9249,12 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}${card$1(skeleton.card("Loading from the Tiles API…"))}`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-			const ui = uiState$7(ctx);
+			const ui = uiState$8(ctx);
 			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$4(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
-			const ui = uiState$7(ctx);
+			const ui = uiState$8(ctx);
 			const site = siteId$8(ctx);
 			if (ui.site !== site) Object.assign(ui, {
 				selected: null,
@@ -9558,7 +9611,7 @@
 	};
 	//#endregion
 	//#region js/views/shopfloor.ts
-	var uiState$6 = (ctx) => ctx.ui("shopfloor", {
+	var uiState$7 = (ctx) => ctx.ui("shopfloor", {
 		resolving: null,
 		taking: null,
 		full: false
@@ -9648,7 +9701,7 @@
 			if (w.status === "raised") await ctx.api.warnings.acknowledge(site, id);
 			const me = ctx.ontology.userId;
 			if (me && w.assignee_id !== me) await ctx.api.warnings.assign(site, id, me);
-			uiState$6(ctx).taking = null;
+			uiState$7(ctx).taking = null;
 			ctx.toast(me ? `It's yours: ${w.signal_tag}` : `Acknowledged: ${w.signal_tag}`);
 		} catch {} finally {
 			busy$4 = null;
@@ -9662,7 +9715,7 @@
 		ctx.rerender();
 		try {
 			await ctx.api.warnings.resolve(site, id, outcome);
-			uiState$6(ctx).resolving = null;
+			uiState$7(ctx).resolving = null;
 			ctx.toast(`Resolved as ${OUTCOMES[outcome].toLowerCase()}`);
 		} catch {} finally {
 			busy$4 = null;
@@ -9674,7 +9727,7 @@
 		title: "Shopfloor",
 		icon: "hard-hat",
 		render(ctx) {
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			const site = ctx.ontology.site?.name ?? (ctx.api ? "" : "Demo plant");
 			const fullLabel = ui.full ? "Show navigation" : "Full view";
 			const head = (status) => `<div class="floor-head">
@@ -9709,7 +9762,7 @@
         <h2 class="floor-section">Machines</h2>${board(graph, list)}</div>`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$6(ctx);
+			const ui = uiState$7(ctx);
 			document.body.classList.toggle("floor-full", ui.full);
 			if (shownHeadline && shownHeadline.text !== toldHeadline?.text) {
 				if (toldHeadline && toldHeadline.site === shownHeadline.site) announce(shownHeadline.text);
@@ -9859,7 +9912,7 @@
 	var placeLink = (id) => `#/plant/${encodeURIComponent(id)}`;
 	//#endregion
 	//#region js/views/plant.ts
-	var uiState$5 = (ctx) => ctx.ui("plant", { query: "" });
+	var uiState$6 = (ctx) => ctx.ui("plant", { query: "" });
 	var searching = false;
 	var typing$1;
 	var shownTrail = [];
@@ -9985,7 +10038,7 @@
 		icon: "factory",
 		crumbs: () => shownTrail,
 		render(ctx) {
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			const graph = ctx.graph;
 			const tops = topPlaces(graph);
 			const asked = placeFromHash(location.hash);
@@ -10016,7 +10069,7 @@
 			return `${head}${results}${node.type === "Machine" ? machinePage(ctx, graph, node, items, now) : placePage(graph, node.id, items, now)}`;
 		},
 		bind(root, ctx) {
-			const ui = uiState$5(ctx);
+			const ui = uiState$6(ctx);
 			ensureFloor(ctx);
 			const form = root.querySelector("[data-plant-search]");
 			const input = form?.querySelector("input");
@@ -10173,7 +10226,7 @@ heartbeat_seconds = 30
 	}
 	//#endregion
 	//#region js/views/onboarding.ts
-	var uiState$4 = (ctx) => ctx.ui("onboarding", { step: null });
+	var uiState$5 = (ctx) => ctx.ui("onboarding", { step: null });
 	var POLL_MS = 5e3;
 	var progress$1 = null;
 	var agents = null;
@@ -10209,7 +10262,7 @@ heartbeat_seconds = 30
 				withOntology ? ctx.ontology.reload() : void 0
 			]);
 			if (mine !== seq$1) return;
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			const was = progress$1.data?.steps.find((x) => x.key === ui.step);
 			if (was && !was.done && data.steps.find((x) => x.key === ui.step)?.done) ui.step = null;
 			progress$1 = {
@@ -10327,7 +10380,7 @@ heartbeat_seconds = 30
 			if (ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const data = progress$1?.site === siteId$5(ctx) ? progress$1.data : null;
 			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">${skeleton.list(4, "Loading this site’s progress…")}</div>`;
-			const current = uiState$4(ctx).step ?? data.next ?? "dashboard";
+			const current = uiState$5(ctx).step ?? data.next ?? "dashboard";
 			const meta = STEPS.find((s) => s.key === current) ?? STEPS[0];
 			const body = {
 				site: () => siteStep(ctx),
@@ -10360,7 +10413,7 @@ heartbeat_seconds = 30
 				clearInterval(timer$1);
 				timer$1 = null;
 			}
-			const ui = uiState$4(ctx);
+			const ui = uiState$5(ctx);
 			onAll(root, "[data-step]", "click", (el) => {
 				ui.step = el.dataset.step ?? null;
 				ctx.rerender();
@@ -10792,7 +10845,7 @@ button('Save', { variant: 'primary', busy: true })   // or setBusy(el, true) on 
       <pre class="sg-code"><code>${esc(e.code)}</code></pre>
     </section>`;
 	}
-	var motion = {
+	var uiState$4 = (ctx) => ctx.ui("styleguide", {
 		tab: "open",
 		rows: [
 			"DC-01",
@@ -10802,8 +10855,8 @@ button('Save', { variant: 'primary', busy: true })   // or setBusy(el, true) on 
 		next: 4,
 		selected: "DC-01",
 		readings: 1204
-	};
-	function motionCard() {
+	});
+	function motionCard(motion) {
 		const rows = motion.rows.map((id) => `<button class="review-row ${motion.selected === id ? "sel" : ""}" type="button" data-key="sg-row-${esc(id)}" data-sg-row="${esc(id)}"><b>Die-caster ${esc(id)}</b><span class="small muted">A warning on its machine</span></button>`).join("");
 		return card$1(`<p class="small soft">A page drawn again moves what changed, a little: try them. With less motion asked for, they change at once.</p>
     ${tabs({
@@ -10854,7 +10907,7 @@ tabs({ … }), .review-row.sel, .seg button.active      // the highlight moves f
 		title: "Style guide",
 		icon: "palette",
 		under: "settings",
-		render() {
+		render(ctx) {
 			const head = pageHead({
 				eyebrow: "Settings · About",
 				title: "Style guide",
@@ -10891,13 +10944,14 @@ removeLater({ toast, message: 'Conversation deleted', hide, restore, send })   /
 ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with their request ID
 <button … data-tooltip="Says what it does">`)}</code></pre>`, { class: "stack gap-2" })}
       <h2 class="mt-4 mb-2" id="sg-sec-motion">Motion</h2>
-      ${motionCard()}
+      ${motionCard(uiState$4(ctx))}
       <h2 class="mt-4 mb-2" id="sg-sec-icons">Icons</h2>
       ${card$1(`<p class="small soft">Lucide, drawn with the text colour: <code>icon('house')</code>, decorative unless given a <code>label</code>.</p><ul class="sg-icons">${icons}</ul>`, { class: "stack gap-2" })}
       <h2 class="mt-4 mb-2" id="sg-sec-illustrations">Illustrations</h2>
       ${card$1(`<p class="small soft">For empty, waiting and error states: <code>illustration('inbox')</code>, coloured by the theme.</p><ul class="sg-illustrations">${pictures}</ul>`, { class: "stack gap-2" })}`;
 		},
 		bind(root, ctx) {
+			const motion = uiState$4(ctx);
 			for (const el of root.querySelectorAll("[data-sg-token]")) el.style.setProperty(el.dataset.sgProp ?? "background", `var(${el.dataset.sgToken})`);
 			const styles = getComputedStyle(document.documentElement);
 			for (const el of root.querySelectorAll("[data-sg-value]")) el.textContent = styles.getPropertyValue(el.dataset.sgValue ?? "").trim();
@@ -14092,13 +14146,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const root = need(document, "#view");
 		resetIds();
 		const html = view.render(ctx);
-		const was = view.id === shownView ? before(root) : null;
-		if (was) morph(root, html, rowMotion);
+		const again = view.id === shownView;
+		const was = again ? before(root) : null;
+		if (again) morph(root, html, rowMotion);
 		else replace(root, html);
 		rebind();
 		view.bind?.(root, ctx);
 		afterRender();
-		if (was) after(root, was);
+		after(root, was);
 		need(document, "#crumbs").innerHTML = breadcrumbs([
 			{
 				label: "Home",
@@ -14384,6 +14439,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		transition.finished.then(() => head()?.style.removeProperty("view-transition-name"), () => void 0);
 	}
 	window.addEventListener("hashchange", navigate);
+	watchSections(document);
 	if (api) {
 		localRepo = state.repo;
 		state.repo = createRepo();

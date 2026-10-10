@@ -5,7 +5,7 @@ import { ILLUSTRATIONS, illustration } from '../lib/illustrations.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { COMPONENTS, STATES, TOKEN_GROUPS, type Example, type TokenGroup } from '../lib/styleguide.ts';
 import { button, card, pageHead, tabs } from '../lib/ui.ts';
-import type { View } from './types.ts';
+import type { Context, View } from './types.ts';
 
 // The style guide (U1.07): every design token, component, state, icon and illustration, in the light
 // and the dark theme side by side, with the code that makes each. Not in the menu: Settings → About
@@ -66,9 +66,23 @@ function example(e: Example): string {
 
 // The motion samples (U3.04) are drawn by the page, like any page's state: each change draws it again,
 // and what changed moves as it would anywhere (js/lib/micro.ts), or not at all with less motion.
-const motion = { tab: 'open', rows: ['DC-01', 'DC-02', 'DC-03'], next: 4, selected: 'DC-01', readings: 1204 };
+interface MotionUi {
+  tab: string;
+  rows: string[];
+  next: number;
+  selected: string;
+  readings: number;
+}
+const uiState = (ctx: Context) =>
+  ctx.ui<MotionUi>('styleguide', {
+    tab: 'open',
+    rows: ['DC-01', 'DC-02', 'DC-03'],
+    next: 4,
+    selected: 'DC-01',
+    readings: 1204,
+  });
 
-function motionCard(): string {
+function motionCard(motion: MotionUi): string {
   const rows = motion.rows
     .map(
       (id) =>
@@ -120,7 +134,7 @@ const view: View = {
   title: 'Style guide',
   icon: 'palette',
   under: 'settings',
-  render() {
+  render(ctx) {
     const head = pageHead({
       eyebrow: 'Settings · About',
       title: 'Style guide',
@@ -157,13 +171,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
         { class: 'stack gap-2' },
       )}
       <h2 class="mt-4 mb-2" id="sg-sec-motion">Motion</h2>
-      ${motionCard()}
+      ${motionCard(uiState(ctx))}
       <h2 class="mt-4 mb-2" id="sg-sec-icons">Icons</h2>
       ${card(`<p class="small soft">Lucide, drawn with the text colour: <code>icon('house')</code>, decorative unless given a <code>label</code>.</p><ul class="sg-icons">${icons}</ul>`, { class: 'stack gap-2' })}
       <h2 class="mt-4 mb-2" id="sg-sec-illustrations">Illustrations</h2>
       ${card(`<p class="small soft">For empty, waiting and error states: <code>illustration('inbox')</code>, coloured by the theme.</p><ul class="sg-illustrations">${pictures}</ul>`, { class: 'stack gap-2' })}`;
   },
   bind(root, ctx) {
+    const motion = uiState(ctx);
     for (const el of root.querySelectorAll<HTMLElement>('[data-sg-token]')) {
       el.style.setProperty(el.dataset.sgProp ?? 'background', `var(${el.dataset.sgToken})`);
     }

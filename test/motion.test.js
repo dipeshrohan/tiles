@@ -71,7 +71,6 @@ test('reduced motion stops everything, asked by the system or by Tiles', () => {
       assert.ok(block.includes(rule), `${rule} in ${block.slice(0, 40)}`);
     // The skeletons' 300 ms wait isn't motion: neither rule touches it.
     assert.match(block, /\*:not\(\.loading-shapes\),/, block.slice(0, 40));
-    assert.match(block, /\*::details-content/, block.slice(0, 40)); // a section's content too
   }
   assert.match(css, /\.loading-shapes \{[^}]*animation: skeleton-wait var\(--wait, 300ms\)/);
 });
