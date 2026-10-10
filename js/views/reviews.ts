@@ -286,7 +286,8 @@ const view: View = {
       return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
+    if (o.status !== 'ready')
+      return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
     return `${head}${policyCard(ctx)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
   },

@@ -24,31 +24,24 @@ const source = (f) =>
     .replace(/^\s*\/\/.*$/gm, '')
     .replace(/\s\/\/ .*$/gm, '');
 
-// Words written with a capital wherever they are: names, and terms that are names in Tiles.
-const PROPER = new Set([
-  'Tiles',
-  'App',
-  'Studio',
-  'Microsoft',
-  'Teams',
-  'Entra',
-  'Design',
-  'Operations',
-  'Settings', // the page, named in a link
-  'Signals',
-  'Ontology',
-  'Plant',
-  'Copilot',
-  'MES',
-  'I',
-]);
+// Words written with a capital wherever they are: names.
+const PROPER = new Set(['Tiles', 'Microsoft', 'Teams', 'Entra', 'MES', 'I']);
+// Names of pages and product areas: capitals where they name them ("Open Settings", "on the Signals
+// page", "App Studio", "Tiles Design"), not as ordinary words ("New App", "View Signals").
+const PAGE = new Set(['Settings', 'Signals', 'Ontology', 'Plant', 'Copilot', 'Studio', 'Design', 'Operations']);
+const NAMES_PAGE = new Set(['Open', 'the', 'Tiles', 'App']);
+
 // Words after the first of each part (a "·", ":" or "—" starts a new one) that have a capital.
 const sentenceCase = (text) =>
-  text
-    .split(/\s+[·:—]\s+|:\s+/)
-    .flatMap((part) => part.split(/\s+/).slice(1))
-    .filter((w) => /^[A-Z][a-z]/.test(w) && !/\d/.test(w))
-    .filter((w) => !PROPER.has(w.replace(/[^\w-]/g, '')));
+  text.split(/\s+[·:—]\s+|:\s+/).flatMap((part) => {
+    const words = part.split(/\s+/);
+    return words.slice(1).filter((w, k) => {
+      const bare = w.replace(/[^\w-]/g, '');
+      if (!/^[A-Z][a-z]/.test(w) || /\d/.test(w) || PROPER.has(bare)) return false;
+      if (bare === 'App' && words[k + 2] === 'Studio') return false;
+      return !(PAGE.has(bare) && NAMES_PAGE.has(words[k] ?? ''));
+    });
+  });
 
 function strings(re) {
   return files.flatMap((f) => [...source(f).matchAll(re)].map((m) => ({ f, text: m[1].trim() })));
@@ -66,15 +59,21 @@ test('no apologies, "please" or "successfully" in what the pages say', () => {
 });
 
 test('messages end without an exclamation mark', () => {
-  const found = strings(/toast\(\s*['`"]([^'`"]*!)['`"]/g).map((s) => `${s.f}: ${s.text}`);
+  const found = [
+    ...strings(/toast\(\s*'([^'$]*!)'/g),
+    ...strings(/toast\(\s*"([^"$]*!)"/g),
+    ...strings(/toast\(\s*`([^`]*!)`/g),
+  ].map((s) => `${s.f}: ${s.text}`);
   assert.deepEqual(found, []);
 });
 
+// A label as written: in single or double quotes, after an icon or not.
+const ICON = String.raw`(?:\$\{icon\([^)]*\)\}\s*)?`;
 const labels = () => [
-  ...strings(/\bbutton\('([^'$]+)'/g),
-  ...strings(/<button[^>]*>([A-Za-z][^<$]{1,60})<\/button>/g),
-  ...strings(/<a class="btn[^"]*"[^>]*>([A-Za-z][^<$]{1,60})<\/a>/g),
-  ...strings(/\blinkButton\('([^'$]+)'/g),
+  ...strings(/\b(?:button|linkButton)\('([^'$]+)'/g),
+  ...strings(/\b(?:button|linkButton)\("([^"$]+)"/g),
+  ...strings(new RegExp(String.raw`<button[^>]*>${ICON}([A-Za-z][^<$]{1,60})<\/button>`, 'g')),
+  ...strings(new RegExp(String.raw`<a class="btn[^"]*"[^>]*>${ICON}([A-Za-z][^<$]{1,60})<\/a>`, 'g')),
 ];
 
 test('buttons say what they do', () => {
@@ -95,4 +94,8 @@ test('the checks catch what they are for', () => {
   assert.deepEqual(sentenceCase('Open Settings'), []);
   assert.deepEqual(sentenceCase('Plunger friction · Die-caster DC-02'), []);
   assert.deepEqual(sentenceCase('Signal: Back in'), []);
+  assert.deepEqual(sentenceCase('New App'), ['App']);
+  assert.deepEqual(sentenceCase('View Signals'), ['Signals']);
+  assert.deepEqual(sentenceCase('Map tags on the Signals page'), []);
+  assert.deepEqual(sentenceCase('Open App Studio'), []);
 });

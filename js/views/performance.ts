@@ -135,7 +135,8 @@ const view: View = {
       return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
+    if (o.status !== 'ready')
+      return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const u = uiState(ctx);
     const key = keyFor(ctx);
     let body: string;

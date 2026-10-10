@@ -200,7 +200,8 @@ const view: View = {
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`Setting up a site needs the Tiles API: sites, edge agents and tags live there.`)}</div>`;
     if (ctx.ontology.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (ctx.ontology.status !== 'ready') return `${head}${apiUnreachable(ctx.ontology.error)}`;
+    if (ctx.ontology.status !== 'ready')
+      return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const data = progress?.site === siteId(ctx) ? progress.data : null;
     if (!data)
       return progress?.failed

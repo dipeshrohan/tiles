@@ -224,17 +224,29 @@ export function tabs(o: {
     .join('')}</div>`;
 }
 
-// The page needs the Tiles API and couldn't reach it: what happened, why, and what to do (Try again
-// reconnects, app.ts; Settings has the address).
-export function apiUnreachable(reason: string | null): string {
+// A page that needs the site from the Tiles API, which didn't come: what happened, why and what to do
+// (U2.09). A connection that failed says to check the API and its address; an API that answered with
+// a reason (no sites, no access, signed out) says that reason. Try again reconnects and Sign in signs
+// in (both handled in app.ts).
+const UNREACHABLE = /can.t reach|failed to fetch|networkerror|not reachable|timed out|load failed/i;
+export function apiUnreachable(reason: string | null, o: { signIn?: boolean; size?: 'sm' | 'lg' } = {}): string {
+  const why = (reason ?? '').replace(/^Can.t reach the Tiles API\b[^.:]*[.:]?\s*/i, '').trim();
+  const unreachable = !reason || UNREACHABLE.test(reason);
+  const sentence = why && !/[.!?)]$/.test(why) ? `${why}.` : why;
+  const size = o.size ?? 'sm';
   return card(
-    emptyState({
-      illustration: 'error',
+    errorState({
+      title: unreachable ? "Can't reach the Tiles API" : "The site couldn't be loaded",
+      body: [
+        sentence,
+        unreachable ? 'Check that the API is running and its address in Settings is right, then try again.' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      retry: 'reconnect',
       compact: true,
-      alert: true,
-      title: "Can't reach the Tiles API",
-      body: `${reason ? `${reason}. ` : ''}Check that it is running and its address in Settings is right, then try again.`,
-      action: `${button('Try again', { variant: 'primary', size: 'sm', icon: 'refresh-cw', attrs: { 'data-reconnect': true } })} ${linkButton('Open Settings', '#/settings', { size: 'sm' })}`,
+      size,
+      actionsHtml: `${o.signIn ? button('Sign in', { variant: 'primary', size, attrs: { 'data-app-sign-in': true } }) : ''} ${linkButton('Open Settings', '#/settings', { size })}`,
     }),
   );
 }
@@ -247,7 +259,11 @@ export function errorState(o: {
   compact?: boolean;
   alert?: boolean; // false for one shown as an example, not a failure
   level?: 2 | 3 | 4;
+  actionsHtml?: string; // more ways out, after Try again (built by the caller)
+  size?: 'sm' | 'lg'; // its buttons ('lg' on the shopfloor tablet)
 }): string {
+  const size = o.size ?? 'sm';
+  const retry = o.retry ? button('Try again', { size, icon: 'refresh-cw', attrs: { [`data-${o.retry}`]: true } }) : '';
   return emptyState({
     illustration: 'error',
     compact: o.compact,
@@ -255,8 +271,6 @@ export function errorState(o: {
     level: o.level,
     title: o.title,
     body: o.body,
-    action: o.retry
-      ? button('Try again', { size: 'sm', icon: 'refresh-cw', attrs: { [`data-${o.retry}`]: true } })
-      : undefined,
+    action: retry || o.actionsHtml ? [retry, o.actionsHtml].filter(Boolean).join(' ') : undefined,
   });
 }

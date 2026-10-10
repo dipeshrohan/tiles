@@ -230,7 +230,8 @@ const view: View = {
     });
     if (ctx.api && ctx.ontology.status === 'loading')
       return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (ctx.api && ctx.ontology.status !== 'ready') return `${head}${apiUnreachable(ctx.ontology.error)}`;
+    if (ctx.api && ctx.ontology.status !== 'ready')
+      return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const results = searchResults(graph, ui.query);
     if (!tops.length)
       return `${head}${results}<div class="card"><p>The ontology has no sites, lines or machines yet. Build the hierarchy on the <a href="#/ontology">Ontology</a> page: a site contains workcenters, which contain lines and cells, which contain machines.</p></div>`;

@@ -12,6 +12,7 @@ import {
   select,
   table,
   type Tone,
+  apiUnreachable,
 } from '../lib/ui.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
@@ -532,13 +533,11 @@ const view: View = {
     });
     if (!ctx.api) return `${head}${card(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
     if (!ctx.ontology.site)
-      return `${head}${card(
-        `<p class="small soft">${
-          ctx.ontology.status === 'error'
-            ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? 'unknown error')}`
-            : 'Loading the site from the Tiles API…'
-        }</p>`,
-      )}`;
+      return `${head}${
+        ctx.ontology.status === 'error'
+          ? apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })
+          : card('<p class="small soft">Loading the site from the Tiles API…</p>')
+      }`;
     const { query } = ui(ctx);
     const search = `<form id="signal-search" class="row gap-3 wrap" role="search">
           ${labelled('Search', input({ type: 'search', name: 'q', value: query.q, placeholder: 'Tag, description or node' }), { class: 'grow min-w-field' })}

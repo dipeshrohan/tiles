@@ -566,9 +566,12 @@ function renderSoon(): void {
   });
 }
 
-// "Try again" on a page that couldn't reach the API (apiUnreachable): connect afresh.
-document.addEventListener('click', (e) => {
-  if (e.target instanceof Element && e.target.closest('[data-reconnect]')) void connectOntology();
+// "Try again" and "Sign in" on a page whose site didn't load (apiUnreachable), not on a sample of it.
+need(document, '#view').addEventListener('click', (e) => {
+  const el = e.target instanceof Element ? e.target : null;
+  if (!el || el.closest('.sg-pair')) return;
+  if (el.closest('[data-reconnect]')) void connectOntology();
+  else if (el.closest('[data-app-sign-in]')) void ctx.auth.signIn();
 });
 
 // ---- theme & mobile nav ---------------------------------------------------

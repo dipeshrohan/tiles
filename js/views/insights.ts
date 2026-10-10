@@ -244,7 +244,8 @@ const view: View = {
     if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
+    if (o.status !== 'ready')
+      return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     return `${head}<div class="reviews">${listCard(ctx, uiState(ctx))}${detailCard(ctx)}</div>`;
   },
   bind(root, ctx) {

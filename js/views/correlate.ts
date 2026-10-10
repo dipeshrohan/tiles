@@ -312,7 +312,8 @@ const view: View = {
       return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}<div class="card">Loading from the Tiles API…</div>`;
-    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
+    if (o.status !== 'ready')
+      return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
     return `${head}<div class="reviews">${listCard(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
   },

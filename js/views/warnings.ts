@@ -444,7 +444,8 @@ const view: View = {
       return `${head}${card(needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`))}`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}${card('Loading from the Tiles API…')}`;
-    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
+    if (o.status !== 'ready')
+      return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
     return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
   },

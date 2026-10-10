@@ -2609,22 +2609,32 @@
 			[`data-${o.data}`]: v
 		})}>${esc(l)}</button>`).join("")}</div>`;
 	}
-	function apiUnreachable(reason) {
-		return card$1(emptyState({
-			illustration: "error",
+	var UNREACHABLE = /can.t reach|failed to fetch|networkerror|not reachable|timed out|load failed/i;
+	function apiUnreachable(reason, o = {}) {
+		const why = (reason ?? "").replace(/^Can.t reach the Tiles API\b[^.:]*[.:]?\s*/i, "").trim();
+		const unreachable = !reason || UNREACHABLE.test(reason);
+		const sentence = why && !/[.!?)]$/.test(why) ? `${why}.` : why;
+		const size = o.size ?? "sm";
+		return card$1(errorState({
+			title: unreachable ? "Can't reach the Tiles API" : "The site couldn't be loaded",
+			body: [sentence, unreachable ? "Check that the API is running and its address in Settings is right, then try again." : ""].filter(Boolean).join(" "),
+			retry: "reconnect",
 			compact: true,
-			alert: true,
-			title: "Can't reach the Tiles API",
-			body: `${reason ? `${reason}. ` : ""}Check that it is running and its address in Settings is right, then try again.`,
-			action: `${button("Try again", {
+			size,
+			actionsHtml: `${o.signIn ? button("Sign in", {
 				variant: "primary",
-				size: "sm",
-				icon: "refresh-cw",
-				attrs: { "data-reconnect": true }
-			})} ${linkButton("Open Settings", "#/settings", { size: "sm" })}`
+				size,
+				attrs: { "data-app-sign-in": true }
+			}) : ""} ${linkButton("Open Settings", "#/settings", { size })}`
 		}));
 	}
 	function errorState(o) {
+		const size = o.size ?? "sm";
+		const retry = o.retry ? button("Try again", {
+			size,
+			icon: "refresh-cw",
+			attrs: { [`data-${o.retry}`]: true }
+		}) : "";
 		return emptyState({
 			illustration: "error",
 			compact: o.compact,
@@ -2632,11 +2642,7 @@
 			level: o.level,
 			title: o.title,
 			body: o.body,
-			action: o.retry ? button("Try again", {
-				size: "sm",
-				icon: "refresh-cw",
-				attrs: { [`data-${o.retry}`]: true }
-			}) : void 0
+			action: retry || o.actionsHtml ? [retry, o.actionsHtml].filter(Boolean).join(" ") : void 0
 		});
 	}
 	//#endregion
@@ -3804,7 +3810,7 @@
 		const o = ctx.ontology;
 		if (o.status === "local") return "";
 		if (o.status === "loading") return "<div class=\"card source-bar\" aria-live=\"polite\">Loading the ontology from the Tiles API…</div>";
-		if (o.status === "error") return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row gap-2 mt-2">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? "<button class=\"btn sm primary\" data-sign-in>Sign in</button>" : ""}<a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
+		if (o.status === "error") return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row gap-2 mt-2">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? "<button class=\"btn sm primary\" data-sign-in>Sign in</button>" : ""}<button class="btn sm" type="button" data-reconnect>Try again</button><a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
 		const { head, history, staged } = ctx.state.repo;
 		const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
 		return `<div class="card source-bar small" aria-live="polite">
@@ -4975,7 +4981,7 @@
 				lead: "Explore physics models from first principles. Every run records the model version and parameters that produced it, so any result can be traced, compared and exported for audit.",
 				actionsHtml: `<div class="seg" role="group" aria-label="Model">${Object.values(MODELS).map((m) => `<button data-model="${m.id}" class="${m.id === model.id ? "active" : ""}">${esc(m.name)}</button>`).join("")}</div>`
 			})}
-      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === "error" ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : "Connecting to the Tiles API…"}</span></div>` : ""}
+      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === "error" ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : "Connecting to the Tiles API…"}</span>${ctx.ontology.status === "error" ? ` <button class="btn sm" type="button" data-reconnect>Try again</button>` : ""}</div>` : ""}
 
       <div class="grid g3 mb-4">
         <div class="card">
@@ -6622,7 +6628,7 @@
 				lead: "Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to."
 			});
 			if (!ctx.api) return `${head}${card$1(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
-			if (!ctx.ontology.site) return `${head}${card$1(`<p class="small soft">${ctx.ontology.status === "error" ? `The site could not be loaded from the Tiles API: ${esc(ctx.ontology.error ?? "unknown error")}` : "Loading the site from the Tiles API…"}</p>`)}`;
+			if (!ctx.ontology.site) return `${head}${ctx.ontology.status === "error" ? apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) }) : card$1("<p class=\"small soft\">Loading the site from the Tiles API…</p>")}`;
 			const { query } = ui$1(ctx);
 			return `${head}${card$1(`${`<form id="signal-search" class="row gap-3 wrap" role="search">
           ${field("Search", input({
@@ -7441,7 +7447,7 @@
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (o.status !== "ready") return `${head}${apiUnreachable(o.error)}`;
+			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const ui = uiState$8(ctx);
 			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$5(ctx, ui)}${detailCard$3(ctx, ui)}</div>`;
 		},
@@ -7971,7 +7977,7 @@
 			if (!ctx.api) return `${head}${card$1(needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`))}`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}${card$1("Loading from the Tiles API…")}`;
-			if (o.status !== "ready") return `${head}${apiUnreachable(o.error)}`;
+			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const ui = uiState$7(ctx);
 			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$4(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
 		},
@@ -8455,7 +8461,10 @@
         </div>
       </div>`;
 			if (ctx.api && ctx.ontology.status === "loading") return `<div class="floor">${head("<h1>Loading…</h1>")}</div>`;
-			if (ctx.api && ctx.ontology.status !== "ready") return `<div class="floor">${head("<h1>Shopfloor</h1>")}${apiUnreachable(ctx.ontology.error)}</div>`;
+			if (ctx.api && ctx.ontology.status !== "ready") return `<div class="floor">${head("<h1>Shopfloor</h1>")}${apiUnreachable(ctx.ontology.error, {
+				signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn),
+				size: "lg"
+			})}</div>`;
 			const graph = ctx.graph;
 			const list = floorItems(ctx, graph);
 			if (list === null) return `<div class="floor">${head("<h1>Shopfloor</h1>")}<div class="card">Loading the warnings…</div></div>`;
@@ -8762,7 +8771,7 @@
 				actionsHtml: `<div class="row gap-2">${search}${ctx.api ? button("Refresh", { attrs: { "data-plant-refresh": true } }) : ""}</div>`
 			});
 			if (ctx.api && ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (ctx.api && ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error)}`;
+			if (ctx.api && ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const results = searchResults(graph, ui.query);
 			if (!tops.length) return `${head}${results}<div class="card"><p>The ontology has no sites, lines or machines yet. Build the hierarchy on the <a href="#/ontology">Ontology</a> page: a site contains workcenters, which contain lines and cells, which contain machines.</p></div>`;
 			const items = floorItems(ctx, graph);
@@ -9079,7 +9088,7 @@ heartbeat_seconds = 30
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Setting up a site needs the Tiles API: sites, edge agents and tags live there.`)}</div>`;
 			if (ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error)}`;
+			if (ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const data = progress$1?.site === siteId$5(ctx) ? progress$1.data : null;
 			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">Loading this site’s progress…</div>`;
 			const current = uiState$4(ctx).step ?? data.next ?? "dashboard";
@@ -9775,7 +9784,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (o.status !== "ready") return `${head}${apiUnreachable(o.error)}`;
+			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const u = uiState$3(ctx);
 			const key = keyFor(ctx);
 			let body;
@@ -10529,7 +10538,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (o.status !== "ready") return `${head}${apiUnreachable(o.error)}`;
+			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const ui = uiState$2(ctx);
 			return `${head}<div class="reviews">${listCard$3(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
 		},
@@ -10809,7 +10818,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (o.status !== "ready") return `${head}${apiUnreachable(o.error)}`;
+			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			return `${head}<div class="reviews">${listCard$2(ctx, uiState$1(ctx))}${detailCard$1(ctx)}</div>`;
 		},
 		bind(root, ctx) {
@@ -11253,7 +11262,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Apps are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
-			if (o.status !== "ready") return `${head}${apiUnreachable(o.error)}`;
+			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			return `${head}<div class="reviews">${listCard$1(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
 		},
 		bind(root, ctx) {
@@ -11516,7 +11525,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (!ctx.api) return `${head}${card$1(needsApi(`Documents are kept by the Tiles API.`))}`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}${card$1("Loading from the Tiles API…")}`;
-			if (o.status !== "ready") return `${head}${apiUnreachable(o.error)}`;
+			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
 		},
 		bind(root, ctx) {
@@ -12698,8 +12707,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (k === focused && el instanceof HTMLElement) el.focus({ preventScroll: true });
 		});
 	}
-	document.addEventListener("click", (e) => {
-		if (e.target instanceof Element && e.target.closest("[data-reconnect]")) connectOntology();
+	need(document, "#view").addEventListener("click", (e) => {
+		const el = e.target instanceof Element ? e.target : null;
+		if (!el || el.closest(".sg-pair")) return;
+		if (el.closest("[data-reconnect]")) connectOntology();
+		else if (el.closest("[data-app-sign-in]")) ctx.auth.signIn();
 	});
 	var isDark = () => document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 	function applyTheme(theme) {

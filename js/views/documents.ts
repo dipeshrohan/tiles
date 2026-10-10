@@ -188,7 +188,8 @@ const view: View = {
     if (!ctx.api) return `${head}${card(needsApi(`Documents are kept by the Tiles API.`))}`;
     const o = ctx.ontology;
     if (o.status === 'loading') return `${head}${card('Loading from the Tiles API…')}`;
-    if (o.status !== 'ready') return `${head}${apiUnreachable(o.error)}`;
+    if (o.status !== 'ready')
+      return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
   },
   bind(root, ctx) {
