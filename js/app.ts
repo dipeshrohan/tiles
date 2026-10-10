@@ -33,7 +33,8 @@ import {
   type OntologyStore,
   type RemoteStore,
 } from './lib/ontology-store.ts';
-import { esc, need, routeOf } from './lib/dom.ts';
+import { esc, need, rebind, routeOf } from './lib/dom.ts';
+import { morph, noteSent, replace } from './lib/morph.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
 import ontology from './views/ontology.ts';
@@ -534,6 +535,9 @@ let enterWatched = false;
 let shownView: string | null = null; // the page last shown, to animate only a change of page
 let trackedView = ''; // the page last recorded as viewed (U1.09)
 
+// Draws the current page. A new page replaces what was there; the same page drawn again is patched
+// in place (U3.03, js/lib/morph.ts), so focus, scroll, open sections and selections stay, and its
+// listeners are bound afresh (the last binding's dropped: `rebind`).
 function render(): void {
   const view = currentView();
   if (view.id !== trackedView) {
@@ -543,7 +547,10 @@ function render(): void {
   renderNav(view);
   document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
   const root = need(document, '#view');
-  root.innerHTML = view.render(ctx);
+  const html = view.render(ctx);
+  if (view.id === shownView) morph(root, html);
+  else replace(root, html);
+  rebind();
   view.bind?.(root, ctx);
   // Home › the page › the record or place it shows (after render and bind, from what they show; the
   // record comes from the URL, so a reload or a shared link shows the same).
@@ -570,6 +577,12 @@ function render(): void {
     }
   }
 }
+
+// A form sent without onSubmit (which notes its own once it is checked) is sent once the browser's
+// checks pass: drawn again, its fields show what the page says, not what was sent (js/lib/morph.ts).
+need(document, '#view').addEventListener('submit', (e) => {
+  if (e.target instanceof HTMLFormElement && !e.target.noValidate) noteSent(e.target);
+});
 
 // Re-render after something finished in the background (a fetch, a sign-in
 // check). Form fields the user has changed but not submitted keep their values
@@ -605,9 +618,9 @@ function renderSoon(): void {
       if (typeof v === 'boolean') el.checked = v;
     } else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
       const v = edited.get(k);
-      if (typeof v === 'string') el.value = v;
+      if (typeof v === 'string' && el.value !== v) el.value = v; // the same value would move the caret
     }
-    if (k === focused && el instanceof HTMLElement) el.focus({ preventScroll: true });
+    if (k === focused && el instanceof HTMLElement && document.activeElement !== el) el.focus({ preventScroll: true });
   });
 }
 

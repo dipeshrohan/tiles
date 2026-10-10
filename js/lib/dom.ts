@@ -1,3 +1,4 @@
+import { noteSent } from './morph.ts';
 import { checkOnSubmit } from './forms.ts';
 
 const ENTITIES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -46,6 +47,17 @@ export function field(form: HTMLFormElement, name: string): string {
   throw new Error(`Form has no field ${name}`);
 }
 
+// Listeners a page adds as it binds (U3.03). A page drawn again keeps its elements (js/lib/morph.ts),
+// so the listeners of its last binding are dropped before it binds again: every listener a view adds
+// passes `{ signal: bound() }` (test/morph.test.js checks the views do).
+let binding = new AbortController();
+export const bound = (): AbortSignal => binding.signal;
+export function rebind(): AbortSignal {
+  binding.abort();
+  binding = new AbortController();
+  return binding.signal;
+}
+
 // Attach the same listener to every element matching `sel`.
 export function onAll<K extends keyof HTMLElementEventMap>(
   root: ParentNode,
@@ -53,7 +65,9 @@ export function onAll<K extends keyof HTMLElementEventMap>(
   type: K,
   handler: (el: HTMLElement, event: HTMLElementEventMap[K]) => void,
 ): void {
-  root.querySelectorAll<HTMLElement>(sel).forEach((el) => el.addEventListener(type, (e) => handler(el, e)));
+  root
+    .querySelectorAll<HTMLElement>(sel)
+    .forEach((el) => el.addEventListener(type, (e) => handler(el, e), { signal: bound() }));
 }
 
 // How a scroll the app starts should move: smoothly, unless the system or Tiles (data-motion,
@@ -93,26 +107,35 @@ export function onSubmit(
   const form = root.querySelector<HTMLFormElement>(sel);
   if (!form) return;
   form.noValidate = true; // checked here instead, with errors on the fields (U2.07)
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    if (form.dataset.sending) return;
-    if (!checkOnSubmit(form)) return;
-    const button =
-      e.submitter instanceof HTMLButtonElement
-        ? e.submitter
-        : form.querySelector<HTMLButtonElement>('button[type=submit], button:not([type])');
-    hold(form, button, handler(form, e.submitter));
-  });
+  form.addEventListener(
+    'submit',
+    (e) => {
+      e.preventDefault();
+      if (form.dataset.sending) return;
+      if (!checkOnSubmit(form)) return;
+      noteSent(form); // what it holds now is sent: drawn again, its fields show the page's (U3.03)
+      const button =
+        e.submitter instanceof HTMLButtonElement
+          ? e.submitter
+          : form.querySelector<HTMLButtonElement>('button[type=submit], button:not([type])');
+      hold(form, button, handler(form, e.submitter));
+    },
+    { signal: bound() },
+  );
 }
 
 // A button's click handler that returns a promise holds the button the same way: busy, and not
 // pressed twice (a double click sends one request).
 export function onAction(root: ParentNode, sel: string, handler: (el: HTMLButtonElement) => unknown): void {
   root.querySelectorAll<HTMLButtonElement>(sel).forEach((el) =>
-    el.addEventListener('click', () => {
-      if (el.dataset.sending) return;
-      hold(el, el, handler(el));
-    }),
+    el.addEventListener(
+      'click',
+      () => {
+        if (el.dataset.sending) return;
+        hold(el, el, handler(el));
+      },
+      { signal: bound() },
+    ),
   );
 }
 

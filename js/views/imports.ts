@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, field, fmt, need, onAll } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAll, bound } from '../lib/dom.ts';
 import { detectDelimiter, parseCsv } from '../lib/csv.ts';
 import {
   inBatches,
@@ -335,39 +335,47 @@ const view: View = {
   bind(root, ctx) {
     void fillHistory(root, ctx);
     const input = root.querySelector<HTMLInputElement>('[data-import-file]');
-    input?.addEventListener('change', () => {
-      const file = input.files?.[0];
-      if (!file) return;
-      void file.text().then((text) => {
-        const result = load(file.name, text);
-        if (typeof result === 'string') {
-          ctx.toast(result);
-          return;
-        }
-        loaded = result;
-        lastResult = null;
-        ctx.rerender();
-      });
-    });
+    input?.addEventListener(
+      'change',
+      () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        void file.text().then((text) => {
+          const result = load(file.name, text);
+          if (typeof result === 'string') {
+            ctx.toast(result);
+            return;
+          }
+          loaded = result;
+          lastResult = null;
+          ctx.rerender();
+        });
+      },
+      { signal: bound() },
+    );
     const form = root.querySelector<HTMLFormElement>('#import-mapping');
     if (form && loaded) markFields(form, loaded);
-    form?.addEventListener('change', (e) => {
-      const l = loaded;
-      if (!l) return;
-      l.mapping = readMapping(form, l.header, l.mapping);
-      const name = (e.target as HTMLInputElement | null)?.name ?? '';
-      // A new shape or time column changes the form itself; anything else only the check.
-      if (name === 'shape' || name === 'timeColumn') {
-        if (name === 'shape' && l.mapping.long === null && !Object.keys(l.mapping.columns).length)
-          l.mapping = { ...suggestMapping(l.header, l.rows, l.mapping.timeZone), timeColumn: l.mapping.timeColumn };
-        ctx.rerender();
-        return;
-      }
-      need(root, '[data-import-check]').innerHTML = summaryBox(l);
-      markFields(form, l);
-      const run = root.querySelector<HTMLButtonElement>('[data-import-run]');
-      if (run) run.disabled = running !== null || mappingProblems(l.header, l.mapping).length > 0;
-    });
+    form?.addEventListener(
+      'change',
+      (e) => {
+        const l = loaded;
+        if (!l) return;
+        l.mapping = readMapping(form, l.header, l.mapping);
+        const name = (e.target as HTMLInputElement | null)?.name ?? '';
+        // A new shape or time column changes the form itself; anything else only the check.
+        if (name === 'shape' || name === 'timeColumn') {
+          if (name === 'shape' && l.mapping.long === null && !Object.keys(l.mapping.columns).length)
+            l.mapping = { ...suggestMapping(l.header, l.rows, l.mapping.timeZone), timeColumn: l.mapping.timeColumn };
+          ctx.rerender();
+          return;
+        }
+        need(root, '[data-import-check]').innerHTML = summaryBox(l);
+        markFields(form, l);
+        const run = root.querySelector<HTMLButtonElement>('[data-import-run]');
+        if (run) run.disabled = running !== null || mappingProblems(l.header, l.mapping).length > 0;
+      },
+      { signal: bound() },
+    );
     onAll(root, '[data-import-run]', 'click', () => void runImport(ctx));
     onAll(root, '[data-import-cancel]', 'click', () => {
       if (running) running.cancelled = true;

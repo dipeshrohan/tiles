@@ -1,6 +1,6 @@
 // UX analytics on the Settings page (U1.09): organisation admins turn it on or off; site admins see
 // the counts. What is recorded is said here, where it is turned on.
-import { esc, fmt } from '../lib/dom.ts';
+import { esc, fmt, bound } from '../lib/dom.ts';
 import type { UxSummary } from '../lib/api.ts';
 import type { Context } from './types.ts';
 import { emptyState, loadFailed, skeleton, table } from '../lib/ui.ts';
@@ -83,24 +83,28 @@ export async function bindUx(root: HTMLElement, ctx: Context): Promise<void> {
   }
   setting.innerHTML = `<label class="row gap-2"><input type="checkbox" name="ux-enabled" data-ux-enabled ${on ? 'checked' : ''} /> Record UX analytics on your organisation’s sites</label>`;
   const box = setting.querySelector<HTMLInputElement>('[data-ux-enabled]');
-  box?.addEventListener('change', () => {
-    const wanted = box.checked;
-    box.disabled = true;
-    api.org
-      .setUxAnalytics(wanted)
-      .then(
-        (r) => {
-          box.checked = r.enabled;
-          document.dispatchEvent(new CustomEvent('tiles:ux-setting', { detail: { enabled: r.enabled } }));
-          ctx.toast(r.enabled ? 'UX analytics on' : 'UX analytics off', {
-            type: 'success',
-            description: 'Other open tabs follow it when they are next loaded.',
-          });
-          void showCounts();
-        },
-        () => (box.checked = !wanted), // the client showed why
-      )
-      .finally(() => (box.disabled = false));
-  });
+  box?.addEventListener(
+    'change',
+    () => {
+      const wanted = box.checked;
+      box.disabled = true;
+      api.org
+        .setUxAnalytics(wanted)
+        .then(
+          (r) => {
+            box.checked = r.enabled;
+            document.dispatchEvent(new CustomEvent('tiles:ux-setting', { detail: { enabled: r.enabled } }));
+            ctx.toast(r.enabled ? 'UX analytics on' : 'UX analytics off', {
+              type: 'success',
+              description: 'Other open tabs follow it when they are next loaded.',
+            });
+            void showCounts();
+          },
+          () => (box.checked = !wanted), // the client showed why
+        )
+        .finally(() => (box.disabled = false));
+    },
+    { signal: bound() },
+  );
   return showCounts();
 }

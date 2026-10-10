@@ -1,7 +1,7 @@
 import { simulateShot, estimateFriction, PLUNGER } from '../lib/physics.ts';
 import { createRng } from '../lib/rng.ts';
 import { fitWidth, lineChart } from '../lib/svg.ts';
-import { esc, fmt, need, onAll } from '../lib/dom.ts';
+import { esc, fmt, need, onAll, bound } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 import { badge, pageHead } from '../lib/ui.ts';
 
@@ -122,19 +122,23 @@ const view: View = {
       ctx.rerender();
     };
     const slider = need<HTMLInputElement>(root, '#shot');
-    slider.addEventListener('change', () => go(Number(slider.value)));
+    slider.addEventListener('change', () => go(Number(slider.value)), { signal: bound() });
     onAll(root, '[data-step]', 'click', (b) => go(ui.shot + Number(b.dataset.step)));
     onAll(root, '[data-goto]', 'click', (r) => go(Number(r.dataset.goto)));
     const chart = need(root, '#run-chart');
-    chart.addEventListener('click', (e) => {
-      const svg = need<SVGSVGElement>(chart, 'svg');
-      const box = svg.getBoundingClientRect();
-      const vb = svg.viewBox.baseVal;
-      const x = ((e.clientX - box.left) / box.width) * vb.width;
-      const left = 52;
-      const right = vb.width - 16;
-      go(Math.round(((x - left) / (right - left)) * (n - 1)));
-    });
+    chart.addEventListener(
+      'click',
+      (e) => {
+        const svg = need<SVGSVGElement>(chart, 'svg');
+        const box = svg.getBoundingClientRect();
+        const vb = svg.viewBox.baseVal;
+        const x = ((e.clientX - box.left) / box.width) * vb.width;
+        const left = 52;
+        const right = vb.width - 16;
+        go(Math.round(((x - left) / (right - left)) * (n - 1)));
+      },
+      { signal: bound() },
+    );
   },
 };
 

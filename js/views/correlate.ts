@@ -1,4 +1,4 @@
-import { esc, fmt, onAll, onSubmit, onNavigate, routeOf } from '../lib/dom.ts';
+import { esc, fmt, onAll, onSubmit, onNavigate, routeOf, bound } from '../lib/dom.ts';
 import { detectDelimiter, parseCsv } from '../lib/csv.ts';
 import { forestPlot, inferColumns, parseNgValues, typedRows } from '../lib/datasets.ts';
 import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '../lib/api.ts';
@@ -332,25 +332,33 @@ const view: View = {
       ctx.rerender();
     });
     const uploadForm = root.querySelector<HTMLFormElement>('#dataset-form');
-    uploadForm?.querySelector<HTMLInputElement>('[name=file]')?.addEventListener('change', (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0] ?? null;
-      chosen = {
-        file,
-        name:
-          chosen.name ||
-          (file
-            ? file.name
-                .replace(/\.[^.]+$/, '')
-                .trim()
-                .slice(0, 200)
-                .trim()
-            : ''),
-      };
-      ctx.rerender();
-    });
-    uploadForm?.querySelector<HTMLInputElement>('[name=name]')?.addEventListener('input', (e) => {
-      chosen.name = (e.target as HTMLInputElement).value;
-    });
+    uploadForm?.querySelector<HTMLInputElement>('[name=file]')?.addEventListener(
+      'change',
+      (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0] ?? null;
+        chosen = {
+          file,
+          name:
+            chosen.name ||
+            (file
+              ? file.name
+                  .replace(/\.[^.]+$/, '')
+                  .trim()
+                  .slice(0, 200)
+                  .trim()
+              : ''),
+        };
+        ctx.rerender();
+      },
+      { signal: bound() },
+    );
+    uploadForm?.querySelector<HTMLInputElement>('[name=name]')?.addEventListener(
+      'input',
+      (e) => {
+        chosen.name = (e.target as HTMLInputElement).value;
+      },
+      { signal: bound() },
+    );
     onSubmit(root, '#dataset-form', () => {
       const name = chosen.name.trim();
       if (!chosen.file) return void ctx.toast('Choose the CSV file first');
@@ -361,23 +369,31 @@ const view: View = {
     });
     // Every choice is kept as it is made, so a re-render never loses it.
     const form = root.querySelector<HTMLFormElement>('#correlate-form');
-    form?.addEventListener('change', (e) => {
-      const el = e.target as HTMLInputElement | HTMLSelectElement;
-      if (el.name === 'outcome')
-        Object.assign(ui, {
-          outcome: el.value,
-          ngText: '',
-          variables: null,
-          split: ui.split === el.value ? '' : ui.split,
-        });
-      if (el.name === 'split') ui.split = el.value;
-      if (el.name === 'variable')
-        ui.variables = [...form.querySelectorAll<HTMLInputElement>('[name=variable]:checked')].map((c) => c.value);
-      if (el.name === 'outcome') ctx.rerender();
-    });
-    form?.querySelector<HTMLInputElement>('[name=ng]')?.addEventListener('input', (e) => {
-      ui.ngText = (e.target as HTMLInputElement).value;
-    });
+    form?.addEventListener(
+      'change',
+      (e) => {
+        const el = e.target as HTMLInputElement | HTMLSelectElement;
+        if (el.name === 'outcome')
+          Object.assign(ui, {
+            outcome: el.value,
+            ngText: '',
+            variables: null,
+            split: ui.split === el.value ? '' : ui.split,
+          });
+        if (el.name === 'split') ui.split = el.value;
+        if (el.name === 'variable')
+          ui.variables = [...form.querySelectorAll<HTMLInputElement>('[name=variable]:checked')].map((c) => c.value);
+        if (el.name === 'outcome') ctx.rerender();
+      },
+      { signal: bound() },
+    );
+    form?.querySelector<HTMLInputElement>('[name=ng]')?.addEventListener(
+      'input',
+      (e) => {
+        ui.ngText = (e.target as HTMLInputElement).value;
+      },
+      { signal: bound() },
+    );
     onSubmit(root, '#correlate-form', () => find(ctx));
     onAll(root, '[data-save-insight]', 'click', () => {
       if (!result || !detail) return;

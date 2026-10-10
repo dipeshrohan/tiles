@@ -1,4 +1,4 @@
-import { esc, fmt, onAll } from '../lib/dom.ts';
+import { esc, fmt, onAll, bound } from '../lib/dom.ts';
 import type { SignalInfo } from '../lib/api.ts';
 import {
   findPlaces,
@@ -274,32 +274,43 @@ const view: View = {
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);
     }
-    input?.addEventListener('focus', () => (searching = true));
+    input?.addEventListener('focus', () => (searching = true), { signal: bound() });
     // A box taken away by a render keeps the search going; leaving it for elsewhere ends it.
     // (A render blurs the box while still taking it away: whether it went is known just after.)
-    input?.addEventListener('blur', () =>
-      queueMicrotask(() => {
-        if (input.isConnected) searching = false;
-      }),
+    input?.addEventListener(
+      'blur',
+      () =>
+        queueMicrotask(() => {
+          if (input.isConnected) searching = false;
+        }),
+      { signal: bound() },
     );
-    input?.addEventListener('input', () => {
-      ui.query = input.value; // kept at once, so any render shows what is typed
-      clearTimeout(typing);
-      typing = setTimeout(() => ctx.rerender(), 200);
-    });
+    input?.addEventListener(
+      'input',
+      () => {
+        ui.query = input.value; // kept at once, so any render shows what is typed
+        clearTimeout(typing);
+        typing = setTimeout(() => ctx.rerender(), 200);
+      },
+      { signal: bound() },
+    );
     // Enter goes to the best match, without waiting for the list.
-    form?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      clearTimeout(typing);
-      const best = findPlaces(ctx.graph, input?.value ?? '', 1)[0];
-      if (!best) return ctx.rerender();
-      ui.query = '';
-      searching = false;
-      const to = placeLink(best.id);
-      if (location.hash === to)
-        ctx.rerender(); // already there: no hashchange to render it
-      else location.hash = to;
-    });
+    form?.addEventListener(
+      'submit',
+      (e) => {
+        e.preventDefault();
+        clearTimeout(typing);
+        const best = findPlaces(ctx.graph, input?.value ?? '', 1)[0];
+        if (!best) return ctx.rerender();
+        ui.query = '';
+        searching = false;
+        const to = placeLink(best.id);
+        if (location.hash === to)
+          ctx.rerender(); // already there: no hashchange to render it
+        else location.hash = to;
+      },
+      { signal: bound() },
+    );
     // Going to a place leaves the search behind.
     onAll(root, '[data-place]', 'click', () => {
       ui.query = '';

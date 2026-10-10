@@ -245,11 +245,14 @@ function keepShown(form: HTMLFormElement, errors: FieldError[]): void {
   };
 }
 
+const watched = new WeakSet<HTMLFormElement>();
+
 // Checks a form as it is sent: false (and the errors shown) when it isn't ready. After its first
 // sending, each field is checked again as it is left, and its error cleared once it is put right.
 export function checkOnSubmit(form: HTMLFormElement): boolean {
-  if (!form.dataset.checked) {
-    form.dataset.checked = 'true';
+  // Once per form element: a page drawn again keeps its forms (js/lib/morph.ts), and their listener.
+  if (!watched.has(form)) {
+    watched.add(form);
     form.addEventListener('focusout', (e) => {
       // Leaving for one of the form's buttons: it is being sent, and checked then. Changing the
       // errors now would move the button from under the pointer before the click lands.
