@@ -14,6 +14,7 @@ from psycopg.rows import dict_row
 
 from tiles_api.db import MIGRATION_LOCK, alembic_config, downgrade, main, next_revision_id, sqlalchemy_url, upgrade
 from tiles_api.settings import Settings, get_settings
+from tiles_api.store import one
 
 TABLES = {
     "orgs",
@@ -315,7 +316,7 @@ def test_alembic_config_escapes_percent_in_passwords() -> None:
 
 
 def test_next_revision_id_follows_the_head() -> None:
-    assert next_revision_id(alembic_config(Settings())) == "0032"
+    assert next_revision_id(alembic_config(Settings())) == "0033"
 
 
 def test_migrate_command_upgrades_and_reports(database_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -351,6 +352,53 @@ def test_downgrading_isa95_types_refuses_while_they_are_in_use(database_url: str
         c.execute("DELETE FROM orgs WHERE slug = 'isa'")
     downgrade(settings, "0001")
     upgrade(settings)
+
+
+def test_the_copilot_stays_on_where_it_was_used(database_url: str) -> None:
+    """Migration 0032 (threat model G-A4): off for every site, except where a question was asked."""
+    settings = Settings(database_url=database_url)
+    downgrade(settings, "0031")
+    try:
+        with psycopg.connect(database_url) as c:
+            org = one(c.execute("INSERT INTO orgs (slug, name) VALUES ('cp', 'Cp') RETURNING id").fetchone())[0]
+            user = one(
+                c.execute(
+                    "INSERT INTO users (org_id, email, name) VALUES (%s, 'cp@example.com', 'Cp') RETURNING id", [org]
+                ).fetchone()
+            )[0]
+            sites = {
+                slug: one(
+                    c.execute(
+                        "INSERT INTO sites (org_id, slug, name) VALUES (%s, %s, %s) RETURNING id", [org, slug, slug]
+                    ).fetchone()
+                )[0]
+                for slug in ("asked", "deleted", "empty", "never")
+            }
+            c.execute("SELECT set_config('tiles.site_id', '*', false)")
+            for slug in ("asked", "empty"):
+                conv = one(
+                    c.execute(
+                        "INSERT INTO conversations (site_id, user_id) VALUES (%s, %s) RETURNING id", [sites[slug], user]
+                    ).fetchone()
+                )[0]
+                if slug == "asked":
+                    c.execute(
+                        "INSERT INTO conversation_messages (conversation_id, seq, role, content)"
+                        " VALUES (%s, 0, 'user', '[]')",
+                        [conv],
+                    )
+            # Asked, then the conversation deleted: its usage row stays.
+            c.execute("INSERT INTO copilot_usage (org_id, site_id) VALUES (%s, %s)", [org, sites["deleted"]])
+        upgrade(settings)
+        with psycopg.connect(database_url) as c:
+            on: dict[str, bool] = dict(
+                c.execute("SELECT slug, copilot_enabled FROM sites WHERE org_id = %s", [org]).fetchall()
+            )
+        assert on == {"asked": True, "deleted": True, "empty": False, "never": False}
+    finally:
+        upgrade(settings)
+        with psycopg.connect(database_url) as c:
+            c.execute("DELETE FROM orgs WHERE slug = 'cp'")
 
 
 def test_edge_agents_keep_names_unique_among_active_agents(conn: psycopg.Connection[dict[str, object]]) -> None:

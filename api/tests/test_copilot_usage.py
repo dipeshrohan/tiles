@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from psycopg.rows import dict_row
 from test_agents import ADMIN, ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 from test_assistant import Scripted, call, text
-from test_copilot import ask, start
+from test_copilot import ask, start, turn_on
 
 from tiles_api import grounding
 from tiles_api.assistant import Turn
@@ -19,8 +19,9 @@ DECLINE = grounding.DECLINE + ": nothing on the site answers it."
 
 
 @pytest.fixture
-def model(api: TestClient) -> Iterator[Scripted]:  # noqa: F811
+def model(api: TestClient, site: str) -> Iterator[Scripted]:  # noqa: F811
     stand_in = Scripted()
+    turn_on(api, site)
     api.app.state.copilot_model = stand_in  # type: ignore[attr-defined]
     yield stand_in
     api.app.state.copilot_model = None  # type: ignore[attr-defined]

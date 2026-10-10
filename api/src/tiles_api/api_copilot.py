@@ -8,8 +8,10 @@ the exchange is stored as it completes, so the next question carries the whole c
 
 Conversations are private to their user. Anyone on the site may use the copilot: its tools only
 read, as the user who asked. It is off until TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL are
-set. Rate limits and token budgets (copilot_usage.py, T4.07) refuse a question with 429; admins
-read the usage at `GET …/copilot/usage`.
+set, and on each site until its admins turn it on (threat model G-A4: the questions and the tool
+results the copilot reads go to the AI provider; `PUT …/copilot/policy`). Rate limits and token
+budgets (copilot_usage.py, T4.07) refuse a question with 429; admins read the usage at
+`GET …/copilot/usage`.
 """
 
 import json
@@ -24,7 +26,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import StreamingResponse
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from tiles_api import assistant, copilot_usage, grounding
 from tiles_api.api_ontology import Admin, Ctx, SiteContext
@@ -37,11 +39,18 @@ log = logging.getLogger("tiles_api.copilot")
 MAX_MESSAGES = 200  # stored per conversation (each tool round adds two)
 MAX_HISTORY_CHARS = 400_000  # about 100,000 tokens of conversation sent with each question
 BUSY_MINUTES = 10  # an answer that has stored nothing for this long is taken as lost
+SITE_OFF = "The copilot is off on this site: an admin turns it on in Settings"
 NO_NUL = r"^[^\x00]*$"  # PostgreSQL text can't hold NUL
 
 
 class Status(BaseModel):
     configured: bool
+    enabled: bool
+
+
+class PolicyIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool
 
 
 class ConversationIn(BaseModel):
@@ -202,8 +211,34 @@ def _shown_history(conn: Conn, conversation_id: uuid.UUID) -> list[dict[str, Any
 
 @router.get("/sites/{site_id}/copilot", response_model=Status)
 def copilot_status(ctx: Ctx, request: Request) -> dict[str, Any]:
-    """Whether the copilot is set up on this API (an Anthropic API key and a model are configured)."""
-    return {"configured": model_for(request) is not None}
+    """Whether the copilot is set up on this API (an Anthropic API key and a model are configured),
+    and whether this site's admins have turned it on."""
+    return _status(request, _enabled(ctx.conn, ctx.site_id))
+
+
+@router.put("/sites/{site_id}/copilot/policy", response_model=Status)
+def set_copilot_policy(ctx: Admin, request: Request, body: PolicyIn) -> dict[str, Any]:
+    """Turn the copilot on or off for this site (admins). On, each question and the tool results the
+    copilot reads to answer it (the site's data, as the user who asked may see it) go to the AI
+    provider."""
+    before = _enabled(ctx.conn, ctx.site_id, lock=True)
+    if before != body.enabled:
+        ctx.conn.execute("UPDATE sites SET copilot_enabled = %s WHERE id = %s", [body.enabled, ctx.site_id])
+        ctx.audit("copilot.policy", "site", str(ctx.site_id), {"enabled": before}, {"enabled": body.enabled})
+    return _status(request, body.enabled)
+
+
+def _status(request: Request, enabled: bool) -> dict[str, bool]:
+    return {"configured": model_for(request) is not None, "enabled": enabled}
+
+
+def _enabled(conn: Conn, site_id: uuid.UUID, *, lock: bool = False) -> bool:
+    query = ENABLED_FOR_UPDATE if lock else ENABLED
+    return bool(one(conn.execute(query, [site_id]).fetchone())["copilot_enabled"])
+
+
+ENABLED = "SELECT copilot_enabled FROM sites WHERE id = %s"
+ENABLED_FOR_UPDATE = ENABLED + " FOR UPDATE"
 
 
 @router.get("/sites/{site_id}/copilot/conversations", response_model=list[Conversation])
@@ -276,6 +311,10 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
             status.HTTP_503_SERVICE_UNAVAILABLE,
             "The copilot is off: set TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL on the API",
         )
+    if not _enabled(ctx.conn, ctx.site_id):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "The copilot is off on this site: an admin turns it on in Settings"
+        )
     conversation = _own(ctx, conversation_id, lock=True)
     settings = request.app.state.settings
     if _busy(ctx.conn, conversation_id):
@@ -333,6 +372,13 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
         # Every call's tokens, so a broken-off answer is counted too; saved with each stored message.
         tally = copilot_usage.Tally(usage_id, org_id)
         over_daily: list[str] = []  # why the organisation may not go on today, found after a message
+
+        def stop() -> str | None:  # asked before each model call after the first
+            if over_daily:
+                return over_daily[0]
+            with site_conn() as conn:  # turned off meanwhile: nothing more goes to the provider
+                return None if _enabled(conn, site_id) else SITE_OFF
+
         try:
             events = assistant.respond(
                 model,
@@ -341,7 +387,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                 assistant_tools,
                 settings.copilot_max_rounds,
                 settings.copilot_question_tokens,
-                stop=lambda: over_daily[0] if over_daily else None,
+                stop=stop,
             )
             for event in events:
                 if event.kind == "usage":
@@ -351,7 +397,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                     tally.first_text_ms = ms()  # the user sees text (a draft withdrawn later, too)
                 elif event.kind == "done":
                     tally.outcome, tally.grounded = "answered", bool(event.data.get("grounded"))
-                elif event.kind == "error" and event.data.get("over_budget"):
+                elif event.kind == "error" and event.data.get("over_budget") and event.data["detail"] != SITE_OFF:
                     tally.outcome = "over_budget"
                 if event.kind == "message":
                     with site_conn() as conn:  # stored, the answer's lease renewed, its usage so far

@@ -1043,6 +1043,7 @@
 				const conv = (siteId, id) => `${base(siteId)}/conversations/${encodeURIComponent(id)}`;
 				return {
 					status: (siteId) => request("GET", base(siteId)),
+					setEnabled: (siteId, enabled) => request("PUT", `${base(siteId)}/policy`, { enabled }),
 					conversations: (siteId) => request("GET", `${base(siteId)}/conversations`),
 					create: (siteId, title = "") => request("POST", `${base(siteId)}/conversations`, { title }),
 					get: (siteId, id) => request("GET", conv(siteId, id)),
@@ -2248,20 +2249,23 @@
 		remote$1 = {
 			site,
 			configured: null,
+			enabled: false,
 			conversations: null
 		};
 		try {
-			const { configured } = await ctx.api.copilot.status(site);
-			const conversations = configured ? await ctx.api.copilot.conversations(site) : [];
+			const { configured, enabled } = await ctx.api.copilot.status(site);
+			const conversations = configured && enabled ? await ctx.api.copilot.conversations(site) : [];
 			if (remote$1?.site === site) remote$1 = {
 				site,
 				configured,
+				enabled,
 				conversations
 			};
 		} catch {
 			if (remote$1?.site === site) remote$1 = {
 				site,
 				configured: false,
+				enabled: false,
 				conversations: []
 			};
 		}
@@ -2517,7 +2521,7 @@
 		onAll(root, "[data-q]", "click", (b) => sendLocal(b.dataset.q ?? ""));
 		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 	}
-	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$10(ctx) && remote$1?.configured);
+	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$10(ctx) && remote$1?.configured && remote$1.enabled);
 	var view$18 = {
 		id: "chat",
 		title: "Copilot",
@@ -2531,7 +2535,7 @@
       </div>`;
 			if (on) return head + remoteRender(ctx);
 			const checking = ctx.api && remote$1?.configured === null;
-			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
+			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft" data-copilot-off style="margin-bottom:8px">The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : ctx.api && remote$1?.configured && !remote$1.enabled ? `<p class="small soft" data-copilot-site-off style="margin-bottom:8px">The copilot is off on this site: an admin turns it on in <a href="#/settings">Settings</a>. Until then the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
 		},
 		bind(root, ctx) {
 			const site = siteId$10(ctx);
@@ -5135,6 +5139,43 @@
 			box.innerHTML = "<p class=\"small soft\">Copilot usage could not be loaded.</p>";
 		}
 	}
+	function copilotPolicyCard() {
+		return `<div class="card stack" id="copilot-policy" style="gap:12px">
+      <h2>Copilot on this site</h2>
+      <p class="small soft">When it is on, each question, and the site's data the copilot reads to answer it (only what the person asking may see), goes to Anthropic's API under your deployment's terms. Nothing is sent while it is off: the Copilot page answers with its built-in skills on the demo data.</p>
+      <label class="row" style="gap:8px"><input type="checkbox" name="copilot-enabled" data-copilot-enabled disabled /> Use the copilot on this site</label>
+      <p class="small soft" data-copilot-policy aria-live="polite">Loading…</p>
+    </div>`;
+	}
+	async function bindCopilotPolicy(root, ctx) {
+		const box = root.querySelector("[data-copilot-enabled]");
+		const note = root.querySelector("[data-copilot-policy]");
+		const site = ctx.ontology.site;
+		if (!box || !note || !site || !ctx.api) return;
+		const api = ctx.api;
+		const show = (s) => {
+			box.checked = s.enabled;
+			box.disabled = false;
+			note.textContent = `${s.enabled ? "On" : "Off"} for this site.${s.configured ? "" : " The copilot service is not set up on this Tiles API yet (TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL), so it answers nothing until it is."}`;
+		};
+		try {
+			show(await api.copilot.status(site.id));
+		} catch {
+			note.textContent = "Whether the copilot is on could not be loaded.";
+			return;
+		}
+		box.addEventListener("change", async () => {
+			const wanted = box.checked;
+			box.disabled = true;
+			try {
+				show(await api.copilot.setEnabled(site.id, wanted));
+				ctx.toast(wanted ? "The copilot is on for this site" : "The copilot is off for this site");
+			} catch {
+				box.checked = !wanted;
+				box.disabled = false;
+			}
+		});
+	}
 	function notificationsCard(ctx) {
 		const role = ctx.ontology.role;
 		return `<div class="card stack" id="notifications" style="gap:12px;grid-column:1 / -1">
@@ -5397,6 +5438,7 @@
         ${ds.mode === "api" ? orgSignInCard() : ""}
         ${ctx.ontology.site ? notificationsCard(ctx) : ""}
         ${ctx.ontology.site ? agentsCard(ctx.ontology.role === "admin") : ""}
+        ${ctx.ontology.role === "admin" && ctx.ontology.site ? copilotPolicyCard() : ""}
         ${ctx.ontology.role === "admin" ? copilotUsageCard() : ""}
         ${ctx.ontology.role === "admin" ? auditCard() : ""}
       </div>`;
@@ -5454,6 +5496,7 @@
 				}
 			});
 			if (ctx.ontology.role === "admin") {
+				bindCopilotPolicy(root, ctx);
 				fillCopilotUsage(root, ctx);
 				fillAudit(root, ctx);
 			}

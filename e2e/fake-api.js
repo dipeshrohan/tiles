@@ -140,6 +140,7 @@ export function createFakeApi({
   slowAuthConfigMs = 0,
   failImportFinish = false,
   copilot = false, // whether the copilot service is on (T4.01)
+  copilotEnabled = true, // whether the site's admins turned it on (threat model G-A4)
 } = {}) {
   let origin = '';
   const codes = new Map(); // code -> { challenge, redirectUri }
@@ -850,7 +851,15 @@ export function createFakeApi({
       members.add(user);
       const copilotPath = `/sites/${site.id}/copilot`;
       if (url.pathname === copilotPath || url.pathname.startsWith(`${copilotPath}/`)) {
-        if (url.pathname === copilotPath) return send(200, { configured: copilot });
+        if (url.pathname === copilotPath) return send(200, { configured: copilot, enabled: copilotEnabled });
+        if (url.pathname === `${copilotPath}/policy` && req.method === 'PUT') {
+          if (role !== 'admin') return send(403, { detail: `Your role on this site is ${role}; this needs admin` });
+          const wanted = await body(req);
+          if (typeof wanted.enabled !== 'boolean' || Object.keys(wanted).length !== 1)
+            return send(422, { detail: 'Send {"enabled": true} or {"enabled": false}' });
+          copilotEnabled = wanted.enabled;
+          return send(200, { configured: copilot, enabled: copilotEnabled });
+        }
         if (url.pathname === `${copilotPath}/usage`)
           return role === 'admin'
             ? send(200, copilotUsage)
@@ -903,6 +912,8 @@ export function createFakeApi({
           return send(204);
         }
         // A question: the scripted answer, streamed as the API streams it, and stored as it stores it.
+        if (!copilotEnabled)
+          return send(403, { detail: 'The copilot is off on this site: an admin turns it on in Settings' });
         const { text } = await body(req);
         copilotQuestions.push(text);
         const script = copilotScripts.shift() ?? { answer: 'Which press do you mean?' };

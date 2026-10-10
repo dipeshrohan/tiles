@@ -39,27 +39,95 @@ def start(api: TestClient, site: str, who: dict[str, str] = ENG) -> str:  # noqa
     return str(res.json()["id"])
 
 
+def turn_on(api: TestClient, site: str, enabled: bool = True) -> Any:  # noqa: F811
+    res = api.put(f"/sites/{site}/copilot/policy", json={"enabled": enabled}, headers=ADMIN)
+    assert res.status_code == 200, res.text
+    return res.json()
+
+
 @pytest.fixture
-def model(api: TestClient) -> Iterator[Scripted]:  # noqa: F811
+def model(api: TestClient, site: str) -> Iterator[Scripted]:  # noqa: F811
     stand_in = Scripted()
+    turn_on(api, site)
     api.app.state.copilot_model = stand_in  # type: ignore[attr-defined]
     yield stand_in
     api.app.state.copilot_model = None  # type: ignore[attr-defined]
 
 
 def test_the_copilot_is_off_until_configured(api: TestClient, site: str, monkeypatch: pytest.MonkeyPatch) -> None:  # noqa: F811
-    assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": False}
+    assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": False, "enabled": False}
+    turn_on(api, site)
     settings = api.app.state.settings  # type: ignore[attr-defined]
     monkeypatch.setattr(api.app.state, "copilot_client", None)  # type: ignore[attr-defined]
     monkeypatch.setattr(settings, "anthropic_api_key", SecretStr(""))  # as Compose passes an unset one
     monkeypatch.setattr(settings, "copilot_model", "stand-in")
-    assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": False}
+    assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": False, "enabled": True}
     monkeypatch.setattr(settings, "anthropic_api_key", SecretStr("sk-test"))
-    assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": True}
+    assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": True, "enabled": True}
     monkeypatch.setattr(settings, "copilot_model", "")
     res = ask(api, site, start(api, site), "Hello?")
     assert res.status_code == 503
     assert "TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL" in res.json()["detail"]
+
+
+def test_each_sites_admins_turn_the_copilot_on(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    """Threat model G-A4: configured on the API, it still answers on a site only once its admins
+    agree to what it sends to the AI provider."""
+    stand_in = Scripted()
+    api.app.state.copilot_model = stand_in  # type: ignore[attr-defined]
+    try:
+        assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": True, "enabled": False}
+        conversation = start(api, site)  # conversations are kept either way
+        res = ask(api, site, conversation, "What is the oil temperature?")
+        assert (res.status_code, res.json()["detail"]) == (
+            403,
+            "The copilot is off on this site: an admin turns it on in Settings",
+        )
+        assert stand_in.calls == []  # nothing was sent
+        for who in (ENG, VIEWER):
+            assert api.put(f"/sites/{site}/copilot/policy", json={"enabled": True}, headers=who).status_code == 403
+        assert api.put(f"/sites/{site}/copilot/policy", json={"enabled": "yes"}, headers=ADMIN).status_code == 422
+        assert turn_on(api, site) == {"configured": True, "enabled": True}
+        turn_on(api, site)  # no change: no second audit entry
+        stand_in.script.append((["Which press do you mean?"], Turn([text("Which press do you mean?")], "end_turn")))
+        answered = ask(api, site, conversation, "What is the oil temperature?")
+        assert [kind for kind, _ in events(answered.text)][-1] == "done" and len(stand_in.calls) == 1
+        assert turn_on(api, site, enabled=False)["enabled"] is False
+        assert ask(api, site, conversation, "And now?").status_code == 403
+    finally:
+        api.app.state.copilot_model = None  # type: ignore[attr-defined]
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        conn.execute("SELECT set_config('tiles.site_id', %s, false)", [site])
+        rows = conn.execute(
+            "SELECT before, after FROM audit_log WHERE site_id = %s AND action = 'copilot.policy' ORDER BY id",
+            [site],
+        ).fetchall()
+    assert [(r["before"], r["after"]) for r in rows] == [
+        ({"enabled": False}, {"enabled": True}),
+        ({"enabled": True}, {"enabled": False}),
+    ]
+
+
+def test_turning_it_off_stops_an_answer_being_written(api: TestClient, site: str, model: Scripted) -> None:  # noqa: F811
+    """Off mid-answer: the tool results already fetched never go to the provider."""
+    load(api, site, "press9.oil_temp", [41.5, 42.0])
+    model.script += [
+        (["Looking."], Turn([text("Looking."), call("find_signals", {"query": "oil"})], "tool_use")),
+        (["Unreachable"], Turn([text("Unreachable")], "end_turn")),
+    ]
+    first = model.stream
+
+    def turned_off_meanwhile(**kwargs: Any) -> Iterator[Any]:
+        turn_on(api, site, enabled=False)  # an admin, while the first call runs
+        yield from first(**kwargs)
+
+    model.stream = turned_off_meanwhile  # type: ignore[method-assign]
+    res = ask(api, site, start(api, site), "How hot is the oil?")
+    kinds = events(res.text)
+    assert kinds[-1] == ("error", kinds[-1][1]) and kinds[-1][1]["detail"] == api_copilot.SITE_OFF
+    assert len(model.calls) == 1  # the second call, with the tool's results, was never made
+    usage = api.get(f"/sites/{site}/copilot/usage", headers=ADMIN).json()
+    assert (usage["days"][0]["failed"], usage["days"][0]["over_budget"]) == (1, 0)
 
 
 def test_a_question_is_answered_from_the_sites_own_signals(
@@ -69,7 +137,7 @@ def test_a_question_is_answered_from_the_sites_own_signals(
     database_url: str,
 ) -> None:
     load(api, site, "press9.oil_temp", [41.5, 42.0])
-    assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": True}
+    assert api.get(f"/sites/{site}/copilot", headers=VIEWER).json() == {"configured": True, "enabled": True}
     model.script += [
         (
             ["Looking."],

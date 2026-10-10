@@ -439,6 +439,11 @@ export interface WarningQuery {
   offset?: number;
 }
 
+export interface CopilotStatus {
+  configured: boolean;
+  enabled: boolean;
+}
+
 // Notifications (T3.09): your email preferences, the site's Teams channel, and what was sent.
 export interface NotificationPrefs {
   on_raised: boolean; // every new warning on the site
@@ -1178,7 +1183,10 @@ export function createApiClient(options: ApiOptions) {
       const base = (siteId: string) => `/sites/${encodeURIComponent(siteId)}/copilot`;
       const conv = (siteId: string, id: string) => `${base(siteId)}/conversations/${encodeURIComponent(id)}`;
       return {
-        status: (siteId: string) => request<{ configured: boolean }>('GET', base(siteId)),
+        // configured: the API has a key and a model; enabled: this site's admins turned it on (G-A4).
+        status: (siteId: string) => request<CopilotStatus>('GET', base(siteId)),
+        setEnabled: (siteId: string, enabled: boolean) =>
+          request<CopilotStatus>('PUT', `${base(siteId)}/policy`, { enabled }),
         conversations: (siteId: string) => request<CopilotConversation[]>('GET', `${base(siteId)}/conversations`),
         create: (siteId: string, title = '') =>
           request<CopilotConversation>('POST', `${base(siteId)}/conversations`, { title }),
