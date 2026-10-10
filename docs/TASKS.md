@@ -226,7 +226,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* ≤ 20 inline styles remain, all computed; the check runs in CI.
 - [ ] `U1.04` [#207](https://github.com/dipeshrohan/tiles/issues/207) **Component module `js/lib/ui.ts`** · FE · 4d · U1.02
   *Done when:* three pages (Signals, Warnings, Documents) use the module for every component it has, with no visual change.
-- [ ] `U1.05` [#208](https://github.com/dipeshrohan/tiles/issues/208) **Icon set** · FE+PM · 2d
+- [x] `U1.05` [#208](https://github.com/dipeshrohan/tiles/issues/208) **Icon set** · FE+PM · 2d
   *Done when:* no page shares an icon, icons follow the theme, and they look the same on Windows, macOS, Android and iOS.
 - [ ] `U1.06` [#209](https://github.com/dipeshrohan/tiles/issues/209) **Page head and breadcrumbs** · FE · 2d · U1.04
   *Done when:* every page with a record or a place shows where it is, and a reload or shared link shows the same breadcrumb.

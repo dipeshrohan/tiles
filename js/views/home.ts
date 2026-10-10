@@ -1,12 +1,13 @@
 import { healthCheck } from '../lib/ontology.ts';
 import { MODELS } from '../lib/design.ts';
 import { esc, fmt, timeAgo } from '../lib/dom.ts';
+import { icon } from '../lib/icons.ts';
 import type { View } from './types.ts';
 
 const view: View = {
   id: 'home',
   title: 'Home',
-  icon: '⌂',
+  icon: 'house',
   render(ctx) {
     const { state } = ctx;
     const health = healthCheck(ctx.graph);
@@ -17,13 +18,13 @@ const view: View = {
     const feed = [
       ...state.repo.history.map((c) => ({
         date: c.date,
-        icon: '⎇',
+        icon: 'git-commit-horizontal' as const,
         text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`,
         href: '#/ontology',
       })),
       ...state.runs.map((r) => ({
         date: r.date,
-        icon: '∿',
+        icon: 'drafting-compass' as const,
         text: `<b>${esc(MODELS[r.modelId]?.name ?? r.modelId)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`,
         href: '#/design',
       })),
@@ -101,7 +102,7 @@ const view: View = {
         <div class="card">
           <div class="card-head"><h2>Recent activity</h2></div>
           <div class="feed">
-            ${feed.map((f) => `<a class="feed-item" href="${f.href}" style="color:inherit;text-decoration:none"><span class="muted">${f.icon}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join('') || '<div class="empty">No activity yet</div>'}
+            ${feed.map((f) => `<a class="feed-item" href="${f.href}" style="color:inherit;text-decoration:none"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join('') || '<div class="empty">No activity yet</div>'}
           </div>
         </div>
       </div>`;

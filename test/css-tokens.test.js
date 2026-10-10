@@ -39,6 +39,10 @@ test('layers, line heights and transitions use the tokens', () => {
   assert.deepEqual(raw, []);
 });
 
+test('colours below the tokens come from tokens, so the fallback covers them', () => {
+  assert.deepEqual(rules.match(/.*light-dark\(.*/g) ?? [], []);
+});
+
 test('every token used is defined', () => {
   const defined = new Set([...tokens.matchAll(/(--[\w-]+):/g)].map((m) => m[1]));
   const used = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));

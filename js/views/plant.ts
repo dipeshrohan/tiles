@@ -216,7 +216,7 @@ function searchResults(graph: Graph, query: string): string {
 const view: View = {
   id: 'plant',
   title: 'Plant',
-  icon: '⌗',
+  icon: 'factory',
   render(ctx) {
     const ui = uiState(ctx);
     const graph = ctx.graph; // made afresh at each read: once for the whole page

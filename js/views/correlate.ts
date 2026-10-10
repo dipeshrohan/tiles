@@ -292,7 +292,7 @@ async function find(ctx: Context): Promise<void> {
 const view: View = {
   id: 'correlate',
   title: 'Correlation finder',
-  icon: '⇄',
+  icon: 'chart-scatter',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Correlation finder</h1>
         <p class="soft">Which settings separate failed batches from good ones: each variable’s effect (Cohen’s d) with its 95% confidence interval, overall or per material, line or shift.</p></div></div>`;

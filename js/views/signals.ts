@@ -488,7 +488,7 @@ function bindMapping(root: HTMLElement, ctx: Context): void {
 const view: View = {
   id: 'signals',
   title: 'Signals',
-  icon: '≋',
+  icon: 'activity',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Signals</h1>
         <p class="soft">Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.</p></div></div>`;

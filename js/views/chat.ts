@@ -368,7 +368,7 @@ const remoteOn = (ctx: Context): boolean =>
 const view: View = {
   id: 'chat',
   title: 'Copilot',
-  icon: '✦',
+  icon: 'sparkles',
   render(ctx) {
     const on = remoteOn(ctx);
     const head = `

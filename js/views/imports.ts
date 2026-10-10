@@ -302,7 +302,7 @@ async function runImport(ctx: Context): Promise<void> {
 const view: View = {
   id: 'import',
   title: 'Import data',
-  icon: '⇪',
+  icon: 'upload',
   render(ctx) {
     return `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Import data</h1>
         <p class="soft">Backfill readings from CSV files and historian exports, mapped to signals.</p></div></div>

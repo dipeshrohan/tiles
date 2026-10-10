@@ -421,7 +421,7 @@ async function saveInsight(ctx: Context): Promise<void> {
 const view: View = {
   id: 'explorer',
   title: 'Data explorer',
-  icon: '⌁',
+  icon: 'chart-line',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Data explorer</h1>
         <p class="soft">Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in.</p></div></div>`;

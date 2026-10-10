@@ -263,7 +263,7 @@ async function act(ctx: Context, action: string, comment: string): Promise<void>
 const view: View = {
   id: 'reviews',
   title: 'Change reviews',
-  icon: '✓',
+  icon: 'git-pull-request',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Operations · Ontology</div><h1>Change reviews</h1>
         <p class="soft">Ontology changes waiting for a second engineer: read the diff, discuss it, then approve (which commits it) or reject it.</p></div></div>`;

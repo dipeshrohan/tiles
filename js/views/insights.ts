@@ -221,7 +221,7 @@ async function act(
 const view: View = {
   id: 'insights',
   title: 'Insights',
-  icon: '✦',
+  icon: 'lightbulb',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Insights</h1>
         <p class="soft">Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer.</p></div></div>`;

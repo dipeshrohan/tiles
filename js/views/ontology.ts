@@ -656,7 +656,7 @@ function sourceBar(ctx: Context): string {
 const view: View = {
   id: 'ontology',
   title: 'Ontology builder',
-  icon: '⬡',
+  icon: 'network',
   render(ctx) {
     const ui = uiState(ctx);
     const { repo } = ctx.state;

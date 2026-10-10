@@ -532,7 +532,7 @@ function bindAgents(root: HTMLElement, ctx: Context): void {
 const view: View = {
   id: 'settings',
   title: 'Settings',
-  icon: '⚙',
+  icon: 'settings',
   render(ctx) {
     const { user } = ctx.state;
     const ds = ctx.dataSource;

@@ -215,7 +215,7 @@ function current(ctx: Context) {
 const view: View = {
   id: 'design',
   title: 'Design studio',
-  icon: '◇',
+  icon: 'drafting-compass',
   render(ctx) {
     const { ui, model, params, version } = current(ctx);
     const value = evaluate(model.id, version, params);

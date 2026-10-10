@@ -378,7 +378,7 @@ export function openWarning(ctx: Context, id: string): void {
 const view: View = {
   id: 'warnings',
   title: 'Warnings',
-  icon: '⚠',
+  icon: 'triangle-alert',
   render(ctx) {
     const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warnings</h1>
         <p class="soft">What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be.</p></div></div>`;

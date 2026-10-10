@@ -1,5 +1,6 @@
 // Types shared by the app shell and the page views.
 
+import type { IconName } from '../lib/icons.ts';
 import type { ApiClient, AuthConfig, DataSource, Membership, Site } from '../lib/api.ts';
 import type { OntologyStore } from '../lib/ontology-store.ts';
 import type { CutterBatch, Detection, Graph, Repo, Run, ScoredEvent, ShotHistory, WeldData } from '../lib/types.ts';
@@ -89,7 +90,7 @@ export interface OntologyContext {
 export interface View {
   id: string;
   title: string;
-  icon: string;
+  icon: IconName; // a Lucide icon (js/lib/icons.ts), unique to the page
   render(ctx: Context): string;
   bind?(root: HTMLElement, ctx: Context): void;
 }

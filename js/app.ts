@@ -53,6 +53,7 @@ import documents from './views/documents.ts';
 import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
+import { icon } from './lib/icons.ts';
 
 const VIEWS: View[] = [
   home,
@@ -469,7 +470,7 @@ function renderNav(active: View): void {
       g.items
         .map(
           (v) =>
-            `<a class="nav-link ${v === active ? 'active' : ''}" href="#/${v.id === 'home' ? '' : v.id}"${v === active ? ' aria-current="page"' : ''}><span class="ico" aria-hidden="true">${v.icon}</span>${esc(v.title)}${badgeFor(v)}</a>`,
+            `<a class="nav-link ${v === active ? 'active' : ''}" href="#/${v.id === 'home' ? '' : v.id}"${v === active ? ' aria-current="page"' : ''}><span class="ico">${icon(v.icon)}</span>${esc(v.title)}${badgeFor(v)}</a>`,
         )
         .join(''),
   ).join('');
@@ -483,15 +484,29 @@ function renderNav(active: View): void {
     `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 }
 
+let shownView: string | null = null; // the page last shown, to animate only a change of page
+let enterTimer: ReturnType<typeof setTimeout> | undefined;
+
 function render(): void {
   const view = currentView();
   renderNav(view);
   need(document, '#crumbs').innerHTML =
-    `<span>Home</span>${view === home ? '' : `<span>›</span><b>${esc(view.title)}</b>`}`;
+    `<span>Home</span>${view === home ? '' : `<span class="crumb-sep">${icon('chevron-right', { size: 14 })}</span><b>${esc(view.title)}</b>`}`;
   document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;
   const root = need(document, '#view');
   root.innerHTML = view.render(ctx);
   view.bind?.(root, ctx);
+  // A new page fades in (U3.02, ahead of the View Transitions version); a re-render of the same
+  // page, or another record on it, doesn't move. Reduced motion turns it off in the stylesheet.
+  if (view.id !== shownView) {
+    shownView = view.id;
+    root.classList.remove('view-enter');
+    void root.offsetWidth; // restart the animation
+    root.classList.add('view-enter');
+    // Removed once the page has settled, so a later re-render (a refresh) doesn't play it again.
+    clearTimeout(enterTimer);
+    enterTimer = setTimeout(() => root.classList.remove('view-enter'), 600);
+  }
 }
 
 // Re-render after something finished in the background (a fetch, a sign-in
@@ -547,19 +562,27 @@ function toast(message: string): void {
 
 type Theme = 'light' | 'dark';
 
+const isDark = (): boolean =>
+  document.documentElement.dataset.theme
+    ? document.documentElement.dataset.theme === 'dark'
+    : matchMedia('(prefers-color-scheme: dark)').matches;
+
+// The toggle shows where it goes: a moon in the light theme, a sun in the dark one.
 function applyTheme(theme: Theme | null): void {
   if (theme) document.documentElement.dataset.theme = theme;
   else delete document.documentElement.dataset.theme;
+  need(document, '#theme').innerHTML = icon(isDark() ? 'sun' : 'moon');
 }
 applyTheme(load<Theme | null>('theme', null));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () =>
+  applyTheme(load<Theme | null>('theme', null)),
+);
 need(document, '#theme').addEventListener('click', () => {
-  const dark = document.documentElement.dataset.theme
-    ? document.documentElement.dataset.theme === 'dark'
-    : matchMedia('(prefers-color-scheme: dark)').matches;
-  const next: Theme = dark ? 'light' : 'dark';
+  const next: Theme = isDark() ? 'light' : 'dark';
   applyTheme(next);
   save('theme', next);
 });
+need(document, '#menu').innerHTML = icon('menu', { size: 18 });
 need(document, '#menu').addEventListener('click', (e) => {
   const open = need(document, '#sidebar').classList.toggle('open');
   (e.currentTarget as HTMLElement).setAttribute('aria-expanded', String(open));
