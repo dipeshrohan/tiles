@@ -107,15 +107,21 @@ export function onAction(root: ParentNode, sel: string, handler: (el: HTMLButton
   );
 }
 
+// A page that draws itself again at once (to show the change, or its own busy state) replaces the
+// button: the new one shows what the page says, and the page's own flag keeps a second request out.
 function hold(owner: HTMLElement, button: HTMLButtonElement | null, work: unknown): void {
   if (!(work instanceof Promise)) return;
   owner.dataset.sending = 'true';
+  const wasDisabled = button?.disabled ?? false;
   if (button) setBusy(button, true);
-  const done = () => {
+  // A failure is still reported as before (unhandled, so the console and error capture see it).
+  void work.finally(() => {
     delete owner.dataset.sending;
-    if (button?.isConnected) setBusy(button, false);
-  };
-  work.then(done, done);
+    if (button?.isConnected) {
+      setBusy(button, false);
+      button.disabled = wasDisabled;
+    }
+  });
 }
 
 // Hands the browser a file to save, made here (e.g. an export fetched with credentials).

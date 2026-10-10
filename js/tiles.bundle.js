@@ -1719,12 +1719,15 @@
 	function hold(owner, button, work) {
 		if (!(work instanceof Promise)) return;
 		owner.dataset.sending = "true";
+		const wasDisabled = button?.disabled ?? false;
 		if (button) setBusy(button, true);
-		const done = () => {
+		work.finally(() => {
 			delete owner.dataset.sending;
-			if (button?.isConnected) setBusy(button, false);
-		};
-		work.then(done, done);
+			if (button?.isConnected) {
+				setBusy(button, false);
+				button.disabled = wasDisabled;
+			}
+		});
 	}
 	function download(name, text, type) {
 		const url = URL.createObjectURL(new Blob([text], { type }));
@@ -3237,11 +3240,25 @@
 			loadRemote(ctx);
 		}
 	}
-	var ratingSent = /* @__PURE__ */ new Set();
+	var ratingSent = /* @__PURE__ */ new Map();
 	async function rate(ctx, seq, value, comment) {
 		const site = siteId$10(ctx);
 		const id = uiState$13(ctx).conversation;
-		if (!ctx.api || !site || !id || ratingSent.has(seq)) return;
+		if (!ctx.api || !site || !id) return;
+		const key = `${id}|${seq}`;
+		const pending = ratingSent.get(key);
+		if (pending && !comment) return;
+		if (pending) await pending;
+		const work = rateNow(ctx, site, id, seq, value, comment);
+		ratingSent.set(key, work);
+		try {
+			await work;
+		} finally {
+			if (ratingSent.get(key) === work) ratingSent.delete(key);
+		}
+	}
+	async function rateNow(ctx, site, id, seq, value, comment) {
+		if (!ctx.api) return;
 		const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
 		const current = answer?.feedback ?? null;
 		const clear = current?.rating === value && !comment;
@@ -3254,7 +3271,6 @@
 			key: `${id}|${seq}`,
 			comment: ""
 		} : null;
-		ratingSent.add(seq);
 		ctx.rerender();
 		try {
 			const saved = clear ? null : await ctx.api.copilot.rate(site, id, seq, value, comment);
@@ -3264,8 +3280,6 @@
 		} catch {
 			if (answer) answer.feedback = current;
 			rating = prompt;
-		} finally {
-			ratingSent.delete(seq);
 		}
 		ctx.rerender();
 	}
@@ -8484,6 +8498,8 @@
 				detail$2 = before.detail;
 				const item = before.item;
 				if (listing$5?.items && item) listing$5.items = listing$5.items.map((i) => i.id === w.id ? item : i);
+				fetchDetail(ctx);
+				fetchList(ctx);
 			} else {
 				detail$2 = null;
 				listing$5 = null;

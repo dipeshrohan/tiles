@@ -235,19 +235,41 @@ async function send(ctx: Context, question: string): Promise<void> {
   }
 }
 
-// A rating is shown at once (U2.08) and taken back if the API refuses it; one at a time per answer.
-const ratingSent = new Set<number>();
+// A rating is shown at once (U2.08) and taken back if the API refuses it. One request at a time per
+// answer: another click meanwhile is dropped, but a comment waits for the rating before it.
+const ratingSent = new Map<string, Promise<void>>();
 async function rate(ctx: Context, seq: number, value: 'up' | 'down', comment: string): Promise<void> {
   const site = siteId(ctx);
   const id = uiState(ctx).conversation;
-  if (!ctx.api || !site || !id || ratingSent.has(seq)) return;
+  if (!ctx.api || !site || !id) return;
+  const key = `${id}|${seq}`;
+  const pending = ratingSent.get(key);
+  if (pending && !comment) return;
+  if (pending) await pending;
+  const work = rateNow(ctx, site, id, seq, value, comment);
+  ratingSent.set(key, work);
+  try {
+    await work;
+  } finally {
+    if (ratingSent.get(key) === work) ratingSent.delete(key);
+  }
+}
+
+async function rateNow(
+  ctx: Context,
+  site: string,
+  id: string,
+  seq: number,
+  value: 'up' | 'down',
+  comment: string,
+): Promise<void> {
+  if (!ctx.api) return;
   const answer = thread?.exchanges.find((e) => e.answer?.seq === seq)?.answer;
   const current = answer?.feedback ?? null;
   const clear = current?.rating === value && !comment;
   const prompt = rating;
   if (answer) answer.feedback = clear ? null : { rating: value, comment };
   rating = value === 'down' && !comment && current?.rating !== 'down' ? { key: `${id}|${seq}`, comment: '' } : null;
-  ratingSent.add(seq);
   ctx.rerender();
   try {
     const saved = clear ? null : await ctx.api.copilot.rate(site, id, seq, value, comment);
@@ -258,8 +280,6 @@ async function rate(ctx: Context, seq: number, value: 'up' | 'down', comment: st
     // The client showed why; the rating goes back to what it was.
     if (answer) answer.feedback = current;
     rating = prompt;
-  } finally {
-    ratingSent.delete(seq);
   }
   ctx.rerender();
 }

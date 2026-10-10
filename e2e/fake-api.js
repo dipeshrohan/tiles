@@ -455,14 +455,14 @@ export function createFakeApi({
     if (req.method === 'OPTIONS') return send(204);
     const url = new URL(req.url, 'http://fake');
     requests.push(`${req.method} ${url.pathname}`);
-    // A failure a test asked for (failNext): the next matching request gets it, once.
-    const planned = plannedFailures.findIndex((f) => f.method === req.method && f.path.test(url.pathname));
     // A slow answer a test asked for (slowNext): the next matching request waits first, once.
     const slow = plannedDelays.findIndex((d) => d.method === req.method && d.path.test(url.pathname));
     if (slow >= 0) {
       const [d] = plannedDelays.splice(slow, 1);
       await new Promise((r) => setTimeout(r, d.ms));
     }
+    // A failure a test asked for (failNext): the next matching request gets it, once.
+    const planned = plannedFailures.findIndex((f) => f.method === req.method && f.path.test(url.pathname));
     if (planned >= 0) {
       const [f] = plannedFailures.splice(planned, 1);
       return send(f.status, { detail: f.detail });

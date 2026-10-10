@@ -1,12 +1,13 @@
 // Shared page components (U1.04), as HTML strings like the views. Text is escaped here; `*Html`
 // options and `action` take markup the caller has built (with esc() on anything interpolated).
-import { esc, setBusy } from './dom.ts';
-
-export { setBusy }; // kept here with the other components; it lives in dom.ts (onSubmit uses it)
+import { esc } from './dom.ts';
 import { errorDetails } from './errors.ts';
 import { VERSION } from './version.ts';
 import { icon, type IconName } from './icons.ts';
 import { illustration, type IllustrationName } from './illustrations.ts';
+
+// setBusy lives in dom.ts (onSubmit and onAction use it); it is offered here with the components.
+export { setBusy } from './dom.ts';
 
 export interface EmptyOptions {
   title: string;

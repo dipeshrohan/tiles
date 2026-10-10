@@ -441,12 +441,14 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
     ctx.toast(done[action] ?? 'Done');
     if (action !== 'comment' && !same) listing = null; // it may have left the list's filters
   } catch {
-    // The client showed why. An acknowledgement shown at once is taken back; after anything else,
-    // the warning is fetched again to show it as it is now.
+    // The client showed why. An acknowledgement shown at once is taken back at once; then, as after
+    // any refused step, the warning and the list are fetched again (someone may have changed it).
     if (action === 'acknowledge' && before.detail) {
       detail = before.detail;
       const item = before.item;
       if (listing?.items && item) listing.items = listing.items.map((i) => (i.id === w.id ? item : i));
+      void fetchDetail(ctx);
+      void fetchList(ctx);
     } else {
       detail = null;
       listing = null;

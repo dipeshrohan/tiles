@@ -858,7 +858,6 @@ const view: View = {
       const review = submitter ? submitter.hasAttribute('data-request-review') : !form.querySelector('[value=commit]');
       if (!review) {
         return ctx.ontology.act((store, repo) => store.commit(repo, message, author), 'Committed');
-        return;
       }
       const reviewerId = field(form, 'reviewer') || undefined;
       return ctx.ontology.act((store, repo) => store.requestReview(repo, { message, reviewerId }), 'Sent for review');
