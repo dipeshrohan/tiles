@@ -276,7 +276,8 @@ function makeApi(): ApiClient | null {
     userEmail: state.user.email,
     // Only a session obtained for this very API is ever sent to it.
     getToken: () => accessToken(baseUrl),
-    onError: (e) => toast(e.status ? `${e.message} (${e.status})` : e.message, { type: 'error' }),
+    onError: (e) =>
+      toast(e.status ? `${e.message} (${e.status})` : e.message, { type: 'error', requestId: e.requestId }),
   });
 }
 

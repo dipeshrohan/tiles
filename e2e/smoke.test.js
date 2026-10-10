@@ -248,6 +248,35 @@ test('the palette asks for signals typed before the site has loaded', async (t) 
   assert.deepEqual(a.errors, []);
 });
 
+test('an API error stays with its request ID until dismissed, and is read out once', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignal('press1.temperature');
+  fake.failSearch('broken');
+  const a = await openAs(t, apiUrl, null, 'signals');
+  await a.page.fill('#signal-search [name=q]', 'broken');
+  await a.page.press('#signal-search [name=q]', 'Enter');
+  const item = a.page.locator('.toast-item[data-type=error]');
+  await item.waitFor();
+  assert.match(await item.innerText(), /The catalogue is busy \(503\)[\s\S]*Request ID\s+req-\d{6}/);
+  // Read once, as an alert; the visible stack isn't a live region too.
+  await a.page.waitForFunction(() =>
+    /catalogue is busy/.test(document.querySelector('[data-toast-announce=alert]')?.textContent ?? ''),
+  );
+  assert.equal(await a.page.locator('#toast').getAttribute('aria-live'), 'off');
+  // It doesn't go on its own.
+  await a.page.mouse.move(5, 5);
+  await a.page.waitForTimeout(9000);
+  assert.equal(await item.count(), 1);
+  await item.locator('.toast-close').click();
+  await item.waitFor({ state: 'detached' });
+  assert.deepEqual(
+    a.errors.filter((e) => !/503/.test(e)),
+    [],
+  );
+});
+
 test('copilot answers a suggested question with its steps', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/chat`);
