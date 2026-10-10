@@ -24,10 +24,25 @@ export function replace(root: Element, html: string): void {
 }
 
 // Changes what `root` holds to match `html`, keeping the elements that stay.
-export function morph(root: Element, html: string): void {
+// What a page does as rows come and go (U3.04, js/lib/micro.ts): a row with a key new to a list
+// that was already there, and one that leaves it. `leave` takes the row and says whether it removes
+// it itself (after it has faded); meanwhile it isn't matched again.
+export interface MorphHooks {
+  enter?: (el: Element) => void;
+  leave?: (el: Element) => boolean;
+}
+let hooks: MorphHooks = {};
+const leaving = new WeakSet<Node>();
+
+export function morph(root: Element, html: string, withHooks: MorphHooks = {}): void {
   const template = root.ownerDocument.createElement('template');
   template.innerHTML = html;
-  children(root, template.content);
+  hooks = withHooks;
+  try {
+    children(root, template.content);
+  } finally {
+    hooks = {};
+  }
   remember(root);
 }
 
@@ -69,7 +84,7 @@ function children(parent: Node, next: Node): void {
   const keyed = new Map<string, Node>();
   for (let n = parent.firstChild; n; n = n.nextSibling) {
     const k = keyOf(n);
-    if (k && wanted.has(k) && !keyed.has(k)) keyed.set(k, n);
+    if (k && wanted.has(k) && !keyed.has(k) && !leaving.has(n)) keyed.set(k, n);
   }
   const reserved = (n: Node): boolean => {
     const k = keyOf(n);
@@ -79,7 +94,7 @@ function children(parent: Node, next: Node): void {
   // nodes after it stay where they are (moving one would take its focus away).
   const gone = (n: Node): boolean => {
     const k = keyOf(n);
-    return k !== null && !wanted.has(k);
+    return leaving.has(n) || (k !== null && !wanted.has(k));
   };
   const skip = (n: Node | null): Node | null => {
     while (n && (reserved(n) || gone(n))) n = n.nextSibling;
@@ -121,13 +136,17 @@ function children(parent: Node, next: Node): void {
       const fresh = parent.ownerDocument?.importNode(n, true) ?? n.cloneNode(true);
       parent.insertBefore(fresh, cursor);
       kept.add(fresh);
+      if (keyOf(fresh) !== null && fresh instanceof Element) hooks.enter?.(fresh);
     }
     n = following;
   }
   // Whatever wasn't matched goes (including a keyed node whose tag changed).
   for (let n = parent.firstChild; n;) {
     const after = n.nextSibling;
-    if (!kept.has(n)) parent.removeChild(n);
+    if (kept.has(n) || leaving.has(n)) {
+      // kept, or fading out (its hook removes it)
+    } else if (keyOf(n) !== null && n instanceof Element && hooks.leave?.(n)) leaving.add(n);
+    else parent.removeChild(n);
     n = after;
   }
 }

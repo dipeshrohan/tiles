@@ -277,6 +277,54 @@ test('pages that load from the API hold still as they fill: layout shift under 0
   assert.deepEqual(over, [], JSON.stringify(shifts));
 });
 
+test('micro-interactions: rows fade in and out, a number ticks, a highlight moves; still with less motion (U3.04)', async () => {
+  const { page, errors } = await openPage({ reducedMotion: 'no-preference' });
+  await page.goto(`${httpBase}#/styleguide`);
+  await page.waitForSelector('#sg-sec-motion');
+  // What is animating, by what it animates: a row by its key, a highlight by its ::before.
+  const moving = () =>
+    page.evaluate(() =>
+      document
+        .getAnimations()
+        .filter((a) => !a.effect?.target?.closest?.('.loading-shapes')) // a skeleton's wait isn't motion
+        .map((a) => {
+          const t = a.effect?.target;
+          const pseudo = a.effect?.pseudoElement ?? '';
+          return `${t?.dataset?.key ?? t?.dataset?.sgMotionTab ?? t?.className}${pseudo}`;
+        }),
+    );
+  await page.click('[data-sg-add]');
+  assert.ok((await moving()).includes('sg-row-DC-04'), 'the new row fades in');
+  await page.click('[data-sg-remove]');
+  assert.ok((await moving()).includes('sg-row-DC-04'), 'the removed row fades out');
+  assert.equal(await page.locator('[data-key="sg-row-DC-04"]').getAttribute('inert'), '');
+  await page.waitForSelector('[data-key="sg-row-DC-04"]', { state: 'detached' });
+  await page.click('[data-sg-motion-tab="taken"]');
+  assert.ok((await moving()).includes('taken::before'), 'the highlight moves to the tab chosen');
+  // The number counts up to its new value: on the way it reads something between.
+  const value = page.locator('#sg-sec-motion ~ .card .kpi .value');
+  await page.click('[data-sg-count]');
+  const seen = new Set();
+  for (let i = 0; i < 20 && (await value.textContent()) !== '1,454'; i++) seen.add(await value.textContent());
+  await page.waitForFunction(() => document.querySelector('.sg-motion .kpi .value')?.textContent === '1,454');
+  assert.ok(
+    [...seen].some((t) => t !== '1,204' && t !== '1,454'),
+    `counted through ${[...seen]}`,
+  );
+
+  // Less motion: the same changes, at once.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.click('[data-sg-add]');
+  await page.click('[data-sg-motion-tab="resolved"]');
+  await page.click('[data-sg-count]');
+  assert.deepEqual(await moving(), []);
+  assert.equal(await value.textContent(), '1,704');
+  await page.click('[data-sg-remove]');
+  assert.equal(await page.locator('[data-key="sg-row-DC-05"]').count(), 0); // gone at once
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the style guide: from Settings, not in the menu, every section shown', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/settings`);

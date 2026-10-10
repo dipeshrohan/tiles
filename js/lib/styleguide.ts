@@ -149,6 +149,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     kind: 'value',
     note: 'z-index for what sits above the page; durations and easings for transitions (off with reduced motion).',
     tokens: [
+      '--z-under',
       '--z-raised',
       '--z-nav',
       '--z-dialog',

@@ -42,9 +42,21 @@ Moving to another page uses the browser's View Transitions API (U3.02, `navigate
 
 Where the browser has no view transitions, or less motion is asked for, nothing moves. Either way the new page's heading takes the focus (its `h1` has `tabindex="-1"`, from `pageHead`; a page drawing its own `h1` gives it one too), and a screen reader reads it. A page without one has its title announced instead. Scrolled down, the old page's head is above the window, so it isn't held; the page only cross-fades.
 
+## Micro-interactions
+
+When a page is drawn again in place (a refresh, an action on it: `js/lib/micro.ts`, U3.04), what changed moves a little, so the eye follows it. A new page and the first drawing don't.
+
+- **Rows:** a row with a `data-key` added to a list fades and rises in over `--dur`; one removed fades out over `--dur-fast` and then goes. It can't be used while it fades (`inert`), and the morph doesn't take it for another row.
+- **Numbers:** a KPI's value (`.kpi .value`, or anything with `data-tick`) counts from its old value to its new one over `--dur-slow`, written as the page writes it. Text that isn't one number, or whose unit changed, just changes.
+- **Highlights:** the highlight of the selected tab, segment or row (its `::before`) slides and stretches from the one selected before over `--dur`, while the words stay where they are.
+- **Sections:** a `<details>` opened shows its content fading and rising in over `--dur`, and closes at once. Its height changes in one step, since only opacity and transform move.
+- **Hover, press and focus:** every control answers hover, press (a small `scale`) and focus (a ring), using the tokens. `test/motion.test.js` checks the list.
+
+The style guide's Motion section has a sample of each.
+
 ## Reduced motion
 
-When the system asks for less motion (`prefers-reduced-motion: reduce`), or a person turns it on in Tiles (U6.06 sets `data-motion="reduce"` on the root element), nothing moves, and no view transition starts (`lessMotion()` in `js/lib/dom.ts`). Things appear and go at once, and spinners and shimmers show without turning. One rule in `css/styles.css` does this for each case, leaving out only the skeletons' wait. A new animation needs nothing extra to follow it. A scroll started from script is out of CSS's reach: pass `behavior: scrollBehavior()` (`js/lib/dom.ts`), never `'smooth'`.
+When the system asks for less motion (`prefers-reduced-motion: reduce`), or a person turns it on in Tiles (U6.06 sets `data-motion="reduce"` on the root element), nothing moves, and no view transition or micro-interaction starts (`lessMotion()` in `js/lib/dom.ts`). Things appear and go at once, and spinners and shimmers show without turning. One rule in `css/styles.css` does this for each case, leaving out only the skeletons' wait. A new animation needs nothing extra to follow it. A scroll started from script is out of CSS's reach: pass `behavior: scrollBehavior()` (`js/lib/dom.ts`), never `'smooth'`.
 
 ## Adding motion
 

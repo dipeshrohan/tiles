@@ -96,6 +96,7 @@
   --shadow: var(--shadow-1);
 
   /* Layers, lowest first. */
+  --z-under: -1; /* behind its element's words, in front of its background (a moving highlight) */
   --z-raised: 5;
   --z-nav: 20;
   --z-dialog: 40;
@@ -311,6 +312,11 @@ summary:focus-visible {
     transform: rotate(360deg);
   }
 }
+/* A section opened shows its content fading and rising in (U3.04); closed, it goes at once. Its
+   height changes in one step: motion is opacity and transform only (docs/ui/motion.md). */
+details[open]::details-content {
+  animation: enter var(--dur) var(--ease-out);
+}
 /* Page transitions (U3.02), where the browser has view transitions and less motion isn't asked for
    (js/app.ts starts them; without them nothing moves). The page cross-fades as one; its head is kept
    in place, the menu and top bar stay still, and a record opened from a list grows from its row. */
@@ -352,7 +358,8 @@ summary:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   *:not(.loading-shapes),
   *::before,
-  *::after {
+  *::after,
+  *::details-content {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
@@ -362,7 +369,8 @@ summary:focus-visible {
 }
 :root[data-motion='reduce'] *:not(.loading-shapes),
 :root[data-motion='reduce'] *::before,
-:root[data-motion='reduce'] *::after {
+:root[data-motion='reduce'] *::after,
+:root[data-motion='reduce'] *::details-content {
   transition-duration: 0.01ms !important;
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
@@ -996,8 +1004,28 @@ main {
 }
 
 .tab.active {
-  background: var(--panel);
   color: var(--ink);
+}
+/* The highlight of a selected tab, row or segment is its ::before, so it can move from the one
+   selected before (U3.04, js/lib/micro.ts) without moving the words. */
+.tab,
+.seg button,
+.review-row {
+  position: relative;
+  isolation: isolate;
+}
+.tab.active::before,
+.seg button.active::before,
+.review-row.sel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-under);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.tab.active::before {
+  background: var(--panel);
   box-shadow: 0 1px 3px var(--tab-shadow);
 }
 
@@ -1026,9 +1054,11 @@ main {
 }
 
 .seg button.active {
-  background: var(--panel);
   color: var(--ink);
   font-weight: 600;
+}
+.seg button.active::before {
+  background: var(--panel);
   box-shadow: var(--shadow);
 }
 
@@ -1064,6 +1094,18 @@ textarea {
 input::placeholder,
 textarea::placeholder {
   color: var(--muted);
+}
+/* Hover, press and focus on every control (U3.04): a field darkens its border under the pointer;
+   tabs, segments, rows and cards give a little when pressed, as buttons and chips do. */
+:is(input, select, textarea):hover:not(:focus, :disabled) {
+  border-color: var(--muted);
+}
+.tab:active,
+.seg button:active,
+.review-row:active,
+.place-card:active,
+.nav-link:active {
+  transform: scale(0.98);
 }
 input:focus,
 select:focus,
@@ -1895,9 +1937,12 @@ tr.selected td {
   border-radius: var(--radius-md);
   cursor: pointer;
 }
-.review-row:hover,
-.review-row.sel {
+.review-row:hover {
   border-color: var(--accent);
+}
+.review-row.sel::before {
+  inset: -1px; /* over the row's own border */
+  border: 1px solid var(--accent);
 }
 /* App Studio (T6.10): a template to start from, and a template's settings. */
 .app-template {
@@ -2899,6 +2944,12 @@ td.sg-scheme {
 }
 .sg-text {
   white-space: nowrap;
+}
+.sg-motion {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
 }
 .sg-code {
   margin: 0;

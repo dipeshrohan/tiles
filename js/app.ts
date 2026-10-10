@@ -35,6 +35,7 @@ import {
 } from './lib/ontology-store.ts';
 import { announce, esc, lessMotion, need, rebind, routeOf } from './lib/dom.ts';
 import { morph, noteSent, replace } from './lib/morph.ts';
+import { after, before, rowMotion } from './lib/micro.ts';
 import home from './views/home.ts';
 import chat from './views/chat.ts';
 import ontology from './views/ontology.ts';
@@ -548,11 +549,14 @@ function render(): void {
   const root = need(document, '#view');
   resetIds();
   const html = view.render(ctx);
-  if (view.id === shownView) morph(root, html);
+  // Drawn again in place, what changed moves a little (U3.04): rows in and out, highlights, numbers.
+  const was = view.id === shownView ? before(root) : null;
+  if (was) morph(root, html, rowMotion);
   else replace(root, html);
   rebind();
   view.bind?.(root, ctx);
   afterRender(); // the API's field errors on the form sent last stay (js/lib/forms.ts)
+  if (was) after(root, was);
   // Home › the page › the record or place it shows (after render and bind, from what they show; the
   // record comes from the URL, so a reload or a shared link shows the same).
   need(document, '#crumbs').innerHTML = breadcrumbs([

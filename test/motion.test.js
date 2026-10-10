@@ -71,6 +71,7 @@ test('reduced motion stops everything, asked by the system or by Tiles', () => {
       assert.ok(block.includes(rule), `${rule} in ${block.slice(0, 40)}`);
     // The skeletons' 300 ms wait isn't motion: neither rule touches it.
     assert.match(block, /\*:not\(\.loading-shapes\),/, block.slice(0, 40));
+    assert.match(block, /\*::details-content/, block.slice(0, 40)); // a section's content too
   }
   assert.match(css, /\.loading-shapes \{[^}]*animation: skeleton-wait var\(--wait, 300ms\)/);
 });
@@ -97,4 +98,19 @@ test('leaving is quick and eases in; entering eases out', () => {
   assert.ok(leaving.length >= 3);
   for (const r of leaving) assert.match(r, /var\(--dur-fast\) var\(--ease-in\)/, r);
   for (const r of runs.filter((r) => /^([\w-]+-in|enter)\b/.test(r))) assert.match(r, /var\(--ease-out\)/, r);
+});
+
+test('every control answers the pointer and the keyboard: hover, press and focus (U3.04)', () => {
+  const has = (sel, state) =>
+    new RegExp(`(^|[,\\s])${sel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(:not\\([^)]*\\))?${state}`, 'm').test(css);
+  const controls = ['.btn', '.chip', '.tab', '.seg button', '.review-row', '.place-card', '.nav-link'];
+  for (const sel of controls) {
+    assert.ok(has(sel, ':hover'), `${sel}:hover`);
+    assert.ok(has(sel, ':active'), `${sel}:active`);
+  }
+  // Focus: every button and link shows a ring from the keyboard; fields show theirs when focused.
+  assert.match(css, /button:focus-visible,\s*\.btn:focus-visible/);
+  assert.match(css, /a:focus-visible,/);
+  assert.match(css, /input:focus,\s*select:focus,\s*textarea:focus/);
+  assert.match(css, /:is\(input, select, textarea\):hover/);
 });

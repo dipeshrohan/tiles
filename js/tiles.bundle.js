@@ -1684,10 +1684,17 @@
 		root.innerHTML = html;
 		remember$1(root);
 	}
-	function morph(root, html) {
+	var hooks = {};
+	var leaving = /* @__PURE__ */ new WeakSet();
+	function morph(root, html, withHooks = {}) {
 		const template = root.ownerDocument.createElement("template");
 		template.innerHTML = html;
-		children(root, template.content);
+		hooks = withHooks;
+		try {
+			children(root, template.content);
+		} finally {
+			hooks = {};
+		}
 		remember$1(root);
 	}
 	var sentWith = /* @__PURE__ */ new WeakMap();
@@ -1706,7 +1713,7 @@
 		const keyed = /* @__PURE__ */ new Map();
 		for (let n = parent.firstChild; n; n = n.nextSibling) {
 			const k = keyOf$1(n);
-			if (k && wanted.has(k) && !keyed.has(k)) keyed.set(k, n);
+			if (k && wanted.has(k) && !keyed.has(k) && !leaving.has(n)) keyed.set(k, n);
 		}
 		const reserved = (n) => {
 			const k = keyOf$1(n);
@@ -1714,7 +1721,7 @@
 		};
 		const gone = (n) => {
 			const k = keyOf$1(n);
-			return k !== null && !wanted.has(k);
+			return leaving.has(n) || k !== null && !wanted.has(k);
 		};
 		const skip = (n) => {
 			while (n && (reserved(n) || gone(n))) n = n.nextSibling;
@@ -1752,12 +1759,14 @@
 				const fresh = parent.ownerDocument?.importNode(n, true) ?? n.cloneNode(true);
 				parent.insertBefore(fresh, cursor);
 				kept.add(fresh);
+				if (keyOf$1(fresh) !== null && fresh instanceof Element) hooks.enter?.(fresh);
 			}
 			n = following;
 		}
 		for (let n = parent.firstChild; n;) {
 			const after = n.nextSibling;
-			if (!kept.has(n)) parent.removeChild(n);
+			if (kept.has(n) || leaving.has(n)) {} else if (keyOf$1(n) !== null && n instanceof Element && hooks.leave?.(n)) leaving.add(n);
+			else parent.removeChild(n);
 			n = after;
 		}
 	}
@@ -1931,6 +1940,128 @@
 	* stays on the current page. */
 	function onNavigate(fn) {
 		if (typeof window !== "undefined") window.addEventListener("hashchange", (e) => fn(e.newURL ? new URL(e.newURL).hash : location.hash));
+	}
+	//#endregion
+	//#region js/lib/micro.ts
+	var token = (name, fallback) => {
+		const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+		const ms = Number.parseFloat(v);
+		return Number.isFinite(ms) ? ms : fallback;
+	};
+	var ease = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || "ease";
+	var rowMotion = {
+		enter(el) {
+			if (lessMotion() || typeof el.animate !== "function") return;
+			el.animate([{
+				opacity: 0,
+				transform: "translateY(-4px)"
+			}, {
+				opacity: 1,
+				transform: "none"
+			}], {
+				duration: token("--dur", 200),
+				easing: ease("--ease-out")
+			});
+		},
+		leave(el) {
+			if (lessMotion() || typeof el.animate !== "function" || !el.isConnected) return false;
+			el.setAttribute("inert", "");
+			el.setAttribute("aria-hidden", "true");
+			const fade = el.animate([{ opacity: 1 }, { opacity: 0 }], {
+				duration: token("--dur-fast", 120),
+				easing: ease("--ease-in"),
+				fill: "forwards"
+			});
+			const remove = () => el.remove();
+			fade.finished.then(remove, remove);
+			return true;
+		}
+	};
+	var HIGHLIGHT = ".tab.active, .seg button.active, .review-row.sel";
+	var HIGHLIGHTED_IN = ".tabs, .seg, .review-list";
+	var NUMBERS = ".kpi .value, [data-tick]";
+	function before(root) {
+		const highlights = /* @__PURE__ */ new Map();
+		for (const group of root.querySelectorAll(HIGHLIGHTED_IN)) {
+			const on = group.querySelector(`:scope > :is(${HIGHLIGHT})`);
+			if (on) highlights.set(group, on.getBoundingClientRect());
+		}
+		const numbers = /* @__PURE__ */ new Map();
+		for (const el of root.querySelectorAll(NUMBERS)) {
+			numbers.set(el, running$1.get(el)?.to ?? el.textContent ?? "");
+			running$1.delete(el);
+		}
+		return {
+			highlights,
+			numbers
+		};
+	}
+	function after(root, was) {
+		if (lessMotion()) return;
+		for (const [group, from] of was.highlights) {
+			if (!group.isConnected || !root.contains(group)) continue;
+			const on = group.querySelector(`:scope > :is(${HIGHLIGHT})`);
+			if (on) glide(on, from);
+		}
+		for (const [el, text] of was.numbers) if (el.isConnected && el.textContent !== text) tick(el, text, el.textContent ?? "");
+	}
+	function glide(on, from) {
+		const to = on.getBoundingClientRect();
+		if (!to.width || !to.height || from.x === to.x && from.y === to.y && from.width === to.width) return;
+		const dx = from.x - to.x;
+		const dy = from.y - to.y;
+		on.animate([{
+			transform: `translate(${dx}px, ${dy}px) scale(${from.width / to.width}, ${from.height / to.height})`,
+			transformOrigin: "top left"
+		}, {
+			transform: "none",
+			transformOrigin: "top left"
+		}], {
+			duration: token("--dur", 200),
+			easing: ease("--ease-out"),
+			pseudoElement: "::before"
+		});
+	}
+	var NUMBER$1 = /^(\D*?)(-?\d[\d,]*(?:\.\d+)?)(\D*)$/;
+	var running$1 = /* @__PURE__ */ new WeakMap();
+	function parseNumber$1(text) {
+		const m = NUMBER$1.exec(text.trim());
+		if (!m) return null;
+		const [, prefix = "", digits = "", suffix = ""] = m;
+		const value = Number(digits.replace(/,/g, ""));
+		if (!Number.isFinite(value)) return null;
+		return {
+			prefix,
+			value,
+			decimals: digits.split(".")[1]?.length ?? 0,
+			grouped: digits.includes(","),
+			suffix
+		};
+	}
+	function formatNumber(n, like) {
+		return n.toLocaleString("en-GB", {
+			minimumFractionDigits: like.decimals,
+			maximumFractionDigits: like.decimals,
+			useGrouping: like.grouped
+		});
+	}
+	function tick(el, from, to) {
+		const a = parseNumber$1(from);
+		const b = parseNumber$1(to);
+		if (!a || !b || a.prefix !== b.prefix || a.suffix !== b.suffix || a.value === b.value) return;
+		const duration = token("--dur-slow", 320);
+		const start = performance.now();
+		const run = { to };
+		running$1.set(el, run);
+		const frame = (now) => {
+			if (running$1.get(el) !== run || !el.isConnected) return;
+			const t = Math.min(1, (now - start) / duration);
+			const eased = 1 - (1 - t) ** 3;
+			el.textContent = t < 1 ? `${b.prefix}${formatNumber(a.value + (b.value - a.value) * eased, b)}${b.suffix}` : to;
+			if (t < 1) requestAnimationFrame(frame);
+			else running$1.delete(el);
+		};
+		requestAnimationFrame(frame);
 	}
 	//#endregion
 	//#region js/lib/design.ts
@@ -10462,6 +10593,7 @@ heartbeat_seconds = 30
 			kind: "value",
 			note: "z-index for what sits above the page; durations and easings for transitions (off with reduced motion).",
 			tokens: [
+				"--z-under",
 				"--z-raised",
 				"--z-nav",
 				"--z-dialog",
@@ -10660,11 +10792,60 @@ button('Save', { variant: 'primary', busy: true })   // or setBusy(el, true) on 
       <pre class="sg-code"><code>${esc(e.code)}</code></pre>
     </section>`;
 	}
+	var motion = {
+		tab: "open",
+		rows: [
+			"DC-01",
+			"DC-02",
+			"DC-03"
+		],
+		next: 4,
+		selected: "DC-01",
+		readings: 1204
+	};
+	function motionCard() {
+		const rows = motion.rows.map((id) => `<button class="review-row ${motion.selected === id ? "sel" : ""}" type="button" data-key="sg-row-${esc(id)}" data-sg-row="${esc(id)}"><b>Die-caster ${esc(id)}</b><span class="small muted">A warning on its machine</span></button>`).join("");
+		return card$1(`<p class="small soft">A page drawn again moves what changed, a little: try them. With less motion asked for, they change at once.</p>
+    ${tabs({
+			label: "Status",
+			items: [
+				["open", "Open"],
+				["taken", "Taken"],
+				["resolved", "Resolved"]
+			],
+			current: motion.tab,
+			data: "sg-motion-tab"
+		})}
+    <div class="sg-motion">
+      <div class="stack gap-2">
+        <div class="review-list">${rows}</div>
+        <div class="row gap-2 wrap">${button("Add a row", {
+			size: "sm",
+			attrs: { "data-sg-add": true }
+		})}${button("Remove the first", {
+			size: "sm",
+			attrs: { "data-sg-remove": true }
+		})}</div>
+      </div>
+      <div class="stack gap-2">
+        <div class="kpi"><div class="label">Readings today</div><div class="value">${fmt$1(motion.readings)}</div></div>
+        <div>${button("Add 250 readings", {
+			size: "sm",
+			attrs: { "data-sg-count": true }
+		})}</div>
+        <details class="sg-details"><summary>A section that opens</summary><p class="small">Its content fades and rises in; it closes at once.</p></details>
+      </div>
+    </div>
+    <pre class="sg-code"><code>${esc(`<li data-key="warning-12">…</li>     // a row with a key fades in when added and out when removed
+<div class="kpi"><div class="value">1,204</div></div>   // or data-tick: a number ticks to its new value
+tabs({ … }), .review-row.sel, .seg button.active      // the highlight moves from the one selected before`)}</code></pre>`, { class: "stack gap-3" });
+	}
 	var SECTIONS = [
 		["tokens", "Tokens"],
 		["components", "Components"],
 		["states", "States"],
 		["overlays", "Dialogs, toasts and tooltips"],
+		["motion", "Motion"],
 		["icons", "Icons"],
 		["illustrations", "Illustrations"]
 	];
@@ -10709,6 +10890,8 @@ button('Save', { variant: 'primary', busy: true })   // or setBusy(el, true) on 
 removeLater({ toast, message: 'Conversation deleted', hide, restore, send })   // Undo instead
 ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with their request ID
 <button … data-tooltip="Says what it does">`)}</code></pre>`, { class: "stack gap-2" })}
+      <h2 class="mt-4 mb-2" id="sg-sec-motion">Motion</h2>
+      ${motionCard()}
       <h2 class="mt-4 mb-2" id="sg-sec-icons">Icons</h2>
       ${card$1(`<p class="small soft">Lucide, drawn with the text colour: <code>icon('house')</code>, decorative unless given a <code>label</code>.</p><ul class="sg-icons">${icons}</ul>`, { class: "stack gap-2" })}
       <h2 class="mt-4 mb-2" id="sg-sec-illustrations">Illustrations</h2>
@@ -10732,6 +10915,26 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				target?.scrollIntoView({ behavior: scrollBehavior() });
 				target?.setAttribute("tabindex", "-1");
 				target?.focus({ preventScroll: true });
+			});
+			onAll(root, "[data-sg-motion-tab]", "click", (el) => {
+				motion.tab = el.dataset.sgMotionTab ?? "open";
+				ctx.rerender();
+			});
+			onAll(root, "[data-sg-row]", "click", (el) => {
+				motion.selected = el.dataset.sgRow ?? "";
+				ctx.rerender();
+			});
+			onAll(root, "[data-sg-add]", "click", () => {
+				motion.rows.unshift(`DC-${String(motion.next++).padStart(2, "0")}`);
+				ctx.rerender();
+			});
+			onAll(root, "[data-sg-remove]", "click", () => {
+				motion.rows.shift();
+				ctx.rerender();
+			});
+			onAll(root, "[data-sg-count]", "click", () => {
+				motion.readings += 250;
+				ctx.rerender();
 			});
 			onAll(root, "[data-sg-dialog]", "click", async () => {
 				const yes = await confirmDialog({
@@ -13889,11 +14092,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const root = need(document, "#view");
 		resetIds();
 		const html = view.render(ctx);
-		if (view.id === shownView) morph(root, html);
+		const was = view.id === shownView ? before(root) : null;
+		if (was) morph(root, html, rowMotion);
 		else replace(root, html);
 		rebind();
 		view.bind?.(root, ctx);
 		afterRender();
+		if (was) after(root, was);
 		need(document, "#crumbs").innerHTML = breadcrumbs([
 			{
 				label: "Home",
