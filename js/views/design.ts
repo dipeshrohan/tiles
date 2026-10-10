@@ -6,6 +6,7 @@ import { esc, field, fmt, need, onAll, onSubmit, onNavigate, routeOf, timeAgo } 
 import type { ApiSweep, DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
+import { pageHead } from '../lib/ui.ts';
 
 const defaults = (model: DesignModel): Params => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 const stepFor = (p: ParamSpec): number =>
@@ -242,18 +243,16 @@ const view: View = {
     const label = (k: string) => model.params.find((p) => p.key === k)?.label ?? k;
 
     return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Design · Co-engineer</div>
-          <h1>Design studio</h1>
-          <p>Explore physics models from first principles. Every run records the model version and parameters that produced it, so any result can be traced, compared and exported for audit.</p>
-        </div>
-        <div class="seg" role="group" aria-label="Model">${Object.values(MODELS)
+      ${pageHead({
+        eyebrow: 'Design · Co-engineer',
+        title: 'Design studio',
+        lead: 'Explore physics models from first principles. Every run records the model version and parameters that produced it, so any result can be traced, compared and exported for audit.',
+        actionsHtml: `<div class="seg" role="group" aria-label="Model">${Object.values(MODELS)
           .map(
             (m) => `<button data-model="${m.id}" class="${m.id === model.id ? 'active' : ''}">${esc(m.name)}</button>`,
           )
-          .join('')}</div>
-      </div>
+          .join('')}</div>`,
+      })}
       ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === 'error' ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : 'Connecting to the Tiles API…'}</span></div>` : ''}
 
       <div class="grid g3 mb-4">

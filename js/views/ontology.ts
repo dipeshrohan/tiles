@@ -26,6 +26,7 @@ import { describeChanges } from '../lib/review.ts';
 import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
+import { pageHead } from '../lib/ui.ts';
 
 interface OntologyUi {
   tab: 'canvas' | 'history' | 'health';
@@ -626,16 +627,12 @@ function reviewControls(ctx: Context): string {
           <button class="btn ${o.reviewRequired ? 'primary' : ''}" type="submit" value="review" data-request-review>Request review</button>`;
 }
 
-function pageHead(): string {
-  return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Ontology</div>
-          <h1>A map of the factory</h1>
-          <p>Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.</p>
-        </div>
-      </div>`;
-}
+const ontologyHead = (): string =>
+  pageHead({
+    eyebrow: 'Operations · Ontology',
+    title: 'A map of the factory',
+    lead: 'Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.',
+  });
 
 // Where this ontology lives, shown only in API mode.
 function sourceBar(ctx: Context): string {
@@ -662,7 +659,7 @@ const view: View = {
     const { repo } = ctx.state;
     const graph = ctx.graph;
     const source = sourceBar(ctx);
-    if (ctx.ontology.status === 'loading' || ctx.ontology.status === 'error') return pageHead() + source;
+    if (ctx.ontology.status === 'loading' || ctx.ontology.status === 'error') return ontologyHead() + source;
     const health = healthCheck(graph);
     if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 
@@ -705,7 +702,7 @@ const view: View = {
     if (ui.tab === 'health') body = healthTab(health, graph);
 
     return `
-      ${pageHead()}
+      ${ontologyHead()}
       ${source}
       ${stagedBar}
       ${importCard(ctx)}

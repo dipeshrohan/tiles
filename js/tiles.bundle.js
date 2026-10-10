@@ -2514,7 +2514,14 @@
 			...o.attrs
 		})}>${bodyHtml}</div>`;
 	}
-	function pageHead$1(o) {
+	function breadcrumbs(trail) {
+		const sep = `<span class="crumb-sep" aria-hidden="true">${icon("chevron-right", { size: 14 })}</span>`;
+		return `<ol>${trail.map((c, i) => {
+			const item = i === trail.length - 1 ? `<b aria-current="page">${esc(c.label)}</b>` : c.href ? `<a${attrs({ href: c.href })}>${esc(c.label)}</a>` : `<span>${esc(c.label)}</span>`;
+			return `<li>${i ? sep : ""}${item}</li>`;
+		}).join("")}</ol>`;
+	}
+	function pageHead(o) {
 		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<h1>${esc(o.title)}</h1>${o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
 	}
 	function input(o) {
@@ -2915,10 +2922,14 @@
 		render(ctx) {
 			const on = remoteOn(ctx);
 			const head = `
-      <div class="page-head">
-        <div><div class="eyebrow">Copilot</div><h1>Talk to your data &amp; docs</h1></div>
-        ${!on && ctx.state.chat.length ? "<button class=\"btn sm\" data-clear>Clear conversation</button>" : ""}
-      </div>`;
+      ${pageHead({
+				eyebrow: "Copilot",
+				title: "Talk to your data & docs",
+				actionsHtml: !on && ctx.state.chat.length ? button("Clear conversation", {
+					size: "sm",
+					attrs: { "data-clear": true }
+				}) : ""
+			})}`;
 			if (on) return head + remoteRender(ctx);
 			const checking = ctx.api && remote$1?.configured === null;
 			return head + localRender(ctx, ctx.api && remote$1?.configured === false ? `<p class="small soft mb-2" data-copilot-off>The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>` : ctx.api && remote$1?.configured && !remote$1.enabled ? `<p class="small soft mb-2" data-copilot-site-off>The copilot is off on this site: an admin turns it on in <a href="#/settings">Settings</a>. Until then the built-in skills answer on the demo data.</p>` : checking ? "<p class=\"small soft\">Checking the copilot service…</p>" : "");
@@ -3739,16 +3750,11 @@
           <select name="reviewer" aria-label="Reviewer"><option value="">Any engineer</option>${reviewers.map((m) => `<option value="${esc(m.user_id)}">${esc(m.name)}</option>`).join("")}</select>
           <button class="btn ${o.reviewRequired ? "primary" : ""}" type="submit" value="review" data-request-review>Request review</button>`;
 	}
-	function pageHead() {
-		return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Ontology</div>
-          <h1>A map of the factory</h1>
-          <p>Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.</p>
-        </div>
-      </div>`;
-	}
+	var ontologyHead = () => pageHead({
+		eyebrow: "Operations · Ontology",
+		title: "A map of the factory",
+		lead: "Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible."
+	});
 	function sourceBar(ctx) {
 		const o = ctx.ontology;
 		if (o.status === "local") return "";
@@ -3770,7 +3776,7 @@
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
-			if (ctx.ontology.status === "loading" || ctx.ontology.status === "error") return pageHead() + source;
+			if (ctx.ontology.status === "loading" || ctx.ontology.status === "error") return ontologyHead() + source;
 			const health = healthCheck(graph);
 			if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 			const { conflict } = safeWorkingGraph(repo);
@@ -3799,7 +3805,7 @@
 			if (ui.tab === "history") body = history$1(ctx, graph);
 			if (ui.tab === "health") body = healthTab(health, graph);
 			return `
-      ${pageHead()}
+      ${ontologyHead()}
       ${source}
       ${stagedBar}
       ${importCard$1(ctx)}
@@ -4408,17 +4414,15 @@
 			const crossed = series.findIndex((p, h) => h < swapAt && p.cathode > threshold);
 			const warnHours = crossed >= 0 ? swapAt - crossed : 0;
 			return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Correlation finder</div>
-          <h1>Why are cutter batches failing?</h1>
-          <p>Notching Cutter C-01 leaves inconsistent tab widths. ${ng} of ${rows.length} batches were NG. The finder ranks every process variable by how strongly it separates failed from healthy batches.</p>
-        </div>
-        <div class="seg" role="group" aria-label="Segmentation">
+      ${pageHead({
+				eyebrow: "Operations · Correlation finder",
+				title: "Why are cutter batches failing?",
+				lead: `Notching Cutter C-01 leaves inconsistent tab widths. ${ng} of ${rows.length} batches were NG. The finder ranks every process variable by how strongly it separates failed from healthy batches.`,
+				actionsHtml: `<div class="seg" role="group" aria-label="Segmentation">
           <button data-split="0" class="${ui.split ? "" : "active"}">Pooled</button>
           <button data-split="1" class="${ui.split ? "active" : ""}">Split by material</button>
-        </div>
-      </div>
+        </div>`
+			})}
 
       <div class="grid g2 mb-4">
         <div class="card">
@@ -4532,14 +4536,12 @@
 			const est = estimateFriction(payload);
 			const flagged = detection.flags[ui.shot];
 			return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Virtual sensor</div>
-          <h1>Plunger friction · Die-caster DC-02</h1>
-          <p>Friction can't be measured directly. Solving the plunger's equation of motion for every shot turns pressure and velocity payloads into a friction value, which climbs before the plunger seizes.</p>
-        </div>
-        <span class="badge ${detection.alerts.length ? "bad" : "good"}">● ${detection.alerts.length} warning window(s)</span>
-      </div>
+      ${pageHead({
+				eyebrow: "Operations · Virtual sensor",
+				title: "Plunger friction · Die-caster DC-02",
+				lead: "Friction can't be measured directly. Solving the plunger's equation of motion for every shot turns pressure and velocity payloads into a friction value, which climbs before the plunger seizes.",
+				actionsHtml: badge$1(`● ${detection.alerts.length} warning window(s)`, detection.alerts.length ? "bad" : "good")
+			})}
 
       <div class="grid g4 mb-4">
         <div class="card kpi"><div class="label">Shots analysed</div><div class="value">${fmt$1(hist.length)}</div><div class="note">${fmt$1(toH(hist.length), 0)} h of production</div></div>
@@ -4922,14 +4924,12 @@
 			const unit = model.output.unit;
 			const label = (k) => model.params.find((p) => p.key === k)?.label ?? k;
 			return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Design · Co-engineer</div>
-          <h1>Design studio</h1>
-          <p>Explore physics models from first principles. Every run records the model version and parameters that produced it, so any result can be traced, compared and exported for audit.</p>
-        </div>
-        <div class="seg" role="group" aria-label="Model">${Object.values(MODELS).map((m) => `<button data-model="${m.id}" class="${m.id === model.id ? "active" : ""}">${esc(m.name)}</button>`).join("")}</div>
-      </div>
+      ${pageHead({
+				eyebrow: "Design · Co-engineer",
+				title: "Design studio",
+				lead: "Explore physics models from first principles. Every run records the model version and parameters that produced it, so any result can be traced, compared and exported for audit.",
+				actionsHtml: `<div class="seg" role="group" aria-label="Model">${Object.values(MODELS).map((m) => `<button data-model="${m.id}" class="${m.id === model.id ? "active" : ""}">${esc(m.name)}</button>`).join("")}</div>`
+			})}
       ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === "error" ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : "Connecting to the Tiles API…"}</span></div>` : ""}
 
       <div class="grid g3 mb-4">
@@ -5817,7 +5817,10 @@
 			const ds = ctx.dataSource;
 			const typed = sourceDraft?.base === sourceKey(ds) ? sourceDraft : ds;
 			return `
-      <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
+      ${pageHead({
+				eyebrow: "Workspace",
+				title: "Settings"
+			})}
       <div class="grid g2">
         <form class="card stack gap-3" id="profile">
           <h2>Profile</h2>
@@ -6563,7 +6566,7 @@
 		title: "Signals",
 		icon: "activity",
 		render(ctx) {
-			const head = pageHead$1({
+			const head = pageHead({
 				eyebrow: "Data",
 				title: "Signals",
 				lead: "Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to."
@@ -7043,8 +7046,11 @@
 		title: "Data explorer",
 		icon: "chart-line",
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Data explorer</h1>
-        <p class="soft">Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in.</p></div></div>`;
+			const head = pageHead({
+				eyebrow: "Data",
+				title: "Data explorer",
+				lead: "Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in."
+			});
 			if (!ctx.api || !ctx.ontology.site) return `${head}<div class="card">${needsApi(`Readings are kept in the Tiles API.`)}</div>`;
 			const u = ui(ctx);
 			if (u.catalogue !== catalogue$1(ctx)) Object.assign(u, {
@@ -7369,9 +7375,19 @@
 		id: "reviews",
 		title: "Change reviews",
 		icon: "git-pull-request",
+		crumbs(ctx) {
+			const n = uiState$8(ctx).selected;
+			return ctx.api && ctx.ontology.status === "ready" && n !== null ? [{
+				label: `#${n}`,
+				href: `#/reviews/${n}`
+			}] : [];
+		},
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Ontology</div><h1>Change reviews</h1>
-        <p class="soft">Ontology changes waiting for a second engineer: read the diff, discuss it, then approve (which commits it) or reject it.</p></div></div>`;
+			const head = pageHead({
+				eyebrow: "Operations · Ontology",
+				title: "Change reviews",
+				lead: "Ontology changes waiting for a second engineer: read the diff, discuss it, then approve (which commits it) or reject it."
+			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Change reviews are shared by everyone on a site, so they need the Tiles API. In this browser’s own ontology you commit directly.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
@@ -7892,8 +7908,12 @@
 		id: "warnings",
 		title: "Warnings",
 		icon: "triangle-alert",
+		crumbs(ctx) {
+			const w = uiState$7(ctx).selected !== null && detail$2?.key === detailKey$1(ctx) ? detail$2.warning : null;
+			return ctx.api && w ? [{ label: w.signal_tag }] : [];
+		},
 		render(ctx) {
-			const head = pageHead$1({
+			const head = pageHead({
 				eyebrow: "Operations · Detection",
 				title: "Warnings",
 				lead: "What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be."
@@ -8562,10 +8582,7 @@
 	var uiState$5 = (ctx) => ctx.ui("plant", { query: "" });
 	var searching = false;
 	var typing$1;
-	var crumbs = (graph, id) => {
-		const path = id ? trail(graph, id) : [];
-		return `<nav class="plant-trail" aria-label="Where you are">${[`<a href="#/plant">Plant</a>`, ...path.map((n, i) => i === path.length - 1 ? `<b aria-current="page">${esc(n.label)}</b>` : `<a href="${placeLink(n.id)}">${esc(n.label)}</a>`)].join("<span aria-hidden=\"true\">›</span>")}</nav>`;
-	};
+	var shownTrail = [];
 	var badge = (state, count) => {
 		if (!count) return "<span class=\"badge good\">OK</span>";
 		const [cls, label] = STATE_LABEL[state];
@@ -8672,6 +8689,7 @@
 		id: "plant",
 		title: "Plant",
 		icon: "factory",
+		crumbs: () => shownTrail,
 		render(ctx) {
 			const ui = uiState$5(ctx);
 			const graph = ctx.graph;
@@ -8679,14 +8697,20 @@
 			const asked = placeFromHash(location.hash);
 			const id = asked ?? (tops.length === 1 ? tops[0] ?? null : null);
 			const node = id ? graph.nodes[id] : void 0;
+			shownTrail = node ? trail(graph, node.id).map((n) => ({
+				label: n.label,
+				href: placeLink(n.id)
+			})) : [];
 			const title = node?.label ?? "Plant";
 			const kind = node ? node.type : "Site → line → machine";
 			const search = `<form class="plant-search" data-plant-search role="search">
         <input name="q" type="search" placeholder="Find a line or machine" aria-label="Find a place" value="${esc(ui.query)}" autocomplete="off">
       </form>`;
-			const head = `<div class="page-head"><div><div class="eyebrow">Operations · ${esc(kind)}</div><h1>${esc(title)}</h1>
-        ${crumbs(graph, node ? node.id : null)}</div>
-        <div class="row gap-2">${search}${ctx.api ? "<button class=\"btn\" data-plant-refresh>Refresh</button>" : ""}</div></div>`;
+			const head = pageHead({
+				eyebrow: `Operations · ${kind}`,
+				title,
+				actionsHtml: `<div class="row gap-2">${search}${ctx.api ? button("Refresh", { attrs: { "data-plant-refresh": true } }) : ""}</div>`
+			});
 			if (ctx.api && ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (ctx.api && ctx.ontology.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
 			const results = searchResults(graph, ui.query);
@@ -8997,9 +9021,12 @@ heartbeat_seconds = 30
 		icon: "rocket",
 		render(ctx) {
 			const site = ctx.ontology.site;
-			const head = `<div class="page-head"><div><div class="eyebrow">Settings · onboarding</div><h1>Set up ${esc(site?.name ?? "a site")}</h1>
-        <p class="soft">From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.</p></div>
-        ${ctx.api ? "<button class=\"btn\" data-onboarding-refresh>Refresh</button>" : ""}</div>`;
+			const head = pageHead({
+				eyebrow: "Settings · onboarding",
+				title: `Set up ${site?.name ?? "a site"}`,
+				lead: "From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.",
+				actionsHtml: ctx.api ? button("Refresh", { attrs: { "data-onboarding-refresh": true } }) : ""
+			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Setting up a site needs the Tiles API: sites, edge agents and tags live there.`)}</div>`;
 			if (ctx.ontology.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
 			if (ctx.ontology.status !== "ready") return `${head}<div class="card" role="alert">Can't reach the Tiles API: ${esc(ctx.ontology.error)}</div>`;
@@ -9271,8 +9298,11 @@ heartbeat_seconds = 30
 		title: "Warning performance",
 		icon: "target",
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Operations · Detection</div><h1>Warning performance</h1>
-        <p class="soft">How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead.</p></div></div>`;
+			const head = pageHead({
+				eyebrow: "Operations · Detection",
+				title: "Warning performance",
+				lead: "How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead."
+			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
@@ -10022,8 +10052,11 @@ heartbeat_seconds = 30
 		title: "Correlation finder",
 		icon: "chart-scatter",
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Correlation finder</h1>
-        <p class="soft">Which settings separate failed batches from good ones: each variable’s effect (Cohen’s d) with its 95% confidence interval, overall or per material, line or shift.</p></div></div>`;
+			const head = pageHead({
+				eyebrow: "Data · Analysis",
+				title: "Correlation finder",
+				lead: "Which settings separate failed batches from good ones: each variable’s effect (Cohen’s d) with its 95% confidence interval, overall or per material, line or shift."
+			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
@@ -10291,9 +10324,19 @@ heartbeat_seconds = 30
 		id: "insights",
 		title: "Insights",
 		icon: "lightbulb",
+		crumbs(ctx) {
+			const n = selected$1();
+			return ctx.api && ctx.ontology.status === "ready" && n !== null ? [{
+				label: `#${n}`,
+				href: insightLink(n)
+			}] : [];
+		},
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Data · Analysis</div><h1>Insights</h1>
-        <p class="soft">Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer.</p></div></div>`;
+			const head = pageHead({
+				eyebrow: "Data · Analysis",
+				title: "Insights",
+				lead: "Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer."
+			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
@@ -10722,9 +10765,22 @@ heartbeat_seconds = 30
 		id: "apps",
 		title: "App Studio",
 		icon: "layout-grid",
+		crumbs(ctx) {
+			if (!ctx.api || ctx.ontology.status !== "ready") return [];
+			if (isNew()) return canEdit$1(ctx) ? [{ label: "New app" }] : [];
+			const n = selected();
+			if (n === null || listing$1?.key === listKey(ctx) && listing$1.items && !listing$1.items.some((a) => a.number === n)) return [];
+			return [{
+				label: `#${n}`,
+				href: appLink(n)
+			}, ...editKey() && canEdit$1(ctx) ? [{ label: "Change" }] : []];
+		},
 		render(ctx) {
-			const head = `<div class="page-head"><div><div class="eyebrow">Data · Apps</div><h1>App Studio</h1>
-        <p class="soft">Checks set up from templates, without code: a tool's wear, a process's control limits. Each one runs on a signal's latest readings when you open it.</p></div></div>`;
+			const head = pageHead({
+				eyebrow: "Data · Apps",
+				title: "App Studio",
+				lead: `Checks set up from templates, without code: a tool's wear, a process's control limits. Each one runs on a signal's latest readings when you open it.`
+			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Apps are kept by the Tiles API.`)}</div>`;
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">Loading from the Tiles API…</div>`;
@@ -10983,7 +11039,7 @@ heartbeat_seconds = 30
 		title: "Documents",
 		icon: "file-text",
 		render(ctx) {
-			const head = pageHead$1({
+			const head = pageHead({
 				eyebrow: "Data · Knowledge",
 				title: "Documents",
 				lead: "SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page."
@@ -11291,8 +11347,11 @@ heartbeat_seconds = 30
 		title: "Import data",
 		icon: "upload",
 		render(ctx) {
-			return `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Import data</h1>
-        <p class="soft">Backfill readings from CSV files and historian exports, mapped to signals.</p></div></div>
+			return `${pageHead({
+				eyebrow: "Data",
+				title: "Import data",
+				lead: "Backfill readings from CSV files and historian exports, mapped to signals."
+			})}
       <div class="stack gap-4">${importCard(ctx)}${historyCard()}</div>`;
 		},
 		bind(root, ctx) {
@@ -12107,11 +12166,21 @@ heartbeat_seconds = 30
 	function render() {
 		const view = currentView();
 		renderNav(view);
-		need(document, "#crumbs").innerHTML = `<span>Home</span>${view === view$19 ? "" : `<span class="crumb-sep">${icon("chevron-right", { size: 14 })}</span><b>${esc(view.title)}</b>`}`;
 		document.title = view === view$19 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		root.innerHTML = view.render(ctx);
 		view.bind?.(root, ctx);
+		need(document, "#crumbs").innerHTML = breadcrumbs([
+			{
+				label: "Home",
+				href: "#/"
+			},
+			...view === view$19 ? [] : [{
+				label: view.title,
+				href: `#/${view.id}`
+			}],
+			...view.crumbs?.(ctx) ?? []
+		]);
 		if (view.id !== shownView) {
 			shownView = view.id;
 			root.classList.remove("view-enter");

@@ -14,6 +14,7 @@ import {
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import type { Context, View } from './types.ts';
+import { pageHead } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 
 // Sign-in to the Tiles API, shown in API mode.
@@ -552,7 +553,7 @@ const view: View = {
     // The form shows what is being typed; the page follows what is saved.
     const typed = sourceDraft?.base === sourceKey(ds) ? sourceDraft : ds;
     return `
-      <div class="page-head"><div><div class="eyebrow">Workspace</div><h1>Settings</h1></div></div>
+      ${pageHead({ eyebrow: 'Workspace', title: 'Settings' })}
       <div class="grid g2">
         <form class="card stack gap-3" id="profile">
           <h2>Profile</h2>

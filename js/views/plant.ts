@@ -16,7 +16,8 @@ import type { FloorItem } from '../lib/shopfloor.ts';
 import type { Graph, OntologyNode } from '../lib/types.ts';
 import { when } from '../lib/warnings.ts';
 import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } from './floor-data.ts';
-import type { Context, View } from './types.ts';
+import type { Context, Crumb, View } from './types.ts';
+import { button, pageHead } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 
 // The plant navigator (T5.17): the ontology's hierarchy as places to drill into, site → workcenter
@@ -33,18 +34,8 @@ const uiState = (ctx: Context) => ctx.ui<Ui>('plant', { query: '' });
 let searching = false; // the search box has the focus
 let typing: ReturnType<typeof setTimeout> | undefined;
 
-const crumbs = (graph: Graph, id: string | null): string => {
-  const path = id ? trail(graph, id) : [];
-  const links = [
-    `<a href="#/plant">Plant</a>`,
-    ...path.map((n, i) =>
-      i === path.length - 1
-        ? `<b aria-current="page">${esc(n.label)}</b>`
-        : `<a href="${placeLink(n.id)}">${esc(n.label)}</a>`,
-    ),
-  ];
-  return `<nav class="plant-trail" aria-label="Where you are">${links.join('<span aria-hidden="true">›</span>')}</nav>`;
-};
+// The trail to the place the page last showed, for the breadcrumbs (worked out once, in render).
+let shownTrail: Crumb[] = [];
 
 const badge = (state: FloorItem['state'], count: number): string => {
   if (!count) return '<span class="badge good">OK</span>';
@@ -217,22 +208,26 @@ const view: View = {
   id: 'plant',
   title: 'Plant',
   icon: 'factory',
+  crumbs: () => shownTrail,
   render(ctx) {
     const ui = uiState(ctx);
     const graph = ctx.graph; // made afresh at each read: once for the whole page
     const tops = topPlaces(graph);
-    // One site: the page opens on it.
+    // The place the URL names; with one site, the page opens on it.
     const asked = placeFromHash(location.hash);
     const id = asked ?? (tops.length === 1 ? (tops[0] ?? null) : null);
     const node = id ? graph.nodes[id] : undefined;
+    shownTrail = node ? trail(graph, node.id).map((n) => ({ label: n.label, href: placeLink(n.id) })) : [];
     const title = node?.label ?? 'Plant';
     const kind = node ? node.type : 'Site → line → machine';
     const search = `<form class="plant-search" data-plant-search role="search">
         <input name="q" type="search" placeholder="Find a line or machine" aria-label="Find a place" value="${esc(ui.query)}" autocomplete="off">
       </form>`;
-    const head = `<div class="page-head"><div><div class="eyebrow">Operations · ${esc(kind)}</div><h1>${esc(title)}</h1>
-        ${crumbs(graph, node ? node.id : null)}</div>
-        <div class="row gap-2">${search}${ctx.api ? '<button class="btn" data-plant-refresh>Refresh</button>' : ''}</div></div>`;
+    const head = pageHead({
+      eyebrow: `Operations · ${kind}`,
+      title,
+      actionsHtml: `<div class="row gap-2">${search}${ctx.api ? button('Refresh', { attrs: { 'data-plant-refresh': true } }) : ''}</div>`,
+    });
     if (ctx.api && ctx.ontology.status === 'loading')
       return `${head}<div class="card">Loading from the Tiles API…</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')

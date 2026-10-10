@@ -5,6 +5,7 @@ import { dumbbell, fitWidth, hbars, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll, signed } from '../lib/dom.ts';
 import type { Material } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
+import { pageHead } from '../lib/ui.ts';
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -54,17 +55,15 @@ const view: View = {
     const warnHours = crossed >= 0 ? swapAt - crossed : 0;
 
     return `
-      <div class="page-head">
-        <div>
-          <div class="eyebrow">Operations · Correlation finder</div>
-          <h1>Why are cutter batches failing?</h1>
-          <p>Notching Cutter C-01 leaves inconsistent tab widths. ${ng} of ${rows.length} batches were NG. The finder ranks every process variable by how strongly it separates failed from healthy batches.</p>
-        </div>
-        <div class="seg" role="group" aria-label="Segmentation">
+      ${pageHead({
+        eyebrow: 'Operations · Correlation finder',
+        title: 'Why are cutter batches failing?',
+        lead: `Notching Cutter C-01 leaves inconsistent tab widths. ${ng} of ${rows.length} batches were NG. The finder ranks every process variable by how strongly it separates failed from healthy batches.`,
+        actionsHtml: `<div class="seg" role="group" aria-label="Segmentation">
           <button data-split="0" class="${ui.split ? '' : 'active'}">Pooled</button>
           <button data-split="1" class="${ui.split ? 'active' : ''}">Split by material</button>
-        </div>
-      </div>
+        </div>`,
+      })}
 
       <div class="grid g2 mb-4">
         <div class="card">

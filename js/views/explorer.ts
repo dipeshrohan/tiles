@@ -6,7 +6,7 @@ import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
 import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
-import { needsApi } from '../lib/ui.ts';
+import { needsApi, pageHead } from '../lib/ui.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -424,8 +424,11 @@ const view: View = {
   title: 'Data explorer',
   icon: 'chart-line',
   render(ctx) {
-    const head = `<div class="page-head"><div><div class="eyebrow">Data</div><h1>Data explorer</h1>
-        <p class="soft">Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in.</p></div></div>`;
+    const head = pageHead({
+      eyebrow: 'Data',
+      title: 'Data explorer',
+      lead: 'Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in.',
+    });
     if (!ctx.api || !ctx.ontology.site)
       return `${head}<div class="card">${needsApi(`Readings are kept in the Tiles API.`)}</div>`;
     const u = ui(ctx);

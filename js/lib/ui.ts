@@ -105,6 +105,22 @@ export function card(bodyHtml: string, o: { class?: string; attrs?: ExtraAttrs }
   return `<div${attrs({ class: classes('card', o.class), ...o.attrs })}>${bodyHtml}</div>`;
 }
 
+// Breadcrumbs (U1.06): links to each place above this one, the last (this one) marked current.
+export function breadcrumbs(trail: readonly { label: string; href?: string }[]): string {
+  const sep = `<span class="crumb-sep" aria-hidden="true">${icon('chevron-right', { size: 14 })}</span>`;
+  return `<ol>${trail
+    .map((c, i) => {
+      const last = i === trail.length - 1;
+      const item = last
+        ? `<b aria-current="page">${esc(c.label)}</b>`
+        : c.href
+          ? `<a${attrs({ href: c.href })}>${esc(c.label)}</a>`
+          : `<span>${esc(c.label)}</span>`;
+      return `<li>${i ? sep : ''}${item}</li>`;
+    })
+    .join('')}</ol>`;
+}
+
 // The top of a page: where it sits, its name, what it is for, and its actions on the right.
 export function pageHead(o: { eyebrow?: string; title: string; lead?: string; actionsHtml?: string }): string {
   return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ''}<h1>${esc(o.title)}</h1>${
