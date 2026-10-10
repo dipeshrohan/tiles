@@ -318,8 +318,9 @@ summary:focus-visible {
   animation: spin var(--dur-spin) linear infinite;
 }
 /* Reduced motion, asked by the system or (U6.06) in Tiles: nothing moves; things appear. */
+/* The skeletons' 300 ms wait isn't motion, so both rules leave it alone. */
 @media (prefers-reduced-motion: reduce) {
-  *,
+  *:not(.loading-shapes),
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
@@ -329,7 +330,7 @@ summary:focus-visible {
     scroll-behavior: auto !important;
   }
 }
-:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *:not(.loading-shapes),
 :root[data-motion='reduce'] *::before,
 :root[data-motion='reduce'] *::after {
   transition-duration: 0.01ms !important;
@@ -956,9 +957,9 @@ main {
   font-weight: 550;
   white-space: nowrap;
   transition:
-    background-color var(--dur) var(--ease-out),
-    color var(--dur) var(--ease-out),
-    box-shadow var(--dur) var(--ease-out);
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 .tab:hover {
   color: var(--ink);
@@ -986,9 +987,9 @@ main {
   color: var(--soft);
   font-size: var(--text-sm);
   transition:
-    background-color var(--dur) var(--ease-out),
-    color var(--dur) var(--ease-out),
-    box-shadow var(--dur) var(--ease-out);
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 .seg button:hover {
   color: var(--ink);
@@ -1353,12 +1354,6 @@ tr.selected td {
   flex-direction: column;
   gap: var(--space-2_5);
   animation: skeleton-wait var(--wait, 300ms) step-end both;
-}
-@media (prefers-reduced-motion: reduce) {
-  /* A wait, not motion: still 300 ms. */
-  .loading-shapes {
-    animation-duration: var(--wait, 300ms) !important;
-  }
 }
 @keyframes skeleton-wait {
   from {
@@ -2435,7 +2430,7 @@ kbd {
   font-size: var(--text-xs);
   line-height: var(--leading-tight);
   pointer-events: none;
-  animation: overlay-in var(--dur-fast) var(--ease-out);
+  animation: overlay-in var(--dur) var(--ease-out);
 }
 
 /* ---- shopfloor view (T5.16): read at arm's length, used with gloves ---- */
@@ -2589,9 +2584,9 @@ body.floor-full .topbar {
   text-decoration: none;
   font-size: var(--text-lg);
   transition:
-    border-color var(--dur) var(--ease-out),
-    transform var(--dur) var(--ease-out),
-    box-shadow var(--dur) var(--ease-out);
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 .place-card:hover,
 .place-card:focus-visible {
@@ -2748,7 +2743,7 @@ body.floor-full .topbar {
     z-index: var(--z-nav);
     width: 250px;
     transform: translateX(-100%);
-    transition: transform var(--dur) var(--ease-out);
+    transition: transform var(--dur-slow) var(--ease-out);
     box-shadow: var(--shadow);
   }
   .sidebar.open {

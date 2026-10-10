@@ -38,7 +38,7 @@ Spinners and shimmers turn at a steady speed (`linear`).
 
 ## Reduced motion
 
-When the system asks for less motion (`prefers-reduced-motion: reduce`), or a person turns it on in Tiles (U6.06 sets `data-motion="reduce"` on the root element), nothing moves. Things appear and go at once, and spinners and shimmers show without turning. One rule in `css/styles.css` does this for each case. A new animation needs nothing extra to follow it.
+When the system asks for less motion (`prefers-reduced-motion: reduce`), or a person turns it on in Tiles (U6.06 sets `data-motion="reduce"` on the root element), nothing moves. Things appear and go at once, and spinners and shimmers show without turning. One rule in `css/styles.css` does this for each case, leaving out only the skeletons' wait. A new animation needs nothing extra to follow it. A scroll started from script is out of CSS's reach: pass `behavior: scrollBehavior()` (`js/lib/dom.ts`), never `'smooth'`.
 
 ## Adding motion
 

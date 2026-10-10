@@ -530,9 +530,9 @@ function renderNav(active: View): void {
     `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
 }
 
+let enterWatched = false;
 let shownView: string | null = null; // the page last shown, to animate only a change of page
 let trackedView = ''; // the page last recorded as viewed (U1.09)
-let enterTimer: ReturnType<typeof setTimeout> | undefined;
 
 function render(): void {
   const view = currentView();
@@ -560,9 +560,14 @@ function render(): void {
     root.classList.remove('view-enter');
     void root.offsetWidth; // restart the animation
     root.classList.add('view-enter');
-    // Removed once the page has settled, so a later re-render (a refresh) doesn't play it again.
-    clearTimeout(enterTimer);
-    enterTimer = setTimeout(() => root.classList.remove('view-enter'), 600);
+    // Removed once its own animation ends (however long --dur-slow is), so a later re-render (a
+    // refresh) doesn't play it again. A child's animation ending bubbles here too: not that one.
+    if (!enterWatched) {
+      enterWatched = true;
+      root.addEventListener('animationend', (e) => {
+        if (e.target === root) root.classList.remove('view-enter');
+      });
+    }
   }
 }
 

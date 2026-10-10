@@ -35,6 +35,11 @@ test('only opacity and transform move: no layout in a transition or a keyframe',
     .filter((m) => layout.test(m[2]))
     .map((m) => `${lineOf(m.index)}: ${m[2].trim()}`);
   assert.deepEqual(transitions, []);
+  // `all` would move layout too.
+  const all = declarations('transition|transition-property')
+    .filter((m) => /(^|[\s,])all\b/.test(m[2].trim()))
+    .map((m) => `${lineOf(m.index)}: ${m[2].trim()}`);
+  assert.deepEqual(all, []);
   // Keyframes change opacity, transform, visibility (to show after a wait) and a shimmer's
   // background position (paint, not layout); nothing else.
   const allowed = new Set(['opacity', 'transform', 'visibility', 'background-position']);
@@ -64,7 +69,19 @@ test('reduced motion stops everything, asked by the system or by Tiles', () => {
   for (const block of stops) {
     for (const rule of ['transition-duration: 0.01ms', 'animation-duration: 0.01ms', 'animation-iteration-count: 1'])
       assert.ok(block.includes(rule), `${rule} in ${block.slice(0, 40)}`);
+    // The skeletons' 300 ms wait isn't motion: neither rule touches it.
+    assert.match(block, /\*:not\(\.loading-shapes\),/, block.slice(0, 40));
   }
+  assert.match(css, /\.loading-shapes \{[^}]*animation: skeleton-wait var\(--wait, 300ms\)/);
+});
+
+test('hover and press feedback (colour, border, shadow) changes over --dur-fast', () => {
+  const slow = declarations('transition')
+    .flatMap((m) => m[2].split(',').map((part) => [m.index, part.trim()]))
+    .filter(([, part]) => /^(color|background-color|border-color|box-shadow)\b/.test(part))
+    .filter(([, part]) => !/var\(--dur-fast\)/.test(part))
+    .map(([i, part]) => `${lineOf(i)}: ${part}`);
+  assert.deepEqual(slow, []);
 });
 
 test('the tokens are the guide’s: fast 120 ms, standard 200 ms, slow 320 ms, ease-out in, ease-in out', () => {
