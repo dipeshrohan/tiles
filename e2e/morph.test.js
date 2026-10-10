@@ -262,6 +262,62 @@ test('the result is what the HTML says: attributes, text, SVG and a changed tag'
   await page.close();
 });
 
+test('a drawing marked replace takes its new content whole; the focus stays on the same key (U3.07)', async () => {
+  const page = await blank();
+  const drawing = (ids) =>
+    `<svg data-morph="replace" viewBox="0 0 10 10">${ids.map((id) => `<g data-key="n-${id}" tabindex="0"><text>${id}</text></g>`).join('')}</svg>`;
+  await draw(page, drawing(['a', 'b', 'c']), 'replace');
+  await page.focus('[data-key="n-b"]');
+  const marked = await page.evaluate(() => {
+    window.oldB = document.querySelector('[data-key="n-b"]');
+    return true;
+  });
+  assert.ok(marked);
+  // A node folded away above it: b moves up a place, and the focus goes with it.
+  await draw(page, drawing(['c', 'b']));
+  const out = await page.evaluate(() => ({
+    keys: [...document.querySelectorAll('g')].map((g) => g.dataset.key),
+    focused: document.activeElement?.getAttribute('data-key'),
+    same: document.querySelector('[data-key="n-b"]') === window.oldB,
+  }));
+  assert.deepEqual(out, { keys: ['n-c', 'n-b'], focused: 'n-b', same: false });
+  // Gone from the new drawing: the focus is not put anywhere else.
+  await draw(page, drawing(['c']));
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-key') ?? null), null);
+  await page.close();
+});
+
+test('an element marked if-changed is left alone when drawn the same, and follows the page when not', async () => {
+  const page = await blank();
+  const form = (options) =>
+    `<form><select name="to" data-morph="if-changed">${options.map((o) => `<option>${o}</option>`).join('')}</select></form>`;
+  await draw(page, form(['a', 'b', 'c']), 'replace');
+  await draw(page, form(['a', 'b', 'c'])); // as drawn: nothing to compare
+  await page.evaluate(() => {
+    document.querySelector('option').dataset.seen = 'yes'; // only the element has this, not the HTML
+  });
+  await page.selectOption('select', 'b');
+  await draw(page, form(['a', 'b', 'c']));
+  await draw(page, form(['a', 'b', 'c']));
+  const kept = await page.evaluate(() => ({
+    value: document.querySelector('select').value,
+    seen: document.querySelector('option').dataset.seen ?? null,
+  }));
+  // Not compared: what lives on the options stays, and the choice made stays.
+  assert.deepEqual(kept, { value: 'b', seen: 'yes' });
+  // Its form sent with that choice, the same HTML puts the page's own choice back.
+  await page.evaluate(() => window.morphing.noteSent(document.querySelector('form')));
+  await draw(page, form(['a', 'b', 'c']));
+  assert.equal(await page.evaluate(() => document.querySelector('select').value), 'a');
+  await draw(page, form(['a', 'c', 'd']));
+  const changed = await page.evaluate(() => ({
+    options: [...document.querySelectorAll('option')].map((o) => o.textContent),
+    seen: document.querySelector('option').dataset.seen ?? null,
+  }));
+  assert.deepEqual(changed, { options: ['a', 'c', 'd'], seen: null });
+  await page.close();
+});
+
 test('patching a large page costs no more than drawing it afresh', async () => {
   const page = await blank();
   // About the ontology canvas at 2,000 nodes: an SVG group, a label and a line each.

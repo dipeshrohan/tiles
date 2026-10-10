@@ -60,6 +60,22 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
 
+  perf:
+    name: Performance budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      # Long tasks and Interaction to Next Paint on the heavy pages, Lighthouse on Home, the bundle's
+      # size (U3.07, e2e/perf/perf.test.js).
+      - run: npm run test:perf
+
   visual:
     name: Visual regression
     runs-on: ubuntu-latest

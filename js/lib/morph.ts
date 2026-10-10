@@ -14,9 +14,18 @@
 // page opens or closes itself (follows the HTML).
 let drawn = new WeakMap<HTMLDetailsElement, boolean>();
 
+// What an element marked data-morph="if-changed" was last drawn from: drawn the same again, its
+// content is left as it is (what lives on it stays; its attributes and value still follow).
+let drawnFrom = new WeakMap<Element, Element>();
+
 // Sections new to the page are drawn as they are now; one kept is noted in attributes().
 function remember(root: ParentNode): void {
   root.querySelectorAll('details').forEach((d) => drawn.has(d) || drawn.set(d, d.open));
+  // An element marked if-changed, new to the page, is as its HTML says: a copy is what it was drawn
+  // from (so the first patch after it is drawn can leave it alone too).
+  root
+    .querySelectorAll('[data-morph="if-changed"]')
+    .forEach((el) => drawnFrom.has(el) || drawnFrom.set(el, el.cloneNode(true) as Element));
 }
 
 // Replaces what `root` holds (a new page: nothing to keep), remembering its sections.
@@ -166,15 +175,21 @@ function node(old: Node, next: Node): void {
     return;
   }
   const field = isField(old);
+  const how = next.getAttribute('data-morph');
+  if (how === 'if-changed' && unchanged(old, next)) {
+    // The same content as last time (a select of 2,000 nodes, U3.07): nothing to compare, and what
+    // its HTML says it holds is as before, so a field changes only if its form was sent with it.
+    attributes(old, next);
+    const sent = field ? sentWith.get(old) : undefined;
+    if (field && sent !== undefined && sent === current(old)) values(old);
+    return;
+  }
   // Before anything changes: typed into (and not sent since), and what its HTML said.
   const typed = field && current(old) !== drawnAs(old) && sentWith.get(old) !== current(old);
   const was = field ? drawnAs(old) : '';
   attributes(old, next);
-  const how = next.getAttribute('data-morph');
   if (how === 'replace') wholesale(old, next);
-  else if (how === 'if-changed' && unchanged(old, next)) {
-    // the same content as last time: nothing to compare (a select of 2,000 nodes, U3.07)
-  } else if (!(old instanceof HTMLTextAreaElement)) children(old, next);
+  else if (!(old instanceof HTMLTextAreaElement)) children(old, next);
   else if (old.defaultValue !== next.textContent) old.defaultValue = next.textContent ?? '';
   if (field && (!typed || drawnAs(old) !== was)) values(old);
 }
@@ -194,9 +209,6 @@ function wholesale(old: Element, next: Element): void {
     }
 }
 
-// What an element marked data-morph="if-changed" was last drawn from: drawn the same again, its
-// content is left as it is (what lives on it stays; its attributes and value still follow).
-let drawnFrom = new WeakMap<Element, Element>();
 function unchanged(old: Element, next: Element): boolean {
   const before = drawnFrom.get(old);
   drawnFrom.set(old, next);

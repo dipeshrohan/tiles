@@ -668,10 +668,10 @@ function badges(): Record<string, NavBadge> {
 function renderNav(active: View): void {
   const p = prefs();
   document.body.classList.toggle('nav-rail', p.rail);
-  morph(
-    need(document, '#nav'),
-    navHtml({ groups: NAV_GROUPS, active: active.id, under: active.under, prefs: p, badges: badges() }),
-  );
+  const html = navHtml({ groups: NAV_GROUPS, active: active.id, under: active.under, prefs: p, badges: badges() });
+  // Drawn as before (most redraws of a page): nothing to patch (U3.07).
+  if (html !== navDrawn) morph(need(document, '#nav'), html);
+  navDrawn = html;
   refreshCounts();
   const initials = state.user.name
     .split(/\s+/)
@@ -679,9 +679,12 @@ function renderNav(active: View): void {
     .join('')
     .slice(0, 2)
     .toUpperCase();
-  need(document, '#user').innerHTML =
-    `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+  const user = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+  if (user !== userDrawn) need(document, '#user').innerHTML = user;
+  userDrawn = user;
 }
+let navDrawn = '';
+let userDrawn = '';
 
 let addressed = ''; // the address the page last wrote itself (its query is the page's own)
 let shownView: string | null = null; // the page last shown: drawn again, it is patched in place

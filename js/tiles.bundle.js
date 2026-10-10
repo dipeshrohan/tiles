@@ -1742,8 +1742,10 @@
 	//#endregion
 	//#region js/lib/morph.ts
 	var drawn$1 = /* @__PURE__ */ new WeakMap();
+	var drawnFrom = /* @__PURE__ */ new WeakMap();
 	function remember$1(root) {
 		root.querySelectorAll("details").forEach((d) => drawn$1.has(d) || drawn$1.set(d, d.open));
+		root.querySelectorAll("[data-morph=\"if-changed\"]").forEach((el) => drawnFrom.has(el) || drawnFrom.set(el, el.cloneNode(true)));
 	}
 	function replace(root, html) {
 		root.innerHTML = html;
@@ -1845,12 +1847,18 @@
 			return;
 		}
 		const field = isField(old);
+		const how = next.getAttribute("data-morph");
+		if (how === "if-changed" && unchanged(old, next)) {
+			attributes(old, next);
+			const sent = field ? sentWith.get(old) : void 0;
+			if (field && sent !== void 0 && sent === current$2(old)) values(old);
+			return;
+		}
 		const typed = field && current$2(old) !== drawnAs(old) && sentWith.get(old) !== current$2(old);
 		const was = field ? drawnAs(old) : "";
 		attributes(old, next);
-		const how = next.getAttribute("data-morph");
 		if (how === "replace") wholesale(old, next);
-		else if (how === "if-changed" && unchanged(old, next)) {} else if (!(old instanceof HTMLTextAreaElement)) children(old, next);
+		else if (!(old instanceof HTMLTextAreaElement)) children(old, next);
 		else if (old.defaultValue !== next.textContent) old.defaultValue = next.textContent ?? "";
 		if (field && (!typed || drawnAs(old) !== was)) values(old);
 	}
@@ -1864,7 +1872,6 @@
 			return;
 		}
 	}
-	var drawnFrom = /* @__PURE__ */ new WeakMap();
 	function unchanged(old, next) {
 		const before = drawnFrom.get(old);
 		drawnFrom.set(old, next);
@@ -4598,9 +4605,34 @@
 		const b = (n, what) => n ? `<span class="badge"><span class="${n > 0 ? "plus" : "minus"}">${n > 0 ? "+" : "−"}${Math.abs(n)}</span> ${what}</span>` : "";
 		return b(s.nodes, "node") + b(s.edges, "edge") + b(s.props, "prop");
 	}
+	var hierarchies = /* @__PURE__ */ new WeakMap();
+	function hierarchyOf(graph) {
+		let h = hierarchies.get(graph);
+		if (!h) hierarchies.set(graph, h = hierarchy(graph));
+		return h;
+	}
+	var optionLists = /* @__PURE__ */ new WeakMap();
+	var versions = /* @__PURE__ */ new WeakMap();
+	var lastVersion = 0;
+	function versionOf(graph) {
+		let v = versions.get(graph);
+		if (v === void 0) versions.set(graph, v = ++lastVersion);
+		return v;
+	}
+	function fillNodeOptions(select, graph) {
+		if (select.options.length <= 1) select.insertAdjacentHTML("beforeend", nodeOptions(graph));
+	}
+	function nodeOptions(graph) {
+		let html = optionLists.get(graph);
+		if (html === void 0) {
+			html = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label)).map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join("");
+			optionLists.set(graph, html);
+		}
+		return html;
+	}
 	function canvas(ctx, graph, health, ui) {
 		const hidden = new Set(ui.hidden);
-		const h = hierarchy(graph);
+		const h = hierarchyOf(graph);
 		const collapsed = collapsedSet(graph, h, ui);
 		const folded = hiddenByCollapse(graph, collapsed, h);
 		const show = (id) => {
@@ -4786,7 +4818,7 @@
 		ctx.rerender();
 	}
 	function reveal(graph, ui, id) {
-		const h = hierarchy(graph);
+		const h = hierarchyOf(graph);
 		const collapsed = collapsedSet(graph, h, ui);
 		for (const above of revealPath(graph, id, collapsed, h)) collapsed.delete(above);
 		ui.collapsed = [...collapsed];
@@ -4927,7 +4959,7 @@
 			signal: bound()
 		});
 		const toggleFold = (id) => {
-			const h = hierarchy(ctx.graph);
+			const h = hierarchyOf(ctx.graph);
 			const collapsed = collapsedSet(ctx.graph, h, ui);
 			if (collapsed.has(id)) collapsed.delete(id);
 			else if (h.children.get(id)?.length) collapsed.add(id);
@@ -4947,7 +4979,7 @@
 		onAll(root, "[data-fold-level]", "change", (el) => {
 			const value = el.value;
 			const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
-			ui.collapsed = levelNodes(ctx.graph, hierarchy(ctx.graph), types);
+			ui.collapsed = levelNodes(ctx.graph, hierarchyOf(ctx.graph), types);
 			ui.view = null;
 			ctx.rerender();
 		});
@@ -4997,14 +5029,13 @@
       <p class="small soft">Your role on this site is viewer. Select a node on the canvas to inspect it. To make changes, ask a site admin for the engineer role.</p>`;
 	}
 	function newNodeForm(graph) {
-		const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
 		return `
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
       <form class="stack gap-2_5 max-w-form" id="node-form">
         <label class="field">Type<select name="type">${Object.keys(NODE_TYPES).map((t) => `<option>${t}</option>`).join("")}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
-        <label class="field">Link from (optional)<select name="from" data-morph="if-changed"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join("")}</select></label>
+        <label class="field">Link from (optional)<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">— none —</option></select></label>
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join("")}</select></label>
         <button class="btn primary" type="submit">+ Stage node</button>
       </form>`;
@@ -5329,6 +5360,11 @@
 					}
 				});
 			});
+			for (const type of [
+				"focus",
+				"pointerdown",
+				"keydown"
+			]) onAll(root, "select[data-node-options]", type, (el) => fillNodeOptions(el, ctx.graph));
 			onSubmit(root, "#node-form", (form) => {
 				const type = field$2(form, "type");
 				const label = field$2(form, "label").trim();
@@ -14678,17 +14714,22 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function renderNav(active) {
 		const p = prefs();
 		document.body.classList.toggle("nav-rail", p.rail);
-		morph(need(document, "#nav"), navHtml({
+		const html = navHtml({
 			groups: NAV_GROUPS,
 			active: active.id,
 			under: active.under,
 			prefs: p,
 			badges: badges()
-		}));
+		});
+		if (html !== navDrawn) morph(need(document, "#nav"), html);
+		navDrawn = html;
 		refreshCounts();
-		const initials = state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase();
-		need(document, "#user").innerHTML = `<span class="avatar">${esc(initials)}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+		const user = `<span class="avatar">${esc(state.user.name.split(/\s+/).map((p) => p[0] ?? "").join("").slice(0, 2).toUpperCase())}</span><div><div>${esc(state.user.name)}</div><div class="muted small">${esc(state.user.email)}</div></div>`;
+		if (user !== userDrawn) need(document, "#user").innerHTML = user;
+		userDrawn = user;
 	}
+	var navDrawn = "";
+	var userDrawn = "";
 	var addressed = "";
 	var shownView = null;
 	var trackedView = "";

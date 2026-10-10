@@ -111,9 +111,44 @@ function statBadges(s: DiffStats): string {
   return b(s.nodes, 'node') + b(s.edges, 'edge') + b(s.props, 'prop');
 }
 
+// Worked out once per graph (U3.07): the page's graph is made again only when the ontology changes,
+// never changed in place, and a fold or a selection draws the page again with the same one.
+const hierarchies = new WeakMap<Graph, ReturnType<typeof hierarchy>>();
+function hierarchyOf(graph: Graph): ReturnType<typeof hierarchy> {
+  let h = hierarchies.get(graph);
+  if (!h) hierarchies.set(graph, (h = hierarchy(graph)));
+  return h;
+}
+const optionLists = new WeakMap<Graph, string>();
+// A number per graph: a node picker drawn for another graph is drawn again (its options go).
+const versions = new WeakMap<Graph, number>();
+let lastVersion = 0;
+function versionOf(graph: Graph): number {
+  let v = versions.get(graph);
+  if (v === undefined) versions.set(graph, (v = ++lastVersion));
+  return v;
+}
+// A node picker gets its options as it is first used (U3.07): 2,000 options drawn into the page
+// made every redraw of a large plant slower, the options unchanged.
+function fillNodeOptions(select: HTMLSelectElement, graph: Graph): void {
+  if (select.options.length <= 1) select.insertAdjacentHTML('beforeend', nodeOptions(graph));
+}
+// Every node as an option, by label: 2,000 of them in a large plant.
+function nodeOptions(graph: Graph): string {
+  let html = optionLists.get(graph);
+  if (html === undefined) {
+    html = Object.values(graph.nodes)
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`)
+      .join('');
+    optionLists.set(graph, html);
+  }
+  return html;
+}
+
 function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi): string {
   const hidden = new Set(ui.hidden);
-  const h = hierarchy(graph);
+  const h = hierarchyOf(graph);
   const collapsed = collapsedSet(graph, h, ui);
   const folded = hiddenByCollapse(graph, collapsed, h);
   const show = (id: string) => {
@@ -340,7 +375,7 @@ async function planImport(ctx: Context): Promise<void> {
 
 // Makes `id` show on the canvas: opens the folded nodes above it and shows its type.
 function reveal(graph: Graph, ui: OntologyUi, id: string): void {
-  const h = hierarchy(graph);
+  const h = hierarchyOf(graph);
   const collapsed = collapsedSet(graph, h, ui);
   for (const above of revealPath(graph, id, collapsed, h)) collapsed.delete(above);
   ui.collapsed = [...collapsed];
@@ -473,7 +508,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
 
   // Fold or open a node.
   const toggleFold = (id: string) => {
-    const h = hierarchy(ctx.graph);
+    const h = hierarchyOf(ctx.graph);
     const collapsed = collapsedSet(ctx.graph, h, ui);
     if (collapsed.has(id)) collapsed.delete(id);
     else if (h.children.get(id)?.length) collapsed.add(id);
@@ -499,7 +534,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   onAll(root, '[data-fold-level]', 'change', (el) => {
     const value = (el as HTMLSelectElement).value;
     const types = LEVELS.find(([v]) => v === value)?.[2] ?? [];
-    ui.collapsed = levelNodes(ctx.graph, hierarchy(ctx.graph), types);
+    ui.collapsed = levelNodes(ctx.graph, hierarchyOf(ctx.graph), types);
     ui.view = null;
     ctx.rerender();
   });
@@ -560,7 +595,6 @@ function viewOnlyNote(): string {
 }
 
 function newNodeForm(graph: Graph): string {
-  const nodes = Object.values(graph.nodes).sort((a, b) => a.label.localeCompare(b.label));
   return `
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
@@ -569,7 +603,7 @@ function newNodeForm(graph: Graph): string {
           .map((t) => `<option>${t}</option>`)
           .join('')}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
-        <label class="field">Link from (optional)<select name="from" data-morph="if-changed"><option value="">— none —</option>${nodes.map((n) => `<option value="${esc(n.id)}">${esc(n.label)}</option>`).join('')}</select></label>
+        <label class="field">Link from (optional)<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">— none —</option></select></label>
         <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
         <button class="btn primary" type="submit">+ Stage node</button>
       </form>`;
@@ -933,6 +967,8 @@ const view: View = {
       const to = field(form, 'to');
       stageOp({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
     });
+    for (const type of ['focus', 'pointerdown', 'keydown'] as const)
+      onAll(root, 'select[data-node-options]', type, (el) => fillNodeOptions(el as HTMLSelectElement, ctx.graph));
     onSubmit(root, '#node-form', (form) => {
       const type = field(form, 'type') as NodeType;
       const label = field(form, 'label').trim();

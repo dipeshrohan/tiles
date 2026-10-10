@@ -2158,6 +2158,7 @@ test('change reviews: request a review, reject it, rework it, approve it', async
   await a.page.waitForSelector('.source-bar:has-text("Every change needs a review")');
   await a.page.fill('#node-form [name=label]', 'Alarm stream DC-02');
   await a.page.selectOption('#node-form [name=type]', 'Signal');
+  await a.page.focus('#node-form [name=from]'); // its options come as it is first used (U3.07)
   await a.page.selectOption('#node-form [name=from]', 'line-1');
   await a.page.click('#node-form button');
   await a.page.waitForSelector('#commit-form');
