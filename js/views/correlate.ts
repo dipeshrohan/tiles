@@ -4,7 +4,7 @@ import { forestPlot, inferColumns, parseNgValues, typedRows } from '../lib/datas
 import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '../lib/api.ts';
 import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
-import { removeLater } from '../lib/undo.ts';
+import { isRemoving, removeLater } from '../lib/undo.ts';
 import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 
 // The correlation finder (T3.11): which settings separate failed batches from good ones, on real
@@ -70,7 +70,9 @@ async function loadDetail(ctx: Context, id: string): Promise<void> {
 
 function listCard(ctx: Context, ui: Ui): string {
   const canEdit = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
-  const items = listing?.items?.filter((d) => !deleting.has(d.id));
+  const removing = (id: string) =>
+    isRemoving({ kind: 'dataset', api: ctx.api?.baseUrl ?? '', site: siteId(ctx) ?? '', id });
+  const items = listing?.items?.filter((d) => !removing(d.id));
   const rows =
     items === null || items === undefined
       ? skeleton.list()
@@ -205,10 +207,7 @@ async function uploadFile(ctx: Context, file: File, name: string): Promise<void>
   }
 }
 
-// Batch tables deleted with an Undo toast still showing (U2.03): kept out of the list until sent.
-const deleting = new Set<string>();
-
-// Deleted at once, with Undo: sent when the toast goes, so Undo needs nothing back.
+// Deleted at once, with Undo (U2.03): sent when the toast goes, so Undo needs nothing back.
 function removeDataset(ctx: Context): void {
   const site = siteId(ctx);
   const ui = uiState(ctx);
@@ -219,23 +218,21 @@ function removeDataset(ctx: Context): void {
   removeLater({
     toast: ctx.toast,
     message: `${d.name} deleted`,
+    removal: { kind: 'dataset', api: api.baseUrl, site, id: d.id },
     hide: () => {
-      deleting.add(d.id);
       Object.assign(ui, { selected: null, outcome: '', ngText: '', variables: null, split: '' });
       ctx.rerender();
     },
     restore: () => {
-      deleting.delete(d.id);
-      if (!ui.selected) Object.assign(ui, before);
+      if (siteId(ctx) === site && !ui.selected) Object.assign(ui, before);
       ctx.rerender();
     },
-    send: () =>
-      api.datasets.remove(site, d.id).then(() => {
-        deleting.delete(d.id);
-        if (detail?.id === d.id) detail = null;
-        listing = null;
-        ctx.rerender();
-      }),
+    send: () => api.datasets.remove(site, d.id),
+    sent: () => {
+      if (detail?.id === d.id) detail = null;
+      listing = null;
+      ctx.rerender();
+    },
   });
 }
 

@@ -17,6 +17,8 @@ export interface ToastOptions {
   // Called once when the toast goes without its action pressed (it timed out, was dismissed or
   // pushed out): an Undo toast's change is then made for good (U2.03).
   onDone?: () => void;
+  // Never merged with another toast of the same words: each Undo toast undoes its own change.
+  distinct?: boolean;
 }
 
 const DURATION: Record<ToastType, number> = {
@@ -102,7 +104,7 @@ export function createToaster(stack: HTMLElement): Toast {
     // isn't read out again: a page polling a failing API would otherwise interrupt every time.
     let repeat = false;
     for (const old of stack.querySelectorAll<HTMLElement>('.toast-item:not([data-state=closed])')) {
-      if (old.dataset.message !== message) continue;
+      if (opts.distinct || old.dataset.distinct || old.dataset.message !== message) continue;
       repeat = true;
       remove(old);
     }
@@ -110,6 +112,7 @@ export function createToaster(stack: HTMLElement): Toast {
     item.className = 'toast-item';
     item.dataset.type = type;
     item.dataset.message = message;
+    if (opts.distinct) item.dataset.distinct = 'true';
     item.dataset.state = 'open';
     const symbol = ICON[type];
     item.innerHTML = `${symbol ? `<span class="toast-icon">${icon(symbol)}</span>` : ''}<div class="toast-text"><div class="toast-title">${esc(message)}</div>${

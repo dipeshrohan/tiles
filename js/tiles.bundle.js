@@ -887,11 +887,11 @@
 	var SENT_FOR = 3e4;
 	var lastSent = null;
 	var keeping = null;
-	var keyOf = (form) => JSON.stringify([form.id, Object.entries(form.dataset).filter(([k]) => k !== "checked")]);
+	var keyOf$1 = (form) => JSON.stringify([form.id, Object.entries(form.dataset).filter(([k]) => k !== "checked")]);
 	function sameForm(doc, key) {
 		const id = JSON.parse(key)[0];
 		const again = id ? doc.getElementById(id) : null;
-		return again instanceof HTMLFormElement && keyOf(again) === key ? again : null;
+		return again instanceof HTMLFormElement && keyOf$1(again) === key ? again : null;
 	}
 	function sentForm() {
 		if (!lastSent || Date.now() - lastSent.at > SENT_FOR) return null;
@@ -903,7 +903,7 @@
 		if (!form.id || typeof MutationObserver === "undefined") return;
 		let shownOn = form;
 		const doc = form.ownerDocument;
-		const key = keyOf(form);
+		const key = keyOf$1(form);
 		const observer = new MutationObserver(() => {
 			const again = sameForm(doc, key);
 			if (again && again !== shownOn && !again.querySelector(".error-summary")) {
@@ -939,7 +939,7 @@
 		keeping?.stop();
 		lastSent = {
 			form,
-			key: keyOf(form),
+			key: keyOf$1(form),
 			at: Date.now()
 		};
 		const errors = validate(form);
@@ -1058,7 +1058,6 @@
 			try {
 				res = await doFetch(base + path, {
 					method,
-					keepalive: method === "DELETE",
 					headers,
 					body: file ? file.body : body === void 0 ? void 0 : JSON.stringify(body)
 				});
@@ -2972,34 +2971,73 @@
 	//#endregion
 	//#region js/lib/undo.ts
 	var UNDO_MS = 8e3;
-	var waiting = /* @__PURE__ */ new Set();
+	var SAVED_KEY = "tiles.waitingRemovals";
+	var keyOf = (r) => `${r.api}|${r.site}|${r.kind}|${r.id}`;
+	var waiting = /* @__PURE__ */ new Map();
+	var hidden = /* @__PURE__ */ new Set();
+	var isRemoving = (r) => hidden.has(keyOf(r));
 	function removeLater(o) {
+		const key = keyOf(o.removal);
+		waiting.set(key, o.removal);
+		hidden.add(key);
 		o.hide();
 		let settled = false;
 		const send = () => {
 			if (settled) return;
 			settled = true;
-			waiting.delete(send);
-			o.send().catch(() => o.restore());
+			waiting.delete(key);
+			o.send().then(async () => {
+				await o.sent?.();
+				hidden.delete(key);
+			}, () => {
+				hidden.delete(key);
+				o.restore();
+			});
 		};
-		waiting.add(send);
 		o.toast(o.message, {
 			type: "success",
 			duration: UNDO_MS,
+			distinct: true,
 			action: {
 				label: "Undo",
 				run: () => {
 					if (settled) return;
 					settled = true;
-					waiting.delete(send);
+					waiting.delete(key);
+					hidden.delete(key);
 					o.restore();
 				}
 			},
 			onDone: send
 		});
 	}
-	function sendWaiting() {
-		for (const send of [...waiting]) send();
+	function saveWaiting(storage) {
+		try {
+			if (waiting.size) storage.setItem(SAVED_KEY, JSON.stringify([...waiting.values()]));
+			else storage.removeItem(SAVED_KEY);
+		} catch {}
+	}
+	function keepWaiting(storage) {
+		try {
+			storage.removeItem(SAVED_KEY);
+		} catch {}
+	}
+	function takeSaved(storage, api) {
+		try {
+			const raw = storage.getItem(SAVED_KEY);
+			const list = raw ? JSON.parse(raw) : [];
+			const saved = Array.isArray(list) ? list.filter((r) => typeof r === "object" && r !== null && (r.kind === "conversation" || r.kind === "dataset") && [
+				r.api,
+				r.site,
+				r.id
+			].every((v) => typeof v === "string")) : [];
+			const others = saved.filter((r) => r.api !== api);
+			if (others.length) storage.setItem(SAVED_KEY, JSON.stringify(others));
+			else storage.removeItem(SAVED_KEY);
+			return saved.filter((r) => r.api === api);
+		} catch {
+			return [];
+		}
 	}
 	async function removeNow(o) {
 		try {
@@ -3010,6 +3048,7 @@
 		o.toast(o.message, {
 			type: "success",
 			duration: UNDO_MS,
+			distinct: true,
 			action: {
 				label: "Undo",
 				run: () => void o.undo().then(() => {
@@ -3036,7 +3075,6 @@
 	var draft$4 = "";
 	var rating = null;
 	var failure = null;
-	var deleting$1 = /* @__PURE__ */ new Set();
 	var siteId$10 = (ctx) => ctx.ontology.site?.id ?? null;
 	var threadKey = (ctx) => `${siteId$10(ctx)}|${uiState$13(ctx).conversation}`;
 	onNavigate((hash) => {
@@ -3106,7 +3144,14 @@
 	}
 	function remoteRender(ctx) {
 		const ui = uiState$13(ctx);
-		const list = remote$1?.conversations?.filter((c) => !deleting$1.has(c.id));
+		const api = ctx.api?.baseUrl ?? "";
+		const site = siteId$10(ctx) ?? "";
+		const list = remote$1?.conversations?.filter((c) => !isRemoving({
+			kind: "conversation",
+			api,
+			site,
+			id: c.id
+		}));
 		const items = list === null || list === void 0 ? skeleton.list() : list.map((c) => `<button class="review-row ${ui.conversation === c.id ? "sel" : ""}" data-conversation="${esc(c.id)}"><b>${esc(c.title || "New conversation")}</b><span class="small muted">${new Date(c.updated_at).toLocaleString("en-GB", {
 			dateStyle: "medium",
 			timeStyle: "short"
@@ -3281,8 +3326,13 @@
 			removeLater({
 				toast: ctx.toast,
 				message: "Conversation deleted",
+				removal: {
+					kind: "conversation",
+					api: api.baseUrl,
+					site,
+					id
+				},
 				hide: () => {
-					deleting$1.add(id);
 					if (ui.conversation === id) {
 						ui.conversation = null;
 						thread = null;
@@ -3290,14 +3340,11 @@
 					ctx.rerender();
 				},
 				restore: () => {
-					deleting$1.delete(id);
-					if (!ui.conversation) ui.conversation = id;
+					if (siteId$10(ctx) === site && !ui.conversation) ui.conversation = id;
 					ctx.rerender();
 				},
-				send: () => api.copilot.remove(site, id).then(() => {
-					deleting$1.delete(id);
-					loadRemote(ctx);
-				})
+				send: () => api.copilot.remove(site, id),
+				sent: () => loadRemote(ctx)
 			});
 		});
 		onAll(root, "[data-cite]", "click", (el, e) => {
@@ -10987,7 +11034,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}
 	function listCard$3(ctx, ui) {
 		const canEdit = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
-		const items = listing$3?.items?.filter((d) => !deleting.has(d.id));
+		const removing = (id) => isRemoving({
+			kind: "dataset",
+			api: ctx.api?.baseUrl ?? "",
+			site: siteId$3(ctx) ?? "",
+			id
+		});
+		const items = listing$3?.items?.filter((d) => !removing(d.id));
 		return `<div class="card"><div class="review-list" data-dataset-list>${items === null || items === void 0 ? skeleton.list() : items.map((d) => `<button class="review-row ${ui.selected === d.id ? "sel" : ""}" data-dataset="${esc(d.id)}">
               <b>${esc(d.name)}</b>
               <span class="small muted">${fmt$1(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ""}</span>
@@ -11097,7 +11150,6 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			ctx.rerender();
 		}
 	}
-	var deleting = /* @__PURE__ */ new Set();
 	function removeDataset(ctx) {
 		const site = siteId$3(ctx);
 		const ui = uiState$2(ctx);
@@ -11108,8 +11160,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		removeLater({
 			toast: ctx.toast,
 			message: `${d.name} deleted`,
+			removal: {
+				kind: "dataset",
+				api: api.baseUrl,
+				site,
+				id: d.id
+			},
 			hide: () => {
-				deleting.add(d.id);
 				Object.assign(ui, {
 					selected: null,
 					outcome: "",
@@ -11120,16 +11177,15 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				ctx.rerender();
 			},
 			restore: () => {
-				deleting.delete(d.id);
-				if (!ui.selected) Object.assign(ui, before);
+				if (siteId$3(ctx) === site && !ui.selected) Object.assign(ui, before);
 				ctx.rerender();
 			},
-			send: () => api.datasets.remove(site, d.id).then(() => {
-				deleting.delete(d.id);
+			send: () => api.datasets.remove(site, d.id),
+			sent: () => {
 				if (detail$1?.id === d.id) detail$1 = null;
 				listing$3 = null;
 				ctx.rerender();
-			})
+			}
 		});
 	}
 	async function saveInsight(ctx) {
@@ -12663,7 +12719,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const type = opts.type ?? "default";
 			let repeat = false;
 			for (const old of stack.querySelectorAll(".toast-item:not([data-state=closed])")) {
-				if (old.dataset.message !== message) continue;
+				if (opts.distinct || old.dataset.distinct || old.dataset.message !== message) continue;
 				repeat = true;
 				remove(old);
 			}
@@ -12671,6 +12727,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			item.className = "toast-item";
 			item.dataset.type = type;
 			item.dataset.message = message;
+			if (opts.distinct) item.dataset.distinct = "true";
 			item.dataset.state = "open";
 			const symbol = ICON[type];
 			item.innerHTML = `${symbol ? `<span class="toast-icon">${icon(symbol)}</span>` : ""}<div class="toast-text"><div class="toast-title">${esc(message)}</div>${opts.description ? `<div class="toast-desc">${esc(opts.description)}</div>` : ""}${opts.requestId ? `<div class="toast-meta">Request ID <code>${esc(opts.requestId)}</code> <button class="toast-copy" type="button" data-toast-copy aria-label="Copy the request ID" data-tooltip="Copy">${icon("copy", { size: 12 })}</button></div>` : ""}</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ""}<button class="toast-close" type="button" aria-label="Dismiss">${icon("x", { size: 14 })}</button>`;
@@ -13491,7 +13548,15 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		offline = null;
 		need(document, "#offline").hidden = true;
 	}
-	window.addEventListener("pagehide", sendWaiting);
+	window.addEventListener("pagehide", () => saveWaiting(localStorage));
+	window.addEventListener("pageshow", (e) => {
+		if (e.persisted) keepWaiting(localStorage);
+	});
+	async function sendSaved() {
+		const client = api;
+		if (!client) return;
+		for (const r of takeSaved(localStorage, client.baseUrl)) await (r.kind === "conversation" ? client.copilot.remove : client.datasets.remove)(r.site, r.id).catch(() => void 0);
+	}
 	window.addEventListener("offline", () => showOffline("offline"));
 	function reconnect() {
 		if (!api) return;
@@ -13645,6 +13710,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	(async () => {
 		await finishSignIn();
 		await refreshAuth();
+		await sendSaved();
 		await connectOntology();
 	})();
 	//#endregion

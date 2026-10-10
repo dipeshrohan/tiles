@@ -13,7 +13,7 @@ import {
 import type { CopilotConversation } from '../lib/api.ts';
 import { esc, need, onAction, onAll, onSubmit, field, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
-import { removeLater } from '../lib/undo.ts';
+import { isRemoving, removeLater } from '../lib/undo.ts';
 import { emptyState, loadingState, button, pageHead, skeleton } from '../lib/ui.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
@@ -46,8 +46,6 @@ let draft = ''; // the question being typed, kept across re-renders
 let rating: { key: string; comment: string } | null = null; // a thumbs-down comment being written
 // An answer that failed (the error isn't stored), shown after the conversation reloads.
 let failure: { key: string; question: string; error: string } | null = null;
-// Conversations deleted with an Undo toast still showing (U2.03): kept out of the list until sent.
-const deleting = new Set<string>();
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const threadKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).conversation}`;
@@ -128,7 +126,10 @@ function answerBody(a: Answer, cited: Answer['tools'], conversation: string | nu
 
 function remoteRender(ctx: Context): string {
   const ui = uiState(ctx);
-  const list = remote?.conversations?.filter((c) => !deleting.has(c.id));
+  const api = ctx.api?.baseUrl ?? '';
+  const site = siteId(ctx) ?? '';
+  // Deleted with an Undo toast still showing (U2.03): kept out of the list.
+  const list = remote?.conversations?.filter((c) => !isRemoving({ kind: 'conversation', api, site, id: c.id }));
   const items =
     list === null || list === undefined
       ? skeleton.list()
@@ -316,8 +317,8 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
     removeLater({
       toast: ctx.toast,
       message: 'Conversation deleted',
+      removal: { kind: 'conversation', api: api.baseUrl, site, id },
       hide: () => {
-        deleting.add(id);
         if (ui.conversation === id) {
           ui.conversation = null;
           thread = null;
@@ -325,15 +326,12 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
         ctx.rerender();
       },
       restore: () => {
-        deleting.delete(id);
-        if (!ui.conversation) ui.conversation = id;
+        // Opened again only where it was, and if nothing else was opened meanwhile.
+        if (siteId(ctx) === site && !ui.conversation) ui.conversation = id;
         ctx.rerender();
       },
-      send: () =>
-        api.copilot.remove(site, id).then(() => {
-          deleting.delete(id);
-          void loadRemote(ctx);
-        }),
+      send: () => api.copilot.remove(site, id),
+      sent: () => loadRemote(ctx),
     });
   });
   onAll(root, '[data-cite]', 'click', (el, e) => {

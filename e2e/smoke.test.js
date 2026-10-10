@@ -55,7 +55,6 @@ after(async () => {
   server?.close();
 });
 
-// Confirms the dialog a click opened (js/lib/overlay.ts), typing `typed` first when it asks for it.
 // Presses Undo on the toast that says `text` (U2.03).
 async function undoToast(page, text) {
   await page.click(`.toast-item:not([data-state=closed]):has-text("${text}") [data-toast-action]`);
@@ -70,6 +69,7 @@ async function waitFor(check, ms = 5000) {
   }
 }
 
+// Confirms the dialog a click opened (js/lib/overlay.ts), typing `typed` first when it asks for it.
 async function confirmIn(page, typed) {
   const dialog = page.locator('dialog.dialog[open]');
   await dialog.waitFor();
@@ -3146,7 +3146,7 @@ test('the correlation finder: a failed upload leaves nothing behind, and enginee
   assert.equal(fake.datasets.length, 1);
   await a.page.click('[data-delete-dataset]');
   await a.page.waitForSelector('[data-dataset-list]:has-text("No batch tables yet")');
-  // Leaving the page sends it at once (a dismissed or timed-out toast would too).
+  // Left with its toast showing, it is sent by the next load of the page.
   await a.page.reload();
   await waitFor(() => fake.datasets.length === 0);
   assert.deepEqual(

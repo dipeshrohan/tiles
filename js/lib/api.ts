@@ -882,8 +882,6 @@ export function createApiClient(options: ApiOptions) {
     try {
       res = await doFetch(base + path, {
         method,
-        // A deletion may be sent as the page is left (an Undo toast's, U2.03): let it finish.
-        keepalive: method === 'DELETE',
         headers,
         body: file ? file.body : body === undefined ? undefined : JSON.stringify(body),
       });

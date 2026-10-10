@@ -59,7 +59,7 @@ import type { AppState, AuthContext, Context, OntologyContext, PersistedState, V
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
 import { showApiErrors } from './lib/forms.ts';
-import { sendWaiting } from './lib/undo.ts';
+import { keepWaiting, saveWaiting, takeSaved } from './lib/undo.ts';
 import { breadcrumbs, button, clockTime } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
@@ -632,8 +632,22 @@ function hideOffline(kind?: 'offline' | 'unreachable'): void {
   offline = null;
   need(document, '#offline').hidden = true;
 }
-// Removals waiting on an Undo toast (U2.03) are sent before the page goes.
-window.addEventListener('pagehide', sendWaiting);
+// Removals waiting on an Undo toast (U2.03) when the page goes are saved for the next load to send;
+// a page back from the back/forward cache still has its toasts, so they stay with it.
+window.addEventListener('pagehide', () => saveWaiting(localStorage));
+window.addEventListener('pageshow', (e) => {
+  if (e.persisted) keepWaiting(localStorage);
+});
+
+// Sends the removals a page left behind with their Undo toasts still showing (to this API only).
+async function sendSaved(): Promise<void> {
+  const client = api;
+  if (!client) return;
+  for (const r of takeSaved(localStorage, client.baseUrl)) {
+    const send = r.kind === 'conversation' ? client.copilot.remove : client.datasets.remove;
+    await send(r.site, r.id).catch(() => undefined); // the client showed why
+  }
+}
 window.addEventListener('offline', () => showOffline('offline'));
 // Back again: connect afresh only if the site never loaded; otherwise keep what is on screen and
 // draw the page again, which fetches its data.
@@ -811,5 +825,6 @@ render();
 void (async () => {
   await finishSignIn(); // so the first API calls carry the new token
   await refreshAuth();
+  await sendSaved();
   await connectOntology();
 })();
