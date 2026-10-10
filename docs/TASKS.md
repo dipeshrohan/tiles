@@ -82,7 +82,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 - [x] `T2.14` [#43](https://github.com/dipeshrohan/tiles/issues/43) **Canvas layout at scale:** zoom, pan, search, collapse by hierarchy; handles 2,000+ nodes · FE · 3d · T1.15
 
 ### Design partner
-- [ ] `T2.15` [#44](https://github.com/dipeshrohan/tiles/issues/44) ★ **Assessment checklist and interview guide:** data sources, target problem, baseline metrics · PM · 1d
+- [x] `T2.15` [#44](https://github.com/dipeshrohan/tiles/issues/44) ★ **Assessment checklist and interview guide:** data sources, target problem, baseline metrics · PM · 1d · [docs/pilot/assessment.md](pilot/assessment.md)
 - [ ] `T2.16` [#45](https://github.com/dipeshrohan/tiles/issues/45) ★ **Run the partner assessment** (2–4 weeks): data-landscape map, top 2–3 value opportunities, one pilot problem chosen · PM+TL · 5d · T2.15
   *Done when:* an assessment report with a signed-off problem statement and baseline metrics.
 - [ ] `T2.17` [#46](https://github.com/dipeshrohan/tiles/issues/46) ★ **Data access agreement** and edge-agent install at the partner (or historian export) · TL+PM · 2d · T2.16, T2.04
