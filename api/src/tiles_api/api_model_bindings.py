@@ -217,7 +217,9 @@ def run_now(ctx: Editor, binding_id: uuid.UUID, request: Request) -> dict[str, A
     is left, for the next call or the scheduled runs)."""
     if not _get(ctx, binding_id)["enabled"]:
         raise HTTPException(status.HTTP_409_CONFLICT, "This model binding is stopped")
-    result = runner.run(ctx.conn, binding_id, batches=1, settings=request.app.state.settings)
+    result = runner.run(
+        ctx.conn, binding_id, batches=1, settings=request.app.state.settings, remote_windows=runner.REMOTE_WINDOWS_NOW
+    )
     out = {
         "windows": result.windows,
         "failed": result.failed,

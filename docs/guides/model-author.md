@@ -568,7 +568,10 @@ The spec follows the same rules as a built-in model's ([section 1](#1-what-a-mod
   archived is the one used when none is named.
 
 `PATCH /org/models/{key}/{version}` moves the endpoint, replaces or clears the token, or archives
-the version (`{"archived": true}`): no new uses, while runs made with it still show.
+the version (`{"archived": true}`). Moving to another host needs the new host's token, or
+`clear_token`: a token is never sent to a host it wasn't given for. An archived version gets no new
+uses (evaluate, new runs, bindings, sweeps); bindings and queued sweeps already using it keep
+running, and runs made with it still show.
 
 ### What the endpoint receives and answers
 
@@ -592,13 +595,19 @@ outputs or lengths are refused (422), and so are values that aren't numbers or `
 
 ### When the endpoint fails
 
-An endpoint that can't be reached, times out (`TILES_MODEL_TIMEOUT`, 10 s), redirects, answers an
-error status or something that isn't the JSON above:
+Tiles tells two kinds of failure apart (`RemoteError.retry` in `remote.py`):
 
-- evaluate and design runs answer 502, and nothing is stored;
-- a sweep fails, with the reason;
-- a binding's run stops at that window and records the reason in `last_error`; the window is run
-  again next time, not skipped.
+- **The endpoint failed:** it can't be reached, the call took longer than `TILES_MODEL_TIMEOUT`
+  (10 s, for the whole call), it redirected, it answered 5xx, 408 or 429, or its token doesn't open.
+  A binding's run stops at that window, saying so in `last_error` ("stopped at the window ending
+  …"), and runs it again next time: no window is skipped while your service is down. A sweep fails,
+  with the reason.
+- **It refused these inputs:** another 4xx, or a reply that isn't the JSON above. That window is
+  skipped and counted, like one a built-in model refuses, and that sweep point is null.
+
+Either way, evaluate and design runs answer 502 and nothing is stored. A binding of an HTTP model
+runs at most 500 windows per scheduled run (20 for **Run now**), one call each; the rest wait for
+the next run.
 
 Keep the endpoint deterministic: a restored run is checked against the stored output, and an
 identical sweep is answered from the result kept.

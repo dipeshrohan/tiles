@@ -18,6 +18,7 @@ import hashlib
 import json
 import sys
 import threading
+import time
 import uuid
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager
@@ -38,6 +39,9 @@ MAX_STEPS = 200  # on one axis
 MAX_POINTS = 40_000  # in one sweep
 CHUNK = 500  # points between progress reports
 STALE_SECONDS = 120  # a running sweep without a heartbeat for this long is taken up again
+# Seconds between heartbeats while points are slow to come (an HTTP model's, T4.15). A point takes
+# at most about twice TILES_MODEL_TIMEOUT (at most 45 s), so a sweep at work is never taken as stale.
+HEARTBEAT_SECONDS = 15
 API_WORKERS = 2  # sweeps run at once in the API's own threads
 
 Connect = Callable[[], AbstractContextManager[Conn]]
@@ -71,11 +75,13 @@ def _points(x: dict[str, Any], y: dict[str, Any] | None) -> Iterator[tuple[int, 
 
 def _value(model: Model, params: dict[str, float]) -> float | None:
     """One point, as a run computes it; None where the model refuses the point or can't run it. A
-    model served over HTTP whose endpoint fails stops the sweep (RemoteError), which then fails."""
+    model served over HTTP whose endpoint fails (RemoteError.retry) stops the sweep, which fails."""
     try:
         out = evaluate(model, {}, params)
-    except RemoteError:
-        raise
+    except RemoteError as e:
+        if e.retry:
+            raise
+        return None
     except (ModelError, ArithmeticError):
         return None
     first = next(iter(out.values()), [])
@@ -140,13 +146,18 @@ def run(
 
     try:
         with connect() as conn:
-            model = store.find(conn, row["org_id"], settings or get_settings(), row["model_key"], row["version"])
+            model = store.find(
+                conn, row["org_id"], settings or get_settings(), row["model_key"], row["version"], archived=True
+            )
         x, y = row["x"], row["y"]
         xs, ys = values(x), values(y) if y else [0.0]
         grid: list[list[float | None]] = [[None] * len(xs) for _ in ys]
+        beat = time.monotonic()
         for done, (j, i, at) in enumerate(_points(x, y), 1):
             grid[j][i] = _value(model, row["params"] | at)
-            if done % CHUNK == 0 or done == row["total"]:
+            # Every CHUNK points, and every HEARTBEAT_SECONDS for a slow model (one served over HTTP).
+            if done % CHUNK == 0 or done == row["total"] or time.monotonic() - beat >= HEARTBEAT_SECONDS:
+                beat = time.monotonic()
                 with connect() as conn:
                     status = mine(conn, "UPDATE sweeps SET done = %s, heartbeat_at = now() WHERE id = %s", [done])
                 if status is None:

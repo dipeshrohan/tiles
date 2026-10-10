@@ -19,10 +19,17 @@ from test_onboarding import make_org_admin
 
 from tiles_api import sealed
 from tiles_api.main import create_app
-from tiles_api.models import remote, runner
+from tiles_api.models import remote, runner, store
 from tiles_api.models.plunger import PlungerFriction
+from tiles_api.models.registry import ModelSpec, Port, registry
 from tiles_api.settings import Settings
 from tiles_api.store import UNSCOPED
+
+
+def SETTINGS_OF(api: TestClient) -> Settings:
+    settings: Settings = api.app.state.settings  # type: ignore[attr-defined]
+    return settings
+
 
 KEYS = "k1:" + "A" * 43 + "="  # 32 bytes of zeros: a test key
 TOKEN = "model-endpoint-secret"  # noqa: S105 - a test token
@@ -74,7 +81,13 @@ def endpoint() -> Iterator[Endpoint]:
 def api(database_url: str) -> Iterator[TestClient]:
     with TestClient(
         create_app(
-            Settings(_env_file=None, database_url=database_url, env="test", model_hosts=["127.0.0.1"], data_keys=KEYS)
+            Settings(
+                _env_file=None,
+                database_url=database_url,
+                env="test",
+                model_hosts=["127.0.0.1", "localhost"],
+                data_keys=KEYS,
+            )
         )
     ) as client:
         yield client
@@ -256,16 +269,25 @@ def test_an_endpoint_that_cant_be_reached_is_a_502(api: TestClient, admin: str) 
     assert api.get(f"/sites/{admin}/runs", headers=ENG).json()["total"] == 0
 
 
-def test_a_model_moves_loses_its_token_and_is_archived(api: TestClient, admin: str, endpoint: Endpoint) -> None:
+def test_a_model_moves_loses_its_token_and_is_archived(
+    api: TestClient, admin: str, endpoint: Endpoint, database_url: str
+) -> None:
     assert api.post("/org/models", headers=ADMIN, json=beam("http://127.0.0.1:1")).status_code == 201
     path = "/org/models/beam-deflection/1.0.0"
-    moved = api.patch(path, headers=ADMIN, json={"endpoint_url": f"{endpoint.url}/v2", "clear_token": True})
+    moved = api.patch(path, headers=ADMIN, json={"endpoint_url": f"{endpoint.url}/v1", "clear_token": True})
     assert moved.status_code == 200, moved.text
-    assert (moved.json()["endpoint_url"], moved.json()["has_token"]) == (f"{endpoint.url}/v2", False)
+    assert (moved.json()["endpoint_url"], moved.json()["has_token"]) == (f"{endpoint.url}/v1", False)
     assert api.patch(path, headers=ADMIN, json={"endpoint_url": "https://evil.example.com"}).status_code == 422
     assert api.patch(path, headers=ADMIN, json={"token": "t", "clear_token": True}).status_code == 422
     assert api.patch("/org/models/beam-deflection/9.9.9", headers=ADMIN, json={}).status_code == 404
     assert api.patch(path, headers=ENG, json={"archived": True}).status_code == 403
+    # A token given for one host isn't sent to another unless someone says so.
+    assert api.patch(path, headers=ADMIN, json={"token": "t2"}).json()["has_token"] is True
+    elsewhere = {"endpoint_url": f"{endpoint.url.replace('127.0.0.1', 'localhost')}/v2"}
+    res = api.patch(path, headers=ADMIN, json=elsewhere)
+    assert (res.status_code, "give its token" in res.json()["detail"]) == (422, True)
+    assert api.patch(path, headers=ADMIN, json={"endpoint_url": f"{endpoint.url}/v2"}).json()["has_token"] is True
+    assert api.patch(path, headers=ADMIN, json={"clear_token": True}).json()["has_token"] is False
     endpoint.calls.clear()
     run = api.post(f"/sites/{admin}/runs", headers=ENG, json={"model": "beam-deflection"})
     assert run.status_code == 201, run.text
@@ -280,6 +302,14 @@ def test_a_model_moves_loses_its_token_and_is_archived(api: TestClient, admin: s
     assert (shown["model_name"], shown["output"]) == ("Beam deflection", {"deflection": 4.0})
     restore = api.post(f"/sites/{admin}/runs/{run.json()['number']}/restore", headers=ENG)
     assert restore.status_code == 409
+    # What already runs with it (a binding, a queued sweep) keeps going.
+    with psycopg.connect(database_url, row_factory=dict_row) as conn:
+        org = conn.execute("SELECT org_id FROM sites WHERE id = %s", [admin]).fetchone()
+        assert org is not None
+        with pytest.raises(KeyError):
+            store.find(conn, org["org_id"], SETTINGS_OF(api), "beam-deflection", "1.0.0")
+        kept = store.find(conn, org["org_id"], SETTINGS_OF(api), "beam-deflection", "1.0.0", archived=True)
+    assert kept.spec.version == "1.0.0"
     assert api.get("/org/models", headers=ADMIN).json()[0]["archived_at"] is not None
     # Brought back, it is used again.
     assert api.patch(path, headers=ADMIN, json={"archived": False}).json()["archived_at"] is None
@@ -309,6 +339,8 @@ def test_an_endpoint_outage_doesnt_skip_windows(database_url: str, site: str) ->
         calls += 1
         if calls == 2:
             raise remote.RemoteError("The model's endpoint answered 503")
+        if calls == 4:  # the endpoint refuses that window's inputs: skipped, like a built-in refusal
+            raise remote.RemoteError("The model's endpoint answered 422", retry=False)
         sent = json.loads(body)
         out = PlungerFriction().run(sent["inputs"], sent["params"])
         return json.dumps(
@@ -325,7 +357,7 @@ def test_an_endpoint_outage_doesnt_skip_windows(database_url: str, site: str) ->
             ).fetchone()
             assert row is not None
             ids[tag] = str(row["id"])
-        for n, shot in enumerate(SHOTS[:3]):
+        for n, shot in enumerate(SHOTS[:4]):
             p = shot["payload"]
             for key in ("v", "ph", "pm"):
                 conn.execute(
@@ -341,13 +373,21 @@ def test_an_endpoint_outage_doesnt_skip_windows(database_url: str, site: str) ->
             "window_s": 2.0,
             "done_until": None,
         }
-        first = runner.run_binding(conn, binding, model, now=T0 + timedelta(days=1))
-        assert (first.windows, first.failed) == (1, 0), first.error  # the first window, then the endpoint failed
-        assert first.error is not None and "answered 503" in first.error
+        later = T0 + timedelta(days=1)
+        first = runner.run_binding(conn, binding, model, now=later)
+        # The first window, then the endpoint failed: the run stops there, saying why.
+        assert (first.windows, first.failed, first.caught_up) == (1, 0, False), first.error
+        assert first.error is not None and first.error.startswith("stopped at the window ending")
+        assert first.error.endswith("answered 503")
         assert first.done_until == T0 + timedelta(seconds=SHOTS[0]["payload"]["t"][-1])
-        again = runner.run_binding(conn, binding | {"done_until": first.done_until}, model, now=T0 + timedelta(days=1))
-        assert (again.windows, again.failed, again.error) == (2, 0, None)  # the second window was not lost
-        assert calls == 4
+        # The second window was not lost; the third is refused and skipped; then the run's share of
+        # calls is used up, and the fourth waits for the next run.
+        again = runner.run_binding(conn, binding | {"done_until": first.done_until}, model, now=later, remote_windows=2)
+        assert (again.windows, again.failed, again.caught_up) == (2, 1, False)
+        assert again.error is not None and again.error.endswith("answered 422")
+        last = runner.run_binding(conn, binding | {"done_until": again.done_until}, model, now=later)
+        assert (last.windows, last.failed, last.caught_up, last.error) == (1, 0, True, None)
+        assert calls == 5
 
 
 def test_tokens_are_resealed_with_a_new_key(api: TestClient, admin: str, endpoint: Endpoint, database_url: str) -> None:
@@ -361,3 +401,59 @@ def test_tokens_are_resealed_with_a_new_key(api: TestClient, admin: str, endpoin
     assert stored["endpoint_token"].startswith(f"{sealed.PREFIX}k2:")
     context = remote.token_context(stored["org_id"], "beam-deflection", "1.0.0")
     assert new.unseal(stored["endpoint_token"], context) == TOKEN
+
+
+def test_a_key_an_organisation_registered_stays_its_own(api: TestClient, admin: str, endpoint: Endpoint) -> None:
+    """A later release adding a built-in model by the same key doesn't take the organisation's place."""
+    assert api.post("/org/models", headers=ADMIN, json=beam(endpoint.url)).status_code == 201
+
+    class Later:
+        spec = ModelSpec(
+            key="beam-deflection",
+            version="1.0.0",
+            name="Built-in beam",
+            kind="design",
+            outputs=(Port("deflection", "mm", per="window"),),
+        )
+
+        def run(self, inputs: Any, params: Any) -> Any:
+            return {"deflection": [0.0]}
+
+    registry.add(Later())
+    try:
+        res = api.post(f"/sites/{admin}/models/beam-deflection/evaluate", headers=VIEWER, json={"params": {"load": 2}})
+        listed = [m for m in api.get(f"/sites/{admin}/models", headers=VIEWER).json() if m["key"] == "beam-deflection"]
+    finally:
+        registry._models.pop(("beam-deflection", "1.0.0"))
+    assert res.json()["outputs"] == {"deflection": [4.0]}  # the organisation's, from its endpoint
+    assert [(m["name"], m["source"]) for m in listed] == [("Beam deflection", "http")]
+
+
+def test_a_reply_sent_slowly_is_cut_off_at_the_timeout() -> None:
+    """urllib's timeout bounds each read; the call as a whole is bounded too."""
+    import socket
+    import time
+
+    server = socket.create_server(("127.0.0.1", 0))
+
+    def trickle() -> None:
+        conn, _ = server.accept()
+        with conn:
+            conn.recv(65536)
+            conn.sendall(b"HTTP/1.1 200 OK\r\nContent-Length: 1000\r\n\r\n")
+            try:
+                for _ in range(100):  # a byte every 0.1 s: never quiet for a whole timeout
+                    conn.sendall(b" ")
+                    time.sleep(0.1)
+            except OSError:
+                pass  # the client hung up, as it should
+
+    threading.Thread(target=trickle, daemon=True).start()
+    url = f"http://127.0.0.1:{server.getsockname()[1]}/"
+    began = time.monotonic()
+    try:
+        with pytest.raises(remote.RemoteError, match="TimeoutError") as e:
+            remote.post(url, b"{}", {}, timeout=0.5)
+    finally:
+        server.close()
+    assert time.monotonic() - began < 3 and e.value.retry

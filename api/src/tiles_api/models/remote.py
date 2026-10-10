@@ -20,6 +20,7 @@ timeout.
 import http.client
 import json
 import math
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -37,7 +38,18 @@ LOCAL_HOSTS = ("localhost", "127.0.0.1", "::1")
 
 
 class RemoteError(ModelError):
-    """The endpoint couldn't be reached, or answered with something that isn't a reply."""
+    """The endpoint couldn't be reached, or answered with something that isn't a reply.
+
+    `retry`: the endpoint (or its settings) failed, not these inputs: unreachable, timed out, a
+    server error, busy (408, 429), redirected, or a token that doesn't open. A binding stops and runs
+    that window again later. Otherwise the endpoint refused these inputs (another 4xx) or answered
+    them with something that isn't a reply: that window, or sweep point, is skipped like one a
+    built-in model refuses.
+    """
+
+    def __init__(self, message: str, *, retry: bool = True) -> None:
+        super().__init__(message)
+        self.retry = retry
 
 
 def endpoint_problem(url: str, settings: Settings) -> str | None:
@@ -102,18 +114,28 @@ Post = Callable[[str, bytes, dict[str, str], float], bytes]
 
 
 def post(url: str, body: bytes, headers: dict[str, str], timeout: float) -> bytes:
+    """The reply's body. `timeout` bounds the whole call (urllib's bounds each socket operation, so
+    a reply sent slowly is cut off once the time is up)."""
+    deadline = time.monotonic() + timeout
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")  # noqa: S310 - checked endpoint
     try:
         with _opener.open(req, timeout=timeout) as res:
-            reply: bytes = res.read(MAX_REPLY_BYTES + 1)
+            parts: list[bytes] = []
+            size = 0
+            while chunk := res.read1(64 * 1024):  # what has come, so the deadline is checked as it trickles
+                parts.append(chunk)
+                size += len(chunk)
+                if size > MAX_REPLY_BYTES:
+                    raise RemoteError("The model's endpoint answered more than 32 MB", retry=False)
+                if time.monotonic() > deadline:
+                    raise TimeoutError
     except urllib.error.HTTPError as e:
         e.close()
-        raise RemoteError(f"The model's endpoint answered {e.code}") from None
+        busy = e.code >= 500 or e.code in (408, 429) or 300 <= e.code < 400
+        raise RemoteError(f"The model's endpoint answered {e.code}", retry=busy) from None
     except (OSError, http.client.HTTPException) as e:  # unreachable, refused, timed out, cut off
         raise RemoteError(f"The model's endpoint can't be reached ({type(e).__name__})") from None
-    if len(reply) > MAX_REPLY_BYTES:
-        raise RemoteError("The model's endpoint answered more than 32 MB")
-    return reply
+    return b"".join(parts)
 
 
 def _refuse_constant(name: str) -> None:
@@ -170,16 +192,16 @@ class HttpModel:
         try:
             found = json.loads(reply, parse_constant=_refuse_constant)
         except ValueError as e:  # not JSON (or NaN, Infinity)
-            raise RemoteError(f"The model's endpoint didn't answer JSON: {e}") from None
+            raise RemoteError(f"The model's endpoint didn't answer JSON: {e}", retry=False) from None
         outputs = found.get("outputs") if isinstance(found, dict) else None
         if not isinstance(outputs, dict):
-            raise RemoteError('The model\'s endpoint must answer {"outputs": {...}}')
+            raise RemoteError('The model\'s endpoint must answer {"outputs": {...}}', retry=False)
         result: dict[str, list[float | None]] = {}
         for name, values in outputs.items():
             if not isinstance(values, list) or not all(
                 v is None or (isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v))
                 for v in values
             ):
-                raise RemoteError(f"The model's endpoint must give {name} as a list of numbers or nulls")
+                raise RemoteError(f"The model's endpoint must give {name} as a list of numbers or nulls", retry=False)
             result[str(name)] = [None if v is None else float(v) for v in values]
         return result

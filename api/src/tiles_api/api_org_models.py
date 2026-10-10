@@ -5,6 +5,7 @@ refer to it): a new behaviour is a new version. Its endpoint and token may chang
 archived. Each step is in the organisation's audit log; the token is sealed and never shown again.
 """
 
+import urllib.parse
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
@@ -14,8 +15,9 @@ from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictFloat, StrictInt
 
 from tiles_api import audit, sealed
+from tiles_api.api_models import ModelOut
 from tiles_api.api_sites import OrgAdmin, OrgCaller
-from tiles_api.models import remote
+from tiles_api.models import remote, store
 from tiles_api.models.registry import ModelError, ModelSpec, Param, Port, registry
 from tiles_api.models.store import HTTP_MODELS
 from tiles_api.store import one
@@ -70,32 +72,7 @@ class HttpModelChange(BaseModel):
     archived: bool | None = Field(None, description="Archived: no new uses; runs made with it still show")
 
 
-class PortOut(BaseModel):
-    name: str
-    unit: str
-    description: str
-    per: str
-
-
-class ParamOut(BaseModel):
-    name: str
-    unit: str
-    default: float
-    min: float | None
-    max: float | None
-    description: str
-
-
-class HttpModelOut(BaseModel):
-    key: str
-    version: str
-    name: str
-    kind: str
-    domain: str
-    description: str
-    inputs: list[PortOut]
-    outputs: list[PortOut]
-    params: list[ParamOut]
+class HttpModelOut(ModelOut):
     endpoint_url: str
     has_token: bool
     created_at: datetime
@@ -103,17 +80,7 @@ class HttpModelOut(BaseModel):
 
 
 def _shown(row: dict[str, Any]) -> dict[str, Any]:
-    spec = row["spec"]
-    return {
-        "key": row["key"],
-        "version": row["version"],
-        "name": row["name"],
-        "kind": row["kind"],
-        "domain": row["domain"],
-        "description": spec.get("description", ""),
-        "inputs": spec.get("inputs", []),
-        "outputs": spec.get("outputs", []),
-        "params": spec.get("params", []),
+    return store.describe_spec(remote.spec_of(row), remote.SOURCE) | {
         "endpoint_url": row["endpoint_url"],
         "has_token": row["endpoint_token"] is not None,
         "created_at": row["created_at"],
@@ -239,6 +206,13 @@ def change_http_model(
     if body.token is not None and body.clear_token:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give a new token or clear it, not both")
     url = row["endpoint_url"] if body.endpoint_url is None else _url(request, body.endpoint_url)
+    moved = urllib.parse.urlsplit(url).hostname != urllib.parse.urlsplit(row["endpoint_url"]).hostname
+    if moved and row["endpoint_token"] is not None and body.token is None and not body.clear_token:
+        # The token was given for the old host: it isn't sent to another unless someone says so.
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "The endpoint moves to another host: give its token, or clear_token to send none",
+        )
     token = row["endpoint_token"]
     if body.clear_token:
         token = None

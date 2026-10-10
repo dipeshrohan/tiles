@@ -9,7 +9,7 @@ from typing import Any
 from psycopg.types.json import Jsonb
 
 from tiles_api.models import remote
-from tiles_api.models.registry import Model, registry, version_key
+from tiles_api.models.registry import Model, ModelSpec, registry, version_key
 from tiles_api.settings import Settings
 from tiles_api.store import Conn, one
 
@@ -52,25 +52,36 @@ def http_model(row: dict[str, Any], org_id: uuid.UUID, settings: Settings) -> re
     return remote.HttpModel(remote.spec_of(row), row["endpoint_url"], row["endpoint_token"], org_id, settings)
 
 
-def find(conn: Conn, org_id: uuid.UUID, settings: Settings, key: str, version: str | None = None) -> Model:
-    """A model version the organisation can use: a built-in one, or one of its own served over HTTP
-    and not archived; the latest version unless one is named. KeyError if there is none."""
-    builtin = [m for m in registry.all() if m.spec.key == key]
-    if builtin:
+def find(
+    conn: Conn,
+    org_id: uuid.UUID,
+    settings: Settings,
+    key: str,
+    version: str | None = None,
+    *,
+    archived: bool = False,
+) -> Model:
+    """A model version the organisation can use, the latest unless one is named: one of its own
+    served over HTTP (not archived, unless `archived`: what is already running with it, a binding
+    or a queued sweep, keeps going), or else a built-in one. A key the organisation registered is
+    its own, even if a later release adds a built-in model by that name. KeyError if there is none."""
+    rows = conn.execute(HTTP_MODELS + " AND key = %s", [org_id, key]).fetchall()
+    if not rows:
         return registry.get(key, version)
-    rows = conn.execute(HTTP_MODELS + " AND key = %s AND archived_at IS NULL", [org_id, key]).fetchall()
-    if version is not None:
-        rows = [r for r in rows if r["version"] == version]
+    rows = [r for r in rows if (version is None or r["version"] == version) and (archived or r["archived_at"] is None)]
     if not rows:
         raise KeyError(f"No model {key}" + (f" version {version}" if version else ""))
     return http_model(max(rows, key=lambda r: version_key(r["version"])), org_id, settings)
 
 
 def usable(conn: Conn, org_id: uuid.UUID, settings: Settings) -> list[Model]:
-    """Every model version the organisation can use: the built-in ones, then its own over HTTP."""
-    rows = conn.execute(HTTP_MODELS + " AND archived_at IS NULL", [org_id]).fetchall()
-    own = sorted(rows, key=lambda r: (r["key"], version_key(r["version"])))
-    return [*registry.all(), *(http_model(r, org_id, settings) for r in own)]
+    """Every model version the organisation can use: the built-in ones (but those whose key it uses
+    itself), then its own over HTTP that aren't archived."""
+    rows = conn.execute(HTTP_MODELS, [org_id]).fetchall()
+    taken = {r["key"] for r in rows}
+    own = sorted((r for r in rows if r["archived_at"] is None), key=lambda r: (r["key"], version_key(r["version"])))
+    builtin = [m for m in registry.all() if m.spec.key not in taken]
+    return [*builtin, *(http_model(r, org_id, settings) for r in own)]
 
 
 def source_of(model: Model) -> str:
@@ -78,13 +89,9 @@ def source_of(model: Model) -> str:
 
 
 def describe(model: Model) -> dict[str, Any]:
-    s = model.spec
-    return {
-        "key": s.key,
-        "version": s.version,
-        "name": s.name,
-        "kind": s.kind,
-        "domain": s.domain,
-        "source": source_of(model),
-        **s.as_json(),
-    }
+    return describe_spec(model.spec, source_of(model))
+
+
+def describe_spec(s: ModelSpec, source: str) -> dict[str, Any]:
+    head = {"key": s.key, "version": s.version, "name": s.name, "kind": s.kind, "domain": s.domain, "source": source}
+    return head | s.as_json()

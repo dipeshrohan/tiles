@@ -25,13 +25,17 @@ from psycopg.rows import tuple_row
 from tiles_api import jobs, telemetry
 from tiles_api.models import store
 from tiles_api.models.registry import Model, evaluate
-from tiles_api.models.remote import RemoteError
+from tiles_api.models.remote import HttpModel, RemoteError
 from tiles_api.settings import Settings, get_settings
 from tiles_api.store import Conn
 
 TIME = "@time"  # an input fed with seconds since the window began
 MAX_ROWS = 100_000  # joined readings read per batch; a run reads batches until caught up
 MAX_BATCHES = 50  # per run, so one binding can't hold the runner forever
+# Windows a model served over HTTP (T4.15) runs per run, one call each: the job's, and "run now"'s,
+# which a person waits for. The rest wait for the next run.
+REMOTE_WINDOWS = 500
+REMOTE_WINDOWS_NOW = 20
 
 WindowKind = Literal["gap", "fixed"]
 
@@ -129,9 +133,15 @@ def _first_reading_after(conn: Conn, signal: str, after: datetime | None) -> boo
 
 
 def run_binding(
-    conn: Conn, binding: dict[str, Any], model: Model, now: datetime, batches: int = MAX_BATCHES
+    conn: Conn,
+    binding: dict[str, Any],
+    model: Model,
+    now: datetime,
+    batches: int = MAX_BATCHES,
+    remote_windows: int = REMOTE_WINDOWS,
 ) -> RunResult:
-    """Runs one binding on its new complete windows (the caller holds its row lock)."""
+    """Runs one binding on its new complete windows (the caller holds its row lock); at most
+    `remote_windows` of them for a model served over HTTP."""
     inputs: dict[str, str] = binding["inputs"]
     outputs: dict[str, str] = binding["outputs"]
     kind: WindowKind = binding["window_kind"]
@@ -141,6 +151,7 @@ def run_binding(
     names = [name for name, sig in inputs.items() if sig != TIME]
     result = RunResult(done_until=binding["done_until"])
     per = {p.name: p.per for p in model.spec.outputs}
+    calls_left = remote_windows if isinstance(model, HttpModel) else None
     for batch in range(batches):
         rows = _read(conn, inputs, result.done_until, MAX_ROWS, align)
         if not rows:
@@ -162,11 +173,17 @@ def run_binding(
             windows = windows[:-1]  # it may go on past this batch: the next batch reads it whole
         written: list[tuple[str, datetime, float]] = []
         ran = 0
-        unreachable = False
+        stopped = False
         for n, (start, end) in enumerate(windows):
             last = n == len(windows) - 1
             if not complete(times[end - 1], last and not full, kind, size, now, lateness):
                 break
+            if calls_left is not None:
+                if calls_left == 0:
+                    stopped = True
+                    result.caught_up = False
+                    break
+                calls_left -= 1
             series: dict[str, list[float]] = {name: [r[i + 1] for r in rows[start:end]] for i, name in enumerate(names)}
             for name, sig in inputs.items():
                 if sig == TIME:
@@ -174,10 +191,14 @@ def run_binding(
             try:
                 out = evaluate(model, series, binding["params"])
             except RemoteError as e:
-                # The endpoint failed, not the window (T4.15): stop, and run this window next time.
-                result.note(f"window ending {times[end - 1].isoformat()}: {e}")
-                unreachable = True
-                break
+                if not e.retry:  # the endpoint refused this window: skipped, like a built-in model's refusal
+                    result.failed += 1
+                    result.note(f"window ending {times[end - 1].isoformat()}: {e}")
+                else:  # the endpoint failed, not the window (T4.15): stop, and run it next time
+                    result.error = f"stopped at the window ending {times[end - 1].isoformat()}: {e}"
+                    result.caught_up = False
+                    stopped = True
+                    break
             except Exception as e:
                 result.failed += 1
                 result.note(f"window ending {times[end - 1].isoformat()}: {e}")
@@ -195,7 +216,7 @@ def run_binding(
             result.done_until = times[end - 1]
         result.windows += ran
         result.written += _write(conn, written)
-        if unreachable or not ran or not full:
+        if stopped or not ran or not full:
             break
         if batch == batches - 1:
             result.caught_up = False
@@ -225,9 +246,16 @@ def _write(conn: Conn, readings: list[tuple[str, datetime, float]]) -> int:
     return stored
 
 
-def run(conn: Conn, binding_id: uuid.UUID, batches: int = MAX_BATCHES, settings: Settings | None = None) -> RunResult:
-    """Runs a binding now: locks it, runs its new windows (at most `batches` batches) and records
-    the outcome. `settings` (the environment's when not given) reach a model served over HTTP."""
+def run(
+    conn: Conn,
+    binding_id: uuid.UUID,
+    batches: int = MAX_BATCHES,
+    settings: Settings | None = None,
+    remote_windows: int = REMOTE_WINDOWS,
+) -> RunResult:
+    """Runs a binding now: locks it, runs its new windows (at most `batches` batches, and
+    `remote_windows` windows of a model served over HTTP) and records the outcome. `settings` (the
+    environment's when not given) reach a model served over HTTP; an archived one keeps running."""
     binding = conn.execute(
         """
         SELECT b.*, m.key AS model_key, m.version AS model_version, m.org_id AS model_org FROM model_bindings b
@@ -240,12 +268,17 @@ def run(conn: Conn, binding_id: uuid.UUID, batches: int = MAX_BATCHES, settings:
     now: datetime = conn.execute("SELECT now() AS now").fetchone()["now"]  # type: ignore[index]
     try:
         model = store.find(
-            conn, binding["model_org"], settings or get_settings(), binding["model_key"], binding["model_version"]
+            conn,
+            binding["model_org"],
+            settings or get_settings(),
+            binding["model_key"],
+            binding["model_version"],
+            archived=True,
         )
     except KeyError:
         result = RunResult(done_until=binding["done_until"], error="the model version is no longer registered")
     else:
-        result = run_binding(conn, binding, model, now, batches)
+        result = run_binding(conn, binding, model, now, batches, remote_windows)
     conn.execute(
         """
         UPDATE model_bindings SET done_until = %s, last_run_at = %s, last_windows = %s, last_failed = %s,

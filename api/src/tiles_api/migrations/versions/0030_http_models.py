@@ -28,8 +28,9 @@ ALTER TABLE models
     ADD CONSTRAINT models_token CHECK (endpoint_token IS NULL OR source = 'http');
 """
 
+# HTTP models' rows stay (runs refer to them), without their endpoints: to the older version they
+# are versions no longer registered, whose runs still show.
 DOWNGRADE = """
-DELETE FROM models WHERE source = 'http';
 ALTER TABLE models
     DROP CONSTRAINT models_token,
     DROP CONSTRAINT models_endpoint,

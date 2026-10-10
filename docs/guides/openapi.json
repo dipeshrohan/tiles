@@ -3306,10 +3306,15 @@
           },
           "params": {
             "items": {
-              "$ref": "#/components/schemas/tiles_api__api_org_models__ParamOut"
+              "$ref": "#/components/schemas/tiles_api__api_models__ParamOut"
             },
             "title": "Params",
             "type": "array"
+          },
+          "source": {
+            "description": "builtin, or http: the organisation's own, served by its endpoint (T4.15)",
+            "title": "Source",
+            "type": "string"
           },
           "version": {
             "title": "Version",
@@ -3322,6 +3327,7 @@
           "name",
           "kind",
           "domain",
+          "source",
           "description",
           "inputs",
           "outputs",
@@ -8670,58 +8676,6 @@
           "content"
         ],
         "title": "ImportIn",
-        "type": "object"
-      },
-      "tiles_api__api_org_models__ParamOut": {
-        "properties": {
-          "default": {
-            "title": "Default",
-            "type": "number"
-          },
-          "description": {
-            "title": "Description",
-            "type": "string"
-          },
-          "max": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max"
-          },
-          "min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "unit": {
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "unit",
-          "default",
-          "min",
-          "max",
-          "description"
-        ],
-        "title": "ParamOut",
         "type": "object"
       },
       "tiles_api__api_performance__Report": {
