@@ -172,6 +172,16 @@ test('dialogs keep focus, cancel with Escape and give focus back; toasts can be 
   assert.equal(await page.getAttribute('#theme', 'aria-describedby'), 'tooltip');
   await page.keyboard.press('Escape');
   await page.waitForSelector('#tooltip', { state: 'hidden' });
+  // One that only repeats the button's name shows, but isn't read again as its description.
+  await page.evaluate(() =>
+    document
+      .querySelector('#theme')
+      ?.insertAdjacentHTML('afterend', '<button id="same" aria-label="Close" data-tooltip="Close">x</button>'),
+  );
+  await page.focus('#theme');
+  await page.keyboard.press('Tab');
+  await page.waitForSelector('#tooltip:not([hidden]):has-text("Close")');
+  assert.equal(await page.getAttribute('#same', 'aria-describedby'), null);
   assert.deepEqual(errors, []);
   await page.close();
 });

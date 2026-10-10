@@ -1,7 +1,18 @@
 import { esc, field, fmt, onAll } from '../lib/dom.ts';
 import type { MappingSuggestion, QualityReport, SignalChange, SignalInfo, SignalQuery } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
-import { badge, button, card, field as labelled, input, needsApi, pageHead, select, table } from '../lib/ui.ts';
+import {
+  badge,
+  button,
+  card,
+  field as labelled,
+  input,
+  needsApi,
+  pageHead,
+  select,
+  table,
+  type Tone,
+} from '../lib/ui.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
@@ -54,7 +65,7 @@ export function latest(s: Pick<SignalInfo, 'last_value' | 'last_at' | 'unit'>): 
   return `${value}${unit} · ${new Date(s.last_at).toLocaleString('en-GB')}`;
 }
 
-const QUALITY: Record<QualityReport['badge'] | 'unchecked', [string, string]> = {
+const QUALITY: Record<QualityReport['badge'] | 'unchecked', [string, Tone]> = {
   good: ['Good', 'good'],
   warn: ['Warnings', 'warn'],
   bad: ['Problems', 'bad'],
@@ -173,19 +184,17 @@ function editRow(ctx: Context, s: SignalInfo): string {
     ...(s.node_id && !nodes.some((n) => n.id === s.node_id) ? [[s.node_id, `${s.node_id} (missing)`] as const] : []),
     ...nodes.map((n) => [n.id, `${n.label} (${n.id})`] as const),
   ];
-  const text = (name: string, value: string, cls: string, attrs: Record<string, string | number> = {}) =>
-    input({ name, value, class: cls || undefined, attrs });
   const stuck = s.stuck_after_s === null ? '' : String(+(s.stuck_after_s / 60).toPrecision(12));
   return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
         <fieldset class="contents" ${saving === s.id ? 'disabled' : ''}>
-        ${labelled('Unit', text('unit', s.unit ?? '', 'w-7em', { placeholder: 'e.g. °C', maxlength: 40 }))}
-        ${labelled('Sample rate (Hz)', text('rate', String(s.sample_rate_hz ?? ''), 'w-7em', { inputmode: 'decimal' }))}
-        ${labelled('Description', text('description', s.description, '', { maxlength: 1000 }), { class: 'grow min-w-field' })}
+        ${labelled('Unit', input({ name: 'unit', value: s.unit ?? '', class: 'w-7em', attrs: { placeholder: 'e.g. °C', maxlength: 40 } }))}
+        ${labelled('Sample rate (Hz)', input({ name: 'rate', value: String(s.sample_rate_hz ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal' } }))}
+        ${labelled('Description', input({ name: 'description', value: s.description, attrs: { maxlength: 1000 } }), { class: 'grow min-w-field' })}
         ${labelled('Ontology node', select('node', nodeOptions, s.node_id ?? ''))}
-        ${labelled('Expected min', text('min', String(s.range_min ?? ''), 'w-7em', { inputmode: 'decimal' }))}
-        ${labelled('Expected max', text('max', String(s.range_max ?? ''), 'w-7em', { inputmode: 'decimal' }))}
-        ${labelled('Stuck after (min)', text('stuck', stuck, 'w-6em', { placeholder: '60', inputmode: 'decimal' }))}
+        ${labelled('Expected min', input({ name: 'min', value: String(s.range_min ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal' } }))}
+        ${labelled('Expected max', input({ name: 'max', value: String(s.range_max ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal' } }))}
+        ${labelled('Stuck after (min)', input({ name: 'stuck', value: stuck, class: 'w-6em', attrs: { placeholder: '60', inputmode: 'decimal' } }))}
         ${labelled(
           'Events',
           select(
@@ -200,9 +209,18 @@ function editRow(ctx: Context, s: SignalInfo): string {
           ),
           { title: 'Each reading of an event stream is an event: its value is the code' },
         )}
-        ${labelled('Asset', text('asset', s.asset ?? '', 'w-8em', { placeholder: 'e.g. DC-01', maxlength: 100 }), {
-          title: "The machine, as the MES names it: its events are matched to its detectors' warnings",
-        })}
+        ${labelled(
+          'Asset',
+          input({
+            name: 'asset',
+            value: s.asset ?? '',
+            class: 'w-8em',
+            attrs: { placeholder: 'e.g. DC-01', maxlength: 100 },
+          }),
+          {
+            title: "The machine, as the MES names it: its events are matched to its detectors' warnings",
+          },
+        )}
         ${button(saving === s.id ? 'Saving…' : 'Save', { variant: 'primary', type: 'submit' })}
         ${button('Cancel', { attrs: { 'data-cancel-edit': true } })}
         </fieldset>

@@ -2501,7 +2501,7 @@
 			...o.attrs
 		})}>${o.icon ? `${icon(o.icon)} ` : ""}${esc(label)}</button>`;
 	}
-	function badge$2(text, tone = "", o = {}) {
+	function badge$1(text, tone = "", o = {}) {
 		return `<span${attrs({
 			class: classes("badge", tone),
 			title: o.title,
@@ -2541,9 +2541,15 @@
 		})}>${options$1(list, current)}</select>`;
 	}
 	var hints = 0;
+	function describedBy(controlHtml, id) {
+		return controlHtml.replace(/<(input|select|textarea)\b[^>]*>/, (tag) => {
+			const has = /\saria-describedby="([^"]*)"/.exec(tag);
+			return has ? tag.replace(has[0], ` aria-describedby="${has[1] ? `${has[1]} ` : ""}${id}"`) : tag.replace(/^<(\w+)/, `<$1 aria-describedby="${id}"`);
+		});
+	}
 	function field(label, controlHtml, o = {}) {
 		const hint = o.hint ? `ui-hint-${++hints}` : null;
-		const control = hint ? controlHtml.replace(/^<(input|select|textarea)\b/, `<$1 aria-describedby="${hint}"`) : controlHtml;
+		const control = hint ? describedBy(controlHtml, hint) : controlHtml;
 		return `<label${attrs({
 			class: classes(o.inline ? "row gap-1_5" : "field", o.class),
 			title: o.title
@@ -2560,11 +2566,10 @@
 		return `<div class="table-wrap"><table class="small"><tbody>${rows.map(([k, v]) => `<tr><th scope="row">${esc(k)}</th><td${attrs({ class: o.valueClass })}>${esc(v)}</td></tr>`).join("")}</tbody></table></div>`;
 	}
 	function tabs(o) {
-		return `<div class="tabs" role="tablist" aria-label="${esc(o.label)}">${o.items.map(([v, l]) => `<button${attrs({
+		return `<div class="tabs" role="group" aria-label="${esc(o.label)}">${o.items.map(([v, l]) => `<button${attrs({
 			class: classes("tab", v === o.current && "active"),
 			type: "button",
-			role: "tab",
-			"aria-selected": String(v === o.current),
+			"aria-pressed": String(v === o.current),
 			[`data-${o.data}`]: v
 		})}>${esc(l)}</button>`).join("")}</div>`;
 	}
@@ -2582,7 +2587,6 @@
 			}) : void 0
 		});
 	}
-	var skeleton = loadingState;
 	//#endregion
 	//#region js/views/chat.ts
 	var uiState$13 = (ctx) => ctx.ui("chat", { conversation: null });
@@ -5924,7 +5928,7 @@
 		accepted: ["good", "Accepted"],
 		rejected: ["bad", "Rejected"]
 	};
-	function statusBadge$2(status) {
+	function statusBadge$3(status) {
 		const [cls, text] = STATUS$2[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
@@ -6160,7 +6164,7 @@
 	};
 	function qualityBadge(report) {
 		const [label, tone] = QUALITY[report ? report.badge : "unchecked"];
-		return badge$2(label, tone, { title: report?.issues.length ? report.issues.map((i) => i.message).join("\n") : label });
+		return badge$1(label, tone, { title: report?.issues.length ? report.issues.map((i) => i.message).join("\n") : label });
 	}
 	var percent = (x) => `${(Math.floor(x * 1e3) / 10).toFixed(1)}%`;
 	function qualityDetail(report) {
@@ -6170,7 +6174,7 @@
 			report.period_s === null ? "" : `expected every ${+report.period_s.toPrecision(3)} s`,
 			report.coverage === null ? "" : `${percent(report.coverage)} of the time covered`
 		].filter(Boolean);
-		const issues = report.issues.length ? `<ul class="small">${report.issues.map((i) => `<li>${badge$2(i.severity === "bad" ? "problem" : "warning", i.severity)} ${esc(i.message)}</li>`).join("")}</ul>` : `<p class="small">${report.readings ? "No gaps, stuck values, out-of-range values or unit mismatches found." : "No readings to check."}</p>`;
+		const issues = report.issues.length ? `<ul class="small">${report.issues.map((i) => `<li>${badge$1(i.severity === "bad" ? "problem" : "warning", i.severity)} ${esc(i.message)}</li>`).join("")}</ul>` : `<p class="small">${report.readings ? "No gaps, stuck values, out-of-range values or unit mismatches found." : "No readings to check."}</p>`;
 		return `<div class="stack gap-1_5"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(", "))}.</p>${issues}</div>`;
 	}
 	function number(text) {
@@ -6216,11 +6220,11 @@
 	}
 	function eventBadge(s) {
 		if (!s.event_kind && !s.asset) return "";
-		return ` ${badge$2([s.event_kind ? `${s.event_kind} events` : "", s.asset ?? ""].filter(Boolean).join(" · "), "", { attrs: { "data-event-badge": true } })}`;
+		return ` ${badge$1([s.event_kind ? `${s.event_kind} events` : "", s.asset ?? ""].filter(Boolean).join(" · "), "", { attrs: { "data-event-badge": true } })}`;
 	}
 	function linkCell(s) {
 		if (!s.node_id) return "<span class=\"soft\">—</span>";
-		return s.node_label !== null ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>` : badge$2("missing node", "warn", { title: `${s.node_id} is no longer a Signal node of the committed ontology` });
+		return s.node_label !== null ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>` : badge$1("missing node", "warn", { title: `${s.node_id} is no longer a Signal node of the committed ontology` });
 	}
 	function editRow(ctx, s) {
 		const nodes = Object.values(ctx.state.repo.head.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.label.localeCompare(b.label));
@@ -6229,28 +6233,51 @@
 			...s.node_id && !nodes.some((n) => n.id === s.node_id) ? [[s.node_id, `${s.node_id} (missing)`]] : [],
 			...nodes.map((n) => [n.id, `${n.label} (${n.id})`])
 		];
-		const text = (name, value, cls, attrs = {}) => input({
-			name,
-			value,
-			class: cls || void 0,
-			attrs
-		});
 		const stuck = s.stuck_after_s === null ? "" : String(+(s.stuck_after_s / 60).toPrecision(12));
 		return `<tr class="edit-row"><td colspan="9">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
         <fieldset class="contents" ${saving$2 === s.id ? "disabled" : ""}>
-        ${field("Unit", text("unit", s.unit ?? "", "w-7em", {
-			placeholder: "e.g. °C",
-			maxlength: 40
+        ${field("Unit", input({
+			name: "unit",
+			value: s.unit ?? "",
+			class: "w-7em",
+			attrs: {
+				placeholder: "e.g. °C",
+				maxlength: 40
+			}
 		}))}
-        ${field("Sample rate (Hz)", text("rate", String(s.sample_rate_hz ?? ""), "w-7em", { inputmode: "decimal" }))}
-        ${field("Description", text("description", s.description, "", { maxlength: 1e3 }), { class: "grow min-w-field" })}
+        ${field("Sample rate (Hz)", input({
+			name: "rate",
+			value: String(s.sample_rate_hz ?? ""),
+			class: "w-7em",
+			attrs: { inputmode: "decimal" }
+		}))}
+        ${field("Description", input({
+			name: "description",
+			value: s.description,
+			attrs: { maxlength: 1e3 }
+		}), { class: "grow min-w-field" })}
         ${field("Ontology node", select("node", nodeOptions, s.node_id ?? ""))}
-        ${field("Expected min", text("min", String(s.range_min ?? ""), "w-7em", { inputmode: "decimal" }))}
-        ${field("Expected max", text("max", String(s.range_max ?? ""), "w-7em", { inputmode: "decimal" }))}
-        ${field("Stuck after (min)", text("stuck", stuck, "w-6em", {
-			placeholder: "60",
-			inputmode: "decimal"
+        ${field("Expected min", input({
+			name: "min",
+			value: String(s.range_min ?? ""),
+			class: "w-7em",
+			attrs: { inputmode: "decimal" }
+		}))}
+        ${field("Expected max", input({
+			name: "max",
+			value: String(s.range_max ?? ""),
+			class: "w-7em",
+			attrs: { inputmode: "decimal" }
+		}))}
+        ${field("Stuck after (min)", input({
+			name: "stuck",
+			value: stuck,
+			class: "w-6em",
+			attrs: {
+				placeholder: "60",
+				inputmode: "decimal"
+			}
 		}))}
         ${field("Events", select("events", [
 			["", "none: readings"],
@@ -6258,9 +6285,14 @@
 			["scrap", "scrap"],
 			["other", "other events"]
 		], s.event_kind ?? ""), { title: "Each reading of an event stream is an event: its value is the code" })}
-        ${field("Asset", text("asset", s.asset ?? "", "w-8em", {
-			placeholder: "e.g. DC-01",
-			maxlength: 100
+        ${field("Asset", input({
+			name: "asset",
+			value: s.asset ?? "",
+			class: "w-8em",
+			attrs: {
+				placeholder: "e.g. DC-01",
+				maxlength: 100
+			}
 		}), { title: "The machine, as the MES names it: its events are matched to its detectors' warnings" })}
         ${button(saving$2 === s.id ? "Saving…" : "Save", {
 			variant: "primary",
@@ -6416,7 +6448,7 @@
 	var suggesting = false;
 	var linkingAll = false;
 	function suggestionRow(s, canEdit, busy = false) {
-		const what = s.kind === "link" ? `${badge$2("Link to", "good")} ${esc(s.node_label)}` : `${badge$2("New node", "accent")} ${esc(s.node_label)}`;
+		const what = s.kind === "link" ? `${badge$1("Link to", "good")} ${esc(s.node_label)}` : `${badge$1("New node", "accent")} ${esc(s.node_label)}`;
 		return `<div class="suggestion" data-suggestion="${esc(s.signal_id)}">
       <div class="row gap-2 wrap items-center">
         <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
@@ -7154,7 +7186,7 @@
 		rejected: ["bad", "Rejected"],
 		withdrawn: ["", "Withdrawn"]
 	};
-	function statusBadge$1(status) {
+	function statusBadge$2(status) {
 		const [cls, text] = STATUS$1[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
@@ -7175,7 +7207,7 @@
 		const items = listing$6?.key === listKey$3(ctx) ? listing$6.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? loadingState() : items.map((r) => `
         <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
-          <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$1(r.status)}</span>
+          <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$2(r.status)}</span>
           <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
           <span class="small">${stats(r.stats)}</span>
         </button>`).join("") || (ui.state === "open" ? emptyState({
@@ -7204,7 +7236,7 @@
 		const diff = shown.map((c) => `<div class="change ${c.sign === "+" ? "plus" : c.sign === "−" ? "minus" : "mod"}"><span class="sign">${c.sign}</span> ${esc(c.text)}${c.problem ? ` <span class="badge bad" title="${esc(c.problem)}">doesn't apply</span>` : ""}</div>`).join("");
 		const thread = r.thread.map((c) => `
       <div class="comment">
-        <div class="small muted"><b>${esc(c.author)}</b> · ${timeAgo(c.created_at)}${c.verdict ? ` ${statusBadge$1(c.verdict)}` : ""}</div>
+        <div class="small muted"><b>${esc(c.author)}</b> · ${timeAgo(c.created_at)}${c.verdict ? ` ${statusBadge$2(c.verdict)}` : ""}</div>
         ${c.body ? `<div class="comment-body">${esc(c.body)}</div>` : ""}
       </div>`).join("");
 		const canWrite = o.role !== null && o.role !== "viewer";
@@ -7215,7 +7247,7 @@
 		return `
     <div class="card" data-review-detail>
       <div class="card-head"><div>
-        ${statusBadge$1(r.status)}${r.source === "copilot" ? ` ${COPILOT_BADGE}` : ""}
+        ${statusBadge$2(r.status)}${r.source === "copilot" ? ` ${COPILOT_BADGE}` : ""}
         <h2 class="mt-1_5">#${r.number} ${esc(r.message)}</h2>
         <div class="small muted">${esc(r.author)} · ${timeAgo(r.created_at)} · ${r.reviewer ? `review by ${esc(r.reviewer)}` : "any engineer may review"}${r.reverts ? ` · reverts <span class="mono">${esc(r.reverts.slice(-7))}</span>` : ""}</div>
       </div></div>
@@ -7544,9 +7576,9 @@
 	var listKey$2 = (ctx) => `${siteId$8(ctx)}|${JSON.stringify(uiState$7(ctx).filters)}`;
 	var detailKey$1 = (ctx) => `${siteId$8(ctx)}|${uiState$7(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
-	function badge$1(w) {
+	function statusBadge$1(w) {
 		const [cls, label] = STATUS[w.status];
-		return badge$2(label, cls);
+		return badge$1(label, cls);
 	}
 	var signalState = (w) => w.ended_at ? `back ${ago(w.ended_at)}` : "<b>still out</b>";
 	function filterBar(ctx, f) {
@@ -7577,9 +7609,9 @@
 		const items = listing$5?.key === listKey$2(ctx) ? listing$5.items : null;
 		const unfiltered = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all";
 		const empty = unfiltered ? "Nothing to do: no warning waits for anyone." : "No warnings match these filters.";
-		return card$1(`<div class="review-list" data-warning-list>${items === null ? skeleton() : items.map((w) => `
+		return card$1(`<div class="review-list" data-warning-list>${items === null ? loadingState() : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}">
-          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${badge$1(w)}</span>
+          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
         </button>`).join("") || emptyState({
@@ -7594,7 +7626,7 @@
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
 		const s = fetched?.data;
-		if (!fetched || s === void 0) return skeleton("Loading the signal…", 4);
+		if (!fetched || s === void 0) return loadingState("Loading the signal…", 4);
 		if (s === null) return "<p class=\"small muted\">The signal’s readings could not be loaded.</p>";
 		const { from, to, start, end } = fetched.range;
 		const points = toPoints(s);
@@ -7625,7 +7657,7 @@
 		const people = (members?.site === siteId$8(ctx) ? members.people : []).filter((m) => m.role !== "viewer");
 		const current = w.assignee_id && !people.some((m) => m.user_id === w.assignee_id) ? [[w.assignee_id, w.assignee ?? "current assignee"]] : [];
 		const has = (a) => actions.includes(a);
-		const act = (label, a, variant) => button(label, {
+		const actButton = (label, a, variant) => button(label, {
 			variant,
 			attrs: { "data-act": a }
 		});
@@ -7633,17 +7665,17 @@
 			["", "nobody"],
 			...current,
 			...people.map((m) => [m.user_id, `${m.name}${m.user_id === ctx.ontology.userId ? " (me)" : ""}`])
-		], w.assignee_id ?? ""), { inline: true })}${act("Assign", "assign")}</span>` : "";
+		], w.assignee_id ?? ""), { inline: true })}${actButton("Assign", "assign")}</span>` : "";
 		const outcomes = Object.keys(OUTCOMES).map((o) => [o, OUTCOMES[o]]);
-		const resolve = has("resolve") ? `<span class="row gap-1_5">${field("Outcome", select("outcome", outcomes, ""), { inline: true })}${act("Resolve", "resolve", "primary")}</span>` : "";
+		const resolve = has("resolve") ? `<span class="row gap-1_5">${field("Outcome", select("outcome", outcomes, ""), { inline: true })}${actButton("Resolve", "resolve", "primary")}</span>` : "";
 		return `<form class="stack gap-2 mt-2_5" id="warning-form">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft$2.key === detailKey$1(ctx) ? esc(draft$2.text) : ""}</textarea>
       <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy$5 ? "disabled" : ""}>
-        ${has("acknowledge") ? act("Acknowledge", "acknowledge", "primary") : ""}
+        ${has("acknowledge") ? actButton("Acknowledge", "acknowledge", "primary") : ""}
         ${assign}
         ${resolve}
-        ${has("reopen") ? act("Reopen", "reopen") : ""}
-        ${act("Comment", "comment")}
+        ${has("reopen") ? actButton("Reopen", "reopen") : ""}
+        ${actButton("Comment", "comment")}
       </fieldset>
     </form>`;
 	}
@@ -7658,7 +7690,7 @@
 			title: "This warning could not be loaded",
 			body: "Refresh to try again."
 		}), { attrs: { "data-warning-detail": true } });
-		if (!w) return card$1(skeleton(), { attrs: { "data-warning-detail": true } });
+		if (!w) return card$1(loadingState(), { attrs: { "data-warning-detail": true } });
 		const activity = w.activity.map((a) => `
       <div class="comment">
         <div class="small muted"><b>${esc(activityText(a))}</b> · ${ago(a.at)}</div>
@@ -7668,7 +7700,7 @@
 		const readOnly = ctx.ontology.role === "viewer" ? "<p class=\"small soft\">Engineers and admins of the site act on warnings.</p>" : "";
 		return card$1(`
       <div class="card-head"><div>
-        ${badge$1(w)} ${w.ended_at ? "" : badge$2("Signal still out", "bad")}
+        ${statusBadge$1(w)} ${w.ended_at ? "" : badge$1("Signal still out", "bad")}
         <h2 class="mono mt-1_5">${esc(w.signal_tag)}</h2>
         <div class="small muted">${esc(w.detector)} · started ${ago(w.started_at)} · ${w.readings} reading(s) out · ${w.assignee ? `for ${esc(w.assignee)}` : "unassigned"}</div>
       </div></div>
@@ -10152,7 +10184,7 @@ heartbeat_seconds = 30
 		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		const n = selected$1();
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? loadingState() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
-              <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$2(i.status)}</span>
+              <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$3(i.status)}</span>
               <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
             </a>`).join("") || emptyState({
 			illustration: ui.status === "proposed" ? "done" : "inbox",
@@ -10203,7 +10235,7 @@ heartbeat_seconds = 30
 		const head = `<div class="row justify-between items-start gap-3 wrap">
       <div><h2>#${i.number} ${esc(i.title)}</h2>
       <p class="small soft">Saved by ${esc(i.author)} on ${esc(when$1(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when$1(i.updated_at))}` : ""}</p></div>
-      <div class="row gap-1_5">${statusBadge$2(i.status)}</div>
+      <div class="row gap-1_5">${statusBadge$3(i.status)}</div>
     </div>`;
 		const body = editing?.key === key ? draftForm("insight-edit", editing.text, busy$1, "Save changes") : `${i.summary ? `<p class="pre-wrap" data-summary>${esc(i.summary)}</p>` : ""}
         <div><h3>Proposed actions</h3>${i.actions.length ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>` : "<p class=\"small soft\">None proposed.</p>"}</div>`;
@@ -10900,7 +10932,7 @@ heartbeat_seconds = 30
 			title: "The documents could not be loaded",
 			retry: "retry-docs",
 			compact: true
-		}) : items === null ? skeleton() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
+		}) : items === null ? loadingState() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
               <span class="row gap-1_5 justify-between"><b>${esc(d.title)}</b>
               <span class="row gap-1">${button("Open", {
 			size: "sm",
@@ -11431,7 +11463,7 @@ heartbeat_seconds = 30
 		t.hidden = false;
 		t.dataset.state = "open";
 		const described = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
-		if (!described.includes("tooltip")) el.setAttribute("aria-describedby", [...described, "tooltip"].join(" "));
+		if (!((el.getAttribute("aria-label") ?? el.textContent ?? "").trim() === text.trim()) && !described.includes("tooltip")) el.setAttribute("aria-describedby", [...described, "tooltip"].join(" "));
 		target = el;
 		watch();
 		const r = el.getBoundingClientRect();

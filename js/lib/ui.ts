@@ -47,6 +47,8 @@ export function loadingState(label = 'Loading…', rows = 3): string {
 // named `*Html` (and `action`) take markup the caller built; everything else is text.
 
 export type Attrs = Record<string, string | number | boolean | null | undefined>;
+// Attributes beside the ones a component sets itself: its class and type come from its options.
+export type ExtraAttrs = Attrs & { class?: never; type?: never };
 
 // ` name="value"` for each attribute, escaped; true is a bare attribute, false or null leaves it out.
 export function attrs(a: Attrs = {}): string {
@@ -66,7 +68,7 @@ export interface ButtonOptions {
   type?: 'button' | 'submit';
   disabled?: boolean;
   class?: string;
-  attrs?: Attrs;
+  attrs?: ExtraAttrs;
 }
 
 const buttonClass = (o: ButtonOptions, extra?: string): string => classes('btn', o.size, o.variant, extra, o.class);
@@ -87,18 +89,19 @@ export function linkButton(label: string, href: string, o: Omit<ButtonOptions, '
   return `<a${attrs({ class: buttonClass(o), href, ...o.attrs })}>${o.icon ? `${icon(o.icon)} ` : ''}${esc(label)}</a>`;
 }
 
+// The badge colours css/styles.css has ('' is the plain one).
 export type Tone = 'good' | 'bad' | 'warn' | 'accent' | 'info' | '';
 
-export function badge(text: string, tone: Tone | string = '', o: { title?: string; attrs?: Attrs } = {}): string {
+export function badge(text: string, tone: Tone = '', o: { title?: string; attrs?: ExtraAttrs } = {}): string {
   return `<span${attrs({ class: classes('badge', tone), title: o.title, ...o.attrs })}>${esc(text)}</span>`;
 }
 
 // A toggle in a row of filters: aria-pressed says whether it's on.
-export function chip(label: string, o: { pressed?: boolean; attrs?: Attrs } = {}): string {
+export function chip(label: string, o: { pressed?: boolean; attrs?: ExtraAttrs } = {}): string {
   return `<button${attrs({ class: 'chip', type: 'button', 'aria-pressed': o.pressed === undefined ? undefined : String(o.pressed), ...o.attrs })}>${esc(label)}</button>`;
 }
 
-export function card(bodyHtml: string, o: { class?: string; attrs?: Attrs } = {}): string {
+export function card(bodyHtml: string, o: { class?: string; attrs?: ExtraAttrs } = {}): string {
   return `<div${attrs({ class: classes('card', o.class), ...o.attrs })}>${bodyHtml}</div>`;
 }
 
@@ -115,7 +118,7 @@ export interface InputOptions {
   value?: string;
   placeholder?: string;
   class?: string;
-  attrs?: Attrs;
+  attrs?: ExtraAttrs & { name?: never; value?: never };
 }
 
 export function input(o: InputOptions): string {
@@ -131,22 +134,30 @@ export function select(
   name: string | null,
   list: readonly (readonly [string, string])[],
   current: string,
-  o: { attrs?: Attrs; class?: string } = {},
+  o: { attrs?: ExtraAttrs & { name?: never }; class?: string } = {},
 ): string {
   return `<select${attrs({ name, class: o.class, ...o.attrs })}>${options(list, current)}</select>`;
 }
 
-// A labelled control: the label wraps it, so it is named; a hint goes below it, read with it.
+// A labelled control: the label wraps it, so it is named; a hint goes below it, and the control (the
+// first input, select or textarea in it) is described by it, beside whatever describes it already.
 let hints = 0;
+export function describedBy(controlHtml: string, id: string): string {
+  return controlHtml.replace(/<(input|select|textarea)\b[^>]*>/, (tag) => {
+    const has = /\saria-describedby="([^"]*)"/.exec(tag);
+    return has
+      ? tag.replace(has[0], ` aria-describedby="${has[1] ? `${has[1]} ` : ''}${id}"`)
+      : tag.replace(/^<(\w+)/, `<$1 aria-describedby="${id}"`);
+  });
+}
+
 export function field(
   label: string,
   controlHtml: string,
   o: { class?: string; title?: string; hint?: string; inline?: boolean } = {},
 ): string {
   const hint = o.hint ? `ui-hint-${++hints}` : null;
-  const control = hint
-    ? controlHtml.replace(/^<(input|select|textarea)\b/, `<$1 aria-describedby="${hint}"`)
-    : controlHtml;
+  const control = hint ? describedBy(controlHtml, hint) : controlHtml;
   return `<label${attrs({ class: classes(o.inline ? 'row gap-1_5' : 'field', o.class), title: o.title })}>${esc(label)}${o.inline ? ' ' : ''}${control}${
     hint ? `<span class="small soft" id="${hint}">${esc(o.hint ?? '')}</span>` : ''
   }</label>`;
@@ -172,17 +183,18 @@ export function kv(rows: readonly (readonly [string, string])[], o: { valueClass
     .join('')}</tbody></table></div>`;
 }
 
-// A segmented choice of views (filters on the same list), the current one marked.
+// A segmented control: filters of one list, the current one pressed. Toggle buttons, not ARIA tabs:
+// there is no panel to switch, and Tab steps through them like any buttons.
 export function tabs(o: {
   label: string;
   items: readonly (readonly [string, string])[];
   current: string;
   data: string;
 }): string {
-  return `<div class="tabs" role="tablist" aria-label="${esc(o.label)}">${o.items
+  return `<div class="tabs" role="group" aria-label="${esc(o.label)}">${o.items
     .map(
       ([v, l]) =>
-        `<button${attrs({ class: classes('tab', v === o.current && 'active'), type: 'button', role: 'tab', 'aria-selected': String(v === o.current), [`data-${o.data}`]: v })}>${esc(l)}</button>`,
+        `<button${attrs({ class: classes('tab', v === o.current && 'active'), type: 'button', 'aria-pressed': String(v === o.current), [`data-${o.data}`]: v })}>${esc(l)}</button>`,
     )
     .join('')}</div>`;
 }
@@ -200,5 +212,3 @@ export function errorState(o: { title: string; body?: string; retry?: string; co
       : undefined,
   });
 }
-
-export const skeleton = loadingState;

@@ -207,7 +207,7 @@ test('tables name their headers; an action column is for screen readers', () => 
   );
 });
 
-test('tabs mark the current one for the eye and for screen readers', () => {
+test('the filter tabs are toggle buttons, the current one pressed', () => {
   const html = tabs({
     label: 'Status',
     items: [
@@ -217,15 +217,9 @@ test('tabs mark the current one for the eye and for screen readers', () => {
     current: 'all',
     data: 'show',
   });
-  assert.match(html, /^<div class="tabs" role="tablist" aria-label="Status">/);
-  assert.match(
-    html,
-    /<button class="tab" type="button" role="tab" aria-selected="false" data-show="new">New<\/button>/,
-  );
-  assert.match(
-    html,
-    /<button class="tab active" type="button" role="tab" aria-selected="true" data-show="all">All<\/button>/,
-  );
+  assert.match(html, /^<div class="tabs" role="group" aria-label="Status">/);
+  assert.match(html, /<button class="tab" type="button" aria-pressed="false" data-show="new">New<\/button>/);
+  assert.match(html, /<button class="tab active" type="button" aria-pressed="true" data-show="all">All<\/button>/);
 });
 
 test('an error state is an alert, with a way to try again', () => {

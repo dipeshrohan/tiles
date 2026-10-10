@@ -18,10 +18,10 @@ import {
   errorState,
   field as labelled,
   input,
+  loadingState,
   needsApi,
   pageHead,
   select,
-  skeleton,
 } from '../lib/ui.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
@@ -136,7 +136,7 @@ function listCard(ctx: Context): string {
   const rows = listing?.failed
     ? errorState({ title: 'The documents could not be loaded', retry: 'retry-docs', compact: true })
     : items === null
-      ? skeleton()
+      ? loadingState()
       : items
           .map(
             (d) => `<div class="review-row" data-doc="${d.number}">

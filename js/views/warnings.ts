@@ -25,17 +25,17 @@ import {
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
 import {
-  badge as tag,
+  badge,
   button,
   card,
   emptyState,
   errorState,
   field,
   kv,
+  loadingState,
   needsApi,
   pageHead,
   select,
-  skeleton,
   tabs,
 } from '../lib/ui.ts';
 
@@ -88,9 +88,9 @@ const listKey = (ctx: Context): string => `${siteId(ctx)}|${JSON.stringify(uiSta
 const detailKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).selected}`;
 const seriesKey = (w: WarningDetail): string => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 
-function badge(w: Pick<WarningInfo, 'status'>): string {
+function statusBadge(w: Pick<WarningInfo, 'status'>): string {
   const [cls, label] = STATUS[w.status];
-  return tag(label, cls);
+  return badge(label, cls);
 }
 
 const signalState = (w: WarningInfo): string => (w.ended_at ? `back ${ago(w.ended_at)}` : '<b>still out</b>');
@@ -140,12 +140,12 @@ function listCard(ctx: Context, ui: Ui): string {
   const empty = unfiltered ? 'Nothing to do: no warning waits for anyone.' : 'No warnings match these filters.';
   const rows =
     items === null
-      ? skeleton()
+      ? loadingState()
       : items
           .map(
             (w) => `
         <button class="review-row ${ui.selected === w.id ? 'sel' : ''}" data-warning="${esc(w.id)}">
-          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${badge(w)}</span>
+          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : 'Unassigned'}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ''}</span>
         </button>`,
@@ -159,7 +159,7 @@ function listCard(ctx: Context, ui: Ui): string {
 function chartCard(w: WarningDetail): string {
   const fetched = series?.key === seriesKey(w) ? series : null;
   const s = fetched?.data;
-  if (!fetched || s === undefined) return skeleton('Loading the signal…', 4);
+  if (!fetched || s === undefined) return loadingState('Loading the signal…', 4);
   if (s === null) return '<p class="small muted">The signal’s readings could not be loaded.</p>';
   const { from, to, start, end } = fetched.range; // the range the readings were fetched for
   const points = toPoints(s);
@@ -190,7 +190,8 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
       ? [[w.assignee_id, w.assignee ?? 'current assignee']]
       : [];
   const has = (a: string) => actions.includes(a as never);
-  const act = (label: string, a: string, variant?: 'primary') => button(label, { variant, attrs: { 'data-act': a } });
+  const actButton = (label: string, a: string, variant?: 'primary') =>
+    button(label, { variant, attrs: { 'data-act': a } });
   const assign = has('assign')
     ? `<span class="row gap-1_5">${field(
         'Assign to',
@@ -204,20 +205,20 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
           w.assignee_id ?? '',
         ),
         { inline: true },
-      )}${act('Assign', 'assign')}</span>`
+      )}${actButton('Assign', 'assign')}</span>`
     : '';
   const outcomes = (Object.keys(OUTCOMES) as WarningOutcome[]).map((o) => [o, OUTCOMES[o]] as const);
   const resolve = has('resolve')
-    ? `<span class="row gap-1_5">${field('Outcome', select('outcome', outcomes, ''), { inline: true })}${act('Resolve', 'resolve', 'primary')}</span>`
+    ? `<span class="row gap-1_5">${field('Outcome', select('outcome', outcomes, ''), { inline: true })}${actButton('Resolve', 'resolve', 'primary')}</span>`
     : '';
   return `<form class="stack gap-2 mt-2_5" id="warning-form">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
       <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy ? 'disabled' : ''}>
-        ${has('acknowledge') ? act('Acknowledge', 'acknowledge', 'primary') : ''}
+        ${has('acknowledge') ? actButton('Acknowledge', 'acknowledge', 'primary') : ''}
         ${assign}
         ${resolve}
-        ${has('reopen') ? act('Reopen', 'reopen') : ''}
-        ${act('Comment', 'comment')}
+        ${has('reopen') ? actButton('Reopen', 'reopen') : ''}
+        ${actButton('Comment', 'comment')}
       </fieldset>
     </form>`;
 }
@@ -236,7 +237,7 @@ function detailCard(ctx: Context, ui: Ui): string {
     return card(errorState({ title: 'This warning could not be loaded', body: 'Refresh to try again.' }), {
       attrs: { 'data-warning-detail': true },
     });
-  if (!w) return card(skeleton(), { attrs: { 'data-warning-detail': true } });
+  if (!w) return card(loadingState(), { attrs: { 'data-warning-detail': true } });
   const activity = w.activity
     .map(
       (a) => `
@@ -255,7 +256,7 @@ function detailCard(ctx: Context, ui: Ui): string {
   return card(
     `
       <div class="card-head"><div>
-        ${badge(w)} ${w.ended_at ? '' : tag('Signal still out', 'bad')}
+        ${statusBadge(w)} ${w.ended_at ? '' : badge('Signal still out', 'bad')}
         <h2 class="mono mt-1_5">${esc(w.signal_tag)}</h2>
         <div class="small muted">${esc(w.detector)} · started ${ago(w.started_at)} · ${w.readings} reading(s) out · ${w.assignee ? `for ${esc(w.assignee)}` : 'unassigned'}</div>
       </div></div>

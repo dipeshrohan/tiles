@@ -24,9 +24,11 @@ function show(el: HTMLElement): void {
   t.textContent = text;
   t.hidden = false;
   t.dataset.state = 'open';
-  // Added to what already describes it, not instead.
+  // Added to what already describes it, not instead; not when it only repeats the element's name.
   const described = (el.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
-  if (!described.includes('tooltip')) el.setAttribute('aria-describedby', [...described, 'tooltip'].join(' '));
+  const named = (el.getAttribute('aria-label') ?? el.textContent ?? '').trim() === text.trim();
+  if (!named && !described.includes('tooltip'))
+    el.setAttribute('aria-describedby', [...described, 'tooltip'].join(' '));
   target = el;
   watch();
   const r = el.getBoundingClientRect();
