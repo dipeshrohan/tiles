@@ -597,21 +597,35 @@ const NAV_GROUPS: NavGroup[] = NAV.map((g, i) => ({
 const NAV_PAGES = NAV_GROUPS.flatMap((g) => g.pages.map((p) => p.id));
 let navFor = '';
 let navPrefs: NavPrefs = DEFAULT_PREFS;
-// Whose choices: in API mode the signed-in person (once known: until then, what is chosen waits in
-// memory and joins theirs), otherwise this browser's profile.
+// Whose choices: in API mode the signed-in person (once known), otherwise this browser's profile.
 function navOwner(): string | null {
   if (!api) return `nav:local:${state.user.email}`;
   return ctx.ontology.userId ? `nav:${ctx.ontology.userId}` : null;
 }
+// Until the API says who is signed in, the menu is laid out as for whoever used it here last (the
+// rail, the folded groups: no flash on a reload), never with their pages (pins, recent: a tablet on
+// the line is shared); pages visited meanwhile join the person's recent pages once known.
+const lastOwner = (): string => `nav:last:${api?.baseUrl ?? ''}`;
+let waitingVisits: string[] = [];
+let borrowed = false;
 function prefs(): NavPrefs {
   const who = navOwner();
   if (who && who !== navFor) {
-    const waiting = navFor ? null : navPrefs; // chosen before the person was known
+    const first = !navFor;
     navFor = who;
     navPrefs = cleanPrefs(load<unknown>(who, null), NAV_PAGES);
-    if (waiting) {
-      for (const id of [...waiting.recent].reverse()) navPrefs = visited(navPrefs, id);
+    if (first && waitingVisits.length) {
+      for (const id of waitingVisits) navPrefs = visited(navPrefs, id);
       save(who, navPrefs);
+    }
+    waitingVisits = [];
+    if (api) save(lastOwner(), who);
+  } else if (!who && !navFor && !borrowed) {
+    borrowed = true;
+    const last = load<string | null>(lastOwner(), null);
+    if (last?.startsWith('nav:')) {
+      const theirs = cleanPrefs(load<unknown>(last, null), NAV_PAGES);
+      navPrefs = { ...DEFAULT_PREFS, rail: theirs.rail, folded: theirs.folded };
     }
   }
   return navPrefs;
@@ -698,7 +712,10 @@ function render(): void {
   if (view.id !== trackedView) {
     trackedView = view.id;
     ux('page', view.id);
-    if (NAV_PAGES.includes(view.id)) setPrefs(visited(prefs(), view.id)); // the last pages, in the menu
+    if (NAV_PAGES.includes(view.id)) {
+      setPrefs(visited(prefs(), view.id)); // the last pages, in the menu
+      if (!navFor) waitingVisits.push(view.id);
+    }
   }
   renderNav(view);
   document.title = view === home ? 'Tiles' : `${view.title} · Tiles`;

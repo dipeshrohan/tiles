@@ -3086,7 +3086,8 @@
 	}
 	var UNREACHABLE = /can.t reach|failed to fetch|networkerror|not reachable|timed out|load failed/i;
 	function apiUnreachable(reason, o = {}) {
-		const why = (reason ?? "").replace(/^Can.t reach the Tiles API\b[^.:]*[.:]?\s*/i, "").trim();
+		const at = /^Can.t reach the Tiles API(?: at (\S+?))?[.:]?(?:\s|$)/i.exec(reason ?? "");
+		const why = at ? at[1] ? `Nothing answered at ${at[1]}` : "" : (reason ?? "").trim();
 		const unreachable = !reason || UNREACHABLE.test(reason);
 		const sentence = why && !/[.!?)]$/.test(why) ? `${why}.` : why;
 		const size = o.size ?? "sm";
@@ -14651,15 +14652,31 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (!api) return `nav:local:${state.user.email}`;
 		return ctx.ontology.userId ? `nav:${ctx.ontology.userId}` : null;
 	}
+	var lastOwner = () => `nav:last:${api?.baseUrl ?? ""}`;
+	var waitingVisits = [];
+	var borrowed = false;
 	function prefs() {
 		const who = navOwner();
 		if (who && who !== navFor) {
-			const waiting = navFor ? null : navPrefs;
+			const first = !navFor;
 			navFor = who;
 			navPrefs = cleanPrefs(load$4(who, null), NAV_PAGES);
-			if (waiting) {
-				for (const id of [...waiting.recent].reverse()) navPrefs = visited(navPrefs, id);
+			if (first && waitingVisits.length) {
+				for (const id of waitingVisits) navPrefs = visited(navPrefs, id);
 				save$1(who, navPrefs);
+			}
+			waitingVisits = [];
+			if (api) save$1(lastOwner(), who);
+		} else if (!who && !navFor && !borrowed) {
+			borrowed = true;
+			const last = load$4(lastOwner(), null);
+			if (last?.startsWith("nav:")) {
+				const theirs = cleanPrefs(load$4(last, null), NAV_PAGES);
+				navPrefs = {
+					...DEFAULT_PREFS,
+					rail: theirs.rail,
+					folded: theirs.folded
+				};
 			}
 		}
 		return navPrefs;
@@ -14755,7 +14772,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (view.id !== trackedView) {
 			trackedView = view.id;
 			ux("page", view.id);
-			if (NAV_PAGES.includes(view.id)) setPrefs(visited(prefs(), view.id));
+			if (NAV_PAGES.includes(view.id)) {
+				setPrefs(visited(prefs(), view.id));
+				if (!navFor) waitingVisits.push(view.id);
+			}
 		}
 		renderNav(view);
 		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;

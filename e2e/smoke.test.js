@@ -3689,8 +3689,14 @@ test('the menu: groups fold, pages pin, recent pages, counts and an icon rail, a
   assert.equal(await page.evaluate(() => document.body.classList.contains('nav-rail')), true);
   assert.equal(await page.getAttribute('#nav [data-key="nav-menu-signals"] a', 'data-tooltip'), 'Signals');
   await page.waitForFunction(() => document.querySelector('#sidebar').getBoundingClientRect().width < 80);
+  // Reloaded, before the API says who is signed in: laid out as before (the rail), without anyone's
+  // pages (pins wait for the person to be known).
+  fake.slowNext('GET', /\/sites\/[^/]+\/me$/, 1500);
   await page.reload();
   await page.waitForSelector('#view h1');
+  assert.equal(await page.evaluate(() => document.body.classList.contains('nav-rail')), true);
+  assert.equal(await page.locator('#nav [data-key="nav-pinned-explorer"]').count(), 0);
+  await page.waitForSelector('#nav [data-key="nav-pinned-explorer"]');
   assert.equal(await page.evaluate(() => document.body.classList.contains('nav-rail')), true);
   await page.click('[data-nav-rail]');
   assert.deepEqual(a.errors, []);
