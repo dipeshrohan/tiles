@@ -284,6 +284,14 @@ test("a site that didn't load: a failed connection says to check the API, an ans
   assert.match(down, /Can&#39;t reach the Tiles API<\/h2>/);
   assert.match(down, /Check that the API is running and its address in Settings is right/);
   assert.doesNotMatch(down, /<p>Can&#39;t reach/); // the title isn't said twice
+  // Where, whole (a colon in the address cut it short: "//localhost:8000."); the browser's words not.
+  assert.match(down, /<p>Nothing answered at http:\/\/127\.0\.0\.1:1\. Check that/);
+  assert.doesNotMatch(down, /<p>[^<]*Failed to fetch/);
+  assert.match(
+    apiUnreachable("Can't reach the Tiles API at http://localhost:8000"),
+    /<p>Nothing answered at http:\/\/localhost:8000\. /,
+  );
+  assert.match(apiUnreachable("Can't reach the Tiles API"), /<p>Check that the API is running/);
   const answered = apiUnreachable(
     'The Tiles API has no sites yet. Run `tiles-seed` (Docker Compose does this for you).',
   );

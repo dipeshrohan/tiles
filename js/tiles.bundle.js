@@ -3086,7 +3086,8 @@
 	}
 	var UNREACHABLE = /can.t reach|failed to fetch|networkerror|not reachable|timed out|load failed/i;
 	function apiUnreachable(reason, o = {}) {
-		const why = (reason ?? "").replace(/^Can.t reach the Tiles API\b[^.:]*[.:]?\s*/i, "").trim();
+		const at = /^Can.t reach the Tiles API(?: at (\S+?))?[.:]?(?:\s|$)/i.exec(reason ?? "");
+		const why = at ? at[1] ? `Nothing answered at ${at[1]}` : "" : (reason ?? "").trim();
 		const unreachable = !reason || UNREACHABLE.test(reason);
 		const sentence = why && !/[.!?)]$/.test(why) ? `${why}.` : why;
 		const size = o.size ?? "sm";

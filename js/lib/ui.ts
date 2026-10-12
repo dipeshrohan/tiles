@@ -300,7 +300,10 @@ export function tabs(o: {
 // in (both handled in app.ts).
 const UNREACHABLE = /can.t reach|failed to fetch|networkerror|not reachable|timed out|load failed/i;
 export function apiUnreachable(reason: string | null, o: { signIn?: boolean; size?: 'sm' | 'lg' } = {}): string {
-  const why = (reason ?? '').replace(/^Can.t reach the Tiles API\b[^.:]*[.:]?\s*/i, '').trim();
+  // "Can't reach the Tiles API at http://localhost:8000: Failed to fetch" says where, in words; the
+  // browser's own wording stays in Copy details.
+  const at = /^Can.t reach the Tiles API(?: at (\S+?))?[.:]?(?:\s|$)/i.exec(reason ?? '');
+  const why = at ? (at[1] ? `Nothing answered at ${at[1]}` : '') : (reason ?? '').trim();
   const unreachable = !reason || UNREACHABLE.test(reason);
   const sentence = why && !/[.!?)]$/.test(why) ? `${why}.` : why;
   const size = o.size ?? 'sm';
