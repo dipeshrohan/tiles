@@ -13,6 +13,7 @@ from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are 
 from test_apps import make
 from test_documents import upload
 from test_insights import save
+from test_reviews import ENG2, member
 from test_series import MINUTE, T0, load
 from test_warnings import raise_warnings
 
@@ -124,6 +125,41 @@ def test_another_sites_records_are_never_found(api: TestClient, site: str, datab
     assert (titles(there, "signal"), titles(there, "node")) == (["line.oven.secret"], ["Oven secret"])
 
 
+def test_archived_and_rejected_records_are_left_out(api: TestClient, site: str) -> None:  # noqa: F811
+    signal = load(api, site, "oven.zone2", [1.0 + i % 3 for i in range(60)])
+    assert make(api, site, "Oven watch", "spc-limits", signal=signal).status_code == 201
+    assert upload(api, site, b"Oven start-up\fOven zone checks", "text/plain", title="Oven SOP").status_code == 201
+    source = {"kind": "series", "signals": [signal], "start": T0.isoformat(), "end": (T0 + 60 * MINUTE).isoformat()}
+    assert save(api, site, source, title="Oven drifts").status_code == 201
+    found = search(api, site, "oven")
+    assert (titles(found, "app"), titles(found, "document"), titles(found, "insight")) == (
+        ["Oven watch"],
+        ["Oven SOP"],
+        ["Oven drifts"],
+    )
+    assert api.delete(f"/sites/{site}/apps/1", headers=ENG).status_code == 204
+    assert api.delete(f"/sites/{site}/documents/1", headers=ENG).status_code == 204
+    member(api, site, ENG2)
+    rejected = api.post(
+        f"/sites/{site}/insights/1/review", json={"decision": "rejected", "note": "Too short"}, headers=ENG2
+    )
+    assert rejected.status_code == 200, rejected.text
+    found = search(api, site, "oven")
+    assert (titles(found, "app"), titles(found, "document"), titles(found, "insight")) == ([], [], [])
+    assert titles(found, "signal") == ["oven.zone2"]
+
+
+def test_document_words_are_all_the_words_typed_never_an_operator(api: TestClient, site: str) -> None:  # noqa: F811
+    assert upload(api, site, b"Plunger tip\fHydraulic pressure 140 bar", "text/plain", title="SOP 9").status_code == 201
+    assert upload(api, site, b"Spindle speed\fCoolant level", "text/plain", title="SOP 10").status_code == 201
+    # A leading - is a word typed, not "every page without it": nothing has "oven".
+    assert titles(search(api, site, "-oven"), "document") == []
+    assert titles(search(api, site, "hydraulic pressure"), "document") == ["SOP 9"]
+    found = search(api, site, "hydraulic pressure")["groups"][0]["results"][0]
+    assert (found["page"], found["detail"]) == (2, "2 pages")
+    assert titles(search(api, site, "pressure spindle"), "document") == []  # every word, on one page
+
+
 def test_requests_are_checked(api: TestClient, site: str) -> None:  # noqa: F811
     queries: list[dict[str, str | int]] = [{"q": "a"}, {"q": " "}, {"q": "x" * 201}]
     queries += [{"q": "oven", "limit": 0}, {"q": "oven", "limit": 21}]
@@ -131,6 +167,10 @@ def test_requests_are_checked(api: TestClient, site: str) -> None:  # noqa: F811
         assert api.get(f"/sites/{site}/search", params=query, headers=VIEWER).status_code == 422, query
     assert api.get(f"/sites/{site}/search", params={"q": "oven", "kind": "people"}, headers=VIEWER).status_code == 422
     assert search(api, site, "nothing like this anywhere") == {"query": "nothing like this anywhere", "groups": []}
+    # A kind asked for twice is one group.
+    load(api, site, "oven.zone1", [1.0])
+    twice = search(api, site, "oven", kind=["signal", "signal"])
+    assert [g["kind"] for g in twice["groups"]] == ["signal"]
 
 
 def test_the_patterns_take_the_query_as_written() -> None:
@@ -140,8 +180,8 @@ def test_the_patterns_take_the_query_as_written() -> None:
     assert (p["q"], p["prefix"], p["anywhere"], p["words"]) == ("press 9", "press 9%", "%press 9%", ["%press%", "%9%"])
 
 
-@pytest.mark.parametrize("signals", [3000])
-def test_fast_on_a_site_with_thousands_of_signals(
+@pytest.mark.parametrize("signals", [5000])
+def test_fast_on_a_site_the_size_of_the_load_test(
     api: TestClient,  # noqa: F811
     site: str,  # noqa: F811
     database_url: str,

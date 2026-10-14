@@ -90,21 +90,22 @@ def scored(fields: list[tuple[str, float]]) -> tuple[str, str]:
 
 
 def kind_sql(kind: Kind) -> str:
-    """The query for one kind: id, title, detail and score of the records that match, best first,
-    `%(limit)s` + 1 of them (the one over says there are more)."""
+    """The query for one kind: id, title, detail, score, len, at, page and snippet of the records
+    that match, best first, `%(limit)s` + 1 of them (the one over says there are more)."""
+    rest = "NULL::integer AS page, NULL::text AS snippet"
     if kind == "signal":
         score, where = scored([("s.tag", 1.0), ("s.description", 0.5), ("s.asset", 0.5)])
         return f"""
             SELECT s.id::text AS id, s.tag AS title,
                    concat_ws(' · ', nullif(s.description, ''), s.unit) AS detail,
-                   {score} AS score, length(s.tag) AS len, s.created_at AS at
+                   {score} AS score, length(s.tag) AS len, s.created_at AS at, {rest}
             FROM signals s WHERE s.site_id = %(site)s AND {where}
             ORDER BY score DESC, len, at DESC LIMIT %(limit)s + 1"""  # noqa: S608 - fixed columns; the query is a parameter
     if kind == "node":
         score, where = scored([("n.label", 1.0), ("n.id", 0.7), ("n.type", 0.3)])
         return f"""
             SELECT n.id AS id, n.label AS title, n.type AS detail,
-                   {score} AS score, length(n.label) AS len, NULL::timestamptz AS at
+                   {score} AS score, length(n.label) AS len, NULL::timestamptz AS at, {rest}
             FROM ontology_nodes n WHERE n.site_id = %(site)s AND {where}
             ORDER BY score DESC, len, n.label LIMIT %(limit)s + 1"""  # noqa: S608 - fixed columns; the query is a parameter
     if kind == "warning":
@@ -115,55 +116,69 @@ def kind_sql(kind: Kind) -> str:
                              CASE WHEN w.resolved_at IS NOT NULL THEN 'resolved'
                                   WHEN w.acknowledged_at IS NOT NULL THEN 'acknowledged'
                                   ELSE 'raised' END) AS detail,
-                   {score} AS score, length(s.tag) AS len, w.started_at AS at
+                   {score} AS score, length(s.tag) AS len, w.started_at AS at, {rest}
             FROM warnings w
             JOIN signals s ON s.id = w.signal_id
             JOIN detectors d ON d.id = w.detector_id
             WHERE w.site_id = %(site)s AND {where}
-            ORDER BY score DESC, at DESC, len LIMIT %(limit)s + 1"""  # noqa: S608 - fixed columns; the query is a parameter
+            ORDER BY score DESC, len, at DESC LIMIT %(limit)s + 1"""  # noqa: S608 - fixed columns; the query is a parameter
     if kind == "insight":
+        # A rejected finding is left out, as archived documents and apps are.
         score, where = scored([("i.title", 1.0), ("i.summary", 0.4)])
         return f"""
             SELECT i.number::text AS id, i.title AS title, i.status AS detail,
-                   {score} AS score, length(i.title) AS len, i.created_at AS at
-            FROM insights i WHERE i.site_id = %(site)s AND {where}
+                   {score} AS score, length(i.title) AS len, i.created_at AS at, {rest}
+            FROM insights i WHERE i.site_id = %(site)s AND i.status <> 'rejected' AND {where}
             ORDER BY score DESC, len, at DESC LIMIT %(limit)s + 1"""  # noqa: S608 - fixed columns; the query is a parameter
     if kind == "app":
         score, where = scored([("a.name", 1.0), ("a.template", 0.3)])
         return f"""
             SELECT a.number::text AS id, a.name AS title, a.template AS detail,
-                   {score} AS score, length(a.name) AS len, a.created_at AS at
+                   {score} AS score, length(a.name) AS len, a.created_at AS at, {rest}
             FROM apps a WHERE a.site_id = %(site)s AND a.archived_at IS NULL AND {where}
             ORDER BY score DESC, len, at DESC LIMIT %(limit)s + 1"""  # noqa: S608 - fixed columns; the query is a parameter
-    # Documents: by title, as the rest, or by their words (the best page of each), in the document's
-    # language; a page found scores between ALL_WORDS and ANYWHERE by how well its words match.
+    # Documents: by title, as the rest, or by their words (every word typed, no operators: a palette
+    # isn't a search syntax) in the document's language, the best page of each; a page found scores
+    # between ALL_WORDS and ANYWHERE by how well its words match. Its snippet is made only for the
+    # documents kept (ts_headline is the costly part).
     score, where = scored([("d.title", 1.0)])
     return f"""
         WITH q AS MATERIALIZED (
-            SELECT language, websearch_to_tsquery(language, %(raw)s) AS q
+            SELECT language, plainto_tsquery(language, %(raw)s) AS q
             FROM (SELECT DISTINCT language FROM documents
                   WHERE site_id = %(site)s AND archived_at IS NULL) langs
         ),
-        pages AS (
-            SELECT DISTINCT ON (c.document_id) c.document_id, c.page,
-                   ts_rank_cd(c.tsv, q.q) AS rank,
-                   ts_headline(c.language, c.text, q.q,
-                               'MaxFragments=1, MaxWords=20, MinWords=8, '
-                               'StartSel=' || chr(2) || ', StopSel=' || chr(3)) AS snippet
-            FROM q JOIN document_chunks c
-              ON c.site_id = %(site)s AND c.language = q.language AND c.tsv @@ q.q
+        best AS (
+            SELECT DISTINCT ON (c.document_id) c.document_id, c.id AS chunk, c.page,
+                   ts_rank_cd(c.tsv, q.q) AS rank, q.q AS q
+            FROM q
+            JOIN document_chunks c ON c.site_id = %(site)s AND c.language = q.language AND c.tsv @@ q.q
+            JOIN documents live ON live.id = c.document_id AND live.archived_at IS NULL
             ORDER BY c.document_id, ts_rank_cd(c.tsv, q.q) DESC, c.page
+        ),
+        found AS (
+            SELECT d.number::text AS id, d.title AS title,
+                   CASE WHEN d.pages = 1 THEN '1 page' ELSE d.pages || ' pages' END AS detail,
+                   GREATEST({score}, CASE WHEN b.document_id IS NOT NULL
+                                          THEN {ALL_WORDS} + least(b.rank, 1) * {ANYWHERE - ALL_WORDS}
+                                          ELSE 0 END) AS score,
+                   length(d.title) AS len, d.created_at AS at, b.page AS page, b.chunk, b.q
+            FROM documents d LEFT JOIN best b ON b.document_id = d.id
+            WHERE d.site_id = %(site)s AND d.archived_at IS NULL AND (b.document_id IS NOT NULL OR {where})
+            ORDER BY score DESC, len, at DESC LIMIT %(limit)s + 1
         )
-        SELECT d.number::text AS id, d.title AS title,
-               concat(d.pages, ' page(s)') AS detail,
-               GREATEST({score}, CASE WHEN p.document_id IS NOT NULL
-                                      THEN {ALL_WORDS} + least(p.rank, 1) * {ANYWHERE - ALL_WORDS}
-                                      ELSE 0 END) AS score,
-               length(d.title) AS len, d.created_at AS at,
-               p.page AS page, p.snippet AS snippet
-        FROM documents d LEFT JOIN pages p ON p.document_id = d.id
-        WHERE d.site_id = %(site)s AND d.archived_at IS NULL AND (p.document_id IS NOT NULL OR {where})
-        ORDER BY score DESC, len, at DESC LIMIT %(limit)s + 1"""  # noqa: S608 - fixed columns; the query is a parameter
+        SELECT f.id, f.title, f.detail, f.score, f.len, f.at, f.page,
+               CASE WHEN f.chunk IS NULL THEN NULL
+                    ELSE ts_headline(c.language, c.text, f.q,
+                                     'MaxFragments=1, MaxWords=20, MinWords=8, '
+                                     'StartSel=' || chr(2) || ', StopSel=' || chr(3)) END AS snippet
+        FROM found f LEFT JOIN document_chunks c ON c.id = f.chunk
+        ORDER BY f.score DESC, f.len, f.at DESC"""  # noqa: S608 - fixed columns; the query is a parameter
+
+
+def search_sql(kinds: list[Kind]) -> str:
+    """Every kind's query in one statement (one round trip a keystroke), each row named by its kind."""
+    return " UNION ALL ".join(f"(SELECT '{k}' AS kind, k.* FROM ({kind_sql(k)}) k)" for k in kinds)  # noqa: S608
 
 
 def params(q: str, site: Any, limit: int) -> dict[str, Any]:
@@ -195,13 +210,18 @@ def search(
     warnings (signal, detector, asset), insights (title, summary), documents (title and words) and
     apps (name), ranked and grouped by kind: the best group first, at most `limit` of each, with
     `more` when there are others."""
-    if not q.strip() or len(q.strip()) < 2:
+    text = q.strip()
+    if len(text) < 2:
         raise HTTPException(422, "Search for two characters or more")
-    values = params(q.strip(), ctx.site_id, limit)
+    wanted = list(dict.fromkeys(kinds or KINDS))  # each kind once, whatever was repeated
+    rows = ctx.conn.execute(search_sql(wanted), params(text, ctx.site_id, limit)).fetchall()
+    found: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        found.setdefault(r["kind"], []).append(r)
     groups: list[Group] = []
-    for kind in kinds or list(KINDS):
-        rows = ctx.conn.execute(kind_sql(kind), values).fetchall()
-        if not rows:
+    for kind in wanted:
+        mine = sorted(found.get(kind, []), key=order)
+        if not mine:
             continue
         results = [
             Result(
@@ -210,11 +230,18 @@ def search(
                 title=str(r["title"]),
                 detail=str(r["detail"] or ""),
                 score=round(float(r["score"]), 3),
-                page=r.get("page"),
-                snippet=r.get("snippet"),
+                page=r["page"],
+                snippet=r["snippet"],
             )
-            for r in rows[:limit]
+            for r in mine[:limit]
         ]
-        groups.append(Group(kind=kind, label=LABELS[kind], results=results, more=len(rows) > limit))
+        groups.append(Group(kind=kind, label=LABELS[kind], results=results, more=len(mine) > limit))
     groups.sort(key=lambda g: (-g.results[0].score, KINDS.index(g.kind)))
-    return SearchResults(query=q.strip(), groups=groups)
+    return SearchResults(query=text, groups=groups)
+
+
+def order(row: dict[str, Any]) -> tuple[float, int, float, str]:
+    """Best first, then the shorter, then the newer, then by title (as each kind's SQL orders them:
+    a union doesn't keep the order of its parts)."""
+    at = row["at"]
+    return (-float(row["score"]), int(row["len"]), -at.timestamp() if at else 0.0, str(row["title"]))
