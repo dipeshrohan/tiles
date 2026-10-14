@@ -31,6 +31,8 @@ const PAGES = [
   'import',
   'onboarding',
   'settings',
+  'help',
+  'help/warnings',
 ];
 const VARIANTS = [
   { name: 'light desktop', colorScheme: 'light', viewport: { width: 1360, height: 900 } },
@@ -430,6 +432,53 @@ test('keyboard shortcuts: g goes to a page, / searches it, ? lists them, and the
   await page.keyboard.up('g');
   await page.keyboard.press('h');
   await page.waitForFunction(() => location.hash === '' || location.hash === '#/');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test("each page's help: a side sheet from the top bar, the whole guide on the Help page, found in the palette (U4.04)", async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/warnings`);
+  await page.waitForSelector('#view h1');
+  // The page's part of the user guide, in a sheet: its section and the subsections under it.
+  await page.click('#help-open');
+  const sheet = page.locator('dialog.sheet[open]');
+  await sheet.waitFor();
+  assert.equal(await sheet.locator('.sheet-head h2').innerText(), 'Warnings');
+  assert.match(await sheet.innerText(), /What it's for: the inbox of warnings/);
+  assert.ok(await sheet.locator('h2:text-is("Filtering"), h3:text-is("Filtering")').count());
+  assert.equal(await sheet.locator('[id^="help-"]').count(), 0, 'no ids that the Help page has too');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog.sheet', { state: 'detached' });
+  // Another page, its own help; the full guide opens at its section.
+  await page.goto(`${httpBase}#/explorer`);
+  await page.waitForSelector('#view h1');
+  await page.click('#help-open');
+  await sheet.waitFor();
+  assert.equal(await sheet.locator('.sheet-head h2').innerText(), 'Data explorer');
+  await sheet.locator('a:text-is("Open the full guide")').click();
+  await page.waitForSelector('dialog.sheet', { state: 'detached' });
+  await page.waitForFunction(() => location.hash === '#/help/data-explorer');
+  await page.waitForFunction(() => document.activeElement?.id === 'help-data-explorer');
+  assert.deepEqual(await page.$$eval('#crumbs li', (lis) => lis.map((li) => li.textContent?.trim())), [
+    'Home',
+    'Help',
+    'Data explorer',
+  ]);
+  assert.equal(await page.locator('.help-toc [aria-current]').innerText(), 'Data explorer');
+  // A link in the guide goes to the section it names, on the same page.
+  await page.locator('.help-toc a:text-is("Roles")').click();
+  await page.waitForFunction(() => document.activeElement?.id === 'help-roles');
+  assert.ok(await page.locator('#help-roles').isVisible());
+  // The palette finds the guide's headings.
+  await page.keyboard.press('Control+k');
+  await page.locator('dialog.palette input').fill('notifications');
+  const found = page
+    .locator('dialog.palette [role=option]', { hasText: 'Notifications' })
+    .filter({ hasText: 'Warnings' });
+  await found.first().waitFor();
+  await found.first().click();
+  await page.waitForFunction(() => location.hash === '#/help/notifications');
   assert.deepEqual(errors, []);
   await page.close();
 });

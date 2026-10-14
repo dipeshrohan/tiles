@@ -111,6 +111,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 - **The menu remembers you:** a group's name folds it away; the pin beside a page (shown when you point at it or Tab to it) keeps it under **Pinned** at the top; **Recent** lists the last five pages you opened. **Warnings** and **Change reviews** show how many are open or waiting for you. On a wide screen the button at the top of the menu shrinks it to a rail of icons, each named when you point at it. Tiles keeps these choices for you in this browser.
 - **Search and actions:** press **Ctrl K** (**⌘K** on a Mac) or **/** (on a page with its own search box, **/** goes there instead), or the search box at the top, and type. You find pages and actions (triage warnings, plot a signal, change the ontology, run a correlation, set up a site…), and with the Tiles API the site's signals, ontology nodes, warnings, insights, documents and apps; Enter opens what is chosen. What you open last comes first next time. **Ask the copilot** takes what you typed to the Copilot page, ready to send.
 - **Lists with records** (Warnings, Change reviews, Insights, Documents): on a wide screen the record you open shows beside its list; press **j** and **k** to open the next or previous one. The address names the record, so a link or a reload shows the same one. On a narrow screen the record takes the list's place, with **Back to the list** above it.
+- **Help on every page:** the **?** button at the top shows the part of this guide about the page you are on, beside it; **Open the full guide** opens the whole guide on the **Help** page (in the menu, at the bottom), at that part. Ctrl K finds the guide's headings too. The help is part of the app: it works offline.
 - **Keyboard shortcuts:** press **?** to see them all. **g** then a letter goes to a page (**g w** Warnings, **g s** Signals, **g e** Data explorer, **g o** Ontology builder…); on a page, **a** acknowledges the warning open, **e** edits the insight or app open and **/** goes to its search box. A button with a key shows it when you point at it. Keys do nothing while you type in a field. If single keys get in the way of your screen reader or speech input, turn them off in the **?** list (find it again with Ctrl K, "Keyboard shortcuts").
 - The button at the top switches between light and dark themes. On a phone, the menu button opens the left menu over the page; tap beside it, swipe it to the left or press Escape to close it.
 - Short messages ("toasts") appear at the bottom of the screen when something is saved or fails.
@@ -820,6 +821,10 @@ Questions asked on the site over the last 30 days: answered, failed, over budget
 ### Audit log (admins)
 
 Every change on the site: who, what and when. For example staged and committed ontology changes, role changes, agents registered and revoked, signal edits, quality checks and imports.
+
+### About and the style guide
+
+**About** says which way Tiles is running and how to find any page. Its **Style guide** button opens the style guide: every component the app is made of (buttons, fields, tables, dialogs, toasts, empty and loading states), each with the code that makes it, and the colours, spacing and type in light and dark. It is for people who build Tiles pages; it changes nothing.
 
 ---
 

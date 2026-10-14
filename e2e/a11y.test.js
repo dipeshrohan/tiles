@@ -33,6 +33,8 @@ const PAGES = [
   'onboarding',
   'settings',
   'styleguide',
+  'help',
+  'help/warnings',
 ];
 // WCAG 2.1 A and AA, and the best practices that matter to these pages.
 const RULES = {
@@ -197,7 +199,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
   }
 });
 
-test('dialogs, toasts, tooltips, the command palette and the shortcuts pass the accessibility rules', async () => {
+test('dialogs, toasts, tooltips, the command palette, the shortcuts and the help pass the accessibility rules', async () => {
   for (const colorScheme of ['light', 'dark']) {
     const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 }, bypassCSP: true });
     await page.goto(`${httpBase}#/settings`);
@@ -225,6 +227,11 @@ test('dialogs, toasts, tooltips, the command palette and the shortcuts pass the 
     await page.keyboard.press('?'); // the keyboard shortcuts (U4.03)
     await page.waitForSelector('dialog.dialog[open] .shortcut-list');
     assert.deepEqual(await audit(page), [], `${colorScheme} keyboard shortcuts`);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog.dialog', { state: 'detached' });
+    await page.click('#help-open'); // the page's help (U4.04)
+    await page.waitForSelector('dialog.sheet[open] .prose');
+    assert.deepEqual(await audit(page), [], `${colorScheme} help sheet`);
     await page.close();
   }
 });
