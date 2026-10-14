@@ -41,6 +41,7 @@ from tiles_api.api_performance import router as performance_router
 from tiles_api.api_reviews import router as reviews_router
 from tiles_api.api_runs import router as runs_router
 from tiles_api.api_samples import router as samples_router
+from tiles_api.api_search import router as search_router
 from tiles_api.api_series import router as series_router
 from tiles_api.api_signals import router as signals_router
 from tiles_api.api_sites import router as sites_router
@@ -261,6 +262,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(copilot_router)
     app.include_router(ux_router)
     app.include_router(menu_router)
+    app.include_router(search_router)
     telemetry.instrument(app, settings)
     return app
 
