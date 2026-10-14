@@ -197,7 +197,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
   }
 });
 
-test('dialogs, toasts, tooltips and the command palette pass the accessibility rules', async () => {
+test('dialogs, toasts, tooltips, the command palette and the shortcuts pass the accessibility rules', async () => {
   for (const colorScheme of ['light', 'dark']) {
     const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 }, bypassCSP: true });
     await page.goto(`${httpBase}#/settings`);
@@ -219,6 +219,12 @@ test('dialogs, toasts, tooltips and the command palette pass the accessibility r
     await page.locator('dialog.palette input').fill('zzqx'); // nothing matches
     await page.waitForSelector('.palette-status:has-text("Nothing matches")');
     assert.deepEqual(await audit(page), [], `${colorScheme} palette, no match`);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog.palette', { state: 'detached' });
+    await page.focus('#view h1');
+    await page.keyboard.press('?'); // the keyboard shortcuts (U4.03)
+    await page.waitForSelector('dialog.dialog[open] .shortcut-list');
+    assert.deepEqual(await audit(page), [], `${colorScheme} keyboard shortcuts`);
     await page.close();
   }
 });

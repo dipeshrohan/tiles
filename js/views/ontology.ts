@@ -40,6 +40,7 @@ import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { pageHead } from '../lib/ui.ts';
+import { keyAttr } from '../lib/shortcuts.ts';
 
 interface OntologyUi {
   tab: 'canvas' | 'history' | 'health';
@@ -253,7 +254,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
                 `<option value="${value}" ${level?.[0] === value ? 'selected' : ''}>${label}</option>`,
             ).join('')}${level ? '' : '<option selected disabled>Folded by hand</option>'}</select>
             <span class="row canvas-search">
-              <input type="search" data-onto-search value="${esc(ui.search)}" placeholder="Find a node" aria-label="Find a node" />
+              <input type="search" data-onto-search${keyAttr('/')} value="${esc(ui.search)}" placeholder="Find a node" aria-label="Find a node" />
               <button class="btn sm" data-search-next ${found ? '' : 'disabled'}>Next</button>
               <span class="small soft" data-search-count aria-live="polite">${found === null ? '' : `${found} found`}</span>
             </span>

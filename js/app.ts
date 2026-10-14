@@ -96,6 +96,7 @@ import { breadcrumbs, button, clockTime, resetIds } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
+import { installShortcuts, shortcutsOn } from './lib/shortcuts.ts';
 import { searchItems } from './lib/site-search.ts';
 
 const VIEWS: View[] = [
@@ -1023,6 +1024,14 @@ const palette = installPalette({
         run: go('#/documents'),
       },
       {
+        id: 'do:shortcuts',
+        label: 'Keyboard shortcuts',
+        group: 'Actions',
+        icon: 'keyboard',
+        keywords: 'keys hotkeys help turn off single',
+        run: () => shortcuts.show(),
+      },
+      {
         id: 'do:theme',
         label: isDark() ? 'Switch to the light theme' : 'Switch to the dark theme',
         group: 'Actions',
@@ -1079,6 +1088,23 @@ const searchButton = need(document, '#palette-open');
 searchButton.insertAdjacentHTML('afterbegin', icon('search'));
 if (/Mac|iPhone|iPad/.test(navigator.platform)) need(searchButton, 'kbd').textContent = '⌘K';
 searchButton.addEventListener('click', () => palette.open());
+
+// Keyboard shortcuts (U4.03): g then a letter, ?, and the keys the page's buttons and fields name.
+const shortcuts = installShortcuts({
+  root: need(document, '#view'),
+  go: (page) => go(`#/${page === 'home' ? '' : page}`)(),
+  title: (page) => NAV.flatMap((g) => g.items).find((v) => v.id === page)?.title ?? null,
+  palette: () => palette.open(),
+  changed: () => {
+    keyHint();
+    ctx.rerender();
+  },
+});
+// The search button names / only while single keys are on.
+function keyHint(): void {
+  searchButton.setAttribute('aria-keyshortcuts', `Control+K Meta+K${shortcutsOn() ? ' /' : ''}`);
+}
+keyHint();
 need(document, '#menu').addEventListener('click', () => {
   if (need(document, '#sidebar').classList.contains('open')) closeMenu();
   else openMenu();

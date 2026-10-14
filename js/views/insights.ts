@@ -20,6 +20,7 @@ import type { Context, View } from './types.ts';
 import { listKeys, split } from '../lib/split.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import { keyAttr } from '../lib/shortcuts.ts';
 
 // Saved insights (T3.12): findings saved from the correlation finder or the Data explorer, with the
 // question asked, the evidence it gave then and the actions proposed; another engineer accepts or
@@ -185,7 +186,9 @@ function detailCard(ctx: Context): string {
       </form>`
     : '';
   const tools = [
-    may.edit && editing?.key !== key ? `<button class="btn sm" type="button" data-edit>Edit</button>` : '',
+    may.edit && editing?.key !== key
+      ? `<button class="btn sm" type="button" data-edit${keyAttr('e')}>Edit</button>`
+      : '',
     may.reopen ? `<button class="btn sm" type="button" data-reopen ${busy ? 'disabled' : ''}>Reopen</button>` : '',
     may.remove ? `<button class="btn sm" type="button" data-remove ${busy ? 'disabled' : ''}>Delete</button>` : '',
   ].join('');

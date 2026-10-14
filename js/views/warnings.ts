@@ -44,6 +44,7 @@ import {
   skeleton,
   apiUnreachable,
 } from '../lib/ui.ts';
+import { keyAttrs } from '../lib/shortcuts.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
 // are in their workflow and who has them; each with a chart of its signal around it, its payload
@@ -229,7 +230,11 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
       : [];
   const has = (a: string) => actions.includes(a as never);
   const actButton = (label: string, a: string, variant?: 'primary') =>
-    button(label, { variant, busy: busy === a, attrs: { 'data-act': a } });
+    button(label, {
+      variant,
+      busy: busy === a,
+      attrs: { 'data-act': a, ...(a === 'acknowledge' ? keyAttrs('a') : {}) },
+    });
   const assign = has('assign')
     ? `<span class="row gap-1_5">${field(
         'Assign to',

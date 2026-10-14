@@ -19,6 +19,7 @@ import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } fro
 import type { Context, Crumb, View } from './types.ts';
 import { button, card, emptyState, linkButton, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
+import { keyAttr } from '../lib/shortcuts.ts';
 
 // The plant navigator (T5.17): the ontology's hierarchy as places to drill into, site → workcenter
 // → line or cell → machine, each with its open warnings rolled up; a machine shows what it has
@@ -238,7 +239,7 @@ const view: View = {
     const title = node?.label ?? 'Plant';
     const kind = node ? node.type : 'Site → line → machine';
     const search = `<form class="plant-search" data-plant-search role="search">
-        <input name="q" type="search" placeholder="Find a line or machine" aria-label="Find a place" value="${esc(ui.query)}" autocomplete="off">
+        <input name="q" type="search" placeholder="Find a line or machine" aria-label="Find a place" value="${esc(ui.query)}" autocomplete="off"${keyAttr('/')}>
       </form>`;
     const head = pageHead({
       eyebrow: `Operations · ${kind}`,
