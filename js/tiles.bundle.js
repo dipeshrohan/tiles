@@ -10119,15 +10119,17 @@
 				attrs: { "data-clear-filters": true }
 			})
 		});
-		return card$1(`<div class="review-list" data-warning-list data-tour="warning-list">${items === null ? skeleton.list() : items.map((w) => `
+		const rows = items === null ? skeleton.list() : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}"${ui.selected === w.id ? " aria-current=\"true\"" : ""}>
           <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || empty}</div>${items && listing$5?.more ? button("Show older warnings", {
+        </button>`).join("") || empty;
+		const more = items && listing$5?.more ? button("Show older warnings", {
 			size: "sm",
 			attrs: { "data-more-warnings": true }
-		}) : ""}`);
+		}) : "";
+		return card$1(`<div class="review-list" data-warning-list${rows === empty ? "" : " data-tour=\"warning-list\""}>${rows}</div>${more}`);
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
@@ -14752,7 +14754,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					page: "#/ontology",
 					target: "onto-add",
 					title: "Stage a change",
-					body: "Choose a type, give it a label and link it to a node. It is staged: nobody else sees it until you commit."
+					body: "Choose a type, give it a label and link it to a node. It is staged: nobody else sees it until you commit.",
+					missing: "Close the node you have open (its ✕) to see the form. Viewers can’t stage changes."
 				},
 				{
 					page: "#/ontology",
@@ -15693,6 +15696,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		let frame = 0;
 		let stopped = false;
 		let seq = 0;
+		let loading = false;
+		let drawnFound = false;
+		let lastWidth = 0;
 		const spot = document.createElement("div");
 		spot.className = "tour-spot";
 		spot.setAttribute("aria-hidden", "true");
@@ -15704,36 +15710,45 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		pop.setAttribute("aria-describedby", "tour-body");
 		pop.dataset.tour = tour.id;
 		document.body.append(spot, pop);
+		let last = "";
 		const follow = () => {
 			if (stopped) return;
 			const step = tour.steps[at];
-			if (step && (!target || !target.isConnected)) {
+			if (step && !loading && !shown(target)) {
 				const again = document.querySelector(selector(step));
 				target = shown(again) ? again : null;
+				if (target && !drawnFound) draw(step, true);
 			}
 			const r = target?.getBoundingClientRect() ?? null;
-			spot.hidden = !r;
-			if (r) {
-				const pad = 6;
-				spot.style.top = `${r.top - pad}px`;
-				spot.style.left = `${r.left - pad}px`;
-				spot.style.width = `${r.width + 12}px`;
-				spot.style.height = `${r.height + 12}px`;
-			}
-			const place = placePopover(r, {
+			const size = {
 				width: pop.offsetWidth,
 				height: pop.offsetHeight
-			}, {
-				width: window.innerWidth,
-				height: window.innerHeight
-			});
-			pop.style.top = `${place.top}px`;
-			pop.style.left = `${place.left}px`;
-			pop.dataset.side = place.side;
+			};
+			const key = r ? `${r.top},${r.left},${r.width},${r.height},${size.width},${size.height}` : `none,${size.width},${size.height}`;
+			if (key !== last || window.innerWidth !== lastWidth) {
+				last = key;
+				lastWidth = window.innerWidth;
+				spot.hidden = !r;
+				if (r) {
+					const pad = 6;
+					spot.style.top = `${r.top - pad}px`;
+					spot.style.left = `${r.left - pad}px`;
+					spot.style.width = `${r.width + 12}px`;
+					spot.style.height = `${r.height + 12}px`;
+				}
+				const place = placePopover(r, size, {
+					width: window.innerWidth,
+					height: window.innerHeight
+				});
+				pop.style.top = `${place.top}px`;
+				pop.style.left = `${place.left}px`;
+				pop.dataset.side = place.side;
+			}
 			frame = requestAnimationFrame(follow);
 		};
 		const draw = (step, found) => {
-			const last = at === tour.steps.length - 1;
+			drawnFound = found;
+			const final = at === tour.steps.length - 1;
 			const note = found ? "" : step.missing ? `<p class="small soft" data-tour-missing>${esc(step.missing)}</p>` : "";
 			pop.innerHTML = `
       <p class="small soft" id="tour-count">${esc(tour.title)} · step ${at + 1} of ${tour.steps.length}</p>
@@ -15744,24 +15759,29 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
         <button class="btn ghost sm" type="button" data-tour-leave>Leave the tour</button>
         <span class="row gap-2">
           ${at > 0 ? "<button class=\"btn sm\" type=\"button\" data-tour-back>Back</button>" : ""}
-          <button class="btn primary sm" type="button" data-tour-next>${last ? "Done" : "Next"}</button>
+          <button class="btn primary sm" type="button" data-tour-next>${final ? "Done" : "Next"}</button>
         </span>
       </div>`;
 			pop.querySelector("#tour-title")?.focus({ preventScroll: true });
 		};
 		const show = async (i) => {
-			const mine = ++seq;
-			at = i;
 			const step = tour.steps[i];
-			if (!step) return;
+			if (!step || loading) return;
+			const mine = ++seq;
+			loading = true;
+			pop.setAttribute("aria-busy", "true");
 			if (route(location.hash) !== route(step.page)) o.go(step.page);
-			let el = await waitFor(step, 4e3);
-			if (!el && step.reveal) {
+			let el = await waitFor(step, step.reveal ? 600 : 4e3);
+			if (!el && step.reveal && !stopped) {
 				document.querySelector(`#view ${step.reveal}`)?.click();
-				el = await waitFor(step, 2e3);
+				el = await waitFor(step, 3e3);
 			}
+			loading = false;
+			pop.removeAttribute("aria-busy");
 			if (stopped || mine !== seq) return;
+			at = i;
 			target = el;
+			last = "";
 			if (el) {
 				const r = el.getBoundingClientRect();
 				if (r.top < 64 || r.bottom > window.innerHeight - 64) window.scrollTo({
@@ -15784,11 +15804,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const onKey = (e) => {
 			if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
 			e.preventDefault();
+			e.stopPropagation();
 			stop();
 		};
 		pop.addEventListener("click", (e) => {
 			const el = e.target instanceof Element ? e.target : null;
-			if (el?.closest("[data-tour-leave]")) stop();
+			if (el?.closest("[data-tour-leave]")) return stop();
+			if (loading) return;
 			else if (el?.closest("[data-tour-back]")) show(at - 1);
 			else if (el?.closest("[data-tour-next]")) {
 				if (at === tour.steps.length - 1) stop(true);
@@ -15796,7 +15818,6 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}
 		});
 		document.addEventListener("keydown", onKey, true);
-		pop.dataset.motion = lessMotion() ? "reduce" : "";
 		const handle = { stop: () => stop() };
 		current = handle;
 		frame = requestAnimationFrame(follow);
@@ -16634,6 +16655,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function startTour(id) {
 		const tour = tourOf(id);
 		if (!tour) return;
+		if (document.querySelector("dialog.palette")) return void requestAnimationFrame(() => startTour(id));
 		if (!canRun(tour, Boolean(api))) {
 			toast("This tour needs the Tiles API", {
 				type: "info",

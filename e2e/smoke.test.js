@@ -650,6 +650,16 @@ test('guided tours: change the plant model and ask the copilot, end to end (U4.0
   await page.locator('.tour-pop #tour-count:has-text("step 1 of 2")').waitFor();
   await page.keyboard.press('Escape');
   await page.waitForSelector('.tour-pop', { state: 'detached' });
+  // Started from the command palette, the tour keeps the focus once the palette has gone.
+  await page.keyboard.press('Control+k');
+  await page.locator('dialog.palette input').fill('tour copilot');
+  await page.locator('dialog.palette [role=option]:has-text("Take the tour: Ask the copilot")').click();
+  await page.waitForSelector('dialog.palette', { state: 'detached' });
+  await page.waitForFunction(() => document.activeElement?.id === 'tour-title');
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'tour-title');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tour-pop', { state: 'detached' });
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -687,6 +697,14 @@ test('guided tours: triage a warning and plot a signal, end to end with the API 
   await page.waitForSelector('[data-warning-list] [data-warning]');
   // The third step opens the first warning to show its chart.
   await walkTour(page, 'triage', 4);
+  // With nothing plotted, the steps about a plot say so.
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/help`);
+  await page.click('[data-start-tour="plot"]');
+  await page.locator('.tour-pop #tour-count:has-text("step 1 of 3")').waitFor();
+  await page.locator('.tour-pop [data-tour-next]').click();
+  await page.locator('.tour-pop [data-tour-missing]:has-text("Plot a signal first")').waitFor();
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tour-pop', { state: 'detached' });
   await walkTour(page, 'plot', 3, {
     0: async () => {
       await page.fill('#explorer-search [name=q]', 'oven');

@@ -2546,18 +2546,6 @@ kbd {
   align-items: center;
   gap: var(--space-3);
 }
-.tour-list {
-  display: grid;
-  gap: var(--space-2);
-  list-style: none;
-  padding: 0;
-}
-.tour-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-3);
-}
 /* A guided tour (U4.07): the page dimmed but for the part a step is about (clicks still reach the
    page), and the step's popover beside it. Over the page and its menus, under dialogs' toasts. */
 .tour-spot {

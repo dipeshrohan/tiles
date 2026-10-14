@@ -993,6 +993,9 @@ document.addEventListener('tiles:welcome', () => void showWelcome());
 function startTour(id: string): void {
   const tour = tourOf(id);
   if (!tour) return;
+  // Chosen in the command palette: once it has gone (it fades out), so the focus it gives back
+  // doesn't leave the tour's first step.
+  if (document.querySelector('dialog.palette')) return void requestAnimationFrame(() => startTour(id));
   if (!canRun(tour, Boolean(api))) {
     toast('This tour needs the Tiles API', {
       type: 'info',

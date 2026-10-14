@@ -193,7 +193,9 @@ function listCard(ctx: Context, ui: Ui): string {
           .join('') || empty;
   const more =
     items && listing?.more ? button('Show older warnings', { size: 'sm', attrs: { 'data-more-warnings': true } }) : '';
-  return card(`<div class="review-list" data-warning-list data-tour="warning-list">${rows}</div>${more}`);
+  // A tour's "Pick a warning" (U4.07) lights the list only when there is one to pick.
+  const tour = rows === empty ? '' : ' data-tour="warning-list"';
+  return card(`<div class="review-list" data-warning-list${tour}>${rows}</div>${more}`);
 }
 
 function chartCard(w: WarningDetail): string {

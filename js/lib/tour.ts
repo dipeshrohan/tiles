@@ -3,7 +3,7 @@
 // stays usable under it (the spotlight lets clicks through), so the reader can try what a step says.
 // The popover takes the focus at each step and is read out; Escape leaves. With less motion asked
 // for, nothing moves (docs/ui/motion.md).
-import { esc, lessMotion, scrollBehavior } from './dom.ts';
+import { esc, scrollBehavior } from './dom.ts';
 import type { Tour, TourStep } from './tours.ts';
 
 export interface Rect {
@@ -73,6 +73,9 @@ export function runTour(tour: Tour, o: TourOptions): { stop(): void } {
   let frame = 0;
   let stopped = false;
   let seq = 0;
+  let loading = false; // a step is on its way: Back and Next wait for it
+  let drawnFound = false; // the step shown has its part of the page
+  let lastWidth = 0;
 
   const spot = document.createElement('div');
   spot.className = 'tour-spot';
@@ -86,36 +89,45 @@ export function runTour(tour: Tour, o: TourOptions): { stop(): void } {
   pop.dataset.tour = tour.id;
   document.body.append(spot, pop);
 
-  // Follows the part of the page as it scrolls, moves or is drawn again.
+  // Follows the part of the page as it scrolls, moves or is drawn again (looked for again when it is
+  // gone or hidden); a step drawn without its part is drawn again once it turns up. Reads come before
+  // writes, and nothing is written when nothing moved.
+  let last = '';
   const follow = (): void => {
     if (stopped) return;
     const step = tour.steps[at];
-    if (step && (!target || !target.isConnected)) {
+    if (step && !loading && !shown(target)) {
       const again = document.querySelector(selector(step));
       target = shown(again) ? again : null;
+      if (target && !drawnFound) draw(step, true);
     }
     const r = target?.getBoundingClientRect() ?? null;
-    spot.hidden = !r;
-    if (r) {
-      const pad = 6;
-      spot.style.top = `${r.top - pad}px`;
-      spot.style.left = `${r.left - pad}px`;
-      spot.style.width = `${r.width + pad * 2}px`;
-      spot.style.height = `${r.height + pad * 2}px`;
+    const size = { width: pop.offsetWidth, height: pop.offsetHeight };
+    const key = r
+      ? `${r.top},${r.left},${r.width},${r.height},${size.width},${size.height}`
+      : `none,${size.width},${size.height}`;
+    if (key !== last || window.innerWidth !== lastWidth) {
+      last = key;
+      lastWidth = window.innerWidth;
+      spot.hidden = !r;
+      if (r) {
+        const pad = 6;
+        spot.style.top = `${r.top - pad}px`;
+        spot.style.left = `${r.left - pad}px`;
+        spot.style.width = `${r.width + pad * 2}px`;
+        spot.style.height = `${r.height + pad * 2}px`;
+      }
+      const place = placePopover(r, size, { width: window.innerWidth, height: window.innerHeight });
+      pop.style.top = `${place.top}px`;
+      pop.style.left = `${place.left}px`;
+      pop.dataset.side = place.side;
     }
-    const place = placePopover(
-      r,
-      { width: pop.offsetWidth, height: pop.offsetHeight },
-      { width: window.innerWidth, height: window.innerHeight },
-    );
-    pop.style.top = `${place.top}px`;
-    pop.style.left = `${place.left}px`;
-    pop.dataset.side = place.side;
     frame = requestAnimationFrame(follow);
   };
 
   const draw = (step: TourStep, found: boolean): void => {
-    const last = at === tour.steps.length - 1;
+    drawnFound = found;
+    const final = at === tour.steps.length - 1;
     const note = found ? '' : step.missing ? `<p class="small soft" data-tour-missing>${esc(step.missing)}</p>` : '';
     pop.innerHTML = `
       <p class="small soft" id="tour-count">${esc(tour.title)} · step ${at + 1} of ${tour.steps.length}</p>
@@ -126,25 +138,31 @@ export function runTour(tour: Tour, o: TourOptions): { stop(): void } {
         <button class="btn ghost sm" type="button" data-tour-leave>Leave the tour</button>
         <span class="row gap-2">
           ${at > 0 ? '<button class="btn sm" type="button" data-tour-back>Back</button>' : ''}
-          <button class="btn primary sm" type="button" data-tour-next>${last ? 'Done' : 'Next'}</button>
+          <button class="btn primary sm" type="button" data-tour-next>${final ? 'Done' : 'Next'}</button>
         </span>
       </div>`;
     pop.querySelector<HTMLElement>('#tour-title')?.focus({ preventScroll: true });
   };
 
   const show = async (i: number): Promise<void> => {
-    const mine = ++seq;
-    at = i;
     const step = tour.steps[i];
-    if (!step) return;
+    if (!step || loading) return;
+    const mine = ++seq;
+    loading = true;
+    pop.setAttribute('aria-busy', 'true');
     if (route(location.hash) !== route(step.page)) o.go(step.page);
-    let el = await waitFor(step, 4000);
-    if (!el && step.reveal) {
+    // A part behind a reveal (a warning's chart) isn't there until it is pressed: a short look first.
+    let el = await waitFor(step, step.reveal ? 600 : 4000);
+    if (!el && step.reveal && !stopped) {
       document.querySelector<HTMLElement>(`#view ${step.reveal}`)?.click();
-      el = await waitFor(step, 2000);
+      el = await waitFor(step, 3000);
     }
+    loading = false;
+    pop.removeAttribute('aria-busy');
     if (stopped || mine !== seq) return;
+    at = i;
     target = el;
+    last = '';
     if (el) {
       const r = el.getBoundingClientRect();
       if (r.top < 64 || r.bottom > window.innerHeight - 64)
@@ -166,11 +184,14 @@ export function runTour(tour: Tour, o: TourOptions): { stop(): void } {
   const onKey = (e: KeyboardEvent): void => {
     if (e.key !== 'Escape' || document.querySelector('dialog[open]')) return;
     e.preventDefault();
+    e.stopPropagation(); // the tour's Escape: not the menu's or a tooltip's too
     stop();
   };
   pop.addEventListener('click', (e) => {
     const el = e.target instanceof Element ? e.target : null;
-    if (el?.closest('[data-tour-leave]')) stop();
+    if (el?.closest('[data-tour-leave]')) return stop();
+    if (loading)
+      return; // the next step is on its way
     else if (el?.closest('[data-tour-back]')) void show(at - 1);
     else if (el?.closest('[data-tour-next]')) {
       if (at === tour.steps.length - 1) stop(true);
@@ -178,7 +199,6 @@ export function runTour(tour: Tour, o: TourOptions): { stop(): void } {
     }
   });
   document.addEventListener('keydown', onKey, true);
-  pop.dataset.motion = lessMotion() ? 'reduce' : '';
   const handle = { stop: () => stop() };
   current = handle;
   frame = requestAnimationFrame(follow);

@@ -108,6 +108,7 @@ export const TOURS: readonly Tour[] = [
         target: 'onto-add',
         title: 'Stage a change',
         body: 'Choose a type, give it a label and link it to a node. It is staged: nobody else sees it until you commit.',
+        missing: 'Close the node you have open (its ✕) to see the form. Viewers can’t stage changes.',
       },
       {
         page: '#/ontology',
