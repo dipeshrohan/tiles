@@ -156,7 +156,7 @@ export function installShortcuts(o: ShortcutOptions): { show(): void } {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Shift') return; // on the way to ? or a capital: g still waits
+    if (e.key === 'Shift' || e.repeat) return; // on the way to ? or a capital, or held: g still waits
     const pending = chord !== undefined;
     clearTimeout(chord);
     chord = undefined;

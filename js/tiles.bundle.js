@@ -4784,7 +4784,7 @@
 			o.changed();
 		});
 		document.addEventListener("keydown", (e) => {
-			if (e.key === "Shift") return;
+			if (e.key === "Shift" || e.repeat) return;
 			const pending = chord !== void 0;
 			clearTimeout(chord);
 			chord = void 0;

@@ -390,7 +390,8 @@ test('keyboard shortcuts: g goes to a page, / searches it, ? lists them, and the
   await page.keyboard.press('g');
   await page.keyboard.press('w');
   await page.waitForFunction(() => location.hash === '#/warnings');
-  // ? lists every shortcut.
+  // ? lists every shortcut, even just after a g.
+  await page.keyboard.press('g');
   await page.keyboard.press('?');
   const list = page.locator('dialog.dialog:not(.palette)[open]');
   await list.waitFor();
@@ -423,7 +424,10 @@ test('keyboard shortcuts: g goes to a page, / searches it, ? lists them, and the
   await page.waitForSelector('dialog.dialog:not(.palette)', { state: 'detached' });
   assert.equal(await page.getAttribute('[data-onto-search]', 'aria-keyshortcuts'), '/');
   await page.focus('#view h1');
-  await page.keyboard.press('g');
+  // A key held down acts once: g held, then o, is one g and its letter.
+  await page.keyboard.down('g');
+  await page.keyboard.down('g');
+  await page.keyboard.up('g');
   await page.keyboard.press('h');
   await page.waitForFunction(() => location.hash === '' || location.hash === '#/');
   assert.deepEqual(errors, []);
