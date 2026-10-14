@@ -3793,12 +3793,10 @@ test('split view: a record beside its list, j and k move through it and the addr
     assert.ok(await page.locator('.split-list').isVisible());
     assert.ok(await page.locator(p.record).isVisible());
     assert.equal(await page.locator('.split-back').isVisible(), false);
-    // The focus moves with it, on the row (or its link).
-    assert.equal(
-      await page.evaluate((rows) => document.querySelectorAll(rows)[1].contains(document.activeElement), p.rows),
-      true,
-      `${p.id}: the focus is on the row opened`,
-    );
+    // The focus moves with it, on the row (or its link), once the page has drawn it (the next frame).
+    await page.waitForFunction((rows) => document.querySelectorAll(rows)[1]?.contains(document.activeElement), p.rows, {
+      timeout: 5000,
+    });
     await page.keyboard.press('k');
     await page.waitForFunction(
       ([rows]) => [...document.querySelectorAll(rows)][0]?.classList.contains('sel'),
