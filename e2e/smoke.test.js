@@ -715,6 +715,44 @@ test('guided tours: triage a warning and plot a signal, end to end with the API 
   assert.deepEqual(errors, []);
 });
 
+test("what's new: a dot on the help button after an update, the changelog's top section in a sheet (U4.08)", async () => {
+  const { page, errors } = await openPage({ viewport: { width: 1280, height: 800 } });
+  await page.goto(`${httpBase}#/`);
+  await page.waitForSelector('#view h1');
+  // A first visit only notes the version: no dot.
+  assert.equal(await page.locator('#help-open.has-news').count(), 0);
+  // Someone who last saw an older version gets the dot, named for screen readers.
+  await page.evaluate(() => localStorage.setItem('tiles:whats-new-seen', JSON.stringify('0.0.1')));
+  await page.reload();
+  await page.waitForSelector('#help-open.has-news');
+  assert.match(await page.getAttribute('#help-open', 'aria-label'), /what’s new in \d+\.\d+\.\d+/);
+  // From the page's help: What's new, its version and entries that open their pages.
+  await page.click('#help-open');
+  const help = page.locator('dialog.sheet[open]');
+  await help.locator('[data-whats-new]').click();
+  const news = page.locator('dialog.sheet[open]:has(.whats-new)');
+  await news.waitFor();
+  assert.match(await news.locator('.sheet-head h2').innerText(), /^Version \d+\.\d+\.\d+/);
+  assert.ok((await news.locator('.whats-new-link').count()) >= 10);
+  // Read: the dot goes, and stays gone.
+  assert.equal(await page.locator('#help-open.has-news').count(), 0);
+  await news.locator('.whats-new-link:has-text("Open Shopfloor")').first().click();
+  await page.waitForFunction(() => location.hash === '#/shopfloor');
+  await page.waitForSelector('dialog[open]', { state: 'detached' });
+  await page.reload();
+  await page.waitForSelector('#view h1');
+  assert.equal(await page.locator('#help-open.has-news').count(), 0);
+  // The palette opens it too.
+  await page.keyboard.press('Control+k');
+  await page.locator('dialog.palette input').fill('what');
+  await page.locator('dialog.palette [role=option]:has-text("What’s new")').click();
+  await news.waitFor();
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog[open]', { state: 'detached' });
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Enter goes', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/`);

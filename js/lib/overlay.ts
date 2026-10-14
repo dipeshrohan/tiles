@@ -191,7 +191,7 @@ export interface SheetOptions {
 // A side sheet (U4.04's help), after shadcn/ui's Sheet: a modal panel from the right, its content
 // scrolling, closed with its ✕, Escape, a click beside it, or a link in it followed. `opened` gets the
 // dialog once shown; the promise resolves once it is gone.
-export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement) => void): Promise<void> {
+export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement, close: () => void) => void): Promise<void> {
   const id = nextId();
   const dialog = document.createElement('dialog');
   dialog.className = 'dialog sheet';
@@ -224,7 +224,7 @@ export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement) => v
     );
     closeOutside(dialog, done);
     open(dialog);
-    opened?.(dialog);
+    opened?.(dialog, done);
   });
 }
 

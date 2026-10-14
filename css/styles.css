@@ -2546,6 +2546,30 @@ kbd {
   align-items: center;
   gap: var(--space-3);
 }
+/* What's new (U4.08): a dot on the help button for a version not yet read about; the sheet's links. */
+#help-open {
+  position: relative;
+}
+#help-open.has-news::after {
+  content: '';
+  position: absolute;
+  top: var(--space-1_5);
+  right: var(--space-1_5);
+  width: 8px;
+  height: 8px;
+  border: 2px solid var(--panel);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+}
+.whats-new .whats-new-link {
+  margin-left: var(--space-1);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.whats-new h3 {
+  margin-top: var(--space-4);
+}
+
 /* A guided tour (U4.07): the page dimmed but for the part a step is about (clicks still reach the
    page), and the step's popover beside it. Over the page and its menus, under dialogs' toasts. */
 .tour-spot {

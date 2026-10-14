@@ -1,7 +1,10 @@
 import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/data.ts';
 import { shotHistorySteps, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
 import { graphHealth } from './lib/ontology.ts';
-import { load, save, clearAll } from './lib/store.ts';
+import { load, save, clearAll, storedKeys } from './lib/store.ts';
+
+// What this browser kept before this load (U4.08: someone who used Tiles before isn't new).
+const keptBefore = storedKeys().filter((k) => k !== 'whats-new-seen');
 import {
   ApiError,
   createApiClient,
@@ -111,6 +114,8 @@ import {
   type WelcomeContext,
 } from './lib/welcome.ts';
 import { runTour } from './lib/tour.ts';
+import { hasNews, helpLabel, SEEN_KEY, seenOnFirstLoad, whatsNewHtml, whatsNewTitle } from './lib/whats-new.ts';
+import { VERSION } from './lib/version.ts';
 import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
 import { searchItems } from './lib/site-search.ts';
 
@@ -1080,16 +1085,28 @@ let helpOpen = false;
 async function openHelp(): Promise<void> {
   if (helpOpen) return;
   helpOpen = true;
+  let then: 'whats-new' | null = null;
   try {
     const data = await loadHelp();
     const [first, ...rest] = pageSection(data, currentView().id);
     if (!first) return;
-    await sheet({
-      label: 'Help',
-      title: first.title,
-      contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
-      footHtml: `<a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`,
-    });
+    await sheet(
+      {
+        label: 'Help',
+        title: first.title,
+        contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
+        footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button><a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`,
+      },
+      (dialog, close) => {
+        dialog.querySelector('[data-whats-new]')?.addEventListener('click', () => {
+          then = 'whats-new';
+          close();
+        });
+      },
+    );
+    // Opened once the help sheet has gone, so the focus it gives back (the help button) is what
+    // What's new gives it back to.
+    if (then === 'whats-new') void openWhatsNew();
   } catch (e) {
     toast("The help couldn't be loaded", { type: 'error', description: e instanceof Error ? e.message : String(e) });
   } finally {
@@ -1099,6 +1116,45 @@ async function openHelp(): Promise<void> {
 const helpButton = need(document, '#help-open');
 helpButton.insertAdjacentHTML('afterbegin', icon('circle-help'));
 helpButton.addEventListener('click', () => void openHelp());
+
+// ---- what's new (U4.08) ------------------------------------------------------
+// A dot on the help button for someone who used an earlier version and hasn't read what changed; a
+// first visit only notes the version.
+if (load<string | null>(SEEN_KEY, null) === null) save(SEEN_KEY, seenOnFirstLoad(keptBefore, VERSION));
+function markNews(): void {
+  const news = hasNews(load<string | null>(SEEN_KEY, null), VERSION);
+  helpButton.classList.toggle('has-news', news);
+  helpButton.setAttribute('aria-label', helpLabel(news, VERSION));
+  helpButton.dataset.tooltip = helpLabel(news, VERSION);
+}
+markNews();
+let newsOpen = false;
+async function openWhatsNew(): Promise<void> {
+  if (newsOpen) return;
+  newsOpen = true;
+  try {
+    const w = (await loadHelp()).whatsNew;
+    if (!w) {
+      toast('What’s new isn’t in this copy of the help', {
+        type: 'error',
+        description: 'Reload the page. If it stays, the app’s help file is out of date: rebuild it.',
+      });
+      return;
+    }
+    save(SEEN_KEY, VERSION);
+    markNews();
+    ux('help', 'whatsnew');
+    await sheet({ label: 'What’s new', title: whatsNewTitle(w), contentHtml: whatsNewHtml(w) });
+  } catch (e) {
+    toast('What’s new couldn’t be loaded', {
+      type: 'error',
+      description: `${e instanceof Error ? e.message : String(e)}. Reload the page to try again.`,
+    });
+  } finally {
+    newsOpen = false;
+  }
+}
+document.addEventListener('tiles:whats-new', () => void openWhatsNew());
 const palette = installPalette({
   items(): PaletteItem[] {
     const pages = NAV.flatMap((g) =>
@@ -1200,6 +1256,14 @@ const palette = installPalette({
         keywords: 'tour guide show me how help',
         run: () => startTour(t.id),
       })),
+      {
+        id: 'do:whats-new',
+        label: 'What’s new',
+        group: 'Actions',
+        icon: 'circle-help',
+        keywords: 'changelog release version changes new features',
+        run: () => void openWhatsNew(),
+      },
       {
         id: 'do:welcome',
         label: 'Show the welcome',
