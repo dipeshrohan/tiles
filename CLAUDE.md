@@ -6,7 +6,7 @@ Guidance for Claude Code working in this repository.
 Tiles is a browser app for industrial R&D and shopfloor teams: a factory ontology with Git-style change history, physics-based virtual sensors, a correlation finder, a design studio and a copilot. It is currently front-end only, with seeded synthetic data. The roadmap (docs/ROADMAP.md) adds a Python backend and real plant data.
 
 ## Commands
-- `npm run build`: Vite build of `js/app.ts` into `js/tiles.bundle.js` (one classic script, so `index.html` works from `file://`). **Required after editing anything in `js/`, `docs/guides/user.md` or `CHANGELOG.md`** (it also writes `js/help-data.js`, U4.04); `npm test` fails if the bundle or the help is stale. `npm run dev` rebuilds on save.
+- `npm run build`: Vite build of `js/app.ts` into `js/tiles.bundle.js` (one classic script, minified, so `index.html` works from `file://`; read the sources in `js/`, not the bundle). **Required after editing anything in `js/`, `docs/guides/user.md` or `CHANGELOG.md`** (it also writes `js/help-data.js`, U4.04); `npm test` fails if the bundle or the help is stale. `npm run dev` rebuilds on save.
 - `npm run lint`: ESLint and Prettier check. `npm run format` fixes formatting and rebuilds.
 - `npm run typecheck`: strict TypeScript (`tsc`, includes `noUncheckedIndexedAccess`).
 - `npm test`: Vitest unit tests, including the bundle freshness check.

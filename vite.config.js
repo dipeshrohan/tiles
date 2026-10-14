@@ -13,7 +13,8 @@ export default defineConfig({
   build: {
     outDir,
     emptyOutDir: false,
-    minify: false,
+    // Minified (U5.01): the bundle is generated, read from js/; its gzipped size is budgeted (test:perf).
+    minify: true,
     sourcemap: false,
     target: 'es2022',
     lib: {
