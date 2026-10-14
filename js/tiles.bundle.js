@@ -2128,6 +2128,10 @@
 		"log-out": "<path d=\"m16 17 5-5-5-5\" /><path d=\"M21 12H9\" /><path d=\"M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4\" />",
 		"copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\" /><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\" />",
 		"download": "<path d=\"M12 15V3\" /><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\" /><path d=\"m7 10 5 5 5-5\" />",
+		"arrow-up": "<path d=\"m5 12 7-7 7 7\" /><path d=\"M12 19V5\" />",
+		"arrow-down": "<path d=\"M12 5v14\" /><path d=\"m19 12-7 7-7-7\" />",
+		"arrow-up-down": "<path d=\"m21 16-4 4-4-4\" /><path d=\"M17 20V4\" /><path d=\"m3 8 4-4 4 4\" /><path d=\"M7 4v16\" />",
+		"columns-3": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /><path d=\"M15 3v18\" />",
 		"filter": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\" />",
 		"arrow-right": "<path d=\"M5 12h14\" /><path d=\"m12 5 7 7-7 7\" />",
 		"bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\" /><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\" />",
@@ -2181,7 +2185,7 @@
 		recent: [],
 		rail: false
 	};
-	function cleanPrefs(raw, pages) {
+	function cleanPrefs$1(raw, pages) {
 		const o = raw && typeof raw === "object" ? raw : {};
 		const ids = (v, max) => Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === "string" && pages.includes(x)))].slice(0, max) : [];
 		const groups = Array.isArray(o.folded) ? o.folded.filter((x) => typeof x === "string") : [];
@@ -3974,7 +3978,7 @@
 		if (linked && graph.nodes[linked]) return linked;
 		return signalByTag(graph, tag) ?? signalByLabel(graph, tag) ?? null;
 	}
-	function stateOf(w) {
+	function stateOf$1(w) {
 		if (w.status === "resolved") return "ok";
 		if (!w.ended_at) return "out";
 		return w.status === "raised" ? "new" : "taken";
@@ -3995,7 +3999,7 @@
 			machineId,
 			machine: machine?.label ?? w.signal_tag,
 			path: machineId ? pathOf(graph, machineId) : [],
-			state: stateOf(w),
+			state: stateOf$1(w),
 			status: w.status,
 			out: !w.ended_at,
 			startedAt: w.started_at,
@@ -4184,12 +4188,12 @@
 	}
 	//#endregion
 	//#region js/lib/plant.ts
-	var collator = new Intl.Collator("en", { numeric: true });
+	var collator$1 = new Intl.Collator("en", { numeric: true });
 	var isPlace = (graph, id) => {
 		const node = graph.nodes[id];
 		return node !== void 0 && HIERARCHY.includes(node.type);
 	};
-	var byLabel = (graph) => (a, b) => collator.compare(graph.nodes[a]?.label ?? a, graph.nodes[b]?.label ?? b) || a.localeCompare(b);
+	var byLabel = (graph) => (a, b) => collator$1.compare(graph.nodes[a]?.label ?? a, graph.nodes[b]?.label ?? b) || a.localeCompare(b);
 	var nodes = (graph, ids) => ids.flatMap((id) => graph.nodes[id] ? [graph.nodes[id]] : []).sort((a, b) => byLabel(graph)(a.id, b.id));
 	function parentPlace(graph, id) {
 		return incoming(graph, id, "contains").find((p) => isPlace(graph, p)) ?? null;
@@ -4256,7 +4260,7 @@
 				path,
 				starts: n.label.toLowerCase().startsWith(q)
 			};
-		}).sort((a, b) => Number(b.starts) - Number(a.starts) || a.path.length - b.path.length || collator.compare(a.label, b.label) || a.id.localeCompare(b.id)).slice(0, limit).map(({ starts: _starts, ...hit }) => hit);
+		}).sort((a, b) => Number(b.starts) - Number(a.starts) || a.path.length - b.path.length || collator$1.compare(a.label, b.label) || a.id.localeCompare(b.id)).slice(0, limit).map(({ starts: _starts, ...hit }) => hit);
 	}
 	var RANK = {
 		out: 0,
@@ -4386,10 +4390,10 @@
 	//#endregion
 	//#region js/views/home.ts
 	var uiState$15 = (ctx) => ctx.ui("home", { editing: false });
-	var MAX_ROWS = 5;
+	var MAX_ROWS$1 = 5;
 	var figure = (n, what, tone = "", atLeast = false) => `<p class="home-figure ${tone}"><span class="value" data-tick>${fmt$1(n)}${atLeast ? "+" : ""}</span> <span>${esc(what)}</span></p>`;
-	var more = (n, href, what, atLeast = false) => n > MAX_ROWS ? `<p class="small"><a href="${esc(href)}">${atLeast ? "More" : `${fmt$1(n - MAX_ROWS)} more`} ${esc(what)}</a></p>` : "";
-	var rows = (items) => `<ul class="home-list">${items.slice(0, MAX_ROWS).map((i) => `<li>${i}</li>`).join("")}</ul>`;
+	var more = (n, href, what, atLeast = false) => n > MAX_ROWS$1 ? `<p class="small"><a href="${esc(href)}">${atLeast ? "More" : `${fmt$1(n - MAX_ROWS$1)} more`} ${esc(what)}</a></p>` : "";
+	var rows = (items) => `<ul class="home-list">${items.slice(0, MAX_ROWS$1).map((i) => `<li>${i}</li>`).join("")}</ul>`;
 	var nothing = (title, body) => emptyState({
 		compact: true,
 		level: 3,
@@ -4953,7 +4957,7 @@
 		feedback: null
 	});
 	var blocks = (m) => Array.isArray(m.content) ? m.content : [];
-	var textOf = (m) => blocks(m).filter((b) => b.type === "text").map((b) => String(b.text ?? "")).join("\n");
+	var textOf$1 = (m) => blocks(m).filter((b) => b.type === "text").map((b) => String(b.text ?? "")).join("\n");
 	function parseResult(content) {
 		const text = typeof content === "string" ? content : "";
 		const m = text.match(/^\[(\d+)\] [^\n]*\n?([\s\S]*)$/);
@@ -4974,7 +4978,7 @@
 			const content = blocks(m);
 			if (m.role === "user" && content.some((b) => b.type === "text")) {
 				current = {
-					question: textOf(m),
+					question: textOf$1(m),
 					answer: null
 				};
 				out.push(current);
@@ -5010,7 +5014,7 @@
 			}
 			if (!calls.length) Object.assign(answer, {
 				seq: m.seq,
-				text: textOf(m),
+				text: textOf$1(m),
 				grounding: m.meta?.grounding ?? null,
 				retracted: (m.meta?.withdrawn ?? []).map((reason) => ({
 					text: "",
@@ -5237,7 +5241,7 @@
 	];
 	var remote$1 = null;
 	var thread = null;
-	var live = null;
+	var live$1 = null;
 	var busy$7 = false;
 	var draft$4 = "";
 	function prefill(text) {
@@ -5345,14 +5349,14 @@
 			cited.push(...e.answer?.tools ?? []);
 			const body = e.answer ? answerBody(e.answer, [...cited], ui.conversation) : "<p class=\"small soft\">No answer was kept for this question: it may have stopped early. Ask it again below.</p>";
 			return `<div class="msg user">${esc(e.question)}</div><div class="msg bot copilot-answer">${body}</div>`;
-		}), ...live && live.key === key ? [`<div class="msg user">${esc(live.question)}</div><div class="msg bot copilot-answer" data-live>${answerBody(live.answer, [...cited, ...live.answer.tools], null)}</div>`] : []].join("");
+		}), ...live$1 && live$1.key === key ? [`<div class="msg user">${esc(live$1.question)}</div><div class="msg bot copilot-answer" data-live>${answerBody(live$1.answer, [...cited, ...live$1.answer.tools], null)}</div>`] : []].join("");
 		return `<div class="copilot">
       <div class="card stack gap-2">
         <button class="btn primary" type="button" data-new-conversation>New conversation</button>
         <div class="review-list" data-conversations>${items}</div>
       </div>
       <div class="chat">
-        <div class="chat-log" id="chat-log">${ui.conversation && thread?.key !== key && !live ? loadingState() : log || emptyState({
+        <div class="chat-log" id="chat-log">${ui.conversation && thread?.key !== key && !live$1 ? loadingState() : log || emptyState({
 			illustration: "chat",
 			title: "Ask about your plant",
 			body: "The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer."
@@ -5385,9 +5389,9 @@
 	}
 	function drawLive() {
 		const el = document.querySelector("[data-live]");
-		if (!el || !live) return;
-		const before = thread?.key === live.key ? thread.exchanges.flatMap((e) => e.answer?.tools ?? []) : [];
-		el.innerHTML = answerBody(live.answer, [...before, ...live.answer.tools], null);
+		if (!el || !live$1) return;
+		const before = thread?.key === live$1.key ? thread.exchanges.flatMap((e) => e.answer?.tools ?? []) : [];
+		el.innerHTML = answerBody(live$1.answer, [...before, ...live$1.answer.tools], null);
 		const log = document.querySelector("#chat-log");
 		if (log) log.scrollTop = log.scrollHeight;
 	}
@@ -5411,7 +5415,7 @@
 				};
 			}
 			const id = ui.conversation;
-			live = {
+			live$1 = {
 				key: threadKey(ctx),
 				question: text,
 				answer: emptyAnswer()
@@ -5419,24 +5423,24 @@
 			ctx.rerender();
 			await api.copilot.ask(site, id, text, (e) => {
 				sent = true;
-				if (!live) return;
-				live.answer = applyEvent(live.answer, e.event, e.data ?? {});
+				if (!live$1) return;
+				live$1.answer = applyEvent(live$1.answer, e.event, e.data ?? {});
 				drawLive();
 			});
 		} catch (e) {
 			if (!sent) draft$4 = text;
-			else if (live) live.answer = {
-				...live.answer,
+			else if (live$1) live$1.answer = {
+				...live$1.answer,
 				error: e instanceof Error ? e.message : "The answer was cut off"
 			};
 		} finally {
 			busy$7 = false;
-			if (live?.answer.error) failure = {
-				key: live.key,
+			if (live$1?.answer.error) failure = {
+				key: live$1.key,
 				question: text,
-				error: live.answer.error
+				error: live$1.answer.error
 			};
-			live = null;
+			live$1 = null;
 			if (ui.conversation) await loadThread(ctx, ui.conversation);
 			loadRemote(ctx);
 		}
@@ -5487,7 +5491,7 @@
 	function remoteBind(root, ctx) {
 		const ui = uiState$14(ctx);
 		const site = siteId$10(ctx);
-		if (ui.conversation && thread?.key !== threadKey(ctx) && !live) loadThread(ctx, ui.conversation);
+		if (ui.conversation && thread?.key !== threadKey(ctx) && !live$1) loadThread(ctx, ui.conversation);
 		const logEl = root.querySelector("#chat-log");
 		if (logEl) toEnd(logEl);
 		root.querySelector("#composer [name=q]")?.addEventListener("input", (e) => {
@@ -8909,8 +8913,346 @@
 		lists.set(box, []);
 		await fetch();
 	}
+	var OVERSCAN = 12;
+	var MIN_WIDTH = 64;
+	var MAX_WIDTH$1 = 800;
+	var ROW_HEIGHT = {
+		comfortable: 41,
+		compact: 31
+	};
+	function cleanPrefs(value, keys) {
+		const v = typeof value === "object" && value !== null ? value : {};
+		const known = new Set(keys);
+		const sort = v.sort;
+		const widths = typeof v.widths === "object" && v.widths !== null ? v.widths : {};
+		return {
+			sort: sort && typeof sort === "object" && known.has(sort.key) && (sort.dir === "asc" || sort.dir === "desc") ? {
+				key: sort.key,
+				dir: sort.dir
+			} : null,
+			hidden: Array.isArray(v.hidden) ? v.hidden.filter((k) => typeof k === "string" && known.has(k)) : [],
+			widths: Object.fromEntries(Object.entries(widths).filter(([k, w]) => known.has(k) && typeof w === "number" && Number.isFinite(w)).map(([k, w]) => [k, clampWidth(w)])),
+			density: v.density === "compact" ? "compact" : "comfortable"
+		};
+	}
+	var clampWidth = (w) => Math.round(Math.min(MAX_WIDTH$1, Math.max(MIN_WIDTH, w)));
+	var live = /* @__PURE__ */ new Map();
+	function stateOf(o) {
+		let s = live.get(o.id);
+		if (!s) {
+			s = {
+				prefs: cleanPrefs(load$4(`table:${o.id}`, null), o.columns.map((c) => c.key)),
+				page: 0,
+				selected: /* @__PURE__ */ new Set(),
+				start: 0,
+				rowHeight: null
+			};
+			live.set(o.id, s);
+		}
+		return s;
+	}
+	var keep = (id, s) => save$1(`table:${id}`, s.prefs);
+	function visibleColumns(columns, prefs) {
+		return columns.filter((c, i) => i === 0 || c.fixed || !prefs.hidden.includes(c.key));
+	}
+	var collator = new Intl.Collator("en", {
+		numeric: true,
+		sensitivity: "base"
+	});
+	function sortRows(rows, columns, sort) {
+		const col = sort ? columns.find((c) => c.key === sort.key) : void 0;
+		if (!sort || !col?.value) return [...rows];
+		const value = col.value;
+		const dir = sort.dir === "asc" ? 1 : -1;
+		return rows.map((row, i) => ({
+			row,
+			i,
+			v: value(row)
+		})).sort((a, b) => {
+			const x = a.v;
+			const y = b.v;
+			if (x === null || x === "") return y === null || y === "" ? a.i - b.i : 1;
+			if (y === null || y === "") return -1;
+			return (typeof x === "number" && typeof y === "number" ? x - y : collator.compare(String(x), String(y))) * dir || a.i - b.i;
+		}).map((r) => r.row);
+	}
+	function windowOf(total, scrollTop, viewHeight, rowHeight) {
+		if (total <= 200) return {
+			start: 0,
+			end: total
+		};
+		const first = Math.floor(Math.max(0, scrollTop) / rowHeight);
+		const shown = Math.ceil(viewHeight / rowHeight);
+		return {
+			start: Math.max(0, Math.min(total - 1, first - OVERSCAN)),
+			end: Math.min(total, first + shown + OVERSCAN)
+		};
+	}
+	function toCsv(rows, columns, text) {
+		const cols = columns.filter((c) => !c.srOnly);
+		const field = (v) => {
+			const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+			return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, "\"\"")}"` : safe;
+		};
+		const line = (values) => values.map(field).join(",");
+		return `${[line(cols.map((c) => c.label)), ...rows.map((r) => line(cols.map((c) => c.value ? String(c.value(r) ?? "") : text(c.cell(r)))))].join("\r\n")}\r\n`;
+	}
+	var textOf = (html) => {
+		const el = document.createElement("template");
+		el.innerHTML = html;
+		return (el.content.textContent ?? "").replace(/\s+/g, " ").trim();
+	};
+	function sortIcon(dir) {
+		return icon(dir === "asc" ? "arrow-up" : dir === "desc" ? "arrow-down" : "arrow-up-down", { size: 14 });
+	}
+	function head(o, s, cols, rows) {
+		const all = rows.length > 0 && rows.every((r) => s.selected.has(o.key(r)));
+		const some = !all && rows.some((r) => s.selected.has(o.key(r)));
+		return `<thead><tr>${o.select ? `<th scope="col" class="select-col"><input type="checkbox" data-table-all aria-label="Select every row"${all ? " checked" : ""}${some ? " data-mixed" : ""}></th>` : ""}${cols.map((c) => {
+			const dir = s.prefs.sort?.key === c.key ? s.prefs.sort.dir : null;
+			const sort = dir === "asc" ? "ascending" : dir === "desc" ? "descending" : "none";
+			const label = c.srOnly ? `<span class="sr-only">${esc(c.label)}</span>` : esc(c.label);
+			const inner = c.value ? `<button class="th-sort" type="button" data-sort="${esc(c.key)}">${label}${sortIcon(dir)}</button>` : label;
+			const resize = c.srOnly ? "" : `<span class="col-resize" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Width of ${esc(c.label)}" aria-valuemin="${MIN_WIDTH}" aria-valuemax="${MAX_WIDTH$1}" aria-valuenow="${s.prefs.widths[c.key] ?? c.width ?? 160}" data-resize="${esc(c.key)}"></span>`;
+			return `<th scope="col"${attrs({
+				"aria-sort": c.value ? sort : void 0,
+				class: c.numeric ? "num" : void 0,
+				"data-col": c.key
+			})}>${inner}${resize}</th>`;
+		}).join("")}</tr></thead>`;
+	}
+	function rowHtml(o, s, cols, row, index) {
+		const key = o.key(row);
+		const picked = s.selected.has(key);
+		const check = o.select ? `<td class="select-col"><input type="checkbox" data-table-row="${esc(key)}" aria-label="Select row ${index + 1}"${picked ? " checked" : ""}></td>` : "";
+		return `<tr${attrs({
+			...o.rowAttrs?.(row) ?? {},
+			"data-key": `row-${key}`,
+			"aria-rowindex": index + 2,
+			"aria-selected": o.select ? picked : void 0
+		})}>${check}${cols.map((c) => `<td${attrs({ class: c.numeric ? "num" : void 0 })}>${c.cell(row)}</td>`).join("")}</tr>${o.after?.(row) ?? ""}`;
+	}
+	function bodyHtml(o, s, cols, rows) {
+		const span = cols.length + (o.select ? 1 : 0);
+		if (o.pageSize) {
+			const from = s.page * o.pageSize;
+			return rows.slice(from, from + o.pageSize).map((r, i) => rowHtml(o, s, cols, r, from + i)).join("");
+		}
+		if (rows.length <= 200) return rows.map((r, i) => rowHtml(o, s, cols, r, i)).join("");
+		const h = s.rowHeight ?? ROW_HEIGHT[s.prefs.density];
+		const start = Math.min(s.start, Math.max(0, rows.length - 1));
+		const end = Math.min(rows.length, start + Math.ceil(800 / h) + 24);
+		const pad = (n, where) => n > 0 ? `<tr class="spacer" aria-hidden="true" data-key="spacer-${where}"><td colspan="${span}" style="height:${Math.round(n * h)}px"></td></tr>` : "";
+		return `${pad(start, "top")}${rows.slice(start, end).map((r, i) => rowHtml(o, s, cols, r, start + i)).join("")}${pad(rows.length - end, "bottom")}`;
+	}
+	function inner(o) {
+		const s = stateOf(o);
+		const cols = visibleColumns(o.columns, s.prefs);
+		const choosable = o.columns.filter((c, i) => i > 0 && !c.fixed && !c.srOnly);
+		const tools = `<div class="table-tools">
+      <div class="table-status">${o.status ?? ""}</div>
+      ${choosable.length ? `<details class="table-columns"><summary class="btn sm ghost">${icon("columns-3", { size: 14 })}Columns</summary>
+        <fieldset class="menu-panel"><legend class="sr-only">Columns shown</legend>${choosable.map((c) => `<label class="row gap-2"><input type="checkbox" data-table-col="${esc(c.key)}"${s.prefs.hidden.includes(c.key) ? "" : " checked"}> ${esc(c.label)}</label>`).join("")}</fieldset></details>` : ""}
+      ${button("Compact", {
+			size: "sm",
+			variant: "ghost",
+			attrs: {
+				"data-table-density": true,
+				"aria-pressed": s.prefs.density === "compact"
+			}
+		})}
+      ${o.csv && o.rows?.length ? button("Export CSV", {
+			size: "sm",
+			variant: "ghost",
+			icon: "download",
+			attrs: { "data-table-csv": true }
+		}) : ""}
+    </div>`;
+		if (o.rows === null) return `${tools}${skeleton.table(6, Math.min(cols.length, 6), `Loading ${o.label.toLowerCase()}…`)}`;
+		if (!o.rows.length) return `${tools}${o.empty}`;
+		const rows = sortRows(o.rows, o.columns, s.prefs.sort);
+		const keys = new Set(rows.map(o.key));
+		for (const k of s.selected) if (!keys.has(k)) s.selected.delete(k);
+		const bar = o.select && s.selected.size ? `<div class="bulk-bar" role="region" aria-label="Selected rows"><span><b>${s.selected.size}</b> selected</span>${o.select.actions.map((a) => button(a.label, {
+			size: "sm",
+			variant: a.variant ?? "secondary",
+			attrs: { "data-table-action": a.id }
+		})).join("")}${button("Clear selection", {
+			size: "sm",
+			variant: "ghost",
+			attrs: { "data-table-clear": true }
+		})}</div>` : "";
+		const pages = o.pageSize ? Math.max(1, Math.ceil(rows.length / o.pageSize)) : 1;
+		if (s.page >= pages) s.page = pages - 1;
+		const paging = o.pageSize && pages > 1 ? `<nav class="table-paging row gap-2" aria-label="Pages of ${esc(o.label.toLowerCase())}"><span class="small soft">${s.page * o.pageSize + 1}–${Math.min(rows.length, (s.page + 1) * o.pageSize)} of ${rows.length}</span>${button("Previous", {
+			size: "sm",
+			disabled: s.page === 0,
+			attrs: { "data-table-page": -1 }
+		})}${button("Next", {
+			size: "sm",
+			disabled: s.page >= pages - 1,
+			attrs: { "data-table-page": 1 }
+		})}</nav>` : "";
+		const virtual = !o.pageSize && rows.length > 200;
+		const widths = cols.map((c) => s.prefs.widths[c.key] ?? c.width);
+		const colgroup = `<colgroup>${o.select ? "<col class=\"select-col\">" : ""}${widths.map((w) => w ? `<col style="width:${w}px">` : "<col>").join("")}</colgroup>`;
+		return `${tools}${bar}<div class="table-wrap table-frame"${virtual ? " data-virtual" : ""} tabindex="0" role="region" aria-label="${esc(o.label)}"><table${attrs({ "aria-rowcount": virtual ? rows.length + 1 : void 0 })}>${colgroup}${head(o, s, cols, rows)}<tbody>${bodyHtml(o, s, cols, rows)}</tbody></table></div>${paging}`;
+	}
+	function dataTable(o) {
+		return `<div class="data-table density-${stateOf(o).prefs.density}" data-table="${esc(o.id)}">${inner(o)}</div>`;
+	}
+	function bindTable(root, o) {
+		const el = root.querySelector(`[data-table="${CSS.escape(o.id)}"]`);
+		if (!el) return;
+		const s = stateOf(o);
+		const signal = bound();
+		const redraw = () => {
+			el.className = `data-table density-${s.prefs.density}`;
+			morph(el, inner(o));
+			mixed();
+		};
+		const mixed = () => {
+			const all = el.querySelector("[data-table-all]");
+			if (all) all.indeterminate = all.hasAttribute("data-mixed");
+		};
+		mixed();
+		const sorted = () => sortRows(o.rows ?? [], o.columns, s.prefs.sort);
+		el.addEventListener("click", (e) => {
+			const t = e.target instanceof Element ? e.target : null;
+			const sortBy = t?.closest("[data-sort]")?.dataset.sort;
+			if (sortBy) {
+				const now = s.prefs.sort?.key === sortBy ? s.prefs.sort.dir : null;
+				s.prefs.sort = now === null ? {
+					key: sortBy,
+					dir: "asc"
+				} : now === "asc" ? {
+					key: sortBy,
+					dir: "desc"
+				} : null;
+				s.page = 0;
+				keep(o.id, s);
+				redraw();
+				el.querySelector(`[data-sort="${CSS.escape(sortBy)}"]`)?.focus();
+				return;
+			}
+			if (t?.closest("[data-table-density]")) {
+				s.prefs.density = s.prefs.density === "compact" ? "comfortable" : "compact";
+				s.rowHeight = null;
+				keep(o.id, s);
+				redraw();
+				el.querySelector("[data-table-density]")?.focus();
+				return;
+			}
+			if (t?.closest("[data-table-csv]")) {
+				const csv = toCsv(sorted(), visibleColumns(o.columns, s.prefs), textOf);
+				const a = document.createElement("a");
+				a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+				a.download = o.csv ?? `${o.id}.csv`;
+				a.click();
+				setTimeout(() => URL.revokeObjectURL(a.href), 1e3);
+				return;
+			}
+			const step = t?.closest("[data-table-page]")?.dataset.tablePage;
+			if (step) {
+				s.page += Number(step);
+				redraw();
+				el.querySelector(".table-frame")?.scrollTo({ top: 0 });
+				el.querySelector(`[data-table-page="${step}"]:not(:disabled), [data-table-page]:not(:disabled)`)?.focus();
+				return;
+			}
+			if (t?.closest("[data-table-clear]")) {
+				s.selected.clear();
+				redraw();
+				el.querySelector("[data-table-all]")?.focus();
+				return;
+			}
+			const action = t?.closest("[data-table-action]")?.dataset.tableAction;
+			if (action && o.select) o.select.run(action, [...s.selected]);
+		}, { signal });
+		el.addEventListener("change", (e) => {
+			const t = e.target;
+			if (!(t instanceof HTMLInputElement)) return;
+			if (t.dataset.tableCol) {
+				const k = t.dataset.tableCol;
+				s.prefs.hidden = t.checked ? s.prefs.hidden.filter((h) => h !== k) : [...s.prefs.hidden, k];
+				keep(o.id, s);
+				redraw();
+				el.querySelector(`[data-table-col="${CSS.escape(k)}"]`)?.focus();
+			} else if (t.dataset.tableRow !== void 0) {
+				if (t.checked) s.selected.add(t.dataset.tableRow);
+				else s.selected.delete(t.dataset.tableRow);
+				redraw();
+				el.querySelector(`[data-table-row="${CSS.escape(t.dataset.tableRow)}"]`)?.focus();
+			} else if (t.hasAttribute("data-table-all")) {
+				const rows = sorted();
+				if (t.checked) rows.forEach((r) => s.selected.add(o.key(r)));
+				else s.selected.clear();
+				redraw();
+				el.querySelector("[data-table-all]")?.focus();
+			}
+		}, { signal });
+		const setWidth = (key, w) => {
+			s.prefs.widths[key] = clampWidth(w);
+			const at = visibleColumns(o.columns, s.prefs).findIndex((c) => c.key === key) + (o.select ? 1 : 0);
+			const col = el.querySelectorAll("colgroup col")[at];
+			if (col) col.style.width = `${s.prefs.widths[key]}px`;
+			el.querySelector(`[data-resize="${CSS.escape(key)}"]`)?.setAttribute("aria-valuenow", String(s.prefs.widths[key]));
+		};
+		el.addEventListener("pointerdown", (e) => {
+			const handle = e.target instanceof Element ? e.target.closest("[data-resize]") : null;
+			const key = handle?.dataset.resize;
+			const th = handle?.closest("th");
+			if (!handle || !key || !th) return;
+			e.preventDefault();
+			const from = e.clientX;
+			const width = th.getBoundingClientRect().width;
+			handle.setPointerCapture(e.pointerId);
+			const move = (m) => setWidth(key, width + m.clientX - from);
+			const up = () => {
+				handle.removeEventListener("pointermove", move);
+				keep(o.id, s);
+			};
+			handle.addEventListener("pointermove", move);
+			handle.addEventListener("pointerup", up, { once: true });
+			handle.addEventListener("pointercancel", up, { once: true });
+		}, { signal });
+		el.addEventListener("keydown", (e) => {
+			const handle = e.target instanceof HTMLElement ? e.target.closest("[data-resize]") : null;
+			const key = handle?.dataset.resize;
+			if (!handle || !key || e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+			e.preventDefault();
+			const th = handle.closest("th");
+			const now = s.prefs.widths[key] ?? th?.getBoundingClientRect().width ?? 160;
+			setWidth(key, now + (e.key === "ArrowRight" ? 16 : -16));
+			keep(o.id, s);
+		}, { signal });
+		const frame = el.querySelector(".table-frame[data-virtual]");
+		if (!frame) return;
+		const first = frame.querySelector("tbody tr:not(.spacer)");
+		if (first && s.rowHeight === null) s.rowHeight = first.getBoundingClientRect().height || null;
+		let ticking = false;
+		frame.addEventListener("scroll", () => {
+			if (ticking) return;
+			ticking = true;
+			requestAnimationFrame(() => {
+				ticking = false;
+				const rows = sorted();
+				const h = s.rowHeight ?? ROW_HEIGHT[s.prefs.density];
+				const head = frame.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+				const { start } = windowOf(rows.length, frame.scrollTop - head, frame.clientHeight, h);
+				if (Math.abs(start - s.start) < OVERSCAN / 2) return;
+				s.start = start;
+				const tbody = frame.querySelector("tbody");
+				if (tbody) morph(tbody, bodyHtml(o, s, visibleColumns(o.columns, s.prefs), rows));
+			});
+		}, {
+			signal,
+			passive: true
+		});
+	}
 	//#endregion
 	//#region js/views/settings.ts
+	var AUDIT_ROWS = 200;
 	function accountCard(ctx) {
 		const { config, signedIn } = ctx.auth;
 		const { user } = ctx.state;
@@ -8973,13 +9315,50 @@
 		const site = ctx.ontology.site;
 		if (!box || !site || !ctx.api) return;
 		try {
-			const entries = await ctx.api.audit(site.id, { limit: 50 });
-			box.innerHTML = entries.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>${entries.map((e) => `<tr><td>${esc(new Date(e.at).toLocaleString("en-GB"))}</td><td>${esc(e.actor_name)}</td><td>${esc(describeAudit(e))}</td></tr>`).join("")}</tbody></table></div>` : emptyState({
-				compact: true,
-				level: 3,
-				title: "No changes yet",
-				body: "Each change to the site (a commit, a signal edit, a member’s role) is listed here with who made it."
-			});
+			const entries = await ctx.api.audit(site.id, { limit: AUDIT_ROWS });
+			const o = {
+				id: "audit",
+				label: "Audit log",
+				columns: [
+					{
+						key: "at",
+						label: "When",
+						value: (e) => e.at,
+						cell: (e) => esc(new Date(e.at).toLocaleString("en-GB"))
+					},
+					{
+						key: "who",
+						label: "Who",
+						value: (e) => e.actor_name,
+						cell: (e) => esc(e.actor_name)
+					},
+					{
+						key: "what",
+						label: "What",
+						value: (e) => describeAudit(e),
+						cell: (e) => esc(describeAudit(e))
+					},
+					{
+						key: "request",
+						label: "Request ID",
+						value: (e) => e.request_id ?? "",
+						cell: (e) => `<code>${esc(e.request_id ?? "—")}</code>`
+					}
+				],
+				rows: entries,
+				key: (e) => String(e.id),
+				empty: emptyState({
+					compact: true,
+					level: 3,
+					title: "No changes yet",
+					body: "Each change to the site (a commit, a signal edit, a member’s role) is listed here with who made it."
+				}),
+				status: `<p class="small soft m-0">The latest ${entries.length === AUDIT_ROWS ? fmt$1(AUDIT_ROWS) : fmt$1(entries.length)} change(s).</p>`,
+				pageSize: 25,
+				csv: "audit-log.csv"
+			};
+			box.innerHTML = dataTable(o);
+			bindTable(box, o);
 		} catch {
 			box.innerHTML = loadFailed("The audit log");
 		}
@@ -9267,12 +9646,70 @@
 			box.innerHTML = loadFailed("The agents");
 			return;
 		}
-		box.innerHTML = agents.length ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? "<th><span class=\"sr-only\">Actions</span></th>" : ""}</tr></thead><tbody>${agents.map((a) => `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"}</td><td>${esc(a.hostname ?? "—")}</td><td>${esc(a.version ?? "—")}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${admin ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>` : ""}</tr>`).join("")}</tbody></table></div>` : emptyState({
-			compact: true,
-			level: 3,
-			title: "No edge agents yet",
-			body: admin ? "Register one below, then put its token in the agent’s config on the plant network. It connects out to Tiles; nothing connects in." : "An admin of this site registers edge agents; they send the plant’s readings to Tiles."
-		});
+		const o = {
+			id: "agents",
+			label: "Edge agents",
+			columns: [
+				{
+					key: "name",
+					label: "Agent",
+					value: (a) => a.name,
+					cell: (a) => esc(a.name)
+				},
+				{
+					key: "status",
+					label: "Status",
+					value: (a) => a.status,
+					cell: (a) => agentStatus(a)
+				},
+				{
+					key: "seen",
+					label: "Last heartbeat",
+					value: (a) => a.last_seen_at,
+					cell: (a) => a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString("en-GB")) : "—"
+				},
+				{
+					key: "host",
+					label: "Host",
+					value: (a) => a.hostname,
+					cell: (a) => esc(a.hostname ?? "—")
+				},
+				{
+					key: "version",
+					label: "Version",
+					value: (a) => a.version,
+					cell: (a) => esc(a.version ?? "—")
+				},
+				{
+					key: "connectors",
+					label: "Connectors",
+					cell: (a) => connectorList(a)
+				},
+				{
+					key: "buffer",
+					label: "Buffer",
+					value: (a) => a.buffer?.queued ?? null,
+					cell: (a) => bufferSummary(a)
+				},
+				...admin ? [{
+					key: "actions",
+					label: "Actions",
+					srOnly: true,
+					fixed: true,
+					cell: (a) => `<button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button>`
+				}] : []
+			],
+			rows: agents,
+			key: (a) => a.id,
+			empty: emptyState({
+				compact: true,
+				level: 3,
+				title: "No edge agents yet",
+				body: admin ? "Register one below, then put its token in the agent’s config on the plant network. It connects out to Tiles; nothing connects in." : "An admin of this site registers edge agents; they send the plant’s readings to Tiles."
+			})
+		};
+		box.innerHTML = dataTable(o);
+		bindTable(box, o);
 		onAll(box, "[data-revoke-agent]", "click", async (el) => {
 			const name = el.dataset.agentName ?? "";
 			if (!await confirmDialog({
@@ -9518,7 +9955,9 @@
 	}
 	//#endregion
 	//#region js/views/signals.ts
-	var PAGE$2 = 100;
+	var PAGE$2 = 500;
+	var MAX_ROWS = 1e4;
+	var PLOT_MAX = 8;
 	var results = null;
 	var failed$1 = false;
 	var checking = false;
@@ -9647,7 +10086,7 @@
 			...nodes.map((n) => [n.id, `${n.label} (${n.id})`])
 		];
 		const stuck = s.stuck_after_s === null ? "" : String(+(s.stuck_after_s / 60).toPrecision(12));
-		return `<tr class="edit-row"><td colspan="9">
+		return `<tr class="edit-row"><td colspan="100">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
         <fieldset class="contents" ${saving$2 === s.id ? "disabled" : ""}>
         ${field$1("Unit", input({
@@ -9751,35 +10190,120 @@
 				icon: "upload"
 			}) : void 0
 		});
+		return dataTable(tableOptions(ctx, page, canEdit));
+	}
+	var QUALITY_RANK = {
+		bad: 0,
+		warn: 1,
+		unknown: 2,
+		good: 3
+	};
+	function tableOptions(ctx, page, canEdit) {
 		const { editing, open } = ui$2(ctx);
-		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
-		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
-    ${table({
-			headers: [
-				"Tag",
-				"Description",
-				"Unit",
-				"Rate",
-				"Source",
-				"Ontology node",
-				"Latest reading",
-				"Quality",
+		const more = page.loading ? ` Loading ${fmt$1(page.total - page.signals.length, 0)} more…` : page.total > page.signals.length ? ` Showing the first ${fmt$1(page.signals.length, 0)}; narrow the search to see others.` : "";
+		return {
+			id: "signals",
+			label: "Signals",
+			columns: [
 				{
+					key: "tag",
+					label: "Tag",
+					value: (s) => s.tag,
+					cell: (s) => `<a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}`
+				},
+				{
+					key: "description",
+					label: "Description",
+					value: (s) => s.description,
+					cell: (s) => esc(s.description) || "<span class=\"soft\">—</span>"
+				},
+				{
+					key: "unit",
+					label: "Unit",
+					value: (s) => s.unit,
+					cell: (s) => esc(s.unit ?? "—")
+				},
+				{
+					key: "rate",
+					label: "Rate",
+					numeric: true,
+					value: (s) => s.sample_rate_hz,
+					cell: (s) => s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`
+				},
+				{
+					key: "source",
+					label: "Source",
+					value: (s) => sourceLabel(s.source),
+					cell: (s) => esc(sourceLabel(s.source))
+				},
+				{
+					key: "node",
+					label: "Ontology node",
+					value: (s) => s.node_label ?? s.node_id,
+					cell: (s) => linkCell(s)
+				},
+				{
+					key: "latest",
+					label: "Latest reading",
+					value: (s) => s.last_at,
+					cell: (s) => esc(latest(s))
+				},
+				{
+					key: "quality",
+					label: "Quality",
+					value: (s) => s.quality ? QUALITY_RANK[s.quality.badge] ?? 4 : null,
+					cell: (s) => s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)
+				},
+				{
+					key: "actions",
 					label: "Actions",
-					srOnly: true
+					srOnly: true,
+					fixed: true,
+					cell: (s) => canEdit && editing !== s.id ? button("Edit", {
+						size: "sm",
+						attrs: { "data-edit": s.id }
+					}) : ""
 				}
 			],
-			rowsHtml: page.signals.map((s) => `<tr data-row="${esc(s.id)}" data-key="signal-${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || "<span class=\"soft\">—</span>"}</td>
-            <td>${esc(s.unit ?? "—")}</td><td>${s.sample_rate_hz === null ? "—" : `${esc(String(s.sample_rate_hz))} Hz`}</td>
-            <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
-            <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
-            <td>${canEdit && editing !== s.id ? button("Edit", {
-				size: "sm",
-				attrs: { "data-edit": s.id }
-			}) : ""}</td></tr>
-          ${open === s.id && s.quality ? `<tr class="quality-row"><td colspan="9">${qualityDetail(s.quality)}</td></tr>` : ""}
-          ${canEdit && editing === s.id ? editRow(ctx, s) : ""}`).join("")
-		})}`;
+			rows: page.signals,
+			key: (s) => s.id,
+			empty: "",
+			status: `<p class="small soft m-0" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>`,
+			rowAttrs: (s) => ({ "data-row": s.id }),
+			after: (s) => `${open === s.id && s.quality ? `<tr class="quality-row" data-key="quality-${esc(s.id)}"><td colspan="100">${qualityDetail(s.quality)}</td></tr>` : ""}${canEdit && editing === s.id ? editRow(ctx, s) : ""}`,
+			select: {
+				actions: [{
+					id: "plot",
+					label: "Plot",
+					variant: "primary"
+				}, ...canEdit ? [{
+					id: "check",
+					label: "Check quality"
+				}] : []],
+				run: (action, keys) => bulk(ctx, action, keys)
+			},
+			csv: "signals.csv"
+		};
+	}
+	function bulk(ctx, action, keys) {
+		const site = ctx.ontology.site;
+		if (action === "plot") {
+			if (keys.length > PLOT_MAX) {
+				ctx.toast(`Select up to ${PLOT_MAX} signals to plot`, { description: `The Data explorer plots ${PLOT_MAX} at a time; ${keys.length} are selected.` });
+				return;
+			}
+			location.hash = `#/explorer?signals=${keys.map(encodeURIComponent).join(",")}`;
+			return;
+		}
+		if (action === "check" && ctx.api && site) return ctx.api.signals.checkQuality(site.id, keys).then((r) => {
+			ctx.toast(`Checked ${r.checked} signal(s)`, {
+				type: "success",
+				description: `${r.badges.good} good, ${r.badges.warn} with warnings, ${r.badges.bad} with problems.`
+			});
+			ux("task", "signal.quality-checked");
+			const root = document.querySelector("#view");
+			if (root) search$1(root, ctx);
+		});
 	}
 	async function search$1(root, ctx) {
 		const site = ctx.ontology.site;
@@ -9795,6 +10319,40 @@
 			});
 		} catch {}
 		if (mine !== latestSearch) return;
+		if (page && page.signals.length < Math.min(page.total, MAX_ROWS)) {
+			const first = page;
+			(async () => {
+				const all = [...first.signals];
+				for (let offset = PAGE$2; offset < Math.min(first.total, MAX_ROWS); offset += PAGE$2) {
+					let next;
+					try {
+						next = await ctx.api.signals.list(site.id, {
+							...ui$2(ctx).query,
+							limit: PAGE$2,
+							offset
+						});
+					} catch {
+						break;
+					}
+					if (mine !== latestSearch) return;
+					all.push(...next.signals);
+					results = {
+						total: first.total,
+						signals: [...all],
+						loading: all.length < Math.min(first.total, MAX_ROWS)
+					};
+					if (!next.signals.length) break;
+					fill(root, ctx);
+				}
+				if (mine !== latestSearch || !results) return;
+				results.loading = false;
+				fill(root, ctx);
+			})();
+			page = {
+				...page,
+				loading: true
+			};
+		}
 		if (!page && results && resultsFor === from && resultsQuery === query) return;
 		results = page;
 		resultsFor = from;
@@ -9814,7 +10372,18 @@
 		} : null;
 		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
 		const canEdit = ctx.ontology.role !== "viewer";
+		const frame = box.querySelector(".table-frame");
+		const scrolled = frame ? {
+			top: frame.scrollTop,
+			left: frame.scrollLeft
+		} : null;
 		box.innerHTML = failed$1 ? loadFailed("The signals") : results ? resultsTable(ctx, results, canEdit) : skeleton.table(6, 9, "Loading the signals…");
+		const frameAfter = box.querySelector(".table-frame");
+		if (frameAfter && scrolled) {
+			frameAfter.scrollTop = scrolled.top;
+			frameAfter.scrollLeft = scrolled.left;
+		}
+		if (results?.signals.length && !failed$1) bindTable(box, tableOptions(ctx, results, canEdit));
 		const again = box.querySelector("#signal-form");
 		if (typed && again && again.dataset.signal === typed.signal) {
 			for (const [name, value] of typed.values) {
@@ -12872,6 +13441,9 @@ heartbeat_seconds = 30
 			note: "z-index for what sits above the page; durations and easings for transitions (off with reduced motion).",
 			tokens: [
 				"--z-under",
+				"--z-sticky",
+				"--z-sticky-head",
+				"--z-sticky-corner",
 				"--z-raised",
 				"--z-nav",
 				"--z-dialog",
@@ -17473,7 +18045,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (who && who !== navFor) {
 			const first = !navFor;
 			navFor = who;
-			navPrefs = cleanPrefs(load$4(who, null), NAV_PAGES);
+			navPrefs = cleanPrefs$1(load$4(who, null), NAV_PAGES);
 			if (first && waitingVisits.length) {
 				for (const id of waitingVisits) navPrefs = visited(navPrefs, id);
 				save$1(who, navPrefs);
@@ -17484,7 +18056,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			borrowed = true;
 			const last = load$4(lastOwner(), null);
 			if (last?.startsWith("nav:")) {
-				const theirs = cleanPrefs(load$4(last, null), NAV_PAGES);
+				const theirs = cleanPrefs$1(load$4(last, null), NAV_PAGES);
 				navPrefs = {
 					...DEFAULT_PREFS,
 					rail: theirs.rail,

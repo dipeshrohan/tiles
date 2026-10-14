@@ -18,6 +18,9 @@ import { bindFeedback, feedbackCard } from './feedback-admin.ts';
 import type { Context, View } from './types.ts';
 import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
+import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
+
+const AUDIT_ROWS = 200; // the latest changes, in pages of 25
 
 // Sign-in to the Tiles API, shown in API mode.
 function accountCard(ctx: Context): string {
@@ -105,20 +108,41 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
   const site = ctx.ontology.site;
   if (!box || !site || !ctx.api) return;
   try {
-    const entries = await ctx.api.audit(site.id, { limit: 50 });
-    box.innerHTML = entries.length
-      ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Who</th><th>What</th></tr></thead><tbody>${entries
-          .map(
-            (e) =>
-              `<tr><td>${esc(new Date(e.at).toLocaleString('en-GB'))}</td><td>${esc(e.actor_name)}</td><td>${esc(describeAudit(e))}</td></tr>`,
-          )
-          .join('')}</tbody></table></div>`
-      : emptyState({
-          compact: true,
-          level: 3,
-          title: 'No changes yet',
-          body: 'Each change to the site (a commit, a signal edit, a member’s role) is listed here with who made it.',
-        });
+    const entries = await ctx.api.audit(site.id, { limit: AUDIT_ROWS });
+    // A table of the latest changes (U5.02): sorted, in pages, exported as CSV.
+    const o: TableOptions<AuditEntry> = {
+      id: 'audit',
+      label: 'Audit log',
+      columns: [
+        {
+          key: 'at',
+          label: 'When',
+          value: (e) => e.at,
+          cell: (e) => esc(new Date(e.at).toLocaleString('en-GB')),
+        },
+        { key: 'who', label: 'Who', value: (e) => e.actor_name, cell: (e) => esc(e.actor_name) },
+        { key: 'what', label: 'What', value: (e) => describeAudit(e), cell: (e) => esc(describeAudit(e)) },
+        {
+          key: 'request',
+          label: 'Request ID',
+          value: (e) => e.request_id ?? '',
+          cell: (e) => `<code>${esc(e.request_id ?? '—')}</code>`,
+        },
+      ],
+      rows: entries,
+      key: (e) => String(e.id),
+      empty: emptyState({
+        compact: true,
+        level: 3,
+        title: 'No changes yet',
+        body: 'Each change to the site (a commit, a signal edit, a member’s role) is listed here with who made it.',
+      }),
+      status: `<p class="small soft m-0">The latest ${entries.length === AUDIT_ROWS ? fmt(AUDIT_ROWS) : fmt(entries.length)} change(s).</p>`,
+      pageSize: 25,
+      csv: 'audit-log.csv',
+    };
+    box.innerHTML = dataTable(o);
+    bindTable(box, o);
   } catch {
     box.innerHTML = loadFailed('The audit log');
   }
@@ -513,25 +537,49 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
     box.innerHTML = loadFailed('The agents');
     return;
   }
-  box.innerHTML = agents.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Agent</th><th>Status</th><th>Last heartbeat</th><th>Host</th><th>Version</th><th>Connectors</th><th>Buffer</th>${admin ? '<th><span class="sr-only">Actions</span></th>' : ''}</tr></thead><tbody>${agents
-        .map(
-          (a) =>
-            `<tr><td>${esc(a.name)}</td><td>${agentStatus(a)}</td><td>${a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'}</td><td>${esc(a.hostname ?? '—')}</td><td>${esc(a.version ?? '—')}</td><td>${connectorList(a)}</td><td>${bufferSummary(a)}</td>${
-              admin
-                ? `<td><button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button></td>`
-                : ''
-            }</tr>`,
-        )
-        .join('')}</tbody></table></div>`
-    : emptyState({
-        compact: true,
-        level: 3,
-        title: 'No edge agents yet',
-        body: admin
-          ? 'Register one below, then put its token in the agent’s config on the plant network. It connects out to Tiles; nothing connects in.'
-          : 'An admin of this site registers edge agents; they send the plant’s readings to Tiles.',
-      });
+  // The agents as a table (U5.02): sorted, their columns chosen.
+  const o: TableOptions<EdgeAgent> = {
+    id: 'agents',
+    label: 'Edge agents',
+    columns: [
+      { key: 'name', label: 'Agent', value: (a) => a.name, cell: (a) => esc(a.name) },
+      { key: 'status', label: 'Status', value: (a) => a.status, cell: (a) => agentStatus(a) },
+      {
+        key: 'seen',
+        label: 'Last heartbeat',
+        value: (a) => a.last_seen_at,
+        cell: (a) => (a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'),
+      },
+      { key: 'host', label: 'Host', value: (a) => a.hostname, cell: (a) => esc(a.hostname ?? '—') },
+      { key: 'version', label: 'Version', value: (a) => a.version, cell: (a) => esc(a.version ?? '—') },
+      { key: 'connectors', label: 'Connectors', cell: (a) => connectorList(a) },
+      { key: 'buffer', label: 'Buffer', value: (a) => a.buffer?.queued ?? null, cell: (a) => bufferSummary(a) },
+      ...(admin
+        ? [
+            {
+              key: 'actions',
+              label: 'Actions',
+              srOnly: true,
+              fixed: true,
+              cell: (a: EdgeAgent) =>
+                `<button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button>`,
+            },
+          ]
+        : []),
+    ],
+    rows: agents,
+    key: (a) => a.id,
+    empty: emptyState({
+      compact: true,
+      level: 3,
+      title: 'No edge agents yet',
+      body: admin
+        ? 'Register one below, then put its token in the agent’s config on the plant network. It connects out to Tiles; nothing connects in.'
+        : 'An admin of this site registers edge agents; they send the plant’s readings to Tiles.',
+    }),
+  };
+  box.innerHTML = dataTable(o);
+  bindTable(box, o);
   onAll(box, '[data-revoke-agent]', 'click', async (el) => {
     const name = el.dataset.agentName ?? '';
     const yes = await confirmDialog({

@@ -54,6 +54,11 @@ export const NAMES = [
   'log-out',
   'copy',
   'download',
+  // Tables (U5.02): sort order and the columns menu
+  'arrow-up',
+  'arrow-down',
+  'arrow-up-down',
+  'columns-3',
   'filter',
   'arrow-right',
   'bell',

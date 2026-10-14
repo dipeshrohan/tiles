@@ -279,7 +279,7 @@ Estimates are engineer-days. Owners: FE frontend, PM product and design, BE back
   - column choice and widths, remembered;
   - density (comfortable or compact);
   - row selection with a bulk-action bar;
-  - paging, or virtual rows past 500;
+  - paging, or virtual rows past 200 (500 drawn at once missed the 50 ms task budget);
   - CSV export of the current view;
   - an empty state, and a skeleton while loading.
 

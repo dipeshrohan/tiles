@@ -228,6 +228,12 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await page.waitForTimeout(400);
     await check('documents');
     await page.evaluate(() => (location.hash = '#/signals'));
+    // Tables v2 (U5.02): a row selected (the bar of bulk actions) and the columns menu open.
+    await page.locator('[data-table="signals"] [data-table-row]').first().check();
+    await page.waitForSelector('[data-table="signals"] .bulk-bar');
+    await page.click('[data-table="signals"] .table-columns summary');
+    await check('signals, a row selected');
+    await page.click('[data-table="signals"] [data-table-clear]');
     await page.click('a[href^="#/explorer?signal="]');
     await page.waitForSelector('.explorer-chart svg.chart');
     await check('explorer');

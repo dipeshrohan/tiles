@@ -97,6 +97,9 @@
 
   /* Layers, lowest first. */
   --z-under: -1; /* behind its element's words, in front of its background (a moving highlight) */
+  --z-sticky: 1; /* a table's first column, stuck as the rest scrolls sideways (U5.02) */
+  --z-sticky-head: 2; /* its header row, over the rows */
+  --z-sticky-corner: 3; /* where the two meet */
   --z-raised: 5;
   --z-nav: 20;
   --z-dialog: 40;
@@ -2568,6 +2571,146 @@ kbd {
 }
 .whats-new h3 {
   margin-top: var(--space-4);
+}
+
+/* Tables v2 (U5.02): a table in a frame that scrolls both ways, its header row and first column
+   stuck to it; tools above (columns, density, export); a bar of bulk actions while rows are
+   selected. Compact density halves the cells' padding. */
+.data-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.table-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+.table-status {
+  flex: 1;
+  min-width: 0;
+}
+.table-columns {
+  position: relative;
+}
+.table-columns > summary {
+  list-style: none;
+}
+.table-columns > summary::-webkit-details-marker {
+  display: none;
+}
+.table-columns .menu-panel {
+  position: absolute;
+  right: 0;
+  z-index: var(--z-raised);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1_5);
+  min-width: 200px;
+  margin: var(--space-1) 0 0;
+  padding: var(--space-3);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+.table-frame {
+  max-height: min(70vh, 720px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.table-frame table {
+  table-layout: auto;
+}
+.table-frame thead th {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky-head);
+  background: var(--panel-2);
+}
+.table-frame tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* The first column (after the selection box) stays as the rest scrolls sideways. */
+.table-frame th:first-child,
+.table-frame td:first-child,
+.table-frame :is(th, td).select-col + :is(th, td) {
+  position: sticky;
+  left: 0;
+  z-index: var(--z-sticky);
+  background: var(--panel);
+}
+.table-frame thead th:first-child,
+.table-frame thead th.select-col + th {
+  z-index: var(--z-sticky-corner);
+  background: var(--panel-2);
+}
+.table-frame .select-col + :is(th, td) {
+  left: 40px;
+}
+.table-frame col.select-col,
+.table-frame .select-col {
+  width: 40px;
+}
+.table-frame tr.spacer td {
+  padding: 0;
+  border: 0;
+}
+.table-frame tr[aria-selected='true'] td {
+  background: var(--accent-soft);
+}
+.density-compact .table-frame :is(th, td) {
+  padding: var(--space-1) var(--space-2);
+}
+th .th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+th .th-sort svg {
+  opacity: 0.5;
+}
+th[aria-sort='ascending'] .th-sort svg,
+th[aria-sort='descending'] .th-sort svg {
+  opacity: 1;
+}
+th .col-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: col-resize;
+  touch-action: none;
+}
+th .col-resize:hover,
+th .col-resize:focus-visible {
+  background: var(--line-strong);
+}
+.table-frame th {
+  position: sticky; /* the resize handle's box, and stuck to the top */
+}
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+}
+.table-paging {
+  justify-content: flex-end;
+  align-items: center;
 }
 
 /* Home by role (U5.01): cards that each answer "what needs me now?", side by side as space allows

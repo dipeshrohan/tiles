@@ -24,7 +24,6 @@ import {
   needsApi,
   pageHead,
   select,
-  table,
   type Tone,
   apiUnreachable,
   skeleton,
@@ -32,13 +31,18 @@ import {
   loadFailed,
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
+import { bindTable, dataTable, type Column, type TableOptions } from '../lib/data-table.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
 // Signal node in the ontology. Each signal shows the badge of its latest data-quality check
 // (T2.09): gaps, stuck values, out-of-range values, unit mismatches.
 
-const PAGE = 100;
+// The catalogue is fetched a page at a time, the table filling as they come (virtual rows past 200,
+// U5.02), up to MAX_ROWS: a search narrows it beyond.
+const PAGE = 500;
+const MAX_ROWS = 10_000;
+const PLOT_MAX = 8; // the Data explorer's limit
 
 interface Ui {
   query: Required<Pick<SignalQuery, 'q' | 'source' | 'linked' | 'quality'>>;
@@ -47,7 +51,7 @@ interface Ui {
   open: string | null; // the signal whose quality report is shown
 }
 
-let results: { total: number; signals: SignalInfo[] } | null = null;
+let results: { total: number; signals: SignalInfo[]; loading?: boolean } | null = null;
 let failed = false;
 let checking = false;
 let latestSearch = 0; // answers to earlier searches are dropped
@@ -209,7 +213,7 @@ function editRow(ctx: Context, s: SignalInfo): string {
     ...nodes.map((n) => [n.id, `${n.label} (${n.id})`] as const),
   ];
   const stuck = s.stuck_after_s === null ? '' : String(+(s.stuck_after_s / 60).toPrecision(12));
-  return `<tr class="edit-row"><td colspan="9">
+  return `<tr class="edit-row"><td colspan="100">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
         <fieldset class="contents" ${saving === s.id ? 'disabled' : ''}>
         ${labelled('Unit', input({ name: 'unit', value: s.unit ?? '', class: 'w-7em', attrs: { placeholder: 'e.g. °C', maxlength: 40 } }))}
@@ -279,37 +283,113 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
             : undefined,
         });
   }
+  return dataTable(tableOptions(ctx, page, canEdit));
+}
+
+const QUALITY_RANK: Record<string, number> = { bad: 0, warn: 1, unknown: 2, good: 3 };
+
+// The catalogue as a table (U5.02): sorted, its columns chosen, signals selected to plot or check.
+export function tableOptions(
+  ctx: Context,
+  page: { total: number; signals: SignalInfo[]; loading?: boolean },
+  canEdit: boolean,
+): TableOptions<SignalInfo> {
   const { editing, open } = ui(ctx);
-  const more =
-    page.total > page.signals.length
-      ? ` Showing the first ${page.signals.length}; narrow the search to see others.`
+  const more = page.loading
+    ? ` Loading ${fmt(page.total - page.signals.length, 0)} more…`
+    : page.total > page.signals.length
+      ? ` Showing the first ${fmt(page.signals.length, 0)}; narrow the search to see others.`
       : '';
-  return `<p class="small soft" data-signal-count>${esc(fmt(page.total, 0))} signal(s).${esc(more)}</p>
-    ${table({
-      headers: [
-        'Tag',
-        'Description',
-        'Unit',
-        'Rate',
-        'Source',
-        'Ontology node',
-        'Latest reading',
-        'Quality',
-        { label: 'Actions', srOnly: true },
+  const columns: Column<SignalInfo>[] = [
+    {
+      key: 'tag',
+      label: 'Tag',
+      value: (s) => s.tag,
+      cell: (s) =>
+        `<a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}`,
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      value: (s) => s.description,
+      cell: (s) => esc(s.description) || '<span class="soft">—</span>',
+    },
+    { key: 'unit', label: 'Unit', value: (s) => s.unit, cell: (s) => esc(s.unit ?? '—') },
+    {
+      key: 'rate',
+      label: 'Rate',
+      numeric: true,
+      value: (s) => s.sample_rate_hz,
+      cell: (s) => (s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`),
+    },
+    { key: 'source', label: 'Source', value: (s) => sourceLabel(s.source), cell: (s) => esc(sourceLabel(s.source)) },
+    { key: 'node', label: 'Ontology node', value: (s) => s.node_label ?? s.node_id, cell: (s) => linkCell(s) },
+    { key: 'latest', label: 'Latest reading', value: (s) => s.last_at, cell: (s) => esc(latest(s)) },
+    {
+      key: 'quality',
+      label: 'Quality',
+      value: (s) => (s.quality ? (QUALITY_RANK[s.quality.badge] ?? 4) : null),
+      cell: (s) =>
+        s.quality
+          ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>`
+          : qualityBadge(null),
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      srOnly: true,
+      fixed: true,
+      cell: (s) => (canEdit && editing !== s.id ? button('Edit', { size: 'sm', attrs: { 'data-edit': s.id } }) : ''),
+    },
+  ];
+  return {
+    id: 'signals',
+    label: 'Signals',
+    columns,
+    rows: page.signals,
+    key: (s) => s.id,
+    empty: '',
+    status: `<p class="small soft m-0" data-signal-count>${esc(fmt(page.total, 0))} signal(s).${esc(more)}</p>`,
+    rowAttrs: (s) => ({ 'data-row': s.id }),
+    after: (s) =>
+      `${open === s.id && s.quality ? `<tr class="quality-row" data-key="quality-${esc(s.id)}"><td colspan="100">${qualityDetail(s.quality)}</td></tr>` : ''}${
+        canEdit && editing === s.id ? editRow(ctx, s) : ''
+      }`,
+    select: {
+      actions: [
+        { id: 'plot', label: 'Plot', variant: 'primary' },
+        ...(canEdit ? [{ id: 'check', label: 'Check quality' }] : []),
       ],
-      rowsHtml: page.signals
-        .map(
-          (s) =>
-            `<tr data-row="${esc(s.id)}" data-key="signal-${esc(s.id)}"><td><a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}</td><td>${esc(s.description) || '<span class="soft">—</span>'}</td>
-            <td>${esc(s.unit ?? '—')}</td><td>${s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`}</td>
-            <td>${esc(sourceLabel(s.source))}</td><td>${linkCell(s)}</td><td>${esc(latest(s))}</td>
-            <td>${s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)}</td>
-            <td>${canEdit && editing !== s.id ? button('Edit', { size: 'sm', attrs: { 'data-edit': s.id } }) : ''}</td></tr>
-          ${open === s.id && s.quality ? `<tr class="quality-row"><td colspan="9">${qualityDetail(s.quality)}</td></tr>` : ''}
-          ${canEdit && editing === s.id ? editRow(ctx, s) : ''}`,
-        )
-        .join(''),
-    })}`;
+      run: (action, keys) => bulk(ctx, action, keys),
+    },
+    csv: 'signals.csv',
+  };
+}
+
+// What the bar of bulk actions does with the signals selected.
+function bulk(ctx: Context, action: string, keys: string[]): Promise<unknown> | void {
+  const site = ctx.ontology.site;
+  if (action === 'plot') {
+    if (keys.length > PLOT_MAX) {
+      ctx.toast(`Select up to ${PLOT_MAX} signals to plot`, {
+        description: `The Data explorer plots ${PLOT_MAX} at a time; ${keys.length} are selected.`,
+      });
+      return;
+    }
+    location.hash = `#/explorer?signals=${keys.map(encodeURIComponent).join(',')}`;
+    return;
+  }
+  if (action === 'check' && ctx.api && site) {
+    return ctx.api.signals.checkQuality(site.id, keys).then((r) => {
+      ctx.toast(`Checked ${r.checked} signal(s)`, {
+        type: 'success',
+        description: `${r.badges.good} good, ${r.badges.warn} with warnings, ${r.badges.bad} with problems.`,
+      });
+      ux('task', 'signal.quality-checked');
+      const root = document.querySelector<HTMLElement>('#view');
+      if (root) void search(root, ctx);
+    });
+  }
 }
 
 async function search(root: HTMLElement, ctx: Context): Promise<void> {
@@ -326,6 +406,30 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
     // shown below, unless a later search has answered
   }
   if (mine !== latestSearch) return;
+  // The rest of the catalogue a page at a time, the table filling as they come.
+  if (page && page.signals.length < Math.min(page.total, MAX_ROWS)) {
+    const first = page;
+    void (async () => {
+      const all = [...first.signals];
+      for (let offset = PAGE; offset < Math.min(first.total, MAX_ROWS); offset += PAGE) {
+        let next: { total: number; signals: SignalInfo[] };
+        try {
+          next = await ctx.api!.signals.list(site.id, { ...ui(ctx).query, limit: PAGE, offset });
+        } catch {
+          break; // the client showed why; what came stays
+        }
+        if (mine !== latestSearch) return;
+        all.push(...next.signals);
+        results = { total: first.total, signals: [...all], loading: all.length < Math.min(first.total, MAX_ROWS) };
+        if (!next.signals.length) break;
+        fill(root, ctx);
+      }
+      if (mine !== latestSearch || !results) return;
+      results.loading = false;
+      fill(root, ctx);
+    })();
+    page = { ...page, loading: true };
+  }
   if (!page && results && resultsFor === from && resultsQuery === query) return; // keep the last answer to it
   results = page;
   resultsFor = from;
@@ -356,11 +460,20 @@ function fill(root: HTMLElement, ctx: Context): void {
   const typed = form ? { signal: form.dataset.signal, values: changed } : null;
   const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute('name') : null;
   const canEdit = ctx.ontology.role !== 'viewer';
+  // Where the table was scrolled to, kept as its pages arrive and it is drawn again.
+  const frame = box.querySelector('.table-frame');
+  const scrolled = frame ? { top: frame.scrollTop, left: frame.scrollLeft } : null;
   box.innerHTML = failed
     ? loadFailed('The signals')
     : results
       ? resultsTable(ctx, results, canEdit)
       : skeleton.table(6, 9, 'Loading the signals…');
+  const frameAfter = box.querySelector('.table-frame');
+  if (frameAfter && scrolled) {
+    frameAfter.scrollTop = scrolled.top;
+    frameAfter.scrollLeft = scrolled.left;
+  }
+  if (results?.signals.length && !failed) bindTable(box, tableOptions(ctx, results, canEdit));
   const again = box.querySelector<HTMLFormElement>('#signal-form');
   if (typed && again && again.dataset.signal === typed.signal) {
     for (const [name, value] of typed.values) {
