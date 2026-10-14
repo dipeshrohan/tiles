@@ -114,6 +114,21 @@ for (const colorScheme of ['light', 'dark']) {
   });
 }
 
+test('the site wizard on the demo plant passes the accessibility rules, its tags too (U4.10)', async () => {
+  for (const colorScheme of ['light', 'dark']) {
+    const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 }, bypassCSP: true });
+    await page.goto(`${httpBase}#/onboarding`);
+    await page.click('[data-demo-agent]');
+    await page.waitForSelector('#view tbody tr');
+    await page.click('[data-map-tag="dc02.hyd_pressure"]');
+    await page.waitForSelector('tr[data-key="tag-dc02.hyd_pressure"] .badge.good');
+    await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 10000 });
+    await page.waitForTimeout(400);
+    assert.deepEqual(await audit(page), [], colorScheme);
+    await page.close();
+  }
+});
+
 test('pages with the API’s data on them pass the accessibility rules, charts included', async (t) => {
   // An admin, so the admins' cards are checked too (the audit log, the organisation's sign-in).
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });

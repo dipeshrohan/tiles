@@ -11625,6 +11625,167 @@ heartbeat_seconds = 30
 # See the edge agent's README for OPC UA, MQTT and SQL sources.
 `;
 	}
+	var LOCAL_KEY = "onboarding-local";
+	var DEMO_TAGS = [
+		{
+			tag: "dc02.hyd_pressure",
+			unit: "bar",
+			description: "Hydraulic pressure",
+			machine: "m-dc02",
+			suggest: "sig-ph"
+		},
+		{
+			tag: "dc02.metal_pressure",
+			unit: "bar",
+			description: "Metal pressure",
+			machine: "m-dc02",
+			suggest: "sig-pm"
+		},
+		{
+			tag: "dc02.plunger_vel",
+			unit: "m/s",
+			description: "Plunger velocity",
+			machine: "m-dc02",
+			suggest: "sig-vel"
+		},
+		{
+			tag: "dc02.die_temp",
+			unit: "°C",
+			description: "Die temperature",
+			machine: "m-dc02",
+			suggest: null
+		},
+		{
+			tag: "c01.front_tension",
+			unit: "N·10⁻¹",
+			description: "Front stock tension",
+			machine: "m-cut01",
+			suggest: "sig-tension"
+		},
+		{
+			tag: "w03.weld_power",
+			unit: "W",
+			description: "Median welding power",
+			machine: "m-weld03",
+			suggest: "sig-power"
+		}
+	];
+	var mappedTo = (graph, tag) => Object.values(graph.nodes).find((n) => n.type === "Signal" && n.props.tag === tag)?.id ?? null;
+	function suggestFor(graph, t) {
+		const node = t.suggest ? graph.nodes[t.suggest] : void 0;
+		const machine = graph.nodes[t.machine];
+		if (node?.type === "Signal" && (node.props.tag === void 0 || node.props.tag === t.tag)) return {
+			kind: "link",
+			node: node.id,
+			label: node.label,
+			why: `Its description matches ${node.label}, on ${machine?.label ?? "its machine"}`
+		};
+		const plc = Object.values(graph.edges).find((e) => e.from === t.machine && e.rel === "controlledBy")?.to;
+		if (machine && plc && graph.nodes[plc]) return {
+			kind: "new",
+			plc,
+			label: t.description,
+			why: `No Signal node fits: a new one under ${graph.nodes[plc].label}, ${machine.label}’s controller`
+		};
+		return {
+			kind: "none",
+			why: "Its machine isn’t in the ontology any more"
+		};
+	}
+	function mappingOps(graph, tags) {
+		const taken = /* @__PURE__ */ new Set([...Object.keys(graph.nodes), ...Object.keys(graph.edges)]);
+		const ops = [];
+		for (const t of tags) {
+			if (mappedTo(graph, t.tag)) continue;
+			const s = suggestFor(graph, t);
+			if (s.kind === "link") ops.push({
+				kind: "setProp",
+				id: s.node,
+				key: "tag",
+				value: t.tag
+			});
+			else if (s.kind === "new") {
+				let id = `sig-${slugFrom(t.tag)}`;
+				for (let n = 2; taken.has(id); n++) id = `sig-${slugFrom(t.tag)}-${n}`;
+				taken.add(id);
+				const edge = `${s.plc}-emits-${id}`;
+				taken.add(edge);
+				ops.push({
+					kind: "addNode",
+					node: {
+						id,
+						type: "Signal",
+						label: t.description,
+						props: {
+							unit: t.unit,
+							tag: t.tag
+						}
+					}
+				}, {
+					kind: "addEdge",
+					edge: {
+						id: edge,
+						from: s.plc,
+						rel: "emits",
+						to: id
+					}
+				});
+			}
+		}
+		return ops;
+	}
+	var plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+	function localProgress(graph, setup) {
+		const machines = Object.values(graph.nodes).filter((n) => n.type === "Machine");
+		const mapped = DEMO_TAGS.map((t) => mappedTo(graph, t.tag)).filter((id) => id !== null);
+		const counts = /* @__PURE__ */ new Map();
+		for (const id of mapped) {
+			const m = machineOf(graph, id);
+			if (m) counts.set(m, (counts.get(m) ?? 0) + 1);
+		}
+		const best = [...counts.entries()].sort(([a, x], [b, y]) => y - x || graph.nodes[a].label.localeCompare(graph.nodes[b].label) || a.localeCompare(b))[0];
+		const dashboard = best ? {
+			id: best[0],
+			label: graph.nodes[best[0]].label
+		} : null;
+		const steps = [
+			{
+				key: "site",
+				done: true,
+				detail: "This browser’s demo plant"
+			},
+			{
+				key: "outline",
+				done: machines.length > 0,
+				detail: machines.length ? `${plural(machines.length, "machine")} in the ontology` : "No machines in the ontology yet"
+			},
+			{
+				key: "agent",
+				done: setup.agent,
+				detail: setup.agent ? "The demo agent has called in" : "No edge agent yet"
+			},
+			{
+				key: "mapping",
+				done: mapped.length > 0,
+				detail: `${mapped.length} of ${plural(DEMO_TAGS.length, "demo tag")} mapped`
+			},
+			{
+				key: "dashboard",
+				done: dashboard !== null,
+				detail: dashboard && best ? `${dashboard.label}: ${plural(best[1], "mapped signal")}` : "Needs a machine with a mapped signal"
+			}
+		];
+		return {
+			steps,
+			next: steps.find((s) => !s.done)?.key ?? null,
+			machines: machines.length,
+			agents: setup.agent ? 1 : 0,
+			agents_seen: setup.agent ? 1 : 0,
+			tags: DEMO_TAGS.length,
+			mapped: mapped.length,
+			dashboard
+		};
+	}
 	//#endregion
 	//#region js/views/onboarding.ts
 	var uiState$5 = (ctx) => ctx.ui("onboarding", { step: null });
@@ -11686,7 +11847,65 @@ heartbeat_seconds = 30
 		if (quiet && JSON.stringify([progress$1.data, agents?.list ?? null]) === before) return;
 		if (routeOf(location.hash) === "onboarding") ctx.rerender();
 	}
-	var canEdit$2 = (ctx) => ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
+	var canEdit$2 = (ctx) => !ctx.api || ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
+	var localSetup = () => ({
+		agent: false,
+		...load$4(LOCAL_KEY, {})
+	});
+	function localSiteStep(ctx) {
+		const site = Object.values(ctx.graph.nodes).find((n) => n.type === "Site");
+		return `<p>Without the Tiles API, the site is this browser’s demo plant${site ? `, <b>${esc(site.label)}</b>` : ""}: its ontology and data are kept here, for you alone. Next: outline its plant.</p>
+    <p class="small soft">With the Tiles API, organisation admins create sites on this step, each with its own ontology, agents and people. Connect to the API in <a href="#/settings">Settings</a>.</p>`;
+	}
+	function localAgentStep() {
+		const on = localSetup().agent;
+		return `<p>The edge agent runs on a machine on site that can reach the controllers. It reads them read-only, buffers to disk, and sends readings out to Tiles. With the Tiles API, an admin registers it here and gets its token, once.</p>
+    <div class="card stack gap-2">
+      <p>On the agent’s machine, save the token as <code>/etc/tiles-edge/token</code>, readable only by the agent’s user, and write <code>/etc/tiles-edge/tiles-edge.toml</code>:</p>
+      <pre class="code-block" tabindex="0">${esc(agentConfig("https://tiles.example.com"))}</pre>
+      <p>Check it with <code>tiles-edge check -c /etc/tiles-edge/tiles-edge.toml</code>, then run <code>tiles-edge run -c /etc/tiles-edge/tiles-edge.toml</code> as a service. It only connects out, over HTTPS.</p>
+    </div>
+    ${on ? "<ul class=\"plant-list\"><li><span><b>edge-01</b> <span class=\"small soft\">demo</span></span><span class=\"badge good\">online</span></li></ul>" : `<p>This demo has no plant to read, so a demo agent stands in: it “calls in” with the demo’s tags.</p>
+      <div>${button("Connect a demo agent", {
+			variant: "primary",
+			attrs: { "data-demo-agent": true }
+		})}</div>`}`;
+	}
+	function localMappingStep(ctx) {
+		if (!localSetup().agent) return "<p>No tags have arrived yet. They come once an agent calls in: connect the demo agent on the step before.</p>";
+		const rows = DEMO_TAGS.map((t) => {
+			const to = mappedTo(ctx.graph, t.tag);
+			const s = suggestFor(ctx.graph, t);
+			const cell = to ? `<span class="badge good">Mapped</span> ${esc(ctx.graph.nodes[to]?.label ?? to)}` : s.kind === "none" ? `<span class="small soft">${esc(s.why)}</span>` : `${s.kind === "link" ? `Link to <b>${esc(s.label)}</b>` : `New Signal node <b>${esc(s.label)}</b>`}<div class="small soft">${esc(s.why)}</div>`;
+			const act = to || s.kind === "none" || !canEdit$2(ctx) ? "" : button("Map", {
+				size: "sm",
+				attrs: {
+					"data-map-tag": t.tag,
+					"aria-label": `Map ${t.tag}`
+				}
+			});
+			return `<tr data-key="tag-${esc(t.tag)}"><td><code>${esc(t.tag)}</code></td><td>${esc(t.unit)}</td><td>${cell}</td><td>${act}</td></tr>`;
+		}).join("");
+		const left = DEMO_TAGS.some((t) => !mappedTo(ctx.graph, t.tag) && suggestFor(ctx.graph, t).kind !== "none");
+		return `<p>The demo agent sent ${DEMO_TAGS.length} tags. Each is suggested a Signal node: one that fits, or a new one under its machine’s controller. Mapping one is a commit to the ontology: the Signal node gets the tag.</p>
+    ${table({
+			headers: [
+				"Tag",
+				"Unit",
+				"Suggestion",
+				{
+					label: "Action",
+					srOnly: true
+				}
+			],
+			rowsHtml: rows
+		})}
+    ${left && canEdit$2(ctx) ? `<div>${button("Map every suggestion", {
+			variant: "primary",
+			attrs: { "data-map-all": true }
+		})}</div>` : ""}
+    <p class="small soft">With the Tiles API, tags arrive from the agent and are mapped on the Signals page, where <b>Suggest mappings</b> does the same for every tag.</p>`;
+	}
 	function stepList(data, current) {
 		return `<ol class="wizard-steps">${STEPS.map((s, i) => {
 			const state = data.steps.find((x) => x.key === s.key);
@@ -11776,23 +11995,23 @@ heartbeat_seconds = 30
 				lead: "From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.",
 				actionsHtml: ctx.api ? button("Refresh", { attrs: { "data-onboarding-refresh": true } }) : ""
 			});
-			if (!ctx.api) return `${head}<div class="card">${needsApi(`Setting up a site needs the Tiles API: sites, edge agents and tags live there.`)}</div>`;
-			if (ctx.ontology.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
-			if (ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-			const data = progress$1?.site === siteId$5(ctx) ? progress$1.data : null;
+			const local = !ctx.api;
+			if (!local && ctx.ontology.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
+			if (!local && ctx.ontology.status !== "ready") return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
+			const data = local ? localProgress(ctx.graph, localSetup()) : progress$1?.site === siteId$5(ctx) ? progress$1.data : null;
 			if (!data) return progress$1?.failed ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>` : `${head}<div class="card">${skeleton.list(4, "Loading this site’s progress…")}</div>`;
 			const current = uiState$5(ctx).step ?? data.next ?? "dashboard";
 			const meta = STEPS.find((s) => s.key === current) ?? STEPS[0];
 			const body = {
-				site: () => siteStep(ctx),
+				site: () => local ? localSiteStep(ctx) : siteStep(ctx),
 				outline: () => outlineStep(ctx, data),
-				agent: () => agentStep(ctx, data),
-				mapping: () => mappingStep(data),
+				agent: () => local ? localAgentStep() : agentStep(ctx, data),
+				mapping: () => local ? localMappingStep(ctx) : mappingStep(data),
 				dashboard: () => dashboardStep(data)
 			};
 			const index = STEPS.findIndex((s) => s.key === current);
 			const nextKey = STEPS[index + 1]?.key;
-			return `${head}<div class="wizard">
+			return `${head}${local ? "<p class=\"small soft mb-3\" role=\"note\">You are trying this on the demo plant, in this browser. With the Tiles API, the same steps set up a real site.</p>" : ""}<div class="wizard">
         <nav aria-label="Steps">${stepList(data, current)}</nav>
         <section class="card wizard-panel" aria-labelledby="wizard-title">
           <div class="eyebrow">Step ${index + 1} of ${STEPS.length}</div>
@@ -11804,11 +12023,12 @@ heartbeat_seconds = 30
       </div>`;
 		},
 		bind(root, ctx) {
-			if (!ctx.api || ctx.ontology.status !== "ready") return;
+			const local = !ctx.api;
+			if (!local && ctx.ontology.status !== "ready") return;
 			const site = siteId$5(ctx);
-			if (progress$1?.site !== site) load$3(ctx, { withOntology: true });
+			if (!local && progress$1?.site !== site) load$3(ctx, { withOntology: true });
 			const data = progress$1?.site === site ? progress$1.data : null;
-			const waiting = data !== null && data.agents > 0 && data.agents_seen === 0;
+			const waiting = !local && data !== null && data.agents > 0 && data.agents_seen === 0;
 			if (waiting && timer$1 === null) timer$1 = setInterval(() => !document.hidden && void load$3(ctx, { quiet: true }), POLL_MS);
 			if (!waiting && timer$1 !== null) {
 				clearInterval(timer$1);
@@ -11877,8 +12097,37 @@ heartbeat_seconds = 30
 				busy$3 = false;
 				if (!ok) return ctx.rerender();
 				ui.step = null;
-				await load$3(ctx, { withOntology: true });
+				if (local) ctx.rerender();
+				else await load$3(ctx, { withOntology: true });
 			})());
+			onAll(root, "[data-demo-agent]", "click", () => {
+				save$1(LOCAL_KEY, {
+					...localSetup(),
+					agent: true
+				});
+				ctx.toast("edge-01 (demo) called in", {
+					type: "success",
+					description: `It sent ${DEMO_TAGS.length} tags to map.`
+				});
+				ui.step = null;
+				ctx.rerender();
+			});
+			const mapTags = async (tags) => {
+				if (busy$3) return;
+				busy$3 = true;
+				const message = tags.length === 1 ? `Map tag ${tags[0].tag}` : `Map ${tags.length} demo tags`;
+				await ctx.ontology.act(async (store, repo) => {
+					if (repo.staged.length) throw new Error("Commit or discard your staged changes on the Ontology page first");
+					const ops = mappingOps(ctx.graph, tags);
+					if (!ops.length) throw new Error("Nothing left to map");
+					return store.commit(await store.stage(repo, ops), message, ctx.state.user.name);
+				}, tags.length === 1 ? `${tags[0].tag} mapped` : "Tags mapped");
+				busy$3 = false;
+				ui.step = "mapping";
+				ctx.rerender();
+			};
+			onAction(root, "[data-map-tag]", (el) => mapTags(DEMO_TAGS.filter((t) => t.tag === el.dataset.mapTag)));
+			onAction(root, "[data-map-all]", () => mapTags(DEMO_TAGS));
 			onSubmit(root, "#new-agent", (agent) => (async () => {
 				if (!ctx.api || !site || busy$3) return;
 				busy$3 = true;

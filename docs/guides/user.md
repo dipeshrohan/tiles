@@ -772,6 +772,8 @@ Admins see usage on the **Settings** page.
 
 **Refresh** checks again, the ontology included.
 
+**Without the Tiles API**, the same steps run on the demo plant, so you can learn them first. The site is this browser's demo plant, and it is already outlined (you can still add a line, which goes into this browser's ontology). The agent step shows how an agent is installed and configured, and **Connect a demo agent** stands in for one: it "calls in" with six demo tags. On **Map the tags**, each tag has a suggestion: a Signal node that fits, or a new one under its machine's controller. **Map** takes one; **Map every suggestion** takes the rest. Each is a commit, so the Signal node shows the tag on the Ontology page. Then **Open the first dashboard** opens the die-caster's Plant page.
+
 ---
 
 ## Settings
