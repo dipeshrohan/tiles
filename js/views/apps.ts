@@ -310,7 +310,7 @@ const view: View = {
     if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-    return `${head}<div class="reviews">${listCard(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
+    return `${head}<div class="split">${listCard(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
   },
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;

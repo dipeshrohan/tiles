@@ -85,6 +85,7 @@ import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import type { Graph, Repo, ShotHistory } from './lib/types.ts';
+import { rowTarget, shown } from './lib/split.ts';
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
 import { afterRender, showApiErrors } from './lib/forms.ts';
@@ -1145,7 +1146,11 @@ function navigate(): void {
   const root = need(document, '#view');
   const newPage = currentView().id !== shownView;
   // The link followed to this record, when it was a click on a link to exactly this place.
-  const from = !newPage && clicked?.isConnected && clicked.hash === location.hash ? clicked : null;
+  // A record opened from its list in a split view (U3.08): the list stays, and so does the focus.
+  const fromList =
+    !newPage && clicked?.closest('.split-list') ? clicked.closest('[data-key]')?.getAttribute('data-key') : null;
+  // Opened beside its list, a record doesn't grow from the link: the page head stays as it was.
+  const from = !newPage && !fromList && clicked?.isConnected && clicked.hash === location.hash ? clicked : null;
   clicked = null;
   // Scrolled down, the old page's head is above the window: it isn't held (it would slide down).
   const head = (): HTMLElement | null => root.querySelector<HTMLElement>(':scope > .page-head');
@@ -1157,6 +1162,11 @@ function navigate(): void {
     scrollToSaved(); // the top for a new entry; where it was for one reached with back or forward
     name(head(), from ? 'record' : hold ? '' : 'none');
     // The new page's heading takes the focus, which a screen reader reads; a page without one is said.
+    // A record opened beside its list leaves the focus on the list's row (on a narrow screen the
+    // record takes the list's place, so the heading takes it).
+    const row = fromList ? root.querySelector(`.split-list [data-key="${CSS.escape(fromList)}"]`) : null;
+    const stay = row && shown(row) ? rowTarget(row) : null;
+    if (stay) return stay.focus({ preventScroll: true });
     const heading = root.querySelector<HTMLElement>('h1[tabindex]');
     (heading ?? root).focus({ preventScroll: true });
     if (!heading) announce(document.title);

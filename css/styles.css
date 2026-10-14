@@ -2063,19 +2063,47 @@ tr.selected td {
   color: var(--soft);
 }
 
-/* ---- change reviews (T2.12) ---- */
-.reviews {
+/* ---- split view for records (U3.08): Warnings, Change reviews, Insights, Documents ---- */
+/* Wide: the list and the open record side by side, the record taking what the screen has. Narrow:
+   one at a time, the record (with a way back) when one is open. */
+.split {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   margin-top: var(--space-4);
   align-items: start;
 }
-@media (min-width: 960px) {
-  .reviews {
-    grid-template-columns: minmax(280px, 1fr) minmax(0, 2.4fr);
+.split-list,
+.split-record {
+  min-width: 0;
+}
+.split-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  margin-bottom: var(--space-3);
+}
+@media (max-width: 959px) {
+  .split.has-record > .split-list,
+  .split:not(.has-record) > .split-record {
+    display: none;
   }
 }
+@media (min-width: 960px) {
+  .split {
+    grid-template-columns: minmax(280px, 1fr) minmax(0, 2.4fr);
+  }
+  .split-back {
+    display: none;
+  }
+}
+@media (min-width: 1600px) {
+  .split {
+    grid-template-columns: minmax(360px, 1fr) minmax(0, 3fr);
+  }
+}
+
+/* ---- change reviews (T2.12) ---- */
 .review-list {
   display: flex;
   flex-direction: column;

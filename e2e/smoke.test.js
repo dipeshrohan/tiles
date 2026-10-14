@@ -3639,6 +3639,114 @@ test('a view is in its address: a reload or a copied link shows the same, and ba
   assert.deepEqual(b.errors, []);
 });
 
+test('split view: a record beside its list, j and k move through it and the address names it; one at a time on a narrow screen (U3.08)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  raiseFrictionWarnings(fake); // two warnings
+  for (const n of [1, 2])
+    fake.requestReviewAs(
+      'maria@example.com',
+      [{ kind: 'addNode', node: { id: `line-${n}`, type: 'Line', label: `Line ${n}`, props: {} } }],
+      `add line ${n}`,
+    );
+  const site = '11111111-1111-1111-1111-111111111111';
+  const post = (path, body, type = 'application/json') =>
+    fetch(`${apiUrl}/sites/${site}${path}`, {
+      method: 'POST',
+      headers: { 'content-type': type, 'x-tiles-user': 'demo@example.com' },
+      body,
+    });
+  const signal = (
+    await (
+      await fetch(`${apiUrl}/sites/${site}/signals?q=dc1`, { headers: { 'x-tiles-user': 'demo@example.com' } })
+    ).json()
+  ).signals[0].id;
+  const end = new Date().toISOString();
+  const start = new Date(Date.now() - 3_600_000).toISOString();
+  for (const title of ['Friction climbs', 'Friction settles'])
+    await post('/insights', JSON.stringify({ title, source: { kind: 'signals', signals: [signal], start, end } }));
+  for (const title of ['SOP 1', 'SOP 2'])
+    await post(`/documents?title=${encodeURIComponent(title)}&filename=sop.txt`, `The text of ${title}.`, 'text/plain');
+
+  const pages = [
+    { id: 'warnings', rows: '[data-warning-list] [data-warning]', record: '[data-warning-detail]', at: /[?&]warning=/ },
+    {
+      id: 'reviews',
+      rows: '[data-review-list] [data-review]',
+      record: '[data-review-detail]',
+      at: /^#\/reviews\/\d+$/,
+    },
+    {
+      id: 'insights',
+      rows: '[data-insight-list] [data-insight]',
+      record: '[data-insight-detail]',
+      at: /^#\/insights\/\d+$/,
+    },
+    { id: 'documents', rows: '[data-doc-list] [data-doc]', record: '[data-doc-record]', at: /^#\/documents\/\d+$/ },
+  ];
+  const wide = await openPage({ viewport: { width: 1400, height: 900 } });
+  t.after(() => wide.page.close());
+  const page = wide.page;
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  const opened = (rows) => page.locator(rows).evaluateAll((els) => els.findIndex((e) => e.classList.contains('sel')));
+  const addresses = {};
+  for (const p of pages) {
+    await page.goto(`${home}#/${p.id}`);
+    await page.waitForFunction((sel) => document.querySelectorAll(sel).length >= 2, p.rows);
+    assert.equal(await opened(p.rows), -1, `${p.id}: nothing open yet`);
+    // j opens the first, then the next; k the one before. The list stays beside the record.
+    await page.focus('#view h1');
+    await page.keyboard.press('j');
+    await page.waitForSelector(p.record);
+    assert.equal(await opened(p.rows), 0, `${p.id}: j opens the first`);
+    await page.keyboard.press('j');
+    await page.waitForFunction(
+      ([rows]) => [...document.querySelectorAll(rows)][1]?.classList.contains('sel'),
+      [p.rows],
+    );
+    assert.match(await page.evaluate(() => location.hash), p.at, `${p.id}: the address names the record`);
+    addresses[p.id] = await page.evaluate(() => location.hash);
+    assert.ok(await page.locator('.split-list').isVisible());
+    assert.ok(await page.locator(p.record).isVisible());
+    assert.equal(await page.locator('.split-back').isVisible(), false);
+    // The focus moves with it, on the row (or its link).
+    assert.equal(
+      await page.evaluate((rows) => document.querySelectorAll(rows)[1].contains(document.activeElement), p.rows),
+      true,
+      `${p.id}: the focus is on the row opened`,
+    );
+    await page.keyboard.press('k');
+    await page.waitForFunction(
+      ([rows]) => [...document.querySelectorAll(rows)][0]?.classList.contains('sel'),
+      [p.rows],
+    );
+    // Typing in a field is not moving through the list.
+    const field = page.locator('#view input[type=search], #view input[type=text]').first();
+    if (await field.count()) {
+      await field.focus();
+      await page.keyboard.press('j');
+      assert.equal(await opened(p.rows), 0, `${p.id}: j typed into a field stays there`);
+    }
+  }
+  assert.deepEqual(wide.errors, []);
+
+  // A narrow screen: the record a link names takes the list's place, with a way back to the list.
+  const narrow = await openPage({ viewport: { width: 800, height: 900 } });
+  t.after(() => narrow.page.close());
+  for (const p of pages) {
+    await narrow.page.goto(`${home}${addresses[p.id]}`);
+    await narrow.page.waitForSelector(p.record);
+    assert.equal(await narrow.page.locator('.split-list').isVisible(), false, `${p.id}: the list waits`);
+    await narrow.page.click('.split-back');
+    await narrow.page.waitForSelector(`${p.rows}`);
+    assert.ok(await narrow.page.locator('.split-list').isVisible());
+    assert.equal(await narrow.page.locator('.split-record').isVisible(), false, `${p.id}: no record open`);
+    assert.doesNotMatch(await narrow.page.evaluate(() => location.hash), p.at);
+  }
+  assert.deepEqual(narrow.errors, []);
+});
+
 test('the menu: groups fold, pages pin, recent pages, counts and an icon rail, all by keyboard; a phone menu with a scrim (U3.06)', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
@@ -4039,7 +4147,7 @@ test('the copilot proposes an ontology change, which waits for another engineer'
   assert.equal(await link.getAttribute('href'), '#/reviews/1');
   await link.click();
   await a.page.waitForSelector('[data-review-detail]:has-text("Add Assembly Line 3")');
-  assert.equal(await a.page.evaluate(() => location.hash), '#/reviews'); // picked once
+  assert.equal(await a.page.evaluate(() => location.hash), '#/reviews/1'); // the address names it (U3.08)
   // The breadcrumbs follow the request shown, not the link that is gone.
   await a.page.waitForSelector('#crumbs [aria-current=page]:has-text("#1")');
   const detail = a.page.locator('[data-review-detail]');
