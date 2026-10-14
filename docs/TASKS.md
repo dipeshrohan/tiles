@@ -285,7 +285,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 ### UI Month 4: Help, onboarding and discoverability (Feb 2027)
 
-- [ ] `U4.01` [#230](https://github.com/dipeshrohan/tiles/issues/230) **Search across the site (API)** · BE · 3d
+- [x] `U4.01` [#230](https://github.com/dipeshrohan/tiles/issues/230) **Search across the site (API)** · BE · 3d
   *Done when:* the endpoint is in the API reference, with tests for ranking and row security.
 - [ ] `U4.02` [#231](https://github.com/dipeshrohan/tiles/issues/231) **Command palette** · FE · 4d · U4.01, U2.01
   *Done when:* each of the 6 key tasks can start from the palette, and the a11y test opens it.

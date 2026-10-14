@@ -38,7 +38,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
 
 ## UX analytics
 
@@ -1471,6 +1471,21 @@ Run `number`'s version and parameters again, as a new run after its model's late
 | `site_id` | path | uuid | yes |
 
 **Body:** RestoreIn (see [openapi.json](openapi.json)).
+
+## search
+
+### `GET /sites/{site_id}/search`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Finds a site's signals (by tag, description, asset), ontology nodes (label, id, type), warnings (signal, detector, asset), insights (title, summary), documents (title and words) and apps (name), ranked and grouped by kind: the best group first, at most `limit` of each, with `more` when there are others.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `q` | query | string | yes |
+| `limit` | query | integer | no |
+| `kind` | query | list of `signal` \| `node` \| `warning` \| `insight` \| `document` \| `app` | no |
 
 ## signals
 

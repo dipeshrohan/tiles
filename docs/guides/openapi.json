@@ -3028,6 +3028,45 @@
         "title": "Graph",
         "type": "object"
       },
+      "Group": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "signal",
+              "node",
+              "warning",
+              "insight",
+              "document",
+              "app"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "more": {
+            "title": "More",
+            "type": "boolean"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/Result"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "results",
+          "more"
+        ],
+        "title": "Group",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5246,6 +5285,69 @@
         "title": "RestoreIn",
         "type": "object"
       },
+      "Result": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "signal",
+              "node",
+              "warning",
+              "insight",
+              "document",
+              "app"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "snippet": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snippet"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "title",
+          "detail",
+          "score"
+        ],
+        "title": "Result",
+        "type": "object"
+      },
       "ResultOut": {
         "properties": {
           "app": {
@@ -6312,6 +6414,27 @@
           "matches"
         ],
         "title": "SearchOut",
+        "type": "object"
+      },
+      "SearchResults": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/Group"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "groups"
+        ],
+        "title": "SearchResults",
         "type": "object"
       },
       "Series": {
@@ -16220,6 +16343,106 @@
         "summary": "Restore Run",
         "tags": [
           "runs"
+        ]
+      }
+    },
+    "/sites/{site_id}/search": {
+      "get": {
+        "description": "Finds a site's signals (by tag, description, asset), ontology nodes (label, id, type),\nwarnings (signal, detector, asset), insights (title, summary), documents (title and words) and\napps (name), ranked and grouped by kind: the best group first, at most `limit` of each, with\n`more` when there are others.",
+        "operationId": "search_sites__site_id__search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "What to find: two characters or more",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "What to find: two characters or more",
+              "maxLength": 200,
+              "minLength": 2,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "At most this many of each kind",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "description": "At most this many of each kind",
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Only these kinds (repeat it); all by default",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "enum": [
+                      "signal",
+                      "node",
+                      "warning",
+                      "insight",
+                      "document",
+                      "app"
+                    ],
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only these kinds (repeat it); all by default",
+              "title": "Kind"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResults"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search",
+        "tags": [
+          "search"
         ]
       }
     },
