@@ -2534,6 +2534,63 @@ kbd {
   background: var(--bad-soft);
   color: var(--bad);
 }
+.tour-list {
+  display: grid;
+  gap: var(--space-2);
+  list-style: none;
+  padding: 0;
+}
+.tour-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* A guided tour (U4.07): the page dimmed but for the part a step is about (clicks still reach the
+   page), and the step's popover beside it. Over the page and its menus, under dialogs' toasts. */
+.tour-spot {
+  position: fixed;
+  z-index: calc(var(--z-dialog) + 1);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 0 9999px rgba(10, 15, 14, 0.45);
+  pointer-events: none;
+}
+.tour-pop {
+  position: fixed;
+  z-index: calc(var(--z-dialog) + 2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(380px, calc(100vw - var(--space-8)));
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow-3);
+}
+.tour-pop h2 {
+  font-size: var(--text-lg);
+}
+.tour-pop h2:focus-visible {
+  outline: none; /* the focus lands here for screen readers at each step */
+}
+.tour-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: var(--space-1);
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-motion='reduce']) .tour-pop {
+    animation: overlay-in var(--dur) var(--ease-out);
+  }
+}
+
 /* The first-run welcome (U4.06): the roles to choose from, as large buttons in two columns. */
 .welcome-roles {
   display: grid;

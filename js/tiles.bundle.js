@@ -1784,7 +1784,7 @@
 	}
 	var sentWith = /* @__PURE__ */ new WeakMap();
 	function noteSent(form) {
-		for (const el of form.elements) if (isField(el)) sentWith.set(el, current$2(el));
+		for (const el of form.elements) if (isField(el)) sentWith.set(el, current$3(el));
 	}
 	var keyOf$1 = (node) => node instanceof Element ? node.getAttribute("data-key") ?? (node.id || null) : null;
 	var same = (a, b) => a.nodeType === b.nodeType && (!(a instanceof Element) || b instanceof Element && a.namespaceURI === b.namespaceURI && a.nodeName === b.nodeName);
@@ -1869,10 +1869,10 @@
 		if (how === "if-changed" && unchanged(old, next)) {
 			attributes(old, next);
 			const sent = field ? sentWith.get(old) : void 0;
-			if (field && sent !== void 0 && sent === current$2(old)) values(old);
+			if (field && sent !== void 0 && sent === current$3(old)) values(old);
 			return;
 		}
-		const typed = field && current$2(old) !== drawnAs(old) && sentWith.get(old) !== current$2(old);
+		const typed = field && current$3(old) !== drawnAs(old) && sentWith.get(old) !== current$3(old);
 		const was = field ? drawnAs(old) : "";
 		attributes(old, next);
 		if (how === "replace") wholesale(old, next);
@@ -1897,7 +1897,7 @@
 	}
 	var isField = (el) => el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement;
 	var toggles = (el) => el instanceof HTMLInputElement && (el.type === "checkbox" || el.type === "radio");
-	function current$2(el) {
+	function current$3(el) {
 		if (toggles(el)) return String(el.checked);
 		if (el instanceof HTMLSelectElement) return [...el.options].map((o) => o.selected).join();
 		return el.value;
@@ -2426,7 +2426,7 @@
 	var RESTORE_FOR_MS = 3e3;
 	var SCROLL_KEY = "tiles:scroll";
 	var positions = /* @__PURE__ */ new Map();
-	var current$1 = "";
+	var current$2 = "";
 	var pending$2 = null;
 	var growing = null;
 	function entryKey() {
@@ -2449,9 +2449,9 @@
 			const raw = kept?.getItem(SCROLL_KEY);
 			if (raw) positions = new Map(Object.entries(JSON.parse(raw)));
 		} catch {}
-		current$1 = entryKey();
+		current$2 = entryKey();
 		addEventListener("scroll", () => {
-			if (!pending$2 && current$1) positions.set(current$1, scrollY);
+			if (!pending$2 && current$2) positions.set(current$2, scrollY);
 		}, { passive: true });
 		const stop = () => settle();
 		for (const type of [
@@ -2471,13 +2471,13 @@
 	}
 	function leaving() {
 		settle();
-		current$1 = "";
+		current$2 = "";
 	}
 	var savedScroll = () => positions.get(entryKey()) ?? 0;
 	function scrollToSaved() {
 		settle();
-		current$1 = entryKey();
-		const y = positions.get(current$1) ?? 0;
+		current$2 = entryKey();
+		const y = positions.get(current$2) ?? 0;
 		scrollTo(0, y);
 		if (y > 0 && Math.abs(scrollY - y) >= 2) {
 			pending$2 = {
@@ -4397,8 +4397,8 @@
 			body: "The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer."
 		})}</div>
         <div>
-          <div class="chips mt-2_5 mb-2_5 m-0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
-          <form class="composer" id="composer">
+          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+          <form class="composer" id="composer" data-tour="chat-ask">
             <input type="text" name="q" value="${esc(draft$4)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy$7 ? "disabled" : ""} />
             <button class="btn primary" type="submit" ${busy$7 ? "disabled" : ""}>Ask</button>
             ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy$7 ? "disabled" : ""}>Delete</button>` : ""}
@@ -4608,8 +4608,8 @@
 			body: "The copilot picks a skill, runs it on the factory data and shows each step it took."
 		})}</div>
         <div>
-          <div class="chips mt-2_5 mb-2_5 m-0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
-          <form class="composer" id="composer">
+          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
+          <form class="composer" id="composer" data-tour="chat-ask">
             <input type="text" name="q" value="${esc(draft$4)}" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
             <button class="btn primary" type="submit">Ask</button>
           </form>
@@ -5487,7 +5487,7 @@
               <span class="small soft" data-search-count aria-live="polite">${found === null ? "" : `${found} found`}</span>
             </span>
           </div>
-          <div class="canvas-wrap">
+          <div class="canvas-wrap" data-tour="onto-canvas">
             <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
           </div>
           <div class="statusbar">
@@ -5810,7 +5810,7 @@
 		return `
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
-      <form class="stack gap-2_5 max-w-form" id="node-form">
+      <form class="stack gap-2_5 max-w-form" id="node-form" data-tour="onto-add">
         <label class="field">Type<select name="type">${Object.keys(NODE_TYPES).map((t) => `<option>${t}</option>`).join("")}</select></label>
         <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
         <label class="field">Link from (optional)<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">— none —</option></select></label>
@@ -5932,7 +5932,7 @@
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="grow">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
           <button class="btn" type="button" data-discard>Discard</button>
-        </div>` : repo.staged.length ? `<form class="staged-bar" id="commit-form">
+        </div>` : repo.staged.length ? `<form class="staged-bar" id="commit-form" data-tour="onto-commit">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
@@ -5953,7 +5953,7 @@
       ${source}
       ${stagedBar}
       ${importCard$1(ctx)}
-      <div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? "active" : ""}" data-tab="${id}" role="tab">${label}</button>`).join("")}</div>
+      <div class="tabs" role="tablist" data-tour="onto-tabs">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? "active" : ""}" data-tab="${id}" role="tab">${label}</button>`).join("")}</div>
       ${body}`;
 		},
 		bind(root, ctx) {
@@ -7046,7 +7046,7 @@
 			yKey
 		};
 	}
-	function current(ctx) {
+	function current$1(ctx) {
 		const ui = uiState$10(ctx);
 		const model = MODELS[ui.model] ?? getModel("swelling");
 		return {
@@ -7061,7 +7061,7 @@
 		title: "Design studio",
 		icon: "drafting-compass",
 		render(ctx) {
-			const { ui, model, params, version } = current(ctx);
+			const { ui, model, params, version } = current$1(ctx);
 			const value = evaluate(model.id, version, params);
 			const { xKey, yKey } = sweepAxes(model, ui);
 			const site0 = siteOf(ctx);
@@ -7174,7 +7174,7 @@
       </div>`;
 		},
 		bind(root, ctx) {
-			const { ui, model, params } = current(ctx);
+			const { ui, model, params } = current$1(ctx);
 			const site = siteOf(ctx);
 			if (site && projects?.site !== site) fetchProjects(ctx, site);
 			const project = site ? projectOf(ctx, site) : null;
@@ -9435,7 +9435,7 @@
 			const { picked, range } = u;
 			const canSave = ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 			const chips = picked.map((p) => `<span class="badge">${esc(p.tag)} <button class="btn-link" type="button" data-remove="${esc(p.id)}" aria-label="Remove ${esc(p.tag)}">×</button></span>`).join(" ");
-			const rangeBar = range ? `<form id="explorer-range" class="row gap-2 wrap items-end">
+			const rangeBar = range ? `<form id="explorer-range" class="row gap-2 wrap items-end" data-tour="explorer-range">
           ${[
 				"1h",
 				"24h",
@@ -9458,14 +9458,14 @@
           <div data-wear="${esc(p.id)}"></div>
         </div>`).join("");
 			return `${head}<div class="card stack gap-3">
-        <form id="explorer-search" class="row gap-3 wrap" role="search">
+        <form id="explorer-search" class="row gap-3 wrap" role="search" data-tour="explorer-search">
           <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"${keyAttr("/")}></label>
         </form>
         <div class="row gap-1_5 wrap" data-explorer-found></div>
         ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : "<p class=\"small soft\">Pick up to eight signals to plot them on one time axis.</p>"}
         ${rangeBar}
       </div>
-      <div class="stack gap-3 mt-3" data-charts>${charts}</div>`;
+      <div class="stack gap-3 mt-3" data-charts data-tour="explorer-charts">${charts}</div>`;
 		},
 		bind(root, ctx) {
 			clearTimeout(findTimer);
@@ -9541,7 +9541,7 @@
 		if (!row) return null;
 		return row.matches("a[href], button") ? row : row.querySelector("a[href]");
 	}
-	var shown$1 = (el) => typeof el.checkVisibility === "function" ? el.checkVisibility() : el.offsetParent !== null;
+	var shown$2 = (el) => typeof el.checkVisibility === "function" ? el.checkVisibility() : el.offsetParent !== null;
 	function nextRow(count, current, step) {
 		if (count === 0) return null;
 		if (current < 0) return step === 1 ? 0 : count - 1;
@@ -10087,7 +10087,10 @@
 			size: "sm",
 			attrs: { "data-refresh-warnings": true }
 		})}
-      </span>`, { class: "source-bar small" });
+      </span>`, {
+			class: "source-bar small",
+			attrs: { "data-tour": "warning-filters" }
+		});
 	}
 	function listCard$4(ctx, ui) {
 		const items = listing$5?.key === listKey$2(ctx) ? listing$5.items : null;
@@ -10116,15 +10119,17 @@
 				attrs: { "data-clear-filters": true }
 			})
 		});
-		return card$1(`<div class="review-list" data-warning-list>${items === null ? skeleton.list() : items.map((w) => `
+		const rows = items === null ? skeleton.list() : items.map((w) => `
         <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}"${ui.selected === w.id ? " aria-current=\"true\"" : ""}>
           <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || empty}</div>${items && listing$5?.more ? button("Show older warnings", {
+        </button>`).join("") || empty;
+		const more = items && listing$5?.more ? button("Show older warnings", {
 			size: "sm",
 			attrs: { "data-more-warnings": true }
-		}) : ""}`);
+		}) : "";
+		return card$1(`<div class="review-list" data-warning-list${rows === empty ? "" : " data-tour=\"warning-list\""}>${rows}</div>${more}`);
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
@@ -10133,7 +10138,7 @@
 		if (s === null) return "<p class=\"small muted\">The signal’s readings could not be loaded.</p>";
 		const { from, to, start, end } = fetched.range;
 		const points = toPoints(s);
-		return `<div class="explorer-chart">${timeChart({
+		return `<div class="explorer-chart" data-tour="warning-chart">${timeChart({
 			points,
 			from,
 			to,
@@ -10175,7 +10180,7 @@
 		], w.assignee_id ?? ""), { inline: true })}${actButton("Assign", "assign")}</span>` : "";
 		const outcomes = Object.keys(OUTCOMES).map((o) => [o, OUTCOMES[o]]);
 		const resolve = has("resolve") ? `<span class="row gap-1_5">${field$1("Outcome", select("outcome", outcomes, ""), { inline: true })}${actButton("Resolve", "resolve", "primary")}</span>` : "";
-		return `<form class="stack gap-2 mt-2_5" id="warning-form">
+		return `<form class="stack gap-2 mt-2_5" id="warning-form" data-tour="warning-actions">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft$2.key === detailKey$1(ctx) ? esc(draft$2.text) : ""}</textarea>
       <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy$5 ? "disabled" : ""}>
         ${has("acknowledge") ? actButton("Acknowledge", "acknowledge", "primary") : ""}
@@ -10700,7 +10705,7 @@
 	var listSeq = 0;
 	var catalogueSeq = 0;
 	var siteId$7 = (ctx) => ctx.ontology.site?.id ?? null;
-	var shown = () => ROUTES.has(routeOf(location.hash));
+	var shown$1 = () => ROUTES.has(routeOf(location.hash));
 	onNavigate((hash) => {
 		const route = routeOf(hash);
 		const from = lastRoute;
@@ -10749,7 +10754,7 @@
 			};
 			else if (seq === listSeq && listing$4) listing$4.stale = true;
 		}
-		if (seq === listSeq && shown()) ctx.rerender();
+		if (seq === listSeq && shown$1()) ctx.rerender();
 	}
 	async function fetchCatalogue(ctx) {
 		const site = siteId$7(ctx);
@@ -10780,7 +10785,7 @@
 			signals,
 			links: new Map(signals.flatMap((s) => s.node_id ? [[s.tag, s.node_id]] : []))
 		};
-		if (shown()) ctx.rerender();
+		if (shown$1()) ctx.rerender();
 	}
 	function ensureFloor(ctx) {
 		if (!ctx.api || ctx.ontology.status !== "ready") return;
@@ -14666,6 +14671,134 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 	};
 	//#endregion
+	//#region js/lib/tours.ts
+	var TOURS = [
+		{
+			id: "triage",
+			title: "Triage a warning",
+			summary: "Find the warnings to work, look at the signal around one, and acknowledge, assign or resolve it.",
+			needsApi: true,
+			steps: [
+				{
+					page: "#/warnings",
+					target: "warning-filters",
+					title: "The warnings to work",
+					body: "To do lists every warning not yet resolved. Narrow it to the ones assigned to you, or to signals still out."
+				},
+				{
+					page: "#/warnings",
+					target: "warning-list",
+					title: "Pick a warning",
+					body: "Each row is a warning a detector raised: its signal, its detector and how long ago. Open one, or press j for the next.",
+					missing: "No warning matches the filters. Choose All to see the resolved ones."
+				},
+				{
+					page: "#/warnings",
+					target: "warning-chart",
+					title: "See the signal around it",
+					body: "The chart shows the signal before and after the warning: its baseline, the threshold, and the stretch that was out, shaded.",
+					reveal: "[data-warning-list] [data-warning]",
+					missing: "Open a warning in the list to see its chart."
+				},
+				{
+					page: "#/warnings",
+					target: "warning-actions",
+					title: "Work it",
+					body: "Acknowledge it, assign it to someone, or resolve it with what it turned out to be. Every step is kept in its activity.",
+					reveal: "[data-warning-list] [data-warning]",
+					missing: "Open a warning to act on it. Viewers can read warnings but not act on them."
+				}
+			]
+		},
+		{
+			id: "plot",
+			title: "Find and plot a signal",
+			summary: "Find a tag, plot it over a range, zoom into it and check it for wear.",
+			needsApi: true,
+			steps: [
+				{
+					page: "#/explorer",
+					target: "explorer-search",
+					title: "Find a signal",
+					body: "Type part of a tag, its description or the node it belongs to, and pick a result to plot it. You can plot up to eight."
+				},
+				{
+					page: "#/explorer",
+					target: "explorer-range",
+					title: "Choose the range",
+					body: "From the last hour to the last 30 days, or your own From and To. ← and → move through time.",
+					missing: "Plot a signal first: its range shows here."
+				},
+				{
+					page: "#/explorer",
+					target: "explorer-charts",
+					title: "Read the chart",
+					body: "Long ranges show averages with their minimum and maximum. Drag across a chart to zoom in. Each chart has a wear check.",
+					missing: "Plot a signal first: its chart shows here."
+				}
+			]
+		},
+		{
+			id: "ontology",
+			title: "Change the plant model",
+			summary: "Find your way around the factory map, stage a new node, then commit it with a message.",
+			needsApi: false,
+			steps: [
+				{
+					page: "#/ontology",
+					target: "onto-canvas",
+					title: "The factory map",
+					body: "Each box is a node: a site, a line, a machine, a PLC or a signal. Double-click a group to fold or unfold it, and drag to move around."
+				},
+				{
+					page: "#/ontology",
+					target: "onto-add",
+					title: "Stage a change",
+					body: "Choose a type, give it a label and link it to a node. It is staged: nobody else sees it until you commit.",
+					missing: "Close the node you have open (its ✕) to see the form. Viewers can’t stage changes."
+				},
+				{
+					page: "#/ontology",
+					target: "onto-commit",
+					title: "Commit it",
+					body: "Say what you changed and commit. In API mode you can send it to another engineer for review instead.",
+					missing: "Stage a node first: your staged changes and the Commit button show here."
+				},
+				{
+					page: "#/ontology",
+					target: "onto-tabs",
+					title: "History and health",
+					body: "History lists every commit with who made it and when; revert one with a new commit. Health lists what the model is missing."
+				}
+			]
+		},
+		{
+			id: "copilot",
+			title: "Ask the copilot",
+			summary: "Ask a question in your own words, and see where the answer comes from.",
+			needsApi: false,
+			steps: [{
+				page: "#/chat",
+				target: "chat-examples",
+				title: "Start from an example",
+				body: "These are the kinds of question it answers. Pick one to put it in the box."
+			}, {
+				page: "#/chat",
+				target: "chat-ask",
+				title: "Ask in your own words",
+				body: "Why a line is scrapping, where a signal lives, whether a machine is wearing. With the Tiles API it answers from your site’s data and cites each source."
+			}]
+		}
+	];
+	var tourOf = (id) => TOURS.find((t) => t.id === id);
+	var ROLE_TOURS = {
+		engineer: "plot",
+		maintenance: "triage",
+		"shift-lead": "triage",
+		admin: "ontology"
+	};
+	var canRun = (tour, withApi) => withApi || !tour.needsApi;
+	//#endregion
 	//#region js/lib/help.ts
 	var loading = null;
 	function loadHelp(src = "js/help-data.js") {
@@ -14781,11 +14914,25 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 		return `<nav class="help-toc" aria-label="Contents of the guide"><ul>${items.join("")}</ul></nav>`;
 	}
+	function toursCard(withApi) {
+		return `<section class="card mb-4" aria-labelledby="tours-title"><h2 id="tours-title" class="mb-2">Tours</h2><p class="small soft mb-3">A few steps on the pages themselves. Leave a tour at any step with Escape.</p><ul class="tour-list">${TOURS.map((t) => {
+			const can = canRun(t, withApi);
+			const start = button("Start", {
+				size: "sm",
+				disabled: !can,
+				attrs: {
+					"data-start-tour": t.id,
+					"aria-label": `Start the tour: ${t.title}`
+				}
+			});
+			return `<li class="tour-item" data-key="tour-${esc(t.id)}"><div><b>${esc(t.title)}</b><p class="small soft">${esc(t.summary)}${can ? "" : " It needs the Tiles API."}</p></div>${start}</li>`;
+		}).join("")}</ul></section>`;
+	}
 	var view$1 = {
 		id: "help",
 		title: "Help",
 		icon: "circle-help",
-		render() {
+		render(ctx) {
 			wasShown$1 = document.querySelector("#view .help-article") !== null;
 			const head = pageHead({
 				title: "Help",
@@ -14803,7 +14950,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const { shown, top, prev, next } = chapter(data.sections, slug);
 			const step = (s, label, cls) => s ? `<a class="help-step ${cls}" href="${esc(helpHref(s.slug))}"><span class="small soft">${label}</span>${esc(s.title)}</a>` : "<span></span>";
 			const steps = `<nav class="help-steps" aria-label="Previous and next">${step(prev, "Previous", "prev")}${step(next, "Next", "next")}</nav>`;
-			return `${head}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
+			return `${head}${slug ? "" : toursCard(Boolean(ctx.api))}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
 		},
 		bind(root, ctx) {
 			const here = () => /^#\/help(?:[/?]|$)/.test(location.hash);
@@ -14817,6 +14964,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				if (here()) ctx.rerender();
 			};
 			onAll(root, "[data-show-welcome]", "click", () => document.dispatchEvent(new CustomEvent("tiles:welcome")));
+			onAll(root, "[data-start-tour]", "click", (el) => document.dispatchEvent(new CustomEvent("tiles:tour", { detail: el.dataset.startTour })));
 			onAll(root, "[data-help-retry]", "click", () => {
 				failed = null;
 				ctx.rerender();
@@ -15490,12 +15638,191 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const actions = [
 			o.setUp ? `<a class="btn primary" href="#/onboarding">Set up the site</a>` : "",
 			`<a class="btn${o.setUp ? "" : " primary"}" href="#/${page === "home" ? "" : esc(page)}">Go to ${esc(start)}</a>`,
+			o.tour ? `<button class="btn" type="button" data-start-tour="${esc(o.tour.id)}">Take the tour: ${esc(o.tour.title)}</button>` : "",
 			o.helpFor ? `<a class="btn ghost" href="${esc(helpHref(o.helpFor))}">Read how ${esc(start)} works</a>` : ""
 		].filter(Boolean);
 		const opens = `Tiles will open at <b>${esc(start)}</b>`;
 		return `<p>${pins.length ? `${opens}, with ${listed} pinned in the menu.` : `${opens}.`}</p>
     <p class="small soft">To see this again, open Help and choose Show the welcome.</p>
     <div class="dialog-foot">${actions.join("")}</div>`;
+	}
+	//#endregion
+	//#region js/lib/tour.ts
+	var GAP = 12;
+	var EDGE = 16;
+	function placePopover(target, pop, view) {
+		const left = (x) => Math.min(Math.max(EDGE, x), Math.max(EDGE, view.width - pop.width - EDGE));
+		const bottom = {
+			top: view.height - pop.height - EDGE,
+			left: left((view.width - pop.width) / 2),
+			side: "bottom"
+		};
+		if (!target || view.width < 640) return bottom;
+		const x = left(target.left + target.width / 2 - pop.width / 2);
+		const below = target.top + target.height + GAP;
+		if (below + pop.height <= view.height - EDGE) return {
+			top: below,
+			left: x,
+			side: "below"
+		};
+		const above = target.top - GAP - pop.height;
+		if (above >= EDGE) return {
+			top: above,
+			left: x,
+			side: "above"
+		};
+		return bottom;
+	}
+	var selector = (step) => `#view [data-tour="${CSS.escape(step.target)}"]`;
+	var shown = (el) => el instanceof HTMLElement && el.getClientRects().length > 0;
+	var route = (hash) => hash.split("?")[0]?.replace(/\/$/, "") ?? "";
+	function waitFor(step, ms) {
+		return new Promise((resolve) => {
+			const until = performance.now() + ms;
+			const look = () => {
+				const el = document.querySelector(selector(step));
+				if (shown(el)) return resolve(el);
+				if (performance.now() > until) return resolve(null);
+				requestAnimationFrame(look);
+			};
+			look();
+		});
+	}
+	var current = null;
+	function runTour(tour, o) {
+		current?.stop();
+		let at = 0;
+		let target = null;
+		let frame = 0;
+		let stopped = false;
+		let seq = 0;
+		let loading = false;
+		let drawnFound = false;
+		let lastWidth = 0;
+		const spot = document.createElement("div");
+		spot.className = "tour-spot";
+		spot.setAttribute("aria-hidden", "true");
+		const pop = document.createElement("section");
+		pop.className = "tour-pop";
+		pop.setAttribute("role", "dialog");
+		pop.setAttribute("aria-modal", "false");
+		pop.setAttribute("aria-labelledby", "tour-title");
+		pop.setAttribute("aria-describedby", "tour-body");
+		pop.dataset.tour = tour.id;
+		document.body.append(spot, pop);
+		let last = "";
+		const follow = () => {
+			if (stopped) return;
+			const step = tour.steps[at];
+			if (step && !loading && !shown(target)) {
+				const again = document.querySelector(selector(step));
+				target = shown(again) ? again : null;
+				if (target && !drawnFound) draw(step, true);
+			}
+			const r = target?.getBoundingClientRect() ?? null;
+			const size = {
+				width: pop.offsetWidth,
+				height: pop.offsetHeight
+			};
+			const key = r ? `${r.top},${r.left},${r.width},${r.height},${size.width},${size.height}` : `none,${size.width},${size.height}`;
+			if (key !== last || window.innerWidth !== lastWidth) {
+				last = key;
+				lastWidth = window.innerWidth;
+				spot.hidden = !r;
+				if (r) {
+					const pad = 6;
+					spot.style.top = `${r.top - pad}px`;
+					spot.style.left = `${r.left - pad}px`;
+					spot.style.width = `${r.width + 12}px`;
+					spot.style.height = `${r.height + 12}px`;
+				}
+				const place = placePopover(r, size, {
+					width: window.innerWidth,
+					height: window.innerHeight
+				});
+				pop.style.top = `${place.top}px`;
+				pop.style.left = `${place.left}px`;
+				pop.dataset.side = place.side;
+			}
+			frame = requestAnimationFrame(follow);
+		};
+		const draw = (step, found) => {
+			drawnFound = found;
+			const final = at === tour.steps.length - 1;
+			const note = found ? "" : step.missing ? `<p class="small soft" data-tour-missing>${esc(step.missing)}</p>` : "";
+			pop.innerHTML = `
+      <p class="small soft" id="tour-count">${esc(tour.title)} · step ${at + 1} of ${tour.steps.length}</p>
+      <h2 id="tour-title" tabindex="-1">${esc(step.title)}</h2>
+      <p id="tour-body">${esc(step.body)}</p>
+      ${note}
+      <div class="tour-foot">
+        <button class="btn ghost sm" type="button" data-tour-leave>Leave the tour</button>
+        <span class="row gap-2">
+          ${at > 0 ? "<button class=\"btn sm\" type=\"button\" data-tour-back>Back</button>" : ""}
+          <button class="btn primary sm" type="button" data-tour-next>${final ? "Done" : "Next"}</button>
+        </span>
+      </div>`;
+			pop.querySelector("#tour-title")?.focus({ preventScroll: true });
+		};
+		const show = async (i) => {
+			const step = tour.steps[i];
+			if (!step || loading) return;
+			const mine = ++seq;
+			loading = true;
+			pop.setAttribute("aria-busy", "true");
+			if (route(location.hash) !== route(step.page)) o.go(step.page);
+			let el = await waitFor(step, step.reveal ? 600 : 4e3);
+			if (!el && step.reveal && !stopped) {
+				document.querySelector(`#view ${step.reveal}`)?.click();
+				el = await waitFor(step, 3e3);
+			}
+			loading = false;
+			pop.removeAttribute("aria-busy");
+			if (stopped || mine !== seq) return;
+			at = i;
+			target = el;
+			last = "";
+			if (el) {
+				const r = el.getBoundingClientRect();
+				if (r.top < 64 || r.bottom > window.innerHeight - 64) window.scrollTo({
+					top: r.top + window.scrollY - 96,
+					behavior: scrollBehavior()
+				});
+			}
+			draw(step, Boolean(el));
+		};
+		const stop = (finished = false) => {
+			if (stopped) return;
+			stopped = true;
+			cancelAnimationFrame(frame);
+			spot.remove();
+			pop.remove();
+			document.removeEventListener("keydown", onKey, true);
+			if (current === handle) current = null;
+			o.ended?.(finished);
+		};
+		const onKey = (e) => {
+			if (e.key !== "Escape" || document.querySelector("dialog[open]")) return;
+			e.preventDefault();
+			e.stopPropagation();
+			stop();
+		};
+		pop.addEventListener("click", (e) => {
+			const el = e.target instanceof Element ? e.target : null;
+			if (el?.closest("[data-tour-leave]")) return stop();
+			if (loading) return;
+			else if (el?.closest("[data-tour-back]")) show(at - 1);
+			else if (el?.closest("[data-tour-next]")) {
+				if (at === tour.steps.length - 1) stop(true);
+				else show(at + 1);
+			}
+		});
+		document.addEventListener("keydown", onKey, true);
+		const handle = { stop: () => stop() };
+		current = handle;
+		frame = requestAnimationFrame(follow);
+		show(0);
+		return handle;
 	}
 	//#endregion
 	//#region js/lib/site-search.ts
@@ -16325,6 +16652,28 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (shouldWelcome(load$4(welcomeKey(owner), null) !== null, navigator.webdriver === true) && !document.querySelector("dialog[open]")) showWelcome();
 	}
 	document.addEventListener("tiles:welcome", () => void showWelcome());
+	function startTour(id) {
+		const tour = tourOf(id);
+		if (!tour) return;
+		if (document.querySelector("dialog.palette")) return void requestAnimationFrame(() => startTour(id));
+		if (!canRun(tour, Boolean(api))) {
+			toast("This tour needs the Tiles API", {
+				type: "info",
+				description: "Connect to it in Settings, under Data source."
+			});
+			return;
+		}
+		ux("help", `tour.${tour.id}`);
+		runTour(tour, {
+			go: (hash) => {
+				location.hash = hash;
+			},
+			ended: (finished) => {
+				if (finished) ux("task", "tour.finished");
+			}
+		});
+	}
+	document.addEventListener("tiles:tour", (e) => startTour(e.detail));
 	var welcomeContext = () => ({
 		site: api ? ctx.ontology.site?.name ?? null : null,
 		title: (page) => VIEWS.find((v) => v.id === page)?.title ?? page
@@ -16350,6 +16699,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			dialog.addEventListener("click", (e) => {
 				const el = e.target instanceof Element ? e.target : null;
 				if (el?.closest("[data-welcome-skip]")) return close();
+				const tourButton = el?.closest("[data-start-tour]");
+				if (tourButton) {
+					close();
+					return startTour(tourButton.dataset.startTour ?? "");
+				}
 				const role = roleSetup(el?.closest("[data-role]")?.dataset.role ?? "");
 				if (!role || !box || chosen) return;
 				chosen = true;
@@ -16366,9 +16720,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				renderNav(currentView());
 				const setUp = Boolean(api && ctx.ontology.role === "admin" && !Object.values(ctx.graph.nodes).some((n) => n.type === "Machine"));
 				loadHelp().catch(() => null).then((help) => {
+					const tour = tourOf(ROLE_TOURS[role.id] ?? "");
 					box.innerHTML = nextHtml(c, role, next, {
 						setUp,
-						helpFor: help?.pages[next.start ?? "home"] ?? null
+						helpFor: help?.pages[next.start ?? "home"] ?? null,
+						tour: tour && canRun(tour, Boolean(api)) ? tour : null
 					});
 					box.querySelector("a")?.focus();
 				});
@@ -16492,6 +16848,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					keywords: "guide how manual explain",
 					run: () => void openHelp()
 				},
+				...TOURS.filter((t) => canRun(t, Boolean(api))).map((t) => ({
+					id: `do:tour:${t.id}`,
+					label: `Take the tour: ${t.title}`,
+					group: "Actions",
+					icon: "circle-help",
+					keywords: "tour guide show me how help",
+					run: () => startTour(t.id)
+				})),
 				{
 					id: "do:welcome",
 					label: "Show the welcome",
@@ -16708,7 +17072,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			scrollToSaved();
 			name(head(), from ? "record" : hold ? "" : "none");
 			const row = fromList ? root.querySelector(`.split-list [data-key="${CSS.escape(fromList)}"]`) : null;
-			const stay = row && shown$1(row) ? rowTarget(row) : null;
+			const stay = row && shown$2(row) ? rowTarget(row) : null;
 			if (stay) return stay.focus({ preventScroll: true });
 			const heading = root.querySelector("h1[tabindex]");
 			(heading ?? root).focus({ preventScroll: true });

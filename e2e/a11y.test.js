@@ -242,6 +242,13 @@ test('dialogs, toasts, tooltips, the command palette, the shortcuts and the help
     await page.click('dialog[open] [data-role="engineer"]');
     await page.waitForSelector('dialog[open] [data-welcome] a');
     assert.deepEqual(await audit(page), [], `${colorScheme} welcome, next`);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog[open]', { state: 'detached' });
+    await page.click('[data-start-tour="copilot"]'); // a guided tour's step (U4.07)
+    await page.waitForSelector('.tour-pop #tour-title');
+    await page.locator('.tour-spot').waitFor({ state: 'visible' });
+    assert.deepEqual(await audit(page), [], `${colorScheme} tour`);
+    await page.keyboard.press('Escape');
     await page.close();
   }
 });

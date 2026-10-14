@@ -220,9 +220,9 @@ What the browser records, and nothing else:
 | Kind | Name | Example |
 | --- | --- | --- |
 | Page viewed | The page's id | `warnings` |
-| Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo` |
+| Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo`, `tour.finished` |
 | Command palette | Opened, or the kind of thing chosen | `open`, `chose.signals` |
-| Help opened | The help topic | `welcome` (the first-run welcome) |
+| Help opened | The help topic | `welcome` (the first-run welcome), `tour.triage` (a tour started) |
 | Error shown | Its kind | `api.403`, `offline` |
 
 Each event also has the time it arrived and a random id the browser makes for each tab, which the

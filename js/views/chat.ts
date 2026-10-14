@@ -186,8 +186,8 @@ function remoteRender(ctx: Context): string {
               })
         }</div>
         <div>
-          <div class="chips mt-2_5 mb-2_5 m-0">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
-          <form class="composer" id="composer">
+          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+          <form class="composer" id="composer" data-tour="chat-ask">
             <input type="text" name="q" value="${esc(draft)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy ? 'disabled' : ''} />
             <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Ask</button>
             ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy ? 'disabled' : ''}>Delete</button>` : ''}
@@ -418,8 +418,8 @@ function localRender(ctx: Context, note = ''): string {
       <div class="chat">
         <div class="chat-log" id="chat-log">${messages}</div>
         <div>
-          <div class="chips mt-2_5 mb-2_5 m-0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
-          <form class="composer" id="composer">
+          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+          <form class="composer" id="composer" data-tour="chat-ask">
             <input type="text" name="q" value="${esc(draft)}" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
             <button class="btn primary" type="submit">Ask</button>
           </form>

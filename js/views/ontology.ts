@@ -259,7 +259,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
               <span class="small soft" data-search-count aria-live="polite">${found === null ? '' : `${found} found`}</span>
             </span>
           </div>
-          <div class="canvas-wrap">
+          <div class="canvas-wrap" data-tour="onto-canvas">
             <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
           </div>
           <div class="statusbar">
@@ -620,7 +620,7 @@ function newNodeForm(graph: Graph): string {
   return `
       <div class="card-head"><h2>New node</h2></div>
       <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
-      <form class="stack gap-2_5 max-w-form" id="node-form">
+      <form class="stack gap-2_5 max-w-form" id="node-form" data-tour="onto-add">
         <label class="field">Type<select name="type">${Object.keys(NODE_TYPES)
           .map((t) => `<option>${t}</option>`)
           .join('')}</select></label>
@@ -784,7 +784,7 @@ const view: View = {
           <button class="btn" type="button" data-discard>Discard</button>
         </div>`
         : repo.staged.length
-          ? `<form class="staged-bar" id="commit-form">
+          ? `<form class="staged-bar" id="commit-form" data-tour="onto-commit">
           <span class="badge warn">${repo.staged.length} uncommitted</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
           <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
@@ -812,7 +812,7 @@ const view: View = {
       ${source}
       ${stagedBar}
       ${importCard(ctx)}
-      <div class="tabs" role="tablist">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-tab="${id}" role="tab">${label}</button>`).join('')}</div>
+      <div class="tabs" role="tablist" data-tour="onto-tabs">${tabs.map(([id, label]) => `<button class="tab ${ui.tab === id ? 'active' : ''}" data-tab="${id}" role="tab">${label}</button>`).join('')}</div>
       ${body}`;
   },
 

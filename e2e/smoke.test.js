@@ -604,6 +604,66 @@ test('automated browsers are not greeted; the palette shows the welcome', async 
   await page.close();
 });
 
+// Walks a guided tour (U4.07) from Help: each step's part of the page is found and lit, its popover
+// has the focus and counts the steps; `before[i]` runs on step i before Next. Done ends it.
+async function walkTour(page, id, steps, before = {}) {
+  await page.goto(page.url().replace(/#.*$/, '#/help'));
+  await page.click(`[data-start-tour="${id}"]`);
+  const pop = page.locator(`.tour-pop[data-tour="${id}"]`);
+  for (let i = 0; i < steps; i++) {
+    await pop.locator('#tour-count', { hasText: `step ${i + 1} of ${steps}` }).waitFor();
+    assert.equal(
+      await pop.locator('[data-tour-missing]').count(),
+      0,
+      `${id} step ${i + 1}: its part of the page is there`,
+    );
+    await page.locator('.tour-spot').waitFor({ state: 'visible' }); // lit (on the next frame)
+    assert.equal(await page.evaluate(() => document.activeElement?.id), 'tour-title');
+    if (before[i]) await before[i]();
+    await pop.locator('[data-tour-next]').click();
+  }
+  await page.waitForSelector('.tour-pop', { state: 'detached' });
+  assert.equal(await page.locator('.tour-spot').count(), 0);
+}
+
+test('guided tours: change the plant model and ask the copilot, end to end (U4.07)', async () => {
+  const { page, errors } = await openPage({ viewport: { width: 1280, height: 800 } });
+  await page.goto(`${httpBase}#/help`);
+  // On the guide's first page, every tour; those of the API's data say they need it.
+  assert.equal(await page.locator('.tour-list [data-start-tour]').count(), 4);
+  assert.ok(await page.locator('[data-start-tour="triage"]').isDisabled());
+  await walkTour(page, 'ontology', 4, {
+    // Staging a node is what the next step, Commit, is about.
+    1: async () => {
+      await page.fill('#node-form [name=label]', 'Tour alarm stream');
+      await page.click('#node-form button[type=submit]');
+      await page.waitForSelector('#commit-form');
+    },
+  });
+  await walkTour(page, 'copilot', 2);
+  // Back goes to the step before; Escape leaves the tour at any step.
+  await page.goto(`${httpBase}#/help`);
+  await page.click('[data-start-tour="copilot"]');
+  await page.locator('.tour-pop [data-tour-next]').click();
+  await page.locator('.tour-pop #tour-count:has-text("step 2 of 2")').waitFor();
+  await page.locator('.tour-pop [data-tour-back]').click();
+  await page.locator('.tour-pop #tour-count:has-text("step 1 of 2")').waitFor();
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tour-pop', { state: 'detached' });
+  // Started from the command palette, the tour keeps the focus once the palette has gone.
+  await page.keyboard.press('Control+k');
+  await page.locator('dialog.palette input').fill('tour copilot');
+  await page.locator('dialog.palette [role=option]:has-text("Take the tour: Ask the copilot")').click();
+  await page.waitForSelector('dialog.palette', { state: 'detached' });
+  await page.waitForFunction(() => document.activeElement?.id === 'tour-title');
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'tour-title');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tour-pop', { state: 'detached' });
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('a tooltip shown by the focus stays while the page scrolls; one shown by pointing goes', async () => {
   const { page, errors } = await openPage({ viewport: { width: 1280, height: 600 } });
   await page.goto(`${httpBase}#/help`);
@@ -624,6 +684,35 @@ test('a tooltip shown by the focus stays while the page scrolls; one shown by po
   await page.waitForSelector('#tooltip', { state: 'hidden' });
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+test('guided tours: triage a warning and plot a signal, end to end with the API (U4.07)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  raiseFrictionWarnings(fake);
+  fake.addSignal('oven.temp', { source: 'import:oven.csv', unit: '°C' });
+  fake.samples.set('oven.temp|2026-09-05T05:00:00.000000Z', 180);
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  await page.waitForSelector('[data-warning-list] [data-warning]');
+  // The third step opens the first warning to show its chart.
+  await walkTour(page, 'triage', 4);
+  // With nothing plotted, the steps about a plot say so.
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/help`);
+  await page.click('[data-start-tour="plot"]');
+  await page.locator('.tour-pop #tour-count:has-text("step 1 of 3")').waitFor();
+  await page.locator('.tour-pop [data-tour-next]').click();
+  await page.locator('.tour-pop [data-tour-missing]:has-text("Plot a signal first")').waitFor();
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tour-pop', { state: 'detached' });
+  await walkTour(page, 'plot', 3, {
+    0: async () => {
+      await page.fill('#explorer-search [name=q]', 'oven');
+      await page.click('[data-explorer-found] [data-add]');
+      await page.waitForSelector('[data-charts] svg');
+    },
+  });
+  assert.deepEqual(errors, []);
 });
 
 test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Enter goes', async () => {
