@@ -545,7 +545,7 @@ test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Ente
   await input.fill('warn');
   const options = palette.locator('[role=option]');
   // Both start with it: the menu's order holds; then the action with a word starting with it; the
-  // guide's best five headings (U4.04); and asking the copilot what was typed (U4.02).
+  // best five of the guide's headings (U4.04) and the glossary's terms (U4.05); and asking the copilot what was typed (U4.02).
   assert.deepEqual(await options.allInnerTexts(), [
     'Warnings\nOperations',
     'Warning performance\nOperations',
@@ -553,8 +553,8 @@ test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Ente
     'Warnings',
     'Warning performance',
     'Two separate states\nWarnings',
-    'Filtering\nWarnings',
-    'Working a warning (engineers and admins)\nWarnings',
+    'Warning\nWarnings and detectors',
+    'Warning time\nWarnings and detectors',
     'Ask the copilot “warn”',
   ]);
   assert.equal(await input.getAttribute('aria-activedescendant'), 'palette-0');
@@ -3409,8 +3409,8 @@ test('warning performance: what the warnings caught, per detector, for the codes
   const a = await openAs(t, apiUrl, null, 'performance');
   await a.page.waitForSelector('[data-kpis]');
   const tiles = await a.page.locator('[data-kpis] .kpi').allInnerTexts();
-  assert.match(tiles[0], /Events warned of\s+75\.0%\s+3 of 4/);
-  assert.match(tiles[1], /Warnings an event followed\s+100\.0%/);
+  assert.match(tiles[0], /Events warned of \(recall\)\s+75\.0%\s+3 of 4/);
+  assert.match(tiles[1], /Warnings an event followed \(precision\)\s+100\.0%/);
   assert.match(tiles[2], /Confirmed true by people\s+100\.0%\s+1 true, 0 false, 0 unknown, 2 open/);
   assert.match(tiles[3], /Warning time \(median\)\s+1\.8 h/);
   const events = a.page.locator('tbody tr', { hasText: 'DT-SEIZURE' });

@@ -1,6 +1,6 @@
 import { esc, onAll, onSubmit, onNavigate, routeOf, bound } from '../lib/dom.ts';
 import type { PerformanceReport } from '../lib/api.ts';
-import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
+import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread, type Kpi } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
 import { card, emptyState, needsApi, pageHead, skeleton, apiUnreachable, loadFailed, term } from '../lib/ui.ts';
@@ -57,6 +57,16 @@ async function load(ctx: Context): Promise<void> {
     if (mine === seq) fetched = { key: `${key}|failed`, report: null }; // the client showed why
   }
   if (mine === seq) ctx.rerender();
+}
+
+// A headline's label with its glossary term: the words themselves when they are the term ("Warning
+// time (median)"), else the term after them ("Events warned of (recall)").
+function kpiLabel(k: Kpi): string {
+  if (!k.term) return esc(k.label);
+  const name = GLOSSARY[k.term].term;
+  if (k.label.toLowerCase().startsWith(name.toLowerCase()))
+    return `${term(k.term, k.label.slice(0, name.length))}${esc(k.label.slice(name.length))}`;
+  return `${esc(k.label)} (${term(k.term, name.toLowerCase())})`;
 }
 
 function controls(shown: Ui): string {
@@ -161,7 +171,7 @@ const view: View = {
       const tiles = kpis(r.totals)
         .map(
           (k) =>
-            `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}${k.term ? ` (${term(k.term, GLOSSARY[k.term].term.toLowerCase())})` : ''}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`,
+            `<div class="card kpi ${k.tone}"><div class="label">${kpiLabel(k)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`,
         )
         .join('');
       body = `<div class="grid g4" data-kpis>${tiles}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;

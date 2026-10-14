@@ -12300,6 +12300,12 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 		if (mine === seq) ctx.rerender();
 	}
+	function kpiLabel(k) {
+		if (!k.term) return esc(k.label);
+		const name = GLOSSARY[k.term].term;
+		if (k.label.toLowerCase().startsWith(name.toLowerCase())) return `${term(k.term, k.label.slice(0, name.length))}${esc(k.label.slice(name.length))}`;
+		return `${esc(k.label)} (${term(k.term, name.toLowerCase())})`;
+	}
 	function controls(shown) {
 		const u = pending ?? shown;
 		const option = (v, label, current) => `<option value="${v}" ${v === current ? "selected" : ""}>${label}</option>`;
@@ -12366,7 +12372,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			else if (fetched?.key !== key || !fetched.report) body = `<div class="card">${skeleton.table(4, 6, "Loading the warnings and events…")}</div>`;
 			else {
 				const r = fetched.report;
-				body = `<div class="grid g4" data-kpis>${kpis(r.totals).map((k) => `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}${k.term ? ` (${term(k.term, GLOSSARY[k.term].term.toLowerCase())})` : ""}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`).join("")}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
+				body = `<div class="grid g4" data-kpis>${kpis(r.totals).map((k) => `<div class="card kpi ${k.tone}"><div class="label">${kpiLabel(k)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`).join("")}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
 			}
 			return `${head}${controls(u)}<div class="stack gap-4 mt-4">${body}</div>`;
 		},
