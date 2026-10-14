@@ -21,17 +21,37 @@ export function stylesText(sheets: ArrayLike<CSSStyleSheet> = document.styleShee
   return css.replace(/:root\b/g, '[data-shot-root]');
 }
 
+// Whether the stylesheets can be read here (not from file://), without reading them out.
+export function canCapture(sheets: ArrayLike<CSSStyleSheet> = document.styleSheets): boolean {
+  try {
+    for (const sheet of Array.from(sheets)) void sheet.cssRules;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // The decoded size of a base64 data URL.
 export const dataUrlBytes = (url: string): number => {
   const data = url.slice(url.indexOf(',') + 1);
   return Math.floor((data.length * 3) / 4) - (data.endsWith('==') ? 2 : data.endsWith('=') ? 1 : 0);
 };
 
-// The page copied for the picture: what is typed and chosen kept, canvases as images, and what isn't
-// the page (dialogs, tooltips, scripts) left out.
-function copyOfPage(): HTMLElement {
+// The page copied for the picture: what is typed and chosen kept, panes scrolled as they are (their
+// content moved by the rules in `css`), canvases as images, and what isn't the page (dialogs,
+// tooltips, scripts) left out.
+function copyOfPage(): { copy: HTMLElement; css: string } {
   const page = document.documentElement;
   const copy = page.cloneNode(true) as HTMLElement;
+  // First, while the copy's elements still match the page's one for one.
+  let css = '';
+  const all = page.querySelectorAll('*');
+  copy.querySelectorAll('*').forEach((el, i) => {
+    const from = all[i];
+    if (!from || from === document.body || (!from.scrollTop && !from.scrollLeft)) return;
+    el.setAttribute('data-shot-scroll', String(i));
+    css += `[data-shot-scroll="${i}"]>*{translate:${-from.scrollLeft}px ${-from.scrollTop}px}`;
+  });
   const fields = page.querySelectorAll('input, textarea, select, canvas');
   copy.querySelectorAll('input, textarea, select, canvas').forEach((el, i) => {
     const from = fields[i];
@@ -59,7 +79,7 @@ function copyOfPage(): HTMLElement {
     )
     .forEach((el) => el.remove());
   copy.setAttribute('data-shot-root', '');
-  return copy;
+  return { copy, css };
 }
 
 const loadImage = (src: string): Promise<HTMLImageElement> =>
@@ -79,10 +99,10 @@ export async function capturePage(): Promise<string | null> {
   // The page scrolled as it is: fixed parts (the top bar, the menu) stay where they are. Nothing
   // moves in a picture: an entrance that starts unseen would stay unseen.
   const view = `[data-shot-root]{width:${width}px;height:${height}px;overflow:hidden}body{margin-top:-${Math.round(window.scrollY)}px}*,*::before,*::after{animation:none!important;transition:none!important}`;
-  const copy = copyOfPage();
+  const { copy, css: scrolled } = copyOfPage();
   const head = copy.querySelector('head') ?? copy.insertBefore(document.createElement('head'), copy.firstChild);
   const style = document.createElement('style');
-  style.textContent = css + view;
+  style.textContent = css + view + scrolled;
   head.append(style);
   const xhtml = new XMLSerializer().serializeToString(copy);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject x="0" y="0" width="100%" height="100%">${xhtml}</foreignObject></svg>`;

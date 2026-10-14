@@ -94,7 +94,7 @@ import type { Graph, Repo, ShotHistory } from './lib/types.ts';
 import { rowTarget, shown } from './lib/split.ts';
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
-import { afterRender, clearErrors, showApiErrors, showErrors } from './lib/forms.ts';
+import { afterRender, clearErrors, setFieldError, showApiErrors, showErrors } from './lib/forms.ts';
 import { keepWaiting, saveWaiting, takeSaved } from './lib/undo.ts';
 import { createTracker, keepLeft, newSession, takeLeft, ux, type UxEvent } from './lib/analytics.ts';
 import { breadcrumbs, button, clockTime, resetIds } from './lib/ui.ts';
@@ -115,7 +115,7 @@ import {
 } from './lib/welcome.ts';
 import { runTour } from './lib/tour.ts';
 import { feedbackBody, formHtml, previewHtml } from './lib/feedback.ts';
-import { capturePage, stylesText } from './lib/screenshot.ts';
+import { canCapture, capturePage } from './lib/screenshot.ts';
 import { hasNews, helpLabel, SEEN_KEY, seenOnFirstLoad, whatsNewHtml, whatsNewTitle } from './lib/whats-new.ts';
 import { VERSION } from './lib/version.ts';
 import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
@@ -1197,7 +1197,7 @@ async function openFeedback(): Promise<void> {
           page: view.title,
           version: VERSION,
           name: state.user.name,
-          canShoot: stylesText() !== null,
+          canShoot: canCapture(),
         }),
       },
       (dialog, close) => {
@@ -1240,6 +1240,11 @@ async function openFeedback(): Promise<void> {
           });
         });
         dialog.querySelector('[data-feedback-cancel]')?.addEventListener('click', close);
+        // A mood chosen puts its error right.
+        form.addEventListener('change', (e) => {
+          const first = form.querySelector<HTMLInputElement>('input[name="mood"]');
+          if (first && e.target instanceof HTMLInputElement && e.target.name === 'mood') setFieldError(first, null);
+        });
         let sending = false;
         form.addEventListener('submit', (e) => {
           e.preventDefault();
@@ -1247,10 +1252,16 @@ async function openFeedback(): Promise<void> {
           const mood = form.querySelector<HTMLInputElement>('input[name="mood"]:checked')?.value ?? '';
           const text = form.querySelector<HTMLTextAreaElement>('textarea[name="text"]')?.value ?? '';
           const errors = [
-            ...(mood ? [] : [{ name: 'moods', message: 'Choose how Tiles is working for you' }]),
+            ...(mood ? [] : [{ name: 'mood', message: 'Choose how Tiles is working for you' }]),
             ...(text.trim() ? [] : [{ name: 'text', message: 'Say what you’d like to tell us' }]),
           ];
-          if (errors.length) return void showErrors(form, errors);
+          if (errors.length) {
+            showErrors(form, errors);
+            // The mood's error under the three choices, not inside the first.
+            const note = form.querySelector('.moods .field-error');
+            if (note) form.querySelector('.moods > div')?.after(note);
+            return;
+          }
           clearErrors(form);
           const named = form.querySelector<HTMLInputElement>('input[name="named"]')?.checked ?? false;
           const button = need<HTMLButtonElement>(form, 'button[type="submit"]');

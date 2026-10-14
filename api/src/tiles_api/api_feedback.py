@@ -2,8 +2,9 @@
 feedback" in the help sheet): a mood, a few words, the page they were on, the version and their
 browser, and, if they chose to attach it (having seen it), a screenshot of the page. It is
 anonymous unless they chose to give their name: then the row keeps who sent it. The site's admins
-list it, open its screenshot and delete it. Sending is audited like any change, without a name when
-none was given; so is deleting."""
+list it, open its screenshot and delete it. Sending is audited like any change; without a name, the
+entry has neither the sender nor the request's ID, which would lead back to them. Deleting is
+audited too."""
 
 import base64
 import binascii
@@ -91,7 +92,8 @@ def image(data_url: str) -> bytes:
 def send_feedback(ctx: Ctx, body: FeedbackIn) -> dict[str, int]:
     """Send feedback about Tiles to the site's admins (any member). Anonymous unless `named`; a
     screenshot only if attached. At most 60 an hour per site (429 beyond)."""
-    shot = image(body.screenshot) if body.screenshot else None
+    # One sender at a time per site, so the hour's count holds; checked before the screenshot is read.
+    ctx.conn.execute("SELECT pg_advisory_xact_lock(hashtext('feedback:' || %s::text))", [ctx.site_id])
     recent = ctx.conn.execute(
         "SELECT count(*) AS n FROM feedback WHERE site_id = %s AND created_at >= now() - interval '1 hour'",
         [ctx.site_id],
@@ -102,6 +104,7 @@ def send_feedback(ctx: Ctx, body: FeedbackIn) -> dict[str, int]:
             "This site has had a lot of feedback this hour. Try again later.",
             headers={"Retry-After": "600"},
         )
+    shot = image(body.screenshot) if body.screenshot else None
     new = one(
         ctx.conn.execute(
             """
@@ -130,6 +133,7 @@ def send_feedback(ctx: Ctx, body: FeedbackIn) -> dict[str, int]:
         entity_type="feedback",
         entity_id=str(new),
         after={"mood": body.mood, "page": body.page, "screenshot": shot is not None},
+        traceable=body.named,
     )
     return {"id": int(new)}
 

@@ -4,6 +4,7 @@ import { bound, esc } from '../lib/dom.ts';
 import type { FeedbackRow } from '../lib/api.ts';
 import type { Context } from './types.ts';
 import { feedbackListHtml } from '../lib/feedback.ts';
+import { when } from '../lib/insights.ts';
 import { emptyState, loadFailed, skeleton } from '../lib/ui.ts';
 import { infoDialog } from '../lib/overlay.ts';
 import { isRemoving, removeLater } from '../lib/undo.ts';
@@ -12,22 +13,21 @@ export function feedbackCard(): string {
   return `<div class="card stack gap-3 span-all" id="feedback">
       <h2>Feedback</h2>
       <p class="small soft">What people on this site sent with Send feedback (in the help panel), newest first. It is anonymous unless they chose to give their name.</p>
-      <div data-feedback-list tabindex="-1">${skeleton.list(3, 'Loading the feedback…')}</div>
+      <div data-feedback-list data-morph="if-changed" tabindex="-1">${skeleton.list(3, 'Loading the feedback…')}</div>
     </div>`;
 }
 
-const when = (iso: string): string =>
-  new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+// Each list's rows, fetched once: Settings drawn again keeps the list (`data-morph="if-changed"`).
+const lists = new WeakMap<HTMLElement, FeedbackRow[]>();
 
 export async function bindFeedback(root: HTMLElement, ctx: Context): Promise<void> {
   const box = root.querySelector<HTMLElement>('[data-feedback-list]');
   const api = ctx.api;
   const site = ctx.ontology.site;
   if (!box || !api || !site) return;
-  let rows: FeedbackRow[] = [];
   const removal = (id: number) => ({ kind: 'feedback' as const, api: api.baseUrl, site: site.id, id: String(id) });
   const draw = (): void => {
-    const shown = rows.filter((f) => !isRemoving(removal(f.id)));
+    const shown = (lists.get(box) ?? []).filter((f) => !isRemoving(removal(f.id)));
     box.innerHTML = shown.length
       ? feedbackListHtml(shown, when)
       : emptyState({
@@ -39,14 +39,13 @@ export async function bindFeedback(root: HTMLElement, ctx: Context): Promise<voi
   };
   const fetch = async (): Promise<void> => {
     try {
-      rows = await api.feedback.list(site.id);
+      lists.set(box, await api.feedback.list(site.id));
     } catch {
       if (box.isConnected) box.innerHTML = loadFailed('The feedback');
       return;
     }
     if (box.isConnected) draw();
   };
-  await fetch();
   box.addEventListener(
     'click',
     (e) => {
@@ -91,6 +90,9 @@ export async function bindFeedback(root: HTMLElement, ctx: Context): Promise<voi
         });
       }
     },
-    { signal: bound() },
+    { signal: bound() }, // added before anything is awaited: this binding's
   );
+  if (lists.has(box)) return; // drawn already, and kept
+  lists.set(box, []);
+  await fetch();
 }

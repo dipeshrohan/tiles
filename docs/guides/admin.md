@@ -246,8 +246,9 @@ Site admins read it, newest first, in the **Feedback** card on the Settings page
 screenshot, and delete one (with Undo for a few seconds). With the API: `GET /sites/{id}/feedback`,
 `GET /sites/{id}/feedback/{n}/screenshot` and `DELETE /sites/{id}/feedback/{n}`. Sending and
 deleting are in the site's audit log; feedback sent without a name is recorded as from
-"Anonymous". The API's request logs still say who made each request, as for any request, so keep
-them to the people who run the deployment.
+"Anonymous", without the request's ID, so it can't be matched to the API's request logs. Logs in
+front of the API (a load balancer's, a proxy's) may still record addresses and times: keep them to
+the people who run the deployment.
 
 ### Models served over HTTP
 

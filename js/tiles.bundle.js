@@ -7770,25 +7770,133 @@
       </li>`;
 		}).join("")}</ul>`;
 	}
+	var STATUS$3 = {
+		proposed: ["warn", "Waiting for review"],
+		accepted: ["good", "Accepted"],
+		rejected: ["bad", "Rejected"]
+	};
+	function statusBadge$3(status) {
+		const [cls, text] = STATUS$3[status];
+		return `<span class="badge ${cls}">${text}</span>`;
+	}
+	function parseActions(text) {
+		const actions = text.split("\n").map((l) => l.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean);
+		if (actions.length > 20) return `At most 20 actions`;
+		if (actions.some((a) => a.length > 500)) return "Keep each action to 500 characters";
+		return actions;
+	}
+	function readDraft(text) {
+		const title = text.title.trim();
+		if (!title) return "Give the insight a title";
+		if (title.length > 200) return "Keep the title to 200 characters";
+		if (text.summary.length > 5e3) return "Keep the summary to 5,000 characters";
+		const actions = parseActions(text.actions);
+		if (typeof actions === "string") return actions;
+		return {
+			title,
+			summary: text.summary.trim(),
+			actions
+		};
+	}
+	var draftText = (d) => ({
+		title: d.title,
+		summary: d.summary,
+		actions: d.actions.join("\n")
+	});
+	function correlationDraft(dataset, r) {
+		const top = r.explanations[0];
+		const title = top ? `${top.variable} separates failed batches${top.segment === "all" ? "" : ` (${top.segment})`}` : `No clear effect in ${dataset}`;
+		const summary = [`${dataset}: ${r.rows} batch(es), ${r.ng} failed.`, ...r.explanations.map((e) => e.text)].join("\n");
+		return {
+			title: title.slice(0, 200),
+			summary,
+			actions: ""
+		};
+	}
+	function seriesDraft(tags, from, to) {
+		return {
+			title: `${tags.join(", ")}`.slice(0, 200),
+			summary: `From ${when$1(from)} to ${when$1(to)}.`,
+			actions: ""
+		};
+	}
+	var when$1 = (iso) => new Date(iso).toLocaleString("en-GB", {
+		dateStyle: "medium",
+		timeStyle: "short"
+	});
+	function draftForm(id, text, busy, submit = "Save insight") {
+		return `<form class="stack insight-form gap-2" id="${esc(id)}">
+      <label class="field">Title<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
+      <label class="field">Summary<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
+      <label class="field">Proposed actions <span class="small soft">(one per line)</span><textarea name="actions" rows="3" placeholder="e.g. Lower anode tension to 1,000 N for a week">${esc(text.actions)}</textarea></label>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
+    </form>`;
+	}
+	function bindDraft(form, text) {
+		form.addEventListener("input", (e) => {
+			const el = e.target;
+			if (el.name === "title" || el.name === "summary" || el.name === "actions") text[el.name] = el.value;
+		}, { signal: bound() });
+	}
+	function sourceText(i) {
+		const q = i.query;
+		if (q.kind === "correlation") {
+			const name = i.evidence.dataset?.name ?? "a dataset";
+			const failed = q.ng_values?.length ? q.ng_values.map(String).join(", ") : "true";
+			const parts = [`Correlation of ${name}: outcome ${q.outcome} (failed when ${failed})`];
+			if (q.split) parts.push(`split by ${q.split}`);
+			parts.push(q.variables?.length ? `variables ${q.variables.join(", ")}` : "every number column");
+			return parts.join(", ");
+		}
+		const tags = i.evidence.series?.map((s) => s.tag) ?? [];
+		return `${tags.length ? tags.join(", ") : `${q.signals.length} signal(s)`} from ${when$1(q.start)} to ${when$1(q.end)}`;
+	}
+	function sourceLink(i) {
+		const q = i.query;
+		if (q.kind === "correlation") return {
+			href: `#/correlate?dataset=${encodeURIComponent(q.dataset_id)}`,
+			text: "Open in the correlation finder"
+		};
+		return {
+			href: `#/explorer?${new URLSearchParams({
+				signals: q.signals.join(","),
+				from: q.start,
+				to: q.end
+			}).toString()}`,
+			text: "Open in the Data explorer"
+		};
+	}
+	var insightLink = (n) => `#/insights/${n}`;
+	function numberFromHash(hash) {
+		const m = hash.match(/^#\/insights\/(\d+)(?:[?/]|$)/);
+		const n = m ? Number(m[1]) : NaN;
+		return Number.isSafeInteger(n) && n > 0 ? n : null;
+	}
+	function mayDo(i, me, role) {
+		const editor = role === "engineer" || role === "admin";
+		const owner = editor && (me !== null && i.author_id === me || role === "admin");
+		return {
+			review: editor && me !== null && i.status === "proposed" && i.author_id !== me,
+			edit: owner && i.status === "proposed",
+			reopen: owner && i.status !== "proposed",
+			remove: owner
+		};
+	}
 	//#endregion
 	//#region js/views/feedback-admin.ts
 	function feedbackCard() {
 		return `<div class="card stack gap-3 span-all" id="feedback">
       <h2>Feedback</h2>
       <p class="small soft">What people on this site sent with Send feedback (in the help panel), newest first. It is anonymous unless they chose to give their name.</p>
-      <div data-feedback-list tabindex="-1">${skeleton.list(3, "Loading the feedback…")}</div>
+      <div data-feedback-list data-morph="if-changed" tabindex="-1">${skeleton.list(3, "Loading the feedback…")}</div>
     </div>`;
 	}
-	var when$2 = (iso) => new Date(iso).toLocaleString("en-GB", {
-		dateStyle: "medium",
-		timeStyle: "short"
-	});
+	var lists = /* @__PURE__ */ new WeakMap();
 	async function bindFeedback(root, ctx) {
 		const box = root.querySelector("[data-feedback-list]");
 		const api = ctx.api;
 		const site = ctx.ontology.site;
 		if (!box || !api || !site) return;
-		let rows = [];
 		const removal = (id) => ({
 			kind: "feedback",
 			api: api.baseUrl,
@@ -7796,8 +7904,8 @@
 			id: String(id)
 		});
 		const draw = () => {
-			const shown = rows.filter((f) => !isRemoving(removal(f.id)));
-			box.innerHTML = shown.length ? feedbackListHtml(shown, when$2) : emptyState({
+			const shown = (lists.get(box) ?? []).filter((f) => !isRemoving(removal(f.id)));
+			box.innerHTML = shown.length ? feedbackListHtml(shown, when$1) : emptyState({
 				compact: true,
 				level: 3,
 				title: "No feedback yet",
@@ -7806,14 +7914,13 @@
 		};
 		const fetch = async () => {
 			try {
-				rows = await api.feedback.list(site.id);
+				lists.set(box, await api.feedback.list(site.id));
 			} catch {
 				if (box.isConnected) box.innerHTML = loadFailed("The feedback");
 				return;
 			}
 			if (box.isConnected) draw();
 		};
-		await fetch();
 		box.addEventListener("click", (e) => {
 			const el = e.target instanceof Element ? e.target : null;
 			const view = el?.closest("[data-feedback-view]");
@@ -7850,6 +7957,9 @@
 				});
 			}
 		}, { signal: bound() });
+		if (lists.has(box)) return;
+		lists.set(box, []);
+		await fetch();
 	}
 	//#endregion
 	//#region js/views/settings.ts
@@ -8378,118 +8488,6 @@
 			});
 		}
 	};
-	var STATUS$3 = {
-		proposed: ["warn", "Waiting for review"],
-		accepted: ["good", "Accepted"],
-		rejected: ["bad", "Rejected"]
-	};
-	function statusBadge$3(status) {
-		const [cls, text] = STATUS$3[status];
-		return `<span class="badge ${cls}">${text}</span>`;
-	}
-	function parseActions(text) {
-		const actions = text.split("\n").map((l) => l.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean);
-		if (actions.length > 20) return `At most 20 actions`;
-		if (actions.some((a) => a.length > 500)) return "Keep each action to 500 characters";
-		return actions;
-	}
-	function readDraft(text) {
-		const title = text.title.trim();
-		if (!title) return "Give the insight a title";
-		if (title.length > 200) return "Keep the title to 200 characters";
-		if (text.summary.length > 5e3) return "Keep the summary to 5,000 characters";
-		const actions = parseActions(text.actions);
-		if (typeof actions === "string") return actions;
-		return {
-			title,
-			summary: text.summary.trim(),
-			actions
-		};
-	}
-	var draftText = (d) => ({
-		title: d.title,
-		summary: d.summary,
-		actions: d.actions.join("\n")
-	});
-	function correlationDraft(dataset, r) {
-		const top = r.explanations[0];
-		const title = top ? `${top.variable} separates failed batches${top.segment === "all" ? "" : ` (${top.segment})`}` : `No clear effect in ${dataset}`;
-		const summary = [`${dataset}: ${r.rows} batch(es), ${r.ng} failed.`, ...r.explanations.map((e) => e.text)].join("\n");
-		return {
-			title: title.slice(0, 200),
-			summary,
-			actions: ""
-		};
-	}
-	function seriesDraft(tags, from, to) {
-		return {
-			title: `${tags.join(", ")}`.slice(0, 200),
-			summary: `From ${when$1(from)} to ${when$1(to)}.`,
-			actions: ""
-		};
-	}
-	var when$1 = (iso) => new Date(iso).toLocaleString("en-GB", {
-		dateStyle: "medium",
-		timeStyle: "short"
-	});
-	function draftForm(id, text, busy, submit = "Save insight") {
-		return `<form class="stack insight-form gap-2" id="${esc(id)}">
-      <label class="field">Title<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
-      <label class="field">Summary<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
-      <label class="field">Proposed actions <span class="small soft">(one per line)</span><textarea name="actions" rows="3" placeholder="e.g. Lower anode tension to 1,000 N for a week">${esc(text.actions)}</textarea></label>
-      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
-    </form>`;
-	}
-	function bindDraft(form, text) {
-		form.addEventListener("input", (e) => {
-			const el = e.target;
-			if (el.name === "title" || el.name === "summary" || el.name === "actions") text[el.name] = el.value;
-		}, { signal: bound() });
-	}
-	function sourceText(i) {
-		const q = i.query;
-		if (q.kind === "correlation") {
-			const name = i.evidence.dataset?.name ?? "a dataset";
-			const failed = q.ng_values?.length ? q.ng_values.map(String).join(", ") : "true";
-			const parts = [`Correlation of ${name}: outcome ${q.outcome} (failed when ${failed})`];
-			if (q.split) parts.push(`split by ${q.split}`);
-			parts.push(q.variables?.length ? `variables ${q.variables.join(", ")}` : "every number column");
-			return parts.join(", ");
-		}
-		const tags = i.evidence.series?.map((s) => s.tag) ?? [];
-		return `${tags.length ? tags.join(", ") : `${q.signals.length} signal(s)`} from ${when$1(q.start)} to ${when$1(q.end)}`;
-	}
-	function sourceLink(i) {
-		const q = i.query;
-		if (q.kind === "correlation") return {
-			href: `#/correlate?dataset=${encodeURIComponent(q.dataset_id)}`,
-			text: "Open in the correlation finder"
-		};
-		return {
-			href: `#/explorer?${new URLSearchParams({
-				signals: q.signals.join(","),
-				from: q.start,
-				to: q.end
-			}).toString()}`,
-			text: "Open in the Data explorer"
-		};
-	}
-	var insightLink = (n) => `#/insights/${n}`;
-	function numberFromHash(hash) {
-		const m = hash.match(/^#\/insights\/(\d+)(?:[?/]|$)/);
-		const n = m ? Number(m[1]) : NaN;
-		return Number.isSafeInteger(n) && n > 0 ? n : null;
-	}
-	function mayDo(i, me, role) {
-		const editor = role === "engineer" || role === "admin";
-		const owner = editor && (me !== null && i.author_id === me || role === "admin");
-		return {
-			review: editor && me !== null && i.status === "proposed" && i.author_id !== me,
-			edit: owner && i.status === "proposed",
-			reopen: owner && i.status !== "proposed",
-			remove: owner
-		};
-	}
 	//#endregion
 	//#region js/lib/wear.ts
 	var HOUR$2 = 36e5;
@@ -16008,6 +16006,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 		return css.replace(/:root\b/g, "[data-shot-root]");
 	}
+	function canCapture(sheets = document.styleSheets) {
+		try {
+			for (const sheet of Array.from(sheets)) sheet.cssRules;
+			return true;
+		} catch {
+			return false;
+		}
+	}
 	var dataUrlBytes = (url) => {
 		const data = url.slice(url.indexOf(",") + 1);
 		return Math.floor(data.length * 3 / 4) - (data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0);
@@ -16015,6 +16021,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function copyOfPage() {
 		const page = document.documentElement;
 		const copy = page.cloneNode(true);
+		let css = "";
+		const all = page.querySelectorAll("*");
+		copy.querySelectorAll("*").forEach((el, i) => {
+			const from = all[i];
+			if (!from || from === document.body || !from.scrollTop && !from.scrollLeft) return;
+			el.setAttribute("data-shot-scroll", String(i));
+			css += `[data-shot-scroll="${i}"]>*{translate:${-from.scrollLeft}px ${-from.scrollTop}px}`;
+		});
 		const fields = page.querySelectorAll("input, textarea, select, canvas");
 		copy.querySelectorAll("input, textarea, select, canvas").forEach((el, i) => {
 			const from = fields[i];
@@ -16035,7 +16049,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		});
 		copy.querySelectorAll("script, link, style, noscript, iframe, dialog, .tooltip, [role=\"tooltip\"], .tour-spot, .tour-pop").forEach((el) => el.remove());
 		copy.setAttribute("data-shot-root", "");
-		return copy;
+		return {
+			copy,
+			css
+		};
 	}
 	var loadImage = (src) => new Promise((resolve, reject) => {
 		const img = new Image();
@@ -16049,10 +16066,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const width = window.innerWidth;
 		const height = window.innerHeight;
 		const view = `[data-shot-root]{width:${width}px;height:${height}px;overflow:hidden}body{margin-top:-${Math.round(window.scrollY)}px}*,*::before,*::after{animation:none!important;transition:none!important}`;
-		const copy = copyOfPage();
+		const { copy, css: scrolled } = copyOfPage();
 		const head = copy.querySelector("head") ?? copy.insertBefore(document.createElement("head"), copy.firstChild);
 		const style = document.createElement("style");
-		style.textContent = css + view;
+		style.textContent = css + view + scrolled;
 		head.append(style);
 		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject x="0" y="0" width="100%" height="100%">${new XMLSerializer().serializeToString(copy)}</foreignObject></svg>`;
 		try {
@@ -17108,7 +17125,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					page: view.title,
 					version: VERSION,
 					name: state.user.name,
-					canShoot: stylesText() !== null
+					canShoot: canCapture()
 				})
 			}, (dialog, close) => {
 				const form = need(dialog, "[data-feedback-form]");
@@ -17150,6 +17167,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					});
 				});
 				dialog.querySelector("[data-feedback-cancel]")?.addEventListener("click", close);
+				form.addEventListener("change", (e) => {
+					const first = form.querySelector("input[name=\"mood\"]");
+					if (first && e.target instanceof HTMLInputElement && e.target.name === "mood") setFieldError(first, null);
+				});
 				let sending = false;
 				form.addEventListener("submit", (e) => {
 					e.preventDefault();
@@ -17157,13 +17178,18 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					const mood = form.querySelector("input[name=\"mood\"]:checked")?.value ?? "";
 					const text = form.querySelector("textarea[name=\"text\"]")?.value ?? "";
 					const errors = [...mood ? [] : [{
-						name: "moods",
+						name: "mood",
 						message: "Choose how Tiles is working for you"
 					}], ...text.trim() ? [] : [{
 						name: "text",
 						message: "Say what you’d like to tell us"
 					}]];
-					if (errors.length) return void showErrors(form, errors);
+					if (errors.length) {
+						showErrors(form, errors);
+						const note = form.querySelector(".moods .field-error");
+						if (note) form.querySelector(".moods > div")?.after(note);
+						return;
+					}
 					clearErrors(form);
 					const named = form.querySelector("input[name=\"named\"]")?.checked ?? false;
 					const button = need(form, "button[type=\"submit\"]");

@@ -26,7 +26,7 @@ def body(**extra: Any) -> dict[str, Any]:
 def audits(database_url: str, entity_id: int) -> list[tuple[Any, ...]]:
     with psycopg.connect(database_url) as conn:
         return conn.execute(
-            "SELECT action, actor_id, actor_name, after, before FROM audit_log"
+            "SELECT action, actor_id, actor_name, after, before, request_id FROM audit_log"
             " WHERE entity_type = 'feedback' AND entity_id = %s ORDER BY id",
             [str(entity_id)],
         ).fetchall()
@@ -72,11 +72,12 @@ def test_feedback_is_anonymous_unless_named_and_admins_list_it(
     with psycopg.connect(database_url) as conn:
         kept = conn.execute("SELECT user_id FROM feedback WHERE id = %s", [anonymous]).fetchone()
     assert kept == (None,)
-    [(action, actor_id, actor_name, after, _)] = audits(database_url, anonymous)
-    assert (action, actor_id, actor_name) == ("feedback.send", None, "Anonymous")
+    # Nor the request's ID, which the API's logs would lead back to them by.
+    [(action, actor_id, actor_name, after, _, request_id)] = audits(database_url, anonymous)
+    assert (action, actor_id, actor_name, request_id) == ("feedback.send", None, "Anonymous", None)
     assert after == {"mood": "unhappy", "page": "explorer", "screenshot": False}
-    [(_, actor_id, _, after, _)] = audits(database_url, named)
-    assert actor_id is not None and after["screenshot"] is True
+    [(_, actor_id, _, after, _, request_id)] = audits(database_url, named)
+    assert actor_id is not None and request_id and after["screenshot"] is True
 
     # The screenshot, as sent, for admins only; none for the one without.
     assert api.get(f"/sites/{site}/feedback/{named}/screenshot", headers=ENG).status_code == 403
@@ -126,3 +127,6 @@ def test_a_site_takes_so_much_feedback_an_hour(api: TestClient, site: str, monke
         assert api.post(f"/sites/{site}/feedback", json=body(), headers=VIEWER).status_code == 201
     res = api.post(f"/sites/{site}/feedback", json=body(), headers=VIEWER)
     assert res.status_code == 429 and res.headers["retry-after"] == "600"
+    # Refused before its screenshot is read.
+    bad = api.post(f"/sites/{site}/feedback", json=body(screenshot="data:image/png;base64,!!"), headers=VIEWER)
+    assert bad.status_code == 429
