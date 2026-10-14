@@ -11282,7 +11282,7 @@
 	}
 	function rowTarget(row) {
 		if (!row) return null;
-		return row.matches("a[href], button") ? row : row.querySelector("a[href]");
+		return row.matches("a[href], button") ? row : row.querySelector("a[href], button.row-open");
 	}
 	var shown$2 = (el) => typeof el.checkVisibility === "function" ? el.checkVisibility() : el.offsetParent !== null;
 	function nextRow(count, current, step) {
@@ -11370,15 +11370,79 @@
 		if (r.status !== "open" || role === null || role === "viewer" || r.author_id === me) return false;
 		return r.reviewer_id === null || r.reviewer_id === me || role === "admin";
 	}
+	var REVIEW_RANK = {
+		open: 0,
+		approved: 1,
+		rejected: 2,
+		withdrawn: 3
+	};
+	function listTable$3(ctx, ui, items) {
+		return {
+			id: "reviews",
+			label: "Change requests",
+			columns: [
+				{
+					key: "request",
+					label: "Change request",
+					value: (r) => r.number,
+					csv: (r) => `#${r.number} ${r.message}`,
+					cell: (r) => `<a class="row-open" href="${reviewLink(r.number)}"${ui.selected === r.number ? " aria-current=\"true\"" : ""}>#${r.number} ${esc(r.message)}</a>`
+				},
+				{
+					key: "status",
+					label: "Status",
+					value: (r) => REVIEW_RANK[r.status] ?? 9,
+					csv: (r) => r.status,
+					cell: (r) => statusBadge$2(r.status)
+				},
+				{
+					key: "author",
+					label: "Author",
+					value: (r) => r.author,
+					csv: (r) => r.author,
+					cell: (r) => `${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)}`
+				},
+				{
+					key: "created",
+					label: "Sent",
+					value: (r) => r.created_at,
+					csv: (r) => r.created_at,
+					cell: (r) => esc(timeAgo(r.created_at))
+				},
+				{
+					key: "reviewer",
+					label: "Reviewer",
+					value: (r) => r.reviewer,
+					cell: (r) => esc(r.reviewer ?? "Anyone")
+				},
+				{
+					key: "comments",
+					label: "Comments",
+					numeric: true,
+					value: (r) => r.comments,
+					cell: (r) => String(r.comments)
+				},
+				{
+					key: "changes",
+					label: "Changes",
+					cell: (r) => stats(r.stats)
+				}
+			],
+			rows: items,
+			key: (r) => String(r.number),
+			empty: "",
+			rowAttrs: (r) => ({
+				"data-review": r.number,
+				class: ui.selected === r.number ? "sel" : void 0
+			}),
+			csv: "change-requests.csv",
+			drawn: () => ctx.rerender()
+		};
+	}
 	function listCard$5(ctx, ui) {
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
 		const items = listing$6?.key === listKey$3(ctx) ? listing$6.items : null;
-		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? skeleton.list() : items.map((r) => `
-        <a class="review-row ${ui.selected === r.number ? "sel" : ""}" href="${reviewLink(r.number)}" data-review="${r.number}" data-key="review-${r.number}"${ui.selected === r.number ? " aria-current=\"true\"" : ""}>
-          <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$2(r.status)}</span>
-          <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
-          <span class="small">${stats(r.stats)}</span>
-        </a>`).join("") || (ui.state === "open" ? emptyState({
+		const empty = ui.state === "open" ? emptyState({
 			illustration: "done",
 			compact: true,
 			title: "Nothing waits for a review",
@@ -11388,7 +11452,8 @@
 			compact: true,
 			title: "No closed change requests yet",
 			body: "Requests that were approved or rejected are kept here, with their discussion."
-		}))}</div></div>`;
+		});
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div data-review-list>${items === null ? skeleton.list() : items.length ? dataTable(listTable$3(ctx, ui, items)) : empty}</div></div>`;
 	}
 	function detailCard$3(ctx, ui) {
 		if (ui.selected === null) return `<div class="card">${emptyState({
@@ -11586,6 +11651,12 @@
 				ui.state = el.dataset.state === "closed" ? "closed" : "open";
 				ctx.rerender();
 			});
+			const items = listing$6?.key === listKey$3(ctx) ? listing$6.items : null;
+			if (items?.length) bindTable(root, listTable$3(ctx, ui, items));
+			onAll(root, "[data-review-list] [data-review]", "click", (row, e) => {
+				if (e.target instanceof Element && e.target.closest("a, button, input")) return;
+				rowTarget(row)?.click();
+			});
 			listKeys(root, "[data-review-list] [data-review]", (row) => row.getAttribute("data-review") === String(ui.selected));
 			onAll(root, "[data-history]", "click", () => showHistory(ctx));
 			onAll(root, "[data-refresh-reviews]", "click", () => {
@@ -11697,6 +11768,103 @@
 			attrs: { "data-tour": "warning-filters" }
 		});
 	}
+	var STATUS_RANK = {
+		raised: 0,
+		acknowledged: 1,
+		resolved: 2
+	};
+	function listTable$2(ctx, ui, items, empty) {
+		return {
+			id: "warnings",
+			label: "Warnings",
+			columns: [
+				{
+					key: "signal",
+					label: "Signal",
+					value: (w) => w.signal_tag,
+					csv: (w) => w.signal_tag,
+					cell: (w) => `<button class="row-open mono" type="button"${ui.selected === w.id ? " aria-current=\"true\"" : ""}>${esc(w.signal_tag)}</button>`
+				},
+				{
+					key: "status",
+					label: "Status",
+					value: (w) => STATUS_RANK[w.status],
+					csv: (w) => w.status,
+					cell: (w) => statusBadge$1(w)
+				},
+				{
+					key: "started",
+					label: "Started",
+					value: (w) => w.started_at,
+					csv: (w) => w.started_at,
+					cell: (w) => esc(ago(w.started_at))
+				},
+				{
+					key: "out",
+					label: "Signal",
+					value: (w) => w.ended_at ? 1 : 0,
+					csv: (w) => w.ended_at ? "back" : "still out",
+					cell: (w) => signalState(w)
+				},
+				{
+					key: "detector",
+					label: "Detector",
+					value: (w) => w.detector,
+					cell: (w) => esc(w.detector)
+				},
+				{
+					key: "assignee",
+					label: "Assigned to",
+					value: (w) => w.assignee,
+					cell: (w) => esc(w.assignee ?? "Unassigned")
+				},
+				{
+					key: "outcome",
+					label: "Outcome",
+					value: (w) => w.outcome ? OUTCOMES[w.outcome] : null,
+					cell: (w) => w.outcome ? esc(OUTCOMES[w.outcome]) : "—"
+				}
+			],
+			rows: items,
+			key: (w) => w.id,
+			empty,
+			rowAttrs: (w) => ({
+				"data-warning": w.id,
+				class: ui.selected === w.id ? "sel" : void 0
+			}),
+			select: actionsFor({ status: "raised" }, ctx.ontology.role).includes("acknowledge") ? {
+				actions: [{
+					id: "acknowledge",
+					label: "Acknowledge",
+					variant: "primary"
+				}],
+				run: (_action, keys) => acknowledgeAll(ctx, keys)
+			} : void 0,
+			csv: "warnings.csv",
+			drawn: () => ctx.rerender()
+		};
+	}
+	async function acknowledgeAll(ctx, keys) {
+		const site = siteId$8(ctx);
+		const api = ctx.api;
+		if (!site || !api) return;
+		const raised = keys.filter((k) => listing$5?.items?.find((w) => w.id === k)?.status === "raised");
+		let done = 0;
+		for (const id of raised) try {
+			await api.warnings.acknowledge(site, id);
+			done++;
+		} catch {
+			break;
+		}
+		ctx.toast(done === 1 ? "1 warning acknowledged" : `${done} warnings acknowledged`, {
+			type: done ? "success" : "info",
+			description: raised.length < keys.length ? `${keys.length - raised.length} selected had been acknowledged already.` : void 0
+		});
+		if (done) ux("task", "warning.acknowledge");
+		listing$5 = null;
+		detail$2 = null;
+		ctx.rerender();
+	}
 	function listCard$4(ctx, ui) {
 		const items = listing$5?.key === listKey$2(ctx) ? listing$5.items : null;
 		const unfiltered = ui.filters.show === "unresolved" && ui.filters.who === "anyone" && ui.filters.signal === "all";
@@ -11724,17 +11892,12 @@
 				attrs: { "data-clear-filters": true }
 			})
 		});
-		const rows = items === null ? skeleton.list() : items.map((w) => `
-        <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}"${ui.selected === w.id ? " aria-current=\"true\"" : ""}>
-          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge$1(w)}</span>
-          <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
-          <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
-        </button>`).join("") || empty;
+		const rows = items === null ? skeleton.list() : items.length ? dataTable(listTable$2(ctx, ui, items, empty)) : empty;
 		const more = items && listing$5?.more ? button("Show older warnings", {
 			size: "sm",
 			attrs: { "data-more-warnings": true }
 		}) : "";
-		return card$1(`<div class="review-list" data-warning-list${rows === empty ? "" : " data-tour=\"warning-list\""}>${rows}</div>${more}`);
+		return card$1(`<div data-warning-list${rows === empty ? "" : " data-tour=\"warning-list\""}>${rows}</div>${more}`);
 	}
 	function chartCard(w) {
 		const fetched = series?.key === seriesKey(w) ? series : null;
@@ -12117,10 +12280,15 @@
 				};
 				ctx.rerender();
 			});
-			onAll(root, "[data-warning]", "click", (el) => {
-				ui.selected = el.dataset.warning ?? null;
+			onAll(root, "[data-warning-list]", "click", (_el, e) => {
+				const t = e.target instanceof Element ? e.target : null;
+				const row = t?.closest("[data-warning]");
+				if (!row || t?.closest(".select-col, .table-tools, .bulk-bar")) return;
+				ui.selected = row.dataset.warning ?? null;
 				ctx.rerender();
 			});
+			const items = listing$5?.key === listKey$2(ctx) ? listing$5.items : null;
+			if (items?.length) bindTable(root, listTable$2(ctx, ui, items, ""));
 			listKeys(root, "[data-warning-list] [data-warning]", (row) => row.getAttribute("data-warning") === ui.selected);
 			onAll(root, ".split-back", "click", () => {
 				linkedWarning = null;
@@ -14967,6 +15135,67 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		};
 		ctx.rerender();
 	}
+	var INSIGHT_RANK = {
+		proposed: 0,
+		accepted: 1,
+		rejected: 2
+	};
+	function listTable$1(ctx, n, items) {
+		return {
+			id: "insights",
+			label: "Insights",
+			columns: [
+				{
+					key: "insight",
+					label: "Insight",
+					value: (i) => i.number,
+					csv: (i) => `#${i.number} ${i.title}`,
+					cell: (i) => `<a class="row-open" href="${insightLink(i.number)}"${n === i.number ? " aria-current=\"true\"" : ""}>#${i.number} ${esc(i.title)}</a>`
+				},
+				{
+					key: "status",
+					label: "Status",
+					value: (i) => INSIGHT_RANK[i.status] ?? 9,
+					csv: (i) => i.status,
+					cell: (i) => statusBadge$3(i.status)
+				},
+				{
+					key: "kind",
+					label: "From",
+					value: (i) => i.kind,
+					cell: (i) => i.kind === "correlation" ? "Correlation" : "Signals"
+				},
+				{
+					key: "author",
+					label: "Author",
+					value: (i) => i.author,
+					cell: (i) => esc(i.author)
+				},
+				{
+					key: "created",
+					label: "Saved",
+					value: (i) => i.created_at,
+					csv: (i) => i.created_at,
+					cell: (i) => esc(when(i.created_at))
+				},
+				{
+					key: "reviewer",
+					label: "Reviewed by",
+					value: (i) => i.reviewer,
+					cell: (i) => esc(i.reviewer ?? "—")
+				}
+			],
+			rows: items,
+			key: (i) => String(i.number),
+			empty: "",
+			rowAttrs: (i) => ({
+				"data-insight": i.number,
+				class: n === i.number ? "sel" : void 0
+			}),
+			csv: "insights.csv",
+			drawn: () => ctx.rerender()
+		};
+	}
 	function listCard$2(ctx, ui) {
 		const tabs = [
 			"proposed",
@@ -14976,15 +15205,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		].map((s) => `<button class="tab ${ui.status === s ? "active" : ""}" data-status="${s}" role="tab">${s === "proposed" ? "To review" : s === "" ? "All" : s === "accepted" ? "Accepted" : "Rejected"}</button>`).join("");
 		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		const n = selected$1();
-		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? skeleton.list() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}" data-key="insight-${i.number}"${n === i.number ? " aria-current=\"true\"" : ""}>
-              <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$3(i.status)}</span>
-              <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when(i.created_at))}</span>
-            </a>`).join("") || emptyState({
+		const empty = emptyState({
 			illustration: ui.status === "proposed" ? "done" : "inbox",
 			compact: true,
 			title: ui.status === "proposed" ? "Nothing waits for review" : "No insights here yet",
 			bodyHtml: `Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.`
-		})}</div>${items && listing$2 && listing$2.total > items.length ? `<p class="small soft">The newest ${items.length} of ${listing$2.total}.</p>` : ""}</div>`;
+		});
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div data-insight-list>${items === null ? skeleton.list() : items.length ? dataTable(listTable$1(ctx, n, items)) : empty}</div>${items && listing$2 && listing$2.total > items.length ? `<p class="small soft">The newest ${items.length} of ${listing$2.total}.</p>` : ""}</div>`;
 	}
 	function evidence(i) {
 		const e = i.evidence;
@@ -15119,6 +15346,12 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			onAll(root, "[data-status]", "click", (el) => {
 				ui.status = el.dataset.status ?? "";
 				ctx.rerender();
+			});
+			const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
+			if (items?.length) bindTable(root, listTable$1(ctx, n, items));
+			onAll(root, "[data-insight-list] [data-insight]", "click", (row, e) => {
+				if (e.target instanceof Element && e.target.closest("a, button, input")) return;
+				rowTarget(row)?.click();
 			});
 			listKeys(root, "[data-insight-list] [data-insight]", (row) => row.getAttribute("data-insight") === String(selected$1()));
 			const i = detail?.key === detailKey(ctx) ? detail.insight : null;
@@ -15834,31 +16067,87 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
       <p class="small soft">Words find their forms (“valves” finds “valve”); “quoted words” find a phrase; -word leaves a word out.</p>
       <div aria-live="polite">${body}</div>`, { class: "stack gap-3" });
 	}
+	function listTable(ctx, items) {
+		const n = opened();
+		return {
+			id: "documents",
+			label: "Documents",
+			columns: [
+				{
+					key: "title",
+					label: "Title",
+					value: (d) => d.title,
+					csv: (d) => d.title,
+					cell: (d) => `<a class="row-open doc-link" href="${docLink(d.number)}"${n === d.number ? " aria-current=\"true\"" : ""}>${esc(d.title)}</a>`
+				},
+				{
+					key: "pages",
+					label: "Pages",
+					numeric: true,
+					value: (d) => d.pages,
+					cell: (d) => String(d.pages)
+				},
+				{
+					key: "size",
+					label: "Size",
+					numeric: true,
+					value: (d) => d.size,
+					csv: (d) => String(d.size),
+					cell: (d) => esc(sizeText(d.size))
+				},
+				{
+					key: "by",
+					label: "Uploaded by",
+					value: (d) => d.uploaded_by,
+					cell: (d) => esc(d.uploaded_by)
+				},
+				{
+					key: "at",
+					label: "Uploaded",
+					value: (d) => d.created_at,
+					csv: (d) => d.created_at,
+					cell: (d) => esc(when(d.created_at))
+				},
+				{
+					key: "actions",
+					label: "Actions",
+					srOnly: true,
+					fixed: true,
+					cell: (d) => `<span class="row gap-1">${button("Open", {
+						size: "sm",
+						attrs: {
+							"data-open": d.number,
+							"data-page": 1
+						}
+					})}${canEdit(ctx) ? button("Archive", {
+						size: "sm",
+						variant: "danger",
+						attrs: {
+							"data-archive-doc": d.number,
+							"aria-label": `Archive ${d.title}`
+						}
+					}) : ""}</span>`
+				}
+			],
+			rows: items,
+			key: (d) => String(d.number),
+			empty: "",
+			rowAttrs: (d) => ({
+				"data-doc": d.number,
+				class: n === d.number ? "sel" : void 0
+			}),
+			csv: "documents.csv",
+			drawn: () => ctx.rerender()
+		};
+	}
 	function listCard(ctx) {
 		const items = listing?.key === siteId(ctx) ? listing.items : null;
-		return card$1(`<h2>Documents</h2><div class="review-list" data-doc-list>${listing?.failed ? errorState({
+		return card$1(`<h2>Documents</h2><div data-doc-list>${listing?.failed ? errorState({
 			title: "The documents could not be loaded",
 			body: "The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.",
 			retry: "retry-docs",
 			compact: true
-		}) : items === null ? skeleton.list() : items.map((d) => `<div class="review-row${opened() === d.number ? " sel" : ""}" data-doc="${d.number}" data-key="doc-${d.number}">
-              <span class="row gap-1_5 justify-between"><a class="doc-link" href="${docLink(d.number)}"${opened() === d.number ? " aria-current=\"true\"" : ""}><b>${esc(d.title)}</b></a>
-              <span class="row gap-1">${button("Open", {
-			size: "sm",
-			attrs: {
-				"data-open": d.number,
-				"data-page": 1
-			}
-		})}${canEdit(ctx) ? button("Archive", {
-			size: "sm",
-			variant: "danger",
-			attrs: {
-				"data-archive-doc": d.number,
-				"aria-label": `Archive ${d.title}`
-			}
-		}) : ""}</span></span>
-              <span class="small muted">${d.pages} page(s) · ${esc(sizeText(d.size))} · ${esc(d.uploaded_by)}</span>
-            </div>`).join("") || emptyState({
+		}) : items === null ? skeleton.list() : items.length ? dataTable(listTable(ctx, items)) : emptyState({
 			illustration: "documents",
 			compact: true,
 			title: "No documents yet",
@@ -15927,6 +16216,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				ctx.rerender();
 			});
 			onAll(root, "[data-open]", "click", (el) => void open(ctx, Number(el.dataset.open), Number(el.dataset.page)));
+			const docs = listing?.key === site ? listing.items : null;
+			if (docs?.length) bindTable(root, listTable(ctx, docs));
 			listKeys(root, "[data-doc-list] [data-doc]", (row) => row.getAttribute("data-doc") === String(opened()));
 			onAll(root, "[data-doc-list] [data-doc]", "click", (row, e) => {
 				if (e.target instanceof Element && e.target.closest("a, button")) return;

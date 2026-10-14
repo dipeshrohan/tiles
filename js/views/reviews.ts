@@ -4,10 +4,11 @@ import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
 import { showHistory } from './ontology.ts';
 import type { Context, View } from './types.ts';
-import { listKeys, recordFromHash, split } from '../lib/split.ts';
+import { listKeys, recordFromHash, rowTarget, split } from '../lib/split.ts';
 import { showHash } from '../lib/url-state.ts';
 import { ApiError } from '../lib/api.ts';
 import { emptyState, errorState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
 
 // Change reviews (T2.12): ontology changes another engineer approves (which
 // commits them) or rejects, with the diff and a comment thread. Requests are
@@ -89,6 +90,56 @@ export function mayDecide(
   return r.reviewer_id === null || r.reviewer_id === me || role === 'admin';
 }
 
+const REVIEW_RANK: Record<string, number> = { open: 0, approved: 1, rejected: 2, withdrawn: 3 };
+
+// The change requests as a table (U5.02): each one's link opens it beside the list.
+function listTable(ctx: Context, ui: Ui, items: ReviewSummary[]): TableOptions<ReviewSummary> {
+  return {
+    id: 'reviews',
+    label: 'Change requests',
+    columns: [
+      {
+        key: 'request',
+        label: 'Change request',
+        value: (r) => r.number,
+        csv: (r) => `#${r.number} ${r.message}`,
+        cell: (r) =>
+          `<a class="row-open" href="${reviewLink(r.number)}"${ui.selected === r.number ? ' aria-current="true"' : ''}>#${r.number} ${esc(r.message)}</a>`,
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        value: (r) => REVIEW_RANK[r.status] ?? 9,
+        csv: (r) => r.status,
+        cell: (r) => statusBadge(r.status),
+      },
+      {
+        key: 'author',
+        label: 'Author',
+        value: (r) => r.author,
+        csv: (r) => r.author,
+        cell: (r) => `${r.source === 'copilot' ? `${COPILOT_BADGE} ` : ''}${esc(r.author)}`,
+      },
+      {
+        key: 'created',
+        label: 'Sent',
+        value: (r) => r.created_at,
+        csv: (r) => r.created_at,
+        cell: (r) => esc(timeAgo(r.created_at)),
+      },
+      { key: 'reviewer', label: 'Reviewer', value: (r) => r.reviewer, cell: (r) => esc(r.reviewer ?? 'Anyone') },
+      { key: 'comments', label: 'Comments', numeric: true, value: (r) => r.comments, cell: (r) => String(r.comments) },
+      { key: 'changes', label: 'Changes', cell: (r) => stats(r.stats) },
+    ],
+    rows: items,
+    key: (r) => String(r.number),
+    empty: '',
+    rowAttrs: (r) => ({ 'data-review': r.number, class: ui.selected === r.number ? 'sel' : undefined }),
+    csv: 'change-requests.csv',
+    drawn: () => ctx.rerender(), // its rows are wired by the page
+  };
+}
+
 function listCard(ctx: Context, ui: Ui): string {
   const tabs = (['open', 'closed'] as const)
     .map(
@@ -97,33 +148,22 @@ function listCard(ctx: Context, ui: Ui): string {
     )
     .join('');
   const items = listing?.key === listKey(ctx) ? listing.items : null;
-  const rows =
-    items === null
-      ? skeleton.list()
-      : items
-          .map(
-            (r) => `
-        <a class="review-row ${ui.selected === r.number ? 'sel' : ''}" href="${reviewLink(r.number)}" data-review="${r.number}" data-key="review-${r.number}"${ui.selected === r.number ? ' aria-current="true"' : ''}>
-          <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
-          <span class="small muted">${r.source === 'copilot' ? `${COPILOT_BADGE} ` : ''}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ''}${r.comments ? ` · ${r.comments} comment(s)` : ''}</span>
-          <span class="small">${stats(r.stats)}</span>
-        </a>`,
-          )
-          .join('') ||
-        (ui.state === 'open'
-          ? emptyState({
-              illustration: 'done',
-              compact: true,
-              title: 'Nothing waits for a review',
-              bodyHtml: 'Send staged changes from the <a href="#/ontology">Ontology</a> page.',
-            })
-          : emptyState({
-              illustration: 'inbox',
-              compact: true,
-              title: 'No closed change requests yet',
-              body: 'Requests that were approved or rejected are kept here, with their discussion.',
-            }));
-  return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${rows}</div></div>`;
+  const empty =
+    ui.state === 'open'
+      ? emptyState({
+          illustration: 'done',
+          compact: true,
+          title: 'Nothing waits for a review',
+          bodyHtml: 'Send staged changes from the <a href="#/ontology">Ontology</a> page.',
+        })
+      : emptyState({
+          illustration: 'inbox',
+          compact: true,
+          title: 'No closed change requests yet',
+          body: 'Requests that were approved or rejected are kept here, with their discussion.',
+        });
+  const rows = items === null ? skeleton.list() : items.length ? dataTable(listTable(ctx, ui, items)) : empty;
+  return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div data-review-list>${rows}</div></div>`;
 }
 
 function detailCard(ctx: Context, ui: Ui): string {
@@ -333,6 +373,13 @@ const view: View = {
     onAll(root, '[data-state]', 'click', (el) => {
       ui.state = el.dataset.state === 'closed' ? 'closed' : 'open';
       ctx.rerender();
+    });
+    const items = listing?.key === listKey(ctx) ? listing.items : null;
+    if (items?.length) bindTable(root, listTable(ctx, ui, items));
+    // The whole row opens its request, as the link in it does.
+    onAll(root, '[data-review-list] [data-review]', 'click', (row, e) => {
+      if (e.target instanceof Element && e.target.closest('a, button, input')) return;
+      rowTarget(row)?.click();
     });
     listKeys(
       root,

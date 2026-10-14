@@ -30,6 +30,7 @@ import {
   apiUnreachable,
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
+import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
 // match with its document and page; the copilot searches them too. Engineers upload and archive.
@@ -217,6 +218,65 @@ function searchCard(ctx: Context): string {
   );
 }
 
+// The documents as a table (U5.02): each title opens the document beside the list; Open shows its
+// first page, Archive takes it off the list (Undo brings it back).
+function listTable(ctx: Context, items: SiteDocument[]): TableOptions<SiteDocument> {
+  const n = opened();
+  return {
+    id: 'documents',
+    label: 'Documents',
+    columns: [
+      {
+        key: 'title',
+        label: 'Title',
+        value: (d) => d.title,
+        csv: (d) => d.title,
+        cell: (d) =>
+          `<a class="row-open doc-link" href="${docLink(d.number)}"${n === d.number ? ' aria-current="true"' : ''}>${esc(d.title)}</a>`,
+      },
+      { key: 'pages', label: 'Pages', numeric: true, value: (d) => d.pages, cell: (d) => String(d.pages) },
+      {
+        key: 'size',
+        label: 'Size',
+        numeric: true,
+        value: (d) => d.size,
+        csv: (d) => String(d.size),
+        cell: (d) => esc(sizeText(d.size)),
+      },
+      { key: 'by', label: 'Uploaded by', value: (d) => d.uploaded_by, cell: (d) => esc(d.uploaded_by) },
+      {
+        key: 'at',
+        label: 'Uploaded',
+        value: (d) => d.created_at,
+        csv: (d) => d.created_at,
+        cell: (d) => esc(when(d.created_at)),
+      },
+      {
+        key: 'actions',
+        label: 'Actions',
+        srOnly: true,
+        fixed: true,
+        cell: (d) =>
+          `<span class="row gap-1">${button('Open', { size: 'sm', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
+            canEdit(ctx)
+              ? button('Archive', {
+                  size: 'sm',
+                  variant: 'danger',
+                  attrs: { 'data-archive-doc': d.number, 'aria-label': `Archive ${d.title}` },
+                })
+              : ''
+          }</span>`,
+      },
+    ],
+    rows: items,
+    key: (d) => String(d.number),
+    empty: '',
+    rowAttrs: (d) => ({ 'data-doc': d.number, class: n === d.number ? 'sel' : undefined }),
+    csv: 'documents.csv',
+    drawn: () => ctx.rerender(), // its buttons are wired by the page
+  };
+}
+
 function listCard(ctx: Context): string {
   const items = listing?.key === siteId(ctx) ? listing.items : null;
   const rows = listing?.failed
@@ -228,31 +288,14 @@ function listCard(ctx: Context): string {
       })
     : items === null
       ? skeleton.list()
-      : items
-          .map(
-            (
-              d,
-            ) => `<div class="review-row${opened() === d.number ? ' sel' : ''}" data-doc="${d.number}" data-key="doc-${d.number}">
-              <span class="row gap-1_5 justify-between"><a class="doc-link" href="${docLink(d.number)}"${opened() === d.number ? ' aria-current="true"' : ''}><b>${esc(d.title)}</b></a>
-              <span class="row gap-1">${button('Open', { size: 'sm', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
-                canEdit(ctx)
-                  ? button('Archive', {
-                      size: 'sm',
-                      variant: 'danger',
-                      attrs: { 'data-archive-doc': d.number, 'aria-label': `Archive ${d.title}` },
-                    })
-                  : ''
-              }</span></span>
-              <span class="small muted">${d.pages} page(s) · ${esc(sizeText(d.size))} · ${esc(d.uploaded_by)}</span>
-            </div>`,
-          )
-          .join('') ||
-        emptyState({
-          illustration: 'documents',
-          compact: true,
-          title: 'No documents yet',
-          body: canEdit(ctx) ? 'Upload SOPs, manuals and lessons learned below.' : undefined,
-        });
+      : items.length
+        ? dataTable(listTable(ctx, items))
+        : emptyState({
+            illustration: 'documents',
+            compact: true,
+            title: 'No documents yet',
+            body: canEdit(ctx) ? 'Upload SOPs, manuals and lessons learned below.' : undefined,
+          });
   const upload = canEdit(ctx)
     ? `<form class="stack gap-2" id="doc-upload">
         <h3>Upload</h3>
@@ -262,7 +305,7 @@ function listCard(ctx: Context): string {
         <div>${button('Upload', { variant: 'primary', type: 'submit', busy: uploading })}</div>
       </form>`
     : '';
-  return card(`<h2>Documents</h2><div class="review-list" data-doc-list>${rows}</div>${upload}`, {
+  return card(`<h2>Documents</h2><div data-doc-list>${rows}</div>${upload}`, {
     class: 'stack gap-2',
   });
 }
@@ -306,6 +349,8 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-open]', 'click', (el) => void open(ctx, Number(el.dataset.open), Number(el.dataset.page)));
+    const docs = listing?.key === site ? listing.items : null;
+    if (docs?.length) bindTable(root, listTable(ctx, docs));
     listKeys(root, '[data-doc-list] [data-doc]', (row) => row.getAttribute('data-doc') === String(opened()));
     // The whole row opens its document, as rows do on the other lists (its buttons do their own).
     onAll(root, '[data-doc-list] [data-doc]', 'click', (row, e) => {

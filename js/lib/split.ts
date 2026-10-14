@@ -29,7 +29,10 @@ export function recordFromHash(page: string, hash: string): number | null {
 // What of a row takes a click and the focus: the row, when it is a link or a button, or its first link.
 export function rowTarget(row: Element | null | undefined): HTMLElement | null {
   if (!row) return null;
-  return row.matches('a[href], button') ? (row as HTMLElement) : row.querySelector<HTMLElement>('a[href]');
+  // A table's row (U5.02) opens its record with the button in its first cell.
+  return row.matches('a[href], button')
+    ? (row as HTMLElement)
+    : row.querySelector<HTMLElement>('a[href], button.row-open');
 }
 
 // Whether a row is shown (a narrow screen hides the list while a record is open).

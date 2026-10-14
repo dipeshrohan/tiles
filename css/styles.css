@@ -2706,6 +2706,33 @@ th .col-resize:focus-visible {
 .table-frame th {
   position: sticky; /* the resize handle's box, and stuck to the top */
 }
+/* A list of records as a table (U5.02): the first cell's button opens the record beside it; the
+   open one's row is marked. */
+.row-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.row-open[aria-current='true'] {
+  color: inherit;
+  text-decoration: none;
+}
+.table-frame tr.sel td {
+  background: var(--accent-soft);
+}
+.table-frame tr.sel td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.table-frame tr[data-warning] {
+  cursor: pointer;
+}
 .bulk-bar {
   display: flex;
   align-items: center;

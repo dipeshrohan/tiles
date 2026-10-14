@@ -3243,7 +3243,7 @@ test('the warnings inbox: see a warning on its signal, acknowledge, assign, reso
   await b.page.click('[data-act=reopen]');
   await b.page.waitForSelector('#toast:has-text("Reopened")');
   await b.page.click('[data-show=unresolved]');
-  await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("For eng2")`);
+  await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("eng2")`);
   assert.deepEqual([...a.errors, ...b.errors], []);
 });
 
