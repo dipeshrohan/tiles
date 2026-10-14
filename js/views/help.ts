@@ -2,6 +2,7 @@
 // section. Each page's help button (in the top bar) shows that page's section in a side sheet, with
 // a link here. The guide is loaded on first use (js/lib/help.ts).
 import { esc, goToAnchor, onAll } from '../lib/dom.ts';
+import { canRun, TOURS } from '../lib/tours.ts';
 import { chapter, helpHref, helpLoaded, loadHelp, type HelpSection } from '../lib/help.ts';
 import { button, errorState, linkButton, pageHead, skeleton } from '../lib/ui.ts';
 import { savedScroll } from '../lib/url-state.ts';
@@ -58,11 +59,25 @@ export function contentsHtml(sections: readonly HelpSection[], current: string |
   return `<nav class="help-toc" aria-label="Contents of the guide"><ul>${items.join('')}</ul></nav>`;
 }
 
+// The guided tours (U4.07), on the guide's first page: each with what it shows and a way to start it.
+export function toursCard(withApi: boolean): string {
+  const rows = TOURS.map((t) => {
+    const can = canRun(t, withApi);
+    const start = button('Start', {
+      size: 'sm',
+      disabled: !can,
+      attrs: { 'data-start-tour': t.id, 'aria-label': `Start the tour: ${t.title}` },
+    });
+    return `<li class="tour-item" data-key="tour-${esc(t.id)}"><div><b>${esc(t.title)}</b><p class="small soft">${esc(t.summary)}${can ? '' : ' It needs the Tiles API.'}</p></div>${start}</li>`;
+  }).join('');
+  return `<section class="card mb-4" aria-labelledby="tours-title"><h2 id="tours-title" class="mb-2">Tours</h2><p class="small soft mb-3">A few steps on the pages themselves. Leave a tour at any step with Escape.</p><ul class="tour-list">${rows}</ul></section>`;
+}
+
 const view: View = {
   id: 'help',
   title: 'Help',
   icon: 'circle-help',
-  render() {
+  render(ctx) {
     wasShown = document.querySelector('#view .help-article') !== null;
     const head = pageHead({
       title: 'Help',
@@ -80,7 +95,8 @@ const view: View = {
         ? `<a class="help-step ${cls}" href="${esc(helpHref(s.slug))}"><span class="small soft">${label}</span>${esc(s.title)}</a>`
         : '<span></span>';
     const steps = `<nav class="help-steps" aria-label="Previous and next">${step(prev, 'Previous', 'prev')}${step(next, 'Next', 'next')}</nav>`;
-    return `${head}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
+    const tours = slug ? '' : toursCard(Boolean(ctx.api));
+    return `${head}${tours}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
   },
   bind(root, ctx) {
     // Drawn again only if the Help page is still the one shown.
@@ -96,6 +112,9 @@ const view: View = {
     };
     // The first-run welcome (U4.06) is the app's: asked for with an event.
     onAll(root, '[data-show-welcome]', 'click', () => document.dispatchEvent(new CustomEvent('tiles:welcome')));
+    onAll(root, '[data-start-tour]', 'click', (el) =>
+      document.dispatchEvent(new CustomEvent('tiles:tour', { detail: el.dataset.startTour })),
+    );
     onAll(root, '[data-help-retry]', 'click', () => {
       failed = null;
       ctx.rerender();

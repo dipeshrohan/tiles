@@ -110,6 +110,8 @@ import {
   welcomeKey,
   type WelcomeContext,
 } from './lib/welcome.ts';
+import { runTour } from './lib/tour.ts';
+import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
 import { searchItems } from './lib/site-search.ts';
 
 const VIEWS: View[] = [
@@ -985,6 +987,30 @@ function firstRun(): void {
   if (shouldWelcome(seen, navigator.webdriver === true) && !document.querySelector('dialog[open]')) void showWelcome();
 }
 document.addEventListener('tiles:welcome', () => void showWelcome());
+
+// ---- guided tours (U4.07) ----------------------------------------------------
+// Started from Help, the command palette or the welcome (the `tiles:tour` event names the tour).
+function startTour(id: string): void {
+  const tour = tourOf(id);
+  if (!tour) return;
+  if (!canRun(tour, Boolean(api))) {
+    toast('This tour needs the Tiles API', {
+      type: 'info',
+      description: 'Connect to it in Settings, under Data source.',
+    });
+    return;
+  }
+  ux('help', `tour.${tour.id}`);
+  runTour(tour, {
+    go: (hash) => {
+      location.hash = hash;
+    },
+    ended: (finished) => {
+      if (finished) ux('task', 'tour.finished');
+    },
+  });
+}
+document.addEventListener('tiles:tour', (e) => startTour((e as CustomEvent<string>).detail));
 const welcomeContext = (): WelcomeContext => ({
   site: api ? (ctx.ontology.site?.name ?? null) : null,
   title: (page) => VIEWS.find((v) => v.id === page)?.title ?? page,
@@ -1009,6 +1035,11 @@ async function showWelcome(): Promise<void> {
       dialog.addEventListener('click', (e) => {
         const el = e.target instanceof Element ? e.target : null;
         if (el?.closest('[data-welcome-skip]')) return close();
+        const tourButton = el?.closest<HTMLElement>('[data-start-tour]');
+        if (tourButton) {
+          close();
+          return startTour(tourButton.dataset.startTour ?? '');
+        }
         const role = roleSetup(el?.closest<HTMLElement>('[data-role]')?.dataset.role ?? '');
         if (!role || !box || chosen) return;
         chosen = true;
@@ -1025,7 +1056,12 @@ async function showWelcome(): Promise<void> {
         void loadHelp()
           .catch(() => null)
           .then((help) => {
-            box.innerHTML = nextHtml(c, role, next, { setUp, helpFor: help?.pages[next.start ?? 'home'] ?? null });
+            const tour = tourOf(ROLE_TOURS[role.id] ?? '');
+            box.innerHTML = nextHtml(c, role, next, {
+              setUp,
+              helpFor: help?.pages[next.start ?? 'home'] ?? null,
+              tour: tour && canRun(tour, Boolean(api)) ? tour : null,
+            });
             box.querySelector<HTMLElement>('a')?.focus();
           });
       });
@@ -1153,6 +1189,14 @@ const palette = installPalette({
         keywords: 'guide how manual explain',
         run: () => void openHelp(),
       },
+      ...TOURS.filter((t) => canRun(t, Boolean(api))).map((t): PaletteItem => ({
+        id: `do:tour:${t.id}`,
+        label: `Take the tour: ${t.title}`,
+        group: 'Actions',
+        icon: 'circle-help',
+        keywords: 'tour guide show me how help',
+        run: () => startTour(t.id),
+      })),
       {
         id: 'do:welcome',
         label: 'Show the welcome',

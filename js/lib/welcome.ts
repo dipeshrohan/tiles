@@ -122,7 +122,7 @@ export function nextHtml(
   c: WelcomeContext,
   role: RoleSetup,
   prefs: NavPrefs,
-  o: { setUp: boolean; helpFor: string | null },
+  o: { setUp: boolean; helpFor: string | null; tour?: { id: string; title: string } | null },
 ): string {
   const pins = role.pins.filter((p) => prefs.pinned.includes(p)).map((p) => `<b>${esc(c.title(p))}</b>`);
   const listed = pins.length > 1 ? `${pins.slice(0, -1).join(', ')} and ${pins.at(-1)}` : (pins[0] ?? '');
@@ -131,6 +131,9 @@ export function nextHtml(
   const actions = [
     o.setUp ? `<a class="btn primary" href="#/onboarding">Set up the site</a>` : '',
     `<a class="btn${o.setUp ? '' : ' primary'}" href="#/${page === 'home' ? '' : esc(page)}">Go to ${esc(start)}</a>`,
+    o.tour
+      ? `<button class="btn" type="button" data-start-tour="${esc(o.tour.id)}">Take the tour: ${esc(o.tour.title)}</button>`
+      : '',
     o.helpFor ? `<a class="btn ghost" href="${esc(helpHref(o.helpFor))}">Read how ${esc(start)} works</a>` : '',
   ].filter(Boolean);
   const opens = `Tiles will open at <b>${esc(start)}</b>`;

@@ -506,7 +506,7 @@ const view: View = {
       )
       .join(' ');
     const rangeBar = range
-      ? `<form id="explorer-range" class="row gap-2 wrap items-end">
+      ? `<form id="explorer-range" class="row gap-2 wrap items-end" data-tour="explorer-range">
           ${(['1h', '24h', '7d', '30d'] as const).map((p) => `<button class="btn sm" type="button" data-preset="${p}">Last ${p}</button>`).join('')}
           <button class="btn sm" type="button" data-preset="data" title="The 24 hours up to the latest reading">Latest data</button>
           <label class="field">From<input type="datetime-local" name="from" value="${localInput(range.from)}"></label>
@@ -529,14 +529,14 @@ const view: View = {
       )
       .join('');
     return `${head}<div class="card stack gap-3">
-        <form id="explorer-search" class="row gap-3 wrap" role="search">
+        <form id="explorer-search" class="row gap-3 wrap" role="search" data-tour="explorer-search">
           <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"${keyAttr('/')}></label>
         </form>
         <div class="row gap-1_5 wrap" data-explorer-found></div>
         ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : '<p class="small soft">Pick up to eight signals to plot them on one time axis.</p>'}
         ${rangeBar}
       </div>
-      <div class="stack gap-3 mt-3" data-charts>${charts}</div>`;
+      <div class="stack gap-3 mt-3" data-charts data-tour="explorer-charts">${charts}</div>`;
   },
   bind(root, ctx) {
     clearTimeout(findTimer);

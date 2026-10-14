@@ -147,7 +147,7 @@ function filterBar(ctx: Context, f: Filters): string {
         )}
         ${button('Refresh', { size: 'sm', attrs: { 'data-refresh-warnings': true } })}
       </span>`,
-    { class: 'source-bar small' },
+    { class: 'source-bar small', attrs: { 'data-tour': 'warning-filters' } },
   );
 }
 
@@ -193,7 +193,7 @@ function listCard(ctx: Context, ui: Ui): string {
           .join('') || empty;
   const more =
     items && listing?.more ? button('Show older warnings', { size: 'sm', attrs: { 'data-more-warnings': true } }) : '';
-  return card(`<div class="review-list" data-warning-list>${rows}</div>${more}`);
+  return card(`<div class="review-list" data-warning-list data-tour="warning-list">${rows}</div>${more}`);
 }
 
 function chartCard(w: WarningDetail): string {
@@ -203,7 +203,7 @@ function chartCard(w: WarningDetail): string {
   if (s === null) return '<p class="small muted">The signal’s readings could not be loaded.</p>';
   const { from, to, start, end } = fetched.range; // the range the readings were fetched for
   const points = toPoints(s);
-  return `<div class="explorer-chart">${timeChart({
+  return `<div class="explorer-chart" data-tour="warning-chart">${timeChart({
     points,
     from,
     to,
@@ -255,7 +255,7 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
   const resolve = has('resolve')
     ? `<span class="row gap-1_5">${field('Outcome', select('outcome', outcomes, ''), { inline: true })}${actButton('Resolve', 'resolve', 'primary')}</span>`
     : '';
-  return `<form class="stack gap-2 mt-2_5" id="warning-form">
+  return `<form class="stack gap-2 mt-2_5" id="warning-form" data-tour="warning-actions">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
       <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy ? 'disabled' : ''}>
         ${has('acknowledge') ? actButton('Acknowledge', 'acknowledge', 'primary') : ''}
