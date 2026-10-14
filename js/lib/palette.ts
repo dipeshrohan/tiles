@@ -1,9 +1,10 @@
 // The command palette (U4.02), after shadcn/ui's Command (cmdk): Ctrl/⌘ K, or "/" outside a field,
-// opens a search over pages and actions, and the site's signals when there is an API. Arrow keys
-// move, Enter runs, Escape closes; the last picks come first. An accessible combobox in a <dialog>.
+// opens a search over pages and actions, and the site's records when there is an API (site search,
+// U4.01). Arrow keys move, Enter runs, Escape closes; the last picks come first, records among them.
+// An accessible combobox in a <dialog>.
 import { ux, uxName } from './analytics.ts';
 import { esc } from './dom.ts';
-import { icon, type IconName } from './icons.ts';
+import { icon, isIconName, type IconName } from './icons.ts';
 import { load, save } from './store.ts';
 
 export interface PaletteItem {
@@ -13,6 +14,7 @@ export interface PaletteItem {
   icon: IconName;
   hint?: string;
   keywords?: string;
+  href?: string; // a record's address: kept among the recent picks, and opened from there
   run(): void;
 }
 
@@ -21,6 +23,11 @@ export interface PaletteSource {
   // More results for a query (the site's signals), when canSearch() says there is something to ask.
   search?(q: string): Promise<PaletteItem[]>;
   canSearch?(): boolean;
+  // Items made of what is typed ("Ask the copilot …"), after the matches.
+  typed?(q: string): PaletteItem[];
+  // Where records come from (the API and site): a record picked comes back among the recent picks
+  // there only.
+  scope?(): string;
 }
 
 // How well an item matches: the label starting with the query, then a word of it, then anywhere,
@@ -57,12 +64,25 @@ export function grouped<T extends Pick<PaletteItem, 'group'>>(items: T[]): T[] {
   return order.flatMap((g) => items.filter((i) => i.group === g));
 }
 
-// The last five pages and actions picked (signals come and go: they aren't kept).
-const recent = (): string[] => {
-  const v = load<unknown>('palette-recent', []);
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-};
-const remember = (id: string): void => save('palette-recent', [id, ...recent().filter((r) => r !== id)].slice(0, 5));
+// The last picks: pages and actions by id, records (a signal, a warning…) with what to show of them
+// and their address. Eight at most.
+type Recent =
+  string | { id: string; label: string; group: string; icon: IconName; hint?: string; href: string; scope: string };
+const recentId = (r: Recent): string => (typeof r === 'string' ? r : r.id);
+export function readRecent(v: unknown): Recent[] {
+  if (!Array.isArray(v)) return [];
+  const ok = (x: Record<string, unknown>): boolean =>
+    ['id', 'label', 'group', 'icon', 'href', 'scope'].every((k) => typeof x[k] === 'string') &&
+    isIconName(String(x.icon)) &&
+    (x.hint === undefined || typeof x.hint === 'string') &&
+    String(x.href).startsWith('#/');
+  return v.filter(
+    (x): x is Recent => typeof x === 'string' || (!!x && typeof x === 'object' && ok(x as Record<string, unknown>)),
+  );
+}
+const recent = (): Recent[] => readRecent(load<unknown>('palette-recent', []));
+const remember = (r: Recent): void =>
+  save('palette-recent', [r, ...recent().filter((x) => recentId(x) !== recentId(r))].slice(0, 8));
 
 const typing = (el: EventTarget | null): boolean =>
   el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
@@ -78,8 +98,8 @@ export function installPalette(source: PaletteSource): { open(): void } {
     d.className = 'dialog palette';
     d.dataset.state = 'open';
     d.setAttribute('aria-label', 'Search pages and actions');
-    const signals = Boolean(source.search && source.canSearch?.() !== false);
-    const what = signals ? 'pages, actions and signals' : 'pages and actions';
+    const site = Boolean(source.search && source.canSearch?.() !== false);
+    const what = site ? 'pages, actions and the site' : 'pages and actions';
     d.innerHTML = `
       <div class="palette-input">${icon('search', { size: 18 })}<input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="Search ${what}" placeholder="Search ${what}…" autocomplete="off" spellcheck="false" /><kbd>Esc</kbd></div>
       <div class="palette-list" id="palette-list" role="listbox" aria-label="Results"></div>
@@ -99,11 +119,26 @@ export function installPalette(source: PaletteSource): { open(): void } {
       const q = input.value;
       const all = source.items();
       let items: PaletteItem[];
-      if (q.trim()) items = grouped([...rank(all, q), ...extra]);
-      else {
+      let matched = 0; // matches, not counting what is made of the query itself
+      if (q.trim()) {
+        const found = grouped([...rank(all, q), ...extra]);
+        matched = found.length;
+        items = [...found, ...(source.typed?.(q.trim()) ?? [])];
+      } else {
         const byId = new Map(all.map((i) => [i.id, i]));
+        const here = source.scope?.() ?? '';
         const recents = recent()
-          .map((id) => byId.get(id))
+          .filter((r) => typeof r === 'string' || r.scope === here) // records of this site only
+          .map((r): PaletteItem | undefined =>
+            typeof r === 'string'
+              ? byId.get(r)
+              : {
+                  ...r,
+                  run: () => {
+                    location.hash = r.href;
+                  },
+                },
+          )
           .filter((i): i is PaletteItem => i !== undefined)
           .map((i) => ({ ...i, group: 'Recent' }));
         items = [...recents, ...all.filter((i) => !recents.some((r) => r.id === i.id))];
@@ -129,8 +164,8 @@ export function installPalette(source: PaletteSource): { open(): void } {
       list.hidden = !items.length; // a listbox holds options, or isn't there
       // What isn't an option goes beside the list, in a status line.
       status.innerHTML = searching
-        ? `${icon('loader-circle', { size: 14 })} Searching signals…`
-        : !items.length
+        ? `${icon('loader-circle', { size: 14 })} Searching the site…`
+        : q.trim() && !matched
           ? `Nothing matches “${esc(q.trim())}”.`
           : '';
       if (items.length) input.setAttribute('aria-activedescendant', `palette-${active}`);
@@ -156,7 +191,17 @@ export function installPalette(source: PaletteSource): { open(): void } {
       const item = shown[n];
       if (!item) return;
       ux('palette', `chose.${uxName(item.group)}`); // the kind of thing chosen, not which (U1.09)
-      if (source.items().some((i) => i.id === item.id)) remember(item.id);
+      if (item.href)
+        remember({
+          id: item.id,
+          label: item.label,
+          group: item.group,
+          icon: item.icon,
+          hint: item.hint,
+          href: item.href,
+          scope: source.scope?.() ?? '',
+        });
+      else if (source.items().some((i) => i.id === item.id)) remember(item.id);
       close();
       item.run();
     };

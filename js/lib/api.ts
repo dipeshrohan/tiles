@@ -114,6 +114,21 @@ export interface SiteDocument {
   uploaded_by: string;
   created_at: string;
 }
+// What site search finds (U4.01): groups of a kind, best first, each with its records.
+export type SearchKind = 'signal' | 'node' | 'warning' | 'insight' | 'document' | 'app';
+export interface SearchResult {
+  kind: SearchKind;
+  id: string; // the record's id or number, as its page links it
+  title: string;
+  detail: string;
+  score: number;
+  page: number | null; // a document: the page its words were found on
+  snippet: string | null; // a document: the words found, between \u0002 and \u0003
+}
+export interface SiteSearch {
+  query: string;
+  groups: { kind: SearchKind; label: string; results: SearchResult[]; more: boolean }[];
+}
 export interface DocumentMatch {
   document: number;
   title: string;
@@ -1046,6 +1061,15 @@ export function createApiClient(options: ApiOptions) {
       revokeScimToken: (id: string) => request<void>('DELETE', `/org/scim-tokens/${encodeURIComponent(id)}`),
       uxAnalytics: () => request<{ enabled: boolean }>('GET', '/org/ux-analytics'),
       setUxAnalytics: (enabled: boolean) => request<{ enabled: boolean }>('PUT', '/org/ux-analytics', { enabled }),
+    },
+    // Search across a site (U4.01): its records of every kind, ranked and grouped by kind.
+    search: (siteId: string, q: string, o: { limit?: number; kinds?: readonly SearchKind[] } = {}) => {
+      const params = new URLSearchParams({ q });
+      if (o.limit) params.set('limit', String(o.limit));
+      for (const k of o.kinds ?? []) params.append('kind', k);
+      return request<SiteSearch>('GET', `/sites/${encodeURIComponent(siteId)}/search?${params}`, undefined, {
+        silent: true,
+      });
     },
     // The menu's counts (U3.06): read quietly (a failure leaves them as they were, with no toast).
     menu: {

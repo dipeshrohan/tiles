@@ -94,8 +94,8 @@ export function safeWorkingGraph(repo: Repo): { graph: Graph; conflict: string |
 
 // The site the app works on: the one saved in settings if it still exists,
 // otherwise the first the API lists.
-export async function pickSite(api: ApiClient, preferred?: string): Promise<Site> {
-  const sites = await api.sites();
+export async function pickSite(api: ApiClient, preferred?: string, listed?: Site[]): Promise<Site> {
+  const sites = listed ?? (await api.sites());
   const site = sites.find((s) => s.id === preferred) ?? sites[0];
   if (!site) throw new Error('The Tiles API has no sites yet. Run `tiles-seed` (Docker Compose does this for you).');
   return site;
