@@ -293,7 +293,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* the shortcuts work, are listed, and are tested; nothing clashes with screen-reader keys.
 - [x] `U4.04` [#233](https://github.com/dipeshrohan/tiles/issues/233) **Contextual help panel** · PM+FE · 3d · U1.06, U2.01
   *Done when:* every page has help, the build fails if a page has none, and links from help land on the right section.
-- [ ] `U4.05` [#234](https://github.com/dipeshrohan/tiles/issues/234) **Glossary and term tooltips** · PM+FE · 3d · U2.01
+- [x] `U4.05` [#234](https://github.com/dipeshrohan/tiles/issues/234) **Glossary and term tooltips** · PM+FE · 3d · U2.01
   *Done when:* the analytics pages (correlate, wear, performance, detectors) explain every statistical term in place.
 - [ ] `U4.06` [#235](https://github.com/dipeshrohan/tiles/issues/235) **First run** · PM+FE · 3d · U2.01
   *Done when:* a new user on the pilot site reaches their first useful page in under 2 minutes in U6.07's test.

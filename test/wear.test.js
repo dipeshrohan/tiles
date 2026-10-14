@@ -87,7 +87,7 @@ test('the result shows its verdict, the baseline and limit, and the recent windo
   assert.match(html, />baseline</);
   assert.match(html, />limit</);
   assert.match(html, /class="span"|<rect/);
-  assert.match(html, /Medians of 96 bucket\(s\)/);
+  assert.match(html.replace(/<[^>]+>/g, ''), /Medians of 96 bucket\(s\)/);
   assert.equal((wearBlock({ ...r, verdict: 'stable' }, null).match(/class="level"/g) ?? []).length, 1);
   assert.match(wearBlock({ ...r, verdict: 'not_enough_data', baseline: null }, null), /Not enough data/);
 });

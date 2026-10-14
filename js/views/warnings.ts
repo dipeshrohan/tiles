@@ -43,6 +43,7 @@ import {
   tabs,
   skeleton,
   apiUnreachable,
+  term,
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
 
@@ -215,7 +216,7 @@ function chartCard(w: WarningDetail): string {
       { v: w.baseline, label: 'baseline' },
     ],
     spans: [{ from: start, to: end }],
-  })}</div>`;
+  })}<p class="small soft mt-1">The ${term('detector', 'detector')} compares each reading with the ${term('baseline', 'baseline')}; a reading past the ${term('threshold', 'threshold')} is out, and enough in a row (its ${term('persistence', 'persistence')}) raise the warning, shaded.</p></div>`;
 }
 
 function actionsForm(ctx: Context, w: WarningDetail): string {

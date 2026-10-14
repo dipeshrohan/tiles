@@ -75,7 +75,7 @@ Ask only about what can't be undone (revoking a token, resetting the workspace).
 
 ## Words Tiles uses
 
-Use these terms, and only these, for these things (the full glossary is U4.05's `docs/ui/glossary.md`):
+Use these terms, and only these, for these things (the full glossary is [glossary.md](glossary.md), which the app shows on its Glossary page and in its term tooltips):
 
 | Say | Not | Meaning |
 | --- | --- | --- |

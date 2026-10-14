@@ -15,6 +15,7 @@
     "test": "vitest run",
     "test:e2e": "node --test --test-concurrency=1 --test-timeout=600000 e2e/*.test.js",
     "icons": "node scripts/icons.js",
+    "glossary": "node scripts/glossary.js",
     "test:visual": "node scripts/visual.js",
     "test:perf": "node --test --test-concurrency=1 --test-timeout=600000 e2e/perf/*.test.js"
   },

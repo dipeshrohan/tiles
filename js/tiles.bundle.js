@@ -2077,6 +2077,7 @@
 		"rocket": "<path d=\"M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5\" /><path d=\"M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09\" /><path d=\"M9 12a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.4 22.4 0 0 1-4 2z\" /><path d=\"M9 12H4s.55-3.03 2-4c1.62-1.08 5 .05 5 .05\" />",
 		"settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\" /><circle cx=\"12\" cy=\"12\" r=\"3\" />",
 		"palette": "<path d=\"M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z\" /><circle cx=\"13.5\" cy=\"6.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"17.5\" cy=\"10.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"6.5\" cy=\"12.5\" r=\".5\" fill=\"currentColor\" /><circle cx=\"8.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\" />",
+		"book-a": "<path d=\"M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20\" /><path d=\"m8 13 4-7 4 7\" /><path d=\"M9.1 11h5.7\" />",
 		"wifi-off": "<path d=\"M12 20h.01\" /><path d=\"M8.5 16.429a5 5 0 0 1 7 0\" /><path d=\"M5 12.859a10 10 0 0 1 5.17-2.69\" /><path d=\"M19 12.859a10 10 0 0 0-2.007-1.523\" /><path d=\"M2 8.82a15 15 0 0 1 4.177-2.643\" /><path d=\"M22 8.82a15 15 0 0 0-11.288-3.764\" /><path d=\"m2 2 20 20\" />",
 		"cloud-off": "<path d=\"M10.94 5.274A7 7 0 0 1 15.71 10h1.79a4.5 4.5 0 0 1 4.222 6.057\" /><path d=\"M18.796 18.81A4.5 4.5 0 0 1 17.5 19H9A7 7 0 0 1 5.79 5.78\" /><path d=\"m2 2 20 20\" />",
 		"menu": "<path d=\"M4 5h16\" /><path d=\"M4 12h16\" /><path d=\"M4 19h16\" />",
@@ -2912,6 +2913,380 @@
 	}
 	var ILLUSTRATIONS = Object.keys(SCENES);
 	//#endregion
+	//#region js/lib/glossary-data.ts
+	var GLOSSARY = {
+		"enterprise": {
+			term: "Enterprise",
+			group: "Factory model",
+			text: "The top of the ISA-95 hierarchy: the company that owns the sites."
+		},
+		"site": {
+			term: "Site",
+			group: "Factory model",
+			text: "One plant, at one location. In Tiles a site also holds its own signals, warnings, people and their roles."
+		},
+		"workcenter": {
+			term: "Workcenter",
+			group: "Factory model",
+			text: "A part of a site that makes one kind of thing, such as a die-casting hall. ISA-95 calls it an area."
+		},
+		"line": {
+			term: "Line",
+			group: "Factory model",
+			text: "A sequence of machines that a part goes through, in a workcenter."
+		},
+		"cell": {
+			term: "Cell",
+			group: "Factory model",
+			text: "A group of machines that work together on a line."
+		},
+		"machine": {
+			term: "Machine",
+			group: "Factory model",
+			text: "One piece of equipment, such as a die-casting machine or a press."
+		},
+		"plc": {
+			term: "PLC",
+			group: "Factory model",
+			text: "The controller on a machine. It emits the machine's signals."
+		},
+		"ontology": {
+			term: "Ontology",
+			group: "Factory model",
+			text: "The map of your factory: nodes, such as sites, lines, machines, PLCs and signals, and the relationships between them."
+		},
+		"node": {
+			term: "Node",
+			group: "Factory model",
+			text: "One thing in the ontology, such as a machine, a line, a PLC or a signal."
+		},
+		"relationship": {
+			term: "Relationship",
+			group: "Factory model",
+			text: "A link between two nodes, such as Line contains Machine or PLC emits Signal."
+		},
+		"staged-change": {
+			term: "Staged change",
+			group: "Factory model",
+			text: "An ontology edit that is not committed yet. Only you see it."
+		},
+		"commit": {
+			term: "Commit",
+			group: "Factory model",
+			text: "A saved set of ontology changes, with a message, an author and a time. A commit can be reverted."
+		},
+		"revert": {
+			term: "Revert",
+			group: "Factory model",
+			text: "A new commit that undoes an earlier one."
+		},
+		"change-request": {
+			term: "Change request",
+			group: "Factory model",
+			text: "Staged ontology changes sent for review, with a number. Another engineer approves it, which commits it, or rejects it."
+		},
+		"signal": {
+			term: "Signal",
+			group: "Plant data",
+			text: "A stream of readings with a tag, a unit and a sample rate. Also the ontology node that stands for it."
+		},
+		"tag": {
+			term: "Tag",
+			group: "Plant data",
+			text: "The name of a signal as it comes from the plant, such as tt-101."
+		},
+		"reading": {
+			term: "Reading",
+			group: "Plant data",
+			text: "One value of a signal at one time."
+		},
+		"sample-rate": {
+			term: "Sample rate",
+			group: "Plant data",
+			text: "How many readings a signal sends each second, in hertz (Hz)."
+		},
+		"edge-agent": {
+			term: "Edge agent",
+			group: "Plant data",
+			text: "A small program on the plant network that reads machines over OPC UA, MQTT or SQL and sends their readings to Tiles. It only reads."
+		},
+		"data-quality": {
+			term: "Data quality",
+			group: "Plant data",
+			text: "The check of a signal's recent readings for gaps, stuck values, values out of range, readings the source flagged and a unit that doesn't match."
+		},
+		"gap": {
+			term: "Gap",
+			group: "Plant data",
+			text: "A stretch with no readings, longer than the signal's sample rate allows."
+		},
+		"stuck-value": {
+			term: "Stuck value",
+			group: "Plant data",
+			text: "The same reading, unchanged, for longer than the signal's stuck limit."
+		},
+		"expected-range": {
+			term: "Expected range",
+			group: "Plant data",
+			text: "The lowest and highest values a signal should have. Readings outside it count against its data quality."
+		},
+		"bucket": {
+			term: "Bucket",
+			group: "Plant data",
+			text: "A stretch of time whose readings are summed up as one point: their average, minimum and maximum, or their median. Long ranges are drawn in buckets."
+		},
+		"virtual-sensor": {
+			term: "Virtual sensor",
+			group: "Models and virtual sensors",
+			text: "A value worked out by a physics model from other measurements, such as plunger friction from pressure and velocity."
+		},
+		"model": {
+			term: "Model",
+			group: "Models and virtual sensors",
+			text: "A calculation with named inputs, outputs and parameters, registered in versions that never change once published."
+		},
+		"binding": {
+			term: "Binding",
+			group: "Models and virtual sensors",
+			text: "A link that feeds a model version's inputs from live signals and writes its outputs to new, derived signals."
+		},
+		"derived-signal": {
+			term: "Derived signal",
+			group: "Models and virtual sensors",
+			text: "A signal that a model writes, rather than the plant."
+		},
+		"residual": {
+			term: "Residual",
+			group: "Models and virtual sensors",
+			text: "The difference between what a model expects and what was measured."
+		},
+		"detector": {
+			term: "Detector",
+			group: "Warnings and detectors",
+			text: "A rule that watches a signal and raises a warning when its readings move too far from their usual level, for long enough."
+		},
+		"baseline": {
+			term: "Baseline",
+			group: "Warnings and detectors",
+			text: "The usual level of a signal: the median of its recent readings, over a rolling window. Detectors and the wear check compare readings with it."
+		},
+		"median": {
+			term: "Median",
+			group: "Warnings and detectors",
+			text: "The middle value: half the readings are above it and half below. Unlike the average, a few odd readings barely move it."
+		},
+		"mad": {
+			term: "MAD",
+			group: "Warnings and detectors",
+			text: "The median absolute deviation: the median distance of the readings from their median. A measure of spread that a few odd readings barely move."
+		},
+		"robust-σ": {
+			term: "Robust σ",
+			group: "Warnings and detectors",
+			text: "The spread of the readings worked out from the MAD (1.4826 × MAD), so a few odd readings don't widen it. For normal data it is close to the standard deviation."
+		},
+		"threshold": {
+			term: "Threshold",
+			group: "Warnings and detectors",
+			text: "The level a reading must pass to count as out: the baseline plus k robust σ (or minus, for a signal watched downwards)."
+		},
+		"k": {
+			term: "k",
+			group: "Warnings and detectors",
+			text: "How many robust σ from the baseline a reading must be to count as out. A larger k raises fewer warnings."
+		},
+		"persistence": {
+			term: "Persistence",
+			group: "Warnings and detectors",
+			text: "How many readings in a row must be out before a warning is raised, so a single spike raises none."
+		},
+		"cooldown": {
+			term: "Cooldown",
+			group: "Warnings and detectors",
+			text: "How many readings must pass after a warning ends before the detector can raise another on the same signal."
+		},
+		"warning": {
+			term: "Warning",
+			group: "Warnings and detectors",
+			text: "What a detector raises when a signal is out. People acknowledge, assign and resolve it."
+		},
+		"acknowledge": {
+			term: "Acknowledge",
+			group: "Warnings and detectors",
+			text: "Mark a new warning as seen. It moves from New to Acknowledged."
+		},
+		"outcome": {
+			term: "Outcome",
+			group: "Warnings and detectors",
+			text: "What a resolved warning turned out to be: a true alarm, a false alarm or unknown."
+		},
+		"event": {
+			term: "Event",
+			group: "Warnings and detectors",
+			text: "A reading on a signal that stands for downtime, scrap or another event, its value the event's code."
+		},
+		"asset": {
+			term: "Asset",
+			group: "Warnings and detectors",
+			text: "A machine as your MES names it, such as DC-01. Event signals and detectors carry an asset, so events can be matched to warnings."
+		},
+		"warning-time": {
+			term: "Warning time",
+			group: "Warnings and detectors",
+			text: "How long before an event its warning started. Longer gives more time to act."
+		},
+		"percentile": {
+			term: "Percentile",
+			group: "Warnings and detectors",
+			text: "The value below which that share of the values fall: the 10th percentile (p10) is above the lowest tenth, the 90th (p90) below the highest tenth."
+		},
+		"recall": {
+			term: "Recall",
+			group: "Warnings and detectors",
+			text: "The share of events that a warning came before: the events warned of."
+		},
+		"precision": {
+			term: "Precision",
+			group: "Warnings and detectors",
+			text: "The share of warnings that an event followed. The rest were false."
+		},
+		"false-per-day": {
+			term: "False per day",
+			group: "Warnings and detectors",
+			text: "Warnings that no event followed, per day of the period."
+		},
+		"backtest": {
+			term: "Backtest",
+			group: "Warnings and detectors",
+			text: "Replaying a signal's history through a detector with different settings, to see which would have warned of past events with fewest false warnings."
+		},
+		"batch-table": {
+			term: "Batch table",
+			group: "Analysis",
+			text: "A table with one row per batch: its settings and measurements, and whether it failed. The correlation finder reads it."
+		},
+		"outcome-column": {
+			term: "Outcome column",
+			group: "Analysis",
+			text: "The column of a batch table that says whether each batch failed."
+		},
+		"segment": {
+			term: "Segment",
+			group: "Analysis",
+			text: "A part of the batches, such as one material, line or shift, looked at on its own."
+		},
+		"effect": {
+			term: "Effect",
+			group: "Analysis",
+			text: "How differently a variable ran in failed batches than in good ones."
+		},
+		"cohens-d": {
+			term: "Cohen's d",
+			group: "Analysis",
+			text: "The size of an effect: the difference between the failed and the good batches' means, in standard deviations. 0.2 is small, 0.5 medium, 0.8 or more large."
+		},
+		"confidence-interval": {
+			term: "Confidence interval",
+			group: "Analysis",
+			text: "The range the true value most likely lies in: with a 95% interval, 95 times in 100. An interval that includes 0 means there may be no effect at all."
+		},
+		"point-biserial-r": {
+			term: "Point-biserial r",
+			group: "Analysis",
+			text: "The correlation between a variable and failing, from −1 to 1: how closely the variable follows failure. 0 is none."
+		},
+		"forest-plot": {
+			term: "Forest plot",
+			group: "Analysis",
+			text: "A chart of effects, each a point with its confidence interval as a line, against a line at 0."
+		},
+		"wear": {
+			term: "Wear",
+			group: "Analysis",
+			text: "A slow drift of a signal as a part wears, such as friction rising as a plunger tip wears."
+		},
+		"wear-check": {
+			term: "Wear check",
+			group: "Analysis",
+			text: "A comparison of a signal's recent level with its baseline, saying whether it is wearing and, given a limit, when it may reach it."
+		},
+		"theilsen-slope": {
+			term: "Theil–Sen slope",
+			group: "Analysis",
+			text: "How fast a signal is drifting: the median of the slopes between every pair of points, so a few odd points don't tilt it."
+		},
+		"time-to-limit": {
+			term: "Time to limit",
+			group: "Analysis",
+			text: "How long until a drifting signal reaches its limit, at its current slope."
+		},
+		"spc": {
+			term: "SPC",
+			group: "Analysis",
+			text: "Statistical process control: a control chart's centre line and limits, from a baseline, and rules that say when a process has gone out of control."
+		},
+		"control-limits": {
+			term: "Control limits",
+			group: "Analysis",
+			text: "The lines three standard deviations above and below a control chart's centre line. A point outside them is out of control."
+		},
+		"western-electric-rules": {
+			term: "Western Electric rules",
+			group: "Analysis",
+			text: "Rules that find an out-of-control process on a control chart from runs of points, not only points outside the limits, such as 8 points in a row on one side of the centre."
+		},
+		"app": {
+			term: "App",
+			group: "Analysis",
+			text: "A check set up from an App Studio template on one of your signals, such as a wear check or SPC limits."
+		},
+		"insight": {
+			term: "Insight",
+			group: "Analysis",
+			text: "A saved finding: the question, the evidence and proposed actions, reviewed by another engineer."
+		},
+		"document": {
+			term: "Document",
+			group: "Copilot, documents and design",
+			text: "An SOP, manual or other file uploaded to a site, searched by its words, page by page."
+		},
+		"copilot": {
+			term: "Copilot",
+			group: "Copilot, documents and design",
+			text: "The assistant that answers questions from your site's data and cites where each answer comes from."
+		},
+		"grounding": {
+			term: "Grounding",
+			group: "Copilot, documents and design",
+			text: "The check that every number and name in a copilot answer comes from a cited source or from your question."
+		},
+		"citation": {
+			term: "Citation",
+			group: "Copilot, documents and design",
+			text: "A numbered mark in a copilot answer, such as [1], that links to the tool result the words come from."
+		},
+		"run": {
+			term: "Run",
+			group: "Copilot, documents and design",
+			text: "One evaluation of a design model version with a set of parameters, saved with its result, author and the run before it."
+		},
+		"project": {
+			term: "Project",
+			group: "Copilot, documents and design",
+			text: "A shared folder of design runs on a site."
+		},
+		"sweep": {
+			term: "Sweep",
+			group: "Copilot, documents and design",
+			text: "A grid of runs over one or two parameters, shown as a heat map."
+		},
+		"audit-record": {
+			term: "Audit record",
+			group: "Copilot, documents and design",
+			text: "A file with a design run, its whole lineage, the model specifications and a digest that shows nothing was changed."
+		}
+	};
+	//#endregion
 	//#region js/lib/ui.ts
 	function emptyState(o) {
 		const body = o.bodyHtml ?? (o.body ? esc(o.body) : "");
@@ -2994,6 +3369,16 @@
 			...o.attrs
 		})}>${icon(name)}</button>`;
 	}
+	function term(key, text) {
+		const t = GLOSSARY[key];
+		const shown = text ?? t.term;
+		return `<button${attrs({
+			class: "term",
+			type: "button",
+			"data-tooltip": shown.toLowerCase() === t.term.toLowerCase() ? t.text : `${t.term}: ${t.text}`,
+			"data-term": key
+		})}>${esc(shown)}</button>`;
+	}
 	function linkButton(label, href, o = {}) {
 		return `<a${attrs({
 			class: buttonClass(o),
@@ -3032,7 +3417,7 @@
 	function pageHead(o) {
 		const h = `h${o.level ?? 1}`;
 		const focusable = h === "h1" ? " tabindex=\"-1\"" : "";
-		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<${h} class="page-title"${focusable}>${esc(o.title)}</${h}>${o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
+		return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ""}<${h} class="page-title"${focusable}>${esc(o.title)}</${h}>${o.leadHtml ? `<p class="soft">${o.leadHtml}</p>` : o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ""}</div>${o.actionsHtml ?? ""}</div>`;
 	}
 	function input(o) {
 		return `<input${attrs({
@@ -3169,7 +3554,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$21 = {
+	var view$22 = {
 		id: "home",
 		title: "Home",
 		icon: "house",
@@ -4255,7 +4640,7 @@
 		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 	}
 	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$10(ctx) && remote$1?.configured && remote$1.enabled);
-	var view$20 = {
+	var view$21 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "sparkles",
@@ -5458,7 +5843,7 @@
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "ontology") linkedNode = null;
 	});
-	var view$19 = {
+	var view$20 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "network",
@@ -6103,7 +6488,7 @@
 		split: true,
 		variable: "tension"
 	});
-	var view$18 = {
+	var view$19 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "gauge",
@@ -6149,7 +6534,7 @@
 
       <div class="grid g2 mb-4">
         <div class="card">
-          <div class="card-head"><h2>Effect size by variable</h2><p>Cohen's d, failed vs healthy · |d| ≥ 0.8 is strong</p></div>
+          <div class="card-head"><h2>Effect size by variable</h2><p>${term("cohens-d")}, failed vs healthy · |d| ≥ 0.8 is strong</p></div>
           ${hbars({
 				items: effects,
 				width: 480,
@@ -6220,7 +6605,7 @@
 				height: 260
 			})}
         <div class="grid g2 mt-3">
-          <div><h3>Proposed action</h3><p class="soft">Monitor both triggers: cycle counter <i>and</i> median welding power. When power crosses the wear threshold, replace the tip even if the counter hasn't reached its swap point. Wear started around hour ${wearStart}.</p></div>
+          <div><h3>Proposed action</h3><p class="soft">Monitor both triggers: cycle counter <i>and</i> median welding power. When power crosses the ${term("wear", "wear")} threshold, replace the tip even if the counter hasn't reached its swap point. Wear started around hour ${wearStart}.</p></div>
           <div class="kpi"><div class="label">Power-based warning</div><div class="value">${fmt$1(warnHours)} h</div><div class="note">before the scheduled swap · threshold baseline +5% (${fmt$1(threshold)} W)</div></div>
         </div>
       </div>`;
@@ -6243,7 +6628,7 @@
 	//#endregion
 	//#region js/views/physics.ts
 	var uiState$11 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$17 = {
+	var view$18 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "atom",
@@ -6269,7 +6654,7 @@
       <div class="grid g4 mb-4">
         <div class="card kpi"><div class="label">Shots analysed</div><div class="value">${fmt$1(hist.length)}</div><div class="note">${fmt$1(toH(hist.length), 0)} h of production</div></div>
         <div class="card kpi good"><div class="label">Stops predicted</div><div class="value">${predicted.length}/${scored.length}</div><div class="note">seizure &amp; lubrication codes</div></div>
-        <div class="card kpi"><div class="label">Average lead time</div><div class="value">${fmt$1(lead, 1)} h</div><div class="note">from first warning to stop</div></div>
+        <div class="card kpi"><div class="label">Average ${term("warning-time", "warning time")}</div><div class="value">${fmt$1(lead, 1)} h</div><div class="note">from first warning to stop</div></div>
         <div class="card kpi"><div class="label">Downtime covered</div><div class="value">${fmt$1(predicted.reduce((a, x) => a + x.durationMin, 0))} min</div><div class="note">of ${fmt$1(scored.reduce((a, x) => a + x.durationMin, 0))} min recorded</div></div>
       </div>
 
@@ -6359,12 +6744,12 @@
         <div class="card">
           <div class="card-head"><h2>How it works</h2><span class="badge">model v1.3</span></div>
           <h3>Input data</h3>
-          <ul class="actions-list soft"><li>Shot payloads: plunger displacement, velocity, hydraulic &amp; metal pressure</li><li>Past 200 shots for a rolling baseline</li></ul>
+          <ul class="actions-list soft"><li>Shot payloads: plunger displacement, velocity, hydraulic &amp; metal pressure</li><li>Past 200 shots for a rolling ${term("baseline", "baseline")}</li></ul>
           <h3 class="mt-3">The physics</h3>
-          <p class="soft mt-1">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the median residual is the shot's friction.</p>
+          <p class="soft mt-1">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the ${term("median", "median")} ${term("residual", "residual")} is the shot's friction, a ${term("virtual-sensor", "virtual sensor")}.</p>
           <p class="small muted mt-1">m = ${PLUNGER.mass} kg · A<sub>h</sub> = ${PLUNGER.hydraulicArea} m² · A<sub>m</sub> = ${PLUNGER.metalArea} m²</p>
           <h3 class="mt-3">Output</h3>
-          <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots above median + 4 robust σ</li></ul>
+          <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots (its ${term("persistence", "persistence")}) above the ${term("threshold", "threshold")}: the median + 4 (${term("k")}) ${term("robust-σ", "robust σ")}</li></ul>
           <h3 class="mt-3">How it is used</h3>
           <p class="soft mt-1">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
         </div>
@@ -6621,7 +7006,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$16 = {
+	var view$17 = {
 		id: "design",
 		title: "Design studio",
 		icon: "drafting-compass",
@@ -7648,7 +8033,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$15 = {
+	var view$16 = {
 		id: "settings",
 		title: "Settings",
 		icon: "settings",
@@ -7962,7 +8347,7 @@
 		return `<div class="stack gap-1_5" data-wear-result>
       <p><span class="badge ${cls}">${label}</span> ${esc(r.text)}</p>
       ${chart}
-      <p class="small soft">Medians of ${esc(String(r.baseline_buckets + r.recent_buckets))} bucket(s); the shaded part is the recent window.</p>
+      <p class="small soft">${term("median", "Medians")} of ${esc(String(r.baseline_buckets + r.recent_buckets))} ${term("bucket", "bucket(s)")}; the shaded part is the recent window, compared with the ${term("baseline", "baseline")} before it. A ${term("wear-check", "wear check")} measures the drift as a ${term("theilsen-slope", "Theil–Sen slope")} and, given a limit, the ${term("time-to-limit", "time to limit")}.</p>
     </div>`;
 	}
 	//#endregion
@@ -7982,7 +8367,7 @@
 		ctx.auth.signedIn
 	].join("|");
 	var searchTimer;
-	var ui$1 = (ctx) => ctx.ui("signals", {
+	var ui$2 = (ctx) => ctx.ui("signals", {
 		query: {
 			q: "",
 			source: "",
@@ -8178,7 +8563,7 @@
     </td></tr>`;
 	}
 	function resultsTable(ctx, page, canEdit) {
-		if (!page.signals.length) return Object.values(ui$1(ctx).query).some(Boolean) ? emptyState({
+		if (!page.signals.length) return Object.values(ui$2(ctx).query).some(Boolean) ? emptyState({
 			illustration: "search",
 			compact: true,
 			level: 3,
@@ -8200,7 +8585,7 @@
 				icon: "upload"
 			}) : void 0
 		});
-		const { editing, open } = ui$1(ctx);
+		const { editing, open } = ui$2(ctx);
 		const more = page.total > page.signals.length ? ` Showing the first ${page.signals.length}; narrow the search to see others.` : "";
 		return `<p class="small soft" data-signal-count>${esc(fmt$1(page.total, 0))} signal(s).${esc(more)}</p>
     ${table({
@@ -8235,11 +8620,11 @@
 		if (!ctx.api || !site || !root.querySelector("#signal-search")) return;
 		const mine = ++latestSearch;
 		const from = catalogue$1(ctx);
-		const query = JSON.stringify(ui$1(ctx).query);
+		const query = JSON.stringify(ui$2(ctx).query);
 		let page = null;
 		try {
 			page = await ctx.api.signals.list(site.id, {
-				...ui$1(ctx).query,
+				...ui$2(ctx).query,
 				limit: PAGE$2
 			});
 		} catch {}
@@ -8276,16 +8661,16 @@
 	}
 	function bindResults(root, ctx) {
 		onAll(root, "[data-quality]", "click", (el) => {
-			const u = ui$1(ctx);
+			const u = ui$2(ctx);
 			u.open = u.open === el.dataset.quality ? null : el.dataset.quality ?? null;
 			fill(root, ctx);
 		});
 		onAll(root, "[data-edit]", "click", (el) => {
-			ui$1(ctx).editing = el.dataset.edit ?? null;
+			ui$2(ctx).editing = el.dataset.edit ?? null;
 			fill(root, ctx);
 		});
 		onAll(root, "[data-cancel-edit]", "click", () => {
-			ui$1(ctx).editing = null;
+			ui$2(ctx).editing = null;
 			fill(root, ctx);
 		});
 		onSubmit(root, "#signal-form", (form) => {
@@ -8317,7 +8702,7 @@
 				return;
 			}
 			if (!Object.keys(change).length) {
-				ui$1(ctx).editing = null;
+				ui$2(ctx).editing = null;
 				fill(root, ctx);
 				return;
 			}
@@ -8326,7 +8711,7 @@
 			return ctx.api.signals.update(site.id, sig.id, change).then((updated) => {
 				saving$2 = null;
 				if (results) results.signals = results.signals.map((s) => s.id === updated.id ? updated : s);
-				if (ui$1(ctx).editing === sig.id) ui$1(ctx).editing = null;
+				if (ui$2(ctx).editing === sig.id) ui$2(ctx).editing = null;
 				ctx.toast(`Saved ${updated.tag}`);
 				ux("task", "signal.saved");
 				fill(root, ctx);
@@ -8363,7 +8748,7 @@
 	}
 	function mappingHtml(ctx) {
 		if (!mapping || mapping.for !== catalogue$1(ctx)) return "";
-		const skipped = new Set(ui$1(ctx).skipped);
+		const skipped = new Set(ui$2(ctx).skipped);
 		const items = mapping.items.filter((s) => !skipped.has(s.signal_id));
 		const staged = mapping.staged.length ? `<p class="small">Your staged change adds a node for ${mapping.staged.map((t) => `<code>${esc(t)}</code>`).join(", ")}: commit it on the <a href="#/ontology">Ontology</a> page, then suggest again to link it.</p>` : "";
 		if (!mapping.unmapped) return "<p class=\"small soft\">Every tag is linked to an ontology node.</p>";
@@ -8399,7 +8784,7 @@
 				staged: out.staged,
 				items: out.suggestions
 			};
-			ui$1(ctx).skipped = [];
+			ui$2(ctx).skipped = [];
 		} catch {} finally {
 			suggesting = false;
 		}
@@ -8429,12 +8814,12 @@
 			});
 		});
 		onAll(root, "[data-skip]", "click", (el) => {
-			if (el.dataset.skip) ui$1(ctx).skipped = [...ui$1(ctx).skipped, el.dataset.skip];
+			if (el.dataset.skip) ui$2(ctx).skipped = [...ui$2(ctx).skipped, el.dataset.skip];
 			fillMapping(root, ctx);
 		});
 		onAll(root, "[data-accept-links]", "click", () => {
 			if (linkingAll) return;
-			const skipped = new Set(ui$1(ctx).skipped);
+			const skipped = new Set(ui$2(ctx).skipped);
 			const links = (mapping?.items ?? []).filter((s) => s.kind === "link" && !skipped.has(s.signal_id));
 			linkingAll = true;
 			fillMapping(root, ctx);
@@ -8451,13 +8836,13 @@
 			})();
 		});
 	}
-	var view$14 = {
+	var view$15 = {
 		id: "signals",
 		title: "Signals",
 		icon: "activity",
 		query: {
 			read(params, ctx) {
-				ui$1(ctx).query = {
+				ui$2(ctx).query = {
 					q: (params.get("q") ?? "").slice(0, 200),
 					source: oneOf(params.get("source"), SIGNAL_SOURCES, ""),
 					linked: oneOf(params.get("linked"), LINKED, ""),
@@ -8465,7 +8850,7 @@
 				};
 			},
 			write(ctx) {
-				return { ...ui$1(ctx).query };
+				return { ...ui$2(ctx).query };
 			}
 		},
 		render(ctx) {
@@ -8476,7 +8861,7 @@
 			});
 			if (!ctx.api) return `${head}${card$1(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
 			if (!ctx.ontology.site) return `${head}${ctx.ontology.status === "error" ? apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) }) : card$1(skeleton.card("Loading the site from the Tiles API…"))}`;
-			const { query } = ui$1(ctx);
+			const { query } = ui$2(ctx);
 			return `${head}${card$1(`${`<form id="signal-search" class="row gap-3 wrap" role="search">
           ${field$1("Search", input({
 				type: "search",
@@ -8525,11 +8910,11 @@
 			const form = root.querySelector("#signal-search");
 			if (!form) return;
 			clearTimeout(searchTimer);
-			if (results && resultsFor === catalogue$1(ctx) && resultsQuery === JSON.stringify(ui$1(ctx).query)) fill(root, ctx);
+			if (results && resultsFor === catalogue$1(ctx) && resultsQuery === JSON.stringify(ui$2(ctx).query)) fill(root, ctx);
 			else results = null;
 			search$1(root, ctx);
 			const update = () => {
-				const u = ui$1(ctx);
+				const u = ui$2(ctx);
 				u.query = {
 					q: field$2(form, "q"),
 					source: field$2(form, "source"),
@@ -8564,7 +8949,7 @@
 			checkButton?.addEventListener("click", () => {
 				const site = ctx.ontology.site;
 				if (!ctx.api || !site || checking) return;
-				const current = results && resultsFor === catalogue$1(ctx) && resultsQuery === JSON.stringify(ui$1(ctx).query);
+				const current = results && resultsFor === catalogue$1(ctx) && resultsQuery === JSON.stringify(ui$2(ctx).query);
 				const ids = current ? results?.signals.map((s) => s.id) ?? [] : [];
 				if (!ids.length) {
 					ctx.toast(current ? "No signals listed to check" : "Wait for the list to load, then check it");
@@ -8594,7 +8979,7 @@
 		"7d": 168 * HOUR$1,
 		"30d": 720 * HOUR$1
 	};
-	var ui = (ctx) => ctx.ui("explorer", {
+	var ui$1 = (ctx) => ctx.ui("explorer", {
 		picked: [],
 		range: null,
 		catalogue: ""
@@ -8634,7 +9019,7 @@
 	}
 	function showWear(box, ctx) {
 		const w = wearOf(box.dataset.wear ?? "");
-		const r = w.result?.key === wearKey(box.dataset.wear ?? "", ui(ctx).range, w) ? w.result : null;
+		const r = w.result?.key === wearKey(box.dataset.wear ?? "", ui$1(ctx).range, w) ? w.result : null;
 		const out = box.querySelector("[data-wear-out]");
 		if (out) out.innerHTML = r ? wearBlock(r.data, r.limit, fitWidth(TIME_CHART.width)) : "";
 		const button = box.querySelector("button[type=submit]");
@@ -8659,7 +9044,7 @@
 	}
 	async function checkWear(ctx, box) {
 		const site = ctx.ontology.site;
-		const { range } = ui(ctx);
+		const { range } = ui$1(ctx);
 		const id = box.dataset.wear ?? "";
 		const w = wearOf(id);
 		if (w.busy) return;
@@ -8757,11 +9142,11 @@
 		return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 	};
 	function setRange(ctx, range) {
-		ui(ctx).range = range;
+		ui$1(ctx).range = range;
 		ctx.rerender();
 	}
 	function add(ctx, s) {
-		const u = ui(ctx);
+		const u = ui$1(ctx);
 		if (u.picked.some((p) => p.id === s.id)) return;
 		if (u.picked.length >= MAX_SIGNALS) {
 			ctx.toast(`Plot at most ${MAX_SIGNALS} signals at once; remove one first`);
@@ -8781,7 +9166,7 @@
 	}
 	function loadCharts(root, ctx) {
 		const site = ctx.ontology.site;
-		const { picked, range } = ui(ctx);
+		const { picked, range } = ui$1(ctx);
 		if (!ctx.api || !site || !range) return;
 		const mine = ++latestLoad;
 		for (const p of picked) {
@@ -8857,7 +9242,7 @@
 				})).signals;
 			} catch {}
 			if (mine !== latestFind || !list.isConnected) return;
-			const picked = new Set(ui(ctx).picked.map((p) => p.id));
+			const picked = new Set(ui$1(ctx).picked.map((p) => p.id));
 			const choices = found.filter((s) => !picked.has(s.id));
 			list.innerHTML = choices.length ? choices.map((s) => `<button class="btn sm" type="button" data-add="${esc(s.id)}">+ ${esc(s.tag)}${s.unit ? ` <span class="soft">${esc(s.unit)}</span>` : ""}</button>`).join("") : "<span class=\"small soft\">No other signals match: try part of a tag, or its unit.</span>";
 			onAll(list, "[data-add]", "click", (el) => {
@@ -8922,7 +9307,7 @@
 				last_at: r.value.last_at
 			}] : []);
 			if (!picked.length) return;
-			Object.assign(ui(ctx), {
+			Object.assign(ui$1(ctx), {
 				picked,
 				range: range ?? presetRange("data", picked, Date.now())
 			});
@@ -8931,7 +9316,7 @@
 	}
 	async function saveInsight$1(ctx) {
 		const site = ctx.ontology.site;
-		const u = ui(ctx);
+		const u = ui$1(ctx);
 		if (!ctx.api || !site || !u.range || !saving$1 || saving$1.key !== chartsKey(u) || savingBusy) return;
 		const draft = readDraft(saving$1.text);
 		if (typeof draft === "string") return void ctx.toast(draft);
@@ -8954,13 +9339,13 @@
 			ctx.rerender();
 		}
 	}
-	var view$13 = {
+	var view$14 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "chart-line",
 		query: {
 			read(params, ctx) {
-				const u = ui(ctx);
+				const u = ui$1(ctx);
 				if (params.get("signal") || params.get("tag")) linkParams = params;
 				else if (linkIds(params).length) {
 					if (!(linkIds(params).join() === u.picked.map((p) => p.id).join() && JSON.stringify(linkRange(params)) === JSON.stringify(u.range))) linkParams = params;
@@ -8974,7 +9359,7 @@
 					"from",
 					"to"
 				].map((k) => [k, linkParams?.get(k)]));
-				const u = ui(ctx);
+				const u = ui$1(ctx);
 				const ids = u.picked.map((p) => p.id).join(",");
 				return {
 					signals: ids || null,
@@ -8990,7 +9375,7 @@
 				lead: "Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in."
 			});
 			if (!ctx.api || !ctx.ontology.site) return `${head}<div class="card">${needsApi(`Readings are kept in the Tiles API.`)}</div>`;
-			const u = ui(ctx);
+			const u = ui$1(ctx);
 			if (u.catalogue !== catalogue$1(ctx)) Object.assign(u, {
 				picked: [],
 				range: null,
@@ -9037,15 +9422,15 @@
 			addFromLink(ctx);
 			bindSearch(root, ctx);
 			onAll(root, "[data-remove]", "click", (el) => {
-				const u = ui(ctx);
+				const u = ui$1(ctx);
 				u.picked = u.picked.filter((p) => p.id !== el.dataset.remove);
 				if (!u.picked.length) u.range = null;
 				ctx.rerender();
 			});
 			const form = root.querySelector("#explorer-range");
-			const range = ui(ctx).range;
+			const range = ui$1(ctx).range;
 			if (form && range) {
-				onAll(form, "[data-preset]", "click", (el) => setRange(ctx, presetRange(el.dataset.preset, ui(ctx).picked, Date.now())));
+				onAll(form, "[data-preset]", "click", (el) => setRange(ctx, presetRange(el.dataset.preset, ui$1(ctx).picked, Date.now())));
 				onAll(form, "[data-pan]", "click", (el) => setRange(ctx, pan(range, el.dataset.pan === "-1" ? -1 : 1)));
 				onAll(form, "[data-zoom-out]", "click", () => setRange(ctx, zoomOut(range)));
 				form.addEventListener("submit", (e) => {
@@ -9071,7 +9456,7 @@
 				}, { signal: bound() });
 			}
 			onAll(root, "[data-save-insight]", "click", () => {
-				const u = ui(ctx);
+				const u = ui$1(ctx);
 				if (!u.range) return;
 				saving$1 = {
 					key: chartsKey(u),
@@ -9365,7 +9750,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$12 = {
+	var view$13 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "git-pull-request",
@@ -9717,7 +10102,7 @@
 				from: start,
 				to: end
 			}]
-		})}</div>`;
+		})}<p class="small soft mt-1">The ${term("detector", "detector")} compares each reading with the ${term("baseline", "baseline")}; a reading past the ${term("threshold", "threshold")} is out, and enough in a row (its ${term("persistence", "persistence")}) raise the warning, shaded.</p></div>`;
 	}
 	function actionsForm(ctx, w) {
 		const actions = actionsFor(w, ctx.ontology.role);
@@ -9991,7 +10376,7 @@
 		});
 		location.hash = "#/warnings";
 	}
-	var view$11 = {
+	var view$12 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "triangle-alert",
@@ -10515,7 +10900,7 @@
 		}
 		await fetchWarnings(ctx, true);
 	}
-	var view$10 = {
+	var view$11 = {
 		id: "shopfloor",
 		title: "Shopfloor",
 		icon: "hard-hat",
@@ -10825,7 +11210,7 @@
 			body: "Search by a site’s, line’s or machine’s name, or part of it."
 		})}</div>`;
 	}
-	var view$9 = {
+	var view$10 = {
 		id: "plant",
 		title: "Plant",
 		icon: "factory",
@@ -11156,7 +11541,7 @@ heartbeat_seconds = 30
     </p>
     ${data.next === null ? "<p role=\"status\"><b>This site is set up.</b> Next, add detectors to raise warnings (Warnings page) and invite the team.</p>" : ""}`;
 	}
-	var view$8 = {
+	var view$9 = {
 		id: "onboarding",
 		title: "Set up a site",
 		icon: "rocket",
@@ -11695,7 +12080,7 @@ tabs({ … }), .review-row.sel, .seg button.active      // the highlight moves f
 		["icons", "Icons"],
 		["illustrations", "Illustrations"]
 	];
-	var view$7 = {
+	var view$8 = {
 		id: "styleguide",
 		title: "Style guide",
 		icon: "palette",
@@ -11839,12 +12224,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				label: "Events warned of",
 				value: share(t.recall),
 				note: `${t.caught} of ${t.events} downtime or scrap event(s)`,
+				term: "recall",
 				tone: t.recall === null ? "" : t.recall >= .5 ? "good" : "bad"
 			},
 			{
 				label: "Warnings an event followed",
 				value: share(t.precision),
 				note: `${t.true_warnings} of ${t.true_warnings + t.false_warnings}${t.pending_warnings ? `; ${t.pending_warnings} too recent to tell` : ""}`,
+				term: "precision",
 				tone: ""
 			},
 			{
@@ -11857,6 +12244,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				label: "Warning time (median)",
 				value: t.warning_seconds ? duration(t.warning_seconds.median) : "–",
 				note: t.warning_seconds ? `${duration(t.warning_seconds.p10)} to ${duration(t.warning_seconds.p90)} (10th to 90th percentile)` : "no event warned of yet",
+				term: "warning-time",
 				tone: ""
 			}
 		];
@@ -11935,7 +12323,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const unwatched = r.unwatched.length ? `<p class="small soft" data-unwatched>No detector watches ${r.unwatched.map((u) => `${esc(u.asset)} (${u.events} event(s))`).join(", ")}: set a detector’s asset to count them.</p>` : "";
 		return `<div class="card stack gap-2_5">
       <h2>By detector</h2>
-      ${r.detectors.length ? `<div class="table-wrap"><table><thead><tr><th>Detector</th><th>Asset</th><th>Warnings</th><th>Events warned of</th><th>Followed by an event</th><th>False per day</th><th>Warning time (median, p10 to p90)</th><th>Resolved as</th></tr></thead><tbody>${rows}</tbody></table></div>` : emptyState({
+      ${r.detectors.length ? `<div class="table-wrap"><table><thead><tr><th>${term("detector", "Detector")}</th><th>${term("asset", "Asset")}</th><th>Warnings</th><th>Events warned of (${term("recall", "recall")})</th><th>Followed by an event (${term("precision", "precision")})</th><th>${term("false-per-day", "False per day")}</th><th>${term("warning-time", "Warning time")} (median, ${term("percentile", "p10 to p90")})</th><th>Resolved as (${term("outcome", "outcome")})</th></tr></thead><tbody>${rows}</tbody></table></div>` : emptyState({
 			illustration: "chart",
 			compact: true,
 			level: 3,
@@ -11957,7 +12345,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		})}
     </div>`;
 	}
-	var view$6 = {
+	var view$7 = {
 		id: "performance",
 		title: "Warning performance",
 		icon: "target",
@@ -11965,7 +12353,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const head = pageHead({
 				eyebrow: "Operations · Detection",
 				title: "Warning performance",
-				lead: "How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead."
+				leadHtml: `How the ${term("warning", "warnings")} did against the downtime and scrap the MES reported: the ${term("event", "events")} they warned of, the warnings an event followed, and how far ahead.`
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
 			const o = ctx.ontology;
@@ -11978,7 +12366,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			else if (fetched?.key !== key || !fetched.report) body = `<div class="card">${skeleton.table(4, 6, "Loading the warnings and events…")}</div>`;
 			else {
 				const r = fetched.report;
-				body = `<div class="grid g4" data-kpis>${kpis(r.totals).map((k) => `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`).join("")}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
+				body = `<div class="grid g4" data-kpis>${kpis(r.totals).map((k) => `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}${k.term ? ` (${term(k.term, GLOSSARY[k.term].term.toLowerCase())})` : ""}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`).join("")}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
 			}
 			return `${head}${controls(u)}<div class="stack gap-4 mt-4">${body}</div>`;
 		},
@@ -12562,13 +12950,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
     </div>`;
 	}
 	function resultBlock(r, split) {
-		const said = r.explanations.length ? `<ul class="stack gap-1" data-explanations>${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join("")}</ul>` : "<p class=\"small soft\" data-explanations>No large, clear effect (|d| ≥ 0.8 with an interval that leaves out 0).</p>";
+		const said = r.explanations.length ? `<ul class="stack gap-1" data-explanations>${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join("")}</ul>` : `<p class="small soft" data-explanations>No large, clear effect (|${term("cohens-d", "d")}| ≥ 0.8 with an ${term("confidence-interval", "interval")} that leaves out 0).</p>`;
 		const rows = r.findings.slice(0, 50).map((f) => `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? "–" : fmt$1(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? "–" : fmt$1(f.ok_mean, 2)}</td><td><b>${f.effect.toFixed(2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? "–" : `${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)}`}${f.clear ? "" : " <span class=\"small soft\">(could be 0)</span>"}</td><td>${f.r.toFixed(2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`).join("");
 		return `<div class="stack gap-2_5" data-result>
       <p class="small soft">${fmt$1(r.rows, 0)} batch(es) with an outcome: ${fmt$1(r.ng, 0)} failed, ${fmt$1(r.ok, 0)} good.</p>
       ${said}
+      <p class="small soft">A ${term("forest-plot", "forest plot")}: each effect’s point with its interval as a line, against 0.</p>
       ${forestPlot(r.findings, split)}
-      <div class="table-wrap"><table><thead><tr><th>Segment</th><th>Variable</th><th>Failed mean</th><th>Good mean</th><th>d</th><th>95% CI</th><th>r</th><th>Failed / good</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>${term("segment", "Segment")}</th><th>Variable</th><th>Failed mean</th><th>Good mean</th><th>${term("cohens-d", "d")}</th><th>95% ${term("confidence-interval", "CI")}</th><th>${term("point-biserial-r", "r")}</th><th>Failed / good</th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 	}
 	async function uploadFile(ctx, file, name) {
@@ -12735,7 +13124,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			ctx.rerender();
 		}
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "correlate",
 		title: "Correlation finder",
 		icon: "chart-scatter",
@@ -12743,7 +13132,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const head = pageHead({
 				eyebrow: "Data · Analysis",
 				title: "Correlation finder",
-				lead: "Which settings separate failed batches from good ones: each variable’s effect (Cohen’s d) with its 95% confidence interval, overall or per material, line or shift."
+				leadHtml: `Which settings separate failed batches from good ones in a ${term("batch-table", "batch table")}: each variable’s ${term("effect", "effect")} (${term("cohens-d")}) with its 95% ${term("confidence-interval", "confidence interval")}, overall or per ${term("segment", "material, line or shift")}.`
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
 			const o = ctx.ontology;
@@ -13010,7 +13399,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			ctx.rerender();
 		}
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "insights",
 		title: "Insights",
 		icon: "lightbulb",
@@ -13465,7 +13854,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			ctx.rerender();
 		}
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "apps",
 		title: "App Studio",
 		icon: "layout-grid",
@@ -13815,7 +14204,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		})}</div>
       </form>` : ""}`, { class: "stack gap-2" });
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "documents",
 		title: "Documents",
 		icon: "file-text",
@@ -14165,7 +14554,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		ctx.toast(failure || unfinished ? "Import stopped by an error" : state.cancelled ? "Import stopped" : `Imported ${l.fileName}`);
 		ctx.rerender();
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "import",
 		title: "Import data",
 		icon: "upload",
@@ -14312,7 +14701,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var failed = null;
 	var waiting = false;
 	var shownSlug = null;
-	var wasShown = false;
+	var wasShown$1 = false;
 	var heading = (s, ids) => {
 		const h = s.level === 3 ? "h3" : "h2";
 		return `<${h}${ids ? ` id="help-${esc(s.slug)}" tabindex="-1"` : ""}>${esc(s.title)}</${h}>`;
@@ -14336,15 +14725,16 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 		return `<nav class="help-toc" aria-label="Contents of the guide"><ul>${items.join("")}</ul></nav>`;
 	}
-	var view = {
+	var view$1 = {
 		id: "help",
 		title: "Help",
 		icon: "circle-help",
 		render() {
-			wasShown = document.querySelector("#view .help-article") !== null;
+			wasShown$1 = document.querySelector("#view .help-article") !== null;
 			const head = pageHead({
 				title: "Help",
-				lead: "The user guide: what each page is for and how to use it. Each page’s help button opens its part."
+				lead: "The user guide: what each page is for and how to use it. Each page’s help button opens its part.",
+				actionsHtml: linkButton("Glossary", "#/glossary", { icon: "book-a" })
 			});
 			const data = helpLoaded();
 			if (!data && failed) return `${head}${errorState({
@@ -14380,7 +14770,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}
 			if (!root.querySelector(".help-article")) return;
 			const slug = helpSlug(location.hash);
-			if (!slug || wasShown && slug === shownSlug || !wasShown && savedScroll() > 0) {
+			if (!slug || wasShown$1 && slug === shownSlug || !wasShown$1 && savedScroll() > 0) {
 				shownSlug = slug;
 				return;
 			}
@@ -14407,6 +14797,106 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				label: section.title,
 				href: helpHref(section.slug)
 			}] : [];
+		}
+	};
+	//#endregion
+	//#region js/views/glossary.ts
+	var ui = (ctx) => ctx.ui("glossary", { q: "" });
+	var ENTRIES = Object.keys(GLOSSARY).map((key) => ({
+		key,
+		...GLOSSARY[key]
+	}));
+	function findTerms(q, entries = ENTRIES) {
+		const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+		const has = (s) => words.every((w) => s.toLowerCase().includes(w));
+		const found = words.length ? entries.filter((e) => has(e.term) || has(`${e.term} ${e.text}`)) : [...entries];
+		const groups = [];
+		for (const e of found) (groups.find((x) => x.group === e.group) ?? groups[groups.push({
+			group: e.group,
+			entries: []
+		}) - 1])?.entries.push(e);
+		return groups;
+	}
+	function termFromHash(hash) {
+		const m = /^#\/glossary\/([^?/]+)/.exec(hash);
+		if (!m?.[1]) return null;
+		let key;
+		try {
+			key = decodeURIComponent(m[1]);
+		} catch {
+			return null;
+		}
+		return key in GLOSSARY ? key : null;
+	}
+	var shownKey = null;
+	var wasShown = false;
+	var view = {
+		id: "glossary",
+		title: "Glossary",
+		icon: "book-a",
+		under: "help",
+		render(ctx) {
+			wasShown = document.querySelector("#view .glossary") !== null;
+			const { q } = ui(ctx);
+			const head = pageHead({
+				eyebrow: "Help",
+				title: "Glossary",
+				lead: "The words Tiles uses, in plain words. On a page, a word with a dotted underline is one of them: point at it, Tab to it or tap it."
+			});
+			const search = `<div class="row gap-3 wrap mb-4" role="search">${field$1("Find a term", input({
+				type: "search",
+				name: "q",
+				value: q,
+				placeholder: "e.g. baseline, Cohen",
+				attrs: {
+					autocomplete: "off",
+					...keyAttrs("/")
+				}
+			}), { class: "grow min-w-field" })}</div>`;
+			const groups = findTerms(q);
+			const current = termFromHash(location.hash);
+			return `${head}${search}${groups.length ? groups.map((g) => `<section class="card glossary mb-4" data-key="${esc(g.group)}"><h2 class="mb-3">${esc(g.group)}</h2><dl>${g.entries.map((e) => `<dt id="term-${esc(e.key)}" tabindex="-1" data-key="${esc(e.key)}"${e.key === current ? " class=\"sel\"" : ""}>${esc(e.term)}</dt><dd data-key="${esc(e.key)}-text">${esc(e.text)}</dd>`).join("")}</dl></section>`).join("") : emptyState({
+				illustration: "search",
+				title: "No term matches",
+				body: "Try fewer or other words."
+			})}`;
+		},
+		bind(root, ctx) {
+			onAll(root, "input[name=q]", "input", (el) => {
+				ui(ctx).q = el.value;
+				ctx.rerender();
+			});
+			const key = termFromHash(location.hash);
+			if (!key || wasShown && key === shownKey || !wasShown && savedScroll() > 0) {
+				shownKey = key;
+				return;
+			}
+			shownKey = key;
+			requestAnimationFrame(() => {
+				const dt = root.querySelector(`#term-${CSS.escape(key)}`);
+				if (!dt) return;
+				dt.focus({ preventScroll: true });
+				const margin = parseFloat(getComputedStyle(dt).scrollMarginTop) || 0;
+				window.scrollTo({
+					top: dt.getBoundingClientRect().top + window.scrollY - margin,
+					behavior: scrollBehavior()
+				});
+			});
+		},
+		crumbs() {
+			const key = termFromHash(location.hash);
+			return key ? [{
+				label: GLOSSARY[key].term,
+				href: `#/glossary/${encodeURIComponent(key)}`
+			}] : [];
+		},
+		query: {
+			read(params, ctx) {
+				ui(ctx).q = params.get("q") ?? "";
+			},
+			write(ctx) {
+				return { q: ui(ctx).q || null };
+			}
 		}
 	};
 	//#endregion
@@ -14588,12 +15078,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var owner = (e) => e.target instanceof Element ? e.target.closest("[data-tooltip], button[aria-keyshortcuts], a[aria-keyshortcuts]") : null;
 	function installTooltips(root = document) {
 		root.addEventListener("pointerover", (e) => {
+			if (e.pointerType === "touch") return;
 			const el = owner(e);
 			if (!el || el === target) return;
 			hide();
 			timer = setTimeout(() => show(el), 400);
 		});
 		root.addEventListener("pointerout", (e) => {
+			if (e.pointerType === "touch") return;
 			if (owner(e) && !(e.relatedTarget instanceof Node && owner(e)?.contains(e.relatedTarget))) hide();
 		});
 		root.addEventListener("focusin", (e) => {
@@ -14605,7 +15097,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (e.key === "Escape" && target) hide();
 		});
 		window.addEventListener("scroll", hide, { passive: true });
-		root.addEventListener("click", hide);
+		root.addEventListener("click", (e) => {
+			const word = e.target instanceof Element ? e.target.closest(".term[data-tooltip]") : null;
+			if (word && word !== target) {
+				hide();
+				show(word);
+			} else hide();
+		});
 	}
 	function score(item, query) {
 		const q = query.trim().toLowerCase();
@@ -14869,66 +15367,67 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$22,
 		view$21,
 		view$20,
-		view$19,
+		view$13,
 		view$12,
 		view$11,
 		view$10,
-		view$9,
-		view$6,
+		view$7,
+		view$19,
 		view$18,
 		view$17,
-		view$16,
+		view$15,
 		view$14,
-		view$13,
+		view$6,
 		view$5,
 		view$4,
 		view$3,
 		view$2,
-		view$1,
+		view$9,
+		view$16,
 		view$8,
-		view$15,
-		view$7,
+		view$1,
 		view
 	];
 	var NAV = [
-		{ items: [view$21, view$20] },
+		{ items: [view$22, view$21] },
 		{
 			group: "Operations",
 			items: [
-				view$10,
-				view$9,
-				view$19,
-				view$12,
 				view$11,
-				view$6,
-				view$18,
-				view$17
+				view$10,
+				view$20,
+				view$13,
+				view$12,
+				view$7,
+				view$19,
+				view$18
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$15,
 				view$14,
-				view$13,
+				view$6,
 				view$5,
 				view$4,
 				view$3,
-				view$2,
-				view$1
+				view$2
 			]
 		},
 		{
 			group: "Design",
-			items: [view$16]
+			items: [view$17]
 		},
 		{
 			group: "",
 			items: [
-				view$8,
-				view$15,
-				view
+				view$9,
+				view$16,
+				view$1
 			]
 		}
 	];
@@ -14989,7 +15488,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			return;
 		}
 		state.scored;
-		if (currentView() === view$21) renderSoon();
+		if (currentView() === view$22) renderSoon();
 		else renderNav(currentView());
 	}
 	var uiChecked = /* @__PURE__ */ new Set();
@@ -15327,7 +15826,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	};
 	function currentView() {
 		const id = routeOf(location.hash);
-		return VIEWS.find((v) => v.id === id) ?? view$21;
+		return VIEWS.find((v) => v.id === id) ?? view$22;
 	}
 	var NAV_GROUPS = NAV.map((g, i) => ({
 		id: g.group ? g.group.toLowerCase() : `g${i}`,
@@ -15471,7 +15970,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}
 		}
 		renderNav(view);
-		document.title = view === view$21 ? "Tiles" : `${view.title} · Tiles`;
+		document.title = view === view$22 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		const params = queryOf(location.hash);
 		if (view.query && location.hash !== addressed && [...params].length) view.query.read(params, ctx);
@@ -15494,7 +15993,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				label: v.title,
 				href: `#/${v.id}`
 			})),
-			...view === view$21 ? [] : [{
+			...view === view$22 ? [] : [{
 				label: view.title,
 				href: `#/${view.id}`
 			}],
@@ -15750,6 +16249,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					run: () => void openHelp()
 				},
 				{
+					id: "do:glossary",
+					label: "Glossary",
+					group: "Actions",
+					icon: "book-a",
+					keywords: "terms words meaning definitions",
+					run: go("#/glossary")
+				},
+				{
 					id: "do:shortcuts",
 					label: "Keyboard shortcuts",
 					group: "Actions",
@@ -15786,11 +16293,21 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const helpFound = guide ? helpItems(guide, (href) => {
 				location.hash = href;
 			}) : [];
+			const terms = ENTRIES.map((e) => ({
+				id: `term:${e.key}`,
+				label: e.term,
+				group: "Glossary",
+				icon: "book-a",
+				hint: e.group,
+				late: true,
+				run: go(`#/glossary/${encodeURIComponent(e.key)}`)
+			}));
 			return [
 				...pages,
 				...actions,
 				...sites,
-				...helpFound
+				...helpFound,
+				...terms
 			];
 		},
 		canSearch: () => Boolean(api && ctx.ontology.site),

@@ -3,7 +3,7 @@ import { createRng } from '../lib/rng.ts';
 import { fitWidth, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll, bound } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
-import { badge, pageHead } from '../lib/ui.ts';
+import { badge, pageHead, term } from '../lib/ui.ts';
 
 const uiState = (ctx: Context) =>
   ctx.ui<{ shot: number }>('physics', { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
@@ -36,7 +36,7 @@ const view: View = {
       <div class="grid g4 mb-4">
         <div class="card kpi"><div class="label">Shots analysed</div><div class="value">${fmt(hist.length)}</div><div class="note">${fmt(toH(hist.length), 0)} h of production</div></div>
         <div class="card kpi good"><div class="label">Stops predicted</div><div class="value">${predicted.length}/${scored.length}</div><div class="note">seizure &amp; lubrication codes</div></div>
-        <div class="card kpi"><div class="label">Average lead time</div><div class="value">${fmt(lead, 1)} h</div><div class="note">from first warning to stop</div></div>
+        <div class="card kpi"><div class="label">Average ${term('warning-time', 'warning time')}</div><div class="value">${fmt(lead, 1)} h</div><div class="note">from first warning to stop</div></div>
         <div class="card kpi"><div class="label">Downtime covered</div><div class="value">${fmt(predicted.reduce((a, x) => a + x.durationMin, 0))} min</div><div class="note">of ${fmt(scored.reduce((a, x) => a + x.durationMin, 0))} min recorded</div></div>
       </div>
 
@@ -90,12 +90,12 @@ const view: View = {
         <div class="card">
           <div class="card-head"><h2>How it works</h2><span class="badge">model v1.3</span></div>
           <h3>Input data</h3>
-          <ul class="actions-list soft"><li>Shot payloads: plunger displacement, velocity, hydraulic &amp; metal pressure</li><li>Past 200 shots for a rolling baseline</li></ul>
+          <ul class="actions-list soft"><li>Shot payloads: plunger displacement, velocity, hydraulic &amp; metal pressure</li><li>Past 200 shots for a rolling ${term('baseline', 'baseline')}</li></ul>
           <h3 class="mt-3">The physics</h3>
-          <p class="soft mt-1">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the median residual is the shot's friction.</p>
+          <p class="soft mt-1">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the ${term('median', 'median')} ${term('residual', 'residual')} is the shot's friction, a ${term('virtual-sensor', 'virtual sensor')}.</p>
           <p class="small muted mt-1">m = ${PLUNGER.mass} kg · A<sub>h</sub> = ${PLUNGER.hydraulicArea} m² · A<sub>m</sub> = ${PLUNGER.metalArea} m²</p>
           <h3 class="mt-3">Output</h3>
-          <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots above median + 4 robust σ</li></ul>
+          <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots (its ${term('persistence', 'persistence')}) above the ${term('threshold', 'threshold')}: the median + 4 (${term('k')}) ${term('robust-σ', 'robust σ')}</li></ul>
           <h3 class="mt-3">How it is used</h3>
           <p class="soft mt-1">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
         </div>

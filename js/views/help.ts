@@ -3,7 +3,7 @@
 // a link here. The guide is loaded on first use (js/lib/help.ts).
 import { esc, onAll, scrollBehavior } from '../lib/dom.ts';
 import { chapter, helpHref, helpLoaded, loadHelp, type HelpSection } from '../lib/help.ts';
-import { errorState, pageHead, skeleton } from '../lib/ui.ts';
+import { errorState, linkButton, pageHead, skeleton } from '../lib/ui.ts';
 import { savedScroll } from '../lib/url-state.ts';
 import type { View } from './types.ts';
 
@@ -67,6 +67,7 @@ const view: View = {
     const head = pageHead({
       title: 'Help',
       lead: 'The user guide: what each page is for and how to use it. Each page’s help button opens its part.',
+      actionsHtml: linkButton('Glossary', '#/glossary', { icon: 'book-a' }),
     });
     const data = helpLoaded();
     if (!data && failed)

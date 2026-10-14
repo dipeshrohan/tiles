@@ -3,7 +3,8 @@ import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { card, emptyState, needsApi, pageHead, skeleton, apiUnreachable, loadFailed } from '../lib/ui.ts';
+import { card, emptyState, needsApi, pageHead, skeleton, apiUnreachable, loadFailed, term } from '../lib/ui.ts';
+import { GLOSSARY } from '../lib/glossary-data.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
 // reported, live: per detector and in total, with what people resolved them as. Events are
@@ -93,7 +94,7 @@ function detectorsCard(ctx: Context, r: PerformanceReport): string {
       <h2>By detector</h2>
       ${
         r.detectors.length
-          ? `<div class="table-wrap"><table><thead><tr><th>Detector</th><th>Asset</th><th>Warnings</th><th>Events warned of</th><th>Followed by an event</th><th>False per day</th><th>Warning time (median, p10 to p90)</th><th>Resolved as</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          ? `<div class="table-wrap"><table><thead><tr><th>${term('detector', 'Detector')}</th><th>${term('asset', 'Asset')}</th><th>Warnings</th><th>Events warned of (${term('recall', 'recall')})</th><th>Followed by an event (${term('precision', 'precision')})</th><th>${term('false-per-day', 'False per day')}</th><th>${term('warning-time', 'Warning time')} (median, ${term('percentile', 'p10 to p90')})</th><th>Resolved as (${term('outcome', 'outcome')})</th></tr></thead><tbody>${rows}</tbody></table></div>`
           : emptyState({
               illustration: 'chart',
               compact: true,
@@ -141,7 +142,7 @@ const view: View = {
     const head = pageHead({
       eyebrow: 'Operations · Detection',
       title: 'Warning performance',
-      lead: 'How the warnings did against the downtime and scrap the MES reported: the events they warned of, the warnings an event followed, and how far ahead.',
+      leadHtml: `How the ${term('warning', 'warnings')} did against the downtime and scrap the MES reported: the ${term('event', 'events')} they warned of, the warnings an event followed, and how far ahead.`,
     });
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
@@ -160,7 +161,7 @@ const view: View = {
       const tiles = kpis(r.totals)
         .map(
           (k) =>
-            `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`,
+            `<div class="card kpi ${k.tone}"><div class="label">${esc(k.label)}${k.term ? ` (${term(k.term, GLOSSARY[k.term].term.toLowerCase())})` : ''}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`,
         )
         .join('');
       body = `<div class="grid g4" data-kpis>${tiles}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;

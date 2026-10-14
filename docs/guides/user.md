@@ -830,32 +830,4 @@ Every change on the site: who, what and when. For example staged and committed o
 
 ## Glossary
 
-- **App**: A check set up from an App Studio template on one of your signals, such as a wear check or SPC limits.
-- **Acknowledge**: Mark a new warning as seen. It moves from **New** to **Acknowledged**.
-- **Asset**: A machine as your MES names it, for example DC-01. Event signals and detectors carry an asset so events can be matched to warnings.
-- **Audit record**: A file with a design run, its whole lineage, the model specifications and a digest that shows nothing was changed.
-- **Binding**: A link that feeds a model version's inputs from live signals and writes its outputs to new, derived signals. Set up by a model author (see [model-author.md](model-author.md)).
-- **Change request**: Staged ontology changes sent for review, with a number. Another engineer approves (commits) or rejects it.
-- **Commit**: A saved set of ontology changes with a message, author and time. Commits can be reverted.
-- **Copilot**: The question-and-answer assistant. It answers from your site's data and cites its sources.
-- **Detector**: A rule that watches a signal and raises a warning when readings move too far from their normal level for long enough.
-- **Document**: An SOP, manual or other file uploaded to a site, searched by its words, page by page.
-- **Edge agent**: A small program on the plant network that reads machines (OPC UA, MQTT, SQL) and sends readings to Tiles.
-- **Event**: A reading on a signal marked as downtime, scrap or other events. Its value is the event code.
-- **Grounding**: The check that every number and name in a copilot answer comes from a cited tool result or your question.
-- **Insight**: A saved finding: the question, the evidence, and proposed actions, reviewed by another engineer.
-- **Node**: One thing in the ontology, such as a machine, line, PLC or signal.
-- **Ontology**: The map of your factory: nodes and the relationships between them.
-- **Outcome**: What a resolved warning turned out to be: true alarm, false alarm or unknown.
-- **Project**: A shared folder of design runs on a site.
-- **Relationship**: A link between two nodes, such as Line `contains` Machine or PLC `emits` Signal.
-- **Revert**: A new commit that undoes an earlier one.
-- **Run**: One evaluation of a design model at a version with a set of parameters, saved with its result, author and parent.
-- **SPC**: Statistical process control: a control chart's centre line and limits, from a baseline, and rules that say when a process has gone out of control.
-- **Signal**: A stream of readings with a tag, unit and sample rate. Also the ontology node type that represents it.
-- **Staged change**: An ontology edit that is not yet committed. Only you see it.
-- **Sweep**: A grid of runs over one or two parameters, shown as a heat map.
-- **Tag**: The name of a signal as it comes from the plant, for example `tt-101`.
-- **Virtual sensor**: A value computed by a physics model from other measurements, such as plunger friction from pressure and velocity.
-- **Warning**: An alert a detector raised on a signal. People acknowledge, assign and resolve it.
-- **Wear check**: A comparison of a signal's recent level with its baseline, saying whether it is wearing and, given a limit, when it may reach it.
+Every word Tiles uses is explained on the **Glossary** page: open it from **Help**, or with Ctrl K and "Glossary". On a page, a word with a dotted underline is a glossary term: point at it, Tab to it or tap it to read what it means. The list is kept in [the glossary](../ui/glossary.md).

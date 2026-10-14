@@ -2,6 +2,7 @@
 // its numbers read, and the codes typed into it.
 
 import type { Distribution, Scores } from './api.ts';
+import type { GlossaryKey } from './glossary-data.ts';
 
 export const PERIODS = [1, 7, 30, 90] as const; // days
 export const HORIZONS = [1, 2, 4, 8, 24] as const; // hours
@@ -40,6 +41,7 @@ export interface Kpi {
   value: string;
   note: string;
   tone: '' | 'good' | 'bad';
+  term?: GlossaryKey; // the glossary's name for it (U4.05), explained beside the label
 }
 
 // The headline numbers: how many events had a warning in time, how many warnings an event followed,
@@ -51,12 +53,14 @@ export function kpis(t: Scores): Kpi[] {
       label: 'Events warned of',
       value: share(t.recall),
       note: `${t.caught} of ${t.events} downtime or scrap event(s)`,
+      term: 'recall',
       tone: t.recall === null ? '' : t.recall >= 0.5 ? 'good' : 'bad',
     },
     {
       label: 'Warnings an event followed',
       value: share(t.precision),
       note: `${t.true_warnings} of ${t.true_warnings + t.false_warnings}${t.pending_warnings ? `; ${t.pending_warnings} too recent to tell` : ''}`,
+      term: 'precision',
       tone: '',
     },
     {
@@ -71,6 +75,7 @@ export function kpis(t: Scores): Kpi[] {
       note: t.warning_seconds
         ? `${duration(t.warning_seconds.p10)} to ${duration(t.warning_seconds.p90)} (10th to 90th percentile)`
         : 'no event warned of yet',
+      term: 'warning-time',
       tone: '',
     },
   ];

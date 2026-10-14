@@ -34,6 +34,7 @@ export const PAGE_HELP = {
   settings: 'settings',
   styleguide: 'about-and-the-style-guide',
   help: 'finding-your-way',
+  glossary: 'glossary',
 };
 
 // GitHub's anchor for a heading: lower case, punctuation dropped, spaces to dashes; a repeat gets -1, -2…

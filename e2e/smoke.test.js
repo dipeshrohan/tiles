@@ -33,6 +33,7 @@ const PAGES = [
   'settings',
   'help',
   'help/warnings',
+  'glossary',
 ];
 const VARIANTS = [
   { name: 'light desktop', colorScheme: 'light', viewport: { width: 1360, height: 900 } },
@@ -484,6 +485,49 @@ test("each page's help: a side sheet from the top bar, the whole guide on the He
   await found.first().waitFor();
   await found.first().click();
   await page.waitForFunction(() => location.hash === '#/help/notifications');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('glossary terms explain themselves where they appear; the Glossary page lists and finds them (U4.05)', async () => {
+  const { page, errors } = await openPage({ hasTouch: true });
+  await page.goto(`${httpBase}#/physics`);
+  await page.waitForSelector('#view h1');
+  const robust = page.locator('.term[data-term="robust-σ"]').first();
+  const tip = page.locator('#tooltip');
+  // Pointed at: the definition after a moment (scrolled to first: a scroll hides a tooltip).
+  await robust.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  await robust.hover();
+  await tip.waitFor({ state: 'visible' });
+  assert.match(await tip.innerText(), /^The spread of the readings worked out from the MAD/);
+  // Tabbed to: at once, and it describes the term for screen readers; Escape hides it.
+  await page.mouse.move(0, 0);
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
+  await robust.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await tip.waitFor({ state: 'visible' });
+  assert.equal(await robust.getAttribute('aria-describedby'), 'tooltip');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
+  // Tapped: shown; tapped again: hidden.
+  const baseline = page.locator('.term[data-term="baseline"]').first();
+  await baseline.tap();
+  await tip.waitFor({ state: 'visible' });
+  assert.match(await tip.innerText(), /^The usual level of a signal/);
+  await baseline.tap();
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
+  // The Glossary page, opened at a term; a search narrows it.
+  await page.goto(`${httpBase}#/glossary/cohens-d`);
+  await page.waitForFunction(() => document.activeElement?.id === 'term-cohens-d');
+  assert.equal(await page.locator('#crumbs li:last-child').innerText(), "Cohen's d");
+  assert.ok((await page.locator('.glossary dt').count()) >= 60);
+  await page.fill('input[name=q]', 'theil');
+  await page.waitForFunction(() => document.querySelectorAll('.glossary dt').length === 1);
+  assert.equal(await page.locator('.glossary dt').innerText(), 'Theil–Sen slope');
+  await page.fill('input[name=q]', 'zzqx');
+  await page.waitForSelector('#view :text("No term matches")');
   assert.deepEqual(errors, []);
   await page.close();
 });
