@@ -650,6 +650,24 @@ test('guided tours: change the plant model and ask the copilot, end to end (U4.0
   await page.locator('.tour-pop #tour-count:has-text("step 1 of 2")').waitFor();
   await page.keyboard.press('Escape');
   await page.waitForSelector('.tour-pop', { state: 'detached' });
+test('a tooltip shown by the focus stays while the page scrolls; one shown by pointing goes', async () => {
+  const { page, errors } = await openPage({ viewport: { width: 1280, height: 600 } });
+  await page.goto(`${httpBase}#/help`);
+  await page.waitForSelector('.help-article');
+  // Tabbed to, the top bar's help button shows its tooltip; scrolling the page keeps it.
+  await page.focus('#theme');
+  await page.keyboard.press('Shift+Tab');
+  await page.waitForSelector('#tooltip:not([hidden])');
+  await page.evaluate(() => window.scrollBy(0, 400));
+  await page.waitForTimeout(200);
+  assert.ok(await page.locator('#tooltip').isVisible(), 'still shown after a scroll');
+  // Pointed at, a tooltip goes with a scroll.
+  await page.keyboard.press('Escape');
+  await page.locator('#theme').hover();
+  await page.waitForSelector('#tooltip:not([hidden])');
+  await page.locator('#view').focus();
+  await page.evaluate(() => window.scrollBy(0, -200));
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
   assert.deepEqual(errors, []);
   await page.close();
 });

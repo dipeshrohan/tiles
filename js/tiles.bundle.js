@@ -15255,12 +15255,19 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		t.style.left = `${left + window.scrollX}px`;
 		t.style.top = `${(below ? r.bottom + 8 : r.top - h - 8) + window.scrollY}px`;
 	}
+	var watching = false;
 	function watch() {
-		requestAnimationFrame(() => {
-			if (!target) return;
-			if (!target.isConnected) hide();
-			else watch();
-		});
+		if (watching) return;
+		watching = true;
+		const look = () => {
+			if (!target) return void (watching = false);
+			if (!target.isConnected) {
+				watching = false;
+				return hide();
+			}
+			requestAnimationFrame(look);
+		};
+		requestAnimationFrame(look);
 	}
 	function hide() {
 		clearTimeout(timer);
@@ -15296,7 +15303,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		root.addEventListener("keydown", (e) => {
 			if (e.key === "Escape" && target) hide();
 		});
-		window.addEventListener("scroll", hide, { passive: true });
+		window.addEventListener("scroll", () => {
+			if (target && target === document.activeElement && target.isConnected) show(target);
+			else hide();
+		}, { passive: true });
 		let tapped = false;
 		root.addEventListener("pointerdown", (e) => tapped = e.pointerType === "touch");
 		root.addEventListener("click", (e) => {
