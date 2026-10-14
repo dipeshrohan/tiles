@@ -37,7 +37,7 @@ import {
   type OntologyStore,
   type RemoteStore,
 } from './lib/ontology-store.ts';
-import { announce, esc, lessMotion, need, rebind, routeOf } from './lib/dom.ts';
+import { announce, esc, lessMotion, need, rebind, routeOf, setBusy } from './lib/dom.ts';
 import { morph, noteSent, replace } from './lib/morph.ts';
 import {
   cleanPrefs,
@@ -94,7 +94,7 @@ import type { Graph, Repo, ShotHistory } from './lib/types.ts';
 import { rowTarget, shown } from './lib/split.ts';
 import { icon } from './lib/icons.ts';
 import { describeApiError } from './lib/errors.ts';
-import { afterRender, showApiErrors } from './lib/forms.ts';
+import { afterRender, clearErrors, showApiErrors, showErrors } from './lib/forms.ts';
 import { keepWaiting, saveWaiting, takeSaved } from './lib/undo.ts';
 import { createTracker, keepLeft, newSession, takeLeft, ux, type UxEvent } from './lib/analytics.ts';
 import { breadcrumbs, button, clockTime, resetIds } from './lib/ui.ts';
@@ -114,6 +114,8 @@ import {
   type WelcomeContext,
 } from './lib/welcome.ts';
 import { runTour } from './lib/tour.ts';
+import { feedbackBody, formHtml, previewHtml } from './lib/feedback.ts';
+import { capturePage, stylesText } from './lib/screenshot.ts';
 import { hasNews, helpLabel, SEEN_KEY, seenOnFirstLoad, whatsNewHtml, whatsNewTitle } from './lib/whats-new.ts';
 import { VERSION } from './lib/version.ts';
 import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
@@ -906,8 +908,13 @@ async function sendSaved(): Promise<void> {
   const client = api;
   if (!client) return;
   for (const r of takeSaved(localStorage, client.baseUrl)) {
-    const send = r.kind === 'conversation' ? client.copilot.remove : client.datasets.remove;
-    await send(r.site, r.id).catch(() => undefined); // the client showed why
+    const sent =
+      r.kind === 'conversation'
+        ? client.copilot.remove(r.site, r.id)
+        : r.kind === 'feedback'
+          ? client.feedback.remove(r.site, Number(r.id))
+          : client.datasets.remove(r.site, r.id);
+    await sent.catch(() => undefined); // the client showed why
   }
 }
 window.addEventListener('offline', () => showOffline('offline'));
@@ -1085,7 +1092,7 @@ let helpOpen = false;
 async function openHelp(): Promise<void> {
   if (helpOpen) return;
   helpOpen = true;
-  let then: 'whats-new' | null = null;
+  let then: 'whats-new' | 'feedback' | null = null;
   try {
     const data = await loadHelp();
     const [first, ...rest] = pageSection(data, currentView().id);
@@ -1095,11 +1102,17 @@ async function openHelp(): Promise<void> {
         label: 'Help',
         title: first.title,
         contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
-        footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button><a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`,
+        footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button>${
+          api ? '<button class="btn sm ghost" type="button" data-feedback-open>Send feedback</button>' : ''
+        }<a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`,
       },
       (dialog, close) => {
         dialog.querySelector('[data-whats-new]')?.addEventListener('click', () => {
           then = 'whats-new';
+          close();
+        });
+        dialog.querySelector('[data-feedback-open]')?.addEventListener('click', () => {
+          then = 'feedback';
           close();
         });
       },
@@ -1107,6 +1120,7 @@ async function openHelp(): Promise<void> {
     // Opened once the help sheet has gone, so the focus it gives back (the help button) is what
     // What's new gives it back to.
     if (then === 'whats-new') void openWhatsNew();
+    if (then === 'feedback') void openFeedback();
   } catch (e) {
     toast("The help couldn't be loaded", { type: 'error', description: e instanceof Error ? e.message : String(e) });
   } finally {
@@ -1155,6 +1169,126 @@ async function openWhatsNew(): Promise<void> {
   }
 }
 document.addEventListener('tiles:whats-new', () => void openWhatsNew());
+
+// ---- feedback (U4.09) --------------------------------------------------------
+// "Send feedback": a mood, a few words, and if they choose, their name and a screenshot of the page
+// (made when ticked, shown before it is sent, and removable). It goes to the site's admins.
+let feedbackOpen = false;
+async function openFeedback(): Promise<void> {
+  const client = api;
+  const site = ctx.ontology.site;
+  if (!client || !site) {
+    toast('Feedback needs the Tiles API', {
+      type: 'info',
+      description: 'It goes to your site’s admins. Connect to the Tiles API in Settings to send it.',
+    });
+    return;
+  }
+  if (feedbackOpen) return;
+  feedbackOpen = true;
+  const view = currentView();
+  ux('help', 'feedback');
+  try {
+    await panelDialog(
+      {
+        title: 'Send feedback',
+        body: 'Tell us what works for you and what doesn’t.',
+        contentHtml: formHtml({
+          page: view.title,
+          version: VERSION,
+          name: state.user.name,
+          canShoot: stylesText() !== null,
+        }),
+      },
+      (dialog, close) => {
+        const form = need<HTMLFormElement>(dialog, '[data-feedback-form]');
+        form.noValidate = true;
+        let shot: string | null = null;
+        let taking = 0;
+        const box = dialog.querySelector<HTMLInputElement>('[data-feedback-shot]');
+        const preview = dialog.querySelector<HTMLElement>('[data-feedback-preview]');
+        const unshot = (): void => {
+          taking++;
+          shot = null;
+          if (box) box.checked = false;
+          if (preview) {
+            preview.hidden = true;
+            preview.replaceChildren();
+          }
+        };
+        box?.addEventListener('change', () => {
+          if (!box.checked || !preview) return unshot();
+          const mine = ++taking;
+          preview.hidden = false;
+          preview.innerHTML = '<p class="small soft" role="status">Taking the screenshot…</p>';
+          void capturePage().then((url) => {
+            if (mine !== taking || !box.checked) return;
+            if (!url) {
+              unshot();
+              toast('The screenshot couldn’t be made', {
+                type: 'error',
+                description: 'Send your feedback without it, and say what you see instead.',
+              });
+              return;
+            }
+            shot = url;
+            preview.innerHTML = previewHtml(url);
+            preview.querySelector('[data-feedback-unshot]')?.addEventListener('click', () => {
+              unshot();
+              box.focus();
+            });
+          });
+        });
+        dialog.querySelector('[data-feedback-cancel]')?.addEventListener('click', close);
+        let sending = false;
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          if (sending) return;
+          const mood = form.querySelector<HTMLInputElement>('input[name="mood"]:checked')?.value ?? '';
+          const text = form.querySelector<HTMLTextAreaElement>('textarea[name="text"]')?.value ?? '';
+          const errors = [
+            ...(mood ? [] : [{ name: 'moods', message: 'Choose how Tiles is working for you' }]),
+            ...(text.trim() ? [] : [{ name: 'text', message: 'Say what you’d like to tell us' }]),
+          ];
+          if (errors.length) return void showErrors(form, errors);
+          clearErrors(form);
+          const named = form.querySelector<HTMLInputElement>('input[name="named"]')?.checked ?? false;
+          const button = need<HTMLButtonElement>(form, 'button[type="submit"]');
+          sending = true;
+          setBusy(button, true);
+          client.feedback
+            .send(
+              site.id,
+              feedbackBody({
+                mood,
+                text,
+                named,
+                screenshot: shot,
+                page: view.id,
+                version: VERSION,
+                userAgent: navigator.userAgent,
+              }),
+            )
+            .then(
+              () => {
+                ux('task', 'feedback.sent');
+                close();
+                toast('Feedback sent', { type: 'success', description: 'Thank you. Your site’s admins will read it.' });
+              },
+              () => undefined, // the client said why; what was typed stays
+            )
+            .finally(() => {
+              sending = false;
+              setBusy(button, false);
+            });
+        });
+      },
+    );
+  } finally {
+    feedbackOpen = false;
+  }
+}
+document.addEventListener('tiles:feedback', () => void openFeedback());
 const palette = installPalette({
   items(): PaletteItem[] {
     const pages = NAV.flatMap((g) =>
@@ -1264,6 +1398,18 @@ const palette = installPalette({
         keywords: 'changelog release version changes new features',
         run: () => void openWhatsNew(),
       },
+      ...(api
+        ? [
+            {
+              id: 'do:feedback',
+              label: 'Send feedback',
+              group: 'Actions',
+              icon: 'message-square',
+              keywords: 'feedback comment suggest problem idea complain report',
+              run: () => void openFeedback(),
+            } satisfies PaletteItem,
+          ]
+        : []),
       {
         id: 'do:welcome',
         label: 'Show the welcome',

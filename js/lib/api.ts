@@ -804,6 +804,31 @@ export interface UxSummary {
   counts: { kind: 'page' | 'task' | 'palette' | 'help' | 'error'; name: string; events: number; sessions: number }[];
 }
 
+// In-app feedback (U4.09): what is sent, and what admins list.
+export type Mood = 'unhappy' | 'neutral' | 'happy';
+
+export interface FeedbackIn {
+  mood: Mood;
+  text: string;
+  page: string; // the page's id, never its address
+  version: string;
+  browser: string;
+  named: boolean; // keep who sent it; anonymous otherwise
+  screenshot: string | null; // a PNG or JPEG data URL
+}
+
+export interface FeedbackRow {
+  id: number;
+  created_at: string;
+  mood: Mood;
+  text: string;
+  page: string;
+  version: string;
+  browser: string;
+  user: string | null;
+  screenshot: boolean;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly requestId: string | null;
@@ -1098,6 +1123,18 @@ export function createApiClient(options: ApiOptions) {
         ),
       summary: (siteId: string, days = 30) =>
         request<UxSummary>('GET', `/sites/${encodeURIComponent(siteId)}/ux-events/summary?days=${days}`),
+    },
+    // In-app feedback (U4.09): any member sends it; admins list it, see its screenshot, delete it.
+    feedback: {
+      send: (siteId: string, body: FeedbackIn) =>
+        request<{ id: number }>('POST', `/sites/${encodeURIComponent(siteId)}/feedback`, body),
+      list: (siteId: string) => request<FeedbackRow[]>('GET', `/sites/${encodeURIComponent(siteId)}/feedback`),
+      screenshot: (siteId: string, id: number) =>
+        request<Blob>('GET', `/sites/${encodeURIComponent(siteId)}/feedback/${id}/screenshot`, undefined, {
+          blob: true,
+        }),
+      remove: (siteId: string, id: number) =>
+        request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/feedback/${id}`),
     },
     // Your membership (and role) on a site; joins it on first visit.
     membership: (siteId: string) => request<Membership>('GET', `/sites/${encodeURIComponent(siteId)}/me`),

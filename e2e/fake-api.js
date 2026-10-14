@@ -290,6 +290,7 @@ export function createFakeApi({
   // UX analytics (U1.09): the organisation's switch, and the events stored ({ kind, name, session }).
   let uxEnabled = false;
   const uxEvents = [];
+  const appFeedback = []; // In-app feedback (U4.09), newest last: { id, …, user, screenshot (a data URL or null) }
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
   let requestIds = 0; // numbers the request IDs
@@ -640,6 +641,7 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/runs/`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`) &&
         !url.pathname.startsWith(`/sites/${site.id}/ux-`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/feedback`) &&
         url.pathname !== `/sites/${site.id}/menu-counts` &&
         url.pathname !== `/sites/${site.id}/search`
       )
@@ -1248,6 +1250,57 @@ export function createFakeApi({
           sessions: new Set(uxEvents.map((e) => e.session)).size,
           counts: [...counts.values()].map((c) => ({ ...c, sessions: c.sessions.size })),
         });
+      }
+      // In-app feedback (U4.09): any member sends it; admins list it, see its screenshot, delete it.
+      const feedbackPath = `/sites/${site.id}/feedback`;
+      if (url.pathname === feedbackPath && req.method === 'POST') {
+        const b = await body(req);
+        const fields = [];
+        if (!['unhappy', 'neutral', 'happy'].includes(b.mood))
+          fields.push({ loc: ['body', 'mood'], msg: 'Choose how it went', type: 'literal_error' });
+        if (typeof b.text !== 'string' || !b.text.trim() || b.text.length > 2000)
+          fields.push({ loc: ['body', 'text'], msg: 'Say something about it', type: 'value_error' });
+        if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(b.page ?? '') || typeof b.browser !== 'string')
+          fields.push({ loc: ['body', 'page'], msg: 'Not a page', type: 'value_error' });
+        if (b.screenshot !== null && !/^data:image\/(png|jpeg);base64,/.test(b.screenshot ?? ''))
+          fields.push({ loc: ['body', 'screenshot'], msg: 'Not an image', type: 'value_error' });
+        if (fields.length) return send(422, { detail: fields });
+        const id = Math.max(0, ...appFeedback.map((f) => f.id)) + 1;
+        appFeedback.push({
+          id,
+          created_at: new Date().toISOString(),
+          mood: b.mood,
+          text: b.text.trim(),
+          page: b.page,
+          version: b.version,
+          browser: b.browser,
+          user: b.named ? user : null,
+          screenshot: b.screenshot,
+        });
+        return send(201, { id });
+      }
+      if (url.pathname === feedbackPath || url.pathname.startsWith(`${feedbackPath}/`)) {
+        if ((roles[user] ?? 'engineer') !== 'admin') return send(403, { detail: 'Needs the admin role' });
+        if (url.pathname === feedbackPath)
+          return send(
+            200,
+            [...appFeedback].reverse().map((f) => ({ ...f, screenshot: Boolean(f.screenshot) })),
+          );
+        const m = url.pathname.slice(feedbackPath.length).match(/^\/(\d+)(\/screenshot)?$/);
+        const i = m ? appFeedback.findIndex((f) => f.id === Number(m[1])) : -1;
+        if (i < 0) return send(404, { detail: 'No such feedback on this site' });
+        const f = appFeedback[i];
+        if (m?.[2]) {
+          if (!f.screenshot) return send(404, { detail: 'No such screenshot on this site' });
+          const [head, data] = f.screenshot.split(',');
+          res.writeHead(200, { 'content-type': head.slice(5, -7), 'content-security-policy': 'sandbox' });
+          return res.end(Buffer.from(data, 'base64'));
+        }
+        if (req.method === 'DELETE') {
+          appFeedback.splice(i, 1);
+          res.writeHead(204);
+          return res.end();
+        }
       }
       // App Studio (T6.10): apps from the templates above; a result made up from the settings.
       const appsPath = `/sites/${site.id}/apps`;
@@ -2060,6 +2113,7 @@ export function createFakeApi({
     copilotFeedback: feedback,
     // UX analytics stored (U1.09).
     uxEvents,
+    appFeedback,
     copilotUsage,
     // Design runs stored on the site (T4.11), latest last.
     designRuns,

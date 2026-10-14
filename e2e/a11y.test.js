@@ -134,6 +134,18 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     threshold: 2200,
     readings: 29,
   });
+  // Feedback for the admins' list in Settings (U4.09).
+  fake.appFeedback.push({
+    id: 1,
+    created_at: at(5),
+    mood: 'unhappy',
+    text: 'The chart is hard to read.',
+    page: 'warnings',
+    version: '0.2.0',
+    browser: 'Chrome',
+    user: null,
+    screenshot: null,
+  });
   for (const colorScheme of ['light', 'dark']) {
     const page = await browser.newPage({ colorScheme, viewport: { width: 1360, height: 900 }, bypassCSP: true });
     const problems = [];
@@ -195,6 +207,19 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await page.click('a[href^="#/explorer?signal="]');
     await page.waitForSelector('.explorer-chart svg.chart');
     await check('explorer');
+    // Send feedback (U4.09): the form with its errors, then with a screenshot attached.
+    await page.click('#help-open');
+    await page.click('dialog.sheet[open] [data-feedback-open]');
+    const feedback = page.locator('dialog[open]:has([data-feedback-form])');
+    await feedback.locator('button[type=submit]').click();
+    await feedback.locator('.error-summary').waitFor();
+    await check('feedback errors');
+    await feedback.locator('label.mood').first().click();
+    await feedback.locator('[data-feedback-shot]').check();
+    await feedback.locator('[data-feedback-preview] img').waitFor();
+    await check('feedback');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog[open]', { state: 'detached' });
     await page.close();
     assert.deepEqual(problems, [], colorScheme);
   }

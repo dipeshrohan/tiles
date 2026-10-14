@@ -82,7 +82,7 @@ const view: View = {
     const head = pageHead({
       title: 'Help',
       lead: 'The user guide: what each page is for and how to use it. Each page’s help button opens its part.',
-      actionsHtml: `<div class="row gap-2 wrap">${button('What’s new', { attrs: { 'data-whats-new': true } })}${button('Show the welcome', { attrs: { 'data-show-welcome': true } })}${linkButton('Glossary', '#/glossary', { icon: 'book-a' })}</div>`,
+      actionsHtml: `<div class="row gap-2 wrap">${button('What’s new', { attrs: { 'data-whats-new': true } })}${ctx.api ? button('Send feedback', { attrs: { 'data-send-feedback': true } }) : ''}${button('Show the welcome', { attrs: { 'data-show-welcome': true } })}${linkButton('Glossary', '#/glossary', { icon: 'book-a' })}</div>`,
     });
     const data = helpLoaded();
     if (!data && failed)
@@ -113,6 +113,7 @@ const view: View = {
     // The first-run welcome (U4.06) is the app's: asked for with an event.
     onAll(root, '[data-show-welcome]', 'click', () => document.dispatchEvent(new CustomEvent('tiles:welcome')));
     onAll(root, '[data-whats-new]', 'click', () => document.dispatchEvent(new CustomEvent('tiles:whats-new')));
+    onAll(root, '[data-send-feedback]', 'click', () => document.dispatchEvent(new CustomEvent('tiles:feedback')));
     onAll(root, '[data-start-tour]', 'click', (el) =>
       document.dispatchEvent(new CustomEvent('tiles:tour', { detail: el.dataset.startTour })),
     );

@@ -59,6 +59,7 @@ nowhere at all ([hybrid mode](../hybrid.md#in-the-cloud)).
 | Copilot questions and answers | People | The asker's own conversations | Visible to the asker; an answer the asker rates, with its question, is also visible to the site's admins | Until the asker deletes them |
 | What the copilot sends to Anthropic | Each question, and the tool results it reads to answer it, for the user who asked | Anthropic, under its commercial terms | TLS; the copilot is off unless the deployment configures it and the site's admins turn it on | Anthropic's API data policy |
 | UX analytics (when the organisation turns it on) | The browser: pages viewed, tasks done, errors shown, as names from a fixed list | The site's database (`ux_events`) | No people, records or typed text; the browser tab's random id only as a hash; row security per site; admins see counts | 90 days |
+| In-app feedback | People, with **Send feedback**: a mood and their words, the page's id, the version and the browser; their name and a screenshot of the page only if they choose (the screenshot is shown to them first) | The site's database (`feedback`) | Anonymous unless they give their name; row security per site; only the site's admins read it | Until a site admin deletes it |
 | Backups | The database | Encrypted backup storage | Encryption with the same key policy; restore drilled in CI | 35 days of point-in-time recovery ([backups](../runbooks/backups.md)) |
 
 Plant data leaves Tiles only where something is turned on, each to the place named above:
@@ -72,8 +73,8 @@ Plant data leaves Tiles only where something is turned on, each to the place nam
   registered.
 - **Monitoring:** request and job metadata, not readings, go to the collector, if one is set.
 
-UX analytics, when an organisation turns them on, stay in the deployment's own database: they go
-nowhere else.
+UX analytics, when an organisation turns them on, and in-app feedback stay in the deployment's own
+database: they go nowhere else.
 
 Nothing goes anywhere else.
 

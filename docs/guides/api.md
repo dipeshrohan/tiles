@@ -38,7 +38,55 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[Feedback](#feedback) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+
+## Feedback
+
+### `GET /sites/{site_id}/feedback`
+
+**Who:** admin. **Answers:** 200, 422.
+
+The site's feedback, newest first, without the screenshots themselves (admins).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `mood` | query | `unhappy` \| `neutral` \| `happy` | no |
+| `limit` | query | integer | no |
+
+### `POST /sites/{site_id}/feedback`
+
+**Who:** site member. **Answers:** 201, 422.
+
+Send feedback about Tiles to the site's admins (any member). Anonymous unless `named`; a screenshot only if attached. At most 60 an hour per site (429 beyond).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** FeedbackIn (see [openapi.json](openapi.json)).
+
+### `DELETE /sites/{site_id}/feedback/{feedback_id}`
+
+**Who:** admin. **Answers:** 204, 422.
+
+Delete a piece of feedback and its screenshot (admins).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `feedback_id` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+### `GET /sites/{site_id}/feedback/{feedback_id}/screenshot`
+
+**Who:** admin. **Answers:** 200, 422.
+
+The screenshot attached to a piece of feedback, as it was sent (admins).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `feedback_id` | path | integer | yes |
+| `site_id` | path | uuid | yes |
 
 ## UX analytics
 

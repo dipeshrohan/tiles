@@ -301,7 +301,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* the four tours run end to end in CI.
 - [x] `U4.08` [#237](https://github.com/dipeshrohan/tiles/issues/237) **What's new** · FE · 1.5d
   *Done when:* updating the CHANGELOG updates the sheet with no other change.
-- [ ] `U4.09` [#238](https://github.com/dipeshrohan/tiles/issues/238) **In-app feedback** · BE+FE · 2d · U2.01
+- [x] `U4.09` [#238](https://github.com/dipeshrohan/tiles/issues/238) **In-app feedback** · BE+FE · 2d · U2.01
   *Done when:* feedback is sent, stored, listed and audited, with tests.
 - [ ] `U4.10` [#239](https://github.com/dipeshrohan/tiles/issues/239) ◇ **Onboarding wizard in local mode** · FE · 2d · U4.06
   *Done when:* the wizard runs to its end in local mode.
