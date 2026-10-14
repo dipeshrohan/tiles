@@ -1282,6 +1282,11 @@
 				return request("GET", `/sites/${encodeURIComponent(siteId)}/search?${params}`, void 0, { silent: true });
 			},
 			menu: { counts: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/menu-counts`, void 0, { silent: true }) },
+			home: {
+				get: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me/home`),
+				set: (siteId, cards) => request("PUT", `/sites/${encodeURIComponent(siteId)}/me/home`, { cards }),
+				reset: (siteId) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/me/home`)
+			},
 			ux: {
 				enabled: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/ux-analytics`, void 0, { silent: true }),
 				send: (siteId, session, events) => request("POST", `/sites/${encodeURIComponent(siteId)}/ux-events`, {
@@ -3579,114 +3584,676 @@
 		});
 	}
 	//#endregion
-	//#region js/views/home.ts
-	var view$22 = {
-		id: "home",
-		title: "Home",
-		icon: "house",
-		render(ctx) {
-			const { state } = ctx;
-			const health = graphHealth(ctx.graph);
-			const ng = state.batches.filter((b) => b.ng).length;
-			const friction = ctx.demoReady ? (() => {
-				const predicted = state.scored.filter((s) => s.predicted);
-				const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
-				return {
-					value: String(state.detection.alerts.length),
-					note: `${predicted.length}/${state.scored.length} stops predicted, ${fmt$1(lead, 1)} h avg lead`
-				};
-			})() : null;
-			const feed = [...state.repo.history.map((c) => ({
-				date: c.date,
-				icon: "git-commit-horizontal",
-				text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`,
-				href: "#/ontology"
-			})), ...state.runs.map((r) => ({
-				date: r.date,
-				icon: "drafting-compass",
-				text: `<b>${esc(MODELS[r.modelId]?.name ?? r.modelId)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ""} <span class="muted">· ${esc(r.author)}</span>`,
-				href: "#/design"
-			}))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
-			return `
-      <section class="hero">
-        <div>
-          <div class="eyebrow">Tiles</div>
-          <h1 tabindex="-1">Physics and plant data, in one place.</h1>
-          <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
-          <div class="row mt-4">
-            <a class="btn primary" href="#/chat">Ask the copilot</a>
-            <a class="btn" href="#/physics">See live warnings</a>
-          </div>
-        </div>
-        <div class="engine" aria-label="How it works">
-          <div class="k">HOW IT WORKS</div>
-          <div class="pill">Physics models</div>
-          <div class="op">+</div>
-          <div class="pill">Live data</div>
-          <div class="op">↓</div>
-          <div class="pill">Answers and warnings</div>
-        </div>
-      </section>
-
-      <div class="grid g4 mb-4">
-        <a class="card kpi bad text-inherit no-underline" href="#/physics"${friction ? "" : " aria-busy=\"true\""}>
-          <div class="label">Friction warnings · DC-02</div>
-          ${friction ? `<div class="value">${friction.value}</div><div class="note">${friction.note}</div>` : `<div class="value"><span class="skeleton kpi-wait"></span><span class="sr-only">Working out the warnings</span></div><div class="note"><span class="skeleton kpi-wait wide"></span></div>`}
-        </a>
-        <a class="card kpi text-inherit no-underline" href="#/quality">
-          <div class="label">Cutter NG rate</div>
-          <div class="value">${fmt$1(100 * ng / state.batches.length, 1)}%</div>
-          <div class="note">${ng} of ${state.batches.length} batches · root cause found</div>
-        </a>
-        <a class="card kpi text-inherit no-underline ${health.score < 100 ? "" : "good"}" href="#/ontology">
-          <div class="label">Ontology health</div>
-          <div class="value">${health.score}</div>
-          <div class="note">${health.counts.nodes} nodes · ${health.counts.edges} relationships · ${health.issues.length} issue(s)</div>
-        </a>
-        <a class="card kpi text-inherit no-underline" href="#/design">
-          <div class="label">Design runs logged</div>
-          <div class="value">${state.runs.length}</div>
-          <div class="note">${Object.keys(MODELS).length} physics models in library</div>
-        </a>
-      </div>
-
-      <div class="grid g3">
-        <div class="card product">
-          <span class="badge accent tag">for Design</span>
-          <h2>Tiles Design</h2>
-          <p class="soft">Design, simulate and optimise physical systems from first principles, with every run versioned and auditable.</p>
-          <ul>
-            <li>Versioned physics model library</li>
-            <li>Parameter sweeps &amp; sensitivity</li>
-            <li>Run lineage and one-click audit export</li>
-          </ul>
-          <a href="#/design">Open design studio →</a>
-        </div>
-        <div class="card product">
-          <span class="badge accent tag">for Operations</span>
-          <h2>Tiles Operations</h2>
-          <p class="soft">Real-time troubleshooting and process control on live machines, grounded in a factory ontology.</p>
-          <ul>
-            <li>Virtual sensors that warn before downtime</li>
-            <li>Correlation finder for quality root cause</li>
-            <li>Versioned ontology with health checks</li>
-          </ul>
-          <a href="#/quality">Open process &amp; quality →</a>
-        </div>
-        <div class="card">
-          <div class="card-head"><h2>Recent activity</h2></div>
-          <div class="feed">
-            ${feed.map((f) => `<a class="feed-item text-inherit no-underline" href="${f.href}"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join("") || emptyState({
-				compact: true,
-				level: 3,
-				title: "No activity yet",
-				bodyHtml: "Commits, design runs and warnings appear here as they happen. Start on the <a href=\"#/ontology\">Ontology</a> page."
-			})}
-          </div>
-        </div>
-      </div>`;
+	//#region js/lib/home-cards.ts
+	var CARDS = [
+		{
+			id: "my-warnings",
+			title: "My open warnings",
+			summary: "Warnings assigned to you that aren’t resolved",
+			needs: ["my-warnings"]
+		},
+		{
+			id: "machines-out",
+			title: "Machines out of range",
+			summary: "Machines with a signal still outside its usual range",
+			needs: ["open-warnings", "signals"]
+		},
+		{
+			id: "shift",
+			title: "This shift",
+			summary: "Warnings raised since the shift began, and how many are acknowledged",
+			needs: ["recent-warnings"]
+		},
+		{
+			id: "reviews",
+			title: "Reviews waiting for me",
+			summary: "Change requests you may approve",
+			needs: ["reviews"]
+		},
+		{
+			id: "insights",
+			title: "Recent insights",
+			summary: "The newest saved findings",
+			needs: ["insights"]
+		},
+		{
+			id: "freshness",
+			title: "Data freshness",
+			summary: "Signals whose readings have stopped arriving",
+			needs: ["signals"]
+		},
+		{
+			id: "agents",
+			title: "Edge agents",
+			summary: "Agents that are offline or have never called in",
+			needs: ["agents"]
+		},
+		{
+			id: "quality",
+			title: "Data quality",
+			summary: "Signals whose last quality check found problems",
+			needs: ["quality"]
 		}
+	];
+	var cardOf = (id) => CARDS.find((c) => c.id === id);
+	var ROLE_CARDS = {
+		maintenance: ["my-warnings", "machines-out"],
+		engineer: [
+			"reviews",
+			"insights",
+			"freshness"
+		],
+		"shift-lead": [
+			"shift",
+			"machines-out",
+			"my-warnings"
+		],
+		admin: [
+			"agents",
+			"quality",
+			"reviews"
+		]
 	};
+	var ROLE_LABELS = {
+		maintenance: "maintenance",
+		engineer: "engineers",
+		"shift-lead": "shift leads",
+		admin: "admins"
+	};
+	function homeRole(workRole, siteRole) {
+		if (workRole && workRole in ROLE_CARDS) return workRole;
+		return siteRole === "admin" ? "admin" : siteRole === "engineer" ? "engineer" : "maintenance";
+	}
+	function cleanCards(value) {
+		if (!Array.isArray(value)) return null;
+		return [...new Set(value.filter((id) => typeof id === "string" && cardOf(id) !== void 0))];
+	}
+	function moveCard(cards, id, by) {
+		const at = cards.indexOf(id);
+		const to = at + by;
+		if (at < 0 || to < 0 || to >= cards.length) return [...cards];
+		const out = [...cards];
+		[out[at], out[to]] = [out[to], out[at]];
+		return out;
+	}
+	var needsOf = (cards) => [...new Set(cards.flatMap((id) => cardOf(id)?.needs ?? []))];
+	var unresolved = (w) => w.status !== "resolved";
+	function myWarnings(warnings, userId) {
+		if (!userId) return [];
+		return warnings.filter((w) => w.assignee_id === userId && unresolved(w)).sort((a, b) => Number(a.ended_at !== null) - Number(b.ended_at !== null) || b.started_at.localeCompare(a.started_at));
+	}
+	var machinesOut = (tiles) => tiles.filter((t) => t.state === "out");
+	function shiftStart(now) {
+		const start = new Date(now);
+		start.setMinutes(0, 0, 0);
+		const h = now.getHours();
+		if (h >= 22) start.setHours(22);
+		else if (h >= 14) start.setHours(14);
+		else if (h >= 6) start.setHours(6);
+		else {
+			start.setDate(start.getDate() - 1);
+			start.setHours(22);
+		}
+		return start;
+	}
+	function shiftSummary(warnings, start) {
+		const since = start.getTime();
+		const raised = warnings.filter((w) => Date.parse(w.started_at) >= since).sort((a, b) => b.started_at.localeCompare(a.started_at));
+		const waiting = raised.filter((w) => w.status === "raised");
+		return {
+			raised,
+			acknowledged: raised.length - waiting.length,
+			waiting
+		};
+	}
+	function reviewsForMe(reviews, userId) {
+		return reviews.filter((r) => r.status === "open" && r.author_id !== userId && (r.reviewer_id === null || r.reviewer_id === userId)).sort((a, b) => a.created_at.localeCompare(b.created_at));
+	}
+	var recentInsights = (insights) => [...insights].sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+	var STALE_MS = 9e5;
+	function staleSignals(signals, now) {
+		const ageOf = (s) => s.last_at ? now - Date.parse(s.last_at) : Infinity;
+		return signals.filter((s) => !s.event_kind).filter((s) => ageOf(s) > Math.max(STALE_MS, s.sample_rate_hz ? 10 / s.sample_rate_hz * 1e3 : 0)).sort((a, b) => {
+			const x = ageOf(a);
+			const y = ageOf(b);
+			return x === y ? a.tag.localeCompare(b.tag) : x === Infinity ? 1 : y === Infinity ? -1 : y - x;
+		});
+	}
+	function agentProblems(agents) {
+		const rank = {
+			offline: 0,
+			"never seen": 1,
+			online: 2
+		};
+		return agents.filter((a) => a.status !== "online").sort((a, b) => rank[a.status] - rank[b.status] || a.name.localeCompare(b.name));
+	}
+	function qualityProblems(signals) {
+		const rank = {
+			bad: 0,
+			warn: 1
+		};
+		return signals.filter((s) => s.quality?.badge === "bad" || s.quality?.badge === "warn").sort((a, b) => rank[a.quality.badge] - rank[b.quality.badge] || a.tag.localeCompare(b.tag));
+	}
+	var data = null;
+	var layout$1 = null;
+	var fresh = true;
+	var seq$3 = 0;
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "home") fresh = true;
+	});
+	var siteId$11 = (ctx) => ctx.ontology.site?.id ?? null;
+	function fetcher(ctx, site, need) {
+		const api = ctx.api;
+		switch (need) {
+			case "my-warnings": return api.warnings.list(site, {
+				status: "unresolved",
+				assignee: "me",
+				limit: 100
+			});
+			case "open-warnings": return api.warnings.list(site, {
+				status: "unresolved",
+				limit: 100
+			});
+			case "recent-warnings": return api.warnings.list(site, {
+				status: "all",
+				limit: 100
+			});
+			case "reviews": return api.reviews.list(site, "open");
+			case "insights": return api.insights.list(site, { limit: 5 }).then((r) => r.insights);
+			case "signals": return api.signals.list(site, { limit: 500 }).then((r) => r.signals);
+			case "agents": return api.agents.list(site);
+			case "quality": return Promise.all([api.signals.list(site, {
+				quality: "bad",
+				limit: 50
+			}), api.signals.list(site, {
+				quality: "warn",
+				limit: 50
+			})]).then(([bad, warn]) => [...bad.signals, ...warn.signals]);
+		}
+	}
+	function slot(ctx, need) {
+		const s = data?.site === siteId$11(ctx) ? data.slots[need] : void 0;
+		return {
+			value: s?.value ?? null,
+			failed: s?.failed ?? false
+		};
+	}
+	function homeLayout(ctx) {
+		const site = siteId$11(ctx);
+		return layout$1?.site === site ? layout$1 : {
+			cards: null,
+			loaded: false
+		};
+	}
+	var shown$3 = () => routeOf(location.hash) === "home";
+	function ensureHome(ctx, needs) {
+		const site = siteId$11(ctx);
+		if (!ctx.api || !site || ctx.ontology.status !== "ready") return;
+		if (fresh || data?.site !== site) {
+			fresh = false;
+			++seq$3;
+			data = {
+				site,
+				slots: data?.site === site ? data.slots : {},
+				asked: /* @__PURE__ */ new Set()
+			};
+			if (layout$1?.site !== site) layout$1 = {
+				site,
+				cards: null,
+				loaded: false
+			};
+			const mine = seq$3;
+			ctx.api.home.get(site).then((r) => {
+				if (mine !== seq$3) return;
+				layout$1 = {
+					site,
+					cards: cleanCards(r.cards),
+					loaded: true
+				};
+				if (shown$3()) ctx.rerender();
+			}, () => {
+				if (mine !== seq$3) return;
+				layout$1 = {
+					site,
+					cards: layout$1?.site === site ? layout$1.cards : null,
+					loaded: true
+				};
+				if (shown$3()) ctx.rerender();
+			});
+		}
+		const current = data;
+		if (!current) return;
+		for (const need of needs) {
+			if (current.asked.has(need)) continue;
+			current.asked.add(need);
+			const mine = seq$3;
+			fetcher(ctx, site, need).then((value) => {
+				if (mine !== seq$3 || data !== current) return;
+				current.slots[need] = {
+					value,
+					failed: false,
+					at: Date.now()
+				};
+				if (shown$3()) ctx.rerender();
+			}, () => {
+				if (mine !== seq$3 || data !== current) return;
+				const before = current.slots[need];
+				current.slots[need] = before?.value ? before : {
+					value: null,
+					failed: true,
+					at: null
+				};
+				if (shown$3()) ctx.rerender();
+			});
+		}
+	}
+	async function keepCards(ctx, cards) {
+		const site = siteId$11(ctx);
+		if (!ctx.api || !site) return false;
+		const before = homeLayout(ctx).cards;
+		layout$1 = {
+			site,
+			cards,
+			loaded: true
+		};
+		ctx.rerender();
+		try {
+			if (cards === null) await ctx.api.home.reset(site);
+			else await ctx.api.home.set(site, cards);
+			return true;
+		} catch {
+			if (layout$1?.site === site) layout$1 = {
+				site,
+				cards: before,
+				loaded: true
+			};
+			ctx.rerender();
+			return false;
+		}
+	}
+	//#endregion
+	//#region js/lib/graph-index.ts
+	var indexes = /* @__PURE__ */ new WeakMap();
+	function indexOf(graph) {
+		const cached = indexes.get(graph);
+		if (cached) return cached;
+		const add = (map, key, id) => {
+			const list = map.get(key);
+			if (list) list.push(id);
+			else map.set(key, [id]);
+		};
+		const index = {
+			to: /* @__PURE__ */ new Map(),
+			from: /* @__PURE__ */ new Map(),
+			byTag: /* @__PURE__ */ new Map(),
+			byLabel: /* @__PURE__ */ new Map()
+		};
+		for (const e of Object.values(graph.edges)) {
+			if (!graph.nodes[e.from] || !graph.nodes[e.to]) continue;
+			add(index.to, `${e.rel}|${e.to}`, e.from);
+			add(index.from, `${e.rel}|${e.from}`, e.to);
+		}
+		for (const list of [...index.to.values(), ...index.from.values()]) list.sort();
+		const signals = Object.values(graph.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.id.localeCompare(b.id));
+		for (const n of signals) {
+			const tag = n.props["tag"];
+			if (typeof tag === "string" && !index.byTag.has(tag)) index.byTag.set(tag, n.id);
+			if (!index.byLabel.has(n.label)) index.byLabel.set(n.label, n.id);
+		}
+		indexes.set(graph, index);
+		return index;
+	}
+	var incoming = (graph, to, rel) => indexOf(graph).to.get(`${rel}|${to}`) ?? [];
+	var outgoing = (graph, from, rel) => indexOf(graph).from.get(`${rel}|${from}`) ?? [];
+	var signalByTag = (graph, tag) => indexOf(graph).byTag.get(tag);
+	var signalByLabel = (graph, label) => indexOf(graph).byLabel.get(label);
+	//#endregion
+	//#region js/lib/shopfloor.ts
+	var isMachine = (graph, id) => graph.nodes[id]?.type === "Machine";
+	var parentOf$1 = (graph, id) => incoming(graph, id, "contains")[0] ?? null;
+	function machineOf(graph, id) {
+		const node = graph.nodes[id];
+		if (!node) return null;
+		if (node.type === "Machine") return id;
+		const plcs = node.type === "Signal" ? incoming(graph, id, "emits") : node.type === "PLC" ? [id] : [];
+		for (const plc of plcs) {
+			const machine = incoming(graph, plc, "controlledBy").find((m) => isMachine(graph, m));
+			if (machine) return machine;
+		}
+		if (node.type === "Model") {
+			const machine = outgoing(graph, id, "monitors").find((m) => isMachine(graph, m));
+			if (machine) return machine;
+		}
+		const seen = /* @__PURE__ */ new Set([id]);
+		for (let up = parentOf$1(graph, id); up && !seen.has(up); up = parentOf$1(graph, up)) {
+			if (isMachine(graph, up)) return up;
+			seen.add(up);
+		}
+		return null;
+	}
+	function pathOf(graph, id) {
+		const path = [];
+		const seen = /* @__PURE__ */ new Set([id]);
+		for (let up = parentOf$1(graph, id); up && !seen.has(up); up = parentOf$1(graph, up)) {
+			const node = graph.nodes[up];
+			if (node && node.type !== "Site" && node.type !== "Enterprise") path.unshift(node.label);
+			seen.add(up);
+		}
+		return path;
+	}
+	function nodeForTag(graph, tag, links) {
+		const linked = links.get(tag);
+		if (linked && graph.nodes[linked]) return linked;
+		return signalByTag(graph, tag) ?? signalByLabel(graph, tag) ?? null;
+	}
+	function stateOf(w) {
+		if (w.status === "resolved") return "ok";
+		if (!w.ended_at) return "out";
+		return w.status === "raised" ? "new" : "taken";
+	}
+	var RANK$1 = {
+		out: 0,
+		new: 1,
+		taken: 2,
+		ok: 3
+	};
+	function placeWarning(graph, w, links, detail) {
+		const node = nodeForTag(graph, w.signal_tag, links);
+		const machineId = node ? machineOf(graph, node) : null;
+		const machine = machineId ? graph.nodes[machineId] : void 0;
+		return {
+			id: w.id,
+			tag: w.signal_tag,
+			machineId,
+			machine: machine?.label ?? w.signal_tag,
+			path: machineId ? pathOf(graph, machineId) : [],
+			state: stateOf(w),
+			status: w.status,
+			out: !w.ended_at,
+			startedAt: w.started_at,
+			endedAt: w.ended_at,
+			assignee: w.assignee,
+			assigneeId: w.assignee_id,
+			detail
+		};
+	}
+	function floorOrder(a, b) {
+		return RANK$1[a.state] - RANK$1[b.state] || (b.startedAt ?? "").localeCompare(a.startedAt ?? "") || a.id.localeCompare(b.id);
+	}
+	function machineBoard(graph, items) {
+		const open = /* @__PURE__ */ new Map();
+		for (const i of items) {
+			if (i.machineId === null || i.state === "ok") continue;
+			open.set(i.machineId, [...open.get(i.machineId) ?? [], i]);
+		}
+		const tiles = Object.values(graph.nodes).filter((n) => n.type === "Machine").map((m) => {
+			const mine = open.get(m.id) ?? [];
+			const state = mine.reduce((worst, i) => RANK$1[i.state] < RANK$1[worst] ? i.state : worst, "ok");
+			return {
+				id: m.id,
+				label: m.label,
+				path: pathOf(graph, m.id),
+				state,
+				warnings: mine.length
+			};
+		});
+		const where = (t) => [...t.path, t.label].join("\0");
+		const collator = new Intl.Collator("en", { numeric: true });
+		return tiles.sort((a, b) => RANK$1[a.state] - RANK$1[b.state] || collator.compare(where(a), where(b)));
+	}
+	function headline(items) {
+		const open = items.filter((i) => i.state !== "ok");
+		const out = open.filter((i) => i.state === "out").length;
+		const untaken = open.filter((i) => i.status === "raised").length;
+		if (!open.length) return {
+			tone: "good",
+			text: "All clear: no open warnings"
+		};
+		const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+		const parts = [out ? `${plural(out, "signal")} still out` : "", untaken ? `${untaken} nobody has taken` : ""].filter(Boolean);
+		return {
+			tone: out || untaken ? "bad" : "warn",
+			text: `${plural(open.length, "open warning")}${parts.length ? `: ${parts.join(", ")}` : ""}`
+		};
+	}
+	//#endregion
+	//#region js/lib/warnings.ts
+	var DEFAULT_FILTERS = {
+		show: "unresolved",
+		who: "anyone",
+		signal: "all"
+	};
+	var SHOWS = [
+		"unresolved",
+		"raised",
+		"acknowledged",
+		"resolved",
+		"all"
+	];
+	var WHOS = [
+		"anyone",
+		"me",
+		"none"
+	];
+	var SIGNALS = [
+		"all",
+		"open",
+		"ended"
+	];
+	function filtersFromQuery(params) {
+		return {
+			show: oneOf(params.get("show"), SHOWS, DEFAULT_FILTERS.show),
+			who: oneOf(params.get("who"), WHOS, DEFAULT_FILTERS.who),
+			signal: oneOf(params.get("signal"), SIGNALS, DEFAULT_FILTERS.signal)
+		};
+	}
+	function filtersQuery(f) {
+		return {
+			show: f.show === DEFAULT_FILTERS.show ? null : f.show,
+			who: f.who === DEFAULT_FILTERS.who ? null : f.who,
+			signal: f.signal === DEFAULT_FILTERS.signal ? null : f.signal
+		};
+	}
+	var SHOW_LABELS = {
+		unresolved: "To do",
+		raised: "New",
+		acknowledged: "Acknowledged",
+		resolved: "Resolved",
+		all: "All"
+	};
+	var STATUS$3 = {
+		raised: ["bad", "New"],
+		acknowledged: ["warn", "Acknowledged"],
+		resolved: ["good", "Resolved"]
+	};
+	var OUTCOMES = {
+		true_alarm: "True alarm",
+		false_alarm: "False alarm",
+		unknown: "Unknown"
+	};
+	function queryFor(f) {
+		return {
+			status: f.show,
+			...f.who === "anyone" ? {} : { assignee: f.who },
+			...f.signal === "all" ? {} : { state: f.signal }
+		};
+	}
+	function actionsFor(w, role) {
+		if (role !== "engineer" && role !== "admin") return [];
+		if (w.status === "resolved") return ["reopen", "comment"];
+		return [
+			...w.status === "raised" ? ["acknowledge"] : [],
+			"assign",
+			"resolve",
+			"comment"
+		];
+	}
+	var MINUTE$1 = 6e4;
+	var HOUR$3 = 36e5;
+	function when$1(iso, now) {
+		const t = Date.parse(iso);
+		const ago = now - t;
+		if (ago >= 0 && ago < MINUTE$1) return "just now";
+		if (ago >= 0 && ago < HOUR$3) return `${Math.floor(ago / MINUTE$1)} min ago`;
+		if (ago >= 0 && ago < 12 * HOUR$3) return `${Math.floor(ago / HOUR$3)} h ago`;
+		return new Date(t).toLocaleString("en-GB", {
+			day: "numeric",
+			month: "short",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit"
+		});
+	}
+	function chartRange(w, now) {
+		const start = Date.parse(w.started_at);
+		const end = Date.parse(w.ended_at ?? w.last_at);
+		const pad = Math.max(2 * (end - start), HOUR$3);
+		return {
+			from: start - pad,
+			to: Math.max(end, Math.min(now, end + pad / 2)),
+			start,
+			end
+		};
+	}
+	var num$2 = (x) => {
+		const abs = Math.abs(x);
+		const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : abs >= 1 ? 2 : 3;
+		return x.toLocaleString("en-GB", { maximumFractionDigits: digits });
+	};
+	function howFar(w) {
+		const allowed = w.threshold - w.baseline;
+		const times = allowed ? (w.peak - w.baseline) / allowed : NaN;
+		const word = w.side === "above" ? "above" : "below";
+		return `Peak ${num$2(w.peak)}, ${word} the threshold of ${num$2(w.threshold)} (baseline ${num$2(w.baseline)}${Number.isFinite(times) ? `; ${times.toLocaleString("en-GB", { maximumFractionDigits: 1 })}× the allowed spread` : ""})`;
+	}
+	function activityText(a) {
+		const who = a.actor ?? "someone";
+		switch (a.action) {
+			case "raised": return "Raised by the detector";
+			case "acknowledged": return `${who} acknowledged it`;
+			case "assigned": return `${who} assigned it to ${a.assignee ?? "someone"}`;
+			case "unassigned": return `${who} unassigned it`;
+			case "resolved": return `${who} resolved it: ${a.outcome ? OUTCOMES[a.outcome].toLowerCase() : "no outcome"}`;
+			case "reopened": return `${who} reopened it`;
+			case "commented": return `${who} commented`;
+		}
+	}
+	function payload(w) {
+		const settings = Object.entries(w.detector_config).map(([k, v]) => [`Detector ${k.replace(/_/g, " ")}`, String(v)]);
+		return [
+			["Signal", w.signal_tag],
+			["Detector", w.detector],
+			["Side", w.side],
+			["Peak", num$2(w.peak)],
+			["Threshold", num$2(w.threshold)],
+			["Baseline", num$2(w.baseline)],
+			["Readings out", String(w.readings)],
+			["Started", w.started_at],
+			["Last out", w.last_at],
+			["Back in", w.ended_at ?? "still out"],
+			...settings
+		];
+	}
+	//#endregion
+	//#region js/lib/plant.ts
+	var collator = new Intl.Collator("en", { numeric: true });
+	var isPlace = (graph, id) => {
+		const node = graph.nodes[id];
+		return node !== void 0 && HIERARCHY.includes(node.type);
+	};
+	var byLabel = (graph) => (a, b) => collator.compare(graph.nodes[a]?.label ?? a, graph.nodes[b]?.label ?? b) || a.localeCompare(b);
+	var nodes = (graph, ids) => ids.flatMap((id) => graph.nodes[id] ? [graph.nodes[id]] : []).sort((a, b) => byLabel(graph)(a.id, b.id));
+	function parentPlace(graph, id) {
+		return incoming(graph, id, "contains").find((p) => isPlace(graph, p)) ?? null;
+	}
+	function topPlaces(graph) {
+		return Object.keys(graph.nodes).filter((id) => isPlace(graph, id) && parentPlace(graph, id) === null).sort(byLabel(graph));
+	}
+	function placesIn(graph, id) {
+		return outgoing(graph, id, "contains").filter((c) => isPlace(graph, c) && parentPlace(graph, c) === id).sort(byLabel(graph));
+	}
+	function trail(graph, id) {
+		const path = [];
+		const seen = /* @__PURE__ */ new Set();
+		for (let at = id; at && !seen.has(at); at = parentPlace(graph, at)) {
+			const node = graph.nodes[at];
+			if (!node) break;
+			path.unshift(node);
+			seen.add(at);
+		}
+		return path;
+	}
+	function machinesUnder(graph, id) {
+		const found = [];
+		const seen = /* @__PURE__ */ new Set();
+		const stack = [id];
+		while (stack.length) {
+			const at = stack.pop() ?? "";
+			if (seen.has(at) || !graph.nodes[at]) continue;
+			seen.add(at);
+			if (graph.nodes[at]?.type === "Machine") found.push(at);
+			stack.push(...placesIn(graph, at));
+		}
+		return found.sort(byLabel(graph));
+	}
+	function machineSheet(graph, id) {
+		const contained = nodes(graph, outgoing(graph, id, "contains"));
+		return {
+			plcs: nodes(graph, outgoing(graph, id, "controlledBy")).map((plc) => ({
+				plc,
+				signals: nodes(graph, outgoing(graph, plc.id, "emits"))
+			})),
+			signals: contained.filter((n) => n.type === "Signal"),
+			processes: nodes(graph, outgoing(graph, id, "runs")).map((process) => ({
+				process,
+				materials: nodes(graph, outgoing(graph, process.id, "consumes"))
+			})),
+			documents: nodes(graph, incoming(graph, id, "describes")),
+			models: nodes(graph, incoming(graph, id, "monitors")),
+			feedsFrom: nodes(graph, incoming(graph, id, "feeds")),
+			feedsTo: nodes(graph, outgoing(graph, id, "feeds")),
+			parts: contained.filter((n) => n.type !== "Signal")
+		};
+	}
+	function findPlaces(graph, query, limit = 20) {
+		const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+		if (!words.length) return [];
+		const q = words.join(" ");
+		return Object.values(graph.nodes).filter((n) => HIERARCHY.includes(n.type) && words.every((w) => n.label.toLowerCase().includes(w))).map((n) => {
+			const path = trail(graph, n.id).slice(0, -1).map((p) => p.label);
+			return {
+				id: n.id,
+				label: n.label,
+				type: n.type,
+				path,
+				starts: n.label.toLowerCase().startsWith(q)
+			};
+		}).sort((a, b) => Number(b.starts) - Number(a.starts) || a.path.length - b.path.length || collator.compare(a.label, b.label) || a.id.localeCompare(b.id)).slice(0, limit).map(({ starts: _starts, ...hit }) => hit);
+	}
+	var RANK = {
+		out: 0,
+		new: 1,
+		taken: 2,
+		ok: 3
+	};
+	function rollUp(graph, items, id, under = machinesUnder(graph, id)) {
+		const machines = new Set(under);
+		const warnings = items.filter((i) => i.machineId !== null && machines.has(i.machineId) && i.state !== "ok");
+		return {
+			state: warnings.reduce((worst, i) => RANK[i.state] < RANK[worst] ? i.state : worst, "ok"),
+			warnings
+		};
+	}
+	function placeFromHash(hash) {
+		const m = hash.match(/^#\/plant\/([^?]+)/i);
+		if (!m?.[1]) return null;
+		try {
+			return decodeURIComponent(m[1]);
+		} catch {
+			return null;
+		}
+	}
+	var placeLink = (id) => `#/plant/${encodeURIComponent(id)}`;
 	//#endregion
 	//#region js/lib/analytics.ts
 	var UX_NAME = /^[a-z0-9][a-z0-9._-]{0,63}$/;
@@ -3789,9 +4356,350 @@
 		return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 	}
 	//#endregion
+	//#region js/views/home.ts
+	var uiState$15 = (ctx) => ctx.ui("home", { editing: false });
+	var MAX_ROWS = 5;
+	var figure = (n, what, tone = "") => `<p class="home-figure ${tone}"><span class="value" data-tick>${fmt$1(n)}</span> <span>${esc(what)}</span></p>`;
+	var more = (n, href, what) => n > MAX_ROWS ? `<p class="small"><a href="${esc(href)}">${fmt$1(n - MAX_ROWS)} more ${esc(what)}</a></p>` : "";
+	var rows = (items) => `<ul class="home-list">${items.slice(0, MAX_ROWS).map((i) => `<li>${i}</li>`).join("")}</ul>`;
+	var nothing = (title, body) => emptyState({
+		compact: true,
+		level: 3,
+		title,
+		body
+	});
+	var warningRow = (w, now) => `<a href="#/warnings?show=all&amp;warning=${encodeURIComponent(w.id)}">${esc(w.signal_tag)}</a><span class="small soft">${esc(w.ended_at === null ? "Still out" : "Back in range")} · ${esc(when$1(w.started_at, now))}</span>`;
+	function cardBody(ctx, id, now) {
+		const me = ctx.ontology.userId;
+		switch (id) {
+			case "my-warnings": {
+				const all = slot(ctx, "my-warnings").value;
+				if (!all) return null;
+				const mine = myWarnings(all, me);
+				if (!mine.length) return nothing("Nothing assigned to you", "Warnings someone assigns you show here.");
+				return `${figure(mine.length, mine.length === 1 ? "warning assigned to you" : "warnings assigned to you", "bad")}
+        ${rows(mine.map((w) => warningRow(w, now)))}${more(mine.length, "#/warnings?who=me", "on the Warnings page")}`;
+			}
+			case "machines-out": {
+				const all = slot(ctx, "open-warnings").value;
+				const signals = slot(ctx, "signals").value;
+				if (!all || !signals) return null;
+				const links = new Map(signals.flatMap((s) => s.node_id ? [[s.tag, s.node_id]] : []));
+				const out = machinesOut(machineBoard(ctx.graph, all.map((w) => placeWarning(ctx.graph, w, links, ""))));
+				if (!out.length) return nothing("No machine is out of range", "A machine shows here while one of its signals is out.");
+				return `${figure(out.length, out.length === 1 ? "machine with a signal still out" : "machines with a signal still out", "bad")}
+        ${rows(out.map((m) => `<a href="${esc(placeLink(m.id))}">${esc(m.label)}</a><span class="small soft">${esc([...m.path.slice(-1), `${m.warnings} open warning${m.warnings === 1 ? "" : "s"}`].join(" · "))}</span>`))}${more(out.length, "#/shopfloor", "on the Shopfloor")}`;
+			}
+			case "shift": {
+				const all = slot(ctx, "recent-warnings").value;
+				if (!all) return null;
+				const start = shiftStart(new Date(now));
+				const s = shiftSummary(all, start);
+				const since = start.toLocaleTimeString("en-GB", {
+					hour: "2-digit",
+					minute: "2-digit"
+				});
+				if (!s.raised.length) return nothing(`No warnings since ${since}`, "Warnings raised this shift show here.");
+				return `${figure(s.waiting.length, `of ${s.raised.length} raised since ${since} not acknowledged`, s.waiting.length ? "bad" : "good")}
+        <p class="small soft">${fmt$1(s.acknowledged)} acknowledged.</p>
+        ${s.waiting.length ? rows(s.waiting.map((w) => warningRow(w, now))) : ""}${more(s.waiting.length, "#/warnings?show=raised", "on the Warnings page")}`;
+			}
+			case "reviews": {
+				const all = slot(ctx, "reviews").value;
+				if (!all) return null;
+				const mine = reviewsForMe(all, me);
+				if (!mine.length) return nothing("No review waits for you", "Change requests you may approve show here.");
+				return `${figure(mine.length, mine.length === 1 ? "change request waiting" : "change requests waiting", "warn")}
+        ${rows(mine.map((r) => `<a href="#/reviews/${r.number}">#${r.number} ${esc(r.message || "Untitled change")}</a><span class="small soft">${esc(r.author)} · ${esc(when$1(r.created_at, now))}</span>`))}${more(mine.length, "#/reviews", "on the Change reviews page")}`;
+			}
+			case "insights": {
+				const all = slot(ctx, "insights").value;
+				if (!all) return null;
+				if (!all.length) return nothing("No insights yet", "Findings saved from the correlation finder or the Data explorer show here.");
+				return rows(recentInsights(all).map((i) => `<a href="#/insights/${i.number}">${esc(i.title)}</a><span class="small soft">${esc(i.author)} · ${esc(when$1(i.updated_at, now))}</span>`));
+			}
+			case "freshness": {
+				const all = slot(ctx, "signals").value;
+				if (!all) return null;
+				const stale = staleSignals(all, now);
+				const counted = all.length === 500 ? `of the first ${fmt$1(500)} signals` : `of ${fmt$1(all.length)} signal${all.length === 1 ? "" : "s"}`;
+				if (!all.length) return nothing("No signals yet", "Signals arrive from edge agents and imports.");
+				if (!stale.length) return `${figure(0, `${counted} stale`, "good")}<p class="small soft">Every signal has sent a reading in the last 15 min.</p>`;
+				return `${figure(stale.length, `${counted} stale`, "warn")}
+        ${rows(stale.map((s) => `<a href="#/signals?q=${encodeURIComponent(s.tag)}">${esc(s.tag)}</a><span class="small soft">${esc(s.last_at ? `Last reading ${when$1(s.last_at, now)}` : "No reading yet")}</span>`))}${more(stale.length, "#/signals", "on the Signals page")}`;
+			}
+			case "agents": {
+				const all = slot(ctx, "agents").value;
+				if (!all) return null;
+				if (!all.length) return nothing("No edge agents", "Register one on Set up a site.");
+				const problems = agentProblems(all);
+				if (!problems.length) return `${figure(all.length, all.length === 1 ? "agent, online" : "agents, all online", "good")}`;
+				return `${figure(problems.length, `of ${all.length} agent${all.length === 1 ? "" : "s"} not online`, "bad")}
+        ${rows(problems.map((a) => `<a href="#/settings">${esc(a.name)}</a><span class="small soft">${esc(a.status === "offline" ? `Offline, last seen ${when$1(a.last_seen_at ?? "", now)}` : "Never called in")}</span>`))}`;
+			}
+			case "quality": {
+				const all = slot(ctx, "quality").value;
+				if (!all) return null;
+				const problems = qualityProblems(all);
+				if (!problems.length) return nothing("No quality problems", "Signals whose last check found gaps, stuck or out-of-range values show here.");
+				return `${figure(problems.length, problems.length === 1 ? "signal with problems" : "signals with problems", "warn")}
+        ${rows(problems.map((s) => `<a href="#/signals?q=${encodeURIComponent(s.tag)}&amp;quality=${s.quality.badge}">${esc(s.tag)}</a><span class="small soft">${esc(s.quality.badge === "bad" ? "Bad" : "Needs a look")}</span>`))}${more(problems.length, "#/signals?quality=bad", "on the Signals page")}`;
+			}
+		}
+	}
+	var CARD_LINKS = {
+		"my-warnings": ["#/warnings?who=me", "Warnings"],
+		"machines-out": ["#/shopfloor", "Shopfloor"],
+		shift: ["#/warnings", "Warnings"],
+		reviews: ["#/reviews", "Change reviews"],
+		insights: ["#/insights", "Insights"],
+		freshness: ["#/signals", "Signals"],
+		agents: ["#/settings", "Settings"],
+		quality: ["#/signals?quality=bad", "Signals"]
+	};
+	function cardHtml(ctx, id, at, count, editing, now) {
+		const def = cardOf(id);
+		const body = def.needs.some((n) => slot(ctx, n).failed) ? loadFailed(def.title, 3) : cardBody(ctx, id, now) ?? skeleton.list(3, `Loading ${def.title.toLowerCase()}…`);
+		const [href, page] = CARD_LINKS[id];
+		const controls = editing ? `<div class="home-card-edit row gap-1 wrap">
+        ${button("Move up", {
+			size: "sm",
+			variant: "ghost",
+			disabled: at === 0,
+			attrs: {
+				"data-card-up": id,
+				"aria-label": `Move ${def.title} up`
+			}
+		})}
+        ${button("Move down", {
+			size: "sm",
+			variant: "ghost",
+			disabled: at === count - 1,
+			attrs: {
+				"data-card-down": id,
+				"aria-label": `Move ${def.title} down`
+			}
+		})}
+        ${button("Remove", {
+			size: "sm",
+			variant: "ghost",
+			attrs: {
+				"data-card-remove": id,
+				"aria-label": `Remove ${def.title}`
+			}
+		})}
+      </div>` : "";
+		return `<section class="card home-card" data-key="card-${id}" data-card="${id}" aria-labelledby="home-${id}">
+      <div class="card-head row justify-between gap-2"><h2 id="home-${id}">${esc(def.title)}</h2><a class="small" href="${esc(href)}">Open ${esc(page)}</a></div>
+      ${body}
+      ${controls}
+    </section>`;
+	}
+	function roleHome(ctx) {
+		const site = ctx.ontology.site;
+		const lead = "What needs you now.";
+		if (ctx.ontology.status === "loading" || !site) return `${pageHead({
+			title: "Home",
+			lead
+		})}${skeleton.card("Loading from the Tiles API…")}`;
+		if (ctx.ontology.status !== "ready") return `${pageHead({
+			title: "Home",
+			lead
+		})}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
+		const role = homeRole(ctx.workRole, ctx.ontology.role);
+		const { cards: kept } = homeLayout(ctx);
+		const cards = kept ?? [...ROLE_CARDS[role]];
+		const editing = uiState$15(ctx).editing;
+		const now = Date.now();
+		const head = pageHead({
+			title: "Home",
+			lead: `What needs you now on ${site.name}. ${kept ? "Your cards" : `The cards for ${ROLE_LABELS[role]}`}: Customize changes them.`,
+			actionsHtml: editing ? button("Done", {
+				variant: "primary",
+				attrs: { "data-home-done": true }
+			}) : button("Customize", { attrs: { "data-home-edit": true } })
+		});
+		const absent = CARDS.filter((c) => !cards.includes(c.id));
+		return `${head}${editing ? `<div class="card home-edit stack gap-2" aria-label="Customize your home">
+        <form class="row gap-2 wrap items-end" data-card-add-form>
+          <label class="field">Add a card<select name="card"${absent.length ? "" : " disabled"}>${absent.map((c) => `<option value="${c.id}">${esc(c.title)}: ${esc(c.summary)}</option>`).join("") || "<option>Every card is on your home</option>"}</select></label>
+          ${button("Add", {
+			type: "submit",
+			disabled: !absent.length
+		})}
+        </form>
+        <p class="small soft">${kept ? `${button(`Use the cards for ${ROLE_LABELS[role]}`, {
+			size: "sm",
+			variant: "ghost",
+			attrs: { "data-home-reset": true }
+		})}` : `These are the cards for ${esc(ROLE_LABELS[role])}. Your changes are kept for you on this site.`}</p>
+      </div>` : ""}${cards.length ? `<div class="home-cards">${cards.map((id, i) => cardHtml(ctx, id, i, cards.length, editing, now)).join("")}</div>` : `<div class="card">${nothing("No cards on your home", "Customize adds the cards you want here.")}</div>`}`;
+	}
+	function demoHome(ctx) {
+		const { state } = ctx;
+		const health = graphHealth(ctx.graph);
+		const ng = state.batches.filter((b) => b.ng).length;
+		const friction = ctx.demoReady ? (() => {
+			const predicted = state.scored.filter((s) => s.predicted);
+			const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
+			return {
+				value: String(state.detection.alerts.length),
+				note: `${predicted.length}/${state.scored.length} stops predicted, ${fmt$1(lead, 1)} h avg lead`
+			};
+		})() : null;
+		const feed = [...state.repo.history.map((c) => ({
+			date: c.date,
+			icon: "git-commit-horizontal",
+			text: `<b>${esc(c.message)}</b> <span class="muted">· ${esc(c.author)}</span>`,
+			href: "#/ontology"
+		})), ...state.runs.map((r) => ({
+			date: r.date,
+			icon: "drafting-compass",
+			text: `<b>${esc(MODELS[r.modelId]?.name ?? r.modelId)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ""} <span class="muted">· ${esc(r.author)}</span>`,
+			href: "#/design"
+		}))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+		return `
+      <section class="hero">
+        <div>
+          <div class="eyebrow">Tiles</div>
+          <h1 tabindex="-1">Physics and plant data, in one place.</h1>
+          <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
+          <div class="row mt-4">
+            <a class="btn primary" href="#/chat">Ask the copilot</a>
+            <a class="btn" href="#/physics">See live warnings</a>
+          </div>
+        </div>
+        <div class="engine" aria-label="How it works">
+          <div class="k">HOW IT WORKS</div>
+          <div class="pill">Physics models</div>
+          <div class="op">+</div>
+          <div class="pill">Live data</div>
+          <div class="op">↓</div>
+          <div class="pill">Answers and warnings</div>
+        </div>
+      </section>
+
+      <div class="grid g4 mb-4">
+        <a class="card kpi bad text-inherit no-underline" href="#/physics"${friction ? "" : " aria-busy=\"true\""}>
+          <div class="label">Friction warnings · DC-02</div>
+          ${friction ? `<div class="value">${friction.value}</div><div class="note">${friction.note}</div>` : `<div class="value"><span class="skeleton kpi-wait"></span><span class="sr-only">Working out the warnings</span></div><div class="note"><span class="skeleton kpi-wait wide"></span></div>`}
+        </a>
+        <a class="card kpi text-inherit no-underline" href="#/quality">
+          <div class="label">Cutter NG rate</div>
+          <div class="value">${fmt$1(100 * ng / state.batches.length, 1)}%</div>
+          <div class="note">${ng} of ${state.batches.length} batches · root cause found</div>
+        </a>
+        <a class="card kpi text-inherit no-underline ${health.score < 100 ? "" : "good"}" href="#/ontology">
+          <div class="label">Ontology health</div>
+          <div class="value">${health.score}</div>
+          <div class="note">${health.counts.nodes} nodes · ${health.counts.edges} relationships · ${health.issues.length} issue(s)</div>
+        </a>
+        <a class="card kpi text-inherit no-underline" href="#/design">
+          <div class="label">Design runs logged</div>
+          <div class="value">${state.runs.length}</div>
+          <div class="note">${Object.keys(MODELS).length} physics models in library</div>
+        </a>
+      </div>
+
+      <div class="grid g3">
+        <div class="card product">
+          <span class="badge accent tag">for Design</span>
+          <h2>Tiles Design</h2>
+          <p class="soft">Design, simulate and optimise physical systems from first principles, with every run versioned and auditable.</p>
+          <ul>
+            <li>Versioned physics model library</li>
+            <li>Parameter sweeps &amp; sensitivity</li>
+            <li>Run lineage and one-click audit export</li>
+          </ul>
+          <a href="#/design">Open design studio →</a>
+        </div>
+        <div class="card product">
+          <span class="badge accent tag">for Operations</span>
+          <h2>Tiles Operations</h2>
+          <p class="soft">Real-time troubleshooting and process control on live machines, grounded in a factory ontology.</p>
+          <ul>
+            <li>Virtual sensors that warn before downtime</li>
+            <li>Correlation finder for quality root cause</li>
+            <li>Versioned ontology with health checks</li>
+          </ul>
+          <a href="#/quality">Open process &amp; quality →</a>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Recent activity</h2></div>
+          <div class="feed">
+            ${feed.map((f) => `<a class="feed-item text-inherit no-underline" href="${f.href}"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`).join("") || emptyState({
+			compact: true,
+			level: 3,
+			title: "No activity yet",
+			bodyHtml: "Commits, design runs and warnings appear here as they happen. Start on the <a href=\"#/ontology\">Ontology</a> page."
+		})}
+          </div>
+        </div>
+      </div>`;
+	}
+	var view$22 = {
+		id: "home",
+		title: "Home",
+		icon: "house",
+		render(ctx) {
+			return ctx.api ? roleHome(ctx) : demoHome(ctx);
+		},
+		bind(root, ctx) {
+			if (!ctx.api) return;
+			const role = homeRole(ctx.workRole, ctx.ontology.role);
+			const cards = () => homeLayout(ctx).cards ?? [...ROLE_CARDS[role]];
+			ensureHome(ctx, needsOf(cards()));
+			const ui = uiState$15(ctx);
+			const keep = (next, focus) => {
+				keepCards(ctx, next).then(() => {
+					if (focus) root.querySelector(focus)?.focus();
+				});
+			};
+			onAll(root, "[data-home-edit]", "click", () => {
+				ui.editing = true;
+				ctx.rerender();
+				root.querySelector("[data-home-done]")?.focus();
+			});
+			onAll(root, "[data-home-done]", "click", () => {
+				ui.editing = false;
+				ctx.rerender();
+				root.querySelector("[data-home-edit]")?.focus();
+			});
+			onAll(root, "[data-card-up]", "click", (el) => {
+				const id = el.dataset.cardUp;
+				keep(moveCard(cards(), id, -1), `[data-card-up="${id}"]:not(:disabled), [data-card-down="${id}"]`);
+			});
+			onAll(root, "[data-card-down]", "click", (el) => {
+				const id = el.dataset.cardDown;
+				keep(moveCard(cards(), id, 1), `[data-card-down="${id}"]:not(:disabled), [data-card-up="${id}"]`);
+			});
+			onAll(root, "[data-card-remove]", "click", (el) => {
+				const id = el.dataset.cardRemove;
+				const before = cards();
+				keep(before.filter((c) => c !== id), "[data-card-add-form] select");
+				ux("task", "home.card-removed");
+				ctx.toast(`${cardOf(id)?.title ?? "Card"} removed`, {
+					type: "success",
+					action: {
+						label: "Undo",
+						run: () => keep(before)
+					}
+				});
+			});
+			onAll(root, "[data-card-add-form]", "submit", (form, e) => {
+				e.preventDefault();
+				const id = form.querySelector("select")?.value ?? "";
+				if (!cardOf(id) || cards().includes(id)) return;
+				keep([...cards(), id], `[data-card-remove="${id}"]`);
+				ux("task", "home.card-added");
+			});
+			onAll(root, "[data-home-reset]", "click", () => keep(null, "[data-home-done]"));
+		}
+	};
+	//#endregion
 	//#region js/lib/analysis.ts
 	var field = (row, key) => row[key];
-	var num$2 = (row, key) => Number(field(row, key));
+	var num$1 = (row, key) => Number(field(row, key));
 	function correlationFinder(rows, variables, { outcome = "ng", splitBy = null } = {}) {
 		const segments = splitBy ? [...new Set(rows.map((r) => String(field(r, splitBy))))] : ["all"];
 		const findings = [];
@@ -3800,8 +4708,8 @@
 			const bad = subset.filter((r) => field(r, outcome));
 			const good = subset.filter((r) => !field(r, outcome));
 			for (const v of variables) {
-				const a = bad.map((r) => num$2(r, v.key));
-				const b = good.map((r) => num$2(r, v.key));
+				const a = bad.map((r) => num$1(r, v.key));
+				const b = good.map((r) => num$1(r, v.key));
 				findings.push({
 					segment: seg,
 					variable: v.key,
@@ -3810,7 +4718,7 @@
 					ngMean: mean(a),
 					okMean: mean(b),
 					effect: cohensD(a, b),
-					r: pearson(subset.map((r) => num$2(r, v.key)), subset.map((r) => field(r, outcome) ? 1 : 0)),
+					r: pearson(subset.map((r) => num$1(r, v.key)), subset.map((r) => field(r, outcome) ? 1 : 0)),
 					ngCount: a.length,
 					okCount: b.length
 				});
@@ -6250,7 +7158,7 @@
 		const shown = items.length > max ? [...items.slice(0, max), `${items.length - max} more`] : items;
 		return shown.length < 2 ? shown[0] ?? "" : `${shown.slice(0, -1).join(", ")} and ${shown.at(-1)}`;
 	}
-	var num$1 = (x) => {
+	var num = (x) => {
 		const abs = Math.abs(x);
 		if (abs > 0 && abs < 1) return x.toLocaleString("en-GB", { maximumSignificantDigits: 3 });
 		const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
@@ -6265,11 +7173,11 @@
 		}
 		return [lo, hi];
 	}
-	var span = ([lo, hi], format = num$1) => {
+	var span = ([lo, hi], format = num) => {
 		if (!Number.isFinite(lo)) return "no values";
 		return format(lo) === format(hi) ? format(lo) : `${format(lo)} to ${format(hi)}`;
 	};
-	var range = (values, format = num$1) => span(extent(values), format);
+	var range = (values, format = num) => span(extent(values), format);
 	var at = (t) => `${new Date(t).toISOString().slice(0, 16).replace("T", " ")} UTC`;
 	function lineChart({ series, width = 760, height = 260, bands = [], markers = [], xLabel = "", yLabel = "", xFormat = (i) => i, yMin, yMax, title = yLabel }) {
 		const n = Math.max(...series.map((s) => s.values.length));
@@ -6420,22 +7328,22 @@
 		return median === void 0 ? Infinity : Math.max(1, median * 5);
 	}
 	var SECOND = 1e3;
-	var MINUTE$1 = 60 * SECOND;
-	var HOUR$3 = 60 * MINUTE$1;
-	var DAY = 24 * HOUR$3;
+	var MINUTE = 60 * SECOND;
+	var HOUR$2 = 60 * MINUTE;
+	var DAY = 24 * HOUR$2;
 	var STEPS$2 = [
 		SECOND,
 		5 * SECOND,
 		15 * SECOND,
 		30 * SECOND,
-		MINUTE$1,
-		5 * MINUTE$1,
-		15 * MINUTE$1,
-		30 * MINUTE$1,
-		HOUR$3,
-		3 * HOUR$3,
-		6 * HOUR$3,
-		12 * HOUR$3,
+		MINUTE,
+		5 * MINUTE,
+		15 * MINUTE,
+		30 * MINUTE,
+		HOUR$2,
+		3 * HOUR$2,
+		6 * HOUR$2,
+		12 * HOUR$2,
 		DAY,
 		2 * DAY,
 		7 * DAY,
@@ -6462,9 +7370,9 @@
 				ticks
 			};
 		}
-		const offset = new Date(from).getTimezoneOffset() * MINUTE$1;
+		const offset = new Date(from).getTimezoneOffset() * MINUTE;
 		for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) {
-			const shifted = step >= HOUR$3 ? t + new Date(t).getTimezoneOffset() * MINUTE$1 - offset : t;
+			const shifted = step >= HOUR$2 ? t + new Date(t).getTimezoneOffset() * MINUTE - offset : t;
 			if (shifted >= from && shifted <= to) ticks.push(shifted);
 		}
 		return {
@@ -6475,7 +7383,7 @@
 	function tickLabel(t, step) {
 		const d = new Date(t);
 		const two = (n) => String(n).padStart(2, "0");
-		const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE$1 ? `:${two(d.getSeconds())}` : ""}`;
+		const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE ? `:${two(d.getSeconds())}` : ""}`;
 		if (step >= 365 * DAY) return String(d.getFullYear());
 		if (step >= 30 * DAY) return d.toLocaleDateString("en-GB", {
 			month: "short",
@@ -6534,8 +7442,8 @@
 		return `${open$1(width, height, title, [
 			`${shown.length} reading${shown.length === 1 ? "" : "s"} ${when}`,
 			`values ${span([dataLo, dataHi])}`,
-			`latest ${num$1(last.v)} at ${at(last.t)}`,
-			...levels.filter((l) => Number.isFinite(l.v)).map((l) => `${l.label} ${num$1(l.v)}`),
+			`latest ${num(last.v)} at ${at(last.t)}`,
+			...levels.filter((l) => Number.isFinite(l.v)).map((l) => `${l.label} ${num(l.v)}`),
 			spans.length ? `${spans.length} shaded stretch${spans.length === 1 ? "" : "es"}` : ""
 		].filter(Boolean).join("; "))}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt$1(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join("")}
@@ -7770,13 +8678,13 @@
       </li>`;
 		}).join("")}</ul>`;
 	}
-	var STATUS$3 = {
+	var STATUS$2 = {
 		proposed: ["warn", "Waiting for review"],
 		accepted: ["good", "Accepted"],
 		rejected: ["bad", "Rejected"]
 	};
 	function statusBadge$3(status) {
-		const [cls, text] = STATUS$3[status];
+		const [cls, text] = STATUS$2[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
 	function parseActions(text) {
@@ -7816,11 +8724,11 @@
 	function seriesDraft(tags, from, to) {
 		return {
 			title: `${tags.join(", ")}`.slice(0, 200),
-			summary: `From ${when$1(from)} to ${when$1(to)}.`,
+			summary: `From ${when(from)} to ${when(to)}.`,
 			actions: ""
 		};
 	}
-	var when$1 = (iso) => new Date(iso).toLocaleString("en-GB", {
+	var when = (iso) => new Date(iso).toLocaleString("en-GB", {
 		dateStyle: "medium",
 		timeStyle: "short"
 	});
@@ -7849,7 +8757,7 @@
 			return parts.join(", ");
 		}
 		const tags = i.evidence.series?.map((s) => s.tag) ?? [];
-		return `${tags.length ? tags.join(", ") : `${q.signals.length} signal(s)`} from ${when$1(q.start)} to ${when$1(q.end)}`;
+		return `${tags.length ? tags.join(", ") : `${q.signals.length} signal(s)`} from ${when(q.start)} to ${when(q.end)}`;
 	}
 	function sourceLink(i) {
 		const q = i.query;
@@ -7905,7 +8813,7 @@
 		});
 		const draw = () => {
 			const shown = (lists.get(box) ?? []).filter((f) => !isRemoving(removal(f.id)));
-			box.innerHTML = shown.length ? feedbackListHtml(shown, when$1) : emptyState({
+			box.innerHTML = shown.length ? feedbackListHtml(shown, when) : emptyState({
 				compact: true,
 				level: 3,
 				title: "No feedback yet",
@@ -8490,7 +9398,7 @@
 	};
 	//#endregion
 	//#region js/lib/wear.ts
-	var HOUR$2 = 36e5;
+	var HOUR$1 = 36e5;
 	var STEPS$1 = [
 		1,
 		5,
@@ -8507,7 +9415,7 @@
 	var MAX_SPAN_HOURS = 2880;
 	function wearPlan(range) {
 		const to = Date.parse(range.to);
-		const spanHours = (to - Date.parse(range.from)) / HOUR$2;
+		const spanHours = (to - Date.parse(range.from)) / HOUR$1;
 		if (!(spanHours > 0)) return "Choose a range first";
 		if (spanHours > MAX_SPAN_HOURS) return "Check at most 120 days at once: zoom in";
 		const step = STEPS$1.find((m) => spanHours * 60 / m <= MAX_BUCKETS) ?? 1440;
@@ -8547,7 +9455,7 @@
 			lo: b.value,
 			hi: b.value
 		}));
-		const bucketMs = points.length > 1 ? Math.min(...points.slice(1).map((p, i) => p.t - points[i].t)) : HOUR$2;
+		const bucketMs = points.length > 1 ? Math.min(...points.slice(1).map((p, i) => p.t - points[i].t)) : HOUR$1;
 		const chart = timeChart({
 			points,
 			from: Date.parse(r.start),
@@ -9190,12 +10098,12 @@
 	//#region js/views/explorer.ts
 	var MAX_SIGNALS = 8;
 	var POINTS = 900;
-	var HOUR$1 = 36e5;
+	var HOUR = 36e5;
 	var PRESETS = {
-		"1h": HOUR$1,
-		"24h": 24 * HOUR$1,
-		"7d": 168 * HOUR$1,
-		"30d": 720 * HOUR$1
+		"1h": HOUR,
+		"24h": 24 * HOUR,
+		"7d": 168 * HOUR,
+		"30d": 720 * HOUR
 	};
 	var ui$1 = (ctx) => ctx.ui("explorer", {
 		picked: [],
@@ -9303,7 +10211,7 @@
 			to: iso(end)
 		};
 	}
-	var MAX_SPAN = 43920 * HOUR$1;
+	var MAX_SPAN = 43920 * HOUR;
 	function zoomOut(range) {
 		const from = Date.parse(range.from);
 		const to = Date.parse(range.to);
@@ -9773,14 +10681,14 @@
 	});
 	var listKey$3 = (ctx) => `${siteId$9(ctx)}|${uiState$9(ctx).state}`;
 	var detailKey$2 = (ctx) => `${siteId$9(ctx)}|${uiState$9(ctx).selected}`;
-	var STATUS$2 = {
+	var STATUS$1 = {
 		open: ["warn", "Waiting for review"],
 		approved: ["good", "Approved"],
 		rejected: ["bad", "Rejected"],
 		withdrawn: ["", "Withdrawn"]
 	};
 	function statusBadge$2(status) {
-		const [cls, text] = STATUS$2[status];
+		const [cls, text] = STATUS$1[status];
 		return `<span class="badge ${cls}">${text}</span>`;
 	}
 	function stats(s) {
@@ -9842,7 +10750,7 @@
 		const canWrite = o.role !== null && o.role !== "viewer";
 		const decide = mayDecide(r, o.userId, o.role);
 		const mine = r.author_id !== null && r.author_id === o.userId;
-		const outcome = r.status === "approved" && r.commit_id ? `<p class="small">Committed as <a class="mono" href="#/ontology" data-history>${esc(r.commit_id.slice(-7))}</a> by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : r.status !== "open" ? `<p class="small soft">${STATUS$2[r.status][1]} by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : "";
+		const outcome = r.status === "approved" && r.commit_id ? `<p class="small">Committed as <a class="mono" href="#/ontology" data-history>${esc(r.commit_id.slice(-7))}</a> by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : r.status !== "open" ? `<p class="small soft">${STATUS$1[r.status][1]} by ${esc(r.decided_by)} ${r.decided_at ? timeAgo(r.decided_at) : ""}.</p>` : "";
 		const waiting = open && !decide && canWrite && !mine && r.reviewer ? `<p class="small soft">Waiting for ${esc(r.reviewer)} (or an admin) to review it.</p>` : "";
 		return `
     <div class="card" data-review-detail>
@@ -10046,144 +10954,6 @@
 		}
 	};
 	//#endregion
-	//#region js/lib/warnings.ts
-	var DEFAULT_FILTERS = {
-		show: "unresolved",
-		who: "anyone",
-		signal: "all"
-	};
-	var SHOWS = [
-		"unresolved",
-		"raised",
-		"acknowledged",
-		"resolved",
-		"all"
-	];
-	var WHOS = [
-		"anyone",
-		"me",
-		"none"
-	];
-	var SIGNALS = [
-		"all",
-		"open",
-		"ended"
-	];
-	function filtersFromQuery(params) {
-		return {
-			show: oneOf(params.get("show"), SHOWS, DEFAULT_FILTERS.show),
-			who: oneOf(params.get("who"), WHOS, DEFAULT_FILTERS.who),
-			signal: oneOf(params.get("signal"), SIGNALS, DEFAULT_FILTERS.signal)
-		};
-	}
-	function filtersQuery(f) {
-		return {
-			show: f.show === DEFAULT_FILTERS.show ? null : f.show,
-			who: f.who === DEFAULT_FILTERS.who ? null : f.who,
-			signal: f.signal === DEFAULT_FILTERS.signal ? null : f.signal
-		};
-	}
-	var SHOW_LABELS = {
-		unresolved: "To do",
-		raised: "New",
-		acknowledged: "Acknowledged",
-		resolved: "Resolved",
-		all: "All"
-	};
-	var STATUS$1 = {
-		raised: ["bad", "New"],
-		acknowledged: ["warn", "Acknowledged"],
-		resolved: ["good", "Resolved"]
-	};
-	var OUTCOMES = {
-		true_alarm: "True alarm",
-		false_alarm: "False alarm",
-		unknown: "Unknown"
-	};
-	function queryFor(f) {
-		return {
-			status: f.show,
-			...f.who === "anyone" ? {} : { assignee: f.who },
-			...f.signal === "all" ? {} : { state: f.signal }
-		};
-	}
-	function actionsFor(w, role) {
-		if (role !== "engineer" && role !== "admin") return [];
-		if (w.status === "resolved") return ["reopen", "comment"];
-		return [
-			...w.status === "raised" ? ["acknowledge"] : [],
-			"assign",
-			"resolve",
-			"comment"
-		];
-	}
-	var MINUTE = 6e4;
-	var HOUR = 36e5;
-	function when(iso, now) {
-		const t = Date.parse(iso);
-		const ago = now - t;
-		if (ago >= 0 && ago < MINUTE) return "just now";
-		if (ago >= 0 && ago < HOUR) return `${Math.floor(ago / MINUTE)} min ago`;
-		if (ago >= 0 && ago < 12 * HOUR) return `${Math.floor(ago / HOUR)} h ago`;
-		return new Date(t).toLocaleString("en-GB", {
-			day: "numeric",
-			month: "short",
-			year: "numeric",
-			hour: "2-digit",
-			minute: "2-digit"
-		});
-	}
-	function chartRange(w, now) {
-		const start = Date.parse(w.started_at);
-		const end = Date.parse(w.ended_at ?? w.last_at);
-		const pad = Math.max(2 * (end - start), HOUR);
-		return {
-			from: start - pad,
-			to: Math.max(end, Math.min(now, end + pad / 2)),
-			start,
-			end
-		};
-	}
-	var num = (x) => {
-		const abs = Math.abs(x);
-		const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : abs >= 1 ? 2 : 3;
-		return x.toLocaleString("en-GB", { maximumFractionDigits: digits });
-	};
-	function howFar(w) {
-		const allowed = w.threshold - w.baseline;
-		const times = allowed ? (w.peak - w.baseline) / allowed : NaN;
-		const word = w.side === "above" ? "above" : "below";
-		return `Peak ${num(w.peak)}, ${word} the threshold of ${num(w.threshold)} (baseline ${num(w.baseline)}${Number.isFinite(times) ? `; ${times.toLocaleString("en-GB", { maximumFractionDigits: 1 })}× the allowed spread` : ""})`;
-	}
-	function activityText(a) {
-		const who = a.actor ?? "someone";
-		switch (a.action) {
-			case "raised": return "Raised by the detector";
-			case "acknowledged": return `${who} acknowledged it`;
-			case "assigned": return `${who} assigned it to ${a.assignee ?? "someone"}`;
-			case "unassigned": return `${who} unassigned it`;
-			case "resolved": return `${who} resolved it: ${a.outcome ? OUTCOMES[a.outcome].toLowerCase() : "no outcome"}`;
-			case "reopened": return `${who} reopened it`;
-			case "commented": return `${who} commented`;
-		}
-	}
-	function payload(w) {
-		const settings = Object.entries(w.detector_config).map(([k, v]) => [`Detector ${k.replace(/_/g, " ")}`, String(v)]);
-		return [
-			["Signal", w.signal_tag],
-			["Detector", w.detector],
-			["Side", w.side],
-			["Peak", num(w.peak)],
-			["Threshold", num(w.threshold)],
-			["Baseline", num(w.baseline)],
-			["Readings out", String(w.readings)],
-			["Started", w.started_at],
-			["Last out", w.last_at],
-			["Back in", w.ended_at ?? "still out"],
-			...settings
-		];
-	}
-	//#endregion
 	//#region js/views/warnings.ts
 	var uiState$8 = (ctx) => ctx.ui("warnings", {
 		filters: { ...DEFAULT_FILTERS },
@@ -10204,7 +10974,7 @@
 		text: ""
 	};
 	var PAGE$1 = 100;
-	var ago = (iso) => when(iso, Date.now());
+	var ago = (iso) => when$1(iso, Date.now());
 	var siteId$8 = (ctx) => ctx.ontology.site?.id ?? null;
 	var linkedWarning = null;
 	function openLinked(ctx) {
@@ -10229,7 +10999,7 @@
 	var detailKey$1 = (ctx) => `${siteId$8(ctx)}|${uiState$8(ctx).selected}`;
 	var seriesKey = (w) => `${w.signal_id}|${w.started_at}|${w.ended_at ?? w.last_at}`;
 	function statusBadge$1(w) {
-		const [cls, label] = STATUS$1[w.status];
+		const [cls, label] = STATUS$3[w.status];
 		return badge$1(label, cls);
 	}
 	var signalState = (w) => w.ended_at ? `back ${ago(w.ended_at)}` : "<b>still out</b>";
@@ -10718,151 +11488,6 @@
 			});
 		}
 	};
-	//#endregion
-	//#region js/lib/graph-index.ts
-	var indexes = /* @__PURE__ */ new WeakMap();
-	function indexOf(graph) {
-		const cached = indexes.get(graph);
-		if (cached) return cached;
-		const add = (map, key, id) => {
-			const list = map.get(key);
-			if (list) list.push(id);
-			else map.set(key, [id]);
-		};
-		const index = {
-			to: /* @__PURE__ */ new Map(),
-			from: /* @__PURE__ */ new Map(),
-			byTag: /* @__PURE__ */ new Map(),
-			byLabel: /* @__PURE__ */ new Map()
-		};
-		for (const e of Object.values(graph.edges)) {
-			if (!graph.nodes[e.from] || !graph.nodes[e.to]) continue;
-			add(index.to, `${e.rel}|${e.to}`, e.from);
-			add(index.from, `${e.rel}|${e.from}`, e.to);
-		}
-		for (const list of [...index.to.values(), ...index.from.values()]) list.sort();
-		const signals = Object.values(graph.nodes).filter((n) => n.type === "Signal").sort((a, b) => a.id.localeCompare(b.id));
-		for (const n of signals) {
-			const tag = n.props["tag"];
-			if (typeof tag === "string" && !index.byTag.has(tag)) index.byTag.set(tag, n.id);
-			if (!index.byLabel.has(n.label)) index.byLabel.set(n.label, n.id);
-		}
-		indexes.set(graph, index);
-		return index;
-	}
-	var incoming = (graph, to, rel) => indexOf(graph).to.get(`${rel}|${to}`) ?? [];
-	var outgoing = (graph, from, rel) => indexOf(graph).from.get(`${rel}|${from}`) ?? [];
-	var signalByTag = (graph, tag) => indexOf(graph).byTag.get(tag);
-	var signalByLabel = (graph, label) => indexOf(graph).byLabel.get(label);
-	//#endregion
-	//#region js/lib/shopfloor.ts
-	var isMachine = (graph, id) => graph.nodes[id]?.type === "Machine";
-	var parentOf$1 = (graph, id) => incoming(graph, id, "contains")[0] ?? null;
-	function machineOf(graph, id) {
-		const node = graph.nodes[id];
-		if (!node) return null;
-		if (node.type === "Machine") return id;
-		const plcs = node.type === "Signal" ? incoming(graph, id, "emits") : node.type === "PLC" ? [id] : [];
-		for (const plc of plcs) {
-			const machine = incoming(graph, plc, "controlledBy").find((m) => isMachine(graph, m));
-			if (machine) return machine;
-		}
-		if (node.type === "Model") {
-			const machine = outgoing(graph, id, "monitors").find((m) => isMachine(graph, m));
-			if (machine) return machine;
-		}
-		const seen = /* @__PURE__ */ new Set([id]);
-		for (let up = parentOf$1(graph, id); up && !seen.has(up); up = parentOf$1(graph, up)) {
-			if (isMachine(graph, up)) return up;
-			seen.add(up);
-		}
-		return null;
-	}
-	function pathOf(graph, id) {
-		const path = [];
-		const seen = /* @__PURE__ */ new Set([id]);
-		for (let up = parentOf$1(graph, id); up && !seen.has(up); up = parentOf$1(graph, up)) {
-			const node = graph.nodes[up];
-			if (node && node.type !== "Site" && node.type !== "Enterprise") path.unshift(node.label);
-			seen.add(up);
-		}
-		return path;
-	}
-	function nodeForTag(graph, tag, links) {
-		const linked = links.get(tag);
-		if (linked && graph.nodes[linked]) return linked;
-		return signalByTag(graph, tag) ?? signalByLabel(graph, tag) ?? null;
-	}
-	function stateOf(w) {
-		if (w.status === "resolved") return "ok";
-		if (!w.ended_at) return "out";
-		return w.status === "raised" ? "new" : "taken";
-	}
-	var RANK$1 = {
-		out: 0,
-		new: 1,
-		taken: 2,
-		ok: 3
-	};
-	function placeWarning(graph, w, links, detail) {
-		const node = nodeForTag(graph, w.signal_tag, links);
-		const machineId = node ? machineOf(graph, node) : null;
-		const machine = machineId ? graph.nodes[machineId] : void 0;
-		return {
-			id: w.id,
-			tag: w.signal_tag,
-			machineId,
-			machine: machine?.label ?? w.signal_tag,
-			path: machineId ? pathOf(graph, machineId) : [],
-			state: stateOf(w),
-			status: w.status,
-			out: !w.ended_at,
-			startedAt: w.started_at,
-			endedAt: w.ended_at,
-			assignee: w.assignee,
-			assigneeId: w.assignee_id,
-			detail
-		};
-	}
-	function floorOrder(a, b) {
-		return RANK$1[a.state] - RANK$1[b.state] || (b.startedAt ?? "").localeCompare(a.startedAt ?? "") || a.id.localeCompare(b.id);
-	}
-	function machineBoard(graph, items) {
-		const open = /* @__PURE__ */ new Map();
-		for (const i of items) {
-			if (i.machineId === null || i.state === "ok") continue;
-			open.set(i.machineId, [...open.get(i.machineId) ?? [], i]);
-		}
-		const tiles = Object.values(graph.nodes).filter((n) => n.type === "Machine").map((m) => {
-			const mine = open.get(m.id) ?? [];
-			const state = mine.reduce((worst, i) => RANK$1[i.state] < RANK$1[worst] ? i.state : worst, "ok");
-			return {
-				id: m.id,
-				label: m.label,
-				path: pathOf(graph, m.id),
-				state,
-				warnings: mine.length
-			};
-		});
-		const where = (t) => [...t.path, t.label].join("\0");
-		const collator = new Intl.Collator("en", { numeric: true });
-		return tiles.sort((a, b) => RANK$1[a.state] - RANK$1[b.state] || collator.compare(where(a), where(b)));
-	}
-	function headline(items) {
-		const open = items.filter((i) => i.state !== "ok");
-		const out = open.filter((i) => i.state === "out").length;
-		const untaken = open.filter((i) => i.status === "raised").length;
-		if (!open.length) return {
-			tone: "good",
-			text: "All clear: no open warnings"
-		};
-		const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
-		const parts = [out ? `${plural(out, "signal")} still out` : "", untaken ? `${untaken} nobody has taken` : ""].filter(Boolean);
-		return {
-			tone: out || untaken ? "bad" : "warn",
-			text: `${plural(open.length, "open warning")}${parts.length ? `: ${parts.join(", ")}` : ""}`
-		};
-	}
 	var LINKS_PAGE = 500;
 	var MAX_LINKS = 1e4;
 	var ROUTES = /* @__PURE__ */ new Set(["shopfloor", "plant"]);
@@ -11037,7 +11662,7 @@
 	});
 	function since(item, now) {
 		if (!item.startedAt) return "";
-		return item.out ? `Out since ${esc(when(item.startedAt, now))}` : `Started ${esc(when(item.startedAt, now))}, back ${esc(when(item.endedAt ?? item.startedAt, now))}`;
+		return item.out ? `Out since ${esc(when$1(item.startedAt, now))}` : `Started ${esc(when$1(item.startedAt, now))}, back ${esc(when$1(item.endedAt ?? item.startedAt, now))}`;
 	}
 	function actions(ctx, item, ui) {
 		if (!ctx.api) return "<p class=\"small soft\">Connect to the Tiles API in Settings to take and resolve warnings.</p>";
@@ -11212,106 +11837,6 @@
 		}
 	};
 	//#endregion
-	//#region js/lib/plant.ts
-	var collator = new Intl.Collator("en", { numeric: true });
-	var isPlace = (graph, id) => {
-		const node = graph.nodes[id];
-		return node !== void 0 && HIERARCHY.includes(node.type);
-	};
-	var byLabel = (graph) => (a, b) => collator.compare(graph.nodes[a]?.label ?? a, graph.nodes[b]?.label ?? b) || a.localeCompare(b);
-	var nodes = (graph, ids) => ids.flatMap((id) => graph.nodes[id] ? [graph.nodes[id]] : []).sort((a, b) => byLabel(graph)(a.id, b.id));
-	function parentPlace(graph, id) {
-		return incoming(graph, id, "contains").find((p) => isPlace(graph, p)) ?? null;
-	}
-	function topPlaces(graph) {
-		return Object.keys(graph.nodes).filter((id) => isPlace(graph, id) && parentPlace(graph, id) === null).sort(byLabel(graph));
-	}
-	function placesIn(graph, id) {
-		return outgoing(graph, id, "contains").filter((c) => isPlace(graph, c) && parentPlace(graph, c) === id).sort(byLabel(graph));
-	}
-	function trail(graph, id) {
-		const path = [];
-		const seen = /* @__PURE__ */ new Set();
-		for (let at = id; at && !seen.has(at); at = parentPlace(graph, at)) {
-			const node = graph.nodes[at];
-			if (!node) break;
-			path.unshift(node);
-			seen.add(at);
-		}
-		return path;
-	}
-	function machinesUnder(graph, id) {
-		const found = [];
-		const seen = /* @__PURE__ */ new Set();
-		const stack = [id];
-		while (stack.length) {
-			const at = stack.pop() ?? "";
-			if (seen.has(at) || !graph.nodes[at]) continue;
-			seen.add(at);
-			if (graph.nodes[at]?.type === "Machine") found.push(at);
-			stack.push(...placesIn(graph, at));
-		}
-		return found.sort(byLabel(graph));
-	}
-	function machineSheet(graph, id) {
-		const contained = nodes(graph, outgoing(graph, id, "contains"));
-		return {
-			plcs: nodes(graph, outgoing(graph, id, "controlledBy")).map((plc) => ({
-				plc,
-				signals: nodes(graph, outgoing(graph, plc.id, "emits"))
-			})),
-			signals: contained.filter((n) => n.type === "Signal"),
-			processes: nodes(graph, outgoing(graph, id, "runs")).map((process) => ({
-				process,
-				materials: nodes(graph, outgoing(graph, process.id, "consumes"))
-			})),
-			documents: nodes(graph, incoming(graph, id, "describes")),
-			models: nodes(graph, incoming(graph, id, "monitors")),
-			feedsFrom: nodes(graph, incoming(graph, id, "feeds")),
-			feedsTo: nodes(graph, outgoing(graph, id, "feeds")),
-			parts: contained.filter((n) => n.type !== "Signal")
-		};
-	}
-	function findPlaces(graph, query, limit = 20) {
-		const words = query.toLowerCase().split(/\s+/).filter(Boolean);
-		if (!words.length) return [];
-		const q = words.join(" ");
-		return Object.values(graph.nodes).filter((n) => HIERARCHY.includes(n.type) && words.every((w) => n.label.toLowerCase().includes(w))).map((n) => {
-			const path = trail(graph, n.id).slice(0, -1).map((p) => p.label);
-			return {
-				id: n.id,
-				label: n.label,
-				type: n.type,
-				path,
-				starts: n.label.toLowerCase().startsWith(q)
-			};
-		}).sort((a, b) => Number(b.starts) - Number(a.starts) || a.path.length - b.path.length || collator.compare(a.label, b.label) || a.id.localeCompare(b.id)).slice(0, limit).map(({ starts: _starts, ...hit }) => hit);
-	}
-	var RANK = {
-		out: 0,
-		new: 1,
-		taken: 2,
-		ok: 3
-	};
-	function rollUp(graph, items, id, under = machinesUnder(graph, id)) {
-		const machines = new Set(under);
-		const warnings = items.filter((i) => i.machineId !== null && machines.has(i.machineId) && i.state !== "ok");
-		return {
-			state: warnings.reduce((worst, i) => RANK[i.state] < RANK[worst] ? i.state : worst, "ok"),
-			warnings
-		};
-	}
-	function placeFromHash(hash) {
-		const m = hash.match(/^#\/plant\/([^?]+)/i);
-		if (!m?.[1]) return null;
-		try {
-			return decodeURIComponent(m[1]);
-		} catch {
-			return null;
-		}
-	}
-	var placeLink = (id) => `#/plant/${encodeURIComponent(id)}`;
-	//#endregion
 	//#region js/views/plant.ts
 	var uiState$6 = (ctx) => ctx.ui("plant", { query: "" });
 	var searching = false;
@@ -11342,7 +11867,7 @@
 			const [cls, label] = STATE_LABEL[i.state];
 			const about = [
 				onMachine ? "" : esc(i.machine),
-				i.startedAt ? esc(when(i.startedAt, now)) : "",
+				i.startedAt ? esc(when$1(i.startedAt, now)) : "",
 				i.assignee ? `${esc(i.assignee)} has it` : ""
 			].filter(Boolean);
 			return `<li class="plant-warning">
@@ -11353,7 +11878,7 @@
 	}
 	var reading = (s, now) => {
 		if (!s || s.last_value === null || !s.last_at) return "<span class=\"soft\">—</span>";
-		return `${esc(typeof s.last_value === "number" ? fmt$1(s.last_value, Math.abs(s.last_value) < 10 ? 2 : 1) : String(s.last_value))}${s.unit ? ` ${esc(s.unit)}` : ""} <span class="small soft">${esc(when(s.last_at, now))}</span>`;
+		return `${esc(typeof s.last_value === "number" ? fmt$1(s.last_value, Math.abs(s.last_value) < 10 ? 2 : 1) : String(s.last_value))}${s.unit ? ` ${esc(s.unit)}` : ""} <span class="small soft">${esc(when$1(s.last_at, now))}</span>`;
 	};
 	function signalsCard(ctx, signals, now) {
 		if (!signals.length) return "";
@@ -12822,7 +13347,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
     </div>`;
 	}
 	function eventsCard(r) {
-		const rows = r.events.map((e) => `<tr><td>${esc(when(e.at, Date.now()))}</td><td>${esc(e.asset)}</td><td>${esc(e.kind)}</td><td class="mono">${esc(e.code)}</td><td>${e.warned_at && e.warning_seconds !== null ? `<span class="badge good">warned</span> ${esc(duration(e.warning_seconds))} ahead, by ${esc(e.detector ?? "a detector")}` : "<span class=\"badge bad\">missed</span>"}</td></tr>`).join("");
+		const rows = r.events.map((e) => `<tr><td>${esc(when$1(e.at, Date.now()))}</td><td>${esc(e.asset)}</td><td>${esc(e.kind)}</td><td class="mono">${esc(e.code)}</td><td>${e.warned_at && e.warning_seconds !== null ? `<span class="badge good">warned</span> ${esc(duration(e.warning_seconds))} ahead, by ${esc(e.detector ?? "a detector")}` : "<span class=\"badge bad\">missed</span>"}</td></tr>`).join("");
 		return `<div class="card stack gap-2_5">
       <h2>Events</h2>
       ${r.events.length ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Asset</th><th>Kind</th><th>Code</th><th>Warning</th></tr></thead><tbody>${rows}</tbody></table></div>` : emptyState({
@@ -13783,7 +14308,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const n = selected$1();
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? skeleton.list() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}" data-key="insight-${i.number}"${n === i.number ? " aria-current=\"true\"" : ""}>
               <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$3(i.status)}</span>
-              <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
+              <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when(i.created_at))}</span>
             </a>`).join("") || emptyState({
 			illustration: ui.status === "proposed" ? "done" : "inbox",
 			compact: true,
@@ -13834,12 +14359,12 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const link = sourceLink(i);
 		const head = `<div class="row justify-between items-start gap-3 wrap">
       <div><h2>#${i.number} ${esc(i.title)}</h2>
-      <p class="small soft">Saved by ${esc(i.author)} on ${esc(when$1(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when$1(i.updated_at))}` : ""}</p></div>
+      <p class="small soft">Saved by ${esc(i.author)} on ${esc(when(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when(i.updated_at))}` : ""}</p></div>
       <div class="row gap-1_5">${statusBadge$3(i.status)}</div>
     </div>`;
 		const body = editing?.key === key ? draftForm("insight-edit", editing.text, busy$1, "Save changes") : `${i.summary ? `<p class="pre-wrap" data-summary>${esc(i.summary)}</p>` : ""}
         <div><h3>Proposed actions</h3>${i.actions.length ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join("")}</ol>` : "<p class=\"small soft\">None proposed.</p>"}</div>`;
-		const reviewed = i.status !== "proposed" && i.reviewer ? `<p class="small" data-review>${i.status === "accepted" ? "Accepted" : "Rejected"} by ${esc(i.reviewer)}${i.reviewed_at ? ` on ${esc(when$1(i.reviewed_at))}` : ""}${i.review_note ? `: “${esc(i.review_note)}”` : ""}</p>` : "";
+		const reviewed = i.status !== "proposed" && i.reviewer ? `<p class="small" data-review>${i.status === "accepted" ? "Accepted" : "Rejected"} by ${esc(i.reviewer)}${i.reviewed_at ? ` on ${esc(when(i.reviewed_at))}` : ""}${i.review_note ? `: “${esc(i.review_note)}”` : ""}</p>` : "";
 		if (note.key !== key) note = {
 			key,
 			text: ""
@@ -13857,7 +14382,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
       ${head}
       ${body}
       <div class="stack gap-1_5"><h3>Evidence</h3>
-        <p class="small soft" data-source>${esc(sourceText(i))}, as it was on ${esc(when$1(i.created_at))}. <a href="${esc(link.href)}">${esc(link.text)}</a> to see it on today’s data.</p>
+        <p class="small soft" data-source>${esc(sourceText(i))}, as it was on ${esc(when(i.created_at))}. <a href="${esc(link.href)}">${esc(link.text)}</a> to see it on today’s data.</p>
         ${evidence(i)}
       </div>
       ${reviewed}
@@ -14586,7 +15111,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			["Size", sizeText(d.size)],
 			["Language", language],
 			["Uploaded by", d.uploaded_by],
-			["Uploaded", when$1(d.created_at)],
+			["Uploaded", when(d.created_at)],
 			["SHA-256", `${d.sha256.slice(0, 12)}…`]
 		])}
     ${inSearch}`, {
@@ -16855,6 +17380,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			render();
 			toast("Demo data reset");
 			connectOntology();
+		},
+		get workRole() {
+			const owner = navOwner();
+			return owner && load$4(welcomeKey(owner), null)?.role || null;
 		},
 		get demoReady() {
 			return demoReady();

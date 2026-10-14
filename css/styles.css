@@ -2570,6 +2570,65 @@ kbd {
   margin-top: var(--space-4);
 }
 
+/* Home by role (U5.01): cards that each answer "what needs me now?", side by side as space allows
+   (filling an ultrawide screen), with their figure and a short list. */
+.home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.home-card .card-head h2 {
+  font-size: var(--text-md);
+}
+.home-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0;
+}
+.home-figure .value {
+  font-size: var(--text-3xl);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.home-figure.bad .value {
+  color: var(--bad);
+}
+.home-figure.warn .value {
+  color: var(--warn-ink);
+}
+.home-figure.good .value {
+  color: var(--good);
+}
+.home-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.home-list li {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0_5);
+  padding: var(--space-2) 0;
+}
+.home-list li + li {
+  border-top: 1px solid var(--line);
+}
+.home-card-edit {
+  border-top: 1px dashed var(--line-strong);
+  padding-top: var(--space-2);
+}
+.home-edit {
+  margin-bottom: var(--space-4);
+}
+
 /* In-app feedback (U4.09): the moods as large choices, the screenshot shown before it is sent, and
    the list admins read in Settings. */
 .moods {

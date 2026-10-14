@@ -290,6 +290,7 @@ export function createFakeApi({
   // UX analytics (U1.09): the organisation's switch, and the events stored ({ kind, name, session }).
   let uxEnabled = false;
   const uxEvents = [];
+  const homeLayouts = new Map(); // Home by role (U5.01): user → { cards, updated_at }
   const appFeedback = []; // In-app feedback (U4.09), newest last: { id, …, user, screenshot (a data URL or null) }
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
@@ -621,6 +622,7 @@ export function createFakeApi({
       if (
         !url.pathname.startsWith(base) &&
         url.pathname !== `/sites/${site.id}/me` &&
+        url.pathname !== `/sites/${site.id}/me/home` &&
         url.pathname !== `/sites/${site.id}/onboarding` &&
         url.pathname !== `/sites/${site.id}/members` &&
         !url.pathname.endsWith('/audit') &&
@@ -1773,6 +1775,24 @@ export function createFakeApi({
       if (url.pathname.startsWith(warningsPath))
         return await warningRoute(url, url.pathname.slice(warningsPath.length), user, role, memberOf);
       if (url.pathname === `/sites/${site.id}/me`) return send(200, memberOf(user));
+      // Home by role (U5.01): each person's cards, null for their role's.
+      if (url.pathname === `/sites/${site.id}/me/home`) {
+        if (req.method === 'PUT') {
+          const b = await body(req);
+          const ok =
+            Array.isArray(b?.cards) &&
+            b.cards.length <= 16 &&
+            new Set(b.cards).size === b.cards.length &&
+            b.cards.every((c) => /^[a-z][a-z0-9-]{0,31}$/.test(c));
+          if (!ok) return send(422, { detail: 'Not a list of cards' });
+          homeLayouts.set(user, { cards: b.cards, updated_at: new Date().toISOString() });
+        } else if (req.method === 'DELETE') {
+          homeLayouts.delete(user);
+          res.writeHead(204);
+          return res.end();
+        }
+        return send(200, homeLayouts.get(user) ?? { cards: null, updated_at: null });
+      }
       if (url.pathname === `/sites/${site.id}/members`) return send(200, [...members].sort().map(memberOf));
       const path = url.pathname.slice(base.length);
       // Like the real API, anyone may discard their own staged changes.
@@ -2114,6 +2134,7 @@ export function createFakeApi({
     // UX analytics stored (U1.09).
     uxEvents,
     appFeedback,
+    homeLayouts,
     copilotUsage,
     // Design runs stored on the site (T4.11), latest last.
     designRuns,

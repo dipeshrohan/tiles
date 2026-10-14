@@ -1108,6 +1108,21 @@ export function createApiClient(options: ApiOptions) {
           },
         ),
     },
+    // Home by role (U5.01): the cards you keep on your home on a site; null: your role's.
+    home: {
+      get: (siteId: string) =>
+        request<{ cards: string[] | null; updated_at: string | null }>(
+          'GET',
+          `/sites/${encodeURIComponent(siteId)}/me/home`,
+        ),
+      set: (siteId: string, cards: readonly string[]) =>
+        request<{ cards: string[] | null; updated_at: string | null }>(
+          'PUT',
+          `/sites/${encodeURIComponent(siteId)}/me/home`,
+          { cards },
+        ),
+      reset: (siteId: string) => request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/me/home`),
+    },
     // UX analytics (U1.09): whether a site records them, the events, and their counts (admins).
     ux: {
       enabled: (siteId: string) =>
