@@ -85,6 +85,7 @@ import documents from './views/documents.ts';
 import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import help, { guideHtml } from './views/help.ts';
+import glossary, { ENTRIES as GLOSSARY_ENTRIES } from './views/glossary.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import type { Graph, Repo, ShotHistory } from './lib/types.ts';
 import { rowTarget, shown } from './lib/split.ts';
@@ -125,6 +126,7 @@ const VIEWS: View[] = [
   settings,
   styleguide, // not in the menu: Settings → About links to it
   help,
+  glossary, // not in the menu: Help links to it
 ];
 
 const NAV: { group?: string; items: View[] }[] = [
@@ -942,6 +944,16 @@ need(document, '#menu').innerHTML = icon('menu', { size: 18 });
 const go = (hash: string) => () => {
   location.hash = hash;
 };
+// The glossary's terms (U4.05), after the rest like the guide's headings; made once.
+const GLOSSARY_ITEMS: PaletteItem[] = GLOSSARY_ENTRIES.map((e) => ({
+  id: `term:${e.key}`,
+  label: e.term,
+  group: 'Glossary',
+  icon: 'book-a',
+  hint: e.group,
+  late: true,
+  run: go(`#/glossary/${encodeURIComponent(e.key)}`),
+}));
 // The guide's headings join the palette once loaded (U4.04): asked for once, as the palette first opens.
 let helpAsked = false;
 
@@ -1065,6 +1077,14 @@ const palette = installPalette({
         run: () => void openHelp(),
       },
       {
+        id: 'do:glossary',
+        label: 'Glossary',
+        group: 'Actions',
+        icon: 'book-a',
+        keywords: 'terms words meaning definitions',
+        run: go('#/glossary'),
+      },
+      {
         id: 'do:shortcuts',
         label: 'Keyboard shortcuts',
         group: 'Actions',
@@ -1106,7 +1126,7 @@ const palette = installPalette({
           location.hash = href;
         })
       : [];
-    return [...pages, ...actions, ...sites, ...helpFound];
+    return [...pages, ...actions, ...sites, ...helpFound, ...GLOSSARY_ITEMS];
   },
   canSearch: () => Boolean(api && ctx.ontology.site),
   // Where records picked come from: they come back among the recent picks there only.

@@ -76,6 +76,16 @@ export function scrollBehavior(): ScrollBehavior {
   return lessMotion() ? 'auto' : 'smooth';
 }
 
+// Takes the reader to a heading or term on a long page (the Help page, the Glossary): it gets the
+// focus, and the window scrolls to it, below the sticky top bar by its scroll-margin. The window
+// scrolls, not an ancestor (scrollIntoView moved the app's clipped shell).
+export function goToAnchor(el: HTMLElement, o: { scroll?: boolean } = {}): void {
+  el.focus({ preventScroll: true });
+  if (o.scroll === false) return;
+  const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - margin, behavior: scrollBehavior() });
+}
+
 // Whether less motion is asked for: by the system, or in Tiles (data-motion, U6.06).
 export function lessMotion(): boolean {
   return (

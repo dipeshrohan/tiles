@@ -49,6 +49,7 @@ const PAGES = [
   'styleguide',
   'help',
   'help/warnings',
+  'glossary',
 ];
 
 const VARIANTS = [

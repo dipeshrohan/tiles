@@ -33,6 +33,7 @@ const PAGES = [
   'settings',
   'help',
   'help/warnings',
+  'glossary',
 ];
 const VARIANTS = [
   { name: 'light desktop', colorScheme: 'light', viewport: { width: 1360, height: 900 } },
@@ -488,6 +489,62 @@ test("each page's help: a side sheet from the top bar, the whole guide on the He
   await page.close();
 });
 
+test('glossary terms explain themselves where they appear; the Glossary page lists and finds them (U4.05)', async () => {
+  const { page, errors } = await openPage({ hasTouch: true });
+  await page.goto(`${httpBase}#/physics`);
+  await page.waitForSelector('#view h1');
+  const robust = page.locator('.term[data-term="robust-σ"]').first();
+  const tip = page.locator('#tooltip');
+  // Pointed at: the definition after a moment (scrolled to first: a scroll hides a tooltip).
+  await robust.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  await robust.hover();
+  await tip.waitFor({ state: 'visible' });
+  assert.match(await tip.innerText(), /^The spread of the readings worked out from the MAD/);
+  // Tabbed to: at once, and it describes the term for screen readers; Escape hides it.
+  await page.mouse.move(0, 0);
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
+  await robust.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await tip.waitFor({ state: 'visible' });
+  assert.equal(await robust.getAttribute('aria-describedby'), 'tooltip');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
+  // Tapped: shown; tapped again: hidden.
+  const baseline = page.locator('.term[data-term="baseline"]').first();
+  await baseline.tap();
+  await tip.waitFor({ state: 'visible' });
+  assert.match(await tip.innerText(), /^The usual level of a signal/);
+  await baseline.tap();
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
+  // The Glossary page, opened at a term; a search narrows it.
+  await page.goto(`${httpBase}#/glossary/cohens-d`);
+  await page.waitForFunction(() => document.activeElement?.id === 'term-cohens-d');
+  assert.equal(await page.locator('#crumbs li:last-child').innerText(), "Cohen's d");
+  assert.ok((await page.locator('.glossary dt').count()) >= 60);
+  await page.fill('input[name=q]', 'theil');
+  await page.waitForFunction(() => document.querySelectorAll('.glossary dt').length === 1);
+  assert.equal(await page.locator('.glossary dt').innerText(), 'Theil–Sen slope');
+  await page.fill('input[name=q]', 'zzqx');
+  await page.waitForSelector('#view :text("No term matches")');
+  // A link to another term shows it, whatever was searched for.
+  await page.evaluate(() => (location.hash = '#/glossary/baseline'));
+  await page.waitForFunction(() => document.activeElement?.id === 'term-baseline');
+  assert.equal(await page.inputValue('input[name=q]'), '');
+  // Clicked with a mouse, a term's definition stays shown.
+  await page.goto(`${httpBase}#/physics`);
+  const median = page.locator('.term[data-term="median"]').first();
+  await median.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  await median.click();
+  await tip.waitFor({ state: 'visible' });
+  await page.waitForTimeout(500);
+  assert.ok(await tip.isVisible(), 'still shown after the hover timer');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Enter goes', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/`);
@@ -501,7 +558,7 @@ test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Ente
   await input.fill('warn');
   const options = palette.locator('[role=option]');
   // Both start with it: the menu's order holds; then the action with a word starting with it; the
-  // guide's best five headings (U4.04); and asking the copilot what was typed (U4.02).
+  // best five of the guide's headings (U4.04) and the glossary's terms (U4.05); and asking the copilot what was typed (U4.02).
   assert.deepEqual(await options.allInnerTexts(), [
     'Warnings\nOperations',
     'Warning performance\nOperations',
@@ -509,8 +566,8 @@ test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Ente
     'Warnings',
     'Warning performance',
     'Two separate states\nWarnings',
-    'Filtering\nWarnings',
-    'Working a warning (engineers and admins)\nWarnings',
+    'Warning\nWarnings and detectors',
+    'Warning time\nWarnings and detectors',
     'Ask the copilot “warn”',
   ]);
   assert.equal(await input.getAttribute('aria-activedescendant'), 'palette-0');
@@ -3365,8 +3422,8 @@ test('warning performance: what the warnings caught, per detector, for the codes
   const a = await openAs(t, apiUrl, null, 'performance');
   await a.page.waitForSelector('[data-kpis]');
   const tiles = await a.page.locator('[data-kpis] .kpi').allInnerTexts();
-  assert.match(tiles[0], /Events warned of\s+75\.0%\s+3 of 4/);
-  assert.match(tiles[1], /Warnings an event followed\s+100\.0%/);
+  assert.match(tiles[0], /Events warned of \(recall\)\s+75\.0%\s+3 of 4/);
+  assert.match(tiles[1], /Warnings an event followed \(precision\)\s+100\.0%/);
   assert.match(tiles[2], /Confirmed true by people\s+100\.0%\s+1 true, 0 false, 0 unknown, 2 open/);
   assert.match(tiles[3], /Warning time \(median\)\s+1\.8 h/);
   const events = a.page.locator('tbody tr', { hasText: 'DT-SEIZURE' });

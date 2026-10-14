@@ -5,6 +5,7 @@ import { errorDetails } from './errors.ts';
 import { VERSION } from './version.ts';
 import { icon, type IconName } from './icons.ts';
 import { illustration, type IllustrationName } from './illustrations.ts';
+import { GLOSSARY, type GlossaryKey } from './glossary-data.ts';
 
 // setBusy lives in dom.ts (onSubmit and onAction use it); it is offered here with the components.
 export { setBusy } from './dom.ts';
@@ -149,6 +150,21 @@ export function iconButton(name: IconName, label: string, o: Omit<ButtonOptions,
   return `<button${attrs({ class: buttonClass(o, 'icon'), type: o.type ?? 'button', 'aria-label': label, 'data-tooltip': label, disabled: o.disabled, ...o.attrs })}>${icon(name)}</button>`;
 }
 
+// A glossary term (U4.05) where it first appears on a page: its words, dotted, with the definition
+// from docs/ui/glossary.md in a tooltip on hover, focus or a tap. `text` is the words shown when
+// they aren't the term itself ("d" for Cohen's d); then the tooltip names the term first.
+export function term(key: GlossaryKey, text?: string): string {
+  const t = GLOSSARY[key];
+  const shown = text ?? t.term;
+  const tip = shown.toLowerCase() === t.term.toLowerCase() ? t.text : `${t.term}: ${t.text}`;
+  return `<button${attrs({ class: 'term', type: 'button', 'data-tooltip': tip, 'data-term': key })}>${esc(shown)}</button>`;
+}
+
+// A term's name inside a sentence: lower case when it is plain words ("Recall" → "recall"), as written
+// when it is a name or an abbreviation (MAD, Cohen's d, Theil–Sen slope).
+export const inSentence = (name: string): string =>
+  /^[A-Z][a-z]+( [a-z]+)*$/.test(name) ? name.charAt(0).toLowerCase() + name.slice(1) : name;
+
 // A link that looks like a button (it goes somewhere; a button does something).
 export function linkButton(label: string, href: string, o: Omit<ButtonOptions, 'type' | 'disabled'> = {}): string {
   return `<a${attrs({ class: buttonClass(o), href, ...o.attrs })}>${o.icon ? `${icon(o.icon)} ` : ''}${esc(label)}</a>`;
@@ -191,6 +207,7 @@ export function pageHead(o: {
   eyebrow?: string;
   title: string;
   lead?: string;
+  leadHtml?: string; // a lead with built markup: glossary terms (term())
   actionsHtml?: string;
   level?: 1 | 4; // 1 on a page; 4 for an example inside one
 }): string {
@@ -198,7 +215,7 @@ export function pageHead(o: {
   // A page's heading takes the focus when the page opens (U3.02): focusable by script, not by Tab.
   const focusable = h === 'h1' ? ' tabindex="-1"' : '';
   return `<div class="page-head"><div>${o.eyebrow ? `<div class="eyebrow">${esc(o.eyebrow)}</div>` : ''}<${h} class="page-title"${focusable}>${esc(o.title)}</${h}>${
-    o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ''
+    o.leadHtml ? `<p class="soft">${o.leadHtml}</p>` : o.lead ? `<p class="soft">${esc(o.lead)}</p>` : ''
   }</div>${o.actionsHtml ?? ''}</div>`;
 }
 

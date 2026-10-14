@@ -3,6 +3,7 @@
 
 import type { WearCheckQuery, WearCheckResult } from './api.ts';
 import { esc } from './dom.ts';
+import { term } from './ui.ts';
 import { TIME_CHART, timeChart } from './svg.ts';
 
 const HOUR = 3_600_000;
@@ -68,6 +69,6 @@ export function wearBlock(r: WearCheckResult, limit: number | null, width = TIME
   return `<div class="stack gap-1_5" data-wear-result>
       <p><span class="badge ${cls}">${label}</span> ${esc(r.text)}</p>
       ${chart}
-      <p class="small soft">Medians of ${esc(String(r.baseline_buckets + r.recent_buckets))} bucket(s); the shaded part is the recent window.</p>
+      <p class="small soft">${term('median', 'Medians')} of ${esc(String(r.baseline_buckets + r.recent_buckets))} ${term('bucket', 'bucket(s)')}; the shaded part is the recent window, compared with the ${term('baseline', 'baseline')} before it. A ${term('wear-check', 'wear check')} measures the drift as a ${term('theilsen-slope', 'Theil–Sen slope')} and, given a limit, the ${term('time-to-limit', 'time to limit')}.</p>
     </div>`;
 }

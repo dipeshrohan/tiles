@@ -85,13 +85,17 @@ const owner = (e: Event): HTMLElement | null =>
     : null;
 
 export function installTooltips(root: Document = document): void {
+  // Hover is a mouse's or a pen's: a finger taps (below), and its pointerout before the click would
+  // hide what the tap shows.
   root.addEventListener('pointerover', (e) => {
+    if (e.pointerType === 'touch') return;
     const el = owner(e);
     if (!el || el === target) return;
     hide();
     timer = setTimeout(() => show(el), 400);
   });
   root.addEventListener('pointerout', (e) => {
+    if (e.pointerType === 'touch') return;
     if (owner(e) && !(e.relatedTarget instanceof Node && owner(e)?.contains(e.relatedTarget))) hide();
   });
   root.addEventListener('focusin', (e) => {
@@ -103,5 +107,16 @@ export function installTooltips(root: Document = document): void {
     if (e.key === 'Escape' && target) hide();
   });
   window.addEventListener('scroll', hide, { passive: true });
-  root.addEventListener('click', hide);
+  // A tap on a glossary term (U4.05) shows its definition, and another tap hides it; a click or
+  // Enter keeps it shown (it was shown by pointing or by the focus). Any other click hides it.
+  let tapped = false;
+  root.addEventListener('pointerdown', (e) => (tapped = e.pointerType === 'touch'));
+  root.addEventListener('click', (e) => {
+    const word = e.target instanceof Element ? e.target.closest<HTMLElement>('.term[data-tooltip]') : null;
+    if (!word) return hide();
+    if (word !== target) {
+      hide();
+      show(word);
+    } else if (tapped && e.detail > 0) hide();
+  });
 }

@@ -5,7 +5,7 @@ import { dumbbell, fitWidth, hbars, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll, signed, bound } from '../lib/dom.ts';
 import type { Material } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
-import { pageHead } from '../lib/ui.ts';
+import { pageHead, term } from '../lib/ui.ts';
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -67,7 +67,7 @@ const view: View = {
 
       <div class="grid g2 mb-4">
         <div class="card">
-          <div class="card-head"><h2>Effect size by variable</h2><p>Cohen's d, failed vs healthy · |d| ≥ 0.8 is strong</p></div>
+          <div class="card-head"><h2>Effect size by variable</h2><p>${term('cohens-d')}, failed vs healthy · |d| ≥ 0.8 is strong</p></div>
           ${hbars({ items: effects, width: 480, left: 200, title: "Effect size by variable (Cohen's d)", format: (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2) })}
           ${ui.split ? '' : '<p class="small soft mt-2">Pooled across materials, nothing stands out. Try <a href="#/quality" data-split="1">splitting by material</a>.</p>'}
         </div>
@@ -125,7 +125,7 @@ const view: View = {
           height: 260,
         })}
         <div class="grid g2 mt-3">
-          <div><h3>Proposed action</h3><p class="soft">Monitor both triggers: cycle counter <i>and</i> median welding power. When power crosses the wear threshold, replace the tip even if the counter hasn't reached its swap point. Wear started around hour ${wearStart}.</p></div>
+          <div><h3>Proposed action</h3><p class="soft">Monitor both triggers: cycle counter <i>and</i> median welding power. When power crosses the ${term('wear', 'wear')} threshold, replace the tip even if the counter hasn't reached its swap point. Wear started around hour ${wearStart}.</p></div>
           <div class="kpi"><div class="label">Power-based warning</div><div class="value">${fmt(warnHours)} h</div><div class="note">before the scheduled swap · threshold baseline +5% (${fmt(threshold)} W)</div></div>
         </div>
       </div>`;

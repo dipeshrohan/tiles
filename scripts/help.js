@@ -34,6 +34,7 @@ export const PAGE_HELP = {
   settings: 'settings',
   styleguide: 'about-and-the-style-guide',
   help: 'finding-your-way',
+  glossary: 'glossary',
 };
 
 // GitHub's anchor for a heading: lower case, punctuation dropped, spaces to dashes; a repeat gets -1, -2…
@@ -54,14 +55,19 @@ export function slugger() {
 
 const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+// Documents the app has a page for: a link to one opens that page.
+const APP_PAGES = { '../ui/glossary.md': '#/glossary' };
+
 // Inline Markdown: code, links, bold and italics. A link to a heading of this guide opens it on the
-// Help page; a link to another document keeps its words only (the app has this guide alone).
+// Help page, one to a document the app shows opens its page; a link to another document keeps its
+// words only.
 export function inline(text) {
   const code = [];
   let s = text.replace(/`([^`]+)`/g, (_, c) => `\u0000${code.push(c) - 1}\u0000`);
   s = escapeHtml(s);
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, words, href) => {
     if (href.startsWith('#')) return `<a href="#/help/${href.slice(1)}">${words}</a>`;
+    if (href in APP_PAGES) return `<a href="${APP_PAGES[href]}">${words}</a>`;
     if (/^https:\/\//.test(href)) return `<a href="${href}" target="_blank" rel="noopener">${words}</a>`;
     return words;
   });

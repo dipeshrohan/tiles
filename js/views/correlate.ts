@@ -5,7 +5,7 @@ import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '..
 import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
 import { isRemoving, removeLater } from '../lib/undo.ts';
-import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import { emptyState, needsApi, pageHead, skeleton, apiUnreachable, term } from '../lib/ui.ts';
 
 // The correlation finder (T3.11): which settings separate failed batches from good ones, on real
 // batch tables kept by the Tiles API. Upload a CSV (one row per batch), choose the outcome and what
@@ -150,7 +150,7 @@ function analysisCard(ctx: Context, ui: Ui): string {
 function resultBlock(r: CorrelationResult, split: boolean): string {
   const said = r.explanations.length
     ? `<ul class="stack gap-1" data-explanations>${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join('')}</ul>`
-    : '<p class="small soft" data-explanations>No large, clear effect (|d| ≥ 0.8 with an interval that leaves out 0).</p>';
+    : `<p class="small soft" data-explanations>No large, clear effect (|${term('cohens-d', 'd')}| ≥ 0.8 with an ${term('confidence-interval', 'interval')} that leaves out 0).</p>`;
   const rows = r.findings
     .slice(0, 50)
     .map(
@@ -161,8 +161,9 @@ function resultBlock(r: CorrelationResult, split: boolean): string {
   return `<div class="stack gap-2_5" data-result>
       <p class="small soft">${fmt(r.rows, 0)} batch(es) with an outcome: ${fmt(r.ng, 0)} failed, ${fmt(r.ok, 0)} good.</p>
       ${said}
+      <p class="small soft">A ${term('forest-plot', 'forest plot')}: each effect’s point with its interval as a line, against 0.</p>
       ${forestPlot(r.findings, split)}
-      <div class="table-wrap"><table><thead><tr><th>Segment</th><th>Variable</th><th>Failed mean</th><th>Good mean</th><th>d</th><th>95% CI</th><th>r</th><th>Failed / good</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>${term('segment', 'Segment')}</th><th>Variable</th><th>Failed mean</th><th>Good mean</th><th>${term('cohens-d', 'd')}</th><th>95% ${term('confidence-interval', 'CI')}</th><th>${term('point-biserial-r', 'r')}</th><th>Failed / good</th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 }
 
@@ -309,7 +310,7 @@ const view: View = {
     const head = pageHead({
       eyebrow: 'Data · Analysis',
       title: 'Correlation finder',
-      lead: 'Which settings separate failed batches from good ones: each variable’s effect (Cohen’s d) with its 95% confidence interval, overall or per material, line or shift.',
+      leadHtml: `Which settings separate failed batches from good ones in a ${term('batch-table', 'batch table')}: each variable’s ${term('effect', 'effect')} (${term('cohens-d')}) with its 95% ${term('confidence-interval', 'confidence interval')}, overall or per ${term('segment', 'segment')}: material, line or shift.`,
     });
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
