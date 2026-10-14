@@ -604,6 +604,28 @@ test('automated browsers are not greeted; the palette shows the welcome', async 
   await page.close();
 });
 
+test('a tooltip shown by the focus stays while the page scrolls; one shown by pointing goes', async () => {
+  const { page, errors } = await openPage({ viewport: { width: 1280, height: 600 } });
+  await page.goto(`${httpBase}#/help`);
+  await page.waitForSelector('.help-article');
+  // Tabbed to, the top bar's help button shows its tooltip; scrolling the page keeps it.
+  await page.focus('#theme');
+  await page.keyboard.press('Shift+Tab');
+  await page.waitForSelector('#tooltip:not([hidden])');
+  await page.evaluate(() => window.scrollBy(0, 400));
+  await page.waitForTimeout(200);
+  assert.ok(await page.locator('#tooltip').isVisible(), 'still shown after a scroll');
+  // Pointed at, a tooltip goes with a scroll.
+  await page.keyboard.press('Escape');
+  await page.locator('#theme').hover();
+  await page.waitForSelector('#tooltip:not([hidden])');
+  await page.locator('#view').focus();
+  await page.evaluate(() => window.scrollBy(0, -200));
+  await page.waitForSelector('#tooltip', { state: 'hidden' });
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Enter goes', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/`);

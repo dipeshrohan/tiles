@@ -56,12 +56,20 @@ function show(el: HTMLElement): void {
 }
 
 // A re-render can take the element away without a pointerout or focusout: the tooltip goes with it.
+// One loop at a time, however often the tooltip is shown again.
+let watching = false;
 function watch(): void {
-  requestAnimationFrame(() => {
-    if (!target) return;
-    if (!target.isConnected) hide();
-    else watch();
-  });
+  if (watching) return;
+  watching = true;
+  const look = (): void => {
+    if (!target) return void (watching = false);
+    if (!target.isConnected) {
+      watching = false;
+      return hide();
+    }
+    requestAnimationFrame(look);
+  };
+  requestAnimationFrame(look);
 }
 
 function hide(): void {
@@ -106,7 +114,16 @@ export function installTooltips(root: Document = document): void {
   root.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && target) hide();
   });
-  window.addEventListener('scroll', hide, { passive: true });
+  // A scroll hides a tooltip shown by pointing; one shown by the focus follows its element (a Tab
+  // that scrolls a button into view would otherwise hide what it just showed).
+  window.addEventListener(
+    'scroll',
+    () => {
+      if (target && target === document.activeElement && target.isConnected) show(target);
+      else hide();
+    },
+    { passive: true },
+  );
   // A tap on a glossary term (U4.05) shows its definition, and another tap hides it; a click or
   // Enter keeps it shown (it was shown by pointing or by the focus). Any other click hides it.
   let tapped = false;
