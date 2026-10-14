@@ -34,9 +34,10 @@ import { load as loadSaved, save } from '../lib/store.ts';
 
 interface Ui {
   step: StepKey | null; // the step shown; null: the first one not done
+  demoAgent: boolean; // local mode: the demo agent called in (kept here too, should storage fail)
 }
 
-const uiState = (ctx: Context) => ctx.ui<Ui>('onboarding', { step: null });
+const uiState = (ctx: Context) => ctx.ui<Ui>('onboarding', { step: null, demoAgent: false });
 
 const POLL_MS = 5_000; // while waiting for an agent's first heartbeat
 
@@ -98,7 +99,12 @@ async function load(ctx: Context, { withOntology = false, quiet = false } = {}):
 const canEdit = (ctx: Context): boolean =>
   !ctx.api || ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
 
-const localSetup = (): LocalSetup => ({ agent: false, ...loadSaved<Partial<LocalSetup>>(LOCAL_KEY, {}) });
+// The demo agent, kept in this browser across visits (and in the page's state, should storage
+// refuse it). Progress and mapping read the committed ontology: a staged change isn't done yet.
+const localSetup = (ctx: Context): LocalSetup => ({
+  agent: uiState(ctx).demoAgent || loadSaved<Partial<LocalSetup>>(LOCAL_KEY, {}).agent === true,
+});
+const committed = (ctx: Context) => ctx.state.repo.head;
 
 function localSiteStep(ctx: Context): string {
   const site = Object.values(ctx.graph.nodes).find((n) => n.type === 'Site');
@@ -106,8 +112,8 @@ function localSiteStep(ctx: Context): string {
     <p class="small soft">With the Tiles API, organisation admins create sites on this step, each with its own ontology, agents and people. Connect to the API in <a href="#/settings">Settings</a>.</p>`;
 }
 
-function localAgentStep(): string {
-  const on = localSetup().agent;
+function localAgentStep(ctx: Context): string {
+  const on = localSetup(ctx).agent;
   return `<p>The edge agent runs on a machine on site that can reach the controllers. It reads them read-only, buffers to disk, and sends readings out to Tiles. With the Tiles API, an admin registers it here and gets its token, once.</p>
     <div class="card stack gap-2">
       <p>On the agent’s machine, save the token as <code>/etc/tiles-edge/token</code>, readable only by the agent’s user, and write <code>/etc/tiles-edge/tiles-edge.toml</code>:</p>
@@ -123,26 +129,31 @@ function localAgentStep(): string {
 }
 
 function localMappingStep(ctx: Context): string {
-  if (!localSetup().agent)
+  if (!localSetup(ctx).agent)
     return '<p>No tags have arrived yet. They come once an agent calls in: connect the demo agent on the step before.</p>';
-  const rows = DEMO_TAGS.map((t: DemoTag) => {
-    const to = mappedTo(ctx.graph, t.tag);
-    const s = suggestFor(ctx.graph, t);
-    const cell = to
-      ? `<span class="badge good">Mapped</span> ${esc(ctx.graph.nodes[to]?.label ?? to)}`
-      : s.kind === 'none'
-        ? `<span class="small soft">${esc(s.why)}</span>`
-        : `${s.kind === 'link' ? `Link to <b>${esc(s.label)}</b>` : `New Signal node <b>${esc(s.label)}</b>`}<div class="small soft">${esc(s.why)}</div>`;
-    const act =
-      to || s.kind === 'none' || !canEdit(ctx)
-        ? ''
-        : button('Map', { size: 'sm', attrs: { 'data-map-tag': t.tag, 'aria-label': `Map ${t.tag}` } });
-    return `<tr data-key="tag-${esc(t.tag)}"><td><code>${esc(t.tag)}</code></td><td>${esc(t.unit)}</td><td>${cell}</td><td>${act}</td></tr>`;
-  }).join('');
-  const left = DEMO_TAGS.some((t) => !mappedTo(ctx.graph, t.tag) && suggestFor(ctx.graph, t).kind !== 'none');
+  const graph = committed(ctx);
+  const staged = ctx.state.repo.staged.length;
+  const tags = DEMO_TAGS.map((t: DemoTag) => ({ t, to: mappedTo(graph, t.tag), s: suggestFor(graph, t) }));
+  const can = canEdit(ctx) && !staged;
+  const rows = tags
+    .map(({ t, to, s }) => {
+      const cell = to
+        ? `<span class="badge good">Mapped</span> ${esc(graph.nodes[to]?.label ?? to)}`
+        : s.kind === 'none'
+          ? `<span class="small soft">${esc(s.why)}</span>`
+          : `${s.kind === 'link' ? `Link to <b>${esc(s.label)}</b>` : `New Signal node <b>${esc(s.label)}</b>`}<div class="small soft">${esc(s.why)}</div>`;
+      const act =
+        to || s.kind === 'none' || !can
+          ? ''
+          : button('Map', { size: 'sm', attrs: { 'data-map-tag': t.tag, 'aria-label': `Map ${t.tag}` } });
+      return `<tr data-key="tag-${esc(t.tag)}"><td><code>${esc(t.tag)}</code></td><td>${esc(t.unit)}</td><td>${cell}</td><td>${act}</td></tr>`;
+    })
+    .join('');
+  const left = tags.some(({ to, s }) => !to && s.kind !== 'none');
   return `<p>The demo agent sent ${DEMO_TAGS.length} tags. Each is suggested a Signal node: one that fits, or a new one under its machine’s controller. Mapping one is a commit to the ontology: the Signal node gets the tag.</p>
+    ${staged ? `<p class="small" role="note">You have ${staged} staged change${staged === 1 ? '' : 's'}: commit or discard them on the <a href="#/ontology">Ontology</a> page first.</p>` : ''}
     ${table({ headers: ['Tag', 'Unit', 'Suggestion', { label: 'Action', srOnly: true }], rowsHtml: rows })}
-    ${left && canEdit(ctx) ? `<div>${button('Map every suggestion', { variant: 'primary', attrs: { 'data-map-all': true } })}</div>` : ''}
+    ${left && can ? `<div>${button('Map every suggestion', { variant: 'primary', attrs: { 'data-map-all': true } })}</div>` : ''}
     <p class="small soft">With the Tiles API, tags arrive from the agent and are mapped on the Signals page, where <b>Suggest mappings</b> does the same for every tag.</p>`;
 }
 
@@ -237,10 +248,16 @@ function mappingStep(data: Onboarding): string {
     <p><a class="btn primary" href="#/signals">Map tags on the Signals page</a></p>`;
 }
 
-function dashboardStep(data: Onboarding): string {
+function dashboardStep(data: Onboarding, local: boolean): string {
   if (!data.dashboard)
-    return '<p>Once a machine has a mapped signal, its page shows the live readings: the first dashboard.</p>';
-  return `<p><b>${esc(data.dashboard.label)}</b> has live signals. Its page shows each one’s latest reading, its open warnings, and what feeds it.</p>
+    return local
+      ? '<p>Once a machine has a mapped signal, its page is the first dashboard.</p>'
+      : '<p>Once a machine has a mapped signal, its page shows the live readings: the first dashboard.</p>';
+  return `<p>${
+    local
+      ? `<b>${esc(data.dashboard.label)}</b> has mapped signals. Its page shows them with their units, and what feeds them; with the Tiles API, their latest readings and open warnings too.`
+      : `<b>${esc(data.dashboard.label)}</b> has live signals. Its page shows each one’s latest reading, its open warnings, and what feeds it.`
+  }</p>
     <p class="row gap-2 wrap">
       <a class="btn primary" href="${placeLink(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
       <a class="btn" href="#/shopfloor">Shopfloor view</a>
@@ -266,7 +283,11 @@ const view: View = {
       return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (!local && ctx.ontology.status !== 'ready')
       return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-    const data = local ? localProgress(ctx.graph, localSetup()) : progress?.site === siteId(ctx) ? progress.data : null;
+    const data = local
+      ? localProgress(committed(ctx), localSetup(ctx))
+      : progress?.site === siteId(ctx)
+        ? progress.data
+        : null;
     if (!data)
       return progress?.failed
         ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>`
@@ -277,9 +298,9 @@ const view: View = {
     const body: Record<StepKey, () => string> = {
       site: () => (local ? localSiteStep(ctx) : siteStep(ctx)),
       outline: () => outlineStep(ctx, data),
-      agent: () => (local ? localAgentStep() : agentStep(ctx, data)),
+      agent: () => (local ? localAgentStep(ctx) : agentStep(ctx, data)),
       mapping: () => (local ? localMappingStep(ctx) : mappingStep(data)),
-      dashboard: () => dashboardStep(data),
+      dashboard: () => dashboardStep(data, local),
     };
     const index = STEPS.findIndex((s) => s.key === current);
     const nextKey = STEPS[index + 1]?.key;
@@ -392,7 +413,8 @@ const view: View = {
 
     // In local mode (U4.10): the demo agent, and the demo's tags mapped as suggested.
     onAll(root, '[data-demo-agent]', 'click', () => {
-      save(LOCAL_KEY, { ...localSetup(), agent: true });
+      ui.demoAgent = true;
+      save(LOCAL_KEY, { ...localSetup(ctx), agent: true });
       ctx.toast('edge-01 (demo) called in', {
         type: 'success',
         description: `It sent ${DEMO_TAGS.length} tags to map.`,
@@ -407,7 +429,7 @@ const view: View = {
       await ctx.ontology.act(
         async (store, repo) => {
           if (repo.staged.length) throw new Error('Commit or discard your staged changes on the Ontology page first');
-          const ops = mappingOps(ctx.graph, tags);
+          const ops = mappingOps(repo.head, tags);
           if (!ops.length) throw new Error('Nothing left to map');
           return store.commit(await store.stage(repo, ops), message, ctx.state.user.name);
         },

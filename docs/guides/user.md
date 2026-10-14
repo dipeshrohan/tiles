@@ -762,7 +762,7 @@ Admins see usage on the **Settings** page.
 
 ## Set up a site
 
-**Set up a site**, beside Settings, takes a site from new to its first dashboard (API mode). The steps on the left show what is done, with a short status each. The page opens on the first step left, and works it out from the site itself, so you can leave and come back.
+**Set up a site**, beside Settings, takes a site from new to its first dashboard. Without the Tiles API it runs on the demo plant (see the end of this section). The steps on the left show what is done, with a short status each. The page opens on the first step left, and works it out from the site itself, so you can leave and come back.
 
 1. **Create the site.** Organisation admins create another site here: its name, a short name for links (filled in from the name) and its time zone. **Set it up now** opens it.
 2. **Outline the plant** (engineers and admins). Name a line, optionally its workcenter, and its machines, one per line. Each machine gets a controller (PLC), read by the protocol you choose. It goes into the ontology as one commit, or as a change request when the site requires reviews. Commit or discard any changes you have staged first.

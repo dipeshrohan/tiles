@@ -176,3 +176,27 @@ test('on the demo plant: its tags are suggested Signal nodes, and mapping them s
   delete gone.nodes['m-dc02'];
   assert.equal(suggestFor(gone, temp).kind, 'none');
 });
+
+test('a suggested node moved to another machine is not linked; new ids never collide', () => {
+  const seed = seedOntology().head;
+  const hyd = DEMO_TAGS.find((t) => t.tag === 'dc02.hyd_pressure');
+  const moved = applyOps(seed, [
+    { kind: 'removeEdge', id: 'plc-dc-emits-sig-ph' },
+    { kind: 'addEdge', edge: { id: 'plc-cut-emits-sig-ph', from: 'plc-cut', rel: 'emits', to: 'sig-ph' } },
+  ]).graph;
+  assert.equal(suggestFor(moved, hyd).kind, 'new');
+  const temp = DEMO_TAGS.find((t) => t.tag === 'dc02.die_temp');
+  const crowded = applyOps(seed, [
+    { kind: 'addNode', node: { id: 'sig-dc02-die-temp', type: 'Signal', label: 'Other', props: {} } },
+    {
+      kind: 'addEdge',
+      edge: { id: 'plc-dc-emits-sig-dc02-die-temp-2', from: 'plc-dc', rel: 'emits', to: 'sig-dc02-die-temp' },
+    },
+  ]).graph;
+  const ops = mappingOps(crowded, [temp]);
+  assert.deepEqual(
+    ops.map((o) => (o.kind === 'addNode' ? o.node.id : o.kind === 'addEdge' ? o.edge.id : o.kind)),
+    ['sig-dc02-die-temp-2', 'plc-dc-emits-sig-dc02-die-temp-2-2'],
+  );
+  assert.doesNotThrow(() => applyOps(crowded, ops));
+});

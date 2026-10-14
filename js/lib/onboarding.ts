@@ -5,6 +5,7 @@
 import type { Graph, NodeType, Op } from './types.ts';
 import type { Onboarding } from './api.ts';
 import { machineOf } from './shopfloor.ts';
+import { outgoing, signalByTag } from './graph-index.ts';
 
 export type StepKey = 'site' | 'outline' | 'agent' | 'mapping' | 'dashboard';
 
@@ -190,23 +191,26 @@ export type Suggestion =
   | { kind: 'new'; plc: string; label: string; why: string }
   | { kind: 'none'; why: string };
 
-// The Signal node that carries a tag, if any.
-export const mappedTo = (graph: Graph, tag: string): string | null =>
-  Object.values(graph.nodes).find((n) => n.type === 'Signal' && n.props.tag === tag)?.id ?? null;
+// The Signal node that carries a tag, if any (the Plant page's pick when several do).
+export const mappedTo = (graph: Graph, tag: string): string | null => signalByTag(graph, tag) ?? null;
 
 // What to map a demo tag to: its named Signal node when that is still there and free; else a new
 // Signal node under its machine's controller; else nothing (the machine or its PLC is gone).
 export function suggestFor(graph: Graph, t: DemoTag): Suggestion {
   const node = t.suggest ? graph.nodes[t.suggest] : undefined;
   const machine = graph.nodes[t.machine];
-  if (node?.type === 'Signal' && (node.props.tag === undefined || node.props.tag === t.tag))
+  if (
+    node?.type === 'Signal' &&
+    (node.props.tag === undefined || node.props.tag === t.tag) &&
+    machineOf(graph, node.id) === t.machine // still that machine's
+  )
     return {
       kind: 'link',
       node: node.id,
       label: node.label,
       why: `Its description matches ${node.label}, on ${machine?.label ?? 'its machine'}`,
     };
-  const plc = Object.values(graph.edges).find((e) => e.from === t.machine && e.rel === 'controlledBy')?.to;
+  const plc = outgoing(graph, t.machine, 'controlledBy').find((id) => graph.nodes[id]?.type === 'PLC');
   if (machine && plc && graph.nodes[plc])
     return {
       kind: 'new',
@@ -229,7 +233,8 @@ export function mappingOps(graph: Graph, tags: readonly DemoTag[]): Op[] {
       let id = `sig-${slugFrom(t.tag)}`;
       for (let n = 2; taken.has(id); n++) id = `sig-${slugFrom(t.tag)}-${n}`;
       taken.add(id);
-      const edge = `${s.plc}-emits-${id}`;
+      let edge = `${s.plc}-emits-${id}`;
+      for (let n = 2; taken.has(edge); n++) edge = `${s.plc}-emits-${id}-${n}`;
       taken.add(edge);
       ops.push(
         { kind: 'addNode', node: { id, type: 'Signal', label: t.description, props: { unit: t.unit, tag: t.tag } } },
