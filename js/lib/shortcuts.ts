@@ -52,11 +52,17 @@ export const keyAttr = (key: string): string => (shortcutsOn() ? ` aria-keyshort
 // Whether a key press may be a shortcut: not typed into a field, no modifier but Shift, no dialog
 // open, not taken already, and shortcuts on.
 export function forShortcut(e: KeyboardEvent): boolean {
-  if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return false;
-  const t = e.target;
-  if (t instanceof Element && t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))
-    return false;
-  return !document.querySelector('dialog[open]') && shortcutsOn();
+  if (e.defaultPrevented || e.isComposing || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return false;
+  return !typing(e.target) && !document.querySelector('dialog[open]') && shortcutsOn();
+}
+
+// Where keys are text: a field typed in, a select (letters pick options), an editable element. A
+// checkbox, radio or button with the focus is not.
+const NOT_TYPED = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
+function typing(t: EventTarget | null): boolean {
+  if (!(t instanceof Element)) return false;
+  if (t instanceof HTMLInputElement) return !NOT_TYPED.has(t.type);
+  return Boolean(t.closest('textarea, select, [contenteditable]:not([contenteditable="false"])'));
 }
 
 const visible = (el: Element): boolean =>
@@ -122,6 +128,9 @@ export function installShortcuts(o: ShortcutOptions): { show(): void } {
 
   const show = (): void => {
     if (showing) return;
+    // Chosen in the command palette: once the palette has gone (it fades out), so the focus it gives
+    // back doesn't leave this list.
+    if (document.querySelector('dialog.palette')) return void requestAnimationFrame(show);
     showing = true;
     void infoDialog(
       {
@@ -139,13 +148,20 @@ export function installShortcuts(o: ShortcutOptions): { show(): void } {
     ).then(() => (showing = false));
   };
 
+  // Turned on or off in another tab: this one follows.
+  window.addEventListener('storage', (e) => {
+    if (e.key !== null && e.key !== `tiles:${KEY}`) return; // null: storage cleared
+    on = undefined;
+    o.changed();
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Shift') return; // on the way to ? or a capital: g still waits
     const pending = chord !== undefined;
     clearTimeout(chord);
     chord = undefined;
     if (!forShortcut(e)) return;
-    if (pending) {
+    if (pending && e.key !== '?') {
       // The letter after g is g's, whether or not it names a page (not j's or a's on this page).
       if (e.key.length !== 1) return;
       e.preventDefault();

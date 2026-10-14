@@ -29,6 +29,24 @@ function dismiss(dialog: HTMLDialogElement): Promise<void> {
   });
 }
 
+// Escape (animated out rather than vanishing) and a click on the backdrop close a dialog: a press and
+// a release both outside the panel, not a drag that ends there, nor the scrollbar.
+function closeOutside(dialog: HTMLDialogElement, close: () => void): void {
+  const outside = (e: MouseEvent): boolean => {
+    const r = dialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let pressedOutside = false;
+  dialog.addEventListener('pointerdown', (e) => (pressedOutside = outside(e)));
+  dialog.addEventListener('click', (e) => {
+    if (pressedOutside && outside(e)) close();
+  });
+  dialog.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    close();
+  });
+}
+
 function open(dialog: HTMLDialogElement): void {
   dialog.dataset.state = 'open';
   document.body.append(dialog);
@@ -78,13 +96,6 @@ export function confirmDialog(o: ConfirmOptions): Promise<boolean> {
   if (typed && button) {
     typed.addEventListener('input', () => (button.disabled = typed.value.trim() !== o.typeToConfirm));
   }
-  // A press and a release both outside the panel close it: not a drag that ends there, nor the scrollbar.
-  const outside = (e: MouseEvent): boolean => {
-    const r = dialog.getBoundingClientRect();
-    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
-  };
-  let pressedOutside = false;
-  dialog.addEventListener('pointerdown', (e) => (pressedOutside = outside(e)));
   return new Promise((resolve) => {
     let answered = false;
     const answer = (yes: boolean): void => {
@@ -97,13 +108,7 @@ export function confirmDialog(o: ConfirmOptions): Promise<boolean> {
       const submitter = (e as SubmitEvent).submitter as HTMLButtonElement | null;
       answer(submitter?.value === 'confirm' && !button?.disabled);
     });
-    dialog.addEventListener('cancel', (e) => {
-      e.preventDefault(); // Escape: animate out rather than vanish
-      answer(false);
-    });
-    dialog.addEventListener('click', (e) => {
-      if (pressedOutside && outside(e)) answer(false); // a click on the backdrop
-    });
+    closeOutside(dialog, () => answer(false));
     // Enter in the typed name confirms (a form's Enter would press its first button, Cancel).
     typed?.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter') return;
@@ -144,25 +149,18 @@ export function infoDialog(o: InfoOptions, opened?: (dialog: HTMLDialogElement) 
         <button class="btn" value="close" autofocus>${esc(o.close ?? 'Close')}</button>
       </div>
     </form>`;
-  const outside = (e: MouseEvent): boolean => {
-    const r = dialog.getBoundingClientRect();
-    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
-  };
-  let pressedOutside = false;
-  dialog.addEventListener('pointerdown', (e) => (pressedOutside = outside(e)));
   return new Promise((resolve) => {
-    const done = (): void => void dismiss(dialog).then(resolve);
+    let closed = false;
+    const done = (): void => {
+      if (closed) return;
+      closed = true;
+      void dismiss(dialog).then(resolve);
+    };
     dialog.addEventListener('submit', (e) => {
       e.preventDefault();
       done();
     });
-    dialog.addEventListener('cancel', (e) => {
-      e.preventDefault();
-      done();
-    });
-    dialog.addEventListener('click', (e) => {
-      if (pressedOutside && outside(e)) done();
-    });
+    closeOutside(dialog, done);
     open(dialog);
     opened?.(dialog);
   });

@@ -33,6 +33,7 @@ function show(el: HTMLElement): void {
   if (key) {
     const k = document.createElement('kbd');
     k.textContent = keyLabel(key);
+    k.setAttribute('aria-hidden', 'true'); // the attribute says it already: not read twice
     t.append(' ', k);
   }
   t.hidden = false;

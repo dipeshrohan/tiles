@@ -4579,6 +4579,21 @@
 			setTimeout(finish, 400);
 		});
 	}
+	function closeOutside(dialog, close) {
+		const outside = (e) => {
+			const r = dialog.getBoundingClientRect();
+			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+		};
+		let pressedOutside = false;
+		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
+		dialog.addEventListener("click", (e) => {
+			if (pressedOutside && outside(e)) close();
+		});
+		dialog.addEventListener("cancel", (e) => {
+			e.preventDefault();
+			close();
+		});
+	}
 	function open$2(dialog) {
 		dialog.dataset.state = "open";
 		document.body.append(dialog);
@@ -4610,12 +4625,6 @@
 		const typed = dialog.querySelector("input[name=typed]");
 		const button = dialog.querySelector("[data-confirm]");
 		if (typed && button) typed.addEventListener("input", () => button.disabled = typed.value.trim() !== o.typeToConfirm);
-		const outside = (e) => {
-			const r = dialog.getBoundingClientRect();
-			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
-		};
-		let pressedOutside = false;
-		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
 		return new Promise((resolve) => {
 			let answered = false;
 			const answer = (yes) => {
@@ -4628,13 +4637,7 @@
 				const submitter = e.submitter;
 				answer(submitter?.value === "confirm" && !button?.disabled);
 			});
-			dialog.addEventListener("cancel", (e) => {
-				e.preventDefault();
-				answer(false);
-			});
-			dialog.addEventListener("click", (e) => {
-				if (pressedOutside && outside(e)) answer(false);
-			});
+			closeOutside(dialog, () => answer(false));
 			typed?.addEventListener("keydown", (e) => {
 				if (e.key !== "Enter") return;
 				e.preventDefault();
@@ -4662,25 +4665,18 @@
         <button class="btn" value="close" autofocus>${esc(o.close ?? "Close")}</button>
       </div>
     </form>`;
-		const outside = (e) => {
-			const r = dialog.getBoundingClientRect();
-			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
-		};
-		let pressedOutside = false;
-		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
 		return new Promise((resolve) => {
-			const done = () => void dismiss(dialog).then(resolve);
+			let closed = false;
+			const done = () => {
+				if (closed) return;
+				closed = true;
+				dismiss(dialog).then(resolve);
+			};
 			dialog.addEventListener("submit", (e) => {
 				e.preventDefault();
 				done();
 			});
-			dialog.addEventListener("cancel", (e) => {
-				e.preventDefault();
-				done();
-			});
-			dialog.addEventListener("click", (e) => {
-				if (pressedOutside && outside(e)) done();
-			});
+			closeOutside(dialog, done);
 			open$2(dialog);
 			opened?.(dialog);
 		});
@@ -4720,10 +4716,24 @@
 	var keyAttrs = (key) => shortcutsOn() ? { "aria-keyshortcuts": key } : {};
 	var keyAttr = (key) => shortcutsOn() ? ` aria-keyshortcuts="${esc(key)}"` : "";
 	function forShortcut(e) {
-		if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return false;
-		const t = e.target;
-		if (t instanceof Element && t.closest("input, textarea, select, [contenteditable=\"\"], [contenteditable=\"true\"]")) return false;
-		return !document.querySelector("dialog[open]") && shortcutsOn();
+		if (e.defaultPrevented || e.isComposing || e.repeat || e.ctrlKey || e.metaKey || e.altKey) return false;
+		return !typing$1(e.target) && !document.querySelector("dialog[open]") && shortcutsOn();
+	}
+	var NOT_TYPED = /* @__PURE__ */ new Set([
+		"checkbox",
+		"radio",
+		"button",
+		"submit",
+		"reset",
+		"range",
+		"color",
+		"file",
+		"image"
+	]);
+	function typing$1(t) {
+		if (!(t instanceof Element)) return false;
+		if (t instanceof HTMLInputElement) return !NOT_TYPED.has(t.type);
+		return Boolean(t.closest("textarea, select, [contenteditable]:not([contenteditable=\"false\"])"));
 	}
 	var visible = (el) => typeof el.checkVisibility === "function" ? el.checkVisibility() : el.offsetParent !== null;
 	function keyTarget(root, key) {
@@ -4754,6 +4764,7 @@
 		const mac = /Mac|iPhone|iPad/.test(navigator.platform);
 		const show = () => {
 			if (showing) return;
+			if (document.querySelector("dialog.palette")) return void requestAnimationFrame(show);
 			showing = true;
 			infoDialog({
 				title: "Keyboard shortcuts",
@@ -4767,13 +4778,18 @@
 				});
 			}).then(() => showing = false);
 		};
+		window.addEventListener("storage", (e) => {
+			if (e.key !== null && e.key !== `tiles:${KEY}`) return;
+			on = void 0;
+			o.changed();
+		});
 		document.addEventListener("keydown", (e) => {
 			if (e.key === "Shift") return;
 			const pending = chord !== void 0;
 			clearTimeout(chord);
 			chord = void 0;
 			if (!forShortcut(e)) return;
-			if (pending) {
+			if (pending && e.key !== "?") {
 				if (e.key.length !== 1) return;
 				e.preventDefault();
 				const page = GO.get(e.key.toLowerCase());
@@ -14303,6 +14319,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (key) {
 			const k = document.createElement("kbd");
 			k.textContent = keyLabel(key);
+			k.setAttribute("aria-hidden", "true");
 			t.append(" ", k);
 		}
 		t.hidden = false;
