@@ -94,3 +94,109 @@ test("the agent's config points at this Tiles, its token in a file beside it", (
   assert.match(toml, /\[agent\]\nheartbeat_seconds = 30/);
   assert.doesNotMatch(toml, /tla_/); // never a token in the file
 });
+
+// ---- in local mode (U4.10) ----
+import { seedOntology } from '../js/lib/data.ts';
+import { DEMO_TAGS, localProgress, mappedTo, mappingOps, suggestFor } from '../js/lib/onboarding.ts';
+
+test('on the demo plant: its tags are suggested Signal nodes, and mapping them sets up the site', () => {
+  let graph = seedOntology().head;
+  // Every suggested node is a Signal of the tag's machine, and every machine is one.
+  for (const t of DEMO_TAGS) {
+    assert.equal(graph.nodes[t.machine]?.type, 'Machine', t.tag);
+    if (t.suggest) assert.equal(machineOf(graph, t.suggest), t.machine, t.tag);
+  }
+  let p = localProgress(graph, { agent: false });
+  assert.deepEqual(
+    p.steps.map((s) => [s.key, s.done]),
+    [
+      ['site', true],
+      ['outline', true],
+      ['agent', false],
+      ['mapping', false],
+      ['dashboard', false],
+    ],
+  );
+  assert.equal(p.next, 'agent');
+  assert.equal(p.steps[1].detail, '3 machines in the ontology');
+  p = localProgress(graph, { agent: true });
+  assert.equal(p.next, 'mapping');
+  assert.equal(p.steps[3].detail, '0 of 6 demo tags mapped');
+
+  const vel = DEMO_TAGS.find((t) => t.tag === 'dc02.plunger_vel');
+  assert.deepEqual(suggestFor(graph, vel), {
+    kind: 'link',
+    node: 'sig-vel',
+    label: 'Plunger velocity',
+    why: 'Its description matches Plunger velocity, on Die-caster DC-02',
+  });
+  const temp = DEMO_TAGS.find((t) => t.tag === 'dc02.die_temp');
+  assert.equal(suggestFor(graph, temp).kind, 'new');
+  assert.match(suggestFor(graph, temp).why, /under PLC DC-02, Die-caster DC-02’s controller/);
+
+  // One tag: its node carries it, and its machine is the first dashboard.
+  graph = applyOps(graph, mappingOps(graph, [vel])).graph;
+  assert.equal(mappedTo(graph, 'dc02.plunger_vel'), 'sig-vel');
+  p = localProgress(graph, { agent: true });
+  assert.equal(p.next, null);
+  assert.deepEqual(p.dashboard, { id: 'm-dc02', label: 'Die-caster DC-02' });
+  assert.equal(p.steps[4].detail, 'Die-caster DC-02: 1 mapped signal');
+
+  // The rest: a new Signal node under the PLC for the one without, nothing twice.
+  const ops = mappingOps(graph, DEMO_TAGS);
+  assert.equal(ops.filter((o) => o.kind === 'setProp').length, 4);
+  assert.deepEqual(
+    ops.filter((o) => o.kind !== 'setProp'),
+    [
+      {
+        kind: 'addNode',
+        node: {
+          id: 'sig-dc02-die-temp',
+          type: 'Signal',
+          label: 'Die temperature',
+          props: { unit: '°C', tag: 'dc02.die_temp' },
+        },
+      },
+      {
+        kind: 'addEdge',
+        edge: { id: 'plc-dc-emits-sig-dc02-die-temp', from: 'plc-dc', rel: 'emits', to: 'sig-dc02-die-temp' },
+      },
+    ],
+  );
+  graph = applyOps(graph, ops).graph;
+  assert.equal(mappingOps(graph, DEMO_TAGS).length, 0);
+  p = localProgress(graph, { agent: true });
+  assert.equal(p.mapped, 6);
+  assert.deepEqual(p.dashboard, { id: 'm-dc02', label: 'Die-caster DC-02' }); // 4 of the 6
+
+  // A node taken by another tag, or a machine gone: no link to it.
+  const taken = applyOps(seedOntology().head, [{ kind: 'setProp', id: 'sig-vel', key: 'tag', value: 'other' }]).graph;
+  assert.equal(suggestFor(taken, vel).kind, 'new');
+  const gone = structuredClone(seedOntology().head);
+  delete gone.nodes['m-dc02'];
+  assert.equal(suggestFor(gone, temp).kind, 'none');
+});
+
+test('a suggested node moved to another machine is not linked; new ids never collide', () => {
+  const seed = seedOntology().head;
+  const hyd = DEMO_TAGS.find((t) => t.tag === 'dc02.hyd_pressure');
+  const moved = applyOps(seed, [
+    { kind: 'removeEdge', id: 'plc-dc-emits-sig-ph' },
+    { kind: 'addEdge', edge: { id: 'plc-cut-emits-sig-ph', from: 'plc-cut', rel: 'emits', to: 'sig-ph' } },
+  ]).graph;
+  assert.equal(suggestFor(moved, hyd).kind, 'new');
+  const temp = DEMO_TAGS.find((t) => t.tag === 'dc02.die_temp');
+  const crowded = applyOps(seed, [
+    { kind: 'addNode', node: { id: 'sig-dc02-die-temp', type: 'Signal', label: 'Other', props: {} } },
+    {
+      kind: 'addEdge',
+      edge: { id: 'plc-dc-emits-sig-dc02-die-temp-2', from: 'plc-dc', rel: 'emits', to: 'sig-dc02-die-temp' },
+    },
+  ]).graph;
+  const ops = mappingOps(crowded, [temp]);
+  assert.deepEqual(
+    ops.map((o) => (o.kind === 'addNode' ? o.node.id : o.kind === 'addEdge' ? o.edge.id : o.kind)),
+    ['sig-dc02-die-temp-2', 'plc-dc-emits-sig-dc02-die-temp-2-2'],
+  );
+  assert.doesNotThrow(() => applyOps(crowded, ops));
+});

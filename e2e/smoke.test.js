@@ -3458,12 +3458,48 @@ test('setting up a site: outline the plant, connect an agent, map a tag, open th
   await v.page.waitForSelector('.wizard-panel:has-text("Admins of the site register edge agents")');
   assert.equal(await v.page.locator('#outline, #new-agent').count(), 0);
   assert.deepEqual(v.errors, []);
+});
 
-  // In local mode, the page says the API is needed.
-  const local = await openPage();
-  t.after(() => local.page.close());
-  await local.page.goto(`${httpBase}#/onboarding`);
-  await local.page.waitForSelector('#view:has-text("Setting up a site needs the Tiles API")');
+test('the site wizard runs to its end on the demo plant, without the API (U4.10)', async () => {
+  const { page, errors } = await openPage({ viewport: { width: 1280, height: 900 } });
+  await page.goto(`${httpBase}#/onboarding`);
+  await page.waitForSelector('#view [role=note]:has-text("demo plant")');
+  // The site is this browser's, and the demo is outlined: on to the agent.
+  assert.equal(await page.locator('.wizard-steps li.done').count(), 2);
+  assert.equal(await page.locator('#wizard-title').innerText(), 'Connect an edge agent');
+  await page.waitForSelector('.code-block:has-text("https://tiles.example.com")');
+  await page.click('[data-demo-agent]');
+  await page.waitForSelector('#toast:has-text("edge-01 (demo) called in")');
+  // Its tags, each with a suggestion: one mapped, then the rest.
+  await page.waitForSelector('#wizard-title:has-text("Map the tags")');
+  assert.equal(await page.locator('#view tbody tr').count(), 6);
+  await page.click('[data-map-tag="dc02.hyd_pressure"]');
+  await page.waitForSelector('#toast:has-text("dc02.hyd_pressure mapped")');
+  await page.waitForSelector('tr[data-key="tag-dc02.hyd_pressure"]:has-text("Mapped")');
+  assert.match(await page.locator('tr[data-key="tag-dc02.die_temp"]').innerText(), /New Signal node Die temperature/);
+  await page.click('[data-map-all]');
+  await page.waitForSelector('#toast:has-text("Tags mapped")');
+  await page.waitForFunction(() => document.querySelectorAll('#view tbody tr:has(.badge.good)').length === 6);
+  assert.equal(await page.locator('[data-map-tag], [data-map-all]').count(), 0);
+  // The first dashboard: every step done.
+  await page.click('button[data-step="dashboard"]');
+  await page.waitForSelector('#view [role=status]:has-text("This site is set up")');
+  assert.equal(await page.locator('.wizard-steps li.done').count(), 5);
+  await page.click('a:has-text("Open Die-caster DC-02")');
+  await page.waitForFunction(() => location.hash === '#/plant/m-dc02');
+  await page.waitForSelector('#view h1:has-text("Die-caster DC-02")');
+  // The mapping is in the ontology: the new Signal node, under the die-caster's PLC.
+  await page.waitForSelector('#view:has-text("Die temperature")');
+  // Another line, outlined in this browser's ontology.
+  await page.goto(`${httpBase}#/onboarding`);
+  await page.click('button[data-step="outline"]');
+  await page.fill('#outline [name=line]', 'Die-cast Line 2');
+  await page.fill('#outline [name=machines]', 'Die-caster DC-03');
+  await page.click('#outline button[type=submit]');
+  await page.waitForSelector('#toast:has-text("Die-cast Line 2 added to the ontology")');
+  await page.waitForSelector('.wizard-steps li.done:has-text("4 machines in the ontology")');
+  assert.deepEqual(errors, []);
+  await page.close();
 });
 
 test('assigning never unassigns someone the list of people lacks, and a no-op assign says so', async (t) => {

@@ -762,7 +762,7 @@ Admins see usage on the **Settings** page.
 
 ## Set up a site
 
-**Set up a site**, beside Settings, takes a site from new to its first dashboard (API mode). The steps on the left show what is done, with a short status each. The page opens on the first step left, and works it out from the site itself, so you can leave and come back.
+**Set up a site**, beside Settings, takes a site from new to its first dashboard. Without the Tiles API it runs on the demo plant (see the end of this section). The steps on the left show what is done, with a short status each. The page opens on the first step left, and works it out from the site itself, so you can leave and come back.
 
 1. **Create the site.** Organisation admins create another site here: its name, a short name for links (filled in from the name) and its time zone. **Set it up now** opens it.
 2. **Outline the plant** (engineers and admins). Name a line, optionally its workcenter, and its machines, one per line. Each machine gets a controller (PLC), read by the protocol you choose. It goes into the ontology as one commit, or as a change request when the site requires reviews. Commit or discard any changes you have staged first.
@@ -771,6 +771,8 @@ Admins see usage on the **Settings** page.
 5. **Open the first dashboard:** the Plant page of the machine with the most mapped signals, with their latest readings; and the Shopfloor view.
 
 **Refresh** checks again, the ontology included.
+
+**Without the Tiles API**, the same steps run on the demo plant, so you can learn them first. The site is this browser's demo plant, and it is already outlined (you can still add a line, which goes into this browser's ontology). The agent step shows how an agent is installed and configured, and **Connect a demo agent** stands in for one: it "calls in" with six demo tags. On **Map the tags**, each tag has a suggestion: a Signal node that fits, or a new one under its machine's controller. **Map** takes one; **Map every suggestion** takes the rest. Each is a commit, so the Signal node shows the tag on the Ontology page. Then **Open the first dashboard** opens the die-caster's Plant page.
 
 ---
 
