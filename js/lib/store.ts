@@ -21,6 +21,17 @@ export function save(key: string, value: unknown): void {
   }
 }
 
+// The keys this app keeps in this browser (without their prefix).
+export function storedKeys(): string[] {
+  try {
+    return Object.keys(window.localStorage)
+      .filter((k) => k.startsWith(PREFIX))
+      .map((k) => k.slice(PREFIX.length));
+  } catch {
+    return [];
+  }
+}
+
 export function clearAll(): void {
   try {
     Object.keys(window.localStorage)

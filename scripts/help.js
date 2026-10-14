@@ -203,31 +203,23 @@ export function pageIds() {
 }
 
 // What's new (U4.08): the changelog's top section, the next or latest version, made HTML like the guide.
-// Each entry that names a page links to it ("Open Warnings"), by WHATS_NEW_PAGES: the first words
-// found in it, in this order.
+// An entry links to the page it brings when its task is in TASK_PAGES ("(T5.16)" → "Open Shopfloor");
+// one without a task, or whose task isn't a page, has no link.
 const CHANGELOG = 'CHANGELOG.md';
-export const WHATS_NEW_PAGES = [
-  ['shopfloor', 'shopfloor', 'Shopfloor'],
-  ['plant navigator', 'plant', 'Plant'],
-  ['warning performance', 'performance', 'Warning performance'],
-  ['warnings inbox', 'warnings', 'Warnings'],
-  ['correlation finder', 'correlate', 'Correlation finder'],
-  ['saved insights', 'insights', 'Insights'],
-  ['wear check', 'explorer', 'Data explorer'],
-  ['data explorer', 'explorer', 'Data explorer'],
-  ['document search', 'documents', 'Documents'],
-  ['app studio', 'apps', 'App Studio'],
-  ['design studio', 'design', 'Design studio'],
-  ['change reviews', 'reviews', 'Change reviews'],
-  ['csv imports', 'import', 'Import data'],
-  ['signal catalogue', 'signals', 'Signals'],
-  ['glossary', 'glossary', 'Glossary'],
-  ['guided tours', 'help', 'Help'],
-  ['help on every page', 'help', 'Help'],
-  ['welcome', 'help', 'Help'],
-  ['copilot', 'chat', 'Copilot'],
-  ['ontology', 'ontology', 'Ontology builder'],
-];
+export const TASK_PAGES = {
+  'T4.08': ['documents', 'Documents'],
+  'T5.16': ['shopfloor', 'Shopfloor'],
+  'T5.17': ['plant', 'Plant'],
+  'T6.06': ['onboarding', 'Set up a site'],
+  'T6.10': ['apps', 'App Studio'],
+  'U1.07': ['styleguide', 'Style guide'],
+  'U1.09': ['settings', 'Settings'],
+  'U4.04': ['help', 'Help'],
+  'U4.05': ['glossary', 'Glossary'],
+  'U4.06': ['help', 'Help'],
+  'U4.07': ['help', 'Help'],
+  'U4.08': ['help', 'Help'],
+};
 
 /* eslint-disable no-control-regex -- \u0001 and \u0002 mark links and headings between the steps */
 export function whatsNew(markdown) {
@@ -236,23 +228,33 @@ export function whatsNew(markdown) {
   if (start < 0) throw new Error(`${CHANGELOG} has no version section`);
   const head = /^## \[([^\]]+)\](?: - (.*))?$/.exec(lines[start]) ?? [];
   const end = lines.findIndex((l, i) => i > start && /^## \[/.test(l));
-  const body = lines.slice(start + 1, end < 0 ? undefined : end).map((line) => {
+  // An entry's lines as one (a wrapped entry is linked as a whole); headings set apart.
+  const joined = [];
+  for (const line of lines.slice(start + 1, end < 0 ? undefined : end)) {
+    const prev = joined.length - 1;
+    const continues = prev >= 0 && /^\s*[-*]\s/.test(joined[prev]) && /^\s+\S/.test(line) && !/^\s*[-*]\s/.test(line);
+    if (continues) joined[prev] += ` ${line.trim()}`;
+    else joined.push(line);
+  }
+  const body = joined.flatMap((line) => {
+    const heading = /^#{3,6}\s+(.*)$/.exec(line);
+    if (heading) return ['', `\u0002${heading[1]}\u0002`, ''];
     const item = /^\s*[-*]\s+(.*)$/.exec(line);
-    if (!item || /:\**\s*$/.test(item[1] ?? '')) return line; // a group's heading, its entries below
-    const text = (item[1] ?? '').toLowerCase();
-    const page = WHATS_NEW_PAGES.find(([words]) => text.includes(words));
-    return page ? `${line} \u0001${page[1]}|${page[2]}\u0001` : line;
+    if (!item) return [line];
+    const tasks = [...(item[1] ?? '').matchAll(/\b([TU]\d\.\d{2})\b/g)].map((m) => m[1]);
+    const page = tasks.map((t) => TASK_PAGES[t]).find(Boolean);
+    return [page ? `${line} \u0001${page[0]}|${page[1]}\u0001` : line];
   });
-  const html = blocks(body.map((l) => l.replace(/^###\s+(.*)$/, '\u0002$1\u0002')))
+  const html = blocks(body)
     .replace(/<p>\u0002(.*?)\u0002<\/p>/g, '<h3>$1</h3>')
     .replace(
       /\s?\u0001([^|\u0001]+)\|([^\u0001]+)\u0001/g,
       (_, route, label) => ` <a class="whats-new-link" href="#/${route}">Open ${label}</a>`,
     );
+  if (/[\u0000-\u0008]/.test(html)) throw new Error(`${CHANGELOG}: the top section didn't convert cleanly`);
   const date = head[2] && head[2] !== 'Unreleased' ? head[2] : null;
   return { version: head[1] ?? '', date, html };
 }
-
 /* eslint-enable no-control-regex */
 export function generate() {
   const all = sections(readFileSync(join(ROOT, GUIDE), 'utf8'));

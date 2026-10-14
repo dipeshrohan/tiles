@@ -803,6 +803,13 @@
 			window.localStorage.setItem(PREFIX + key, JSON.stringify(value));
 		} catch {}
 	}
+	function storedKeys() {
+		try {
+			return Object.keys(window.localStorage).filter((k) => k.startsWith(PREFIX)).map((k) => k.slice(6));
+		} catch {
+			return [];
+		}
+	}
 	function clearAll() {
 		try {
 			Object.keys(window.localStorage).filter((k) => k.startsWith(PREFIX)).forEach((k) => window.localStorage.removeItem(k));
@@ -15828,7 +15835,17 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	//#endregion
 	//#region js/lib/whats-new.ts
 	var SEEN_KEY = "whats-new-seen";
-	var hasNews = (seen, version) => seen !== null && seen !== version;
+	function compareVersions(a, b) {
+		const pa = a.split(".").map((x) => Number.parseInt(x, 10) || 0);
+		const pb = b.split(".").map((x) => Number.parseInt(x, 10) || 0);
+		for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+			const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+			if (d) return d;
+		}
+		return 0;
+	}
+	var hasNews = (seen, version) => seen !== null && compareVersions(version, seen) > 0;
+	var seenOnFirstLoad = (otherKeys, version) => otherKeys.length ? "0.0.0" : version;
 	function whatsNewTitle(w) {
 		return `Version ${w.version}${w.date ? `, ${w.date}` : ""}`;
 	}
@@ -15876,6 +15893,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}
 	//#endregion
 	//#region js/app.ts
+	var keptBefore = storedKeys().filter((k) => k !== "whats-new-seen");
 	var VIEWS = [
 		view$22,
 		view$21,
@@ -16748,6 +16766,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	async function openHelp() {
 		if (helpOpen) return;
 		helpOpen = true;
+		let then = null;
 		try {
 			const [first, ...rest] = pageSection(await loadHelp(), currentView().id);
 			if (!first) return;
@@ -16758,10 +16777,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button><a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`
 			}, (dialog, close) => {
 				dialog.querySelector("[data-whats-new]")?.addEventListener("click", () => {
+					then = "whats-new";
 					close();
-					openWhatsNew();
 				});
 			});
+			if (then === "whats-new") openWhatsNew();
 		} catch (e) {
 			toast("The help couldn't be loaded", {
 				type: "error",
@@ -16774,7 +16794,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var helpButton = need(document, "#help-open");
 	helpButton.insertAdjacentHTML("afterbegin", icon("circle-help"));
 	helpButton.addEventListener("click", () => void openHelp());
-	if (load$4("whats-new-seen", null) === null) save$1(SEEN_KEY, VERSION);
+	if (load$4("whats-new-seen", null) === null) save$1(SEEN_KEY, seenOnFirstLoad(keptBefore, VERSION));
 	function markNews() {
 		const news = hasNews(load$4(SEEN_KEY, null), VERSION);
 		helpButton.classList.toggle("has-news", news);
@@ -16788,7 +16808,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		newsOpen = true;
 		try {
 			const w = (await loadHelp()).whatsNew;
-			if (!w) return;
+			if (!w) {
+				toast("What’s new isn’t in this copy of the help", {
+					type: "error",
+					description: "Reload the page. If it stays, the app’s help file is out of date: rebuild it."
+				});
+				return;
+			}
 			save$1(SEEN_KEY, VERSION);
 			markNews();
 			ux("help", "whatsnew");
@@ -16798,9 +16824,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				contentHtml: whatsNewHtml(w)
 			});
 		} catch (e) {
-			toast("What's new couldn't be loaded", {
+			toast("What’s new couldn’t be loaded", {
 				type: "error",
-				description: e instanceof Error ? e.message : String(e)
+				description: `${e instanceof Error ? e.message : String(e)}. Reload the page to try again.`
 			});
 		} finally {
 			newsOpen = false;

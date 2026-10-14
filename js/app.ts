@@ -1,7 +1,10 @@
 import { seedOntology, generateCutterBatches, generateWeldPower } from './lib/data.ts';
 import { shotHistorySteps, detectFrictionAlerts, scoreAlerts } from './lib/physics.ts';
 import { graphHealth } from './lib/ontology.ts';
-import { load, save, clearAll } from './lib/store.ts';
+import { load, save, clearAll, storedKeys } from './lib/store.ts';
+
+// What this browser kept before this load (U4.08: someone who used Tiles before isn't new).
+const keptBefore = storedKeys().filter((k) => k !== 'whats-new-seen');
 import {
   ApiError,
   createApiClient,
@@ -111,7 +114,7 @@ import {
   type WelcomeContext,
 } from './lib/welcome.ts';
 import { runTour } from './lib/tour.ts';
-import { hasNews, helpLabel, SEEN_KEY, whatsNewHtml, whatsNewTitle } from './lib/whats-new.ts';
+import { hasNews, helpLabel, SEEN_KEY, seenOnFirstLoad, whatsNewHtml, whatsNewTitle } from './lib/whats-new.ts';
 import { VERSION } from './lib/version.ts';
 import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
 import { searchItems } from './lib/site-search.ts';
@@ -1082,6 +1085,7 @@ let helpOpen = false;
 async function openHelp(): Promise<void> {
   if (helpOpen) return;
   helpOpen = true;
+  let then: 'whats-new' | null = null;
   try {
     const data = await loadHelp();
     const [first, ...rest] = pageSection(data, currentView().id);
@@ -1095,11 +1099,14 @@ async function openHelp(): Promise<void> {
       },
       (dialog, close) => {
         dialog.querySelector('[data-whats-new]')?.addEventListener('click', () => {
+          then = 'whats-new';
           close();
-          void openWhatsNew();
         });
       },
     );
+    // Opened once the help sheet has gone, so the focus it gives back (the help button) is what
+    // What's new gives it back to.
+    if (then === 'whats-new') void openWhatsNew();
   } catch (e) {
     toast("The help couldn't be loaded", { type: 'error', description: e instanceof Error ? e.message : String(e) });
   } finally {
@@ -1113,7 +1120,7 @@ helpButton.addEventListener('click', () => void openHelp());
 // ---- what's new (U4.08) ------------------------------------------------------
 // A dot on the help button for someone who used an earlier version and hasn't read what changed; a
 // first visit only notes the version.
-if (load<string | null>(SEEN_KEY, null) === null) save(SEEN_KEY, VERSION);
+if (load<string | null>(SEEN_KEY, null) === null) save(SEEN_KEY, seenOnFirstLoad(keptBefore, VERSION));
 function markNews(): void {
   const news = hasNews(load<string | null>(SEEN_KEY, null), VERSION);
   helpButton.classList.toggle('has-news', news);
@@ -1127,13 +1134,22 @@ async function openWhatsNew(): Promise<void> {
   newsOpen = true;
   try {
     const w = (await loadHelp()).whatsNew;
-    if (!w) return;
+    if (!w) {
+      toast('What’s new isn’t in this copy of the help', {
+        type: 'error',
+        description: 'Reload the page. If it stays, the app’s help file is out of date: rebuild it.',
+      });
+      return;
+    }
     save(SEEN_KEY, VERSION);
     markNews();
     ux('help', 'whatsnew');
     await sheet({ label: 'What’s new', title: whatsNewTitle(w), contentHtml: whatsNewHtml(w) });
   } catch (e) {
-    toast("What's new couldn't be loaded", { type: 'error', description: e instanceof Error ? e.message : String(e) });
+    toast('What’s new couldn’t be loaded', {
+      type: 'error',
+      description: `${e instanceof Error ? e.message : String(e)}. Reload the page to try again.`,
+    });
   } finally {
     newsOpen = false;
   }
