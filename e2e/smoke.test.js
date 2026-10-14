@@ -469,7 +469,7 @@ test('the palette searches the whole site, keeps the records picked, and starts 
   // A warning opens on the Warnings page, named in the address.
   await palette.locator('[role=group]:has(.palette-group:text-is("Warnings")) .palette-item').first().click();
   await page.waitForSelector('[data-warning-detail]');
-  assert.match(await page.evaluate(() => location.hash), /^#\/warnings\?show=all&warning=/);
+  assert.match(await page.evaluate(() => location.hash), /^#\/warnings\?warning=/);
   // The record picked comes back first, among the recent picks.
   await page.waitForSelector('dialog.palette', { state: 'detached' });
   await page.keyboard.press('Control+k');

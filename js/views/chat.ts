@@ -47,7 +47,9 @@ let draft = ''; // the question being typed, kept across re-renders
 // A question to ask, put in the box from elsewhere (the command palette, U4.02): sent with Enter.
 export function prefill(text: string): void {
   draft = text;
+  focusComposer = true;
 }
+let focusComposer = false; // once drawn, the box takes the focus (so Enter sends what was put in it)
 let rating: { key: string; comment: string } | null = null; // a thumbs-down comment being written
 // An answer that failed (the error isn't stored), shown after the conversation reloads.
 let failure: { key: string; question: string; error: string } | null = null;
@@ -425,6 +427,14 @@ function localRender(ctx: Context, note = ''): string {
       </div>`;
 }
 
+// After the page is drawn (and its heading has taken the focus), the box takes it, when a question
+// was put in it from elsewhere.
+function takeFocus(root: HTMLElement): void {
+  if (!focusComposer) return;
+  focusComposer = false;
+  requestAnimationFrame(() => root.querySelector<HTMLInputElement>('#composer [name=q]')?.focus());
+}
+
 function localBind(root: HTMLElement, ctx: Context): void {
   const logEl = need(root, '#chat-log');
   toEnd(logEl);
@@ -486,6 +496,7 @@ const view: View = {
     if (ctx.api && ctx.ontology.status === 'ready' && site && remote?.site !== site) void loadRemote(ctx);
     if (remoteOn(ctx)) remoteBind(root, ctx);
     else localBind(root, ctx);
+    takeFocus(root);
   },
 };
 

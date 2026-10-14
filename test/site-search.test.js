@@ -6,7 +6,7 @@ import { readRecent } from '../js/lib/palette.ts';
 test('each record found opens on its page, named in the address', () => {
   assert.equal(recordHref({ kind: 'signal', id: 'a b' }), '#/explorer?signal=a%20b');
   assert.equal(recordHref({ kind: 'node', id: 'plc/1' }), '#/ontology?node=plc%2F1');
-  assert.equal(recordHref({ kind: 'warning', id: 'w1' }), '#/warnings?show=all&warning=w1');
+  assert.equal(recordHref({ kind: 'warning', id: 'w1' }), '#/warnings?warning=w1'); // the filters stay
   assert.equal(recordHref({ kind: 'insight', id: '4' }), '#/insights/4');
   assert.equal(recordHref({ kind: 'document', id: '2' }), '#/documents/2');
   assert.equal(recordHref({ kind: 'app', id: '7' }), '#/apps/7');
@@ -57,9 +57,19 @@ test('the recent picks kept: ids, and records with an address in the app', () =>
     group: 'Warnings',
     icon: 'triangle-alert',
     href: '#/warnings?warning=w1',
+    scope: 'https://tiles.example.com|site-a',
   };
   assert.deepEqual(readRecent(['page:warnings', record]), ['page:warnings', record]);
   // Anything else is left out: another address, missing fields, not a list.
-  assert.deepEqual(readRecent([{ ...record, href: 'https://example.com' }, { id: 'x' }, 3, null]), []);
+  const bad = [
+    { ...record, href: 'https://example.com' },
+    { ...record, icon: 'no-such-icon' },
+    { ...record, hint: 3 },
+    { ...record, scope: undefined },
+    { id: 'x' },
+    3,
+    null,
+  ];
+  assert.deepEqual(readRecent(bad), []);
   assert.deepEqual(readRecent('page:home'), []);
 });

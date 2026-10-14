@@ -2144,6 +2144,7 @@
 		const a11y = opts.label ? `role="img" aria-label="${esc(opts.label)}"` : "aria-hidden=\"true\"";
 		return `<svg class="${`icon icon-${name}${opts.className ? ` ${esc(opts.className)}` : ""}`}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" focusable="false" ${a11y}>${ICONS$1[name]}</svg>`;
 	}
+	var isIconName = (name) => Object.hasOwn(ICONS$1, name);
 	//#endregion
 	//#region js/lib/nav.ts
 	var DEFAULT_PREFS = {
@@ -3881,7 +3882,9 @@
 	var draft$4 = "";
 	function prefill(text) {
 		draft$4 = text;
+		focusComposer = true;
 	}
+	var focusComposer = false;
 	var rating = null;
 	var failure = null;
 	var siteId$10 = (ctx) => ctx.ontology.site?.id ?? null;
@@ -4214,6 +4217,11 @@
         </div>
       </div>`;
 	}
+	function takeFocus(root) {
+		if (!focusComposer) return;
+		focusComposer = false;
+		requestAnimationFrame(() => root.querySelector("#composer [name=q]")?.focus());
+	}
 	function localBind(root, ctx) {
 		toEnd(need(root, "#chat-log"));
 		const sendLocal = (q) => {
@@ -4270,6 +4278,7 @@
 			if (ctx.api && ctx.ontology.status === "ready" && site && remote$1?.site !== site) loadRemote(ctx);
 			if (remoteOn(ctx)) remoteBind(root, ctx);
 			else localBind(root, ctx);
+			takeFocus(root);
 		}
 	};
 	//#endregion
@@ -5143,6 +5152,9 @@
 	var inspectorTimer;
 	var pressedNode = null;
 	var linkedNode = null;
+	onNavigate((hash) => {
+		if (routeOf(hash) !== "ontology") linkedNode = null;
+	});
 	var view$18 = {
 		id: "ontology",
 		title: "Ontology builder",
@@ -9771,7 +9783,11 @@
 		query: {
 			read(params, ctx) {
 				const ui = uiState$8(ctx);
-				ui.filters = filtersFromQuery(params);
+				if ([
+					"show",
+					"who",
+					"signal"
+				].some((k) => params.has(k))) ui.filters = filtersFromQuery(params);
 				linkedWarning = params.get("warning");
 				if (!linkedWarning) Object.assign(ui, {
 					selected: null,
@@ -14208,13 +14224,15 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var recentId = (r) => typeof r === "string" ? r : r.id;
 	function readRecent(v) {
 		if (!Array.isArray(v)) return [];
-		return v.filter((x) => typeof x === "string" || !!x && typeof x === "object" && [
+		const ok = (x) => [
 			"id",
 			"label",
 			"group",
 			"icon",
-			"href"
-		].every((k) => typeof x[k] === "string") && String(x.href).startsWith("#/"));
+			"href",
+			"scope"
+		].every((k) => typeof x[k] === "string") && isIconName(String(x.icon)) && (x.hint === void 0 || typeof x.hint === "string") && String(x.href).startsWith("#/");
+		return v.filter((x) => typeof x === "string" || !!x && typeof x === "object" && ok(x));
 	}
 	var recent = () => readRecent(load$4("palette-recent", []));
 	var remember = (r) => save$1("palette-recent", [r, ...recent().filter((x) => recentId(x) !== recentId(r))].slice(0, 8));
@@ -14255,7 +14273,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					items = [...found, ...source.typed?.(q.trim()) ?? []];
 				} else {
 					const byId = new Map(all.map((i) => [i.id, i]));
-					const recents = recent().map((r) => typeof r === "string" ? byId.get(r) : {
+					const here = source.scope?.() ?? "";
+					const recents = recent().filter((r) => typeof r === "string" || r.scope === here).map((r) => typeof r === "string" ? byId.get(r) : {
 						...r,
 						run: () => {
 							location.hash = r.href;
@@ -14307,7 +14326,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					group: item.group,
 					icon: item.icon,
 					hint: item.hint,
-					href: item.href
+					href: item.href,
+					scope: source.scope?.() ?? ""
 				});
 				else if (source.items().some((i) => i.id === item.id)) remember(item.id);
 				close();
@@ -14413,7 +14433,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		switch (r.kind) {
 			case "signal": return `#/explorer?signal=${id}`;
 			case "node": return `#/ontology?node=${id}`;
-			case "warning": return `#/warnings?show=all&warning=${id}`;
+			case "warning": return `#/warnings?warning=${id}`;
 			case "insight": return `#/insights/${id}`;
 			case "document": return `#/documents/${id}`;
 			case "app": return `#/apps/${id}`;
@@ -14585,6 +14605,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		ontologyUserId = null;
 		siteMembers = [];
 		reviewRequired = false;
+		knownSites = [];
 		if (!api) {
 			if (ontologyStatus !== "local") state.repo = localRepo;
 			remote = null;
@@ -14600,6 +14621,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		renderSoon();
 		try {
 			const sites = await api.sites();
+			if (seq !== connectSeq) return;
 			knownSites = sites;
 			const site = await pickSite(api, dataSource.siteId, sites);
 			const store = remoteStore(api, site);
@@ -15288,7 +15310,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				}
 			];
 			const here = ctx.ontology.site?.id;
-			const sites = api ? knownSites.filter((s) => s.id !== here).map((s) => ({
+			const sites = api && ctx.ontology.status === "ready" ? knownSites.filter((s) => s.id !== here).map((s) => ({
 				id: `site:${s.id}`,
 				label: `Switch to ${s.name}`,
 				group: "Sites",
@@ -15306,6 +15328,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			];
 		},
 		canSearch: () => Boolean(api && ctx.ontology.site),
+		scope: () => api && ctx.ontology.site ? `${api.baseUrl}|${ctx.ontology.site.id}` : "local",
 		async search(q) {
 			const site = ctx.ontology.site;
 			if (!api || !site) return [];
@@ -15320,7 +15343,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			icon: "sparkles",
 			run: () => {
 				prefill(q);
-				location.hash = "#/chat";
+				if (routeOf(location.hash) === "chat") ctx.rerender();
+				else location.hash = "#/chat";
 			}
 		}]
 	});

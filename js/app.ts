@@ -242,6 +242,7 @@ async function connectOntology(): Promise<void> {
   ontologyUserId = null;
   siteMembers = [];
   reviewRequired = false;
+  knownSites = []; // the last API's sites aren't this one's
   if (!api) {
     if (ontologyStatus !== 'local') state.repo = localRepo;
     remote = null;
@@ -257,6 +258,7 @@ async function connectOntology(): Promise<void> {
   renderSoon();
   try {
     const sites = await api.sites();
+    if (seq !== connectSeq) return; // a newer connection's sites are the ones to offer
     knownSites = sites; // for switching sites from the command palette
     const site = await pickSite(api, dataSource.siteId, sites);
     const store = remoteStore(api, site);
@@ -1031,21 +1033,24 @@ const palette = installPalette({
     ];
     // Another of the API's sites to work on (the one shown is left out).
     const here = ctx.ontology.site?.id;
-    const sites: PaletteItem[] = api
-      ? knownSites
-          .filter((s) => s.id !== here)
-          .map((s) => ({
-            id: `site:${s.id}`,
-            label: `Switch to ${s.name}`,
-            group: 'Sites',
-            icon: 'factory',
-            keywords: `site plant ${s.slug}`,
-            run: () => ctx.setDataSource({ ...dataSource, siteId: s.id }),
-          }))
-      : [];
+    const sites: PaletteItem[] =
+      api && ctx.ontology.status === 'ready'
+        ? knownSites
+            .filter((s) => s.id !== here)
+            .map((s) => ({
+              id: `site:${s.id}`,
+              label: `Switch to ${s.name}`,
+              group: 'Sites',
+              icon: 'factory',
+              keywords: `site plant ${s.slug}`,
+              run: () => ctx.setDataSource({ ...dataSource, siteId: s.id }),
+            }))
+        : [];
     return [...pages, ...actions, ...sites];
   },
   canSearch: () => Boolean(api && ctx.ontology.site),
+  // Where records picked come from: they come back among the recent picks there only.
+  scope: () => (api && ctx.ontology.site ? `${api.baseUrl}|${ctx.ontology.site.id}` : 'local'),
   // The site's records (U4.01): signals, ontology nodes, warnings, insights, documents and apps.
   async search(q) {
     const site = ctx.ontology.site;
@@ -1063,7 +1068,9 @@ const palette = installPalette({
       icon: 'sparkles',
       run: () => {
         prefill(q);
-        location.hash = '#/chat';
+        if (routeOf(location.hash) === 'chat')
+          ctx.rerender(); // already there: the box shows it now
+        else location.hash = '#/chat';
       },
     },
   ],

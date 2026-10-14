@@ -4,7 +4,7 @@
 // An accessible combobox in a <dialog>.
 import { ux, uxName } from './analytics.ts';
 import { esc } from './dom.ts';
-import { icon, type IconName } from './icons.ts';
+import { icon, isIconName, type IconName } from './icons.ts';
 import { load, save } from './store.ts';
 
 export interface PaletteItem {
@@ -25,6 +25,9 @@ export interface PaletteSource {
   canSearch?(): boolean;
   // Items made of what is typed ("Ask the copilot …"), after the matches.
   typed?(q: string): PaletteItem[];
+  // Where records come from (the API and site): a record picked comes back among the recent picks
+  // there only.
+  scope?(): string;
 }
 
 // How well an item matches: the label starting with the query, then a word of it, then anywhere,
@@ -63,17 +66,18 @@ export function grouped<T extends Pick<PaletteItem, 'group'>>(items: T[]): T[] {
 
 // The last picks: pages and actions by id, records (a signal, a warning…) with what to show of them
 // and their address. Eight at most.
-type Recent = string | { id: string; label: string; group: string; icon: IconName; hint?: string; href: string };
+type Recent =
+  string | { id: string; label: string; group: string; icon: IconName; hint?: string; href: string; scope: string };
 const recentId = (r: Recent): string => (typeof r === 'string' ? r : r.id);
 export function readRecent(v: unknown): Recent[] {
   if (!Array.isArray(v)) return [];
+  const ok = (x: Record<string, unknown>): boolean =>
+    ['id', 'label', 'group', 'icon', 'href', 'scope'].every((k) => typeof x[k] === 'string') &&
+    isIconName(String(x.icon)) &&
+    (x.hint === undefined || typeof x.hint === 'string') &&
+    String(x.href).startsWith('#/');
   return v.filter(
-    (x): x is Recent =>
-      typeof x === 'string' ||
-      (!!x &&
-        typeof x === 'object' &&
-        ['id', 'label', 'group', 'icon', 'href'].every((k) => typeof (x as Record<string, unknown>)[k] === 'string') &&
-        String((x as Record<string, unknown>).href).startsWith('#/')),
+    (x): x is Recent => typeof x === 'string' || (!!x && typeof x === 'object' && ok(x as Record<string, unknown>)),
   );
 }
 const recent = (): Recent[] => readRecent(load<unknown>('palette-recent', []));
@@ -122,7 +126,9 @@ export function installPalette(source: PaletteSource): { open(): void } {
         items = [...found, ...(source.typed?.(q.trim()) ?? [])];
       } else {
         const byId = new Map(all.map((i) => [i.id, i]));
+        const here = source.scope?.() ?? '';
         const recents = recent()
+          .filter((r) => typeof r === 'string' || r.scope === here) // records of this site only
           .map((r): PaletteItem | undefined =>
             typeof r === 'string'
               ? byId.get(r)
@@ -193,6 +199,7 @@ export function installPalette(source: PaletteSource): { open(): void } {
           icon: item.icon,
           hint: item.hint,
           href: item.href,
+          scope: source.scope?.() ?? '',
         });
       else if (source.items().some((i) => i.id === item.id)) remember(item.id);
       close();

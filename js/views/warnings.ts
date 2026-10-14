@@ -488,7 +488,8 @@ const view: View = {
   query: {
     read(params, ctx) {
       const ui = uiState(ctx);
-      ui.filters = filtersFromQuery(params);
+      // A link naming only a warning (the command palette's) keeps the filters you set.
+      if (['show', 'who', 'signal'].some((k) => params.has(k))) ui.filters = filtersFromQuery(params);
       // The warning a link opens: on this site, once the site is known.
       linkedWarning = params.get('warning');
       if (!linkedWarning) Object.assign(ui, { selected: null, site: null });

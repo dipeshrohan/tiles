@@ -1062,7 +1062,6 @@ export function createApiClient(options: ApiOptions) {
       uxAnalytics: () => request<{ enabled: boolean }>('GET', '/org/ux-analytics'),
       setUxAnalytics: (enabled: boolean) => request<{ enabled: boolean }>('PUT', '/org/ux-analytics', { enabled }),
     },
-    // The menu's counts (U3.06): read quietly (a failure leaves them as they were, with no toast).
     // Search across a site (U4.01): its records of every kind, ranked and grouped by kind.
     search: (siteId: string, q: string, o: { limit?: number; kinds?: readonly SearchKind[] } = {}) => {
       const params = new URLSearchParams({ q });
@@ -1072,6 +1071,7 @@ export function createApiClient(options: ApiOptions) {
         silent: true,
       });
     },
+    // The menu's counts (U3.06): read quietly (a failure leaves them as they were, with no toast).
     menu: {
       counts: (siteId: string) =>
         request<{ open_warnings: number; reviews_waiting: number }>(

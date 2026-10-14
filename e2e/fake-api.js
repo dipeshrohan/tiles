@@ -1096,7 +1096,6 @@ export function createFakeApi({
         }
         return send(405, { detail: 'Method not allowed' });
       }
-      // The menu's counts (U3.06): open warnings, and reviews an engineer may approve.
       // Search across the site (U4.01), as the API ranks it: equal, starts with, a word starts with,
       // anywhere, every word somewhere; a main field over a side one; grouped by kind.
       if (url.pathname === `/sites/${site.id}/search`) {
@@ -1209,6 +1208,7 @@ export function createFakeApi({
           .sort((a, b) => b.results[0].score - a.results[0].score);
         return send(200, { query: q, groups });
       }
+      // The menu's counts (U3.06): open warnings, and reviews an engineer may approve.
       if (url.pathname === `/sites/${site.id}/menu-counts`) {
         const editor = role === 'engineer' || role === 'admin';
         return send(200, {

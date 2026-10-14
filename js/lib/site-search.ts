@@ -23,7 +23,7 @@ export function recordHref(r: Pick<SearchResult, 'kind' | 'id'>): string {
     case 'node':
       return `#/ontology?node=${id}`;
     case 'warning':
-      return `#/warnings?show=all&warning=${id}`; // resolved or not
+      return `#/warnings?warning=${id}`; // opened whatever the filters show
     case 'insight':
       return `#/insights/${id}`;
     case 'document':

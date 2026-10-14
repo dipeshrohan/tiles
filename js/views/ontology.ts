@@ -22,7 +22,19 @@ import {
 } from '../lib/canvas.ts';
 import { historyOps, safeWorkingGraph, type RemoteStore } from '../lib/ontology-store.ts';
 import { seedOntology } from '../lib/data.ts';
-import { download, esc, field, need, onAll, onSubmit, scrollBehavior, timeAgo, bound } from '../lib/dom.ts';
+import {
+  download,
+  esc,
+  field,
+  need,
+  onAll,
+  onNavigate,
+  onSubmit,
+  routeOf,
+  scrollBehavior,
+  timeAgo,
+  bound,
+} from '../lib/dom.ts';
 import { describeChanges } from '../lib/review.ts';
 import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
@@ -721,6 +733,9 @@ let pressedNode: string | null = null; // the node a click began on: a double cl
 // A node a link opens (#/ontology?node=<id>, from the command palette, U4.02): selected, shown and
 // brought into view once the graph it is in has loaded; the address keeps it until then.
 let linkedNode: string | null = null;
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'ontology') linkedNode = null; // left before it loaded: not for a later visit
+});
 
 const view: View = {
   id: 'ontology',
