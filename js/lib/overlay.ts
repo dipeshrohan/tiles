@@ -47,6 +47,21 @@ function closeOutside(dialog: HTMLDialogElement, close: () => void): void {
   });
 }
 
+// A link followed in a dialog leaves it for the page it goes to, at once: closed later, the dialog
+// would give the focus back to what opened it after the new page has given it to its heading. Not a
+// link opened in another tab (Ctrl, ⌘, Shift, another button, a target): the dialog stays open here.
+// `closed()` says whether it is gone already; `gone()` is told when this closes it.
+function closeOnLink(dialog: HTMLDialogElement, closed: () => boolean, gone: () => void): void {
+  dialog.addEventListener('click', (e) => {
+    const link = e.target instanceof Element ? e.target.closest('a[href]') : null;
+    const elsewhere = e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || link?.hasAttribute('target');
+    if (closed() || !link || elsewhere) return;
+    dialog.close();
+    dialog.remove();
+    gone();
+  });
+}
+
 function open(dialog: HTMLDialogElement): void {
   dialog.dataset.state = 'open';
   document.body.append(dialog);
@@ -199,18 +214,14 @@ export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement) => v
       void dismiss(dialog).then(resolve);
     };
     dialog.querySelector('[data-sheet-close]')?.addEventListener('click', done);
-    // A link followed leaves the sheet for the page it goes to, at once: closed later, the dialog would
-    // give the focus back to what opened it after the new page has given it to its heading.
-    // (Not for a link opened in another tab: the sheet stays open here.)
-    dialog.addEventListener('click', (e) => {
-      const link = e.target instanceof Element ? e.target.closest('a[href]') : null;
-      const elsewhere = e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || link?.hasAttribute('target');
-      if (closed || !link || elsewhere) return;
-      closed = true;
-      dialog.close();
-      dialog.remove();
-      resolve();
-    });
+    closeOnLink(
+      dialog,
+      () => closed,
+      () => {
+        closed = true;
+        resolve();
+      },
+    );
     closeOutside(dialog, done);
     open(dialog);
     opened?.(dialog);
@@ -253,14 +264,14 @@ export function panelDialog(
       closed = true;
       void dismiss(dialog).then(resolve);
     };
-    dialog.addEventListener('click', (e) => {
-      const link = e.target instanceof Element ? e.target.closest('a[href]') : null;
-      if (closed || !link || link.hasAttribute('target')) return;
-      closed = true;
-      dialog.close();
-      dialog.remove();
-      resolve();
-    });
+    closeOnLink(
+      dialog,
+      () => closed,
+      () => {
+        closed = true;
+        resolve();
+      },
+    );
     closeOutside(dialog, done);
     open(dialog);
     opened?.(dialog, done);

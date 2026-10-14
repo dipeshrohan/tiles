@@ -222,7 +222,7 @@ What the browser records, and nothing else:
 | Page viewed | The page's id | `warnings` |
 | Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo` |
 | Command palette | Opened, or the kind of thing chosen | `open`, `chose.signals` |
-| Help opened | The help topic | (with in-app help) |
+| Help opened | The help topic | `welcome` (the first-run welcome) |
 | Error shown | Its kind | `api.403`, `offline` |
 
 Each event also has the time it arrived and a random id the browser makes for each tab, which the

@@ -4,6 +4,7 @@
 // the site wizard (an admin of a site still being set up), the help, or just looking around. It can
 // be shown again from Help or the command palette.
 import { esc } from './dom.ts';
+import { helpHref } from './help.ts';
 import { MAX_PINNED, type NavPrefs } from './nav.ts';
 
 export type WorkRole = 'engineer' | 'maintenance' | 'shift-lead' | 'admin';
@@ -13,6 +14,7 @@ export interface RoleSetup {
   label: string;
   says: string; // what they mostly do, in their words
   start: string; // the page Tiles opens at
+  localStart?: string; // the one in local mode, when `start` needs the Tiles API
   pins: string[]; // pinned at the top of the menu
   fold: string[]; // menu groups folded away
 }
@@ -23,6 +25,7 @@ export const WORK_ROLES: readonly RoleSetup[] = [
     label: 'Engineer',
     says: 'I look for causes in the data and keep the plant model up to date.',
     start: 'explorer',
+    localStart: 'quality',
     pins: ['signals', 'explorer', 'correlate', 'ontology'],
     fold: [],
   },
@@ -31,6 +34,7 @@ export const WORK_ROLES: readonly RoleSetup[] = [
     label: 'Maintenance',
     says: 'I work warnings and keep the machines running.',
     start: 'warnings',
+    localStart: 'physics',
     pins: ['warnings', 'plant', 'documents'],
     fold: ['design'],
   },
@@ -54,13 +58,29 @@ export const WORK_ROLES: readonly RoleSetup[] = [
 
 export const roleSetup = (id: string): RoleSetup | undefined => WORK_ROLES.find((r) => r.id === id);
 
-// The menu as a role sets it: its pages pinned first (pins already there kept after them), its groups
-// folded, and its page to open at. Pages that aren't in this build are left out.
-export function applyRole(prefs: NavPrefs, role: RoleSetup, pages: readonly string[]): NavPrefs {
+export interface RoleChoice {
+  local: boolean; // local mode: the demo plant, no Tiles API
+  previous?: RoleSetup; // the role chosen before, whose pins and folds this one replaces
+}
+
+// The page a role opens at: its local one in local mode, where its own needs the Tiles API.
+export const startOf = (role: RoleSetup, local: boolean): string => (local && role.localStart) || role.start;
+
+// The menu as a role sets it: its pages pinned first (other pins kept after them, but not those the
+// previous role pinned), its groups folded (the previous role's unfolded), and its page to open at.
+// Pages that aren't in this build are left out.
+export function applyRole(prefs: NavPrefs, role: RoleSetup, pages: readonly string[], o: RoleChoice): NavPrefs {
+  const before = o.previous;
+  const kept = before ? prefs.pinned.filter((p) => !before.pins.includes(p)) : prefs.pinned;
+  const unfolded = before ? prefs.folded.filter((g) => !before.fold.includes(g)) : prefs.folded;
   const pins = role.pins.filter((p) => pages.includes(p));
-  const pinned = [...new Set([...pins, ...prefs.pinned])].slice(0, MAX_PINNED);
-  const folded = [...new Set([...prefs.folded, ...role.fold])];
-  return { ...prefs, pinned, folded, ...(pages.includes(role.start) ? { start: role.start } : {}) };
+  const pinned = [...new Set([...pins, ...kept])].slice(0, MAX_PINNED);
+  const folded = [...new Set([...unfolded, ...role.fold])];
+  const start = startOf(role, o.local);
+  const next: NavPrefs = { ...prefs, pinned, folded };
+  if (pages.includes(start)) next.start = start;
+  else delete next.start;
+  return next;
 }
 
 // Where the welcome is remembered: beside the person's menu choices (their nav key).
@@ -96,18 +116,25 @@ export function rolesHtml(c: WelcomeContext): string {
     <div class="dialog-foot"><button class="btn ghost" type="button" data-welcome-skip>Just look around</button></div>`;
 }
 
-// The second step: what the role set, and where to go next. An admin of a site still being set up is
-// offered the site wizard first.
-export function nextHtml(c: WelcomeContext, role: RoleSetup, o: { setUp: boolean; helpFor: string | null }): string {
-  const pins = role.pins.map((p) => `<b>${esc(c.title(p))}</b>`);
+// The second step: what the role set (the menu as it now is: `prefs`), and where to go next. An admin
+// of a site still being set up is offered the site wizard first.
+export function nextHtml(
+  c: WelcomeContext,
+  role: RoleSetup,
+  prefs: NavPrefs,
+  o: { setUp: boolean; helpFor: string | null },
+): string {
+  const pins = role.pins.filter((p) => prefs.pinned.includes(p)).map((p) => `<b>${esc(c.title(p))}</b>`);
   const listed = pins.length > 1 ? `${pins.slice(0, -1).join(', ')} and ${pins.at(-1)}` : (pins[0] ?? '');
-  const start = c.title(role.start);
+  const page = prefs.start ?? 'home';
+  const start = c.title(page);
   const actions = [
     o.setUp ? `<a class="btn primary" href="#/onboarding">Set up the site</a>` : '',
-    `<a class="btn${o.setUp ? '' : ' primary'}" href="#/${esc(role.start)}">Go to ${esc(start)}</a>`,
-    o.helpFor ? `<a class="btn ghost" href="#/help/${esc(o.helpFor)}">Read how ${esc(start)} works</a>` : '',
+    `<a class="btn${o.setUp ? '' : ' primary'}" href="#/${page === 'home' ? '' : esc(page)}">Go to ${esc(start)}</a>`,
+    o.helpFor ? `<a class="btn ghost" href="${esc(helpHref(o.helpFor))}">Read how ${esc(start)} works</a>` : '',
   ].filter(Boolean);
-  return `<p>Tiles will open at <b>${esc(start)}</b>, with ${listed} pinned in the menu.</p>
+  const opens = `Tiles will open at <b>${esc(start)}</b>`;
+  return `<p>${pins.length ? `${opens}, with ${listed} pinned in the menu.` : `${opens}.`}</p>
     <p class="small soft">To see this again, open Help and choose Show the welcome.</p>
     <div class="dialog-foot">${actions.join('')}</div>`;
 }

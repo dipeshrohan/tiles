@@ -972,12 +972,15 @@ let helpAsked = false;
 // the page their role set (only while nobody has gone anywhere since it loaded), and the first time,
 // a welcome asks what they mostly do (js/lib/welcome.ts). Automated browsers aren't greeted.
 let navigated = false;
+let started = false; // the start page is for the app's load, not a site switched to later
 let welcoming = false;
 function firstRun(): void {
   const owner = navOwner();
   if (!owner) return;
   const start = prefs().start;
-  if (start && start !== 'home' && !navigated && /^#?\/?$/.test(location.hash)) location.replace(`#/${start}`);
+  if (!started && start && start !== 'home' && !navigated && /^#?\/?$/.test(location.hash))
+    location.replace(`#/${start}`);
+  started = true;
   const seen = load<unknown>(welcomeKey(owner), null) !== null;
   if (shouldWelcome(seen, navigator.webdriver === true) && !document.querySelector('dialog[open]')) void showWelcome();
 }
@@ -990,7 +993,8 @@ async function showWelcome(): Promise<void> {
   const owner = navOwner();
   if (!owner || welcoming) return;
   welcoming = true;
-  save(welcomeKey(owner), { seen: true }); // shown once: closing it is "just look around"
+  const kept = load<{ role?: string } | null>(welcomeKey(owner), null);
+  save(welcomeKey(owner), { ...kept, seen: true }); // shown once: closing it is "just look around"
   ux('help', 'welcome');
   const c = welcomeContext();
   await panelDialog(
@@ -1001,20 +1005,27 @@ async function showWelcome(): Promise<void> {
     },
     (dialog, close) => {
       const box = dialog.querySelector<HTMLElement>('[data-welcome]');
+      let chosen = false; // one role: the second step is on its way
       dialog.addEventListener('click', (e) => {
         const el = e.target instanceof Element ? e.target : null;
         if (el?.closest('[data-welcome-skip]')) return close();
         const role = roleSetup(el?.closest<HTMLElement>('[data-role]')?.dataset.role ?? '');
-        if (!role || !box) return;
-        setPrefs(applyRole(prefs(), role, NAV_PAGES));
+        if (!role || !box || chosen) return;
+        chosen = true;
+        const before = load<{ role?: string } | null>(welcomeKey(owner), null);
+        const next = applyRole(prefs(), role, NAV_PAGES, { local: !api, previous: roleSetup(before?.role ?? '') });
+        setPrefs(next);
         save(welcomeKey(owner), { seen: true, role: role.id });
         renderNav(currentView());
-        // An admin of a site that has no plant model yet is offered the site wizard first.
-        const setUp = Boolean(api && ctx.ontology.role === 'admin' && Object.keys(ctx.graph.nodes).length <= 1);
+        // An admin of a site whose plant has no machine yet (onboarding's first step) is offered the
+        // site wizard first.
+        const setUp = Boolean(
+          api && ctx.ontology.role === 'admin' && !Object.values(ctx.graph.nodes).some((n) => n.type === 'Machine'),
+        );
         void loadHelp()
           .catch(() => null)
           .then((help) => {
-            box.innerHTML = nextHtml(c, role, { setUp, helpFor: help?.pages[role.start] ?? null });
+            box.innerHTML = nextHtml(c, role, next, { setUp, helpFor: help?.pages[next.start ?? 'home'] ?? null });
             box.querySelector<HTMLElement>('a')?.focus();
           });
       });
