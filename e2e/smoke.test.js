@@ -368,6 +368,68 @@ test('the style guide: from Settings, not in the menu, every section shown', asy
   await page.close();
 });
 
+test('keyboard shortcuts: g goes to a page, / searches it, ? lists them, and they turn off (U4.03)', async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/`);
+  await page.waitForSelector('#view h1');
+  const hash = () => page.evaluate(() => location.hash);
+  await page.keyboard.press('g');
+  await page.keyboard.press('o');
+  await page.waitForSelector('[data-onto-search]');
+  // / searches a page that has its own search, rather than opening the palette.
+  assert.equal(await page.getAttribute('[data-onto-search]', 'aria-keyshortcuts'), '/');
+  await page.keyboard.press('/');
+  assert.ok(await page.evaluate(() => document.activeElement?.matches('[data-onto-search]')));
+  assert.equal(await page.locator('dialog.palette').count(), 0);
+  // Typed into a field, g and a letter are words.
+  await page.keyboard.type('gw');
+  assert.equal(await page.inputValue('[data-onto-search]'), 'gw');
+  assert.match(await hash(), /ontology/);
+  await page.locator('[data-onto-search]').fill('');
+  await page.focus('#view h1');
+  await page.keyboard.press('g');
+  await page.keyboard.press('w');
+  await page.waitForFunction(() => location.hash === '#/warnings');
+  // ? lists every shortcut.
+  await page.keyboard.press('?');
+  const list = page.locator('dialog.dialog:not(.palette)[open]');
+  await list.waitFor();
+  assert.equal(await list.locator('h2').innerText(), 'Keyboard shortcuts');
+  assert.match(await list.innerText(), /g\s+o\s+Ontology builder/);
+  assert.match(await list.innerText(), /j\s+Open the next/);
+  // Turned off, no single key does anything, and nothing names one.
+  await list.locator('[data-single-keys]').uncheck();
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog.dialog:not(.palette)', { state: 'detached' });
+  await page.keyboard.press('g');
+  await page.keyboard.press('o');
+  await page.waitForTimeout(100);
+  assert.equal(await hash(), '#/warnings');
+  await page.goto(`${httpBase}#/ontology`);
+  await page.waitForSelector('[data-onto-search]');
+  assert.equal(await page.locator('#view [aria-keyshortcuts]').count(), 0, 'off after a reload too');
+  assert.equal(await page.getAttribute('#palette-open', 'aria-keyshortcuts'), 'Control+K Meta+K');
+  await page.focus('#view h1');
+  for (const key of ['?', '/', 'g', 'h']) await page.keyboard.press(key);
+  assert.equal(await page.locator('dialog').count(), 0);
+  assert.match(await hash(), /ontology/);
+  // The command palette still opens, and finds the list to turn them back on.
+  await page.keyboard.press('Control+k');
+  await page.locator('dialog.palette input').fill('keyboard');
+  await page.locator('dialog.palette [role=option]:has-text("Keyboard shortcuts")').click();
+  await list.waitFor();
+  await list.locator('[data-single-keys]').check();
+  await list.locator('button:text-is("Close")').click();
+  await page.waitForSelector('dialog.dialog:not(.palette)', { state: 'detached' });
+  assert.equal(await page.getAttribute('[data-onto-search]', 'aria-keyshortcuts'), '/');
+  await page.focus('#view h1');
+  await page.keyboard.press('g');
+  await page.keyboard.press('h');
+  await page.waitForFunction(() => location.hash === '' || location.hash === '#/');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Enter goes', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/`);
@@ -2570,7 +2632,14 @@ test('the warnings inbox: see a warning on its signal, acknowledge, assign, reso
   // A comment needs words; acknowledging doesn't.
   await a.page.click('[data-act=comment]');
   await a.page.waitForSelector('#toast:has-text("Write the comment first")');
-  await a.page.click('[data-act=acknowledge]');
+  // a acknowledges it (U4.03): the button's tooltip says so.
+  await a.page.focus('[data-act=acknowledge]');
+  await a.page.keyboard.press('Shift+Tab');
+  await a.page.keyboard.press('Tab');
+  assert.equal(await a.page.locator('#tooltip:not([hidden])').innerText(), 'Acknowledge a');
+  assert.equal(await a.page.locator('#tooltip kbd').innerText(), 'a');
+  await a.page.focus('#view h1');
+  await a.page.keyboard.press('a');
   await a.page.waitForSelector('#toast:has-text("Acknowledged")');
   await a.page.waitForSelector('[data-warning-detail] .badge:has-text("Acknowledged")');
   assert.equal(await a.page.locator('[data-act=acknowledge]').count(), 0);

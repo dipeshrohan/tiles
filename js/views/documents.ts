@@ -29,6 +29,7 @@ import {
   skeleton,
   apiUnreachable,
 } from '../lib/ui.ts';
+import { keyAttrs } from '../lib/shortcuts.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
 // match with its document and page; the copilot searches them too. Engineers upload and archive.
@@ -207,7 +208,7 @@ function searchCard(ctx: Context): string {
       .join('')}</ol>`;
   return card(
     `<form class="row gap-2 wrap" id="doc-search" role="search">
-        ${labelled('Search the documents', input({ type: 'search', name: 'q', value: ui.query, placeholder: 'e.g. plunger tip replace, "hydraulic pressure"' }), { class: 'grow min-w-field' })}
+        ${labelled('Search the documents', input({ type: 'search', name: 'q', value: ui.query, placeholder: 'e.g. plunger tip replace, "hydraulic pressure"', attrs: keyAttrs('/') }), { class: 'grow min-w-field' })}
         <div class="self-end">${button('Search', { variant: 'primary', type: 'submit' })}</div>
       </form>
       <p class="small soft">Words find their forms (“valves” finds “valve”); “quoted words” find a phrase; -word leaves a word out.</p>

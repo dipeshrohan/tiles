@@ -1,9 +1,10 @@
 // Split view for records (U3.08): a list and the record open from it side by side on a wide screen,
 // one at a time on a narrow one (the record, with a way back to the list); j and k move through the
-// list. Used by Warnings, Change reviews, Insights and Documents.
+// list (keyboard shortcuts, U4.03: not while typing, and not when turned off). Used by Warnings, Change reviews, Insights and Documents.
 
 import { bound, esc, scrollBehavior } from './dom.ts';
 import { icon } from './icons.ts';
+import { forShortcut } from './shortcuts.ts';
 
 export interface SplitOptions {
   open: boolean; // a record is open (on a narrow screen it takes the list's place)
@@ -44,16 +45,6 @@ export function nextRow(count: number, current: number, step: 1 | -1): number | 
   return next >= 0 && next < count ? next : null;
 }
 
-// Keys typed into a field, or with a modifier, or while a dialog or the palette is open, are not
-// the list's.
-export function forList(e: KeyboardEvent): boolean {
-  if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return false;
-  const t = e.target;
-  if (t instanceof Element && t.closest('input, textarea, select, [contenteditable=""], [contenteditable="true"]'))
-    return false;
-  return !document.querySelector('dialog[open]');
-}
-
 // j and k open the next and previous row of `rows` (in `root`); `isOpen` says which row is open now.
 // A row is opened as a click on it would (a row that is a link or button), or on its first link.
 // The row moved to takes the focus once the page has drawn it, scrolled into view.
@@ -61,7 +52,7 @@ export function listKeys(root: ParentNode, rows: string, isOpen: (row: Element) 
   document.addEventListener(
     'keydown',
     (e) => {
-      if ((e.key !== 'j' && e.key !== 'k') || !forList(e)) return;
+      if ((e.key !== 'j' && e.key !== 'k') || !forShortcut(e)) return;
       const all = [...root.querySelectorAll(rows)];
       const at = nextRow(
         all.length,

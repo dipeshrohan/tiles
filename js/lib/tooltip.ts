@@ -1,6 +1,10 @@
 // Tooltips (U4.05's component, after shadcn/ui's Tooltip): any element with data-tooltip="…" shows
 // it above itself on hover (after a short wait) or keyboard focus (at once), and is described by
 // it for screen readers. Escape, leaving or scrolling hides it. One tooltip element serves the page.
+// A button or link with a keyboard shortcut (aria-keyshortcuts, U4.03) shows its key there too, after
+// its tooltip or, without one, its name; screen readers have the key from the attribute already.
+import { keyLabel } from './shortcuts.ts';
+
 let tip: HTMLElement | null = null;
 let target: HTMLElement | null = null;
 let timer: ReturnType<typeof setTimeout> | undefined;
@@ -17,17 +21,26 @@ function element(): HTMLElement {
   return tip;
 }
 
+const nameOf = (el: HTMLElement): string => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim();
+
 function show(el: HTMLElement): void {
-  const text = el.dataset.tooltip;
-  if (!text) return;
+  const text = el.dataset.tooltip ?? '';
+  const keys = el.getAttribute('aria-keyshortcuts') ?? '';
+  const key = /^\S$/.test(keys) ? keys : null; // one key (Ctrl K and the like are written beside them)
+  if (!text && !key) return;
   const t = element();
-  t.textContent = text;
+  t.textContent = text || nameOf(el);
+  if (key) {
+    const k = document.createElement('kbd');
+    k.textContent = keyLabel(key);
+    t.append(' ', k);
+  }
   t.hidden = false;
   t.dataset.state = 'open';
   // Added to what already describes it, not instead; not when it only repeats the element's name.
   const described = (el.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean);
-  const named = (el.getAttribute('aria-label') ?? el.textContent ?? '').trim() === text.trim();
-  if (!named && !described.includes('tooltip'))
+  const named = nameOf(el) === text.trim();
+  if (text && !named && !described.includes('tooltip'))
     el.setAttribute('aria-describedby', [...described, 'tooltip'].join(' '));
   target = el;
   watch();
@@ -64,8 +77,11 @@ function hide(): void {
   }
 }
 
+// A field's key isn't shown: its tooltip would cover what is typed (? lists it).
 const owner = (e: Event): HTMLElement | null =>
-  e.target instanceof Element ? e.target.closest<HTMLElement>('[data-tooltip]') : null;
+  e.target instanceof Element
+    ? e.target.closest<HTMLElement>('[data-tooltip], button[aria-keyshortcuts], a[aria-keyshortcuts]')
+    : null;
 
 export function installTooltips(root: Document = document): void {
   root.addEventListener('pointerover', (e) => {

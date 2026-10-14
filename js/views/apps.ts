@@ -19,6 +19,7 @@ import type { Context, View } from './types.ts';
 import { showErrors } from '../lib/forms.ts';
 import { removeNow } from '../lib/undo.ts';
 import { emptyState, errorState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import { keyAttr } from '../lib/shortcuts.ts';
 
 // App Studio (T6.10): use cases configured from templates, without code. A template (a wear check,
 // SPC limits) says what it needs; its form is made from that; an app is the template configured on
@@ -224,7 +225,7 @@ function detailCard(ctx: Context): string {
     .map((line) => `<li>${esc(line)}</li>`)
     .join('')}</ul></details>`;
   const tools = canEdit(ctx)
-    ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? 'disabled' : ''}>Archive</button></div>`
+    ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app${keyAttr('e')}>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? 'disabled' : ''}>Archive</button></div>`
     : '';
   let body: string;
   if (!r) body = '<p class="small soft">Running it on the latest readings…</p>';

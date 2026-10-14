@@ -289,7 +289,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* the endpoint is in the API reference, with tests for ranking and row security.
 - [x] `U4.02` [#231](https://github.com/dipeshrohan/tiles/issues/231) **Command palette** · FE · 4d · U4.01, U2.01
   *Done when:* each of the 6 key tasks can start from the palette, and the a11y test opens it.
-- [ ] `U4.03` [#232](https://github.com/dipeshrohan/tiles/issues/232) **Keyboard shortcuts** · FE · 2d · U4.02
+- [x] `U4.03` [#232](https://github.com/dipeshrohan/tiles/issues/232) **Keyboard shortcuts** · FE · 2d · U4.02
   *Done when:* the shortcuts work, are listed, and are tested; nothing clashes with screen-reader keys.
 - [ ] `U4.04` [#233](https://github.com/dipeshrohan/tiles/issues/233) **Contextual help panel** · PM+FE · 3d · U1.06, U2.01
   *Done when:* every page has help, the build fails if a page has none, and links from help land on the right section.

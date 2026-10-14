@@ -31,6 +31,7 @@ import {
   setBusy,
   loadFailed,
 } from '../lib/ui.ts';
+import { keyAttrs } from '../lib/shortcuts.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
@@ -598,7 +599,7 @@ const view: View = {
       }`;
     const { query } = ui(ctx);
     const search = `<form id="signal-search" class="row gap-3 wrap" role="search">
-          ${labelled('Search', input({ type: 'search', name: 'q', value: query.q, placeholder: 'Tag, description or node' }), { class: 'grow min-w-field' })}
+          ${labelled('Search', input({ type: 'search', name: 'q', value: query.q, placeholder: 'Tag, description or node', attrs: keyAttrs('/') }), { class: 'grow min-w-field' })}
           ${labelled(
             'Source',
             select(

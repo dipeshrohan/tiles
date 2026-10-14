@@ -1,5 +1,5 @@
-// The command palette (U4.02), after shadcn/ui's Command (cmdk): Ctrl/⌘ K, or "/" outside a field,
-// opens a search over pages and actions, and the site's records when there is an API (site search,
+// The command palette (U4.02), after shadcn/ui's Command (cmdk): Ctrl/⌘ K, or "/" on a page without
+// its own search (js/lib/shortcuts.ts), opens a search over pages and actions, and the site's records when there is an API (site search,
 // U4.01). Arrow keys move, Enter runs, Escape closes; the last picks come first, records among them.
 // An accessible combobox in a <dialog>.
 import { ux, uxName } from './analytics.ts';
@@ -83,9 +83,6 @@ export function readRecent(v: unknown): Recent[] {
 const recent = (): Recent[] => readRecent(load<unknown>('palette-recent', []));
 const remember = (r: Recent): void =>
   save('palette-recent', [r, ...recent().filter((x) => recentId(x) !== recentId(r))].slice(0, 8));
-
-const typing = (el: EventTarget | null): boolean =>
-  el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 
 export function installPalette(source: PaletteSource): { open(): void } {
   let dialog: HTMLDialogElement | null = null;
@@ -290,9 +287,8 @@ export function installPalette(source: PaletteSource): { open(): void } {
 
   document.addEventListener('keydown', (e) => {
     const combo = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k';
-    const slash = e.key === '/' && !e.ctrlKey && !e.metaKey && !e.altKey && !typing(e.target);
-    if (!combo && !slash) return;
-    if (dialog) return void (combo && e.preventDefault());
+    if (!combo) return;
+    if (dialog) return void e.preventDefault();
     if (document.querySelector('dialog[open]')) return; // another dialog has the page
     e.preventDefault();
     open();

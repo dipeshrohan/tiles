@@ -113,3 +113,57 @@ export function confirmDialog(o: ConfirmOptions): Promise<boolean> {
     open(dialog);
   });
 }
+
+export interface InfoOptions {
+  title: string;
+  body?: string; // a line under the title
+  contentHtml: string; // built markup (escape what it holds)
+  wide?: boolean;
+  close?: string;
+}
+
+// A dialog that shows something (the keyboard shortcuts, U4.03): its content and a Close button,
+// which has the focus. Escape, the button or a click outside closes it. `opened` gets the dialog
+// once it is shown, for its own listeners; the promise resolves once it is gone.
+export function infoDialog(o: InfoOptions, opened?: (dialog: HTMLDialogElement) => void): Promise<void> {
+  const id = nextId();
+  const dialog = document.createElement('dialog');
+  dialog.className = o.wide ? 'dialog wide' : 'dialog';
+  dialog.setAttribute('aria-labelledby', `${id}-title`);
+  if (o.body) dialog.setAttribute('aria-describedby', `${id}-body`);
+  dialog.innerHTML = `
+    <form method="dialog" class="dialog-panel">
+      <div class="dialog-head">
+        <div>
+          <h2 id="${id}-title">${esc(o.title)}</h2>
+          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ''}
+        </div>
+      </div>
+      ${o.contentHtml}
+      <div class="dialog-foot">
+        <button class="btn" value="close" autofocus>${esc(o.close ?? 'Close')}</button>
+      </div>
+    </form>`;
+  const outside = (e: MouseEvent): boolean => {
+    const r = dialog.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  let pressedOutside = false;
+  dialog.addEventListener('pointerdown', (e) => (pressedOutside = outside(e)));
+  return new Promise((resolve) => {
+    const done = (): void => void dismiss(dialog).then(resolve);
+    dialog.addEventListener('submit', (e) => {
+      e.preventDefault();
+      done();
+    });
+    dialog.addEventListener('cancel', (e) => {
+      e.preventDefault();
+      done();
+    });
+    dialog.addEventListener('click', (e) => {
+      if (pressedOutside && outside(e)) done();
+    });
+    open(dialog);
+    opened?.(dialog);
+  });
+}

@@ -8,6 +8,7 @@ import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
 import { needsApi, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
+import { keyAttr } from '../lib/shortcuts.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -529,7 +530,7 @@ const view: View = {
       .join('');
     return `${head}<div class="card stack gap-3">
         <form id="explorer-search" class="row gap-3 wrap" role="search">
-          <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"></label>
+          <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"${keyAttr('/')}></label>
         </form>
         <div class="row gap-1_5 wrap" data-explorer-found></div>
         ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : '<p class="small soft">Pick up to eight signals to plot them on one time axis.</p>'}

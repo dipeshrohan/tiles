@@ -2481,6 +2481,9 @@ kbd {
   box-shadow: var(--shadow-3);
   overflow: auto;
 }
+.dialog.wide {
+  width: min(720px, calc(100vw - var(--space-8)));
+}
 .dialog::backdrop {
   background: rgba(10, 15, 14, 0.5);
   backdrop-filter: blur(2px);
@@ -2529,6 +2532,21 @@ kbd {
 .dialog-icon.danger {
   background: var(--bad-soft);
   color: var(--bad);
+}
+/* The keyboard shortcuts (U4.03): their tables side by side where there is room. */
+.shortcut-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+.shortcuts caption {
+  padding-bottom: var(--space-1_5);
+  text-align: left;
+  font-weight: 600;
+}
+.shortcuts th {
+  width: 7em;
 }
 .dialog-foot {
   display: flex;
@@ -2692,6 +2710,14 @@ kbd {
   line-height: var(--leading-tight);
   pointer-events: none;
   animation: overlay-in var(--dur) var(--ease-out);
+}
+/* A shortcut's key (U4.03), on the tooltip's dark ground. */
+.tooltip kbd {
+  margin-left: var(--space-1);
+  min-height: 16px;
+  border-color: color-mix(in srgb, var(--bg) 40%, transparent);
+  background: transparent;
+  color: var(--bg);
 }
 
 /* ---- shopfloor view (T5.16): read at arm's length, used with gloves ---- */

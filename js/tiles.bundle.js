@@ -4558,6 +4558,255 @@
 		}
 	}
 	//#endregion
+	//#region js/lib/overlay.ts
+	var seq$2 = 0;
+	var nextId = () => `overlay-${++seq$2}`;
+	function dismiss(dialog) {
+		return new Promise((resolve) => {
+			if (dialog.dataset.state === "closed") return resolve();
+			dialog.dataset.state = "closed";
+			let done = false;
+			const finish = () => {
+				if (done) return;
+				done = true;
+				dialog.close();
+				dialog.remove();
+				resolve();
+			};
+			const running = dialog.getAnimations({ subtree: true });
+			if (running.length) Promise.all(running.map((a) => a.finished.catch(() => {}))).then(finish);
+			else finish();
+			setTimeout(finish, 400);
+		});
+	}
+	function open$2(dialog) {
+		dialog.dataset.state = "open";
+		document.body.append(dialog);
+		dialog.showModal();
+	}
+	function confirmDialog(o) {
+		const id = nextId();
+		const dialog = document.createElement("dialog");
+		dialog.className = "dialog";
+		dialog.setAttribute("role", "alertdialog");
+		dialog.setAttribute("aria-labelledby", `${id}-title`);
+		if (o.body) dialog.setAttribute("aria-describedby", `${id}-body`);
+		const danger = o.tone === "danger";
+		dialog.innerHTML = `
+    <form method="dialog" class="dialog-panel">
+      <div class="dialog-head">
+        ${danger ? `<span class="dialog-icon danger">${icon("triangle-alert", { size: 18 })}</span>` : ""}
+        <div>
+          <h2 id="${id}-title">${esc(o.title)}</h2>
+          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ""}
+        </div>
+      </div>
+      ${o.typeToConfirm ? `<label class="field"><span>Type <b>${esc(o.typeToConfirm)}</b> to confirm</span><input type="text" name="typed" autocomplete="off" spellcheck="false" autofocus /></label>` : ""}
+      <div class="dialog-foot">
+        <button class="btn" value="cancel" ${danger && !o.typeToConfirm ? "autofocus" : ""}>${esc(o.cancel ?? "Cancel")}</button>
+        <button class="btn ${danger ? "destructive" : "primary"}" value="confirm" data-confirm ${o.typeToConfirm ? "disabled" : ""} ${danger || o.typeToConfirm ? "" : "autofocus"}>${esc(o.confirm ?? "Confirm")}</button>
+      </div>
+    </form>`;
+		const typed = dialog.querySelector("input[name=typed]");
+		const button = dialog.querySelector("[data-confirm]");
+		if (typed && button) typed.addEventListener("input", () => button.disabled = typed.value.trim() !== o.typeToConfirm);
+		const outside = (e) => {
+			const r = dialog.getBoundingClientRect();
+			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+		};
+		let pressedOutside = false;
+		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
+		return new Promise((resolve) => {
+			let answered = false;
+			const answer = (yes) => {
+				if (answered) return;
+				answered = true;
+				dismiss(dialog).then(() => resolve(yes));
+			};
+			dialog.addEventListener("submit", (e) => {
+				e.preventDefault();
+				const submitter = e.submitter;
+				answer(submitter?.value === "confirm" && !button?.disabled);
+			});
+			dialog.addEventListener("cancel", (e) => {
+				e.preventDefault();
+				answer(false);
+			});
+			dialog.addEventListener("click", (e) => {
+				if (pressedOutside && outside(e)) answer(false);
+			});
+			typed?.addEventListener("keydown", (e) => {
+				if (e.key !== "Enter") return;
+				e.preventDefault();
+				if (button && !button.disabled) answer(true);
+			});
+			open$2(dialog);
+		});
+	}
+	function infoDialog(o, opened) {
+		const id = nextId();
+		const dialog = document.createElement("dialog");
+		dialog.className = o.wide ? "dialog wide" : "dialog";
+		dialog.setAttribute("aria-labelledby", `${id}-title`);
+		if (o.body) dialog.setAttribute("aria-describedby", `${id}-body`);
+		dialog.innerHTML = `
+    <form method="dialog" class="dialog-panel">
+      <div class="dialog-head">
+        <div>
+          <h2 id="${id}-title">${esc(o.title)}</h2>
+          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ""}
+        </div>
+      </div>
+      ${o.contentHtml}
+      <div class="dialog-foot">
+        <button class="btn" value="close" autofocus>${esc(o.close ?? "Close")}</button>
+      </div>
+    </form>`;
+		const outside = (e) => {
+			const r = dialog.getBoundingClientRect();
+			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+		};
+		let pressedOutside = false;
+		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
+		return new Promise((resolve) => {
+			const done = () => void dismiss(dialog).then(resolve);
+			dialog.addEventListener("submit", (e) => {
+				e.preventDefault();
+				done();
+			});
+			dialog.addEventListener("cancel", (e) => {
+				e.preventDefault();
+				done();
+			});
+			dialog.addEventListener("click", (e) => {
+				if (pressedOutside && outside(e)) done();
+			});
+			open$2(dialog);
+			opened?.(dialog);
+		});
+	}
+	//#endregion
+	//#region js/lib/shortcuts.ts
+	var GO_KEYS = [
+		["h", "home"],
+		["c", "chat"],
+		["f", "shopfloor"],
+		["p", "plant"],
+		["o", "ontology"],
+		["r", "reviews"],
+		["w", "warnings"],
+		["s", "signals"],
+		["e", "explorer"],
+		["x", "correlate"],
+		["i", "insights"],
+		["a", "apps"],
+		["d", "documents"],
+		["m", "import"],
+		["t", "settings"]
+	];
+	var GO = new Map(GO_KEYS);
+	var PAGE_KEYS = [
+		["/", "Search the page (the command palette where the page has no search)"],
+		["a", "Acknowledge the warning open"],
+		["e", "Edit the insight or app open"]
+	];
+	var KEY = "shortcuts";
+	var on;
+	var shortcutsOn = () => on ??= load$4(KEY, true) !== false;
+	function setShortcutsOn(value) {
+		on = value;
+		save$1(KEY, value);
+	}
+	var keyAttrs = (key) => shortcutsOn() ? { "aria-keyshortcuts": key } : {};
+	var keyAttr = (key) => shortcutsOn() ? ` aria-keyshortcuts="${esc(key)}"` : "";
+	function forShortcut(e) {
+		if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return false;
+		const t = e.target;
+		if (t instanceof Element && t.closest("input, textarea, select, [contenteditable=\"\"], [contenteditable=\"true\"]")) return false;
+		return !document.querySelector("dialog[open]") && shortcutsOn();
+	}
+	var visible = (el) => typeof el.checkVisibility === "function" ? el.checkVisibility() : el.offsetParent !== null;
+	function keyTarget(root, key) {
+		return [...root.querySelectorAll(`[aria-keyshortcuts~="${CSS.escape(key)}"]`)].find((el) => visible(el) && !el.disabled && el.getAttribute("aria-disabled") !== "true") ?? null;
+	}
+	var keyLabel = (key) => key === " " ? "Space" : key;
+	var kbd = (keys) => keys.split(" ").map((k) => `<kbd>${esc(keyLabel(k))}</kbd>`).join(" ");
+	function shortcutsHtml(o, mac) {
+		const row = (keys, does) => `<tr><th scope="row" class="nowrap">${kbd(keys)}</th><td>${esc(does)}</td></tr>`;
+		const table = (caption, rows) => `<div class="table-wrap"><table class="small shortcuts"><caption>${esc(caption)}</caption><tbody>${rows}</tbody></table></div>`;
+		const pages = GO_KEYS.flatMap(([k, page]) => {
+			const t = o.title(page);
+			return t ? [row(`g ${k}`, t)] : [];
+		}).join("");
+		return `<div class="shortcut-list">
+    ${table("Anywhere", row(mac ? "⌘ K" : "Ctrl K", "Open the command palette") + row("?", "Show this list"))}
+    ${table("Go to a page: g, then", pages)}
+    ${table("In a list of records", row("j", "Open the next") + row("k", "Open the previous") + row("Enter", "Open the one with the focus"))}
+    ${table("On a page", PAGE_KEYS.map(([k, does]) => row(k, does)).join(""))}
+    </div>
+    <label class="row gap-2"><input type="checkbox" name="single-keys" data-single-keys ${shortcutsOn() ? "checked" : ""} /> Use single-key shortcuts</label>
+    <p class="small soft">Turn them off if they get in the way of a screen reader or speech input. ${mac ? "⌘ K" : "Ctrl K"} works either way, and finds this list as “Keyboard shortcuts”.</p>`;
+	}
+	var CHORD_MS = 1500;
+	function installShortcuts(o) {
+		let chord;
+		let showing = false;
+		const mac = /Mac|iPhone|iPad/.test(navigator.platform);
+		const show = () => {
+			if (showing) return;
+			showing = true;
+			infoDialog({
+				title: "Keyboard shortcuts",
+				body: "Not while typing in a field.",
+				contentHtml: shortcutsHtml(o, mac),
+				wide: true
+			}, (dialog) => {
+				dialog.querySelector("[data-single-keys]")?.addEventListener("change", (e) => {
+					setShortcutsOn(e.target.checked);
+					o.changed();
+				});
+			}).then(() => showing = false);
+		};
+		document.addEventListener("keydown", (e) => {
+			if (e.key === "Shift") return;
+			const pending = chord !== void 0;
+			clearTimeout(chord);
+			chord = void 0;
+			if (!forShortcut(e)) return;
+			if (pending) {
+				if (e.key.length !== 1) return;
+				e.preventDefault();
+				const page = GO.get(e.key.toLowerCase());
+				if (page && o.title(page) !== null) o.go(page);
+				return;
+			}
+			if (e.key === "g") {
+				e.preventDefault();
+				chord = setTimeout(() => chord = void 0, CHORD_MS);
+				return;
+			}
+			if (e.key === "?") {
+				e.preventDefault();
+				show();
+				return;
+			}
+			const target = keyTarget(o.root, e.key);
+			if (e.key === "/") {
+				e.preventDefault();
+				if (target) {
+					target.focus();
+					if (target instanceof HTMLInputElement) target.select();
+				} else o.palette();
+				return;
+			}
+			if (target) {
+				e.preventDefault();
+				target.click();
+			}
+		});
+		return { show };
+	}
+	//#endregion
 	//#region js/views/ontology.ts
 	var uiState$13 = (ctx) => ctx.ui("ontology", {
 		tab: "canvas",
@@ -4744,7 +4993,7 @@
             </span>
             <select class="sm" data-fold-level aria-label="Fold the hierarchy">${LEVELS.map(([value, label]) => `<option value="${value}" ${level?.[0] === value ? "selected" : ""}>${label}</option>`).join("")}${level ? "" : "<option selected disabled>Folded by hand</option>"}</select>
             <span class="row canvas-search">
-              <input type="search" data-onto-search value="${esc(ui.search)}" placeholder="Find a node" aria-label="Find a node" />
+              <input type="search" data-onto-search${keyAttr("/")} value="${esc(ui.search)}" placeholder="Find a node" aria-label="Find a node" />
               <button class="btn sm" data-search-next ${found ? "" : "disabled"}>Next</button>
               <span class="small soft" data-search-count aria-live="polite">${found === null ? "" : `${found} found`}</span>
             </span>
@@ -5491,7 +5740,7 @@
 		const m = raw / p;
 		return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p;
 	}
-	function open$2(width, height, title, summary, cls = "chart") {
+	function open$1(width, height, title, summary, cls = "chart") {
 		const name = [title, summary].filter(Boolean).join(". ");
 		return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}">`;
 	}
@@ -5542,7 +5791,7 @@
 			});
 			return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ""} stroke-linejoin="round"/>`;
 		});
-		return `${open$2(width, height, title, [
+		return `${open$1(width, height, title, [
 			`${n} points${xLabel ? ` along ${xLabel}` : ""}`,
 			...series.map((s, i) => `${s.label ?? (series.length > 1 ? `line ${i + 1}` : "values")} ${range(s.values.filter((v) => v !== null && Number.isFinite(v)))}`),
 			bands.length ? `${bands.length} shaded window${bands.length === 1 ? "" : "s"}` : "",
@@ -5562,7 +5811,7 @@
 		const summary = listed$1(rows.map((r) => `${r.label}: ${fmt$1(r.a)} against ${fmt$1(r.b)}`));
 		const x = scale(domain[0], domain[1], left, width - 20);
 		const xt = ticks(domain[0], domain[1], 6);
-		return `${open$2(width, height, xLabel, summary)}
+		return `${open$1(width, height, xLabel, summary)}
     ${xt.map((t) => `<line class="grid" x1="${x(t)}" x2="${x(t)}" y1="8" y2="${height - 30}"/><text class="tick" x="${x(t)}" y="${height - 16}" text-anchor="middle">${fmt$1(t)}</text>`).join("")}
     ${rows.map((r, i) => {
 			const cy = 30 + i * rowH;
@@ -5582,7 +5831,7 @@
 		const maxAbs = Math.max(...items.map((i) => Math.abs(i.value)), 1e-9);
 		const x = scale(items.some((i) => i.value < 0) ? -maxAbs : 0, maxAbs, left, width - 60);
 		const zero = x(0);
-		return `${open$2(width, height, title, listed$1(items.map((it) => `${it.label} ${format(it.value)}`)))}
+		return `${open$1(width, height, title, listed$1(items.map((it) => `${it.label} ${format(it.value)}`)))}
     <line class="grid" x1="${zero}" x2="${zero}" y1="0" y2="${height}"/>
     ${items.map((it, i) => {
 			const cy = 6 + i * rowH;
@@ -5641,7 +5890,7 @@
 			};
 		}));
 		const cell = (c) => `${format(c.v)} at ${xLabel} ${fmt$1(c.x, 1)}, ${yLabel} ${fmt$1(c.y, 1)}`;
-		return `${open$2(width, height, "Parameter sweep", Number.isFinite(lowest.v) ? `${xs.length} × ${ys.length} grid of ${xLabel} by ${yLabel}; lowest ${cell(lowest)}; highest ${cell(highest)}` : "no values")}
+		return `${open$1(width, height, "Parameter sweep", Number.isFinite(lowest.v) ? `${xs.length} × ${ys.length} grid of ${xLabel} by ${yLabel}; lowest ${cell(lowest)}; highest ${cell(highest)}` : "no values")}
     ${cells.join("")}
     ${xi.map((i) => `<text class="tick" x="${left + (i + .5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt$1(xs[i] ?? NaN, 1)}</text>`).join("")}
     ${yi.map((j) => `<text class="tick" x="50" y="${10 + (ys.length - 1 - j + .5) * ch + 4}" text-anchor="end">${fmt$1(ys[j] ?? NaN, 1)}</text>`).join("")}
@@ -5745,7 +5994,7 @@
 	function timeChart({ points, from, to, gap, color = "var(--accent)", width = TIME_CHART.width, height = TIME_CHART.height, yLabel = "", levels = [], spans = [], title = yLabel }) {
 		const shown = points.filter((p) => p.t >= from && p.t <= to);
 		const when = `from ${at(from)} to ${at(to)}`;
-		if (!shown.length) return `${open$2(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
+		if (!shown.length) return `${open$1(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
 		const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
 		const [dataLo] = extent(shown.map((p) => p.lo));
 		const [, dataHi] = extent(shown.map((p) => p.hi));
@@ -5780,7 +6029,7 @@
 			return `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`;
 		}).join("");
 		const last = shown[shown.length - 1];
-		return `${open$2(width, height, title, [
+		return `${open$1(width, height, title, [
 			`${shown.length} reading${shown.length === 1 ? "" : "s"} ${when}`,
 			`values ${span([dataLo, dataHi])}`,
 			`latest ${num$1(last.v)} at ${at(last.t)}`,
@@ -6722,92 +6971,6 @@
 			},
 			errors
 		};
-	}
-	//#endregion
-	//#region js/lib/overlay.ts
-	var seq$2 = 0;
-	var nextId = () => `overlay-${++seq$2}`;
-	function dismiss(dialog) {
-		return new Promise((resolve) => {
-			if (dialog.dataset.state === "closed") return resolve();
-			dialog.dataset.state = "closed";
-			let done = false;
-			const finish = () => {
-				if (done) return;
-				done = true;
-				dialog.close();
-				dialog.remove();
-				resolve();
-			};
-			const running = dialog.getAnimations({ subtree: true });
-			if (running.length) Promise.all(running.map((a) => a.finished.catch(() => {}))).then(finish);
-			else finish();
-			setTimeout(finish, 400);
-		});
-	}
-	function open$1(dialog) {
-		dialog.dataset.state = "open";
-		document.body.append(dialog);
-		dialog.showModal();
-	}
-	function confirmDialog(o) {
-		const id = nextId();
-		const dialog = document.createElement("dialog");
-		dialog.className = "dialog";
-		dialog.setAttribute("role", "alertdialog");
-		dialog.setAttribute("aria-labelledby", `${id}-title`);
-		if (o.body) dialog.setAttribute("aria-describedby", `${id}-body`);
-		const danger = o.tone === "danger";
-		dialog.innerHTML = `
-    <form method="dialog" class="dialog-panel">
-      <div class="dialog-head">
-        ${danger ? `<span class="dialog-icon danger">${icon("triangle-alert", { size: 18 })}</span>` : ""}
-        <div>
-          <h2 id="${id}-title">${esc(o.title)}</h2>
-          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ""}
-        </div>
-      </div>
-      ${o.typeToConfirm ? `<label class="field"><span>Type <b>${esc(o.typeToConfirm)}</b> to confirm</span><input type="text" name="typed" autocomplete="off" spellcheck="false" autofocus /></label>` : ""}
-      <div class="dialog-foot">
-        <button class="btn" value="cancel" ${danger && !o.typeToConfirm ? "autofocus" : ""}>${esc(o.cancel ?? "Cancel")}</button>
-        <button class="btn ${danger ? "destructive" : "primary"}" value="confirm" data-confirm ${o.typeToConfirm ? "disabled" : ""} ${danger || o.typeToConfirm ? "" : "autofocus"}>${esc(o.confirm ?? "Confirm")}</button>
-      </div>
-    </form>`;
-		const typed = dialog.querySelector("input[name=typed]");
-		const button = dialog.querySelector("[data-confirm]");
-		if (typed && button) typed.addEventListener("input", () => button.disabled = typed.value.trim() !== o.typeToConfirm);
-		const outside = (e) => {
-			const r = dialog.getBoundingClientRect();
-			return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
-		};
-		let pressedOutside = false;
-		dialog.addEventListener("pointerdown", (e) => pressedOutside = outside(e));
-		return new Promise((resolve) => {
-			let answered = false;
-			const answer = (yes) => {
-				if (answered) return;
-				answered = true;
-				dismiss(dialog).then(() => resolve(yes));
-			};
-			dialog.addEventListener("submit", (e) => {
-				e.preventDefault();
-				const submitter = e.submitter;
-				answer(submitter?.value === "confirm" && !button?.disabled);
-			});
-			dialog.addEventListener("cancel", (e) => {
-				e.preventDefault();
-				answer(false);
-			});
-			dialog.addEventListener("click", (e) => {
-				if (pressedOutside && outside(e)) answer(false);
-			});
-			typed?.addEventListener("keydown", (e) => {
-				if (e.key !== "Enter") return;
-				e.preventDefault();
-				if (button && !button.disabled) answer(true);
-			});
-			open$1(dialog);
-		});
 	}
 	//#endregion
 	//#region js/views/org-sign-in.ts
@@ -8265,7 +8428,8 @@
 				type: "search",
 				name: "q",
 				value: query.q,
-				placeholder: "Tag, description or node"
+				placeholder: "Tag, description or node",
+				attrs: keyAttrs("/")
 			}), { class: "grow min-w-field" })}
           ${field$1("Source", select("source", [
 				["", "Any"],
@@ -8806,7 +8970,7 @@
         </div>`).join("");
 			return `${head}<div class="card stack gap-3">
         <form id="explorer-search" class="row gap-3 wrap" role="search">
-          <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"></label>
+          <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"${keyAttr("/")}></label>
         </form>
         <div class="row gap-1_5 wrap" data-explorer-found></div>
         ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : "<p class=\"small soft\">Pick up to eight signals to plot them on one time axis.</p>"}
@@ -8895,15 +9059,9 @@
 		const next = current + step;
 		return next >= 0 && next < count ? next : null;
 	}
-	function forList(e) {
-		if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return false;
-		const t = e.target;
-		if (t instanceof Element && t.closest("input, textarea, select, [contenteditable=\"\"], [contenteditable=\"true\"]")) return false;
-		return !document.querySelector("dialog[open]");
-	}
 	function listKeys(root, rows, isOpen) {
 		document.addEventListener("keydown", (e) => {
-			if (e.key !== "j" && e.key !== "k" || !forList(e)) return;
+			if (e.key !== "j" && e.key !== "k" || !forShortcut(e)) return;
 			const all = [...root.querySelectorAll(rows)];
 			const at = nextRow(all.length, all.findIndex((r) => isOpen(r)), e.key === "j" ? 1 : -1);
 			const row = at === null ? null : all[at];
@@ -9516,7 +9674,10 @@
 		const actButton = (label, a, variant) => button(label, {
 			variant,
 			busy: busy$5 === a,
-			attrs: { "data-act": a }
+			attrs: {
+				"data-act": a,
+				...a === "acknowledge" ? keyAttrs("a") : {}
+			}
 		});
 		const assign = has("assign") ? `<span class="row gap-1_5">${field$1("Assign to", select("assignee", [
 			["", "nobody"],
@@ -10492,7 +10653,7 @@
 	//#region js/views/plant.ts
 	var uiState$6 = (ctx) => ctx.ui("plant", { query: "" });
 	var searching = false;
-	var typing$1;
+	var typing;
 	var shownTrail = [];
 	var badge = (state, count) => {
 		if (!count) return "<span class=\"badge good\">OK</span>";
@@ -10629,7 +10790,7 @@
 			const title = node?.label ?? "Plant";
 			const kind = node ? node.type : "Site → line → machine";
 			const search = `<form class="plant-search" data-plant-search role="search">
-        <input name="q" type="search" placeholder="Find a line or machine" aria-label="Find a place" value="${esc(ui.query)}" autocomplete="off">
+        <input name="q" type="search" placeholder="Find a line or machine" aria-label="Find a place" value="${esc(ui.query)}" autocomplete="off"${keyAttr("/")}>
       </form>`;
 			const head = pageHead({
 				eyebrow: `Operations · ${kind}`,
@@ -10661,12 +10822,12 @@
 			}), { signal: bound() });
 			input?.addEventListener("input", () => {
 				ui.query = input.value;
-				clearTimeout(typing$1);
-				typing$1 = setTimeout(() => ctx.rerender(), 200);
+				clearTimeout(typing);
+				typing = setTimeout(() => ctx.rerender(), 200);
 			}, { signal: bound() });
 			form?.addEventListener("submit", (e) => {
 				e.preventDefault();
-				clearTimeout(typing$1);
+				clearTimeout(typing);
 				const best = findPlaces(ctx.graph, input?.value ?? "", 1)[0];
 				if (!best) return ctx.rerender();
 				ui.query = "";
@@ -12757,7 +12918,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
         <div class="row gap-2"><button class="btn primary" type="submit" data-decision="accepted" ${busy$1 ? "disabled" : ""}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy$1 ? "disabled" : ""}>Reject</button></div>
       </form>` : "";
 		const tools = [
-			may.edit && editing?.key !== key ? `<button class="btn sm" type="button" data-edit>Edit</button>` : "",
+			may.edit && editing?.key !== key ? `<button class="btn sm" type="button" data-edit${keyAttr("e")}>Edit</button>` : "",
 			may.reopen ? `<button class="btn sm" type="button" data-reopen ${busy$1 ? "disabled" : ""}>Reopen</button>` : "",
 			may.remove ? `<button class="btn sm" type="button" data-remove ${busy$1 ? "disabled" : ""}>Delete</button>` : ""
 		].join("");
@@ -13188,7 +13349,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 		const r = result?.key === resultKey(ctx, app) ? result : null;
 		const settings = `<details><summary class="small">Settings</summary><ul class="small" data-app-settings>${configSummary(template, app.config, app.signal_tag).map((line) => `<li>${esc(line)}</li>`).join("")}</ul></details>`;
-		const tools = canEdit$1(ctx) ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? "disabled" : ""}>Archive</button></div>` : "";
+		const tools = canEdit$1(ctx) ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app${keyAttr("e")}>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? "disabled" : ""}>Archive</button></div>` : "";
 		let body;
 		if (!r) body = "<p class=\"small soft\">Running it on the latest readings…</p>";
 		else if (!r.result) body = "<p class=\"small soft\">It could not run. Check its settings.</p>";
@@ -13536,7 +13697,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			type: "search",
 			name: "q",
 			value: ui.query,
-			placeholder: "e.g. plunger tip replace, \"hydraulic pressure\""
+			placeholder: "e.g. plunger tip replace, \"hydraulic pressure\"",
+			attrs: keyAttrs("/")
 		}), { class: "grow min-w-field" })}
         <div class="self-end">${button("Search", {
 			variant: "primary",
@@ -14130,15 +14292,24 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 		return tip;
 	}
+	var nameOf = (el) => (el.getAttribute("aria-label") ?? el.textContent ?? "").trim();
 	function show(el) {
-		const text = el.dataset.tooltip;
-		if (!text) return;
+		const text = el.dataset.tooltip ?? "";
+		const keys = el.getAttribute("aria-keyshortcuts") ?? "";
+		const key = /^\S$/.test(keys) ? keys : null;
+		if (!text && !key) return;
 		const t = element();
-		t.textContent = text;
+		t.textContent = text || nameOf(el);
+		if (key) {
+			const k = document.createElement("kbd");
+			k.textContent = keyLabel(key);
+			t.append(" ", k);
+		}
 		t.hidden = false;
 		t.dataset.state = "open";
 		const described = (el.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
-		if (!((el.getAttribute("aria-label") ?? el.textContent ?? "").trim() === text.trim()) && !described.includes("tooltip")) el.setAttribute("aria-describedby", [...described, "tooltip"].join(" "));
+		const named = nameOf(el) === text.trim();
+		if (text && !named && !described.includes("tooltip")) el.setAttribute("aria-describedby", [...described, "tooltip"].join(" "));
 		target = el;
 		watch();
 		const r = el.getBoundingClientRect();
@@ -14170,7 +14341,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			delete tip.dataset.state;
 		}
 	}
-	var owner = (e) => e.target instanceof Element ? e.target.closest("[data-tooltip]") : null;
+	var owner = (e) => e.target instanceof Element ? e.target.closest("[data-tooltip], button[aria-keyshortcuts], a[aria-keyshortcuts]") : null;
 	function installTooltips(root = document) {
 		root.addEventListener("pointerover", (e) => {
 			const el = owner(e);
@@ -14236,7 +14407,6 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}
 	var recent = () => readRecent(load$4("palette-recent", []));
 	var remember = (r) => save$1("palette-recent", [r, ...recent().filter((x) => recentId(x) !== recentId(r))].slice(0, 8));
-	var typing = (el) => el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 	function installPalette(source) {
 		let dialog = null;
 		const open = () => {
@@ -14408,10 +14578,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			input.focus();
 		};
 		document.addEventListener("keydown", (e) => {
-			const combo = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k";
-			const slash = e.key === "/" && !e.ctrlKey && !e.metaKey && !e.altKey && !typing(e.target);
-			if (!combo && !slash) return;
-			if (dialog) return void (combo && e.preventDefault());
+			if (!((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k")) return;
+			if (dialog) return void e.preventDefault();
 			if (document.querySelector("dialog[open]")) return;
 			e.preventDefault();
 			open();
@@ -15301,6 +15469,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					run: go("#/documents")
 				},
 				{
+					id: "do:shortcuts",
+					label: "Keyboard shortcuts",
+					group: "Actions",
+					icon: "keyboard",
+					keywords: "keys hotkeys help turn off single",
+					run: () => shortcuts.show()
+				},
+				{
 					id: "do:theme",
 					label: isDark() ? "Switch to the light theme" : "Switch to the dark theme",
 					group: "Actions",
@@ -15352,6 +15528,20 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	searchButton.insertAdjacentHTML("afterbegin", icon("search"));
 	if (/Mac|iPhone|iPad/.test(navigator.platform)) need(searchButton, "kbd").textContent = "⌘K";
 	searchButton.addEventListener("click", () => palette.open());
+	var shortcuts = installShortcuts({
+		root: need(document, "#view"),
+		go: (page) => go(`#/${page === "home" ? "" : page}`)(),
+		title: (page) => NAV.flatMap((g) => g.items).find((v) => v.id === page)?.title ?? null,
+		palette: () => palette.open(),
+		changed: () => {
+			keyHint();
+			ctx.rerender();
+		}
+	});
+	function keyHint() {
+		searchButton.setAttribute("aria-keyshortcuts", `Control+K Meta+K${shortcutsOn() ? " /" : ""}`);
+	}
+	keyHint();
 	need(document, "#menu").addEventListener("click", () => {
 		if (need(document, "#sidebar").classList.contains("open")) closeMenu();
 		else openMenu();
