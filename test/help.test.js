@@ -41,7 +41,7 @@ test('inline Markdown: escaped, code kept as written, links into the app', () =>
   assert.equal(inline('2 * 3 * 4'), '2 * 3 * 4');
 });
 
-test('block Markdown: paragraphs, nested and numbered lists, tables, quotes', () => {
+test('block Markdown: paragraphs, nested and numbered lists, tables, quotes; rules left out', () => {
   const html = blocks(
     [
       'One line',
@@ -58,6 +58,8 @@ test('block Markdown: paragraphs, nested and numbered lists, tables, quotes', ()
       '| Viewer | Read |',
       '',
       '> Note',
+      '',
+      '---',
     ].map(String),
   );
   assert.equal(

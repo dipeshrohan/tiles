@@ -2460,6 +2460,7 @@
 		settle();
 		current$1 = "";
 	}
+	var savedScroll = () => positions.get(entryKey()) ?? 0;
 	function scrollToSaved() {
 		settle();
 		current$1 = entryKey();
@@ -3776,19 +3777,19 @@
 	var UNDO_MS = 8e3;
 	var SAVED_KEY = "tiles.waitingRemovals";
 	var keyOf = (r) => `${r.api}|${r.site}|${r.kind}|${r.id}`;
-	var waiting = /* @__PURE__ */ new Map();
+	var waiting$1 = /* @__PURE__ */ new Map();
 	var hidden = /* @__PURE__ */ new Set();
 	var isRemoving = (r) => hidden.has(keyOf(r));
 	function removeLater(o) {
 		const key = keyOf(o.removal);
-		waiting.set(key, o.removal);
+		waiting$1.set(key, o.removal);
 		hidden.add(key);
 		o.hide();
 		let settled = false;
 		const send = () => {
 			if (settled) return;
 			settled = true;
-			waiting.delete(key);
+			waiting$1.delete(key);
 			o.send().then(async () => {
 				await o.sent?.();
 				hidden.delete(key);
@@ -3806,7 +3807,7 @@
 				run: () => {
 					if (settled) return;
 					settled = true;
-					waiting.delete(key);
+					waiting$1.delete(key);
 					hidden.delete(key);
 					ux("task", "undo");
 					o.restore();
@@ -3817,7 +3818,7 @@
 	}
 	function saveWaiting(storage) {
 		try {
-			if (waiting.size) storage.setItem(SAVED_KEY, JSON.stringify([...waiting.values()]));
+			if (waiting$1.size) storage.setItem(SAVED_KEY, JSON.stringify([...waiting$1.values()]));
 			else storage.removeItem(SAVED_KEY);
 		} catch {}
 	}
@@ -4705,7 +4706,9 @@
 			};
 			dialog.querySelector("[data-sheet-close]")?.addEventListener("click", done);
 			dialog.addEventListener("click", (e) => {
-				if (closed || !(e.target instanceof Element && e.target.closest("a[href]"))) return;
+				const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
+				const elsewhere = e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || link?.hasAttribute("target");
+				if (closed || !link || elsewhere) return;
 				closed = true;
 				dialog.close();
 				dialog.remove();
@@ -14226,12 +14229,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const script = document.createElement("script");
 			script.src = src;
 			script.async = true;
-			script.onload = () => window.tilesHelp ? resolve(window.tilesHelp) : reject(/* @__PURE__ */ new Error("The help file is empty"));
-			script.onerror = () => {
+			const fail = (message) => {
 				loading = null;
 				script.remove();
-				reject(/* @__PURE__ */ new Error("The help file couldn't be loaded"));
+				reject(new Error(message));
 			};
+			script.onload = () => window.tilesHelp ? resolve(window.tilesHelp) : fail("The help file is empty");
+			script.onerror = () => fail("The help file couldn't be loaded");
 			document.head.append(script);
 		});
 		return loading;
@@ -14272,6 +14276,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				icon: HELP_ICON,
 				hint: parent,
 				keywords: parent,
+				late: true,
 				run: () => open(href)
 			};
 		});
@@ -14288,6 +14293,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 	}
 	var failed = null;
+	var waiting = false;
 	var shownSlug = null;
 	var wasShown = false;
 	var heading = (s, ids) => {
@@ -14334,19 +14340,27 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			return `${head}<div class="help-layout">${contentsHtml(data.sections, slug)}<article class="help-article prose">${guideHtml(data.sections)}</article></div>`;
 		},
 		bind(root, ctx) {
-			const loaded = () => ctx.rerender();
+			const here = () => /^#\/help(?:[/?]|$)/.test(location.hash);
+			const loaded = () => {
+				waiting = false;
+				if (here()) ctx.rerender();
+			};
 			const refused = (e) => {
+				waiting = false;
 				failed = e instanceof Error ? e.message : String(e);
-				ctx.rerender();
+				if (here()) ctx.rerender();
 			};
 			onAll(root, "[data-help-retry]", "click", () => {
 				failed = null;
 				ctx.rerender();
 			});
-			if (!helpLoaded() && !failed) loadHelp().then(loaded, refused);
+			if (!helpLoaded() && !failed && !waiting) {
+				waiting = true;
+				loadHelp().then(loaded, refused);
+			}
 			if (!root.querySelector(".help-article")) return;
 			const slug = helpSlug(location.hash);
-			if (!slug || wasShown && slug === shownSlug) {
+			if (!slug || wasShown && slug === shownSlug || !wasShown && savedScroll() > 0) {
 				shownSlug = slug;
 				return;
 			}
@@ -14567,8 +14581,6 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		window.addEventListener("scroll", hide, { passive: true });
 		root.addEventListener("click", hide);
 	}
-	//#endregion
-	//#region js/lib/palette.ts
 	function score(item, query) {
 		const q = query.trim().toLowerCase();
 		if (!q) return 1;
@@ -14642,7 +14654,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				let items;
 				let matched = 0;
 				if (q.trim()) {
-					const found = grouped([...rank(all, q), ...extra]);
+					const found = [...grouped([...rank(all.filter((i) => !i.late), q), ...extra]), ...grouped(rank(all.filter((i) => i.late), q).slice(0, 5))];
 					matched = found.length;
 					items = [...found, ...source.typed?.(q.trim()) ?? []];
 				} else {
@@ -15594,7 +15606,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var go = (hash) => () => {
 		location.hash = hash;
 	};
-	var go_ = (hash) => go(hash)();
+	var helpAsked = false;
 	var helpOpen = false;
 	async function openHelp() {
 		if (helpOpen) return;
@@ -15741,8 +15753,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				})
 			})) : [];
 			const guide = helpLoaded();
-			if (!guide) loadHelp().catch(() => {});
-			const helpFound = guide ? helpItems(guide, go_) : [];
+			if (!guide && !helpAsked) {
+				helpAsked = true;
+				loadHelp().catch(() => {});
+			}
+			const helpFound = guide ? helpItems(guide, (href) => {
+				location.hash = href;
+			}) : [];
 			return [
 				...pages,
 				...actions,

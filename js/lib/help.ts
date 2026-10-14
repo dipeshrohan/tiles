@@ -33,12 +33,13 @@ export function loadHelp(src = 'js/help-data.js'): Promise<HelpData> {
     const script = document.createElement('script');
     script.src = src;
     script.async = true;
-    script.onload = () => (window.tilesHelp ? resolve(window.tilesHelp) : reject(new Error('The help file is empty')));
-    script.onerror = () => {
-      loading = null;
+    const fail = (message: string): void => {
+      loading = null; // tried again next time
       script.remove();
-      reject(new Error("The help file couldn't be loaded"));
+      reject(new Error(message));
     };
+    script.onload = () => (window.tilesHelp ? resolve(window.tilesHelp) : fail('The help file is empty'));
+    script.onerror = () => fail("The help file couldn't be loaded");
     document.head.append(script);
   });
   return loading;
@@ -94,6 +95,7 @@ export function helpItems(data: HelpData, open: (href: string) => void): Palette
         icon: HELP_ICON,
         hint: parent,
         keywords: parent,
+        late: true,
         run: () => open(href),
       };
     });

@@ -1,12 +1,17 @@
 import { defineConfig } from 'vite';
+import { helpPlugin } from './scripts/help.js';
+
+const outDir = process.env.TILES_OUT_DIR ?? 'js';
 
 // Builds the app into one classic (non-module) script, js/tiles.bundle.js.
 // index.html loads it with a plain <script>, so the app also works when the
 // file is opened straight from disk (file://), where browsers block module
 // scripts.
 export default defineConfig({
+  // The user guide, as each page's help (U4.04): js/help-data.js, beside the bundle.
+  plugins: [helpPlugin(outDir)],
   build: {
-    outDir: process.env.TILES_OUT_DIR ?? 'js',
+    outDir,
     emptyOutDir: false,
     minify: false,
     sourcemap: false,

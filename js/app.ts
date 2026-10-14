@@ -942,7 +942,8 @@ need(document, '#menu').innerHTML = icon('menu', { size: 18 });
 const go = (hash: string) => () => {
   location.hash = hash;
 };
-const go_ = (hash: string): void => go(hash)();
+// The guide's headings join the palette once loaded (U4.04): asked for once, as the palette first opens.
+let helpAsked = false;
 
 // ---- help (U4.04) ------------------------------------------------------------
 
@@ -1095,10 +1096,16 @@ const palette = installPalette({
               run: () => ctx.setDataSource({ ...dataSource, siteId: s.id }),
             }))
         : [];
-    // The guide's headings (U4.04), once loaded: asked for as the palette opens.
     const guide = helpLoaded();
-    if (!guide) loadHelp().catch(() => {}); // the Help page says when it can't be loaded
-    const helpFound = guide ? helpItems(guide, go_) : [];
+    if (!guide && !helpAsked) {
+      helpAsked = true;
+      loadHelp().catch(() => {}); // the Help page and the help button say when it can't be loaded
+    }
+    const helpFound = guide
+      ? helpItems(guide, (href) => {
+          location.hash = href;
+        })
+      : [];
     return [...pages, ...actions, ...sites, ...helpFound];
   },
   canSearch: () => Boolean(api && ctx.ontology.site),

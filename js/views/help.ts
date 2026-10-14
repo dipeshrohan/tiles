@@ -4,6 +4,7 @@
 import { esc, onAll, scrollBehavior } from '../lib/dom.ts';
 import { helpHref, helpLoaded, loadHelp, type HelpSection } from '../lib/help.ts';
 import { errorState, pageHead, skeleton } from '../lib/ui.ts';
+import { savedScroll } from '../lib/url-state.ts';
 import type { View } from './types.ts';
 
 // The section an address names: #/help/data-explorer → data-explorer.
@@ -18,6 +19,7 @@ export function helpSlug(hash: string): string | null {
 }
 
 let failed: string | null = null;
+let waiting = false; // the guide is being loaded
 let shownSlug: string | null = null; // the section the page was last taken to
 let wasShown = false; // the page was drawn before this drawing (a link within it, not an arrival)
 
@@ -74,20 +76,30 @@ const view: View = {
     return `${head}<div class="help-layout">${contentsHtml(data.sections, slug)}<article class="help-article prose">${guideHtml(data.sections)}</article></div>`;
   },
   bind(root, ctx) {
-    const loaded = (): void => ctx.rerender();
+    // Drawn again only if the Help page is still the one shown.
+    const here = (): boolean => /^#\/help(?:[/?]|$)/.test(location.hash);
+    const loaded = (): void => {
+      waiting = false;
+      if (here()) ctx.rerender();
+    };
     const refused = (e: unknown): void => {
+      waiting = false;
       failed = e instanceof Error ? e.message : String(e);
-      ctx.rerender();
+      if (here()) ctx.rerender();
     };
     onAll(root, '[data-help-retry]', 'click', () => {
       failed = null;
       ctx.rerender();
     });
-    if (!helpLoaded() && !failed) loadHelp().then(loaded, refused);
+    if (!helpLoaded() && !failed && !waiting) {
+      waiting = true;
+      loadHelp().then(loaded, refused);
+    }
     if (!root.querySelector('.help-article')) return;
     const slug = helpSlug(location.hash);
-    // Taken to a section: on arriving with one, or following a link to another; not when drawn again.
-    if (!slug || (wasShown && slug === shownSlug)) {
+    // Taken to a section: on arriving with one, or following a link to another; not when drawn again,
+    // nor when back or forward came here (the place it was scrolled to is put back: U3.05).
+    if (!slug || (wasShown && slug === shownSlug) || (!wasShown && savedScroll() > 0)) {
       shownSlug = slug;
       return;
     }

@@ -492,14 +492,20 @@ test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Ente
   await palette.waitFor();
   const input = palette.locator('input[role=combobox]');
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('role')), 'combobox');
+  await page.waitForFunction(() => window.tilesHelp); // the guide's headings: asked for as it opens
   await input.fill('warn');
   const options = palette.locator('[role=option]');
-  // Both start with it: the menu's order holds; then the action with a word starting with it, and
-  // asking the copilot what was typed (U4.02).
+  // Both start with it: the menu's order holds; then the action with a word starting with it; the
+  // guide's best five headings (U4.04); and asking the copilot what was typed (U4.02).
   assert.deepEqual(await options.allInnerTexts(), [
     'Warnings\nOperations',
     'Warning performance\nOperations',
     'Triage open warnings',
+    'Warnings',
+    'Warning performance',
+    'Two separate states\nWarnings',
+    'Filtering\nWarnings',
+    'Working a warning (engineers and admins)\nWarnings',
     'Ask the copilot “warn”',
   ]);
   assert.equal(await input.getAttribute('aria-activedescendant'), 'palette-0');

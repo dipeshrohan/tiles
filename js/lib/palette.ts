@@ -15,8 +15,12 @@ export interface PaletteItem {
   hint?: string;
   keywords?: string;
   href?: string; // a record's address: kept among the recent picks, and opened from there
+  late?: boolean; // reading (the guide's headings): after everything else matched, the best few only
   run(): void;
 }
+
+// How many of the late items a query shows.
+export const LATE_SHOWN = 5;
 
 export interface PaletteSource {
   items(): PaletteItem[];
@@ -118,7 +122,21 @@ export function installPalette(source: PaletteSource): { open(): void } {
       let items: PaletteItem[];
       let matched = 0; // matches, not counting what is made of the query itself
       if (q.trim()) {
-        const found = grouped([...rank(all, q), ...extra]);
+        const found = [
+          ...grouped([
+            ...rank(
+              all.filter((i) => !i.late),
+              q,
+            ),
+            ...extra,
+          ]),
+          ...grouped(
+            rank(
+              all.filter((i) => i.late),
+              q,
+            ).slice(0, LATE_SHOWN),
+          ),
+        ];
         matched = found.length;
         items = [...found, ...(source.typed?.(q.trim()) ?? [])];
       } else {

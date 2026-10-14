@@ -201,8 +201,11 @@ export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement) => v
     dialog.querySelector('[data-sheet-close]')?.addEventListener('click', done);
     // A link followed leaves the sheet for the page it goes to, at once: closed later, the dialog would
     // give the focus back to what opened it after the new page has given it to its heading.
+    // (Not for a link opened in another tab: the sheet stays open here.)
     dialog.addEventListener('click', (e) => {
-      if (closed || !(e.target instanceof Element && e.target.closest('a[href]'))) return;
+      const link = e.target instanceof Element ? e.target.closest('a[href]') : null;
+      const elsewhere = e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || link?.hasAttribute('target');
+      if (closed || !link || elsewhere) return;
       closed = true;
       dialog.close();
       dialog.remove();
