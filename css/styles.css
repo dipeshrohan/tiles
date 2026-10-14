@@ -2570,6 +2570,63 @@ kbd {
   margin-top: var(--space-4);
 }
 
+/* In-app feedback (U4.09): the moods as large choices, the screenshot shown before it is sent, and
+   the list admins read in Settings. */
+.moods {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.moods legend {
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+.mood {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+.mood input {
+  margin: 0;
+}
+.mood:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.mood:has(input:focus-visible) {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.mood-emoji {
+  font-size: var(--text-xl);
+  line-height: var(--leading-none);
+}
+.feedback-shot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.feedback-shot img,
+.feedback-view img {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.feedback-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.feedback-item + .feedback-item {
+  border-top: 1px solid var(--line);
+  padding-top: var(--space-3);
+}
+
 /* A guided tour (U4.07): the page dimmed but for the part a step is about (clicks still reach the
    page), and the step's popover beside it. Over the page and its menus, under dialogs' toasts. */
 .tour-spot {

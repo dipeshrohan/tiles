@@ -28,7 +28,10 @@ def record(
     entity_id: str,
     before: Any = None,
     after: Any = None,
+    traceable: bool = True,
 ) -> None:
+    """`traceable=False` leaves the request ID out, so the entry can't be matched to the request
+    that made it (anonymous feedback, U4.09)."""
     conn.execute(
         """
         INSERT INTO audit_log
@@ -45,7 +48,7 @@ def record(
             entity_id,
             None if before is None else Jsonb(before),
             None if after is None else Jsonb(after),
-            request_id_var.get(),
+            request_id_var.get() if traceable else None,
         ],
     )
 

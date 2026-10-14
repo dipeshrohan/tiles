@@ -1290,6 +1290,12 @@
 				}, { silent: true }),
 				summary: (siteId, days = 30) => request("GET", `/sites/${encodeURIComponent(siteId)}/ux-events/summary?days=${days}`)
 			},
+			feedback: {
+				send: (siteId, body) => request("POST", `/sites/${encodeURIComponent(siteId)}/feedback`, body),
+				list: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/feedback`),
+				screenshot: (siteId, id) => request("GET", `/sites/${encodeURIComponent(siteId)}/feedback/${id}/screenshot`, void 0, { blob: true }),
+				remove: (siteId, id) => request("DELETE", `/sites/${encodeURIComponent(siteId)}/feedback/${id}`)
+			},
 			membership: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/me`),
 			members: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/members`),
 			audit: (siteId, { limit = 100, offset = 0 } = {}) => request("GET", `/sites/${encodeURIComponent(siteId)}/audit?limit=${limit}&offset=${offset}`),
@@ -4236,7 +4242,7 @@
 		try {
 			const raw = storage.getItem(SAVED_KEY);
 			const list = raw ? JSON.parse(raw) : [];
-			const saved = Array.isArray(list) ? list.filter((r) => typeof r === "object" && r !== null && (r.kind === "conversation" || r.kind === "dataset") && [
+			const saved = Array.isArray(list) ? list.filter((r) => typeof r === "object" && r !== null && (r.kind === "conversation" || r.kind === "dataset" || r.kind === "feedback") && [
 				r.api,
 				r.site,
 				r.id
@@ -7691,6 +7697,271 @@
 		return showCounts();
 	}
 	//#endregion
+	//#region js/lib/feedback.ts
+	var MOODS = [
+		{
+			id: "unhappy",
+			emoji: "😞",
+			label: "Not well"
+		},
+		{
+			id: "neutral",
+			emoji: "😐",
+			label: "Okay"
+		},
+		{
+			id: "happy",
+			emoji: "🙂",
+			label: "Well"
+		}
+	];
+	var MAX_TEXT$1 = 2e3;
+	var moodOf = (id) => MOODS.find((m) => m.id === id) ?? MOODS[1];
+	var pageId = (id) => id.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+/, "").slice(0, 64) || "unknown";
+	var browserOf = (userAgent) => userAgent.slice(0, 300);
+	function formHtml(o) {
+		const moods = MOODS.map((m) => `<label class="mood"><input type="radio" name="mood" value="${m.id}" required><span class="mood-emoji" aria-hidden="true">${m.emoji}</span><span>${esc(m.label)}</span></label>`).join("");
+		const shot = o.canShoot ? `<label class="row gap-2"><input type="checkbox" name="shot" data-feedback-shot> Attach a screenshot of this page</label>
+      <div class="feedback-shot" data-feedback-preview hidden></div>` : `<p class="small soft">Screenshots can’t be made here: this copy of Tiles was opened from a file.</p>`;
+		return `<form class="stack gap-3" data-feedback-form>
+      <fieldset class="moods">
+        <legend>How is Tiles working for you?</legend>
+        <div class="row gap-2 wrap">${moods}</div>
+      </fieldset>
+      <label class="field">What would you like to tell us?
+        <textarea name="text" rows="4" required maxlength="${MAX_TEXT$1}" aria-describedby="feedback-text-hint"></textarea>
+        <span class="small soft" id="feedback-text-hint">What you were doing, what you expected and what happened.</span>
+      </label>
+      <label class="row gap-2"><input type="checkbox" name="named"> Include my name (${esc(o.name)})</label>
+      ${shot}
+      <p class="small soft" data-feedback-sent-with>Sent to your site’s admins with the page (${esc(o.page)}), version ${esc(o.version)} and your browser. Without your name it is anonymous.</p>
+      <div class="dialog-foot">
+        <button class="btn ghost" type="button" data-feedback-cancel>Cancel</button>
+        <button class="btn primary" type="submit">Send feedback</button>
+      </div>
+    </form>`;
+	}
+	var previewHtml = (dataUrl) => `<img src="${esc(dataUrl)}" alt="Screenshot of this page, to be sent with your feedback">
+  <button class="btn sm ghost" type="button" data-feedback-unshot>Remove the screenshot</button>`;
+	function feedbackBody(o) {
+		return {
+			mood: MOODS.find((m) => m.id === o.mood)?.id ?? "neutral",
+			text: o.text.trim(),
+			page: pageId(o.page),
+			version: o.version,
+			browser: browserOf(o.userAgent),
+			named: o.named,
+			screenshot: o.screenshot
+		};
+	}
+	function feedbackListHtml(rows, when) {
+		return `<ul class="feedback-list stack gap-3">${rows.map((f) => {
+			const m = moodOf(f.mood);
+			return `<li class="feedback-item stack gap-1" data-key="feedback-${f.id}" data-feedback="${f.id}">
+        <div class="row gap-2 wrap justify-between">
+          <span class="row gap-2"><span class="mood-emoji" aria-hidden="true">${m.emoji}</span><strong>${esc(m.label)}</strong><span class="small soft">${esc(f.user ?? "Anonymous")} · ${esc(f.page)} · ${esc(when(f.created_at))}</span></span>
+          <span class="row gap-2">
+            ${f.screenshot ? `<button class="btn sm" type="button" data-feedback-view="${f.id}">View screenshot</button>` : ""}
+            <button class="btn sm ghost" type="button" data-feedback-delete="${f.id}">Delete</button>
+          </span>
+        </div>
+        <p class="pre-wrap">${esc(f.text)}</p>
+        <p class="small soft">Version ${esc(f.version)} · ${esc(f.browser)}</p>
+      </li>`;
+		}).join("")}</ul>`;
+	}
+	var STATUS$3 = {
+		proposed: ["warn", "Waiting for review"],
+		accepted: ["good", "Accepted"],
+		rejected: ["bad", "Rejected"]
+	};
+	function statusBadge$3(status) {
+		const [cls, text] = STATUS$3[status];
+		return `<span class="badge ${cls}">${text}</span>`;
+	}
+	function parseActions(text) {
+		const actions = text.split("\n").map((l) => l.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean);
+		if (actions.length > 20) return `At most 20 actions`;
+		if (actions.some((a) => a.length > 500)) return "Keep each action to 500 characters";
+		return actions;
+	}
+	function readDraft(text) {
+		const title = text.title.trim();
+		if (!title) return "Give the insight a title";
+		if (title.length > 200) return "Keep the title to 200 characters";
+		if (text.summary.length > 5e3) return "Keep the summary to 5,000 characters";
+		const actions = parseActions(text.actions);
+		if (typeof actions === "string") return actions;
+		return {
+			title,
+			summary: text.summary.trim(),
+			actions
+		};
+	}
+	var draftText = (d) => ({
+		title: d.title,
+		summary: d.summary,
+		actions: d.actions.join("\n")
+	});
+	function correlationDraft(dataset, r) {
+		const top = r.explanations[0];
+		const title = top ? `${top.variable} separates failed batches${top.segment === "all" ? "" : ` (${top.segment})`}` : `No clear effect in ${dataset}`;
+		const summary = [`${dataset}: ${r.rows} batch(es), ${r.ng} failed.`, ...r.explanations.map((e) => e.text)].join("\n");
+		return {
+			title: title.slice(0, 200),
+			summary,
+			actions: ""
+		};
+	}
+	function seriesDraft(tags, from, to) {
+		return {
+			title: `${tags.join(", ")}`.slice(0, 200),
+			summary: `From ${when$1(from)} to ${when$1(to)}.`,
+			actions: ""
+		};
+	}
+	var when$1 = (iso) => new Date(iso).toLocaleString("en-GB", {
+		dateStyle: "medium",
+		timeStyle: "short"
+	});
+	function draftForm(id, text, busy, submit = "Save insight") {
+		return `<form class="stack insight-form gap-2" id="${esc(id)}">
+      <label class="field">Title<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
+      <label class="field">Summary<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
+      <label class="field">Proposed actions <span class="small soft">(one per line)</span><textarea name="actions" rows="3" placeholder="e.g. Lower anode tension to 1,000 N for a week">${esc(text.actions)}</textarea></label>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
+    </form>`;
+	}
+	function bindDraft(form, text) {
+		form.addEventListener("input", (e) => {
+			const el = e.target;
+			if (el.name === "title" || el.name === "summary" || el.name === "actions") text[el.name] = el.value;
+		}, { signal: bound() });
+	}
+	function sourceText(i) {
+		const q = i.query;
+		if (q.kind === "correlation") {
+			const name = i.evidence.dataset?.name ?? "a dataset";
+			const failed = q.ng_values?.length ? q.ng_values.map(String).join(", ") : "true";
+			const parts = [`Correlation of ${name}: outcome ${q.outcome} (failed when ${failed})`];
+			if (q.split) parts.push(`split by ${q.split}`);
+			parts.push(q.variables?.length ? `variables ${q.variables.join(", ")}` : "every number column");
+			return parts.join(", ");
+		}
+		const tags = i.evidence.series?.map((s) => s.tag) ?? [];
+		return `${tags.length ? tags.join(", ") : `${q.signals.length} signal(s)`} from ${when$1(q.start)} to ${when$1(q.end)}`;
+	}
+	function sourceLink(i) {
+		const q = i.query;
+		if (q.kind === "correlation") return {
+			href: `#/correlate?dataset=${encodeURIComponent(q.dataset_id)}`,
+			text: "Open in the correlation finder"
+		};
+		return {
+			href: `#/explorer?${new URLSearchParams({
+				signals: q.signals.join(","),
+				from: q.start,
+				to: q.end
+			}).toString()}`,
+			text: "Open in the Data explorer"
+		};
+	}
+	var insightLink = (n) => `#/insights/${n}`;
+	function numberFromHash(hash) {
+		const m = hash.match(/^#\/insights\/(\d+)(?:[?/]|$)/);
+		const n = m ? Number(m[1]) : NaN;
+		return Number.isSafeInteger(n) && n > 0 ? n : null;
+	}
+	function mayDo(i, me, role) {
+		const editor = role === "engineer" || role === "admin";
+		const owner = editor && (me !== null && i.author_id === me || role === "admin");
+		return {
+			review: editor && me !== null && i.status === "proposed" && i.author_id !== me,
+			edit: owner && i.status === "proposed",
+			reopen: owner && i.status !== "proposed",
+			remove: owner
+		};
+	}
+	//#endregion
+	//#region js/views/feedback-admin.ts
+	function feedbackCard() {
+		return `<div class="card stack gap-3 span-all" id="feedback">
+      <h2>Feedback</h2>
+      <p class="small soft">What people on this site sent with Send feedback (in the help panel), newest first. It is anonymous unless they chose to give their name.</p>
+      <div data-feedback-list data-morph="if-changed" tabindex="-1">${skeleton.list(3, "Loading the feedback…")}</div>
+    </div>`;
+	}
+	var lists = /* @__PURE__ */ new WeakMap();
+	async function bindFeedback(root, ctx) {
+		const box = root.querySelector("[data-feedback-list]");
+		const api = ctx.api;
+		const site = ctx.ontology.site;
+		if (!box || !api || !site) return;
+		const removal = (id) => ({
+			kind: "feedback",
+			api: api.baseUrl,
+			site: site.id,
+			id: String(id)
+		});
+		const draw = () => {
+			const shown = (lists.get(box) ?? []).filter((f) => !isRemoving(removal(f.id)));
+			box.innerHTML = shown.length ? feedbackListHtml(shown, when$1) : emptyState({
+				compact: true,
+				level: 3,
+				title: "No feedback yet",
+				body: "What people send with Send feedback, in the help panel, shows here."
+			});
+		};
+		const fetch = async () => {
+			try {
+				lists.set(box, await api.feedback.list(site.id));
+			} catch {
+				if (box.isConnected) box.innerHTML = loadFailed("The feedback");
+				return;
+			}
+			if (box.isConnected) draw();
+		};
+		box.addEventListener("click", (e) => {
+			const el = e.target instanceof Element ? e.target : null;
+			const view = el?.closest("[data-feedback-view]");
+			const del = el?.closest("[data-feedback-delete]");
+			if (view) {
+				const id = Number(view.dataset.feedbackView);
+				view.disabled = true;
+				api.feedback.screenshot(site.id, id).then(async (blob) => {
+					const url = URL.createObjectURL(blob);
+					try {
+						await infoDialog({
+							title: "Screenshot",
+							wide: true,
+							contentHtml: `<div class="feedback-view"><img src="${esc(url)}" alt="The screenshot sent with this feedback"></div>`
+						});
+					} finally {
+						URL.revokeObjectURL(url);
+					}
+				}).catch(() => void 0).finally(() => view.disabled = false);
+			} else if (del) {
+				const id = Number(del.dataset.feedbackDelete);
+				const next = del.closest("li")?.nextElementSibling?.querySelector("[data-feedback-delete]")?.dataset.feedbackDelete;
+				removeLater({
+					toast: ctx.toast,
+					message: "Feedback deleted",
+					removal: removal(id),
+					hide: () => {
+						draw();
+						(box.querySelector(`[data-feedback-delete="${next ?? ""}"]`) ?? box).focus();
+					},
+					restore: draw,
+					send: () => api.feedback.remove(site.id, id),
+					sent: fetch
+				});
+			}
+		}, { signal: bound() });
+		if (lists.has(box)) return;
+		lists.set(box, []);
+		await fetch();
+	}
+	//#endregion
 	//#region js/views/settings.ts
 	function accountCard(ctx) {
 		const { config, signedIn } = ctx.auth;
@@ -8132,6 +8403,7 @@
         ${ctx.ontology.role === "admin" && ctx.ontology.site ? copilotPolicyCard() : ""}
         ${ctx.ontology.role === "admin" ? copilotUsageCard() : ""}
         ${ds.mode === "api" ? uxCard() : ""}
+        ${ctx.api && ctx.ontology.role === "admin" && ctx.ontology.site ? feedbackCard() : ""}
         ${ctx.ontology.role === "admin" ? auditCard() : ""}
         <div class="card stack gap-3" id="about">
           <h2>About</h2>
@@ -8196,6 +8468,7 @@
 				bindCopilotPolicy(root, ctx);
 				fillCopilotUsage(root, ctx);
 				fillAudit(root, ctx);
+				bindFeedback(root, ctx);
 			}
 			bindAgents(root, ctx);
 			fillNotifications(root, ctx);
@@ -8215,118 +8488,6 @@
 			});
 		}
 	};
-	var STATUS$3 = {
-		proposed: ["warn", "Waiting for review"],
-		accepted: ["good", "Accepted"],
-		rejected: ["bad", "Rejected"]
-	};
-	function statusBadge$3(status) {
-		const [cls, text] = STATUS$3[status];
-		return `<span class="badge ${cls}">${text}</span>`;
-	}
-	function parseActions(text) {
-		const actions = text.split("\n").map((l) => l.replace(/^\s*[-*•]\s*/, "").trim()).filter(Boolean);
-		if (actions.length > 20) return `At most 20 actions`;
-		if (actions.some((a) => a.length > 500)) return "Keep each action to 500 characters";
-		return actions;
-	}
-	function readDraft(text) {
-		const title = text.title.trim();
-		if (!title) return "Give the insight a title";
-		if (title.length > 200) return "Keep the title to 200 characters";
-		if (text.summary.length > 5e3) return "Keep the summary to 5,000 characters";
-		const actions = parseActions(text.actions);
-		if (typeof actions === "string") return actions;
-		return {
-			title,
-			summary: text.summary.trim(),
-			actions
-		};
-	}
-	var draftText = (d) => ({
-		title: d.title,
-		summary: d.summary,
-		actions: d.actions.join("\n")
-	});
-	function correlationDraft(dataset, r) {
-		const top = r.explanations[0];
-		const title = top ? `${top.variable} separates failed batches${top.segment === "all" ? "" : ` (${top.segment})`}` : `No clear effect in ${dataset}`;
-		const summary = [`${dataset}: ${r.rows} batch(es), ${r.ng} failed.`, ...r.explanations.map((e) => e.text)].join("\n");
-		return {
-			title: title.slice(0, 200),
-			summary,
-			actions: ""
-		};
-	}
-	function seriesDraft(tags, from, to) {
-		return {
-			title: `${tags.join(", ")}`.slice(0, 200),
-			summary: `From ${when$1(from)} to ${when$1(to)}.`,
-			actions: ""
-		};
-	}
-	var when$1 = (iso) => new Date(iso).toLocaleString("en-GB", {
-		dateStyle: "medium",
-		timeStyle: "short"
-	});
-	function draftForm(id, text, busy, submit = "Save insight") {
-		return `<form class="stack insight-form gap-2" id="${esc(id)}">
-      <label class="field">Title<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
-      <label class="field">Summary<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
-      <label class="field">Proposed actions <span class="small soft">(one per line)</span><textarea name="actions" rows="3" placeholder="e.g. Lower anode tension to 1,000 N for a week">${esc(text.actions)}</textarea></label>
-      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? "disabled" : ""}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
-    </form>`;
-	}
-	function bindDraft(form, text) {
-		form.addEventListener("input", (e) => {
-			const el = e.target;
-			if (el.name === "title" || el.name === "summary" || el.name === "actions") text[el.name] = el.value;
-		}, { signal: bound() });
-	}
-	function sourceText(i) {
-		const q = i.query;
-		if (q.kind === "correlation") {
-			const name = i.evidence.dataset?.name ?? "a dataset";
-			const failed = q.ng_values?.length ? q.ng_values.map(String).join(", ") : "true";
-			const parts = [`Correlation of ${name}: outcome ${q.outcome} (failed when ${failed})`];
-			if (q.split) parts.push(`split by ${q.split}`);
-			parts.push(q.variables?.length ? `variables ${q.variables.join(", ")}` : "every number column");
-			return parts.join(", ");
-		}
-		const tags = i.evidence.series?.map((s) => s.tag) ?? [];
-		return `${tags.length ? tags.join(", ") : `${q.signals.length} signal(s)`} from ${when$1(q.start)} to ${when$1(q.end)}`;
-	}
-	function sourceLink(i) {
-		const q = i.query;
-		if (q.kind === "correlation") return {
-			href: `#/correlate?dataset=${encodeURIComponent(q.dataset_id)}`,
-			text: "Open in the correlation finder"
-		};
-		return {
-			href: `#/explorer?${new URLSearchParams({
-				signals: q.signals.join(","),
-				from: q.start,
-				to: q.end
-			}).toString()}`,
-			text: "Open in the Data explorer"
-		};
-	}
-	var insightLink = (n) => `#/insights/${n}`;
-	function numberFromHash(hash) {
-		const m = hash.match(/^#\/insights\/(\d+)(?:[?/]|$)/);
-		const n = m ? Number(m[1]) : NaN;
-		return Number.isSafeInteger(n) && n > 0 ? n : null;
-	}
-	function mayDo(i, me, role) {
-		const editor = role === "engineer" || role === "admin";
-		const owner = editor && (me !== null && i.author_id === me || role === "admin");
-		return {
-			review: editor && me !== null && i.status === "proposed" && i.author_id !== me,
-			edit: owner && i.status === "proposed",
-			reopen: owner && i.status !== "proposed",
-			remove: owner
-		};
-	}
 	//#endregion
 	//#region js/lib/wear.ts
 	var HOUR$2 = 36e5;
@@ -14944,7 +15105,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const head = pageHead({
 				title: "Help",
 				lead: "The user guide: what each page is for and how to use it. Each page’s help button opens its part.",
-				actionsHtml: `<div class="row gap-2 wrap">${button("What’s new", { attrs: { "data-whats-new": true } })}${button("Show the welcome", { attrs: { "data-show-welcome": true } })}${linkButton("Glossary", "#/glossary", { icon: "book-a" })}</div>`
+				actionsHtml: `<div class="row gap-2 wrap">${button("What’s new", { attrs: { "data-whats-new": true } })}${ctx.api ? button("Send feedback", { attrs: { "data-send-feedback": true } }) : ""}${button("Show the welcome", { attrs: { "data-show-welcome": true } })}${linkButton("Glossary", "#/glossary", { icon: "book-a" })}</div>`
 			});
 			const data = helpLoaded();
 			if (!data && failed) return `${head}${errorState({
@@ -14972,6 +15133,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			};
 			onAll(root, "[data-show-welcome]", "click", () => document.dispatchEvent(new CustomEvent("tiles:welcome")));
 			onAll(root, "[data-whats-new]", "click", () => document.dispatchEvent(new CustomEvent("tiles:whats-new")));
+			onAll(root, "[data-send-feedback]", "click", () => document.dispatchEvent(new CustomEvent("tiles:feedback")));
 			onAll(root, "[data-start-tour]", "click", (el) => document.dispatchEvent(new CustomEvent("tiles:tour", { detail: el.dataset.startTour })));
 			onAll(root, "[data-help-retry]", "click", () => {
 				failed = null;
@@ -15833,6 +15995,108 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		return handle;
 	}
 	//#endregion
+	//#region js/lib/screenshot.ts
+	var MAX_WIDTH = 1600;
+	function stylesText(sheets = document.styleSheets) {
+		let css = "";
+		for (const sheet of Array.from(sheets)) try {
+			css += `${Array.from(sheet.cssRules, (r) => r.cssText).join("\n")}\n`;
+		} catch {
+			return null;
+		}
+		return css.replace(/:root\b/g, "[data-shot-root]");
+	}
+	function canCapture(sheets = document.styleSheets) {
+		try {
+			for (const sheet of Array.from(sheets)) sheet.cssRules;
+			return true;
+		} catch {
+			return false;
+		}
+	}
+	var dataUrlBytes = (url) => {
+		const data = url.slice(url.indexOf(",") + 1);
+		return Math.floor(data.length * 3 / 4) - (data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0);
+	};
+	function copyOfPage() {
+		const page = document.documentElement;
+		const copy = page.cloneNode(true);
+		let css = "";
+		const all = page.querySelectorAll("*");
+		copy.querySelectorAll("*").forEach((el, i) => {
+			const from = all[i];
+			if (!from || from === document.body || !from.scrollTop && !from.scrollLeft) return;
+			el.setAttribute("data-shot-scroll", String(i));
+			css += `[data-shot-scroll="${i}"]>*{translate:${-from.scrollLeft}px ${-from.scrollTop}px}`;
+		});
+		const fields = page.querySelectorAll("input, textarea, select, canvas");
+		copy.querySelectorAll("input, textarea, select, canvas").forEach((el, i) => {
+			const from = fields[i];
+			if (from instanceof HTMLInputElement && el instanceof HTMLInputElement) {
+				if (from.type === "checkbox" || from.type === "radio") el.toggleAttribute("checked", from.checked);
+				else if (from.type !== "password" && from.type !== "file") el.setAttribute("value", from.value);
+			} else if (from instanceof HTMLTextAreaElement) el.textContent = from.value;
+			else if (from instanceof HTMLSelectElement && el instanceof HTMLSelectElement) Array.from(el.options).forEach((o, j) => o.toggleAttribute("selected", j === from.selectedIndex));
+			else if (from instanceof HTMLCanvasElement) try {
+				const img = document.createElement("img");
+				img.src = from.toDataURL();
+				img.width = from.clientWidth;
+				img.height = from.clientHeight;
+				el.replaceWith(img);
+			} catch {
+				el.remove();
+			}
+		});
+		copy.querySelectorAll("script, link, style, noscript, iframe, dialog, .tooltip, [role=\"tooltip\"], .tour-spot, .tour-pop").forEach((el) => el.remove());
+		copy.setAttribute("data-shot-root", "");
+		return {
+			copy,
+			css
+		};
+	}
+	var loadImage = (src) => new Promise((resolve, reject) => {
+		const img = new Image();
+		img.onload = () => resolve(img);
+		img.onerror = () => reject(/* @__PURE__ */ new Error("The picture of the page could not be drawn"));
+		img.src = src;
+	});
+	async function capturePage() {
+		const css = stylesText();
+		if (css === null) return null;
+		const width = window.innerWidth;
+		const height = window.innerHeight;
+		const view = `[data-shot-root]{width:${width}px;height:${height}px;overflow:hidden}body{margin-top:-${Math.round(window.scrollY)}px}*,*::before,*::after{animation:none!important;transition:none!important}`;
+		const { copy, css: scrolled } = copyOfPage();
+		const head = copy.querySelector("head") ?? copy.insertBefore(document.createElement("head"), copy.firstChild);
+		const style = document.createElement("style");
+		style.textContent = css + view + scrolled;
+		head.append(style);
+		const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><foreignObject x="0" y="0" width="100%" height="100%">${new XMLSerializer().serializeToString(copy)}</foreignObject></svg>`;
+		try {
+			const img = await loadImage(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`);
+			const scale = Math.min(1, MAX_WIDTH / width);
+			const canvas = document.createElement("canvas");
+			canvas.width = Math.round(width * scale);
+			canvas.height = Math.round(height * scale);
+			const g = canvas.getContext("2d");
+			if (!g) return null;
+			g.fillStyle = getComputedStyle(document.body).backgroundColor || "#fff";
+			g.fillRect(0, 0, canvas.width, canvas.height);
+			g.drawImage(img, 0, 0, canvas.width, canvas.height);
+			for (const quality of [
+				.85,
+				.6,
+				.4
+			]) {
+				const url = canvas.toDataURL("image/jpeg", quality);
+				if (url.startsWith("data:image/jpeg") && dataUrlBytes(url) <= 2097152) return url;
+			}
+			return null;
+		} catch {
+			return null;
+		}
+	}
+	//#endregion
 	//#region js/lib/whats-new.ts
 	var SEEN_KEY = "whats-new-seen";
 	function compareVersions(a, b) {
@@ -16624,7 +16888,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	async function sendSaved() {
 		const client = api;
 		if (!client) return;
-		for (const r of takeSaved(localStorage, client.baseUrl)) await (r.kind === "conversation" ? client.copilot.remove : client.datasets.remove)(r.site, r.id).catch(() => void 0);
+		for (const r of takeSaved(localStorage, client.baseUrl)) await (r.kind === "conversation" ? client.copilot.remove(r.site, r.id) : r.kind === "feedback" ? client.feedback.remove(r.site, Number(r.id)) : client.datasets.remove(r.site, r.id)).catch(() => void 0);
 	}
 	window.addEventListener("offline", () => showOffline("offline"));
 	function reconnect() {
@@ -16774,14 +17038,19 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				label: "Help",
 				title: first.title,
 				contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
-				footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button><a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`
+				footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button>${api ? "<button class=\"btn sm ghost\" type=\"button\" data-feedback-open>Send feedback</button>" : ""}<a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`
 			}, (dialog, close) => {
 				dialog.querySelector("[data-whats-new]")?.addEventListener("click", () => {
 					then = "whats-new";
 					close();
 				});
+				dialog.querySelector("[data-feedback-open]")?.addEventListener("click", () => {
+					then = "feedback";
+					close();
+				});
 			});
 			if (then === "whats-new") openWhatsNew();
+			if (then === "feedback") openFeedback();
 		} catch (e) {
 			toast("The help couldn't be loaded", {
 				type: "error",
@@ -16833,6 +17102,125 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 	}
 	document.addEventListener("tiles:whats-new", () => void openWhatsNew());
+	var feedbackOpen = false;
+	async function openFeedback() {
+		const client = api;
+		const site = ctx.ontology.site;
+		if (!client || !site) {
+			toast("Feedback needs the Tiles API", {
+				type: "info",
+				description: "It goes to your site’s admins. Connect to the Tiles API in Settings to send it."
+			});
+			return;
+		}
+		if (feedbackOpen) return;
+		feedbackOpen = true;
+		const view = currentView();
+		ux("help", "feedback");
+		try {
+			await panelDialog({
+				title: "Send feedback",
+				body: "Tell us what works for you and what doesn’t.",
+				contentHtml: formHtml({
+					page: view.title,
+					version: VERSION,
+					name: state.user.name,
+					canShoot: canCapture()
+				})
+			}, (dialog, close) => {
+				const form = need(dialog, "[data-feedback-form]");
+				form.noValidate = true;
+				let shot = null;
+				let taking = 0;
+				const box = dialog.querySelector("[data-feedback-shot]");
+				const preview = dialog.querySelector("[data-feedback-preview]");
+				const unshot = () => {
+					taking++;
+					shot = null;
+					if (box) box.checked = false;
+					if (preview) {
+						preview.hidden = true;
+						preview.replaceChildren();
+					}
+				};
+				box?.addEventListener("change", () => {
+					if (!box.checked || !preview) return unshot();
+					const mine = ++taking;
+					preview.hidden = false;
+					preview.innerHTML = "<p class=\"small soft\" role=\"status\">Taking the screenshot…</p>";
+					capturePage().then((url) => {
+						if (mine !== taking || !box.checked) return;
+						if (!url) {
+							unshot();
+							toast("The screenshot couldn’t be made", {
+								type: "error",
+								description: "Send your feedback without it, and say what you see instead."
+							});
+							return;
+						}
+						shot = url;
+						preview.innerHTML = previewHtml(url);
+						preview.querySelector("[data-feedback-unshot]")?.addEventListener("click", () => {
+							unshot();
+							box.focus();
+						});
+					});
+				});
+				dialog.querySelector("[data-feedback-cancel]")?.addEventListener("click", close);
+				form.addEventListener("change", (e) => {
+					const first = form.querySelector("input[name=\"mood\"]");
+					if (first && e.target instanceof HTMLInputElement && e.target.name === "mood") setFieldError(first, null);
+				});
+				let sending = false;
+				form.addEventListener("submit", (e) => {
+					e.preventDefault();
+					if (sending) return;
+					const mood = form.querySelector("input[name=\"mood\"]:checked")?.value ?? "";
+					const text = form.querySelector("textarea[name=\"text\"]")?.value ?? "";
+					const errors = [...mood ? [] : [{
+						name: "mood",
+						message: "Choose how Tiles is working for you"
+					}], ...text.trim() ? [] : [{
+						name: "text",
+						message: "Say what you’d like to tell us"
+					}]];
+					if (errors.length) {
+						showErrors(form, errors);
+						const note = form.querySelector(".moods .field-error");
+						if (note) form.querySelector(".moods > div")?.after(note);
+						return;
+					}
+					clearErrors(form);
+					const named = form.querySelector("input[name=\"named\"]")?.checked ?? false;
+					const button = need(form, "button[type=\"submit\"]");
+					sending = true;
+					setBusy(button, true);
+					client.feedback.send(site.id, feedbackBody({
+						mood,
+						text,
+						named,
+						screenshot: shot,
+						page: view.id,
+						version: VERSION,
+						userAgent: navigator.userAgent
+					})).then(() => {
+						ux("task", "feedback.sent");
+						close();
+						toast("Feedback sent", {
+							type: "success",
+							description: "Thank you. Your site’s admins will read it."
+						});
+					}, () => void 0).finally(() => {
+						sending = false;
+						setBusy(button, false);
+					});
+				});
+			});
+		} finally {
+			feedbackOpen = false;
+		}
+	}
+	document.addEventListener("tiles:feedback", () => void openFeedback());
 	var palette = installPalette({
 		items() {
 			const pages = NAV.flatMap((g) => g.items.map((v) => ({
@@ -16940,6 +17328,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					keywords: "changelog release version changes new features",
 					run: () => void openWhatsNew()
 				},
+				...api ? [{
+					id: "do:feedback",
+					label: "Send feedback",
+					group: "Actions",
+					icon: "message-square",
+					keywords: "feedback comment suggest problem idea complain report",
+					run: () => void openFeedback()
+				}] : [],
 				{
 					id: "do:welcome",
 					label: "Show the welcome",

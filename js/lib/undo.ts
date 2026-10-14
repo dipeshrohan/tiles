@@ -17,7 +17,7 @@ type Toast = (message: string, opts?: ToastOptions) => void;
 
 // What a waiting removal is, to send it from another load of the page.
 export interface Removal {
-  kind: 'conversation' | 'dataset';
+  kind: 'conversation' | 'dataset' | 'feedback';
   api: string; // the Tiles API it is on
   site: string;
   id: string;
@@ -109,7 +109,7 @@ export function takeSaved(storage: Pick<Storage, 'getItem' | 'setItem' | 'remove
           (r): r is Removal =>
             typeof r === 'object' &&
             r !== null &&
-            (r.kind === 'conversation' || r.kind === 'dataset') &&
+            (r.kind === 'conversation' || r.kind === 'dataset' || r.kind === 'feedback') &&
             [r.api, r.site, r.id].every((v) => typeof v === 'string'),
         )
       : [];

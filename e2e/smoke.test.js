@@ -1538,6 +1538,85 @@ test('Refresh picks up a role change made by an admin', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test('in-app feedback: sent from the help panel or the palette, anonymous unless named, a screenshot when attached; admins read it (U4.09)', async (t) => {
+  const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  await page.waitForSelector('[data-warning-list], #view .empty');
+  // From the page's help (a viewer, too: it changes nothing on the site).
+  await page.click('#help-open');
+  await page.locator('dialog.sheet[open] [data-feedback-open]').click();
+  const dialog = page.locator('dialog[open]:has([data-feedback-form])');
+  await dialog.waitFor();
+  assert.match(await dialog.locator('[data-feedback-sent-with]').innerText(), /the page \(Warnings\), version \d/);
+  // Nothing chosen or said: what to do, and nothing sent.
+  await dialog.locator('button[type=submit]').click();
+  await dialog.locator('.error-summary:has-text("Choose how Tiles is working for you")').waitFor();
+  assert.match(await dialog.locator('.error-summary').innerText(), /Say what you’d like to tell us/);
+  await dialog.locator('label.mood:has-text("Not well")').click();
+  await dialog.locator('textarea[name=text]').fill('The warning chart is hard to read on a tablet.');
+  // The screenshot is made when ticked, shown, and can be taken off again.
+  await dialog.locator('[data-feedback-shot]').check();
+  const shot = dialog.locator('[data-feedback-preview] img');
+  await shot.waitFor();
+  assert.match(await shot.getAttribute('src'), /^data:image\/jpeg;base64,/);
+  assert.ok(await shot.evaluate((img) => img.naturalWidth > 0));
+  await dialog.locator('[data-feedback-unshot]').click();
+  assert.equal(await dialog.locator('[data-feedback-preview]').isHidden(), true);
+  assert.equal(await dialog.locator('[data-feedback-shot]').isChecked(), false);
+  await dialog.locator('[data-feedback-shot]').check();
+  await shot.waitFor();
+  await dialog.locator('button[type=submit]').click();
+  await page.waitForSelector('#toast:has-text("Feedback sent")');
+  await page.waitForSelector('dialog[open]', { state: 'detached' });
+  assert.equal(fake.appFeedback.length, 1);
+  const [first] = fake.appFeedback;
+  assert.deepEqual(
+    { mood: first.mood, text: first.text, page: first.page, user: first.user },
+    { mood: 'unhappy', text: 'The warning chart is hard to read on a tablet.', page: 'warnings', user: null },
+  );
+  assert.match(first.screenshot, /^data:image\/jpeg;base64,/);
+  assert.match(first.version, /^\d+\.\d+\.\d+/);
+
+  // From the palette, with a name.
+  await page.keyboard.press('Control+k');
+  await page.locator('dialog.palette input').fill('feedback');
+  await page.locator('dialog.palette [role=option]:has-text("Send feedback")').click();
+  await dialog.waitFor();
+  await dialog.locator('label.mood:has-text("Well")').last().click();
+  await dialog.locator('textarea[name=text]').fill('The tours helped.');
+  await dialog.locator('input[name=named]').check();
+  await dialog.locator('button[type=submit]').click();
+  await page.waitForSelector('#toast:has-text("Feedback sent")');
+  await waitFor(() => fake.appFeedback.length === 2);
+  assert.equal(fake.appFeedback[1].user, 'demo@example.com');
+  assert.equal(fake.appFeedback[1].screenshot, null);
+
+  // Site admins read it in Settings: newest first, anonymous where no name was given.
+  fake.setRole('demo@example.com', 'admin');
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.reload();
+  const card = page.locator('#feedback');
+  await card.locator('[data-feedback]').nth(1).waitFor();
+  assert.match(await card.locator('[data-feedback]').first().innerText(), /The tours helped/);
+  assert.match(await card.locator('[data-feedback]').nth(1).innerText(), /Anonymous · warnings/);
+  await card.locator('[data-feedback-view]').click();
+  const viewer = page.locator('dialog[open]:has(.feedback-view)');
+  await viewer.locator('img').waitFor();
+  await page.waitForFunction(() => document.querySelector('.feedback-view img')?.naturalWidth > 0);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog[open]', { state: 'detached' });
+  // Deleted at once, with Undo.
+  await card.locator('[data-feedback-delete]').first().click();
+  await page.waitForSelector('#toast:has-text("Feedback deleted")');
+  assert.equal(await card.locator('[data-feedback]').count(), 1);
+  await page.locator('#toast button:has-text("Undo")').click();
+  await card.locator('[data-feedback]').nth(1).waitFor();
+  assert.equal(fake.appFeedback.length, 2);
+  assert.deepEqual(errors, []);
+});
+
 test('UX analytics: off until an organisation admin turns it on; then counts, and nothing about who', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'admin' } });
   const apiUrl = await fake.listen();

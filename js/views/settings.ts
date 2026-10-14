@@ -14,6 +14,7 @@ import {
 import { budgetToday, cacheShare, duration, percent, tokens, usageTotals } from '../lib/copilot-usage.ts';
 import { bindOrgSignIn, orgSignInCard } from './org-sign-in.ts';
 import { bindUx, uxCard } from './ux-analytics.ts';
+import { bindFeedback, feedbackCard } from './feedback-admin.ts';
 import type { Context, View } from './types.ts';
 import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
@@ -610,6 +611,7 @@ const view: View = {
         ${ctx.ontology.role === 'admin' && ctx.ontology.site ? copilotPolicyCard() : ''}
         ${ctx.ontology.role === 'admin' ? copilotUsageCard() : ''}
         ${ds.mode === 'api' ? uxCard() : ''}
+        ${ctx.api && ctx.ontology.role === 'admin' && ctx.ontology.site ? feedbackCard() : ''}
         ${ctx.ontology.role === 'admin' ? auditCard() : ''}
         <div class="card stack gap-3" id="about">
           <h2>About</h2>
@@ -672,6 +674,7 @@ const view: View = {
       void bindCopilotPolicy(root, ctx);
       void fillCopilotUsage(root, ctx);
       void fillAudit(root, ctx);
+      void bindFeedback(root, ctx);
     }
     bindAgents(root, ctx);
     void fillNotifications(root, ctx);

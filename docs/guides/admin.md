@@ -220,9 +220,9 @@ What the browser records, and nothing else:
 | Kind | Name | Example |
 | --- | --- | --- |
 | Page viewed | The page's id | `warnings` |
-| Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo`, `tour.finished` |
+| Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo`, `tour.finished`, `feedback.sent` |
 | Command palette | Opened, or the kind of thing chosen | `open`, `chose.signals` |
-| Help opened | The help topic | `welcome` (the first-run welcome), `tour.triage` (a tour started), `whatsnew` |
+| Help opened | The help topic | `welcome` (the first-run welcome), `tour.triage` (a tour started), `whatsnew`, `feedback` (the feedback form opened) |
 | Error shown | Its kind | `api.403`, `offline` |
 
 Each event also has the time it arrived and a random id the browser makes for each tab, which the
@@ -232,6 +232,23 @@ deployment's own database (`ux_events`, a TimescaleDB hypertable under row secur
 the database's retention policy deletes them after 90 days, whether or not new ones arrive. A site
 stores at most 5,000 events an hour, and one browser session 600; beyond that they are let go. Site admins see the counts, per kind and name, with the number of browser sessions, in
 the **UX analytics** card on the Settings page (`GET /sites/{id}/ux-events/summary`).
+
+### Feedback
+
+Anyone on a site, viewers included, can send feedback from the app (**Send feedback** in a page's
+help, on the Help page or in the command palette): a mood (not well, okay, well), their words, the
+page's id (never its address, which can hold a search), the app's version and the browser's user
+agent. It is anonymous unless they tick **Include my name**; a screenshot of the page is attached
+only if they tick it and see it first. Feedback is kept in the site's database (`feedback`, under
+row security) until an admin deletes it; a site takes at most 60 an hour.
+
+Site admins read it, newest first, in the **Feedback** card on the Settings page, open a
+screenshot, and delete one (with Undo for a few seconds). With the API: `GET /sites/{id}/feedback`,
+`GET /sites/{id}/feedback/{n}/screenshot` and `DELETE /sites/{id}/feedback/{n}`. Sending and
+deleting are in the site's audit log; feedback sent without a name is recorded as from
+"Anonymous", without the request's ID, so it can't be matched to the API's request logs. Logs in
+front of the API (a load balancer's, a proxy's) may still record addresses and times: keep them to
+the people who run the deployment.
 
 ### Models served over HTTP
 

@@ -2797,6 +2797,140 @@
         "title": "Feedback",
         "type": "object"
       },
+      "FeedbackIn": {
+        "additionalProperties": false,
+        "properties": {
+          "browser": {
+            "description": "The browser's user agent",
+            "maxLength": 300,
+            "title": "Browser",
+            "type": "string"
+          },
+          "mood": {
+            "enum": [
+              "unhappy",
+              "neutral",
+              "happy"
+            ],
+            "title": "Mood",
+            "type": "string"
+          },
+          "named": {
+            "default": false,
+            "description": "Whether to keep who sent it; anonymous otherwise",
+            "title": "Named",
+            "type": "boolean"
+          },
+          "page": {
+            "description": "The page's id, never its address",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,63}$",
+            "title": "Page",
+            "type": "string"
+          },
+          "screenshot": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A PNG or JPEG of the page as a data URL (base64), at most 2 MiB decoded",
+            "title": "Screenshot"
+          },
+          "text": {
+            "description": "What they want to say",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          },
+          "version": {
+            "description": "The app's version",
+            "pattern": "^[0-9A-Za-z.+-]{1,32}$",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mood",
+          "text",
+          "page",
+          "version",
+          "browser"
+        ],
+        "title": "FeedbackIn",
+        "type": "object"
+      },
+      "FeedbackOut": {
+        "properties": {
+          "browser": {
+            "title": "Browser",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "mood": {
+            "enum": [
+              "unhappy",
+              "neutral",
+              "happy"
+            ],
+            "title": "Mood",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "string"
+          },
+          "screenshot": {
+            "description": "Whether a screenshot was attached",
+            "title": "Screenshot",
+            "type": "boolean"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who sent it, when they chose to give their name",
+            "title": "User"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "mood",
+          "text",
+          "page",
+          "version",
+          "browser",
+          "user",
+          "screenshot"
+        ],
+        "title": "FeedbackOut",
+        "type": "object"
+      },
       "FeedbackRow": {
         "additionalProperties": false,
         "properties": {
@@ -6435,6 +6569,19 @@
           "groups"
         ],
         "title": "SearchResults",
+        "type": "object"
+      },
+      "Sent": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "Sent",
         "type": "object"
       },
       "Series": {
@@ -13114,6 +13261,236 @@
         "summary": "Restore Document",
         "tags": [
           "documents"
+        ]
+      }
+    },
+    "/sites/{site_id}/feedback": {
+      "get": {
+        "description": "The site's feedback, newest first, without the screenshots themselves (admins).",
+        "operationId": "list_feedback_sites__site_id__feedback_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mood",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "unhappy",
+                    "neutral",
+                    "happy"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mood"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FeedbackOut"
+                  },
+                  "title": "Response List Feedback Sites  Site Id  Feedback Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Feedback",
+        "tags": [
+          "Feedback"
+        ]
+      },
+      "post": {
+        "description": "Send feedback about Tiles to the site's admins (any member). Anonymous unless `named`; a\nscreenshot only if attached. At most 60 an hour per site (429 beyond).",
+        "operationId": "send_feedback_sites__site_id__feedback_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Sent"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Feedback",
+        "tags": [
+          "Feedback"
+        ]
+      }
+    },
+    "/sites/{site_id}/feedback/{feedback_id}": {
+      "delete": {
+        "description": "Delete a piece of feedback and its screenshot (admins).",
+        "operationId": "delete_feedback_sites__site_id__feedback__feedback_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "feedback_id",
+            "required": true,
+            "schema": {
+              "title": "Feedback Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Feedback",
+        "tags": [
+          "Feedback"
+        ]
+      }
+    },
+    "/sites/{site_id}/feedback/{feedback_id}/screenshot": {
+      "get": {
+        "description": "The screenshot attached to a piece of feedback, as it was sent (admins).",
+        "operationId": "feedback_screenshot_sites__site_id__feedback__feedback_id__screenshot_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "feedback_id",
+            "required": true,
+            "schema": {
+              "title": "Feedback Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Feedback Screenshot",
+        "tags": [
+          "Feedback"
         ]
       }
     },
