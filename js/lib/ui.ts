@@ -160,6 +160,11 @@ export function term(key: GlossaryKey, text?: string): string {
   return `<button${attrs({ class: 'term', type: 'button', 'data-tooltip': tip, 'data-term': key })}>${esc(shown)}</button>`;
 }
 
+// A term's name inside a sentence: lower case when it is plain words ("Recall" → "recall"), as written
+// when it is a name or an abbreviation (MAD, Cohen's d, Theil–Sen slope).
+export const inSentence = (name: string): string =>
+  /^[A-Z][a-z]+( [a-z]+)*$/.test(name) ? name.charAt(0).toLowerCase() + name.slice(1) : name;
+
 // A link that looks like a button (it goes somewhere; a button does something).
 export function linkButton(label: string, href: string, o: Omit<ButtonOptions, 'type' | 'disabled'> = {}): string {
   return `<a${attrs({ class: buttonClass(o), href, ...o.attrs })}>${o.icon ? `${icon(o.icon)} ` : ''}${esc(label)}</a>`;

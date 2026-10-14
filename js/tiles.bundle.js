@@ -1985,6 +1985,15 @@
 	function scrollBehavior() {
 		return lessMotion() ? "auto" : "smooth";
 	}
+	function goToAnchor(el, o = {}) {
+		el.focus({ preventScroll: true });
+		if (o.scroll === false) return;
+		const margin = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+		window.scrollTo({
+			top: el.getBoundingClientRect().top + window.scrollY - margin,
+			behavior: scrollBehavior()
+		});
+	}
 	function lessMotion() {
 		return document.documentElement.dataset.motion === "reduce" || typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 	}
@@ -3379,6 +3388,7 @@
 			"data-term": key
 		})}>${esc(shown)}</button>`;
 	}
+	var inSentence = (name) => /^[A-Z][a-z]+( [a-z]+)*$/.test(name) ? name.charAt(0).toLowerCase() + name.slice(1) : name;
 	function linkButton(label, href, o = {}) {
 		return `<a${attrs({
 			class: buttonClass(o),
@@ -12304,7 +12314,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		if (!k.term) return esc(k.label);
 		const name = GLOSSARY[k.term].term;
 		if (k.label.toLowerCase().startsWith(name.toLowerCase())) return `${term(k.term, k.label.slice(0, name.length))}${esc(k.label.slice(name.length))}`;
-		return `${esc(k.label)} (${term(k.term, name.toLowerCase())})`;
+		return `${esc(k.label)} (${term(k.term, inSentence(name))})`;
 	}
 	function controls(shown) {
 		const u = pending ?? shown;
@@ -13138,7 +13148,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const head = pageHead({
 				eyebrow: "Data · Analysis",
 				title: "Correlation finder",
-				leadHtml: `Which settings separate failed batches from good ones in a ${term("batch-table", "batch table")}: each variable’s ${term("effect", "effect")} (${term("cohens-d")}) with its 95% ${term("confidence-interval", "confidence interval")}, overall or per ${term("segment", "material, line or shift")}.`
+				leadHtml: `Which settings separate failed batches from good ones in a ${term("batch-table", "batch table")}: each variable’s ${term("effect", "effect")} (${term("cohens-d")}) with its 95% ${term("confidence-interval", "confidence interval")}, overall or per ${term("segment", "segment")}: material, line or shift.`
 			});
 			if (!ctx.api) return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
 			const o = ctx.ontology;
@@ -14786,14 +14796,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				const here = toc?.querySelector("[aria-current]");
 				if (toc && here) toc.scrollTop = here.offsetTop - toc.clientHeight / 3;
 				const target = root.querySelector(`#help-${CSS.escape(slug)}`);
-				target?.focus({ preventScroll: true });
-				if (!target || target.tagName !== "H3") return;
-				const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
-				const top = target.getBoundingClientRect().top + window.scrollY - margin;
-				window.scrollTo({
-					top,
-					behavior: scrollBehavior()
-				});
+				if (target) goToAnchor(target, { scroll: target.tagName === "H3" });
 			});
 		},
 		crumbs() {
@@ -14815,7 +14818,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	function findTerms(q, entries = ENTRIES) {
 		const words = q.toLowerCase().split(/\s+/).filter(Boolean);
 		const has = (s) => words.every((w) => s.toLowerCase().includes(w));
-		const found = words.length ? entries.filter((e) => has(e.term) || has(`${e.term} ${e.text}`)) : [...entries];
+		const found = words.length ? entries.filter((e) => has(`${e.term} ${e.text}`)) : [...entries];
 		const groups = [];
 		for (const e of found) (groups.find((x) => x.group === e.group) ?? groups[groups.push({
 			group: e.group,
@@ -14835,6 +14838,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		return key in GLOSSARY ? key : null;
 	}
 	var shownKey = null;
+	var cleared = false;
 	var wasShown = false;
 	var view = {
 		id: "glossary",
@@ -14842,8 +14846,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		icon: "book-a",
 		under: "help",
 		render(ctx) {
-			wasShown = document.querySelector("#view .glossary") !== null;
-			const { q } = ui(ctx);
+			wasShown = document.querySelector("#view [data-glossary]") !== null;
+			const u = ui(ctx);
+			const current = termFromHash(location.hash);
+			if (current !== null && (!wasShown || current !== shownKey) && !findTerms(u.q).some((g) => g.entries.some((e) => e.key === current))) {
+				u.q = "";
+				cleared = true;
+			}
+			const { q } = u;
 			const head = pageHead({
 				eyebrow: "Help",
 				title: "Glossary",
@@ -14860,14 +14870,18 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				}
 			}), { class: "grow min-w-field" })}</div>`;
 			const groups = findTerms(q);
-			const current = termFromHash(location.hash);
-			return `${head}${search}${groups.length ? groups.map((g) => `<section class="card glossary mb-4" data-key="${esc(g.group)}"><h2 class="mb-3">${esc(g.group)}</h2><dl>${g.entries.map((e) => `<dt id="term-${esc(e.key)}" tabindex="-1" data-key="${esc(e.key)}"${e.key === current ? " class=\"sel\"" : ""}>${esc(e.term)}</dt><dd data-key="${esc(e.key)}-text">${esc(e.text)}</dd>`).join("")}</dl></section>`).join("") : emptyState({
+			return `<div data-glossary>${head}${search}${groups.length ? groups.map((g) => `<section class="card glossary mb-4" data-key="${esc(g.group)}"><h2 class="mb-3">${esc(g.group)}</h2><dl>${g.entries.map((e) => `<dt id="term-${esc(e.key)}" tabindex="-1" data-key="${esc(e.key)}"${e.key === current ? " class=\"sel\"" : ""}>${esc(e.term)}</dt><dd data-key="${esc(e.key)}-text">${esc(e.text)}</dd>`).join("")}</dl></section>`).join("") : emptyState({
 				illustration: "search",
 				title: "No term matches",
 				body: "Try fewer or other words."
-			})}`;
+			})}</div>`;
 		},
 		bind(root, ctx) {
+			if (cleared) {
+				cleared = false;
+				const field = root.querySelector("input[name=q]");
+				if (field) field.value = "";
+			}
 			onAll(root, "input[name=q]", "input", (el) => {
 				ui(ctx).q = el.value;
 				ctx.rerender();
@@ -14880,13 +14894,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			shownKey = key;
 			requestAnimationFrame(() => {
 				const dt = root.querySelector(`#term-${CSS.escape(key)}`);
-				if (!dt) return;
-				dt.focus({ preventScroll: true });
-				const margin = parseFloat(getComputedStyle(dt).scrollMarginTop) || 0;
-				window.scrollTo({
-					top: dt.getBoundingClientRect().top + window.scrollY - margin,
-					behavior: scrollBehavior()
-				});
+				if (dt) goToAnchor(dt);
 			});
 		},
 		crumbs() {
@@ -15103,12 +15111,15 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (e.key === "Escape" && target) hide();
 		});
 		window.addEventListener("scroll", hide, { passive: true });
+		let tapped = false;
+		root.addEventListener("pointerdown", (e) => tapped = e.pointerType === "touch");
 		root.addEventListener("click", (e) => {
 			const word = e.target instanceof Element ? e.target.closest(".term[data-tooltip]") : null;
-			if (word && word !== target) {
+			if (!word) return hide();
+			if (word !== target) {
 				hide();
 				show(word);
-			} else hide();
+			} else if (tapped && e.detail > 0) hide();
 		});
 	}
 	function score(item, query) {
@@ -16137,6 +16148,15 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var go = (hash) => () => {
 		location.hash = hash;
 	};
+	var GLOSSARY_ITEMS = ENTRIES.map((e) => ({
+		id: `term:${e.key}`,
+		label: e.term,
+		group: "Glossary",
+		icon: "book-a",
+		hint: e.group,
+		late: true,
+		run: go(`#/glossary/${encodeURIComponent(e.key)}`)
+	}));
 	var helpAsked = false;
 	var helpOpen = false;
 	async function openHelp() {
@@ -16299,21 +16319,12 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const helpFound = guide ? helpItems(guide, (href) => {
 				location.hash = href;
 			}) : [];
-			const terms = ENTRIES.map((e) => ({
-				id: `term:${e.key}`,
-				label: e.term,
-				group: "Glossary",
-				icon: "book-a",
-				hint: e.group,
-				late: true,
-				run: go(`#/glossary/${encodeURIComponent(e.key)}`)
-			}));
 			return [
 				...pages,
 				...actions,
 				...sites,
 				...helpFound,
-				...terms
+				...GLOSSARY_ITEMS
 			];
 		},
 		canSearch: () => Boolean(api && ctx.ontology.site),

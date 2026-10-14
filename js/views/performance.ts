@@ -3,7 +3,17 @@ import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread, type Kpi } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { card, emptyState, needsApi, pageHead, skeleton, apiUnreachable, loadFailed, term } from '../lib/ui.ts';
+import {
+  card,
+  emptyState,
+  needsApi,
+  pageHead,
+  skeleton,
+  apiUnreachable,
+  loadFailed,
+  term,
+  inSentence,
+} from '../lib/ui.ts';
 import { GLOSSARY } from '../lib/glossary-data.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
@@ -66,7 +76,7 @@ function kpiLabel(k: Kpi): string {
   const name = GLOSSARY[k.term].term;
   if (k.label.toLowerCase().startsWith(name.toLowerCase()))
     return `${term(k.term, k.label.slice(0, name.length))}${esc(k.label.slice(name.length))}`;
-  return `${esc(k.label)} (${term(k.term, name.toLowerCase())})`;
+  return `${esc(k.label)} (${term(k.term, inSentence(name))})`;
 }
 
 function controls(shown: Ui): string {

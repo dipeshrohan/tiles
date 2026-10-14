@@ -107,13 +107,16 @@ export function installTooltips(root: Document = document): void {
     if (e.key === 'Escape' && target) hide();
   });
   window.addEventListener('scroll', hide, { passive: true });
-  // A tap (or a click) on a glossary term (U4.05) shows its definition, and another hides it; any
-  // other click hides the tooltip.
+  // A tap on a glossary term (U4.05) shows its definition, and another tap hides it; a click or
+  // Enter keeps it shown (it was shown by pointing or by the focus). Any other click hides it.
+  let tapped = false;
+  root.addEventListener('pointerdown', (e) => (tapped = e.pointerType === 'touch'));
   root.addEventListener('click', (e) => {
     const word = e.target instanceof Element ? e.target.closest<HTMLElement>('.term[data-tooltip]') : null;
-    if (word && word !== target) {
+    if (!word) return hide();
+    if (word !== target) {
       hide();
       show(word);
-    } else hide();
+    } else if (tapped && e.detail > 0) hide();
   });
 }

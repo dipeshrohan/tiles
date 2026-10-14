@@ -34,6 +34,7 @@ test('inline Markdown: escaped, code kept as written, links into the app', () =>
   assert.equal(inline('**Save** and *then*'), '<strong>Save</strong> and <em>then</em>');
   assert.equal(inline('see [roles](#roles)'), 'see <a href="#/help/roles">roles</a>');
   assert.equal(inline('the [admin guide](admin.md)'), 'the admin guide'); // not in the app
+  assert.equal(inline('[the glossary](../ui/glossary.md)'), '<a href="#/glossary">the glossary</a>'); // its page
   assert.equal(
     inline('[spec](https://example.com/a)'),
     '<a href="https://example.com/a" target="_blank" rel="noopener">spec</a>',

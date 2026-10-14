@@ -528,6 +528,19 @@ test('glossary terms explain themselves where they appear; the Glossary page lis
   assert.equal(await page.locator('.glossary dt').innerText(), 'Theil–Sen slope');
   await page.fill('input[name=q]', 'zzqx');
   await page.waitForSelector('#view :text("No term matches")');
+  // A link to another term shows it, whatever was searched for.
+  await page.evaluate(() => (location.hash = '#/glossary/baseline'));
+  await page.waitForFunction(() => document.activeElement?.id === 'term-baseline');
+  assert.equal(await page.inputValue('input[name=q]'), '');
+  // Clicked with a mouse, a term's definition stays shown.
+  await page.goto(`${httpBase}#/physics`);
+  const median = page.locator('.term[data-term="median"]').first();
+  await median.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(200);
+  await median.click();
+  await tip.waitFor({ state: 'visible' });
+  await page.waitForTimeout(500);
+  assert.ok(await tip.isVisible(), 'still shown after the hover timer');
   assert.deepEqual(errors, []);
   await page.close();
 });

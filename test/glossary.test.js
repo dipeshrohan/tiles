@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { generate, parse } from '../scripts/glossary.js';
 import { GLOSSARY } from '../js/lib/glossary-data.ts';
-import { term } from '../js/lib/ui.ts';
+import { inSentence, term } from '../js/lib/ui.ts';
 import { findTerms, termFromHash } from '../js/views/glossary.ts';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -70,4 +70,11 @@ test('the Glossary page finds terms by their words and definitions, in their gro
   assert.equal(termFromHash('#/glossary/cohens-d'), 'cohens-d');
   assert.equal(termFromHash('#/glossary/nothing'), null);
   assert.equal(termFromHash('#/glossary'), null);
+});
+
+test('a term named inside a sentence: plain words in lower case, names and abbreviations as written', () => {
+  assert.equal(inSentence('Recall'), 'recall');
+  assert.equal(inSentence('Warning time'), 'warning time');
+  for (const name of ['MAD', 'SPC', "Cohen's d", 'Theil–Sen slope', 'Western Electric rules', 'Robust σ'])
+    assert.equal(inSentence(name), name);
 });

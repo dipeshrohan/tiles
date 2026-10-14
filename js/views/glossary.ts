@@ -1,6 +1,6 @@
 // Glossary (U4.05): every term of docs/ui/glossary.md by group, with a field to find one;
 // #/glossary/<term> opens it at that term. Pages explain a term in place with term() (js/lib/ui.ts).
-import { esc, onAll, scrollBehavior } from '../lib/dom.ts';
+import { esc, goToAnchor, onAll } from '../lib/dom.ts';
 import { GLOSSARY, type GlossaryKey } from '../lib/glossary-data.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
 import { emptyState, field as labelled, input, pageHead } from '../lib/ui.ts';
@@ -23,12 +23,11 @@ export const ENTRIES: readonly Entry[] = (Object.keys(GLOSSARY) as GlossaryKey[]
   ...GLOSSARY[key],
 }));
 
-// The terms a search finds, in their groups (in the glossary's order): by the term's words first, then
-// by its definition's.
+// The terms a search finds, by their name or definition, in their groups (in the glossary's order).
 export function findTerms(q: string, entries: readonly Entry[] = ENTRIES): { group: string; entries: Entry[] }[] {
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const has = (s: string): boolean => words.every((w) => s.toLowerCase().includes(w));
-  const found = words.length ? entries.filter((e) => has(e.term) || has(`${e.term} ${e.text}`)) : [...entries];
+  const found = words.length ? entries.filter((e) => has(`${e.term} ${e.text}`)) : [...entries];
   const groups: { group: string; entries: Entry[] }[] = [];
   for (const e of found) {
     const g = groups.find((x) => x.group === e.group) ?? groups[groups.push({ group: e.group, entries: [] }) - 1];
@@ -51,6 +50,7 @@ export function termFromHash(hash: string): GlossaryKey | null {
 }
 
 let shownKey: GlossaryKey | null = null;
+let cleared = false;
 let wasShown = false;
 
 const view: View = {
@@ -59,8 +59,16 @@ const view: View = {
   icon: 'book-a',
   under: 'help',
   render(ctx) {
-    wasShown = document.querySelector('#view .glossary') !== null;
-    const { q } = ui(ctx);
+    wasShown = document.querySelector('#view [data-glossary]') !== null;
+    const u = ui(ctx);
+    const current = termFromHash(location.hash);
+    // A link to a term shows it, whatever was searched for last (not a search typed here since).
+    const arriving = current !== null && (!wasShown || current !== shownKey);
+    if (arriving && !findTerms(u.q).some((g) => g.entries.some((e) => e.key === current))) {
+      u.q = '';
+      cleared = true; // the field keeps what was typed (js/lib/morph.ts): bind empties it
+    }
+    const { q } = u;
     const head = pageHead({
       eyebrow: 'Help',
       title: 'Glossary',
@@ -78,7 +86,6 @@ const view: View = {
       { class: 'grow min-w-field' },
     )}</div>`;
     const groups = findTerms(q);
-    const current = termFromHash(location.hash);
     const list = groups.length
       ? groups
           .map(
@@ -92,9 +99,14 @@ const view: View = {
           )
           .join('')
       : emptyState({ illustration: 'search', title: 'No term matches', body: 'Try fewer or other words.' });
-    return `${head}${search}${list}`;
+    return `<div data-glossary>${head}${search}${list}</div>`;
   },
   bind(root, ctx) {
+    if (cleared) {
+      cleared = false;
+      const field = root.querySelector<HTMLInputElement>('input[name=q]');
+      if (field) field.value = '';
+    }
     onAll(root, 'input[name=q]', 'input', (el) => {
       ui(ctx).q = (el as HTMLInputElement).value;
       ctx.rerender();
@@ -109,10 +121,7 @@ const view: View = {
     shownKey = key;
     requestAnimationFrame(() => {
       const dt = root.querySelector<HTMLElement>(`#term-${CSS.escape(key)}`);
-      if (!dt) return;
-      dt.focus({ preventScroll: true });
-      const margin = parseFloat(getComputedStyle(dt).scrollMarginTop) || 0;
-      window.scrollTo({ top: dt.getBoundingClientRect().top + window.scrollY - margin, behavior: scrollBehavior() });
+      if (dt) goToAnchor(dt);
     });
   },
   crumbs() {

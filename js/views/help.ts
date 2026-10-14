@@ -1,7 +1,7 @@
 // Help (U4.04): the user guide in the app, its contents beside it; #/help/<section> opens it at a
 // section. Each page's help button (in the top bar) shows that page's section in a side sheet, with
 // a link here. The guide is loaded on first use (js/lib/help.ts).
-import { esc, onAll, scrollBehavior } from '../lib/dom.ts';
+import { esc, goToAnchor, onAll } from '../lib/dom.ts';
 import { chapter, helpHref, helpLoaded, loadHelp, type HelpSection } from '../lib/help.ts';
 import { errorState, linkButton, pageHead, skeleton } from '../lib/ui.ts';
 import { savedScroll } from '../lib/url-state.ts';
@@ -117,14 +117,8 @@ const view: View = {
       const here = toc?.querySelector<HTMLElement>('[aria-current]');
       if (toc && here) toc.scrollTop = here.offsetTop - toc.clientHeight / 3;
       const target = root.querySelector<HTMLElement>(`#help-${CSS.escape(slug)}`);
-      target?.focus({ preventScroll: true });
-      // A section's own heading is at the top already: only a subsection is scrolled to. The window
-      // scrolls, not an ancestor (scrollIntoView moved the app's clipped shell); the heading's
-      // scroll-margin keeps it below the sticky top bar.
-      if (!target || target.tagName !== 'H3') return;
-      const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
-      const top = target.getBoundingClientRect().top + window.scrollY - margin;
-      window.scrollTo({ top, behavior: scrollBehavior() });
+      // A section's own heading is at the top already: only a subsection is scrolled to.
+      if (target) goToAnchor(target, { scroll: target.tagName === 'H3' });
     });
   },
   crumbs() {

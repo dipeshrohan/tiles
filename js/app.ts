@@ -944,6 +944,16 @@ need(document, '#menu').innerHTML = icon('menu', { size: 18 });
 const go = (hash: string) => () => {
   location.hash = hash;
 };
+// The glossary's terms (U4.05), after the rest like the guide's headings; made once.
+const GLOSSARY_ITEMS: PaletteItem[] = GLOSSARY_ENTRIES.map((e) => ({
+  id: `term:${e.key}`,
+  label: e.term,
+  group: 'Glossary',
+  icon: 'book-a',
+  hint: e.group,
+  late: true,
+  run: go(`#/glossary/${encodeURIComponent(e.key)}`),
+}));
 // The guide's headings join the palette once loaded (U4.04): asked for once, as the palette first opens.
 let helpAsked = false;
 
@@ -1116,17 +1126,7 @@ const palette = installPalette({
           location.hash = href;
         })
       : [];
-    // The glossary's terms (U4.05), after the rest like the guide's headings.
-    const terms: PaletteItem[] = GLOSSARY_ENTRIES.map((e) => ({
-      id: `term:${e.key}`,
-      label: e.term,
-      group: 'Glossary',
-      icon: 'book-a',
-      hint: e.group,
-      late: true,
-      run: go(`#/glossary/${encodeURIComponent(e.key)}`),
-    }));
-    return [...pages, ...actions, ...sites, ...helpFound, ...terms];
+    return [...pages, ...actions, ...sites, ...helpFound, ...GLOSSARY_ITEMS];
   },
   canSearch: () => Boolean(api && ctx.ontology.site),
   // Where records picked come from: they come back among the recent picks there only.

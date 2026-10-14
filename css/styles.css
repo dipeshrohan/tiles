@@ -2567,6 +2567,11 @@ kbd {
   margin: 0;
   color: var(--soft);
 }
+/* The term a link named. */
+.glossary dt.sel,
+.glossary dt.sel + dd {
+  color: var(--accent);
+}
 @media (max-width: 640px) {
   .glossary dl {
     grid-template-columns: minmax(0, 1fr);

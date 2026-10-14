@@ -310,7 +310,7 @@ const view: View = {
     const head = pageHead({
       eyebrow: 'Data · Analysis',
       title: 'Correlation finder',
-      leadHtml: `Which settings separate failed batches from good ones in a ${term('batch-table', 'batch table')}: each variable’s ${term('effect', 'effect')} (${term('cohens-d')}) with its 95% ${term('confidence-interval', 'confidence interval')}, overall or per ${term('segment', 'material, line or shift')}.`,
+      leadHtml: `Which settings separate failed batches from good ones in a ${term('batch-table', 'batch table')}: each variable’s ${term('effect', 'effect')} (${term('cohens-d')}) with its 95% ${term('confidence-interval', 'confidence interval')}, overall or per ${term('segment', 'segment')}: material, line or shift.`,
     });
     if (!ctx.api)
       return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
