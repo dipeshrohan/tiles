@@ -43,6 +43,7 @@ import { bindTable, dataTable, type Column, type TableOptions } from '../lib/dat
 const PAGE = 500;
 const MAX_ROWS = 10_000;
 const PLOT_MAX = 8; // the Data explorer's limit
+const CHECK_MAX = 1000; // signals the API checks in one request
 
 interface Ui {
   query: Required<Pick<SignalQuery, 'q' | 'source' | 'linked' | 'quality'>>;
@@ -323,12 +324,19 @@ export function tableOptions(
       cell: (s) => (s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`),
     },
     { key: 'source', label: 'Source', value: (s) => sourceLabel(s.source), cell: (s) => esc(sourceLabel(s.source)) },
-    { key: 'node', label: 'Ontology node', value: (s) => s.node_label ?? s.node_id, cell: (s) => linkCell(s) },
+    {
+      key: 'node',
+      label: 'Ontology node',
+      value: (s) => s.node_label ?? s.node_id,
+      csv: (s) => s.node_label ?? s.node_id ?? '',
+      cell: (s) => linkCell(s),
+    },
     { key: 'latest', label: 'Latest reading', value: (s) => s.last_at, cell: (s) => esc(latest(s)) },
     {
       key: 'quality',
       label: 'Quality',
       value: (s) => (s.quality ? (QUALITY_RANK[s.quality.badge] ?? 4) : null),
+      csv: (s) => s.quality?.badge ?? 'not checked',
       cell: (s) =>
         s.quality
           ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>`
@@ -363,6 +371,10 @@ export function tableOptions(
       run: (action, keys) => bulk(ctx, action, keys),
     },
     csv: 'signals.csv',
+    drawn: () => {
+      const root = document.querySelector<HTMLElement>('#view');
+      if (root) bindResults(root, ctx);
+    },
   };
 }
 
@@ -380,15 +392,31 @@ function bulk(ctx: Context, action: string, keys: string[]): Promise<unknown> | 
     return;
   }
   if (action === 'check' && ctx.api && site) {
-    return ctx.api.signals.checkQuality(site.id, keys).then((r) => {
-      ctx.toast(`Checked ${r.checked} signal(s)`, {
-        type: 'success',
-        description: `${r.badges.good} good, ${r.badges.warn} with warnings, ${r.badges.bad} with problems.`,
+    const api = ctx.api;
+    // The API checks up to CHECK_MAX at a time: larger selections go in turns.
+    const chunks = Array.from({ length: Math.ceil(keys.length / CHECK_MAX) }, (_, i) =>
+      keys.slice(i * CHECK_MAX, (i + 1) * CHECK_MAX),
+    );
+    return chunks
+      .reduce<Promise<{ checked: number; badges: Record<string, number> }>>(
+        (sum, ids) =>
+          sum.then((t) =>
+            api.signals.checkQuality(site.id, ids).then((r) => ({
+              checked: t.checked + r.checked,
+              badges: Object.fromEntries(Object.entries(r.badges).map(([k, v]) => [k, (t.badges[k] ?? 0) + v])),
+            })),
+          ),
+        Promise.resolve({ checked: 0, badges: {} }),
+      )
+      .then((r) => {
+        ctx.toast(`Checked ${r.checked} signal(s)`, {
+          type: 'success',
+          description: `${r.badges.good ?? 0} good, ${r.badges.warn ?? 0} with warnings, ${r.badges.bad ?? 0} with problems.`,
+        });
+        ux('task', 'signal.quality-checked');
+        const root = document.querySelector<HTMLElement>('#view');
+        if (root) void search(root, ctx);
       });
-      ux('task', 'signal.quality-checked');
-      const root = document.querySelector<HTMLElement>('#view');
-      if (root) void search(root, ctx);
-    });
   }
 }
 
@@ -409,16 +437,17 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
   // The rest of the catalogue a page at a time, the table filling as they come.
   if (page && page.signals.length < Math.min(page.total, MAX_ROWS)) {
     const first = page;
+    const asked = { ...ui(ctx).query }; // the search these pages answer, whatever is typed meanwhile
     void (async () => {
       const all = [...first.signals];
       for (let offset = PAGE; offset < Math.min(first.total, MAX_ROWS); offset += PAGE) {
         let next: { total: number; signals: SignalInfo[] };
         try {
-          next = await ctx.api!.signals.list(site.id, { ...ui(ctx).query, limit: PAGE, offset });
+          next = await ctx.api!.signals.list(site.id, { ...asked, limit: PAGE, offset });
         } catch {
           break; // the client showed why; what came stays
         }
-        if (mine !== latestSearch) return;
+        if (mine !== latestSearch || JSON.stringify(ui(ctx).query) !== query) return;
         all.push(...next.signals);
         results = { total: first.total, signals: [...all], loading: all.length < Math.min(first.total, MAX_ROWS) };
         if (!next.signals.length) break;
@@ -485,20 +514,39 @@ function fill(root: HTMLElement, ctx: Context): void {
   bindResults(root, ctx);
 }
 
+// The rows' buttons, wired once per binding on the box that holds the table (the table draws rows
+// again as it scrolls and sorts), and the edit form each time one is drawn.
+const delegated = new WeakMap<Element, AbortSignal>();
+const formsBound = new WeakMap<Element, AbortSignal>();
+
 function bindResults(root: HTMLElement, ctx: Context): void {
-  onAll(root, '[data-quality]', 'click', (el) => {
-    const u = ui(ctx);
-    u.open = u.open === el.dataset.quality ? null : (el.dataset.quality ?? null);
-    fill(root, ctx);
-  });
-  onAll(root, '[data-edit]', 'click', (el) => {
-    ui(ctx).editing = el.dataset.edit ?? null;
-    fill(root, ctx);
-  });
-  onAll(root, '[data-cancel-edit]', 'click', () => {
-    ui(ctx).editing = null;
-    fill(root, ctx);
-  });
+  const box = root.querySelector<HTMLElement>('[data-signal-results]');
+  if (box && delegated.get(box) !== bound()) {
+    delegated.set(box, bound());
+    box.addEventListener(
+      'click',
+      (e) => {
+        const t = e.target instanceof Element ? e.target : null;
+        const quality = t?.closest<HTMLElement>('[data-quality]')?.dataset.quality;
+        const edit = t?.closest<HTMLElement>('[data-edit]')?.dataset.edit;
+        if (quality !== undefined) {
+          const u = ui(ctx);
+          u.open = u.open === quality ? null : quality;
+          fill(root, ctx);
+        } else if (edit !== undefined) {
+          ui(ctx).editing = edit;
+          fill(root, ctx);
+        } else if (t?.closest('[data-cancel-edit]')) {
+          ui(ctx).editing = null;
+          fill(root, ctx);
+        }
+      },
+      { signal: bound() },
+    );
+  }
+  const form = root.querySelector('#signal-form');
+  if (!form || formsBound.get(form) === bound()) return;
+  formsBound.set(form, bound());
   onSubmit(root, '#signal-form', (form) => {
     const site = ctx.ontology.site;
     const sig = results?.signals.find((s) => s.id === form.dataset.signal);

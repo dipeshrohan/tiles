@@ -2625,6 +2625,13 @@ kbd {
 .table-frame table {
   table-layout: auto;
 }
+/* Once someone sets a column's width, the widths are what they set (narrower than the content too). */
+.table-frame table.sized {
+  table-layout: fixed;
+}
+.table-frame table.sized td {
+  overflow-wrap: anywhere;
+}
 .table-frame thead th {
   position: sticky;
   top: 0;

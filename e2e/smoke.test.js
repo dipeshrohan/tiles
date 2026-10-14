@@ -2310,6 +2310,10 @@ test('tables v2: sort, choose columns, compact rows, select to plot, export CSV,
       { polling: 100 },
     );
   await scrollTo(true, 'press299.temp');
+  // A row drawn as the table scrolled works like the first ones: its Edit opens the form.
+  await table.locator('tr[data-row]:has(code:text-is("press299.temp")) [data-edit]').click();
+  await page.waitForSelector('#signal-form');
+  await page.click('[data-cancel-edit]');
   await scrollTo(false, 'press000.temp');
   // Export the view as CSV: its columns, every row, in its order.
   const [download] = await Promise.all([page.waitForEvent('download'), table.locator('[data-table-csv]').click()]);
@@ -2319,7 +2323,7 @@ test('tables v2: sort, choose columns, compact rows, select to plot, export CSV,
     .split('\r\n');
   assert.equal(csv.length, 301);
   assert.match(csv[0], /^Tag,Description,Unit,Rate,Ontology node,Latest reading,Quality$/);
-  assert.match(csv[1], /^press000\.temp,Sensor 300,/);
+  assert.equal(csv[1], 'press000.temp,Sensor 300,bar,—,,—,not checked');
   // Select two and plot them; the bar says how many.
   await table.locator('tbody tr:not(.spacer) [data-table-row]').nth(0).check();
   await table.locator('tbody tr:not(.spacer) [data-table-row]').nth(1).check();

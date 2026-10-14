@@ -12,7 +12,7 @@ import {
 
 const cols = [
   { key: 'tag', label: 'Tag', value: (r) => r.tag, cell: (r) => `<code>${r.tag}</code>` },
-  { key: 'n', label: 'Count', value: (r) => r.n, cell: (r) => String(r.n), numeric: true },
+  { key: 'n', label: 'Count', value: (r) => r.n, cell: (r) => String(r.n ?? ''), numeric: true },
   { key: 'note', label: 'Note', cell: (r) => `<b>${r.note}</b>` },
   { key: 'act', label: 'Actions', srOnly: true, fixed: true, cell: () => '<button>Edit</button>' },
 ];

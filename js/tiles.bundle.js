@@ -8945,13 +8945,24 @@
 				page: 0,
 				selected: /* @__PURE__ */ new Set(),
 				start: 0,
-				rowHeight: null
+				rowHeight: null,
+				sorted: null
 			};
 			live.set(o.id, s);
 		}
 		return s;
 	}
 	var keep = (id, s) => save$1(`table:${id}`, s.prefs);
+	function ordered(o, s) {
+		const rows = o.rows ?? [];
+		const sort = JSON.stringify(s.prefs.sort);
+		if (s.sorted?.rows !== rows || s.sorted.sort !== sort) s.sorted = {
+			rows,
+			sort,
+			out: sortRows(rows, o.columns, s.prefs.sort)
+		};
+		return s.sorted.out;
+	}
 	function visibleColumns(columns, prefs) {
 		return columns.filter((c, i) => i === 0 || c.fixed || !prefs.hidden.includes(c.key));
 	}
@@ -8995,7 +9006,7 @@
 			return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, "\"\"")}"` : safe;
 		};
 		const line = (values) => values.map(field).join(",");
-		return `${[line(cols.map((c) => c.label)), ...rows.map((r) => line(cols.map((c) => c.value ? String(c.value(r) ?? "") : text(c.cell(r)))))].join("\r\n")}\r\n`;
+		return `${[line(cols.map((c) => c.label)), ...rows.map((r) => line(cols.map((c) => c.csv ? c.csv(r) : text(c.cell(r)))))].join("\r\n")}\r\n`;
 	}
 	var textOf = (html) => {
 		const el = document.createElement("template");
@@ -9070,7 +9081,7 @@
     </div>`;
 		if (o.rows === null) return `${tools}${skeleton.table(6, Math.min(cols.length, 6), `Loading ${o.label.toLowerCase()}…`)}`;
 		if (!o.rows.length) return `${tools}${o.empty}`;
-		const rows = sortRows(o.rows, o.columns, s.prefs.sort);
+		const rows = ordered(o, s);
 		const keys = new Set(rows.map(o.key));
 		for (const k of s.selected) if (!keys.has(k)) s.selected.delete(k);
 		const bar = o.select && s.selected.size ? `<div class="bulk-bar" role="region" aria-label="Selected rows"><span><b>${s.selected.size}</b> selected</span>${o.select.actions.map((a) => button(a.label, {
@@ -9095,8 +9106,12 @@
 		})}</nav>` : "";
 		const virtual = !o.pageSize && rows.length > 200;
 		const widths = cols.map((c) => s.prefs.widths[c.key] ?? c.width);
+		const sized = cols.some((c) => s.prefs.widths[c.key] !== void 0);
 		const colgroup = `<colgroup>${o.select ? "<col class=\"select-col\">" : ""}${widths.map((w) => w ? `<col style="width:${w}px">` : "<col>").join("")}</colgroup>`;
-		return `${tools}${bar}<div class="table-wrap table-frame"${virtual ? " data-virtual" : ""} tabindex="0" role="region" aria-label="${esc(o.label)}"><table${attrs({ "aria-rowcount": virtual ? rows.length + 1 : void 0 })}>${colgroup}${head(o, s, cols, rows)}<tbody>${bodyHtml(o, s, cols, rows)}</tbody></table></div>${paging}`;
+		return `${tools}${bar}<div class="table-wrap table-frame"${virtual ? " data-virtual" : ""} tabindex="0" role="region" aria-label="${esc(o.label)}"><table${attrs({
+			"aria-rowcount": virtual ? rows.length + 1 : void 0,
+			class: sized ? "sized" : void 0
+		})}>${colgroup}${head(o, s, cols, rows)}<tbody>${bodyHtml(o, s, cols, rows)}</tbody></table></div>${paging}`;
 	}
 	function dataTable(o) {
 		return `<div class="data-table density-${stateOf(o).prefs.density}" data-table="${esc(o.id)}">${inner(o)}</div>`;
@@ -9110,13 +9125,14 @@
 			el.className = `data-table density-${s.prefs.density}`;
 			morph(el, inner(o));
 			mixed();
+			o.drawn?.(el);
 		};
 		const mixed = () => {
 			const all = el.querySelector("[data-table-all]");
 			if (all) all.indeterminate = all.hasAttribute("data-mixed");
 		};
 		mixed();
-		const sorted = () => sortRows(o.rows ?? [], o.columns, s.prefs.sort);
+		const sorted = () => ordered(o, s);
 		el.addEventListener("click", (e) => {
 			const t = e.target instanceof Element ? e.target : null;
 			const sortBy = t?.closest("[data-sort]")?.dataset.sort;
@@ -9157,7 +9173,8 @@
 				s.page += Number(step);
 				redraw();
 				el.querySelector(".table-frame")?.scrollTo({ top: 0 });
-				el.querySelector(`[data-table-page="${step}"]:not(:disabled), [data-table-page]:not(:disabled)`)?.focus();
+				const same = el.querySelector(`[data-table-page="${step}"]`);
+				(same && !same.disabled ? same : el.querySelector("[data-table-page]:not(:disabled)"))?.focus();
 				return;
 			}
 			if (t?.closest("[data-table-clear]")) {
@@ -9166,8 +9183,15 @@
 				el.querySelector("[data-table-all]")?.focus();
 				return;
 			}
-			const action = t?.closest("[data-table-action]")?.dataset.tableAction;
-			if (action && o.select) o.select.run(action, [...s.selected]);
+			const btn = t?.closest("[data-table-action]");
+			const action = btn?.dataset.tableAction;
+			if (btn && action && o.select && !btn.disabled) {
+				const running = o.select.run(action, [...s.selected]);
+				if (running instanceof Promise) {
+					setBusy(btn, true);
+					running.finally(() => btn.isConnected && setBusy(btn, false));
+				}
+			}
 		}, { signal });
 		el.addEventListener("change", (e) => {
 			const t = e.target;
@@ -9230,20 +9254,25 @@
 		if (!frame) return;
 		const first = frame.querySelector("tbody tr:not(.spacer)");
 		if (first && s.rowHeight === null) s.rowHeight = first.getBoundingClientRect().height || null;
+		const drawWindow = () => {
+			const rows = sorted();
+			const h = s.rowHeight ?? ROW_HEIGHT[s.prefs.density];
+			const top = frame.querySelector("thead")?.getBoundingClientRect().height ?? 0;
+			const { start } = windowOf(rows.length, frame.scrollTop - top, frame.clientHeight, h);
+			if (Math.abs(start - s.start) < OVERSCAN / 2) return;
+			s.start = start;
+			const tbody = frame.querySelector("tbody");
+			if (tbody) morph(tbody, bodyHtml(o, s, visibleColumns(o.columns, s.prefs), rows));
+			o.drawn?.(el);
+		};
+		drawWindow();
 		let ticking = false;
 		frame.addEventListener("scroll", () => {
 			if (ticking) return;
 			ticking = true;
 			requestAnimationFrame(() => {
 				ticking = false;
-				const rows = sorted();
-				const h = s.rowHeight ?? ROW_HEIGHT[s.prefs.density];
-				const head = frame.querySelector("thead")?.getBoundingClientRect().height ?? 0;
-				const { start } = windowOf(rows.length, frame.scrollTop - head, frame.clientHeight, h);
-				if (Math.abs(start - s.start) < OVERSCAN / 2) return;
-				s.start = start;
-				const tbody = frame.querySelector("tbody");
-				if (tbody) morph(tbody, bodyHtml(o, s, visibleColumns(o.columns, s.prefs), rows));
+				drawWindow();
 			});
 		}, {
 			signal,
@@ -9958,6 +9987,7 @@
 	var PAGE$2 = 500;
 	var MAX_ROWS = 1e4;
 	var PLOT_MAX = 8;
+	var CHECK_MAX = 1e3;
 	var results = null;
 	var failed$1 = false;
 	var checking = false;
@@ -10240,6 +10270,7 @@
 					key: "node",
 					label: "Ontology node",
 					value: (s) => s.node_label ?? s.node_id,
+					csv: (s) => s.node_label ?? s.node_id ?? "",
 					cell: (s) => linkCell(s)
 				},
 				{
@@ -10252,6 +10283,7 @@
 					key: "quality",
 					label: "Quality",
 					value: (s) => s.quality ? QUALITY_RANK[s.quality.badge] ?? 4 : null,
+					csv: (s) => s.quality?.badge ?? "not checked",
 					cell: (s) => s.quality ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>` : qualityBadge(null)
 				},
 				{
@@ -10282,7 +10314,11 @@
 				}] : []],
 				run: (action, keys) => bulk(ctx, action, keys)
 			},
-			csv: "signals.csv"
+			csv: "signals.csv",
+			drawn: () => {
+				const root = document.querySelector("#view");
+				if (root) bindResults(root, ctx);
+			}
 		};
 	}
 	function bulk(ctx, action, keys) {
@@ -10295,15 +10331,24 @@
 			location.hash = `#/explorer?signals=${keys.map(encodeURIComponent).join(",")}`;
 			return;
 		}
-		if (action === "check" && ctx.api && site) return ctx.api.signals.checkQuality(site.id, keys).then((r) => {
-			ctx.toast(`Checked ${r.checked} signal(s)`, {
-				type: "success",
-				description: `${r.badges.good} good, ${r.badges.warn} with warnings, ${r.badges.bad} with problems.`
+		if (action === "check" && ctx.api && site) {
+			const api = ctx.api;
+			return Array.from({ length: Math.ceil(keys.length / CHECK_MAX) }, (_, i) => keys.slice(i * CHECK_MAX, (i + 1) * CHECK_MAX)).reduce((sum, ids) => sum.then((t) => api.signals.checkQuality(site.id, ids).then((r) => ({
+				checked: t.checked + r.checked,
+				badges: Object.fromEntries(Object.entries(r.badges).map(([k, v]) => [k, (t.badges[k] ?? 0) + v]))
+			}))), Promise.resolve({
+				checked: 0,
+				badges: {}
+			})).then((r) => {
+				ctx.toast(`Checked ${r.checked} signal(s)`, {
+					type: "success",
+					description: `${r.badges.good ?? 0} good, ${r.badges.warn ?? 0} with warnings, ${r.badges.bad ?? 0} with problems.`
+				});
+				ux("task", "signal.quality-checked");
+				const root = document.querySelector("#view");
+				if (root) search$1(root, ctx);
 			});
-			ux("task", "signal.quality-checked");
-			const root = document.querySelector("#view");
-			if (root) search$1(root, ctx);
-		});
+		}
 	}
 	async function search$1(root, ctx) {
 		const site = ctx.ontology.site;
@@ -10321,20 +10366,21 @@
 		if (mine !== latestSearch) return;
 		if (page && page.signals.length < Math.min(page.total, MAX_ROWS)) {
 			const first = page;
+			const asked = { ...ui$2(ctx).query };
 			(async () => {
 				const all = [...first.signals];
 				for (let offset = PAGE$2; offset < Math.min(first.total, MAX_ROWS); offset += PAGE$2) {
 					let next;
 					try {
 						next = await ctx.api.signals.list(site.id, {
-							...ui$2(ctx).query,
+							...asked,
 							limit: PAGE$2,
 							offset
 						});
 					} catch {
 						break;
 					}
-					if (mine !== latestSearch) return;
+					if (mine !== latestSearch || JSON.stringify(ui$2(ctx).query) !== query) return;
 					all.push(...next.signals);
 					results = {
 						total: first.total,
@@ -10394,20 +10440,32 @@
 		}
 		bindResults(root, ctx);
 	}
+	var delegated = /* @__PURE__ */ new WeakMap();
+	var formsBound = /* @__PURE__ */ new WeakMap();
 	function bindResults(root, ctx) {
-		onAll(root, "[data-quality]", "click", (el) => {
-			const u = ui$2(ctx);
-			u.open = u.open === el.dataset.quality ? null : el.dataset.quality ?? null;
-			fill(root, ctx);
-		});
-		onAll(root, "[data-edit]", "click", (el) => {
-			ui$2(ctx).editing = el.dataset.edit ?? null;
-			fill(root, ctx);
-		});
-		onAll(root, "[data-cancel-edit]", "click", () => {
-			ui$2(ctx).editing = null;
-			fill(root, ctx);
-		});
+		const box = root.querySelector("[data-signal-results]");
+		if (box && delegated.get(box) !== bound()) {
+			delegated.set(box, bound());
+			box.addEventListener("click", (e) => {
+				const t = e.target instanceof Element ? e.target : null;
+				const quality = t?.closest("[data-quality]")?.dataset.quality;
+				const edit = t?.closest("[data-edit]")?.dataset.edit;
+				if (quality !== void 0) {
+					const u = ui$2(ctx);
+					u.open = u.open === quality ? null : quality;
+					fill(root, ctx);
+				} else if (edit !== void 0) {
+					ui$2(ctx).editing = edit;
+					fill(root, ctx);
+				} else if (t?.closest("[data-cancel-edit]")) {
+					ui$2(ctx).editing = null;
+					fill(root, ctx);
+				}
+			}, { signal: bound() });
+		}
+		const form = root.querySelector("#signal-form");
+		if (!form || formsBound.get(form) === bound()) return;
+		formsBound.set(form, bound());
 		onSubmit(root, "#signal-form", (form) => {
 			const site = ctx.ontology.site;
 			const sig = results?.signals.find((s) => s.id === form.dataset.signal);

@@ -9,7 +9,7 @@
 // A page draws `dataTable(o)` in its HTML and calls `bindTable(root, o)` in bind; changes to the
 // table's own state (sort, columns, scrolling) redraw only the table, through the morph, so a form
 // in a row keeps what is typed.
-import { esc, bound } from './dom.ts';
+import { esc, bound, setBusy } from './dom.ts';
 import { attrs, button, skeleton, type Attrs } from './ui.ts';
 import { icon } from './icons.ts';
 import { load, save } from './store.ts';
@@ -26,8 +26,9 @@ export interface Column<T> {
   label: string;
   srOnly?: boolean; // an actions column: its header is for screen readers
   cell(row: T): string; // built markup (escape what it holds)
-  // What it sorts and exports by; without one, it doesn't sort and exports its cell's text.
+  // What it sorts by; without one, it doesn't sort.
   value?(row: T): string | number | null;
+  csv?(row: T): string; // what it exports as; otherwise the text its cell shows
   fixed?: boolean; // always shown (the first column is, too)
   numeric?: boolean; // right-aligned
   width?: number; // px, before someone sets their own
@@ -63,6 +64,7 @@ export interface TableOptions<T> {
   select?: { actions: readonly BulkAction[]; run(action: string, keys: string[]): unknown };
   pageSize?: number; // pages of this many; otherwise every row, virtual past VIRTUAL_AFTER
   csv?: string; // the file name: shows Export CSV
+  drawn?(el: HTMLElement): void; // after the table draws itself again (sorting, scrolling): wire its rows
 }
 
 // ---- preferences and state ----
@@ -96,6 +98,7 @@ interface Live {
   selected: Set<string>;
   start: number; // the first row drawn, when virtual
   rowHeight: number | null; // measured
+  sorted: { rows: readonly unknown[]; sort: string; out: unknown[] } | null; // until the rows or order change
 }
 const live = new Map<string, Live>();
 
@@ -111,6 +114,7 @@ function stateOf<T>(o: TableOptions<T>): Live {
       selected: new Set(),
       start: 0,
       rowHeight: null,
+      sorted: null,
     };
     live.set(o.id, s);
   }
@@ -118,6 +122,15 @@ function stateOf<T>(o: TableOptions<T>): Live {
 }
 
 const keep = (id: string, s: Live): void => save(`table:${id}`, s.prefs);
+
+// The rows in order, sorted once for each list and order (scrolling and ticking boxes reuse it).
+function ordered<T>(o: TableOptions<T>, s: Live): T[] {
+  const rows = o.rows ?? [];
+  const sort = JSON.stringify(s.prefs.sort);
+  if (s.sorted?.rows !== rows || s.sorted.sort !== sort)
+    s.sorted = { rows, sort, out: sortRows(rows, o.columns, s.prefs.sort) };
+  return s.sorted.out as T[];
+}
 
 // Forgets every table's state in this tab (tests).
 export const resetTables = (): void => live.clear();
@@ -175,7 +188,7 @@ export function toCsv<T>(rows: readonly T[], columns: readonly Column<T>[], text
   const line = (values: string[]) => values.map(field).join(',');
   return `${[
     line(cols.map((c) => c.label)),
-    ...rows.map((r) => line(cols.map((c) => (c.value ? String(c.value(r) ?? '') : text(c.cell(r)))))),
+    ...rows.map((r) => line(cols.map((c) => (c.csv ? c.csv(r) : text(c.cell(r)))))),
   ].join('\r\n')}\r\n`;
 }
 
@@ -271,7 +284,7 @@ function inner<T>(o: TableOptions<T>): string {
   if (o.rows === null)
     return `${tools}${skeleton.table(6, Math.min(cols.length, 6), `Loading ${o.label.toLowerCase()}…`)}`;
   if (!o.rows.length) return `${tools}${o.empty}`;
-  const rows = sortRows(o.rows, o.columns, s.prefs.sort);
+  const rows = ordered(o, s);
   const keys = new Set(rows.map(o.key));
   for (const k of s.selected) if (!keys.has(k)) s.selected.delete(k); // gone from the list
   const bar =
@@ -292,10 +305,11 @@ function inner<T>(o: TableOptions<T>): string {
       : '';
   const virtual = !o.pageSize && rows.length > VIRTUAL_AFTER;
   const widths = cols.map((c) => s.prefs.widths[c.key] ?? c.width);
+  const sized = cols.some((c) => s.prefs.widths[c.key] !== undefined);
   const colgroup = `<colgroup>${o.select ? '<col class="select-col">' : ''}${widths
     .map((w) => (w ? `<col style="width:${w}px">` : '<col>'))
     .join('')}</colgroup>`;
-  return `${tools}${bar}<div class="table-wrap table-frame"${virtual ? ' data-virtual' : ''} tabindex="0" role="region" aria-label="${esc(o.label)}"><table${attrs({ 'aria-rowcount': virtual ? rows.length + 1 : undefined })}>${colgroup}${head(o, s, cols, rows)}<tbody>${bodyHtml(o, s, cols, rows)}</tbody></table></div>${paging}`;
+  return `${tools}${bar}<div class="table-wrap table-frame"${virtual ? ' data-virtual' : ''} tabindex="0" role="region" aria-label="${esc(o.label)}"><table${attrs({ 'aria-rowcount': virtual ? rows.length + 1 : undefined, class: sized ? 'sized' : undefined })}>${colgroup}${head(o, s, cols, rows)}<tbody>${bodyHtml(o, s, cols, rows)}</tbody></table></div>${paging}`;
 }
 
 export function dataTable<T>(o: TableOptions<T>): string {
@@ -314,6 +328,7 @@ export function bindTable<T>(root: ParentNode, o: TableOptions<T>): void {
     el.className = `data-table density-${s.prefs.density}`;
     morph(el, inner(o));
     mixed();
+    o.drawn?.(el);
   };
   // The header's box shows "some" when some rows are picked (a property, not an attribute).
   const mixed = (): void => {
@@ -321,7 +336,7 @@ export function bindTable<T>(root: ParentNode, o: TableOptions<T>): void {
     if (all) all.indeterminate = all.hasAttribute('data-mixed');
   };
   mixed();
-  const sorted = (): T[] => sortRows(o.rows ?? [], o.columns, s.prefs.sort);
+  const sorted = (): T[] => ordered(o, s);
 
   el.addEventListener(
     'click',
@@ -360,9 +375,9 @@ export function bindTable<T>(root: ParentNode, o: TableOptions<T>): void {
         s.page += Number(step);
         redraw();
         el.querySelector('.table-frame')?.scrollTo({ top: 0 });
-        el.querySelector<HTMLElement>(
-          `[data-table-page="${step}"]:not(:disabled), [data-table-page]:not(:disabled)`,
-        )?.focus();
+        // The same button while it can go on; at the end, the other.
+        const same = el.querySelector<HTMLButtonElement>(`[data-table-page="${step}"]`);
+        (same && !same.disabled ? same : el.querySelector<HTMLElement>('[data-table-page]:not(:disabled)'))?.focus();
         return;
       }
       if (t?.closest('[data-table-clear]')) {
@@ -371,8 +386,16 @@ export function bindTable<T>(root: ParentNode, o: TableOptions<T>): void {
         el.querySelector<HTMLElement>('[data-table-all]')?.focus();
         return;
       }
-      const action = t?.closest<HTMLElement>('[data-table-action]')?.dataset.tableAction;
-      if (action && o.select) void o.select.run(action, [...s.selected]);
+      // A bulk action holds its button while its request runs: a second click does nothing.
+      const btn = t?.closest<HTMLButtonElement>('[data-table-action]');
+      const action = btn?.dataset.tableAction;
+      if (btn && action && o.select && !btn.disabled) {
+        const running = o.select.run(action, [...s.selected]);
+        if (running instanceof Promise) {
+          setBusy(btn, true);
+          void running.finally(() => btn.isConnected && setBusy(btn, false));
+        }
+      }
     },
     { signal },
   );
@@ -455,6 +478,20 @@ export function bindTable<T>(root: ParentNode, o: TableOptions<T>): void {
   if (!frame) return;
   const first = frame.querySelector<HTMLElement>('tbody tr:not(.spacer)');
   if (first && s.rowHeight === null) s.rowHeight = first.getBoundingClientRect().height || null;
+  const drawWindow = (): void => {
+    const rows = sorted();
+    const h = s.rowHeight ?? ROW_HEIGHT[s.prefs.density];
+    const top = frame.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+    const { start } = windowOf(rows.length, frame.scrollTop - top, frame.clientHeight, h);
+    if (Math.abs(start - s.start) < OVERSCAN / 2) return;
+    s.start = start;
+    const tbody = frame.querySelector('tbody');
+    if (tbody) morph(tbody, bodyHtml(o, s, visibleColumns(o.columns, s.prefs), rows));
+    o.drawn?.(el);
+  };
+  // A frame drawn new (another visit, another search) at the top shows the top, not the rows last
+  // scrolled to.
+  drawWindow();
   let ticking = false;
   frame.addEventListener(
     'scroll',
@@ -463,14 +500,7 @@ export function bindTable<T>(root: ParentNode, o: TableOptions<T>): void {
       ticking = true;
       requestAnimationFrame(() => {
         ticking = false;
-        const rows = sorted();
-        const h = s.rowHeight ?? ROW_HEIGHT[s.prefs.density];
-        const head = frame.querySelector('thead')?.getBoundingClientRect().height ?? 0;
-        const { start } = windowOf(rows.length, frame.scrollTop - head, frame.clientHeight, h);
-        if (Math.abs(start - s.start) < OVERSCAN / 2) return;
-        s.start = start;
-        const tbody = frame.querySelector('tbody');
-        if (tbody) morph(tbody, bodyHtml(o, s, visibleColumns(o.columns, s.prefs), rows));
+        drawWindow();
       });
     },
     { signal, passive: true },
