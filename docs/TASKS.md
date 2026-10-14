@@ -295,7 +295,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* every page has help, the build fails if a page has none, and links from help land on the right section.
 - [x] `U4.05` [#234](https://github.com/dipeshrohan/tiles/issues/234) **Glossary and term tooltips** · PM+FE · 3d · U2.01
   *Done when:* the analytics pages (correlate, wear, performance, detectors) explain every statistical term in place.
-- [ ] `U4.06` [#235](https://github.com/dipeshrohan/tiles/issues/235) **First run** · PM+FE · 3d · U2.01
+- [x] `U4.06` [#235](https://github.com/dipeshrohan/tiles/issues/235) **First run** · PM+FE · 3d · U2.01
   *Done when:* a new user on the pilot site reaches their first useful page in under 2 minutes in U6.07's test.
 - [ ] `U4.07` [#236](https://github.com/dipeshrohan/tiles/issues/236) **Guided tours** · FE · 4d · U4.06
   *Done when:* the four tours run end to end in CI.

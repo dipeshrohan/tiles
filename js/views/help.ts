@@ -3,7 +3,7 @@
 // a link here. The guide is loaded on first use (js/lib/help.ts).
 import { esc, goToAnchor, onAll } from '../lib/dom.ts';
 import { chapter, helpHref, helpLoaded, loadHelp, type HelpSection } from '../lib/help.ts';
-import { errorState, linkButton, pageHead, skeleton } from '../lib/ui.ts';
+import { button, errorState, linkButton, pageHead, skeleton } from '../lib/ui.ts';
 import { savedScroll } from '../lib/url-state.ts';
 import type { View } from './types.ts';
 
@@ -67,7 +67,7 @@ const view: View = {
     const head = pageHead({
       title: 'Help',
       lead: 'The user guide: what each page is for and how to use it. Each page’s help button opens its part.',
-      actionsHtml: linkButton('Glossary', '#/glossary', { icon: 'book-a' }),
+      actionsHtml: `<div class="row gap-2 wrap">${button('Show the welcome', { attrs: { 'data-show-welcome': true } })}${linkButton('Glossary', '#/glossary', { icon: 'book-a' })}</div>`,
     });
     const data = helpLoaded();
     if (!data && failed)
@@ -94,6 +94,8 @@ const view: View = {
       failed = e instanceof Error ? e.message : String(e);
       if (here()) ctx.rerender();
     };
+    // The first-run welcome (U4.06) is the app's: asked for with an event.
+    onAll(root, '[data-show-welcome]', 'click', () => document.dispatchEvent(new CustomEvent('tiles:welcome')));
     onAll(root, '[data-help-retry]', 'click', () => {
       failed = null;
       ctx.rerender();

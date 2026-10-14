@@ -22,6 +22,7 @@ export interface NavPrefs {
   pinned: string[]; // pages pinned, in the order pinned
   recent: string[]; // pages visited, latest first
   rail: boolean; // the menu as a rail of icons
+  start?: string; // the page the app opens at when its address names none (U4.06: from the role chosen)
 }
 
 export const DEFAULT_PREFS: NavPrefs = { folded: [], pinned: [], recent: [], rail: false };
@@ -43,7 +44,14 @@ export function cleanPrefs(raw: unknown, pages: readonly string[]): NavPrefs {
       ? [...new Set(v.filter((x): x is string => typeof x === 'string' && pages.includes(x)))].slice(0, max)
       : [];
   const groups = Array.isArray(o.folded) ? o.folded.filter((x): x is string => typeof x === 'string') : [];
-  return { folded: groups, pinned: ids(o.pinned, MAX_PINNED), recent: ids(o.recent, RECENT), rail: o.rail === true };
+  const start = typeof o.start === 'string' && pages.includes(o.start) ? o.start : undefined;
+  return {
+    folded: groups,
+    pinned: ids(o.pinned, MAX_PINNED),
+    recent: ids(o.recent, RECENT),
+    rail: o.rail === true,
+    ...(start ? { start } : {}),
+  };
 }
 
 // A page visited goes to the top of the recent pages (Home isn't one).

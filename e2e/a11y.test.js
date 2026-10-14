@@ -233,6 +233,15 @@ test('dialogs, toasts, tooltips, the command palette, the shortcuts and the help
     await page.click('#help-open'); // the page's help (U4.04)
     await page.waitForSelector('dialog.sheet[open] .prose');
     assert.deepEqual(await audit(page), [], `${colorScheme} help sheet`);
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog.sheet', { state: 'detached' });
+    await page.goto(`${httpBase}#/help`);
+    await page.click('[data-show-welcome]'); // the first-run welcome (U4.06), both steps
+    await page.waitForSelector('dialog[open] [data-role]');
+    assert.deepEqual(await audit(page), [], `${colorScheme} welcome`);
+    await page.click('dialog[open] [data-role="engineer"]');
+    await page.waitForSelector('dialog[open] [data-welcome] a');
+    assert.deepEqual(await audit(page), [], `${colorScheme} welcome, next`);
     await page.close();
   }
 });

@@ -100,7 +100,16 @@ import { installTooltips } from './lib/tooltip.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
 import { installShortcuts, shortcutsOn } from './lib/shortcuts.ts';
 import { helpHref, helpItems, helpLoaded, loadHelp, pageSection } from './lib/help.ts';
-import { sheet } from './lib/overlay.ts';
+import { panelDialog, sheet } from './lib/overlay.ts';
+import {
+  applyRole,
+  nextHtml,
+  roleSetup,
+  rolesHtml,
+  shouldWelcome,
+  welcomeKey,
+  type WelcomeContext,
+} from './lib/welcome.ts';
 import { searchItems } from './lib/site-search.ts';
 
 const VIEWS: View[] = [
@@ -276,6 +285,7 @@ async function connectOntology(): Promise<void> {
     setPeople(people);
     ontologyStatus = 'ready';
     void startUx(api, site.id);
+    setTimeout(firstRun, 0); // once the person is known: their start page, and the welcome
   } catch (e) {
     if (seq !== connectSeq) return;
     ontologyStatus = 'error';
@@ -957,6 +967,73 @@ const GLOSSARY_ITEMS: PaletteItem[] = GLOSSARY_ENTRIES.map((e) => ({
 // The guide's headings join the palette once loaded (U4.04): asked for once, as the palette first opens.
 let helpAsked = false;
 
+// ---- first run (U4.06) ------------------------------------------------------
+// Once the person is known (at once in local mode, when the API says in API mode): the app opens at
+// the page their role set (only while nobody has gone anywhere since it loaded), and the first time,
+// a welcome asks what they mostly do (js/lib/welcome.ts). Automated browsers aren't greeted.
+let navigated = false;
+let started = false; // the start page is for the app's load, not a site switched to later
+let welcoming = false;
+function firstRun(): void {
+  const owner = navOwner();
+  if (!owner) return;
+  const start = prefs().start;
+  if (!started && start && start !== 'home' && !navigated && /^#?\/?$/.test(location.hash))
+    location.replace(`#/${start}`);
+  started = true;
+  const seen = load<unknown>(welcomeKey(owner), null) !== null;
+  if (shouldWelcome(seen, navigator.webdriver === true) && !document.querySelector('dialog[open]')) void showWelcome();
+}
+document.addEventListener('tiles:welcome', () => void showWelcome());
+const welcomeContext = (): WelcomeContext => ({
+  site: api ? (ctx.ontology.site?.name ?? null) : null,
+  title: (page) => VIEWS.find((v) => v.id === page)?.title ?? page,
+});
+async function showWelcome(): Promise<void> {
+  const owner = navOwner();
+  if (!owner || welcoming) return;
+  welcoming = true;
+  const kept = load<{ role?: string } | null>(welcomeKey(owner), null);
+  save(welcomeKey(owner), { ...kept, seen: true }); // shown once: closing it is "just look around"
+  ux('help', 'welcome');
+  const c = welcomeContext();
+  await panelDialog(
+    {
+      title: 'Welcome to Tiles',
+      contentHtml: `<div class="stack gap-3" data-welcome>${rolesHtml(c)}</div>`,
+      wide: true,
+    },
+    (dialog, close) => {
+      const box = dialog.querySelector<HTMLElement>('[data-welcome]');
+      let chosen = false; // one role: the second step is on its way
+      dialog.addEventListener('click', (e) => {
+        const el = e.target instanceof Element ? e.target : null;
+        if (el?.closest('[data-welcome-skip]')) return close();
+        const role = roleSetup(el?.closest<HTMLElement>('[data-role]')?.dataset.role ?? '');
+        if (!role || !box || chosen) return;
+        chosen = true;
+        const before = load<{ role?: string } | null>(welcomeKey(owner), null);
+        const next = applyRole(prefs(), role, NAV_PAGES, { local: !api, previous: roleSetup(before?.role ?? '') });
+        setPrefs(next);
+        save(welcomeKey(owner), { seen: true, role: role.id });
+        renderNav(currentView());
+        // An admin of a site whose plant has no machine yet (onboarding's first step) is offered the
+        // site wizard first.
+        const setUp = Boolean(
+          api && ctx.ontology.role === 'admin' && !Object.values(ctx.graph.nodes).some((n) => n.type === 'Machine'),
+        );
+        void loadHelp()
+          .catch(() => null)
+          .then((help) => {
+            box.innerHTML = nextHtml(c, role, next, { setUp, helpFor: help?.pages[next.start ?? 'home'] ?? null });
+            box.querySelector<HTMLElement>('a')?.focus();
+          });
+      });
+    },
+  );
+  welcoming = false;
+}
+
 // ---- help (U4.04) ------------------------------------------------------------
 
 // The page's help in a side sheet: its section of the user guide, with a link to the whole guide.
@@ -1075,6 +1152,14 @@ const palette = installPalette({
         icon: 'circle-help',
         keywords: 'guide how manual explain',
         run: () => void openHelp(),
+      },
+      {
+        id: 'do:welcome',
+        label: 'Show the welcome',
+        group: 'Actions',
+        icon: 'circle-help',
+        keywords: 'first run role start page getting started demo',
+        run: () => void showWelcome(),
       },
       {
         id: 'do:glossary',
@@ -1312,6 +1397,7 @@ type ViewTransitionDocument = Document & {
 };
 
 function navigate(): void {
+  navigated = true;
   closeMenu(); // whatever link was followed: the menu's, the brand, or one in the page
   leaving(); // the page left keeps the place it was scrolled to (U3.05)
   const root = need(document, '#view');
@@ -1370,6 +1456,7 @@ if (api) {
   ontologyStatus = 'loading';
 }
 render();
+if (!api) firstRun(); // in local mode the person is this browser's profile, known at once
 setTimeout(makeDemoSoon, 0);
 void (async () => {
   await finishSignIn(); // so the first API calls carry the new token
