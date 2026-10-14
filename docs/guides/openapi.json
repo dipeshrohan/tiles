@@ -4002,6 +4002,61 @@
         "title": "Issue",
         "type": "object"
       },
+      "Layout": {
+        "properties": {
+          "cards": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The cards in order; null: the role's own",
+            "title": "Cards"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "cards"
+        ],
+        "title": "Layout",
+        "type": "object"
+      },
+      "LayoutIn": {
+        "additionalProperties": false,
+        "properties": {
+          "cards": {
+            "description": "Card ids from the app's catalogue (lower-case words), in order",
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 16,
+            "title": "Cards",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cards"
+        ],
+        "title": "LayoutIn",
+        "type": "object"
+      },
       "Level": {
         "properties": {
           "label": {
@@ -14167,6 +14222,137 @@
         "summary": "My Membership",
         "tags": [
           "members"
+        ]
+      }
+    },
+    "/sites/{site_id}/me/home": {
+      "delete": {
+        "description": "Go back to your role's cards on this site.",
+        "operationId": "reset_home_sites__site_id__me_home_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Home",
+        "tags": [
+          "Home"
+        ]
+      },
+      "get": {
+        "description": "Your home's cards on this site, in order; `cards` is null until you change them (the app\nshows your role's).",
+        "operationId": "get_home_sites__site_id__me_home_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Layout"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Home",
+        "tags": [
+          "Home"
+        ]
+      },
+      "put": {
+        "description": "Keep your home's cards on this site, in order (any member: it is yours alone).",
+        "operationId": "set_home_sites__site_id__me_home_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LayoutIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Layout"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Home",
+        "tags": [
+          "Home"
         ]
       }
     },

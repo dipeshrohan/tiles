@@ -592,6 +592,10 @@ const ctx: Context = {
     toast('Demo data reset');
     void connectOntology();
   },
+  get workRole() {
+    const owner = navOwner();
+    return (owner && load<{ role?: string } | null>(welcomeKey(owner), null)?.role) || null;
+  },
   get demoReady() {
     return demoReady();
   },

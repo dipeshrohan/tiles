@@ -49,6 +49,9 @@ export interface Context {
   // Whether the demo plant's shots and warnings are worked out (U3.07): made after the first page is
   // drawn, or at once when a page reads them. A page that can wait shows a placeholder until then.
   readonly demoReady: boolean;
+  // The work you said you mostly do in the welcome (U4.06: engineer, maintenance, shift-lead,
+  // admin), which sets Home's cards (U5.01); null until chosen.
+  readonly workRole: string | null;
   // A toast: `type` (success, error…) picks its icon; `action` adds a button (Undo, Retry).
   toast(message: string, opts?: ToastOptions): void;
   reset(): void;

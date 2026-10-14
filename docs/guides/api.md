@@ -38,7 +38,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[Feedback](#feedback) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[Feedback](#feedback) · [Home](#home) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
 
 ## Feedback
 
@@ -86,6 +86,40 @@ The screenshot attached to a piece of feedback, as it was sent (admins).
 | Parameter | In | Type | Required |
 |---|---|---|---|
 | `feedback_id` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+## Home
+
+### `GET /sites/{site_id}/me/home`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Your home's cards on this site, in order; `cards` is null until you change them (the app shows your role's).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+### `PUT /sites/{site_id}/me/home`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Keep your home's cards on this site, in order (any member: it is yours alone).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** LayoutIn (see [openapi.json](openapi.json)).
+
+### `DELETE /sites/{site_id}/me/home`
+
+**Who:** site member. **Answers:** 204, 422.
+
+Go back to your role's cards on this site.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
 | `site_id` | path | uuid | yes |
 
 ## UX analytics

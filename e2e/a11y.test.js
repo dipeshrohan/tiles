@@ -190,6 +190,15 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
       await settled(page);
       await check(route);
     }
+    // Home by role (U5.01): an admin's cards, then customising them.
+    await page.evaluate(() => (location.hash = '#/'));
+    await page.waitForSelector('#view [data-card="agents"] .home-figure, #view [data-card="agents"] .empty');
+    await page.waitForFunction(() => !document.querySelector('#view [data-card] [aria-busy="true"]'));
+    await check('home');
+    await page.click('[data-home-edit]');
+    await page.waitForSelector('[data-card-add-form]');
+    await check('home, customising');
+    await page.click('[data-home-done]');
     // App Studio: a template's form, and an app's result with its chart.
     await page.evaluate(() => (location.hash = '#/apps/new'));
     await page.click('[data-template="spc-limits"]');

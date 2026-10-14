@@ -1538,6 +1538,97 @@ test('Refresh picks up a role change made by an admin', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test("home by role: the role's cards answer what needs you now; customised, kept with you by the API (U5.01)", async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const me = 'demo@example.com';
+  // A machine with a signal still out, assigned to me; a stale signal; a review waiting for me.
+  fake.commitAs(
+    'maria',
+    [
+      { kind: 'addNode', node: { id: 'm-dc1', type: 'Machine', label: 'DC-01', props: {} } },
+      { kind: 'addNode', node: { id: 'plc-dc1', type: 'PLC', label: 'PLC DC-01', props: {} } },
+      { kind: 'addNode', node: { id: 'sig-dc1', type: 'Signal', label: 'Friction', props: {} } },
+      { kind: 'addEdge', edge: { id: 'e1', from: 'm-dc1', rel: 'controlledBy', to: 'plc-dc1' } },
+      { kind: 'addEdge', edge: { id: 'e2', from: 'plc-dc1', rel: 'emits', to: 'sig-dc1' } },
+    ],
+    'add DC-01',
+  );
+  const hour = 3_600_000;
+  const at = (ms) => new Date(Date.now() - ms).toISOString();
+  fake.raiseWarning('dc1.friction', [{ at: at(2 * hour), value: 9 }], {
+    started_at: at(30 * 60_000),
+    last_at: at(60_000),
+    assignee_id: me,
+    assignee: 'demo',
+    status: 'acknowledged',
+    peak: 9,
+    baseline: 4,
+    threshold: 7,
+    readings: 12,
+  });
+  fake.addSignal('dc1.friction', { node_id: 'sig-dc1' });
+  fake.addCopilotProposal({ message: 'Add DC-02', ops: [], author: 'maria@example.com' });
+
+  // An engineer by site role, with no role chosen: the engineers' cards.
+  const { page, errors } = await openAs(t, apiUrl, null, '');
+  await page.waitForSelector('#view h1:has-text("Home")');
+  await page.waitForSelector('#view .page-head p.soft:has-text("The cards for engineers")');
+  const ids = () => page.$$eval('#view [data-card]', (els) => els.map((e) => e.dataset.card));
+  assert.deepEqual(await ids(), ['reviews', 'insights', 'freshness']);
+  await page.waitForSelector('[data-card="reviews"] a:has-text("#1 Add DC-02")');
+  await page.waitForSelector('[data-card="freshness"] .home-figure:has-text("stale")');
+  assert.match(await page.locator('[data-card="freshness"]').innerText(), /dc1\.friction\s+Last reading 2 h ago/);
+  await page.waitForSelector('[data-card="insights"] :text("No insights yet")');
+
+  // Customise: add one, move it up, remove one and undo; kept by the API.
+  await page.click('[data-home-edit]');
+  await page.selectOption('[data-card-add-form] select', 'my-warnings');
+  await page.click('[data-card-add-form] button[type=submit]');
+  await page.waitForSelector('[data-card="my-warnings"] a:has-text("dc1.friction")');
+  await page.click('[data-card-up="my-warnings"]');
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,insights,my-warnings,freshness');
+  await page.click('[data-card-remove="insights"]');
+  await page.waitForSelector('#toast:has-text("Recent insights removed")');
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,my-warnings,freshness');
+  await page.locator('#toast button:has-text("Undo")').click();
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,insights,my-warnings,freshness');
+  await page.click('[data-home-done]');
+  await page.reload();
+  await page.waitForSelector('#view .page-head p.soft:has-text("Your cards")');
+  await page.waitForFunction(() => document.querySelectorAll('#view [data-card]').length === 4);
+  assert.deepEqual(await ids(), ['reviews', 'insights', 'my-warnings', 'freshness']);
+  // Coming back, a change made before the API's answer about your cards arrives stands.
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.waitForSelector('#view h1:has-text("Signals")');
+  fake.slowNext('GET', /\/me\/home$/, 1500);
+  await page.evaluate(() => (location.hash = '#/'));
+  await page.click('[data-home-edit]');
+  await page.click('[data-card-remove="insights"]');
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,my-warnings,freshness');
+  await page.waitForTimeout(1800);
+  assert.deepEqual(await ids(), ['reviews', 'my-warnings', 'freshness']);
+  // Back to the role's.
+  await page.click('[data-home-reset]');
+  await waitFor(() => !fake.homeLayouts.has(me));
+  await page.waitForSelector('#view .page-head p.soft:has-text("The cards for engineers")');
+
+  // Maintenance (the welcome's role): my warnings, and the machine that is out.
+  await page.evaluate(
+    (who) => localStorage.setItem(`tiles:welcome:nav:${who}`, JSON.stringify({ seen: true, role: 'maintenance' })),
+    me,
+  );
+  await page.reload();
+  await page.waitForSelector('#view .page-head p.soft:has-text("The cards for maintenance")');
+  assert.deepEqual(await ids(), ['my-warnings', 'machines-out']);
+  await page.waitForSelector('[data-card="my-warnings"] .home-figure:has-text("1 warning assigned to you")');
+  await page.waitForSelector('[data-card="machines-out"] a[href="#/plant/m-dc1"]:has-text("DC-01")');
+  await page.click('[data-card="machines-out"] a:has-text("DC-01")');
+  await page.waitForSelector('#view h1:has-text("DC-01")');
+  assert.deepEqual(errors, []);
+});
+
 test('in-app feedback: sent from the help panel or the palette, anonymous unless named, a screenshot when attached; admins read it (U4.09)', async (t) => {
   const fake = createFakeApi({ roles: { 'demo@example.com': 'viewer' } });
   const apiUrl = await fake.listen();

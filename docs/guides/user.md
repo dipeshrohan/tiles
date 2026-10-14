@@ -125,9 +125,18 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 
 ## Home
 
-**What it's for:** a starting point with key figures and recent activity.
+**What it's for:** with the Tiles API, what needs you now; in local mode, a starting point with the demo's key figures and recent activity.
 
-On this page you see:
+**With the Tiles API**, Home is a set of cards, each answering "what needs me now?" with a number and the first few items, each linked to its record. Which cards you start with depends on the work you chose in the welcome (or, until you choose, your site role):
+
+- **Maintenance:** **My open warnings** (assigned to you, not resolved; those still out first) and **Machines out of range** (machines with a signal still out).
+- **Engineers:** **Reviews waiting for me** (change requests you may approve, waiting longest first), **Recent insights** and **Data freshness** (signals with no reading for 15 minutes, or ten of their sample periods).
+- **Shift leads:** **This shift** (warnings raised since 06:00, 14:00 or 22:00, and how many nobody has acknowledged), **Machines out of range** and **My open warnings**.
+- **Admins:** **Edge agents** (offline or never called in), **Data quality** (signals whose last check found problems) and **Reviews waiting for me**.
+
+**Customise** lets you add any card, move cards up or down, and remove them (with Undo). Your cards are kept for you on that site, in any browser; **Use the cards for …** goes back to your role's. **Done** ends customising.
+
+**In local mode** you see:
 
 - Four figure cards: **Friction warnings · DC-02**, **Cutter NG rate**, **Ontology health** and **Design runs logged**. The friction and cutter cards use the demo data. Click a card to open its page.
 - Two product cards, **Tiles Design** and **Tiles Operations**, with links into the Design studio and Process & quality pages.
