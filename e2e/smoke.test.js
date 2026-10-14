@@ -650,6 +650,10 @@ test('guided tours: change the plant model and ask the copilot, end to end (U4.0
   await page.locator('.tour-pop #tour-count:has-text("step 1 of 2")').waitFor();
   await page.keyboard.press('Escape');
   await page.waitForSelector('.tour-pop', { state: 'detached' });
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('a tooltip shown by the focus stays while the page scrolls; one shown by pointing goes', async () => {
   const { page, errors } = await openPage({ viewport: { width: 1280, height: 600 } });
   await page.goto(`${httpBase}#/help`);
