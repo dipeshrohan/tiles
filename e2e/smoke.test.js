@@ -379,8 +379,14 @@ test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Ente
   assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('role')), 'combobox');
   await input.fill('warn');
   const options = palette.locator('[role=option]');
-  // Both start with it: the menu's order holds.
-  assert.deepEqual(await options.allInnerTexts(), ['Warnings\nOperations', 'Warning performance\nOperations']);
+  // Both start with it: the menu's order holds; then the action with a word starting with it, and
+  // asking the copilot what was typed (U4.02).
+  assert.deepEqual(await options.allInnerTexts(), [
+    'Warnings\nOperations',
+    'Warning performance\nOperations',
+    'Triage open warnings',
+    'Ask the copilot “warn”',
+  ]);
   assert.equal(await input.getAttribute('aria-activedescendant'), 'palette-0');
   await page.keyboard.press('ArrowDown');
   assert.equal(await palette.locator('[aria-selected=true]').innerText(), 'Warning performance\nOperations');
@@ -395,8 +401,9 @@ test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Ente
   assert.match(await options.first().innerText(), /^Warnings/);
   await input.fill('zzqx');
   await palette.locator('.palette-status:has-text("Nothing matches")').waitFor();
-  assert.equal(await palette.locator('[role=listbox]').isHidden(), true);
-  assert.equal(await input.getAttribute('aria-activedescendant'), null);
+  // Only the copilot can be asked about it.
+  assert.deepEqual(await options.allInnerTexts(), ['Ask the copilot “zzqx”']);
+  assert.equal(await input.getAttribute('aria-activedescendant'), 'palette-0');
   await page.keyboard.press('Escape');
   await page.waitForSelector('dialog.palette', { state: 'detached' });
   // The top bar's button opens it, and actions run from it.
@@ -423,6 +430,82 @@ test('the palette finds the site’s signals through the API', async (t) => {
   // The Explorer opens with it (and tidies the link to #/explorer).
   await a.page.waitForSelector('#view h1:has-text("Data explorer")');
   await a.page.waitForSelector('#view :text("press1.temperature")');
+  assert.deepEqual(a.errors, []);
+});
+
+test('the palette searches the whole site, keeps the records picked, and starts each key task (U4.02)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  raiseFrictionWarnings(fake); // dc1.friction, dc2.friction and their warnings
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'plc-friction', type: 'PLC', label: 'Friction PLC', props: {} } }],
+    'add the friction PLC',
+  );
+  const site = '11111111-1111-1111-1111-111111111111';
+  await fetch(`${apiUrl}/sites/${site}/documents?title=Friction%20SOP&filename=sop.txt`, {
+    method: 'POST',
+    headers: { 'content-type': 'text/plain', 'x-tiles-user': 'demo@example.com' },
+    body: 'Start-up\fKeep plunger friction low.',
+  });
+  const a = await openAs(t, apiUrl, null, '');
+  const page = a.page;
+  await page.waitForSelector('#view h1');
+  const palette = page.locator('dialog.palette[open]');
+  const input = palette.locator('input[role=combobox]');
+  const open = async (q) => {
+    await page.waitForSelector('dialog.palette', { state: 'detached' }); // the last one has closed
+    await page.keyboard.press('Control+k');
+    await palette.waitFor();
+    await input.fill(q);
+  };
+
+  // One query finds every kind of record, grouped, each with what to know of it.
+  await open('friction');
+  for (const group of ['Signals', 'Warnings', 'Ontology', 'Documents'])
+    await palette.locator(`.palette-group:text-is("${group}")`).waitFor();
+  assert.match(await palette.locator('.palette-item:has-text("Friction SOP")').innerText(), /page 2/);
+  // A warning opens on the Warnings page, named in the address.
+  await palette.locator('[role=group]:has(.palette-group:text-is("Warnings")) .palette-item').first().click();
+  await page.waitForSelector('[data-warning-detail]');
+  assert.match(await page.evaluate(() => location.hash), /^#\/warnings\?show=all&warning=/);
+  // The record picked comes back first, among the recent picks.
+  await page.waitForSelector('dialog.palette', { state: 'detached' });
+  await page.keyboard.press('Control+k');
+  await palette.waitFor();
+  assert.equal(await palette.locator('.palette-group').first().innerText(), 'Recent');
+  assert.match(await palette.locator('[role=option]').first().innerText(), /dc[12]\.friction/);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog.palette', { state: 'detached' });
+
+  // An ontology node opens selected on the canvas.
+  await open('friction plc');
+  await palette
+    .locator('[role=group]:has(.palette-group:text-is("Ontology")) .palette-item:has-text("Friction PLC")')
+    .click();
+  await page.waitForSelector('#inspector h2:text-is("Friction PLC")');
+  assert.equal(await page.evaluate(() => location.hash), '#/ontology');
+
+  // What is typed can be asked of the copilot: it waits in the box, Enter sends it.
+  await open('why is DC-02 running hot');
+  await palette.locator('.palette-item:has-text("Ask the copilot “why is DC-02 running hot”")').click();
+  await page.waitForFunction(() => document.title.startsWith('Copilot'));
+  assert.equal(await page.inputValue('#view [name=q]'), 'why is DC-02 running hot');
+
+  // Each of the six key tasks starts from the palette (U1.01).
+  for (const [action, title] of [
+    ['Triage open warnings', 'Warnings'],
+    ['Plot a signal', 'Data explorer'],
+    ['Change the ontology', 'Ontology builder'],
+    ['Run a correlation on a batch table', 'Correlation finder'],
+    ['Ask the copilot', 'Copilot'],
+    ['Set up a new site', 'Set up a site'],
+  ]) {
+    await open(action);
+    await palette.locator(`.palette-item:has-text("${action}")`).first().click();
+    await page.waitForFunction((t) => document.title.startsWith(t), title);
+  }
   assert.deepEqual(a.errors, []);
 });
 

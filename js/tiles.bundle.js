@@ -1268,6 +1268,12 @@
 				uxAnalytics: () => request("GET", "/org/ux-analytics"),
 				setUxAnalytics: (enabled) => request("PUT", "/org/ux-analytics", { enabled })
 			},
+			search: (siteId, q, o = {}) => {
+				const params = new URLSearchParams({ q });
+				if (o.limit) params.set("limit", String(o.limit));
+				for (const k of o.kinds ?? []) params.append("kind", k);
+				return request("GET", `/sites/${encodeURIComponent(siteId)}/search?${params}`, void 0, { silent: true });
+			},
 			menu: { counts: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/menu-counts`, void 0, { silent: true }) },
 			ux: {
 				enabled: (siteId) => request("GET", `/sites/${encodeURIComponent(siteId)}/ux-analytics`, void 0, { silent: true }),
@@ -1742,8 +1748,8 @@
 			};
 		}
 	}
-	async function pickSite(api, preferred) {
-		const sites = await api.sites();
+	async function pickSite(api, preferred, listed) {
+		const sites = listed ?? await api.sites();
 		const site = sites.find((s) => s.id === preferred) ?? sites[0];
 		if (!site) throw new Error("The Tiles API has no sites yet. Run `tiles-seed` (Docker Compose does this for you).");
 		return site;
@@ -2049,7 +2055,7 @@
 	}
 	//#endregion
 	//#region js/lib/icon-data.ts
-	var ICONS = {
+	var ICONS$1 = {
 		"house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\" /><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\" />",
 		"sparkles": "<path d=\"M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z\" /><path d=\"M20 2v4\" /><path d=\"M22 4h-4\" /><circle cx=\"4\" cy=\"20\" r=\"2\" />",
 		"hard-hat": "<path d=\"M10 10V5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v5\" /><path d=\"M14 6a6 6 0 0 1 6 6v3\" /><path d=\"M4 15v-3a6 6 0 0 1 6-6\" /><rect x=\"2\" y=\"15\" width=\"20\" height=\"4\" rx=\"1\" />",
@@ -2136,7 +2142,7 @@
 	function icon(name, opts = {}) {
 		const size = opts.size ?? 16;
 		const a11y = opts.label ? `role="img" aria-label="${esc(opts.label)}"` : "aria-hidden=\"true\"";
-		return `<svg class="${`icon icon-${name}${opts.className ? ` ${esc(opts.className)}` : ""}`}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" focusable="false" ${a11y}>${ICONS[name]}</svg>`;
+		return `<svg class="${`icon icon-${name}${opts.className ? ` ${esc(opts.className)}` : ""}`}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" focusable="false" ${a11y}>${ICONS$1[name]}</svg>`;
 	}
 	//#endregion
 	//#region js/lib/nav.ts
@@ -3873,6 +3879,9 @@
 	var live = null;
 	var busy$7 = false;
 	var draft$4 = "";
+	function prefill(text) {
+		draft$4 = text;
+	}
 	var rating = null;
 	var failure = null;
 	var siteId$10 = (ctx) => ctx.ontology.site?.id ?? null;
@@ -4199,7 +4208,7 @@
         <div>
           <div class="chips mt-2_5 mb-2_5 m-0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join("")}</div>
           <form class="composer" id="composer">
-            <input type="text" name="q" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
+            <input type="text" name="q" value="${esc(draft$4)}" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
             <button class="btn primary" type="submit">Ask</button>
           </form>
         </div>
@@ -4216,6 +4225,7 @@
 				shots: ctx.state.shots
 			});
 			if (!answer) return;
+			draft$4 = "";
 			ctx.update((s) => {
 				s.chat.push({
 					role: "user",
@@ -5132,16 +5142,35 @@
 	var DOUBLE_CLICK_MS = 400;
 	var inspectorTimer;
 	var pressedNode = null;
+	var linkedNode = null;
 	var view$18 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "network",
+		query: {
+			read(params) {
+				linkedNode = params.get("node");
+			},
+			write() {
+				return { node: linkedNode };
+			}
+		},
 		render(ctx) {
 			const ui = uiState$13(ctx);
 			const { repo } = ctx.state;
 			const graph = ctx.graph;
 			const source = sourceBar(ctx);
 			if (ctx.ontology.status === "loading" || ctx.ontology.status === "error") return ontologyHead() + source;
+			if (linkedNode) {
+				const id = linkedNode;
+				linkedNode = null;
+				if (graph.nodes[id]) {
+					ui.tab = "canvas";
+					ui.selected = id;
+					reveal(graph, ui, id);
+					centerAfterRender = id;
+				}
+			}
 			const health = graphHealth(graph);
 			if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 			const { conflict } = safeWorkingGraph(repo);
@@ -11451,7 +11480,7 @@ tabs({ … }), .review-row.sel, .seg button.active      // the highlight moves f
 				variant: "ghost",
 				attrs: { "data-jump": id }
 			})).join("")}</div>`;
-			const icons = Object.keys(ICONS).map((n) => `<li class="sg-icon">${icon(n, { size: 20 })}<code>${esc(n)}</code></li>`).join("");
+			const icons = Object.keys(ICONS$1).map((n) => `<li class="sg-icon">${icon(n, { size: 20 })}<code>${esc(n)}</code></li>`).join("");
 			const pictures = ILLUSTRATIONS.map((n) => `<li class="sg-illustration">${illustration(n, 120)}<code>${esc(n)}</code></li>`).join("");
 			return `${head}${jump}
       <h2 class="mt-4 mb-2" id="sg-sec-tokens">Tokens</h2>
@@ -14176,11 +14205,19 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		for (const i of items) if (!order.includes(i.group)) order.push(i.group);
 		return order.flatMap((g) => items.filter((i) => i.group === g));
 	}
-	var recent = () => {
-		const v = load$4("palette-recent", []);
-		return Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
-	};
-	var remember = (id) => save$1("palette-recent", [id, ...recent().filter((r) => r !== id)].slice(0, 5));
+	var recentId = (r) => typeof r === "string" ? r : r.id;
+	function readRecent(v) {
+		if (!Array.isArray(v)) return [];
+		return v.filter((x) => typeof x === "string" || !!x && typeof x === "object" && [
+			"id",
+			"label",
+			"group",
+			"icon",
+			"href"
+		].every((k) => typeof x[k] === "string") && String(x.href).startsWith("#/"));
+	}
+	var recent = () => readRecent(load$4("palette-recent", []));
+	var remember = (r) => save$1("palette-recent", [r, ...recent().filter((x) => recentId(x) !== recentId(r))].slice(0, 8));
 	var typing = (el) => el instanceof HTMLElement && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName));
 	function installPalette(source) {
 		let dialog = null;
@@ -14192,7 +14229,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			d.className = "dialog palette";
 			d.dataset.state = "open";
 			d.setAttribute("aria-label", "Search pages and actions");
-			const what = Boolean(source.search && source.canSearch?.() !== false) ? "pages, actions and signals" : "pages and actions";
+			const what = Boolean(source.search && source.canSearch?.() !== false) ? "pages, actions and the site" : "pages and actions";
 			d.innerHTML = `
       <div class="palette-input">${icon("search", { size: 18 })}<input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="Search ${what}" placeholder="Search ${what}…" autocomplete="off" spellcheck="false" /><kbd>Esc</kbd></div>
       <div class="palette-list" id="palette-list" role="listbox" aria-label="Results"></div>
@@ -14211,10 +14248,19 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				const q = input.value;
 				const all = source.items();
 				let items;
-				if (q.trim()) items = grouped([...rank(all, q), ...extra]);
-				else {
+				let matched = 0;
+				if (q.trim()) {
+					const found = grouped([...rank(all, q), ...extra]);
+					matched = found.length;
+					items = [...found, ...source.typed?.(q.trim()) ?? []];
+				} else {
 					const byId = new Map(all.map((i) => [i.id, i]));
-					const recents = recent().map((id) => byId.get(id)).filter((i) => i !== void 0).map((i) => ({
+					const recents = recent().map((r) => typeof r === "string" ? byId.get(r) : {
+						...r,
+						run: () => {
+							location.hash = r.href;
+						}
+					}).filter((i) => i !== void 0).map((i) => ({
 						...i,
 						group: "Recent"
 					}));
@@ -14232,7 +14278,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				});
 				list.innerHTML = groups.map((g, k) => `<div role="group" aria-labelledby="palette-g${k}"><div class="palette-group" id="palette-g${k}">${esc(g.name)}</div>${g.html.join("")}</div>`).join("");
 				list.hidden = !items.length;
-				status.innerHTML = searching ? `${icon("loader-circle", { size: 14 })} Searching signals…` : !items.length ? `Nothing matches “${esc(q.trim())}”.` : "";
+				status.innerHTML = searching ? `${icon("loader-circle", { size: 14 })} Searching the site…` : q.trim() && !matched ? `Nothing matches “${esc(q.trim())}”.` : "";
 				if (items.length) input.setAttribute("aria-activedescendant", `palette-${active}`);
 				else input.removeAttribute("aria-activedescendant");
 				list.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
@@ -14255,7 +14301,15 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				const item = shown[n];
 				if (!item) return;
 				ux("palette", `chose.${uxName(item.group)}`);
-				if (source.items().some((i) => i.id === item.id)) remember(item.id);
+				if (item.href) remember({
+					id: item.id,
+					label: item.label,
+					group: item.group,
+					icon: item.icon,
+					hint: item.hint,
+					href: item.href
+				});
+				else if (source.items().some((i) => i.id === item.id)) remember(item.id);
 				close();
 				item.run();
 			};
@@ -14343,6 +14397,44 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			open();
 		});
 		return { open };
+	}
+	//#endregion
+	//#region js/lib/site-search.ts
+	var ICONS = {
+		signal: "activity",
+		node: "network",
+		warning: "triangle-alert",
+		insight: "lightbulb",
+		document: "file-text",
+		app: "layout-grid"
+	};
+	function recordHref(r) {
+		const id = encodeURIComponent(r.id);
+		switch (r.kind) {
+			case "signal": return `#/explorer?signal=${id}`;
+			case "node": return `#/ontology?node=${id}`;
+			case "warning": return `#/warnings?show=all&warning=${id}`;
+			case "insight": return `#/insights/${id}`;
+			case "document": return `#/documents/${id}`;
+			case "app": return `#/apps/${id}`;
+		}
+	}
+	function resultHint(r) {
+		return [r.detail, r.page ? `page ${r.page}` : ""].filter(Boolean).join(" · ") || void 0;
+	}
+	function searchItems(found, open) {
+		return found.groups.flatMap((g) => g.results.map((r) => {
+			const href = recordHref(r);
+			return {
+				id: `${r.kind}:${r.id}`,
+				label: r.title,
+				group: g.label,
+				icon: ICONS[r.kind],
+				hint: resultHint(r),
+				href,
+				run: () => open(href)
+			};
+		}));
 	}
 	//#endregion
 	//#region js/app.ts
@@ -14486,6 +14578,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var siteMembers = [];
 	var reviewRequired = false;
 	var connectSeq = 0;
+	var knownSites = [];
 	async function connectOntology() {
 		const seq = ++connectSeq;
 		ontologyRole = null;
@@ -14506,7 +14599,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		ontologyError = null;
 		renderSoon();
 		try {
-			const site = await pickSite(api, dataSource.siteId);
+			const sites = await api.sites();
+			knownSites = sites;
+			const site = await pickSite(api, dataSource.siteId, sites);
 			const store = remoteStore(api, site);
 			const [repo, people] = await Promise.all([store.load(), loadPeople(api, site.id)]);
 			if (seq !== connectSeq) return;
@@ -15120,6 +15215,46 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					run: go("#/chat")
 				},
 				{
+					id: "do:triage",
+					label: "Triage open warnings",
+					group: "Actions",
+					icon: "triangle-alert",
+					keywords: "alarm acknowledge assign resolve inbox",
+					run: go("#/warnings")
+				},
+				{
+					id: "do:ontology",
+					label: "Change the ontology",
+					group: "Actions",
+					icon: "network",
+					keywords: "node machine line add edit commit model plant",
+					run: go("#/ontology")
+				},
+				{
+					id: "do:review",
+					label: "Review change requests",
+					group: "Actions",
+					icon: "git-pull-request",
+					keywords: "approve reject ontology commit",
+					run: go("#/reviews")
+				},
+				{
+					id: "do:correlate",
+					label: "Run a correlation on a batch table",
+					group: "Actions",
+					icon: "chart-scatter",
+					keywords: "root cause csv upload effect scrap ng",
+					run: go("#/correlate")
+				},
+				{
+					id: "do:site",
+					label: "Set up a new site",
+					group: "Actions",
+					icon: "factory",
+					keywords: "onboarding wizard plant agent",
+					run: go("#/onboarding")
+				},
+				{
 					id: "do:plot",
 					label: "Plot a signal",
 					group: "Actions",
@@ -15152,24 +15287,42 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					run: () => need(document, "#theme").click()
 				}
 			];
-			return [...pages, ...actions];
+			const here = ctx.ontology.site?.id;
+			const sites = api ? knownSites.filter((s) => s.id !== here).map((s) => ({
+				id: `site:${s.id}`,
+				label: `Switch to ${s.name}`,
+				group: "Sites",
+				icon: "factory",
+				keywords: `site plant ${s.slug}`,
+				run: () => ctx.setDataSource({
+					...dataSource,
+					siteId: s.id
+				})
+			})) : [];
+			return [
+				...pages,
+				...actions,
+				...sites
+			];
 		},
 		canSearch: () => Boolean(api && ctx.ontology.site),
 		async search(q) {
 			const site = ctx.ontology.site;
 			if (!api || !site) return [];
-			return (await api.signals.list(site.id, {
-				q,
-				limit: 8
-			})).signals.map((s) => ({
-				id: `signal:${s.id}`,
-				label: s.tag,
-				group: "Signals",
-				icon: "activity",
-				hint: [s.unit, s.node_label].filter(Boolean).join(" · ") || void 0,
-				run: go(`#/explorer?signal=${encodeURIComponent(s.id)}`)
-			}));
-		}
+			return searchItems(await api.search(site.id, q, { limit: 5 }), (href) => {
+				location.hash = href;
+			});
+		},
+		typed: (q) => [{
+			id: "do:ask-this",
+			label: `Ask the copilot “${q}”`,
+			group: "Ask",
+			icon: "sparkles",
+			run: () => {
+				prefill(q);
+				location.hash = "#/chat";
+			}
+		}]
 	});
 	var searchButton = need(document, "#palette-open");
 	searchButton.insertAdjacentHTML("afterbegin", icon("search"));

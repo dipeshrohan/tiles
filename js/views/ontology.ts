@@ -718,16 +718,38 @@ const DOUBLE_CLICK_MS = 400;
 let inspectorTimer: ReturnType<typeof setTimeout> | undefined;
 let pressedNode: string | null = null; // the node a click began on: a double click opens that one
 
+// A node a link opens (#/ontology?node=<id>, from the command palette, U4.02): selected, shown and
+// brought into view once the graph it is in has loaded; the address keeps it until then.
+let linkedNode: string | null = null;
+
 const view: View = {
   id: 'ontology',
   title: 'Ontology builder',
   icon: 'network',
+  query: {
+    read(params) {
+      linkedNode = params.get('node');
+    },
+    write() {
+      return { node: linkedNode };
+    },
+  },
   render(ctx) {
     const ui = uiState(ctx);
     const { repo } = ctx.state;
     const graph = ctx.graph;
     const source = sourceBar(ctx);
     if (ctx.ontology.status === 'loading' || ctx.ontology.status === 'error') return ontologyHead() + source;
+    if (linkedNode) {
+      const id = linkedNode;
+      linkedNode = null; // once: a node not in the graph is let go
+      if (graph.nodes[id]) {
+        ui.tab = 'canvas';
+        ui.selected = id;
+        reveal(graph, ui, id);
+        centerAfterRender = id;
+      }
+    }
     const health = graphHealth(graph);
     if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
 

@@ -640,7 +640,8 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/runs/`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detectors/`) &&
         !url.pathname.startsWith(`/sites/${site.id}/ux-`) &&
-        url.pathname !== `/sites/${site.id}/menu-counts`
+        url.pathname !== `/sites/${site.id}/menu-counts` &&
+        url.pathname !== `/sites/${site.id}/search`
       )
         return send(404, { detail: 'Site not found' });
       const role = roles[user] ?? 'engineer';
@@ -1096,6 +1097,118 @@ export function createFakeApi({
         return send(405, { detail: 'Method not allowed' });
       }
       // The menu's counts (U3.06): open warnings, and reviews an engineer may approve.
+      // Search across the site (U4.01), as the API ranks it: equal, starts with, a word starts with,
+      // anywhere, every word somewhere; a main field over a side one; grouped by kind.
+      if (url.pathname === `/sites/${site.id}/search`) {
+        const q = (url.searchParams.get('q') ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+        if (q.length < 2) return send(422, { detail: 'Search for two characters or more' });
+        const limit = Number(url.searchParams.get('limit') ?? 5);
+        const asked = url.searchParams.getAll('kind');
+        const words = q.split(' ');
+        const level = (text) => {
+          const t = (text ?? '').toLowerCase();
+          if (t === q) return 1;
+          if (t.startsWith(q)) return 0.8;
+          if (new RegExp(`(^|[^a-z0-9])${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(t)) return 0.6;
+          return t.includes(q) ? 0.4 : 0;
+        };
+        const score = (fields) => {
+          const best = Math.max(...fields.map(([text, weight]) => level(text) * weight));
+          const all = fields.map(([text]) => (text ?? '').toLowerCase()).join(' ');
+          return Math.max(best, words.every((w) => all.includes(w)) ? 0.2 : 0);
+        };
+        const kinds = {
+          signal: [
+            'Signals',
+            signals.map((x) => ({
+              id: x.id,
+              title: x.tag,
+              detail: x.description,
+              s: score([
+                [x.tag, 1],
+                [x.description, 0.5],
+              ]),
+            })),
+          ],
+          node: [
+            'Ontology',
+            Object.values(head.nodes).map((n) => ({
+              id: n.id,
+              title: n.label,
+              detail: n.type,
+              s: score([
+                [n.label, 1],
+                [n.id, 0.7],
+                [n.type, 0.3],
+              ]),
+            })),
+          ],
+          warning: [
+            'Warnings',
+            warnings.map((w) => ({
+              id: w.id,
+              title: w.signal_tag,
+              detail: w.detector,
+              s: score([
+                [w.signal_tag, 1],
+                [w.detector, 0.8],
+              ]),
+            })),
+          ],
+          insight: [
+            'Insights',
+            insights
+              .filter((i) => i.status !== 'rejected')
+              .map((i) => ({
+                id: String(i.number),
+                title: i.title,
+                detail: i.status,
+                s: score([
+                  [i.title, 1],
+                  [i.summary, 0.4],
+                ]),
+              })),
+          ],
+          document: [
+            'Documents',
+            siteDocuments
+              .filter((d) => !d.archived)
+              .map((d) => {
+                const page = d.pages.findIndex((p) => words.every((w) => p.toLowerCase().includes(w)));
+                return {
+                  id: String(d.number),
+                  title: d.title,
+                  detail: `${d.pages.length} page${d.pages.length === 1 ? '' : 's'}`,
+                  page: page >= 0 ? page + 1 : null,
+                  snippet: page >= 0 ? d.pages[page].slice(0, 80) : null,
+                  s: Math.max(score([[d.title, 1]]), page >= 0 ? 0.3 : 0),
+                };
+              }),
+          ],
+          app: [
+            'Apps',
+            studioApps
+              .filter((a) => !a.archived)
+              .map((a) => ({ id: String(a.number), title: a.name, detail: a.template, s: score([[a.name, 1]]) })),
+          ],
+        };
+        const groups = Object.entries(kinds)
+          .filter(([kind]) => !asked.length || asked.includes(kind))
+          .map(([kind, [label, rows]]) => {
+            const found = rows.filter((r) => r.s > 0).sort((a, b) => b.s - a.s || a.title.length - b.title.length);
+            return {
+              kind,
+              label,
+              more: found.length > limit,
+              results: found
+                .slice(0, limit)
+                .map(({ s, ...r }) => ({ kind, page: null, snippet: null, ...r, detail: r.detail ?? '', score: s })),
+            };
+          })
+          .filter((g) => g.results.length)
+          .sort((a, b) => b.results[0].score - a.results[0].score);
+        return send(200, { query: q, groups });
+      }
       if (url.pathname === `/sites/${site.id}/menu-counts`) {
         const editor = role === 'engineer' || role === 'admin';
         return send(200, {

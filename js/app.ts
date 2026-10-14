@@ -13,6 +13,7 @@ import {
   type AuthConfig,
   type DataSource,
   type Membership,
+  type Site,
 } from './lib/api.ts';
 import { createRepo } from './lib/ontology.ts';
 import {
@@ -63,7 +64,7 @@ import {
   withQuery,
 } from './lib/url-state.ts';
 import home from './views/home.ts';
-import chat from './views/chat.ts';
+import chat, { prefill } from './views/chat.ts';
 import ontology from './views/ontology.ts';
 import quality from './views/quality.ts';
 import physics from './views/physics.ts';
@@ -95,6 +96,7 @@ import { breadcrumbs, button, clockTime, resetIds } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
+import { searchItems } from './lib/site-search.ts';
 
 const VIEWS: View[] = [
   home,
@@ -229,6 +231,7 @@ let ontologyUserId: string | null = null;
 let siteMembers: Membership[] = [];
 let reviewRequired = false;
 let connectSeq = 0;
+let knownSites: Site[] = []; // the API's sites, as last listed
 
 // Switches the ontology between this browser and the API. A slow earlier
 // connection attempt can't overwrite a newer one (connectSeq).
@@ -253,7 +256,9 @@ async function connectOntology(): Promise<void> {
   ontologyError = null;
   renderSoon();
   try {
-    const site = await pickSite(api, dataSource.siteId);
+    const sites = await api.sites();
+    knownSites = sites; // for switching sites from the command palette
+    const site = await pickSite(api, dataSource.siteId, sites);
     const store = remoteStore(api, site);
     const [repo, people] = await Promise.all([store.load(), loadPeople(api, site.id)]);
     if (seq !== connectSeq) return;
@@ -952,6 +957,46 @@ const palette = installPalette({
         run: go('#/chat'),
       },
       {
+        id: 'do:triage',
+        label: 'Triage open warnings',
+        group: 'Actions',
+        icon: 'triangle-alert',
+        keywords: 'alarm acknowledge assign resolve inbox',
+        run: go('#/warnings'),
+      },
+      {
+        id: 'do:ontology',
+        label: 'Change the ontology',
+        group: 'Actions',
+        icon: 'network',
+        keywords: 'node machine line add edit commit model plant',
+        run: go('#/ontology'),
+      },
+      {
+        id: 'do:review',
+        label: 'Review change requests',
+        group: 'Actions',
+        icon: 'git-pull-request',
+        keywords: 'approve reject ontology commit',
+        run: go('#/reviews'),
+      },
+      {
+        id: 'do:correlate',
+        label: 'Run a correlation on a batch table',
+        group: 'Actions',
+        icon: 'chart-scatter',
+        keywords: 'root cause csv upload effect scrap ng',
+        run: go('#/correlate'),
+      },
+      {
+        id: 'do:site',
+        label: 'Set up a new site',
+        group: 'Actions',
+        icon: 'factory',
+        keywords: 'onboarding wizard plant agent',
+        run: go('#/onboarding'),
+      },
+      {
         id: 'do:plot',
         label: 'Plot a signal',
         group: 'Actions',
@@ -984,22 +1029,44 @@ const palette = installPalette({
         run: () => need(document, '#theme').click(),
       },
     ];
-    return [...pages, ...actions];
+    // Another of the API's sites to work on (the one shown is left out).
+    const here = ctx.ontology.site?.id;
+    const sites: PaletteItem[] = api
+      ? knownSites
+          .filter((s) => s.id !== here)
+          .map((s) => ({
+            id: `site:${s.id}`,
+            label: `Switch to ${s.name}`,
+            group: 'Sites',
+            icon: 'factory',
+            keywords: `site plant ${s.slug}`,
+            run: () => ctx.setDataSource({ ...dataSource, siteId: s.id }),
+          }))
+      : [];
+    return [...pages, ...actions, ...sites];
   },
   canSearch: () => Boolean(api && ctx.ontology.site),
+  // The site's records (U4.01): signals, ontology nodes, warnings, insights, documents and apps.
   async search(q) {
     const site = ctx.ontology.site;
     if (!api || !site) return [];
-    const found = await api.signals.list(site.id, { q, limit: 8 });
-    return found.signals.map((s) => ({
-      id: `signal:${s.id}`,
-      label: s.tag,
-      group: 'Signals',
-      icon: 'activity' as const,
-      hint: [s.unit, s.node_label].filter(Boolean).join(' · ') || undefined,
-      run: go(`#/explorer?signal=${encodeURIComponent(s.id)}`),
-    }));
+    return searchItems(await api.search(site.id, q, { limit: 5 }), (href) => {
+      location.hash = href;
+    });
   },
+  // What is typed, as a question for the copilot (put in its box: Enter sends it).
+  typed: (q) => [
+    {
+      id: 'do:ask-this',
+      label: `Ask the copilot “${q}”`,
+      group: 'Ask',
+      icon: 'sparkles',
+      run: () => {
+        prefill(q);
+        location.hash = '#/chat';
+      },
+    },
+  ],
 });
 const searchButton = need(document, '#palette-open');
 searchButton.insertAdjacentHTML('afterbegin', icon('search'));

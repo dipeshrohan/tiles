@@ -44,6 +44,10 @@ let thread: { key: string; exchanges: Exchange[] } | null = null;
 let live: { key: string; question: string; answer: Answer } | null = null;
 let busy = false;
 let draft = ''; // the question being typed, kept across re-renders
+// A question to ask, put in the box from elsewhere (the command palette, U4.02): sent with Enter.
+export function prefill(text: string): void {
+  draft = text;
+}
 let rating: { key: string; comment: string } | null = null; // a thumbs-down comment being written
 // An answer that failed (the error isn't stored), shown after the conversation reloads.
 let failure: { key: string; question: string; error: string } | null = null;
@@ -414,7 +418,7 @@ function localRender(ctx: Context, note = ''): string {
         <div>
           <div class="chips mt-2_5 mb-2_5 m-0">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
           <form class="composer" id="composer">
-            <input type="text" name="q" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
+            <input type="text" name="q" value="${esc(draft)}" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
             <button class="btn primary" type="submit">Ask</button>
           </form>
         </div>
@@ -433,6 +437,7 @@ function localBind(root: HTMLElement, ctx: Context): void {
       shots: ctx.state.shots,
     });
     if (!answer) return;
+    draft = ''; // asked: a question the palette put in the box (prefill) is done with
     ctx.update((s) => {
       s.chat.push({ role: 'user', text: q.trim() });
       s.chat.push({ role: 'bot', text: answer.text, steps: answer.steps, link: answer.link, skill: answer.skill });
