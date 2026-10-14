@@ -51,6 +51,24 @@ export function nextRow(count: number, current: number, step: 1 | -1): number | 
 // j and k open the next and previous row of `rows` (in `root`); `isOpen` says which row is open now.
 // A row is opened as a click on it would (a row that is a link or button), or on its first link.
 // The row moved to takes the focus once the page has drawn it, scrolled into view.
+// A list drawn as a table (U5.02): a click anywhere in a row opens its record, as its first cell's
+// link or button does; on the list, so rows the table draws again keep it. Boxes, buttons and links
+// in a row do their own.
+export function rowClicks(root: ParentNode, list: string, rows: string): void {
+  root.querySelectorAll(list).forEach((el) =>
+    el.addEventListener(
+      'click',
+      (e) => {
+        const t = e.target instanceof Element ? e.target : null;
+        const row = t?.closest(rows);
+        if (!row || t?.closest('a, button, input, label, .select-col')) return;
+        rowTarget(row)?.click();
+      },
+      { signal: bound() },
+    ),
+  );
+}
+
 export function listKeys(root: ParentNode, rows: string, isOpen: (row: Element) => boolean): void {
   document.addEventListener(
     'keydown',

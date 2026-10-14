@@ -132,6 +132,9 @@ function ordered<T>(o: TableOptions<T>, s: Live): T[] {
   return s.sorted.out as T[];
 }
 
+// Unticks a table's rows (after a bulk action has done its work).
+export const clearSelection = (id: string): void => live.get(id)?.selected.clear();
+
 // Forgets every table's state in this tab (tests).
 export const resetTables = (): void => live.clear();
 

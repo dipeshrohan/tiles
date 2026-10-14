@@ -2730,7 +2730,7 @@ th .col-resize:focus-visible {
 .table-frame tr.sel td:first-child {
   box-shadow: inset 3px 0 0 var(--accent);
 }
-.table-frame tr[data-warning] {
+.table-frame tr:has(.row-open) {
   cursor: pointer;
 }
 .bulk-bar {

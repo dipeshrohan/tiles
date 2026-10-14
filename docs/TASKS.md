@@ -312,7 +312,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 - [x] `U5.01` [#240](https://github.com/dipeshrohan/tiles/issues/240) **Home by role** · PM+FE · 4d · U4.06
   *Done when:* each role's home answers "what needs me now?" in U6.07's test.
-- [ ] `U5.02` [#241](https://github.com/dipeshrohan/tiles/issues/241) **Tables v2** · FE · 4d · U1.04, U3.05
+- [x] `U5.02` [#241](https://github.com/dipeshrohan/tiles/issues/241) **Tables v2** · FE · 4d · U1.04, U3.05
   *Done when:* the seven tables use it and 5,000 signal rows scroll at 60 fps.
 - [ ] `U5.03` [#242](https://github.com/dipeshrohan/tiles/issues/242) **Charts v2** · FE · 4d · U3.01
   *Done when:* exact values can be read with a mouse, touch and keyboard, with a11y tests.

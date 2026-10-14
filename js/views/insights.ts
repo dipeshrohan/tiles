@@ -17,7 +17,7 @@ import {
 } from '../lib/insights.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
-import { listKeys, rowTarget, split } from '../lib/split.ts';
+import { listKeys, rowClicks, split } from '../lib/split.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
@@ -128,7 +128,6 @@ function listTable(ctx: Context, n: number | null, items: InsightSummary[]): Tab
     empty: '',
     rowAttrs: (i) => ({ 'data-insight': i.number, class: n === i.number ? 'sel' : undefined }),
     csv: 'insights.csv',
-    drawn: () => ctx.rerender(), // its rows are wired by the page
   };
 }
 
@@ -306,11 +305,7 @@ const view: View = {
     });
     const items = listing?.key === listKey(ctx) ? listing.items : null;
     if (items?.length) bindTable(root, listTable(ctx, n, items));
-    // The whole row opens its insight, as the link in it does.
-    onAll(root, '[data-insight-list] [data-insight]', 'click', (row, e) => {
-      if (e.target instanceof Element && e.target.closest('a, button, input')) return;
-      rowTarget(row)?.click();
-    });
+    rowClicks(root, '[data-insight-list]', '[data-insight]');
     listKeys(
       root,
       '[data-insight-list] [data-insight]',

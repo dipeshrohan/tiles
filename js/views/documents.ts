@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf, bound } from '../lib/dom.ts';
+import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf, bound, setBusy } from '../lib/dom.ts';
 import type { DocumentMatch, SiteDocument } from '../lib/api.ts';
 import {
   contentTypeOf,
@@ -11,7 +11,7 @@ import {
   titleFrom,
 } from '../lib/documents.ts';
 import type { Context, View } from './types.ts';
-import { listKeys, recordFromHash, rowTarget, split } from '../lib/split.ts';
+import { listKeys, recordFromHash, rowClicks, split } from '../lib/split.ts';
 import { showHash } from '../lib/url-state.ts';
 import { when } from '../lib/insights.ts';
 import { removeNow } from '../lib/undo.ts';
@@ -273,7 +273,6 @@ function listTable(ctx: Context, items: SiteDocument[]): TableOptions<SiteDocume
     empty: '',
     rowAttrs: (d) => ({ 'data-doc': d.number, class: n === d.number ? 'sel' : undefined }),
     csv: 'documents.csv',
-    drawn: () => ctx.rerender(), // its buttons are wired by the page
   };
 }
 
@@ -348,15 +347,17 @@ const view: View = {
       found = null;
       ctx.rerender();
     });
-    onAll(root, '[data-open]', 'click', (el) => void open(ctx, Number(el.dataset.open), Number(el.dataset.page)));
+    // Buttons outside the list here; the list's on the list (its table draws rows again as it sorts).
+    onAll(
+      root,
+      '[data-open]:not([data-doc-list] *)',
+      'click',
+      (el) => void open(ctx, Number(el.dataset.open), Number(el.dataset.page)),
+    );
     const docs = listing?.key === site ? listing.items : null;
     if (docs?.length) bindTable(root, listTable(ctx, docs));
     listKeys(root, '[data-doc-list] [data-doc]', (row) => row.getAttribute('data-doc') === String(opened()));
-    // The whole row opens its document, as rows do on the other lists (its buttons do their own).
-    onAll(root, '[data-doc-list] [data-doc]', 'click', (row, e) => {
-      if (e.target instanceof Element && e.target.closest('a, button')) return;
-      rowTarget(row)?.click();
-    });
+    rowClicks(root, '[data-doc-list]', '[data-doc]');
     onAll(root, '[data-retry-search]', 'click', () => {
       found = null;
       ctx.rerender();
@@ -371,7 +372,7 @@ const view: View = {
       found = null;
       ctx.rerender();
     };
-    onAction(root, '[data-archive-doc]', (el) => {
+    const archive = (el: HTMLElement): Promise<unknown> | undefined => {
       const n = Number(el.dataset.archiveDoc);
       const doc = listing?.items?.find((d) => d.number === n);
       if (!doc) return;
@@ -392,6 +393,19 @@ const view: View = {
         },
         restoredMessage: `Restored ${doc.title}`,
       });
+    };
+    onAction(root, '[data-archive-doc]:not([data-doc-list] *)', archive);
+    onAll(root, '[data-doc-list]', 'click', (_list, e) => {
+      const t = e.target instanceof Element ? e.target : null;
+      const opener = t?.closest<HTMLElement>('[data-open]');
+      if (opener) return void open(ctx, Number(opener.dataset.open), Number(opener.dataset.page));
+      const btn = t?.closest<HTMLButtonElement>('[data-archive-doc]');
+      if (!btn || btn.disabled) return;
+      // Held while it is sent, as onAction holds a button.
+      const sent = archive(btn);
+      if (!sent) return;
+      setBusy(btn, true);
+      void sent.finally(() => btn.isConnected && setBusy(btn, false));
     });
     const uploadForm = root.querySelector<HTMLFormElement>('#doc-upload');
     if (uploadForm) {

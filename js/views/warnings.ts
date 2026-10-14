@@ -46,7 +46,7 @@ import {
   term,
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
-import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
+import { bindTable, clearSelection, dataTable, type TableOptions } from '../lib/data-table.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
 // are in their workflow and who has them; each with a chart of its signal around it, its payload
@@ -186,7 +186,7 @@ function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): T
       },
       {
         key: 'out',
-        label: 'Signal',
+        label: 'Still out',
         value: (w) => (w.ended_at ? 1 : 0),
         csv: (w) => (w.ended_at ? 'back' : 'still out'),
         cell: (w) => signalState(w),
@@ -219,29 +219,40 @@ function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): T
   };
 }
 
-// Acknowledges the warnings selected that nobody has yet, one after another.
+// Acknowledges the warnings selected that nobody has yet, four at a time. A refusal stops it (the
+// client says why); what was done is said, and the list fetched again.
 async function acknowledgeAll(ctx: Context, keys: string[]): Promise<void> {
   const site = siteId(ctx);
   const api = ctx.api;
   if (!site || !api) return;
   const raised = keys.filter((k) => listing?.items?.find((w) => w.id === k)?.status === 'raised');
   let done = 0;
-  for (const id of raised) {
-    try {
-      await api.warnings.acknowledge(site, id);
-      done++;
-    } catch {
-      break; // the client showed why
+  let failed = false;
+  const queue = [...raised];
+  const worker = async (): Promise<void> => {
+    for (let id = queue.shift(); id !== undefined && !failed; id = queue.shift()) {
+      try {
+        await api.warnings.acknowledge(site, id);
+        done++;
+      } catch {
+        failed = true;
+      }
     }
-  }
-  ctx.toast(done === 1 ? '1 warning acknowledged' : `${done} warnings acknowledged`, {
-    type: done ? 'success' : 'info',
-    description:
-      raised.length < keys.length
-        ? `${keys.length - raised.length} selected had been acknowledged already.`
-        : undefined,
-  });
-  if (done) ux('task', 'warning.acknowledge');
+  };
+  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+  if (done) {
+    ctx.toast(done === 1 ? '1 warning acknowledged' : `${done} warnings acknowledged`, {
+      type: 'success',
+      description: failed
+        ? `${raised.length - done} weren’t: the notice says why.`
+        : raised.length < keys.length
+          ? `${keys.length - raised.length} selected had been acknowledged already.`
+          : undefined,
+    });
+    ux('task', 'warning.acknowledge');
+  } else if (!failed)
+    ctx.toast('Nothing to acknowledge', { description: 'The warnings selected had been acknowledged already.' });
+  clearSelection('warnings');
   listing = null;
   detail = null;
   ctx.rerender();

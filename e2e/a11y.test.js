@@ -213,7 +213,7 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await check('app');
     // Documents: an upload, and a search's matches with their words marked.
     await page.evaluate(() => (location.hash = '#/documents'));
-    await page.waitForSelector('[data-doc-list] .review-row, [data-doc-list] .empty:not(:has-text("Loading"))');
+    await page.waitForSelector('[data-doc-list] [data-doc], [data-doc-list] .empty:not(:has-text("Loading"))');
     await page.setInputFiles('#doc-upload [name=file]', {
       name: 'sop.txt',
       mimeType: 'text/plain',

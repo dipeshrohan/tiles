@@ -4,7 +4,7 @@ import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
 import { showHistory } from './ontology.ts';
 import type { Context, View } from './types.ts';
-import { listKeys, recordFromHash, rowTarget, split } from '../lib/split.ts';
+import { listKeys, recordFromHash, rowClicks, split } from '../lib/split.ts';
 import { showHash } from '../lib/url-state.ts';
 import { ApiError } from '../lib/api.ts';
 import { emptyState, errorState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
@@ -136,7 +136,6 @@ function listTable(ctx: Context, ui: Ui, items: ReviewSummary[]): TableOptions<R
     empty: '',
     rowAttrs: (r) => ({ 'data-review': r.number, class: ui.selected === r.number ? 'sel' : undefined }),
     csv: 'change-requests.csv',
-    drawn: () => ctx.rerender(), // its rows are wired by the page
   };
 }
 
@@ -376,11 +375,7 @@ const view: View = {
     });
     const items = listing?.key === listKey(ctx) ? listing.items : null;
     if (items?.length) bindTable(root, listTable(ctx, ui, items));
-    // The whole row opens its request, as the link in it does.
-    onAll(root, '[data-review-list] [data-review]', 'click', (row, e) => {
-      if (e.target instanceof Element && e.target.closest('a, button, input')) return;
-      rowTarget(row)?.click();
-    });
+    rowClicks(root, '[data-review-list]', '[data-review]');
     listKeys(
       root,
       '[data-review-list] [data-review]',

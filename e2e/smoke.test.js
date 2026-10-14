@@ -4353,7 +4353,7 @@ test('a view is in its address: a reload or a copied link shows the same, and ba
   await a.page.reload();
   await a.page.waitForSelector('[data-warning-detail] .chart');
   assert.equal(await a.page.getAttribute('[data-show="all"]', 'aria-pressed'), 'true');
-  assert.equal(await a.page.getAttribute(`[data-warning="${out}"]`, 'class'), 'review-row sel');
+  assert.equal(await a.page.getAttribute(`[data-warning="${out}"]`, 'class'), 'sel');
   // The same link in another tab.
   const b = await openPage();
   t.after(() => b.page.close());
