@@ -3596,7 +3596,7 @@
 			id: "machines-out",
 			title: "Machines out of range",
 			summary: "Machines with a signal still outside its usual range",
-			needs: ["open-warnings", "signals"]
+			needs: ["open-warnings", "links"]
 		},
 		{
 			id: "shift",
@@ -3661,7 +3661,7 @@
 		admin: "admins"
 	};
 	function homeRole(workRole, siteRole) {
-		if (workRole && workRole in ROLE_CARDS) return workRole;
+		if (workRole && Object.hasOwn(ROLE_CARDS, workRole)) return workRole;
 		return siteRole === "admin" ? "admin" : siteRole === "engineer" ? "engineer" : "maintenance";
 	}
 	function cleanCards(value) {
@@ -3734,33 +3734,55 @@
 		};
 		return signals.filter((s) => s.quality?.badge === "bad" || s.quality?.badge === "warn").sort((a, b) => rank[a.quality.badge] - rank[b.quality.badge] || a.tag.localeCompare(b.tag));
 	}
+	var REVIEWS_PAGE = 200;
+	var MAX_LINKS$1 = 1e4;
 	var data = null;
 	var layout$1 = null;
+	var confirmed = null;
+	var edits = 0;
+	var saving$4 = Promise.resolve();
 	var fresh = true;
 	var seq$3 = 0;
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "home") fresh = true;
 	});
 	var siteId$11 = (ctx) => ctx.ontology.site?.id ?? null;
+	async function allLinks(ctx, site) {
+		const out = [];
+		for (let offset = 0; offset < MAX_LINKS$1; offset += 500) {
+			const page = await ctx.api.signals.list(site, {
+				linked: "yes",
+				limit: 500,
+				offset
+			});
+			out.push(...page.signals);
+			if (page.signals.length < 500 || offset + 500 >= page.total) break;
+		}
+		return out;
+	}
 	function fetcher(ctx, site, need) {
 		const api = ctx.api;
 		switch (need) {
 			case "my-warnings": return api.warnings.list(site, {
 				status: "unresolved",
 				assignee: "me",
-				limit: 100
+				limit: 200
 			});
 			case "open-warnings": return api.warnings.list(site, {
 				status: "unresolved",
-				limit: 100
+				limit: 200
 			});
 			case "recent-warnings": return api.warnings.list(site, {
 				status: "all",
-				limit: 100
+				limit: 200
 			});
-			case "reviews": return api.reviews.list(site, "open");
-			case "insights": return api.insights.list(site, { limit: 5 }).then((r) => r.insights);
+			case "reviews": return Promise.all([api.reviews.list(site, "open", { limit: REVIEWS_PAGE }), api.menu.counts(site).then((c) => c.reviews_waiting, () => null)]).then(([list, waiting]) => ({
+				list,
+				waiting
+			}));
+			case "insights": return api.insights.list(site, { limit: 20 }).then((r) => r.insights);
 			case "signals": return api.signals.list(site, { limit: 500 }).then((r) => r.signals);
+			case "links": return allLinks(ctx, site);
 			case "agents": return api.agents.list(site);
 			case "quality": return Promise.all([api.signals.list(site, {
 				quality: "bad",
@@ -3786,43 +3808,47 @@
 		};
 	}
 	var shown$3 = () => routeOf(location.hash) === "home";
-	function ensureHome(ctx, needs) {
+	function ensureLayout(ctx) {
 		const site = siteId$11(ctx);
 		if (!ctx.api || !site || ctx.ontology.status !== "ready") return;
-		if (fresh || data?.site !== site) {
-			fresh = false;
-			++seq$3;
-			data = {
+		if (!fresh && data?.site === site) return;
+		fresh = false;
+		++seq$3;
+		data = {
+			site,
+			slots: data?.site === site ? data.slots : {},
+			asked: /* @__PURE__ */ new Set()
+		};
+		if (layout$1?.site !== site) layout$1 = {
+			site,
+			cards: null,
+			loaded: false
+		};
+		const mine = seq$3;
+		const before = edits;
+		ctx.api.home.get(site).then((r) => {
+			if (mine !== seq$3 || before !== edits) return;
+			confirmed = cleanCards(r.cards);
+			layout$1 = {
 				site,
-				slots: data?.site === site ? data.slots : {},
-				asked: /* @__PURE__ */ new Set()
+				cards: confirmed,
+				loaded: true
 			};
-			if (layout$1?.site !== site) layout$1 = {
+			if (shown$3()) ctx.rerender();
+		}, () => {
+			if (mine !== seq$3 || before !== edits) return;
+			layout$1 = {
 				site,
-				cards: null,
-				loaded: false
+				cards: layout$1?.site === site ? layout$1.cards : null,
+				loaded: true
 			};
-			const mine = seq$3;
-			ctx.api.home.get(site).then((r) => {
-				if (mine !== seq$3) return;
-				layout$1 = {
-					site,
-					cards: cleanCards(r.cards),
-					loaded: true
-				};
-				if (shown$3()) ctx.rerender();
-			}, () => {
-				if (mine !== seq$3) return;
-				layout$1 = {
-					site,
-					cards: layout$1?.site === site ? layout$1.cards : null,
-					loaded: true
-				};
-				if (shown$3()) ctx.rerender();
-			});
-		}
+			if (shown$3()) ctx.rerender();
+		});
+	}
+	function ensureNeeds(ctx, needs) {
+		const site = siteId$11(ctx);
 		const current = data;
-		if (!current) return;
+		if (!ctx.api || !site || !current || current.site !== site) return;
 		for (const need of needs) {
 			if (current.asked.has(need)) continue;
 			current.asked.add(need);
@@ -3831,8 +3857,7 @@
 				if (mine !== seq$3 || data !== current) return;
 				current.slots[need] = {
 					value,
-					failed: false,
-					at: Date.now()
+					failed: false
 				};
 				if (shown$3()) ctx.rerender();
 			}, () => {
@@ -3840,36 +3865,39 @@
 				const before = current.slots[need];
 				current.slots[need] = before?.value ? before : {
 					value: null,
-					failed: true,
-					at: null
+					failed: true
 				};
 				if (shown$3()) ctx.rerender();
 			});
 		}
 	}
-	async function keepCards(ctx, cards) {
+	function keepCards(ctx, cards) {
 		const site = siteId$11(ctx);
-		if (!ctx.api || !site) return false;
-		const before = homeLayout(ctx).cards;
+		const api = ctx.api;
+		if (!api || !site) return Promise.resolve(false);
+		const mine = ++edits;
 		layout$1 = {
 			site,
 			cards,
 			loaded: true
 		};
 		ctx.rerender();
-		try {
-			if (cards === null) await ctx.api.home.reset(site);
-			else await ctx.api.home.set(site, cards);
+		const sent = saving$4.then(() => cards === null ? api.home.reset(site) : api.home.set(site, cards));
+		saving$4 = sent.catch(() => void 0);
+		return sent.then(() => {
+			confirmed = cards;
 			return true;
-		} catch {
-			if (layout$1?.site === site) layout$1 = {
-				site,
-				cards: before,
-				loaded: true
-			};
-			ctx.rerender();
+		}, () => {
+			if (mine === edits && layout$1?.site === site) {
+				layout$1 = {
+					site,
+					cards: confirmed,
+					loaded: true
+				};
+				ctx.rerender();
+			}
 			return false;
-		}
+		});
 	}
 	//#endregion
 	//#region js/lib/graph-index.ts
@@ -4359,8 +4387,8 @@
 	//#region js/views/home.ts
 	var uiState$15 = (ctx) => ctx.ui("home", { editing: false });
 	var MAX_ROWS = 5;
-	var figure = (n, what, tone = "") => `<p class="home-figure ${tone}"><span class="value" data-tick>${fmt$1(n)}</span> <span>${esc(what)}</span></p>`;
-	var more = (n, href, what) => n > MAX_ROWS ? `<p class="small"><a href="${esc(href)}">${fmt$1(n - MAX_ROWS)} more ${esc(what)}</a></p>` : "";
+	var figure = (n, what, tone = "", atLeast = false) => `<p class="home-figure ${tone}"><span class="value" data-tick>${fmt$1(n)}${atLeast ? "+" : ""}</span> <span>${esc(what)}</span></p>`;
+	var more = (n, href, what, atLeast = false) => n > MAX_ROWS ? `<p class="small"><a href="${esc(href)}">${atLeast ? "More" : `${fmt$1(n - MAX_ROWS)} more`} ${esc(what)}</a></p>` : "";
 	var rows = (items) => `<ul class="home-list">${items.slice(0, MAX_ROWS).map((i) => `<li>${i}</li>`).join("")}</ul>`;
 	var nothing = (title, body) => emptyState({
 		compact: true,
@@ -4376,41 +4404,44 @@
 				const all = slot(ctx, "my-warnings").value;
 				if (!all) return null;
 				const mine = myWarnings(all, me);
+				const full = all.length === 200;
 				if (!mine.length) return nothing("Nothing assigned to you", "Warnings someone assigns you show here.");
-				return `${figure(mine.length, mine.length === 1 ? "warning assigned to you" : "warnings assigned to you", "bad")}
-        ${rows(mine.map((w) => warningRow(w, now)))}${more(mine.length, "#/warnings?who=me", "on the Warnings page")}`;
+				return `${figure(mine.length, mine.length === 1 ? "warning assigned to you" : "warnings assigned to you", "bad", full)}
+        ${rows(mine.map((w) => warningRow(w, now)))}${more(mine.length, "#/warnings?who=me", "on the Warnings page", full)}`;
 			}
 			case "machines-out": {
 				const all = slot(ctx, "open-warnings").value;
-				const signals = slot(ctx, "signals").value;
+				const signals = slot(ctx, "links").value;
 				if (!all || !signals) return null;
 				const links = new Map(signals.flatMap((s) => s.node_id ? [[s.tag, s.node_id]] : []));
 				const out = machinesOut(machineBoard(ctx.graph, all.map((w) => placeWarning(ctx.graph, w, links, ""))));
 				if (!out.length) return nothing("No machine is out of range", "A machine shows here while one of its signals is out.");
 				return `${figure(out.length, out.length === 1 ? "machine with a signal still out" : "machines with a signal still out", "bad")}
-        ${rows(out.map((m) => `<a href="${esc(placeLink(m.id))}">${esc(m.label)}</a><span class="small soft">${esc([...m.path.slice(-1), `${m.warnings} open warning${m.warnings === 1 ? "" : "s"}`].join(" · "))}</span>`))}${more(out.length, "#/shopfloor", "on the Shopfloor")}`;
+        ${rows(out.map((m) => `<a href="${esc(placeLink(m.id))}">${esc(m.label)}</a><span class="small soft">${esc([...m.path.slice(-1), `${m.warnings} open warning${m.warnings === 1 ? "" : "s"}`].join(" · "))}</span>`))}${more(out.length, "#/shopfloor", "on the Shopfloor")}${all.length === 200 ? `<p class="small soft">From the newest ${fmt$1(200)} open warnings.</p>` : ""}`;
 			}
 			case "shift": {
 				const all = slot(ctx, "recent-warnings").value;
 				if (!all) return null;
 				const start = shiftStart(new Date(now));
 				const s = shiftSummary(all, start);
+				const atLeast = all.length === 200 && all.every((w) => Date.parse(w.started_at) >= start.getTime());
 				const since = start.toLocaleTimeString("en-GB", {
 					hour: "2-digit",
 					minute: "2-digit"
 				});
 				if (!s.raised.length) return nothing(`No warnings since ${since}`, "Warnings raised this shift show here.");
-				return `${figure(s.waiting.length, `of ${s.raised.length} raised since ${since} not acknowledged`, s.waiting.length ? "bad" : "good")}
+				return `${figure(s.waiting.length, `of ${fmt$1(s.raised.length)}${atLeast ? "+" : ""} raised since ${since} not acknowledged`, s.waiting.length ? "bad" : "good", atLeast)}
         <p class="small soft">${fmt$1(s.acknowledged)} acknowledged.</p>
-        ${s.waiting.length ? rows(s.waiting.map((w) => warningRow(w, now))) : ""}${more(s.waiting.length, "#/warnings?show=raised", "on the Warnings page")}`;
+        ${s.waiting.length ? rows(s.waiting.map((w) => warningRow(w, now))) : ""}${more(s.waiting.length, "#/warnings?show=raised", "on the Warnings page", atLeast)}`;
 			}
 			case "reviews": {
 				const all = slot(ctx, "reviews").value;
 				if (!all) return null;
-				const mine = reviewsForMe(all, me);
-				if (!mine.length) return nothing("No review waits for you", "Change requests you may approve show here.");
-				return `${figure(mine.length, mine.length === 1 ? "change request waiting" : "change requests waiting", "warn")}
-        ${rows(mine.map((r) => `<a href="#/reviews/${r.number}">#${r.number} ${esc(r.message || "Untitled change")}</a><span class="small soft">${esc(r.author)} · ${esc(when$1(r.created_at, now))}</span>`))}${more(mine.length, "#/reviews", "on the Change reviews page")}`;
+				const mine = reviewsForMe(all.list, me);
+				const n = Math.max(all.waiting ?? 0, mine.length);
+				if (!n) return nothing("No review waits for you", "Change requests you may approve show here.");
+				return `${figure(n, n === 1 ? "change request waiting" : "change requests waiting", "warn")}
+        ${rows(mine.map((r) => `<a href="#/reviews/${r.number}">#${r.number} ${esc(r.message || "Untitled change")}</a><span class="small soft">${esc(r.author)} · ${esc(when$1(r.created_at, now))}</span>`))}${more(n, "#/reviews", "on the Change reviews page")}`;
 			}
 			case "insights": {
 				const all = slot(ctx, "insights").value;
@@ -4507,33 +4538,34 @@
 			lead
 		})}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 		const role = homeRole(ctx.workRole, ctx.ontology.role);
-		const { cards: kept } = homeLayout(ctx);
+		const { cards: kept, loaded } = homeLayout(ctx);
+		if (!loaded) return `${pageHead({
+			title: "Home",
+			lead
+		})}<div class="home-cards">${skeleton.card("Loading your home…")}${skeleton.card()}</div>`;
 		const cards = kept ?? [...ROLE_CARDS[role]];
 		const editing = uiState$15(ctx).editing;
 		const now = Date.now();
 		const head = pageHead({
 			title: "Home",
-			lead: `What needs you now on ${site.name}. ${kept ? "Your cards" : `The cards for ${ROLE_LABELS[role]}`}: Customize changes them.`,
+			lead: `What needs you now on ${site.name}. ${kept ? "Your cards" : `The cards for ${ROLE_LABELS[role]}`}: Customise changes them.`,
 			actionsHtml: editing ? button("Done", {
 				variant: "primary",
 				attrs: { "data-home-done": true }
-			}) : button("Customize", { attrs: { "data-home-edit": true } })
+			}) : button("Customise", { attrs: { "data-home-edit": true } })
 		});
 		const absent = CARDS.filter((c) => !cards.includes(c.id));
-		return `${head}${editing ? `<div class="card home-edit stack gap-2" aria-label="Customize your home">
-        <form class="row gap-2 wrap items-end" data-card-add-form>
-          <label class="field">Add a card<select name="card"${absent.length ? "" : " disabled"}>${absent.map((c) => `<option value="${c.id}">${esc(c.title)}: ${esc(c.summary)}</option>`).join("") || "<option>Every card is on your home</option>"}</select></label>
-          ${button("Add", {
-			type: "submit",
-			disabled: !absent.length
-		})}
-        </form>
+		return `${head}${editing ? `<div class="card home-edit stack gap-2">
+        ${absent.length ? `<form class="row gap-2 wrap items-end" data-card-add-form>
+          ${field$1("Add a card", select("card", absent.map((c) => [c.id, `${c.title}: ${c.summary}`]), absent[0].id))}
+          ${button("Add", { type: "submit" })}
+        </form>` : "<p class=\"small\">Every card is on your home.</p>"}
         <p class="small soft">${kept ? `${button(`Use the cards for ${ROLE_LABELS[role]}`, {
 			size: "sm",
 			variant: "ghost",
 			attrs: { "data-home-reset": true }
 		})}` : `These are the cards for ${esc(ROLE_LABELS[role])}. Your changes are kept for you on this site.`}</p>
-      </div>` : ""}${cards.length ? `<div class="home-cards">${cards.map((id, i) => cardHtml(ctx, id, i, cards.length, editing, now)).join("")}</div>` : `<div class="card">${nothing("No cards on your home", "Customize adds the cards you want here.")}</div>`}`;
+      </div>` : ""}${cards.length ? `<div class="home-cards">${cards.map((id, i) => cardHtml(ctx, id, i, cards.length, editing, now)).join("")}</div>` : `<div class="card">${nothing("No cards on your home", "Customise adds the cards you want here.")}</div>`}`;
 	}
 	function demoHome(ctx) {
 		const { state } = ctx;
@@ -4648,12 +4680,12 @@
 			if (!ctx.api) return;
 			const role = homeRole(ctx.workRole, ctx.ontology.role);
 			const cards = () => homeLayout(ctx).cards ?? [...ROLE_CARDS[role]];
-			ensureHome(ctx, needsOf(cards()));
+			ensureLayout(ctx);
+			if (homeLayout(ctx).loaded) ensureNeeds(ctx, needsOf(cards()));
 			const ui = uiState$15(ctx);
 			const keep = (next, focus) => {
-				keepCards(ctx, next).then(() => {
-					if (focus) root.querySelector(focus)?.focus();
-				});
+				keepCards(ctx, next);
+				if (focus) root.querySelector(focus)?.focus();
 			};
 			onAll(root, "[data-home-edit]", "click", () => {
 				ui.editing = true;
@@ -4675,14 +4707,22 @@
 			});
 			onAll(root, "[data-card-remove]", "click", (el) => {
 				const id = el.dataset.cardRemove;
-				const before = cards();
-				keep(before.filter((c) => c !== id), "[data-card-add-form] select");
+				const at = cards().indexOf(id);
+				keep(cards().filter((c) => c !== id), "[data-card-add-form] select");
 				ux("task", "home.card-removed");
 				ctx.toast(`${cardOf(id)?.title ?? "Card"} removed`, {
 					type: "success",
 					action: {
 						label: "Undo",
-						run: () => keep(before)
+						run: () => {
+							const now = cards();
+							if (now.includes(id)) return;
+							keep([
+								...now.slice(0, at),
+								id,
+								...now.slice(at)
+							], `[data-card-remove="${id}"]`);
+						}
 					}
 				});
 			});

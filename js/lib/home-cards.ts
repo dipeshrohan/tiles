@@ -11,7 +11,15 @@ export type CardId =
 
 // What a card reads from the API: Home fetches what its cards need, nothing more.
 export type Need =
-  'my-warnings' | 'open-warnings' | 'recent-warnings' | 'reviews' | 'insights' | 'signals' | 'agents' | 'quality';
+  | 'my-warnings'
+  | 'open-warnings'
+  | 'recent-warnings'
+  | 'reviews'
+  | 'insights'
+  | 'signals'
+  | 'links'
+  | 'agents'
+  | 'quality';
 
 export interface CardDef {
   id: CardId;
@@ -31,7 +39,7 @@ export const CARDS: readonly CardDef[] = [
     id: 'machines-out',
     title: 'Machines out of range',
     summary: 'Machines with a signal still outside its usual range',
-    needs: ['open-warnings', 'signals'],
+    needs: ['open-warnings', 'links'],
   },
   {
     id: 'shift',
@@ -81,7 +89,7 @@ export const ROLE_LABELS: Readonly<Record<HomeRole, string>> = {
 
 // The role Home is set for: the one chosen in the welcome, else the site role's nearest.
 export function homeRole(workRole: string | null, siteRole: 'viewer' | 'engineer' | 'admin' | null): HomeRole {
-  if (workRole && workRole in ROLE_CARDS) return workRole as HomeRole;
+  if (workRole && Object.hasOwn(ROLE_CARDS, workRole)) return workRole as HomeRole;
   return siteRole === 'admin' ? 'admin' : siteRole === 'engineer' ? 'engineer' : 'maintenance';
 }
 

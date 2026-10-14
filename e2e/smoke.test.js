@@ -1538,7 +1538,7 @@ test('Refresh picks up a role change made by an admin', async (t) => {
   assert.deepEqual(errors, []);
 });
 
-test("home by role: the role's cards answer what needs you now; customized, kept with you by the API (U5.01)", async (t) => {
+test("home by role: the role's cards answer what needs you now; customised, kept with you by the API (U5.01)", async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
   t.after(() => fake.close());
@@ -1582,7 +1582,7 @@ test("home by role: the role's cards answer what needs you now; customized, kept
   assert.match(await page.locator('[data-card="freshness"]').innerText(), /dc1\.friction\s+Last reading 2 h ago/);
   await page.waitForSelector('[data-card="insights"] :text("No insights yet")');
 
-  // Customize: add one, move it up, remove one and undo; kept by the API.
+  // Customise: add one, move it up, remove one and undo; kept by the API.
   await page.click('[data-home-edit]');
   await page.selectOption('[data-card-add-form] select', 'my-warnings');
   await page.click('[data-card-add-form] button[type=submit]');
@@ -1599,8 +1599,17 @@ test("home by role: the role's cards answer what needs you now; customized, kept
   await page.waitForSelector('#view .page-head p.soft:has-text("Your cards")');
   await page.waitForFunction(() => document.querySelectorAll('#view [data-card]').length === 4);
   assert.deepEqual(await ids(), ['reviews', 'insights', 'my-warnings', 'freshness']);
-  // Back to the role's.
+  // Coming back, a change made before the API's answer about your cards arrives stands.
+  await page.evaluate(() => (location.hash = '#/signals'));
+  await page.waitForSelector('#view h1:has-text("Signals")');
+  fake.slowNext('GET', /\/me\/home$/, 1500);
+  await page.evaluate(() => (location.hash = '#/'));
   await page.click('[data-home-edit]');
+  await page.click('[data-card-remove="insights"]');
+  await waitFor(() => fake.homeLayouts.get(me)?.cards.join() === 'reviews,my-warnings,freshness');
+  await page.waitForTimeout(1800);
+  assert.deepEqual(await ids(), ['reviews', 'my-warnings', 'freshness']);
+  // Back to the role's.
   await page.click('[data-home-reset]');
   await waitFor(() => !fake.homeLayouts.has(me));
   await page.waitForSelector('#view .page-head p.soft:has-text("The cards for engineers")');

@@ -134,7 +134,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 - **Shift leads:** **This shift** (warnings raised since 06:00, 14:00 or 22:00, and how many nobody has acknowledged), **Machines out of range** and **My open warnings**.
 - **Admins:** **Edge agents** (offline or never called in), **Data quality** (signals whose last check found problems) and **Reviews waiting for me**.
 
-**Customize** lets you add any card, move cards up or down, and remove them (with Undo). Your cards are kept for you on that site, in any browser; **Use the cards for …** goes back to your role's. **Done** ends customizing.
+**Customise** lets you add any card, move cards up or down, and remove them (with Undo). Your cards are kept for you on that site, in any browser; **Use the cards for …** goes back to your role's. **Done** ends customising.
 
 **In local mode** you see:
 

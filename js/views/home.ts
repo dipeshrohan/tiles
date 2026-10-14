@@ -4,7 +4,7 @@ import { esc, fmt, timeAgo } from '../lib/dom.ts';
 import type { WarningInfo } from '../lib/api.ts';
 import { icon } from '../lib/icons.ts';
 import type { Context, View } from './types.ts';
-import { apiUnreachable, button, emptyState, loadFailed, pageHead, skeleton } from '../lib/ui.ts';
+import { apiUnreachable, button, emptyState, field, loadFailed, pageHead, select, skeleton } from '../lib/ui.ts';
 import {
   agentProblems,
   CARDS,
@@ -24,7 +24,7 @@ import {
   staleSignals,
   type CardId,
 } from '../lib/home-cards.ts';
-import { ensureHome, homeLayout, keepCards, slot, SIGNALS_PAGE } from './home-data.ts';
+import { ensureLayout, ensureNeeds, homeLayout, keepCards, slot, SIGNALS_PAGE, WARNINGS_PAGE } from './home-data.ts';
 import { machineBoard, placeWarning } from '../lib/shopfloor.ts';
 import { when } from '../lib/warnings.ts';
 import { placeLink } from '../lib/plant.ts';
@@ -32,7 +32,7 @@ import { onAll } from '../lib/dom.ts';
 import { ux } from '../lib/analytics.ts';
 
 // Home (U5.01): in local mode, the demo's hero and figures; with the Tiles API, cards set by your
-// role that each answer "what needs me now?", which you can add, remove and order (Customize).
+// role that each answer "what needs me now?", which you can add, remove and order (Customise).
 
 interface Ui {
   editing: boolean;
@@ -41,12 +41,15 @@ const uiState = (ctx: Context) => ctx.ui<Ui>('home', { editing: false });
 
 const MAX_ROWS = 5;
 
-// A card's figure: the number that answers it, and what it counts.
-const figure = (n: number, what: string, tone: '' | 'bad' | 'warn' | 'good' = ''): string =>
-  `<p class="home-figure ${tone}"><span class="value" data-tick>${fmt(n)}</span> <span>${esc(what)}</span></p>`;
+// A card's figure: the number that answers it, and what it counts. `atLeast`: counted from a full
+// page of a list, so there may be more (shown as 200+).
+const figure = (n: number, what: string, tone: '' | 'bad' | 'warn' | 'good' = '', atLeast = false): string =>
+  `<p class="home-figure ${tone}"><span class="value" data-tick>${fmt(n)}${atLeast ? '+' : ''}</span> <span>${esc(what)}</span></p>`;
 
-const more = (n: number, href: string, what: string): string =>
-  n > MAX_ROWS ? `<p class="small"><a href="${esc(href)}">${fmt(n - MAX_ROWS)} more ${esc(what)}</a></p>` : '';
+const more = (n: number, href: string, what: string, atLeast = false): string =>
+  n > MAX_ROWS
+    ? `<p class="small"><a href="${esc(href)}">${atLeast ? 'More' : `${fmt(n - MAX_ROWS)} more`} ${esc(what)}</a></p>`
+    : '';
 
 const rows = (items: readonly string[]): string =>
   `<ul class="home-list">${items
@@ -69,13 +72,14 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       const all = slot(ctx, 'my-warnings').value;
       if (!all) return null;
       const mine = myWarnings(all, me);
+      const full = all.length === WARNINGS_PAGE;
       if (!mine.length) return nothing('Nothing assigned to you', 'Warnings someone assigns you show here.');
-      return `${figure(mine.length, mine.length === 1 ? 'warning assigned to you' : 'warnings assigned to you', 'bad')}
-        ${rows(mine.map((w) => warningRow(w, now)))}${more(mine.length, '#/warnings?who=me', 'on the Warnings page')}`;
+      return `${figure(mine.length, mine.length === 1 ? 'warning assigned to you' : 'warnings assigned to you', 'bad', full)}
+        ${rows(mine.map((w) => warningRow(w, now)))}${more(mine.length, '#/warnings?who=me', 'on the Warnings page', full)}`;
     }
     case 'machines-out': {
       const all = slot(ctx, 'open-warnings').value;
-      const signals = slot(ctx, 'signals').value;
+      const signals = slot(ctx, 'links').value;
       if (!all || !signals) return null;
       const links = new Map(signals.flatMap((s) => (s.node_id ? [[s.tag, s.node_id] as const] : [])));
       const out = machinesOut(
@@ -94,31 +98,39 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
                 [...m.path.slice(-1), `${m.warnings} open warning${m.warnings === 1 ? '' : 's'}`].join(' · '),
               )}</span>`,
           ),
-        )}${more(out.length, '#/shopfloor', 'on the Shopfloor')}`;
+        )}${more(out.length, '#/shopfloor', 'on the Shopfloor')}${
+          all.length === WARNINGS_PAGE
+            ? `<p class="small soft">From the newest ${fmt(WARNINGS_PAGE)} open warnings.</p>`
+            : ''
+        }`;
     }
     case 'shift': {
       const all = slot(ctx, 'recent-warnings').value;
       if (!all) return null;
       const start = shiftStart(new Date(now));
       const s = shiftSummary(all, start);
+      // A full page that doesn't reach back to the shift's start: there may be more.
+      const atLeast = all.length === WARNINGS_PAGE && all.every((w) => Date.parse(w.started_at) >= start.getTime());
       const since = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       if (!s.raised.length) return nothing(`No warnings since ${since}`, 'Warnings raised this shift show here.');
-      return `${figure(s.waiting.length, `of ${s.raised.length} raised since ${since} not acknowledged`, s.waiting.length ? 'bad' : 'good')}
+      return `${figure(s.waiting.length, `of ${fmt(s.raised.length)}${atLeast ? '+' : ''} raised since ${since} not acknowledged`, s.waiting.length ? 'bad' : 'good', atLeast)}
         <p class="small soft">${fmt(s.acknowledged)} acknowledged.</p>
-        ${s.waiting.length ? rows(s.waiting.map((w) => warningRow(w, now))) : ''}${more(s.waiting.length, '#/warnings?show=raised', 'on the Warnings page')}`;
+        ${s.waiting.length ? rows(s.waiting.map((w) => warningRow(w, now))) : ''}${more(s.waiting.length, '#/warnings?show=raised', 'on the Warnings page', atLeast)}`;
     }
     case 'reviews': {
       const all = slot(ctx, 'reviews').value;
       if (!all) return null;
-      const mine = reviewsForMe(all, me);
-      if (!mine.length) return nothing('No review waits for you', 'Change requests you may approve show here.');
-      return `${figure(mine.length, mine.length === 1 ? 'change request waiting' : 'change requests waiting', 'warn')}
+      const mine = reviewsForMe(all.list, me);
+      // The menu's count is exact; the list is the newest open requests.
+      const n = Math.max(all.waiting ?? 0, mine.length);
+      if (!n) return nothing('No review waits for you', 'Change requests you may approve show here.');
+      return `${figure(n, n === 1 ? 'change request waiting' : 'change requests waiting', 'warn')}
         ${rows(
           mine.map(
             (r) =>
               `<a href="#/reviews/${r.number}">#${r.number} ${esc(r.message || 'Untitled change')}</a><span class="small soft">${esc(r.author)} · ${esc(when(r.created_at, now))}</span>`,
           ),
-        )}${more(mine.length, '#/reviews', 'on the Change reviews page')}`;
+        )}${more(n, '#/reviews', 'on the Change reviews page')}`;
     }
     case 'insights': {
       const all = slot(ctx, 'insights').value;
@@ -226,33 +238,44 @@ function roleHome(ctx: Context): string {
   if (ctx.ontology.status !== 'ready')
     return `${pageHead({ title: 'Home', lead })}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
   const role = homeRole(ctx.workRole, ctx.ontology.role);
-  const { cards: kept } = homeLayout(ctx);
+  const { cards: kept, loaded } = homeLayout(ctx);
+  // Your cards are asked for first: until they come, nothing is fetched for the wrong ones.
+  if (!loaded)
+    return `${pageHead({ title: 'Home', lead })}<div class="home-cards">${skeleton.card('Loading your home…')}${skeleton.card()}</div>`;
   const cards = kept ?? [...ROLE_CARDS[role]];
   const editing = uiState(ctx).editing;
   const now = Date.now();
   const head = pageHead({
     title: 'Home',
-    lead: `What needs you now on ${site.name}. ${kept ? 'Your cards' : `The cards for ${ROLE_LABELS[role]}`}: Customize changes them.`,
+    lead: `What needs you now on ${site.name}. ${kept ? 'Your cards' : `The cards for ${ROLE_LABELS[role]}`}: Customise changes them.`,
     actionsHtml: editing
       ? button('Done', { variant: 'primary', attrs: { 'data-home-done': true } })
-      : button('Customize', { attrs: { 'data-home-edit': true } }),
+      : button('Customise', { attrs: { 'data-home-edit': true } }),
   });
   const absent = CARDS.filter((c) => !cards.includes(c.id));
   const edit = editing
-    ? `<div class="card home-edit stack gap-2" aria-label="Customize your home">
-        <form class="row gap-2 wrap items-end" data-card-add-form>
-          <label class="field">Add a card<select name="card"${absent.length ? '' : ' disabled'}>${
-            absent.map((c) => `<option value="${c.id}">${esc(c.title)}: ${esc(c.summary)}</option>`).join('') ||
-            '<option>Every card is on your home</option>'
-          }</select></label>
-          ${button('Add', { type: 'submit', disabled: !absent.length })}
-        </form>
+    ? `<div class="card home-edit stack gap-2">
+        ${
+          absent.length
+            ? `<form class="row gap-2 wrap items-end" data-card-add-form>
+          ${field(
+            'Add a card',
+            select(
+              'card',
+              absent.map((c) => [c.id, `${c.title}: ${c.summary}`] as const),
+              absent[0]!.id,
+            ),
+          )}
+          ${button('Add', { type: 'submit' })}
+        </form>`
+            : '<p class="small">Every card is on your home.</p>'
+        }
         <p class="small soft">${kept ? `${button(`Use the cards for ${ROLE_LABELS[role]}`, { size: 'sm', variant: 'ghost', attrs: { 'data-home-reset': true } })}` : `These are the cards for ${esc(ROLE_LABELS[role])}. Your changes are kept for you on this site.`}</p>
       </div>`
     : '';
   const grid = cards.length
     ? `<div class="home-cards">${cards.map((id, i) => cardHtml(ctx, id, i, cards.length, editing, now)).join('')}</div>`
-    : `<div class="card">${nothing('No cards on your home', 'Customize adds the cards you want here.')}</div>`;
+    : `<div class="card">${nothing('No cards on your home', 'Customise adds the cards you want here.')}</div>`;
   return `${head}${edit}${grid}`;
 }
 
@@ -393,12 +416,13 @@ const view: View = {
     if (!ctx.api) return;
     const role = homeRole(ctx.workRole, ctx.ontology.role);
     const cards = (): CardId[] => homeLayout(ctx).cards ?? [...ROLE_CARDS[role]];
-    ensureHome(ctx, needsOf(cards()));
+    ensureLayout(ctx);
+    if (homeLayout(ctx).loaded) ensureNeeds(ctx, needsOf(cards()));
     const ui = uiState(ctx);
+    // Shown at once (the page is drawn again before this returns), then kept by the API.
     const keep = (next: CardId[] | null, focus?: string): void => {
-      void keepCards(ctx, next).then(() => {
-        if (focus) root.querySelector<HTMLElement>(focus)?.focus();
-      });
+      void keepCards(ctx, next);
+      if (focus) root.querySelector<HTMLElement>(focus)?.focus();
     };
     onAll(root, '[data-home-edit]', 'click', () => {
       ui.editing = true;
@@ -420,15 +444,23 @@ const view: View = {
     });
     onAll(root, '[data-card-remove]', 'click', (el) => {
       const id = el.dataset.cardRemove as CardId;
-      const before = cards();
+      const at = cards().indexOf(id);
       keep(
-        before.filter((c) => c !== id),
+        cards().filter((c) => c !== id),
         '[data-card-add-form] select',
       );
       ux('task', 'home.card-removed');
+      // Undo puts it back where it was, keeping whatever else changed since.
       ctx.toast(`${cardOf(id)?.title ?? 'Card'} removed`, {
         type: 'success',
-        action: { label: 'Undo', run: () => keep(before) },
+        action: {
+          label: 'Undo',
+          run: () => {
+            const now = cards();
+            if (now.includes(id)) return;
+            keep([...now.slice(0, at), id, ...now.slice(at)], `[data-card-remove="${id}"]`);
+          },
+        },
       });
     });
     onAll(root, '[data-card-add-form]', 'submit', (form, e) => {

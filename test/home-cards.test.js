@@ -46,7 +46,8 @@ test('cards as kept: known ones, once each, in order; moved within bounds; their
   assert.deepEqual(moveCard(['a', 'b', 'c'], 'c', -1), ['a', 'c', 'b']);
   assert.deepEqual(moveCard(['a', 'b', 'c'], 'a', -1), ['a', 'b', 'c']);
   assert.deepEqual(moveCard(['a', 'b', 'c'], 'c', 1), ['a', 'b', 'c']);
-  assert.deepEqual(needsOf(['machines-out', 'freshness']), ['open-warnings', 'signals']);
+  assert.deepEqual(needsOf(['machines-out', 'freshness']), ['open-warnings', 'links', 'signals']);
+  assert.equal(homeRole('constructor', 'engineer'), 'engineer'); // an inherited name isn't a role
 });
 
 test('my warnings: assigned to me, not resolved, still out first', () => {
