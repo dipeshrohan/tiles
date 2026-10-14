@@ -4993,6 +4993,16 @@
 			close();
 		});
 	}
+	function closeOnLink(dialog, closed, gone) {
+		dialog.addEventListener("click", (e) => {
+			const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
+			const elsewhere = e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || link?.hasAttribute("target");
+			if (closed() || !link || elsewhere) return;
+			dialog.close();
+			dialog.remove();
+			gone();
+		});
+	}
 	function open$2(dialog) {
 		dialog.dataset.state = "open";
 		document.body.append(dialog);
@@ -5103,13 +5113,8 @@
 				dismiss(dialog).then(resolve);
 			};
 			dialog.querySelector("[data-sheet-close]")?.addEventListener("click", done);
-			dialog.addEventListener("click", (e) => {
-				const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
-				const elsewhere = e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || link?.hasAttribute("target");
-				if (closed || !link || elsewhere) return;
+			closeOnLink(dialog, () => closed, () => {
 				closed = true;
-				dialog.close();
-				dialog.remove();
 				resolve();
 			});
 			closeOutside(dialog, done);
@@ -5140,12 +5145,8 @@
 				closed = true;
 				dismiss(dialog).then(resolve);
 			};
-			dialog.addEventListener("click", (e) => {
-				const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
-				if (closed || !link || link.hasAttribute("target")) return;
+			closeOnLink(dialog, () => closed, () => {
 				closed = true;
-				dialog.close();
-				dialog.remove();
 				resolve();
 			});
 			closeOutside(dialog, done);
@@ -15391,6 +15392,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			label: "Engineer",
 			says: "I look for causes in the data and keep the plant model up to date.",
 			start: "explorer",
+			localStart: "quality",
 			pins: [
 				"signals",
 				"explorer",
@@ -15404,6 +15406,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			label: "Maintenance",
 			says: "I work warnings and keep the machines running.",
 			start: "warnings",
+			localStart: "physics",
 			pins: [
 				"warnings",
 				"plant",
@@ -15437,16 +15440,23 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		}
 	];
 	var roleSetup = (id) => WORK_ROLES.find((r) => r.id === id);
-	function applyRole(prefs, role, pages) {
+	var startOf = (role, local) => local && role.localStart || role.start;
+	function applyRole(prefs, role, pages, o) {
+		const before = o.previous;
+		const kept = before ? prefs.pinned.filter((p) => !before.pins.includes(p)) : prefs.pinned;
+		const unfolded = before ? prefs.folded.filter((g) => !before.fold.includes(g)) : prefs.folded;
 		const pins = role.pins.filter((p) => pages.includes(p));
-		const pinned = [.../* @__PURE__ */ new Set([...pins, ...prefs.pinned])].slice(0, 8);
-		const folded = [.../* @__PURE__ */ new Set([...prefs.folded, ...role.fold])];
-		return {
+		const pinned = [.../* @__PURE__ */ new Set([...pins, ...kept])].slice(0, 8);
+		const folded = [.../* @__PURE__ */ new Set([...unfolded, ...role.fold])];
+		const start = startOf(role, o.local);
+		const next = {
 			...prefs,
 			pinned,
-			folded,
-			...pages.includes(role.start) ? { start: role.start } : {}
+			folded
 		};
+		if (pages.includes(start)) next.start = start;
+		else delete next.start;
+		return next;
 	}
 	var welcomeKey = (navOwner) => `welcome:${navOwner}`;
 	function shouldWelcome(seen, automated) {
@@ -15462,16 +15472,18 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
     <p class="small soft">Your choice sets the page Tiles opens at and the pages pinned at the top of the menu. You can change both later.</p>
     <div class="dialog-foot"><button class="btn ghost" type="button" data-welcome-skip>Just look around</button></div>`;
 	}
-	function nextHtml(c, role, o) {
-		const pins = role.pins.map((p) => `<b>${esc(c.title(p))}</b>`);
+	function nextHtml(c, role, prefs, o) {
+		const pins = role.pins.filter((p) => prefs.pinned.includes(p)).map((p) => `<b>${esc(c.title(p))}</b>`);
 		const listed = pins.length > 1 ? `${pins.slice(0, -1).join(", ")} and ${pins.at(-1)}` : pins[0] ?? "";
-		const start = c.title(role.start);
+		const page = prefs.start ?? "home";
+		const start = c.title(page);
 		const actions = [
 			o.setUp ? `<a class="btn primary" href="#/onboarding">Set up the site</a>` : "",
-			`<a class="btn${o.setUp ? "" : " primary"}" href="#/${esc(role.start)}">Go to ${esc(start)}</a>`,
-			o.helpFor ? `<a class="btn ghost" href="#/help/${esc(o.helpFor)}">Read how ${esc(start)} works</a>` : ""
+			`<a class="btn${o.setUp ? "" : " primary"}" href="#/${page === "home" ? "" : esc(page)}">Go to ${esc(start)}</a>`,
+			o.helpFor ? `<a class="btn ghost" href="${esc(helpHref(o.helpFor))}">Read how ${esc(start)} works</a>` : ""
 		].filter(Boolean);
-		return `<p>Tiles will open at <b>${esc(start)}</b>, with ${listed} pinned in the menu.</p>
+		const opens = `Tiles will open at <b>${esc(start)}</b>`;
+		return `<p>${pins.length ? `${opens}, with ${listed} pinned in the menu.` : `${opens}.`}</p>
     <p class="small soft">To see this again, open Help and choose Show the welcome.</p>
     <div class="dialog-foot">${actions.join("")}</div>`;
 	}
@@ -16292,12 +16304,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	}));
 	var helpAsked = false;
 	var navigated = false;
+	var started = false;
 	var welcoming = false;
 	function firstRun() {
 		const owner = navOwner();
 		if (!owner) return;
 		const start = prefs().start;
-		if (start && start !== "home" && !navigated && /^#?\/?$/.test(location.hash)) location.replace(`#/${start}`);
+		if (!started && start && start !== "home" && !navigated && /^#?\/?$/.test(location.hash)) location.replace(`#/${start}`);
+		started = true;
 		if (shouldWelcome(load$4(welcomeKey(owner), null) !== null, navigator.webdriver === true) && !document.querySelector("dialog[open]")) showWelcome();
 	}
 	document.addEventListener("tiles:welcome", () => void showWelcome());
@@ -16309,7 +16323,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		const owner = navOwner();
 		if (!owner || welcoming) return;
 		welcoming = true;
-		save$1(welcomeKey(owner), { seen: true });
+		const kept = load$4(welcomeKey(owner), null);
+		save$1(welcomeKey(owner), {
+			...kept,
+			seen: true
+		});
 		ux("help", "welcome");
 		const c = welcomeContext();
 		await panelDialog({
@@ -16318,22 +16336,29 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			wide: true
 		}, (dialog, close) => {
 			const box = dialog.querySelector("[data-welcome]");
+			let chosen = false;
 			dialog.addEventListener("click", (e) => {
 				const el = e.target instanceof Element ? e.target : null;
 				if (el?.closest("[data-welcome-skip]")) return close();
 				const role = roleSetup(el?.closest("[data-role]")?.dataset.role ?? "");
-				if (!role || !box) return;
-				setPrefs(applyRole(prefs(), role, NAV_PAGES));
+				if (!role || !box || chosen) return;
+				chosen = true;
+				const before = load$4(welcomeKey(owner), null);
+				const next = applyRole(prefs(), role, NAV_PAGES, {
+					local: !api,
+					previous: roleSetup(before?.role ?? "")
+				});
+				setPrefs(next);
 				save$1(welcomeKey(owner), {
 					seen: true,
 					role: role.id
 				});
 				renderNav(currentView());
-				const setUp = Boolean(api && ctx.ontology.role === "admin" && Object.keys(ctx.graph.nodes).length <= 1);
+				const setUp = Boolean(api && ctx.ontology.role === "admin" && !Object.values(ctx.graph.nodes).some((n) => n.type === "Machine"));
 				loadHelp().catch(() => null).then((help) => {
-					box.innerHTML = nextHtml(c, role, {
+					box.innerHTML = nextHtml(c, role, next, {
 						setUp,
-						helpFor: help?.pages[role.start] ?? null
+						helpFor: help?.pages[next.start ?? "home"] ?? null
 					});
 					box.querySelector("a")?.focus();
 				});
