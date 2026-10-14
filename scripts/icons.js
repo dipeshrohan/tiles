@@ -89,6 +89,7 @@ export const NAMES = [
   'pin-off',
   'panel-left-close',
   'panel-left-open',
+  'arrow-left',
 ];
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');

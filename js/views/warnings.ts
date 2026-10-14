@@ -27,6 +27,8 @@ import {
   when,
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
+import { listKeys, split } from '../lib/split.ts';
+import { withQuery } from '../lib/url-state.ts';
 import {
   badge,
   button,
@@ -180,7 +182,7 @@ function listCard(ctx: Context, ui: Ui): string {
       : items
           .map(
             (w) => `
-        <button class="review-row ${ui.selected === w.id ? 'sel' : ''}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}">
+        <button class="review-row ${ui.selected === w.id ? 'sel' : ''}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}"${ui.selected === w.id ? ' aria-current="true"' : ''}>
           <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : 'Unassigned'}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ''}</span>
@@ -516,7 +518,11 @@ const view: View = {
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
-    return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
+    return `${head}${filterBar(ctx, ui.filters)}${split(listCard(ctx, ui), detailCard(ctx, ui), {
+      open: ui.selected !== null,
+      back: withQuery('#/warnings', filtersQuery(ui.filters)),
+      label: 'warnings',
+    })}`;
   },
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
@@ -548,6 +554,12 @@ const view: View = {
     onAll(root, '[data-warning]', 'click', (el) => {
       ui.selected = el.dataset.warning ?? null;
       ctx.rerender();
+    });
+    listKeys(root, '[data-warning-list] [data-warning]', (row) => row.getAttribute('data-warning') === ui.selected);
+    // Back to the list (a narrow screen): no warning open, though the address keeps the filters.
+    onAll(root, '.split-back', 'click', () => {
+      linkedWarning = null;
+      Object.assign(ui, { selected: null });
     });
     onAll(root, '[data-refresh-warnings]', 'click', () => {
       if (busy) return; // the step's answer refreshes it

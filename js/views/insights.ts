@@ -17,6 +17,7 @@ import {
 } from '../lib/insights.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
+import { listKeys, split } from '../lib/split.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 
@@ -97,7 +98,7 @@ function listCard(ctx: Context, ui: Ui): string {
           .map(
             (
               i,
-            ) => `<a class="review-row ${n === i.number ? 'sel' : ''}" href="${insightLink(i.number)}" data-insight="${i.number}">
+            ) => `<a class="review-row ${n === i.number ? 'sel' : ''}" href="${insightLink(i.number)}" data-insight="${i.number}" data-key="insight-${i.number}"${n === i.number ? ' aria-current="true"' : ''}>
               <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge(i.status)}</span>
               <span class="small muted">${i.kind === 'correlation' ? 'Correlation' : 'Signals'} · ${esc(i.author)} · ${esc(when(i.created_at))}</span>
             </a>`,
@@ -246,7 +247,11 @@ const view: View = {
     if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-    return `${head}<div class="reviews">${listCard(ctx, uiState(ctx))}${detailCard(ctx)}</div>`;
+    return `${head}${split(listCard(ctx, uiState(ctx)), detailCard(ctx), {
+      open: selected() !== null,
+      back: '#/insights',
+      label: 'insights',
+    })}`;
   },
   bind(root, ctx) {
     const api = ctx.api;
@@ -259,6 +264,11 @@ const view: View = {
       ui.status = (el.dataset.status ?? '') as Ui['status'];
       ctx.rerender();
     });
+    listKeys(
+      root,
+      '[data-insight-list] [data-insight]',
+      (row) => row.getAttribute('data-insight') === String(selected()),
+    );
     const i = detail?.key === detailKey(ctx) ? detail.insight : null;
     if (!i) return;
     const key = `${detailKey(ctx)}|${i.updated_at}`;

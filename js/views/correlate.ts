@@ -318,7 +318,7 @@ const view: View = {
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
-    return `${head}<div class="reviews">${listCard(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
+    return `${head}<div class="split">${listCard(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
   },
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;

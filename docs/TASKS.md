@@ -278,7 +278,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* each of these works by keyboard, is tested, and fits at 320 px wide.
 - [x] `U3.07` [#228](https://github.com/dipeshrohan/tiles/issues/228) **Performance budget** · FE · 2d · U3.03
   *Done when:* the check fails on a deliberate regression and passes on main.
-- [ ] `U3.08` [#229](https://github.com/dipeshrohan/tiles/issues/229) ◇ **Split view for records** · FE · 3d · U3.03
+- [x] `U3.08` [#229](https://github.com/dipeshrohan/tiles/issues/229) ◇ **Split view for records** · FE · 3d · U3.03
   *Done when:* the four pages work in split view and fall back to a single column on narrow screens.
 
 **UI Month 3 exit check:** no lost focus or scroll on re-render; links carry filters; the performance check is green.

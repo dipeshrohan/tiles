@@ -4,7 +4,10 @@ import type { Review, ReviewStatus, ReviewSummary } from '../lib/api.ts';
 import type { DiffStats } from '../lib/types.ts';
 import { showHistory } from './ontology.ts';
 import type { Context, View } from './types.ts';
-import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import { listKeys, recordFromHash, split } from '../lib/split.ts';
+import { showHash } from '../lib/url-state.ts';
+import { ApiError } from '../lib/api.ts';
+import { emptyState, errorState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 
 // Change reviews (T2.12): ontology changes another engineer approves (which
 // commits them) or rejects, with the diff and a comment thread. Requests are
@@ -24,28 +27,35 @@ let listing: { key: string; items: ReviewSummary[] | null } | null = null;
 let detail: { key: string; review: Review } | null = null;
 let listSeq = 0;
 let detailSeq = 0;
+let detailFailed: string | null = null; // the request (site|number) whose load failed: Try again
 let busy = false; // an action is on its way; the buttons wait
 let draft = { key: '', text: '' }; // the comment being written, kept across re-renders
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 
 // Others request, approve and reject while you are elsewhere: each visit to the page fetches afresh.
-// A change request linked to as #/reviews/<number> (the copilot links its proposals so): selected
-// when the page is next drawn.
-const linked = (hash: string): number | null => {
-  const m = /^#\/reviews\/(\d+)/i.exec(hash);
-  return m ? Number(m[1]) : null;
-};
-let wanted: number | null = typeof location === 'undefined' ? null : linked(location.hash);
+// The change request open is the one the address names, #/reviews/<number> (U3.08: a link, Back
+// and a reload show it; the copilot links its proposals so); #/reviews is the list alone.
+const linked = (hash: string): number | null => recordFromHash('reviews', hash);
+const reviewLink = (n: number | null): string => (n === null ? '#/reviews' : `#/reviews/${n}`);
+// The page's state follows the address (and a number is another site's after a switch).
+function sync(ctx: Context): void {
+  const ui = uiState(ctx);
+  const site = siteId(ctx);
+  // Another site: the number open was the last site's, so back to the list (not its namesake here).
+  if (ui.site !== null && ui.site !== site && linked(location.hash) !== null) showHash(reviewLink(null));
+  ui.site = site;
+  ui.selected = linked(location.hash);
+}
 
 const COPILOT_BADGE =
   '<span class="badge accent" title="The copilot wrote these changes for its author; another engineer must approve them">✦ Proposed by the copilot</span>';
 
 onNavigate((hash) => {
-  wanted = linked(hash);
   if (routeOf(hash) !== 'reviews') {
     listing = null;
     detail = null;
+    detailFailed = null;
   }
 });
 const listKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).state}`;
@@ -93,11 +103,11 @@ function listCard(ctx: Context, ui: Ui): string {
       : items
           .map(
             (r) => `
-        <button class="review-row ${ui.selected === r.number ? 'sel' : ''}" data-review="${r.number}">
+        <a class="review-row ${ui.selected === r.number ? 'sel' : ''}" href="${reviewLink(r.number)}" data-review="${r.number}" data-key="review-${r.number}"${ui.selected === r.number ? ' aria-current="true"' : ''}>
           <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge(r.status)}</span>
           <span class="small muted">${r.source === 'copilot' ? `${COPILOT_BADGE} ` : ''}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ''}${r.comments ? ` · ${r.comments} comment(s)` : ''}</span>
           <span class="small">${stats(r.stats)}</span>
-        </button>`,
+        </a>`,
           )
           .join('') ||
         (ui.state === 'open'
@@ -120,6 +130,8 @@ function detailCard(ctx: Context, ui: Ui): string {
   if (ui.selected === null)
     return `<div class="card">${emptyState({ illustration: 'select', title: 'Select a change request', body: 'Its changes, discussion and decision show here.' })}</div>`;
   const r = detail?.key === detailKey(ctx) ? detail.review : null;
+  if (!r && detailFailed === detailKey(ctx))
+    return `<div class="card">${errorState({ title: 'The change request could not be loaded', body: 'The Tiles API didn’t send it (the notice says why). Try again; if it keeps failing, check the connection in Settings.', retry: 'retry-review', compact: true })}</div>`;
   if (!r) return `<div class="card" data-review-detail>${skeleton.card()}</div>`;
   const o = ctx.ontology;
   const open = r.status === 'open';
@@ -225,9 +237,14 @@ async function fetchDetail(ctx: Context): Promise<void> {
     const review = await ctx.api.reviews.get(site, n);
     if (seq !== detailSeq) return;
     detail = { key, review };
-  } catch {
+    detailFailed = null;
+  } catch (e) {
     if (seq !== detailSeq) return;
-    uiState(ctx).selected = null; // gone, or another site's number
+    // Not there (gone, or another site's number): the address goes back to the list. Any other
+    // failure keeps the record named, to try again.
+    if (e instanceof ApiError && e.status === 404) {
+      if (linked(location.hash) === n) showHash(reviewLink(null));
+    } else detailFailed = key;
   }
   ctx.rerender();
 }
@@ -293,30 +310,35 @@ const view: View = {
     if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
+    sync(ctx);
     const ui = uiState(ctx);
-    return `${head}${policyCard(ctx)}<div class="reviews">${listCard(ctx, ui)}${detailCard(ctx, ui)}</div>`;
+    return `${head}${policyCard(ctx)}${split(listCard(ctx, ui), detailCard(ctx, ui), {
+      open: ui.selected !== null,
+      back: reviewLink(null),
+      label: 'change requests',
+    })}`;
   },
   bind(root, ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
     const ui = uiState(ctx);
-    if (ui.site !== siteId(ctx)) Object.assign(ui, { selected: null, site: siteId(ctx) }); // another site's number
-    if (wanted !== null) {
-      ui.selected = wanted;
-      wanted = null;
-      // Picked once: a reload or Back mustn't take the page back to it after you choose another.
-      history.replaceState(history.state, '', `${location.pathname}${location.search}#/reviews`);
-    }
+    sync(ctx);
     if (listing?.key !== listKey(ctx)) void fetchList(ctx);
-    if (ui.selected !== null && detail?.key !== detailKey(ctx)) void fetchDetail(ctx);
+    if (ui.selected !== null && detail?.key !== detailKey(ctx) && detailFailed !== detailKey(ctx))
+      void fetchDetail(ctx);
+    onAll(root, '[data-retry-review]', 'click', () => {
+      detailFailed = null;
+      ctx.rerender();
+    });
 
     onAll(root, '[data-state]', 'click', (el) => {
       ui.state = el.dataset.state === 'closed' ? 'closed' : 'open';
       ctx.rerender();
     });
-    onAll(root, '[data-review]', 'click', (el) => {
-      ui.selected = Number(el.dataset.review);
-      ctx.rerender();
-    });
+    listKeys(
+      root,
+      '[data-review-list] [data-review]',
+      (row) => row.getAttribute('data-review') === String(ui.selected),
+    );
     onAll(root, '[data-history]', 'click', () => showHistory(ctx));
     onAll(root, '[data-refresh-reviews]', 'click', () => {
       listing = null;
