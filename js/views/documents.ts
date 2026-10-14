@@ -11,6 +11,9 @@ import {
   titleFrom,
 } from '../lib/documents.ts';
 import type { Context, View } from './types.ts';
+import { listKeys, recordFromHash, rowTarget, split } from '../lib/split.ts';
+import { showHash } from '../lib/url-state.ts';
+import { when } from '../lib/insights.ts';
 import { removeNow } from '../lib/undo.ts';
 import {
   button,
@@ -19,6 +22,7 @@ import {
   errorState,
   field as labelled,
   input,
+  kv,
   needsApi,
   pageHead,
   select,
@@ -44,6 +48,12 @@ let draft: { site: string; file: File | null; title: string; language: string } 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const canEdit = (ctx: Context): boolean => ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
 const searchKey = (ctx: Context): string => `${siteId(ctx)}|${uiState(ctx).query}`;
+// The document open is the one the address names, #/documents/<number> (U3.08); #/documents is
+// the list alone.
+const docLink = (n: number | null): string => (n === null ? '#/documents' : `#/documents/${n}`);
+const opened = (): number | null =>
+  typeof location === 'undefined' ? null : recordFromHash('documents', location.hash);
+const openDoc = (): SiteDocument | null => listing?.items?.find((d) => d.number === opened()) ?? null;
 
 // Others upload while you are elsewhere: each visit fetches afresh.
 onNavigate((h) => {
@@ -101,6 +111,73 @@ async function open(ctx: Context, n: number, page: number): Promise<void> {
   }
 }
 
+// The document open beside the list: what it is, opening it, and where the search found it.
+function recordCard(ctx: Context): string {
+  const n = opened();
+  if (n === null)
+    return card(
+      emptyState({
+        illustration: 'documents',
+        compact: true,
+        title: 'Choose a document',
+        body: 'Its details, and the pages a search found in it, show here. Use j and k to move through the list.',
+      }),
+    );
+  if (listing?.failed)
+    return card(
+      errorState({
+        title: 'The document could not be loaded',
+        body: 'The list of documents didn’t come from the Tiles API. Try again; if it keeps failing, check the connection in Settings.',
+        retry: 'retry-docs',
+        compact: true,
+      }),
+    );
+  const items = listing?.key === siteId(ctx) ? listing.items : null;
+  if (items === null) return card(skeleton.card('Loading the document…'));
+  const d = items.find((x) => x.number === n);
+  if (!d)
+    return card(
+      emptyState({
+        illustration: 'search',
+        compact: true,
+        title: `Document ${n} isn’t here`,
+        bodyHtml: `It may have been archived, or be on another site. <a href="${docLink(null)}">See all documents</a>.`,
+      }),
+    );
+  const language = LANGUAGES.find(([v]) => v === d.language)?.[1] ?? d.language;
+  const matches = (found?.key === searchKey(ctx) ? (found.matches ?? []) : []).filter((m) => m.document === n);
+  const inSearch = matches.length
+    ? `<h3>Found by “${esc(uiState(ctx).query.trim())}”</h3><ol class="stack doc-matches gap-2_5">${matches
+        .map(
+          (m) =>
+            `<li class="doc-match"><div class="row gap-2 justify-between wrap"><b>Page ${m.page}</b>${button(`Open page ${m.page}`, { size: 'sm', attrs: { 'data-open': m.document, 'data-page': m.page } })}</div><p class="small">${snippetHtml(m.snippet)}</p></li>`,
+        )
+        .join('')}</ol>`
+    : '';
+  return card(
+    `<div class="row gap-2 justify-between wrap"><h2>${esc(d.title)}</h2><span class="row gap-1">${button('Open', { size: 'sm', variant: 'primary', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
+      canEdit(ctx)
+        ? button('Archive', {
+            size: 'sm',
+            variant: 'danger',
+            attrs: { 'data-archive-doc': d.number, 'aria-label': `Archive ${d.title}` },
+          })
+        : ''
+    }</span></div>
+    ${kv([
+      ['File', d.filename],
+      ['Pages', String(d.pages)],
+      ['Size', sizeText(d.size)],
+      ['Language', language],
+      ['Uploaded by', d.uploaded_by],
+      ['Uploaded', when(d.created_at)],
+      ['SHA-256', `${d.sha256.slice(0, 12)}…`],
+    ])}
+    ${inSearch}`,
+    { class: 'stack gap-3', attrs: { 'data-doc-record': d.number } },
+  );
+}
+
 function searchCard(ctx: Context): string {
   const ui = uiState(ctx);
   const results = found?.key === searchKey(ctx) ? found.matches : undefined;
@@ -152,8 +229,10 @@ function listCard(ctx: Context): string {
       ? skeleton.list()
       : items
           .map(
-            (d) => `<div class="review-row" data-doc="${d.number}">
-              <span class="row gap-1_5 justify-between"><b>${esc(d.title)}</b>
+            (
+              d,
+            ) => `<div class="review-row${opened() === d.number ? ' sel' : ''}" data-doc="${d.number}" data-key="doc-${d.number}">
+              <span class="row gap-1_5 justify-between"><a class="doc-link" href="${docLink(d.number)}"${opened() === d.number ? ' aria-current="true"' : ''}><b>${esc(d.title)}</b></a>
               <span class="row gap-1">${button('Open', { size: 'sm', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
                 canEdit(ctx)
                   ? button('Archive', {
@@ -191,6 +270,11 @@ const view: View = {
   id: 'documents',
   title: 'Documents',
   icon: 'file-text',
+  // The document open beside the list.
+  crumbs(ctx) {
+    const d = openDoc();
+    return ctx.api && d ? [{ label: d.title, href: docLink(d.number) }] : [];
+  },
   render(ctx) {
     const head = pageHead({
       eyebrow: 'Data · Knowledge',
@@ -202,7 +286,11 @@ const view: View = {
     if (o.status === 'loading') return `${head}${card(skeleton.card('Loading from the Tiles API…'))}`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-    return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
+    return `${head}${searchCard(ctx)}${split(listCard(ctx), recordCard(ctx), {
+      open: opened() !== null,
+      back: docLink(null),
+      label: 'documents',
+    })}`;
   },
   bind(root, ctx) {
     const api = ctx.api;
@@ -217,6 +305,12 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-open]', 'click', (el) => void open(ctx, Number(el.dataset.open), Number(el.dataset.page)));
+    listKeys(root, '[data-doc-list] [data-doc]', (row) => row.getAttribute('data-doc') === String(opened()));
+    // The whole row opens its document, as rows do on the other lists (its buttons do their own).
+    onAll(root, '[data-doc-list] [data-doc]', 'click', (row, e) => {
+      if (e.target instanceof Element && e.target.closest('a, button')) return;
+      rowTarget(row)?.click();
+    });
     onAll(root, '[data-retry-search]', 'click', () => {
       found = null;
       ctx.rerender();
@@ -235,12 +329,21 @@ const view: View = {
       const n = Number(el.dataset.archiveDoc);
       const doc = listing?.items?.find((d) => d.number === n);
       if (!doc) return;
+      // Its page goes (in place: Back wouldn't find it) and the list stays; Undo opens it again.
+      const wasOpen = opened() === n;
       return removeNow({
         toast: ctx.toast,
         message: `Archived ${doc.title}`,
-        send: () => api.documents.archive(site, n).then(refresh),
+        send: () =>
+          api.documents.archive(site, n).then(() => {
+            if (wasOpen && opened() === n) showHash(docLink(null));
+            refresh();
+          }),
         undo: () => api.documents.restore(site, n),
-        restored: refresh,
+        restored: () => {
+          if (wasOpen && opened() === null) showHash(docLink(n));
+          refresh();
+        },
         restoredMessage: `Restored ${doc.title}`,
       });
     });

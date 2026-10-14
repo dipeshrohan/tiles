@@ -2128,7 +2128,8 @@
 		"pin": "<path d=\"M12 17v5\" /><path d=\"M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z\" />",
 		"pin-off": "<path d=\"M12 17v5\" /><path d=\"M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89\" /><path d=\"m2 2 20 20\" /><path d=\"M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11\" />",
 		"panel-left-close": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /><path d=\"m16 15-3-3 3-3\" />",
-		"panel-left-open": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /><path d=\"m14 9 3 3-3 3\" />"
+		"panel-left-open": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\" /><path d=\"M9 3v18\" /><path d=\"m14 9 3 3-3 3\" />",
+		"arrow-left": "<path d=\"m12 19-7-7 7-7\" /><path d=\"M19 12H5\" />"
 	};
 	//#endregion
 	//#region js/lib/icons.ts
@@ -8833,6 +8834,53 @@
 		}
 	};
 	//#endregion
+	//#region js/lib/split.ts
+	function split(listHtml, recordHtml, o) {
+		const back = o.open ? `<a class="split-back" href="${esc(o.back)}">${icon("arrow-left", { size: 14 })}Back to the ${esc(o.label ?? "list")}</a>` : "";
+		return `<div class="split${o.open ? " has-record" : ""}"><div class="split-list">${listHtml}</div><div class="split-record">${back}${recordHtml}</div></div>`;
+	}
+	function recordFromHash(page, hash) {
+		const m = new RegExp(`^#/${page}/(\\d+)(?:[?/]|$)`, "i").exec(hash);
+		return m ? Number(m[1]) : null;
+	}
+	function rowTarget(row) {
+		if (!row) return null;
+		return row.matches("a[href], button") ? row : row.querySelector("a[href]");
+	}
+	var shown$1 = (el) => typeof el.checkVisibility === "function" ? el.checkVisibility() : el.offsetParent !== null;
+	function nextRow(count, current, step) {
+		if (count === 0) return null;
+		if (current < 0) return step === 1 ? 0 : count - 1;
+		const next = current + step;
+		return next >= 0 && next < count ? next : null;
+	}
+	function forList(e) {
+		if (e.defaultPrevented || e.isComposing || e.ctrlKey || e.metaKey || e.altKey) return false;
+		const t = e.target;
+		if (t instanceof Element && t.closest("input, textarea, select, [contenteditable=\"\"], [contenteditable=\"true\"]")) return false;
+		return !document.querySelector("dialog[open]");
+	}
+	function listKeys(root, rows, isOpen) {
+		document.addEventListener("keydown", (e) => {
+			if (e.key !== "j" && e.key !== "k" || !forList(e)) return;
+			const all = [...root.querySelectorAll(rows)];
+			const at = nextRow(all.length, all.findIndex((r) => isOpen(r)), e.key === "j" ? 1 : -1);
+			const row = at === null ? null : all[at];
+			if (!row) return;
+			e.preventDefault();
+			const key = row.getAttribute("data-key");
+			rowTarget(row)?.click();
+			requestAnimationFrame(() => {
+				const now = key ? document.querySelector(`[data-key="${CSS.escape(key)}"]`) : null;
+				rowTarget(now)?.focus({ preventScroll: true });
+				now?.scrollIntoView({
+					block: "nearest",
+					behavior: scrollBehavior()
+				});
+			});
+		}, { signal: bound() });
+	}
+	//#endregion
 	//#region js/views/reviews.ts
 	var uiState$9 = (ctx) => ctx.ui("reviews", {
 		state: "open",
@@ -8843,23 +8891,28 @@
 	var detail$3 = null;
 	var listSeq$2 = 0;
 	var detailSeq$1 = 0;
+	var detailFailed$1 = null;
 	var busy$6 = false;
 	var draft$3 = {
 		key: "",
 		text: ""
 	};
 	var siteId$9 = (ctx) => ctx.ontology.site?.id ?? null;
-	var linked = (hash) => {
-		const m = /^#\/reviews\/(\d+)/i.exec(hash);
-		return m ? Number(m[1]) : null;
-	};
-	var wanted = typeof location === "undefined" ? null : linked(location.hash);
+	var linked = (hash) => recordFromHash("reviews", hash);
+	var reviewLink = (n) => n === null ? "#/reviews" : `#/reviews/${n}`;
+	function sync(ctx) {
+		const ui = uiState$9(ctx);
+		const site = siteId$9(ctx);
+		if (ui.site !== null && ui.site !== site && linked(location.hash) !== null) showHash(reviewLink(null));
+		ui.site = site;
+		ui.selected = linked(location.hash);
+	}
 	var COPILOT_BADGE = "<span class=\"badge accent\" title=\"The copilot wrote these changes for its author; another engineer must approve them\">✦ Proposed by the copilot</span>";
 	onNavigate((hash) => {
-		wanted = linked(hash);
 		if (routeOf(hash) !== "reviews") {
 			listing$6 = null;
 			detail$3 = null;
+			detailFailed$1 = null;
 		}
 	});
 	var listKey$3 = (ctx) => `${siteId$9(ctx)}|${uiState$9(ctx).state}`;
@@ -8890,11 +8943,11 @@
 		const tabs = ["open", "closed"].map((s) => `<button class="tab ${ui.state === s ? "active" : ""}" data-state="${s}" role="tab">${s === "open" ? "Open" : "Closed"}</button>`).join("");
 		const items = listing$6?.key === listKey$3(ctx) ? listing$6.items : null;
 		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-review-list>${items === null ? skeleton.list() : items.map((r) => `
-        <button class="review-row ${ui.selected === r.number ? "sel" : ""}" data-review="${r.number}">
+        <a class="review-row ${ui.selected === r.number ? "sel" : ""}" href="${reviewLink(r.number)}" data-review="${r.number}" data-key="review-${r.number}"${ui.selected === r.number ? " aria-current=\"true\"" : ""}>
           <span class="row gap-2 justify-between"><b>#${r.number} ${esc(r.message)}</b>${statusBadge$2(r.status)}</span>
           <span class="small muted">${r.source === "copilot" ? `${COPILOT_BADGE} ` : ""}${esc(r.author)} · ${timeAgo(r.created_at)}${r.reviewer ? ` · for ${esc(r.reviewer)}` : ""}${r.comments ? ` · ${r.comments} comment(s)` : ""}</span>
           <span class="small">${stats(r.stats)}</span>
-        </button>`).join("") || (ui.state === "open" ? emptyState({
+        </a>`).join("") || (ui.state === "open" ? emptyState({
 			illustration: "done",
 			compact: true,
 			title: "Nothing waits for a review",
@@ -8913,6 +8966,12 @@
 			body: "Its changes, discussion and decision show here."
 		})}</div>`;
 		const r = detail$3?.key === detailKey$2(ctx) ? detail$3.review : null;
+		if (!r && detailFailed$1 === detailKey$2(ctx)) return `<div class="card">${errorState({
+			title: "The change request could not be loaded",
+			body: "The Tiles API didn’t send it (the notice says why). Try again; if it keeps failing, check the connection in Settings.",
+			retry: "retry-review",
+			compact: true
+		})}</div>`;
 		if (!r) return `<div class="card" data-review-detail>${skeleton.card()}</div>`;
 		const o = ctx.ontology;
 		const open = r.status === "open";
@@ -9000,9 +9059,12 @@
 				key,
 				review
 			};
-		} catch {
+			detailFailed$1 = null;
+		} catch (e) {
 			if (seq !== detailSeq$1) return;
-			uiState$9(ctx).selected = null;
+			if (e instanceof ApiError && e.status === 404) {
+				if (linked(location.hash) === n) showHash(reviewLink(null));
+			} else detailFailed$1 = key;
 		}
 		ctx.rerender();
 	}
@@ -9071,31 +9133,29 @@
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
+			sync(ctx);
 			const ui = uiState$9(ctx);
-			return `${head}${policyCard(ctx)}<div class="reviews">${listCard$5(ctx, ui)}${detailCard$3(ctx, ui)}</div>`;
+			return `${head}${policyCard(ctx)}${split(listCard$5(ctx, ui), detailCard$3(ctx, ui), {
+				open: ui.selected !== null,
+				back: reviewLink(null),
+				label: "change requests"
+			})}`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
 			const ui = uiState$9(ctx);
-			if (ui.site !== siteId$9(ctx)) Object.assign(ui, {
-				selected: null,
-				site: siteId$9(ctx)
-			});
-			if (wanted !== null) {
-				ui.selected = wanted;
-				wanted = null;
-				history.replaceState(history.state, "", `${location.pathname}${location.search}#/reviews`);
-			}
+			sync(ctx);
 			if (listing$6?.key !== listKey$3(ctx)) fetchList$1(ctx);
-			if (ui.selected !== null && detail$3?.key !== detailKey$2(ctx)) fetchDetail$1(ctx);
+			if (ui.selected !== null && detail$3?.key !== detailKey$2(ctx) && detailFailed$1 !== detailKey$2(ctx)) fetchDetail$1(ctx);
+			onAll(root, "[data-retry-review]", "click", () => {
+				detailFailed$1 = null;
+				ctx.rerender();
+			});
 			onAll(root, "[data-state]", "click", (el) => {
 				ui.state = el.dataset.state === "closed" ? "closed" : "open";
 				ctx.rerender();
 			});
-			onAll(root, "[data-review]", "click", (el) => {
-				ui.selected = Number(el.dataset.review);
-				ctx.rerender();
-			});
+			listKeys(root, "[data-review-list] [data-review]", (row) => row.getAttribute("data-review") === String(ui.selected));
 			onAll(root, "[data-history]", "click", () => showHistory(ctx));
 			onAll(root, "[data-refresh-reviews]", "click", () => {
 				listing$6 = null;
@@ -9369,7 +9429,7 @@
 			})
 		});
 		return card$1(`<div class="review-list" data-warning-list>${items === null ? skeleton.list() : items.map((w) => `
-        <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}">
+        <button class="review-row ${ui.selected === w.id ? "sel" : ""}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}"${ui.selected === w.id ? " aria-current=\"true\"" : ""}>
           <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge$1(w)}</span>
           <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
           <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : "Unassigned"}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ""}</span>
@@ -9714,7 +9774,11 @@
 			if (o.status === "loading") return `${head}${card$1(skeleton.card("Loading from the Tiles API…"))}`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const ui = uiState$8(ctx);
-			return `${head}${filterBar(ctx, ui.filters)}<div class="reviews">${listCard$4(ctx, ui)}${detailCard$2(ctx, ui)}</div>`;
+			return `${head}${filterBar(ctx, ui.filters)}${split(listCard$4(ctx, ui), detailCard$2(ctx, ui), {
+				open: ui.selected !== null,
+				back: withQuery("#/warnings", filtersQuery(ui.filters)),
+				label: "warnings"
+			})}`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
@@ -9751,6 +9815,11 @@
 			onAll(root, "[data-warning]", "click", (el) => {
 				ui.selected = el.dataset.warning ?? null;
 				ctx.rerender();
+			});
+			listKeys(root, "[data-warning-list] [data-warning]", (row) => row.getAttribute("data-warning") === ui.selected);
+			onAll(root, ".split-back", "click", () => {
+				linkedWarning = null;
+				Object.assign(ui, { selected: null });
 			});
 			onAll(root, "[data-refresh-warnings]", "click", () => {
 				if (busy$5) return;
@@ -12421,7 +12490,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
 			const ui = uiState$2(ctx);
-			return `${head}<div class="reviews">${listCard$3(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
+			return `${head}<div class="split">${listCard$3(ctx, ui)}${analysisCard(ctx, ui)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
@@ -12575,7 +12644,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		].map((s) => `<button class="tab ${ui.status === s ? "active" : ""}" data-status="${s}" role="tab">${s === "proposed" ? "To review" : s === "" ? "All" : s === "accepted" ? "Accepted" : "Rejected"}</button>`).join("");
 		const items = listing$2?.key === listKey$1(ctx) ? listing$2.items : null;
 		const n = selected$1();
-		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? skeleton.list() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}">
+		return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${items === null ? skeleton.list() : items.map((i) => `<a class="review-row ${n === i.number ? "sel" : ""}" href="${insightLink(i.number)}" data-insight="${i.number}" data-key="insight-${i.number}"${n === i.number ? " aria-current=\"true\"" : ""}>
               <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge$3(i.status)}</span>
               <span class="small muted">${i.kind === "correlation" ? "Correlation" : "Signals"} · ${esc(i.author)} · ${esc(when$1(i.created_at))}</span>
             </a>`).join("") || emptyState({
@@ -12702,7 +12771,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-			return `${head}<div class="reviews">${listCard$2(ctx, uiState$1(ctx))}${detailCard$1(ctx)}</div>`;
+			return `${head}${split(listCard$2(ctx, uiState$1(ctx)), detailCard$1(ctx), {
+				open: selected$1() !== null,
+				back: "#/insights",
+				label: "insights"
+			})}`;
 		},
 		bind(root, ctx) {
 			const api = ctx.api;
@@ -12715,6 +12788,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				ui.status = el.dataset.status ?? "";
 				ctx.rerender();
 			});
+			listKeys(root, "[data-insight-list] [data-insight]", (row) => row.getAttribute("data-insight") === String(selected$1()));
 			const i = detail?.key === detailKey(ctx) ? detail.insight : null;
 			if (!i) return;
 			const key = `${detailKey(ctx)}|${i.updated_at}`;
@@ -13155,7 +13229,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}<div class="card">${skeleton.card("Loading from the Tiles API…")}</div>`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-			return `${head}<div class="reviews">${listCard$1(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
+			return `${head}<div class="split">${listCard$1(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
 		},
 		bind(root, ctx) {
 			if (!ctx.api || ctx.ontology.status !== "ready") return;
@@ -13257,6 +13331,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var siteId = (ctx) => ctx.ontology.site?.id ?? null;
 	var canEdit = (ctx) => ctx.ontology.role === "engineer" || ctx.ontology.role === "admin";
 	var searchKey = (ctx) => `${siteId(ctx)}|${uiState(ctx).query}`;
+	var docLink = (n) => n === null ? "#/documents" : `#/documents/${n}`;
+	var opened = () => typeof location === "undefined" ? null : recordFromHash("documents", location.hash);
+	var openDoc = () => listing?.items?.find((d) => d.number === opened()) ?? null;
 	onNavigate((h) => {
 		if (routeOf(h) !== "documents") {
 			listing = null;
@@ -13319,6 +13396,67 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			win?.close();
 		}
 	}
+	function recordCard(ctx) {
+		const n = opened();
+		if (n === null) return card$1(emptyState({
+			illustration: "documents",
+			compact: true,
+			title: "Choose a document",
+			body: "Its details, and the pages a search found in it, show here. Use j and k to move through the list."
+		}));
+		if (listing?.failed) return card$1(errorState({
+			title: "The document could not be loaded",
+			body: "The list of documents didn’t come from the Tiles API. Try again; if it keeps failing, check the connection in Settings.",
+			retry: "retry-docs",
+			compact: true
+		}));
+		const items = listing?.key === siteId(ctx) ? listing.items : null;
+		if (items === null) return card$1(skeleton.card("Loading the document…"));
+		const d = items.find((x) => x.number === n);
+		if (!d) return card$1(emptyState({
+			illustration: "search",
+			compact: true,
+			title: `Document ${n} isn’t here`,
+			bodyHtml: `It may have been archived, or be on another site. <a href="${docLink(null)}">See all documents</a>.`
+		}));
+		const language = LANGUAGES.find(([v]) => v === d.language)?.[1] ?? d.language;
+		const matches = (found?.key === searchKey(ctx) ? found.matches ?? [] : []).filter((m) => m.document === n);
+		const inSearch = matches.length ? `<h3>Found by “${esc(uiState(ctx).query.trim())}”</h3><ol class="stack doc-matches gap-2_5">${matches.map((m) => `<li class="doc-match"><div class="row gap-2 justify-between wrap"><b>Page ${m.page}</b>${button(`Open page ${m.page}`, {
+			size: "sm",
+			attrs: {
+				"data-open": m.document,
+				"data-page": m.page
+			}
+		})}</div><p class="small">${snippetHtml(m.snippet)}</p></li>`).join("")}</ol>` : "";
+		return card$1(`<div class="row gap-2 justify-between wrap"><h2>${esc(d.title)}</h2><span class="row gap-1">${button("Open", {
+			size: "sm",
+			variant: "primary",
+			attrs: {
+				"data-open": d.number,
+				"data-page": 1
+			}
+		})}${canEdit(ctx) ? button("Archive", {
+			size: "sm",
+			variant: "danger",
+			attrs: {
+				"data-archive-doc": d.number,
+				"aria-label": `Archive ${d.title}`
+			}
+		}) : ""}</span></div>
+    ${kv([
+			["File", d.filename],
+			["Pages", String(d.pages)],
+			["Size", sizeText(d.size)],
+			["Language", language],
+			["Uploaded by", d.uploaded_by],
+			["Uploaded", when$1(d.created_at)],
+			["SHA-256", `${d.sha256.slice(0, 12)}…`]
+		])}
+    ${inSearch}`, {
+			class: "stack gap-3",
+			attrs: { "data-doc-record": d.number }
+		});
+	}
 	function searchCard(ctx) {
 		const ui = uiState(ctx);
 		const results = found?.key === searchKey(ctx) ? found.matches : void 0;
@@ -13370,8 +13508,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			body: "The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.",
 			retry: "retry-docs",
 			compact: true
-		}) : items === null ? skeleton.list() : items.map((d) => `<div class="review-row" data-doc="${d.number}">
-              <span class="row gap-1_5 justify-between"><b>${esc(d.title)}</b>
+		}) : items === null ? skeleton.list() : items.map((d) => `<div class="review-row${opened() === d.number ? " sel" : ""}" data-doc="${d.number}" data-key="doc-${d.number}">
+              <span class="row gap-1_5 justify-between"><a class="doc-link" href="${docLink(d.number)}"${opened() === d.number ? " aria-current=\"true\"" : ""}><b>${esc(d.title)}</b></a>
               <span class="row gap-1">${button("Open", {
 			size: "sm",
 			attrs: {
@@ -13420,6 +13558,13 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		id: "documents",
 		title: "Documents",
 		icon: "file-text",
+		crumbs(ctx) {
+			const d = openDoc();
+			return ctx.api && d ? [{
+				label: d.title,
+				href: docLink(d.number)
+			}] : [];
+		},
 		render(ctx) {
 			const head = pageHead({
 				eyebrow: "Data · Knowledge",
@@ -13430,7 +13575,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const o = ctx.ontology;
 			if (o.status === "loading") return `${head}${card$1(skeleton.card("Loading from the Tiles API…"))}`;
 			if (o.status !== "ready") return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
-			return `${head}<div class="reviews">${listCard(ctx)}${searchCard(ctx)}</div>`;
+			return `${head}${searchCard(ctx)}${split(listCard(ctx), recordCard(ctx), {
+				open: opened() !== null,
+				back: docLink(null),
+				label: "documents"
+			})}`;
 		},
 		bind(root, ctx) {
 			const api = ctx.api;
@@ -13445,6 +13594,11 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				ctx.rerender();
 			});
 			onAll(root, "[data-open]", "click", (el) => void open(ctx, Number(el.dataset.open), Number(el.dataset.page)));
+			listKeys(root, "[data-doc-list] [data-doc]", (row) => row.getAttribute("data-doc") === String(opened()));
+			onAll(root, "[data-doc-list] [data-doc]", "click", (row, e) => {
+				if (e.target instanceof Element && e.target.closest("a, button")) return;
+				rowTarget(row)?.click();
+			});
 			onAll(root, "[data-retry-search]", "click", () => {
 				found = null;
 				ctx.rerender();
@@ -13462,12 +13616,19 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				const n = Number(el.dataset.archiveDoc);
 				const doc = listing?.items?.find((d) => d.number === n);
 				if (!doc) return;
+				const wasOpen = opened() === n;
 				return removeNow({
 					toast: ctx.toast,
 					message: `Archived ${doc.title}`,
-					send: () => api.documents.archive(site, n).then(refresh),
+					send: () => api.documents.archive(site, n).then(() => {
+						if (wasOpen && opened() === n) showHash(docLink(null));
+						refresh();
+					}),
 					undo: () => api.documents.restore(site, n),
-					restored: refresh,
+					restored: () => {
+						if (wasOpen && opened() === null) showHash(docLink(n));
+						refresh();
+					},
 					restoredMessage: `Restored ${doc.title}`
 				});
 			});
@@ -15117,7 +15278,8 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		leaving();
 		const root = need(document, "#view");
 		const newPage = currentView().id !== shownView;
-		const from = !newPage && clicked?.isConnected && clicked.hash === location.hash ? clicked : null;
+		const fromList = !newPage && clicked?.closest(".split-list") ? clicked.closest("[data-key]")?.getAttribute("data-key") : null;
+		const from = !newPage && !fromList && clicked?.isConnected && clicked.hash === location.hash ? clicked : null;
 		clicked = null;
 		const head = () => root.querySelector(":scope > .page-head");
 		const hold = window.scrollY < (head()?.offsetHeight ?? 0);
@@ -15127,6 +15289,9 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			render();
 			scrollToSaved();
 			name(head(), from ? "record" : hold ? "" : "none");
+			const row = fromList ? root.querySelector(`.split-list [data-key="${CSS.escape(fromList)}"]`) : null;
+			const stay = row && shown$1(row) ? rowTarget(row) : null;
+			if (stay) return stay.focus({ preventScroll: true });
 			const heading = root.querySelector("h1[tabindex]");
 			(heading ?? root).focus({ preventScroll: true });
 			if (!heading) announce(document.title);
