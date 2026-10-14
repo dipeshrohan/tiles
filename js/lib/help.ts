@@ -13,9 +13,16 @@ export interface HelpSection {
   text: string; // the start of its words
 }
 
+export interface WhatsNew {
+  version: string;
+  date: string | null; // null while the version is unreleased
+  html: string; // the changelog's section, made HTML (by scripts/help.js), entries linked to their pages
+}
+
 export interface HelpData {
   sections: readonly HelpSection[];
   pages: Readonly<Record<string, string>>; // page id → the section its help opens at
+  whatsNew?: WhatsNew;
 }
 
 declare global {

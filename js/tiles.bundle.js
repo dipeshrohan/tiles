@@ -5119,7 +5119,7 @@
 			});
 			closeOutside(dialog, done);
 			open$2(dialog);
-			opened?.(dialog);
+			opened?.(dialog, done);
 		});
 	}
 	function panelDialog(o, opened) {
@@ -14937,7 +14937,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const head = pageHead({
 				title: "Help",
 				lead: "The user guide: what each page is for and how to use it. Each page’s help button opens its part.",
-				actionsHtml: `<div class="row gap-2 wrap">${button("Show the welcome", { attrs: { "data-show-welcome": true } })}${linkButton("Glossary", "#/glossary", { icon: "book-a" })}</div>`
+				actionsHtml: `<div class="row gap-2 wrap">${button("What’s new", { attrs: { "data-whats-new": true } })}${button("Show the welcome", { attrs: { "data-show-welcome": true } })}${linkButton("Glossary", "#/glossary", { icon: "book-a" })}</div>`
 			});
 			const data = helpLoaded();
 			if (!data && failed) return `${head}${errorState({
@@ -14964,6 +14964,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				if (here()) ctx.rerender();
 			};
 			onAll(root, "[data-show-welcome]", "click", () => document.dispatchEvent(new CustomEvent("tiles:welcome")));
+			onAll(root, "[data-whats-new]", "click", () => document.dispatchEvent(new CustomEvent("tiles:whats-new")));
 			onAll(root, "[data-start-tour]", "click", (el) => document.dispatchEvent(new CustomEvent("tiles:tour", { detail: el.dataset.startTour })));
 			onAll(root, "[data-help-retry]", "click", () => {
 				failed = null;
@@ -15824,6 +15825,17 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		show(0);
 		return handle;
 	}
+	//#endregion
+	//#region js/lib/whats-new.ts
+	var SEEN_KEY = "whats-new-seen";
+	var hasNews = (seen, version) => seen !== null && seen !== version;
+	function whatsNewTitle(w) {
+		return `Version ${w.version}${w.date ? `, ${w.date}` : ""}`;
+	}
+	function whatsNewHtml(w) {
+		return `${w.date ? "" : "<p class=\"small soft\">Not yet released: this is what the next version will bring.</p>"}<div class="prose whats-new">${w.html}</div>`;
+	}
+	var helpLabel = (news, version) => news ? `Help for this page, and what’s new in ${version}` : "Help for this page";
 	//#endregion
 	//#region js/lib/site-search.ts
 	var ICONS = {
@@ -16743,7 +16755,12 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				label: "Help",
 				title: first.title,
 				contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
-				footHtml: `<a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`
+				footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button><a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`
+			}, (dialog, close) => {
+				dialog.querySelector("[data-whats-new]")?.addEventListener("click", () => {
+					close();
+					openWhatsNew();
+				});
 			});
 		} catch (e) {
 			toast("The help couldn't be loaded", {
@@ -16757,6 +16774,39 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var helpButton = need(document, "#help-open");
 	helpButton.insertAdjacentHTML("afterbegin", icon("circle-help"));
 	helpButton.addEventListener("click", () => void openHelp());
+	if (load$4("whats-new-seen", null) === null) save$1(SEEN_KEY, VERSION);
+	function markNews() {
+		const news = hasNews(load$4(SEEN_KEY, null), VERSION);
+		helpButton.classList.toggle("has-news", news);
+		helpButton.setAttribute("aria-label", helpLabel(news, VERSION));
+		helpButton.dataset.tooltip = helpLabel(news, VERSION);
+	}
+	markNews();
+	var newsOpen = false;
+	async function openWhatsNew() {
+		if (newsOpen) return;
+		newsOpen = true;
+		try {
+			const w = (await loadHelp()).whatsNew;
+			if (!w) return;
+			save$1(SEEN_KEY, VERSION);
+			markNews();
+			ux("help", "whatsnew");
+			await sheet({
+				label: "What’s new",
+				title: whatsNewTitle(w),
+				contentHtml: whatsNewHtml(w)
+			});
+		} catch (e) {
+			toast("What's new couldn't be loaded", {
+				type: "error",
+				description: e instanceof Error ? e.message : String(e)
+			});
+		} finally {
+			newsOpen = false;
+		}
+	}
+	document.addEventListener("tiles:whats-new", () => void openWhatsNew());
 	var palette = installPalette({
 		items() {
 			const pages = NAV.flatMap((g) => g.items.map((v) => ({
@@ -16856,6 +16906,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					keywords: "tour guide show me how help",
 					run: () => startTour(t.id)
 				})),
+				{
+					id: "do:whats-new",
+					label: "What’s new",
+					group: "Actions",
+					icon: "circle-help",
+					keywords: "changelog release version changes new features",
+					run: () => void openWhatsNew()
+				},
 				{
 					id: "do:welcome",
 					label: "Show the welcome",

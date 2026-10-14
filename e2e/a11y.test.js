@@ -249,6 +249,12 @@ test('dialogs, toasts, tooltips, the command palette, the shortcuts and the help
     await page.locator('.tour-spot').waitFor({ state: 'visible' });
     assert.deepEqual(await audit(page), [], `${colorScheme} tour`);
     await page.keyboard.press('Escape');
+    await page.waitForSelector('.tour-pop', { state: 'detached' });
+    await page.goto(`${httpBase}#/help`);
+    await page.click('[data-whats-new]'); // what's new (U4.08)
+    await page.waitForSelector('dialog.sheet[open] .whats-new');
+    assert.deepEqual(await audit(page), [], `${colorScheme} what's new`);
+    await page.keyboard.press('Escape');
     await page.close();
   }
 });

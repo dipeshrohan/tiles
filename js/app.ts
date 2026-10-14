@@ -111,6 +111,8 @@ import {
   type WelcomeContext,
 } from './lib/welcome.ts';
 import { runTour } from './lib/tour.ts';
+import { hasNews, helpLabel, SEEN_KEY, whatsNewHtml, whatsNewTitle } from './lib/whats-new.ts';
+import { VERSION } from './lib/version.ts';
 import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
 import { searchItems } from './lib/site-search.ts';
 
@@ -1084,12 +1086,20 @@ async function openHelp(): Promise<void> {
     const data = await loadHelp();
     const [first, ...rest] = pageSection(data, currentView().id);
     if (!first) return;
-    await sheet({
-      label: 'Help',
-      title: first.title,
-      contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
-      footHtml: `<a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`,
-    });
+    await sheet(
+      {
+        label: 'Help',
+        title: first.title,
+        contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
+        footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button><a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`,
+      },
+      (dialog, close) => {
+        dialog.querySelector('[data-whats-new]')?.addEventListener('click', () => {
+          close();
+          void openWhatsNew();
+        });
+      },
+    );
   } catch (e) {
     toast("The help couldn't be loaded", { type: 'error', description: e instanceof Error ? e.message : String(e) });
   } finally {
@@ -1099,6 +1109,36 @@ async function openHelp(): Promise<void> {
 const helpButton = need(document, '#help-open');
 helpButton.insertAdjacentHTML('afterbegin', icon('circle-help'));
 helpButton.addEventListener('click', () => void openHelp());
+
+// ---- what's new (U4.08) ------------------------------------------------------
+// A dot on the help button for someone who used an earlier version and hasn't read what changed; a
+// first visit only notes the version.
+if (load<string | null>(SEEN_KEY, null) === null) save(SEEN_KEY, VERSION);
+function markNews(): void {
+  const news = hasNews(load<string | null>(SEEN_KEY, null), VERSION);
+  helpButton.classList.toggle('has-news', news);
+  helpButton.setAttribute('aria-label', helpLabel(news, VERSION));
+  helpButton.dataset.tooltip = helpLabel(news, VERSION);
+}
+markNews();
+let newsOpen = false;
+async function openWhatsNew(): Promise<void> {
+  if (newsOpen) return;
+  newsOpen = true;
+  try {
+    const w = (await loadHelp()).whatsNew;
+    if (!w) return;
+    save(SEEN_KEY, VERSION);
+    markNews();
+    ux('help', 'whatsnew');
+    await sheet({ label: 'What’s new', title: whatsNewTitle(w), contentHtml: whatsNewHtml(w) });
+  } catch (e) {
+    toast("What's new couldn't be loaded", { type: 'error', description: e instanceof Error ? e.message : String(e) });
+  } finally {
+    newsOpen = false;
+  }
+}
+document.addEventListener('tiles:whats-new', () => void openWhatsNew());
 const palette = installPalette({
   items(): PaletteItem[] {
     const pages = NAV.flatMap((g) =>
@@ -1200,6 +1240,14 @@ const palette = installPalette({
         keywords: 'tour guide show me how help',
         run: () => startTour(t.id),
       })),
+      {
+        id: 'do:whats-new',
+        label: 'What’s new',
+        group: 'Actions',
+        icon: 'circle-help',
+        keywords: 'changelog release version changes new features',
+        run: () => void openWhatsNew(),
+      },
       {
         id: 'do:welcome',
         label: 'Show the welcome',

@@ -299,7 +299,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* a new user on the pilot site reaches their first useful page in under 2 minutes in U6.07's test.
 - [x] `U4.07` [#236](https://github.com/dipeshrohan/tiles/issues/236) **Guided tours** · FE · 4d · U4.06
   *Done when:* the four tours run end to end in CI.
-- [ ] `U4.08` [#237](https://github.com/dipeshrohan/tiles/issues/237) **What's new** · FE · 1.5d
+- [x] `U4.08` [#237](https://github.com/dipeshrohan/tiles/issues/237) **What's new** · FE · 1.5d
   *Done when:* updating the CHANGELOG updates the sheet with no other change.
 - [ ] `U4.09` [#238](https://github.com/dipeshrohan/tiles/issues/238) **In-app feedback** · BE+FE · 2d · U2.01
   *Done when:* feedback is sent, stored, listed and audited, with tests.
