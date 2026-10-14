@@ -545,6 +545,65 @@ test('glossary terms explain themselves where they appear; the Glossary page lis
   await page.close();
 });
 
+test('first run: a welcome asks what you do, sets your start page and menu, and comes back from Help (U4.06)', async () => {
+  // A person's browser (not an automated one) is greeted on the first visit only.
+  const { page, errors } = await openPage({ viewport: { width: 1280, height: 800 } });
+  await page.addInitScript(() => Object.defineProperty(navigator, 'webdriver', { get: () => false }));
+  await page.goto(`${httpBase}#/`);
+  const welcome = page.locator('dialog[open]:has([data-welcome])');
+  await welcome.waitFor();
+  assert.equal(await welcome.locator('h2').innerText(), 'Welcome to Tiles');
+  assert.match(await welcome.innerText(), /demo plant/);
+  assert.equal(await welcome.locator('[data-role]').count(), 4);
+  // A shift lead: the Shopfloor first, pinned with Warnings and Plant; Data and Design folded.
+  await welcome.locator('[data-role="shift-lead"]').click();
+  await welcome.locator('a:has-text("Go to Shopfloor")').waitFor();
+  assert.match(await welcome.innerText(), /Tiles will open at Shopfloor, with Shopfloor, Warnings and Plant pinned/);
+  await welcome.locator('a:has-text("Go to Shopfloor")').click();
+  await page.waitForFunction(() => location.hash === '#/shopfloor');
+  assert.equal(await page.locator('dialog[open]').count(), 0);
+  assert.deepEqual(await page.locator('#nav [data-key^="nav-pinned-"] .nav-label').allInnerTexts(), [
+    'Shopfloor',
+    'Warnings',
+    'Plant',
+  ]);
+  // Opened again without a page in its address: the start page, and no second welcome.
+  await page.goto('about:blank');
+  await page.goto(`${httpBase}#/`);
+  await page.waitForFunction(() => location.hash === '#/shopfloor');
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('dialog[open]').count(), 0);
+  // The Home link still goes home.
+  await page.click('#nav a[href="#/"]');
+  await page.waitForFunction(() => location.hash === '#/');
+  await page.waitForTimeout(200);
+  assert.equal(await page.evaluate(() => location.hash), '#/');
+  // Help shows it again; Just look around closes it.
+  await page.goto(`${httpBase}#/help`);
+  await page.click('[data-show-welcome]');
+  await welcome.waitFor();
+  await welcome.locator('[data-welcome-skip]').click();
+  await page.waitForSelector('dialog[open]', { state: 'detached' });
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('automated browsers are not greeted; the palette shows the welcome', async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/`);
+  await page.waitForSelector('#view h1');
+  await page.waitForTimeout(300);
+  assert.equal(await page.locator('dialog[open]').count(), 0);
+  await page.keyboard.press('Control+k');
+  await page.locator('dialog.palette input').fill('welcome');
+  await page.locator('dialog.palette [role=option]:has-text("Show the welcome")').click();
+  await page.locator('dialog[open] [data-welcome]').waitFor();
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('dialog[open]', { state: 'detached' });
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the command palette: Ctrl K or / opens it, typing ranks, arrows move, Enter goes', async () => {
   const { page, errors } = await openPage();
   await page.goto(`${httpBase}#/`);

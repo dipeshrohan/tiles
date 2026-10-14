@@ -3,6 +3,7 @@
 // pages pinned at the top of the menu (and folds what they rarely need); then it offers the next step:
 // the site wizard (an admin of a site still being set up), the help, or just looking around. It can
 // be shown again from Help or the command palette.
+import { esc } from './dom.ts';
 import { MAX_PINNED, type NavPrefs } from './nav.ts';
 
 export type WorkRole = 'engineer' | 'maintenance' | 'shift-lead' | 'admin';
@@ -69,4 +70,44 @@ export const welcomeKey = (navOwner: string): string => `welcome:${navOwner}`;
 // open it from Help instead.
 export function shouldWelcome(seen: boolean, automated: boolean): boolean {
   return !seen && !automated;
+}
+
+export interface WelcomeContext {
+  site: string | null; // the API site's name; null in local mode (the demo plant)
+  title(page: string): string; // a page's name in the menu
+}
+
+// What Tiles is showing: the demo plant in local mode, or the site.
+export function welcomeIntro(c: WelcomeContext): string {
+  return c.site === null
+    ? 'This is Tiles with its demo plant: a battery plant with a die-caster, a notching cutter and a tab welder. Its readings are made up, and what you change stays in this browser.'
+    : `You’re on ${c.site}: its plant model, signals, warnings and insights, shared with everyone on the site.`;
+}
+
+// The first step: what Tiles shows, and the roles to choose from.
+export function rolesHtml(c: WelcomeContext): string {
+  const roles = WORK_ROLES.map(
+    (r) =>
+      `<button class="welcome-role" type="button" data-role="${esc(r.id)}"><span class="welcome-role-name">${esc(r.label)}</span><span class="small soft">${esc(r.says)}</span></button>`,
+  ).join('');
+  return `<p class="soft">${esc(welcomeIntro(c))}</p>
+    <fieldset class="welcome-roles"><legend>What do you mostly do?</legend>${roles}</fieldset>
+    <p class="small soft">Your choice sets the page Tiles opens at and the pages pinned at the top of the menu. You can change both later.</p>
+    <div class="dialog-foot"><button class="btn ghost" type="button" data-welcome-skip>Just look around</button></div>`;
+}
+
+// The second step: what the role set, and where to go next. An admin of a site still being set up is
+// offered the site wizard first.
+export function nextHtml(c: WelcomeContext, role: RoleSetup, o: { setUp: boolean; helpFor: string | null }): string {
+  const pins = role.pins.map((p) => `<b>${esc(c.title(p))}</b>`);
+  const listed = pins.length > 1 ? `${pins.slice(0, -1).join(', ')} and ${pins.at(-1)}` : (pins[0] ?? '');
+  const start = c.title(role.start);
+  const actions = [
+    o.setUp ? `<a class="btn primary" href="#/onboarding">Set up the site</a>` : '',
+    `<a class="btn${o.setUp ? '' : ' primary'}" href="#/${esc(role.start)}">Go to ${esc(start)}</a>`,
+    o.helpFor ? `<a class="btn ghost" href="#/help/${esc(o.helpFor)}">Read how ${esc(start)} works</a>` : '',
+  ].filter(Boolean);
+  return `<p>Tiles will open at <b>${esc(start)}</b>, with ${listed} pinned in the menu.</p>
+    <p class="small soft">To see this again, open Help and choose Show the welcome.</p>
+    <div class="dialog-foot">${actions.join('')}</div>`;
 }

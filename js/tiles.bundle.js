@@ -2166,11 +2166,14 @@
 	function cleanPrefs(raw, pages) {
 		const o = raw && typeof raw === "object" ? raw : {};
 		const ids = (v, max) => Array.isArray(v) ? [...new Set(v.filter((x) => typeof x === "string" && pages.includes(x)))].slice(0, max) : [];
+		const groups = Array.isArray(o.folded) ? o.folded.filter((x) => typeof x === "string") : [];
+		const start = typeof o.start === "string" && pages.includes(o.start) ? o.start : void 0;
 		return {
-			folded: Array.isArray(o.folded) ? o.folded.filter((x) => typeof x === "string") : [],
+			folded: groups,
 			pinned: ids(o.pinned, 8),
 			recent: ids(o.recent, 5),
-			rail: o.rail === true
+			rail: o.rail === true,
+			...start ? { start } : {}
 		};
 	}
 	function visited(prefs, id) {
@@ -5112,6 +5115,42 @@
 			closeOutside(dialog, done);
 			open$2(dialog);
 			opened?.(dialog);
+		});
+	}
+	function panelDialog(o, opened) {
+		const id = nextId();
+		const dialog = document.createElement("dialog");
+		dialog.className = o.wide ? "dialog wide" : "dialog";
+		dialog.setAttribute("aria-labelledby", `${id}-title`);
+		if (o.body) dialog.setAttribute("aria-describedby", `${id}-body`);
+		dialog.innerHTML = `
+    <div class="dialog-panel">
+      <div class="dialog-head">
+        <div>
+          <h2 id="${id}-title">${esc(o.title)}</h2>
+          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ""}
+        </div>
+      </div>
+      ${o.contentHtml}
+    </div>`;
+		return new Promise((resolve) => {
+			let closed = false;
+			const done = () => {
+				if (closed) return;
+				closed = true;
+				dismiss(dialog).then(resolve);
+			};
+			dialog.addEventListener("click", (e) => {
+				const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
+				if (closed || !link || link.hasAttribute("target")) return;
+				closed = true;
+				dialog.close();
+				dialog.remove();
+				resolve();
+			});
+			closeOutside(dialog, done);
+			open$2(dialog);
+			opened?.(dialog, done);
 		});
 	}
 	//#endregion
@@ -14750,7 +14789,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			const head = pageHead({
 				title: "Help",
 				lead: "The user guide: what each page is for and how to use it. Each page’s help button opens its part.",
-				actionsHtml: linkButton("Glossary", "#/glossary", { icon: "book-a" })
+				actionsHtml: `<div class="row gap-2 wrap">${button("Show the welcome", { attrs: { "data-show-welcome": true } })}${linkButton("Glossary", "#/glossary", { icon: "book-a" })}</div>`
 			});
 			const data = helpLoaded();
 			if (!data && failed) return `${head}${errorState({
@@ -14776,6 +14815,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				failed = e instanceof Error ? e.message : String(e);
 				if (here()) ctx.rerender();
 			};
+			onAll(root, "[data-show-welcome]", "click", () => document.dispatchEvent(new CustomEvent("tiles:welcome")));
 			onAll(root, "[data-help-retry]", "click", () => {
 				failed = null;
 				ctx.rerender();
@@ -15344,6 +15384,98 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		return { open };
 	}
 	//#endregion
+	//#region js/lib/welcome.ts
+	var WORK_ROLES = [
+		{
+			id: "engineer",
+			label: "Engineer",
+			says: "I look for causes in the data and keep the plant model up to date.",
+			start: "explorer",
+			pins: [
+				"signals",
+				"explorer",
+				"correlate",
+				"ontology"
+			],
+			fold: []
+		},
+		{
+			id: "maintenance",
+			label: "Maintenance",
+			says: "I work warnings and keep the machines running.",
+			start: "warnings",
+			pins: [
+				"warnings",
+				"plant",
+				"documents"
+			],
+			fold: ["design"]
+		},
+		{
+			id: "shift-lead",
+			label: "Shift lead",
+			says: "I watch my line during the shift and act on what goes wrong.",
+			start: "shopfloor",
+			pins: [
+				"shopfloor",
+				"warnings",
+				"plant"
+			],
+			fold: ["data", "design"]
+		},
+		{
+			id: "admin",
+			label: "Admin",
+			says: "I set up sites, people and the connections to the plant.",
+			start: "settings",
+			pins: [
+				"settings",
+				"onboarding",
+				"reviews"
+			],
+			fold: ["design"]
+		}
+	];
+	var roleSetup = (id) => WORK_ROLES.find((r) => r.id === id);
+	function applyRole(prefs, role, pages) {
+		const pins = role.pins.filter((p) => pages.includes(p));
+		const pinned = [.../* @__PURE__ */ new Set([...pins, ...prefs.pinned])].slice(0, 8);
+		const folded = [.../* @__PURE__ */ new Set([...prefs.folded, ...role.fold])];
+		return {
+			...prefs,
+			pinned,
+			folded,
+			...pages.includes(role.start) ? { start: role.start } : {}
+		};
+	}
+	var welcomeKey = (navOwner) => `welcome:${navOwner}`;
+	function shouldWelcome(seen, automated) {
+		return !seen && !automated;
+	}
+	function welcomeIntro(c) {
+		return c.site === null ? "This is Tiles with its demo plant: a battery plant with a die-caster, a notching cutter and a tab welder. Its readings are made up, and what you change stays in this browser." : `You’re on ${c.site}: its plant model, signals, warnings and insights, shared with everyone on the site.`;
+	}
+	function rolesHtml(c) {
+		const roles = WORK_ROLES.map((r) => `<button class="welcome-role" type="button" data-role="${esc(r.id)}"><span class="welcome-role-name">${esc(r.label)}</span><span class="small soft">${esc(r.says)}</span></button>`).join("");
+		return `<p class="soft">${esc(welcomeIntro(c))}</p>
+    <fieldset class="welcome-roles"><legend>What do you mostly do?</legend>${roles}</fieldset>
+    <p class="small soft">Your choice sets the page Tiles opens at and the pages pinned at the top of the menu. You can change both later.</p>
+    <div class="dialog-foot"><button class="btn ghost" type="button" data-welcome-skip>Just look around</button></div>`;
+	}
+	function nextHtml(c, role, o) {
+		const pins = role.pins.map((p) => `<b>${esc(c.title(p))}</b>`);
+		const listed = pins.length > 1 ? `${pins.slice(0, -1).join(", ")} and ${pins.at(-1)}` : pins[0] ?? "";
+		const start = c.title(role.start);
+		const actions = [
+			o.setUp ? `<a class="btn primary" href="#/onboarding">Set up the site</a>` : "",
+			`<a class="btn${o.setUp ? "" : " primary"}" href="#/${esc(role.start)}">Go to ${esc(start)}</a>`,
+			o.helpFor ? `<a class="btn ghost" href="#/help/${esc(o.helpFor)}">Read how ${esc(start)} works</a>` : ""
+		].filter(Boolean);
+		return `<p>Tiles will open at <b>${esc(start)}</b>, with ${listed} pinned in the menu.</p>
+    <p class="small soft">To see this again, open Help and choose Show the welcome.</p>
+    <div class="dialog-foot">${actions.join("")}</div>`;
+	}
+	//#endregion
 	//#region js/lib/site-search.ts
 	var ICONS = {
 		signal: "activity",
@@ -15563,6 +15695,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			setPeople(people);
 			ontologyStatus = "ready";
 			startUx(api, site.id);
+			setTimeout(firstRun, 0);
 		} catch (e) {
 			if (seq !== connectSeq) return;
 			ontologyStatus = "error";
@@ -16158,6 +16291,56 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		run: go(`#/glossary/${encodeURIComponent(e.key)}`)
 	}));
 	var helpAsked = false;
+	var navigated = false;
+	var welcoming = false;
+	function firstRun() {
+		const owner = navOwner();
+		if (!owner) return;
+		const start = prefs().start;
+		if (start && start !== "home" && !navigated && /^#?\/?$/.test(location.hash)) location.replace(`#/${start}`);
+		if (shouldWelcome(load$4(welcomeKey(owner), null) !== null, navigator.webdriver === true) && !document.querySelector("dialog[open]")) showWelcome();
+	}
+	document.addEventListener("tiles:welcome", () => void showWelcome());
+	var welcomeContext = () => ({
+		site: api ? ctx.ontology.site?.name ?? null : null,
+		title: (page) => VIEWS.find((v) => v.id === page)?.title ?? page
+	});
+	async function showWelcome() {
+		const owner = navOwner();
+		if (!owner || welcoming) return;
+		welcoming = true;
+		save$1(welcomeKey(owner), { seen: true });
+		ux("help", "welcome");
+		const c = welcomeContext();
+		await panelDialog({
+			title: "Welcome to Tiles",
+			contentHtml: `<div class="stack gap-3" data-welcome>${rolesHtml(c)}</div>`,
+			wide: true
+		}, (dialog, close) => {
+			const box = dialog.querySelector("[data-welcome]");
+			dialog.addEventListener("click", (e) => {
+				const el = e.target instanceof Element ? e.target : null;
+				if (el?.closest("[data-welcome-skip]")) return close();
+				const role = roleSetup(el?.closest("[data-role]")?.dataset.role ?? "");
+				if (!role || !box) return;
+				setPrefs(applyRole(prefs(), role, NAV_PAGES));
+				save$1(welcomeKey(owner), {
+					seen: true,
+					role: role.id
+				});
+				renderNav(currentView());
+				const setUp = Boolean(api && ctx.ontology.role === "admin" && Object.keys(ctx.graph.nodes).length <= 1);
+				loadHelp().catch(() => null).then((help) => {
+					box.innerHTML = nextHtml(c, role, {
+						setUp,
+						helpFor: help?.pages[role.start] ?? null
+					});
+					box.querySelector("a")?.focus();
+				});
+			});
+		});
+		welcoming = false;
+	}
 	var helpOpen = false;
 	async function openHelp() {
 		if (helpOpen) return;
@@ -16273,6 +16456,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					icon: "circle-help",
 					keywords: "guide how manual explain",
 					run: () => void openHelp()
+				},
+				{
+					id: "do:welcome",
+					label: "Show the welcome",
+					group: "Actions",
+					icon: "circle-help",
+					keywords: "first run role start page getting started demo",
+					run: () => void showWelcome()
 				},
 				{
 					id: "do:glossary",
@@ -16465,6 +16656,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		clicked = el && el.closest("#view, #crumbs") ? el : null;
 	}, true);
 	function navigate() {
+		navigated = true;
 		closeMenu();
 		leaving();
 		const root = need(document, "#view");
@@ -16510,6 +16702,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		ontologyStatus = "loading";
 	}
 	render();
+	if (!api) firstRun();
 	setTimeout(makeDemoSoon, 0);
 	(async () => {
 		await finishSignIn();

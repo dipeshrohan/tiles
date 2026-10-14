@@ -216,3 +216,53 @@ export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement) => v
     opened?.(dialog);
   });
 }
+
+export interface PanelOptions {
+  title: string;
+  body?: string; // a line under the title
+  contentHtml: string; // built markup: its own buttons and links
+  wide?: boolean;
+}
+
+// A dialog whose content does the work (the welcome, U4.06): `opened` gets the dialog and a close()
+// to wire its buttons to. Escape and a click outside close it too; a link followed in it closes it at
+// once (the page it opens takes the focus). The promise resolves once it is gone.
+export function panelDialog(
+  o: PanelOptions,
+  opened?: (dialog: HTMLDialogElement, close: () => void) => void,
+): Promise<void> {
+  const id = nextId();
+  const dialog = document.createElement('dialog');
+  dialog.className = o.wide ? 'dialog wide' : 'dialog';
+  dialog.setAttribute('aria-labelledby', `${id}-title`);
+  if (o.body) dialog.setAttribute('aria-describedby', `${id}-body`);
+  dialog.innerHTML = `
+    <div class="dialog-panel">
+      <div class="dialog-head">
+        <div>
+          <h2 id="${id}-title">${esc(o.title)}</h2>
+          ${o.body ? `<p id="${id}-body">${esc(o.body)}</p>` : ''}
+        </div>
+      </div>
+      ${o.contentHtml}
+    </div>`;
+  return new Promise((resolve) => {
+    let closed = false;
+    const done = (): void => {
+      if (closed) return;
+      closed = true;
+      void dismiss(dialog).then(resolve);
+    };
+    dialog.addEventListener('click', (e) => {
+      const link = e.target instanceof Element ? e.target.closest('a[href]') : null;
+      if (closed || !link || link.hasAttribute('target')) return;
+      closed = true;
+      dialog.close();
+      dialog.remove();
+      resolve();
+    });
+    closeOutside(dialog, done);
+    open(dialog);
+    opened?.(dialog, done);
+  });
+}
