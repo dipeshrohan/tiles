@@ -165,3 +165,54 @@ export function infoDialog(o: InfoOptions, opened?: (dialog: HTMLDialogElement) 
     opened?.(dialog);
   });
 }
+
+export interface SheetOptions {
+  title: string;
+  contentHtml: string; // built markup
+  footHtml?: string; // links or buttons under the content
+  label?: string; // what the sheet is, said before its title ("Help")
+}
+
+// A side sheet (U4.04's help), after shadcn/ui's Sheet: a modal panel from the right, its content
+// scrolling, closed with its ✕, Escape, a click beside it, or a link in it followed. `opened` gets the
+// dialog once shown; the promise resolves once it is gone.
+export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement) => void): Promise<void> {
+  const id = nextId();
+  const dialog = document.createElement('dialog');
+  dialog.className = 'dialog sheet';
+  dialog.setAttribute('aria-labelledby', `${id}-title`);
+  dialog.innerHTML = `
+    <div class="sheet-head">
+      <div>
+        ${o.label ? `<div class="eyebrow">${esc(o.label)}</div>` : ''}
+        <h2 id="${id}-title">${esc(o.title)}</h2>
+      </div>
+      <button class="btn ghost icon sm" type="button" data-sheet-close aria-label="Close">${icon('x', { size: 16 })}</button>
+    </div>
+    <div class="sheet-body">${o.contentHtml}</div>
+    ${o.footHtml ? `<div class="sheet-foot">${o.footHtml}</div>` : ''}`;
+  return new Promise((resolve) => {
+    let closed = false;
+    const done = (): void => {
+      if (closed) return;
+      closed = true;
+      void dismiss(dialog).then(resolve);
+    };
+    dialog.querySelector('[data-sheet-close]')?.addEventListener('click', done);
+    // A link followed leaves the sheet for the page it goes to, at once: closed later, the dialog would
+    // give the focus back to what opened it after the new page has given it to its heading.
+    // (Not for a link opened in another tab: the sheet stays open here.)
+    dialog.addEventListener('click', (e) => {
+      const link = e.target instanceof Element ? e.target.closest('a[href]') : null;
+      const elsewhere = e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || link?.hasAttribute('target');
+      if (closed || !link || elsewhere) return;
+      closed = true;
+      dialog.close();
+      dialog.remove();
+      resolve();
+    });
+    closeOutside(dialog, done);
+    open(dialog);
+    opened?.(dialog);
+  });
+}

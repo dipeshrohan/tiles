@@ -2460,6 +2460,7 @@
 		settle();
 		current$1 = "";
 	}
+	var savedScroll = () => positions.get(entryKey()) ?? 0;
 	function scrollToSaved() {
 		settle();
 		current$1 = entryKey();
@@ -2942,27 +2943,27 @@
 		lastLoading = now;
 		return Math.max(0, Math.round(300 - (now - loadingSince)));
 	};
-	var loading = (label, kind, shapes) => `<div class="loading loading-${kind}"><span class="sr-only">${esc(label)}</span><div class="loading-shapes" aria-hidden="true" aria-busy="true" style="--wait:${wait()}ms">${shapes}</div></div>`;
+	var loading$1 = (label, kind, shapes) => `<div class="loading loading-${kind}"><span class="sr-only">${esc(label)}</span><div class="loading-shapes" aria-hidden="true" aria-busy="true" style="--wait:${wait()}ms">${shapes}</div></div>`;
 	var skeleton = {
 		text(lines = 3, label = "Loading…") {
-			return loading(label, "text", Array.from({ length: lines }, (_, i) => bar(WIDTHS[i % WIDTHS.length] ?? 80)).join(""));
+			return loading$1(label, "text", Array.from({ length: lines }, (_, i) => bar(WIDTHS[i % WIDTHS.length] ?? 80)).join(""));
 		},
 		table(rows = 5, cols = 4, label = "Loading…") {
 			const row = (r) => `<div class="skeleton-row${r < 0 ? " head" : ""}">${Array.from({ length: cols }, (_, c) => bar(r < 0 ? 50 : WIDTHS[(c + r) % WIDTHS.length] ?? 80)).join("")}</div>`;
-			return loading(label, "table", [row(-1), ...Array.from({ length: rows }, (_, r) => row(r))].join(""));
+			return loading$1(label, "table", [row(-1), ...Array.from({ length: rows }, (_, r) => row(r))].join(""));
 		},
 		card(label = "Loading…", o = {}) {
-			return loading(label, "card", `<span class="skeleton skeleton-title"></span>${[
+			return loading$1(label, "card", `<span class="skeleton skeleton-title"></span>${[
 				88,
 				72,
 				80
 			].map(bar).join("")}${o.chart ? `<span class="skeleton skeleton-chart" style="--h:${o.chart}px"></span>` : ""}`);
 		},
 		chart(label = "Loading the chart…", height = 240) {
-			return loading(label, "chart", `<span class="skeleton skeleton-chart" style="--h:${height}px"></span>`);
+			return loading$1(label, "chart", `<span class="skeleton skeleton-chart" style="--h:${height}px"></span>`);
 		},
 		list(items = 4, label = "Loading…") {
-			return loading(label, "list", Array.from({ length: items }, (_, i) => `<div class="skeleton-item">${bar(WIDTHS[i % WIDTHS.length] ?? 80)}${bar(48)}</div>`).join(""));
+			return loading$1(label, "list", Array.from({ length: items }, (_, i) => `<div class="skeleton-item">${bar(WIDTHS[i % WIDTHS.length] ?? 80)}${bar(48)}</div>`).join(""));
 		}
 	};
 	function loadingState(label = "Loading…", rows = 3) {
@@ -3168,7 +3169,7 @@
 	}
 	//#endregion
 	//#region js/views/home.ts
-	var view$20 = {
+	var view$21 = {
 		id: "home",
 		title: "Home",
 		icon: "house",
@@ -3776,19 +3777,19 @@
 	var UNDO_MS = 8e3;
 	var SAVED_KEY = "tiles.waitingRemovals";
 	var keyOf = (r) => `${r.api}|${r.site}|${r.kind}|${r.id}`;
-	var waiting = /* @__PURE__ */ new Map();
+	var waiting$1 = /* @__PURE__ */ new Map();
 	var hidden = /* @__PURE__ */ new Set();
 	var isRemoving = (r) => hidden.has(keyOf(r));
 	function removeLater(o) {
 		const key = keyOf(o.removal);
-		waiting.set(key, o.removal);
+		waiting$1.set(key, o.removal);
 		hidden.add(key);
 		o.hide();
 		let settled = false;
 		const send = () => {
 			if (settled) return;
 			settled = true;
-			waiting.delete(key);
+			waiting$1.delete(key);
 			o.send().then(async () => {
 				await o.sent?.();
 				hidden.delete(key);
@@ -3806,7 +3807,7 @@
 				run: () => {
 					if (settled) return;
 					settled = true;
-					waiting.delete(key);
+					waiting$1.delete(key);
 					hidden.delete(key);
 					ux("task", "undo");
 					o.restore();
@@ -3817,7 +3818,7 @@
 	}
 	function saveWaiting(storage) {
 		try {
-			if (waiting.size) storage.setItem(SAVED_KEY, JSON.stringify([...waiting.values()]));
+			if (waiting$1.size) storage.setItem(SAVED_KEY, JSON.stringify([...waiting$1.values()]));
 			else storage.removeItem(SAVED_KEY);
 		} catch {}
 	}
@@ -4254,7 +4255,7 @@
 		onAll(root, "[data-clear]", "click", () => ctx.update((s) => s.chat = []));
 	}
 	var remoteOn = (ctx) => Boolean(ctx.api && ctx.ontology.status === "ready" && remote$1?.site === siteId$10(ctx) && remote$1?.configured && remote$1.enabled);
-	var view$19 = {
+	var view$20 = {
 		id: "chat",
 		title: "Copilot",
 		icon: "sparkles",
@@ -4675,6 +4676,43 @@
 			dialog.addEventListener("submit", (e) => {
 				e.preventDefault();
 				done();
+			});
+			closeOutside(dialog, done);
+			open$2(dialog);
+			opened?.(dialog);
+		});
+	}
+	function sheet(o, opened) {
+		const id = nextId();
+		const dialog = document.createElement("dialog");
+		dialog.className = "dialog sheet";
+		dialog.setAttribute("aria-labelledby", `${id}-title`);
+		dialog.innerHTML = `
+    <div class="sheet-head">
+      <div>
+        ${o.label ? `<div class="eyebrow">${esc(o.label)}</div>` : ""}
+        <h2 id="${id}-title">${esc(o.title)}</h2>
+      </div>
+      <button class="btn ghost icon sm" type="button" data-sheet-close aria-label="Close">${icon("x", { size: 16 })}</button>
+    </div>
+    <div class="sheet-body">${o.contentHtml}</div>
+    ${o.footHtml ? `<div class="sheet-foot">${o.footHtml}</div>` : ""}`;
+		return new Promise((resolve) => {
+			let closed = false;
+			const done = () => {
+				if (closed) return;
+				closed = true;
+				dismiss(dialog).then(resolve);
+			};
+			dialog.querySelector("[data-sheet-close]")?.addEventListener("click", done);
+			dialog.addEventListener("click", (e) => {
+				const link = e.target instanceof Element ? e.target.closest("a[href]") : null;
+				const elsewhere = e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0 || link?.hasAttribute("target");
+				if (closed || !link || elsewhere) return;
+				closed = true;
+				dialog.close();
+				dialog.remove();
+				resolve();
 			});
 			closeOutside(dialog, done);
 			open$2(dialog);
@@ -5420,7 +5458,7 @@
 	onNavigate((hash) => {
 		if (routeOf(hash) !== "ontology") linkedNode = null;
 	});
-	var view$18 = {
+	var view$19 = {
 		id: "ontology",
 		title: "Ontology builder",
 		icon: "network",
@@ -6065,7 +6103,7 @@
 		split: true,
 		variable: "tension"
 	});
-	var view$17 = {
+	var view$18 = {
 		id: "quality",
 		title: "Process & quality",
 		icon: "gauge",
@@ -6205,7 +6243,7 @@
 	//#endregion
 	//#region js/views/physics.ts
 	var uiState$11 = (ctx) => ctx.ui("physics", { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
-	var view$16 = {
+	var view$17 = {
 		id: "physics",
 		title: "Factory physics",
 		icon: "atom",
@@ -6583,7 +6621,7 @@
 			version: ui.versions[model.id] ??= model.latest
 		};
 	}
-	var view$15 = {
+	var view$16 = {
 		id: "design",
 		title: "Design studio",
 		icon: "drafting-compass",
@@ -7610,7 +7648,7 @@
 			}, () => void 0);
 		});
 	}
-	var view$14 = {
+	var view$15 = {
 		id: "settings",
 		title: "Settings",
 		icon: "settings",
@@ -7931,7 +7969,7 @@
 	//#region js/views/signals.ts
 	var PAGE$2 = 100;
 	var results = null;
-	var failed = false;
+	var failed$1 = false;
 	var checking = false;
 	var latestSearch = 0;
 	var resultsFor = "";
@@ -8210,7 +8248,7 @@
 		results = page;
 		resultsFor = from;
 		resultsQuery = query;
-		failed = page === null;
+		failed$1 = page === null;
 		fill(root, ctx);
 	}
 	var untouched = (el) => el.value === el.defaultValue.replace(/[\r\n]/g, "");
@@ -8225,7 +8263,7 @@
 		} : null;
 		const focused = form?.contains(document.activeElement) ? document.activeElement?.getAttribute("name") : null;
 		const canEdit = ctx.ontology.role !== "viewer";
-		box.innerHTML = failed ? loadFailed("The signals") : results ? resultsTable(ctx, results, canEdit) : skeleton.table(6, 9, "Loading the signals…");
+		box.innerHTML = failed$1 ? loadFailed("The signals") : results ? resultsTable(ctx, results, canEdit) : skeleton.table(6, 9, "Loading the signals…");
 		const again = box.querySelector("#signal-form");
 		if (typed && again && again.dataset.signal === typed.signal) {
 			for (const [name, value] of typed.values) {
@@ -8413,7 +8451,7 @@
 			})();
 		});
 	}
-	var view$13 = {
+	var view$14 = {
 		id: "signals",
 		title: "Signals",
 		icon: "activity",
@@ -8916,7 +8954,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$12 = {
+	var view$13 = {
 		id: "explorer",
 		title: "Data explorer",
 		icon: "chart-line",
@@ -9327,7 +9365,7 @@
 			ctx.rerender();
 		}
 	}
-	var view$11 = {
+	var view$12 = {
 		id: "reviews",
 		title: "Change reviews",
 		icon: "git-pull-request",
@@ -9953,7 +9991,7 @@
 		});
 		location.hash = "#/warnings";
 	}
-	var view$10 = {
+	var view$11 = {
 		id: "warnings",
 		title: "Warnings",
 		icon: "triangle-alert",
@@ -10111,7 +10149,7 @@
 	//#endregion
 	//#region js/lib/shopfloor.ts
 	var isMachine = (graph, id) => graph.nodes[id]?.type === "Machine";
-	var parentOf = (graph, id) => incoming(graph, id, "contains")[0] ?? null;
+	var parentOf$1 = (graph, id) => incoming(graph, id, "contains")[0] ?? null;
 	function machineOf(graph, id) {
 		const node = graph.nodes[id];
 		if (!node) return null;
@@ -10126,7 +10164,7 @@
 			if (machine) return machine;
 		}
 		const seen = /* @__PURE__ */ new Set([id]);
-		for (let up = parentOf(graph, id); up && !seen.has(up); up = parentOf(graph, up)) {
+		for (let up = parentOf$1(graph, id); up && !seen.has(up); up = parentOf$1(graph, up)) {
 			if (isMachine(graph, up)) return up;
 			seen.add(up);
 		}
@@ -10135,7 +10173,7 @@
 	function pathOf(graph, id) {
 		const path = [];
 		const seen = /* @__PURE__ */ new Set([id]);
-		for (let up = parentOf(graph, id); up && !seen.has(up); up = parentOf(graph, up)) {
+		for (let up = parentOf$1(graph, id); up && !seen.has(up); up = parentOf$1(graph, up)) {
 			const node = graph.nodes[up];
 			if (node && node.type !== "Site" && node.type !== "Enterprise") path.unshift(node.label);
 			seen.add(up);
@@ -10477,7 +10515,7 @@
 		}
 		await fetchWarnings(ctx, true);
 	}
-	var view$9 = {
+	var view$10 = {
 		id: "shopfloor",
 		title: "Shopfloor",
 		icon: "hard-hat",
@@ -10787,7 +10825,7 @@
 			body: "Search by a site’s, line’s or machine’s name, or part of it."
 		})}</div>`;
 	}
-	var view$8 = {
+	var view$9 = {
 		id: "plant",
 		title: "Plant",
 		icon: "factory",
@@ -11118,7 +11156,7 @@ heartbeat_seconds = 30
     </p>
     ${data.next === null ? "<p role=\"status\"><b>This site is set up.</b> Next, add detectors to raise warnings (Warnings page) and invite the team.</p>" : ""}`;
 	}
-	var view$7 = {
+	var view$8 = {
 		id: "onboarding",
 		title: "Set up a site",
 		icon: "rocket",
@@ -11657,7 +11695,7 @@ tabs({ … }), .review-row.sel, .seg button.active      // the highlight moves f
 		["icons", "Icons"],
 		["illustrations", "Illustrations"]
 	];
-	var view$6 = {
+	var view$7 = {
 		id: "styleguide",
 		title: "Style guide",
 		icon: "palette",
@@ -11919,7 +11957,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		})}
     </div>`;
 	}
-	var view$5 = {
+	var view$6 = {
 		id: "performance",
 		title: "Warning performance",
 		icon: "target",
@@ -12697,7 +12735,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			ctx.rerender();
 		}
 	}
-	var view$4 = {
+	var view$5 = {
 		id: "correlate",
 		title: "Correlation finder",
 		icon: "chart-scatter",
@@ -12972,7 +13010,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			ctx.rerender();
 		}
 	}
-	var view$3 = {
+	var view$4 = {
 		id: "insights",
 		title: "Insights",
 		icon: "lightbulb",
@@ -13427,7 +13465,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			ctx.rerender();
 		}
 	}
-	var view$2 = {
+	var view$3 = {
 		id: "apps",
 		title: "App Studio",
 		icon: "layout-grid",
@@ -13777,7 +13815,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		})}</div>
       </form>` : ""}`, { class: "stack gap-2" });
 	}
-	var view$1 = {
+	var view$2 = {
 		id: "documents",
 		title: "Documents",
 		icon: "file-text",
@@ -14127,7 +14165,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		ctx.toast(failure || unfinished ? "Import stopped by an error" : state.cancelled ? "Import stopped" : `Imported ${l.fileName}`);
 		ctx.rerender();
 	}
-	var view = {
+	var view$1 = {
 		id: "import",
 		title: "Import data",
 		icon: "upload",
@@ -14180,6 +14218,195 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			onAll(root, "[data-import-cancel]", "click", () => {
 				if (running) running.cancelled = true;
 			});
+		}
+	};
+	//#endregion
+	//#region js/lib/help.ts
+	var loading = null;
+	function loadHelp(src = "js/help-data.js") {
+		if (window.tilesHelp) return Promise.resolve(window.tilesHelp);
+		loading ??= new Promise((resolve, reject) => {
+			const script = document.createElement("script");
+			script.src = src;
+			script.async = true;
+			const fail = (message) => {
+				loading = null;
+				script.remove();
+				reject(new Error(message));
+			};
+			script.onload = () => window.tilesHelp ? resolve(window.tilesHelp) : fail("The help file is empty");
+			script.onerror = () => fail("The help file couldn't be loaded");
+			document.head.append(script);
+		});
+		return loading;
+	}
+	var helpLoaded = () => window.tilesHelp ?? null;
+	var helpHref = (slug) => `#/help/${encodeURIComponent(slug)}`;
+	function sectionAt(sections, slug) {
+		const start = sections.findIndex((s) => s.slug === slug);
+		const first = sections[start];
+		if (!first) return [];
+		const end = sections.findIndex((s, i) => i > start && s.level <= first.level);
+		return sections.slice(start, end < 0 ? void 0 : end);
+	}
+	function pageSection(data, page) {
+		const slug = data.pages[page];
+		const found = slug ? sectionAt(data.sections, slug) : [];
+		const intro = data.sections[0];
+		return found.length ? found : intro ? [intro] : [];
+	}
+	function parentOf(sections, slug) {
+		const at = sections.findIndex((s) => s.slug === slug);
+		const own = sections[at];
+		if (!own) return void 0;
+		for (let i = at - 1; i >= 0; i--) {
+			const s = sections[i];
+			if (s && s.level < own.level) return s;
+		}
+	}
+	function chapter(sections, slug) {
+		const named = slug ? sections.find((s) => s.slug === slug) : void 0;
+		const top = named?.level === 3 ? parentOf(sections, named.slug) : named ?? sections[0];
+		if (!top) return {
+			shown: [],
+			top
+		};
+		const shown = top.level === 1 ? [top] : sectionAt(sections, top.slug);
+		const chapters = sections.filter((s) => s.level <= 2);
+		const at = chapters.indexOf(top);
+		return {
+			shown,
+			top,
+			prev: chapters[at - 1],
+			next: chapters[at + 1]
+		};
+	}
+	var HELP_ICON = "circle-help";
+	function helpItems(data, open) {
+		return data.sections.filter((s) => s.level > 1).map((s) => {
+			const parent = s.level === 3 ? parentOf(data.sections, s.slug)?.title : void 0;
+			const href = helpHref(s.slug);
+			return {
+				id: `help:${s.slug}`,
+				label: s.title,
+				group: "Help",
+				icon: HELP_ICON,
+				hint: parent,
+				keywords: parent,
+				late: true,
+				run: () => open(href)
+			};
+		});
+	}
+	//#endregion
+	//#region js/views/help.ts
+	function helpSlug(hash) {
+		const m = /^#\/help\/([^?/]+)/.exec(hash);
+		if (!m?.[1]) return null;
+		try {
+			return decodeURIComponent(m[1]);
+		} catch {
+			return null;
+		}
+	}
+	var failed = null;
+	var waiting = false;
+	var shownSlug = null;
+	var wasShown = false;
+	var heading = (s, ids) => {
+		const h = s.level === 3 ? "h3" : "h2";
+		return `<${h}${ids ? ` id="help-${esc(s.slug)}" tabindex="-1"` : ""}>${esc(s.title)}</${h}>`;
+	};
+	function guideHtml(sections, o = {}) {
+		const ids = o.ids ?? true;
+		return sections.map((s) => `<section class="help-section" data-key="${esc(s.slug)}">${s.level > 1 ? heading(s, ids) : ""}${s.html}</section>`).join("");
+	}
+	function contentsHtml(sections, current) {
+		const link = (s) => `<a href="${esc(helpHref(s.slug))}"${s.slug === current ? " aria-current=\"location\"" : ""}>${esc(s.title)}</a>`;
+		const items = [];
+		for (let i = 0; i < sections.length; i++) {
+			const s = sections[i];
+			if (!s || s.level !== 2) continue;
+			const subs = [];
+			for (let j = i + 1; j < sections.length && (sections[j]?.level ?? 2) > 2; j++) {
+				const sub = sections[j];
+				if (sub) subs.push(`<li>${link(sub)}</li>`);
+			}
+			items.push(`<li>${link(s)}${subs.length ? `<ul>${subs.join("")}</ul>` : ""}</li>`);
+		}
+		return `<nav class="help-toc" aria-label="Contents of the guide"><ul>${items.join("")}</ul></nav>`;
+	}
+	var view = {
+		id: "help",
+		title: "Help",
+		icon: "circle-help",
+		render() {
+			wasShown = document.querySelector("#view .help-article") !== null;
+			const head = pageHead({
+				title: "Help",
+				lead: "The user guide: what each page is for and how to use it. Each page’s help button opens its part."
+			});
+			const data = helpLoaded();
+			if (!data && failed) return `${head}${errorState({
+				title: "The help could not be loaded",
+				body: `${failed}. The app may be missing js/help-data.js.`,
+				retry: "help-retry"
+			})}`;
+			if (!data) return `${head}<div class="card">${skeleton.text(6, "Loading the help…")}</div>`;
+			const slug = helpSlug(location.hash);
+			const { shown, top, prev, next } = chapter(data.sections, slug);
+			const step = (s, label, cls) => s ? `<a class="help-step ${cls}" href="${esc(helpHref(s.slug))}"><span class="small soft">${label}</span>${esc(s.title)}</a>` : "<span></span>";
+			const steps = `<nav class="help-steps" aria-label="Previous and next">${step(prev, "Previous", "prev")}${step(next, "Next", "next")}</nav>`;
+			return `${head}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
+		},
+		bind(root, ctx) {
+			const here = () => /^#\/help(?:[/?]|$)/.test(location.hash);
+			const loaded = () => {
+				waiting = false;
+				if (here()) ctx.rerender();
+			};
+			const refused = (e) => {
+				waiting = false;
+				failed = e instanceof Error ? e.message : String(e);
+				if (here()) ctx.rerender();
+			};
+			onAll(root, "[data-help-retry]", "click", () => {
+				failed = null;
+				ctx.rerender();
+			});
+			if (!helpLoaded() && !failed && !waiting) {
+				waiting = true;
+				loadHelp().then(loaded, refused);
+			}
+			if (!root.querySelector(".help-article")) return;
+			const slug = helpSlug(location.hash);
+			if (!slug || wasShown && slug === shownSlug || !wasShown && savedScroll() > 0) {
+				shownSlug = slug;
+				return;
+			}
+			shownSlug = slug;
+			requestAnimationFrame(() => {
+				const toc = root.querySelector(".help-toc");
+				const here = toc?.querySelector("[aria-current]");
+				if (toc && here) toc.scrollTop = here.offsetTop - toc.clientHeight / 3;
+				const target = root.querySelector(`#help-${CSS.escape(slug)}`);
+				target?.focus({ preventScroll: true });
+				if (!target || target.tagName !== "H3") return;
+				const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+				const top = target.getBoundingClientRect().top + window.scrollY - margin;
+				window.scrollTo({
+					top,
+					behavior: scrollBehavior()
+				});
+			});
+		},
+		crumbs() {
+			const slug = helpSlug(location.hash);
+			const section = slug ? helpLoaded()?.sections.find((s) => s.slug === slug) : void 0;
+			return section ? [{
+				label: section.title,
+				href: helpHref(section.slug)
+			}] : [];
 		}
 	};
 	//#endregion
@@ -14380,8 +14607,6 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 		window.addEventListener("scroll", hide, { passive: true });
 		root.addEventListener("click", hide);
 	}
-	//#endregion
-	//#region js/lib/palette.ts
 	function score(item, query) {
 		const q = query.trim().toLowerCase();
 		if (!q) return 1;
@@ -14455,7 +14680,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				let items;
 				let matched = 0;
 				if (q.trim()) {
-					const found = grouped([...rank(all, q), ...extra]);
+					const found = [...grouped([...rank(all.filter((i) => !i.late), q), ...extra]), ...grouped(rank(all.filter((i) => i.late), q).slice(0, 5))];
 					matched = found.length;
 					items = [...found, ...source.typed?.(q.trim()) ?? []];
 				} else {
@@ -14644,62 +14869,67 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	//#endregion
 	//#region js/app.ts
 	var VIEWS = [
+		view$21,
 		view$20,
 		view$19,
-		view$18,
+		view$12,
 		view$11,
 		view$10,
 		view$9,
-		view$8,
-		view$5,
+		view$6,
+		view$18,
 		view$17,
 		view$16,
-		view$15,
+		view$14,
 		view$13,
-		view$12,
+		view$5,
 		view$4,
 		view$3,
 		view$2,
 		view$1,
-		view,
+		view$8,
+		view$15,
 		view$7,
-		view$14,
-		view$6
+		view
 	];
 	var NAV = [
-		{ items: [view$20, view$19] },
+		{ items: [view$21, view$20] },
 		{
 			group: "Operations",
 			items: [
-				view$9,
-				view$8,
-				view$18,
-				view$11,
 				view$10,
-				view$5,
-				view$17,
-				view$16
+				view$9,
+				view$19,
+				view$12,
+				view$11,
+				view$6,
+				view$18,
+				view$17
 			]
 		},
 		{
 			group: "Data",
 			items: [
+				view$14,
 				view$13,
-				view$12,
+				view$5,
 				view$4,
 				view$3,
 				view$2,
-				view$1,
-				view
+				view$1
 			]
 		},
 		{
 			group: "Design",
-			items: [view$15]
+			items: [view$16]
 		},
 		{
 			group: "",
-			items: [view$7, view$14]
+			items: [
+				view$8,
+				view$15,
+				view
+			]
 		}
 	];
 	var toast = createToaster(need(document, "#toast"));
@@ -14759,7 +14989,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			return;
 		}
 		state.scored;
-		if (currentView() === view$20) renderSoon();
+		if (currentView() === view$21) renderSoon();
 		else renderNav(currentView());
 	}
 	var uiChecked = /* @__PURE__ */ new Set();
@@ -15097,7 +15327,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	};
 	function currentView() {
 		const id = routeOf(location.hash);
-		return VIEWS.find((v) => v.id === id) ?? view$20;
+		return VIEWS.find((v) => v.id === id) ?? view$21;
 	}
 	var NAV_GROUPS = NAV.map((g, i) => ({
 		id: g.group ? g.group.toLowerCase() : `g${i}`,
@@ -15241,7 +15471,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}
 		}
 		renderNav(view);
-		document.title = view === view$20 ? "Tiles" : `${view.title} · Tiles`;
+		document.title = view === view$21 ? "Tiles" : `${view.title} · Tiles`;
 		const root = need(document, "#view");
 		const params = queryOf(location.hash);
 		if (view.query && location.hash !== addressed && [...params].length) view.query.read(params, ctx);
@@ -15264,7 +15494,7 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 				label: v.title,
 				href: `#/${v.id}`
 			})),
-			...view === view$20 ? [] : [{
+			...view === view$21 ? [] : [{
 				label: view.title,
 				href: `#/${view.id}`
 			}],
@@ -15402,6 +15632,32 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 	var go = (hash) => () => {
 		location.hash = hash;
 	};
+	var helpAsked = false;
+	var helpOpen = false;
+	async function openHelp() {
+		if (helpOpen) return;
+		helpOpen = true;
+		try {
+			const [first, ...rest] = pageSection(await loadHelp(), currentView().id);
+			if (!first) return;
+			await sheet({
+				label: "Help",
+				title: first.title,
+				contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
+				footHtml: `<a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`
+			});
+		} catch (e) {
+			toast("The help couldn't be loaded", {
+				type: "error",
+				description: e instanceof Error ? e.message : String(e)
+			});
+		} finally {
+			helpOpen = false;
+		}
+	}
+	var helpButton = need(document, "#help-open");
+	helpButton.insertAdjacentHTML("afterbegin", icon("circle-help"));
+	helpButton.addEventListener("click", () => void openHelp());
 	var palette = installPalette({
 		items() {
 			const pages = NAV.flatMap((g) => g.items.map((v) => ({
@@ -15486,6 +15742,14 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					run: go("#/documents")
 				},
 				{
+					id: "do:help",
+					label: "Help for this page",
+					group: "Actions",
+					icon: "circle-help",
+					keywords: "guide how manual explain",
+					run: () => void openHelp()
+				},
+				{
 					id: "do:shortcuts",
 					label: "Keyboard shortcuts",
 					group: "Actions",
@@ -15514,10 +15778,19 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 					siteId: s.id
 				})
 			})) : [];
+			const guide = helpLoaded();
+			if (!guide && !helpAsked) {
+				helpAsked = true;
+				loadHelp().catch(() => {});
+			}
+			const helpFound = guide ? helpItems(guide, (href) => {
+				location.hash = href;
+			}) : [];
 			return [
 				...pages,
 				...actions,
-				...sites
+				...sites,
+				...helpFound
 			];
 		},
 		canSearch: () => Boolean(api && ctx.ontology.site),

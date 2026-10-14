@@ -84,6 +84,7 @@ import apps from './views/apps.ts';
 import documents from './views/documents.ts';
 import imports from './views/imports.ts';
 import signals from './views/signals.ts';
+import help, { guideHtml } from './views/help.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import type { Graph, Repo, ShotHistory } from './lib/types.ts';
 import { rowTarget, shown } from './lib/split.ts';
@@ -97,6 +98,8 @@ import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
 import { installShortcuts, shortcutsOn } from './lib/shortcuts.ts';
+import { helpHref, helpItems, helpLoaded, loadHelp, pageSection } from './lib/help.ts';
+import { sheet } from './lib/overlay.ts';
 import { searchItems } from './lib/site-search.ts';
 
 const VIEWS: View[] = [
@@ -121,6 +124,7 @@ const VIEWS: View[] = [
   onboarding,
   settings,
   styleguide, // not in the menu: Settings → About links to it
+  help,
 ];
 
 const NAV: { group?: string; items: View[] }[] = [
@@ -128,7 +132,7 @@ const NAV: { group?: string; items: View[] }[] = [
   { group: 'Operations', items: [shopfloor, plant, ontology, reviews, warnings, performance, quality, physics] },
   { group: 'Data', items: [signals, explorer, correlate, insights, apps, documents, imports] },
   { group: 'Design', items: [design] },
-  { group: '', items: [onboarding, settings] },
+  { group: '', items: [onboarding, settings, help] },
 ];
 
 // Toasts and tooltips are the page's, from the start (a live region must exist before it speaks).
@@ -938,6 +942,35 @@ need(document, '#menu').innerHTML = icon('menu', { size: 18 });
 const go = (hash: string) => () => {
   location.hash = hash;
 };
+// The guide's headings join the palette once loaded (U4.04): asked for once, as the palette first opens.
+let helpAsked = false;
+
+// ---- help (U4.04) ------------------------------------------------------------
+
+// The page's help in a side sheet: its section of the user guide, with a link to the whole guide.
+let helpOpen = false;
+async function openHelp(): Promise<void> {
+  if (helpOpen) return;
+  helpOpen = true;
+  try {
+    const data = await loadHelp();
+    const [first, ...rest] = pageSection(data, currentView().id);
+    if (!first) return;
+    await sheet({
+      label: 'Help',
+      title: first.title,
+      contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
+      footHtml: `<a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`,
+    });
+  } catch (e) {
+    toast("The help couldn't be loaded", { type: 'error', description: e instanceof Error ? e.message : String(e) });
+  } finally {
+    helpOpen = false;
+  }
+}
+const helpButton = need(document, '#help-open');
+helpButton.insertAdjacentHTML('afterbegin', icon('circle-help'));
+helpButton.addEventListener('click', () => void openHelp());
 const palette = installPalette({
   items(): PaletteItem[] {
     const pages = NAV.flatMap((g) =>
@@ -1024,6 +1057,14 @@ const palette = installPalette({
         run: go('#/documents'),
       },
       {
+        id: 'do:help',
+        label: 'Help for this page',
+        group: 'Actions',
+        icon: 'circle-help',
+        keywords: 'guide how manual explain',
+        run: () => void openHelp(),
+      },
+      {
         id: 'do:shortcuts',
         label: 'Keyboard shortcuts',
         group: 'Actions',
@@ -1055,7 +1096,17 @@ const palette = installPalette({
               run: () => ctx.setDataSource({ ...dataSource, siteId: s.id }),
             }))
         : [];
-    return [...pages, ...actions, ...sites];
+    const guide = helpLoaded();
+    if (!guide && !helpAsked) {
+      helpAsked = true;
+      loadHelp().catch(() => {}); // the Help page and the help button say when it can't be loaded
+    }
+    const helpFound = guide
+      ? helpItems(guide, (href) => {
+          location.hash = href;
+        })
+      : [];
+    return [...pages, ...actions, ...sites, ...helpFound];
   },
   canSearch: () => Boolean(api && ctx.ontology.site),
   // Where records picked come from: they come back among the recent picks there only.

@@ -47,6 +47,8 @@ const PAGES = [
   'onboarding',
   'settings',
   'styleguide',
+  'help',
+  'help/warnings',
 ];
 
 const VARIANTS = [

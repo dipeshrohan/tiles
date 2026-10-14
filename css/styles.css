@@ -267,7 +267,8 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 #view:focus-visible,
-#view h1:focus-visible {
+#view h1:focus-visible,
+.help-article :is(h2, h3):focus-visible {
   outline: none; /* focus lands here on navigation, for screen readers: it isn't a control */
 }
 .skip-link {
@@ -2533,6 +2534,168 @@ kbd {
   background: var(--bad-soft);
   color: var(--bad);
 }
+/* A side sheet (U4.04's help), after shadcn/ui's Sheet: from the right, full height, its body scrolling. */
+.dialog.sheet {
+  top: 0;
+  right: 0;
+  left: auto;
+  transform: none;
+  display: flex;
+  flex-direction: column;
+  width: min(480px, 100vw);
+  height: 100dvh;
+  max-height: none;
+  border-width: 0 0 0 1px;
+  border-radius: 0;
+  overflow: hidden;
+}
+.dialog.sheet:not([open]) {
+  display: none;
+}
+.dialog.sheet[data-state='open'] {
+  animation: sheet-in var(--dur-slow) var(--ease-out);
+}
+.dialog.sheet[data-state='closed'] {
+  animation: sheet-out var(--dur-fast) var(--ease-in) forwards;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes sheet-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6) var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+.sheet-head h2 {
+  font-size: var(--text-lg);
+}
+.sheet-body {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-4) var(--space-6);
+}
+.sheet-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-6);
+  border-top: 1px solid var(--line);
+}
+/* Text from the user guide (U4.04): paragraphs, lists and tables at reading width. */
+.prose {
+  max-width: 72ch;
+}
+.prose p,
+.prose ul,
+.prose ol,
+.prose .table-wrap,
+.prose blockquote {
+  margin-bottom: var(--space-3);
+}
+.prose ul,
+.prose ol {
+  padding-left: var(--space-5);
+}
+.prose li + li,
+.prose li > ul,
+.prose li > ol {
+  margin-top: var(--space-1);
+}
+.prose li > ul,
+.prose li > ol {
+  margin-bottom: 0;
+}
+.prose h2 {
+  margin: var(--space-6) 0 var(--space-2);
+}
+.prose h3 {
+  margin: var(--space-4) 0 var(--space-2);
+}
+.prose a {
+  text-decoration: underline;
+}
+.prose blockquote {
+  padding-left: var(--space-3);
+  border-left: 3px solid var(--line);
+  color: var(--soft);
+}
+/* The Help page: the guide's contents beside it on a wide screen, above it on a narrow one. */
+.help-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+.help-toc {
+  position: sticky;
+  top: calc(52px + var(--space-4));
+  max-height: calc(100vh - 52px - var(--space-8));
+  overflow: auto;
+  font-size: var(--text-sm);
+}
+.help-toc ul {
+  list-style: none;
+  padding: 0;
+}
+.help-toc ul ul {
+  padding-left: var(--space-3);
+  font-size: var(--text-xs);
+}
+.help-toc a {
+  display: block;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  color: var(--soft);
+}
+.help-toc a:hover,
+.help-toc a[aria-current] {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+.help-article h2,
+.help-article h3 {
+  scroll-margin-top: calc(52px + var(--space-4));
+}
+.help-steps {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.prose .help-step {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+}
+.help-step.next {
+  text-align: right;
+}
+.help-article .help-section:first-child > p:first-child {
+  margin-top: 0;
+}
+@media (max-width: 960px) {
+  .help-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .help-toc {
+    position: static;
+    max-height: none;
+  }
+}
+
 /* The keyboard shortcuts (U4.03): their tables side by side where there is room. */
 .shortcut-list {
   display: grid;
