@@ -79,6 +79,22 @@ export function parentOf(sections: readonly HelpSection[], slug: string): HelpSe
   return undefined;
 }
 
+// The part of the guide the page shows for an address: the section (##) it names, or the one a
+// subsection (###) it names is in, with its subsections; the introduction without one. And the
+// sections before and after it.
+export function chapter(
+  sections: readonly HelpSection[],
+  slug: string | null,
+): { shown: HelpSection[]; top: HelpSection | undefined; prev?: HelpSection; next?: HelpSection } {
+  const named = slug ? sections.find((s) => s.slug === slug) : undefined;
+  const top = named?.level === 3 ? parentOf(sections, named.slug) : (named ?? sections[0]);
+  if (!top) return { shown: [], top };
+  const shown = top.level === 1 ? [top] : sectionAt(sections, top.slug);
+  const chapters = sections.filter((s) => s.level <= 2);
+  const at = chapters.indexOf(top);
+  return { shown, top, prev: chapters[at - 1], next: chapters[at + 1] };
+}
+
 const HELP_ICON: IconName = 'circle-help';
 
 // The guide's headings as palette items: found by their words and their section's.

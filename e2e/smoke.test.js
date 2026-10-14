@@ -470,6 +470,11 @@ test("each page's help: a side sheet from the top bar, the whole guide on the He
   await page.locator('.help-toc a:text-is("Roles")').click();
   await page.waitForFunction(() => document.activeElement?.id === 'help-roles');
   assert.ok(await page.locator('#help-roles').isVisible());
+  // One section at a time (Getting started, which Roles is in), and the next one after it.
+  assert.equal(await page.locator('.help-article h2').first().innerText(), 'Getting started');
+  assert.equal(await page.locator('#help-data-explorer').count(), 0);
+  await page.locator('.help-step.next').click();
+  await page.waitForFunction(() => location.hash === '#/help/home');
   // The palette finds the guide's headings.
   await page.keyboard.press('Control+k');
   await page.locator('dialog.palette input').fill('notifications');

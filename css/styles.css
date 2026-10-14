@@ -267,7 +267,8 @@ summary:focus-visible {
   outline-offset: 2px;
 }
 #view:focus-visible,
-#view h1:focus-visible {
+#view h1:focus-visible,
+.help-article :is(h2, h3):focus-visible {
   outline: none; /* focus lands here on navigation, for screen readers: it isn't a control */
 }
 .skip-link {
@@ -2664,6 +2665,23 @@ kbd {
 .help-article h2,
 .help-article h3 {
   scroll-margin-top: calc(52px + var(--space-4));
+}
+.help-steps {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--line);
+}
+.prose .help-step {
+  display: flex;
+  flex-direction: column;
+  text-decoration: none;
+}
+.help-step.next {
+  text-align: right;
 }
 .help-article .help-section:first-child > p:first-child {
   margin-top: 0;

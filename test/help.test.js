@@ -2,7 +2,7 @@ import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PAGE_HELP, blocks, generate, inline, pageIds, sections } from '../scripts/help.js';
-import { helpHref, helpItems, pageSection, parentOf, sectionAt } from '../js/lib/help.ts';
+import { chapter, helpHref, helpItems, pageSection, parentOf, sectionAt } from '../js/lib/help.ts';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -118,4 +118,16 @@ test("the guide's headings are found in the command palette, a subsection under 
   );
   items[1].run();
   assert.deepEqual(opened, ['#/help/filtering']);
+});
+
+test('the Help page shows one section at a time, with the ones before and after it', () => {
+  const at = (slug) => {
+    const c = chapter(data.sections, slug);
+    return [c.shown.map((s) => s.slug), c.prev?.slug, c.next?.slug];
+  };
+  assert.deepEqual(at(null), [['guide'], undefined, 'warnings']);
+  assert.deepEqual(at('warnings'), [['warnings', 'filtering', 'notifications'], 'guide', 'plant']);
+  assert.deepEqual(at('filtering'), [['warnings', 'filtering', 'notifications'], 'guide', 'plant']); // its section
+  assert.deepEqual(at('plant'), [['plant'], 'warnings', undefined]);
+  assert.deepEqual(at('nowhere'), [['guide'], undefined, 'warnings']);
 });

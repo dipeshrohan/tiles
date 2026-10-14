@@ -14264,6 +14264,23 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			if (s && s.level < own.level) return s;
 		}
 	}
+	function chapter(sections, slug) {
+		const named = slug ? sections.find((s) => s.slug === slug) : void 0;
+		const top = named?.level === 3 ? parentOf(sections, named.slug) : named ?? sections[0];
+		if (!top) return {
+			shown: [],
+			top
+		};
+		const shown = top.level === 1 ? [top] : sectionAt(sections, top.slug);
+		const chapters = sections.filter((s) => s.level <= 2);
+		const at = chapters.indexOf(top);
+		return {
+			shown,
+			top,
+			prev: chapters[at - 1],
+			next: chapters[at + 1]
+		};
+	}
 	var HELP_ICON = "circle-help";
 	function helpItems(data, open) {
 		return data.sections.filter((s) => s.level > 1).map((s) => {
@@ -14337,7 +14354,10 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			})}`;
 			if (!data) return `${head}<div class="card">${skeleton.text(6, "Loading the help…")}</div>`;
 			const slug = helpSlug(location.hash);
-			return `${head}<div class="help-layout">${contentsHtml(data.sections, slug)}<article class="help-article prose">${guideHtml(data.sections)}</article></div>`;
+			const { shown, top, prev, next } = chapter(data.sections, slug);
+			const step = (s, label, cls) => s ? `<a class="help-step ${cls}" href="${esc(helpHref(s.slug))}"><span class="small soft">${label}</span>${esc(s.title)}</a>` : "<span></span>";
+			const steps = `<nav class="help-steps" aria-label="Previous and next">${step(prev, "Previous", "prev")}${step(next, "Next", "next")}</nav>`;
+			return `${head}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
 		},
 		bind(root, ctx) {
 			const here = () => /^#\/help(?:[/?]|$)/.test(location.hash);
@@ -14366,10 +14386,16 @@ ctx.toast('Saved', { type: 'success' })        // errors from the API stay, with
 			}
 			shownSlug = slug;
 			requestAnimationFrame(() => {
+				const toc = root.querySelector(".help-toc");
+				const here = toc?.querySelector("[aria-current]");
+				if (toc && here) toc.scrollTop = here.offsetTop - toc.clientHeight / 3;
 				const target = root.querySelector(`#help-${CSS.escape(slug)}`);
 				target?.focus({ preventScroll: true });
-				target?.scrollIntoView({
-					block: "start",
+				if (!target || target.tagName !== "H3") return;
+				const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+				const top = target.getBoundingClientRect().top + window.scrollY - margin;
+				window.scrollTo({
+					top,
 					behavior: scrollBehavior()
 				});
 			});

@@ -2,7 +2,7 @@
 // section. Each page's help button (in the top bar) shows that page's section in a side sheet, with
 // a link here. The guide is loaded on first use (js/lib/help.ts).
 import { esc, onAll, scrollBehavior } from '../lib/dom.ts';
-import { helpHref, helpLoaded, loadHelp, type HelpSection } from '../lib/help.ts';
+import { chapter, helpHref, helpLoaded, loadHelp, type HelpSection } from '../lib/help.ts';
 import { errorState, pageHead, skeleton } from '../lib/ui.ts';
 import { savedScroll } from '../lib/url-state.ts';
 import type { View } from './types.ts';
@@ -73,7 +73,13 @@ const view: View = {
       return `${head}${errorState({ title: 'The help could not be loaded', body: `${failed}. The app may be missing js/help-data.js.`, retry: 'help-retry' })}`;
     if (!data) return `${head}<div class="card">${skeleton.text(6, 'Loading the help…')}</div>`;
     const slug = helpSlug(location.hash);
-    return `${head}<div class="help-layout">${contentsHtml(data.sections, slug)}<article class="help-article prose">${guideHtml(data.sections)}</article></div>`;
+    const { shown, top, prev, next } = chapter(data.sections, slug);
+    const step = (s: HelpSection | undefined, label: string, cls: string): string =>
+      s
+        ? `<a class="help-step ${cls}" href="${esc(helpHref(s.slug))}"><span class="small soft">${label}</span>${esc(s.title)}</a>`
+        : '<span></span>';
+    const steps = `<nav class="help-steps" aria-label="Previous and next">${step(prev, 'Previous', 'prev')}${step(next, 'Next', 'next')}</nav>`;
+    return `${head}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
   },
   bind(root, ctx) {
     // Drawn again only if the Help page is still the one shown.
@@ -105,9 +111,19 @@ const view: View = {
     }
     shownSlug = slug;
     requestAnimationFrame(() => {
+      // The contents show where it is too.
+      const toc = root.querySelector<HTMLElement>('.help-toc');
+      const here = toc?.querySelector<HTMLElement>('[aria-current]');
+      if (toc && here) toc.scrollTop = here.offsetTop - toc.clientHeight / 3;
       const target = root.querySelector<HTMLElement>(`#help-${CSS.escape(slug)}`);
       target?.focus({ preventScroll: true });
-      target?.scrollIntoView({ block: 'start', behavior: scrollBehavior() });
+      // A section's own heading is at the top already: only a subsection is scrolled to. The window
+      // scrolls, not an ancestor (scrollIntoView moved the app's clipped shell); the heading's
+      // scroll-margin keeps it below the sticky top bar.
+      if (!target || target.tagName !== 'H3') return;
+      const margin = parseFloat(getComputedStyle(target).scrollMarginTop) || 0;
+      const top = target.getBoundingClientRect().top + window.scrollY - margin;
+      window.scrollTo({ top, behavior: scrollBehavior() });
     });
   },
   crumbs() {
