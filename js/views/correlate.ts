@@ -4,6 +4,7 @@ import { forestPlot, inferColumns, parseNgValues, typedRows } from '../lib/datas
 import type { CorrelationResult, Dataset, DatasetValue, InsightSource } from '../lib/api.ts';
 import { bindDraft, correlationDraft, draftForm, insightLink, readDraft, type DraftText } from '../lib/insights.ts';
 import type { Context, View } from './types.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 import { isRemoving, removeLater } from '../lib/undo.ts';
 import { emptyState, needsApi, pageHead, skeleton, apiUnreachable, term } from '../lib/ui.ts';
 
@@ -32,6 +33,9 @@ let busy = '';
 let upload: { done: number; total: number } | null = null;
 // The file and name chosen for upload, kept across re-renders (a file input can't be refilled).
 let chosen: { file: File | null; name: string } = { file: null, name: '' };
+
+// The value a yes/no outcome takes when it failed, as the file has it.
+const TRUE = 'true'; // i18n-ok
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const resultKey = (ctx: Context): string => JSON.stringify({ site: siteId(ctx), ...uiState(ctx) });
@@ -80,18 +84,19 @@ function listCard(ctx: Context, ui: Ui): string {
           .map(
             (d) => `<button class="review-row ${ui.selected === d.id ? 'sel' : ''}" data-dataset="${esc(d.id)}">
               <b>${esc(d.name)}</b>
-              <span class="small muted">${fmt(d.row_count, 0)} batch(es) · ${d.columns.length} column(s)${d.created_by ? ` · ${esc(d.created_by)}` : ''}</span>
+              <span class="small muted">${esc(t('correlate.listMeta', { batches: t('correlate.batches', { count: d.row_count, n: fmt(d.row_count, 0) }), columns: d.columns.length }))}${d.created_by ? ` · ${esc(d.created_by)}` : ''}</span>
             </button>`,
           )
-          .join('') || emptyState({ compact: true, title: 'No batch tables yet', body: 'Upload one below.' });
+          .join('') ||
+        emptyState({ compact: true, title: t('correlate.empty.title'), body: t('correlate.empty.body') });
   const form = canEdit
     ? `<form class="stack gap-2 mt-3" id="dataset-form">
-        <h3>Upload a batch table</h3>
-        <p class="small soft">A CSV with one row per batch: its settings and measurements, and a column saying whether it failed.</p>
-        <label class="field">CSV file<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
-        ${chosen.file ? `<p class="small" data-chosen-file>Chosen: ${esc(chosen.file.name)}</p>` : ''}
-        <label class="field">Name<input type="text" name="name" maxlength="200" value="${esc(chosen.name)}" placeholder="e.g. Cutter batches, September"></label>
-        <div><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${upload ? `Uploading ${fmt(upload.done, 0)} of ${fmt(upload.total, 0)}…` : 'Upload'}</button></div>
+        <h3>${t('correlate.upload.title')}</h3>
+        <p class="small soft">${t('correlate.upload.hint')}</p>
+        <label class="field">${t('correlate.upload.file')}<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
+        ${chosen.file ? `<p class="small" data-chosen-file>${esc(t('correlate.upload.chosen', { name: chosen.file.name }))}</p>` : ''}
+        <label class="field">${t('correlate.upload.name')}<input type="text" name="name" maxlength="200" value="${esc(chosen.name)}" placeholder="${esc(t('correlate.upload.namePlaceholder'))}"></label>
+        <div><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(upload ? t('correlate.upload.progress', { done: fmt(upload.done, 0), total: fmt(upload.total, 0) }) : t('correlate.upload.submit'))}</button></div>
       </form>`
     : '';
   return `<div class="card"><div class="review-list" data-dataset-list>${rows}</div>${form}</div>`;
@@ -99,9 +104,9 @@ function listCard(ctx: Context, ui: Ui): string {
 
 function analysisCard(ctx: Context, ui: Ui): string {
   if (!ui.selected)
-    return `<div class="card">${emptyState({ illustration: 'chart', title: 'Choose a batch table', body: 'Or upload one: its settings are compared between good and failed batches.' })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'chart', title: t('correlate.choose.title'), body: t('correlate.choose.body') })}</div>`;
   const d = detail?.id === ui.selected ? detail.data : null;
-  if (!d) return `<div class="card">${skeleton.card('Loading the effects…', { chart: 200 })}</div>`;
+  if (!d) return `<div class="card">${skeleton.card(t('correlate.loadingEffects'), { chart: 200 })}</div>`;
   const numbers = d.columns.filter((c) => c.kind === 'number').map((c) => c.name);
   const outcome =
     d.columns.find((c) => c.name === ui.outcome) ?? d.columns.find((c) => c.kind === 'bool') ?? d.columns[0];
@@ -109,7 +114,7 @@ function analysisCard(ctx: Context, ui: Ui): string {
   const option = (name: string, current: string) =>
     `<option value="${esc(name)}" ${name === current ? 'selected' : ''}>${esc(name)}</option>`;
   const preview = d.preview.length
-    ? `<details><summary class="small">The first ${d.preview.length} batch(es)</summary><div class="table-wrap"><table class="small"><thead><tr>${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join('')}</tr></thead><tbody>${d.preview
+    ? `<details><summary class="small">${esc(t('correlate.preview', { count: d.preview.length }))}</summary><div class="table-wrap"><table class="small"><thead><tr>${d.columns.map((c) => `<th>${esc(c.name)}</th>`).join('')}</tr></thead><tbody>${d.preview
         .map(
           (r) =>
             `<tr>${d.columns.map((c) => `<td>${esc(r[c.name] === null || r[c.name] === undefined ? '' : String(r[c.name]))}</td>`).join('')}</tr>`,
@@ -120,21 +125,21 @@ function analysisCard(ctx: Context, ui: Ui): string {
   const canEdit = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
   return `<div class="card stack gap-3" data-analysis>
       <div class="row justify-between items-start gap-3">
-        <div><h2>${esc(d.name)}</h2><p class="small soft">${fmt(d.row_count, 0)} batch(es)</p></div>
-        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy ? 'disabled' : ''}>Delete</button>` : ''}
+        <div><h2>${esc(d.name)}</h2><p class="small soft">${esc(t('correlate.batches', { count: d.row_count, n: fmt(d.row_count, 0) }))}</p></div>
+        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy ? 'disabled' : ''}>${t('correlate.delete')}</button>` : ''}
       </div>
       ${preview}
       <form class="stack gap-2_5" id="correlate-form">
         <div class="row gap-3 wrap items-end">
-          <label class="field">Outcome<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? '')).join('')}</select></label>
-          <label class="field">Failed when it is${outcome?.kind === 'bool' ? ' (default true)' : ''}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === 'bool' ? 'true' : 'e.g. NG, scrap'}" class="w-12em"></label>
-          <label class="field">Split by<select name="split"><option value="">nothing (pooled)</option>${d.columns
+          <label class="field">${t('correlate.form.outcome')}<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? '')).join('')}</select></label>
+          <label class="field">${esc(t(outcome?.kind === 'bool' ? 'correlate.form.failedWhenBool' : 'correlate.form.failedWhen'))}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === 'bool' ? TRUE : esc(t('correlate.form.ngPlaceholder'))}" class="w-12em"></label>
+          <label class="field">${t('correlate.form.splitBy')}<select name="split"><option value="">${esc(t('correlate.form.pooled'))}</option>${d.columns
             .filter((c) => c.kind !== 'number' && c.name !== outcome?.name)
             .map((c) => option(c.name, ui.split))
             .join('')}</select></label>
-          <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Find</button>
+          <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${t('correlate.form.find')}</button>
         </div>
-        <fieldset class="row gap-2_5 wrap border-0 p-0 m-0"><legend class="small soft">Variables</legend>${numbers
+        <fieldset class="row gap-2_5 wrap border-0 p-0 m-0"><legend class="small soft">${t('correlate.form.variables')}</legend>${numbers
           .filter((n) => n !== outcome?.name)
           .map(
             (n) =>
@@ -143,27 +148,27 @@ function analysisCard(ctx: Context, ui: Ui): string {
           .join('')}</fieldset>
       </form>
       ${r ? resultBlock(r.data, r.split) : ''}
-      ${r && canEdit ? (saving?.key === r.key ? `<div class="stack gap-1_5"><h3>Save as an insight</h3>${draftForm('insight-save', saving.text, Boolean(busy))}</div>` : '<div><button class="btn" type="button" data-save-insight>Save as insight</button></div>') : ''}
+      ${r && canEdit ? (saving?.key === r.key ? `<div class="stack gap-1_5"><h3>${esc(t('correlate.save.title'))}</h3>${draftForm('insight-save', saving.text, Boolean(busy))}</div>` : `<div><button class="btn" type="button" data-save-insight>${esc(t('correlate.save.button'))}</button></div>`) : ''}
     </div>`;
 }
 
 function resultBlock(r: CorrelationResult, split: boolean): string {
   const said = r.explanations.length
     ? `<ul class="stack gap-1" data-explanations>${r.explanations.map((e) => `<li>${esc(e.text)}</li>`).join('')}</ul>`
-    : `<p class="small soft" data-explanations>No large, clear effect (|${term('cohens-d', 'd')}| ≥ 0.8 with an ${term('confidence-interval', 'interval')} that leaves out 0).</p>`;
+    : `<p class="small soft" data-explanations>${tHtml('correlate.noEffect', { d: term('cohens-d', 'd'), interval: term('confidence-interval', t('correlate.term.interval')) })}</p>`;
   const rows = r.findings
     .slice(0, 50)
     .map(
       (f) =>
-        `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? '–' : fmt(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? '–' : fmt(f.ok_mean, 2)}</td><td><b>${f.effect.toFixed(2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? '–' : `${f.ci_low.toFixed(2)} to ${f.ci_high.toFixed(2)}`}${f.clear ? '' : ' <span class="small soft">(could be 0)</span>'}</td><td>${f.r.toFixed(2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`,
+        `<tr><td>${esc(f.segment)}</td><td>${esc(f.variable)}</td><td>${f.ng_mean === null ? '–' : fmt(f.ng_mean, 2)}</td><td>${f.ok_mean === null ? '–' : fmt(f.ok_mean, 2)}</td><td><b>${f.effect.toFixed(2)}</b></td><td>${f.ci_low === null || f.ci_high === null ? '–' : esc(t('correlate.range', { low: f.ci_low.toFixed(2), high: f.ci_high.toFixed(2) }))}${f.clear ? '' : ` <span class="small soft">${esc(t('correlate.couldBeZero'))}</span>`}</td><td>${f.r.toFixed(2)}</td><td>${f.ng_count} / ${f.ok_count}</td></tr>`,
     )
     .join('');
   return `<div class="stack gap-2_5" data-result>
-      <p class="small soft">${fmt(r.rows, 0)} batch(es) with an outcome: ${fmt(r.ng, 0)} failed, ${fmt(r.ok, 0)} good.</p>
+      <p class="small soft">${esc(t('correlate.counts', { count: r.rows, rows: fmt(r.rows, 0), ng: fmt(r.ng, 0), ok: fmt(r.ok, 0) }))}</p>
       ${said}
-      <p class="small soft">A ${term('forest-plot', 'forest plot')}: each effect’s point with its interval as a line, against 0.</p>
+      <p class="small soft">${tHtml('correlate.forest', { term: term('forest-plot', t('correlate.term.forestPlot')) })}</p>
       ${forestPlot(r.findings, split)}
-      <div class="table-wrap"><table><thead><tr><th>${term('segment', 'Segment')}</th><th>Variable</th><th>Failed mean</th><th>Good mean</th><th>${term('cohens-d', 'd')}</th><th>95% ${term('confidence-interval', 'CI')}</th><th>${term('point-biserial-r', 'r')}</th><th>Failed / good</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>${term('segment', t('correlate.head.segment'))}</th><th>${t('correlate.head.variable')}</th><th>${t('correlate.head.failedMean')}</th><th>${t('correlate.head.goodMean')}</th><th>${term('cohens-d', 'd')}</th><th>${tHtml('correlate.head.ci', { term: term('confidence-interval', t('correlate.term.ci')) })}</th><th>${term('point-biserial-r', 'r')}</th><th>${t('correlate.head.failedGood')}</th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 }
 
@@ -175,7 +180,7 @@ async function uploadFile(ctx: Context, file: File, name: string): Promise<void>
   const table = parseCsv(text, detectDelimiter(text)).filter((r) => r.some((c) => c.trim()));
   const [header, ...body] = table;
   if (!header || !body.length) {
-    ctx.toast('The file needs a header row and at least one batch');
+    ctx.toast(t('correlate.toast.noRows'));
     return;
   }
   const columns = inferColumns(header, body);
@@ -192,7 +197,12 @@ async function uploadFile(ctx: Context, file: File, name: string): Promise<void>
       upload = { done: sent.row_count, total: rows.length };
       ctx.rerender();
     }
-    ctx.toast(`${name}: ${fmt(rows.length, 0)} batch(es) uploaded`);
+    ctx.toast(
+      t('correlate.toast.uploaded', {
+        name,
+        batches: t('correlate.batches', { count: rows.length, n: fmt(rows.length, 0) }),
+      }),
+    );
     Object.assign(uiState(ctx), { selected: d.id, outcome: '', ngText: '', variables: null, split: '' });
     detail = null;
     listing = null;
@@ -218,7 +228,7 @@ function removeDataset(ctx: Context): void {
   const before = { ...ui };
   removeLater({
     toast: ctx.toast,
-    message: `${d.name} deleted`,
+    message: t('correlate.toast.deleted', { name: d.name }),
     removal: { kind: 'dataset', api: api.baseUrl, site, id: d.id },
     hide: () => {
       Object.assign(ui, { selected: null, outcome: '', ngText: '', variables: null, split: '' });
@@ -247,7 +257,7 @@ async function saveInsight(ctx: Context): Promise<void> {
   try {
     const saved = await ctx.api.insights.create(site, draft, result.source);
     saving = null;
-    ctx.toast(`Insight #${saved.number} saved: another engineer reviews it`);
+    ctx.toast(t('correlate.toast.saved', { number: saved.number }));
     location.hash = insightLink(saved.number);
   } catch {
     // the client showed why
@@ -283,7 +293,7 @@ async function find(ctx: Context): Promise<void> {
   const numbers = d.columns.filter((c) => c.kind === 'number' && c.name !== outcome.name).map((c) => c.name);
   const variables = (ui.variables ?? numbers).filter((v) => numbers.includes(v));
   if (!variables.length) {
-    ctx.toast('Choose at least one variable');
+    ctx.toast(t('correlate.toast.noVariables'));
     return;
   }
   const key = resultKey(ctx);
@@ -304,18 +314,26 @@ async function find(ctx: Context): Promise<void> {
 
 const view: View = {
   id: 'correlate',
-  title: 'Correlation finder',
+  get title() {
+    return t('correlate.title');
+  },
   icon: 'chart-scatter',
   render(ctx) {
     const head = pageHead({
-      eyebrow: 'Data · Analysis',
-      title: 'Correlation finder',
-      leadHtml: `Which settings separate failed batches from good ones in a ${term('batch-table', 'batch table')}: each variable’s ${term('effect', 'effect')} (${term('cohens-d')}) with its 95% ${term('confidence-interval', 'confidence interval')}, overall or per ${term('segment', 'segment')}: material, line or shift.`,
+      eyebrow: t('correlate.eyebrow'),
+      title: t('correlate.title'),
+      leadHtml: tHtml('correlate.lead', {
+        batchTable: term('batch-table', t('correlate.term.batchTable')),
+        effect: term('effect', t('correlate.term.effect')),
+        d: term('cohens-d'),
+        interval: term('confidence-interval', t('correlate.term.confidenceInterval')),
+        segment: term('segment', t('correlate.term.segment')),
+      }),
     });
     if (!ctx.api)
-      return `${head}<div class="card">${needsApi(`Batch tables are kept by the Tiles API. The <a href="#/quality">Process & quality</a> page shows the finder on demo batches.`)}</div>`;
+      return `${head}<div class="card">${needsApi(tHtml('correlate.needsApi', { link: `<a href="#/quality">${esc(t('correlate.qualityLink'))}</a>` }))}</div>`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
+    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card(t('correlate.loading'))}</div>`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
@@ -362,8 +380,8 @@ const view: View = {
     );
     onSubmit(root, '#dataset-form', () => {
       const name = chosen.name.trim();
-      if (!chosen.file) return void ctx.toast('Choose the CSV file first');
-      if (!name) return void ctx.toast('Give the batch table a name');
+      if (!chosen.file) return void ctx.toast(t('correlate.toast.noFile'));
+      if (!name) return void ctx.toast(t('correlate.toast.noName'));
       const file = chosen.file;
       chosen = { file: null, name: '' };
       return uploadFile(ctx, file, name);

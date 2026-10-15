@@ -33,6 +33,7 @@ import {
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
 import { bindTable, dataTable, type Column, type TableOptions } from '../lib/data-table.ts';
+import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
@@ -77,9 +78,9 @@ const ui = (ctx: Context): Ui =>
 export function sourceLabel(source: string): string {
   const [kind, ...rest] = source.split(':');
   const name = rest.join(':');
-  if (kind === 'edge') return `Edge agent ${name}`;
-  if (kind === 'import') return `Import ${name}`;
-  return source === 'manual' ? 'Entered by hand' : source;
+  if (kind === 'edge') return t('signals.source.edge', { name });
+  if (kind === 'import') return t('signals.source.import', { name });
+  return source === 'manual' ? t('signals.source.manual') : source;
 }
 
 export function latest(s: Pick<SignalInfo, 'last_value' | 'last_at' | 'unit'>): string {
@@ -90,16 +91,17 @@ export function latest(s: Pick<SignalInfo, 'last_value' | 'last_at' | 'unit'>): 
   return `${value}${unit} · ${new Date(s.last_at).toLocaleString('en-GB')}`;
 }
 
-const QUALITY: Record<QualityReport['badge'] | 'unchecked', [string, Tone]> = {
-  good: ['Good', 'good'],
-  warn: ['Warnings', 'warn'],
-  bad: ['Problems', 'bad'],
-  unknown: ['No data', ''],
-  unchecked: ['Not checked', ''],
+const QUALITY: Record<QualityReport['badge'] | 'unchecked', [MessageKey, Tone]> = {
+  good: ['signals.quality.good', 'good'],
+  warn: ['signals.quality.warn', 'warn'],
+  bad: ['signals.quality.bad', 'bad'],
+  unknown: ['signals.quality.unknown', ''],
+  unchecked: ['signals.quality.unchecked', ''],
 };
 
 export function qualityBadge(report: QualityReport | null): string {
-  const [label, tone] = QUALITY[report ? report.badge : 'unchecked'];
+  const [key, tone] = QUALITY[report ? report.badge : 'unchecked'];
+  const label = t(key);
   const title = report?.issues.length ? report.issues.map((i) => i.message).join('\n') : label;
   return badge(label, tone, { title });
 }
@@ -111,14 +113,18 @@ const percent = (x: number) => `${(Math.floor(x * 1000) / 10).toFixed(1)}%`;
 export function qualityDetail(report: QualityReport): string {
   const when = new Date(report.checked_at).toLocaleString('en-GB');
   const facts = [
-    `${fmt(report.readings, 0)} reading(s) in the ${+report.window_hours.toPrecision(3)} h up to the latest`,
-    report.period_s === null ? '' : `expected every ${+report.period_s.toPrecision(3)} s`,
-    report.coverage === null ? '' : `${percent(report.coverage)} of the time covered`,
+    t('signals.quality.readings', {
+      count: report.readings,
+      n: fmt(report.readings, 0),
+      hours: +report.window_hours.toPrecision(3),
+    }),
+    report.period_s === null ? '' : t('signals.quality.expected', { seconds: +report.period_s.toPrecision(3) }),
+    report.coverage === null ? '' : t('signals.quality.coverage', { percent: percent(report.coverage) }),
   ].filter(Boolean);
   const issues = report.issues.length
-    ? `<ul class="small">${report.issues.map((i) => `<li>${badge(i.severity === 'bad' ? 'problem' : 'warning', i.severity)} ${esc(i.message)}</li>`).join('')}</ul>`
-    : `<p class="small">${report.readings ? 'No gaps, stuck values, out-of-range values or unit mismatches found.' : 'No readings to check.'}</p>`;
-  return `<div class="stack gap-1_5"><p class="small soft">Checked ${esc(when)}: ${esc(facts.join(', '))}.</p>${issues}</div>`;
+    ? `<ul class="small">${report.issues.map((i) => `<li>${badge(t(i.severity === 'bad' ? 'signals.quality.problem' : 'signals.quality.warning'), i.severity)} ${esc(i.message)}</li>`).join('')}</ul>`
+    : `<p class="small">${esc(t(report.readings ? 'signals.quality.none' : 'signals.quality.noReadings'))}</p>`;
+  return `<div class="stack gap-1_5"><p class="small soft">${esc(t('signals.quality.checked', { when, facts: facts.join(', ') }))}</p>${issues}</div>`;
 }
 
 function number(text: string): number | null | undefined {
@@ -158,8 +164,7 @@ export function changeFrom(
     if (unit !== s.unit) change.unit = unit;
   }
   const rate = number(form.rate);
-  if (rate === undefined || (rate !== null && rate <= 0))
-    return { name: 'rate', message: 'The sample rate is a number of readings per second, above 0.' };
+  if (rate === undefined || (rate !== null && rate <= 0)) return { name: 'rate', message: t('signals.error.rate') };
   if (rate !== s.sample_rate_hz) change.sample_rate_hz = rate;
   if (form.description !== s.description) {
     const description = form.description.trim();
@@ -172,15 +177,14 @@ export function changeFrom(
   if (min === undefined || max === undefined)
     return {
       name: min === undefined ? 'min' : 'max',
-      message: 'The expected range is two numbers (either may be blank).',
+      message: t('signals.error.range'),
     };
-  if (min !== null && max !== null && min >= max)
-    return { name: 'max', message: "The expected range's maximum must be above its minimum." };
+  if (min !== null && max !== null && min >= max) return { name: 'max', message: t('signals.error.rangeOrder') };
   if (min !== s.range_min) change.range_min = min;
   if (max !== s.range_max) change.range_max = max;
   const stuck = number(form.stuck ?? '');
   if (stuck === undefined || (stuck !== null && (stuck <= 0 || stuck > 30 * 24 * 60)))
-    return { name: 'stuck', message: 'Stuck after is a number of minutes, above 0 and at most 30 days.' };
+    return { name: 'stuck', message: t('signals.error.stuck') };
   const stuckS = stuck === null ? null : stuck * 60;
   // Minutes shown and read back can differ from the stored seconds in the last digits: not an edit.
   const sameStuck =
@@ -194,7 +198,9 @@ export function changeFrom(
 // An event stream's kind and asset (T3.10); an asset alone for a measurement that names one.
 function eventBadge(s: SignalInfo): string {
   if (!s.event_kind && !s.asset) return '';
-  const text = [s.event_kind ? `${s.event_kind} events` : '', s.asset ?? ''].filter(Boolean).join(' · ');
+  const text = [s.event_kind ? t('signals.eventKind', { kind: s.event_kind }) : '', s.asset ?? '']
+    .filter(Boolean)
+    .join(' · ');
   return ` ${badge(text, '', { attrs: { 'data-event-badge': true } })}`;
 }
 
@@ -202,7 +208,7 @@ function linkCell(s: SignalInfo): string {
   if (!s.node_id) return '<span class="soft">—</span>';
   return s.node_label !== null // a label may be empty: the node is still there
     ? `<a href="#/ontology">${esc(s.node_label || s.node_id)}</a>`
-    : badge('missing node', 'warn', { title: `${s.node_id} is no longer a Signal node of the committed ontology` });
+    : badge(t('signals.missingNode'), 'warn', { title: t('signals.missingNodeHint', { node: s.node_id }) });
 }
 
 function editRow(ctx: Context, s: SignalInfo): string {
@@ -210,53 +216,55 @@ function editRow(ctx: Context, s: SignalInfo): string {
     .filter((n) => n.type === 'Signal')
     .sort((a, b) => a.label.localeCompare(b.label));
   const nodeOptions: (readonly [string, string])[] = [
-    ['', '— not linked —'],
-    ...(s.node_id && !nodes.some((n) => n.id === s.node_id) ? [[s.node_id, `${s.node_id} (missing)`] as const] : []),
+    ['', t('signals.edit.notLinked')],
+    ...(s.node_id && !nodes.some((n) => n.id === s.node_id)
+      ? [[s.node_id, t('signals.edit.missing', { id: s.node_id })] as const]
+      : []),
     ...nodes.map((n) => [n.id, `${n.label} (${n.id})`] as const),
   ];
   const stuck = s.stuck_after_s === null ? '' : String(+(s.stuck_after_s / 60).toPrecision(12));
   return `<tr class="edit-row"><td colspan="100">
       <form id="signal-form" data-signal="${esc(s.id)}" class="row gap-3 wrap items-end">
         <fieldset class="contents" ${saving === s.id ? 'disabled' : ''}>
-        ${labelled('Unit', input({ name: 'unit', value: s.unit ?? '', class: 'w-7em', attrs: { placeholder: 'e.g. °C', maxlength: 40 } }))}
-        ${labelled('Sample rate (Hz)', input({ name: 'rate', value: String(s.sample_rate_hz ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'sample_rate_hz' } }))}
-        ${labelled('Description', input({ name: 'description', value: s.description, attrs: { maxlength: 1000 } }), { class: 'grow min-w-field' })}
-        ${labelled('Ontology node', select('node', nodeOptions, s.node_id ?? '', { attrs: { 'data-api': 'node_id' } }))}
-        ${labelled('Expected min', input({ name: 'min', value: String(s.range_min ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'range_min' } }))}
-        ${labelled('Expected max', input({ name: 'max', value: String(s.range_max ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'range_max' } }))}
-        ${labelled('Stuck after (min)', input({ name: 'stuck', value: stuck, class: 'w-6em', attrs: { placeholder: '60', inputmode: 'decimal', 'data-api': 'stuck_after_s' } }))}
+        ${labelled(t('signals.edit.unit'), input({ name: 'unit', value: s.unit ?? '', class: 'w-7em', attrs: { placeholder: t('signals.edit.unitPlaceholder'), maxlength: 40 } }))}
+        ${labelled(t('signals.edit.rate'), input({ name: 'rate', value: String(s.sample_rate_hz ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'sample_rate_hz' } }))}
+        ${labelled(t('signals.edit.description'), input({ name: 'description', value: s.description, attrs: { maxlength: 1000 } }), { class: 'grow min-w-field' })}
+        ${labelled(t('signals.edit.node'), select('node', nodeOptions, s.node_id ?? '', { attrs: { 'data-api': 'node_id' } }))}
+        ${labelled(t('signals.edit.min'), input({ name: 'min', value: String(s.range_min ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'range_min' } }))}
+        ${labelled(t('signals.edit.max'), input({ name: 'max', value: String(s.range_max ?? ''), class: 'w-7em', attrs: { inputmode: 'decimal', 'data-api': 'range_max' } }))}
+        ${labelled(t('signals.edit.stuck'), input({ name: 'stuck', value: stuck, class: 'w-6em', attrs: { placeholder: '60', inputmode: 'decimal', 'data-api': 'stuck_after_s' } }))}
         ${labelled(
-          'Events',
+          t('signals.edit.events'),
           select(
             'events',
             [
-              ['', 'none: readings'],
-              ['downtime', 'downtime'],
-              ['scrap', 'scrap'],
-              ['other', 'other events'],
+              ['', t('signals.edit.eventsNone')],
+              ['downtime', t('signals.edit.downtime')],
+              ['scrap', t('signals.edit.scrap')],
+              ['other', t('signals.edit.other')],
             ],
             s.event_kind ?? '',
             { attrs: { 'data-api': 'event_kind' } },
           ),
-          { title: 'Each reading of an event stream is an event: its value is the code' },
+          { title: t('signals.edit.eventsHint') },
         )}
         ${labelled(
-          'Asset',
+          t('signals.edit.asset'),
           input({
             name: 'asset',
             value: s.asset ?? '',
             class: 'w-8em',
-            attrs: { placeholder: 'e.g. DC-01', maxlength: 100 },
+            attrs: { placeholder: t('signals.edit.assetPlaceholder'), maxlength: 100 },
           }),
           {
-            title: "The machine, as the MES names it: its events are matched to its detectors' warnings",
+            title: t('signals.edit.assetHint'),
           },
         )}
-        ${button('Save', { variant: 'primary', type: 'submit', busy: saving === s.id })}
-        ${button('Cancel', { attrs: { 'data-cancel-edit': true } })}
+        ${button(t('signals.edit.save'), { variant: 'primary', type: 'submit', busy: saving === s.id })}
+        ${button(t('signals.edit.cancel'), { attrs: { 'data-cancel-edit': true } })}
         </fieldset>
       </form>
-      ${nodes.length ? '' : '<p class="small soft">The committed ontology has no Signal nodes yet: add them on the Ontology page, then link them here.</p>'}
+      ${nodes.length ? '' : `<p class="small soft">${esc(t('signals.edit.noNodes'))}</p>`}
     </td></tr>`;
 }
 
@@ -268,20 +276,18 @@ export function resultsTable(ctx: Context, page: { total: number; signals: Signa
           illustration: 'search',
           compact: true,
           level: 3,
-          title: 'No signals match',
-          body: 'Try other words or filters, or clear them to see every signal.',
-          action: button('Clear search', { size: 'sm', attrs: { 'data-clear-search': true } }),
+          title: t('signals.empty.noMatch'),
+          body: t('signals.empty.noMatchBody'),
+          action: button(t('signals.empty.clear'), { size: 'sm', attrs: { 'data-clear-search': true } }),
         })
       : emptyState({
           illustration: 'chart',
           compact: true,
           level: 3,
-          title: 'No signals yet',
-          body: canEdit
-            ? 'Signals appear here once an edge agent or an import sends their readings.'
-            : 'Signals appear here once an edge agent or an engineer’s import sends their readings.',
+          title: t('signals.empty.none'),
+          body: canEdit ? t('signals.empty.noneEngineer') : t('signals.empty.noneViewer'),
           action: canEdit
-            ? linkButton('Import data', '#/import', { variant: 'primary', size: 'sm', icon: 'upload' })
+            ? linkButton(t('signals.empty.import'), '#/import', { variant: 'primary', size: 'sm', icon: 'upload' })
             : undefined,
         });
   }
@@ -298,46 +304,51 @@ export function tableOptions(
 ): TableOptions<SignalInfo> {
   const { editing, open } = ui(ctx);
   const more = page.loading
-    ? ` Loading ${fmt(page.total - page.signals.length, 0)} more…`
+    ? ` ${t('signals.table.loadingMore', { n: fmt(page.total - page.signals.length, 0) })}`
     : page.total > page.signals.length
-      ? ` Showing the first ${fmt(page.signals.length, 0)}; narrow the search to see others.`
+      ? ` ${t('signals.table.firstOnly', { n: fmt(page.signals.length, 0) })}`
       : '';
   const columns: Column<SignalInfo>[] = [
     {
       key: 'tag',
-      label: 'Tag',
+      label: t('signals.table.tag'),
       value: (s) => s.tag,
       cell: (s) =>
-        `<a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="Plot it in the Data explorer"><code>${esc(s.tag)}</code></a>${eventBadge(s)}`,
+        `<a href="#/explorer?signal=${esc(encodeURIComponent(s.id))}" title="${esc(t('signals.table.plotIt'))}"><code>${esc(s.tag)}</code></a>${eventBadge(s)}`,
     },
     {
       key: 'description',
-      label: 'Description',
+      label: t('signals.table.description'),
       value: (s) => s.description,
       cell: (s) => esc(s.description) || '<span class="soft">—</span>',
     },
-    { key: 'unit', label: 'Unit', value: (s) => s.unit, cell: (s) => esc(s.unit ?? '—') },
+    { key: 'unit', label: t('signals.table.unit'), value: (s) => s.unit, cell: (s) => esc(s.unit ?? '—') },
     {
       key: 'rate',
-      label: 'Rate',
+      label: t('signals.table.rate'),
       numeric: true,
       value: (s) => s.sample_rate_hz,
       cell: (s) => (s.sample_rate_hz === null ? '—' : `${esc(String(s.sample_rate_hz))} Hz`),
     },
-    { key: 'source', label: 'Source', value: (s) => sourceLabel(s.source), cell: (s) => esc(sourceLabel(s.source)) },
+    {
+      key: 'source',
+      label: t('signals.table.source'),
+      value: (s) => sourceLabel(s.source),
+      cell: (s) => esc(sourceLabel(s.source)),
+    },
     {
       key: 'node',
-      label: 'Ontology node',
+      label: t('signals.table.node'),
       value: (s) => s.node_label ?? s.node_id,
       csv: (s) => s.node_label ?? s.node_id ?? '',
       cell: (s) => linkCell(s),
     },
-    { key: 'latest', label: 'Latest reading', value: (s) => s.last_at, cell: (s) => esc(latest(s)) },
+    { key: 'latest', label: t('signals.table.latest'), value: (s) => s.last_at, cell: (s) => esc(latest(s)) },
     {
       key: 'quality',
-      label: 'Quality',
+      label: t('signals.table.quality'),
       value: (s) => (s.quality ? (QUALITY_RANK[s.quality.badge] ?? 4) : null),
-      csv: (s) => s.quality?.badge ?? 'not checked',
+      csv: (s) => s.quality?.badge ?? t('signals.table.notChecked'),
       cell: (s) =>
         s.quality
           ? `<button class="btn-link" type="button" data-quality="${esc(s.id)}" aria-expanded="${open === s.id}">${qualityBadge(s.quality)}</button>`
@@ -345,20 +356,23 @@ export function tableOptions(
     },
     {
       key: 'actions',
-      label: 'Actions',
+      label: t('signals.table.actions'),
       srOnly: true,
       fixed: true,
-      cell: (s) => (canEdit && editing !== s.id ? button('Edit', { size: 'sm', attrs: { 'data-edit': s.id } }) : ''),
+      cell: (s) =>
+        canEdit && editing !== s.id
+          ? button(t('signals.table.edit'), { size: 'sm', attrs: { 'data-edit': s.id } })
+          : '',
     },
   ];
   return {
     id: 'signals',
-    label: 'Signals',
+    label: t('signals.table.label'),
     columns,
     rows: page.signals,
     key: (s) => s.id,
     empty: '',
-    status: `<p class="small soft m-0" data-signal-count>${esc(fmt(page.total, 0))} signal(s).${esc(more)}</p>`,
+    status: `<p class="small soft m-0" data-signal-count>${esc(t('signals.table.count', { count: page.total, n: fmt(page.total, 0) }))}${esc(more)}</p>`,
     rowAttrs: (s) => ({ 'data-row': s.id }),
     after: (s) =>
       `${open === s.id && s.quality ? `<tr class="quality-row" data-key="quality-${esc(s.id)}"><td colspan="100">${qualityDetail(s.quality)}</td></tr>` : ''}${
@@ -366,8 +380,8 @@ export function tableOptions(
       }`,
     select: {
       actions: [
-        { id: 'plot', label: 'Plot', variant: 'primary' },
-        ...(canEdit ? [{ id: 'check', label: 'Check quality' }] : []),
+        { id: 'plot', label: t('signals.table.plot'), variant: 'primary' },
+        ...(canEdit ? [{ id: 'check', label: t('signals.table.check') }] : []),
       ],
       run: (action, keys) => bulk(ctx, action, keys),
     },
@@ -384,8 +398,8 @@ function bulk(ctx: Context, action: string, keys: string[]): Promise<unknown> | 
   const site = ctx.ontology.site;
   if (action === 'plot') {
     if (keys.length > PLOT_MAX) {
-      ctx.toast(`Select up to ${PLOT_MAX} signals to plot`, {
-        description: `The Data explorer plots ${PLOT_MAX} at a time; ${keys.length} are selected.`,
+      ctx.toast(t('signals.plot.tooMany', { max: PLOT_MAX }), {
+        description: t('signals.plot.tooManyHint', { max: PLOT_MAX, count: keys.length }),
       });
       return;
     }
@@ -410,9 +424,13 @@ function bulk(ctx: Context, action: string, keys: string[]): Promise<unknown> | 
         Promise.resolve({ checked: 0, badges: {} }),
       )
       .then((r) => {
-        ctx.toast(`Checked ${r.checked} signal(s)`, {
+        ctx.toast(t('signals.check.done', { count: r.checked }), {
           type: 'success',
-          description: `${r.badges.good ?? 0} good, ${r.badges.warn ?? 0} with warnings, ${r.badges.bad ?? 0} with problems.`,
+          description: t('signals.check.badges', {
+            good: r.badges.good ?? 0,
+            warn: r.badges.warn ?? 0,
+            bad: r.badges.bad ?? 0,
+          }),
         });
         ux('task', 'signal.quality-checked');
         const root = document.querySelector<HTMLElement>('#view');
@@ -481,7 +499,7 @@ function barOptions(ctx: Context): BarOptions {
     filters: () => ({ ...ui(ctx).query }),
     count: () =>
       results && !failed && resultsQuery === JSON.stringify(ui(ctx).query)
-        ? `${results.total.toLocaleString('en-GB')} signal${results.total === 1 ? '' : 's'}`
+        ? t('signals.bar.count', { count: results.total, n: results.total.toLocaleString('en-GB') })
         : '',
     apply: (f) => {
       const u = ui(ctx);
@@ -519,10 +537,10 @@ function fill(root: HTMLElement, ctx: Context): void {
   const frame = box.querySelector('.table-frame');
   const scrolled = frame ? { top: frame.scrollTop, left: frame.scrollLeft } : null;
   box.innerHTML = failed
-    ? loadFailed('The signals')
+    ? loadFailed(t('signals.loadFailed'))
     : results
       ? resultsTable(ctx, results, canEdit)
-      : skeleton.table(6, 9, 'Loading the signals…');
+      : skeleton.table(6, 9, t('signals.loading'));
   const frameAfter = box.querySelector('.table-frame');
   if (frameAfter && scrolled) {
     frameAfter.scrollTop = scrolled.top;
@@ -579,7 +597,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
     if (!site || !ctx.api || !sig) return;
     if (saving) {
       const other = results?.signals.find((s) => s.id === saving);
-      ctx.toast(`Wait for ${other ? other.tag : 'the other change'} to be saved, then save this one`);
+      ctx.toast(t('signals.save.wait', { name: other ? other.tag : t('signals.save.otherChange') }));
       return;
     }
     // A text field the user didn't touch stands for its stored value: the browser may show it changed
@@ -619,7 +637,7 @@ function bindResults(root: HTMLElement, ctx: Context): void {
         saving = null;
         if (results) results.signals = results.signals.map((s) => (s.id === updated.id ? updated : s));
         if (ui(ctx).editing === sig.id) ui(ctx).editing = null; // not another signal opened meanwhile
-        ctx.toast(`Saved ${updated.tag}`);
+        ctx.toast(t('signals.save.saved', { tag: updated.tag }));
         ux('task', 'signal.saved');
         fill(root, ctx);
         void search(root, ctx); // the change may take it out of (or into) the current search
@@ -641,35 +659,40 @@ let linkingAll = false; // while Link all runs, the other buttons wait
 export function suggestionRow(s: MappingSuggestion, canEdit: boolean, busy = false): string {
   const what =
     s.kind === 'link'
-      ? `${badge('Link to', 'good')} ${esc(s.node_label)}`
-      : `${badge('New node', 'accent')} ${esc(s.node_label)}`;
+      ? `${badge(t('signals.map.linkTo'), 'good')} ${esc(s.node_label)}`
+      : `${badge(t('signals.map.newNode'), 'accent')} ${esc(s.node_label)}`;
   return `<div class="suggestion" data-suggestion="${esc(s.signal_id)}">
       <div class="row gap-2 wrap items-center">
         <code>${esc(s.tag)}</code><span class="soft">→</span>${what}
-        <span class="small soft" title="How sure Tiles is">${Math.round(s.score * 100)}%</span>
+        <span class="small soft" title="${esc(t('signals.map.sure'))}">${Math.round(s.score * 100)}%</span>
         <span class="grow"></span>
-        ${canEdit ? `${button(s.kind === 'link' ? 'Link' : 'Stage node', { size: 'sm', variant: 'primary', disabled: busy, attrs: { 'data-accept': s.signal_id } })}${button('Skip', { size: 'sm', disabled: busy, attrs: { 'data-skip': s.signal_id } })}` : ''}
+        ${canEdit ? `${button(t(s.kind === 'link' ? 'signals.map.link' : 'signals.map.stage'), { size: 'sm', variant: 'primary', disabled: busy, attrs: { 'data-accept': s.signal_id } })}${button(t('signals.map.skip'), { size: 'sm', disabled: busy, attrs: { 'data-skip': s.signal_id } })}` : ''}
       </div>
       <ul class="small soft mt-1 ml-4 m-0">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
     </div>`;
 }
+
+const ontologyLink = (): string => `<a href="#/ontology">${esc(t('signals.map.ontology'))}</a>`;
 
 function mappingHtml(ctx: Context): string {
   if (!mapping || mapping.for !== catalogue(ctx)) return '';
   const skipped = new Set(ui(ctx).skipped);
   const items = mapping.items.filter((s) => !skipped.has(s.signal_id));
   const staged = mapping.staged.length
-    ? `<p class="small">Your staged change adds a node for ${mapping.staged.map((t) => `<code>${esc(t)}</code>`).join(', ')}: commit it on the <a href="#/ontology">Ontology</a> page, then suggest again to link it.</p>`
+    ? `<p class="small">${tHtml('signals.map.staged', { tags: mapping.staged.map((tag) => `<code>${esc(tag)}</code>`).join(', '), link: ontologyLink() })}</p>`
     : '';
-  if (!mapping.unmapped) return '<p class="small soft">Every tag is linked to an ontology node.</p>';
+  if (!mapping.unmapped) return `<p class="small soft">${esc(t('signals.map.allLinked'))}</p>`;
   if (!items.length)
-    return `${staged}<p class="small soft">${skipped.size ? 'No suggestions left here. Suggest again to see the skipped ones.' : 'No suggestions left here.'}</p>`;
+    return `${staged}<p class="small soft">${esc(t(skipped.size ? 'signals.map.noneLeftSkipped' : 'signals.map.noneLeft'))}</p>`;
   const canEdit = ctx.ontology.role !== 'viewer';
   const links = items.filter((s) => s.kind === 'link').length;
   const shown = mapping.items.length + mapping.staged.length;
-  const more = mapping.unmapped > shown ? ` for ${mapping.items.length} of ${mapping.unmapped} unlinked tags` : '';
-  return `${staged}<p class="small soft">${items.length} suggestion(s)${esc(more)}. New nodes are staged: commit them on the <a href="#/ontology">Ontology</a> page, then link them here in one step.</p>
-    ${canEdit && links > 1 ? `<div>${button(`Link all ${links}`, { size: 'sm', disabled: linkingAll, attrs: { 'data-accept-links': true } })}</div>` : ''}
+  const suggestions =
+    mapping.unmapped > shown
+      ? t('signals.map.countOf', { count: items.length, shown: mapping.items.length, unmapped: mapping.unmapped })
+      : t('signals.map.count', { count: items.length });
+  return `${staged}<p class="small soft">${tHtml('signals.map.lead', { suggestions: esc(suggestions), link: ontologyLink() })}</p>
+    ${canEdit && links > 1 ? `<div>${button(t('signals.map.linkAll', { count: links }), { size: 'sm', disabled: linkingAll, attrs: { 'data-accept-links': true } })}</div>` : ''}
     <div class="stack gap-2_5">${items.map((s) => suggestionRow(s, canEdit, linkingAll)).join('')}</div>`;
 }
 
@@ -724,7 +747,11 @@ function bindMapping(root: HTMLElement, ctx: Context): void {
     el.setAttribute('disabled', '');
     void accept(root, ctx, s).then((ok) => {
       if (ok)
-        ctx.toast(s.kind === 'link' ? `Linked ${s.tag}` : `Staged ${s.node_label}: commit it on the Ontology page`);
+        ctx.toast(
+          s.kind === 'link'
+            ? t('signals.map.linked', { tag: s.tag })
+            : t('signals.map.stagedToast', { label: s.node_label }),
+        );
       fillMapping(root, ctx);
       if (ok && s.kind === 'link') void search(root, ctx);
     });
@@ -746,7 +773,7 @@ function bindMapping(root: HTMLElement, ctx: Context): void {
       } finally {
         linkingAll = false;
       }
-      ctx.toast(`Linked ${done} of ${links.length} tag(s)`);
+      ctx.toast(t('signals.map.linkedAll', { count: links.length, done }));
       fillMapping(root, ctx);
       void search(root, ctx);
     })();
@@ -755,7 +782,9 @@ function bindMapping(root: HTMLElement, ctx: Context): void {
 
 const view: View = {
   id: 'signals',
-  title: 'Signals',
+  get title() {
+    return t('signals.title');
+  },
   icon: 'activity',
   // Its search and filters, in the address (U3.05): `#/signals?q=press&linked=no`.
   query: {
@@ -773,78 +802,77 @@ const view: View = {
   },
   render(ctx) {
     const head = pageHead({
-      eyebrow: 'Data',
-      title: 'Signals',
-      lead: 'Every tag with readings on this site: its unit, sample rate, where it comes from and the ontology node it maps to.',
+      eyebrow: t('signals.eyebrow'),
+      title: t('signals.title'),
+      lead: t('signals.lead'),
     });
-    if (!ctx.api) return `${head}${card(needsApi(`The signal catalogue is kept in the Tiles API.`))}`;
+    if (!ctx.api) return `${head}${card(needsApi(t('signals.needsApi')))}`;
     if (!ctx.ontology.site)
       return `${head}${
         ctx.ontology.status === 'error'
           ? apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })
-          : card(skeleton.card('Loading the site from the Tiles API…'))
+          : card(skeleton.card(t('signals.loadingSite')))
       }`;
     const { query } = ui(ctx);
     const search = `<form id="signal-search" class="row gap-3 wrap" role="search">
-          ${labelled('Search', input({ type: 'search', name: 'q', value: query.q, placeholder: 'Tag, description or node', attrs: keyAttrs('/') }), { class: 'grow min-w-field' })}
+          ${labelled(t('signals.filter.search'), input({ type: 'search', name: 'q', value: query.q, placeholder: t('signals.filter.placeholder'), attrs: keyAttrs('/') }), { class: 'grow min-w-field' })}
           ${labelled(
-            'Source',
+            t('signals.filter.source'),
             select(
               'source',
               [
-                ['', 'Any'],
-                ['edge', 'Edge agents'],
-                ['import', 'Imports'],
-                ['manual', 'Entered by hand'],
+                ['', t('signals.filter.any')],
+                ['edge', t('signals.filter.edge')],
+                ['import', t('signals.filter.imports')],
+                ['manual', t('signals.source.manual')],
               ],
               query.source,
             ),
           )}
           ${labelled(
-            'Ontology link',
+            t('signals.filter.link'),
             select(
               'linked',
               [
-                ['', 'Any'],
-                ['yes', 'Linked'],
-                ['no', 'Not linked'],
+                ['', t('signals.filter.any')],
+                ['yes', t('signals.filter.linked')],
+                ['no', t('signals.filter.notLinked')],
               ],
               query.linked,
             ),
           )}
           ${labelled(
-            'Quality',
+            t('signals.filter.quality'),
             select(
               'quality',
               [
-                ['', 'Any'],
-                ['bad', 'Problems'],
-                ['warn', 'Warnings'],
-                ['good', 'Good'],
-                ['unknown', 'No data'],
-                ['unchecked', 'Not checked'],
+                ['', t('signals.filter.any')],
+                ['bad', t('signals.quality.bad')],
+                ['warn', t('signals.quality.warn')],
+                ['good', t('signals.quality.good')],
+                ['unknown', t('signals.quality.unknown')],
+                ['unchecked', t('signals.quality.unchecked')],
               ],
               query.quality,
             ),
           )}
           ${
             ctx.ontology.role !== 'viewer'
-              ? button('Check quality', {
+              ? button(t('signals.check.button'), {
                   busy: checking,
                   attrs: {
                     'data-check-quality': true,
-                    title:
-                      'Look for gaps, stuck values, out-of-range values and unit mismatches in the last 24 hours of each signal listed',
+                    title: t('signals.check.hint'),
                   },
                 })
               : ''
           }
         </form>`;
-    return `${head}${card(`${search}${filterBar(ctx, barOptions(ctx))}<div data-signal-results aria-live="polite">${skeleton.table(6, 9, 'Loading the signals…')}</div>`, { class: 'stack gap-3' })}
+    return `${head}${card(`${search}${filterBar(ctx, barOptions(ctx))}<div data-signal-results aria-live="polite">${skeleton.table(6, 9, t('signals.loading'))}</div>`, { class: 'stack gap-3' })}
       ${card(
         `<div class="row justify-between wrap gap-2">
-          <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
-          ${button('Suggest mappings', { attrs: { 'data-suggest': true } })}
+          <div><h2>${t('signals.map.title')}</h2><p class="small soft">${esc(t('signals.map.hint'))}</p></div>
+          ${button(t('signals.map.suggest'), { attrs: { 'data-suggest': true } })}
         </div>
         <div data-mapping-results aria-live="polite">${mappingHtml(ctx)}</div>`,
         { class: 'stack gap-2_5 mt-3', attrs: { 'data-mapping': true } },
@@ -912,7 +940,7 @@ const view: View = {
         const current = results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query);
         const ids = current ? (results?.signals.map((s) => s.id) ?? []) : [];
         if (!ids.length) {
-          ctx.toast(current ? 'No signals listed to check' : 'Wait for the list to load, then check it');
+          ctx.toast(t(current ? 'signals.check.none' : 'signals.check.wait'));
           return;
         }
         checking = true;
@@ -922,9 +950,8 @@ const view: View = {
           .then(
             (out) => {
               const { good, warn, bad, unknown } = out.badges;
-              ctx.toast(
-                `Checked ${out.checked} signal(s): ${good} good, ${warn} with warnings, ${bad} with problems${unknown ? `, ${unknown} without data` : ''}`,
-              );
+              const counts = { count: out.checked, good, warn, bad, unknown };
+              ctx.toast(t(unknown ? 'signals.check.resultUnknown' : 'signals.check.result', counts));
               void search(root, ctx);
             },
             () => undefined, // the client showed why

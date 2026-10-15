@@ -15,6 +15,7 @@ import {
   inSentence,
 } from '../lib/ui.ts';
 import { GLOSSARY } from '../lib/glossary-data.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
 // reported, live: per detector and in total, with what people resolved them as. Events are
@@ -85,10 +86,10 @@ function controls(shown: Ui): string {
     `<option value="${v}" ${v === current ? 'selected' : ''}>${label}</option>`;
   return `<form class="card source-bar small" id="performance-form">
       <span class="row gap-3 wrap items-end">
-        <label class="row gap-1_5">Last <select name="days">${PERIODS.map((d) => option(d, d === 1 ? 'day' : `${d} days`, u.days)).join('')}</select></label>
-        <label class="row gap-1_5" title="A warning counts for an event when it started this long before it, at most">Warned within <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join('')}</select></label>
-        <label class="row gap-1_5 grow min-w-field">Only codes <input type="text" name="codes" value="${esc(u.codes)}" placeholder="all, or e.g. DT-SEIZURE, DT-LUBRICATION" class="grow"></label>
-        <button class="btn sm primary" type="submit">Show</button>
+        <label class="row gap-1_5">${t('performance.form.last')} <select name="days">${PERIODS.map((d) => option(d, esc(t('performance.form.days', { count: d })), u.days)).join('')}</select></label>
+        <label class="row gap-1_5" title="${esc(t('performance.form.horizonHint'))}">${t('performance.form.horizon')} <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join('')}</select></label>
+        <label class="row gap-1_5 grow min-w-field">${t('performance.form.codes')} <input type="text" name="codes" value="${esc(u.codes)}" placeholder="${esc(t('performance.form.codesPlaceholder'))}" class="grow"></label>
+        <button class="btn sm primary" type="submit">${t('performance.form.show')}</button>
       </span>
     </form>`;
 }
@@ -98,29 +99,29 @@ function detectorsCard(ctx: Context, r: PerformanceReport): string {
   const rows = r.detectors
     .map((d) => {
       const asset = canEdit
-        ? `<form class="row gap-1_5 nowrap" data-asset-form="${esc(d.id)}"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? '')}" maxlength="100" placeholder="e.g. DC-01" aria-label="Asset of ${esc(d.name)}" class="w-7em"><button class="btn sm" type="submit">Set</button></form>`
+        ? `<form class="row gap-1_5 nowrap" data-asset-form="${esc(d.id)}"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? '')}" maxlength="100" placeholder="${esc(t('performance.assetPlaceholder'))}" aria-label="${esc(t('performance.assetLabel', { name: d.name }))}" class="w-7em"><button class="btn sm" type="submit">${t('performance.set')}</button></form>`
         : esc(d.asset ?? '–');
       const c = d.confirmed;
       const scored = d.matched
-        ? `<td>${d.caught} / ${d.events} · ${share(d.recall)}</td><td>${share(d.precision)}${d.pending_warnings ? ` <span class="small soft">(${d.pending_warnings} pending)</span>` : ''}</td><td>${d.false_per_day === null ? '–' : d.false_per_day.toFixed(2)}</td><td>${spread(d.warning_seconds)}</td>`
-        : '<td colspan="4" class="small soft">Set its asset to match its warnings to that asset’s events.</td>';
-      return `<tr data-detector-row="${esc(d.id)}"><td><b>${esc(d.name)}</b><div class="small soft mono">${esc(d.signal_tag)}</div></td><td>${asset}</td><td>${d.warnings}</td>${scored}<td class="small">${c.true_alarm} true · ${c.false_alarm} false · ${c.unknown} unknown · ${c.unresolved} open</td></tr>`;
+        ? `<td>${d.caught} / ${d.events} · ${share(d.recall)}</td><td>${share(d.precision)}${d.pending_warnings ? ` <span class="small soft">${esc(t('performance.pending', { count: d.pending_warnings }))}</span>` : ''}</td><td>${d.false_per_day === null ? '–' : d.false_per_day.toFixed(2)}</td><td>${spread(d.warning_seconds)}</td>`
+        : `<td colspan="4" class="small soft">${esc(t('performance.noAsset'))}</td>`;
+      return `<tr data-detector-row="${esc(d.id)}"><td><b>${esc(d.name)}</b><div class="small soft mono">${esc(d.signal_tag)}</div></td><td>${asset}</td><td>${d.warnings}</td>${scored}<td class="small">${esc(t('performance.outcomes', { trueAlarm: c.true_alarm, falseAlarm: c.false_alarm, unknown: c.unknown, open: c.unresolved }))}</td></tr>`;
     })
     .join('');
   const unwatched = r.unwatched.length
-    ? `<p class="small soft" data-unwatched>No detector watches ${r.unwatched.map((u) => `${esc(u.asset)} (${u.events} event(s))`).join(', ')}: set a detector’s asset to count them.</p>`
+    ? `<p class="small soft" data-unwatched>${tHtml('performance.unwatched', { assets: r.unwatched.map((u) => esc(t('performance.unwatchedAsset', { asset: u.asset, count: u.events }))).join(', ') })}</p>`
     : '';
   return `<div class="card stack gap-2_5">
-      <h2>By detector</h2>
+      <h2>${t('performance.byDetector')}</h2>
       ${
         r.detectors.length
-          ? `<div class="table-wrap"><table><thead><tr><th>${term('detector', 'Detector')}</th><th>${term('asset', 'Asset')}</th><th>Warnings</th><th>Events warned of (${term('recall', 'recall')})</th><th>Followed by an event (${term('precision', 'precision')})</th><th>${term('false-per-day', 'False per day')}</th><th>${term('warning-time', 'Warning time')} (median, ${term('percentile', 'p10 to p90')})</th><th>Resolved as (${term('outcome', 'outcome')})</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          ? `<div class="table-wrap"><table><thead><tr><th>${term('detector', 'Detector')}</th><th>${term('asset', 'Asset')}</th><th>${t('performance.head.warnings')}</th><th>${tHtml('performance.head.recall', { term: term('recall', 'recall') })}</th><th>${tHtml('performance.head.precision', { term: term('precision', 'precision') })}</th><th>${term('false-per-day', t('performance.head.falsePerDay'))}</th><th>${tHtml('performance.head.warningTime', { term: term('warning-time', t('performance.head.warningTimeTerm')), spread: term('percentile', 'p10 to p90') })}</th><th>${tHtml('performance.head.outcome', { term: term('outcome', 'outcome') })}</th></tr></thead><tbody>${rows}</tbody></table></div>`
           : emptyState({
               illustration: 'chart',
               compact: true,
               level: 3,
-              title: 'No detectors yet',
-              body: 'Detectors watch a signal and raise warnings; an engineer sets them up through the Tiles API (see the admin guide). Their warnings are scored here against the events that followed.',
+              title: t('performance.noDetectors'),
+              body: t('performance.noDetectorsBody'),
             })
       }
       ${unwatched}
@@ -133,22 +134,23 @@ function eventsCard(r: PerformanceReport): string {
       (e) =>
         `<tr><td>${esc(when(e.at, Date.now()))}</td><td>${esc(e.asset)}</td><td>${esc(e.kind)}</td><td class="mono">${esc(e.code)}</td><td>${
           e.warned_at && e.warning_seconds !== null
-            ? `<span class="badge good">warned</span> ${esc(duration(e.warning_seconds))} ahead, by ${esc(e.detector ?? 'a detector')}`
-            : '<span class="badge bad">missed</span>'
+            ? `<span class="badge good">${t('performance.warned')}</span> ${esc(t('performance.ahead', { duration: duration(e.warning_seconds), detector: e.detector ?? t('performance.aDetector') }))}`
+            : `<span class="badge bad">${t('performance.missed')}</span>`
         }</td></tr>`,
     )
     .join('');
   return `<div class="card stack gap-2_5">
-      <h2>Events</h2>
+      <h2>${t('performance.events')}</h2>
       ${
         r.events.length
-          ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>Asset</th><th>Kind</th><th>Code</th><th>Warning</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          ? `<div class="table-wrap"><table><thead><tr><th>${t('performance.head.when')}</th><th>${t('performance.head.asset')}</th><th>${t('performance.head.kind')}</th><th>${t('performance.head.code')}</th><th>${t('performance.head.warning')}</th></tr></thead><tbody>${rows}</tbody></table></div>`
           : emptyState({
               compact: true,
               level: 3,
-              title: 'No events in this period',
-              bodyHtml:
-                'Events are readings on signals marked as downtime or scrap, with their asset. Mark them on the <a href="#/signals">Signals</a> page, or pick a longer period.',
+              title: t('performance.noEvents'),
+              bodyHtml: tHtml('performance.noEventsBody', {
+                link: `<a href="#/signals">${esc(t('performance.signalsLink'))}</a>`,
+              }),
             })
       }
     </div>`;
@@ -156,26 +158,27 @@ function eventsCard(r: PerformanceReport): string {
 
 const view: View = {
   id: 'performance',
-  title: 'Warning performance',
+  get title() {
+    return t('performance.title');
+  },
   icon: 'target',
   render(ctx) {
     const head = pageHead({
-      eyebrow: 'Operations · Detection',
-      title: 'Warning performance',
-      leadHtml: `How the ${term('warning', 'warnings')} did against the downtime and scrap the MES reported: the ${term('event', 'events')} they warned of, the warnings an event followed, and how far ahead.`,
+      eyebrow: t('performance.eyebrow'),
+      title: t('performance.title'),
+      leadHtml: tHtml('performance.lead', { warnings: term('warning', 'warnings'), events: term('event', 'events') }),
     });
-    if (!ctx.api)
-      return `${head}<div class="card">${needsApi(`This compares the detectors’ warnings with the plant’s events, which the Tiles API keeps.`)}</div>`;
+    if (!ctx.api) return `${head}<div class="card">${needsApi(t('performance.needsApi'))}</div>`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
+    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card(t('performance.loading'))}</div>`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const u = uiState(ctx);
     const key = keyFor(ctx);
     let body: string;
-    if (fetched?.key === `${key}|failed`) body = card(loadFailed('The report', 2));
+    if (fetched?.key === `${key}|failed`) body = card(loadFailed(t('performance.report'), 2));
     else if (fetched?.key !== key || !fetched.report)
-      body = `<div class="card">${skeleton.table(4, 6, 'Loading the warnings and events…')}</div>`;
+      body = `<div class="card">${skeleton.table(4, 6, t('performance.loadingReport'))}</div>`;
     else {
       const r = fetched.report;
       const tiles = kpis(r.totals)
@@ -230,7 +233,7 @@ const view: View = {
       api.setDetectorAsset(site, id, asset).then(
         () => {
           assetDrafts.delete(id);
-          ctx.toast(asset ? `Matched to ${asset}’s events` : 'Asset cleared');
+          ctx.toast(asset ? t('performance.matched', { asset }) : t('performance.cleared'));
           fetched = null;
           ctx.rerender();
         },

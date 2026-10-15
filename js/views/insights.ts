@@ -17,6 +17,7 @@ import {
 } from '../lib/insights.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 import { listKeys, rowClicks, split } from '../lib/split.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
@@ -90,11 +91,11 @@ const INSIGHT_RANK: Record<string, number> = { proposed: 0, accepted: 1, rejecte
 function listTable(ctx: Context, n: number | null, items: InsightSummary[]): TableOptions<InsightSummary> {
   return {
     id: 'insights',
-    label: 'Insights',
+    label: t('insights.title'),
     columns: [
       {
         key: 'insight',
-        label: 'Insight',
+        label: t('insights.table.insight'),
         value: (i) => i.number,
         csv: (i) => `#${i.number} ${i.title}`,
         cell: (i) =>
@@ -102,26 +103,31 @@ function listTable(ctx: Context, n: number | null, items: InsightSummary[]): Tab
       },
       {
         key: 'status',
-        label: 'Status',
+        label: t('insights.table.status'),
         value: (i) => INSIGHT_RANK[i.status] ?? 9,
         csv: (i) => i.status,
         cell: (i) => statusBadge(i.status),
       },
       {
         key: 'kind',
-        label: 'From',
+        label: t('insights.table.from'),
         value: (i) => i.kind,
-        cell: (i) => (i.kind === 'correlation' ? 'Correlation' : 'Signals'),
+        cell: (i) => esc(t(i.kind === 'correlation' ? 'insights.kind.correlation' : 'insights.kind.signals')),
       },
-      { key: 'author', label: 'Author', value: (i) => i.author, cell: (i) => esc(i.author) },
+      { key: 'author', label: t('insights.table.author'), value: (i) => i.author, cell: (i) => esc(i.author) },
       {
         key: 'created',
-        label: 'Saved',
+        label: t('insights.table.saved'),
         value: (i) => i.created_at,
         csv: (i) => i.created_at,
         cell: (i) => esc(when(i.created_at)),
       },
-      { key: 'reviewer', label: 'Reviewed by', value: (i) => i.reviewer, cell: (i) => esc(i.reviewer ?? '—') },
+      {
+        key: 'reviewer',
+        label: t('insights.table.reviewedBy'),
+        value: (i) => i.reviewer,
+        cell: (i) => esc(i.reviewer ?? '—'),
+      },
     ],
     rows: items,
     key: (i) => String(i.number),
@@ -135,7 +141,7 @@ function listCard(ctx: Context, ui: Ui): string {
   const tabs = (['proposed', 'accepted', 'rejected', ''] as const)
     .map(
       (s) =>
-        `<button class="tab ${ui.status === s ? 'active' : ''}" data-status="${s}" role="tab">${s === 'proposed' ? 'To review' : s === '' ? 'All' : s === 'accepted' ? 'Accepted' : 'Rejected'}</button>`,
+        `<button class="tab ${ui.status === s ? 'active' : ''}" data-status="${s}" role="tab">${esc(t(s === 'proposed' ? 'insights.tab.proposed' : s === '' ? 'insights.tab.all' : s === 'accepted' ? 'insights.tab.accepted' : 'insights.tab.rejected'))}</button>`,
     )
     .join('');
   const items = listing?.key === listKey(ctx) ? listing.items : null;
@@ -143,13 +149,16 @@ function listCard(ctx: Context, ui: Ui): string {
   const empty = emptyState({
     illustration: ui.status === 'proposed' ? 'done' : 'inbox',
     compact: true,
-    title: ui.status === 'proposed' ? 'Nothing waits for review' : 'No insights here yet',
-    bodyHtml: `Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.`,
+    title: t(ui.status === 'proposed' ? 'insights.empty.proposed' : 'insights.empty.other'),
+    bodyHtml: tHtml('insights.empty.body', {
+      correlate: `<a href="#/correlate">${esc(t('insights.empty.correlate'))}</a>`,
+      explorer: `<a href="#/explorer">${esc(t('insights.empty.explorer'))}</a>`,
+    }),
   });
   const rows = items === null ? skeleton.list() : items.length ? dataTable(listTable(ctx, n, items)) : empty;
   const more =
     items && listing && listing.total > items.length
-      ? `<p class="small soft">The newest ${items.length} of ${listing.total}.</p>`
+      ? `<p class="small soft">${esc(t('insights.newest', { shown: items.length, total: listing.total }))}</p>`
       : '';
   return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div data-insight-list>${rows}</div>${more}</div>`;
 }
@@ -161,12 +170,12 @@ function evidence(i: Insight): string {
     const split = Boolean(i.query.split);
     const said = r.explanations.length
       ? `<ul class="stack gap-1">${r.explanations.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>`
-      : '<p class="small soft">No large, clear effect.</p>';
+      : `<p class="small soft">${esc(t('insights.noEffect'))}</p>`;
     const shown =
       e.findings_total !== undefined && e.findings_total > r.findings.length
-        ? `<p class="small soft">The ${r.findings.length} largest of ${e.findings_total} effects were kept.</p>`
+        ? `<p class="small soft">${esc(t('insights.kept', { shown: r.findings.length, total: e.findings_total }))}</p>`
         : '';
-    return `<p class="small soft">${r.rows} batch(es) with an outcome: ${r.ng} failed, ${r.ok} good.</p>${said}${forestPlot(r.findings, split)}${shown}`;
+    return `<p class="small soft">${esc(t('insights.counts', { count: r.rows, ng: r.ng, ok: r.ok }))}</p>${said}${forestPlot(r.findings, split)}${shown}`;
   }
   return (e.series ?? [])
     .map((s) => {
@@ -188,58 +197,69 @@ function evidence(i: Insight): string {
 function detailCard(ctx: Context): string {
   const n = selected();
   if (n === null)
-    return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an insight', body: 'Its evidence, proposed actions and review appear here.' })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'select', title: t('insights.choose.title'), body: t('insights.choose.body') })}</div>`;
   if (detail?.key !== detailKey(ctx)) return `<div class="card">${skeleton.card()}</div>`;
   const i = detail.insight;
   if (!i)
-    return `<div class="card">${emptyState({ illustration: 'error', alert: true, title: `Insight #${n} could not be loaded`, body: 'It may not exist on this site, or the Tiles API didn’t answer (the notice says why). Choose another, or refresh.' })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'error', alert: true, title: t('insights.failed.title', { number: n }), body: t('insights.failed.body') })}</div>`;
   const may = mayDo(i, ctx.ontology.userId, ctx.ontology.role);
   const key = `${detailKey(ctx)}|${i.updated_at}`;
   const link = sourceLink(i);
   const head = `<div class="row justify-between items-start gap-3 wrap">
       <div><h2>#${i.number} ${esc(i.title)}</h2>
-      <p class="small soft">Saved by ${esc(i.author)} on ${esc(when(i.created_at))}${i.updated_at !== i.created_at ? ` · changed ${esc(when(i.updated_at))}` : ''}</p></div>
+      <p class="small soft">${esc(t('insights.savedBy', { name: i.author, when: when(i.created_at) }))}${i.updated_at !== i.created_at ? ` · ${esc(t('insights.changed', { when: when(i.updated_at) }))}` : ''}</p></div>
       <div class="row gap-1_5">${statusBadge(i.status)}</div>
     </div>`;
   const body =
     editing?.key === key
-      ? draftForm('insight-edit', editing.text, busy, 'Save changes')
+      ? draftForm('insight-edit', editing.text, busy, t('insights.saveChanges'))
       : `${i.summary ? `<p class="pre-wrap" data-summary>${esc(i.summary)}</p>` : ''}
-        <div><h3>Proposed actions</h3>${
+        <div><h3>${t('insights.actions')}</h3>${
           i.actions.length
             ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join('')}</ol>`
-            : '<p class="small soft">None proposed.</p>'
+            : `<p class="small soft">${esc(t('insights.noActions'))}</p>`
         }</div>`;
   const reviewed =
-    i.status !== 'proposed' && i.reviewer
-      ? `<p class="small" data-review>${i.status === 'accepted' ? 'Accepted' : 'Rejected'} by ${esc(i.reviewer)}${i.reviewed_at ? ` on ${esc(when(i.reviewed_at))}` : ''}${i.review_note ? `: “${esc(i.review_note)}”` : ''}</p>`
-      : '';
+    i.status !== 'proposed' && i.reviewer ? `<p class="small" data-review>${esc(reviewLine(i, i.reviewer))}</p>` : '';
   if (note.key !== key) note = { key, text: '' };
   const review = may.review
     ? `<form class="stack gap-2" id="insight-review">
-        <label class="field">Review note <span class="small soft">(needed to reject)</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
-        <div class="row gap-2"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? 'disabled' : ''}>Accept</button><button class="btn" type="submit" data-decision="rejected" ${busy ? 'disabled' : ''}>Reject</button></div>
+        <label class="field">${t('insights.review.label')} <span class="small soft">${esc(t('insights.review.needed'))}</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
+        <div class="row gap-2"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? 'disabled' : ''}>${t('insights.review.accept')}</button><button class="btn" type="submit" data-decision="rejected" ${busy ? 'disabled' : ''}>${t('insights.review.reject')}</button></div>
       </form>`
     : '';
   const tools = [
     may.edit && editing?.key !== key
-      ? `<button class="btn sm" type="button" data-edit${keyAttr('e')}>Edit</button>`
+      ? `<button class="btn sm" type="button" data-edit${keyAttr('e')}>${t('insights.edit')}</button>`
       : '',
-    may.reopen ? `<button class="btn sm" type="button" data-reopen ${busy ? 'disabled' : ''}>Reopen</button>` : '',
-    may.remove ? `<button class="btn sm" type="button" data-remove ${busy ? 'disabled' : ''}>Delete</button>` : '',
+    may.reopen
+      ? `<button class="btn sm" type="button" data-reopen ${busy ? 'disabled' : ''}>${t('insights.reopen')}</button>`
+      : '',
+    may.remove
+      ? `<button class="btn sm" type="button" data-remove ${busy ? 'disabled' : ''}>${t('insights.delete')}</button>`
+      : '',
   ].join('');
   return `<div class="card stack gap-3" data-insight-detail>
       ${head}
       ${body}
-      <div class="stack gap-1_5"><h3>Evidence</h3>
-        <p class="small soft" data-source>${esc(sourceText(i))}, as it was on ${esc(when(i.created_at))}. <a href="${esc(link.href)}">${esc(link.text)}</a> to see it on today’s data.</p>
+      <div class="stack gap-1_5"><h3>${t('insights.evidence')}</h3>
+        <p class="small soft" data-source>${tHtml('insights.source', { source: esc(sourceText(i)), when: esc(when(i.created_at)), link: `<a href="${esc(link.href)}">${esc(link.text)}</a>` })}</p>
         ${evidence(i)}
       </div>
       ${reviewed}
       ${review}
       ${tools ? `<div class="row gap-2">${tools}</div>` : ''}
-      <p class="small soft break-anywhere">Link: <a href="${insightLink(i.number)}" data-link>${esc(location.href.split('#')[0] ?? '')}${insightLink(i.number)}</a></p>
+      <p class="small soft break-anywhere">${tHtml('insights.link', { link: `<a href="${insightLink(i.number)}" data-link>${esc(location.href.split('#')[0] ?? '')}${insightLink(i.number)}</a>` })}</p>
     </div>`;
+}
+
+// Who reviewed it, when, and their note.
+function reviewLine(i: Insight, reviewer: string): string {
+  const decision = i.status === 'accepted' ? 'accepted' : 'rejected';
+  const line = i.reviewed_at
+    ? t('insights.review.byOn', { decision, name: reviewer, when: when(i.reviewed_at) })
+    : t('insights.review.by', { decision, name: reviewer });
+  return i.review_note ? t('insights.review.note', { line, note: i.review_note }) : line;
 }
 
 async function act(
@@ -269,7 +289,9 @@ async function act(
 
 const view: View = {
   id: 'insights',
-  title: 'Insights',
+  get title() {
+    return t('insights.title');
+  },
   icon: 'lightbulb',
   crumbs(ctx) {
     const n = selected();
@@ -277,19 +299,19 @@ const view: View = {
   },
   render(ctx) {
     const head = pageHead({
-      eyebrow: 'Data · Analysis',
-      title: 'Insights',
-      lead: 'Findings worth keeping: what was asked, the evidence it gave and what to do about it, reviewed by another engineer.',
+      eyebrow: t('insights.eyebrow'),
+      title: t('insights.title'),
+      lead: t('insights.lead'),
     });
-    if (!ctx.api) return `${head}<div class="card">${needsApi(`Insights are kept by the Tiles API.`)}</div>`;
+    if (!ctx.api) return `${head}<div class="card">${needsApi(esc(t('insights.needsApi')))}</div>`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
+    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card(t('insights.loading'))}</div>`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     return `${head}${split(listCard(ctx, uiState(ctx)), detailCard(ctx), {
       open: selected() !== null,
       back: '#/insights',
-      label: 'insights',
+      label: t('insights.splitLabel'),
     })}`;
   },
   bind(root, ctx) {
@@ -328,7 +350,7 @@ const view: View = {
       onSubmit(root, '#insight-edit', () => {
         const draft = editing && readDraft(editing.text);
         if (typeof draft === 'string') return void ctx.toast(draft);
-        if (draft) return act(ctx, (site, num) => api.insights.edit(site, num, draft), 'Insight saved');
+        if (draft) return act(ctx, (site, num) => api.insights.edit(site, num, draft), t('insights.toast.saved'));
       });
     }
     root.querySelector<HTMLTextAreaElement>('#insight-review [name=note]')?.addEventListener(
@@ -341,30 +363,30 @@ const view: View = {
     onSubmit(root, '#insight-review', (_form, submitter) => {
       const decision = submitter?.dataset.decision;
       if (decision !== 'accepted' && decision !== 'rejected') return;
-      if (decision === 'rejected' && !note.text.trim()) return void ctx.toast('Say why the insight is rejected');
+      if (decision === 'rejected' && !note.text.trim()) return void ctx.toast(t('insights.toast.why'));
       const text = note.text.trim();
       return act(
         ctx,
         (site, num) => api.insights.review(site, num, decision, text),
-        decision === 'accepted' ? 'Insight accepted' : 'Insight rejected',
+        t(decision === 'accepted' ? 'insights.toast.accepted' : 'insights.toast.rejected'),
       );
     });
     onAll(
       root,
       '[data-reopen]',
       'click',
-      () => void act(ctx, (site, num) => api.insights.reopen(site, num), 'Insight reopened'),
+      () => void act(ctx, (site, num) => api.insights.reopen(site, num), t('insights.toast.reopened')),
     );
     onAll(root, '[data-remove]', 'click', async () => {
       const yes = await confirmDialog({
-        title: `Delete insight #${i.number}?`,
-        body: `${i.title}, its evidence and its review are deleted for good.`,
-        confirm: 'Delete',
+        title: t('insights.confirm.title', { number: i.number }),
+        body: t('insights.confirm.body', { title: i.title }),
+        confirm: t('insights.delete'),
         tone: 'danger',
       });
       // The dialog doesn't block the page: if another insight opened meanwhile, delete nothing.
       if (yes && selected() === i.number)
-        void act(ctx, (site, num) => api.insights.remove(site, num), 'Insight deleted');
+        void act(ctx, (site, num) => api.insights.remove(site, num), t('insights.toast.deleted'));
     });
   },
 };

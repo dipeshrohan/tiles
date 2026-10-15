@@ -16,6 +16,7 @@ import { esc, need, onAction, onAll, onSubmit, field, onNavigate, routeOf, scrol
 import type { Context, View } from './types.ts';
 import { isRemoving, removeLater } from '../lib/undo.ts';
 import { emptyState, loadingState, button, pageHead, skeleton } from '../lib/ui.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
 // answer streamed in with the tools it used (expandable, each citation linked to its result and
@@ -27,11 +28,11 @@ interface Ui {
 }
 const uiState = (ctx: Context) => ctx.ui<Ui>('chat', { conversation: null });
 
-const API_SUGGESTIONS = [
-  'Which warnings are open?',
-  'How healthy is the ontology?',
-  'What do the virtual sensors show?',
-  'Is anything wearing on the welders?',
+const API_SUGGESTIONS = (): string[] => [
+  t('chat.suggest.open'),
+  t('chat.suggest.health'),
+  t('chat.suggest.sensors'),
+  t('chat.suggest.wear'),
 ];
 
 let remote: {
@@ -99,22 +100,22 @@ async function loadThread(ctx: Context, id: string): Promise<void> {
 // `cited`: every tool result of the conversation so far, which an answer may cite.
 function answerBody(a: Answer, cited: Answer['tools'], conversation: string | null): string {
   const tools = a.tools.length
-    ? `<details class="trace" data-trace><summary>Used ${a.tools.length} tool${a.tools.length === 1 ? '' : 's'}</summary><ol class="stack gap-1_5 mt-1_5 m-0 pl-5">${a.tools
-        .map((t) => {
-          const link = evidenceLink(t);
-          const state = t.isError === null ? '…' : t.isError ? '✗' : '✓';
-          return `<li ${t.n !== null ? `id="cite-${t.n}"` : ''} data-tool="${esc(t.name)}"><b>${t.n !== null ? `[${t.n}]` : ''}</b> <code>${esc(toolLabel(t))}</code> <span class="${t.isError ? 'bad' : 'soft'}">${state}</span>${
-            t.preview ? `<pre class="small soft pre-wrap mt-1 m-0">${esc(t.preview)}</pre>` : ''
+    ? `<details class="trace" data-trace><summary>${esc(t('chat.usedTools', { count: a.tools.length }))}</summary><ol class="stack gap-1_5 mt-1_5 m-0 pl-5">${a.tools
+        .map((tool) => {
+          const link = evidenceLink(tool);
+          const state = tool.isError === null ? '…' : tool.isError ? '✗' : '✓';
+          return `<li ${tool.n !== null ? `id="cite-${tool.n}"` : ''} data-tool="${esc(tool.name)}"><b>${tool.n !== null ? `[${tool.n}]` : ''}</b> <code>${esc(toolLabel(tool))}</code> <span class="${tool.isError ? 'bad' : 'soft'}">${state}</span>${
+            tool.preview ? `<pre class="small soft pre-wrap mt-1 m-0">${esc(tool.preview)}</pre>` : ''
           }${link ? ` <a href="${esc(link.href)}">${esc(link.text)} →</a>` : ''}</li>`;
         })
         .join('')}</ol></details>`
     : '';
   const withdrawn = a.retracted
-    .map((r) => `<p class="small soft" data-retracted>A first draft was withdrawn: ${esc(r.reason)}.</p>`)
+    .map((r) => `<p class="small soft" data-retracted>${esc(t('chat.withdrawn', { reason: r.reason }))}</p>`)
     .join('');
   const warning = groundingWarning(a.grounding);
   const vote = (r: 'up' | 'down', label: string) =>
-    `<button class="btn sm ${a.feedback?.rating === r ? 'primary' : ''}" type="button" data-rate="${r}" data-seq="${a.seq}" aria-pressed="${a.feedback?.rating === r}" title="${r === 'up' ? 'Helpful' : 'Not helpful'}">${label}</button>`;
+    `<button class="btn sm ${a.feedback?.rating === r ? 'primary' : ''}" type="button" data-rate="${r}" data-seq="${a.seq}" aria-pressed="${a.feedback?.rating === r}" title="${esc(t(r === 'up' ? 'chat.helpful' : 'chat.notHelpful'))}">${label}</button>`;
   const rateKey = `${conversation}|${a.seq}`;
   const feedback =
     a.done && a.seq !== null && conversation
@@ -122,7 +123,7 @@ function answerBody(a: Answer, cited: Answer['tools'], conversation: string | nu
           a.feedback?.comment ? `<span class="small soft">“${esc(a.feedback.comment)}”</span>` : ''
         }</div>${
           rating?.key === rateKey
-            ? `<form class="row gap-1_5 mt-1_5" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="What was wrong? (goes to your site's admins with this answer)" value="${esc(rating.comment)}" class="grow"><button class="btn sm" type="submit">Send</button></form>`
+            ? `<form class="row gap-1_5 mt-1_5" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="${esc(t('chat.whatWrong'))}" value="${esc(rating.comment)}" class="grow"><button class="btn sm" type="submit">${t('chat.send')}</button></form>`
             : ''
         }`
       : '';
@@ -143,10 +144,10 @@ function remoteRender(ctx: Context): string {
       : list
           .map(
             (c) =>
-              `<button class="review-row ${ui.conversation === c.id ? 'sel' : ''}" data-conversation="${esc(c.id)}" data-key="conversation-${esc(c.id)}"><b>${esc(c.title || 'New conversation')}</b><span class="small muted">${new Date(c.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span></button>`,
+              `<button class="review-row ${ui.conversation === c.id ? 'sel' : ''}" data-conversation="${esc(c.id)}" data-key="conversation-${esc(c.id)}"><b>${esc(c.title || t('chat.newConversation'))}</b><span class="small muted">${new Date(c.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span></button>`,
           )
           .join('') ||
-        emptyState({ compact: true, title: 'No conversations yet', body: 'Ask a question to start one.' });
+        emptyState({ compact: true, title: t('chat.noConversations'), body: t('chat.noConversationsBody') });
   const key = threadKey(ctx);
   const shown = ui.conversation && thread?.key === key ? thread.exchanges : [];
   const last = shown.at(-1);
@@ -159,7 +160,7 @@ function remoteRender(ctx: Context): string {
       cited.push(...(e.answer?.tools ?? []));
       const body = e.answer
         ? answerBody(e.answer, [...cited], ui.conversation)
-        : '<p class="small soft">No answer was kept for this question: it may have stopped early. Ask it again below.</p>';
+        : `<p class="small soft">${esc(t('chat.noAnswer'))}</p>`;
       return `<div class="msg user">${esc(e.question)}</div><div class="msg bot copilot-answer">${body}</div>`;
     }),
     ...(live && live.key === key
@@ -171,7 +172,7 @@ function remoteRender(ctx: Context): string {
   const loading = ui.conversation && thread?.key !== key && !live;
   return `<div class="copilot">
       <div class="card stack gap-2">
-        <button class="btn primary" type="button" data-new-conversation>New conversation</button>
+        <button class="btn primary" type="button" data-new-conversation>${t('chat.newConversation')}</button>
         <div class="review-list" data-conversations>${items}</div>
       </div>
       <div class="chat">
@@ -181,18 +182,20 @@ function remoteRender(ctx: Context): string {
             : log ||
               emptyState({
                 illustration: 'chat',
-                title: 'Ask about your plant',
-                body: "The copilot answers from your site's own data, cites the tool result behind each fact, and says when the data doesn't answer.",
+                title: t('chat.emptyTitle'),
+                body: t('chat.emptyApi'),
               })
         }</div>
         <div>
-          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${API_SUGGESTIONS.map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${API_SUGGESTIONS()
+            .map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`)
+            .join('')}</div>
           <form class="composer" id="composer" data-tour="chat-ask">
-            <input type="text" name="q" value="${esc(draft)}" placeholder="Ask about signals, warnings, wear, the ontology…" autocomplete="off" aria-label="Question" ${busy ? 'disabled' : ''} />
-            <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Ask</button>
-            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy ? 'disabled' : ''}>Delete</button>` : ''}
+            <input type="text" name="q" value="${esc(draft)}" placeholder="${esc(t('chat.placeholderApi'))}" autocomplete="off" aria-label="${t('chat.question')}" ${busy ? 'disabled' : ''} />
+            <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${t('chat.ask')}</button>
+            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy ? 'disabled' : ''}>${t('chat.delete')}</button>` : ''}
           </form>
-          <p class="small soft mt-1_5">Your conversations are yours. Rating an answer shares it, with its question, with your site's admins, to improve the copilot.</p>
+          <p class="small soft mt-1_5">${esc(t('chat.privacy'))}</p>
         </div>
       </div>
     </div>`;
@@ -254,7 +257,7 @@ async function send(ctx: Context, question: string): Promise<void> {
   } catch (e) {
     // The client showed why. Not sent: the question can be asked again; cut off: say so.
     if (!sent) draft = text;
-    else if (live) live.answer = { ...live.answer, error: e instanceof Error ? e.message : 'The answer was cut off' };
+    else if (live) live.answer = { ...live.answer, error: e instanceof Error ? e.message : t('chat.cutOff') };
   } finally {
     busy = false;
     if (live?.answer.error) failure = { key: live.key, question: text, error: live.answer.error };
@@ -304,7 +307,7 @@ async function rateNow(
     const saved = clear ? null : await ctx.api.copilot.rate(site, id, seq, value, comment);
     if (clear) await ctx.api.copilot.unrate(site, id, seq);
     if (answer) answer.feedback = saved; // as stored; no need to fetch the conversation again
-    if (comment) ctx.toast('Thanks: your site’s admins will see it');
+    if (comment) ctx.toast(t('chat.thanks'));
   } catch {
     // The client showed why; the rating goes back to what it was.
     if (answer) answer.feedback = current;
@@ -346,7 +349,7 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
     if (!api || !site || !id) return;
     removeLater({
       toast: ctx.toast,
-      message: 'Conversation deleted',
+      message: t('chat.deleted'),
       removal: { kind: 'conversation', api: api.baseUrl, site, id },
       hide: () => {
         if (ui.conversation === id) {
@@ -389,7 +392,7 @@ function remoteBind(root: HTMLElement, ctx: Context): void {
       (e) => {
         e.preventDefault();
         const comment = field(form, 'comment').trim();
-        if (!comment) return void ctx.toast('Say what was wrong, or leave the thumbs down as it is');
+        if (!comment) return void ctx.toast(t('chat.sayWhatWrong'));
         void rate(ctx, Number(form.dataset.rateForm), 'down', comment);
       },
       { signal: bound() },
@@ -406,13 +409,13 @@ function localRender(ctx: Context, note = ''): string {
         .map((m) =>
           m.role === 'user'
             ? `<div class="msg user">${esc(m.text)}</div>`
-            : `<div class="msg bot">${m.steps?.length ? `<div class="trace">${m.steps.map((s) => `<div>${esc(s)}</div>`).join('')}</div>` : ''}${esc(m.text)}${m.link ? `\n<a href="${esc(m.link)}">Open the evidence →</a>` : ''}</div>`,
+            : `<div class="msg bot">${m.steps?.length ? `<div class="trace">${m.steps.map((s) => `<div>${esc(s)}</div>`).join('')}</div>` : ''}${esc(m.text)}${m.link ? `\n<a href="${esc(m.link)}">${esc(t('chat.openEvidence'))}</a>` : ''}</div>`,
         )
         .join('')
     : emptyState({
         illustration: 'chat',
-        title: 'Ask about your plant',
-        body: 'The copilot picks a skill, runs it on the factory data and shows each step it took.',
+        title: t('chat.emptyTitle'),
+        body: t('chat.emptyLocal'),
       });
   return `${note}
       <div class="chat">
@@ -420,8 +423,8 @@ function localRender(ctx: Context, note = ''): string {
         <div>
           <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
           <form class="composer" id="composer" data-tour="chat-ask">
-            <input type="text" name="q" value="${esc(draft)}" placeholder="Ask why a line is scrapping, whether a machine is at risk, where a signal lives…" autocomplete="off" aria-label="Question" />
-            <button class="btn primary" type="submit">Ask</button>
+            <input type="text" name="q" value="${esc(draft)}" placeholder="${esc(t('chat.placeholderLocal'))}" autocomplete="off" aria-label="${t('chat.question')}" />
+            <button class="btn primary" type="submit">${t('chat.ask')}</button>
           </form>
         </div>
       </div>`;
@@ -466,28 +469,28 @@ const remoteOn = (ctx: Context): boolean =>
 
 const view: View = {
   id: 'chat',
-  title: 'Copilot',
+  get title() {
+    return t('chat.title');
+  },
   icon: 'sparkles',
   render(ctx) {
     const on = remoteOn(ctx);
     const head = `
       ${pageHead({
-        eyebrow: 'Copilot',
-        title: 'Talk to your data & docs',
+        eyebrow: t('chat.title'),
+        title: t('chat.headTitle'),
         actionsHtml:
-          !on && ctx.state.chat.length
-            ? button('Clear conversation', { size: 'sm', attrs: { 'data-clear': true } })
-            : '',
+          !on && ctx.state.chat.length ? button(t('chat.clear'), { size: 'sm', attrs: { 'data-clear': true } }) : '',
       })}`;
     if (on) return head + remoteRender(ctx);
     const checking = ctx.api && remote?.configured === null;
     const note =
       ctx.api && remote?.configured === false
-        ? `<p class="small soft mb-2" data-copilot-off>The copilot service is off on this Tiles API (it needs TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL): the built-in skills answer on the demo data.</p>`
+        ? `<p class="small soft mb-2" data-copilot-off>${esc(t('chat.serviceOff', { key: 'TILES_ANTHROPIC_API_KEY', model: 'TILES_COPILOT_MODEL' }))}</p>`
         : ctx.api && remote?.configured && !remote.enabled
-          ? `<p class="small soft mb-2" data-copilot-site-off>The copilot is off on this site: an admin turns it on in <a href="#/settings">Settings</a>. Until then the built-in skills answer on the demo data.</p>`
+          ? `<p class="small soft mb-2" data-copilot-site-off>${tHtml('chat.siteOff', { settings: `<a href="#/settings">${esc(t('chat.settings'))}</a>` })}</p>`
           : checking
-            ? '<p class="small soft">Checking the copilot service…</p>'
+            ? `<p class="small soft">${esc(t('chat.checking'))}</p>`
             : '';
     return head + localRender(ctx, note);
   },

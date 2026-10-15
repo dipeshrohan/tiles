@@ -30,6 +30,7 @@ import { when } from '../lib/warnings.ts';
 import { placeLink } from '../lib/plant.ts';
 import { onAll } from '../lib/dom.ts';
 import { ux } from '../lib/analytics.ts';
+import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 
 // Home (U5.01): in local mode, the demo's hero and figures; with the Tiles API, cards set by your
 // role that each answer "what needs me now?", which you can add, remove and order (Customise).
@@ -40,6 +41,7 @@ interface Ui {
 const uiState = (ctx: Context) => ctx.ui<Ui>('home', { editing: false });
 
 const MAX_ROWS = 5;
+const DEMO_MACHINE = 'DC-02'; // i18n-ok
 
 // A card's figure: the number that answers it, and what it counts. `atLeast`: counted from a full
 // page of a list, so there may be more (shown as 200+).
@@ -48,7 +50,7 @@ const figure = (n: number, what: string, tone: '' | 'bad' | 'warn' | 'good' = ''
 
 const more = (n: number, href: string, what: string, atLeast = false): string =>
   n > MAX_ROWS
-    ? `<p class="small"><a href="${esc(href)}">${atLeast ? 'More' : `${fmt(n - MAX_ROWS)} more`} ${esc(what)}</a></p>`
+    ? `<p class="small"><a href="${esc(href)}">${esc(atLeast ? t('home.more', { what }) : t('home.moreN', { n: fmt(n - MAX_ROWS), what }))}</a></p>`
     : '';
 
 const rows = (items: readonly string[]): string =>
@@ -61,7 +63,7 @@ const nothing = (title: string, body: string): string => emptyState({ compact: t
 
 const warningRow = (w: WarningInfo, now: number): string =>
   `<a href="#/warnings?show=all&amp;warning=${encodeURIComponent(w.id)}">${esc(w.signal_tag)}</a><span class="small soft">${esc(
-    w.ended_at === null ? 'Still out' : 'Back in range',
+    w.ended_at === null ? t('home.stillOut') : t('home.backInRange'),
   )} · ${esc(when(w.started_at, now))}</span>`;
 
 // Each card's body from its data; null while it loads.
@@ -73,9 +75,9 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       if (!all) return null;
       const mine = myWarnings(all, me);
       const full = all.length === WARNINGS_PAGE;
-      if (!mine.length) return nothing('Nothing assigned to you', 'Warnings someone assigns you show here.');
-      return `${figure(mine.length, mine.length === 1 ? 'warning assigned to you' : 'warnings assigned to you', 'bad', full)}
-        ${rows(mine.map((w) => warningRow(w, now)))}${more(mine.length, '#/warnings?who=me', 'on the Warnings page', full)}`;
+      if (!mine.length) return nothing(t('home.mine.none'), t('home.mine.noneBody'));
+      return `${figure(mine.length, t('home.mine.figure', { count: mine.length }), 'bad', full)}
+        ${rows(mine.map((w) => warningRow(w, now)))}${more(mine.length, '#/warnings?who=me', t('home.onWarnings'), full)}`;
     }
     case 'machines-out': {
       const all = slot(ctx, 'open-warnings').value;
@@ -88,19 +90,18 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
           all.map((w) => placeWarning(ctx.graph, w, links, '')),
         ),
       );
-      if (!out.length)
-        return nothing('No machine is out of range', 'A machine shows here while one of its signals is out.');
-      return `${figure(out.length, out.length === 1 ? 'machine with a signal still out' : 'machines with a signal still out', 'bad')}
+      if (!out.length) return nothing(t('home.out.none'), t('home.out.noneBody'));
+      return `${figure(out.length, t('home.out.figure', { count: out.length }), 'bad')}
         ${rows(
           out.map(
             (m) =>
               `<a href="${esc(placeLink(m.id))}">${esc(m.label)}</a><span class="small soft">${esc(
-                [...m.path.slice(-1), `${m.warnings} open warning${m.warnings === 1 ? '' : 's'}`].join(' · '),
+                [...m.path.slice(-1), t('home.out.openWarnings', { count: m.warnings })].join(' · '),
               )}</span>`,
           ),
-        )}${more(out.length, '#/shopfloor', 'on the Shopfloor')}${
+        )}${more(out.length, '#/shopfloor', t('home.onShopfloor'))}${
           all.length === WARNINGS_PAGE
-            ? `<p class="small soft">From the newest ${fmt(WARNINGS_PAGE)} open warnings.</p>`
+            ? `<p class="small soft">${esc(t('home.out.newest', { n: fmt(WARNINGS_PAGE) }))}</p>`
             : ''
         }`;
     }
@@ -112,10 +113,10 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       // A full page that doesn't reach back to the shift's start: there may be more.
       const atLeast = all.length === WARNINGS_PAGE && all.every((w) => Date.parse(w.started_at) >= start.getTime());
       const since = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-      if (!s.raised.length) return nothing(`No warnings since ${since}`, 'Warnings raised this shift show here.');
-      return `${figure(s.waiting.length, `of ${fmt(s.raised.length)}${atLeast ? '+' : ''} raised since ${since} not acknowledged`, s.waiting.length ? 'bad' : 'good', atLeast)}
-        <p class="small soft">${fmt(s.acknowledged)} acknowledged.</p>
-        ${s.waiting.length ? rows(s.waiting.map((w) => warningRow(w, now))) : ''}${more(s.waiting.length, '#/warnings?show=raised', 'on the Warnings page', atLeast)}`;
+      if (!s.raised.length) return nothing(t('home.shift.none', { since }), t('home.shift.noneBody'));
+      return `${figure(s.waiting.length, t('home.shift.figure', { raised: `${fmt(s.raised.length)}${atLeast ? '+' : ''}`, since }), s.waiting.length ? 'bad' : 'good', atLeast)}
+        <p class="small soft">${esc(t('home.shift.acknowledged', { n: fmt(s.acknowledged) }))}</p>
+        ${s.waiting.length ? rows(s.waiting.map((w) => warningRow(w, now))) : ''}${more(s.waiting.length, '#/warnings?show=raised', t('home.onWarnings'), atLeast)}`;
     }
     case 'reviews': {
       const all = slot(ctx, 'reviews').value;
@@ -123,20 +124,19 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       const mine = reviewsForMe(all.list, me);
       // The menu's count is exact; the list is the newest open requests.
       const n = Math.max(all.waiting ?? 0, mine.length);
-      if (!n) return nothing('No review waits for you', 'Change requests you may approve show here.');
-      return `${figure(n, n === 1 ? 'change request waiting' : 'change requests waiting', 'warn')}
+      if (!n) return nothing(t('home.reviews.none'), t('home.reviews.noneBody'));
+      return `${figure(n, t('home.reviews.figure', { count: n }), 'warn')}
         ${rows(
           mine.map(
             (r) =>
-              `<a href="#/reviews/${r.number}">#${r.number} ${esc(r.message || 'Untitled change')}</a><span class="small soft">${esc(r.author)} · ${esc(when(r.created_at, now))}</span>`,
+              `<a href="#/reviews/${r.number}">#${r.number} ${esc(r.message || t('home.reviews.untitled'))}</a><span class="small soft">${esc(r.author)} · ${esc(when(r.created_at, now))}</span>`,
           ),
-        )}${more(n, '#/reviews', 'on the Change reviews page')}`;
+        )}${more(n, '#/reviews', t('home.onReviews'))}`;
     }
     case 'insights': {
       const all = slot(ctx, 'insights').value;
       if (!all) return null;
-      if (!all.length)
-        return nothing('No insights yet', 'Findings saved from the correlation finder or the Data explorer show here.');
+      if (!all.length) return nothing(t('home.insights.none'), t('home.insights.noneBody'));
       return rows(
         recentInsights(all).map(
           (i) =>
@@ -150,31 +150,30 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       const stale = staleSignals(all, now);
       const counted =
         all.length === SIGNALS_PAGE
-          ? `of the first ${fmt(SIGNALS_PAGE)} signals`
-          : `of ${fmt(all.length)} signal${all.length === 1 ? '' : 's'}`;
-      if (!all.length) return nothing('No signals yet', 'Signals arrive from edge agents and imports.');
+          ? t('home.fresh.ofFirst', { n: fmt(SIGNALS_PAGE) })
+          : t('home.fresh.of', { n: fmt(all.length), count: all.length });
+      if (!all.length) return nothing(t('home.fresh.none'), t('home.fresh.noneBody'));
       if (!stale.length)
-        return `${figure(0, `${counted} stale`, 'good')}<p class="small soft">Every signal has sent a reading in the last 15 min.</p>`;
-      return `${figure(stale.length, `${counted} stale`, 'warn')}
+        return `${figure(0, t('home.fresh.stale', { counted }), 'good')}<p class="small soft">${esc(t('home.fresh.allFresh'))}</p>`;
+      return `${figure(stale.length, t('home.fresh.stale', { counted }), 'warn')}
         ${rows(
           stale.map(
             (s) =>
-              `<a href="#/signals?q=${encodeURIComponent(s.tag)}">${esc(s.tag)}</a><span class="small soft">${esc(s.last_at ? `Last reading ${when(s.last_at, now)}` : 'No reading yet')}</span>`,
+              `<a href="#/signals?q=${encodeURIComponent(s.tag)}">${esc(s.tag)}</a><span class="small soft">${esc(s.last_at ? t('home.fresh.last', { when: when(s.last_at, now) }) : t('home.fresh.noReading'))}</span>`,
           ),
-        )}${more(stale.length, '#/signals', 'on the Signals page')}`;
+        )}${more(stale.length, '#/signals', t('home.onSignals'))}`;
     }
     case 'agents': {
       const all = slot(ctx, 'agents').value;
       if (!all) return null;
-      if (!all.length) return nothing('No edge agents', 'Register one on Set up a site.');
+      if (!all.length) return nothing(t('home.agents.none'), t('home.agents.noneBody'));
       const problems = agentProblems(all);
-      if (!problems.length)
-        return `${figure(all.length, all.length === 1 ? 'agent, online' : 'agents, all online', 'good')}`;
-      return `${figure(problems.length, `of ${all.length} agent${all.length === 1 ? '' : 's'} not online`, 'bad')}
+      if (!problems.length) return `${figure(all.length, t('home.agents.online', { count: all.length }), 'good')}`;
+      return `${figure(problems.length, t('home.agents.notOnline', { count: all.length }), 'bad')}
         ${rows(
           problems.map(
             (a) =>
-              `<a href="#/settings">${esc(a.name)}</a><span class="small soft">${esc(a.status === 'offline' ? `Offline, last seen ${when(a.last_seen_at ?? '', now)}` : 'Never called in')}</span>`,
+              `<a href="#/settings">${esc(a.name)}</a><span class="small soft">${esc(a.status === 'offline' ? t('home.agents.offline', { when: when(a.last_seen_at ?? '', now) }) : t('home.agents.never'))}</span>`,
           ),
         )}`;
     }
@@ -182,31 +181,27 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       const all = slot(ctx, 'quality').value;
       if (!all) return null;
       const problems = qualityProblems(all);
-      if (!problems.length)
-        return nothing(
-          'No quality problems',
-          'Signals whose last check found gaps, stuck or out-of-range values show here.',
-        );
-      return `${figure(problems.length, problems.length === 1 ? 'signal with problems' : 'signals with problems', 'warn')}
+      if (!problems.length) return nothing(t('home.quality.none'), t('home.quality.noneBody'));
+      return `${figure(problems.length, t('home.quality.figure', { count: problems.length }), 'warn')}
         ${rows(
           problems.map(
             (s) =>
-              `<a href="#/signals?q=${encodeURIComponent(s.tag)}&amp;quality=${s.quality.badge}">${esc(s.tag)}</a><span class="small soft">${esc(s.quality.badge === 'bad' ? 'Bad' : 'Needs a look')}</span>`,
+              `<a href="#/signals?q=${encodeURIComponent(s.tag)}&amp;quality=${s.quality.badge}">${esc(s.tag)}</a><span class="small soft">${esc(s.quality.badge === 'bad' ? t('home.quality.bad') : t('home.quality.look'))}</span>`,
           ),
-        )}${more(problems.length, '#/signals?quality=bad', 'on the Signals page')}`;
+        )}${more(problems.length, '#/signals?quality=bad', t('home.onSignals'))}`;
     }
   }
 }
 
-const CARD_LINKS: Record<CardId, [string, string]> = {
-  'my-warnings': ['#/warnings?who=me', 'Warnings'],
-  'machines-out': ['#/shopfloor', 'Shopfloor'],
-  shift: ['#/warnings', 'Warnings'],
-  reviews: ['#/reviews', 'Change reviews'],
-  insights: ['#/insights', 'Insights'],
-  freshness: ['#/signals', 'Signals'],
-  agents: ['#/settings', 'Settings'],
-  quality: ['#/signals?quality=bad', 'Signals'],
+const CARD_LINKS: Record<CardId, [string, MessageKey]> = {
+  'my-warnings': ['#/warnings?who=me', 'home.link.warnings'],
+  'machines-out': ['#/shopfloor', 'home.link.shopfloor'],
+  shift: ['#/warnings', 'home.link.warnings'],
+  reviews: ['#/reviews', 'home.link.reviews'],
+  insights: ['#/insights', 'home.link.insights'],
+  freshness: ['#/signals', 'home.link.signals'],
+  agents: ['#/settings', 'home.link.settings'],
+  quality: ['#/signals?quality=bad', 'home.link.signals'],
 };
 
 function cardHtml(ctx: Context, id: CardId, at: number, count: number, editing: boolean, now: number): string {
@@ -214,17 +209,17 @@ function cardHtml(ctx: Context, id: CardId, at: number, count: number, editing: 
   const failed = def.needs.some((n) => slot(ctx, n).failed);
   const body = failed
     ? loadFailed(def.title, 3)
-    : (cardBody(ctx, id, now) ?? skeleton.list(3, `Loading ${def.title.toLowerCase()}…`));
+    : (cardBody(ctx, id, now) ?? skeleton.list(3, t('home.loadingCard', { card: def.title.toLowerCase() })));
   const [href, page] = CARD_LINKS[id];
   const controls = editing
     ? `<div class="home-card-edit row gap-1 wrap">
-        ${button('Move up', { size: 'sm', variant: 'ghost', disabled: at === 0, attrs: { 'data-card-up': id, 'aria-label': `Move ${def.title} up` } })}
-        ${button('Move down', { size: 'sm', variant: 'ghost', disabled: at === count - 1, attrs: { 'data-card-down': id, 'aria-label': `Move ${def.title} down` } })}
-        ${button('Remove', { size: 'sm', variant: 'ghost', attrs: { 'data-card-remove': id, 'aria-label': `Remove ${def.title}` } })}
+        ${button(t('home.moveUp'), { size: 'sm', variant: 'ghost', disabled: at === 0, attrs: { 'data-card-up': id, 'aria-label': t('home.moveUpNamed', { card: def.title }) } })}
+        ${button(t('home.moveDown'), { size: 'sm', variant: 'ghost', disabled: at === count - 1, attrs: { 'data-card-down': id, 'aria-label': t('home.moveDownNamed', { card: def.title }) } })}
+        ${button(t('home.remove'), { size: 'sm', variant: 'ghost', attrs: { 'data-card-remove': id, 'aria-label': t('home.removeNamed', { card: def.title }) } })}
       </div>`
     : '';
   return `<section class="card home-card" data-key="card-${id}" data-card="${id}" aria-labelledby="home-${id}">
-      <div class="card-head row justify-between gap-2"><h2 id="home-${id}">${esc(def.title)}</h2><a class="small" href="${esc(href)}">Open ${esc(page)}</a></div>
+      <div class="card-head row justify-between gap-2"><h2 id="home-${id}">${esc(def.title)}</h2><a class="small" href="${esc(href)}">${esc(t('home.openPage', { page: t(page) }))}</a></div>
       ${body}
       ${controls}
     </section>`;
@@ -232,25 +227,25 @@ function cardHtml(ctx: Context, id: CardId, at: number, count: number, editing: 
 
 function roleHome(ctx: Context): string {
   const site = ctx.ontology.site;
-  const lead = 'What needs you now.';
+  const lead = t('home.leadShort');
   if (ctx.ontology.status === 'loading' || !site)
-    return `${pageHead({ title: 'Home', lead })}${skeleton.card('Loading from the Tiles API…')}`;
+    return `${pageHead({ title: t('home.title'), lead })}${skeleton.card(t('home.loadingApi'))}`;
   if (ctx.ontology.status !== 'ready')
-    return `${pageHead({ title: 'Home', lead })}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
+    return `${pageHead({ title: t('home.title'), lead })}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
   const role = homeRole(ctx.workRole, ctx.ontology.role);
   const { cards: kept, loaded } = homeLayout(ctx);
   // Your cards are asked for first: until they come, nothing is fetched for the wrong ones.
   if (!loaded)
-    return `${pageHead({ title: 'Home', lead })}<div class="home-cards">${skeleton.card('Loading your home…')}${skeleton.card()}</div>`;
+    return `${pageHead({ title: t('home.title'), lead })}<div class="home-cards">${skeleton.card(t('home.loadingHome'))}${skeleton.card()}</div>`;
   const cards = kept ?? [...ROLE_CARDS[role]];
   const editing = uiState(ctx).editing;
   const now = Date.now();
   const head = pageHead({
-    title: 'Home',
-    lead: `What needs you now on ${site.name}. ${kept ? 'Your cards' : `The cards for ${ROLE_LABELS[role]}`}: Customise changes them.`,
+    title: t('home.title'),
+    lead: t('home.lead', { site: site.name, kept: kept ? 'yes' : 'no', role: ROLE_LABELS[role] }),
     actionsHtml: editing
-      ? button('Done', { variant: 'primary', attrs: { 'data-home-done': true } })
-      : button('Customise', { attrs: { 'data-home-edit': true } }),
+      ? button(t('home.done'), { variant: 'primary', attrs: { 'data-home-done': true } })
+      : button(t('home.customise'), { attrs: { 'data-home-edit': true } }),
   });
   const absent = CARDS.filter((c) => !cards.includes(c.id));
   const edit = editing
@@ -259,23 +254,23 @@ function roleHome(ctx: Context): string {
           absent.length
             ? `<form class="row gap-2 wrap items-end" data-card-add-form>
           ${field(
-            'Add a card',
+            t('home.addCard'),
             select(
               'card',
               absent.map((c) => [c.id, `${c.title}: ${c.summary}`] as const),
               absent[0]!.id,
             ),
           )}
-          ${button('Add', { type: 'submit' })}
+          ${button(t('home.add'), { type: 'submit' })}
         </form>`
-            : '<p class="small">Every card is on your home.</p>'
+            : `<p class="small">${esc(t('home.allCards'))}</p>`
         }
-        <p class="small soft">${kept ? `${button(`Use the cards for ${ROLE_LABELS[role]}`, { size: 'sm', variant: 'ghost', attrs: { 'data-home-reset': true } })}` : `These are the cards for ${esc(ROLE_LABELS[role])}. Your changes are kept for you on this site.`}</p>
+        <p class="small soft">${kept ? `${button(t('home.useCards', { role: ROLE_LABELS[role] }), { size: 'sm', variant: 'ghost', attrs: { 'data-home-reset': true } })}` : esc(t('home.theseCards', { role: ROLE_LABELS[role] }))}</p>
       </div>`
     : '';
   const grid = cards.length
     ? `<div class="home-cards">${cards.map((id, i) => cardHtml(ctx, id, i, cards.length, editing, now)).join('')}</div>`
-    : `<div class="card">${nothing('No cards on your home', 'Customise adds the cards you want here.')}</div>`;
+    : `<div class="card">${nothing(t('home.noCards'), t('home.noCardsBody'))}</div>`;
   return `${head}${edit}${grid}`;
 }
 
@@ -290,7 +285,13 @@ function demoHome(ctx: Context): string {
         const lead = predicted.reduce((a, s) => a + s.leadHours, 0) / (predicted.length || 1);
         return {
           value: String(state.detection.alerts.length),
-          note: `${predicted.length}/${state.scored.length} stops predicted, ${fmt(lead, 1)} h avg lead`,
+          note: esc(
+            t('home.demo.frictionNote', {
+              predicted: predicted.length,
+              scored: state.scored.length,
+              lead: fmt(lead, 1),
+            }),
+          ),
         };
       })()
     : null;
@@ -305,7 +306,7 @@ function demoHome(ctx: Context): string {
     ...state.runs.map((r) => ({
       date: r.date,
       icon: 'drafting-compass' as const,
-      text: `<b>${esc(MODELS[r.modelId]?.name ?? r.modelId)} v${esc(r.version)}</b> run ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`,
+      text: `<b>${esc(MODELS[r.modelId]?.name ?? r.modelId)} v${esc(r.version)}</b> ${esc(t('home.demo.run'))} ${r.note ? `— ${esc(r.note)}` : ''} <span class="muted">· ${esc(r.author)}</span>`,
       href: '#/design',
     })),
   ]
@@ -315,75 +316,75 @@ function demoHome(ctx: Context): string {
   return `
       <section class="hero">
         <div>
-          <div class="eyebrow">Tiles</div>
-          <h1 tabindex="-1">Physics and plant data, in one place.</h1>
-          <p>Tiles combines physics models with machine data to help design teams iterate faster and help production teams cut downtime and scrap. Every answer shows the data, model version and change behind it.</p>
+          <div class="eyebrow">${esc(t('home.demo.eyebrow'))}</div>
+          <h1 tabindex="-1">${esc(t('home.demo.heroTitle'))}</h1>
+          <p>${esc(t('home.demo.heroBody'))}</p>
           <div class="row mt-4">
-            <a class="btn primary" href="#/chat">Ask the copilot</a>
-            <a class="btn" href="#/physics">See live warnings</a>
+            <a class="btn primary" href="#/chat">${esc(t('home.demo.askCopilot'))}</a>
+            <a class="btn" href="#/physics">${esc(t('home.demo.seeWarnings'))}</a>
           </div>
         </div>
-        <div class="engine" aria-label="How it works">
-          <div class="k">HOW IT WORKS</div>
-          <div class="pill">Physics models</div>
+        <div class="engine" aria-label="${esc(t('home.demo.howItWorks'))}">
+          <div class="k">${esc(t('home.demo.howItWorks'))}</div>
+          <div class="pill">${esc(t('home.demo.physicsModels'))}</div>
           <div class="op">+</div>
-          <div class="pill">Live data</div>
+          <div class="pill">${esc(t('home.demo.liveData'))}</div>
           <div class="op">↓</div>
-          <div class="pill">Answers and warnings</div>
+          <div class="pill">${esc(t('home.demo.answers'))}</div>
         </div>
       </section>
 
       <div class="grid g4 mb-4">
         <a class="card kpi bad text-inherit no-underline" href="#/physics"${friction ? '' : ' aria-busy="true"'}>
-          <div class="label">Friction warnings · DC-02</div>
+          <div class="label">${esc(t('home.demo.friction', { machine: DEMO_MACHINE }))}</div>
           ${
             friction
               ? `<div class="value">${friction.value}</div><div class="note">${friction.note}</div>`
-              : `<div class="value"><span class="skeleton kpi-wait"></span><span class="sr-only">Working out the warnings</span></div><div class="note"><span class="skeleton kpi-wait wide"></span></div>`
+              : `<div class="value"><span class="skeleton kpi-wait"></span><span class="sr-only">${esc(t('home.demo.working'))}</span></div><div class="note"><span class="skeleton kpi-wait wide"></span></div>`
           }
         </a>
         <a class="card kpi text-inherit no-underline" href="#/quality">
-          <div class="label">Cutter NG rate</div>
+          <div class="label">${esc(t('home.demo.ngRate'))}</div>
           <div class="value">${fmt((100 * ng) / state.batches.length, 1)}%</div>
-          <div class="note">${ng} of ${state.batches.length} batches · root cause found</div>
+          <div class="note">${esc(t('home.demo.batches', { ng, total: state.batches.length }))}</div>
         </a>
         <a class="card kpi text-inherit no-underline ${health.score < 100 ? '' : 'good'}" href="#/ontology">
-          <div class="label">Ontology health</div>
+          <div class="label">${esc(t('home.demo.health'))}</div>
           <div class="value">${health.score}</div>
-          <div class="note">${health.counts.nodes} nodes · ${health.counts.edges} relationships · ${health.issues.length} issue(s)</div>
+          <div class="note">${esc(t('home.demo.healthNote', { nodes: health.counts.nodes, edges: health.counts.edges, count: health.issues.length }))}</div>
         </a>
         <a class="card kpi text-inherit no-underline" href="#/design">
-          <div class="label">Design runs logged</div>
+          <div class="label">${esc(t('home.demo.runsLogged'))}</div>
           <div class="value">${state.runs.length}</div>
-          <div class="note">${Object.keys(MODELS).length} physics models in library</div>
+          <div class="note">${esc(t('home.demo.models', { n: Object.keys(MODELS).length }))}</div>
         </a>
       </div>
 
       <div class="grid g3">
         <div class="card product">
-          <span class="badge accent tag">for Design</span>
-          <h2>Tiles Design</h2>
-          <p class="soft">Design, simulate and optimise physical systems from first principles, with every run versioned and auditable.</p>
+          <span class="badge accent tag">${esc(t('home.demo.forDesign'))}</span>
+          <h2>${esc(t('home.demo.designTitle'))}</h2>
+          <p class="soft">${esc(t('home.demo.designBody'))}</p>
           <ul>
-            <li>Versioned physics model library</li>
-            <li>Parameter sweeps &amp; sensitivity</li>
-            <li>Run lineage and one-click audit export</li>
+            <li>${esc(t('home.demo.designLibrary'))}</li>
+            <li>${esc(t('home.demo.designSweeps'))}</li>
+            <li>${esc(t('home.demo.designAudit'))}</li>
           </ul>
-          <a href="#/design">Open design studio →</a>
+          <a href="#/design">${esc(t('home.demo.openDesign'))}</a>
         </div>
         <div class="card product">
-          <span class="badge accent tag">for Operations</span>
-          <h2>Tiles Operations</h2>
-          <p class="soft">Real-time troubleshooting and process control on live machines, grounded in a factory ontology.</p>
+          <span class="badge accent tag">${esc(t('home.demo.forOps'))}</span>
+          <h2>${esc(t('home.demo.opsTitle'))}</h2>
+          <p class="soft">${esc(t('home.demo.opsBody'))}</p>
           <ul>
-            <li>Virtual sensors that warn before downtime</li>
-            <li>Correlation finder for quality root cause</li>
-            <li>Versioned ontology with health checks</li>
+            <li>${esc(t('home.demo.opsSensors'))}</li>
+            <li>${esc(t('home.demo.opsCorrelation'))}</li>
+            <li>${esc(t('home.demo.opsOntology'))}</li>
           </ul>
-          <a href="#/quality">Open process &amp; quality →</a>
+          <a href="#/quality">${esc(t('home.demo.openQuality'))}</a>
         </div>
         <div class="card">
-          <div class="card-head"><h2>Recent activity</h2></div>
+          <div class="card-head"><h2>${esc(t('home.demo.recent'))}</h2></div>
           <div class="feed">
             ${
               feed
@@ -395,9 +396,10 @@ function demoHome(ctx: Context): string {
               emptyState({
                 compact: true,
                 level: 3,
-                title: 'No activity yet',
-                bodyHtml:
-                  'Commits, design runs and warnings appear here as they happen. Start on the <a href="#/ontology">Ontology</a> page.',
+                title: t('home.demo.noActivity'),
+                bodyHtml: tHtml('home.demo.noActivityBody', {
+                  link: `<a href="#/ontology">${esc(t('home.demo.ontology'))}</a>`,
+                }),
               })
             }
           </div>
@@ -407,7 +409,9 @@ function demoHome(ctx: Context): string {
 
 const view: View = {
   id: 'home',
-  title: 'Home',
+  get title() {
+    return t('home.title');
+  },
   icon: 'house',
   render(ctx) {
     return ctx.api ? roleHome(ctx) : demoHome(ctx);
@@ -451,10 +455,10 @@ const view: View = {
       );
       ux('task', 'home.card-removed');
       // Undo puts it back where it was, keeping whatever else changed since.
-      ctx.toast(`${cardOf(id)?.title ?? 'Card'} removed`, {
+      ctx.toast(t('home.removed', { card: cardOf(id)?.title ?? t('home.card') }), {
         type: 'success',
         action: {
-          label: 'Undo',
+          label: t('home.undo'),
           run: () => {
             const now = cards();
             if (now.includes(id)) return;

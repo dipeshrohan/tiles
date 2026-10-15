@@ -242,8 +242,8 @@ test("an agent's buffer shows what waits and why", async () => {
 test('audit summaries read as sentences', async () => {
   const { describeAudit } = await import('../js/views/settings.ts');
   const e = (action, before, after) => ({ action, before, after, entity_type: 'x', entity_id: 'y' });
-  assert.equal(describeAudit(e('ontology.stage', null, { ops: [1, 2] })), 'Staged 2 change(s)');
-  assert.equal(describeAudit(e('ontology.discard', { ops: [1] }, null)), 'Discarded 1 staged change(s)');
+  assert.equal(describeAudit(e('ontology.stage', null, { ops: [1, 2] })), 'Staged 2 changes');
+  assert.equal(describeAudit(e('ontology.discard', { ops: [1] }, null)), 'Discarded 1 staged change');
   assert.equal(describeAudit(e('ontology.commit', null, { message: 'add press' })), 'Committed “add press”');
   assert.equal(describeAudit(e('ontology.revert', { reverted: 'c1' }, {})), 'Reverted commit c1');
   assert.equal(

@@ -20,6 +20,7 @@ import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
 import { card, field as labelled, input, needsApi, pageHead, select, skeleton, loadFailed, tabs } from '../lib/ui.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
+import { t } from '../lib/i18n.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -93,9 +94,9 @@ function wearForm(id: string): string {
   const option = (v: WearState['direction'], text: string) =>
     `<option value="${v}" ${w.direction === v ? 'selected' : ''}>${text}</option>`;
   return `<form class="row gap-2 wrap items-end" data-wear-form="${esc(id)}">
-      <label class="field">Wear moves it<select name="direction">${option('either', 'either way')}${option('up', 'up')}${option('down', 'down')}</select></label>
-      <label class="field">Limit<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="optional" class="w-8em"></label>
-      <button class="btn sm" type="submit">Check for wear</button>
+      <label class="field">${t('explorer.wear.moves')}<select name="direction">${option('either', t('explorer.wear.either'))}${option('up', t('explorer.wear.up'))}${option('down', t('explorer.wear.down'))}</select></label>
+      <label class="field">${t('explorer.wear.limit')}<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="${esc(t('explorer.wear.optional'))}" class="w-8em"></label>
+      <button class="btn sm" type="submit">${t('explorer.wear.check')}</button>
     </form>
     <div data-wear-out></div>`;
 }
@@ -143,7 +144,7 @@ async function checkWear(ctx: Context, box: HTMLElement): Promise<void> {
   const id = box.dataset.wear ?? '';
   const w = wearOf(id);
   if (w.busy) return;
-  if (!ctx.api || !site || !range) return void ctx.toast('Choose a range first');
+  if (!ctx.api || !site || !range) return void ctx.toast(t('explorer.chooseRange'));
   const plan = wearPlan(range);
   if (typeof plan === 'string') return void ctx.toast(plan);
   const limit = parseLimit(w.limit);
@@ -200,18 +201,24 @@ function duration(seconds: number): string {
 
 export function describe(series: SignalSeries): string {
   const readings = series.points.reduce((n, p) => n + p.n, 0);
-  if (!readings) return 'No readings in this range';
+  if (!readings) return t('explorer.noReadings');
   return series.bucket_s === null
-    ? `${fmt(readings, 0)} reading(s)`
-    : `${fmt(readings, 0)} readings, as ${fmt(series.points.length, 0)} averages of ${duration(series.bucket_s)} with their range`;
+    ? t('explorer.readings', { count: readings, readings: fmt(readings, 0) })
+    : t('explorer.averages', {
+        readings: fmt(readings, 0),
+        averages: fmt(series.points.length, 0),
+        bucket: duration(series.bucket_s),
+      });
 }
 
 function textReadings(series: SignalSeries): string {
   const texts = series.points.filter((p) => p.text !== null).slice(-20);
   if (!texts.length) return '';
-  return `<div class="table-wrap"><table><thead><tr><th>Time</th><th>Value</th></tr></thead><tbody>${texts
+  return `<div class="table-wrap"><table><thead><tr><th>${t('explorer.text.time')}</th><th>${t('explorer.text.value')}</th></tr></thead><tbody>${texts
     .map((p) => `<tr><td>${esc(new Date(p.at).toLocaleString('en-GB'))}</td><td>${esc(p.text ?? '')}</td></tr>`)
-    .join('')}</tbody></table></div><p class="small soft">The latest ${texts.length} text value(s) in the range.</p>`;
+    .join(
+      '',
+    )}</tbody></table></div><p class="small soft">${esc(t('explorer.text.latest', { count: texts.length }))}</p>`;
 }
 
 function chartFor(series: SignalSeries, range: Range): string {
@@ -233,7 +240,7 @@ function chartFor(series: SignalSeries, range: Range): string {
   return `<div class="explorer-chart" data-zoom>${chart}<div class="zoom-box" hidden></div></div>
     ${textReadings(series)}
     <p class="small soft" data-series-note>${esc(describe(series))}${
-      series.points.length ? '' : ': pick a longer range above, or Latest data for the day up to its last reading.'
+      series.points.length ? '' : esc(t('explorer.noReadingsHint'))
     }</p>`;
 }
 
@@ -258,7 +265,7 @@ function add(ctx: Context, s: Pick<SignalInfo, 'id' | 'tag' | 'unit' | 'last_at'
   const u = ui(ctx);
   if (u.picked.some((p) => p.id === s.id)) return;
   if (u.picked.length >= MAX_SIGNALS) {
-    ctx.toast(`Plot at most ${MAX_SIGNALS} signals at once; remove one first`);
+    ctx.toast(t('explorer.atMost', { max: MAX_SIGNALS }));
     return;
   }
   u.picked = [...u.picked, { id: s.id, tag: s.tag, unit: s.unit, last_at: s.last_at }];
@@ -284,7 +291,7 @@ function loadCharts(root: HTMLElement, ctx: Context): void {
         bindZoom(box, ctx, range);
       },
       () => {
-        if (mine === latestLoad && box?.isConnected) box.innerHTML = loadFailed('The readings');
+        if (mine === latestLoad && box?.isConnected) box.innerHTML = loadFailed(t('explorer.readingsFailed'));
       },
     );
   }
@@ -377,7 +384,7 @@ function bindSearch(root: HTMLElement, ctx: Context): void {
               `<button class="btn sm" type="button" data-add="${esc(s.id)}">+ ${esc(s.tag)}${s.unit ? ` <span class="soft">${esc(s.unit)}</span>` : ''}</button>`,
           )
           .join('')
-      : '<span class="small soft">No other signals match: try part of a tag, or its unit.</span>';
+      : `<span class="small soft">${esc(t('explorer.noMatch'))}</span>`;
     onAll(list, '[data-add]', 'click', (el) => {
       const s = choices.find((c) => c.id === el.dataset.add);
       if (s) add(ctx, s);
@@ -440,7 +447,7 @@ function addFromLink(ctx: Context): void {
           page.signals.find((x) => x.tag === tag) ??
           page.signals.find((x) => x.tag.toLowerCase() === tag.toLowerCase());
         if (s) add(ctx, s);
-        else ctx.toast(`No signal tagged ${tag}`);
+        else ctx.toast(t('explorer.noTag', { tag }));
       },
       () => undefined, // the client showed why
     );
@@ -484,7 +491,7 @@ async function saveInsight(ctx: Context): Promise<void> {
   try {
     const saved = await ctx.api.insights.create(site.id, draft, source);
     saving = null;
-    ctx.toast(`Insight #${saved.number} saved: another engineer reviews it`);
+    ctx.toast(t('explorer.saved', { number: saved.number }));
     location.hash = insightLink(saved.number);
   } catch {
     // the client showed why
@@ -541,34 +548,34 @@ export function compareFromQuery(params: URLSearchParams): Compare | null {
 }
 
 const spanText = (span: { from: number; to: number }): string =>
-  `${when(new Date(span.from).toISOString())} to ${when(new Date(span.to).toISOString())}`;
+  t('explorer.span', { from: when(new Date(span.from).toISOString()), to: when(new Date(span.to).toISOString()) });
 
 function compareForm(u: Ui, c: Compare): string {
   const signals = u.picked.map((p) => [p.id, p.tag] as const);
   if (c.mode === 'ranges')
-    return `${labelled('Signal', select('signal', signals, c.signal ?? ''))}
+    return `${labelled(t('explorer.compare.signal'), select('signal', signals, c.signal ?? ''))}
       ${labelled(
-        'Against',
+        t('explorer.compare.against'),
         select(
           'against',
           AGAINSTS.map((a) => [a, AGAINST[a]] as const),
           c.against,
         ),
       )}
-      ${c.against === 'custom' ? labelled('Its start', input({ type: 'datetime-local', name: 'start', value: c.start ? localInput(c.start) : '' })) : ''}`;
+      ${c.against === 'custom' ? labelled(t('explorer.compare.start'), input({ type: 'datetime-local', name: 'start', value: c.start ? localInput(c.start) : '' })) : ''}`;
   if (c.mode === 'signals')
-    return `${labelled('First', select('a', signals, c.a ?? ''))}${labelled('Second', select('b', signals, c.b ?? ''))}`;
+    return `${labelled(t('explorer.compare.first'), select('a', signals, c.a ?? ''))}${labelled(t('explorer.compare.second'), select('b', signals, c.b ?? ''))}`;
   return '';
 }
 
 function compareCard(u: Ui): string {
   const c = compareOf(u);
   const modes = tabs({
-    label: 'Compare',
+    label: t('explorer.compare.title'),
     items: [
-      ['off', 'Off'],
-      ['ranges', 'Two ranges'],
-      ...(u.picked.length > 1 ? ([['signals', 'Two signals']] as const) : []),
+      ['off', t('explorer.compare.off')],
+      ['ranges', t('explorer.compare.ranges')],
+      ...(u.picked.length > 1 ? ([['signals', t('explorer.compare.signals')]] as const) : []),
     ],
     current: c.mode,
     data: 'compare-mode',
@@ -578,9 +585,9 @@ function compareCard(u: Ui): string {
   const result =
     c.mode === 'off'
       ? ''
-      : `<div data-compare-result>${compareDrawn?.key === key ? compareDrawn.html : skeleton.chart('Loading the comparison…', TIME_CHART.height)}</div>`;
+      : `<div data-compare-result>${compareDrawn?.key === key ? compareDrawn.html : skeleton.chart(t('explorer.compare.loading'), TIME_CHART.height)}</div>`;
   return card(
-    `<div class="row justify-between wrap gap-2"><div><h2>Compare</h2><p class="small soft">One signal against another stretch of its own time, lined up from their starts, or two signals over this range; with the difference.</p></div>${modes}</div>
+    `<div class="row justify-between wrap gap-2"><div><h2>${t('explorer.compare.title')}</h2><p class="small soft">${esc(t('explorer.compare.hint'))}</p></div>${modes}</div>
       ${form ? `<form class="row gap-2 wrap items-end" id="compare-form">${form}</form>` : ''}
       ${result}`,
     { class: 'stack gap-2_5', attrs: { 'data-compare': true } },
@@ -591,12 +598,20 @@ const compareKey = (u: Ui): string => JSON.stringify([compareOf(u), u.range, u.p
 
 export function summaryText(s: Summary, names: [string, string], unit: string): string {
   if (s.meanA === null || s.meanB === null || s.diff === null)
-    return `${names[0]} and ${names[1]} have no readings at the same points to compare.`;
-  const u = unit ? ` ${unit}` : '';
-  const way = s.diff > 0 ? 'higher' : s.diff < 0 ? 'lower' : 'the same';
-  const by =
-    s.diff === 0 ? '' : ` by ${num(Math.abs(s.diff))}${u}${s.pct === null ? '' : ` (${num(Math.abs(s.pct))}%)`}`;
-  return `On average ${names[1]} is ${way}${by}: ${num(s.meanB)}${u} against ${num(s.meanA)}${u}, over ${s.shared} points where both have readings.`;
+    return t('explorer.summary.none', { a: names[0], b: names[1] });
+  const params = {
+    b: names[1],
+    unit: unit ? ` ${unit}` : '',
+    meanA: num(s.meanA),
+    meanB: num(s.meanB),
+    count: s.shared,
+    shared: s.shared,
+    way: s.diff > 0 ? 'higher' : 'lower',
+    diff: num(Math.abs(s.diff)),
+  };
+  if (s.diff === 0) return t('explorer.summary.same', params);
+  if (s.pct === null) return t('explorer.summary.diff', params);
+  return t('explorer.summary.diffPct', { ...params, pct: num(Math.abs(s.pct)) });
 }
 
 // Draws the comparison into its card, from the readings of both (or what was drawn last for it).
@@ -614,12 +629,10 @@ function loadCompare(root: HTMLElement, ctx: Context): void {
   };
   const range = { from: Date.parse(u.range.from), to: Date.parse(u.range.to) };
   if (c.mode === 'ranges' && c.against === 'custom' && !c.start)
-    return show('<p class="small soft">Choose where the other range starts.</p>');
+    return show(`<p class="small soft">${esc(t('explorer.compare.pickStart'))}</p>`);
   const other = c.mode === 'ranges' ? otherRange(range, c.against, c.start ? Date.parse(c.start) : null) : range;
   if (c.mode === 'ranges' && overlap(range, other))
-    return show(
-      `<p class="small soft">The other range (${esc(spanText(other))}) shares time with this one, so the difference would be the signal against itself. Show a shorter range, or compare with the period just before.</p>`,
-    );
+    return show(`<p class="small soft">${esc(t('explorer.compare.overlap', { span: spanText(other) }))}</p>`);
   const tagOf = (id: string | null) => u.picked.find((p) => p.id === id);
   const one = tagOf(c.mode === 'ranges' ? c.signal : c.a);
   const two = tagOf(c.mode === 'ranges' ? c.signal : c.b);
@@ -635,8 +648,12 @@ function loadCompare(root: HTMLElement, ctx: Context): void {
       const read = (r: SignalSeries) => toPoints(r).map((p) => ({ t: p.t, v: p.v }));
       const x = align(read(sa), other, read(sb), range, COMPARE_BUCKETS);
       const ranges = c.mode === 'ranges';
-      const legend: [string, string] = ranges ? ['Other range', 'This range'] : [one.tag, two.tag];
-      const said: [string, string] = ranges ? ['the other range', 'this range'] : [one.tag, two.tag];
+      const legend: [string, string] = ranges
+        ? [t('explorer.compare.otherRange'), t('explorer.compare.thisRange')]
+        : [one.tag, two.tag];
+      const said: [string, string] = ranges
+        ? [t('explorer.compare.theOtherRange'), t('explorer.compare.thisRangeSaid')]
+        : [one.tag, two.tag];
       const unitsDiffer = !ranges && (one.unit ?? '') !== (two.unit ?? '');
       const unit = unitsDiffer ? '' : (one.unit ?? '');
       const xFormat = ranges
@@ -649,27 +666,37 @@ function loadCompare(root: HTMLElement, ctx: Context): void {
           { values: x.b, color: 'var(--accent)', label: legend[1] },
         ],
         xFormat,
-        xLabel: ranges ? 'since its start' : '',
+        xLabel: ranges ? t('explorer.compare.sinceStart') : '',
         yLabel: unit,
-        title: ranges ? `${one.tag}: this range and ${AGAINST[c.against].toLowerCase()}` : `${one.tag} and ${two.tag}`,
+        title: ranges
+          ? t('explorer.compare.rangesTitle', { tag: one.tag, against: AGAINST[c.against].toLowerCase() })
+          : t('explorer.compare.signalsTitle', { a: one.tag, b: two.tag }),
         width,
         height: TIME_CHART.height,
       })}
       ${lineChart({
-        series: [{ values: x.diff, color: 'var(--warm)', label: `${legend[1]} − ${legend[0]}` }],
+        series: [
+          {
+            values: x.diff,
+            color: 'var(--warm)',
+            label: t('explorer.compare.diffLabel', { a: legend[0], b: legend[1] }),
+          },
+        ],
         xFormat,
         yLabel: unit,
-        title: `The difference, ${said[1]} minus ${said[0]}${unit ? ` (${unit})` : ''}`,
+        title: unit
+          ? t('explorer.compare.diffTitleUnit', { a: said[0], b: said[1], unit })
+          : t('explorer.compare.diffTitle', { a: said[0], b: said[1] }),
         width,
         height: 160,
       })}
       <p class="small" data-compare-summary>${esc(summaryText(summarise(x), said, unit))}</p>
-      ${ranges ? `<p class="small soft">The other range: ${esc(spanText(other))}. Each is lined up from its start.</p>` : ''}
-      ${unitsDiffer ? `<p class="small text-warn">Their units differ (${esc(one.unit ?? 'none')}, ${esc(two.unit ?? 'none')}): the difference is only a shape.</p>` : ''}`);
+      ${ranges ? `<p class="small soft">${esc(t('explorer.compare.otherSpan', { span: spanText(other) }))}</p>` : ''}
+      ${unitsDiffer ? `<p class="small text-warn">${esc(t('explorer.compare.unitsDiffer', { a: one.unit ?? t('explorer.compare.noUnit'), b: two.unit ?? t('explorer.compare.noUnit') }))}</p>` : ''}`);
       ux('task', 'signal.compared');
     },
     () => {
-      if (mine === latestCompare && box.isConnected) box.innerHTML = loadFailed('The readings to compare');
+      if (mine === latestCompare && box.isConnected) box.innerHTML = loadFailed(t('explorer.compare.failed'));
     },
   );
 }
@@ -732,7 +759,9 @@ function bindCompare(root: HTMLElement, ctx: Context): void {
 
 const view: View = {
   id: 'explorer',
-  title: 'Data explorer',
+  get title() {
+    return t('explorer.title');
+  },
   icon: 'chart-line',
   // The signals plotted and the range, in the address (U3.05): `?signals=<id>,<id>&from=…&to=…`.
   query: {
@@ -763,12 +792,11 @@ const view: View = {
   },
   render(ctx) {
     const head = pageHead({
-      eyebrow: 'Data',
-      title: 'Data explorer',
-      lead: 'Plot any signals over a time range. Long ranges show averages with their minimum and maximum; drag across a chart to zoom in.',
+      eyebrow: t('explorer.eyebrow'),
+      title: t('explorer.title'),
+      lead: t('explorer.lead'),
     });
-    if (!ctx.api || !ctx.ontology.site)
-      return `${head}<div class="card">${needsApi(`Readings are kept in the Tiles API.`)}</div>`;
+    if (!ctx.api || !ctx.ontology.site) return `${head}<div class="card">${needsApi(t('explorer.needsApi'))}</div>`;
     const u = ui(ctx);
     if (u.catalogue !== catalogue(ctx))
       Object.assign(u, {
@@ -784,39 +812,39 @@ const view: View = {
     const chips = picked
       .map(
         (p) =>
-          `<span class="badge">${esc(p.tag)} <button class="btn-link" type="button" data-remove="${esc(p.id)}" aria-label="Remove ${esc(p.tag)}">×</button></span>`,
+          `<span class="badge">${esc(p.tag)} <button class="btn-link" type="button" data-remove="${esc(p.id)}" aria-label="${esc(t('explorer.remove', { tag: p.tag }))}">×</button></span>`,
       )
       .join(' ');
     const rangeBar = range
       ? `<form id="explorer-range" class="row gap-2 wrap items-end" data-tour="explorer-range">
-          ${(['1h', '24h', '7d', '30d'] as const).map((p) => `<button class="btn sm" type="button" data-preset="${p}">Last ${p}</button>`).join('')}
-          <button class="btn sm" type="button" data-preset="data" title="The 24 hours up to the latest reading">Latest data</button>
-          <label class="field">From<input type="datetime-local" name="from" value="${localInput(range.from)}"></label>
-          <label class="field">To<input type="datetime-local" name="to" value="${localInput(range.to)}"></label>
-          <button class="btn sm" type="submit">Show</button>
-          <button class="btn sm" type="button" data-pan="-1" aria-label="Earlier">←</button>
-          <button class="btn sm" type="button" data-zoom-out>Zoom out</button>
-          ${u.zoomedFrom ? '<button class="btn sm" type="button" data-zoom-reset>Reset zoom</button>' : ''}
-          <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
-          ${canSave && saving?.key !== chartsKey(u) ? '<button class="btn sm" type="button" data-save-insight>Save as insight</button>' : ''}
+          ${(['1h', '24h', '7d', '30d'] as const).map((p) => `<button class="btn sm" type="button" data-preset="${p}">${esc(t('explorer.range.last', { period: p }))}</button>`).join('')}
+          <button class="btn sm" type="button" data-preset="data" title="${esc(t('explorer.range.latestHint'))}">${t('explorer.range.latest')}</button>
+          <label class="field">${t('explorer.range.from')}<input type="datetime-local" name="from" value="${localInput(range.from)}"></label>
+          <label class="field">${t('explorer.range.to')}<input type="datetime-local" name="to" value="${localInput(range.to)}"></label>
+          <button class="btn sm" type="submit">${t('explorer.range.show')}</button>
+          <button class="btn sm" type="button" data-pan="-1" aria-label="${t('explorer.range.earlier')}">←</button>
+          <button class="btn sm" type="button" data-zoom-out>${t('explorer.range.zoomOut')}</button>
+          ${u.zoomedFrom ? `<button class="btn sm" type="button" data-zoom-reset>${t('explorer.range.reset')}</button>` : ''}
+          <button class="btn sm" type="button" data-pan="1" aria-label="${t('explorer.range.later')}">→</button>
+          ${canSave && saving?.key !== chartsKey(u) ? `<button class="btn sm" type="button" data-save-insight>${t('explorer.range.save')}</button>` : ''}
         </form>
-        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack gap-1_5"><h3>Save as an insight</h3><p class="small soft">The charts are kept as they are now, with what you write.</p>${draftForm('insight-save', saving.text, savingBusy)}</div>` : ''}`
+        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack gap-1_5"><h3>${t('explorer.save.title')}</h3><p class="small soft">${esc(t('explorer.save.hint'))}</p>${draftForm('insight-save', saving.text, savingBusy)}</div>` : ''}`
       : '';
     const charts = picked
       .map(
         (p) => `<div class="card stack gap-1_5">
           <div class="row justify-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? '')}</span></div>
-          <div data-plot="${esc(p.id)}">${skeleton.chart('Loading the readings…', TIME_CHART.height)}</div>
+          <div data-plot="${esc(p.id)}">${skeleton.chart(t('explorer.loadingReadings'), TIME_CHART.height)}</div>
           <div data-wear="${esc(p.id)}"></div>
         </div>`,
       )
       .join('');
     return `${head}<div class="card stack gap-3">
         <form id="explorer-search" class="row gap-3 wrap" role="search" data-tour="explorer-search">
-          <label class="field grow min-w-field">Add a signal<input type="search" name="q" placeholder="Tag, description or node" autocomplete="off"${keyAttr('/')}></label>
+          <label class="field grow min-w-field">${t('explorer.search.label')}<input type="search" name="q" placeholder="${esc(t('explorer.search.placeholder'))}" autocomplete="off"${keyAttr('/')}></label>
         </form>
         <div class="row gap-1_5 wrap" data-explorer-found></div>
-        ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : '<p class="small soft">Pick up to eight signals to plot them on one time axis.</p>'}
+        ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : `<p class="small soft">${esc(t('explorer.pickHint'))}</p>`}
         ${rangeBar}
       </div>
       <div class="stack gap-3 mt-3" data-charts data-tour="explorer-charts">${charts}</div>
@@ -856,11 +884,11 @@ const view: View = {
           const from = read('from');
           const to = read('to');
           if (!(Number.isFinite(from) && Number.isFinite(to) && to > from)) {
-            ctx.toast('Choose a start before the end');
+            ctx.toast(t('explorer.startBeforeEnd'));
             return;
           }
           if (to - from > MAX_SPAN) {
-            ctx.toast('Choose at most five years');
+            ctx.toast(t('explorer.atMostFiveYears'));
             return;
           }
           setRange(ctx, { from: iso(from), to: iso(to) });

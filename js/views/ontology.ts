@@ -47,6 +47,7 @@ import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '
 import type { Context, View } from './types.ts';
 import { pageHead } from '../lib/ui.ts';
 import { keyAttr, typing } from '../lib/shortcuts.ts';
+import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 
 interface OntologyUi {
   tab: 'canvas' | 'history' | 'health';
@@ -139,17 +140,17 @@ function canRedo(ctx: Context): boolean {
   stepsOf(ctx);
   return redoSteps.length > 0 && ctx.state.repo.staged.length === redoAt;
 }
-const changes = (n: number): string => `${n} change${n === 1 ? '' : 's'}`;
+const changes = (n: number): string => t('ontology.changes', { count: n });
 
 const RELS = ['contains', 'runs', 'consumes', 'controlledBy', 'emits', 'describes', 'reads', 'monitors', 'feeds'];
 
 // Canvas at scale (T2.14): what folding a level does, and when it happens by itself.
-const LEVELS: [string, string, NodeType[]][] = [
-  ['', 'Show everything', []],
-  ['PLC', 'Fold signals into their PLC', ['PLC']],
-  ['Machine', 'Fold into machines', ['Machine']],
-  ['Line', 'Fold into lines', ['Line', 'Cell']],
-  ['Workcenter', 'Fold into workcenters', ['Workcenter']],
+const LEVELS: [string, MessageKey, NodeType[]][] = [
+  ['', 'ontology.fold.all', []],
+  ['PLC', 'ontology.fold.plc', ['PLC']],
+  ['Machine', 'ontology.fold.machines', ['Machine']],
+  ['Line', 'ontology.fold.lines', ['Line', 'Cell']],
+  ['Workcenter', 'ontology.fold.workcenters', ['Workcenter']],
 ];
 const AUTO_FOLD_ABOVE = 400; // nodes: larger ontologies open with signals folded into their PLC
 
@@ -179,11 +180,11 @@ function describeOp(op: Op, graph: Graph): string {
     case 'addNode':
       return `+ ${op.node.type} “${op.node.label}”`;
     case 'removeNode':
-      return `− node ${op.id}`;
+      return t('ontology.op.removeNode', { id: op.id });
     case 'addEdge':
       return `+ ${label(op.edge.from)} —${op.edge.rel}→ ${label(op.edge.to)}`;
     case 'removeEdge':
-      return `− relationship ${op.id}`;
+      return t('ontology.op.removeEdge', { id: op.id });
     case 'setProp':
       return op.value === undefined ? `− ${label(op.id)}.${op.key}` : `~ ${label(op.id)}.${op.key} = ${op.value}`;
   }
@@ -192,9 +193,11 @@ function describeOp(op: Op, graph: Graph): string {
 function statBadges(s: DiffStats): string {
   const b = (n: number, what: string) =>
     n
-      ? `<span class="badge"><span class="${n > 0 ? 'plus' : 'minus'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</span> ${what}</span>`
+      ? `<span class="badge"><span class="${n > 0 ? 'plus' : 'minus'}">${n > 0 ? '+' : '−'}${Math.abs(n)}</span> ${esc(what)}</span>`
       : '';
-  return b(s.nodes, 'node') + b(s.edges, 'edge') + b(s.props, 'prop');
+  return (
+    b(s.nodes, t('ontology.stat.node')) + b(s.edges, t('ontology.stat.edge')) + b(s.props, t('ontology.stat.prop'))
+  );
 }
 
 // Worked out once per graph (U3.07): the page's graph is made again only when the ontology changes,
@@ -288,23 +291,23 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       ]
         .filter(Boolean)
         .join(' ');
-      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ''}">
+      return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(t('ontology.node.label', { type: n.type, label: n.label, count: fold }))}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
           <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
             editor && id === ui.selected && picked.size === 1
-              ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>Drag onto another node to relate them</title></circle>`
+              ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>${t('ontology.node.handle')}</title></circle>`
               : ''
           }
-          <title>${esc(n.type)}: ${esc(n.label)}${fold ? ` (${fold} folded: double-click to open)` : ''}</title>
+          <title>${esc(t('ontology.node.title', { type: n.type, label: n.label, count: fold }))}</title>
         </g>`;
     })
     .join('');
 
   const legend = (Object.entries(NODE_TYPES) as [NodeType, { color: string }][])
     .map(
-      ([t, def]) =>
-        `<button class="chip${hidden.has(t) ? ' faded' : ''}" data-type="${t}" aria-pressed="${!hidden.has(t)}"><span class="dot" style="background:${def.color}"></span> ${t}</button>`,
+      ([type, def]) =>
+        `<button class="chip${hidden.has(type) ? ' faded' : ''}" data-type="${type}" aria-pressed="${!hidden.has(type)}"><span class="dot" style="background:${def.color}"></span> ${type}</button>`,
     )
     .join('');
   const level = LEVELS.find(([, , types]) => {
@@ -323,27 +326,27 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
         <div>
           <div class="canvas-tools">
             <span class="row gap-1">
-              <button class="btn sm" data-zoom="out" aria-label="Zoom out">−</button>
-              <button class="btn sm" data-zoom="in" aria-label="Zoom in">+</button>
-              <button class="btn sm" data-zoom="fit">Fit to screen</button>
-              <button class="btn sm" data-zoom="focus" ${picked.size ? '' : 'disabled'}>Focus selection</button>
+              <button class="btn sm" data-zoom="out" aria-label="${t('ontology.zoom.out')}">−</button>
+              <button class="btn sm" data-zoom="in" aria-label="${t('ontology.zoom.in')}">+</button>
+              <button class="btn sm" data-zoom="fit">${t('ontology.zoom.fit')}</button>
+              <button class="btn sm" data-zoom="focus" ${picked.size ? '' : 'disabled'}>${t('ontology.zoom.focus')}</button>
             </span>${
               editor
                 ? `<span class="row gap-1">
-              <button class="btn sm" data-undo aria-keyshortcuts="Control+Z Meta+Z" data-tooltip="Undo the last staged change (Ctrl Z)" ${undoable(ctx).length ? '' : 'disabled'}>Undo</button>
-              <button class="btn sm" data-redo aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" data-tooltip="Redo (Ctrl Shift Z)" ${canRedo(ctx) ? '' : 'disabled'}>Redo</button>
+              <button class="btn sm" data-undo aria-keyshortcuts="Control+Z Meta+Z" data-tooltip="${t('ontology.undo.tooltip')}" ${undoable(ctx).length ? '' : 'disabled'}>${t('ontology.undo.label')}</button>
+              <button class="btn sm" data-redo aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" data-tooltip="${t('ontology.redo.tooltip')}" ${canRedo(ctx) ? '' : 'disabled'}>${t('ontology.redo.label')}</button>
               <span class="sr-only" aria-live="polite" data-undo-note>${esc(undoNote)}</span>
             </span>`
                 : ''
             }
-            <select class="sm" data-fold-level aria-label="Fold the hierarchy">${LEVELS.map(
+            <select class="sm" data-fold-level aria-label="${t('ontology.fold.label')}">${LEVELS.map(
               ([value, label]) =>
-                `<option value="${value}" ${level?.[0] === value ? 'selected' : ''}>${label}</option>`,
-            ).join('')}${level ? '' : '<option selected disabled>Folded by hand</option>'}</select>
+                `<option value="${value}" ${level?.[0] === value ? 'selected' : ''}>${t(label)}</option>`,
+            ).join('')}${level ? '' : `<option selected disabled>${t('ontology.fold.byHand')}</option>`}</select>
             <span class="row canvas-search">
-              <input type="search" data-onto-search${keyAttr('/')} value="${esc(ui.search)}" placeholder="Find a node" aria-label="Find a node" />
-              <button class="btn sm" data-search-next ${found ? '' : 'disabled'}>Next</button>
-              <span class="small soft" data-search-count aria-live="polite">${found === null ? '' : `${found} found`}</span>
+              <input type="search" data-onto-search${keyAttr('/')} value="${esc(ui.search)}" placeholder="${t('ontology.search.placeholder')}" aria-label="${t('ontology.search.placeholder')}" />
+              <button class="btn sm" data-search-next ${found ? '' : 'disabled'}>${t('ontology.search.next')}</button>
+              <span class="small soft" data-search-count aria-live="polite">${found === null ? '' : t('ontology.search.found', { count: found })}</span>
             </span>
           </div>
           <div class="canvas-wrap" data-tour="onto-canvas">
@@ -351,8 +354,8 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
             <svg class="minimap" data-minimap data-morph="replace" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="mini-nodes" d="${minimapPath(pos)}"/><rect class="mini-view" data-mini-view x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}"/></svg>
           </div>
           <div class="statusbar">
-            <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ''}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
-            <span class="spacer"></span><span class="small soft">Scroll to zoom, drag to move, Shift-drag to select, ${editor ? 'drag the dot on a selected node onto another to relate them, ' : ''}arrow keys to move between nodes, double-click to fold or open</span>
+            <span>${esc(t('ontology.status.nodes', { total, shown: pos.size, hidden: pos.size < total ? 'yes' : 'no' }))}</span><span>${esc(t('ontology.status.edges', { count: Object.keys(graph.edges).length }))}</span>
+            <span class="spacer"></span><span class="small soft">${t('ontology.status.hint', { editor: editor ? 'yes' : 'no' })}</span>
           </div>
           <div class="chips mt-2">${legend}</div>
         </div>
@@ -382,30 +385,30 @@ function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hie
   return `
       <div class="card-head">
         <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 class="mt-1_5">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
-        <button class="btn sm" data-deselect aria-label="Close">✕</button>
+        <button class="btn sm" data-deselect aria-label="${t('ontology.inspector.close')}">✕</button>
       </div>
       ${path.length > 1 ? `<p class="small soft mb-3">${path.map((p) => esc(p.label)).join(' → ')}</p>` : ''}
-      ${below || isFolded ? `<p class="mb-3"><button class="btn sm" data-fold="${esc(id)}">${isFolded ? `Open (${below} folded)` : `Fold the ${below} below it`}</button></p>` : ''}
-      <h3 class="mb-1_5">Properties</h3>
+      ${below || isFolded ? `<p class="mb-3"><button class="btn sm" data-fold="${esc(id)}">${esc(isFolded ? t('ontology.inspector.open', { count: below }) : t('ontology.inspector.fold', { count: below }))}</button></p>` : ''}
+      <h3 class="mb-1_5">${t('ontology.inspector.properties')}</h3>
       <div class="kv">
-        ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="Remove ${esc(k)}">✕</button>`).join('') || '<span class="muted small span3">No properties</span>'}
+        ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="${esc(t('ontology.inspector.removeProp', { key: k }))}">✕</button>`).join('') || `<span class="muted small span3">${t('ontology.inspector.noProps')}</span>`}
       </div>
-      ${required.length ? `<p class="small text-warn mt-1_5">Missing required: ${required.map(esc).join(', ')}</p>` : ''}
+      ${required.length ? `<p class="small text-warn mt-1_5">${esc(t('ontology.inspector.missing', { props: required.join(', ') }))}</p>` : ''}
       <form class="row mt-2 mb-4 m-0" id="prop-form">
-        <input type="text" name="key" placeholder="key" class="w-6em" value="${esc(required[0] ?? '')}" required aria-label="Property key" />
-        <input type="text" name="value" placeholder="value" class="grow w-6em" required aria-label="Property value" />
-        <button class="btn sm" type="submit">Set</button>
+        <input type="text" name="key" placeholder="${t('ontology.prop.key')}" class="w-6em" value="${esc(required[0] ?? '')}" required aria-label="${t('ontology.prop.keyLabel')}" />
+        <input type="text" name="value" placeholder="${t('ontology.prop.value')}" class="grow w-6em" required aria-label="${t('ontology.prop.valueLabel')}" />
+        <button class="btn sm" type="submit">${t('ontology.prop.set')}</button>
       </form>
-      <h3 class="mb-1_5">Relationships</h3>
+      <h3 class="mb-1_5">${t('ontology.inspector.relationships')}</h3>
       <div class="rel-list">
-        ${rels.map((r) => `<div class="rel">${r.outgoing ? '' : '<span class="r">←</span>'}<span class="r">${esc(r.edge.rel)}</span><a href="#/ontology" data-goto="${esc(r.node.id)}">${esc(r.node.label)}</a><span class="spacer"></span><button class="btn sm" data-unlink="${esc(r.edge.id)}" aria-label="Remove relationship">✕</button></div>`).join('') || '<span class="muted small">No relationships — this node is an orphan</span>'}
+        ${rels.map((r) => `<div class="rel">${r.outgoing ? '' : '<span class="r">←</span>'}<span class="r">${esc(r.edge.rel)}</span><a href="#/ontology" data-goto="${esc(r.node.id)}">${esc(r.node.label)}</a><span class="spacer"></span><button class="btn sm" data-unlink="${esc(r.edge.id)}" aria-label="${t('ontology.inspector.unlink')}">✕</button></div>`).join('') || `<span class="muted small">${t('ontology.inspector.orphan')}</span>`}
       </div>
       <form class="row mt-2 mb-4 m-0" id="link-form">
-        <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option>${r}</option>`).join('')}</select>
-        <select name="to" class="grow w-6em" aria-label="Target node" required data-morph="if-changed" data-node-options="${versionOf(graph)}" data-except="${esc(id)}"><option value="">Choose a node</option></select>
-        <button class="btn sm" type="submit">Link</button>
+        <select name="rel" aria-label="${t('ontology.relationship')}">${RELS.map((r) => `<option>${r}</option>`).join('')}</select>
+        <select name="to" class="grow w-6em" aria-label="${t('ontology.inspector.target')}" required data-morph="if-changed" data-node-options="${versionOf(graph)}" data-except="${esc(id)}"><option value="">${t('ontology.inspector.choose')}</option></select>
+        <button class="btn sm" type="submit">${t('ontology.inspector.link')}</button>
       </form>
-      <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ''}>Delete node</button>`;
+      <button class="btn danger sm" data-delete ${rels.length ? `disabled title="${esc(t('ontology.inspector.removeFirst', { count: rels.length }))}"` : ''}>${t('ontology.inspector.delete')}</button>`;
 }
 
 // A drag from one node onto another (U5.05): the relationship it most likely means, to confirm.
@@ -415,12 +418,12 @@ function linkPanel(graph: Graph, link: { from: string; to: string }): string {
   if (!a || !b) return '';
   const rel = likelyRel(a.type, b.type);
   return `
-      <div class="card-head"><h2>New relationship</h2><button class="btn sm" type="button" data-link-cancel aria-label="Cancel">✕</button></div>
+      <div class="card-head"><h2>${t('ontology.link.title')}</h2><button class="btn sm" type="button" data-link-cancel aria-label="${t('ontology.cancel')}">✕</button></div>
       <p class="small mb-3"><b>${esc(a.label)}</b> <span class="soft">${esc(a.type)}</span> → <b>${esc(b.label)}</b> <span class="soft">${esc(b.type)}</span></p>
       <form class="row wrap gap-2 m-0" id="drag-link-form">
-        <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option ${r === rel ? 'selected' : ''}>${r}</option>`).join('')}</select>
-        <button class="btn primary sm" type="submit">Add relationship</button>
-        <button class="btn sm" type="button" data-link-swap>Swap direction</button>
+        <select name="rel" aria-label="${t('ontology.relationship')}">${RELS.map((r) => `<option ${r === rel ? 'selected' : ''}>${r}</option>`).join('')}</select>
+        <button class="btn primary sm" type="submit">${t('ontology.link.add')}</button>
+        <button class="btn sm" type="button" data-link-swap>${t('ontology.link.swap')}</button>
       </form>`;
 }
 
@@ -446,20 +449,23 @@ function manyPanel(graph: Graph, ids: string[], editor: boolean): string {
         : '';
     })
     .join('');
-  const more = ids.length > MANY_LISTED ? `<li class="small soft">and ${ids.length - MANY_LISTED} more</li>` : '';
+  const more =
+    ids.length > MANY_LISTED
+      ? `<li class="small soft">${esc(t('ontology.many.more', { count: ids.length - MANY_LISTED }))}</li>`
+      : '';
   return `
-      <div class="card-head"><h2>${ids.length} nodes selected</h2><button class="btn sm" data-deselect aria-label="Clear the selection">✕</button></div>
+      <div class="card-head"><h2>${esc(t('ontology.many.title', { count: ids.length }))}</h2><button class="btn sm" data-deselect aria-label="${t('ontology.many.clear')}">✕</button></div>
       <ul class="pick-list">${listed}${more}</ul>
-      <p class="small soft mt-2 mb-3">Shift-click a node to add it or take it out, or Shift-drag a box around more.</p>
+      <p class="small soft mt-2 mb-3">${t('ontology.many.hint')}</p>
       ${
         editor
-          ? `<h3 class="mb-1_5">Set a property on all of them</h3>
+          ? `<h3 class="mb-1_5">${t('ontology.many.setTitle')}</h3>
       <form class="row mt-2 mb-4 m-0" id="many-prop-form">
-        <input type="text" name="key" placeholder="key" class="w-6em" required aria-label="Property key" />
-        <input type="text" name="value" placeholder="value" class="grow w-6em" required aria-label="Property value" />
-        <button class="btn sm" type="submit">Set</button>
+        <input type="text" name="key" placeholder="${t('ontology.prop.key')}" class="w-6em" required aria-label="${t('ontology.prop.keyLabel')}" />
+        <input type="text" name="value" placeholder="${t('ontology.prop.value')}" class="grow w-6em" required aria-label="${t('ontology.prop.valueLabel')}" />
+        <button class="btn sm" type="submit">${t('ontology.prop.set')}</button>
       </form>
-      <button class="btn danger sm" data-delete-many>Delete ${ids.length} nodes${edges ? ` and their ${edges} relationship${edges === 1 ? '' : 's'}` : ''}</button>`
+      <button class="btn danger sm" data-delete-many>${esc(t('ontology.many.delete', { count: ids.length, edges }))}</button>`
           : ''
       }`;
 }
@@ -479,16 +485,16 @@ let pending: PendingImport | null = null;
 const PREVIEW_LINES = 40;
 
 export function importSummary(c: OntologyImport['counts']): string {
-  const part = (n: number, one: string, many: string) => (n ? `${n} ${n === 1 ? one : many}` : '');
+  const part = (count: number, key: MessageKey) => (count ? t(key, { count }) : '');
   const parts = [
-    part(c.add_nodes, 'new node', 'new nodes'),
-    part(c.remove_nodes, 'node removed', 'nodes removed'),
-    part(c.set_props, 'property set', 'properties set'),
-    part(c.remove_props, 'property removed', 'properties removed'),
-    part(c.add_edges, 'new relationship', 'new relationships'),
-    part(c.remove_edges, 'relationship removed', 'relationships removed'),
+    part(c.add_nodes, 'ontology.import.addNodes'),
+    part(c.remove_nodes, 'ontology.import.removeNodes'),
+    part(c.set_props, 'ontology.import.setProps'),
+    part(c.remove_props, 'ontology.import.removeProps'),
+    part(c.add_edges, 'ontology.import.addEdges'),
+    part(c.remove_edges, 'ontology.import.removeEdges'),
   ].filter(Boolean);
-  return parts.length ? parts.join(', ') : 'nothing to change: the ontology already matches the file';
+  return parts.length ? parts.join(', ') : t('ontology.import.nothing');
 }
 
 function importCard(ctx: Context): string {
@@ -503,24 +509,27 @@ function importCard(ctx: Context): string {
         )
         .join('')
     : '';
-  const more = preview && preview.total > PREVIEW_LINES ? `<div>… ${preview.total - PREVIEW_LINES} more</div>` : '';
+  const more =
+    preview && preview.total > PREVIEW_LINES
+      ? `<div>${esc(t('ontology.more', { count: preview.total - PREVIEW_LINES }))}</div>`
+      : '';
   return `
     <div class="card mb-4" id="import-card">
-      <div class="card-head"><h2>Import ${esc(p.name)}</h2>
-        <label class="row small gap-1_5">Mode<select name="import-mode" data-import-mode aria-label="Import mode">
-          <option value="merge" ${p.mode === 'merge' ? 'selected' : ''}>Merge: add and update</option>
-          <option value="replace" ${p.mode === 'replace' ? 'selected' : ''}>Replace: the ontology becomes the file</option>
+      <div class="card-head"><h2>${esc(t('ontology.import.title', { name: p.name }))}</h2>
+        <label class="row small gap-1_5">${t('ontology.import.mode')}<select name="import-mode" data-import-mode aria-label="${t('ontology.import.modeLabel')}">
+          <option value="merge" ${p.mode === 'merge' ? 'selected' : ''}>${t('ontology.import.merge')}</option>
+          <option value="replace" ${p.mode === 'replace' ? 'selected' : ''}>${t('ontology.import.replace')}</option>
         </select></label></div>
       ${
         preview
-          ? `<p class="small" data-import-summary>${esc(importSummary(preview.counts))}.${preview.duplicates.length ? ` ${preview.duplicates.length} relationship(s) already there under another id are skipped.` : ''}</p>
+          ? `<p class="small" data-import-summary>${esc(importSummary(preview.counts))}.${preview.duplicates.length ? ` ${esc(t('ontology.import.duplicates', { count: preview.duplicates.length }))}` : ''}</p>
       <div class="diff review-diff">${lines}${more}</div>
-      <p class="small soft mt-2">The changes are staged, not committed: you then commit them, or send them for review.</p>
+      <p class="small soft mt-2">${t('ontology.import.staged')}</p>
       <div class="row gap-2 mt-2">
-        <button class="btn primary" data-import-stage ${preview.total ? '' : 'disabled'}>Stage ${preview.total} change(s)</button>
-        <button class="btn" data-import-cancel>Cancel</button>
+        <button class="btn primary" data-import-stage ${preview.total ? '' : 'disabled'}>${esc(t('ontology.import.stage', { changes: changes(preview.total) }))}</button>
+        <button class="btn" data-import-cancel>${t('ontology.cancel')}</button>
       </div>`
-          : '<p class="small soft">Checking the file against the ontology…</p>'
+          : `<p class="small soft">${t('ontology.import.checking')}</p>`
       }
     </div>`;
 }
@@ -887,7 +896,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     });
     const shownCount = svg.querySelectorAll('.match').length;
     count.textContent = ui.search.trim()
-      ? `${found.size} found${shownCount < found.size ? ` (${found.size - shownCount} folded or hidden)` : ''}`
+      ? t('ontology.search.foundHidden', { count: found.size, hidden: Math.max(0, found.size - shownCount) })
       : '';
     next.disabled = !found.size;
   };
@@ -927,28 +936,28 @@ const EDIT_CONTROLS =
 
 function viewOnlyNote(): string {
   return `
-      <div class="card-head"><h2>View only</h2></div>
-      <p class="small soft">Your role on this site is viewer. Select a node on the canvas to inspect it. To make changes, ask a site admin for the engineer role.</p>`;
+      <div class="card-head"><h2>${t('ontology.viewOnly')}</h2></div>
+      <p class="small soft">${t('ontology.viewOnlyHint')}</p>`;
 }
 
 function newNodeForm(graph: Graph): string {
   return `
-      <div class="card-head"><h2>New node</h2></div>
-      <p class="small soft mb-3">Select a node on the canvas to inspect it, or stage a new one here.</p>
+      <div class="card-head"><h2>${t('ontology.new.title')}</h2></div>
+      <p class="small soft mb-3">${t('ontology.new.hint')}</p>
       <form class="stack gap-2_5 max-w-form" id="node-form" data-tour="onto-add">
-        <label class="field">Type<select name="type">${Object.keys(NODE_TYPES)
-          .map((t) => `<option>${t}</option>`)
+        <label class="field">${t('ontology.new.type')}<select name="type">${Object.keys(NODE_TYPES)
+          .map((type) => `<option>${type}</option>`)
           .join('')}</select></label>
-        <label class="field">Label<input type="text" name="label" placeholder="e.g. Alarm stream DC-02" required /></label>
-        <label class="field">Link from (optional)<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">— none —</option></select></label>
-        <label class="field">Relationship<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
-        <button class="btn primary" type="submit">+ Stage node</button>
+        <label class="field">${t('ontology.new.label')}<input type="text" name="label" placeholder="${t('ontology.new.placeholder')}" required /></label>
+        <label class="field">${t('ontology.new.from')}<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">${t('ontology.new.none')}</option></select></label>
+        <label class="field">${t('ontology.relationship')}<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
+        <button class="btn primary" type="submit">${t('ontology.new.stage')}</button>
       </form>`;
 }
 
 function history(ctx: Context, graph: Graph): string {
   const { history } = ctx.state.repo;
-  const revert = ctx.ontology.reviewRequired ? 'Request revert' : 'Revert';
+  const revert = ctx.ontology.reviewRequired ? t('ontology.history.requestRevert') : t('ontology.history.revert');
   return `<div class="card">${history
     .map(
       (c, i) => `
@@ -956,16 +965,18 @@ function history(ctx: Context, graph: Graph): string {
           <span class="avatar ${i === 0 ? 'bg-accent' : 'bg-line-strong'}">${esc((c.author[0] ?? '?').toUpperCase())}</span>
           <div class="grow min-w-0">
             <div><b>${esc(c.message)}</b></div>
-            <div class="small muted">${esc(c.author)}${c.reviewer ? ` · approved by ${esc(c.reviewer)}` : ''} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
+            <div class="small muted">${esc(c.author)}${c.reviewer ? ` · ${esc(t('ontology.history.approvedBy', { reviewer: c.reviewer }))}` : ''} · ${timeAgo(c.date)} · <span class="mono">${esc(c.id.slice(-7))}</span></div>
             <div class="stats">${statBadges(c.stats)}</div>
-            <details class="mt-1_5"><summary class="small soft cursor-pointer">${c.ops.length} operation(s)</summary>
+            <details class="mt-1_5"><summary class="small soft cursor-pointer">${esc(t('ontology.history.ops', { count: c.ops.length }))}</summary>
               <div class="diff mt-1_5">${c.ops
                 .slice(0, 60)
                 .map((op) => `<div>${esc(describeOp(op, graph))}</div>`)
-                .join('')}${c.ops.length > 60 ? `<div>… ${c.ops.length - 60} more</div>` : ''}</div>
+                .join(
+                  '',
+                )}${c.ops.length > 60 ? `<div>${esc(t('ontology.more', { count: c.ops.length - 60 }))}</div>` : ''}</div>
             </details>
           </div>
-          <button class="btn sm" data-revert="${esc(c.id)}">${revert}</button>
+          <button class="btn sm" data-revert="${esc(c.id)}">${esc(revert)}</button>
         </div>`,
     )
     .join('')}</div>`;
@@ -973,20 +984,23 @@ function history(ctx: Context, graph: Graph): string {
 
 function healthTab(health: HealthReport, graph: Graph): string {
   const fix = (i: HealthIssue) => {
-    if (i.kind === 'orphan') return `<button class="btn sm" data-fix-delete="${esc(i.ref)}">Stage delete</button>`;
-    if (i.kind === 'duplicate') return `<button class="btn sm" data-unlink="${esc(i.ref)}">Remove duplicate</button>`;
-    if (graph.nodes[i.ref]) return `<button class="btn sm" data-goto="${esc(i.ref)}">Inspect</button>`;
+    if (i.kind === 'orphan')
+      return `<button class="btn sm" data-fix-delete="${esc(i.ref)}">${t('ontology.health.stageDelete')}</button>`;
+    if (i.kind === 'duplicate')
+      return `<button class="btn sm" data-unlink="${esc(i.ref)}">${t('ontology.health.removeDuplicate')}</button>`;
+    if (graph.nodes[i.ref])
+      return `<button class="btn sm" data-goto="${esc(i.ref)}">${t('ontology.health.inspect')}</button>`;
     return '';
   };
   return `
       <div class="grid g3 mb-4">
-        <div class="card kpi ${health.score === 100 ? 'good' : ''}"><div class="label">Health score</div><div class="value">${health.score}</div></div>
-        <div class="card kpi"><div class="label">Nodes</div><div class="value">${health.counts.nodes}</div></div>
-        <div class="card kpi"><div class="label">Relationships</div><div class="value">${health.counts.edges}</div></div>
+        <div class="card kpi ${health.score === 100 ? 'good' : ''}"><div class="label">${t('ontology.health.score')}</div><div class="value">${health.score}</div></div>
+        <div class="card kpi"><div class="label">${t('ontology.health.nodes')}</div><div class="value">${health.counts.nodes}</div></div>
+        <div class="card kpi"><div class="label">${t('ontology.inspector.relationships')}</div><div class="value">${health.counts.edges}</div></div>
       </div>
       <div class="card">
-        <div class="card-head"><h2>Checks</h2><p>Orphan nodes, dangling and duplicate relationships, and required properties per type.</p></div>
-        ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === 'info' ? '' : 'bad'}">${esc(i.kind)}</span><span class="grow">${esc(i.text)}</span>${fix(i)}</div>`).join('') || '<div class="empty">All checks pass ✓</div>'}
+        <div class="card-head"><h2>${t('ontology.health.checks')}</h2><p>${t('ontology.health.checksHint')}</p></div>
+        ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === 'info' ? '' : 'bad'}">${esc(i.kind)}</span><span class="grow">${esc(i.text)}</span>${fix(i)}</div>`).join('') || `<div class="empty">${t('ontology.health.pass')}</div>`}
       </div>`;
 }
 
@@ -1006,23 +1020,23 @@ function touchedIds(op: Op): string[] {
 // another engineer first; when the site requires that, there is no Commit.
 function reviewControls(ctx: Context): string {
   const o = ctx.ontology;
-  const commit = '<button class="btn primary" type="submit" value="commit">Commit</button>';
+  const commit = `<button class="btn primary" type="submit" value="commit">${t('ontology.commit')}</button>`;
   if (o.status !== 'ready') return commit;
   const reviewers = o.members
     .filter((m) => m.user_id !== o.userId && m.role !== 'viewer')
     .sort((a, b) => a.name.localeCompare(b.name));
   return `${o.reviewRequired ? '' : commit}
-          <select name="reviewer" aria-label="Reviewer"><option value="">Any engineer</option>${reviewers
+          <select name="reviewer" aria-label="${t('ontology.reviewer')}"><option value="">${t('ontology.anyEngineer')}</option>${reviewers
             .map((m) => `<option value="${esc(m.user_id)}">${esc(m.name)}</option>`)
             .join('')}</select>
-          <button class="btn ${o.reviewRequired ? 'primary' : ''}" type="submit" value="review" data-request-review>Request review</button>`;
+          <button class="btn ${o.reviewRequired ? 'primary' : ''}" type="submit" value="review" data-request-review>${t('ontology.requestReview')}</button>`;
 }
 
 const ontologyHead = (): string =>
   pageHead({
-    eyebrow: 'Operations · Ontology',
-    title: 'A map of the factory',
-    lead: 'Site → Workcenter → Line → Machine, linked to processes, materials, PLCs, signals, documents and models. Edits are staged, committed with a message, and reversible.',
+    eyebrow: t('ontology.eyebrow'),
+    title: t('ontology.headTitle'),
+    lead: t('ontology.lead'),
   });
 
 // Where this ontology lives, shown only in API mode.
@@ -1030,14 +1044,14 @@ function sourceBar(ctx: Context): string {
   const o = ctx.ontology;
   if (o.status === 'local') return '';
   if (o.status === 'loading')
-    return '<div class="card source-bar" aria-live="polite">Loading the ontology from the Tiles API…</div>';
+    return `<div class="card source-bar" aria-live="polite">${t('ontology.source.loading')}</div>`;
   if (o.status === 'error')
-    return `<div class="card source-bar" role="alert"><b>Can't load the ontology from the Tiles API.</b> <span class="soft">${esc(o.error)}</span> <span class="row gap-2 mt-2">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? '<button class="btn sm primary" data-sign-in>Sign in</button>' : ''}<button class="btn sm" type="button" data-reconnect>Try again</button><a class="btn sm" href="#/settings">Data source settings</a></span></div>`;
+    return `<div class="card source-bar" role="alert"><b>${esc(t('ontology.source.error'))}</b> <span class="soft">${esc(o.error)}</span> <span class="row gap-2 mt-2">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? `<button class="btn sm primary" data-sign-in>${t('ontology.source.signIn')}</button>` : ''}<button class="btn sm" type="button" data-reconnect>${t('ontology.source.retry')}</button><a class="btn sm" href="#/settings">${t('ontology.source.settings')}</a></span></div>`;
   const { head, history, staged } = ctx.state.repo;
   const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
   return `<div class="card source-bar small" aria-live="polite">
-      <span>Shared through the Tiles API · <b>${esc(o.site?.name)}</b> · everyone on this site sees each commit.${o.reviewRequired ? ' Every change needs a review.' : ''}${o.role === 'viewer' ? ' <span class="badge">View only</span>' : ''}</span>
-      <span class="row gap-2">${empty ? '<button class="btn sm primary" data-import-demo>Load demo ontology</button>' : ''}<a class="btn sm" href="#/reviews">Change reviews</a><button class="btn sm" data-export="json">Export JSON</button><button class="btn sm" data-export="csv">Export CSV</button>${o.role === 'viewer' ? '' : `<label class="btn sm" ${staged.length ? 'aria-disabled="true" title="Commit or discard your staged changes first"' : ''}>Import file<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? 'disabled' : ''} /></label>`}<button class="btn sm" data-refresh>Refresh</button></span>
+      <span>${tHtml('ontology.source.shared', { site: `<b>${esc(o.site?.name)}</b>` })}${o.reviewRequired ? ` ${t('ontology.source.reviewRequired')}` : ''}${o.role === 'viewer' ? ` <span class="badge">${t('ontology.viewOnly')}</span>` : ''}</span>
+      <span class="row gap-2">${empty ? `<button class="btn sm primary" data-import-demo>${t('ontology.source.demo')}</button>` : ''}<a class="btn sm" href="#/reviews">${t('ontology.source.reviews')}</a><button class="btn sm" data-export="json">${t('ontology.source.exportJson')}</button><button class="btn sm" data-export="csv">${t('ontology.source.exportCsv')}</button>${o.role === 'viewer' ? '' : `<label class="btn sm" ${staged.length ? `aria-disabled="true" title="${t('ontology.source.importFirst')}"` : ''}>${t('ontology.source.import')}<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? 'disabled' : ''} /></label>`}<button class="btn sm" data-refresh>${t('ontology.source.refresh')}</button></span>
     </div>`;
 }
 
@@ -1055,7 +1069,9 @@ onNavigate((hash) => {
 
 const view: View = {
   id: 'ontology',
-  title: 'Ontology builder',
+  get title() {
+    return t('ontology.title');
+  },
   icon: 'network',
   query: {
     read(params) {
@@ -1089,33 +1105,33 @@ const view: View = {
     const { conflict } = safeWorkingGraph(repo);
     const stagedBar = conflict
       ? `<div class="staged-bar" role="alert">
-          <span class="badge bad">${repo.staged.length} uncommitted</span>
-          <span class="grow">Your staged changes no longer fit the latest commits (${esc(conflict)}). Discard them, then redo what you still need.</span>
-          <button class="btn" type="button" data-discard>Discard</button>
+          <span class="badge bad">${esc(t('ontology.staged.uncommitted', { count: repo.staged.length }))}</span>
+          <span class="grow">${esc(t('ontology.staged.conflict', { conflict }))}</span>
+          <button class="btn" type="button" data-discard>${t('ontology.staged.discard')}</button>
         </div>`
       : repo.staged.length && ctx.ontology.role === 'viewer'
         ? // Staged before an admin made them a viewer: they can still throw it away.
           `<div class="staged-bar" id="viewer-staged">
-          <span class="badge warn">${repo.staged.length} uncommitted</span>
-          <span class="grow">You staged these changes before your role became viewer, so they can't be committed. Discard them to see the latest commit.</span>
-          <button class="btn" type="button" data-discard>Discard</button>
+          <span class="badge warn">${esc(t('ontology.staged.uncommitted', { count: repo.staged.length }))}</span>
+          <span class="grow">${esc(t('ontology.staged.viewer'))}</span>
+          <button class="btn" type="button" data-discard>${t('ontology.staged.discard')}</button>
         </div>`
         : repo.staged.length
           ? `<form class="staged-bar" id="commit-form" data-tour="onto-commit">
-          <span class="badge warn">${repo.staged.length} uncommitted</span>
+          <span class="badge warn">${esc(t('ontology.staged.uncommitted', { count: repo.staged.length }))}</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
-          <input type="text" name="message" placeholder="Describe this change, e.g. “add alarms node to ontology”" aria-label="Commit message" required />
+          <input type="text" name="message" placeholder="${t('ontology.staged.placeholder')}" aria-label="${t('ontology.staged.message')}" required />
           ${reviewControls(ctx)}
-          <button class="btn" type="button" data-discard>Discard</button>
+          <button class="btn" type="button" data-discard>${t('ontology.staged.discard')}</button>
         </form>`
           : '';
 
     const tabs = [
-      ['canvas', 'Canvas'],
-      ['history', `History <span class="badge">${repo.history.length}</span>`],
+      ['canvas', t('ontology.tab.canvas')],
+      ['history', `${t('ontology.tab.history')} <span class="badge">${repo.history.length}</span>`],
       [
         'health',
-        `Health <span class="badge ${health.issues.some((i) => i.level !== 'info') ? 'bad' : 'good'}">${health.score}</span>`,
+        `${t('ontology.tab.health')} <span class="badge ${health.issues.some((i) => i.level !== 'info') ? 'bad' : 'good'}">${health.score}</span>`,
       ],
     ];
 
@@ -1163,7 +1179,7 @@ const view: View = {
           if (top === ops) undoSteps.pop();
           redoSteps.push(ops);
           redoAt = next.staged.length;
-          undoNote = `Undid ${changes(ops.length)}`;
+          undoNote = t('ontology.undo.note', { changes: changes(ops.length) });
           return next;
         });
         if (done) ux('task', 'ontology.undo');
@@ -1183,7 +1199,7 @@ const view: View = {
           redoSteps.pop();
           undoSteps.push(ops);
           redoAt = next.staged.length;
-          undoNote = `Redid ${changes(ops.length)}`;
+          undoNote = t('ontology.redo.note', { changes: changes(ops.length) });
           return next;
         });
         if (done) ux('task', 'ontology.redo');
@@ -1223,12 +1239,18 @@ const view: View = {
       ];
       if (ops.length > MOST_OPS) {
         ctx.toast(
-          `That is ${ops.length.toLocaleString('en-GB')} changes, more than ${MOST_OPS.toLocaleString('en-GB')} at once: select fewer nodes`,
+          t('ontology.toast.tooMany', {
+            count: ops.length.toLocaleString('en-GB'),
+            most: MOST_OPS.toLocaleString('en-GB'),
+          }),
         );
         return;
       }
       selectOnly(ui, null);
-      void stageOps(ops, ids.length === 1 ? 'Node deletion staged' : `Deletion of ${ids.length} nodes staged`);
+      void stageOps(
+        ops,
+        ids.length === 1 ? t('ontology.toast.deleted') : t('ontology.toast.deletedMany', { count: ids.length }),
+      );
     };
     onAll(root, '[data-delete-many]', 'click', deleteSelected);
     onAll(root, '[data-refresh]', 'click', () => void ctx.ontology.reload());
@@ -1279,14 +1301,17 @@ const view: View = {
       el.setAttribute('disabled', '');
       const api = ctx.api;
       void ctx.ontology
-        .act(async (store) => {
-          // Only what the preview showed: refused if someone committed since.
-          const result = await api.ontology.importFile(p.site, { ...p, dryRun: false, expectCommit: shown.commit });
-          if (pending === p) pending = null;
-          if (!(store.kind === 'api' && 'load' in store)) throw new Error('Imports need the Tiles API');
-          if (!result.staged) throw new Error('Nothing to change: the ontology already matches the file');
-          return (store as RemoteStore).load();
-        }, `Staged the changes from ${p.name}: commit them, or send them for review`)
+        .act(
+          async (store) => {
+            // Only what the preview showed: refused if someone committed since.
+            const result = await api.ontology.importFile(p.site, { ...p, dryRun: false, expectCommit: shown.commit });
+            if (pending === p) pending = null;
+            if (!(store.kind === 'api' && 'load' in store)) throw new Error(t('ontology.toast.importsNeedApi'));
+            if (!result.staged) throw new Error(t('ontology.toast.nothing'));
+            return (store as RemoteStore).load();
+          },
+          t('ontology.toast.imported', { name: p.name }),
+        )
         .then((ok) => {
           if (!ok && pending === p) void planImport(ctx); // show what it would change now
         });
@@ -1296,13 +1321,10 @@ const view: View = {
       el.setAttribute('disabled', '');
       const ops = historyOps(seedOntology());
       if (!(await stageOps(ops))) return;
-      const message = 'Import demo ontology';
+      const message = t('ontology.demo.message');
       if (ctx.ontology.reviewRequired)
-        await ctx.ontology.act(
-          (store, repo) => store.requestReview(repo, { message }),
-          'Demo ontology sent for review',
-        );
-      else await ctx.ontology.act((store, repo) => store.commit(repo, message, author), 'Demo ontology imported');
+        await ctx.ontology.act((store, repo) => store.requestReview(repo, { message }), t('ontology.demo.review'));
+      else await ctx.ontology.act((store, repo) => store.commit(repo, message, author), t('ontology.demo.imported'));
     });
     const selected = (): string | null => ui.selected;
 
@@ -1425,7 +1447,7 @@ const view: View = {
       const rel = field(form, 'rel');
       const { from, to } = link;
       const id = edgeId(ctx.graph, from, rel, to);
-      return stageOps([{ kind: 'addEdge', edge: { id, from, rel, to } }], 'Relationship staged', () => {
+      return stageOps([{ kind: 'addEdge', edge: { id, from, rel, to } }], t('ontology.toast.related'), () => {
         if (ui.linking === link) ui.linking = null;
       }).then((ok) => ok && ux('task', 'ontology.related'));
     });
@@ -1435,12 +1457,12 @@ const view: View = {
       const value = parseValue(field(form, 'value').trim());
       if (!ids.length) return;
       if (ids.length > MOST_OPS) {
-        ctx.toast(`Set a property on at most ${MOST_OPS.toLocaleString('en-GB')} nodes at once: select fewer`);
+        ctx.toast(t('ontology.toast.tooManyProps', { most: MOST_OPS.toLocaleString('en-GB') }));
         return;
       }
       return stageOps(
         ids.map((id): Op => ({ kind: 'setProp', id, key, value })),
-        `Property ${key} set on ${ids.length} nodes`,
+        t('ontology.toast.propSet', { key, count: ids.length }),
       );
     });
     onAll(root, '[data-type]', 'click', (el) => {
@@ -1454,26 +1476,29 @@ const view: View = {
       if (id && el.dataset.unset) stageOp({ kind: 'setProp', id, key: el.dataset.unset });
     });
     onAll(root, '[data-unlink]', 'click', (el) => {
-      if (el.dataset.unlink) stageOp({ kind: 'removeEdge', id: el.dataset.unlink }, 'Relationship removal staged');
+      if (el.dataset.unlink) stageOp({ kind: 'removeEdge', id: el.dataset.unlink }, t('ontology.toast.unlinked'));
     });
     onAll(root, '[data-delete]', 'click', () => {
       const id = selected();
       if (!id) return;
       selectOnly(ui, null);
-      stageOp({ kind: 'removeNode', id }, 'Node deletion staged');
+      stageOp({ kind: 'removeNode', id }, t('ontology.toast.deleted'));
     });
     onAll(root, '[data-fix-delete]', 'click', (el) => {
-      if (el.dataset.fixDelete) stageOp({ kind: 'removeNode', id: el.dataset.fixDelete }, 'Node deletion staged');
+      if (el.dataset.fixDelete) stageOp({ kind: 'removeNode', id: el.dataset.fixDelete }, t('ontology.toast.deleted'));
     });
     onAll(root, '[data-discard]', 'click', () =>
-      ctx.ontology.act((store, repo) => store.discard(repo), 'Changes discarded'),
+      ctx.ontology.act((store, repo) => store.discard(repo), t('ontology.toast.discarded')),
     );
     onAll(root, '[data-revert]', 'click', (el) => {
       const id = el.dataset.revert;
       if (!id) return;
       if (ctx.ontology.reviewRequired)
-        void ctx.ontology.act((store, repo) => store.requestReview(repo, { reverts: id }), 'Revert sent for review');
-      else void ctx.ontology.act((store, repo) => store.revert(repo, id, author), 'Commit reverted');
+        void ctx.ontology.act(
+          (store, repo) => store.requestReview(repo, { reverts: id }),
+          t('ontology.toast.revertSent'),
+        );
+      else void ctx.ontology.act((store, repo) => store.revert(repo, id, author), t('ontology.toast.reverted'));
     });
 
     onSubmit(root, '#commit-form', (form, submitter) => {
@@ -1482,12 +1507,12 @@ const view: View = {
       const review = submitter ? submitter.hasAttribute('data-request-review') : !form.querySelector('[value=commit]');
       if (!review) {
         return ctx.ontology
-          .act((store, repo) => store.commit(repo, message, author), 'Committed')
+          .act((store, repo) => store.commit(repo, message, author), t('ontology.toast.committed'))
           .then((ok) => ok && ux('task', 'ontology.committed'));
       }
       const reviewerId = field(form, 'reviewer') || undefined;
       return ctx.ontology
-        .act((store, repo) => store.requestReview(repo, { message, reviewerId }), 'Sent for review')
+        .act((store, repo) => store.requestReview(repo, { message, reviewerId }), t('ontology.toast.sent'))
         .then((ok) => ok && ux('task', 'ontology.review-requested'));
     });
     onSubmit(root, '#prop-form', (form) => {
@@ -1520,7 +1545,7 @@ const view: View = {
       const rel = field(form, 'rel');
       const ops: Op[] = [{ kind: 'addNode', node: { id, type, label, props: {} } }];
       if (from) ops.push({ kind: 'addEdge', edge: { id: `${from}-${rel}-${id}`, from, rel, to: id } });
-      void stageOps(ops, 'Node staged — commit to save it').then((ok) => {
+      void stageOps(ops, t('ontology.toast.staged')).then((ok) => {
         if (ok) {
           selectOnly(ui, id);
           ctx.rerender();

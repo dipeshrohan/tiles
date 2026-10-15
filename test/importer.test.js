@@ -248,7 +248,7 @@ test('the import page loads a file, describes what it would import, and lists pa
   assert.deepEqual(l.mapping.columns, { 1: 'temp' });
   assert.equal(
     describeStats(summarize(l.rows, l.mapping, NOW)),
-    '1 readings for 1 signal(s) in 1 rows from 2026-10-01 08:00:00 to 2026-10-01 08:00:00 UTC.',
+    '1 reading for 1 signal in 1 row from 2026-10-01 08:00:00 to 2026-10-01 08:00:00 UTC.',
   );
   assert.match(historyTable([]), /No imports yet/);
   const html = historyTable([

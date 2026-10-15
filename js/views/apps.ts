@@ -16,6 +16,7 @@ import {
 } from '../lib/apps.ts';
 import { fitWidth, TIME_CHART, timeChart } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
+import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 import { showErrors } from '../lib/forms.ts';
 import { removeNow } from '../lib/undo.ts';
 import { emptyState, errorState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
@@ -126,10 +127,10 @@ async function run(ctx: Context, app: StudioApp): Promise<void> {
   ctx.rerender();
 }
 
-const retry = (what: string, attr: string): string =>
+const retry = (title: MessageKey, attr: string): string =>
   errorState({
-    title: `${what} could not be loaded`,
-    body: 'The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.',
+    title: t(title),
+    body: t('apps.failed.body'),
     retry: attr.replace(/^data-/, ''),
     compact: true,
   });
@@ -139,7 +140,7 @@ function listCard(ctx: Context): string {
   const n = selected();
   const rows =
     listing?.key === listKey(ctx) && listing.failed
-      ? retry('The apps', 'data-retry-apps')
+      ? retry('apps.failed.apps', 'data-retry-apps')
       : items === null
         ? skeleton.list()
         : items
@@ -148,25 +149,25 @@ function listCard(ctx: Context): string {
                 a,
               ) => `<a class="review-row ${n === a.number ? 'sel' : ''}" href="${appLink(a.number)}" data-app="${a.number}">
               <b>#${a.number} ${esc(a.name)}</b>
-              <span class="small muted">${esc(a.template_title)} · ${esc(a.signal_tag ?? 'signal gone')}</span>
+              <span class="small muted">${esc(a.template_title)} · ${esc(a.signal_tag ?? t('apps.signalGone'))}</span>
             </a>`,
             )
             .join('') ||
           emptyState({
             illustration: 'inbox',
             compact: true,
-            title: 'No apps yet',
-            body: canEdit(ctx) ? 'Make one from a template.' : 'Engineers make them from templates.',
+            title: t('apps.empty.title'),
+            body: t(canEdit(ctx) ? 'apps.empty.engineer' : 'apps.empty.viewer'),
           });
-  const make = canEdit(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>New app</a>` : '';
-  return `<div class="card stack gap-2"><div class="row justify-between gap-2"><h2>Apps</h2>${make}</div><div class="review-list" data-app-list>${rows}</div></div>`;
+  const make = canEdit(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>${t('apps.newApp')}</a>` : '';
+  return `<div class="card stack gap-2"><div class="row justify-between gap-2"><h2>${t('apps.apps')}</h2>${make}</div><div class="review-list" data-app-list>${rows}</div></div>`;
 }
 
 function templateCards(list: AppTemplate[]): string {
   return `<div class="stack gap-2" data-templates>${list
     .map(
-      (t) => `<button class="card app-template" type="button" data-template="${esc(t.id)}">
-        <b>${esc(t.title)}</b><span class="small soft">${esc(t.summary)}</span></button>`,
+      (tpl) => `<button class="card app-template" type="button" data-template="${esc(tpl.id)}">
+        <b>${esc(tpl.title)}</b><span class="small soft">${esc(tpl.summary)}</span></button>`,
     )
     .join('')}</div>`;
 }
@@ -176,23 +177,25 @@ function formCard(ctx: Context, d: Draft, template: AppTemplate, editing: Studio
   const values = config ?? (editing ? editing.config : defaultConfig(template));
   const list = signals?.list ?? [];
   const fields = template.params.map((p) => paramField(p, values[p.name], list)).join('');
-  const title = editing ? `Change #${editing.number} ${editing.name}` : `New app: ${template.title}`;
+  const title = editing
+    ? t('apps.form.changeTitle', { number: editing.number, name: editing.name })
+    : t('apps.form.newTitle', { name: template.title });
   return `<form class="card stack gap-2_5" id="app-form">
       <h2>${esc(title)}</h2>
       <p class="small soft">${esc(template.summary)}</p>
-      <label class="field" for="app-name">Name<input id="app-name" type="text" name="__name" data-api="name" value="${esc(d.name)}" maxlength="120" required /></label>
+      <label class="field" for="app-name">${t('apps.form.name')}<input id="app-name" type="text" name="__name" data-api="name" value="${esc(d.name)}" maxlength="120" required /></label>
       <div class="grid g2 app-fields gap-2_5">${fields}</div>
-      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${editing ? 'Save' : 'Make the app'}</button><a class="btn" href="${editing ? appLink(editing.number) : '#/apps'}">Cancel</a></div>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(t(editing ? 'apps.form.save' : 'apps.form.make'))}</button><a class="btn" href="${editing ? appLink(editing.number) : '#/apps'}">${t('apps.form.cancel')}</a></div>
     </form>`;
 }
 
 function newCard(ctx: Context): string {
   const list = templates?.list;
-  if (templates?.failed) return `<div class="card">${retry('The templates', 'data-retry-templates')}</div>`;
-  if (!list) return `<div class="card">${skeleton.list(3, 'Loading the templates…')}</div>`;
-  if (!draft || draft.key !== 'new' || !list.some((t) => t.id === draft?.template))
-    return `<div class="card stack gap-2_5"><h2>New app</h2><p class="small soft">Choose what it does. You set it up for one of the site's signals next.</p>${templateCards(list)}</div>`;
-  const template = list.find((t) => t.id === draft?.template);
+  if (templates?.failed) return `<div class="card">${retry('apps.failed.templates', 'data-retry-templates')}</div>`;
+  if (!list) return `<div class="card">${skeleton.list(3, t('apps.loadingTemplates'))}</div>`;
+  if (!draft || draft.key !== 'new' || !list.some((tpl) => tpl.id === draft?.template))
+    return `<div class="card stack gap-2_5"><h2>${t('apps.newApp')}</h2><p class="small soft">${esc(t('apps.chooseTemplate'))}</p>${templateCards(list)}</div>`;
+  const template = list.find((tpl) => tpl.id === draft?.template);
   return template ? formCard(ctx, draft, template, null) : '';
 }
 
@@ -200,24 +203,24 @@ function detailCard(ctx: Context): string {
   const n = selected();
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   if (n === null)
-    return `<div class="card">${emptyState({ illustration: 'select', title: 'Choose an app', body: 'Or make one from a template.' })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'select', title: t('apps.choose.title'), body: t('apps.choose.body') })}</div>`;
   // The list beside it says what failed, with Try again: not a second alert here.
   if (listing?.failed)
-    return `<div class="card">${emptyState({ illustration: 'error', compact: true, title: `App #${n} could not be loaded`, body: 'The list of apps didn’t load; try again there.' })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'error', compact: true, title: t('apps.notLoaded.title', { number: n }), body: t('apps.notLoaded.body') })}</div>`;
   if (items === null) return `<div class="card">${skeleton.card()}</div>`;
   const app = items.find((a) => a.number === n);
   if (!app)
-    return `<div class="card">${emptyState({ illustration: 'search', title: `There is no app #${n} on this site`, body: 'It may have been archived, or the link is for another site.', action: '<a class="btn" href="#/apps">All apps</a>' })}</div>`;
-  const template = templates?.list?.find((t) => t.id === app.template);
+    return `<div class="card">${emptyState({ illustration: 'search', title: t('apps.missing.title', { number: n }), body: t('apps.missing.body'), action: `<a class="btn" href="#/apps">${t('apps.missing.all')}</a>` })}</div>`;
+  const template = templates?.list?.find((tpl) => tpl.id === app.template);
   if (editKey()) {
-    if (templates?.failed) return `<div class="card">${retry('The templates', 'data-retry-templates')}</div>`;
-    if (!template) return `<div class="card">${skeleton.card('Loading the template…')}</div>`;
+    if (templates?.failed) return `<div class="card">${retry('apps.failed.templates', 'data-retry-templates')}</div>`;
+    if (!template) return `<div class="card">${skeleton.card(t('apps.loadingTemplate'))}</div>`;
     if (draft?.key !== `edit|${app.number}`)
       draft = { key: `edit|${app.number}`, template: app.template, name: app.name, values: {} };
     return formCard(ctx, draft, template, app);
   }
   const r = result?.key === resultKey(ctx, app) ? result : null;
-  const settings = `<details><summary class="small">Settings</summary><ul class="small" data-app-settings>${configSummary(
+  const settings = `<details><summary class="small">${t('apps.settings')}</summary><ul class="small" data-app-settings>${configSummary(
     template,
     app.config,
     app.signal_tag,
@@ -225,11 +228,11 @@ function detailCard(ctx: Context): string {
     .map((line) => `<li>${esc(line)}</li>`)
     .join('')}</ul></details>`;
   const tools = canEdit(ctx)
-    ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app${keyAttr('e')}>Change</a><button class="btn sm danger" type="button" data-archive-app ${busy ? 'disabled' : ''}>Archive</button></div>`
+    ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app${keyAttr('e')}>${t('apps.change')}</a><button class="btn sm danger" type="button" data-archive-app ${busy ? 'disabled' : ''}>${t('apps.archive')}</button></div>`
     : '';
   let body: string;
-  if (!r) body = '<p class="small soft">Running it on the latest readings…</p>';
-  else if (!r.result) body = '<p class="small soft">It could not run. Check its settings.</p>';
+  if (!r) body = `<p class="small soft">${esc(t('apps.running'))}</p>`;
+  else if (!r.result) body = `<p class="small soft">${esc(t('apps.couldNotRun'))}</p>`;
   else {
     const out = r.result;
     const chart = timeChart({ ...resultChart(out), width: fitWidth(TIME_CHART.width, 0.7) });
@@ -239,7 +242,7 @@ function detailCard(ctx: Context): string {
           .join('')}</div>`
       : '';
     const marked = out.spans.length
-      ? `<p class="small soft">Shaded: ${esc([...new Set(out.spans.map((s) => s.label))].join('; '))}.</p>`
+      ? `<p class="small soft">${esc(t('apps.shaded', { list: [...new Set(out.spans.map((s) => s.label))].join('; ') }))}</p>`
       : '';
     body = `<div class="row gap-2 items-center" data-app-status>${statusBadge(out.status)} <b>${esc(out.headline)}</b></div>
       <p data-app-text>${esc(out.text)}</p>${facts}${chart}${marked}`;
@@ -247,8 +250,8 @@ function detailCard(ctx: Context): string {
   return `<div class="card stack gap-3" data-app-detail>
       <div class="row justify-between items-start gap-3 wrap">
         <div><h2>#${app.number} ${esc(app.name)}</h2>
-        <p class="small soft">${esc(app.template_title)} on <code>${esc(app.signal_tag ?? 'a signal no longer on this site')}</code> · made by ${esc(app.created_by)}</p></div>
-        <button class="btn sm" type="button" data-rerun>Run again</button>
+        <p class="small soft">${tHtml('apps.madeBy', { template: esc(app.template_title), signal: `<code>${esc(app.signal_tag ?? t('apps.noSignal'))}</code>`, name: esc(app.created_by) })}</p></div>
+        <button class="btn sm" type="button" data-rerun>${t('apps.runAgain')}</button>
       </div>
       ${body}
       ${settings}
@@ -260,11 +263,11 @@ async function save(ctx: Context, form: HTMLFormElement): Promise<void> {
   const api = ctx.api;
   const site = siteId(ctx);
   const d = draft;
-  const template = templates?.list?.find((t) => t.id === d?.template);
+  const template = templates?.list?.find((tpl) => tpl.id === d?.template);
   if (!api || !site || !d || !template || busy) return;
   const { config, problems } = readConfig(template, formValues(form));
   const name = d.name.trim();
-  if (!name) problems.unshift({ name: '__name', message: 'Give the app a name' });
+  if (!name) problems.unshift({ name: '__name', message: t('apps.noName') });
   if (problems.length) return void showErrors(form, problems);
   busy = true;
   ctx.rerender();
@@ -273,7 +276,7 @@ async function save(ctx: Context, form: HTMLFormElement): Promise<void> {
     const saved = editing
       ? await api.apps.update(site, Number(editing[1]), { name, config })
       : await api.apps.create(site, { name, template: template.id, config });
-    ctx.toast(editing ? 'App saved' : `App #${saved.number} made`);
+    ctx.toast(editing ? t('apps.toast.saved') : t('apps.toast.made', { number: saved.number }));
     ux('task', editing ? 'app.changed' : 'app.made');
     draft = null;
     listing = null;
@@ -289,26 +292,28 @@ async function save(ctx: Context, form: HTMLFormElement): Promise<void> {
 
 const view: View = {
   id: 'apps',
-  title: 'App Studio',
+  get title() {
+    return t('apps.title');
+  },
   icon: 'layout-grid',
   crumbs(ctx) {
     if (!ctx.api || ctx.ontology.status !== 'ready') return [];
-    if (isNew()) return canEdit(ctx) ? [{ label: 'New app' }] : [];
+    if (isNew()) return canEdit(ctx) ? [{ label: t('apps.newApp') }] : [];
     const n = selected();
     // Not one the list says is gone.
     if (n === null || (listing?.key === listKey(ctx) && listing.items && !listing.items.some((a) => a.number === n)))
       return [];
-    return [{ label: `#${n}`, href: appLink(n) }, ...(editKey() && canEdit(ctx) ? [{ label: 'Change' }] : [])];
+    return [{ label: `#${n}`, href: appLink(n) }, ...(editKey() && canEdit(ctx) ? [{ label: t('apps.change') }] : [])];
   },
   render(ctx) {
     const head = pageHead({
-      eyebrow: 'Data · Apps',
-      title: 'App Studio',
-      lead: `Checks set up from templates, without code: a tool's wear, a process's control limits. Each one runs on a signal's latest readings when you open it.`,
+      eyebrow: t('apps.eyebrow'),
+      title: t('apps.title'),
+      lead: t('apps.lead'),
     });
-    if (!ctx.api) return `${head}<div class="card">${needsApi(`Apps are kept by the Tiles API.`)}</div>`;
+    if (!ctx.api) return `${head}<div class="card">${needsApi(esc(t('apps.needsApi')))}</div>`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
+    if (o.status === 'loading') return `${head}<div class="card">${skeleton.card(t('apps.loading'))}</div>`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     return `${head}<div class="split">${listCard(ctx)}${isNew() ? newCard(ctx) : detailCard(ctx)}</div>`;
@@ -321,8 +326,8 @@ const view: View = {
     if (isNew() || editKey()) void loadSignals(ctx);
     else if (app && result?.key !== resultKey(ctx, app)) void run(ctx, app);
     onAll(root, '[data-template]', 'click', (el) => {
-      const t = templates?.list?.find((x) => x.id === el.dataset.template);
-      if (t) draft = { key: 'new', template: t.id, name: t.title, values: {} };
+      const tpl = templates?.list?.find((x) => x.id === el.dataset.template);
+      if (tpl) draft = { key: 'new', template: tpl.id, name: tpl.title, values: {} };
       ctx.rerender();
     });
     const form = root.querySelector<HTMLFormElement>('#app-form');
@@ -357,7 +362,7 @@ const view: View = {
       const n = app.number;
       return removeNow({
         toast: ctx.toast,
-        message: `Archived #${n} ${app.name}`,
+        message: t('apps.toast.archived', { number: n, name: app.name }),
         send: () =>
           api.apps.archive(site, n).then(() => {
             listing = null;
@@ -368,7 +373,7 @@ const view: View = {
           listing = null;
           ctx.rerender();
         },
-        restoredMessage: `Restored #${n} ${app.name}`,
+        restoredMessage: t('apps.toast.restored', { number: n, name: app.name }),
       });
     });
   },

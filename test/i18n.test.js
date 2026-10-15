@@ -19,6 +19,9 @@ test('plurals by the locale’s rules, exact matches first, # the number', () =>
   assert.equal(formatMessage(m, { count: 0 }), 'No warnings');
   assert.equal(formatMessage(m, { count: 1 }), '1 warning');
   assert.equal(formatMessage(m, { count: 7 }), '7 warnings');
+  // # is written as the language writes numbers.
+  assert.equal(formatMessage(m, { count: 1430 }), '1,430 warnings');
+  assert.equal(formatMessage(m, { count: 1430 }, 'de'), '1.430 warnings');
   // Other languages' categories: Polish has "few" and "many".
   const pl = '{n, plural, one {# plik} few {# pliki} many {# plików} other {# pliku}}';
   assert.equal(formatMessage(pl, { n: 3 }, 'pl'), '3 pliki');

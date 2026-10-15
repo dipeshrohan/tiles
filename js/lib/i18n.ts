@@ -47,6 +47,14 @@ const pluralRule = (code: string): Intl.PluralRules => {
   if (!rule) plurals.set(code, (rule = new Intl.PluralRules(code)));
   return rule;
 };
+// `#` in a plural is its number, written as the language writes numbers (1,430 in English).
+const numbers = new Map<string, Intl.NumberFormat>();
+const countText = (code: string, value: unknown): string => {
+  if (typeof value !== 'number') return String(value ?? '');
+  let format = numbers.get(code);
+  if (!format) numbers.set(code, (format = new Intl.NumberFormat(code)));
+  return format.format(value);
+};
 
 // The index of the brace closing the one at `open`.
 function closing(text: string, open: number): number {
@@ -101,7 +109,7 @@ export function formatMessage(message: string, params: Params, code = locale, ht
       if (kind.trim() === 'plural') {
         const n = Number(value);
         chosen = pick(`=${n}`) ?? pick(pluralRule(code).select(n)) ?? pick('other');
-        chosen = chosen?.replace(/#/g, String(value ?? ''));
+        chosen = chosen?.replace(/#/g, countText(code, value));
       } else chosen = pick(String(value)) ?? pick('other');
       out += formatMessage(chosen ?? '', params, code, html);
     }

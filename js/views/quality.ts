@@ -6,6 +6,7 @@ import { esc, fmt, need, onAll, signed, bound } from '../lib/dom.ts';
 import type { Material } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { pageHead, term } from '../lib/ui.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -18,7 +19,9 @@ const uiState = (ctx: Context) => ctx.ui<QualityUi>('quality', { split: true, va
 
 const view: View = {
   id: 'quality',
-  title: 'Process & quality',
+  get title() {
+    return t('quality.title');
+  },
   icon: 'gauge',
   render(ctx) {
     const ui = uiState(ctx);
@@ -32,8 +35,8 @@ const view: View = {
     const dumb = materials.map((m) => {
       const sub = rows.filter((r) => r.material === m);
       return {
-        label: `${cap(m)} sheet`,
-        sub: m === 'anode' ? 'graphite stretches under load' : 'stiff NMC needs tension to cut clean',
+        label: t('quality.sheet', { material: m }),
+        sub: m === 'anode' ? t('quality.anodeSub') : t('quality.cathodeSub'),
         a: mean(sub.filter((r) => r.ng).map((r) => r[v.key])),
         b: mean(sub.filter((r) => !r.ng).map((r) => r[v.key])),
       };
@@ -56,20 +59,20 @@ const view: View = {
 
     return `
       ${pageHead({
-        eyebrow: 'Operations · Correlation finder',
-        title: 'Why are cutter batches failing?',
-        lead: `Notching Cutter C-01 leaves inconsistent tab widths. ${ng} of ${rows.length} batches were NG. The finder ranks every process variable by how strongly it separates failed from healthy batches.`,
-        actionsHtml: `<div class="seg" role="group" aria-label="Segmentation">
-          <button data-split="0" class="${ui.split ? '' : 'active'}">Pooled</button>
-          <button data-split="1" class="${ui.split ? 'active' : ''}">Split by material</button>
+        eyebrow: t('quality.eyebrow'),
+        title: t('quality.headTitle'),
+        lead: t('quality.lead', { ng, total: rows.length }),
+        actionsHtml: `<div class="seg" role="group" aria-label="${t('quality.segmentation')}">
+          <button data-split="0" class="${ui.split ? '' : 'active'}">${t('quality.pooled')}</button>
+          <button data-split="1" class="${ui.split ? 'active' : ''}">${t('quality.split')}</button>
         </div>`,
       })}
 
       <div class="grid g2 mb-4">
         <div class="card">
-          <div class="card-head"><h2>Effect size by variable</h2><p>${term('cohens-d')}, failed vs healthy · |d| ≥ 0.8 is strong</p></div>
-          ${hbars({ items: effects, width: 480, left: 200, title: "Effect size by variable (Cohen's d)", format: (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2) })}
-          ${ui.split ? '' : '<p class="small soft mt-2">Pooled across materials, nothing stands out. Try <a href="#/quality" data-split="1">splitting by material</a>.</p>'}
+          <div class="card-head"><h2>${t('quality.effects.title')}</h2><p>${tHtml('quality.effects.hint', { d: term('cohens-d') })}</p></div>
+          ${hbars({ items: effects, width: 480, left: 200, title: t('quality.effects.chartTitle'), format: (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2) })}
+          ${ui.split ? '' : `<p class="small soft mt-2">${tHtml('quality.effects.pooled', { link: `<a href="#/quality" data-split="1">${esc(t('quality.effects.splitLink'))}</a>` })}</p>`}
         </div>
         <div class="stack">
           ${
@@ -78,18 +81,18 @@ const view: View = {
                   .map(
                     (f) => `<div class="callout"><div class="arrow">${f.direction === 'high' ? '▲' : '▼'}</div><div>
                       <div class="k">${esc(f.segment.toUpperCase())}</div>
-                      <div class="t">${esc(f.label)} ran too ${f.direction}</div>
-                      <div class="d">${signed(f.delta)} ${esc(f.unit)} vs healthy · ${f.ngCount} NG batches</div></div></div>`,
+                      <div class="t">${esc(t('quality.ranToo', { label: f.label, direction: f.direction }))}</div>
+                      <div class="d">${esc(t('quality.delta', { delta: signed(f.delta), unit: f.unit, count: f.ngCount }))}</div></div></div>`,
                   )
                   .join('')
-              : '<div class="card"><div class="empty">No variable explains the failures on pooled data.</div></div>'
+              : `<div class="card"><div class="empty">${t('quality.noVariable')}</div></div>`
           }
           ${
             top.length
-              ? `<div class="card"><h3>Proposed actions</h3><ul class="actions-list">
-                  <li>Set material-specific tension limits → raise the cathode limit, lower the anode limit</li>
-                  <li>Track tension separately per material as a live SPC signal</li>
-                  <li>Material change → trigger calibration on every roll</li></ul></div>`
+              ? `<div class="card"><h3>${t('quality.actions.title')}</h3><ul class="actions-list">
+                  <li>${t('quality.actions.limits')}</li>
+                  <li>${t('quality.actions.track')}</li>
+                  <li>${t('quality.actions.calibrate')}</li></ul></div>`
               : ''
           }
         </div>
@@ -97,36 +100,41 @@ const view: View = {
 
       <div class="card mb-4">
         <div class="card-head">
-          <div><h2>Failed vs healthy average</h2><p>One setting can fail two materials in opposite directions.</p></div>
-          <select id="variable" aria-label="Variable">${CUTTER_VARIABLES.map((x) => `<option value="${x.key}" ${x.key === ui.variable ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
+          <div><h2>${t('quality.dumbbell.title')}</h2><p>${t('quality.dumbbell.hint')}</p></div>
+          <select id="variable" aria-label="${t('quality.dumbbell.variable')}">${CUTTER_VARIABLES.map((x) => `<option value="${x.key}" ${x.key === ui.variable ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
         </div>
-        <div class="legend mb-1_5"><span><i class="box bg-bad round"></i>NG (failed) avg</span><span><i class="box bg-muted round"></i>Healthy avg</span></div>
-        ${dumbbell({ rows: dumb, width: fitWidth(1040), domain: [Math.min(...all) - pad, Math.max(...all) + pad], xLabel: `Average ${v.label.toLowerCase()} (${v.unit})` })}
+        <div class="legend mb-1_5"><span><i class="box bg-bad round"></i>${t('quality.dumbbell.failed')}</span><span><i class="box bg-muted round"></i>${t('quality.dumbbell.healthy')}</span></div>
+        ${dumbbell({ rows: dumb, width: fitWidth(1040), domain: [Math.min(...all) - pad, Math.max(...all) + pad], xLabel: t('quality.dumbbell.xLabel', { variable: v.label.toLowerCase(), unit: v.unit }) })}
       </div>
 
       <div class="card">
         <div class="card-head">
-          <div><div class="eyebrow">Predictive maintenance · Tab Welder W-03</div><h2>A second signal that a welding tip is worn</h2>
-          <p>Tips are swapped on a fixed cycle count. The line's own power data confirms real wear.</p></div>
-          <div class="row"><span class="badge bad">Cathode ${signed(cat.change * 100, 1)}%</span><span class="badge">Anode ${signed(an.change * 100, 1)}%</span></div>
+          <div><div class="eyebrow">${t('quality.wear.eyebrow')}</div><h2>${t('quality.wear.title')}</h2>
+          <p>${esc(t('quality.wear.hint'))}</p></div>
+          <div class="row"><span class="badge bad">${esc(t('quality.wear.cathodeChange', { change: signed(cat.change * 100, 1) }))}</span><span class="badge">${esc(t('quality.wear.anodeChange', { change: signed(an.change * 100, 1) }))}</span></div>
         </div>
-        <div class="legend mb-1_5"><span><i class="bg-bad"></i>Cathode tip</span><span><i class="bg-accent"></i>Anode tip</span><span><i class="box bg-band"></i>Final 24 h before swap</span></div>
+        <div class="legend mb-1_5"><span><i class="bg-bad"></i>${t('quality.wear.cathodeTip')}</span><span><i class="bg-accent"></i>${t('quality.wear.anodeTip')}</span><span><i class="box bg-band"></i>${t('quality.wear.final')}</span></div>
         ${lineChart({
           series: [
-            { values: series.map((s) => s.anode), color: 'var(--accent)', label: 'anode tip' },
-            { values: series.map((s) => s.cathode), color: 'var(--bad)', width: 2, label: 'cathode tip' },
+            { values: series.map((s) => s.anode), color: 'var(--accent)', label: t('quality.wear.series.anode') },
+            {
+              values: series.map((s) => s.cathode),
+              color: 'var(--bad)',
+              width: 2,
+              label: t('quality.wear.series.cathode'),
+            },
           ],
           bands: [{ from: swapAt - 24, to: swapAt, color: 'var(--band)' }],
-          markers: [{ x: swapAt, label: 'scheduled swap', color: 'var(--soft)' }],
+          markers: [{ x: swapAt, label: t('quality.wear.swap'), color: 'var(--soft)' }],
           xFormat: (h) => `${h}h`,
-          yLabel: 'Median welding power (W)',
-          title: 'Median welding power by hour (W)',
+          yLabel: t('quality.wear.yLabel'),
+          title: t('quality.wear.chartTitle'),
           width: fitWidth(1040),
           height: 260,
         })}
         <div class="grid g2 mt-3">
-          <div><h3>Proposed action</h3><p class="soft">Monitor both triggers: cycle counter <i>and</i> median welding power. When power crosses the ${term('wear', 'wear')} threshold, replace the tip even if the counter hasn't reached its swap point. Wear started around hour ${wearStart}.</p></div>
-          <div class="kpi"><div class="label">Power-based warning</div><div class="value">${fmt(warnHours)} h</div><div class="note">before the scheduled swap · threshold baseline +5% (${fmt(threshold)} W)</div></div>
+          <div><h3>${t('quality.wear.action')}</h3><p class="soft">${tHtml('quality.wear.actionText', { and: `<i>${esc(t('quality.wear.and'))}</i>`, wear: term('wear', 'wear'), hour: wearStart })}</p></div>
+          <div class="kpi"><div class="label">${t('quality.wear.kpi')}</div><div class="value">${fmt(warnHours)} h</div><div class="note">${esc(t('quality.wear.kpiNote', { threshold: fmt(threshold) }))}</div></div>
         </div>
       </div>`;
   },

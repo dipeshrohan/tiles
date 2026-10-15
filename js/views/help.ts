@@ -7,6 +7,7 @@ import { chapter, helpHref, helpLoaded, loadHelp, type HelpSection } from '../li
 import { button, errorState, linkButton, pageHead, skeleton } from '../lib/ui.ts';
 import { savedScroll } from '../lib/url-state.ts';
 import type { View } from './types.ts';
+import { t } from '../lib/i18n.ts';
 
 // The section an address names: #/help/data-explorer → data-explorer.
 export function helpSlug(hash: string): string | null {
@@ -56,45 +57,47 @@ export function contentsHtml(sections: readonly HelpSection[], current: string |
     }
     items.push(`<li>${link(s)}${subs.length ? `<ul>${subs.join('')}</ul>` : ''}</li>`);
   }
-  return `<nav class="help-toc" aria-label="Contents of the guide"><ul>${items.join('')}</ul></nav>`;
+  return `<nav class="help-toc" aria-label="${t('help.contents')}"><ul>${items.join('')}</ul></nav>`;
 }
 
 // The guided tours (U4.07), on the guide's first page: each with what it shows and a way to start it.
 export function toursCard(withApi: boolean): string {
-  const rows = TOURS.map((t) => {
-    const can = canRun(t, withApi);
-    const start = button('Start', {
+  const rows = TOURS.map((tour) => {
+    const can = canRun(tour, withApi);
+    const start = button(t('help.tours.start'), {
       size: 'sm',
       disabled: !can,
-      attrs: { 'data-start-tour': t.id, 'aria-label': `Start the tour: ${t.title}` },
+      attrs: { 'data-start-tour': tour.id, 'aria-label': t('help.tours.startLabel', { title: tour.title }) },
     });
-    return `<li class="tour-item" data-key="tour-${esc(t.id)}"><div><b>${esc(t.title)}</b><p class="small soft">${esc(t.summary)}${can ? '' : ' It needs the Tiles API.'}</p></div>${start}</li>`;
+    return `<li class="tour-item" data-key="tour-${esc(tour.id)}"><div><b>${esc(tour.title)}</b><p class="small soft">${esc(tour.summary)}${can ? '' : ` ${esc(t('help.tours.needsApi'))}`}</p></div>${start}</li>`;
   }).join('');
-  return `<section class="card mb-4" aria-labelledby="tours-title"><h2 id="tours-title" class="mb-2">Tours</h2><p class="small soft mb-3">A few steps on the pages themselves. Leave a tour at any step with Escape.</p><ul class="tour-list">${rows}</ul></section>`;
+  return `<section class="card mb-4" aria-labelledby="tours-title"><h2 id="tours-title" class="mb-2">${t('help.tours.title')}</h2><p class="small soft mb-3">${t('help.tours.lead')}</p><ul class="tour-list">${rows}</ul></section>`;
 }
 
 const view: View = {
   id: 'help',
-  title: 'Help',
+  get title() {
+    return t('common.help');
+  },
   icon: 'circle-help',
   render(ctx) {
     wasShown = document.querySelector('#view .help-article') !== null;
     const head = pageHead({
-      title: 'Help',
-      lead: 'The user guide: what each page is for and how to use it. Each page’s help button opens its part.',
-      actionsHtml: `<div class="row gap-2 wrap">${button('What’s new', { attrs: { 'data-whats-new': true } })}${ctx.api ? button('Send feedback', { attrs: { 'data-send-feedback': true } }) : ''}${button('Show the welcome', { attrs: { 'data-show-welcome': true } })}${linkButton('Glossary', '#/glossary', { icon: 'book-a' })}</div>`,
+      title: t('common.help'),
+      lead: t('help.lead'),
+      actionsHtml: `<div class="row gap-2 wrap">${button(t('help.whatsNew'), { attrs: { 'data-whats-new': true } })}${ctx.api ? button(t('help.sendFeedback'), { attrs: { 'data-send-feedback': true } }) : ''}${button(t('help.showWelcome'), { attrs: { 'data-show-welcome': true } })}${linkButton(t('help.glossary'), '#/glossary', { icon: 'book-a' })}</div>`,
     });
     const data = helpLoaded();
     if (!data && failed)
-      return `${head}${errorState({ title: 'The help could not be loaded', body: `${failed}. The app may be missing js/help-data.js.`, retry: 'help-retry' })}`;
-    if (!data) return `${head}<div class="card">${skeleton.text(6, 'Loading the help…')}</div>`;
+      return `${head}${errorState({ title: t('help.failed'), body: t('help.failedBody', { error: failed }), retry: 'help-retry' })}`;
+    if (!data) return `${head}<div class="card">${skeleton.text(6, t('help.loading'))}</div>`;
     const slug = helpSlug(location.hash);
     const { shown, top, prev, next } = chapter(data.sections, slug);
     const step = (s: HelpSection | undefined, label: string, cls: string): string =>
       s
-        ? `<a class="help-step ${cls}" href="${esc(helpHref(s.slug))}"><span class="small soft">${label}</span>${esc(s.title)}</a>`
+        ? `<a class="help-step ${cls}" href="${esc(helpHref(s.slug))}"><span class="small soft">${esc(label)}</span>${esc(s.title)}</a>`
         : '<span></span>';
-    const steps = `<nav class="help-steps" aria-label="Previous and next">${step(prev, 'Previous', 'prev')}${step(next, 'Next', 'next')}</nav>`;
+    const steps = `<nav class="help-steps" aria-label="${t('help.steps')}">${step(prev, t('help.previous'), 'prev')}${step(next, t('help.next'), 'next')}</nav>`;
     const tours = slug ? '' : toursCard(Boolean(ctx.api));
     return `${head}${tours}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
   },

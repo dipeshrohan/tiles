@@ -15,6 +15,7 @@ import {
 } from '../lib/importer.ts';
 import type { ImportRun } from '../lib/api.ts';
 import type { Context, View } from './types.ts';
+import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 import { setFieldError } from '../lib/forms.ts';
 import { emptyState, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 
@@ -45,12 +46,12 @@ let loaded: Loaded | null = null;
 let running: Running | null = null;
 let lastResult: string | null = null;
 
-const FORMATS: [TimeFormat, string][] = [
-  ['iso', 'ISO 8601 (2026-10-01 08:00:00)'],
-  ['dmy', 'Day first (01.10.2026 08:00)'],
-  ['mdy', 'Month first (10/01/2026 08:00)'],
-  ['epoch-s', 'Seconds since 1970'],
-  ['epoch-ms', 'Milliseconds since 1970'],
+const FORMATS: [TimeFormat, MessageKey][] = [
+  ['iso', 'imports.format.iso'],
+  ['dmy', 'imports.format.dmy'],
+  ['mdy', 'imports.format.mdy'],
+  ['epoch-s', 'imports.format.epochS'],
+  ['epoch-ms', 'imports.format.epochMs'],
 ];
 
 function browserZone(): string {
@@ -60,8 +61,7 @@ function browserZone(): string {
 export function load(fileName: string, text: string, zone = browserZone()): Loaded | string {
   const table = parseCsv(text, detectDelimiter(text));
   const [header, ...rows] = table;
-  if (!header || header.length < 2 || !rows.length)
-    return `${fileName} needs a header row and at least one data row, with two or more columns.`;
+  if (!header || header.length < 2 || !rows.length) return t('imports.loadError', { name: fileName });
   return { fileName, header, rows, mapping: suggestMapping(header, rows, zone) };
 }
 
@@ -70,7 +70,7 @@ function options(header: string[], selected: number, skip: number[] = []): strin
     .map((h, i) =>
       skip.includes(i)
         ? ''
-        : `<option value="${i}" ${i === selected ? 'selected' : ''}>${esc(h || `Column ${i + 1}`)}</option>`,
+        : `<option value="${i}" ${i === selected ? 'selected' : ''}>${esc(h || t('imports.columnN', { n: i + 1 }))}</option>`,
     )
     .join('');
 }
@@ -80,31 +80,31 @@ function mappingForm(l: Loaded): string {
   const long = m.long !== null;
   const columns = long
     ? `<div class="row gap-3 wrap">
-        <label class="field">Tag column<select name="tagColumn">${options(l.header, m.long?.tagColumn ?? -1, [m.timeColumn])}</select></label>
-        <label class="field">Value column<select name="valueColumn">${options(l.header, m.long?.valueColumn ?? -1, [m.timeColumn])}</select></label>
+        <label class="field">${t('imports.map.tagColumn')}<select name="tagColumn">${options(l.header, m.long?.tagColumn ?? -1, [m.timeColumn])}</select></label>
+        <label class="field">${t('imports.map.valueColumn')}<select name="valueColumn">${options(l.header, m.long?.valueColumn ?? -1, [m.timeColumn])}</select></label>
       </div>
-      <p class="small soft">Each row is one reading; tags become signal names (TT-101 → tt-101).</p>`
-    : `<div class="table-wrap"><table><thead><tr><th>Import</th><th>Column</th><th>Signal</th></tr></thead><tbody>${l.header
+      <p class="small soft">${esc(t('imports.map.longHint'))}</p>`
+    : `<div class="table-wrap"><table><thead><tr><th>${t('imports.map.import')}</th><th>${t('imports.map.column')}</th><th>${t('imports.map.signal')}</th></tr></thead><tbody>${l.header
         .map((h, i) =>
           i === m.timeColumn
             ? ''
-            : `<tr><td><input type="checkbox" name="use-${i}" ${m.columns[i] ? 'checked' : ''} aria-label="Import ${esc(h)}"></td><td>${esc(h)}</td>
-               <td><input type="text" name="tag-${i}" value="${esc(m.columns[i] ?? slugTag(h) ?? '')}" aria-label="Signal for ${esc(h)}" class="w-full"></td></tr>`,
+            : `<tr><td><input type="checkbox" name="use-${i}" ${m.columns[i] ? 'checked' : ''} aria-label="${esc(t('imports.map.importColumn', { name: h }))}"></td><td>${esc(h)}</td>
+               <td><input type="text" name="tag-${i}" value="${esc(m.columns[i] ?? slugTag(h) ?? '')}" aria-label="${esc(t('imports.map.signalFor', { name: h }))}" class="w-full"></td></tr>`,
         )
         .join('')}</tbody></table></div>`;
   return `<form id="import-mapping" class="stack gap-3">
       <fieldset class="row gap-4 border-0 p-0">
-        <label><input type="radio" name="shape" value="wide" ${long ? '' : 'checked'}> One column per signal</label>
-        <label><input type="radio" name="shape" value="long" ${long ? 'checked' : ''}> One row per reading (tag, time, value)</label>
+        <label><input type="radio" name="shape" value="wide" ${long ? '' : 'checked'}> ${esc(t('imports.map.wide'))}</label>
+        <label><input type="radio" name="shape" value="long" ${long ? 'checked' : ''}> ${esc(t('imports.map.long'))}</label>
       </fieldset>
       <div class="row gap-3 wrap">
-        <label class="field">Time column<select name="timeColumn">${options(l.header, m.timeColumn)}</select></label>
-        <label class="field">Time format<select name="timeFormat">${FORMATS.map(([f, label]) => `<option value="${f}" ${f === m.timeFormat ? 'selected' : ''}>${esc(label)}</option>`).join('')}</select></label>
-        <label class="field">Time zone (for times without one)<input type="text" name="timeZone" value="${esc(m.timeZone)}"></label>
+        <label class="field">${t('imports.map.timeColumn')}<select name="timeColumn">${options(l.header, m.timeColumn)}</select></label>
+        <label class="field">${t('imports.map.timeFormat')}<select name="timeFormat">${FORMATS.map(([f, label]) => `<option value="${f}" ${f === m.timeFormat ? 'selected' : ''}>${esc(t(label))}</option>`).join('')}</select></label>
+        <label class="field">${esc(t('imports.map.timeZone'))}<input type="text" name="timeZone" value="${esc(m.timeZone)}"></label>
       </div>
       <div class="row gap-4 wrap">
-        <label><input type="checkbox" name="decimalComma" ${m.decimalComma ? 'checked' : ''}> Decimal comma (21,5)</label>
-        <label><input type="checkbox" name="keepText" ${m.keepText ? 'checked' : ''}> Keep text cells as text readings</label>
+        <label><input type="checkbox" name="decimalComma" ${m.decimalComma ? 'checked' : ''}> ${esc(t('imports.map.decimalComma'))}</label>
+        <label><input type="checkbox" name="keepText" ${m.keepText ? 'checked' : ''}> ${esc(t('imports.map.keepText'))}</label>
       </div>
       ${columns}
     </form>`;
@@ -151,14 +151,19 @@ export function readMapping(form: HTMLFormElement, header: string[], before: Imp
 }
 
 export function describeStats(s: ImportStats): string {
-  const range =
-    s.first && s.last
-      ? ` from ${s.first.replace('T', ' ').slice(0, 19)} to ${s.last.replace('T', ' ').slice(0, 19)} UTC`
-      : '';
   const skipped = Object.entries(s.skipped)
     .map(([reason, n]) => `${fmt(n, 0)} ${reason}`)
     .join(', ');
-  return `${fmt(s.readings, 0)} readings for ${s.signals.size} signal(s) in ${fmt(s.rows, 0)} rows${range}.${skipped ? ` Skipped: ${skipped}.` : ''}`;
+  const counts = { readings: s.readings, count: s.signals.size, rows: s.rows };
+  const main =
+    s.first && s.last
+      ? t('imports.stats.range', {
+          ...counts,
+          first: s.first.replace('T', ' ').slice(0, 19),
+          last: s.last.replace('T', ' ').slice(0, 19),
+        })
+      : t('imports.stats.all', counts);
+  return skipped ? `${main} ${t('imports.stats.skipped', { list: skipped })}` : main;
 }
 
 // The mapping's own fields that are wrong, marked where they are (the rest is in the check below).
@@ -175,16 +180,16 @@ function summaryBox(l: Loaded): string {
   // A field's own problem is said under it; here, that there is one, and the rest.
   const fields = mappingFieldProblems(l.header, l.mapping).map((p) => p.message);
   const problems = mappingProblems(l.header, l.mapping).filter((p) => !fields.includes(p));
-  if (fields.length) problems.unshift('Correct the fields marked above.');
+  if (fields.length) problems.unshift(t('imports.check.fields'));
   if (problems.length)
     return `<div class="stack gap-1">${problems.map((p) => `<p class="small text-bad">${esc(p)}</p>`).join('')}</div>`;
   const stats = summarize(l.rows, l.mapping);
   const examples = stats.examples.length
-    ? `<ul class="small soft">${stats.examples.map((e) => `<li>Line ${e.row}: ${esc(e.message)}</li>`).join('')}</ul>`
+    ? `<ul class="small soft">${stats.examples.map((e) => `<li>${esc(t('imports.check.line', { row: e.row, message: e.message }))}</li>`).join('')}</ul>`
     : '';
   const signals = [...stats.signals]
     .slice(0, 12)
-    .map((t) => `<span class="badge">${esc(t)}</span>`)
+    .map((tag) => `<span class="badge">${esc(tag)}</span>`)
     .join(' ');
   return `<p data-import-summary>${esc(describeStats(stats))}</p>
     ${signals ? `<p>${signals}${stats.signals.size > 12 ? ' …' : ''}</p>` : ''}${examples}`;
@@ -199,24 +204,24 @@ function preview(l: Loaded): string {
 
 function importCard(ctx: Context): string {
   if (!ctx.api || !ctx.ontology.site)
-    return `<div class="card stack gap-2"><h2>Import readings</h2><p class="small soft">Imports go into the Tiles API. Connect to it in <a href="#/settings">Settings</a> (data source: Tiles API).</p></div>`;
+    return `<div class="card stack gap-2"><h2>${t('imports.card.title')}</h2><p class="small soft">${tHtml('imports.card.noApi', { link: `<a href="#/settings">${esc(t('imports.card.settings'))}</a>` })}</p></div>`;
   if (ctx.ontology.role === 'viewer')
-    return `<div class="card stack gap-2"><h2>Import readings</h2><p class="small soft">Your role on this site is viewer: you can see past imports, but engineers and admins run them.</p></div>`;
+    return `<div class="card stack gap-2"><h2>${t('imports.card.title')}</h2><p class="small soft">${esc(t('imports.card.viewer'))}</p></div>`;
   const l = loaded;
   const busy = running !== null;
   return `<div class="card stack gap-3" id="import-card">
-      <h2>Import readings</h2>
-      <p class="small soft">Backfill history from a CSV file or a historian export. The file is read in this browser; readings Tiles already has (same signal and time) are skipped, so importing a file twice is safe.</p>
-      <label class="field">File<input type="file" accept=".csv,.tsv,.txt,text/csv" data-import-file ${busy ? 'disabled' : ''}></label>
+      <h2>${t('imports.card.title')}</h2>
+      <p class="small soft">${esc(t('imports.card.lead'))}</p>
+      <label class="field">${t('imports.card.file')}<input type="file" accept=".csv,.tsv,.txt,text/csv" data-import-file ${busy ? 'disabled' : ''}></label>
       ${
         l
-          ? `<p class="small"><b>${esc(l.fileName)}</b>: ${fmt(l.rows.length, 0)} rows, ${l.header.length} columns.</p>
+          ? `<p class="small">${tHtml('imports.card.loaded', { name: `<b>${esc(l.fileName)}</b>`, rows: l.rows.length, columns: l.header.length })}</p>
              ${preview(l)}
              ${mappingForm(l)}
              <div data-import-check aria-live="polite">${summaryBox(l)}</div>
              <div class="row gap-2">
-               <button class="btn primary" type="button" data-import-run ${busy || mappingProblems(l.header, l.mapping).length ? 'disabled' : ''}>Import</button>
-               ${busy ? '<button class="btn" type="button" data-import-cancel>Stop</button>' : ''}
+               <button class="btn primary" type="button" data-import-run ${busy || mappingProblems(l.header, l.mapping).length ? 'disabled' : ''}>${t('imports.map.import')}</button>
+               ${busy ? `<button class="btn" type="button" data-import-cancel>${t('imports.stop')}</button>` : ''}
              </div>`
           : ''
       }
@@ -226,12 +231,12 @@ function importCard(ctx: Context): string {
 
 function progress(r: Running): string {
   const pct = r.total ? Math.round((100 * r.sent) / r.total) : 0;
-  return `<p>Sent ${fmt(r.sent, 0)} of ${fmt(r.total, 0)} readings (${pct}%), ${fmt(r.stored, 0)} new.</p>
+  return `<p>${esc(t('imports.progress', { sent: fmt(r.sent, 0), total: fmt(r.total, 0), pct, stored: fmt(r.stored, 0) }))}</p>
     <progress max="${r.total}" value="${r.sent}" class="w-full"></progress>`;
 }
 
 function historyCard(): string {
-  return `<div class="card stack gap-3"><h2>Past imports</h2><div data-import-history aria-live="polite">${skeleton.table(3, 5, 'Loading the past imports…')}</div></div>`;
+  return `<div class="card stack gap-3"><h2>${t('imports.history.title')}</h2><div data-import-history aria-live="polite">${skeleton.table(3, 5, t('imports.history.loading'))}</div></div>`;
 }
 
 export function historyTable(runs: ImportRun[]): string {
@@ -240,13 +245,13 @@ export function historyTable(runs: ImportRun[]): string {
       illustration: 'inbox',
       compact: true,
       level: 3,
-      title: 'No imports yet',
-      body: 'Files you import above are listed here, with who imported them and how many readings they added.',
+      title: t('imports.history.emptyTitle'),
+      body: t('imports.history.emptyBody'),
     });
-  return `<div class="table-wrap"><table><thead><tr><th>File</th><th>By</th><th>Started</th><th>Readings</th><th>New</th><th>Status</th></tr></thead><tbody>${runs
+  return `<div class="table-wrap"><table><thead><tr><th>${t('imports.card.file')}</th><th>${t('imports.history.by')}</th><th>${t('imports.history.started')}</th><th>${t('imports.history.readings')}</th><th>${t('imports.history.new')}</th><th>${t('imports.history.status')}</th></tr></thead><tbody>${runs
     .map(
       (r) =>
-        `<tr><td>${esc(r.name)}</td><td>${esc(r.created_by ?? '—')}</td><td>${esc(new Date(r.created_at).toLocaleString('en-GB'))}</td><td>${esc(fmt(r.received, 0))}</td><td>${esc(fmt(r.stored, 0))}</td><td>${r.finished_at ? '<span class="badge good">finished</span>' : '<span class="badge warn">not finished</span>'}</td></tr>`,
+        `<tr><td>${esc(r.name)}</td><td>${esc(r.created_by ?? '—')}</td><td>${esc(new Date(r.created_at).toLocaleString('en-GB'))}</td><td>${esc(fmt(r.received, 0))}</td><td>${esc(fmt(r.stored, 0))}</td><td>${r.finished_at ? `<span class="badge good">${t('imports.history.finished')}</span>` : `<span class="badge warn">${t('imports.history.notFinished')}</span>`}</td></tr>`,
     )
     .join('')}</tbody></table></div>`;
 }
@@ -256,13 +261,13 @@ async function fillHistory(root: HTMLElement, ctx: Context): Promise<void> {
   const site = ctx.ontology.site;
   if (!box) return;
   if (!ctx.api || !site) {
-    box.innerHTML = '<p class="small soft">Past imports are kept in the Tiles API.</p>';
+    box.innerHTML = `<p class="small soft">${esc(t('imports.history.noApi'))}</p>`;
     return;
   }
   try {
     box.innerHTML = historyTable(await ctx.api.imports.list(site.id));
   } catch {
-    box.innerHTML = loadFailed('The imports');
+    box.innerHTML = loadFailed(t('imports.history.name'));
   }
 }
 
@@ -305,31 +310,33 @@ async function runImport(ctx: Context): Promise<void> {
     unfinished = e instanceof Error ? e.message : String(e);
   }
   running = null;
-  const what = `${fmt(state.stored, 0)} new readings stored (${fmt(state.sent, 0)} sent; the rest were already in Tiles).`;
-  const open = unfinished ? ` The import could not be marked finished (${unfinished}); it shows as not finished.` : '';
+  const what = t('imports.result.what', { stored: state.stored, sent: fmt(state.sent, 0) });
+  const open = unfinished ? ` ${t('imports.result.unfinished', { why: unfinished })}` : '';
   lastResult = failure
-    ? `Stopped by an error after ${fmt(state.sent, 0)} readings: ${failure}. ${what}${open}`
+    ? `${t('imports.result.failed', { sent: state.sent, why: failure })} ${what}${open}`
     : state.cancelled
-      ? `Stopped. ${what}${open}`
+      ? `${t('imports.result.stopped')} ${what}${open}`
       : unfinished
-        ? `All readings sent, but not finished. ${what}${open}`
-        : `Done. ${what}`;
+        ? `${t('imports.result.notFinished')} ${what}${open}`
+        : `${t('imports.result.done')} ${what}`;
   ctx.toast(
     failure || unfinished
-      ? 'Import stopped by an error'
+      ? t('imports.toast.error')
       : state.cancelled
-        ? 'Import stopped'
-        : `Imported ${l.fileName}`,
+        ? t('imports.toast.stopped')
+        : t('imports.toast.done', { name: l.fileName }),
   );
   ctx.rerender();
 }
 
 const view: View = {
   id: 'import',
-  title: 'Import data',
+  get title() {
+    return t('imports.title');
+  },
   icon: 'upload',
   render(ctx) {
-    return `${pageHead({ eyebrow: 'Data', title: 'Import data', lead: 'Backfill readings from CSV files and historian exports, mapped to signals.' })}
+    return `${pageHead({ eyebrow: t('imports.eyebrow'), title: t('imports.title'), lead: t('imports.lead') })}
       <div class="stack gap-4">${importCard(ctx)}${historyCard()}</div>`;
   },
   bind(root, ctx) {

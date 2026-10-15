@@ -23,6 +23,7 @@ import {
 import type { Context, View } from './types.ts';
 import { button, pageHead, skeleton, apiUnreachable, table } from '../lib/ui.ts';
 import { load as loadSaved, save } from '../lib/store.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 
 // Setting up a site (T6.06): a wizard from creating the site, through outlining its plant in the
 // ontology and connecting an edge agent, to mapping its tags and opening the first dashboard (a
@@ -40,6 +41,17 @@ interface Ui {
 const uiState = (ctx: Context) => ctx.ui<Ui>('onboarding', { step: null, demoAgent: false });
 
 const POLL_MS = 5_000; // while waiting for an agent's first heartbeat
+
+// The agent's files and commands, the same in every language.
+const TOKEN_PATH = '<code>/etc/tiles-edge/token</code>'; // i18n-ok
+const CONFIG_PATH = '<code>/etc/tiles-edge/tiles-edge.toml</code>'; // i18n-ok
+const CHECK_CMD = '<code>tiles-edge check -c /etc/tiles-edge/tiles-edge.toml</code>'; // i18n-ok
+const RUN_CMD = '<code>tiles-edge run -c /etc/tiles-edge/tiles-edge.toml</code>'; // i18n-ok
+const DEMO_AGENT = 'edge-01'; // i18n-ok
+const checkAndRun = (): string => tHtml('onboarding.agent.checkRun', { check: CHECK_CMD, run: RUN_CMD });
+// A note that the ontology has staged changes, which the wizard won't add to.
+const stagedNote = (staged: number): string =>
+  `<p class="small" role="note">${tHtml('onboarding.staged', { count: staged, ontology: `<a href="#/ontology">${esc(t('onboarding.ontology'))}</a>` })}</p>`;
 
 // `failed`: the last fetch failed with nothing to show: Try again, not a fetch at every render.
 let progress: { site: string; data: Onboarding | null; failed?: boolean } | null = null;
@@ -108,53 +120,55 @@ const committed = (ctx: Context) => ctx.state.repo.head;
 
 function localSiteStep(ctx: Context): string {
   const site = Object.values(ctx.graph.nodes).find((n) => n.type === 'Site');
-  return `<p>Without the Tiles API, the site is this browser’s demo plant${site ? `, <b>${esc(site.label)}</b>` : ''}: its ontology and data are kept here, for you alone. Next: outline its plant.</p>
-    <p class="small soft">With the Tiles API, organisation admins create sites on this step, each with its own ontology, agents and people. Connect to the API in <a href="#/settings">Settings</a>.</p>`;
+  return `<p>${tHtml('onboarding.local.site', { site: site ? `, <b>${esc(site.label)}</b>` : '' })}</p>
+    <p class="small soft">${tHtml('onboarding.local.siteApi', { settings: `<a href="#/settings">${esc(t('onboarding.settings'))}</a>` })}</p>`;
 }
 
 function localAgentStep(ctx: Context): string {
   const on = localSetup(ctx).agent;
-  return `<p>The edge agent runs on a machine on site that can reach the controllers. It reads them read-only, buffers to disk, and sends readings out to Tiles. With the Tiles API, an admin registers it here and gets its token, once.</p>
+  return `<p>${esc(t('onboarding.local.agentIntro'))}</p>
     <div class="card stack gap-2">
-      <p>On the agent’s machine, save the token as <code>/etc/tiles-edge/token</code>, readable only by the agent’s user, and write <code>/etc/tiles-edge/tiles-edge.toml</code>:</p>
+      <p>${tHtml('onboarding.local.saveToken', { token: TOKEN_PATH, config: CONFIG_PATH })}</p>
       <pre class="code-block" tabindex="0">${esc(agentConfig('https://tiles.example.com'))}</pre>
-      <p>Check it with <code>tiles-edge check -c /etc/tiles-edge/tiles-edge.toml</code>, then run <code>tiles-edge run -c /etc/tiles-edge/tiles-edge.toml</code> as a service. It only connects out, over HTTPS.</p>
+      <p>${checkAndRun()}</p>
     </div>
     ${
       on
-        ? '<ul class="plant-list"><li><span><b>edge-01</b> <span class="small soft">demo</span></span><span class="badge good">online</span></li></ul>'
-        : `<p>This demo has no plant to read, so a demo agent stands in: it “calls in” with the demo’s tags.</p>
-      <div>${button('Connect a demo agent', { variant: 'primary', attrs: { 'data-demo-agent': true } })}</div>`
+        ? `<ul class="plant-list"><li><span><b>${DEMO_AGENT}</b> <span class="small soft">${esc(t('onboarding.demo'))}</span></span><span class="badge good">${esc(t('onboarding.online'))}</span></li></ul>`
+        : `<p>${esc(t('onboarding.local.standIn'))}</p>
+      <div>${button(t('onboarding.local.connect'), { variant: 'primary', attrs: { 'data-demo-agent': true } })}</div>`
     }`;
 }
 
 function localMappingStep(ctx: Context): string {
-  if (!localSetup(ctx).agent)
-    return '<p>No tags have arrived yet. They come once an agent calls in: connect the demo agent on the step before.</p>';
+  if (!localSetup(ctx).agent) return `<p>${esc(t('onboarding.local.noTags'))}</p>`;
   const graph = committed(ctx);
   const staged = ctx.state.repo.staged.length;
-  const tags = DEMO_TAGS.map((t: DemoTag) => ({ t, to: mappedTo(graph, t.tag), s: suggestFor(graph, t) }));
+  const tags = DEMO_TAGS.map((tag: DemoTag) => ({ tag, to: mappedTo(graph, tag.tag), s: suggestFor(graph, tag) }));
   const can = canEdit(ctx) && !staged;
   const rows = tags
-    .map(({ t, to, s }) => {
+    .map(({ tag, to, s }) => {
       const cell = to
-        ? `<span class="badge good">Mapped</span> ${esc(graph.nodes[to]?.label ?? to)}`
+        ? `<span class="badge good">${esc(t('onboarding.mapped'))}</span> ${esc(graph.nodes[to]?.label ?? to)}`
         : s.kind === 'none'
           ? `<span class="small soft">${esc(s.why)}</span>`
-          : `${s.kind === 'link' ? `Link to <b>${esc(s.label)}</b>` : `New Signal node <b>${esc(s.label)}</b>`}<div class="small soft">${esc(s.why)}</div>`;
+          : `${tHtml(s.kind === 'link' ? 'onboarding.linkTo' : 'onboarding.newSignal', { label: `<b>${esc(s.label)}</b>` })}<div class="small soft">${esc(s.why)}</div>`;
       const act =
         to || s.kind === 'none' || !can
           ? ''
-          : button('Map', { size: 'sm', attrs: { 'data-map-tag': t.tag, 'aria-label': `Map ${t.tag}` } });
-      return `<tr data-key="tag-${esc(t.tag)}"><td><code>${esc(t.tag)}</code></td><td>${esc(t.unit)}</td><td>${cell}</td><td>${act}</td></tr>`;
+          : button(t('onboarding.map'), {
+              size: 'sm',
+              attrs: { 'data-map-tag': tag.tag, 'aria-label': t('onboarding.mapNamed', { tag: tag.tag }) },
+            });
+      return `<tr data-key="tag-${esc(tag.tag)}"><td><code>${esc(tag.tag)}</code></td><td>${esc(tag.unit)}</td><td>${cell}</td><td>${act}</td></tr>`;
     })
     .join('');
   const left = tags.some(({ to, s }) => !to && s.kind !== 'none');
-  return `<p>The demo agent sent ${DEMO_TAGS.length} tags. Each is suggested a Signal node: one that fits, or a new one under its machine’s controller. Mapping one is a commit to the ontology: the Signal node gets the tag.</p>
-    ${staged ? `<p class="small" role="note">You have ${staged} staged change${staged === 1 ? '' : 's'}: commit or discard them on the <a href="#/ontology">Ontology</a> page first.</p>` : ''}
-    ${table({ headers: ['Tag', 'Unit', 'Suggestion', { label: 'Action', srOnly: true }], rowsHtml: rows })}
-    ${left && can ? `<div>${button('Map every suggestion', { variant: 'primary', attrs: { 'data-map-all': true } })}</div>` : ''}
-    <p class="small soft">With the Tiles API, tags arrive from the agent and are mapped on the Signals page, where <b>Suggest mappings</b> does the same for every tag.</p>`;
+  return `<p>${esc(t('onboarding.local.sent', { count: DEMO_TAGS.length }))}</p>
+    ${staged ? stagedNote(staged) : ''}
+    ${table({ headers: [t('onboarding.col.tag'), t('onboarding.col.unit'), t('onboarding.col.suggestion'), { label: t('onboarding.col.action'), srOnly: true }], rowsHtml: rows })}
+    ${left && can ? `<div>${button(t('onboarding.local.mapAll'), { variant: 'primary', attrs: { 'data-map-all': true } })}</div>` : ''}
+    <p class="small soft">${tHtml('onboarding.local.signalsPage', { suggest: `<b>${esc(t('onboarding.suggestMappings'))}</b>` })}</p>`;
 }
 
 function stepList(data: Onboarding, current: StepKey): string {
@@ -164,7 +178,7 @@ function stepList(data: Onboarding, current: StepKey): string {
     return `<li class="${done ? 'done' : ''} ${s.key === current ? 'current' : ''}">
         <button class="wizard-step" data-step="${s.key}" ${s.key === current ? 'aria-current="step"' : ''}>
           <span class="wizard-mark" aria-hidden="true">${done ? '✓' : i + 1}</span>
-          <span><b>${esc(s.title)}</b><span class="small soft">${done ? 'Done: ' : ''}${esc(state?.detail ?? '')}</span></span>
+          <span><b>${esc(s.title)}</b><span class="small soft">${done ? esc(t('onboarding.doneDetail')) : ''}${esc(state?.detail ?? '')}</span></span>
         </button>
       </li>`;
   }).join('')}</ol>`;
@@ -174,35 +188,35 @@ function siteStep(ctx: Context): string {
   const here = ctx.ontology.site;
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const made = created
-    ? `<div class="card" role="status"><p><b>${esc(created.name)}</b> is created, with you as its admin.</p>
-        <button class="btn primary" data-open-site="${esc(created.id)}">Set up ${esc(created.name)} now</button></div>`
+    ? `<div class="card" role="status"><p>${tHtml('onboarding.site.created', { name: `<b>${esc(created.name)}</b>` })}</p>
+        <button class="btn primary" data-open-site="${esc(created.id)}">${esc(t('onboarding.site.setUpNow', { name: created.name }))}</button></div>`
     : '';
-  return `<p>You are setting up <b>${esc(here?.name ?? '')}</b>${here ? ` (<code>${esc(here.slug)}</code>)` : ''}. Next: outline its plant.</p>
+  return `<p>${tHtml('onboarding.site.current', { name: `<b>${esc(here?.name ?? '')}</b>`, slug: here ? ` (<code>${esc(here.slug)}</code>)` : '' })}</p>
     ${made}
-    <h3>A new site</h3>
-    <p class="small soft">Organisation admins create sites. Each is set up on its own: open it, then come back here.</p>
+    <h3>${esc(t('onboarding.site.new'))}</h3>
+    <p class="small soft">${esc(t('onboarding.site.newBody'))}</p>
     <form class="stack gap-2_5 max-w-form" id="new-site">
-      <label class="field">Name<input type="text" name="name" required maxlength="120" placeholder="Plant 2" autocomplete="off"></label>
-      <label class="field">Short name, in links<input type="text" name="slug" required pattern="[a-z0-9][a-z0-9\\-]{0,62}" placeholder="plant-2" autocomplete="off"></label>
-      <label class="field">Time zone<input type="text" name="timezone" required value="${esc(zone)}" autocomplete="off"></label>
-      <div><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Create the site</button></div>
+      <label class="field">${esc(t('onboarding.site.name'))}<input type="text" name="name" required maxlength="120" placeholder="${esc(t('onboarding.site.namePlaceholder'))}" autocomplete="off"></label>
+      <label class="field">${esc(t('onboarding.site.slug'))}<input type="text" name="slug" required pattern="[a-z0-9][a-z0-9\\-]{0,62}" placeholder="${esc(t('onboarding.site.slugPlaceholder'))}" autocomplete="off"></label>
+      <label class="field">${esc(t('onboarding.site.timezone'))}<input type="text" name="timezone" required value="${esc(zone)}" autocomplete="off"></label>
+      <div><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(t('onboarding.site.create'))}</button></div>
     </form>`;
 }
 
 function outlineStep(ctx: Context, data: Onboarding): string {
   const have = data.machines
-    ? `<p>The ontology has ${data.machines} machine${data.machines === 1 ? '' : 's'}. Add another line here, or edit them on the <a href="#/ontology">Ontology</a> page.</p>`
-    : '<p>Name a line and its machines. Each machine gets a controller (PLC), which is where the edge agent’s tags go.</p>';
-  if (!canEdit(ctx)) return `${have}<p class="small soft">Engineers and admins of the site outline the plant.</p>`;
+    ? `<p>${tHtml('onboarding.outline.have', { count: data.machines, ontology: `<a href="#/ontology">${esc(t('onboarding.ontology'))}</a>` })}</p>`
+    : `<p>${esc(t('onboarding.outline.intro'))}</p>`;
+  if (!canEdit(ctx)) return `${have}<p class="small soft">${esc(t('onboarding.outline.who'))}</p>`;
   const staged = ctx.state.repo.staged.length;
   return `${have}
-    ${staged ? `<p class="small" role="note">You have ${staged} staged change${staged === 1 ? '' : 's'}: commit or discard them on the <a href="#/ontology">Ontology</a> page first.</p>` : ''}
+    ${staged ? stagedNote(staged) : ''}
     <form class="stack gap-2_5 max-w-form" id="outline">
-      <label class="field">Workcenter (optional)<input type="text" name="workcenter" placeholder="Housing casting" autocomplete="off"></label>
-      <label class="field">Line<input type="text" name="line" required placeholder="Die-cast line 1" autocomplete="off"></label>
-      <label class="field">Machines, one per line<textarea name="machines" rows="4" required placeholder="Die-caster DC-01&#10;Die-caster DC-02"></textarea></label>
-      <label class="field">How their controllers are read<select name="protocol">${PROTOCOLS.map((p) => `<option>${esc(p)}</option>`).join('')}</select></label>
-      <div><button class="btn primary" type="submit" ${busy || staged ? 'disabled' : ''}>${ctx.ontology.reviewRequired ? 'Send for review' : 'Add to the ontology'}</button></div>
+      <label class="field">${esc(t('onboarding.outline.workcenter'))}<input type="text" name="workcenter" placeholder="${esc(t('onboarding.outline.workcenterPlaceholder'))}" autocomplete="off"></label>
+      <label class="field">${esc(t('onboarding.outline.line'))}<input type="text" name="line" required placeholder="${esc(t('onboarding.outline.linePlaceholder'))}" autocomplete="off"></label>
+      <label class="field">${esc(t('onboarding.outline.machines'))}<textarea name="machines" rows="4" required placeholder="${esc(t('onboarding.outline.machinesPlaceholder')).replace(/\n/g, '&#10;')}"></textarea></label>
+      <label class="field">${esc(t('onboarding.outline.protocol'))}<select name="protocol">${PROTOCOLS.map((p) => `<option>${esc(p)}</option>`).join('')}</select></label>
+      <div><button class="btn primary" type="submit" ${busy || staged ? 'disabled' : ''}>${esc(t(ctx.ontology.reviewRequired ? 'onboarding.outline.sendReview' : 'onboarding.outline.add'))}</button></div>
     </form>`;
 }
 
@@ -215,72 +229,70 @@ function agentStep(ctx: Context, data: Onboarding): string {
     )
     .join('');
   const waiting =
-    !data.agents_seen && data.agents
-      ? '<p role="status" class="small">Waiting for the agent’s first heartbeat… this page checks every few seconds.</p>'
-      : '';
+    !data.agents_seen && data.agents ? `<p role="status" class="small">${esc(t('onboarding.agent.waiting'))}</p>` : '';
   const token =
     revealed?.site === siteId(ctx)
       ? `<div class="card stack gap-2" data-agent-token>
-          <p><b>${esc(revealed.name)}</b>’s token, shown only this once. Save it on the agent’s machine as <code>/etc/tiles-edge/token</code>, readable only by the agent’s user:</p>
+          <p>${tHtml('onboarding.agent.token', { name: `<b>${esc(revealed.name)}</b>`, token: TOKEN_PATH })}</p>
           <pre class="code-block" tabindex="0">${esc(revealed.token)}</pre>
-          <p>Then write <code>/etc/tiles-edge/tiles-edge.toml</code>:</p>
+          <p>${tHtml('onboarding.agent.thenWrite', { config: CONFIG_PATH })}</p>
           <pre class="code-block" tabindex="0">${esc(agentConfig(ctx.dataSource.apiUrl))}</pre>
-          <p>Check it with <code>tiles-edge check -c /etc/tiles-edge/tiles-edge.toml</code>, then run <code>tiles-edge run -c /etc/tiles-edge/tiles-edge.toml</code> as a service. It only connects out, over HTTPS.</p>
+          <p>${checkAndRun()}</p>
         </div>`
       : '';
   const form =
     ctx.ontology.role === 'admin'
       ? `<form class="row gap-2 wrap" id="new-agent">
-          <label class="field">Agent name<input type="text" name="name" required maxlength="80" value="${esc(freeAgentName((list ?? []).map((a) => a.name)))}" autocomplete="off"></label>
-          <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>Register an agent</button>
+          <label class="field">${esc(t('onboarding.agent.name'))}<input type="text" name="name" required maxlength="80" value="${esc(freeAgentName((list ?? []).map((a) => a.name)))}" autocomplete="off"></label>
+          <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(t('onboarding.agent.register'))}</button>
         </form>`
-      : '<p class="small soft">Admins of the site register edge agents.</p>';
-  return `<p>The edge agent runs on a machine on site that can reach the controllers. It reads them read-only, buffers to disk, and sends readings out to Tiles.</p>
+      : `<p class="small soft">${esc(t('onboarding.agent.who'))}</p>`;
+  return `<p>${esc(t('onboarding.agent.intro'))}</p>
     ${rows ? `<ul class="plant-list">${rows}</ul>` : ''}
     ${waiting}${token}${form}`;
 }
 
 function mappingStep(data: Onboarding): string {
   if (!data.tags)
-    return `<p>No tags have arrived yet. They come once the agent’s connectors are configured (OPC UA, MQTT or SQL, in its config file); or <a href="#/import">import a file</a> of past readings.</p>`;
-  return `<p><b>${data.mapped} of ${data.tags}</b> tags are mapped to Signal nodes.</p>
-    <p>On the Signals page, <b>Suggest mappings</b> proposes a Signal node for each tag that has none: one to link, or a new one under its machine’s PLC. Every suggestion says why. Map the tags that matter first; the rest can wait.</p>
-    <p><a class="btn primary" href="#/signals">Map tags on the Signals page</a></p>`;
+    return `<p>${tHtml('onboarding.mapping.none', { import: `<a href="#/import">${esc(t('onboarding.mapping.importFile'))}</a>` })}</p>`;
+  return `<p>${tHtml('onboarding.mapping.count', { mapped: `<b>${esc(t('onboarding.mapping.of', { mapped: data.mapped, tags: data.tags }))}</b>` })}</p>
+    <p>${tHtml('onboarding.mapping.how', { suggest: `<b>${esc(t('onboarding.suggestMappings'))}</b>` })}</p>
+    <p><a class="btn primary" href="#/signals">${esc(t('onboarding.mapping.go'))}</a></p>`;
 }
 
 function dashboardStep(data: Onboarding, local: boolean): string {
   if (!data.dashboard)
-    return local
-      ? '<p>Once a machine has a mapped signal, its page is the first dashboard.</p>'
-      : '<p>Once a machine has a mapped signal, its page shows the live readings: the first dashboard.</p>';
+    return local ? `<p>${esc(t('onboarding.dash.localNone'))}</p>` : `<p>${esc(t('onboarding.dash.none'))}</p>`;
   return `<p>${
     local
-      ? `<b>${esc(data.dashboard.label)}</b> has mapped signals. Its page shows them with their units, and what feeds them; with the Tiles API, their latest readings and open warnings too.`
-      : `<b>${esc(data.dashboard.label)}</b> has live signals. Its page shows each one’s latest reading, its open warnings, and what feeds it.`
+      ? tHtml('onboarding.dash.local', { machine: `<b>${esc(data.dashboard.label)}</b>` })
+      : tHtml('onboarding.dash.live', { machine: `<b>${esc(data.dashboard.label)}</b>` })
   }</p>
     <p class="row gap-2 wrap">
-      <a class="btn primary" href="${placeLink(data.dashboard.id)}">Open ${esc(data.dashboard.label)}</a>
-      <a class="btn" href="#/shopfloor">Shopfloor view</a>
-      <a class="btn" href="#/explorer">Data explorer</a>
+      <a class="btn primary" href="${placeLink(data.dashboard.id)}">${esc(t('onboarding.dash.open', { machine: data.dashboard.label }))}</a>
+      <a class="btn" href="#/shopfloor">${esc(t('onboarding.dash.shopfloor'))}</a>
+      <a class="btn" href="#/explorer">${esc(t('onboarding.dash.explorer'))}</a>
     </p>
-    ${data.next === null ? '<p role="status"><b>This site is set up.</b> Next, add detectors to raise warnings (Warnings page) and invite the team.</p>' : ''}`;
+    ${data.next === null ? `<p role="status"><b>${esc(t('onboarding.dash.setUp'))}</b> ${esc(t('onboarding.dash.next'))}</p>` : ''}`;
 }
 
 const view: View = {
   id: 'onboarding',
-  title: 'Set up a site',
+  get title() {
+    return t('onboarding.title');
+  },
   icon: 'rocket',
   render(ctx) {
     const site = ctx.ontology.site;
     const head = pageHead({
-      eyebrow: 'Settings · onboarding',
-      title: `Set up ${site?.name ?? 'a site'}`,
-      lead: 'From a new site to its first dashboard: outline the plant, connect an edge agent, map its tags.',
-      actionsHtml: ctx.api ? button('Refresh', { attrs: { 'data-onboarding-refresh': true } }) : '',
+      eyebrow: t('onboarding.eyebrow'),
+      title: t('onboarding.headTitle', { site: site?.name ?? t('onboarding.aSite') }),
+      lead: t('onboarding.lead'),
+      actionsHtml: ctx.api ? button(t('onboarding.refresh'), { attrs: { 'data-onboarding-refresh': true } }) : '',
     });
     const local = !ctx.api;
     if (!local && ctx.ontology.status === 'loading')
-      return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
+      return `${head}<div class="card">${skeleton.card(t('onboarding.loadingApi'))}</div>`;
     if (!local && ctx.ontology.status !== 'ready')
       return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const data = local
@@ -290,8 +302,8 @@ const view: View = {
         : null;
     if (!data)
       return progress?.failed
-        ? `${head}<div class="card" role="alert"><p>This site’s progress couldn’t be loaded.</p><button class="btn" data-onboarding-refresh>Try again</button></div>`
-        : `${head}<div class="card">${skeleton.list(4, 'Loading this site’s progress…')}</div>`;
+        ? `${head}<div class="card" role="alert"><p>${esc(t('onboarding.failed'))}</p><button class="btn" data-onboarding-refresh>${esc(t('onboarding.tryAgain'))}</button></div>`
+        : `${head}<div class="card">${skeleton.list(4, t('onboarding.loadingProgress'))}</div>`;
     const ui = uiState(ctx);
     const current = ui.step ?? data.next ?? 'dashboard';
     const meta = STEPS.find((s) => s.key === current) ?? STEPS[0]!;
@@ -304,17 +316,15 @@ const view: View = {
     };
     const index = STEPS.findIndex((s) => s.key === current);
     const nextKey = STEPS[index + 1]?.key;
-    const demo = local
-      ? '<p class="small soft mb-3" role="note">You are trying this on the demo plant, in this browser. With the Tiles API, the same steps set up a real site.</p>'
-      : '';
+    const demo = local ? `<p class="small soft mb-3" role="note">${esc(t('onboarding.demoNote'))}</p>` : '';
     return `${head}${demo}<div class="wizard">
-        <nav aria-label="Steps">${stepList(data, current)}</nav>
+        <nav aria-label="${esc(t('onboarding.steps'))}">${stepList(data, current)}</nav>
         <section class="card wizard-panel" aria-labelledby="wizard-title">
-          <div class="eyebrow">Step ${index + 1} of ${STEPS.length}</div>
+          <div class="eyebrow">${esc(t('onboarding.stepOf', { n: index + 1, total: STEPS.length }))}</div>
           <h2 id="wizard-title">${esc(meta.title)}</h2>
           <p class="soft">${esc(meta.why)}</p>
           <div class="stack gap-3 mt-3">${body[current]()}</div>
-          ${nextKey ? `<p class="mt-4"><button class="btn" data-step="${nextKey}">Next: ${esc(STEPS[index + 1]!.title.toLowerCase())}</button></p>` : ''}
+          ${nextKey ? `<p class="mt-4"><button class="btn" data-step="${nextKey}">${esc(t('onboarding.next', { step: STEPS[index + 1]!.title.toLowerCase() }))}</button></p>` : ''}
         </section>
       </div>`;
   },
@@ -361,7 +371,7 @@ const view: View = {
             timezone: field(form, 'timezone'),
           });
           created = { id: made.id, name: made.name };
-          ctx.toast(`${made.name} created`);
+          ctx.toast(t('onboarding.createdToast', { name: made.name }));
         } catch {
           // The client showed why (403: only organisation admins create sites).
         } finally {
@@ -382,7 +392,7 @@ const view: View = {
       (async () => {
         if (busy) return;
         const o = {
-          site: ctx.ontology.site?.name ?? 'Site',
+          site: ctx.ontology.site?.name ?? t('onboarding.siteFallback'),
           workcenter: field(outline, 'workcenter'),
           line: field(outline, 'line'),
           machines: names(field(outline, 'machines')),
@@ -392,16 +402,16 @@ const view: View = {
         if (problem) return ctx.toast(problem);
         busy = true;
         const review = ctx.ontology.reviewRequired;
-        const message = `Outline ${o.line.trim()} (${o.machines.length} machine${o.machines.length === 1 ? '' : 's'})`;
+        const message = t('onboarding.outline.message', { line: o.line.trim(), count: o.machines.length });
         const ok = await ctx.ontology.act(
           async (store, repo) => {
-            if (repo.staged.length) throw new Error('Commit or discard your staged changes on the Ontology page first');
+            if (repo.staged.length) throw new Error(t('onboarding.stagedFirst'));
             const staged = await store.stage(repo, outlineOps(ctx.graph, o));
             return review
               ? store.requestReview(staged, { message })
               : store.commit(staged, message, ctx.state.user.name);
           },
-          review ? 'Sent for review: another engineer approves it' : `${o.line.trim()} added to the ontology`,
+          review ? t('onboarding.outline.sent') : t('onboarding.outline.added', { line: o.line.trim() }),
         );
         busy = false;
         if (!ok) return ctx.rerender();
@@ -415,9 +425,9 @@ const view: View = {
     onAll(root, '[data-demo-agent]', 'click', () => {
       ui.demoAgent = true;
       save(LOCAL_KEY, { ...localSetup(ctx), agent: true });
-      ctx.toast('edge-01 (demo) called in', {
+      ctx.toast(t('onboarding.demoCalledIn', { agent: DEMO_AGENT }), {
         type: 'success',
-        description: `It sent ${DEMO_TAGS.length} tags to map.`,
+        description: t('onboarding.demoSent', { count: DEMO_TAGS.length }),
       });
       ui.step = null;
       ctx.rerender();
@@ -425,21 +435,24 @@ const view: View = {
     const mapTags = async (tags: readonly DemoTag[]): Promise<void> => {
       if (busy) return;
       busy = true;
-      const message = tags.length === 1 ? `Map tag ${tags[0]!.tag}` : `Map ${tags.length} demo tags`;
+      const message =
+        tags.length === 1
+          ? t('onboarding.mapOne', { tag: tags[0]!.tag })
+          : t('onboarding.mapMany', { count: tags.length });
       await ctx.ontology.act(
         async (store, repo) => {
-          if (repo.staged.length) throw new Error('Commit or discard your staged changes on the Ontology page first');
+          if (repo.staged.length) throw new Error(t('onboarding.stagedFirst'));
           const ops = mappingOps(repo.head, tags);
-          if (!ops.length) throw new Error('Nothing left to map');
+          if (!ops.length) throw new Error(t('onboarding.nothingLeft'));
           return store.commit(await store.stage(repo, ops), message, ctx.state.user.name);
         },
-        tags.length === 1 ? `${tags[0]!.tag} mapped` : 'Tags mapped',
+        tags.length === 1 ? t('onboarding.tagMapped', { tag: tags[0]!.tag }) : t('onboarding.tagsMapped'),
       );
       busy = false;
       ui.step = 'mapping'; // stays on the tags, with the rest to map, until Next
       ctx.rerender();
     };
-    onAction(root, '[data-map-tag]', (el) => mapTags(DEMO_TAGS.filter((t) => t.tag === el.dataset.mapTag)));
+    onAction(root, '[data-map-tag]', (el) => mapTags(DEMO_TAGS.filter((d) => d.tag === el.dataset.mapTag)));
     onAction(root, '[data-map-all]', () => mapTags(DEMO_TAGS));
 
     onSubmit(root, '#new-agent', (agent) =>
@@ -449,7 +462,7 @@ const view: View = {
         try {
           const out = await ctx.api.agents.register(site, field(agent, 'name'));
           revealed = { site, name: out.agent.name, token: out.token };
-          ctx.toast(`${out.agent.name} registered`);
+          ctx.toast(t('onboarding.registered', { name: out.agent.name }));
         } catch {
           // The client showed why.
         } finally {
