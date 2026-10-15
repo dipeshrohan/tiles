@@ -98,7 +98,7 @@ function withinBudget(m, what, { interactions = true } = {}) {
 const charts = (page, n) =>
   page.waitForFunction(
     (n) => {
-      const all = [...document.querySelectorAll('#view [data-chart]')];
+      const all = [...document.querySelectorAll('#view [data-plot]')];
       return (
         all.length === n && all.every((c) => c.querySelector('svg[role="img"]') && !c.querySelector('[aria-busy]'))
       );
