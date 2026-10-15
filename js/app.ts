@@ -100,6 +100,7 @@ import { createTracker, keepLeft, newSession, takeLeft, ux, type UxEvent } from 
 import { breadcrumbs, button, clockTime, resetIds } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
+import { installCharts } from './lib/charts.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
 import { installShortcuts, shortcutsOn } from './lib/shortcuts.ts';
 import { helpHref, helpItems, helpLoaded, loadHelp, pageSection } from './lib/help.ts';
@@ -158,6 +159,10 @@ const NAV: { group?: string; items: View[] }[] = [
 // Toasts and tooltips are the page's, from the start (a live region must exist before it speaks).
 const toast = createToaster(need(document, '#toast'));
 installTooltips();
+// Charts read point by point, and saved (U5.03): their values are read out by the page's announcer.
+installCharts(need(document, '#announcer'), (what) =>
+  toast(what, { type: 'error', description: 'Try again, or save its data as CSV instead.' }),
+);
 
 // ---- state ------------------------------------------------------------
 

@@ -2,6 +2,7 @@
 
 import type { SignalSeries } from './api.ts';
 import { esc, fmt } from './dom.ts';
+import { hiddenParts, registerChart, type ChartData } from './chart-data.ts';
 
 export interface Series {
   values: (number | null)[];
@@ -98,9 +99,41 @@ function niceStep(raw: number): number {
 // The opening of a chart: an image to screen readers, named by its title and a short summary of what
 // it shows (the numbers a sighted reader takes from it). In aria-label only: a <title> as well would
 // be read twice, and show as a tooltip over the whole chart.
-function open(width: number, height: number, title: string, summary: string, cls = 'chart'): string {
-  const name = [title, summary].filter(Boolean).join('. ');
-  return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}">`;
+// A chart that can be read point by point (U5.03) is also focusable, says how, and carries its data's
+// id (js/lib/chart-data.ts) and the parts its legend hid.
+function open(width: number, height: number, title: string, summary: string, cls = 'chart', id?: string): string {
+  const name = [title, summary, id ? 'Point at it, or focus it and use the arrow keys, to read each value' : '']
+    .filter(Boolean)
+    .join('. ');
+  const read = id ? ` data-chart="${id}" tabindex="0"` : '';
+  return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}"${read}>`;
+}
+
+export interface LegendItem {
+  part: string; // what it shows and hides: "line", "band", "levels", "spans", "s0"…
+  label: string;
+  color: string;
+}
+
+// The chart with its tools above it (U5.03): a legend whose items show and hide their part (when
+// there is more than one), and the chart saved as PNG or its data as CSV.
+function chartBox(id: string, title: string, chart: string, legend: LegendItem[]): string {
+  // What the legend hid stays hidden by what the chart is, whatever its data (panned, zoomed).
+  const key = `${title}|${legend.map((l) => l.part).join(',')}`;
+  const off = hiddenParts(key);
+  const svg = chart
+    .replace('<svg ', `<svg data-chart-key="${esc(key)}" data-hidden="${esc([...off].join(' '))}" `)
+    .replace(/data-part="([\w-]+)"/g, (m: string, part: string) => (off.has(part) ? `${m} display="none"` : m));
+  const keys =
+    legend.length > 1
+      ? `<span class="chart-legend" role="group" aria-label="Show or hide">${legend
+          .map(
+            (l) =>
+              `<button class="chart-key" type="button" data-chart-toggle="${esc(l.part)}" aria-pressed="${!off.has(l.part)}"><span class="chart-swatch" style="--swatch:${l.color}"></span>${esc(l.label)}</button>`,
+          )
+          .join('')}</span>`
+      : '<span></span>';
+  return `<div class="chart-box"><div class="chart-tools" data-chart-for="${id}">${keys}<span class="chart-actions"><button class="btn ghost sm" type="button" data-chart-png aria-label="Save ${esc(title || 'the chart')} as a PNG image">PNG</button><button class="btn ghost sm" type="button" data-chart-csv aria-label="Export the data of ${esc(title || 'the chart')} as CSV">CSV</button></span></div>${svg}</div>`;
 }
 
 // "a, b and c"; with more than `max`, the first ones and how many more.
@@ -111,11 +144,14 @@ export function listed(items: string[], max = 8): string {
 
 // A number as a summary reads it: as many digits as its size needs, no trailing zeros.
 // Below 1, three significant digits (0.000234, not 0).
+// The formatters are made once: toLocaleString makes one for every call, and a chart reads out
+// thousands of points (U5.03).
+const SIGNIFICANT = new Intl.NumberFormat('en-GB', { maximumSignificantDigits: 3 });
+const FRACTION = [0, 1, 2].map((digits) => new Intl.NumberFormat('en-GB', { maximumFractionDigits: digits }));
 const num = (x: number): string => {
   const abs = Math.abs(x);
-  if (abs > 0 && abs < 1) return x.toLocaleString('en-GB', { maximumSignificantDigits: 3 });
-  const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
-  return x.toLocaleString('en-GB', { maximumFractionDigits: digits });
+  if (abs > 0 && abs < 1) return SIGNIFICANT.format(x);
+  return (FRACTION[abs >= 100 ? 0 : abs >= 10 ? 1 : 2] ?? SIGNIFICANT).format(x);
 };
 
 // The lowest and highest of some values, in one pass (no spreading: there may be many).
@@ -173,8 +209,32 @@ export function lineChart({
       d += `${pen ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`;
       pen = true;
     });
-    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ''} stroke-linejoin="round"/>`;
+    return `<path data-part="s${series.indexOf(s)}" d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ''} stroke-linejoin="round"/>`;
   });
+  const names = series.map((s, i) => s.label ?? (series.length > 1 ? `Line ${i + 1}` : yLabel || 'Value'));
+  const xText = (i: number) => `${xLabel ? `${xLabel} ` : ''}${xFormat(i)}`;
+  const unit = yLabel ? ` ${yLabel}` : '';
+  const ok = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v);
+  const data: ChartData = {
+    title,
+    xs: Array.from({ length: n }, (_, i) => x(i)),
+    labels: Array.from({ length: n }, (_, i) => xText(i)),
+    series: series.map((s, k) => ({
+      name: names[k] ?? '',
+      ys: Array.from({ length: n }, (_, i) => (ok(s.values[i]) ? y(s.values[i]!) : null)),
+      text: Array.from({ length: n }, (_, i) => (ok(s.values[i]) ? `${num(s.values[i]!)}${unit}` : '')),
+    })),
+    top: PAD.t,
+    bottom: height - PAD.b,
+    csv: {
+      head: [xLabel || 'x', ...names],
+      rows: Array.from({ length: n }, (_, i) => [
+        String(xFormat(i)),
+        ...series.map((s) => (ok(s.values[i]) ? s.values[i]! : '')),
+      ]),
+    },
+  };
+  const id = registerChart(data);
   const summary = [
     `${n} points${xLabel ? ` along ${xLabel}` : ''}`,
     ...series.map(
@@ -184,7 +244,7 @@ export function lineChart({
     bands.length ? `${bands.length} shaded window${bands.length === 1 ? '' : 's'}` : '',
     markers.length ? `marked: ${listed(markers.map((m) => m.label))}` : '',
   ].filter(Boolean);
-  return `${open(width, height, title, summary.join('; '))}
+  const svg = `${open(width, height, title, summary.join('; '), 'chart', id)}
     ${bands.map((b) => `<rect x="${x(b.from)}" y="${PAD.t}" width="${Math.max(2, x(b.to) - x(b.from))}" height="${height - PAD.t - PAD.b}" fill="${b.color}"/>`).join('')}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(xFormat(t))}</text>`).join('')}
@@ -193,6 +253,12 @@ export function lineChart({
     ${xLabel ? `<text class="axis" x="${width - PAD.r}" y="${height - 2}" text-anchor="end">${esc(xLabel)}</text>` : ''}
     ${yLabel ? `<text class="axis" x="4" y="${PAD.t - 10}">${esc(yLabel)}</text>` : ''}
   </svg>`;
+  return chartBox(
+    id,
+    title,
+    svg,
+    series.map((s, k) => ({ part: `s${k}`, label: names[k] ?? '', color: s.color })),
+  );
 }
 
 // rows: [{ label, sub, a, b, aLabel, bLabel }] — dot "a" (failed) vs "b" (target).
@@ -474,7 +540,7 @@ export function timeChart({
     .filter((r) => r.some((p) => p.hi > p.lo))
     .map(
       (r) =>
-        `<path d="M${r.map((p) => xy(p.t, p.hi)).join('L')}L${[...r]
+        `<path data-part="band" d="M${r.map((p) => xy(p.t, p.hi)).join('L')}L${[...r]
           .reverse()
           .map((p) => xy(p.t, p.lo))
           .join('L')}Z" fill="${color}" fill-opacity="0.18" stroke="none"/>`,
@@ -483,8 +549,8 @@ export function timeChart({
   const lines = runs
     .map((r) =>
       r.length === 1
-        ? `<circle cx="${x(r[0]!.t).toFixed(1)}" cy="${y(r[0]!.v).toFixed(1)}" r="2" fill="${color}"/>`
-        : `<path d="M${r.map((p) => xy(p.t, p.v)).join('L')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>`,
+        ? `<circle data-part="line" cx="${x(r[0]!.t).toFixed(1)}" cy="${y(r[0]!.v).toFixed(1)}" r="2" fill="${color}"/>`
+        : `<path data-part="line" d="M${r.map((p) => xy(p.t, p.v)).join('L')}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/>`,
     )
     .join('');
   const yt = ticks(lo, hi, 4);
@@ -494,7 +560,7 @@ export function timeChart({
     .filter(([a, b]) => b >= a)
     .map(([a, b]) => {
       const w = Math.max(2, x(b) - x(a));
-      return `<rect class="span" x="${x(a).toFixed(1)}" y="${PAD.t}" width="${w.toFixed(1)}" height="${height - PAD.b - PAD.t}"/>`;
+      return `<rect class="span" x="${x(a).toFixed(1)}" y="${PAD.t}" width="${w.toFixed(1)}" height="${height - PAD.b - PAD.t}" data-part="spans"/>`;
     })
     .join('');
   // Each label sits just above its line; one too close to the label above it goes below its line.
@@ -507,7 +573,7 @@ export function timeChart({
       const above = l.at - 4;
       const labelY = above - lastLabel < 12 ? l.at + 12 : above;
       lastLabel = labelY;
-      return `<line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text>`;
+      return `<g data-part="levels"><line class="level" x1="${PAD.l}" x2="${width - PAD.r}" y1="${l.at.toFixed(1)}" y2="${l.at.toFixed(1)}"/><text class="axis" x="${width - PAD.r}" y="${labelY.toFixed(1)}" text-anchor="end">${esc(l.label)}</text></g>`;
     })
     .join('');
   const last = shown[shown.length - 1]!;
@@ -518,10 +584,71 @@ export function timeChart({
     ...levels.filter((l) => Number.isFinite(l.v)).map((l) => `${l.label} ${num(l.v)}`),
     spans.length ? `${spans.length} shaded stretch${spans.length === 1 ? '' : 'es'}` : '',
   ].filter(Boolean);
-  return `${open(width, height, title, summary.join('; '))}
+  // What each reading reads out as, and the data behind the chart (U5.03).
+  const unit = yLabel ? ` ${yLabel}` : '';
+  const ranged = shown.some((p) => p.hi > p.lo);
+  const data: ChartData = {
+    title,
+    xs: shown.map((p) => x(p.t)),
+    labels: shown.map((p) => readTime(p.t, to - from)),
+    series: [
+      {
+        name: ranged ? 'Average' : 'Reading',
+        ys: shown.map((p) => y(p.v)),
+        text: shown.map((p) =>
+          p.hi > p.lo ? `${num(p.v)}${unit} (min ${num(p.lo)}, max ${num(p.hi)})` : `${num(p.v)}${unit}`,
+        ),
+      },
+    ],
+    top: PAD.t,
+    bottom: height - PAD.b,
+    csv: {
+      head: ranged ? ['time', 'average', 'min', 'max'] : ['time', 'value'],
+      rows: shown.map((p) =>
+        ranged ? [new Date(p.t).toISOString(), p.v, p.lo, p.hi] : [new Date(p.t).toISOString(), p.v],
+      ),
+    },
+  };
+  const id = registerChart(data);
+  const legend: LegendItem[] = [
+    { part: 'line', label: ranged ? 'Average' : 'Readings', color },
+    ...(ranged ? [{ part: 'band', label: 'Min to max', color }] : []),
+    ...(refs
+      ? [
+          {
+            part: 'levels',
+            label: levels.length === 1 ? (levels[0]?.label ?? 'Level') : 'Levels',
+            color: 'var(--soft)',
+          },
+        ]
+      : []),
+    ...(shade ? [{ part: 'spans', label: 'Shaded', color: 'var(--bad)' }] : []),
+  ];
+  const svg = `${open(width, height, title, summary.join('; '), 'chart', id)}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join('')}
     ${xt.map((t) => `<text class="tick" x="${x(t)}" y="${height - PAD.b + 16}" text-anchor="middle">${esc(tickLabel(t, step))}</text>`).join('')}
     ${shade}${band}${lines}${refs}
     ${yLabel ? `<text class="axis" x="4" y="${PAD.t - 10}">${esc(yLabel)}</text>` : ''}
   </svg>`;
+  return chartBox(id, title, svg, legend);
+}
+
+// A reading's time as read out: to the second for short ranges, the minute otherwise; local time.
+const TO_MINUTE = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const TO_SECOND = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+function readTime(t: number, span: number): string {
+  return (span < 6 * HOUR ? TO_SECOND : TO_MINUTE).format(t);
 }

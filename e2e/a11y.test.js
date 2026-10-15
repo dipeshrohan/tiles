@@ -237,6 +237,10 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await page.click('a[href^="#/explorer?signal="]');
     await page.waitForSelector('.explorer-chart svg.chart');
     await check('explorer');
+    // Charts v2 (U5.03): a chart focused, its crosshair and value shown.
+    await page.focus('.explorer-chart svg[data-chart]');
+    await page.waitForSelector('.explorer-chart svg g.crosshair');
+    await check('explorer, a chart read with the keys');
     // Send feedback (U4.09): the form with its errors, then with a screenshot attached.
     await page.click('#help-open');
     await page.click('dialog.sheet[open] [data-feedback-open]');

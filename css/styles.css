@@ -2573,6 +2573,83 @@ kbd {
   margin-top: var(--space-4);
 }
 
+/* Charts v2 (U5.03): each chart's tools above it (its legend, PNG and CSV), the crosshair at the
+   reading pointed at or stepped to, and the parts the legend hid. */
+.chart-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.chart-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.chart-legend,
+.chart-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+}
+.chart-key {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1_5);
+  padding: var(--space-0_5) var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-full);
+  background: var(--panel);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.chart-key[aria-pressed='false'] {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.chart-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-xs);
+  background: var(--swatch);
+}
+.chart-key[aria-pressed='false'] .chart-swatch {
+  opacity: 0.35;
+}
+svg[data-chart] {
+  touch-action: pan-y; /* a finger scrolls the page up and down; a tap reads */
+}
+svg[data-chart]:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+.crosshair line {
+  stroke: var(--soft);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.crosshair circle {
+  fill: var(--panel);
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.crosshair-box {
+  fill: var(--panel);
+  stroke: var(--line-strong);
+}
+.crosshair text {
+  font-size: var(--text-2xs);
+  fill: var(--ink);
+}
+.crosshair .crosshair-time {
+  fill: var(--soft);
+}
+
 /* Tables v2 (U5.02): a table in a frame that scrolls both ways, its header row and first column
    stuck to it; tools above (columns, density, export); a bar of bulk actions while rows are
    selected. Compact density halves the cells' padding. */

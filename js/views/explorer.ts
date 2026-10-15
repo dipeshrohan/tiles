@@ -35,6 +35,7 @@ export interface Range {
 interface Ui {
   picked: Picked[];
   range: Range | null;
+  zoomedFrom?: Range | null; // the range before dragging to zoom in (U5.03): Reset zoom goes back
   catalogue: string; // the catalogue `picked` belongs to
 }
 
@@ -218,8 +219,14 @@ const localInput = (isoTime: string): string => {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 };
 
-function setRange(ctx: Context, range: Range): void {
-  ui(ctx).range = range;
+// A new range. `drag`: dragged across a chart to zoom in, so Reset zoom can go back to the range it
+// started from; `move`: panned or zoomed out from there, which keeps that; `new`: another range
+// altogether (a preset, From and To, a link), after which there is nothing to reset.
+function setRange(ctx: Context, range: Range, how: 'drag' | 'move' | 'new' = 'new'): void {
+  const u = ui(ctx);
+  if (how === 'drag') u.zoomedFrom ??= u.range;
+  else if (how === 'new') u.zoomedFrom = null;
+  u.range = range;
   ctx.rerender();
 }
 
@@ -235,7 +242,7 @@ function add(ctx: Context, s: Pick<SignalInfo, 'id' | 'tag' | 'unit' | 'last_at'
   // A signal whose readings are all outside the range shown brings the day up to its latest reading.
   const last = s.last_at ? Date.parse(s.last_at) : null;
   const outside = u.range && last !== null && (last < Date.parse(u.range.from) || last >= Date.parse(u.range.to));
-  if (!u.range || outside) u.range = presetRange('data', [{ ...s }], Date.now());
+  if (!u.range || outside) Object.assign(u, { range: presetRange('data', [{ ...s }], Date.now()), zoomedFrom: null });
   ctx.rerender();
 }
 
@@ -245,7 +252,7 @@ function loadCharts(root: HTMLElement, ctx: Context): void {
   if (!ctx.api || !site || !range) return;
   const mine = ++latestLoad;
   for (const p of picked) {
-    const box = root.querySelector<HTMLElement>(`[data-chart="${CSS.escape(p.id)}"]`);
+    const box = root.querySelector<HTMLElement>(`[data-plot="${CSS.escape(p.id)}"]`);
     ctx.api.signals.series(site.id, p.id, range.from, range.to, POINTS).then(
       (series) => {
         if (mine !== latestLoad || !box?.isConnected) return;
@@ -281,6 +288,8 @@ function bindZoom(box: HTMLElement, ctx: Context, range: Range): void {
     'pointerdown',
     (e) => {
       if (e.button !== 0) return; // the main button only
+      // On the chart itself: its tools (legend, PNG, CSV) are buttons, not the start of a drag.
+      if (!(e.target instanceof Element) || !e.target.closest('svg[data-chart]')) return;
       start = e.clientX;
       area.setPointerCapture(e.pointerId);
     },
@@ -314,7 +323,7 @@ function bindZoom(box: HTMLElement, ctx: Context, range: Range): void {
       if (b - a < 8) return; // a click, not a drag
       const t0 = timeAt(a, from, to, width);
       const t1 = timeAt(b, from, to, width);
-      if (t1 - t0 >= 1) setRange(ctx, { from: iso(t0), to: iso(t1) });
+      if (t1 - t0 >= 1) setRange(ctx, { from: iso(t0), to: iso(t1) }, 'drag');
     },
     { signal: bound() },
   );
@@ -428,7 +437,7 @@ function addFromLink(ctx: Context): void {
         : [],
     );
     if (!picked.length) return;
-    Object.assign(ui(ctx), { picked, range: range ?? presetRange('data', picked, Date.now()) });
+    Object.assign(ui(ctx), { picked, range: range ?? presetRange('data', picked, Date.now()), zoomedFrom: null });
     ctx.rerender();
   });
 }
@@ -495,7 +504,8 @@ const view: View = {
     if (!ctx.api || !ctx.ontology.site)
       return `${head}<div class="card">${needsApi(`Readings are kept in the Tiles API.`)}</div>`;
     const u = ui(ctx);
-    if (u.catalogue !== catalogue(ctx)) Object.assign(u, { picked: [], range: null, catalogue: catalogue(ctx) });
+    if (u.catalogue !== catalogue(ctx))
+      Object.assign(u, { picked: [], range: null, zoomedFrom: null, catalogue: catalogue(ctx) });
     for (const id of wearStates.keys()) if (!u.picked.some((p) => p.id === id)) wearStates.delete(id);
     const { picked, range } = u;
     const canSave = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
@@ -514,6 +524,7 @@ const view: View = {
           <button class="btn sm" type="submit">Show</button>
           <button class="btn sm" type="button" data-pan="-1" aria-label="Earlier">←</button>
           <button class="btn sm" type="button" data-zoom-out>Zoom out</button>
+          ${u.zoomedFrom ? '<button class="btn sm" type="button" data-zoom-reset>Reset zoom</button>' : ''}
           <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
           ${canSave && saving?.key !== chartsKey(u) ? '<button class="btn sm" type="button" data-save-insight>Save as insight</button>' : ''}
         </form>
@@ -523,7 +534,7 @@ const view: View = {
       .map(
         (p) => `<div class="card stack gap-1_5">
           <div class="row justify-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? '')}</span></div>
-          <div data-chart="${esc(p.id)}">${skeleton.chart('Loading the readings…', TIME_CHART.height)}</div>
+          <div data-plot="${esc(p.id)}">${skeleton.chart('Loading the readings…', TIME_CHART.height)}</div>
           <div data-wear="${esc(p.id)}"></div>
         </div>`,
       )
@@ -545,7 +556,7 @@ const view: View = {
     onAll(root, '[data-remove]', 'click', (el) => {
       const u = ui(ctx);
       u.picked = u.picked.filter((p) => p.id !== el.dataset.remove);
-      if (!u.picked.length) u.range = null;
+      if (!u.picked.length) Object.assign(u, { range: null, zoomedFrom: null });
       ctx.rerender();
     });
     const form = root.querySelector<HTMLFormElement>('#explorer-range');
@@ -554,8 +565,12 @@ const view: View = {
       onAll(form, '[data-preset]', 'click', (el) =>
         setRange(ctx, presetRange(el.dataset.preset as Preset, ui(ctx).picked, Date.now())),
       );
-      onAll(form, '[data-pan]', 'click', (el) => setRange(ctx, pan(range, el.dataset.pan === '-1' ? -1 : 1)));
-      onAll(form, '[data-zoom-out]', 'click', () => setRange(ctx, zoomOut(range)));
+      onAll(form, '[data-pan]', 'click', (el) => setRange(ctx, pan(range, el.dataset.pan === '-1' ? -1 : 1), 'move'));
+      onAll(form, '[data-zoom-out]', 'click', () => setRange(ctx, zoomOut(range), 'move'));
+      onAll(form, '[data-zoom-reset]', 'click', () => {
+        const back = ui(ctx).zoomedFrom;
+        if (back) setRange(ctx, back);
+      });
       form.addEventListener(
         'submit',
         (e) => {

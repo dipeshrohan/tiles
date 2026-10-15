@@ -28,10 +28,13 @@ test('a chart grows at most one and a half times its drawn size', () => {
 });
 
 // What a screen reader is told about a chart: its name, and the numbers a reader takes from it.
-const label = (svg) => {
+// A chart readable point by point (U5.03) comes in a box with its tools, and adds how to read it.
+const HINT = '. Point at it, or focus it and use the arrow keys, to read each value';
+const label = (box) => {
+  const svg = box.slice(box.indexOf('<svg'));
   assert.match(svg, /^<svg [^>]*role="img"/);
   assert.doesNotMatch(svg, /^<svg[^>]*><title>/, 'no title as well: it would be read twice');
-  return svg.match(/aria-label="([^"]*)"/)?.[1];
+  return svg.match(/aria-label="([^"]*)"/)?.[1]?.replace(HINT, '');
 };
 
 test('a line chart names its lines and their ranges, its windows and its marks', () => {

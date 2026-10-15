@@ -45,9 +45,12 @@ test('colours below the tokens come from tokens, so the fallback covers them', (
 
 test('every token used is defined', () => {
   const defined = new Set([...tokens.matchAll(/(--[\w-]+):/g)].map((m) => m[1]));
-  // --w, --h and --wait are set per element (a skeleton's width, height and wait), not tokens.
+  // --w, --h and --wait are set per element (a skeleton's width, height and wait), and --swatch (a
+  // chart legend's colour, U5.03): not tokens.
   const used = new Set(
-    [...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]).filter((t) => !['--w', '--h', '--wait'].includes(t)),
+    [...css.matchAll(/var\((--[\w-]+)/g)]
+      .map((m) => m[1])
+      .filter((t) => !['--w', '--h', '--wait', '--swatch'].includes(t)),
   );
   assert.deepEqual(
     [...used].filter((t) => !defined.has(t)),

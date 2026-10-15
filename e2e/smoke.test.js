@@ -2299,17 +2299,34 @@ test('tables v2: sort, choose columns, compact rows, select to plot, export CSV,
   assert.equal(await table.locator('th[data-col="description"]').getAttribute('aria-sort'), 'descending');
   // Scrolled to the end (the drawn rows' heights settle the frame's as it goes), the last rows are
   // drawn; and back at the top, the first.
-  const scrollTo = (end, tag) =>
-    page.waitForFunction(
-      ([end, tag]) => {
+  const scrollTo = async (end, tag) => {
+    try {
+      await page.waitForFunction(
+        ([end, tag]) => {
+          const f = document.querySelector('[data-table="signals"] .table-frame');
+          // Each poll moves it (an unchanged scrollTop fires no scroll event), as a user scrolling
+          // would, and says so: a browser may hold back the event of a move made by script.
+          f.scrollTop = end ? f.scrollHeight - (f.scrollTop % 2) : f.scrollTop === 0 ? 1 : 0;
+          f.dispatchEvent(new Event('scroll'));
+          return [...f.querySelectorAll('tbody code')].some((c) => c.textContent === tag);
+        },
+        [end, tag],
+        { polling: 100, timeout: 10_000 },
+      );
+    } catch (e) {
+      const seen = await page.evaluate(() => {
         const f = document.querySelector('[data-table="signals"] .table-frame');
-        // Each poll moves it (an unchanged scrollTop fires no scroll event), as a user scrolling would.
-        f.scrollTop = end ? f.scrollHeight - (f.scrollTop % 2) : f.scrollTop === 0 ? 1 : 0;
-        return [...f.querySelectorAll('tbody code')].some((c) => c.textContent === tag);
-      },
-      [end, tag],
-      { polling: 100 },
-    );
+        const tags = [...f.querySelectorAll('tbody code')].map((c) => c.textContent);
+        return {
+          scrollTop: f.scrollTop,
+          scrollHeight: f.scrollHeight,
+          height: f.clientHeight,
+          tags: [tags[0], tags.at(-1), tags.length],
+        };
+      });
+      throw new Error(`${tag} never drawn: ${JSON.stringify(seen)}`, { cause: e });
+    }
+  };
   await scrollTo(true, 'press299.temp');
   // A row drawn as the table scrolled works like the first ones: its Edit opens the form.
   await table.locator('tr[data-row]:has(code:text-is("press299.temp")) [data-edit]').click();
@@ -2675,6 +2692,89 @@ test('a quality check still shows as running after leaving the page and coming b
   assert.deepEqual(errors, []);
 });
 
+test('charts v2: exact values with a mouse, a finger and the keys; a legend; PNG and CSV; reset zoom (U5.03)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const temp = fake.addSignal('press1.temperature', { source: 'edge:press-shop-edge', unit: '°C' });
+  const end = Date.parse('2026-09-05T06:00:00Z');
+  for (let i = 0; i < 288; i++) {
+    const at = new Date(end - i * 300_000).toISOString().replace('Z', '000Z');
+    fake.samples.set(`press1.temperature|${at}`, 20 + (i % 12));
+  }
+  temp.last_at = new Date(end).toISOString();
+  const ctxTouch = await browser.newContext({ hasTouch: true, viewport: { width: 1280, height: 900 } });
+  t.after(() => ctxTouch.close());
+  const page = await ctxTouch.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/explorer?signals=${temp.id}`);
+  const svg = page.locator('[data-charts] svg[data-chart]').first();
+  await svg.waitFor();
+  assert.match(await svg.getAttribute('aria-label'), /arrow keys/);
+  const box = await svg.boundingBox();
+  // A mouse: the crosshair at the nearest reading, with its time and value.
+  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
+  const readout = page.locator('[data-charts] svg g.crosshair');
+  await readout.waitFor();
+  assert.match(await readout.textContent(), /Sept? 2026, \d\d:\d\d(:\d\d)?\d+(\.\d+)? °C/);
+  // The keys: the latest reading first (the pointer gone), then one back, read out.
+  await page.mouse.move(0, 0);
+  await svg.focus();
+  await page.waitForFunction(() =>
+    /2026, \d\d:\d\d.*Reading: 20 °C/.test(document.querySelector('#announcer')?.textContent ?? ''),
+  );
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction(() => /Reading: 21 °C/.test(document.querySelector('#announcer')?.textContent ?? ''));
+  await page.keyboard.press('Home');
+  await page.waitForFunction(() => /Reading: \d+ °C/.test(document.querySelector('#announcer')?.textContent ?? ''));
+  await page.keyboard.press('Escape');
+  assert.equal(await readout.count(), 0);
+  // A finger: a tap shows the reading there.
+  await page.mouse.move(0, 0);
+  await page.touchscreen.tap(box.x + box.width * 0.25, box.y + box.height / 2);
+  await readout.waitFor();
+  // CSV: every reading, with its time; PNG: an image of it.
+  const [csv] = await Promise.all([page.waitForEvent('download'), page.locator('[data-chart-csv]').first().click()]);
+  const rows = readFileSync(await csv.path(), 'utf8')
+    .trim()
+    .split('\r\n');
+  assert.equal(rows[0], 'time,value');
+  assert.equal(rows.length, 289);
+  assert.match(rows[1], /^2026-09-0[45]T\d\d:\d\d:00\.000Z,\d+$/);
+  const [png] = await Promise.all([page.waitForEvent('download'), page.locator('[data-chart-png]').first().click()]);
+  assert.match(png.suggestedFilename(), /\.png$/);
+  assert.deepEqual([...readFileSync(await png.path()).subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
+  // Dragged to zoom in, Reset zoom goes back to the range it started from.
+  await page.mouse.move(box.x + box.width * 0.3, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height / 2, { steps: 5 });
+  await page.mouse.up();
+  await page.waitForSelector('[data-zoom-reset]');
+  await page.click('[data-zoom-reset]');
+  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  assert.equal(await page.locator('[data-zoom-reset]').count(), 0);
+  assert.deepEqual(errors, []);
+});
+
+test('charts v2: a legend shows and hides each part of a chart (U5.03)', async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}#/physics`);
+  const key = page.locator('.chart-key').first();
+  await key.waitFor();
+  const part = await key.getAttribute('data-chart-toggle');
+  const svg = page.locator('.chart-box', { has: key }).locator('svg[data-chart]');
+  assert.equal(await key.getAttribute('aria-pressed'), 'true');
+  assert.ok(await svg.locator(`[data-part="${part}"]`).first().isVisible());
+  await key.click();
+  assert.equal(await key.getAttribute('aria-pressed'), 'false');
+  assert.equal(await svg.locator(`[data-part="${part}"]`).first().isVisible(), false);
+  await key.click();
+  assert.ok(await svg.locator(`[data-part="${part}"]`).first().isVisible());
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the data explorer: plot signals, zoom in by dragging, zoom out into buckets', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
@@ -2695,7 +2795,7 @@ test('the data explorer: plot signals, zoom in by dragging, zoom out into bucket
   // The Signals page links each tag to the explorer.
   await page.click('[data-signal-results] a:has-text("press1.temperature")');
   await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")'); // the day up to the latest
-  assert.match(await page.locator('[data-charts] svg').first().innerHTML(), /<path d="M/);
+  assert.match(await page.locator('[data-charts] svg').first().innerHTML(), /<path data-part="line" d="M/);
 
   // Drag across the middle half of the chart: about half a day.
   const box = await page.locator('[data-zoom] svg').first().boundingBox();
@@ -4199,7 +4299,7 @@ test('saved insights: signals over a range, kept as plotted and opened again in 
   // A link with signals and a range shows them (as a saved insight links back).
   const a = await openAs(t, apiUrl, null, `explorer?signals=${temp.id},${force.id}&from=${from}&to=${to}`);
   await a.page.waitForSelector('[data-picked]:has-text("press1.force")');
-  await a.page.waitForSelector('[data-chart] svg');
+  await a.page.waitForSelector('[data-plot] svg');
   // The address keeps showing them (U3.05): a reload or the link copied shows the same charts.
   const shown = new URLSearchParams((await a.page.evaluate(() => location.hash)).split('?')[1]);
   assert.deepEqual([shown.get('signals'), shown.get('from'), shown.get('to')], [`${temp.id},${force.id}`, from, to]);
@@ -4240,7 +4340,7 @@ test('the wear check: a welder tip climbing in its last day, with a limit', asyn
   const from = new Date(end - 96 * 3_600_000).toISOString();
   const to = new Date(end).toISOString();
   const a = await openAs(t, apiUrl, null, `explorer?signals=${power.id}&from=${from}&to=${to}`);
-  await a.page.waitForSelector('[data-chart] svg');
+  await a.page.waitForSelector('[data-plot] svg');
   const form = `[data-wear-form="${power.id}"]`;
   await a.page.selectOption(`${form} [name=direction]`, 'up');
   await a.page.fill(`${form} [name=limit]`, '1900');

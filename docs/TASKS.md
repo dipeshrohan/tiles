@@ -314,7 +314,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* each role's home answers "what needs me now?" in U6.07's test.
 - [x] `U5.02` [#241](https://github.com/dipeshrohan/tiles/issues/241) **Tables v2** · FE · 4d · U1.04, U3.05
   *Done when:* the seven tables use it and 5,000 signal rows scroll at 60 fps.
-- [ ] `U5.03` [#242](https://github.com/dipeshrohan/tiles/issues/242) **Charts v2** · FE · 4d · U3.01
+- [x] `U5.03` [#242](https://github.com/dipeshrohan/tiles/issues/242) **Charts v2** · FE · 4d · U3.01
   *Done when:* exact values can be read with a mouse, touch and keyboard, with a11y tests.
 - [ ] `U5.04` [#243](https://github.com/dipeshrohan/tiles/issues/243) **Warning triage flow** · FE · 3d · U3.08, U5.02
   *Done when:* triaging 10 warnings takes under half the U1.01 time.
