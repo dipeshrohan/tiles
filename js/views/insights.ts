@@ -223,7 +223,7 @@ function detailCard(ctx: Context): string {
     i.status !== 'proposed' && i.reviewer ? `<p class="small" data-review>${esc(reviewLine(i, i.reviewer))}</p>` : '';
   if (note.key !== key) note = { key, text: '' };
   const review = may.review
-    ? `<form class="stack gap-2" id="insight-review">
+    ? `<form class="stack gap-2 no-print" id="insight-review">
         <label class="field">${esc(t('insights.review.label'))} <span class="small soft">${esc(t('insights.review.needed'))}</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
         <div class="row gap-2"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? 'disabled' : ''}>${esc(t('insights.review.accept'))}</button><button class="btn" type="submit" data-decision="rejected" ${busy ? 'disabled' : ''}>${esc(t('insights.review.reject'))}</button></div>
       </form>`

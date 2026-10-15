@@ -103,6 +103,7 @@ import { breadcrumbs, button, clockTime, loadingState, resetIds } from './lib/ui
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installCharts } from './lib/charts.ts';
+import { installPrint } from './lib/print.ts';
 import { openView, viewsFor } from './lib/filter-bar.ts';
 import { menuViews, viewHref } from './lib/saved-views.ts';
 import { INBOX_POLL_MS, announcement, arrivals, bellCount, bellLabel, inboxHtml } from './lib/inbox.ts';
@@ -178,6 +179,8 @@ installTooltips();
 installCharts(need(document, '#announcer'), (what) =>
   toast(what, { type: 'error', description: t('app.chartSaveFailed') }),
 );
+// Printed (U6.05): links write their address out, folded details open.
+installPrint(() => document.getElementById('view'));
 
 // ---- state ------------------------------------------------------------
 

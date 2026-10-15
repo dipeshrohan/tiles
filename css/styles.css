@@ -4394,3 +4394,156 @@ td.sg-scheme {
 .bg-line-strong {
   background: var(--line-strong) !important;
 }
+
+/* ---- Print (U6.05) ----
+   A page prints as a document: no menu, top bar or controls, light colours, the record open alone
+   (not the list beside it), nothing cut at the page's edge (tables and charts fit its width, long
+   words wrap), rows, comments and charts kept whole across pages, each link's address after it
+   (js/lib/print.ts), and charts in black and white: each line its own dash, shaded stretches
+   hatched (the pattern is in index.html). e2e/print.test.js prints each record on A4 and Letter. */
+.print-defs {
+  position: absolute;
+}
+@page {
+  margin: 14mm 12mm;
+}
+@media print {
+  :root,
+  :root[data-theme] {
+    color-scheme: light !important;
+  }
+  html,
+  body,
+  .main {
+    background: var(--panel) !important;
+  }
+  .sidebar,
+  .topbar,
+  .scrim,
+  .toaster,
+  .offline-banner,
+  .skip-link,
+  .split-back,
+  .chart-actions,
+  .col-resize,
+  .select-col,
+  .no-print,
+  #view .btn,
+  #view input[type='search'],
+  #view:has(.split.has-record) > :not(.page-head, .split),
+  .split.has-record > .split-list {
+    display: none !important;
+  }
+  .shell,
+  .split {
+    display: block;
+  }
+  #view {
+    padding: 0;
+    max-width: none;
+  }
+  .card {
+    box-shadow: none;
+    border-color: var(--line-strong);
+  }
+  h1,
+  h2,
+  h3,
+  .card-head {
+    break-after: avoid;
+  }
+  tr,
+  li,
+  .comment,
+  .change,
+  .chart-box,
+  .plant-sheet > .card,
+  .place-grid > * {
+    break-inside: avoid;
+  }
+  thead {
+    display: table-header-group; /* each page of a long table has its headings */
+  }
+  .table-wrap,
+  .table-frame {
+    overflow: visible;
+    max-height: none;
+  }
+  #view table {
+    width: 100%;
+  }
+  #view :is(td, th, dd, p, li, code) {
+    overflow-wrap: anywhere;
+  }
+  a[data-print-href]::after {
+    content: ' (' attr(data-print-href) ')';
+    color: var(--soft);
+    font-size: var(--text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  /* Charts in black and white. */
+  .chart {
+    print-color-adjust: exact;
+  }
+  .chart text {
+    fill: var(--ink);
+  }
+  .chart :is([data-part='line'], [data-part^='s']:not([data-part='spans'])) {
+    stroke: var(--ink);
+  }
+  .chart circle[data-part='line'] {
+    fill: var(--ink);
+  }
+  .chart [data-part='s1'],
+  .chart [data-part='s5'] {
+    stroke-dasharray: 6 3;
+  }
+  .chart [data-part='s2'],
+  .chart [data-part='s6'] {
+    stroke-dasharray: 1.5 2.5;
+  }
+  .chart [data-part='s3'],
+  .chart [data-part='s7'] {
+    stroke-dasharray: 8 3 2 3;
+  }
+  .chart [data-part='s4'] {
+    stroke-dasharray: 12 4;
+  }
+  .chart [data-part='band'] {
+    fill: var(--ink);
+    fill-opacity: 0.12;
+  }
+  .chart .span {
+    fill: url(#print-hatch);
+  }
+  .chart .level {
+    stroke: var(--ink);
+  }
+  .chart-swatch {
+    print-color-adjust: exact;
+    height: 0;
+    width: 18px;
+    border-radius: 0;
+    background: none;
+    border-top: 2px solid var(--ink);
+  }
+  .chart-key:is([data-chart-toggle='s1'], [data-chart-toggle='s5'], [data-chart-toggle='levels']) .chart-swatch {
+    border-top-style: dashed;
+  }
+  .chart-key:is([data-chart-toggle='s2'], [data-chart-toggle='s6']) .chart-swatch {
+    border-top-style: dotted;
+  }
+  .chart-key:is([data-chart-toggle='s3'], [data-chart-toggle='s7']) .chart-swatch {
+    border-top-style: double;
+    border-top-width: 3px;
+  }
+  .chart-key:is([data-chart-toggle='band'], [data-chart-toggle='spans']) .chart-swatch {
+    height: 10px;
+    border: 1px solid var(--ink);
+    background: repeating-linear-gradient(45deg, var(--ink) 0 1px, transparent 1px 4px);
+  }
+  .chart-key[data-chart-toggle='band'] .chart-swatch {
+    background: var(--line);
+  }
+}
