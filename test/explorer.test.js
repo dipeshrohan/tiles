@@ -96,7 +96,7 @@ test('a point on the chart maps back to its time, kept within the axis', () => {
 test('the time chart joins near points, breaks at gaps and shades bucket ranges', () => {
   const pts = (ts, lo = 0) => ts.map((m, i) => ({ t: T0 + m * 60_000, v: i, lo: i - lo, hi: i + lo }));
   const joined = timeChart({ points: pts([0, 1, 2, 30, 31]), from: T0, to: T0 + H, gap: 5 * 60_000 });
-  assert.equal((joined.match(/<path d="M[^"]*" fill="none"/g) ?? []).length, 2); // two runs
+  assert.equal((joined.match(/<path data-part="line" d="M[^"]*" fill="none"/g) ?? []).length, 2); // two runs
   assert.doesNotMatch(joined, /fill-opacity/); // raw readings: no band
   const banded = timeChart({ points: pts([0, 1, 2], 1), from: T0, to: T0 + H, gap: 90_000, yLabel: '°C <b>' });
   assert.match(banded, /fill-opacity="0.18"/);

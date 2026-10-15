@@ -35,6 +35,7 @@ export interface Range {
 interface Ui {
   picked: Picked[];
   range: Range | null;
+  zoomedFrom?: Range | null; // the range before dragging to zoom in (U5.03): Reset zoom goes back
   catalogue: string; // the catalogue `picked` belongs to
 }
 
@@ -218,8 +219,12 @@ const localInput = (isoTime: string): string => {
   return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 };
 
-function setRange(ctx: Context, range: Range): void {
-  ui(ctx).range = range;
+// A new range; `zoom`: dragged across a chart, so Reset zoom can go back to where it started.
+function setRange(ctx: Context, range: Range, zoom = false): void {
+  const u = ui(ctx);
+  if (zoom) u.zoomedFrom ??= u.range;
+  else u.zoomedFrom = null;
+  u.range = range;
   ctx.rerender();
 }
 
@@ -281,6 +286,8 @@ function bindZoom(box: HTMLElement, ctx: Context, range: Range): void {
     'pointerdown',
     (e) => {
       if (e.button !== 0) return; // the main button only
+      // On the chart itself: its tools (legend, PNG, CSV) are buttons, not the start of a drag.
+      if (!(e.target instanceof Element) || !e.target.closest('svg[data-chart]')) return;
       start = e.clientX;
       area.setPointerCapture(e.pointerId);
     },
@@ -314,7 +321,7 @@ function bindZoom(box: HTMLElement, ctx: Context, range: Range): void {
       if (b - a < 8) return; // a click, not a drag
       const t0 = timeAt(a, from, to, width);
       const t1 = timeAt(b, from, to, width);
-      if (t1 - t0 >= 1) setRange(ctx, { from: iso(t0), to: iso(t1) });
+      if (t1 - t0 >= 1) setRange(ctx, { from: iso(t0), to: iso(t1) }, true);
     },
     { signal: bound() },
   );
@@ -514,6 +521,7 @@ const view: View = {
           <button class="btn sm" type="submit">Show</button>
           <button class="btn sm" type="button" data-pan="-1" aria-label="Earlier">←</button>
           <button class="btn sm" type="button" data-zoom-out>Zoom out</button>
+          ${u.zoomedFrom ? '<button class="btn sm" type="button" data-zoom-reset>Reset zoom</button>' : ''}
           <button class="btn sm" type="button" data-pan="1" aria-label="Later">→</button>
           ${canSave && saving?.key !== chartsKey(u) ? '<button class="btn sm" type="button" data-save-insight>Save as insight</button>' : ''}
         </form>
@@ -555,7 +563,11 @@ const view: View = {
         setRange(ctx, presetRange(el.dataset.preset as Preset, ui(ctx).picked, Date.now())),
       );
       onAll(form, '[data-pan]', 'click', (el) => setRange(ctx, pan(range, el.dataset.pan === '-1' ? -1 : 1)));
-      onAll(form, '[data-zoom-out]', 'click', () => setRange(ctx, zoomOut(range)));
+      onAll(form, '[data-zoom-out]', 'click', () => setRange(ctx, zoomOut(range), true));
+      onAll(form, '[data-zoom-reset]', 'click', () => {
+        const back = ui(ctx).zoomedFrom;
+        if (back) setRange(ctx, back);
+      });
       form.addEventListener(
         'submit',
         (e) => {

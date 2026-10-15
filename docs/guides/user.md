@@ -383,7 +383,14 @@ The file is read in your browser. Readings Tiles already has (same signal and ti
 1. Type in **Add a signal** (tag, description or node) and click a result to add it. You can plot up to eight signals on one time axis.
 2. Pick a range: **Last 1h**, **Last 24h**, **Last 7d**, **Last 30d**, or **Latest data** (the 24 hours up to the latest reading). Or set **From** and **To** and click **Show**.
 3. Move through time with **←** (earlier) and **→** (later). Click **Zoom out** to double the range.
-4. Drag across a chart to zoom into that stretch of time.
+4. Drag across a chart to zoom into that stretch of time. **Reset zoom** goes back to the range you started from.
+
+**Reading a chart** (every chart in Tiles):
+
+- **Point at it** to see a crosshair at the nearest reading, with its time and value (an average shows its minimum and maximum too). On a touch screen, **tap** it.
+- **With the keyboard**, Tab to the chart: it shows the latest reading. **←** and **→** step through the readings, **Page Up** and **Page Down** ten at a time, **Home** and **End** to the first and last; each is read out by a screen reader. **Escape** hides it.
+- **The legend** above a chart with more than one part (the average and its min-to-max band, a threshold, a shaded warning, each line) shows and hides each part.
+- **PNG** saves the chart as an image; **CSV** saves the readings behind it, with their times.
 
 Long ranges show averages with their minimum and maximum, so a year plots as fast as an hour. Text signals show their latest values in a table. Remove a signal with the **×** on its chip. You can show up to five years at once.
 
