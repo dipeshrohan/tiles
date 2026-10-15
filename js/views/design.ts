@@ -290,7 +290,7 @@ const view: View = {
                 `<tr><td>v${v}</td><td class="num"><b>${fmt(evaluate(model.id, v, params), 2)}</b> ${esc(unit)}</td></tr>`,
             )
             .join('')}</tbody></table>
-          <form id="run-form" class="stack gap-2">
+          <form id="run-form" class="stack gap-2 no-print">
             <input type="text" name="note" maxlength="500" placeholder="${esc(t('design.run.note'))}" aria-label="${esc(t('design.run.noteLabel'))}" />
             <button class="btn primary" type="submit" ${canSave && !saving ? '' : 'disabled'}>${esc(site && project ? t('design.run.saveTo', { project: project.name }) : t('design.run.save'))}</button>
             ${site && !project ? `<span class="small soft">${esc(t('design.run.needProject'))}</span>` : ''}
@@ -305,7 +305,7 @@ const view: View = {
       <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head"><div><h2>${esc(t('design.sweep.title'))}</h2><p>${esc(t('design.sweep.held', { range: `${fmt(sw.min, 2)} – ${fmt(sw.max, 2)} ${unit}` }))}</p></div>
-            <div class="row">
+            <div class="row no-print">
               <select id="sweep-x" aria-label="${esc(t('design.sweep.x'))}">${model.params.map((p) => `<option value="${p.key}" ${p.key === xKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
               <span class="muted">×</span>
               <select id="sweep-y" aria-label="${esc(t('design.sweep.y'))}">${model.params

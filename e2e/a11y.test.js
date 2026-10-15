@@ -403,3 +403,219 @@ test('the Shopfloor tells screen readers when its headline changes', async (t) =
   await page.click('[data-floor-full]');
   assert.equal(await page.locator('#announcer').count(), 1);
 });
+
+// ---- round 2 (U6.04): reflow, focus in every colour scheme, and target size ----------------------
+
+// Pages that need the API (Apps, Documents, the record lists), checked with a fake one holding a
+// warning and a change request, besides every page in local mode.
+const API_PAGES = ['', 'warnings', 'reviews', 'signals', 'insights', 'apps', 'documents'];
+
+async function withApi(t) {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const now = Date.now();
+  const readings = Array.from({ length: 30 }, (_, i) => ({
+    at: new Date(now - (30 - i) * 60_000).toISOString(),
+    value: 1800 + i,
+  }));
+  fake.raiseWarning('dc1.friction', readings, {
+    started_at: readings[5].at,
+    last_at: readings[29].at,
+    peak: 1829,
+    baseline: 1800,
+    threshold: 1820,
+    readings: 24,
+  });
+  const press = { id: 'machine-press-9', type: 'Machine', label: 'Press 9', props: {} };
+  fake.requestReviewAs('maria@example.com', [{ kind: 'addNode', node: press }], 'Add press 9');
+  return `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+}
+
+// Each page in turn in one tab per setting: [label, url], local mode then the API's pages.
+async function eachPage(t, options, check) {
+  const api = await withApi(t);
+  const page = await browser.newPage({ reducedMotion: 'reduce', ...options });
+  const routes = [
+    ...PAGES.map((r) => [r || 'home', `${httpBase}#/${r}`]),
+    ...API_PAGES.map((r) => [`${r || 'home'} (API)`, `${api}#/${r}`]),
+  ];
+  for (const [label, url] of routes) {
+    await page.goto('about:blank');
+    await page.goto(url);
+    await page.waitForSelector('#view > *');
+    // With the API, its answers in: nothing in the page still loading, and the menu drawn again.
+    if (label.endsWith('(API)')) {
+      await page.waitForLoadState('networkidle');
+      await page.waitForFunction(() => !document.querySelector('#view [aria-busy="true"]'));
+    }
+    await page.waitForTimeout(200);
+    await check(page, label);
+  }
+  await page.close();
+}
+
+// Every page at 320 px wide (1280 px at 400%) and at 640 px (200%): nothing scrolls sideways
+// (WCAG 1.4.10; a table or chart scrolls inside its own box, which the page allows). Measured
+// against the content's width, inside any scrollbar.
+test('every page reflows at 320 px and at 200% zoom: nothing scrolls sideways (U6.04)', async (t) => {
+  const wide = [];
+  for (const width of [320, 640])
+    await eachPage(t, { viewport: { width, height: 512 } }, async (page, label) => {
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      if (over > 0) wide.push(`${label} at ${width} px: ${over} px too wide`);
+    });
+  assert.deepEqual(wide, []);
+});
+
+// Tab through a page: every control the keyboard reaches shows where the focus is, an outline or a
+// ring it hasn't without the focus. In forced colours (Windows High Contrast) shadows are dropped,
+// so it must be an outline. The walk ends back where it began; a page with more controls than the
+// limit fails rather than going unchecked.
+async function unseenFocus(page) {
+  // Each control's look at rest, before the walk: the focus must change it.
+  await page.evaluate(() => {
+    const forced = matchMedia('(forced-colors: active)').matches;
+    window.__look = (el) => {
+      const s = getComputedStyle(el);
+      const outline =
+        s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0
+          ? `${s.outlineStyle} ${s.outlineWidth} ${s.outlineColor} ${s.outlineOffset}`
+          : '';
+      return { outline, ring: forced || s.boxShadow === 'none' ? '' : s.boxShadow };
+    };
+    window.__rest = new WeakMap();
+    for (const el of document.querySelectorAll('*')) window.__rest.set(el, window.__look(el));
+    window.__walked = new WeakSet();
+    // Whether the focus shows on the control that has it: waited for up to 600 ms, as a browser may
+    // give the look from before the focus for a few frames (seen in forced colours); a control with no
+    // focus style never shows one.
+    window.__shows = async (el) => {
+      const rest = window.__rest.get(el) ?? { outline: '', ring: '' };
+      const until = performance.now() + 600;
+      for (;;) {
+        await new Promise((done) => requestAnimationFrame(done));
+        const now = window.__look(el);
+        if ((now.outline && now.outline !== rest.outline) || (now.ring && now.ring !== rest.ring)) return true;
+        if (performance.now() > until) return false;
+      }
+    };
+  });
+  const unseen = [];
+  for (let i = 0; ; i++) {
+    if (i === 600) return [...unseen, 'more than 600 controls: the walk did not finish'];
+    await page.keyboard.press('Tab');
+    const at = await page.evaluate(async () => {
+      const el = document.activeElement;
+      if (!el || el === document.body || window.__walked.has(el)) return null;
+      window.__walked.add(el);
+      return { what: `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`, shown: await window.__shows(el) };
+    });
+    if (!at) break;
+    if (at.shown) continue;
+    // Once more, by the keyboard again (a page settling can take the browser's sense of how the focus
+    // came): a control with no focus style fails both times.
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    const again = await page.evaluate(() => window.__shows(document.activeElement));
+    if (!again) unseen.push(at.what);
+  }
+  return unseen;
+}
+
+test('the focus is visible on every control, in normal and in forced colours (U6.04)', async (t) => {
+  const unseen = [];
+  for (const forcedColors of ['none', 'active'])
+    await eachPage(t, { viewport: { width: 1280, height: 800 }, forcedColors }, async (page, label) => {
+      for (const what of await unseenFocus(page)) unseen.push(`${label} (forced colours ${forcedColors}): ${what}`);
+    });
+  assert.deepEqual([...new Set(unseen)], []);
+});
+
+// In forced colours, what is chosen still shows: the page you're on, the section or step you're at,
+// pressed filters, selected rows.
+const CHOSEN =
+  ".nav-link.active, .seg button.active, [aria-current]:not([aria-current='false']), [aria-pressed='true'], [aria-selected='true']";
+test('in forced colours, what is chosen is outlined, not shown by background alone (U6.04)', async (t) => {
+  const plain = [];
+  const routes = [...PAGES, 'onboarding'];
+  await eachPage(t, { viewport: { width: 1280, height: 800 }, forcedColors: 'active' }, async (page, label) => {
+    const found = await page.evaluate(
+      (sel) =>
+        [...document.querySelectorAll(sel)]
+          .filter((el) => el.getBoundingClientRect().width > 0 && el.id !== 'view' && el.tagName !== 'H1')
+          .filter((el) => {
+            const s = getComputedStyle(el.tagName === 'TR' ? el.cells[0] : el);
+            return el.tagName === 'TR'
+              ? parseFloat(s.borderTopWidth) < 2
+              : s.outlineStyle === 'none' || parseFloat(s.outlineWidth) === 0;
+          })
+          .map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`),
+      CHOSEN,
+    );
+    for (const what of found) plain.push(`${label}: ${what}`);
+  });
+  assert.ok(routes.length);
+  assert.deepEqual([...new Set(plain)], []);
+});
+
+// WCAG 2.2's target size (2.5.8): a control is 24 by 24 px or more; or it is inline in running text
+// (a link or a glossary term in a sentence); or a 24 px circle on its centre touches no other
+// control and no other small control's circle. The ontology canvas's nodes are the plant's map:
+// their size is the zoom chosen (essential; docs/ui/accessibility.md).
+test('controls are 24 px or more, inline in a sentence, or spaced apart (WCAG 2.2, U6.04)', async (t) => {
+  const small = [];
+  await eachPage(t, { viewport: { width: 1280, height: 800 } }, async (page, label) => {
+    const found = await page.evaluate(() => {
+      const sel =
+        'a[href], button:not([disabled]), input:not([type=hidden]):not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"]), summary';
+      const els = [...document.querySelectorAll(sel)].filter((e) => {
+        const r = e.getBoundingClientRect();
+        return r.width && r.height && !e.closest('svg[data-canvas], .sr-only') && e.id !== 'view' && e.tagName !== 'H1';
+      });
+      // A control in its label is aimed at by the whole label (a click on either toggles it).
+      const rects = els.map((e) => (e.closest('label') ?? e).getBoundingClientRect());
+      // Inline, in a paragraph, list item or definition with words of its own around it.
+      const inSentence = (e) => {
+        if (!getComputedStyle(e).display.startsWith('inline')) return false;
+        const block = e.closest('p, li, dd');
+        if (!block || e.closest('td, th')) return false;
+        return [...e.parentElement.childNodes].some(
+          (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 1,
+        );
+      };
+      const smallOnes = els.map((e, i) => {
+        const r = rects[i];
+        return r.width < 24 || r.height < 24 ? !inSentence(e) : false;
+      });
+      const centre = (r) => [r.left + r.width / 2, r.top + r.height / 2];
+      const circleHitsRect = ([cx, cy], r) => {
+        const dx = Math.max(r.left - cx, 0, cx - r.right);
+        const dy = Math.max(r.top - cy, 0, cy - r.bottom);
+        return dx * dx + dy * dy < 12 * 12;
+      };
+      return els.flatMap((el, i) => {
+        if (!smallOnes[i]) return [];
+        const c = centre(rects[i]);
+        const clash = els.some((other, j) => {
+          if (j === i || el.contains(other) || other.contains(el)) return false;
+          if (smallOnes[j]) {
+            const [ox, oy] = centre(rects[j]);
+            return Math.hypot(ox - c[0], oy - c[1]) < 24;
+          }
+          return circleHitsRect(c, rects[j]);
+        });
+        const r = rects[i];
+        return clash
+          ? [
+              `${el.tagName.toLowerCase()}.${[...el.classList].join('.')} ${Math.round(r.width)}×${Math.round(r.height)}`,
+            ]
+          : [];
+      });
+    });
+    for (const what of found) small.push(`${label}: ${what}`);
+  });
+  assert.deepEqual(small, []);
+});

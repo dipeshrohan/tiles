@@ -391,7 +391,7 @@ function demoHome(ctx: Context): string {
               feed
                 .map(
                   (f) =>
-                    `<a class="feed-item text-inherit no-underline" href="${f.href}"><span class="muted">${icon(f.icon)}</span><span>${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`,
+                    `<a class="feed-item text-inherit no-underline" href="${f.href}"><span class="muted">${icon(f.icon)}</span><span class="what">${f.text}</span><span class="when">${timeAgo(f.date)}</span></a>`,
                 )
                 .join('') ||
               emptyState({

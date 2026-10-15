@@ -236,7 +236,7 @@ function detailCard(ctx: Context, ui: Ui): string {
       ${waiting}
       ${
         canWrite
-          ? `<form class="stack gap-2 mt-2_5" id="review-form">
+          ? `<form class="stack gap-2 mt-2_5 no-print" id="review-form">
         <textarea name="comment" rows="3" maxlength="4000" placeholder="${esc(t(decide ? 'reviews.form.placeholderDecide' : 'reviews.form.placeholder'))}" aria-label="${esc(t('reviews.form.comment'))}">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
         <fieldset class="row gap-2 border-0 p-0 m-0" ${busy ? 'disabled' : ''}>
           <button class="btn" type="button" data-act="comment">${esc(t('reviews.form.comment'))}</button>

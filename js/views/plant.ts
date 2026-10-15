@@ -103,13 +103,13 @@ function signalsCard(ctx: Context, signals: OntologyNode[], now: number): string
           <td>${esc(n.label)}</td>
           ${tags ? `<td class="mono small">${esc(tag)}</td>` : ''}
           <td>${ctx.api ? reading(s, now) : esc(unit)}</td>
-          <td>${s ? `<a class="btn sm" href="#/explorer?signal=${encodeURIComponent(s.id)}">${esc(t('plant.plot'))}</a>` : ''}</td>
+          <td class="no-print">${s ? `<a class="btn sm" href="#/explorer?signal=${encodeURIComponent(s.id)}">${esc(t('plant.plot'))}</a>` : ''}</td>
         </tr>`,
     )
     .join('');
   const head = ctx.api ? t('plant.latestReading') : t('plant.unit');
   return `<div class="card"><div class="card-head"><h2>${esc(t('plant.signals'))}</h2></div>
-      <div class="table-wrap"><table><thead><tr><th>${esc(t('plant.signal'))}</th>${tags ? `<th>${esc(t('plant.tag'))}</th>` : ''}<th>${esc(head)}</th><th><span class="sr-only">${esc(t('plant.plot'))}</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>${esc(t('plant.signal'))}</th>${tags ? `<th>${esc(t('plant.tag'))}</th>` : ''}<th>${esc(head)}</th><th class="no-print"><span class="sr-only">${esc(t('plant.plot'))}</span></th></tr></thead><tbody>${rows}</tbody></table></div>
       ${ctx.api ? `<p class="small soft">${esc(t('plant.linkHint'))}</p>` : ''}
     </div>`;
 }
