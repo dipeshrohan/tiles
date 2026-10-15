@@ -334,6 +334,7 @@ test('the client’s "can’t reach" is recognised in the language it was said i
 
 test('the wait counts from when loading began, not from each render', async () => {
   const waitOf = (html) => Number(/--wait:(\d+)ms/.exec(html)?.[1]);
+  await new Promise((r) => setTimeout(r, 1100)); // an earlier test's skeletons would carry on its wait
   const first = waitOf(skeleton.text());
   await new Promise((r) => setTimeout(r, 120));
   const again = waitOf(skeleton.list()); // a re-render while still loading
