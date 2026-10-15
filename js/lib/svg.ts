@@ -148,7 +148,7 @@ export function listed(items: string[], max = 8): string {
 // thousands of points (U5.03).
 const SIGNIFICANT = new Intl.NumberFormat('en-GB', { maximumSignificantDigits: 3 });
 const FRACTION = [0, 1, 2].map((digits) => new Intl.NumberFormat('en-GB', { maximumFractionDigits: digits }));
-const num = (x: number): string => {
+export const num = (x: number): string => {
   const abs = Math.abs(x);
   if (abs > 0 && abs < 1) return SIGNIFICANT.format(x);
   return (FRACTION[abs >= 100 ? 0 : abs >= 10 ? 1 : 2] ?? SIGNIFICANT).format(x);

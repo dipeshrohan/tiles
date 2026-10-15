@@ -2912,6 +2912,64 @@ test('charts v2: a legend shows and hides each part of a chart (U5.03)', async (
   await page.close();
 });
 
+test('compare mode: this day against a week earlier, shift-aligned with the difference; two machines (U5.09)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const dc1 = fake.addSignal('dc1.friction', { source: 'edge:edge-01', unit: 'N' });
+  const dc2 = fake.addSignal('dc2.friction', { source: 'edge:edge-01', unit: 'N' });
+  // Eight days, every 15 minutes: the last day reads 10 N higher than a week before it.
+  const end = Date.parse('2026-09-08T00:00:00Z');
+  const day = 86_400_000;
+  for (let i = 0; i < 8 * 96; i++) {
+    const t = end - (i + 1) * 900_000;
+    const at = new Date(t).toISOString().replace('Z', '000Z');
+    const base = 1800 + 50 * Math.sin((t / day) * 2 * Math.PI);
+    fake.samples.set(`dc1.friction|${at}`, base + (t >= end - day ? 10 : 0));
+    fake.samples.set(`dc2.friction|${at}`, base + 25);
+  }
+  dc1.last_at = dc2.last_at = new Date(end - 900_000).toISOString();
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  const from = new Date(end - day).toISOString();
+  const to = new Date(end).toISOString();
+  await page.goto(
+    `${httpBase}?api=${encodeURIComponent(apiUrl)}#/explorer?signals=${dc1.id},${dc2.id}&from=${from}&to=${to}`,
+  );
+  const card = page.locator('[data-compare]');
+  await card.waitFor();
+  assert.equal(await card.locator('[data-compare-mode="off"]').getAttribute('aria-pressed'), 'true');
+
+  // Two ranges: this day against the same day a week earlier, each from its own start.
+  await card.locator('[data-compare-mode="ranges"]').click();
+  await page.selectOption('#compare-form [name=against]', 'week');
+  const summary = card.locator('[data-compare-summary]');
+  await summary.waitFor();
+  assert.match(await summary.textContent(), /^On average This range is higher by 10 N \(0\.[0-9]+%\)/);
+  assert.match(await card.innerText(), /Earlier: 31 Aug 2026, \d\d:00 to 1 Sept 2026, \d\d:00/);
+  assert.equal(await card.locator('svg.chart').count(), 2); // the overlay and the difference
+  assert.match(await card.locator('svg.chart').first().getAttribute('aria-label'), /since its start/);
+  assert.match(page.url(), /compare=ranges&cs=[^&]+&against=week/);
+  // In the address: a reload shows the same comparison.
+  await page.reload();
+  await page.locator('[data-compare-summary]').waitFor();
+  assert.equal(await page.inputValue('#compare-form [name=against]'), 'week');
+
+  // Two machines over the same day: the second runs 25 N above the first... except where dc1 was raised.
+  await page.locator('[data-compare-mode="signals"]').click();
+  await page.selectOption('#compare-form [name=a]', dc1.id);
+  await page.selectOption('#compare-form [name=b]', dc2.id);
+  await page.waitForFunction(() =>
+    /dc2\.friction is higher by 15 N/.test(document.querySelector('[data-compare-summary]')?.textContent ?? ''),
+  );
+  assert.match(page.url(), /compare=signals&ca=[^&]+&cb=/);
+  // Off: the card stays, the charts go.
+  await page.locator('[data-compare-mode="off"]').click();
+  await page.waitForSelector('[data-compare-result]', { state: 'detached' });
+  assert.doesNotMatch(page.url(), /compare=/);
+  assert.deepEqual(errors, []);
+});
+
 test('the data explorer: plot signals, zoom in by dragging, zoom out into buckets', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

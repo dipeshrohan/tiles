@@ -326,7 +326,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* a review request reaches the reviewer's bell within a minute, with tests.
 - [ ] `U5.08` [#247](https://github.com/dipeshrohan/tiles/issues/247) **Shopfloor field round** · FDE+FE · 2d · U2.06 (the software side is done; the day on the line follows [the field round](pilot/field-round.md))
   *Done when:* technicians on the line can triage with gloves in sunlight, as tested with them.
-- [ ] `U5.09` [#248](https://github.com/dipeshrohan/tiles/issues/248) ◇ **Compare mode** · FE · 3d · U5.03
+- [x] `U5.09` [#248](https://github.com/dipeshrohan/tiles/issues/248) ◇ **Compare mode** · FE · 3d · U5.03
   *Done when:* engineers on the pilot use it to compare before and after a change.
 
 **UI Month 5 exit check:** the pilot's daily pages (home, warnings, signals, explorer, ontology) are reworked and tested with pilot users.
