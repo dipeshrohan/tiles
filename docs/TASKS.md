@@ -218,7 +218,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 ### UI Month 1: Foundations (Nov 2026)
 
-- [ ] `U1.01` [#204](https://github.com/dipeshrohan/tiles/issues/204) **Baseline usability study** · PM+FDE · 3d
+- [ ] `U1.01` [#204](https://github.com/dipeshrohan/tiles/issues/204) **Baseline usability study** · PM+FDE · 3d · The script, recording files and scoring (`npm run study`) are ready: [the study](ui/research/README.md)
   *Done when:* the baseline numbers are in the [measures](UI-PLAN.md#goals-and-measures) table and the top 20 problems each map to a task in the plan.
 - [x] `U1.02` [#205](https://github.com/dipeshrohan/tiles/issues/205) **Design tokens** · FE · 3d
   *Done when:* no raw `px` for spacing, font size or radius is left in `styles.css` outside the token block (`test/css-tokens.test.js` checks it), and screenshots of every page before and after differ only by values moving onto the scale (at most 2 px each).
@@ -341,11 +341,11 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* the pilot's users can use Tiles in German, and no layout breaks in the pseudo-locale.
 - [ ] `U6.04` [#252](https://github.com/dipeshrohan/tiles/issues/252) **Accessibility round 2** · FE · 3d
   *Done when:* the report is merged, and the five flows work with both screen readers.
-- [ ] `U6.05` [#253](https://github.com/dipeshrohan/tiles/issues/253) **Print styles** · FE · 2d
+- [x] `U6.05` [#253](https://github.com/dipeshrohan/tiles/issues/253) **Print styles** · FE · 2d
   *Done when:* each prints on A4 and Letter without cut content.
-- [ ] `U6.06` [#254](https://github.com/dipeshrohan/tiles/issues/254) **Preferences** · FE+BE · 2d · U6.01
+- [x] `U6.06` [#254](https://github.com/dipeshrohan/tiles/issues/254) **Preferences** · FE+BE · 2d · U6.01
   *Done when:* each preference applies at once and survives sign-out and sign-in.
-- [ ] `U6.07` [#255](https://github.com/dipeshrohan/tiles/issues/255) **Usability study 2 and fixes** · PM+FE · 5d · U5.01–U5.05
+- [ ] `U6.07` [#255](https://github.com/dipeshrohan/tiles/issues/255) **Usability study 2 and fixes** · PM+FE · 5d · U5.01–U5.05 · The script, recording files and scoring (`npm run study`) are ready: [the study](ui/research/README.md)
   *Done when:* the [measures](UI-PLAN.md#goals-and-measures) are reported against their targets in `docs/ui/research/2027-04-v1.md`.
 - [ ] `U6.08` [#256](https://github.com/dipeshrohan/tiles/issues/256) **UI handbook** · FE · 1.5d · U1.07
   *Done when:* a new page built from the handbook passes review with no UI comments.

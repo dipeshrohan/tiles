@@ -1,0 +1,11 @@
+participant,role,task,outcome,seconds,notes
+P11,engineer,triage,success,120,
+P12,shift-lead,triage,success,160,
+P11,engineer,plot,success,90,
+P12,shift-lead,plot,success,100,
+P11,engineer,commit,success,250,
+P12,shift-lead,commit,success,270,
+P11,engineer,first-page,success,80,
+P12,shift-lead,first-page,success,150,
+P11,engineer,home-now,success,20,
+P12,shift-lead,home-now,fail,,
