@@ -104,18 +104,22 @@ class View(BaseModel):
     updated_at: datetime
 
 
-VIEW_ROW = """
+# Views you may see (yours, and those shared): one, or those of a page, or all.
+VIEWS = """
     SELECT v.id, v.page, v.name, v.query, v.table_prefs AS table, v.shared, v.updated_at,
            v.owner_id = %(me)s AS mine, u.name AS owner
     FROM saved_views v JOIN users u ON u.id = v.owner_id
-    WHERE v.id = %(id)s AND (v.shared OR v.owner_id = %(me)s)
+    WHERE (v.shared OR v.owner_id = %(me)s)
+      AND (%(id)s::uuid IS NULL OR v.id = %(id)s)
+      AND (%(page)s::text IS NULL OR v.page = %(page)s)
+    ORDER BY v.page, v.owner_id <> %(me)s, lower(v.name), v.id
 """
 
 
 def _one(ctx: Any, view_id: uuid.UUID) -> dict[str, Any]:
     row: dict[str, Any] | None = ctx.conn.execute(
-        VIEW_ROW,
-        {"id": view_id, "me": ctx.user.id},
+        VIEWS,
+        {"id": view_id, "me": ctx.user.id, "page": None},
     ).fetchone()
     if row is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No such view")
@@ -130,6 +134,14 @@ def _may_share(ctx: Any) -> None:
         )
 
 
+def _lock_owner(ctx: Any) -> None:
+    """One change to a person's views on a site at a time: the name check and the limit hold."""
+    ctx.conn.execute(
+        "SELECT pg_advisory_xact_lock(hashtextextended('saved_views:' || %s::text || ':' || %s::text, 0))",
+        [ctx.site_id, ctx.user.id],
+    )
+
+
 def _audited(row: dict[str, Any]) -> dict[str, Any]:
     return {k: row[k] for k in ("page", "name", "query", "table", "shared")}
 
@@ -138,16 +150,7 @@ def _audited(row: dict[str, Any]) -> dict[str, Any]:
 def list_views(ctx: Ctx, page: Page | None = None) -> list[dict[str, Any]]:
     """Your saved views and those shared with the site (of one page, or every page), by page and
     name, yours first."""
-    rows: list[dict[str, Any]] = ctx.conn.execute(
-        """
-        SELECT v.id, v.page, v.name, v.query, v.table_prefs AS table, v.shared, v.updated_at,
-               v.owner_id = %(me)s AS mine, u.name AS owner
-        FROM saved_views v JOIN users u ON u.id = v.owner_id
-        WHERE (v.shared OR v.owner_id = %(me)s) AND (%(page)s::text IS NULL OR v.page = %(page)s)
-        ORDER BY v.page, v.owner_id <> %(me)s, lower(v.name), v.id
-        """,
-        {"me": ctx.user.id, "page": page},
-    ).fetchall()
+    rows: list[dict[str, Any]] = ctx.conn.execute(VIEWS, {"me": ctx.user.id, "id": None, "page": page}).fetchall()
     return rows
 
 
@@ -157,6 +160,7 @@ def create_view(ctx: Ctx, body: ViewIn) -> dict[str, Any]:
     A name you already use on the page is refused (409)."""
     if body.shared:
         _may_share(ctx)
+    _lock_owner(ctx)
     count = ctx.conn.execute(
         "SELECT count(*) AS n FROM saved_views WHERE site_id = %s AND owner_id = %s", [ctx.site_id, ctx.user.id]
     ).fetchone()
@@ -188,12 +192,13 @@ def create_view(ctx: Ctx, body: ViewIn) -> dict[str, Any]:
 
 @router.patch("/sites/{site_id}/views/{view_id}", response_model=View)
 def update_view(ctx: Ctx, view_id: uuid.UUID, body: ViewPatch) -> dict[str, Any]:
-    """Rename a view of yours, change what it keeps, or share or unshare it (sharing needs engineer
-    or above)."""
+    """Rename a view of yours, change what it keeps, or share or unshare it. A shared view (or one
+    being shared) is the site's: changing it needs engineer or above."""
+    _lock_owner(ctx)
     before = _one(ctx, view_id)
     if not before["mine"]:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only its owner changes a view")
-    if body.shared and not before["shared"]:
+    if before["shared"] or body.shared:
         _may_share(ctx)
     changes = body.model_dump(exclude_unset=True)
     if not changes:

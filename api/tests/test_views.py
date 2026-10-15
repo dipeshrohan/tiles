@@ -72,3 +72,18 @@ def test_a_person_keeps_at_most_fifty_views(api: TestClient, site: str) -> None:
         assert api.post(views, json={**WARNINGS, "name": f"v{n}"}, headers=ENG).status_code == 201
     assert api.post(views, json={**WARNINGS, "name": "one more"}, headers=ENG).status_code == 409
     assert api.post(views, json={**WARNINGS, "name": "theirs"}, headers=VIEWER).status_code == 201
+
+
+def test_a_shared_view_is_changed_by_engineers_only(api: TestClient, site: str, database_url: str) -> None:  # noqa: F811
+    views = f"/sites/{site}/views"
+    shared = api.post(views, json={**WARNINGS, "shared": True}, headers=ENG).json()
+    # Its owner becomes a viewer: they can no longer change what everyone sees, but can delete it.
+    with psycopg.connect(database_url) as conn:
+        conn.execute(
+            "UPDATE site_members SET role = 'viewer'"
+            " WHERE site_id = %s AND user_id = (SELECT owner_id FROM saved_views WHERE id = %s)",
+            [site, shared["id"]],
+        )
+    for change in ({"name": "Renamed"}, {"query": {"show": "all"}}, {"shared": False}):
+        assert api.patch(f"{views}/{shared['id']}", json=change, headers=ENG).status_code == 403, change
+    assert api.delete(f"{views}/{shared['id']}", headers=ENG).status_code == 204

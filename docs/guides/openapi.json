@@ -18353,7 +18353,7 @@
         ]
       },
       "patch": {
-        "description": "Rename a view of yours, change what it keeps, or share or unshare it (sharing needs engineer\nor above).",
+        "description": "Rename a view of yours, change what it keeps, or share or unshare it. A shared view (or one\nbeing shared) is the site's: changing it needs engineer or above.",
         "operationId": "update_view_sites__site_id__views__view_id__patch",
         "parameters": [
           {

@@ -151,7 +151,7 @@ Save a view. Any member keeps their own; sharing it with the site needs engineer
 
 **Who:** site member. **Answers:** 200, 422.
 
-Rename a view of yours, change what it keeps, or share or unshare it (sharing needs engineer or above).
+Rename a view of yours, change what it keeps, or share or unshare it. A shared view (or one being shared) is the site's: changing it needs engineer or above.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

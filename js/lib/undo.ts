@@ -109,7 +109,7 @@ export function takeSaved(storage: Pick<Storage, 'getItem' | 'setItem' | 'remove
           (r): r is Removal =>
             typeof r === 'object' &&
             r !== null &&
-            (r.kind === 'conversation' || r.kind === 'dataset' || r.kind === 'feedback') &&
+            (r.kind === 'conversation' || r.kind === 'dataset' || r.kind === 'feedback' || r.kind === 'view') &&
             [r.api, r.site, r.id].every((v) => typeof v === 'string'),
         )
       : [];

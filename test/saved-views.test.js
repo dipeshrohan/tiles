@@ -107,3 +107,23 @@ test('the menu lists yours first, then shared ones, by page and name, at most ei
     ['3', '2', '4', '1'],
   );
 });
+
+test('a saved view deletion left waiting is sent by the next load', async () => {
+  const { takeSaved, SAVED_KEY } = await import('../js/lib/undo.ts');
+  const store = new Map();
+  const storage = {
+    getItem: (k) => store.get(k) ?? null,
+    setItem: (k, v) => store.set(k, v),
+    removeItem: (k) => store.delete(k),
+  };
+  const removal = { kind: 'view', api: 'http://api', site: 's', id: 'v1' };
+  storage.setItem(SAVED_KEY, JSON.stringify([removal]));
+  assert.deepEqual(takeSaved(storage, 'http://api'), [removal]);
+});
+
+test('a view’s table settings match whatever order their keys came back in', () => {
+  const sent = { sort: { key: 'raised', dir: 'desc' }, hidden: ['source'], density: 'compact' };
+  const stored = { density: 'compact', hidden: ['source'], sort: { dir: 'desc', key: 'raised' } };
+  const f = filtersOf('warnings', {});
+  assert.equal(currentView([view({ table: stored })], 'warnings', f, sent)?.id, 'v1');
+});

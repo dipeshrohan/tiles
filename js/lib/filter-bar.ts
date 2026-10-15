@@ -4,7 +4,8 @@
 // (engineers), or delete it (with Undo). Warnings, Signals and Documents draw it. The views are
 // read once a minute at most and kept here for the bar and the menu (`viewsFor`).
 
-import { esc, bound } from './dom.ts';
+import { esc, bound, setBusy } from './dom.ts';
+import { checkOnSubmit } from './forms.ts';
 import { icon } from './icons.ts';
 import { morph } from './morph.ts';
 import { panelDialog } from './overlay.ts';
@@ -18,7 +19,7 @@ import type { Context } from '../views/types.ts';
 
 // ---- the views, shared by the bar and the menu ----------------------------------------------
 
-let cache: { key: string; views: SavedView[] | null; at: number } = { key: '', views: null, at: 0 };
+let cache: { key: string; views: SavedView[] | null; at: number; failed?: boolean } = { key: '', views: null, at: 0 };
 let loading = '';
 const REFRESH_MS = 60_000;
 
@@ -51,7 +52,8 @@ export async function loadViews(ctx: Pick<Context, 'api' | 'ontology'>, force = 
     const views = await ctx.api.views.list(site.id, { silent: true });
     if (keyOf(ctx) === key) cache = { key, views, at: Date.now() };
   } catch {
-    if (cache.key === key) cache.at = Date.now(); // tried: again in a minute, the list as it was
+    // Tried: again in a minute (or on Try again), the list as it was; never read, the bar says so.
+    if (cache.key === key) Object.assign(cache, { at: Date.now(), failed: cache.views === null });
   } finally {
     if (loading === key) loading = '';
   }
@@ -75,9 +77,12 @@ function viewsMenu(ctx: Context, o: BarOptions): string {
   const prefs = tablePrefs(o.page);
   const now = views ? currentView(views, o.page, o.filters(), prefs ? viewTable(prefs) : null) : null;
   const admin = ctx.ontology.role === 'admin';
+  const failed = views === null && cache.key === keyOf(ctx) && cache.failed;
   const list =
     views === null
-      ? '<p class="small soft">Loading the saved views…</p>'
+      ? failed
+        ? `<p class="small" role="alert">The saved views could not be loaded. ${button('Try again', { size: 'sm', attrs: { 'data-views-retry': true } })}</p>`
+        : '<p class="small soft">Loading the saved views…</p>'
       : views.length
         ? `<ul class="views-list">${views
             .map(
@@ -182,6 +187,7 @@ export function bindFilterBar(root: ParentNode, ctx: Context, o: BarOptions): { 
         if (view) openView(ctx, view, o);
         return;
       }
+      if (t?.closest('[data-views-retry]')) return void loadViews(ctx, true);
       const share = t?.closest<HTMLElement>('[data-view-share]')?.dataset.viewShare;
       if (share) return void shareView(ctx, share);
       const del = t?.closest<HTMLElement>('[data-view-delete]')?.dataset.viewDelete;
@@ -203,7 +209,9 @@ export function openView(ctx: Context, view: SavedView, o?: BarOptions): void {
   if (o && o.page === view.page) {
     document.querySelector('[data-views-menu]')?.removeAttribute('open');
     o.apply(filtersOf(view.page, view.query));
-  } else location.hash = viewHref(view);
+  } else if (location.hash === viewHref(view))
+    ctx.rerender(); // the address already: no hashchange to draw it
+  else location.hash = viewHref(view);
 }
 
 async function shareView(ctx: Context, id: string): Promise<void> {
@@ -264,14 +272,16 @@ async function saveView(ctx: Context, o: BarOptions): Promise<void> {
       if (!form) return;
       dialog.querySelector('[data-cancel]')?.addEventListener('click', close);
       form.querySelector<HTMLInputElement>('[name=name]')?.focus();
+      form.noValidate = true; // checked here, with the error under the field (U2.07)
+      // Not onSubmit: that is the page's binding, and the page may be drawn again under the dialog.
       form.addEventListener('submit', (e) => {
         e.preventDefault();
+        const submit = form.querySelector<HTMLButtonElement>('[type=submit]');
+        if (submit?.getAttribute('aria-busy') === 'true' || !checkOnSubmit(form)) return;
         const name = (new FormData(form).get('name') ?? '').toString().trim();
-        if (!name) return;
         const shared = share && Boolean(new FormData(form).get('shared'));
         const prefs = tablePrefs(o.page);
-        const submit = form.querySelector<HTMLButtonElement>('[type=submit]');
-        if (submit) submit.disabled = true;
+        if (submit) setBusy(submit, true);
         api.views
           .create(site.id, {
             page: o.page,
@@ -288,7 +298,7 @@ async function saveView(ctx: Context, o: BarOptions): Promise<void> {
               await loadViews(ctx, true);
             },
             () => {
-              if (submit) submit.disabled = false; // the client showed why (a name used already)
+              if (submit) setBusy(submit, false); // the client showed why (a name used already)
             },
           );
       });

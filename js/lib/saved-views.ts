@@ -106,6 +106,19 @@ export function sameFilters(page: ViewPage, a: Filters, b: Filters): boolean {
   return FILTERS[page].every((f) => (a[f.param] ?? f.fallback) === (b[f.param] ?? f.fallback));
 }
 
+// Compared by content: the API gives JSON back with its keys in another order.
+const canonical = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(canonical)
+    : v && typeof v === 'object'
+      ? Object.fromEntries(
+          Object.entries(v)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([k, x]) => [k, canonical(x)]),
+        )
+      : v;
+const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
+
 // The view shown now: the first whose filters (and table settings, when it keeps them) are the page's.
 export function currentView(
   views: readonly SavedView[],
@@ -118,7 +131,7 @@ export function currentView(
       (v) =>
         v.page === page &&
         sameFilters(page, filtersOf(page, v.query), filters) &&
-        (!v.table || !table || JSON.stringify(v.table) === JSON.stringify(table)),
+        (!v.table || !table || sameJson(v.table, table)),
     ) ?? null
   );
 }
