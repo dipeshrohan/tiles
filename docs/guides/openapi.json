@@ -14145,7 +14145,7 @@
     },
     "/sites/{site_id}/inbox/read": {
       "post": {
-        "description": "Mark items of your inbox read (`keys`), or all of them (an empty list). Only items in your\ninbox now are marked. Returns the inbox.",
+        "description": "Mark items of your inbox read (`keys`), or all of them (an empty list). Only items in your\ninbox now are marked. Marks of items no longer waiting go after 90 days. Returns the inbox.",
         "operationId": "mark_read_sites__site_id__inbox_read_post",
         "parameters": [
           {

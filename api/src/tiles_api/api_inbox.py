@@ -22,7 +22,8 @@ from tiles_api.api_ontology import Ctx, can_edit
 
 router = APIRouter(tags=["Notifications"])
 
-MAX_ITEMS = 50
+MAX_ITEMS = 50  # listed; the unread count covers up to MAX_COUNTED
+MAX_COUNTED = 500
 KEEP_READS_DAYS = 90
 
 
@@ -60,7 +61,8 @@ SELECT * FROM (
       AND a.assignee_id = %(me)s AND a.actor_id IS DISTINCT FROM %(me)s
 
     UNION ALL
-    -- Change requests I may approve.
+    -- Change requests I may approve: the menu's count (api_menu.py) uses the same rule, and
+    -- tests/test_inbox.py checks that the two agree.
     SELECT 'review:' || r.number, 'review', 'Change request #' || r.number || ' waits for your review',
            r.message || ' (from ' || r.author_name || ')', '#/reviews/' || r.number, r.created_at
     FROM change_requests r
@@ -69,8 +71,9 @@ SELECT * FROM (
 
     UNION ALL
     -- Insights waiting for another engineer.
-    SELECT 'insight:' || i.number, 'insight', 'Insight #' || i.number || ' waits for a review',
-           i.title || ' (from ' || i.author_name || ')', '#/insights/' || i.number, i.created_at
+    SELECT 'insight:' || i.number || ':' || (extract(epoch FROM i.updated_at) * 1000000)::bigint, 'insight',
+           'Insight #' || i.number || ' waits for a review',
+           i.title || ' (from ' || i.author_name || ')', '#/insights/' || i.number, i.updated_at
     FROM insights i
     WHERE %(editor)s AND i.site_id = %(site)s AND i.status = 'proposed' AND i.author_id IS DISTINCT FROM %(me)s
 
@@ -88,13 +91,14 @@ LIMIT %(limit)s
 
 
 def _items(ctx: Any) -> list[dict[str, Any]]:
+    """Every item waiting (up to MAX_COUNTED), newest first, each marked read or not."""
     rows: list[dict[str, Any]] = ctx.conn.execute(
         ITEMS,
         {
             "site": ctx.site_id,
             "me": ctx.user.id,
             "editor": can_edit(ctx.conn, ctx.site_id, ctx.org_id, ctx.user.id),
-            "limit": MAX_ITEMS,
+            "limit": MAX_COUNTED,
         },
     ).fetchall()
     read = {
@@ -110,8 +114,11 @@ def _items(ctx: Any) -> list[dict[str, Any]]:
 @router.get("/sites/{site_id}/inbox", response_model=Inbox)
 def get_inbox(ctx: Ctx) -> dict[str, Any]:
     """What waits for you on this site, newest first (at most 50), each marked read or not."""
-    items = _items(ctx)
-    return {"items": items, "unread": sum(1 for i in items if not i["read"])}
+    return _inbox(_items(ctx))
+
+
+def _inbox(items: list[dict[str, Any]]) -> dict[str, Any]:
+    return {"items": items[:MAX_ITEMS], "unread": sum(1 for i in items if not i["read"])}
 
 
 class ReadIn(BaseModel):
@@ -123,7 +130,7 @@ class ReadIn(BaseModel):
 @router.post("/sites/{site_id}/inbox/read", response_model=Inbox)
 def mark_read(ctx: Ctx, body: Annotated[ReadIn, Body()]) -> dict[str, Any]:
     """Mark items of your inbox read (`keys`), or all of them (an empty list). Only items in your
-    inbox now are marked. Returns the inbox."""
+    inbox now are marked. Marks of items no longer waiting go after 90 days. Returns the inbox."""
     items = _items(ctx)
     present = {i["key"] for i in items}
     keys = [k for k in (body.keys or list(present)) if k in present]
@@ -136,10 +143,9 @@ def mark_read(ctx: Ctx, body: Annotated[ReadIn, Body()]) -> dict[str, Any]:
             [ctx.site_id, ctx.user.id, keys],
         )
         ctx.conn.execute(
-            "DELETE FROM inbox_reads"
-            " WHERE site_id = %s AND user_id = %s AND read_at < now() - make_interval(days => %s)",
-            [ctx.site_id, ctx.user.id, KEEP_READS_DAYS],
+            "DELETE FROM inbox_reads WHERE site_id = %s AND user_id = %s"
+            " AND read_at < now() - make_interval(days => %s) AND NOT (key = ANY(%s))",
+            [ctx.site_id, ctx.user.id, KEEP_READS_DAYS, list(present)],
         )
         ctx.audit("inbox.read", "user", str(ctx.user.id), after={"keys": keys})
-    items = [{**i, "read": i["read"] or i["key"] in keys} for i in items]
-    return {"items": items, "unread": sum(1 for i in items if not i["read"])}
+    return _inbox([{**i, "read": i["read"] or i["key"] in keys} for i in items])

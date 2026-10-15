@@ -138,7 +138,7 @@ What waits for you on this site, newest first (at most 50), each marked read or 
 
 **Who:** site member. **Answers:** 200, 422.
 
-Mark items of your inbox read (`keys`), or all of them (an empty list). Only items in your inbox now are marked. Returns the inbox.
+Mark items of your inbox read (`keys`), or all of them (an empty list). Only items in your inbox now are marked. Marks of items no longer waiting go after 90 days. Returns the inbox.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

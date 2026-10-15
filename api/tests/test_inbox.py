@@ -98,3 +98,37 @@ def test_marks_are_keys_the_inbox_names(api: TestClient, site: str) -> None:  # 
     path = f"/sites/{site}/inbox/read"
     for bad in ({"keys": [""]}, {"keys": ["x" * 121]}, {"keys": [f"k{n}" for n in range(51)]}, {}):
         assert api.post(path, json=bad, headers=ENG).status_code == 422, bad
+
+
+def test_the_bell_and_the_menu_count_the_same_reviews(api: TestClient, site: str) -> None:  # noqa: F811
+    member(api, site, ENG2)
+    stage(api, site, {"kind": "addNode", "node": NODE})
+    ask(api, site, message="Add press 9")
+    for who in (ENG, ENG2, ADMIN, VIEWER):
+        menu = api.get(f"/sites/{site}/menu-counts", headers=who).json()["reviews_waiting"]
+        bell = [i for i in inbox(api, site, who)["items"] if i["kind"] == "review"]
+        assert len(bell) == menu, who
+
+
+def test_a_reopened_insight_is_news_again_and_old_marks_of_waiting_items_stay(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    member(api, site, ENG2)
+    number = save(api, site, CORRELATION | {"dataset_id": upload(api, site)}).json()["number"]
+    api.post(f"/sites/{site}/inbox/read", json={"keys": []}, headers=ENG2)
+    # A mark kept long (the insight still waiting) stays when marks are tidied.
+    with psycopg.connect(database_url) as conn:
+        conn.execute("UPDATE inbox_reads SET read_at = now() - interval '100 days' WHERE site_id = %s", [site])
+    api.post(f"/sites/{site}/inbox/read", json={"keys": []}, headers=ENG2)
+    assert inbox(api, site, ENG2)["unread"] == 0
+    # Rejected, reworked and reopened: waiting again, so unread again.
+    res = api.post(
+        f"/sites/{site}/insights/{number}/review", json={"decision": "rejected", "note": "Which batches?"}, headers=ENG2
+    )
+    assert res.status_code == 200, res.text
+    assert inbox(api, site, ENG2)["items"] == []  # decided: not waiting
+    assert api.post(f"/sites/{site}/insights/{number}/reopen", json={}, headers=ENG).status_code == 200
+    box = inbox(api, site, ENG2)
+    assert [(i["kind"], i["read"]) for i in box["items"]] == [("insight", False)]
