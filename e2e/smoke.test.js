@@ -2457,7 +2457,8 @@ test('tables v2: sort, choose columns, compact rows, select to plot, export CSV,
     page.waitForFunction(
       ([end, tag]) => {
         const f = document.querySelector('[data-table="signals"] .table-frame');
-        f.scrollTop = end ? f.scrollHeight : 0;
+        // Each poll moves it (an unchanged scrollTop fires no scroll event), as a user scrolling would.
+        f.scrollTop = end ? f.scrollHeight - (f.scrollTop % 2) : f.scrollTop === 0 ? 1 : 0;
         return [...f.querySelectorAll('tbody code')].some((c) => c.textContent === tag);
       },
       [end, tag],
@@ -4485,7 +4486,7 @@ test('saved insights: signals over a range, kept as plotted and opened again in 
   // A link with signals and a range shows them (as a saved insight links back).
   const a = await openAs(t, apiUrl, null, `explorer?signals=${temp.id},${force.id}&from=${from}&to=${to}`);
   await a.page.waitForSelector('[data-picked]:has-text("press1.force")');
-  await a.page.waitForSelector('[data-chart] svg');
+  await a.page.waitForSelector('[data-plot] svg');
   // The address keeps showing them (U3.05): a reload or the link copied shows the same charts.
   const shown = new URLSearchParams((await a.page.evaluate(() => location.hash)).split('?')[1]);
   assert.deepEqual([shown.get('signals'), shown.get('from'), shown.get('to')], [`${temp.id},${force.id}`, from, to]);
@@ -4526,7 +4527,7 @@ test('the wear check: a welder tip climbing in its last day, with a limit', asyn
   const from = new Date(end - 96 * 3_600_000).toISOString();
   const to = new Date(end).toISOString();
   const a = await openAs(t, apiUrl, null, `explorer?signals=${power.id}&from=${from}&to=${to}`);
-  await a.page.waitForSelector('[data-chart] svg');
+  await a.page.waitForSelector('[data-plot] svg');
   const form = `[data-wear-form="${power.id}"]`;
   await a.page.selectOption(`${form} [name=direction]`, 'up');
   await a.page.fill(`${form} [name=limit]`, '1900');
