@@ -4,6 +4,7 @@ import type { IconName } from '../lib/icons.ts';
 import type { ToastOptions } from '../lib/toaster.ts';
 import type { ApiClient, AuthConfig, DataSource, Membership, Site } from '../lib/api.ts';
 import type { OntologyStore } from '../lib/ontology-store.ts';
+import type { Preferences } from '../lib/preferences.ts';
 import type { CutterBatch, Detection, Graph, Repo, Run, ScoredEvent, ShotHistory, WeldData } from '../lib/types.ts';
 
 export interface User {
@@ -62,6 +63,18 @@ export interface Context {
   setDataSource(source: DataSource): void;
   readonly ontology: OntologyContext;
   readonly auth: AuthContext;
+  // Your preferences (U6.06).
+  readonly preferences: PreferencesContext;
+}
+
+// A person's preferences (U6.06): as they are now (the language, shortcuts and start page too),
+// where they are kept, and changing them, which applies at once.
+export interface PreferencesContext {
+  readonly current: Preferences;
+  readonly kept: 'account' | 'browser'; // with the person (the Tiles API), or in this browser only
+  readonly siteZone: string | null; // the site's clock, when there is a site
+  readonly pages: readonly { id: string; title: string }[]; // those it can open at
+  set(patch: Partial<Preferences>): void;
 }
 
 // Signing in to the Tiles API (API mode only).

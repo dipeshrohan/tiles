@@ -46,6 +46,7 @@ const PAGES = [
   'import',
   'onboarding',
   'settings',
+  'preferences',
   'styleguide',
   'help',
   'help/warnings',

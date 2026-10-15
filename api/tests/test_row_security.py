@@ -49,6 +49,7 @@ NO_SITE = {
     "job_runs",
     "org_identity_providers",
     "scim_tokens",
+    "user_preferences",  # a person's own, on every site (U6.06)
 }
 
 

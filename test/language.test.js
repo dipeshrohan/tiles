@@ -29,7 +29,7 @@ test('German: its words, its numbers; English for a key it lacks', async () => {
   assert.equal(t('common.help'), 'Hilfe');
   assert.equal(formatLocale(), 'de');
   assert.equal(number(12480.5, 1), '12.480,5');
-  assert.equal(t('settings.language.title'), 'Sprache');
+  assert.equal(t('preferences.language.label'), 'Sprache');
   delete globalThis.TILES_MESSAGES.de['common.help'];
   assert.equal(t('common.help'), 'Help');
 });

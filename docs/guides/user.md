@@ -31,7 +31,8 @@ Other guides:
 18. [Copilot](#copilot)
 19. [Set up a site](#set-up-a-site)
 20. [Settings](#settings)
-21. [Glossary](#glossary)
+21. [Your preferences](#your-preferences)
+22. [Glossary](#glossary)
 
 ---
 
@@ -849,9 +850,9 @@ Admins see usage on the **Settings** page.
 
 Your **Name** and **Email** are recorded as the author of ontology commits and design runs. Edit them and click **Save**. When you sign in to a Tiles API, they come from your sign-in.
 
-### Language
+### Your preferences
 
-**Language** shows Tiles in English or German (Deutsch), in this browser, at once; numbers, dates and the order of lists follow it. The first time, Tiles uses your browser's language if it has it. A link can name one too: add `?lang=de` to the address. This guide and the glossary are in English.
+The theme, the language and your other settings for how Tiles works for you are on their own page: see [Your preferences](#your-preferences).
 
 ### Demo data
 
@@ -900,6 +901,22 @@ Every change on the site: who, what and when. For example staged and committed o
 ### About and the style guide
 
 **About** says which way Tiles is running and how to find any page. Its **Style guide** button opens the style guide: every component the app is made of (buttons, fields, tables, dialogs, toasts, empty and loading states), each with the code that makes it, and the colours, spacing and type in light and dark. It is for people who build Tiles pages; it changes nothing.
+
+---
+
+## Your preferences
+
+**Your preferences** (in the menu, under Settings) are how Tiles looks and works for you. Each change applies at once; there is nothing to save. With the Tiles API they are kept with your account, so they are the same on every site and in every browser you sign in to, and they come back when you sign out and in again. Without it, they are kept in this browser.
+
+- **Theme:** as your system's, light or dark. The button at the top switches between light and dark too, and keeps your choice here.
+- **Table rows:** comfortable or compact, for every table. A table's **Columns** menu changes its own, until you choose here again.
+- **Motion:** as your system asks, or less motion: pages change without a cross-fade, and nothing slides or ticks.
+- **Language:** your browser's, English or German (Deutsch). Numbers, dates and the order of lists follow it. A link can name one too: add `?lang=de` to the address. This guide and the glossary are in English.
+- **Numbers and dates:** as the language writes them, or another way, each shown with an example (English (United States): 1,234.5 · 10/16/2026).
+- **Times:** in the site's clock (the time zone it was created with), or in this device's.
+- **Open Tiles at:** the page Tiles opens at when its address names none. The welcome sets it from the work you said you do.
+- **Single-key shortcuts:** turn off **g**, **j**, **k**, **?** and the other single keys if they get in the way of your screen reader or speech input. The **?** list turns them off too.
+- **Home's cards** are kept for you on each site: choose them on Home with **Customise**.
 
 ---
 

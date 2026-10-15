@@ -856,6 +856,13 @@ main {
 .g3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
+/* Your preferences (U6.06): as many columns as fit, so a wide screen has no gap beside a card. */
+.prefs-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  align-items: start;
+}
 .g4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
