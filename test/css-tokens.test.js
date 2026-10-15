@@ -46,11 +46,11 @@ test('colours below the tokens come from tokens, so the fallback covers them', (
 test('every token used is defined', () => {
   const defined = new Set([...tokens.matchAll(/(--[\w-]+):/g)].map((m) => m[1]));
   // --w, --h and --wait are set per element (a skeleton's width, height and wait), and --swatch (a
-  // chart legend's colour, U5.03): not tokens.
+  // chart legend's colour, U5.03) and --print-base (the app's address, set when printing, U6.05): not tokens.
   const used = new Set(
     [...css.matchAll(/var\((--[\w-]+)/g)]
       .map((m) => m[1])
-      .filter((t) => !['--w', '--h', '--wait', '--swatch'].includes(t)),
+      .filter((t) => !['--w', '--h', '--wait', '--swatch', '--print-base'].includes(t)),
   );
   assert.deepEqual(
     [...used].filter((t) => !defined.has(t)),
@@ -72,5 +72,5 @@ test('every colour has a light and a dark value, and a fallback for older browse
   const outside = css.slice(0, css.indexOf('@supports not (color: light-dark(')) + rules;
   assert.equal(/@media \(prefers-color-scheme: dark\)/.test(outside), false);
   // The fallback keeps dark mode, for the system setting and for the theme toggle.
-  assert.match(fallback, /@media \(prefers-color-scheme: dark\)[\s\S]*:root\[data-theme='dark'\]/);
+  assert.match(fallback, /@media screen and \(prefers-color-scheme: dark\)[\s\S]*:root\[data-theme='dark'\]/);
 });

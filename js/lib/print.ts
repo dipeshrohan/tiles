@@ -1,43 +1,33 @@
-// Print (U6.05): what the stylesheet can't do alone. Before printing, each link in the page gets
-// its full address (shown after its text by css/styles.css, so a printed record still says where
-// its links go) and folded details are opened; after, both are put back.
+// Print (U6.05): what the stylesheet can't do alone. It writes Tiles' own links (#/…) out after the
+// app's address, which it can't know: set here as --print-base, from http(s) only (from file:// it
+// would print a local path, so those links print without one). And a browser without
+// ::details-content gets folded details opened while printing, folded again after.
 
 const opened = new WeakSet<HTMLDetailsElement>();
 
-// Whether a link's address says something its text doesn't: not a button, a record's row, or a
-// link that already reads as its address.
-export function printsHref(a: HTMLAnchorElement): boolean {
-  if (a.matches('.btn, .row-open') || a.closest('.chart-tools')) return false;
-  if (!/^(https?|file):/.test(a.href)) return false;
-  const text = (a.textContent ?? '').trim();
-  return text !== a.href && text !== a.getAttribute('href');
-}
-
-export function beforePrint(root: ParentNode): void {
-  root.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((a) => {
-    if (printsHref(a)) a.dataset.printHref = a.href;
-  });
-  root.querySelectorAll<HTMLDetailsElement>('details:not([open])').forEach((d) => {
-    d.open = true;
-    opened.add(d);
-  });
-}
-
-export function afterPrint(root: ParentNode): void {
-  root.querySelectorAll<HTMLAnchorElement>('a[data-print-href]').forEach((a) => delete a.dataset.printHref);
-  root.querySelectorAll<HTMLDetailsElement>('details[open]').forEach((d) => {
-    if (opened.has(d)) d.open = false;
-    opened.delete(d);
-  });
+// The app's address for the stylesheet, a CSS string; null when it isn't one to print.
+export function printBase(href: string): string | null {
+  const base = href.split('#')[0] ?? '';
+  return /^https?:\/\//.test(base) ? JSON.stringify(base) : null;
 }
 
 export function installPrint(root: () => ParentNode | null): void {
+  const base = printBase(location.href);
+  if (base) document.documentElement.style.setProperty('--print-base', base);
+  if (CSS.supports('selector(::details-content)')) return;
   window.addEventListener('beforeprint', () => {
-    const r = root();
-    if (r) beforePrint(r);
+    root()
+      ?.querySelectorAll<HTMLDetailsElement>('details:not([open])')
+      .forEach((d) => {
+        d.open = true;
+        opened.add(d);
+      });
   });
   window.addEventListener('afterprint', () => {
-    const r = root();
-    if (r) afterPrint(r);
+    root()
+      ?.querySelectorAll<HTMLDetailsElement>('details[open]')
+      .forEach((d) => {
+        if (opened.has(d)) d.open = false;
+      });
   });
 }

@@ -127,7 +127,8 @@
   color-scheme: dark;
 }
 @supports not (color: light-dark(#000, #fff)) {
-  /* Browsers before light-dark() (2024): the same palettes, written out. */
+  /* Browsers before light-dark() (2024): the same palettes, written out; the dark one on screen
+     only, as paper is light (U6.05). */
   :root {
     --bg: #f2f1ec;
     --panel: #ffffff;
@@ -161,7 +162,7 @@
     --shadow-2: 0 2px 6px rgba(20, 30, 28, 0.08), 0 8px 24px rgba(20, 30, 28, 0.08);
     --shadow-3: 0 4px 12px rgba(20, 30, 28, 0.1), 0 16px 48px rgba(20, 30, 28, 0.14);
   }
-  @media (prefers-color-scheme: dark) {
+  @media screen and (prefers-color-scheme: dark) {
     :root:not([data-theme='light']) {
       --bg: #111716;
       --panel: #18201f;
@@ -196,38 +197,40 @@
       --shadow-3: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(0, 0, 0, 0.35);
     }
   }
-  :root[data-theme='dark'] {
-    --bg: #111716;
-    --panel: #18201f;
-    --panel-2: #1d2625;
-    --ink: #e6ebe9;
-    --muted: #7d8885;
-    --soft: #a7b1ae;
-    --line: #29332f;
-    --line-strong: #3a4541;
-    --accent: #5fb3a8;
-    --accent-ink: #0d1514;
-    --accent-soft: #1d3633;
-    --warm: #e08a62;
-    --bad: #e2667c;
-    --bad-soft: #3a1f25;
-    --warn: #d9ad45;
-    --warn-ink: #d9ad45;
-    --good: #5cc28b;
-    --band: rgba(226, 102, 124, 0.16);
-    --accent-hover: #78c2b8;
-    --accent-soft-hover: #193230;
-    --bad-ink: #1a0d10;
-    --bad-line: #5a2a33;
-    --good-soft: #1b3326;
-    --warn-soft: #3a3018;
-    --control-shadow: rgba(0, 0, 0, 0.2);
-    --tab-shadow: rgba(0, 0, 0, 0.4);
-    --ring: rgba(95, 179, 168, 0.4);
-    --hover: rgba(230, 235, 233, 0.06);
-    --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
-    --shadow-3: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(0, 0, 0, 0.35);
+  @media screen {
+    :root[data-theme='dark'] {
+      --bg: #111716;
+      --panel: #18201f;
+      --panel-2: #1d2625;
+      --ink: #e6ebe9;
+      --muted: #7d8885;
+      --soft: #a7b1ae;
+      --line: #29332f;
+      --line-strong: #3a4541;
+      --accent: #5fb3a8;
+      --accent-ink: #0d1514;
+      --accent-soft: #1d3633;
+      --warm: #e08a62;
+      --bad: #e2667c;
+      --bad-soft: #3a1f25;
+      --warn: #d9ad45;
+      --warn-ink: #d9ad45;
+      --good: #5cc28b;
+      --band: rgba(226, 102, 124, 0.16);
+      --accent-hover: #78c2b8;
+      --accent-soft-hover: #193230;
+      --bad-ink: #1a0d10;
+      --bad-line: #5a2a33;
+      --good-soft: #1b3326;
+      --warn-soft: #3a3018;
+      --control-shadow: rgba(0, 0, 0, 0.2);
+      --tab-shadow: rgba(0, 0, 0, 0.4);
+      --ring: rgba(95, 179, 168, 0.4);
+      --hover: rgba(230, 235, 233, 0.06);
+      --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.3);
+      --shadow-2: 0 2px 6px rgba(0, 0, 0, 0.35), 0 8px 24px rgba(0, 0, 0, 0.25);
+      --shadow-3: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 48px rgba(0, 0, 0, 0.35);
+    }
   }
 }
 
@@ -4398,9 +4401,10 @@ td.sg-scheme {
 /* ---- Print (U6.05) ----
    A page prints as a document: no menu, top bar or controls, light colours, the record open alone
    (not the list beside it), nothing cut at the page's edge (tables and charts fit its width, long
-   words wrap), rows, comments and charts kept whole across pages, each link's address after it
-   (js/lib/print.ts), and charts in black and white: each line its own dash, shaded stretches
-   hatched (the pattern is in index.html). e2e/print.test.js prints each record on A4 and Letter. */
+   words wrap), rows, comments and charts kept whole across pages, each link's address after it,
+   folded details open, and charts in black and white: each line its own dash (s0 to s7, the
+   legend drawn the same), shaded stretches hatched (the pattern is in index.html). A list prints
+   the rows on screen. e2e/print.test.js prints each record on A4 and Letter. */
 .print-defs {
   position: absolute;
 }
@@ -4431,7 +4435,8 @@ td.sg-scheme {
   #view .btn,
   #view input[type='search'],
   #view:has(.split.has-record) > :not(.page-head, .split),
-  .split.has-record > .split-list {
+  .split.has-record > .split-list,
+  .table-frame .spacer {
     display: none !important;
   }
   .shell,
@@ -4475,11 +4480,25 @@ td.sg-scheme {
   #view :is(td, th, dd, p, li, code) {
     overflow-wrap: anywhere;
   }
-  a[data-print-href]::after {
-    content: ' (' attr(data-print-href) ')';
+
+  /* Each link's address after it: another site's as written; Tiles' own (#/…) after the app's
+     address, which js/lib/print.ts sets (not from file://, whose address is a local path). A link
+     that reads as its address already is .print-plain. */
+  #view a[href]:not(.btn, .row-open, .print-plain, .chart-tools a)::after {
     color: var(--soft);
     font-size: var(--text-xs);
     overflow-wrap: anywhere;
+  }
+  #view a:is([href^='http:'], [href^='https:']):not(.btn, .row-open, .print-plain, .chart-tools a)::after {
+    content: ' (' attr(href) ')';
+  }
+  #view a[href^='#']:not(.btn, .row-open, .print-plain, .chart-tools a)::after {
+    content: ' (' var(--print-base) attr(href) ')';
+  }
+  /* Folded details print open, where the browser can (js/lib/print.ts opens them elsewhere). */
+  details::details-content {
+    content-visibility: visible;
+    display: contents;
   }
 
   /* Charts in black and white. */
@@ -4489,56 +4508,90 @@ td.sg-scheme {
   .chart text {
     fill: var(--ink);
   }
-  .chart :is([data-part='line'], [data-part^='s']:not([data-part='spans'])) {
+  .chart :is([data-part='line'], [data-part^='s']:not([data-part='spans']), .marker, .level) {
     stroke: var(--ink);
   }
   .chart circle[data-part='line'] {
     fill: var(--ink);
   }
-  .chart [data-part='s1'],
-  .chart [data-part='s5'] {
+  .chart [data-part='s0'] {
+    stroke-dasharray: none;
+  }
+  .chart [data-part='s1'] {
     stroke-dasharray: 6 3;
   }
-  .chart [data-part='s2'],
-  .chart [data-part='s6'] {
+  .chart [data-part='s2'] {
     stroke-dasharray: 1.5 2.5;
   }
-  .chart [data-part='s3'],
-  .chart [data-part='s7'] {
+  .chart [data-part='s3'] {
     stroke-dasharray: 8 3 2 3;
   }
   .chart [data-part='s4'] {
     stroke-dasharray: 12 4;
   }
+  .chart [data-part='s5'] {
+    stroke-dasharray: 3 3;
+  }
+  .chart [data-part='s6'] {
+    stroke-dasharray: 8 2 2 2 2 2;
+  }
+  .chart [data-part='s7'] {
+    stroke-dasharray: 1 5;
+  }
   .chart [data-part='band'] {
     fill: var(--ink);
     fill-opacity: 0.12;
   }
-  .chart .span {
+  .chart :is(.span, .shade) {
     fill: url(#print-hatch);
-  }
-  .chart .level {
-    stroke: var(--ink);
   }
   .chart-swatch {
     print-color-adjust: exact;
-    height: 0;
-    width: 18px;
+    width: 24px;
+    height: 2px;
     border-radius: 0;
-    background: none;
-    border-top: 2px solid var(--ink);
+    background: var(--ink);
   }
-  .chart-key:is([data-chart-toggle='s1'], [data-chart-toggle='s5'], [data-chart-toggle='levels']) .chart-swatch {
-    border-top-style: dashed;
+  .chart-key[data-chart-toggle='s1'] .chart-swatch {
+    background: repeating-linear-gradient(to right, var(--ink) 0 6px, transparent 6px 9px);
   }
-  .chart-key:is([data-chart-toggle='s2'], [data-chart-toggle='s6']) .chart-swatch {
-    border-top-style: dotted;
+  .chart-key[data-chart-toggle='s2'] .chart-swatch {
+    background: repeating-linear-gradient(to right, var(--ink) 0 1.5px, transparent 1.5px 4px);
   }
-  .chart-key:is([data-chart-toggle='s3'], [data-chart-toggle='s7']) .chart-swatch {
-    border-top-style: double;
-    border-top-width: 3px;
+  .chart-key[data-chart-toggle='s3'] .chart-swatch {
+    background: repeating-linear-gradient(
+      to right,
+      var(--ink) 0 8px,
+      transparent 8px 11px,
+      var(--ink) 11px 13px,
+      transparent 13px 16px
+    );
+  }
+  .chart-key[data-chart-toggle='s4'] .chart-swatch {
+    background: repeating-linear-gradient(to right, var(--ink) 0 12px, transparent 12px 16px);
+  }
+  .chart-key[data-chart-toggle='s5'] .chart-swatch {
+    background: repeating-linear-gradient(to right, var(--ink) 0 3px, transparent 3px 6px);
+  }
+  .chart-key[data-chart-toggle='s6'] .chart-swatch {
+    background: repeating-linear-gradient(
+      to right,
+      var(--ink) 0 8px,
+      transparent 8px 10px,
+      var(--ink) 10px 12px,
+      transparent 12px 14px,
+      var(--ink) 14px 16px,
+      transparent 16px 18px
+    );
+  }
+  .chart-key[data-chart-toggle='s7'] .chart-swatch {
+    background: repeating-linear-gradient(to right, var(--ink) 0 1px, transparent 1px 6px);
+  }
+  .chart-key[data-chart-toggle='levels'] .chart-swatch {
+    background: repeating-linear-gradient(to right, var(--ink) 0 4px, transparent 4px 7px);
   }
   .chart-key:is([data-chart-toggle='band'], [data-chart-toggle='spans']) .chart-swatch {
+    width: 14px;
     height: 10px;
     border: 1px solid var(--ink);
     background: repeating-linear-gradient(45deg, var(--ink) 0 1px, transparent 1px 4px);

@@ -155,7 +155,8 @@ test('a printed warning: its chart in black and white with patterns, its payload
   const page = await browser.newPage({ reducedMotion: 'reduce', colorScheme: 'dark' });
   await open(page, `${apiBase}#/warnings?show=all&warning=${warningId}`, '[data-warning-detail] .chart');
   const payload = page.locator('[data-warning-detail] details');
-  assert.equal(await payload.evaluate((d) => d.open), false);
+  const unfolded = () => payload.evaluate((d) => d.querySelector(':scope > :not(summary)').checkVisibility());
+  assert.equal(await unfolded(), false);
   await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
   await printMedia(page, { colorScheme: 'dark' });
   const look = await page.evaluate(() => {
@@ -183,35 +184,31 @@ test('a printed warning: its chart in black and white with patterns, its payload
   assert.equal(look.level[0], look.ink);
   assert.notEqual(look.level[1], 'none');
   // Its payload is printed open, and folded again after.
-  assert.equal(await payload.evaluate((d) => d.open), true);
+  assert.equal(await unfolded(), true);
   await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
-  assert.equal(await payload.evaluate((d) => d.open), false);
+  await page.emulateMedia({ media: 'screen' });
+  assert.equal(await unfolded(), false);
   await page.close();
 });
 
 test('a printed insight gives each link’s address after its text, once (U6.05)', async () => {
   const page = await browser.newPage({ reducedMotion: 'reduce' });
   await open(page, `${apiBase}#/insights/1`, '[data-insight-detail] [data-evidence-series]');
-  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
   await printMedia(page);
-  const links = await page.evaluate(() =>
-    [...document.querySelectorAll('[data-insight-detail] a[href]')].map((a) => ({
-      text: a.textContent.trim(),
-      href: a.href,
-      after: getComputedStyle(a, '::after').content,
-    })),
+  // What the link reads as on paper: its text and what the stylesheet writes after it.
+  const read = (sel) => page.locator(`[data-insight-detail] ${sel}`).first().ariaSnapshot();
+  const explorer = await page.locator('[data-insight-detail] a[href*="#/explorer"]').first().getAttribute('href');
+  assert.match(
+    await read('a[href*="#/explorer"]'),
+    new RegExp(`\\(${escape(httpBase)}\\?api=[^)]*${escape(explorer)}\\)`),
   );
-  const explorer = links.find((l) => l.href.includes('#/explorer'));
-  assert.ok(explorer, JSON.stringify(links));
-  assert.equal(explorer.after, `" (${explorer.href})"`);
   // The insight's own link reads as its address already.
-  const self = links.find((l) => l.text === l.href);
-  assert.ok(self, JSON.stringify(links));
-  assert.equal(self.after, 'none');
-  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
-  assert.equal(await page.locator('a[data-print-href]').count(), 0);
+  const self = await read('a[data-link]');
+  assert.equal(self.match(/http:/g)?.length, 1, self);
   await page.close();
 });
+
+const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 test('a chart with several lines prints each with its own dash, and its legend says which (U6.05)', async () => {
   const page = await browser.newPage({ reducedMotion: 'reduce' });
@@ -228,14 +225,22 @@ test('a chart with several lines prints each with its own dash, and its legend s
       part,
       stroke: getComputedStyle(chart.querySelector(`[data-part="${part}"]`)).stroke,
       dash: getComputedStyle(chart.querySelector(`[data-part="${part}"]`)).strokeDasharray,
-      key:
-        box && getComputedStyle(box.querySelector(`[data-chart-toggle="${part}"] .chart-swatch`) ?? box).borderTopStyle,
+      key: getComputedStyle(box.querySelector(`[data-chart-toggle="${part}"] .chart-swatch`)).backgroundImage,
     }));
   });
+  // The shaded windows hatched, the markers in ink.
+  const marks = await page.evaluate(() => ({
+    shade: [...document.querySelectorAll('#view .chart .shade')].map((r) => getComputedStyle(r).fill),
+    marker: [...document.querySelectorAll('#view .chart line.marker')].map((l) => getComputedStyle(l).stroke),
+  }));
   const ink = await page.evaluate(() => getComputedStyle(document.body).color);
   assert.ok(dashes.length >= 2, JSON.stringify(dashes));
   for (const d of dashes) assert.equal(d.stroke, ink, d.part);
+  assert.equal(dashes[0].dash, 'none'); // the first line solid, whatever its dash on screen
   assert.equal(new Set(dashes.map((d) => d.dash)).size, dashes.length, JSON.stringify(dashes));
   assert.equal(new Set(dashes.map((d) => d.key)).size, dashes.length, JSON.stringify(dashes));
+  assert.ok(marks.shade.length && marks.marker.length, JSON.stringify(marks));
+  for (const f of marks.shade) assert.match(f, /url\("?#print-hatch"?\)/);
+  for (const c of marks.marker) assert.equal(c, ink);
   await page.close();
 });

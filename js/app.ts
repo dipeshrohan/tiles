@@ -179,7 +179,7 @@ installTooltips();
 installCharts(need(document, '#announcer'), (what) =>
   toast(what, { type: 'error', description: t('app.chartSaveFailed') }),
 );
-// Printed (U6.05): links write their address out, folded details open.
+// Printed (U6.05): Tiles' own links print after the app's address; folded details print open.
 installPrint(() => document.getElementById('view'));
 
 // ---- state ------------------------------------------------------------

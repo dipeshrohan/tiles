@@ -249,7 +249,7 @@ function detailCard(ctx: Context): string {
       ${reviewed}
       ${review}
       ${tools ? `<div class="row gap-2">${tools}</div>` : ''}
-      <p class="small soft break-anywhere">${tHtml('insights.link', { link: `<a href="${insightLink(i.number)}" data-link>${esc(location.href.split('#')[0] ?? '')}${insightLink(i.number)}</a>` })}</p>
+      <p class="small soft break-anywhere">${tHtml('insights.link', { link: `<a class="print-plain" href="${insightLink(i.number)}" data-link>${esc(location.href.split('#')[0] ?? '')}${insightLink(i.number)}</a>` })}</p>
     </div>`;
 }
 
