@@ -1,0 +1,7 @@
+participant,role,task,outcome,seconds,notes
+P01,engineer,triage,success,200,
+P02,engineer,triage,assisted,300,"Looked for ""assign"" in the menu, then asked"
+P01,engineer,plot,success,100,
+P02,engineer,plot,success,140,
+P01,engineer,commit,fail,,"Gave up, couldn't find review"
+P02,engineer,commit,success,400,

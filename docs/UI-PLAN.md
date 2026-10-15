@@ -48,7 +48,7 @@ By 30 April 2027:
 | Measure | Baseline | Target | How it's measured |
 |---|---|---|---|
 | System Usability Scale (SUS) | Measured in U1.01 | ≥ 75, and +10 on the baseline | 8+ users per round, U1.01 and U6.07 |
-| Task success on 6 key tasks | Measured in U1.01 | ≥ 90% without help | Moderated test script in `docs/ui/research/` |
+| Task success on 6 key tasks | Measured in U1.01 | ≥ 90% without help | Moderated test script in [`docs/ui/research/`](ui/research/README.md) |
 | Time on key tasks (triage a warning, find a signal and plot it, commit an ontology change) | Measured in U1.01 | −30% | Same script, timed |
 | Accessibility | 0 axe violations on 19 routes | 0 on every route, including Apps and Documents; 5 flows walked with NVDA and VoiceOver; 200% zoom and forced colours work | `e2e/a11y.test.js`, U6.04 report |
 | Consistency | 240+ inline styles; no tokens for spacing or type | ≤ 20 inline styles (only computed values); every page uses `js/lib/ui.ts` page head, empty state and error state | Lint rule (U1.03) and a count in CI |
