@@ -1915,7 +1915,7 @@ test('UX analytics: off until an organisation admin turns it on; then counts, an
   await a.page.evaluate(() => (location.hash = '#/settings'));
   await a.page.waitForSelector('#ux-analytics [data-ux-sessions]');
   assert.match(await a.page.locator('#ux-analytics table').innerText(), /Task done\s+warning\.acknowledge\s+1\s+1/);
-  assert.match(await a.page.locator('[data-ux-sessions]').innerText(), /^1 browser session\(s\)/);
+  assert.match(await a.page.locator('[data-ux-sessions]').innerText(), /^1 browser session in/);
   assert.deepEqual(a.errors, []);
 
   // Engineers don't see the card.

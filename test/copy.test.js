@@ -107,6 +107,26 @@ test('every empty state says why it is empty (a body), not only that it is', () 
   assert.deepEqual(bare, []);
 });
 
+// The words moved to the catalogue (U6.01) follow the same rules: a key naming a title, a heading,
+// a button or a tab is in sentence case.
+const catalogue = Object.entries(JSON.parse(readFileSync(join(root, 'js/i18n/en.json'), 'utf8')));
+
+test('the catalogue’s messages follow the same rules', () => {
+  const apologies = catalogue.filter(([, m]) =>
+    /\b(oops|sorry|please|successfully|click here|something went wrong|an error occurred)\b/i.test(m),
+  );
+  assert.deepEqual(apologies, []);
+  assert.deepEqual(
+    catalogue.filter(([, m]) => /!\s*$/.test(m)),
+    [],
+  );
+  const named = catalogue.filter(([k]) => /(title|heading|button|tab)$/i.test(k.split('.').at(-1) ?? ''));
+  assert.deepEqual(
+    named.filter(([, m]) => sentenceCase(m).length).map(([k, m]) => `${k}: ${m}`),
+    [],
+  );
+});
+
 test('the checks catch what they are for', () => {
   assert.deepEqual(sentenceCase('Export As CSV'), ['As']);
   assert.deepEqual(sentenceCase('Open Settings'), []);
