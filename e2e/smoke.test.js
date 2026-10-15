@@ -3025,7 +3025,7 @@ test('the data explorer: plot signals, zoom in by dragging, zoom out into bucket
   await page.waitForFunction(() => {
     const note = document.querySelector('[data-series-note]')?.textContent ?? '';
     const n = Number(note.replace(/[^0-9]/g, ''));
-    return /reading\(s\)/.test(note) && n > 80 && n < 200;
+    return /readings?\b/.test(note) && n > 80 && n < 200;
   });
 
   // More readings than the chart's points: the API averages them.
@@ -3071,7 +3071,7 @@ test('on a wide screen, drag-zoom keeps the stretch dragged, and search text sur
   await page.waitForFunction(() => {
     const note = document.querySelector('[data-series-note]')?.textContent ?? '';
     const n = Number(note.replace(/[^0-9]/g, ''));
-    return /reading\(s\)/.test(note) && n > 30 && n < 90;
+    return /readings?\b/.test(note) && n > 30 && n < 90;
   });
   assert.deepEqual(errors, []);
 });
@@ -5139,7 +5139,7 @@ test('the menu: groups fold, pages pin, recent pages, counts and an icon rail, a
   const warnings = page.locator('#nav [data-key="nav-menu-warnings"] a');
   await warnings.locator('.badge').waitFor();
   assert.match(await warnings.innerText(), /Warnings\s*2/);
-  assert.match(await warnings.locator('.sr-only').innerText(), /2 open warning\(s\)/);
+  assert.match(await warnings.locator('.sr-only').innerText(), /2 open warnings/);
   assert.match(await page.locator('#nav [data-key="nav-menu-reviews"] a').innerText(), /1/);
 
   // A group folds from the keyboard, and stays folded after a reload.
