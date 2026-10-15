@@ -1,7 +1,8 @@
-import { announce, esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
+import { announce, bound, esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
 import type { WarningOutcome } from '../lib/api.ts';
 import { OUTCOMES, when } from '../lib/warnings.ts';
-import { headline, machineBoard, type FloorItem } from '../lib/shopfloor.ts';
+import { CONTRAST_KEY, freshness, headline, machineBoard, type FloorItem } from '../lib/shopfloor.ts';
+import { load, save } from '../lib/store.ts';
 import type { Graph } from '../lib/types.ts';
 import {
   ensureFloor,
@@ -41,10 +42,46 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 
+// The screen stays on while the page is shown (U5.08): a tablet on the line must not go dark
+// between warnings. Asked again when the tab comes back (the browser lets it go when hidden).
+let awake: WakeLockSentinel | null = null;
+let waking = false; // asked, not answered: each render binds the page again
+async function keepAwake(): Promise<void> {
+  if (awake || waking || document.hidden || !('wakeLock' in navigator)) return;
+  waking = true;
+  try {
+    const lock = await navigator.wakeLock.request('screen');
+    awake = lock;
+    lock.onrelease = () => {
+      if (awake !== lock) return;
+      awake = null;
+      // Let go by the system while the page is still shown (a battery saver, say): ask again.
+      if (routeOf(location.hash) === 'shopfloor') setTimeout(() => void keepAwake(), 1000);
+    };
+  } catch {
+    awake = null; // not allowed (a low battery, a policy): the screen sleeps as usual
+  } finally {
+    waking = false;
+  }
+  // Left while it was asked for: let it go.
+  if (awake && routeOf(location.hash) !== 'shopfloor') {
+    void awake.release();
+    awake = null;
+  }
+}
+
+const offline = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
+const contrast = (): boolean => load<boolean>(CONTRAST_KEY, false) === true;
+// The system asks for more contrast: the page has it always, and no button to turn it off.
+const systemContrast = (): boolean =>
+  typeof matchMedia === 'function' && matchMedia('(prefers-contrast: more)').matches;
+
 function stop(): void {
   if (timer !== null) clearInterval(timer);
   timer = null;
-  document.body.classList.remove('floor-full');
+  document.body.classList.remove('floor-full', 'floor-contrast');
+  void awake?.release();
+  awake = null;
 }
 
 onNavigate((hash) => {
@@ -66,11 +103,14 @@ function actions(ctx: Context, item: FloorItem, ui: Ui): string {
   if (!ctx.api) return '<p class="small soft">Connect to the Tiles API in Settings to take and resolve warnings.</p>';
   const role = ctx.ontology.role;
   if (role !== 'engineer' && role !== 'admin') return '<p class="small soft">An engineer of the site acts on it.</p>';
+  // Offline, a step can't be sent: its buttons wait (the line under the headline says why); Back
+  // sends nothing, so it never waits for the network.
   const wait = busy !== null ? 'disabled' : '';
+  const send = busy !== null || offline() ? 'disabled' : '';
   const label = (verb: string) => `${verb}: ${item.machine}, ${item.tag}`;
   if (ui.resolving === item.id) {
     const outcome = (o: WarningOutcome, cls: string) =>
-      `<button class="btn floor-btn ${cls}" data-outcome="${o}" data-id="${esc(item.id)}" ${wait}>${OUTCOMES[o]}</button>`;
+      `<button class="btn floor-btn ${cls}" data-outcome="${o}" data-id="${esc(item.id)}" ${send}>${OUTCOMES[o]}</button>`;
     return `<p class="floor-ask">What was it?</p>
       <div class="floor-actions">
         ${outcome('true_alarm', 'danger')}${outcome('false_alarm', '')}${outcome('unknown', '')}
@@ -81,21 +121,21 @@ function actions(ctx: Context, item: FloorItem, ui: Ui): string {
   if (ui.taking === item.id && item.assignee) {
     return `<p class="floor-ask">Take it from ${esc(item.assignee)}?</p>
       <div class="floor-actions">
-        <button class="btn primary floor-btn" data-take="${esc(item.id)}" ${wait}>Yes, take it</button>
+        <button class="btn primary floor-btn" data-take="${esc(item.id)}" ${send}>Yes, take it</button>
         <button class="btn floor-btn" data-cancel ${wait}>Back</button>
       </div>`;
   }
   const mine = item.assigneeId !== null && item.assigneeId === ctx.ontology.userId;
   const take =
     item.status === 'raised' && !item.assignee
-      ? `<button class="btn primary floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("I'm on it"))}" ${wait}>I'm on it</button>`
+      ? `<button class="btn primary floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("I'm on it"))}" ${send}>I'm on it</button>`
       : mine
         ? ''
         : item.assignee
-          ? `<button class="btn floor-btn" data-ask-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${wait}>Take it</button>`
-          : `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${wait}>Take it</button>`;
+          ? `<button class="btn floor-btn" data-ask-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${send}>Take it</button>`
+          : `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${send}>Take it</button>`;
   return `<div class="floor-actions">${take}
-      <button class="btn floor-btn" data-resolve="${esc(item.id)}" aria-label="${esc(label('Resolve'))}" ${wait}>Resolve</button>
+      <button class="btn floor-btn" data-resolve="${esc(item.id)}" aria-label="${esc(label('Resolve'))}" ${send}>Resolve</button>
       <button class="btn floor-btn" data-open="${esc(item.id)}" aria-label="${esc(label('Details'))}">Details</button>
     </div>`;
 }
@@ -190,6 +230,7 @@ const view: View = {
         <div><div class="eyebrow">Operations · ${esc(site)}</div>${status}</div>
         <div class="floor-tools">
           ${ctx.api ? '<button class="btn floor-btn" data-floor-refresh>Refresh</button>' : ''}
+          ${systemContrast() ? '' : `<button class="btn floor-btn" data-floor-contrast aria-pressed="${contrast()}">High contrast</button>`}
           <button class="btn floor-btn" data-floor-full aria-pressed="${ui.full}">${fullLabel}</button>
         </div>
       </div>`;
@@ -203,13 +244,13 @@ const view: View = {
       return `<div class="floor">${head('<h1 tabindex="-1">Shopfloor</h1>')}<div class="card">${skeleton.list(3, 'Loading the warnings…')}</div></div>`;
     const now = Date.now();
     const { tone, text } = headline(list);
-    const updated =
-      listed().at && ctx.api
-        ? `<div class="small soft" data-floor-updated>${
-            listed().stale
-              ? `As of ${clockTime(listed().at ?? 0)}: the last refresh failed, trying again in 30 seconds`
-              : `Updated ${clockTime(listed().at ?? 0)}; refreshes every 30 seconds`
-          }</div>`
+    const fresh = ctx.api ? freshness({ ...listed(), offline: offline() }, clockTime) : null;
+    // Read out when it turns old or offline (a live region there from the start), not every refresh.
+    const alert = `<span class="sr-only" role="status" data-floor-alert>${fresh?.tone ? esc(fresh.text) : ''}</span>`;
+    const updated = fresh
+      ? `<div class="small ${fresh.tone ? 'floor-stale' : 'soft'}" data-floor-updated>${esc(fresh.text)}</div>${alert}`
+      : ctx.api
+        ? alert
         : ctx.api
           ? ''
           : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
@@ -231,6 +272,15 @@ const view: View = {
   bind(root, ctx) {
     const ui = uiState(ctx);
     document.body.classList.toggle('floor-full', ui.full);
+    document.body.classList.toggle('floor-contrast', contrast() || systemContrast());
+    void keepAwake();
+    document.addEventListener('visibilitychange', () => void keepAwake(), { signal: bound() });
+    onAll(root, '[data-floor-contrast]', 'click', () => {
+      save(CONTRAST_KEY, !contrast());
+      ctx.rerender();
+    });
+    // The network gone: said at once. Back: app.ts draws the page again, and ensureFloor fetches.
+    window.addEventListener('offline', () => ctx.rerender(), { signal: bound() });
     // The first headline is the page's heading, read as the page opens; later ones are news.
     if (shownHeadline && shownHeadline.text !== toldHeadline?.text) {
       if (toldHeadline && toldHeadline.site === shownHeadline.site) announce(shownHeadline.text);
@@ -247,7 +297,7 @@ const view: View = {
     // its warning has gone.
     timer ??= setInterval(() => {
       if (routeOf(location.hash) !== 'shopfloor') return stop();
-      if (!busy && !document.hidden) void fetchWarnings(ctx, true);
+      if (!busy && !document.hidden && !offline()) void fetchWarnings(ctx, true);
     }, REFRESH_MS);
 
     onAll(root, '[data-floor-refresh]', 'click', () => refreshFloor(ctx));

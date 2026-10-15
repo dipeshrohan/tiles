@@ -510,6 +510,9 @@ The Shopfloor page is the warnings page for a tablet on the line: large type, re
 - **Machines** below show every machine of the site, coloured by its worst open warning: red for a signal out or a warning nobody has taken, amber while someone handles it, green when it has none.
 - The page refreshes itself every 30 seconds. **Refresh** fetches now.
 - **Full view** hides the menu and the top bar, for a tablet mounted on a machine. **Show navigation** brings them back.
+- **High contrast** makes every grey the page's darkest colour and thickens the borders, for direct light. The tablet keeps the choice. The page also follows the system's "increase contrast" setting.
+- **Offline**, the page keeps the last list and says **Offline: as of** its time. Taking and resolving wait for the network. When the network is back, the list refreshes at once.
+- While the page is open, the screen stays on (where the browser allows it).
 
 Viewers see the same page without the buttons. In local mode, the page shows the demo plunger-friction detector's warnings on Die-caster DC-02, read-only.
 

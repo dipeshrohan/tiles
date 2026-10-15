@@ -168,3 +168,35 @@ export function headline(items: readonly FloorItem[]): { tone: 'bad' | 'warn' | 
     text: `${plural(open.length, 'open warning')}${parts.length ? `: ${parts.join(', ')}` : ''}`,
   };
 }
+
+// ---- the field round (U5.08): how fresh the floor is, said for the line ------------------------
+
+export interface Freshness {
+  text: string;
+  tone: '' | 'warn';
+}
+
+// What the line reads under the headline: when the list is from, and, offline or after a failed
+// refresh, that it is old and what happens next. `clock` writes a time as the page does.
+export function freshness(
+  o: { at: number | null; stale: boolean; offline: boolean },
+  clock: (t: number) => string,
+): Freshness | null {
+  // Nothing read yet: never "all clear" when nothing is known.
+  if (o.at === null) {
+    if (o.offline) return { text: 'Offline: the warnings can’t be read until the network is back.', tone: 'warn' };
+    if (o.stale) return { text: 'The warnings could not be read: trying again in 30 seconds', tone: 'warn' };
+    return null;
+  }
+  const at = clock(o.at);
+  if (o.offline)
+    return {
+      text: `Offline: as of ${at}. Taking and resolving wait for the network; the list refreshes when it is back.`,
+      tone: 'warn',
+    };
+  if (o.stale) return { text: `As of ${at}: the last refresh failed, trying again in 30 seconds`, tone: 'warn' };
+  return { text: `Updated ${at}; refreshes every 30 seconds`, tone: '' };
+}
+
+// The high-contrast option for direct light: kept for this browser (the tablet on the line).
+export const CONTRAST_KEY = 'floor-contrast';

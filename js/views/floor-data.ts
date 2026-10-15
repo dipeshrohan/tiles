@@ -63,7 +63,8 @@ export async function fetchWarnings(ctx: Context, quiet = false): Promise<void> 
     // The client showed why. A quiet refresh keeps the last list; otherwise nothing to show.
     // Nothing shown yet (a first load, or a quiet one for another site): show none, as a loud failure
     // does, rather than load for ever; otherwise keep the list, marked as stale.
-    if (seq === listSeq && (!quiet || !listing?.items)) listing = { site, items: [], at: null, more: false };
+    if (seq === listSeq && (!quiet || !listing?.items))
+      listing = { site, items: [], at: null, more: false, stale: true };
     else if (seq === listSeq && listing) listing.stale = true;
   }
   if (seq === listSeq && shown()) ctx.rerender();
@@ -92,9 +93,16 @@ export async function fetchCatalogue(ctx: Context): Promise<void> {
 }
 
 // Starts the fetches this site hasn't had yet (bind calls it on every render).
+// Seen offline (U5.08): drawn again once the network is back (app.ts does), both are fetched afresh.
+let offlineSeen = false;
 export function ensureFloor(ctx: Context): void {
   if (!ctx.api || ctx.ontology.status !== 'ready') return;
   const site = siteId(ctx);
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) offlineSeen = true;
+  else if (offlineSeen) {
+    offlineSeen = false;
+    stale = true;
+  }
   if (stale) {
     stale = false;
     if (listing?.site === site) void fetchWarnings(ctx, true);
