@@ -182,7 +182,12 @@ export function freshness(
   o: { at: number | null; stale: boolean; offline: boolean },
   clock: (t: number) => string,
 ): Freshness | null {
-  if (o.at === null) return null;
+  // Nothing read yet: never "all clear" when nothing is known.
+  if (o.at === null) {
+    if (o.offline) return { text: 'Offline: the warnings can’t be read until the network is back.', tone: 'warn' };
+    if (o.stale) return { text: 'The warnings could not be read: trying again in 30 seconds', tone: 'warn' };
+    return null;
+  }
   const at = clock(o.at);
   if (o.offline)
     return {

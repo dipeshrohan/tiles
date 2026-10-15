@@ -3764,20 +3764,19 @@ test('the shopfloor field round: high contrast kept, offline said with the last 
   assert.deepEqual(await locks(), [['screen', false]]);
 
   // High contrast for direct light: on, kept after a reload, greys made the ink.
+  const colours = () =>
+    page.evaluate(() => [
+      getComputedStyle(document.querySelector('.floor-tag')).color,
+      getComputedStyle(document.querySelector('.floor-card h2')).color,
+    ]);
+  const [tagBefore, nameBefore] = await colours();
+  assert.notEqual(tagBefore, nameBefore, 'the tag is grey before');
   await page.click('[data-floor-contrast]');
   await page.waitForSelector('body.floor-contrast [data-floor-contrast][aria-pressed="true"]');
   await page.reload();
   await page.waitForSelector('body.floor-contrast .floor-card');
-  const [ink, soft] = await page.evaluate(() => [
-    getComputedStyle(document.querySelector('.floor-headline')).getPropertyValue('--ink'),
-    getComputedStyle(document.querySelector('.floor-where, .floor-tag')).color,
-  ]);
-  assert.ok(ink && soft, 'colours read');
-  assert.equal(
-    soft,
-    await page.evaluate(() => getComputedStyle(document.querySelector('.floor-card h2')).color),
-    'the tag is as dark as the machine name',
-  );
+  const [tagAfter, nameAfter] = await colours();
+  assert.equal(tagAfter, nameAfter, 'the tag is as dark as the machine name');
 
   // The network gone: the last list stays, "as of" its time, and the steps wait.
   await page.context().setOffline(true);
@@ -3787,6 +3786,7 @@ test('the shopfloor field round: high contrast kept, offline said with the last 
     .locator('.floor-card [data-resolve]')
     .evaluateAll((els) => els.map((e) => e.disabled)))
     assert.ok(disabled, 'Resolve waits for the network');
+  assert.match(await page.locator('[data-floor-alert]').textContent(), /^Offline: as of/); // read out
   // Back: refreshed at once.
   const refreshed = page.waitForRequest((r) => r.method() === 'GET' && /\/warnings\?/.test(r.url()));
   await page.context().setOffline(false);
@@ -3798,10 +3798,7 @@ test('the shopfloor field round: high contrast kept, offline said with the last 
   await page.evaluate(() => (location.hash = '#/warnings'));
   await page.waitForFunction(() => window.wakeLocks.every((l) => l.released));
   assert.ok(!(await page.evaluate(() => document.body.classList.contains('floor-contrast'))));
-  assert.deepEqual(
-    errors.filter((e) => !e.includes('ERR_INTERNET_DISCONNECTED')),
-    [],
-  );
+  assert.deepEqual(errors, []);
 });
 
 test('the shopfloor view: warnings first on their machines, taken and resolved with big buttons', async (t) => {

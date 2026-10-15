@@ -3738,8 +3738,9 @@ th .col-resize:focus-visible {
   gap: var(--space-1_5);
   font-size: var(--text-xl);
 }
-/* High contrast (U5.08), for direct light: chosen on the page, or asked for by the system. Every
-   grey becomes the ink, lines and borders thicken, the page is the panel's colour. */
+/* High contrast (U5.08), for direct light: chosen on the page, or asked for by the system (the page
+   then sets the same class). Every grey becomes the ink, lines and borders thicken, the page is the
+   panel's colour. */
 body.floor-contrast .floor {
   --soft: var(--ink);
   --muted: var(--ink);
@@ -3755,14 +3756,6 @@ body.floor-contrast .floor-card,
 body.floor-contrast .floor-tile,
 body.floor-contrast .btn.floor-btn {
   border-width: 3px;
-}
-@media (prefers-contrast: more) {
-  .floor {
-    --soft: var(--ink);
-    --muted: var(--ink);
-    --line: var(--ink);
-    --line-strong: var(--ink);
-  }
 }
 .floor-stale {
   color: var(--warn-ink);

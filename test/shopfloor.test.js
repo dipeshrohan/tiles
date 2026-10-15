@@ -182,6 +182,9 @@ test('the headline says what needs someone', () => {
 test('the line reads how fresh the floor is: offline, after a failed refresh, or up to date', () => {
   const clock = () => '14:02';
   assert.equal(freshness({ at: null, stale: false, offline: false }, clock), null);
+  // Nothing read yet is never all clear.
+  assert.match(freshness({ at: null, stale: true, offline: true }, clock).text, /^Offline: the warnings can’t be read/);
+  assert.match(freshness({ at: null, stale: true, offline: false }, clock).text, /could not be read: trying again/);
   assert.deepEqual(freshness({ at: 1, stale: false, offline: false }, clock), {
     text: 'Updated 14:02; refreshes every 30 seconds',
     tone: '',
