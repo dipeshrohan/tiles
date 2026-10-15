@@ -5,11 +5,12 @@ import uuid
 from datetime import datetime, timedelta
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from pydantic import BaseModel
 
 from tiles_api import performance
 from tiles_api.api_ontology import Ctx
+from tiles_api.errors import Problem
 
 router = APIRouter(tags=["warnings"])
 
@@ -107,4 +108,4 @@ def warning_performance(
             ctx.conn, ctx.site_id, end - timedelta(days=days), end, timedelta(hours=horizon_hours), codes
         )
     except ValueError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "performance.invalid", str(e), reason=str(e)) from e

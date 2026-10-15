@@ -5,6 +5,7 @@
 // for, nothing moves (docs/ui/motion.md).
 import { esc, scrollBehavior } from './dom.ts';
 import type { Tour, TourStep } from './tours.ts';
+import { t } from './i18n.ts';
 
 export interface Rect {
   top: number;
@@ -130,15 +131,15 @@ export function runTour(tour: Tour, o: TourOptions): { stop(): void } {
     const final = at === tour.steps.length - 1;
     const note = found ? '' : step.missing ? `<p class="small soft" data-tour-missing>${esc(step.missing)}</p>` : '';
     pop.innerHTML = `
-      <p class="small soft" id="tour-count">${esc(tour.title)} · step ${at + 1} of ${tour.steps.length}</p>
+      <p class="small soft" id="tour-count">${esc(t('tour.count', { title: tour.title, step: at + 1, steps: tour.steps.length }))}</p>
       <h2 id="tour-title" tabindex="-1">${esc(step.title)}</h2>
       <p id="tour-body">${esc(step.body)}</p>
       ${note}
       <div class="tour-foot">
-        <button class="btn ghost sm" type="button" data-tour-leave>Leave the tour</button>
+        <button class="btn ghost sm" type="button" data-tour-leave>${t('tour.leave')}</button>
         <span class="row gap-2">
-          ${at > 0 ? '<button class="btn sm" type="button" data-tour-back>Back</button>' : ''}
-          <button class="btn primary sm" type="button" data-tour-next>${final ? 'Done' : 'Next'}</button>
+          ${at > 0 ? `<button class="btn sm" type="button" data-tour-back>${t('tour.back')}</button>` : ''}
+          <button class="btn primary sm" type="button" data-tour-next>${final ? t('tour.done') : t('tour.next')}</button>
         </span>
       </div>`;
     pop.querySelector<HTMLElement>('#tour-title')?.focus({ preventScroll: true });

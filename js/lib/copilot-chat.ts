@@ -4,6 +4,7 @@
 
 import type { CopilotGrounding, CopilotMessage } from './api.ts';
 import { esc } from './dom.ts';
+import { t } from './i18n.ts';
 
 export interface ToolTrace {
   n: number | null; // the number the answer cites it by
@@ -142,7 +143,7 @@ export function applyEvent(a: Answer, event: string, data: Record<string, unknow
     case 'grounding':
       return { ...a, grounding: data as unknown as CopilotGrounding };
     case 'error':
-      return { ...a, error: String(data.detail ?? 'The copilot could not answer'), done: true };
+      return { ...a, error: String(data.detail ?? t('copilotChat.couldNotAnswer')), done: true };
     case 'done':
       return { ...a, done: true };
     default:
@@ -152,14 +153,15 @@ export function applyEvent(a: Answer, event: string, data: Record<string, unknow
 
 // An answer's text as HTML: escaped; `code`, **bold** and line breaks; [n] linked to its tool
 // result (numbered through the conversation, so an answer may cite an earlier one's).
+const CODE_SPAN = /\x60([^\x60\n]+)\x60/g; // `code`, its backticks written \x60
 export function answerHtml(text: string, tools: ToolTrace[]): string {
   const known = new Set(tools.map((t) => t.n).filter((n) => n !== null));
   return esc(text)
-    .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+    .replace(CODE_SPAN, '<code>$1</code>')
     .replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>')
     .replace(/\[(\d+)\]/g, (whole, n: string) =>
       known.has(Number(n))
-        ? `<a class="cite" href="#" data-cite="${n}" title="The tool result this rests on">[${n}]</a>`
+        ? `<a class="cite" href="#" data-cite="${n}" title="${esc(t('copilotChat.citeTitle'))}">[${n}]</a>`
         : whole,
     )
     .replace(/\n/g, '<br>');
@@ -167,31 +169,33 @@ export function answerHtml(text: string, tools: ToolTrace[]): string {
 
 // Where a tool's evidence can be seen in Tiles, from what it was asked.
 export function evidenceLink(
-  t: Pick<ToolTrace, 'name' | 'input'> & { preview?: string },
+  tool: Pick<ToolTrace, 'name' | 'input'> & { preview?: string },
 ): { href: string; text: string } | null {
-  const tag = typeof t.input.tag === 'string' ? t.input.tag : '';
-  switch (t.name) {
+  const tag = typeof tool.input.tag === 'string' ? tool.input.tag : '';
+  switch (tool.name) {
     case 'propose_ontology_change': {
       // The change request it opened (T4.09), once its result is stored.
-      const n = /^\{"change_request":\s*(\d+)/.exec(t.preview ?? '')?.[1];
-      return n ? { href: `#/reviews/${n}`, text: `Review change request #${n}` } : null;
+      const n = /^\{"change_request":\s*(\d+)/.exec(tool.preview ?? '')?.[1];
+      return n ? { href: `#/reviews/${n}`, text: t('copilotChat.evidence.review', { n }) } : null;
     }
     case 'time_series':
     case 'wear_check':
-      return tag ? { href: `#/explorer?tag=${encodeURIComponent(tag)}`, text: `Plot ${tag}` } : null;
+      return tag
+        ? { href: `#/explorer?tag=${encodeURIComponent(tag)}`, text: t('copilotChat.evidence.plot', { tag }) }
+        : null;
     case 'find_signals':
-      return { href: '#/signals', text: 'Open the signals' };
+      return { href: '#/signals', text: t('copilotChat.evidence.signals') };
     case 'graph_query':
     case 'ontology_health':
-      return { href: '#/ontology', text: 'Open the ontology' };
+      return { href: '#/ontology', text: t('copilotChat.evidence.ontology') };
     case 'events':
-      return t.input.kind === 'events'
-        ? { href: '#/performance', text: 'Open warning performance' }
-        : { href: '#/warnings', text: 'Open the warnings' };
+      return tool.input.kind === 'events'
+        ? { href: '#/performance', text: t('copilotChat.evidence.performance') }
+        : { href: '#/warnings', text: t('copilotChat.evidence.warnings') };
     case 'correlate':
-      return { href: '#/correlate', text: 'Open the correlation finder' };
+      return { href: '#/correlate', text: t('copilotChat.evidence.correlate') };
     case 'virtual_sensors':
-      return { href: '#/physics', text: 'Open factory physics' };
+      return { href: '#/physics', text: t('copilotChat.evidence.physics') };
     default:
       return null;
   }
@@ -201,11 +205,13 @@ export function evidenceLink(
 export function groundingWarning(g: CopilotGrounding | null): string | null {
   if (!g || g.grounded) return null;
   const parts: string[] = [];
-  if (g.uncited) parts.push('it cites no tool result');
-  if (g.unsupported_numbers.length) parts.push(`no tool returned ${g.unsupported_numbers.join(', ')}`);
-  if (g.unsupported_names.length) parts.push(`no tool named ${g.unsupported_names.join(', ')}`);
-  if (g.unknown_citations.length) parts.push(`it cites results that don't exist`);
-  return `Check this answer: ${parts.join('; ')}.`;
+  if (g.uncited) parts.push(t('copilotChat.grounding.uncited'));
+  if (g.unsupported_numbers.length)
+    parts.push(t('copilotChat.grounding.numbers', { list: g.unsupported_numbers.join(', ') }));
+  if (g.unsupported_names.length)
+    parts.push(t('copilotChat.grounding.names', { list: g.unsupported_names.join(', ') }));
+  if (g.unknown_citations.length) parts.push(t('copilotChat.grounding.unknown'));
+  return t('copilotChat.grounding.check', { parts: parts.join('; ') });
 }
 
 export const toolLabel = (t: Pick<ToolTrace, 'name' | 'input'>): string => {

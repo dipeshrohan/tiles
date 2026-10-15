@@ -640,7 +640,8 @@ test('offline, a change is refused with the reason and never sent; reading still
   });
   await assert.rejects(api.ontology.stage('s', op), (e) => e instanceof ApiError && e.status === 0);
   assert.equal(f.calls.length, 0);
-  assert.equal(seen[0].message, OFFLINE_WRITE);
+  assert.equal(seen[0].code, OFFLINE_WRITE);
+  assert.match(seen[0].message, /^You're offline: nothing was changed/);
   // A read is tried (the browser may be wrong about being offline); its answer says the API is back.
   await api.sites();
   assert.equal(f.calls.length, 1);
@@ -648,7 +649,7 @@ test('offline, a change is refused with the reason and never sent; reading still
   // A copilot question is a change too: refused before it is sent.
   await assert.rejects(
     api.copilot.ask('s', 'c', 'Hi?', () => {}),
-    (e) => e.message === OFFLINE_WRITE,
+    (e) => e.code === OFFLINE_WRITE,
   );
   assert.equal(f.calls.length, 1);
 });
@@ -666,4 +667,39 @@ test('a stream that answers reports its status, so a 503 is not taken as the API
     /Down/,
   );
   assert.deepEqual(answers, [503]);
+});
+
+test('an API error is said in the catalogue’s words for its code, the API’s English otherwise (U6.01)', async () => {
+  const { addCatalogue, setLocale } = await import('../js/lib/i18n.ts');
+  addCatalogue('xx', { 'api.thing.busy': 'Ding {n} ist beschäftigt', 'api.field.missing': 'Pflichtfeld' });
+  setLocale('xx');
+  try {
+    const answer = (status, body) =>
+      createApiClient({
+        baseUrl: 'http://a',
+        fetch: async () => new Response(JSON.stringify(body), { status }),
+      });
+    const said = await answer(409, { detail: 'Thing 4 is busy', code: 'thing.busy', params: { n: 4 } })
+      .sites()
+      .catch((e) => e);
+    assert.equal(said.message, 'Ding 4 ist beschäftigt');
+    assert.equal(said.code, 'thing.busy');
+    // A code with no words here: the English the API sent.
+    const english = await answer(404, { detail: 'No such thing', code: 'thing.gone', params: {} })
+      .sites()
+      .catch((e) => e);
+    assert.equal(english.message, 'No such thing');
+    assert.equal(english.code, 'thing.gone');
+    // A field's error by its type.
+    const refused = await answer(422, {
+      detail: [{ loc: ['body', 'name'], msg: 'Field required', type: 'missing' }],
+      code: 'validation',
+    })
+      .sites()
+      .catch((e) => e);
+    assert.deepEqual(refused.fields, [{ name: 'name', message: 'Pflichtfeld' }]);
+    assert.equal(refused.message, 'name: Pflichtfeld');
+  } finally {
+    setLocale('en');
+  }
 });

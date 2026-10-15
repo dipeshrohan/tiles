@@ -3,19 +3,75 @@
 // produced each result.
 
 import type { DesignModel, Params, Run } from './types.ts';
+import { t } from './i18n.ts';
 
 export const MODELS: Record<string, DesignModel> = {
   swelling: {
     id: 'swelling',
-    name: 'Cell swelling force',
-    domain: 'Electrochemical · Mechanical',
-    output: { key: 'force', label: 'Swelling force', unit: 'kN' },
+    get name() {
+      return t('design.models.swelling.name');
+    },
+    get domain() {
+      return t('design.models.swelling.domain');
+    },
+    output: {
+      key: 'force',
+      get label() {
+        return t('design.models.swelling.output');
+      },
+      unit: 'kN',
+    },
     params: [
-      { key: 'soc', label: 'State of charge', unit: '%', min: 0, max: 100, default: 80 },
-      { key: 'temperature', label: 'Temperature', unit: '°C', min: -10, max: 60, default: 25 },
-      { key: 'preload', label: 'Stack preload', unit: 'kN', min: 0.5, max: 6, default: 2 },
-      { key: 'cycles', label: 'Cycle count', unit: '', min: 0, max: 2000, default: 300 },
-      { key: 'thickness', label: 'Anode thickness', unit: 'µm', min: 60, max: 140, default: 95 },
+      {
+        key: 'soc',
+        get label() {
+          return t('design.models.swelling.params.soc');
+        },
+        unit: '%',
+        min: 0,
+        max: 100,
+        default: 80,
+      },
+      {
+        key: 'temperature',
+        get label() {
+          return t('design.models.swelling.params.temperature');
+        },
+        unit: '°C',
+        min: -10,
+        max: 60,
+        default: 25,
+      },
+      {
+        key: 'preload',
+        get label() {
+          return t('design.models.swelling.params.preload');
+        },
+        unit: 'kN',
+        min: 0.5,
+        max: 6,
+        default: 2,
+      },
+      {
+        key: 'cycles',
+        get label() {
+          return t('design.models.swelling.params.cycles');
+        },
+        unit: '',
+        min: 0,
+        max: 2000,
+        default: 300,
+      },
+      {
+        key: 'thickness',
+        get label() {
+          return t('design.models.swelling.params.thickness');
+        },
+        unit: 'µm',
+        min: 60,
+        max: 140,
+        default: 95,
+      },
     ],
     versions: {
       '1.0': (p) => p.preload! + 0.018 * p.soc! * (p.thickness! / 100),
@@ -32,15 +88,70 @@ export const MODELS: Record<string, DesignModel> = {
   },
   actuator: {
     id: 'actuator',
-    name: 'Humanoid joint actuator',
-    domain: 'Electromechanical · Thermal',
-    output: { key: 'temp', label: 'Winding temperature', unit: '°C' },
+    get name() {
+      return t('design.models.actuator.name');
+    },
+    get domain() {
+      return t('design.models.actuator.domain');
+    },
+    output: {
+      key: 'temp',
+      get label() {
+        return t('design.models.actuator.output');
+      },
+      unit: '°C',
+    },
     params: [
-      { key: 'torque', label: 'Continuous torque', unit: 'N·m', min: 5, max: 120, default: 40 },
-      { key: 'ratio', label: 'Gear ratio', unit: ':1', min: 6, max: 100, default: 30 },
-      { key: 'kt', label: 'Torque constant', unit: 'N·m/A', min: 0.05, max: 0.4, default: 0.12 },
-      { key: 'rth', label: 'Thermal resistance', unit: 'K/W', min: 0.5, max: 4, default: 1.6 },
-      { key: 'ambient', label: 'Ambient', unit: '°C', min: 0, max: 45, default: 25 },
+      {
+        key: 'torque',
+        get label() {
+          return t('design.models.actuator.params.torque');
+        },
+        unit: 'N·m',
+        min: 5,
+        max: 120,
+        default: 40,
+      },
+      {
+        key: 'ratio',
+        get label() {
+          return t('design.models.actuator.params.ratio');
+        },
+        unit: ':1',
+        min: 6,
+        max: 100,
+        default: 30,
+      },
+      {
+        key: 'kt',
+        get label() {
+          return t('design.models.actuator.params.kt');
+        },
+        unit: 'N·m/A',
+        min: 0.05,
+        max: 0.4,
+        default: 0.12,
+      },
+      {
+        key: 'rth',
+        get label() {
+          return t('design.models.actuator.params.rth');
+        },
+        unit: 'K/W',
+        min: 0.5,
+        max: 4,
+        default: 1.6,
+      },
+      {
+        key: 'ambient',
+        get label() {
+          return t('design.models.actuator.params.ambient');
+        },
+        unit: '°C',
+        min: 0,
+        max: 45,
+        default: 25,
+      },
     ],
     versions: {
       '1.0': (p) => {
@@ -51,9 +162,9 @@ export const MODELS: Record<string, DesignModel> = {
       '1.1': (p) => {
         const current = p.torque! / (p.ratio! * 0.85) / p.kt!;
         // Copper resistance rises with temperature; iterate to a fixed point.
-        let t = p.ambient!;
-        for (let i = 0; i < 20; i++) t = p.ambient! + 3 * current ** 2 * 0.18 * (1 + 0.00393 * (t - 20)) * p.rth!;
-        return t;
+        let temp = p.ambient!;
+        for (let i = 0; i < 20; i++) temp = p.ambient! + 3 * current ** 2 * 0.18 * (1 + 0.00393 * (temp - 20)) * p.rth!;
+        return temp;
       },
     },
     latest: '1.1',
@@ -62,13 +173,13 @@ export const MODELS: Record<string, DesignModel> = {
 
 export function getModel(modelId: string): DesignModel {
   const model = MODELS[modelId];
-  if (!model) throw new Error(`Unknown model ${modelId}`);
+  if (!model) throw new Error(t('design.error.unknownModel', { id: modelId }));
   return model;
 }
 
 function paramSpec(model: DesignModel, key: string) {
   const spec = model.params.find((p) => p.key === key);
-  if (!spec) throw new Error(`Model ${model.id} has no parameter ${key}`);
+  if (!spec) throw new Error(t('design.error.noParameter', { id: model.id, key }));
   return spec;
 }
 
@@ -76,7 +187,7 @@ function paramSpec(model: DesignModel, key: string) {
 export function evaluate(modelId: string, version: string, params: Params): number {
   const model = getModel(modelId);
   const fn = model.versions[version];
-  if (!fn) throw new Error(`Model ${modelId} has no version ${version}`);
+  if (!fn) throw new Error(t('design.error.noVersion', { id: modelId, version }));
   const full: Params = Object.fromEntries(model.params.map((p) => [p.key, params[p.key] ?? p.default]));
   return fn(full);
 }

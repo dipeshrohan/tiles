@@ -2,6 +2,7 @@
 
 import { cohensD, mean, pearson, median } from './stats.ts';
 import type { Variable } from './types.ts';
+import { t } from './i18n.ts';
 
 // Rows are plain records; fields are looked up by name.
 const field = (row: object, key: string): unknown => (row as Record<string, unknown>)[key];
@@ -74,7 +75,15 @@ export function explain(findings: readonly Finding[], { minEffect = 0.8 } = {}):
       ...f,
       direction: f.ngMean > f.okMean ? 'high' : 'low',
       delta: f.ngMean - f.okMean,
-      text: `${cap(f.segment)}: failed batches ran ${f.label.toLowerCase()} ${f.ngMean > f.okMean ? 'too high' : 'too low'} (${fmt(f.ngMean)} vs ${fmt(f.okMean)} healthy, ${signed(f.ngMean - f.okMean)} ${f.unit}).`,
+      text: t('analysis.explain', {
+        segment: cap(f.segment),
+        label: f.label.toLowerCase(),
+        direction: f.ngMean > f.okMean ? 'high' : 'low',
+        ng: fmt(f.ngMean),
+        ok: fmt(f.okMean),
+        delta: signed(f.ngMean - f.okMean),
+        unit: f.unit,
+      }),
     }));
 }
 

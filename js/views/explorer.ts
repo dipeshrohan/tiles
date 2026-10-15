@@ -558,7 +558,7 @@ function compareForm(u: Ui, c: Compare): string {
         t('explorer.compare.against'),
         select(
           'against',
-          AGAINSTS.map((a) => [a, AGAINST[a]] as const),
+          AGAINSTS.map((a) => [a, t(AGAINST[a])] as const),
           c.against,
         ),
       )}
@@ -669,7 +669,7 @@ function loadCompare(root: HTMLElement, ctx: Context): void {
         xLabel: ranges ? t('explorer.compare.sinceStart') : '',
         yLabel: unit,
         title: ranges
-          ? t('explorer.compare.rangesTitle', { tag: one.tag, against: AGAINST[c.against].toLowerCase() })
+          ? t('explorer.compare.rangesTitle', { tag: one.tag, against: t(AGAINST[c.against]).toLowerCase() })
           : t('explorer.compare.signalsTitle', { a: one.tag, b: two.tag }),
         width,
         height: TIME_CHART.height,

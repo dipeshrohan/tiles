@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 
 import psycopg
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, Field, field_validator
 
@@ -22,6 +22,7 @@ from tiles_api import audit
 from tiles_api.api_ontology import Auth
 from tiles_api.api_sites import OrgAdmin, org_slug
 from tiles_api.auth import OrgProvider
+from tiles_api.errors import Problem
 from tiles_api.identity import ensure_org, ensure_user
 from tiles_api.store import DbConn, side_pool
 
@@ -58,7 +59,9 @@ def _find(state: Any, where: str, value: str) -> tuple[OrgProvider, ...]:
                 f"{PROVIDER_SQL} WHERE {where} = %s ORDER BY p.verified_at IS NULL, p.updated_at LIMIT 20", [value]
             ).fetchall()
     except psycopg.Error as e:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Sign-in is unavailable; try again") from e
+        raise Problem(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "sign_in.unavailable", "Sign-in is unavailable; try again"
+        ) from e
     return tuple(_provider(r) for r in rows)
 
 
@@ -189,13 +192,14 @@ def set_provider(body: ProviderIn, caller: OrgAdmin, request: Request) -> dict[s
     that doesn't work can't lock everyone out; then no other sign-in reaches your organisation."""
     settings = request.app.state.settings
     if settings.oidc_issuer and body.issuer == settings.oidc_issuer.rstrip("/"):
-        raise HTTPException(status.HTTP_409_CONFLICT, "That is this deployment's own issuer")
+        raise Problem(status.HTTP_409_CONFLICT, "identity_provider.own_issuer", "That is this deployment's own issuer")
     conn = caller.conn
     before: dict[str, Any] | None = conn.execute(f"{PROVIDER_SQL} WHERE p.org_id = %s", [caller.org_id]).fetchone()
     same = before is not None and before["issuer"] == body.issuer
     if body.enforced and not (caller.via_provider and same and before and before["verified"]):
-        raise HTTPException(
+        raise Problem(
             status.HTTP_409_CONFLICT,
+            "identity_provider.unconfirmed",
             "Save the provider, sign in through it to confirm it, then turn enforcement on: that shows it works",
         )
     taken = conn.execute(
@@ -203,7 +207,9 @@ def set_provider(body: ProviderIn, caller: OrgAdmin, request: Request) -> dict[s
         [body.issuer, caller.org_id],
     ).fetchone()
     if taken:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Another organisation signs in with that issuer")
+        raise Problem(
+            status.HTTP_409_CONFLICT, "identity_provider.issuer_taken", "Another organisation signs in with that issuer"
+        )
     try:
         with conn.transaction():
             # A new issuer starts pending (and not enforced: the row is checked as inserted), to
@@ -236,7 +242,9 @@ def set_provider(body: ProviderIn, caller: OrgAdmin, request: Request) -> dict[s
                 ],
             )
     except psycopg.errors.UniqueViolation as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Another organisation signs in with that issuer") from e
+        raise Problem(
+            status.HTTP_409_CONFLICT, "identity_provider.issuer_taken", "Another organisation signs in with that issuer"
+        ) from e
     row: dict[str, Any] = conn.execute(f"{PROVIDER_SQL} WHERE p.org_id = %s", [caller.org_id]).fetchone() or {}
     audit.record_org(
         conn,
@@ -260,7 +268,7 @@ def delete_provider(caller: OrgAdmin, request: Request) -> Response:
     conn = caller.conn
     before: dict[str, Any] | None = conn.execute(f"{PROVIDER_SQL} WHERE p.org_id = %s", [caller.org_id]).fetchone()
     if before is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Your organisation has no identity provider")
+        raise Problem(status.HTTP_404_NOT_FOUND, "identity_provider.none", "Your organisation has no identity provider")
     conn.execute("DELETE FROM org_identity_providers WHERE org_id = %s", [caller.org_id])
     audit.record_org(
         conn,
@@ -325,7 +333,9 @@ def revoke_scim_token(token_id: uuid.UUID, caller: OrgAdmin) -> Response:
         [token_id, caller.org_id],
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such active SCIM token in your organisation")
+        raise Problem(
+            status.HTTP_404_NOT_FOUND, "scim_token.not_found", "No such active SCIM token in your organisation"
+        )
     audit.record_org(
         caller.conn,
         org_id=caller.org_id,

@@ -4,11 +4,12 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, ConfigDict
 
 from tiles_api import audit
 from tiles_api.api_ontology import Admin, Ctx
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["members"])
@@ -44,7 +45,7 @@ def my_membership(ctx: Ctx) -> dict[str, Any]:
     """Your membership of this site (joining it on first visit), including your role."""
     row = ctx.conn.execute(MEMBERS_SQL + " AND u.id = %s", [ctx.site_id, ctx.user.id]).fetchone()
     if row is None:  # pragma: no cover - site_context just created it
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not a member")
+        raise Problem(status.HTTP_404_NOT_FOUND, "member.not_found", "Not a member")
     return row
 
 
@@ -59,7 +60,7 @@ def list_members(ctx: Ctx) -> list[dict[str, Any]]:
 def set_role(ctx: Admin, user_id: uuid.UUID, body: RoleIn) -> dict[str, Any]:
     """Change a member's role on this site (admins only; not your own)."""
     if user_id == ctx.user.id:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Ask another admin to change your own role")
+        raise Problem(status.HTTP_409_CONFLICT, "member.own_role", "Ask another admin to change your own role")
     # FOR UPDATE: a concurrent change to this member waits, and then this reads its result,
     # so each audit entry's "before" is the role its own update replaced.
     old = ctx.conn.execute(
@@ -70,7 +71,7 @@ def set_role(ctx: Admin, user_id: uuid.UUID, body: RoleIn) -> dict[str, Any]:
         [body.role, ctx.site_id, user_id],
     ).fetchone()
     if updated is None or old is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not a member of this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "member.not_on_site", "Not a member of this site")
     if old["role"] != body.role:
         ctx.audit("member.role", "site_member", str(user_id), before={"role": old["role"]}, after={"role": body.role})
     return one(ctx.conn.execute(MEMBERS_SQL + " AND u.id = %s", [ctx.site_id, user_id]).fetchone())

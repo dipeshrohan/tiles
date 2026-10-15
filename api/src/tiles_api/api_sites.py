@@ -9,7 +9,7 @@ from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field, field_validator
 
 from tiles_api import audit
@@ -18,6 +18,7 @@ from tiles_api import ontology_store as store
 from tiles_api.api_agents import AGENT_SQL, agent_view, db_now
 from tiles_api.api_ontology import Auth, Ctx, Site
 from tiles_api.auth import Principal
+from tiles_api.errors import Problem
 from tiles_api.identity import ensure_org, ensure_user
 from tiles_api.store import Conn, DbConn, one, scope_to_site
 
@@ -46,7 +47,7 @@ def org_slug(principal: Principal, conn: Conn, org: str | None) -> str | None:
             return org if org in orgs else None
         return orgs[0] if len(orgs) == 1 else None
     if org is not None and org != principal.org:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can manage your own organisation only")
+        raise Problem(status.HTTP_403_FORBIDDEN, "org.not_yours", "You can manage your own organisation only")
     return principal.org
 
 
@@ -57,11 +58,13 @@ def org_admin(principal: Auth, conn: DbConn, org: Annotated[str | None, Query()]
     or gets the only one there is."""
     slug = org_slug(principal, conn, org)
     if slug is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Name the organisation with ?org=<slug>")
+        raise Problem(status.HTTP_400_BAD_REQUEST, "org.not_named", "Name the organisation with ?org=<slug>")
     org_id = ensure_org(conn, slug)
     user = ensure_user(conn, principal, org_id)
     if not user["org_admin"] and principal.role != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Creating a site needs an organisation admin")
+        raise Problem(
+            status.HTTP_403_FORBIDDEN, "site.create_needs_admin", "Creating a site needs an organisation admin"
+        )
     return OrgCaller(conn, org_id, slug, user["id"], str(user["name"]), principal.org_provider)  # type: ignore[arg-type]
 
 
@@ -106,7 +109,12 @@ def create_site(body: NewSite, caller: OrgAdmin) -> dict[str, Any]:
                 ).fetchone()
             )
     except psycopg.errors.UniqueViolation as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"Your organisation already has a site called {body.slug}") from e
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "site.slug_taken",
+            f"Your organisation already has a site called {body.slug}",
+            slug=body.slug,
+        ) from e
     site_id: uuid.UUID = row["id"]
     scope_to_site(conn, site_id)  # its rows: the membership and the audit entry (T5.04)
     conn.execute(

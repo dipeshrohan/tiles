@@ -3,12 +3,15 @@
 // its range began, so last week's Monday lies under this week's. Pure, so it is unit-tested; the
 // Data explorer draws the result with lineChart.
 
+import type { MessageKey } from './i18n.ts';
+
 export type Against = 'before' | 'day' | 'week' | 'custom';
-export const AGAINST: Readonly<Record<Against, string>> = {
-  before: 'The period just before',
-  day: 'The same time a day earlier',
-  week: 'The same time a week earlier',
-  custom: 'From a start you choose',
+// Each choice's words, by message key (translated where shown).
+export const AGAINST: Readonly<Record<Against, MessageKey>> = {
+  before: 'compare.against.before',
+  day: 'compare.against.day',
+  week: 'compare.against.week',
+  custom: 'compare.against.custom',
 };
 
 // A day or a week earlier on the calendar, in local time: across a clock change "the same time"

@@ -10,13 +10,14 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api import api_series
 from tiles_api.api_ontology import Auth, Ctx, Editor, SiteContext
 from tiles_api.app_templates import TEMPLATES, ConfigError, Template, check_config
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["apps"])
@@ -125,7 +126,7 @@ def _out(row: dict[str, Any]) -> dict[str, Any]:
 def _template(name: str) -> Template:
     template = TEMPLATES.get(name)
     if template is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"No template {name!r}")
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "app.no_template", f"No template '{name}'", name=name)
     return template
 
 
@@ -134,7 +135,12 @@ def _config(ctx: SiteContext, template: Template, config: dict[str, Any]) -> dic
     try:
         clean = check_config(template, config)
     except ConfigError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "; ".join(e.problems)) from e
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "app.config_invalid",
+            "; ".join(e.problems),
+            problems="; ".join(e.problems),
+        ) from e
     for p in template.params:
         if p.kind == "signal" and clean[p.name] is not None:
             api_series.site_signal(ctx, uuid.UUID(clean[p.name]))
@@ -144,7 +150,7 @@ def _config(ctx: SiteContext, template: Template, config: dict[str, Any]) -> dic
 def _app(ctx: SiteContext, number: int) -> dict[str, Any]:
     row: dict[str, Any] | None = ctx.conn.execute(f"{APP_SQL} AND a.number = %s", [ctx.site_id, number]).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such app on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "app.not_found", "No such app on this site")
     return row
 
 
@@ -193,7 +199,7 @@ def update_app(ctx: Editor, number: int, body: AppUpdate) -> dict[str, Any]:
     before = _app(ctx, number)
     template = _template(before["template"])
     if template.version != before["template_version"]:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This app's template version is no longer served")
+        raise Problem(status.HTTP_409_CONFLICT, "app.template_gone", "This app's template version is no longer served")
     config = _config(ctx, template, body.config)
     ctx.conn.execute(
         "UPDATE apps SET name = %s, config = %s, updated_at = now() WHERE site_id = %s AND number = %s",
@@ -227,7 +233,9 @@ def restore_app(ctx: Editor, number: int) -> dict[str, Any]:
         [ctx.site_id, number],
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No archived app with that number on this site")
+        raise Problem(
+            status.HTTP_404_NOT_FOUND, "app.archived_not_found", "No archived app with that number on this site"
+        )
     app = _app(ctx, number)
     ctx.audit("app.restore", "app", str(number), after={"name": app["name"], "template": app["template"]})
     return _out(app)
@@ -239,9 +247,14 @@ def app_result(ctx: Ctx, number: int) -> dict[str, Any]:
     app = _app(ctx, number)
     template = TEMPLATES.get(app["template"])
     if template is None or template.version != app["template_version"]:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This app's template version is no longer served")
+        raise Problem(status.HTTP_409_CONFLICT, "app.template_gone", "This app's template version is no longer served")
     try:
         out = template.run(ctx, check_config(template, app["config"]))
     except ConfigError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "; ".join(e.problems)) from e
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "app.config_invalid",
+            "; ".join(e.problems),
+            problems="; ".join(e.problems),
+        ) from e
     return {"app": _out(app), **out}

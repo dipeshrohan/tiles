@@ -45,7 +45,7 @@ test('the menu marks the page shown once, folds groups, and says its counts', ()
     groups,
     active: 'signals',
     prefs: { folded: ['ops'], pinned: ['signals'], recent: ['signals', 'warnings'], rail: false },
-    badges: { warnings: { count: 120, tone: 'bad', says: '120 open warning(s)' } },
+    badges: { warnings: { count: 120, tone: 'bad', says: '120 open warnings' } },
   });
   // The menu's own link is the current page; the pinned copy isn't a second "here".
   assert.equal(html.match(/aria-current="page"/g)?.length, 1);
@@ -67,7 +67,7 @@ test('the menu marks the page shown once, folds groups, and says its counts', ()
   assert.match(html, /data-nav-fold="ops" aria-expanded="false" aria-controls="nav-list-ops"/);
   assert.match(html, /id="nav-list-ops" hidden/);
   // Counts over 99 shown short, said in full; titles escaped.
-  assert.match(html, /aria-hidden="true">99\+<\/span><span class="sr-only">, 120 open warning\(s\)/);
+  assert.match(html, /aria-hidden="true">99\+<\/span><span class="sr-only">, 120 open warnings/);
   assert.match(html, /Data &lt;explorer&gt;/);
   assert.match(html, /aria-label="Unpin Signals"/);
   // The rail names each page in a tooltip.

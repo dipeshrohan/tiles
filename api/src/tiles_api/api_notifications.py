@@ -10,11 +10,12 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Query, Request, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api import notify, sealed
 from tiles_api.api_ontology import Admin, Ctx, Editor, SiteContext
+from tiles_api.errors import Problem
 
 router = APIRouter(tags=["notifications"])
 
@@ -133,7 +134,9 @@ def set_teams(ctx: Admin, request: Request, body: TeamsIn) -> dict[str, Any]:
         if url:
             problem = notify.teams_url_problem(url)
             if problem:
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
+                raise Problem(
+                    status.HTTP_422_UNPROCESSABLE_CONTENT, "notification.teams_url_invalid", problem, reason=problem
+                )
         stored = sealed.seal(keys, url, sealed.teams_context(ctx.site_id)) if url else None
     before = _teams(ctx, keys)
     ctx.conn.execute(

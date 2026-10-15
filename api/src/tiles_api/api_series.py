@@ -14,10 +14,11 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from pydantic import AwareDatetime, BaseModel
 
 from tiles_api.api_ontology import Ctx, SiteContext
+from tiles_api.errors import Problem
 
 router = APIRouter(tags=["signals"])
 
@@ -77,7 +78,7 @@ def site_signal(ctx: SiteContext, signal_id: uuid.UUID) -> dict[str, Any]:
         "SELECT id, tag, unit FROM signals WHERE id = %s AND site_id = %s", [signal_id, ctx.site_id]
     ).fetchone()
     if signal is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such signal on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "signal.not_found", "No such signal on this site")
     return signal
 
 
@@ -98,9 +99,11 @@ def read_series(
 ) -> Series:
     """A signal of this site over a range, as `GET …/series` answers it."""
     if end <= start:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "`to` must be after `from`")
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "series.range_inverted", "`to` must be after `from`")
     if end - start > MAX_SPAN:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The range can be at most five years")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "series.range_too_long", "The range can be at most five years"
+        )
     signal = signal or site_signal(ctx, signal_id)
     args: dict[str, Any] = {"id": signal_id, "start": start, "end": end}
     # The readings as they are, one more than fit: if that one comes back, they are bucketed instead.

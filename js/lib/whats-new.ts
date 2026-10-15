@@ -1,7 +1,9 @@
 // What's new (U4.08): the changelog's top section in a sheet (made by scripts/help.js into the help
 // file), and a dot on the help button for someone who used Tiles before this version and hasn't
 // opened it since. A first visit only notes the version: for a new person nothing is new.
+import { esc } from './dom.ts';
 import type { WhatsNew } from './help.ts';
+import { t } from './i18n.ts';
 
 export const SEEN_KEY = 'whats-new-seen';
 
@@ -27,14 +29,16 @@ export const seenOnFirstLoad = (otherKeys: readonly string[], version: string): 
 
 // The sheet's title and what it shows.
 export function whatsNewTitle(w: WhatsNew): string {
-  return `Version ${w.version}${w.date ? `, ${w.date}` : ''}`;
+  return w.date
+    ? t('whatsNew.titleDated', { version: w.version, date: w.date })
+    : t('whatsNew.title', { version: w.version });
 }
 
 export function whatsNewHtml(w: WhatsNew): string {
-  const when = w.date ? '' : '<p class="small soft">Not yet released: this is what the next version will bring.</p>';
+  const when = w.date ? '' : `<p class="small soft">${esc(t('whatsNew.unreleased'))}</p>`;
   return `${when}<div class="prose whats-new">${w.html}</div>`;
 }
 
 // The help button's name, saying when something is new.
 export const helpLabel = (news: boolean, version: string): string =>
-  news ? `Help for this page, and what’s new in ${version}` : 'Help for this page';
+  news ? t('whatsNew.helpNews', { version }) : t('whatsNew.help');

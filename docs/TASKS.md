@@ -333,7 +333,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 ### UI Month 6: Language, accessibility and v1.0 polish (Apr 2027)
 
-- [ ] `U6.01` [#249](https://github.com/dipeshrohan/tiles/issues/249) **Internationalisation** · FE · 4d · U1.04
+- [x] `U6.01` [#249](https://github.com/dipeshrohan/tiles/issues/249) **Internationalisation** · FE · 4d · U1.04
   *Done when:* every view's text comes from the catalogue, and the check runs in CI.
 - [ ] `U6.02` [#250](https://github.com/dipeshrohan/tiles/issues/250) **Numbers, dates and units by locale** · FE · 2d · U6.01
   *Done when:* no `toLocaleString` with a hard-coded locale remains, and tests cover three locales.

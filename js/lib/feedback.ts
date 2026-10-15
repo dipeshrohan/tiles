@@ -5,11 +5,20 @@
 // only when chosen. Words follow docs/ui/writing.md.
 import { esc } from './dom.ts';
 import type { FeedbackIn, FeedbackRow, Mood } from './api.ts';
+import { t, type MessageKey } from './i18n.ts';
 
-export const MOODS: readonly { id: Mood; emoji: string; label: string }[] = [
-  { id: 'unhappy', emoji: '😞', label: 'Not well' },
-  { id: 'neutral', emoji: '😐', label: 'Okay' },
-  { id: 'happy', emoji: '🙂', label: 'Well' },
+// The label is read when shown (the language can change after load).
+const moodDef = (id: Mood, emoji: string, label: MessageKey) => ({
+  id,
+  emoji,
+  get label(): string {
+    return t(label);
+  },
+});
+export const MOODS: readonly { id: Mood; emoji: string; readonly label: string }[] = [
+  moodDef('unhappy', '😞', 'feedback.mood.unhappy'),
+  moodDef('neutral', '😐', 'feedback.mood.neutral'),
+  moodDef('happy', '🙂', 'feedback.mood.happy'),
 ];
 
 export const MAX_TEXT = 2000;
@@ -39,32 +48,32 @@ export function formHtml(o: FormOptions): string {
       `<label class="mood"><input type="radio" name="mood" value="${m.id}" required><span class="mood-emoji" aria-hidden="true">${m.emoji}</span><span>${esc(m.label)}</span></label>`,
   ).join('');
   const shot = o.canShoot
-    ? `<label class="row gap-2"><input type="checkbox" name="shot" data-feedback-shot> Attach a screenshot of this page</label>
+    ? `<label class="row gap-2"><input type="checkbox" name="shot" data-feedback-shot> ${t('feedback.attach')}</label>
       <div class="feedback-shot" data-feedback-preview hidden></div>`
-    : `<p class="small soft">Screenshots can’t be made here: this copy of Tiles was opened from a file.</p>`;
+    : `<p class="small soft">${t('feedback.cantShoot')}</p>`;
   return `<form class="stack gap-3" data-feedback-form>
       <fieldset class="moods">
-        <legend>How is Tiles working for you?</legend>
+        <legend>${t('feedback.question')}</legend>
         <div class="row gap-2 wrap">${moods}</div>
       </fieldset>
-      <label class="field">What would you like to tell us?
+      <label class="field">${t('feedback.text')}
         <textarea name="text" rows="4" required maxlength="${MAX_TEXT}" aria-describedby="feedback-text-hint"></textarea>
-        <span class="small soft" id="feedback-text-hint">What you were doing, what you expected and what happened.</span>
+        <span class="small soft" id="feedback-text-hint">${t('feedback.textHint')}</span>
       </label>
-      <label class="row gap-2"><input type="checkbox" name="named"> Include my name (${esc(o.name)})</label>
+      <label class="row gap-2"><input type="checkbox" name="named"> ${esc(t('feedback.includeName', { name: o.name }))}</label>
       ${shot}
-      <p class="small soft" data-feedback-sent-with>Sent to your site’s admins with the page (${esc(o.page)}), version ${esc(o.version)} and your browser. Without your name it is anonymous.</p>
+      <p class="small soft" data-feedback-sent-with>${esc(t('feedback.sentWith', { page: o.page, version: o.version }))}</p>
       <div class="dialog-foot">
-        <button class="btn ghost" type="button" data-feedback-cancel>Cancel</button>
-        <button class="btn primary" type="submit">Send feedback</button>
+        <button class="btn ghost" type="button" data-feedback-cancel>${esc(t('feedback.cancel'))}</button>
+        <button class="btn primary" type="submit">${esc(t('feedback.send'))}</button>
       </div>
     </form>`;
 }
 
 // The screenshot shown before it is sent, with a way to take it off.
 export const previewHtml = (dataUrl: string): string =>
-  `<img src="${esc(dataUrl)}" alt="Screenshot of this page, to be sent with your feedback">
-  <button class="btn sm ghost" type="button" data-feedback-unshot>Remove the screenshot</button>`;
+  `<img src="${esc(dataUrl)}" alt="${esc(t('feedback.previewAlt'))}">
+  <button class="btn sm ghost" type="button" data-feedback-unshot>${esc(t('feedback.unshot'))}</button>`;
 
 export function feedbackBody(o: {
   mood: string;
@@ -94,14 +103,14 @@ export function feedbackListHtml(rows: readonly FeedbackRow[], when: (iso: strin
       const m = moodOf(f.mood);
       return `<li class="feedback-item stack gap-1" data-key="feedback-${f.id}" data-feedback="${f.id}">
         <div class="row gap-2 wrap justify-between">
-          <span class="row gap-2"><span class="mood-emoji" aria-hidden="true">${m.emoji}</span><strong>${esc(m.label)}</strong><span class="small soft">${esc(f.user ?? 'Anonymous')} · ${esc(f.page)} · ${esc(when(f.created_at))}</span></span>
+          <span class="row gap-2"><span class="mood-emoji" aria-hidden="true">${m.emoji}</span><strong>${esc(m.label)}</strong><span class="small soft">${esc(f.user ?? t('feedback.anonymous'))} · ${esc(f.page)} · ${esc(when(f.created_at))}</span></span>
           <span class="row gap-2">
-            ${f.screenshot ? `<button class="btn sm" type="button" data-feedback-view="${f.id}">View screenshot</button>` : ''}
-            <button class="btn sm ghost" type="button" data-feedback-delete="${f.id}">Delete</button>
+            ${f.screenshot ? `<button class="btn sm" type="button" data-feedback-view="${f.id}">${esc(t('feedback.viewShot'))}</button>` : ''}
+            <button class="btn sm ghost" type="button" data-feedback-delete="${f.id}">${esc(t('feedback.delete'))}</button>
           </span>
         </div>
         <p class="pre-wrap">${esc(f.text)}</p>
-        <p class="small soft">Version ${esc(f.version)} · ${esc(f.browser)}</p>
+        <p class="small soft">${esc(t('feedback.version', { version: f.version }))} · ${esc(f.browser)}</p>
       </li>`;
     })
     .join('')}</ul>`;

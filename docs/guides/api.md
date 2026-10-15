@@ -23,7 +23,11 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
   Some endpoints narrow this further (only an insight's author, a review's named reviewer); their
   description says so, and anyone else gets a `403`.
 - **Bodies** are JSON, with times in ISO 8601 with a time zone. Unknown fields are refused.
-- **Errors** answer with a status and `{"detail": "…"}`, in words meant for people:
+- **Errors** answer with a status and `{"detail": "…", "code": "…", "params": {…}}`: `detail` in
+  English words meant for people, `code` naming what went wrong whatever the language
+  (`warning.not_found`; `http.404` for a path the API doesn't serve), and `params` the values in the
+  words, so a client can say it in its own language (the browser's catalogue has `api.<code>`). A
+  `422` for an invalid body has `code` `validation` and lists each problem with its `type`. By status:
   - `401`: sign in;
   - `403`: your role isn't enough;
   - `404`: no such thing on this site;

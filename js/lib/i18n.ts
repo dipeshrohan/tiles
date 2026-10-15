@@ -41,6 +41,13 @@ export function tHtml(key: MessageKey, params: Params = {}): string {
   return formatMessage(messageOf(key), params, locale, true);
 }
 
+// A message named at run time, such as an API error's code (`api.<code>`): null when no catalogue
+// has it, so the caller can fall back to the words it was given.
+export function tKnown(key: string, params: Params = {}): string | null {
+  const message = catalogues.get(locale)?.[key] ?? (en as Catalogue)[key];
+  return message === undefined ? null : formatMessage(message, params, locale);
+}
+
 const plurals = new Map<string, Intl.PluralRules>();
 const pluralRule = (code: string): Intl.PluralRules => {
   let rule = plurals.get(code);

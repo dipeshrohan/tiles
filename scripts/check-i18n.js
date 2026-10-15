@@ -108,6 +108,16 @@ const ATTRS = /\b(?:aria-label|title|placeholder|alt|data-tooltip)="([^"]*)"/g;
 const LABEL_ARG =
   /(?:button|linkButton|toast|title|label|body|lead|eyebrow|placeholder|message|confirm|heading|says|description)\s*[:(,]\s*$/;
 
+// Files whose words are content, translated as content rather than as messages: the glossary
+// (made from docs/ui/glossary.md), the demo plant's data, the style guide's code samples, icons.
+export const CONTENT = new Set([
+  'js/lib/glossary-data.ts',
+  'js/lib/data.ts',
+  'js/lib/styleguide.ts',
+  'js/lib/icon-data.ts',
+  'js/lib/i18n.ts',
+]);
+
 export function findText(src) {
   const lines = src.split('\n');
   // The line up to a piece's opening quote.
@@ -165,6 +175,12 @@ export function findText(src) {
   return found;
 }
 
+// The keys index.html names for its fixed words (`data-i18n`, `data-i18n-label`…), put in by
+// js/lib/static-text.ts at start-up.
+export function htmlKeys(html) {
+  return new Set([...html.matchAll(/\sdata-i18n(?:-[a-z]+)?="([^"]+)"/g)].map((m) => m[1]));
+}
+
 export function check() {
   const problems = [];
   const en = JSON.parse(read('js/i18n/en.json'));
@@ -179,13 +195,19 @@ export function check() {
     .filter((f) => f !== 'js/tiles.bundle.js')
     .map(read)
     .join('\n');
+  const fromHtml = htmlKeys(read('index.html'));
   for (const k of keys) {
+    if (fromHtml.has(k)) continue;
+    // `api.*` are the API's error codes (errors.py), checked by api/tests/test_errors.py.
+    if (k.startsWith('api.')) continue;
     const family = k.slice(0, k.lastIndexOf('.') + 1);
     if (!code.includes(`'${k}'`) && !code.includes(`"${k}"`) && !code.includes(`\`${family}\${`))
       problems.push(`js/i18n/en.json: ${k} is not used`);
   }
   const pending = new Set(JSON.parse(read('scripts/i18n-pending.json')));
-  for (const f of walk('js/views').filter((f) => !pending.has(f)))
+  for (const f of ['js/app.ts', ...walk('js/views'), ...walk('js/lib')].filter(
+    (f) => !pending.has(f) && !CONTENT.has(f),
+  ))
     for (const { line, text } of findText(read(f))) problems.push(`${f}:${line}: "${text}" is not from the catalogue`);
   for (const f of pending)
     if (!statSync(join(root, f), { throwIfNoEntry: false })) problems.push(`${f}: listed as pending, but gone`);

@@ -306,6 +306,21 @@ test("a site that didn't load: a failed connection says to check the API, an ans
   assert.match(apiUnreachable(null, { size: 'lg' }), /class="btn lg"/);
 });
 
+test('the client’s "can’t reach" is recognised in the language it was said in (U6.01)', async () => {
+  const { addCatalogue, setLocale } = await import('../js/lib/i18n.ts');
+  addCatalogue('xx', {
+    'apiClient.unreachable': 'Die Tiles-API unter {base} antwortet nicht',
+    'ui.nothingAnsweredAt': 'Unter {address} antwortete nichts',
+  });
+  setLocale('xx');
+  try {
+    const down = apiUnreachable('Die Tiles-API unter http://h:8000 antwortet nicht: Failed to fetch');
+    assert.match(down, /<p>Unter http:\/\/h:8000 antwortete nichts\./);
+  } finally {
+    setLocale('en');
+  }
+});
+
 test('the wait counts from when loading began, not from each render', async () => {
   const waitOf = (html) => Number(/--wait:(\d+)ms/.exec(html)?.[1]);
   const first = waitOf(skeleton.text());

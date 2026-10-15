@@ -2,6 +2,8 @@
 // (RFC 7636), no client secret, no dependencies. The session (tokens) lives
 // in sessionStorage, so it ends with the tab and is not shared across sites.
 
+import { t } from './i18n.ts';
+
 export interface Endpoints {
   authorization_endpoint: string;
   token_endpoint: string;
@@ -92,9 +94,9 @@ function write(key: string, value: unknown): void {
 
 export async function discover(issuer: string, doFetch: Fetch = fetch): Promise<Endpoints> {
   const res = await doFetch(`${issuer.replace(/\/+$/, '')}/.well-known/openid-configuration`);
-  if (!res.ok) throw new Error(`Sign-in provider answered ${res.status}`);
+  if (!res.ok) throw new Error(t('oidc.answered', { status: res.status }));
   const body = (await res.json()) as Partial<Endpoints>;
-  if (!body.authorization_endpoint || !body.token_endpoint) throw new Error('Sign-in provider is misconfigured');
+  if (!body.authorization_endpoint || !body.token_endpoint) throw new Error(t('oidc.misconfigured'));
   return body as Endpoints;
 }
 
@@ -136,7 +138,8 @@ async function tokenRequest(
     body: new URLSearchParams(form).toString(),
   });
   const body = (await res.json().catch(() => ({}))) as Partial<TokenResponse> & { error_description?: string };
-  if (!res.ok || !body.access_token) throw new Error(body.error_description ?? `Sign-in failed (${res.status})`);
+  if (!res.ok || !body.access_token)
+    throw new Error(body.error_description ?? t('oidc.failed', { status: res.status }));
   return {
     accessToken: body.access_token,
     expiresAt: now + (body.expires_in ?? 300) * 1000,
@@ -164,9 +167,8 @@ export async function completeSignIn(
   const pending = read<Pending>(PENDING_KEY);
   write(PENDING_KEY, null);
   const returnTo = pending?.returnTo;
-  if (error) throw new SignInError(params.get('error_description') ?? `Sign-in was cancelled (${error})`, returnTo);
-  if (!pending || !state || pending.state !== state)
-    throw new SignInError('Sign-in response did not match; try again', returnTo);
+  if (error) throw new SignInError(params.get('error_description') ?? t('oidc.cancelled', { error }), returnTo);
+  if (!pending || !state || pending.state !== state) throw new SignInError(t('oidc.mismatch'), returnTo);
   let session: Session;
   try {
     const endpoints = await discover(pending.issuer, doFetch);

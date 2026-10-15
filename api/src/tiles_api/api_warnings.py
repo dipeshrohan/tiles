@@ -12,11 +12,12 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api import notify
 from tiles_api.api_ontology import Ctx, Editor, SiteContext, can_edit
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["warnings"])
@@ -146,7 +147,9 @@ def list_warnings(
         try:
             who = uuid.UUID(assignee)
         except ValueError as e:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "assignee: me, none, or a user's id") from e
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "warning.bad_assignee", "assignee: me, none, or a user's id"
+            ) from e
     params = {
         "site": ctx.site_id,
         "signal": signal_id,
@@ -168,7 +171,7 @@ def _detail(ctx: SiteContext, warning_id: uuid.UUID) -> dict[str, Any]:
     query = WARNINGS.format(detail=", d.config AS detector_config, w.created_at") + " AND w.id = %(id)s"
     row = ctx.conn.execute(query, {"site": ctx.site_id, "id": warning_id}).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such warning")
+        raise Problem(status.HTTP_404_NOT_FOUND, "warning.not_found", "No such warning")
     steps = ctx.conn.execute(
         """
         SELECT a.at, a.action, u.name AS actor, who.name AS assignee, a.outcome, a.note
@@ -196,11 +199,11 @@ def _lock(ctx: SiteContext, warning_id: uuid.UUID, resolved: bool) -> dict[str, 
         "SELECT * FROM warnings WHERE site_id = %s AND id = %s FOR UPDATE", [ctx.site_id, warning_id]
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such warning")
+        raise Problem(status.HTTP_404_NOT_FOUND, "warning.not_found", "No such warning")
     if resolved and row["resolved_at"] is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This warning is not resolved")
+        raise Problem(status.HTTP_409_CONFLICT, "warning.not_resolved", "This warning is not resolved")
     if not resolved and row["resolved_at"] is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This warning is resolved; reopen it first")
+        raise Problem(status.HTTP_409_CONFLICT, "warning.resolved", "This warning is resolved; reopen it first")
     return row
 
 
@@ -245,7 +248,7 @@ def acknowledge(ctx: Editor, warning_id: uuid.UUID, body: NoteIn) -> dict[str, A
     """Say someone is looking at it."""
     warning = _lock(ctx, warning_id, resolved=False)
     if not _acknowledge(ctx, warning, body.note):
-        raise HTTPException(status.HTTP_409_CONFLICT, "This warning is already acknowledged")
+        raise Problem(status.HTTP_409_CONFLICT, "warning.already_acknowledged", "This warning is already acknowledged")
     return _detail(ctx, warning_id)
 
 
@@ -260,7 +263,11 @@ def assign(ctx: Editor, warning_id: uuid.UUID, body: AssignIn) -> dict[str, Any]
             _comment(ctx, warning_id, body.note)
         return _detail(ctx, warning_id)
     if body.user_id is not None and not can_edit(ctx.conn, ctx.site_id, ctx.org_id, body.user_id):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Not an engineer or admin of this site")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "warning.assignee_not_editor",
+            "Not an engineer or admin of this site",
+        )
     if body.user_id is not None:
         _acknowledge(ctx, warning)
     ctx.conn.execute("UPDATE warnings SET assignee_id = %s WHERE id = %s", [body.user_id, warning_id])
@@ -318,6 +325,6 @@ def comment(ctx: Editor, warning_id: uuid.UUID, body: CommentIn) -> dict[str, An
     if not ctx.conn.execute(
         "SELECT 1 FROM warnings WHERE site_id = %s AND id = %s", [ctx.site_id, warning_id]
     ).fetchone():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such warning")
+        raise Problem(status.HTTP_404_NOT_FOUND, "warning.not_found", "No such warning")
     _comment(ctx, warning_id, body.note)
     return _detail(ctx, warning_id)

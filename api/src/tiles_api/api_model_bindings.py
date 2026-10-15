@@ -5,11 +5,13 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
+from tiles_api import api_models
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
+from tiles_api.errors import Problem
 from tiles_api.models import runner, store
 from tiles_api.models.registry import ModelError, check_params
 
@@ -110,7 +112,7 @@ def _shown(ctx: SiteContext, rows: list[dict[str, Any]]) -> list[dict[str, Any]]
 def _get(ctx: SiteContext, binding_id: uuid.UUID) -> dict[str, Any]:
     rows = ctx.conn.execute(SELECT + " AND b.id = %s", [ctx.site_id, binding_id]).fetchall()
     if not rows:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such model binding")
+        raise Problem(status.HTTP_404_NOT_FOUND, "model_binding.not_found", "No such model binding")
     return _shown(ctx, rows)[0]
 
 
@@ -128,12 +130,14 @@ def bind(ctx: Editor, body: BindingIn, request: Request) -> dict[str, Any]:
     try:
         model = store.find(ctx.conn, ctx.org_id, request.app.state.settings, body.model, body.version)
     except KeyError as e:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, e.args[0]) from e
+        raise api_models.no_model(body.model, body.version) from e
     spec = model.spec
     if spec.kind == "design":
-        raise HTTPException(
+        raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "model.design_not_bindable",
             f"{spec.key} is a design model: it takes no signals, so it is run with evaluate, not bound",
+            model=spec.key,
         )
     problems = []
     wanted = {p.name for p in spec.inputs}
@@ -157,11 +161,21 @@ def bind(ctx: Editor, body: BindingIn, request: Request) -> dict[str, Any]:
         problems.append(str(e))
         params = {}
     if problems:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "; ".join(problems))
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "model_binding.invalid",
+            "; ".join(problems),
+            problems="; ".join(problems),
+        )
     if ctx.conn.execute(
         "SELECT 1 FROM model_bindings WHERE site_id = %s AND name = %s", [ctx.site_id, body.name]
     ).fetchone():
-        raise HTTPException(status.HTTP_409_CONFLICT, f"A model binding is already called {body.name}")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "model_binding.name_taken",
+            f"A model binding is already called {body.name}",
+            name=body.name,
+        )
 
     source = f"model:{spec.key}@{spec.version}"
     outputs: dict[str, str] = {}
@@ -175,12 +189,18 @@ def bind(ctx: Editor, body: BindingIn, request: Request) -> dict[str, Any]:
             [ctx.site_id, tag, source, port.unit or None, port.description],
         ).fetchone()
         if row is None:
-            raise HTTPException(status.HTTP_409_CONFLICT, f"The site already has a signal {tag}")
+            raise Problem(status.HTTP_409_CONFLICT, "signal.tag_taken", f"The site already has a signal {tag}", tag=tag)
         outputs[port.name] = str(row["id"])
     try:
         model_id = store.model_id(ctx.conn, ctx.org_id, model)
     except store.ModelChanged as e:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, str(e)) from e
+        raise Problem(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "model.spec_changed",
+            f"Model {spec.key} {spec.version} was stored with another spec. Give the change a new version.",
+            key=spec.key,
+            version=spec.version,
+        ) from e
     inputs = {k: str(v) for k, v in body.inputs.items()}
     binding_id = ctx.conn.execute(
         """
@@ -216,7 +236,7 @@ def run_now(ctx: Editor, binding_id: uuid.UUID, request: Request) -> dict[str, A
     """Run the binding on its new data now (one batch of readings: `caught_up` says whether more
     is left, for the next call or the scheduled runs)."""
     if not _get(ctx, binding_id)["enabled"]:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This model binding is stopped")
+        raise Problem(status.HTTP_409_CONFLICT, "model_binding.stopped", "This model binding is stopped")
     result = runner.run(
         ctx.conn, binding_id, batches=1, settings=request.app.state.settings, remote_windows=runner.REMOTE_WINDOWS_NOW
     )

@@ -8,12 +8,13 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, BackgroundTasks, Query, Request, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, field_validator, model_validator
 
 from tiles_api import api_runs, sweeps
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
+from tiles_api.errors import Problem
 from tiles_api.models import store
 from tiles_api.models.registry import ModelError, check_params
 from tiles_api.store import one, side_pool
@@ -86,7 +87,7 @@ ONE = f"SELECT {COLUMNS}, result FROM sweeps WHERE site_id = %(site)s AND id = %
 def _sweep(ctx: SiteContext, sweep_id: uuid.UUID, *, result: bool = True) -> dict[str, Any]:
     row = ctx.conn.execute(ONE, {"site": ctx.site_id, "id": sweep_id}).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such sweep on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "sweep.not_found", "No such sweep on this site")
     return row if result else row | {"result": None}
 
 
@@ -104,14 +105,14 @@ def start_sweep(
             for end in (axis.from_, axis.to):
                 check_params(spec, body.params | {axis.param: end})
     except ModelError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "model.invalid", str(e), reason=str(e)) from e
     if (
         body.project is not None
         and not ctx.conn.execute(
             "SELECT 1 FROM design_projects WHERE site_id = %s AND id = %s", [ctx.site_id, body.project]
         ).fetchone()
     ):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such design project on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "design_project.not_found", "No such design project on this site")
     x = body.x.model_dump(by_alias=True)
     y = body.y.model_dump(by_alias=True) if body.y else None
     key = sweeps.cache_key(model, full, x, y)
@@ -126,7 +127,13 @@ def start_sweep(
     try:
         model_id = store.model_id(ctx.conn, ctx.org_id, model)
     except store.ModelChanged as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "model.spec_changed",
+            f"Model {spec.key} {spec.version} was stored with another spec. Give the change a new version.",
+            key=spec.key,
+            version=spec.version,
+        ) from e
     total = body.x.steps * (body.y.steps if body.y else 1)
     sweep_id = one(
         ctx.conn.execute(
@@ -183,7 +190,12 @@ def cancel_sweep(ctx: Editor, sweep_id: uuid.UUID) -> dict[str, Any]:
     """Stop a sweep: one still queued at once, a running one after the chunk it is on."""
     row = _sweep(ctx, sweep_id, result=False)
     if row["status"] not in ("queued", "running"):
-        raise HTTPException(status.HTTP_409_CONFLICT, f"The sweep is already {row['status']}")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "sweep.already_ended",
+            f"The sweep is already {row['status']}",
+            status=row["status"],
+        )
     ctx.conn.execute(
         """
         UPDATE sweeps SET cancel_requested = true,

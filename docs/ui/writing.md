@@ -91,11 +91,22 @@ Use these terms, and only these, for these things (the full glossary is [glossar
 | site | plant, factory (in the product) | One plant in Tiles, with its own people and data |
 | edge agent | gateway, collector | The program on site that sends readings to Tiles |
 
+## Words in the catalogue
+
+Every word a page shows comes from the message catalogue, `js/i18n/en.json` (U6.01), so Tiles can be translated without its pages changing:
+
+- **Put words in with `t(key, params)`**, or `tHtml(key, params)` when the sentence holds markup (a term, a link, `<b>`), both from `js/lib/i18n.ts`. Keys are `<page or module>.<name>` (`warnings.bulk.failed`); shared words are `common.*`. A key that isn't in `en.json` doesn't compile.
+- **Whole sentences, not pieces.** Word order differs between languages, so a message is a sentence with its values in it ("Checked {count} signals"), never words joined together in code. A choice of phrasing is a `select` (`{note, select, yes {…} other {…}}`).
+- **Real plurals.** Never "signal(s)": `{count, plural, one {# signal} other {# signals}}`, chosen by the language's own rules (`=0 {No warnings}` first when nothing has its own words). `#` writes the number as the language does (1,430).
+- **Never at load.** Library code keeps keys (typed `MessageKey`) or getters, and translates where the words are shown, so a change of language reaches every page.
+- **What isn't words stays in code**: units, codes (`DT-SEIZURE`), tags, commands and paths. `scripts/check-i18n.js` (in `npm run lint`) finds text written straight into `js/app.ts`, `js/views` and `js/lib`; a line that holds something that only looks like words ends with `// i18n-ok`. The glossary, the demo plant's data and the style guide's code samples are content, not messages.
+- **The API's errors** carry a `code` and `params` next to their English (`api/src/tiles_api/errors.py`: raise `Problem(status, "warning.not_found", "No such warning")`); the catalogue's `api.<code>` says them, with the same `{params}` (`api/tests/test_errors.py` checks both sides).
+
 ## Reviewing a page
 
 When a page is added or changed, its PR checks:
 
-1. Every heading, label, tab and button in sentence case, buttons as verbs.
+1. Every heading, label, tab and button in sentence case, buttons as verbs, and from the catalogue.
 2. Loading, empty and error states each say what to do next.
 3. Errors follow what happened, why, what to do.
 4. Numbers have their units; dates and times read as above.

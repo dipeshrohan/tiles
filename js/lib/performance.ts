@@ -3,6 +3,7 @@
 
 import type { Distribution, Scores } from './api.ts';
 import type { GlossaryKey } from './glossary-data.ts';
+import { t } from './i18n.ts';
 
 export const PERIODS = [1, 7, 30, 90] as const; // days
 export const HORIZONS = [1, 2, 4, 8, 24] as const; // hours
@@ -21,7 +22,7 @@ export function duration(seconds: number): string {
 }
 
 export function spread(d: Distribution | null): string {
-  return d ? `${duration(d.median)} (${duration(d.p10)} to ${duration(d.p90)})` : '–';
+  return d ? t('performance.spread', { median: duration(d.median), p10: duration(d.p10), p90: duration(d.p90) }) : '–';
 }
 
 // The codes typed in: split at commas or line breaks, trimmed, each once, at most 50.
@@ -46,35 +47,47 @@ export interface Kpi {
 
 // The headline numbers: how many events had a warning in time, how many warnings an event followed,
 // what people said of them, and how far ahead the warnings came.
-export function kpis(t: Scores): Kpi[] {
-  const judged = t.confirmed.true_alarm + t.confirmed.false_alarm;
+export function kpis(s: Scores): Kpi[] {
+  const judged = s.confirmed.true_alarm + s.confirmed.false_alarm;
   return [
     {
-      label: 'Events warned of',
-      value: share(t.recall),
-      note: `${t.caught} of ${t.events} downtime or scrap event(s)`,
+      label: t('performance.kpi.recall'),
+      value: share(s.recall),
+      note: t('performance.kpi.recallNote', { caught: s.caught, events: s.events }),
       term: 'recall',
-      tone: t.recall === null ? '' : t.recall >= 0.5 ? 'good' : 'bad',
+      tone: s.recall === null ? '' : s.recall >= 0.5 ? 'good' : 'bad',
     },
     {
-      label: 'Warnings an event followed',
-      value: share(t.precision),
-      note: `${t.true_warnings} of ${t.true_warnings + t.false_warnings}${t.pending_warnings ? `; ${t.pending_warnings} too recent to tell` : ''}`,
+      label: t('performance.kpi.precision'),
+      value: share(s.precision),
+      note: t(s.pending_warnings ? 'performance.kpi.precisionPending' : 'performance.kpi.precisionNote', {
+        n: s.true_warnings,
+        total: s.true_warnings + s.false_warnings,
+        pending: s.pending_warnings,
+      }),
       term: 'precision',
       tone: '',
     },
     {
-      label: 'Confirmed true by people',
-      value: share(judged ? t.confirmed.true_alarm / judged : null),
-      note: `${t.confirmed.true_alarm} true, ${t.confirmed.false_alarm} false, ${t.confirmed.unknown} unknown, ${t.confirmed.unresolved} open`,
+      label: t('performance.kpi.confirmed'),
+      value: share(judged ? s.confirmed.true_alarm / judged : null),
+      note: t('performance.kpi.confirmedNote', {
+        yes: s.confirmed.true_alarm,
+        no: s.confirmed.false_alarm,
+        unknown: s.confirmed.unknown,
+        open: s.confirmed.unresolved,
+      }),
       tone: '',
     },
     {
-      label: 'Warning time (median)',
-      value: t.warning_seconds ? duration(t.warning_seconds.median) : '–',
-      note: t.warning_seconds
-        ? `${duration(t.warning_seconds.p10)} to ${duration(t.warning_seconds.p90)} (10th to 90th percentile)`
-        : 'no event warned of yet',
+      label: t('performance.kpi.warningTime'),
+      value: s.warning_seconds ? duration(s.warning_seconds.median) : '–',
+      note: s.warning_seconds
+        ? t('performance.kpi.warningTimeNote', {
+            p10: duration(s.warning_seconds.p10),
+            p90: duration(s.warning_seconds.p90),
+          })
+        : t('performance.kpi.noneYet'),
       term: 'warning-time',
       tone: '',
     },

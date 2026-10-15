@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { ask, SUGGESTIONS } from '../lib/copilot.ts';
+import { ask, suggestions } from '../lib/copilot.ts';
 import {
   answerHtml,
   applyEvent,
@@ -421,7 +421,9 @@ function localRender(ctx: Context, note = ''): string {
       <div class="chat">
         <div class="chat-log" id="chat-log">${messages}</div>
         <div>
-          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${SUGGESTIONS.map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`).join('')}</div>
+          <div class="chips mt-2_5 mb-2_5 m-0" data-tour="chat-examples">${suggestions()
+            .map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`)
+            .join('')}</div>
           <form class="composer" id="composer" data-tour="chat-ask">
             <input type="text" name="q" value="${esc(draft)}" placeholder="${esc(t('chat.placeholderLocal'))}" autocomplete="off" aria-label="${t('chat.question')}" />
             <button class="btn primary" type="submit">${t('chat.ask')}</button>

@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from datetime import date, datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, Query, Request, status
 from fastapi.responses import StreamingResponse
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
@@ -31,6 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from tiles_api import assistant, copilot_usage, grounding
 from tiles_api.api_ontology import Admin, Ctx, SiteContext
 from tiles_api.copilot_tools import tools_for
+from tiles_api.errors import Problem
 from tiles_api.store import Conn, one, scope_to_site, side_pool
 
 router = APIRouter(tags=["copilot"])
@@ -183,7 +184,7 @@ def _own(ctx: SiteContext, conversation_id: uuid.UUID, *, lock: bool = False) ->
         )
     row = ctx.conn.execute(CONVERSATIONS + " AND c.id = %s", [ctx.site_id, ctx.user.id, conversation_id]).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such conversation")
+        raise Problem(status.HTTP_404_NOT_FOUND, "conversation.not_found", "No such conversation")
     return row
 
 
@@ -273,7 +274,7 @@ def delete_conversation(ctx: Ctx, conversation_id: uuid.UUID) -> None:
     """Delete one of your conversations, unless the copilot is still answering in it (409)."""
     _own(ctx, conversation_id, lock=True)
     if _busy(ctx.conn, conversation_id):
-        raise HTTPException(status.HTTP_409_CONFLICT, "The copilot is still answering in this conversation")
+        raise Problem(status.HTTP_409_CONFLICT, "copilot.busy", "The copilot is still answering in this conversation")
     ctx.conn.execute("DELETE FROM conversations WHERE id = %s", [conversation_id])
     ctx.audit("copilot.conversation.delete", "conversation", str(conversation_id))
 
@@ -307,27 +308,34 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
     """Ask a question in the conversation; the answer streams back as server-sent events."""
     model = model_for(request)
     if model is None:
-        raise HTTPException(
+        raise Problem(
             status.HTTP_503_SERVICE_UNAVAILABLE,
+            "copilot.not_configured",
             "The copilot is off: set TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL on the API",
         )
     if not _enabled(ctx.conn, ctx.site_id):
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "The copilot is off on this site: an admin turns it on in Settings"
+        raise Problem(
+            status.HTTP_403_FORBIDDEN,
+            "copilot.off_on_site",
+            "The copilot is off on this site: an admin turns it on in Settings",
         )
     conversation = _own(ctx, conversation_id, lock=True)
     settings = request.app.state.settings
     if _busy(ctx.conn, conversation_id):
-        raise HTTPException(status.HTTP_409_CONFLICT, "The copilot is still answering in this conversation")
+        raise Problem(status.HTTP_409_CONFLICT, "copilot.busy", "The copilot is still answering in this conversation")
     text = body.text.strip()
     if not text:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Ask a question")
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "copilot.question_missing", "Ask a question")
     stored = _history(ctx.conn, conversation_id)
     # Room for the question and every round of its answer, and a conversation the model can still read.
     if conversation["messages"] + 1 + 2 * settings.copilot_max_rounds > MAX_MESSAGES:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This conversation is full: start a new one")
+        raise Problem(status.HTTP_409_CONFLICT, "conversation.full", "This conversation is full: start a new one")
     if sum(len(json.dumps(m["content"])) for m in stored) > MAX_HISTORY_CHARS:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This conversation is too long to carry on: start a new one")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "conversation.too_long",
+            "This conversation is too long to carry on: start a new one",
+        )
     usage_id = copilot_usage.admit(ctx.conn, settings, ctx.org_id, ctx.site_id, ctx.user.id, conversation_id)
     started = time.monotonic()
     question = {"role": "user", "content": [{"type": "text", "text": text}]}
@@ -458,7 +466,7 @@ def _answer(ctx: SiteContext, conversation_id: uuid.UUID, seq: int) -> None:
     ).fetchone()
     final = row is not None and not any(b.get("type") == "tool_use" for b in row["content"])
     if row is None or row["role"] != "assistant" or not final or not grounding.text_of(row).strip():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such answer in this conversation")
+        raise Problem(status.HTTP_404_NOT_FOUND, "copilot.answer_not_found", "No such answer in this conversation")
 
 
 @router.put("/sites/{site_id}/copilot/conversations/{conversation_id}/messages/{seq}/feedback", response_model=Feedback)

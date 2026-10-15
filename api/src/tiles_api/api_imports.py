@@ -13,11 +13,12 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api.api_ontology import Ctx, Editor
 from tiles_api.api_samples import SamplesIn, SamplesOut, store_samples
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["imports"])
@@ -49,7 +50,7 @@ FROM imports i LEFT JOIN users u ON u.id = i.created_by
 def _get(ctx: Any, import_id: uuid.UUID) -> Import:
     row = ctx.conn.execute(IMPORT_SQL + " WHERE i.id = %s AND i.site_id = %s", [import_id, ctx.site_id]).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such import on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "import.not_found", "No such import on this site")
     return Import(**row)
 
 
@@ -83,9 +84,9 @@ def import_samples(ctx: Editor, import_id: uuid.UUID, body: SamplesIn) -> Sample
         "SELECT finished_at FROM imports WHERE id = %s AND site_id = %s FOR UPDATE", [import_id, ctx.site_id]
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such import on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "import.not_found", "No such import on this site")
     if row["finished_at"] is not None:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This import is finished; start a new one")
+        raise Problem(status.HTTP_409_CONFLICT, "import.finished_start_new", "This import is finished; start a new one")
     imp = _get(ctx, import_id)
     stored = store_samples(ctx.conn, ctx.site_id, f"import:{imp.name}", body.samples)
     ctx.conn.execute(
@@ -105,6 +106,6 @@ def finish_import(ctx: Editor, import_id: uuid.UUID) -> Import:
     ).fetchone()
     if row is None:
         _get(ctx, import_id)  # 404 if there is no such import
-        raise HTTPException(status.HTTP_409_CONFLICT, "This import is already finished")
+        raise Problem(status.HTTP_409_CONFLICT, "import.already_finished", "This import is already finished")
     ctx.audit("import.finish", "import", str(import_id), after={"received": row["received"], "stored": row["stored"]})
     return _get(ctx, import_id)

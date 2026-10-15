@@ -13,12 +13,13 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, status
 from psycopg import errors
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api.api_ontology import Admin, Ctx
+from tiles_api.errors import Problem
 from tiles_api.store import DbConn, all_sites, one, scope_to_site
 
 router = APIRouter(tags=["edge agents"])
@@ -154,7 +155,9 @@ def register_agent(ctx: Admin, body: AgentIn) -> NewAgent:
                 ).fetchone()
             )
     except errors.UniqueViolation:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"An agent named {body.name} already exists") from None
+        raise Problem(
+            status.HTTP_409_CONFLICT, "agent.name_taken", f"An agent named {body.name} already exists", name=body.name
+        ) from None
     ctx.audit("agent.register", "edge_agent", str(row["id"]), after={"name": body.name})
     return NewAgent(agent=agent_view(row, db_now(ctx.conn)), token=token)
 
@@ -168,19 +171,20 @@ def revoke_agent(ctx: Admin, agent_id: uuid.UUID) -> None:
         [agent_id, ctx.site_id],
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such agent on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "agent.not_found", "No such agent on this site")
     ctx.audit("agent.revoke", "edge_agent", str(agent_id), before={"name": row["name"]})
 
 
-def _unauthorized(detail: str) -> HTTPException:
-    return HTTPException(status.HTTP_401_UNAUTHORIZED, detail, headers={"WWW-Authenticate": "Bearer"})
+BEARER = {"WWW-Authenticate": "Bearer"}  # with each 401
 
 
 def agent_token(authorization: str) -> bytes:
     """The hash of the agent token in an Authorization header; 401 if there is none."""
     scheme, _, token = authorization.partition(" ")
     if scheme.lower() != "bearer" or not token.startswith(TOKEN_PREFIX):
-        raise _unauthorized("An edge agent token is required")
+        raise Problem(
+            status.HTTP_401_UNAUTHORIZED, "agent.token_required", "An edge agent token is required", headers=BEARER
+        )
     return token_hash(token)
 
 
@@ -192,7 +196,9 @@ def calling_agent(conn: Any, authorization: str) -> dict[str, Any]:
             [agent_token(authorization)],
         ).fetchone()
     if row is None:
-        raise _unauthorized("Unknown or revoked agent token")
+        raise Problem(
+            status.HTTP_401_UNAUTHORIZED, "agent.token_unknown", "Unknown or revoked agent token", headers=BEARER
+        )
     scope_to_site(conn, row["site_id"])  # the rest of the request is the agent's site's (T5.04)
     return row
 
@@ -209,7 +215,9 @@ def heartbeat(body: HeartbeatIn, conn: DbConn, authorization: Annotated[str, Hea
         [Jsonb(body.model_dump(mode="json")), agent["id"]],
     ).fetchone()
     if row is None:
-        raise _unauthorized("Unknown or revoked agent token")
+        raise Problem(
+            status.HTTP_401_UNAUTHORIZED, "agent.token_unknown", "Unknown or revoked agent token", headers=BEARER
+        )
     return HeartbeatOut(
         agent_id=row["id"], site_id=row["site_id"], server_time=row["last_seen_at"].astimezone(UTC), commands=[]
     )

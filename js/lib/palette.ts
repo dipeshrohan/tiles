@@ -6,6 +6,7 @@ import { ux, uxName } from './analytics.ts';
 import { esc } from './dom.ts';
 import { icon, isIconName, type IconName } from './icons.ts';
 import { load, save } from './store.ts';
+import { t, tHtml } from './i18n.ts';
 
 export interface PaletteItem {
   id: string;
@@ -98,14 +99,14 @@ export function installPalette(source: PaletteSource): { open(): void } {
     dialog = d;
     d.className = 'dialog palette';
     d.dataset.state = 'open';
-    d.setAttribute('aria-label', 'Search pages and actions');
+    d.setAttribute('aria-label', t('palette.searchPages'));
     const site = Boolean(source.search && source.canSearch?.() !== false);
-    const what = site ? 'pages, actions and the site' : 'pages and actions';
+    const what = t(site ? 'palette.searchSite' : 'palette.searchPages');
     d.innerHTML = `
-      <div class="palette-input">${icon('search', { size: 18 })}<input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="Search ${what}" placeholder="Search ${what}…" autocomplete="off" spellcheck="false" /><kbd>Esc</kbd></div>
-      <div class="palette-list" id="palette-list" role="listbox" aria-label="Results"></div>
+      <div class="palette-input">${icon('search', { size: 18 })}<input type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" aria-label="${esc(what)}" placeholder="${esc(what)}…" autocomplete="off" spellcheck="false" /><kbd>${esc(t('palette.keyEsc'))}</kbd></div>
+      <div class="palette-list" id="palette-list" role="listbox" aria-label="${esc(t('palette.results'))}"></div>
       <div class="palette-status" role="status"></div>
-      <div class="palette-foot"><span><kbd>↑</kbd><kbd>↓</kbd> to move</span><span><kbd>Enter</kbd> to open</span></div>`;
+      <div class="palette-foot"><span>${tHtml('palette.toMove', { keys: '<kbd>↑</kbd><kbd>↓</kbd>' })}</span><span>${tHtml('palette.toOpen', { key: `<kbd>${esc(t('palette.keyEnter'))}</kbd>` })}</span></div>`;
     const input = d.querySelector('input') as HTMLInputElement;
     const list = d.querySelector('#palette-list') as HTMLElement;
     const status = d.querySelector('.palette-status') as HTMLElement;
@@ -155,7 +156,7 @@ export function installPalette(source: PaletteSource): { open(): void } {
                 },
           )
           .filter((i): i is PaletteItem => i !== undefined)
-          .map((i) => ({ ...i, group: 'Recent' }));
+          .map((i) => ({ ...i, group: t('common.recent') }));
         items = [...recents, ...all.filter((i) => !recents.some((r) => r.id === i.id))];
       }
       shown = items;
@@ -179,9 +180,9 @@ export function installPalette(source: PaletteSource): { open(): void } {
       list.hidden = !items.length; // a listbox holds options, or isn't there
       // What isn't an option goes beside the list, in a status line.
       status.innerHTML = searching
-        ? `${icon('loader-circle', { size: 14 })} Searching the site…`
+        ? `${icon('loader-circle', { size: 14 })} ${esc(t('palette.searching'))}`
         : q.trim() && !matched
-          ? `Nothing matches “${esc(q.trim())}”.`
+          ? esc(t('palette.nothing', { query: q.trim() }))
           : '';
       if (items.length) input.setAttribute('aria-activedescendant', `palette-${active}`);
       else input.removeAttribute('aria-activedescendant');
@@ -205,7 +206,9 @@ export function installPalette(source: PaletteSource): { open(): void } {
     const choose = (n: number): void => {
       const item = shown[n];
       if (!item) return;
-      ux('palette', `chose.${uxName(item.group)}`); // the kind of thing chosen, not which (U1.09)
+      // The kind of thing chosen, not which (U1.09): its id's prefix (page, do, signal…), the same in
+      // every language, unlike its group's name.
+      ux('palette', `chose.${uxName(item.id.split(':')[0] ?? '')}`);
       if (item.href)
         remember({
           id: item.id,

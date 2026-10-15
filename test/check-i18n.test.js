@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { check, findText, pieces } from '../scripts/check-i18n.js';
+import { check, findText, htmlKeys, pieces } from '../scripts/check-i18n.js';
 
 const found = (src) => findText(src).map((f) => f.text);
 
@@ -25,6 +25,12 @@ test('template literals are read in parts around their expressions', () => {
     p.map((x) => x.text),
     ['<b>', 'x ', '', 'y', '</b> done'],
   );
+});
+
+test("index.html's data-i18n attributes count as using their keys", () => {
+  const html =
+    '<a data-skip data-i18n="app.static.skip">Skip</a><nav aria-label="Pages" data-i18n-label="app.static.pages"></nav><b data-i18n-tooltip="x.y" data-x="no.key"></b>';
+  assert.deepEqual([...htmlKeys(html)], ['app.static.skip', 'app.static.pages', 'x.y']);
 });
 
 test('the repository passes its own check', () => {

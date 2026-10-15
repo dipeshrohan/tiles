@@ -4,6 +4,7 @@
 
 import type { CorrelationResult, Insight, InsightDraft, InsightStatus, InsightSummary } from './api.ts';
 import { esc, bound } from './dom.ts';
+import { t, type MessageKey } from './i18n.ts';
 
 export const MAX_ACTIONS = 20;
 
@@ -14,15 +15,15 @@ export interface DraftText {
   actions: string;
 }
 
-export const STATUS: Record<InsightStatus, [string, string]> = {
-  proposed: ['warn', 'Waiting for review'],
-  accepted: ['good', 'Accepted'],
-  rejected: ['bad', 'Rejected'],
+export const STATUS: Record<InsightStatus, [string, MessageKey]> = {
+  proposed: ['warn', 'insights.status.proposed'],
+  accepted: ['good', 'insights.status.accepted'],
+  rejected: ['bad', 'insights.status.rejected'],
 };
 
 export function statusBadge(status: InsightStatus): string {
   const [cls, text] = STATUS[status];
-  return `<span class="badge ${cls}">${text}</span>`;
+  return `<span class="badge ${cls}">${esc(t(text))}</span>`;
 }
 
 // One action per line, blank lines left out; a string says why not.
@@ -31,17 +32,17 @@ export function parseActions(text: string): string[] | string {
     .split('\n')
     .map((l) => l.replace(/^\s*[-*•]\s*/, '').trim())
     .filter(Boolean);
-  if (actions.length > MAX_ACTIONS) return `At most ${MAX_ACTIONS} actions`;
-  if (actions.some((a) => a.length > 500)) return 'Keep each action to 500 characters';
+  if (actions.length > MAX_ACTIONS) return t('insights.atMostActions', { max: MAX_ACTIONS });
+  if (actions.some((a) => a.length > 500)) return t('insights.actionTooLong');
   return actions;
 }
 
 // The draft as the API takes it; a string says what to fix.
 export function readDraft(text: DraftText): InsightDraft | string {
   const title = text.title.trim();
-  if (!title) return 'Give the insight a title';
-  if (title.length > 200) return 'Keep the title to 200 characters';
-  if (text.summary.length > 5000) return 'Keep the summary to 5,000 characters';
+  if (!title) return t('insights.needTitle');
+  if (title.length > 200) return t('insights.titleTooLong');
+  if (text.summary.length > 5000) return t('insights.summaryTooLong');
   const actions = parseActions(text.actions);
   if (typeof actions === 'string') return actions;
   return { title, summary: text.summary.trim(), actions };
@@ -57,16 +58,22 @@ export const draftText = (d: Pick<InsightDraft, 'title' | 'summary' | 'actions'>
 export function correlationDraft(dataset: string, r: CorrelationResult): DraftText {
   const top = r.explanations[0];
   const title = top
-    ? `${top.variable} separates failed batches${top.segment === 'all' ? '' : ` (${top.segment})`}`
-    : `No clear effect in ${dataset}`;
-  const summary = [`${dataset}: ${r.rows} batch(es), ${r.ng} failed.`, ...r.explanations.map((e) => e.text)].join('\n');
+    ? t(top.segment === 'all' ? 'insights.draft.title' : 'insights.draft.titleSegment', {
+        variable: top.variable,
+        segment: top.segment,
+      })
+    : t('insights.draft.noEffect', { dataset });
+  const summary = [
+    t('insights.draft.summary', { dataset, rows: r.rows, ng: r.ng }),
+    ...r.explanations.map((e) => e.text),
+  ].join('\n');
   return { title: title.slice(0, 200), summary, actions: '' };
 }
 
 export function seriesDraft(tags: string[], from: string, to: string): DraftText {
   return {
     title: `${tags.join(', ')}`.slice(0, 200),
-    summary: `From ${when(from)} to ${when(to)}.`,
+    summary: t('insights.draft.range', { from: when(from), to: when(to) }),
     actions: '',
   };
 }
@@ -75,12 +82,12 @@ export const when = (iso: string): string =>
   new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
 
 // The form to save (or edit) an insight. `id` tells the page's forms apart.
-export function draftForm(id: string, text: DraftText, busy: boolean, submit = 'Save insight'): string {
+export function draftForm(id: string, text: DraftText, busy: boolean, submit = t('insights.form.save')): string {
   return `<form class="stack insight-form gap-2" id="${esc(id)}">
-      <label class="field">Title<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
-      <label class="field">Summary<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
-      <label class="field">Proposed actions <span class="small soft">(one per line)</span><textarea name="actions" rows="3" placeholder="e.g. Lower anode tension to 1,000 N for a week">${esc(text.actions)}</textarea></label>
-      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(submit)}</button><button class="btn" type="button" data-cancel>Cancel</button></div>
+      <label class="field">${esc(t('insights.form.title'))}<input type="text" name="title" maxlength="200" value="${esc(text.title)}"></label>
+      <label class="field">${esc(t('insights.form.summary'))}<textarea name="summary" rows="3" maxlength="5000">${esc(text.summary)}</textarea></label>
+      <label class="field">${esc(t('insights.form.actions'))} <span class="small soft">${esc(t('insights.form.onePerLine'))}</span><textarea name="actions" rows="3" placeholder="${esc(t('insights.form.actionsPlaceholder'))}">${esc(text.actions)}</textarea></label>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(submit)}</button><button class="btn" type="button" data-cancel>${esc(t('insights.form.cancel'))}</button></div>
     </form>`;
 }
 
@@ -100,24 +107,32 @@ export function bindDraft(form: HTMLFormElement, text: DraftText): void {
 export function sourceText(i: Pick<Insight, 'query' | 'evidence'>): string {
   const q = i.query;
   if (q.kind === 'correlation') {
-    const name = i.evidence.dataset?.name ?? 'a dataset';
+    const name = i.evidence.dataset?.name ?? t('insights.source.aDataset');
     const failed = q.ng_values?.length ? q.ng_values.map(String).join(', ') : 'true';
-    const parts = [`Correlation of ${name}: outcome ${q.outcome} (failed when ${failed})`];
-    if (q.split) parts.push(`split by ${q.split}`);
-    parts.push(q.variables?.length ? `variables ${q.variables.join(', ')}` : 'every number column');
+    const parts = [t('insights.source.correlation', { name, outcome: q.outcome, failed })];
+    if (q.split) parts.push(t('insights.source.split', { split: q.split }));
+    parts.push(
+      q.variables?.length
+        ? t('insights.source.variables', { list: q.variables.join(', ') })
+        : t('insights.source.everyNumber'),
+    );
     return parts.join(', ');
   }
   const tags = i.evidence.series?.map((s) => s.tag) ?? [];
-  return `${tags.length ? tags.join(', ') : `${q.signals.length} signal(s)`} from ${when(q.start)} to ${when(q.end)}`;
+  return t('insights.source.series', {
+    what: tags.length ? tags.join(', ') : t('insights.source.signals', { count: q.signals.length }),
+    start: when(q.start),
+    end: when(q.end),
+  });
 }
 
 // Where to ask the same question again, on today's data.
 export function sourceLink(i: Pick<Insight, 'query'>): { href: string; text: string } {
   const q = i.query;
   if (q.kind === 'correlation')
-    return { href: `#/correlate?dataset=${encodeURIComponent(q.dataset_id)}`, text: 'Open in the correlation finder' };
+    return { href: `#/correlate?dataset=${encodeURIComponent(q.dataset_id)}`, text: t('insights.link.correlate') };
   const params = new URLSearchParams({ signals: q.signals.join(','), from: q.start, to: q.end });
-  return { href: `#/explorer?${params.toString()}`, text: 'Open in the Data explorer' };
+  return { href: `#/explorer?${params.toString()}`, text: t('insights.link.explorer') };
 }
 
 export const insightLink = (n: number): string => `#/insights/${n}`;

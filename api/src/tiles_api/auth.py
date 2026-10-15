@@ -20,8 +20,9 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import jwt
-from fastapi import HTTPException, Request
+from fastapi import Request
 
+from tiles_api.errors import Problem
 from tiles_api.settings import Settings
 
 Role = Literal["viewer", "engineer", "admin"]
@@ -62,8 +63,8 @@ class OrgProvider:
     confirmer: str | None = None  # that admin's email, while pending
 
 
-def unauthorized(message: str) -> HTTPException:
-    return HTTPException(401, message, headers={"WWW-Authenticate": 'Bearer error="invalid_token"'})
+# A 401's header: the token is missing, wrong or not accepted, so sign in again.
+INVALID_TOKEN = {"WWW-Authenticate": 'Bearer error="invalid_token"'}
 
 
 class TokenVerifier:
@@ -111,10 +112,10 @@ class TokenVerifier:
             )
         except jwt.PyJWKClientConnectionError as e:
             # Fetching the provider's keys failed: not the token's fault.
-            raise HTTPException(503, "Sign-in provider is unreachable") from e
+            raise Problem(503, "sign_in.provider_unreachable", "Sign-in provider is unreachable") from e
         except (jwt.PyJWKClientError, jwt.PyJWTError) as e:
             # Includes a token signed with a key the provider doesn't have.
-            raise unauthorized(f"Invalid token: {e}") from e
+            raise Problem(401, "auth.invalid_token", f"Invalid token: {e}", headers=INVALID_TOKEN, reason=str(e)) from e
         return claims
 
 
@@ -174,17 +175,17 @@ def email_from_claims(claims: dict[str, Any]) -> str:
         value = str(claims.get(name) or "").strip().lower()
         if EMAIL.match(value):
             return value
-    raise unauthorized("Token has no usable email claim")
+    raise Problem(401, "auth.no_email_claim", "Token has no usable email claim", headers=INVALID_TOKEN)
 
 
 def principal_from_claims(claims: dict[str, Any], settings: Settings) -> Principal:
     email = str(claims.get("email") or "").strip().lower()
     if not EMAIL.match(email):
-        raise unauthorized("Token has no usable email claim")
+        raise Problem(401, "auth.no_email_claim", "Token has no usable email claim", headers=INVALID_TOKEN)
     name = str(claims.get("name") or claims.get("preferred_username") or email.split("@")[0])[:200]
     org = str(claims.get("tiles_org") or settings.oidc_default_org).strip().lower()
     if not SLUG.match(org):
-        raise unauthorized("Token has an invalid tiles_org claim")
+        raise Problem(401, "auth.bad_org_claim", "Token has an invalid tiles_org claim", headers=INVALID_TOKEN)
     return Principal(
         email=email,
         name=name,
@@ -276,7 +277,7 @@ class Verifiers:
         try:
             unverified = jwt.decode(token, options={"verify_signature": False})
         except jwt.PyJWTError as e:
-            raise unauthorized(f"Invalid token: {e}") from e
+            raise Problem(401, "auth.invalid_token", f"Invalid token: {e}", headers=INVALID_TOKEN, reason=str(e)) from e
         issuer = str(unverified.get("iss") or "").rstrip("/")
         settings = self.settings
         if settings.oidc_issuer and issuer == settings.oidc_issuer.rstrip("/"):
@@ -289,11 +290,15 @@ class Verifiers:
             email = email_from_claims(unverified)
             provider = next((p for p in candidates if p.confirmer == email), None)
         if provider is None:
-            raise unauthorized("Tokens from this issuer aren't accepted here")
+            raise Problem(
+                401, "auth.issuer_not_accepted", "Tokens from this issuer aren't accepted here", headers=INVALID_TOKEN
+            )
         v = self._verifier(provider.issuer, provider.audience, provider.jwks_url, True)
         principal = principal_from_org_claims(v.verify(token), provider)
         if not provider.verified and principal.email != provider.confirmer:
-            raise unauthorized("Tokens from this issuer aren't accepted here")
+            raise Problem(
+                401, "auth.issuer_not_accepted", "Tokens from this issuer aren't accepted here", headers=INVALID_TOKEN
+            )
         return principal
 
 
@@ -318,12 +323,12 @@ def authenticate(request: Request) -> Principal:
     if header:
         scheme, _, token = header.partition(" ")
         if scheme.lower() != "bearer" or not token:
-            raise unauthorized("Authorization must be a Bearer token")
+            raise Problem(401, "auth.not_bearer", "Authorization must be a Bearer token", headers=INVALID_TOKEN)
         return verifiers(request).principal(token.strip())
     if not settings.dev_identity_on:  # production, or sign-in configured: fail closed (G-A5)
-        raise unauthorized("Sign in to use Tiles")
+        raise Problem(401, "auth.sign_in_required", "Sign in to use Tiles", headers=INVALID_TOKEN)
     email = (request.headers.get("x-tiles-user") or settings.dev_user_email).strip().lower()
     if not EMAIL.match(email):
-        raise HTTPException(400, "X-Tiles-User must be an email address")
+        raise Problem(400, "auth.dev_user_not_email", "X-Tiles-User must be an email address")
     name = settings.dev_user_name if email == settings.dev_user_email.lower() else email.split("@")[0]
     return Principal(email=email, name=name, org=None, role="engineer")

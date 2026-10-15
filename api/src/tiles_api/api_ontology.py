@@ -3,13 +3,14 @@
 import uuid
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, Query, status
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, model_validator
 
 from tiles_api import audit
 from tiles_api import ontology as o
 from tiles_api import ontology_store as store
 from tiles_api.auth import Principal, authenticate
+from tiles_api.errors import Problem
 from tiles_api.identity import User, ensure_org, ensure_user, resolve_user
 from tiles_api.store import Conn, DbConn, scope_to_site
 
@@ -153,7 +154,7 @@ def site_context(site_id: uuid.UUID, principal: Auth, conn: DbConn) -> SiteConte
         "SELECT s.org_id, o.slug FROM sites s JOIN orgs o ON o.id = s.org_id WHERE s.id = %s", [site_id]
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Site not found")
+        raise Problem(status.HTTP_404_NOT_FOUND, "site.not_found", "Site not found")
     scope_to_site(conn, site_id)  # before anything reads or writes the site's rows (T5.04)
     user = resolve_user(conn, principal, site_id, row["org_id"], row["slug"])
     return SiteContext(conn, site_id, row["org_id"], user)
@@ -183,8 +184,12 @@ def require_role(minimum: str) -> Any:
 
     def check(ctx: Ctx) -> SiteContext:
         if ROLE_RANK.get(ctx.user.role, -1) < ROLE_RANK[minimum]:
-            raise HTTPException(
-                status.HTTP_403_FORBIDDEN, f"Your role on this site is {ctx.user.role}; this needs {minimum} or above"
+            raise Problem(
+                status.HTTP_403_FORBIDDEN,
+                "role.too_low",
+                f"Your role on this site is {ctx.user.role}; this needs {minimum} or above",
+                role=ctx.user.role,
+                minimum=minimum,
             )
         return ctx
 
@@ -201,9 +206,9 @@ def _run(fn: Any, *args: Any) -> Any:
     try:
         return fn(*args)
     except store.NotFound as e:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e)) from e
+        raise Problem(status.HTTP_404_NOT_FOUND, "ontology.not_found", str(e), reason=str(e)) from e
     except o.OntologyError as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+        raise Problem(status.HTTP_409_CONFLICT, "ontology.conflict", str(e), reason=str(e)) from e
 
 
 @router.get("/sites", response_model=list[Site], tags=["sites"])

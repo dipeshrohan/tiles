@@ -16,7 +16,7 @@ export interface IconOptions {
 export function icon(name: IconName, opts: IconOptions = {}): string {
   const size = opts.size ?? 16;
   const a11y = opts.label ? `role="img" aria-label="${esc(opts.label)}"` : 'aria-hidden="true"';
-  const cls = `icon icon-${name}${opts.className ? ` ${esc(opts.className)}` : ''}`;
+  const cls = `icon icon-${name}${opts.className ? ` ${esc(opts.className)}` : ''}`; // i18n-ok (classes)
   return `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${opts.strokeWidth ?? 2}" stroke-linecap="round" stroke-linejoin="round" focusable="false" ${a11y}>${ICONS[name]}</svg>`;
 }
 

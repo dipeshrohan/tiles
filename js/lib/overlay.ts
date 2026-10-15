@@ -4,6 +4,7 @@
 // tooltips raised while one is open sit under it, so keep what a dialog holds short.
 import { esc } from './dom.ts';
 import { icon } from './icons.ts';
+import { t, tHtml } from './i18n.ts';
 
 let seq = 0;
 const nextId = (): string => `overlay-${++seq}`;
@@ -98,12 +99,12 @@ export function confirmDialog(o: ConfirmOptions): Promise<boolean> {
       </div>
       ${
         o.typeToConfirm
-          ? `<label class="field"><span>Type <b>${esc(o.typeToConfirm)}</b> to confirm</span><input type="text" name="typed" autocomplete="off" spellcheck="false" autofocus /></label>`
+          ? `<label class="field"><span>${tHtml('overlay.typeToConfirm', { text: `<b>${esc(o.typeToConfirm)}</b>` })}</span><input type="text" name="typed" autocomplete="off" spellcheck="false" autofocus /></label>`
           : ''
       }
       <div class="dialog-foot">
-        <button class="btn" value="cancel" ${danger && !o.typeToConfirm ? 'autofocus' : ''}>${esc(o.cancel ?? 'Cancel')}</button>
-        <button class="btn ${danger ? 'destructive' : 'primary'}" value="confirm" data-confirm ${o.typeToConfirm ? 'disabled' : ''} ${danger || o.typeToConfirm ? '' : 'autofocus'}>${esc(o.confirm ?? 'Confirm')}</button>
+        <button class="btn" value="cancel" ${danger && !o.typeToConfirm ? 'autofocus' : ''}>${esc(o.cancel ?? t('overlay.cancel'))}</button>
+        <button class="btn ${danger ? 'destructive' : 'primary'}" value="confirm" data-confirm ${o.typeToConfirm ? 'disabled' : ''} ${danger || o.typeToConfirm ? '' : 'autofocus'}>${esc(o.confirm ?? t('overlay.confirm'))}</button>
       </div>
     </form>`;
   const typed = dialog.querySelector<HTMLInputElement>('input[name=typed]');
@@ -161,7 +162,7 @@ export function infoDialog(o: InfoOptions, opened?: (dialog: HTMLDialogElement) 
       </div>
       ${o.contentHtml}
       <div class="dialog-foot">
-        <button class="btn" value="close" autofocus>${esc(o.close ?? 'Close')}</button>
+        <button class="btn" value="close" autofocus>${esc(o.close ?? t('overlay.close'))}</button>
       </div>
     </form>`;
   return new Promise((resolve) => {
@@ -202,7 +203,7 @@ export function sheet(o: SheetOptions, opened?: (dialog: HTMLDialogElement, clos
         ${o.label ? `<div class="eyebrow">${esc(o.label)}</div>` : ''}
         <h2 id="${id}-title">${esc(o.title)}</h2>
       </div>
-      <button class="btn ghost icon sm" type="button" data-sheet-close aria-label="Close">${icon('x', { size: 16 })}</button>
+      <button class="btn ghost icon sm" type="button" data-sheet-close aria-label="${esc(t('overlay.close'))}">${icon('x', { size: 16 })}</button>
     </div>
     <div class="sheet-body">${o.contentHtml}</div>
     ${o.footHtml ? `<div class="sheet-foot">${o.footHtml}</div>` : ''}`;

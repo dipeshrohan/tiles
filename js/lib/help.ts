@@ -4,6 +4,7 @@
 // loaded the first time help is wanted (so it works from file://, and the app's bundle stays small).
 import type { IconName } from './icons.ts';
 import type { PaletteItem } from './palette.ts';
+import { t } from './i18n.ts';
 
 export interface HelpSection {
   slug: string; // the heading's anchor in the guide, as GitHub makes it
@@ -45,8 +46,8 @@ export function loadHelp(src = 'js/help-data.js'): Promise<HelpData> {
       script.remove();
       reject(new Error(message));
     };
-    script.onload = () => (window.tilesHelp ? resolve(window.tilesHelp) : fail('The help file is empty'));
-    script.onerror = () => fail("The help file couldn't be loaded");
+    script.onload = () => (window.tilesHelp ? resolve(window.tilesHelp) : fail(t('help.fileEmpty')));
+    script.onerror = () => fail(t('help.fileFailed'));
     document.head.append(script);
   });
   return loading;

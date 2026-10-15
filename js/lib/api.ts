@@ -4,6 +4,7 @@
 // it as a toast). Pure apart from `fetch`, which tests replace.
 
 import { apiFieldErrors, type FieldError } from './forms.ts';
+import { t, tKnown, type Params } from './i18n.ts';
 import { sseParser, type SseEvent } from './sse.ts';
 import type { Commit, DiffStats, Graph, HealthReport, Op } from './types.ts';
 
@@ -870,12 +871,22 @@ export class ApiError extends Error {
   readonly status: number;
   readonly requestId: string | null;
   readonly fields: FieldError[]; // the fields a 422 names (U2.07), shown on the form sent
-  constructor(message: string, status: number, requestId: string | null = null, fields: FieldError[] = []) {
+  // What went wrong, whatever the language (U6.01): the API's code (errors.py), or the client's own
+  // (OFFLINE_WRITE, STREAM_CUT, UNREACHABLE, NOT_JSON); null when the API gave none.
+  readonly code: string | null;
+  constructor(
+    message: string,
+    status: number,
+    requestId: string | null = null,
+    fields: FieldError[] = [],
+    code: string | null = null,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.requestId = requestId;
     this.fields = fields;
+    this.code = code;
   }
 }
 
@@ -895,27 +906,64 @@ export interface ApiOptions {
   fetch?: typeof fetch;
 }
 
-export const OFFLINE_WRITE = "You're offline: nothing was changed. Try again when the connection is back";
+const BEARER = 'Bearer '; // i18n-ok: the Authorization scheme
+// The client's own failures, by code.
+export const OFFLINE_WRITE = 'client.offline';
 // A stream that began and then stopped: the API did answer, so this isn't "unreachable".
-export const STREAM_CUT = 'The answer was cut off: the connection to the Tiles API dropped';
+export const STREAM_CUT = 'client.stream_cut';
+export const UNREACHABLE = 'client.unreachable';
+export const NOT_JSON = 'client.not_json';
+const offline = () => new ApiError(t('apiClient.offline'), 0, null, [], OFFLINE_WRITE);
+const unreachable = (base: string) => new ApiError(t('apiClient.unreachable', { base }), 0, null, [], UNREACHABLE);
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
-// FastAPI errors are {"detail": "..."} or, for validation, {"detail": [{loc, msg}, ...]}.
-const fieldsOf = (body: unknown): FieldError[] => apiFieldErrors((body as { detail?: unknown } | null)?.detail);
+// FastAPI errors are {"detail": "...", "code", "params"} or, for validation, {"detail": [{loc, msg,
+// type, ctx}, ...]}. Each carries a code (U6.01, the API's errors.py) that the catalogue may have
+// words for, in this language, as `api.<code>` (a field's as `api.field.<type>`); the English the
+// API sent is the fallback.
+interface ErrorBody {
+  detail?: unknown;
+  code?: unknown;
+  params?: unknown;
+}
+const paramsOf = (raw: unknown): Params =>
+  Object.fromEntries(
+    Object.entries(raw && typeof raw === 'object' ? raw : {}).filter(
+      (e): e is [string, string | number] => typeof e[1] === 'string' || typeof e[1] === 'number',
+    ),
+  );
+const translated = (d: unknown): unknown => {
+  const item = d as { type?: unknown; ctx?: unknown; msg?: unknown } | null;
+  if (!item || typeof item.type !== 'string') return d;
+  const said = tKnown(`api.field.${item.type}`, paramsOf(item.ctx));
+  return said === null ? d : { ...item, msg: said };
+};
+const detailOf = (body: unknown): unknown => {
+  const detail = (body as ErrorBody | null)?.detail;
+  return Array.isArray(detail) ? detail.map(translated) : detail;
+};
+const fieldsOf = (body: unknown): FieldError[] => apiFieldErrors(detailOf(body));
+export const errorCode = (body: unknown): string | null => {
+  const code = (body as ErrorBody | null)?.code;
+  return typeof code === 'string' ? code : null;
+};
 
-function errorMessage(body: unknown, status: number): string {
-  const detail = (body as { detail?: unknown } | null)?.detail;
+export function errorMessage(body: unknown, status: number): string {
+  const code = errorCode(body);
+  const said = code ? tKnown(`api.${code}`, paramsOf((body as ErrorBody).params)) : null;
+  if (said !== null) return said;
+  const detail = detailOf(body);
   if (typeof detail === 'string' && detail) return detail;
   if (Array.isArray(detail) && detail.length) {
     return detail
       .map((d: { loc?: unknown[]; msg?: string }) => {
         const where = (d.loc ?? []).filter((p) => p !== 'body').join('.');
-        return where ? `${where}: ${d.msg ?? 'invalid'}` : (d.msg ?? 'invalid');
+        return where ? `${where}: ${d.msg ?? t('apiClient.invalid')}` : (d.msg ?? t('apiClient.invalid'));
       })
       .join('; ');
   }
-  return `The Tiles API answered ${status}`;
+  return t('apiClient.answered', { status });
 }
 
 export const isHttpUrl = (url: string): boolean => /^https?:\/\/[^\s/]+/i.test(url);
@@ -942,7 +990,7 @@ export function createApiClient(options: ApiOptions) {
     else if (body !== undefined) headers['Content-Type'] = 'application/json';
     if (!anonymous && options.userEmail) headers['X-Tiles-User'] = options.userEmail;
     const token = anonymous ? null : (options.token ?? (await options.getToken?.()));
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (token) headers.Authorization = BEARER + token;
     return headers;
   }
 
@@ -967,7 +1015,7 @@ export function createApiClient(options: ApiOptions) {
       file?: { body: Blob; type: string };
     } = {},
   ): Promise<T> {
-    if (method !== 'GET' && options.isOffline?.()) return (silent ? raise : fail)(new ApiError(OFFLINE_WRITE, 0));
+    if (method !== 'GET' && options.isOffline?.()) return (silent ? raise : fail)(offline());
     // `file`: sent as it is, with its own type (a document upload), instead of JSON.
     const headers = await headersFor(body, anonymous, 'application/json', file?.type);
     let res: Response;
@@ -978,7 +1026,7 @@ export function createApiClient(options: ApiOptions) {
         body: file ? file.body : body === undefined ? undefined : JSON.stringify(body),
       });
     } catch {
-      return (silent ? raise : fail)(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
+      return (silent ? raise : fail)(unreachable(base));
     }
     if (!silent) options.onAnswer?.(res.status);
     const requestId = res.headers.get('x-request-id');
@@ -990,12 +1038,16 @@ export function createApiClient(options: ApiOptions) {
       parsed = await res.json();
     } catch {
       if (res.ok)
-        return (silent ? raise : fail)(
-          new ApiError('The Tiles API sent a response that is not JSON', res.status, requestId),
-        );
+        return (silent ? raise : fail)(new ApiError(t('apiClient.notJson'), res.status, requestId, [], NOT_JSON));
     }
     if (!res.ok) {
-      const error = new ApiError(errorMessage(parsed, res.status), res.status, requestId, fieldsOf(parsed));
+      const error = new ApiError(
+        errorMessage(parsed, res.status),
+        res.status,
+        requestId,
+        fieldsOf(parsed),
+        errorCode(parsed),
+      );
       if (quiet) throw error; // the caller shows it (e.g. a 403 that only means "not for you")
       return (silent ? raise : fail)(error);
     }
@@ -1014,13 +1066,13 @@ export function createApiClient(options: ApiOptions) {
   // A POST whose answer streams back as server-sent events (the copilot's, T4.04): each event
   // reaches `onEvent` as it arrives; resolves when the stream ends.
   async function streamEvents(path: string, body: unknown, onEvent: (e: SseEvent) => void): Promise<void> {
-    if (options.isOffline?.()) return fail(new ApiError(OFFLINE_WRITE, 0));
+    if (options.isOffline?.()) return fail(offline());
     const headers = await headersFor(body, false, 'text/event-stream');
     let res: Response;
     try {
       res = await doFetch(base + path, { method: 'POST', headers, body: JSON.stringify(body) });
     } catch {
-      return fail(new ApiError(`Can't reach the Tiles API at ${base}`, 0));
+      return fail(unreachable(base));
     }
     options.onAnswer?.(res.status);
     if (!res.ok || !res.body) {
@@ -1030,7 +1082,15 @@ export function createApiClient(options: ApiOptions) {
       } catch {
         // no details
       }
-      return fail(new ApiError(errorMessage(parsed, res.status), res.status, res.headers.get('x-request-id')));
+      return fail(
+        new ApiError(
+          errorMessage(parsed, res.status),
+          res.status,
+          res.headers.get('x-request-id'),
+          [],
+          errorCode(parsed),
+        ),
+      );
     }
     const parser = sseParser(onEvent);
     const reader = res.body.getReader();
@@ -1040,7 +1100,7 @@ export function createApiClient(options: ApiOptions) {
       try {
         chunk = await reader.read();
       } catch {
-        return fail(new ApiError(STREAM_CUT, 0));
+        return fail(new ApiError(t('apiClient.streamCut'), 0, null, [], STREAM_CUT));
       }
       if (chunk.done) break;
       parser.feed(decoder.decode(chunk.value, { stream: true }));

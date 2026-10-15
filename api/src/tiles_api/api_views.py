@@ -8,11 +8,12 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from tiles_api.api_ontology import ROLE_RANK, Ctx
+from tiles_api.errors import Problem
 
 router = APIRouter(tags=["Saved views"])
 
@@ -122,15 +123,17 @@ def _one(ctx: Any, view_id: uuid.UUID) -> dict[str, Any]:
         {"id": view_id, "me": ctx.user.id, "page": None},
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such view")
+        raise Problem(status.HTTP_404_NOT_FOUND, "view.not_found", "No such view")
     return row
 
 
 def _may_share(ctx: Any) -> None:
     if ROLE_RANK.get(ctx.user.role, -1) < ROLE_RANK["engineer"]:
-        raise HTTPException(
+        raise Problem(
             status.HTTP_403_FORBIDDEN,
+            "view.share_needs_engineer",
             f"Your role on this site is {ctx.user.role}; sharing a view needs engineer or above",
+            role=ctx.user.role,
         )
 
 
@@ -165,7 +168,12 @@ def create_view(ctx: Ctx, body: ViewIn) -> dict[str, Any]:
         "SELECT count(*) AS n FROM saved_views WHERE site_id = %s AND owner_id = %s", [ctx.site_id, ctx.user.id]
     ).fetchone()
     if count and count["n"] >= MAX_VIEWS:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"You have {MAX_VIEWS} saved views here: delete one first")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "view.too_many",
+            f"You have {MAX_VIEWS} saved views here: delete one first",
+            max=MAX_VIEWS,
+        )
     row = ctx.conn.execute(
         """
         INSERT INTO saved_views (site_id, owner_id, page, name, query, table_prefs, shared)
@@ -184,7 +192,12 @@ def create_view(ctx: Ctx, body: ViewIn) -> dict[str, Any]:
         ],
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"You already have a view named {body.name} on this page")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "view.name_taken",
+            f"You already have a view named {body.name} on this page",
+            name=body.name,
+        )
     view = _one(ctx, row["id"])
     ctx.audit("view.create", "saved_view", str(row["id"]), after=_audited(view))
     return view
@@ -197,7 +210,7 @@ def update_view(ctx: Ctx, view_id: uuid.UUID, body: ViewPatch) -> dict[str, Any]
     _lock_owner(ctx)
     before = _one(ctx, view_id)
     if not before["mine"]:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only its owner changes a view")
+        raise Problem(status.HTTP_403_FORBIDDEN, "view.not_owner", "Only its owner changes a view")
     if before["shared"] or body.shared:
         _may_share(ctx)
     changes = body.model_dump(exclude_unset=True)
@@ -205,14 +218,19 @@ def update_view(ctx: Ctx, view_id: uuid.UUID, body: ViewPatch) -> dict[str, Any]
         return before
     name = changes["name"].strip() if changes.get("name") is not None else None
     if "name" in changes and not name:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "A view needs a name")
+        raise Problem(status.HTTP_422_UNPROCESSABLE_ENTITY, "view.name_missing", "A view needs a name")
     if name is not None:
         taken = ctx.conn.execute(
             "SELECT 1 FROM saved_views WHERE site_id = %s AND owner_id = %s AND page = %s AND name = %s AND id <> %s",
             [ctx.site_id, ctx.user.id, before["page"], name, view_id],
         ).fetchone()
         if taken:
-            raise HTTPException(status.HTTP_409_CONFLICT, f"You already have a view named {name} on this page")
+            raise Problem(
+                status.HTTP_409_CONFLICT,
+                "view.name_taken",
+                f"You already have a view named {name} on this page",
+                name=name,
+            )
     ctx.conn.execute(
         """
         UPDATE saved_views SET
@@ -242,7 +260,9 @@ def delete_view(ctx: Ctx, view_id: uuid.UUID) -> Response:
     """Delete a view of yours; a site admin may also delete a shared one."""
     view = _one(ctx, view_id)
     if not view["mine"] and ROLE_RANK.get(ctx.user.role, -1) < ROLE_RANK["admin"]:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only its owner or a site admin deletes a shared view")
+        raise Problem(
+            status.HTTP_403_FORBIDDEN, "view.delete_not_allowed", "Only its owner or a site admin deletes a shared view"
+        )
     ctx.conn.execute("DELETE FROM saved_views WHERE id = %s", [view_id])
     ctx.audit("view.delete", "saved_view", str(view_id), before=_audited(view))
     return Response(status_code=status.HTTP_204_NO_CONTENT)

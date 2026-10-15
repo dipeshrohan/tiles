@@ -1903,7 +1903,7 @@ test('UX analytics: off until an organisation admin turns it on; then counts, an
     'page:warnings',
     'task:warning.acknowledge',
     'palette:open',
-    'palette:chose.signals',
+    'palette:chose.signal',
   ])
     assert.ok(kept.has(want), want);
   // Nothing about who, or which record: no e-mail, no warning or signal id, no tag.
@@ -4718,7 +4718,7 @@ test('saved insights: save a correlation, another engineer reviews it, its autho
   await a.page.click('[data-save-insight]');
   // A first draft from the strongest clear effect.
   assert.equal(await a.page.inputValue('#insight-save [name=title]'), 'tension separates failed batches (anode)');
-  assert.match(await a.page.inputValue('#insight-save [name=summary]'), /cutter: 720 batch\(es\)/);
+  assert.match(await a.page.inputValue('#insight-save [name=summary]'), /cutter: 720 batches/);
   await a.page.fill('#insight-save [name=actions]', 'Lower anode tension\n\n- Check cathode rolls ');
   await rerender(a.page); // what is typed survives
   assert.equal(

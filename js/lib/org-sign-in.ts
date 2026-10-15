@@ -2,6 +2,7 @@
 // Pure, so it is unit-tested; the Settings page draws it.
 
 import type { IdentityProviderIn, OrgRole } from './api.ts';
+import { t } from './i18n.ts';
 
 const ROLES: readonly OrgRole[] = ['viewer', 'engineer', 'admin'];
 
@@ -16,7 +17,7 @@ export function parseGroupRoles(text: string): { roles: Record<string, OrgRole>;
     const m = /^(.+?)\s*[=:]\s*(\S+)$/.exec(line);
     const role = m?.[2]?.toLowerCase() as OrgRole | undefined;
     if (!m?.[1] || !role || !ROLES.includes(role)) {
-      errors.push(`Line ${i + 1}: write a group ID, then = and viewer, engineer or admin`);
+      errors.push(t('orgSignIn.badLine', { line: i + 1 }));
       return;
     }
     roles[m[1].trim()] = role;
@@ -40,8 +41,9 @@ export function isEntraIssuer(issuer: string): boolean {
 }
 
 // What the browser asks Entra ID for: sign-in, a refresh token and the API app's scope.
+const ENTRA_SCOPES = 'openid profile email offline_access'; // i18n-ok
 export function entraScope(apiAppId: string, scopeName = 'access'): string {
-  return `openid profile email offline_access api://${apiAppId.trim()}/${scopeName}`;
+  return `${ENTRA_SCOPES} api://${apiAppId.trim()}/${scopeName}`;
 }
 
 // Where an identity provider's SCIM client sends its requests.
@@ -61,11 +63,11 @@ export function providerFromForm(f: {
 }): { provider: IdentityProviderIn | null; errors: string[] } {
   const errors: string[] = [];
   const issuer = f.issuer.trim().replace(/\/+$/, '');
-  if (!/^https:\/\/[^/?#\s]+(\/[^?#\s]*)?$/.test(issuer)) errors.push('The issuer is an https address');
-  if (!f.clientId.trim()) errors.push('Give the browser’s client ID');
-  if (!f.audience.trim()) errors.push('Give the audience: the API app’s ID, as the tokens name it');
+  if (!/^https:\/\/[^/?#\s]+(\/[^?#\s]*)?$/.test(issuer)) errors.push(t('orgSignIn.issuerHttps'));
+  if (!f.clientId.trim()) errors.push(t('orgSignIn.clientId'));
+  if (!f.audience.trim()) errors.push(t('orgSignIn.audience'));
   const jwks = f.jwksUrl.trim();
-  if (jwks && !jwks.startsWith('https://')) errors.push('The signing keys’ address is https');
+  if (jwks && !jwks.startsWith('https://')) errors.push(t('orgSignIn.jwksHttps'));
   const groups = parseGroupRoles(f.groupRoles);
   errors.push(...groups.errors);
   if (errors.length) return { provider: null, errors };

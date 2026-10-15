@@ -12,10 +12,10 @@ import uuid
 from dataclasses import dataclass
 
 import psycopg
-from fastapi import HTTPException
 
 from tiles_api import audit
-from tiles_api.auth import Principal
+from tiles_api.auth import INVALID_TOKEN, Principal
+from tiles_api.errors import Problem
 from tiles_api.store import Conn, one
 
 
@@ -54,20 +54,20 @@ def ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, object
     confirming = False
     if p.org_provider:
         if provider is None or provider["issuer"] != p.issuer:
-            raise HTTPException(
-                401,
-                "Your organisation no longer signs in this way",
-                headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
+            raise Problem(
+                401, "sign_in.provider_removed", "Your organisation no longer signs in this way", headers=INVALID_TOKEN
             )
         if provider["verified_at"] is None:
             if p.email != provider["confirmer"]:
-                raise HTTPException(403, "Your organisation's sign-in isn't confirmed yet")
+                raise Problem(403, "sign_in.not_confirmed", "Your organisation's sign-in isn't confirmed yet")
             confirming = True
     elif p.subject and provider is not None and provider["enforced"]:
-        raise HTTPException(403, "Your organisation signs in through its own identity provider")
+        raise Problem(403, "sign_in.use_own_provider", "Your organisation signs in through its own identity provider")
     user = _ensure_user(conn, p, org_id)
     if not user["active"] or user["deleted_at"] is not None:
-        raise HTTPException(403, "Your account has been deactivated; ask your organisation's administrator")
+        raise Problem(
+            403, "account.deactivated", "Your account has been deactivated; ask your organisation's administrator"
+        )
     if confirming:
         _confirm(conn, org_id, user)
     return user
@@ -82,7 +82,7 @@ def _confirm(conn: Conn, org_id: uuid.UUID, user: dict[str, object]) -> None:
                 [org_id],
             )
     except psycopg.errors.UniqueViolation as e:
-        raise HTTPException(409, "Another organisation has confirmed this provider") from e
+        raise Problem(409, "sign_in.provider_taken", "Another organisation has confirmed this provider") from e
     audit.record_org(
         conn,
         org_id=org_id,
@@ -109,7 +109,7 @@ def _ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, objec
         if row:
             if row["org_id"] != org_id:
                 # Policy: an identity belongs to one organisation; moving it is an admin task.
-                raise HTTPException(403, "Your sign-in belongs to another organisation")
+                raise Problem(403, "sign_in.other_organisation", "Your sign-in belongs to another organisation")
             return row
         # A user created before sign-in (same email, no subject yet: by an admin or SCIM): link
         # them. A user bound to another issuer moves too: to the organisation's own provider from
@@ -130,7 +130,7 @@ def _ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, objec
         ).fetchone()
         if row is None:
             # The email belongs to a user bound to a different sign-in: never hand it over.
-            raise HTTPException(409, "This email already belongs to another sign-in")
+            raise Problem(409, "sign_in.email_taken", "This email already belongs to another sign-in")
         return row
     # The dev identity (never in production) acts as whoever owns the email.
     return one(
@@ -146,7 +146,7 @@ def _ensure_user(conn: Conn, p: Principal, org_id: uuid.UUID) -> dict[str, objec
 def resolve_user(conn: Conn, p: Principal, site_id: uuid.UUID, org_id: uuid.UUID, org_slug: str) -> User:
     """The requesting user and their role on `site_id`."""
     if p.org is not None and p.org != org_slug:
-        raise HTTPException(403, "This site belongs to another organisation")
+        raise Problem(403, "site.other_organisation", "This site belongs to another organisation")
     user = ensure_user(conn, p, org_id)
     member = one(
         conn.execute(

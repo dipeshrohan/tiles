@@ -5,13 +5,14 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api import detector_job
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.detection import Config
+from tiles_api.errors import Problem
 
 router = APIRouter(tags=["detection"])
 
@@ -79,7 +80,7 @@ WHERE d.site_id = %s
 def _get(ctx: SiteContext, detector_id: uuid.UUID) -> dict[str, Any]:
     row = ctx.conn.execute(DETECTORS + " AND d.id = %s", [ctx.site_id, detector_id]).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such detector")
+        raise Problem(status.HTTP_404_NOT_FOUND, "detector.not_found", "No such detector")
     return row
 
 
@@ -96,7 +97,7 @@ def create_detector(ctx: Editor, body: DetectorIn) -> dict[str, Any]:
     if not ctx.conn.execute(
         "SELECT 1 FROM signals WHERE site_id = %s AND id = %s", [ctx.site_id, body.signal_id]
     ).fetchone():
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Not a signal of this site")
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "signal.not_on_site", "Not a signal of this site")
     config = Config(**body.model_dump(include=set(SETTINGS))).as_json()
     row = ctx.conn.execute(
         """
@@ -106,7 +107,9 @@ def create_detector(ctx: Editor, body: DetectorIn) -> dict[str, Any]:
         [ctx.site_id, body.signal_id, body.name, Jsonb(config), body.lateness_seconds, body.asset, ctx.user.id],
     ).fetchone()
     if row is None:  # also when another request took the name a moment ago
-        raise HTTPException(status.HTTP_409_CONFLICT, f"A detector is already called {body.name}")
+        raise Problem(
+            status.HTTP_409_CONFLICT, "detector.name_taken", f"A detector is already called {body.name}", name=body.name
+        )
     after = {"name": body.name, "signal_id": str(body.signal_id), "config": config}
     ctx.audit(
         "detector.create",
@@ -140,7 +143,7 @@ def update_detector(ctx: Editor, detector_id: uuid.UUID, body: DetectorPatch) ->
 def run_now(ctx: Editor, detector_id: uuid.UUID) -> dict[str, Any]:
     """Run the detector on one batch of its new readings now (`caught_up`: nothing more waiting)."""
     if not _get(ctx, detector_id)["enabled"]:
-        raise HTTPException(status.HTTP_409_CONFLICT, "This detector is stopped")
+        raise Problem(status.HTTP_409_CONFLICT, "detector.stopped", "This detector is stopped")
     r = detector_job.run(ctx.conn, detector_id, batches=1)
     out = {
         "readings": r.readings,

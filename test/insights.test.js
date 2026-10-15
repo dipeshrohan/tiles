@@ -46,7 +46,7 @@ test('a correlation drafts its strongest clear effect, or says there was none', 
   assert.equal(draft.title, 'tension separates failed batches (anode)');
   assert.equal(
     draft.summary,
-    'Cutter: 720 batch(es), 90 failed.\nanode: failed batches ran tension higher.\ncathode: failed batches ran tension lower.',
+    'Cutter: 720 batches, 90 failed.\nanode: failed batches ran tension higher.\ncathode: failed batches ran tension lower.',
   );
   const pooled = { ...result, explanations: [{ segment: 'all', variable: 'speed', text: 'x' }] };
   assert.equal(correlationDraft('Cutter', pooled).title, 'speed separates failed batches');

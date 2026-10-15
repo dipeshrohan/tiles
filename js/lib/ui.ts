@@ -6,6 +6,7 @@ import { VERSION } from './version.ts';
 import { icon, type IconName } from './icons.ts';
 import { illustration, type IllustrationName } from './illustrations.ts';
 import { GLOSSARY, type GlossaryKey } from './glossary-data.ts';
+import { t } from './i18n.ts';
 
 // setBusy lives in dom.ts (onSubmit and onAction use it); it is offered here with the components.
 export { setBusy } from './dom.ts';
@@ -34,9 +35,9 @@ export function needsApi(bodyHtml: string, level?: 2 | 3 | 4): string {
   return emptyState({
     level,
     illustration: 'connect',
-    title: 'Connect to the Tiles API',
+    title: t('ui.connectTitle'),
     bodyHtml,
-    action: `<a class="btn primary" href="#/settings">${icon('plug')} Open Settings</a>`,
+    action: `<a class="btn primary" href="#/settings">${icon('plug')} ${esc(t('ui.openSettings'))}</a>`,
   });
 }
 
@@ -62,7 +63,7 @@ const loading = (label: string, kind: string, shapes: string): string =>
 
 export const skeleton = {
   // Lines of text.
-  text(lines = 3, label = 'Loading…'): string {
+  text(lines = 3, label = t('ui.loading')): string {
     return loading(
       label,
       'text',
@@ -70,13 +71,13 @@ export const skeleton = {
     );
   },
   // A table: a header and rows of cells.
-  table(rows = 5, cols = 4, label = 'Loading…'): string {
+  table(rows = 5, cols = 4, label = t('ui.loading')): string {
     const row = (r: number) =>
       `<div class="skeleton-row${r < 0 ? ' head' : ''}">${Array.from({ length: cols }, (_, c) => bar(r < 0 ? 50 : (WIDTHS[(c + r) % WIDTHS.length] ?? 80))).join('')}</div>`;
     return loading(label, 'table', [row(-1), ...Array.from({ length: rows }, (_, r) => row(r))].join(''));
   },
   // A card's worth: a title and a few lines, and a chart under them when it has one.
-  card(label = 'Loading…', o: { chart?: number } = {}): string {
+  card(label = t('ui.loading'), o: { chart?: number } = {}): string {
     return loading(
       label,
       'card',
@@ -86,11 +87,11 @@ export const skeleton = {
     );
   },
   // A chart: a box the chart's height.
-  chart(label = 'Loading the chart…', height = 240): string {
+  chart(label = t('ui.loadingChart'), height = 240): string {
     return loading(label, 'chart', `<span class="skeleton skeleton-chart" style="--h:${height}px"></span>`);
   },
   // Rows of a list (requests, warnings, documents): a title line and a detail line each.
-  list(items = 4, label = 'Loading…'): string {
+  list(items = 4, label = t('ui.loading')): string {
     return loading(
       label,
       'list',
@@ -103,7 +104,7 @@ export const skeleton = {
 };
 
 // Lines of text loading: skeleton.text with the label first.
-export function loadingState(label = 'Loading…', rows = 3): string {
+export function loadingState(label = t('ui.loading'), rows = 3): string {
   return skeleton.text(rows, label);
 }
 
@@ -256,7 +257,8 @@ export function resetIds(): void {
 }
 export function describedBy(controlHtml: string, id: string): string {
   return controlHtml.replace(/<(input|select|textarea)\b[^>]*>/, (tag) => {
-    const has = /\saria-describedby="([^"]*)"/.exec(tag);
+    // \x22 is a double quote (written so, the catalogue's check reads quotes as strings).
+    const has = /\saria-describedby=\x22([^\x22]*)\x22/.exec(tag);
     return has
       ? tag.replace(has[0], ` aria-describedby="${has[1] ? `${has[1]} ` : ''}${id}"`)
       : tag.replace(/^<(\w+)/, `<$1 aria-describedby="${id}"`);
@@ -316,29 +318,35 @@ export function tabs(o: {
 // a reason (no sites, no access, signed out) says that reason. Try again reconnects and Sign in signs
 // in (both handled in app.ts).
 const UNREACHABLE = /can.t reach|failed to fetch|networkerror|not reachable|timed out|load failed/i;
+// The client's "can't reach" message, in this language or in English, and the address it names.
+function unreachableAt(reason: string): [string, string | undefined] | null {
+  const [lead = '', rest = ''] = t('apiClient.unreachable', { base: '\u0001' }).split('\u0001');
+  if (lead && reason.startsWith(lead) && reason.slice(lead.length).trim()) {
+    const address = reason.slice(lead.length).split(/\s/)[0]?.replace(/[.:]$/, '');
+    return rest.trim() && !reason.includes(rest.trim()) ? null : [reason, address];
+  }
+  const english = /^Can.t reach the Tiles API(?: at (\S+?))?[.:]?(?:\s|$)/i.exec(reason);
+  return english ? [english[0], english[1]] : null;
+}
+
 export function apiUnreachable(reason: string | null, o: { signIn?: boolean; size?: 'sm' | 'lg' } = {}): string {
   // "Can't reach the Tiles API at http://localhost:8000: Failed to fetch" says where, in words; the
   // browser's own wording stays in Copy details.
-  const at = /^Can.t reach the Tiles API(?: at (\S+?))?[.:]?(?:\s|$)/i.exec(reason ?? '');
-  const why = at ? (at[1] ? `Nothing answered at ${at[1]}` : '') : (reason ?? '').trim();
-  const unreachable = !reason || UNREACHABLE.test(reason);
+  const at = unreachableAt(reason ?? '');
+  const why = at ? (at[1] ? t('ui.nothingAnsweredAt', { address: at[1] }) : '') : (reason ?? '').trim();
+  const unreachable = !reason || Boolean(at) || UNREACHABLE.test(reason);
   const sentence = why && !/[.!?)]$/.test(why) ? `${why}.` : why;
   const size = o.size ?? 'sm';
   return card(
     errorState({
-      title: unreachable ? "Can't reach the Tiles API" : "The site couldn't be loaded",
-      body: [
-        sentence,
-        unreachable ? 'Check that the API is running and its address in Settings is right, then try again.' : '',
-      ]
-        .filter(Boolean)
-        .join(' '),
+      title: unreachable ? t('ui.cantReach') : t('ui.siteNotLoaded'),
+      body: [sentence, unreachable ? t('ui.checkApi') : ''].filter(Boolean).join(' '),
       retry: 'reconnect',
       compact: true,
       size,
-      actionsHtml: `${o.signIn ? button('Sign in', { variant: 'primary', size, attrs: { 'data-app-sign-in': true } }) : ''} ${linkButton('Open Settings', '#/settings', { size })}`,
+      actionsHtml: `${o.signIn ? button(t('ui.signIn'), { variant: 'primary', size, attrs: { 'data-app-sign-in': true } }) : ''} ${linkButton(t('ui.openSettings'), '#/settings', { size })}`,
       details: errorDetails({
-        what: reason ?? "Can't reach the Tiles API",
+        what: reason ?? t('ui.cantReach'),
         page: typeof location === 'undefined' ? '' : location.hash || '#/',
         at: failedAt(reason),
         version: VERSION,
@@ -362,8 +370,8 @@ function failedAt(reason: string | null): Date {
 // A part of a page whose data didn't come: why, and Try again (which loads the site afresh).
 export function loadFailed(what: string, level: 2 | 3 | 4 = 3): string {
   return errorState({
-    title: `${what} could not be loaded`,
-    body: 'The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.',
+    title: t('ui.couldNotBeLoaded', { what }),
+    body: t('ui.loadFailedBody'),
     retry: 'reconnect',
     compact: true,
     level,
@@ -383,9 +391,11 @@ export function errorState(o: {
   details?: string; // what "Copy details" copies for support (errorDetails); app.ts copies it
 }): string {
   const size = o.size ?? 'sm';
-  const retry = o.retry ? button('Try again', { size, icon: 'refresh-cw', attrs: { [`data-${o.retry}`]: true } }) : '';
+  const retry = o.retry
+    ? button(t('ui.tryAgain'), { size, icon: 'refresh-cw', attrs: { [`data-${o.retry}`]: true } })
+    : '';
   const copy = o.details
-    ? button('Copy details', { size, variant: 'ghost', icon: 'copy', attrs: { 'data-copy-details': o.details } })
+    ? button(t('ui.copyDetails'), { size, variant: 'ghost', icon: 'copy', attrs: { 'data-copy-details': o.details } })
     : '';
   return emptyState({
     illustration: 'error',

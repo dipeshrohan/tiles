@@ -12,11 +12,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
 from tiles_api import documents
 from tiles_api.api_ontology import Auth, Ctx, Editor, SiteContext
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["documents"])
@@ -84,14 +85,16 @@ async def upload_body(request: Request) -> bytes:
     try:
         size = int(request.headers.get("content-length") or 0)
     except ValueError:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Content-Length must be a number") from None
+        raise Problem(
+            status.HTTP_400_BAD_REQUEST, "upload.length_not_number", "Content-Length must be a number"
+        ) from None
     if size > documents.MAX_BYTES:
-        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "The file is larger than 20 MB")
+        raise Problem(status.HTTP_413_CONTENT_TOO_LARGE, "document.too_large", "The file is larger than 20 MB")
     body = bytearray()
     async for part in request.stream():
         body += part
         if len(body) > documents.MAX_BYTES:
-            raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "The file is larger than 20 MB")
+            raise Problem(status.HTTP_413_CONTENT_TOO_LARGE, "document.too_large", "The file is larger than 20 MB")
     return bytes(body)
 
 
@@ -113,7 +116,7 @@ def parsed_upload(request: Request, content: Upload) -> Parsed:
     try:
         found = documents.pages(content, content_type)
     except documents.DocumentError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "document.unreadable", str(e), reason=str(e)) from e
     return Parsed(content, content_type, found, documents.chunk(found))
 
 
@@ -127,7 +130,7 @@ def _filename(name: str) -> str:
 def _document(ctx: SiteContext, number: int) -> dict[str, Any]:
     row: dict[str, Any] | None = ctx.conn.execute(f"{DOC_SQL} AND number = %s", [ctx.site_id, number]).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "document.not_found", "No such document on this site")
     return row
 
 
@@ -144,7 +147,12 @@ def upload_document(
     `text/markdown`, up to 20 MB). Its text is read page by page and indexed for search; 422 says
     why a file can't be read (encrypted, a scan without text, not UTF-8…)."""
     if language not in documents.LANGUAGES:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"language: one of {', '.join(documents.LANGUAGES)}")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "document.language_unknown",
+            f"language: one of {', '.join(documents.LANGUAGES)}",
+            languages=", ".join(documents.LANGUAGES),
+        )
     content, content_type, found, chunks = upload.content, upload.content_type, upload.pages, upload.chunks
     digest = hashlib.sha256(content).hexdigest()
     number = one(
@@ -228,7 +236,7 @@ def document_file(ctx: Ctx, number: int) -> Response:
         [ctx.site_id, number],
     ).fetchone()
     if doc is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such document on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "document.not_found", "No such document on this site")
     shown = doc["content_type"] if doc["content_type"] == "application/pdf" else "text/plain; charset=utf-8"
     return Response(
         bytes(doc["content"]),
@@ -261,7 +269,11 @@ def restore_document(ctx: Editor, number: int) -> dict[str, Any]:
         [ctx.site_id, number],
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No archived document with that number on this site")
+        raise Problem(
+            status.HTTP_404_NOT_FOUND,
+            "document.archived_not_found",
+            "No archived document with that number on this site",
+        )
     doc = _document(ctx, number)
     ctx.audit("document.restore", "document", str(number), after={"title": doc["title"]})
     return doc

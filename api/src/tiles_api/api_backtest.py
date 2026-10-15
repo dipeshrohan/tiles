@@ -16,13 +16,14 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from psycopg import sql
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError
 
 from tiles_api import backtest
 from tiles_api.api_ontology import Editor
 from tiles_api.backtest import Event, Outcome
+from tiles_api.errors import Problem
 from tiles_api.settings import get_settings
 from tiles_api.store import Conn, connect_job
 
@@ -166,11 +167,13 @@ def run(ctx: Editor, body: BacktestIn) -> dict[str, Any]:
     """Replay a signal's history with each combination of detection settings and score the warnings
     against the events given: recall, precision, false warnings per day and warning time, best first."""
     if not RUNNING.acquire(blocking=False):
-        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Other backtests are running: try again shortly")
+        raise Problem(
+            status.HTTP_429_TOO_MANY_REQUESTS, "backtest.busy", "Other backtests are running: try again shortly"
+        )
     try:
         out = run_backtest(ctx.conn, ctx.site_id, body)
     except ValueError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "backtest.invalid", str(e), reason=str(e)) from e
     finally:
         RUNNING.release()
     after = {"readings": out["readings"], "settings": len(out["settings"]), "events": len(body.events)}

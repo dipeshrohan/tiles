@@ -11,11 +11,12 @@ import binascii
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
 
 from tiles_api import audit
 from tiles_api.api_ontology import Admin, Ctx
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["Feedback"])
@@ -74,17 +75,35 @@ def image(data_url: str) -> bytes:
     """The screenshot's bytes, or a 422: a PNG or JPEG data URL, at most MAX_SCREENSHOT."""
     head, _, data = data_url.partition(",")
     if head not in ("data:image/png;base64", "data:image/jpeg;base64"):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The screenshot must be a PNG or JPEG data URL")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "feedback.screenshot_type",
+            "The screenshot must be a PNG or JPEG data URL",
+        )
     if len(data) > (MAX_SCREENSHOT * 4) // 3 + 4:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The screenshot is larger than 2 MiB")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "feedback.screenshot_too_large",
+            "The screenshot is larger than 2 MiB",
+        )
     try:
         raw = base64.b64decode(data, validate=True)
     except (binascii.Error, ValueError):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The screenshot isn't valid base64") from None
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "feedback.screenshot_not_base64", "The screenshot isn't valid base64"
+        ) from None
     if len(raw) > MAX_SCREENSHOT:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The screenshot is larger than 2 MiB")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "feedback.screenshot_too_large",
+            "The screenshot is larger than 2 MiB",
+        )
     if not raw.startswith(PNG if head == "data:image/png;base64" else JPEG):
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The screenshot isn't the image it says")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "feedback.screenshot_mismatch",
+            "The screenshot isn't the image it says",
+        )
     return raw
 
 
@@ -99,8 +118,9 @@ def send_feedback(ctx: Ctx, body: FeedbackIn) -> dict[str, int]:
         [ctx.site_id],
     ).fetchone()
     if recent and int(recent["n"]) >= SITE_PER_HOUR:
-        raise HTTPException(
+        raise Problem(
             status.HTTP_429_TOO_MANY_REQUESTS,
+            "feedback.too_many",
             "This site has had a lot of feedback this hour. Try again later.",
             headers={"Retry-After": "600"},
         )
@@ -162,7 +182,7 @@ def feedback_screenshot(ctx: Admin, feedback_id: int) -> Response:
         "SELECT screenshot FROM feedback WHERE site_id = %s AND id = %s", [ctx.site_id, feedback_id]
     ).fetchone()
     if row is None or row["screenshot"] is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such screenshot on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "feedback.screenshot_not_found", "No such screenshot on this site")
     raw = bytes(row["screenshot"])
     return Response(
         raw,
@@ -183,6 +203,6 @@ def delete_feedback(ctx: Admin, feedback_id: int) -> Response:
         [ctx.site_id, feedback_id],
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such feedback on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "feedback.not_found", "No such feedback on this site")
     ctx.audit("feedback.delete", "feedback", str(feedback_id), before={"mood": row["mood"], "page": row["page"]})
     return Response(status_code=status.HTTP_204_NO_CONTENT)

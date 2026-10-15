@@ -3,7 +3,7 @@ import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf, bound
 import type { DocumentMatch, SiteDocument } from '../lib/api.ts';
 import {
   contentTypeOf,
-  LANGUAGES,
+  languages,
   MAX_UPLOAD_BYTES,
   pageFragment,
   sizeText,
@@ -150,7 +150,7 @@ function recordCard(ctx: Context): string {
         }),
       }),
     );
-  const language = LANGUAGES.find(([v]) => v === d.language)?.[1] ?? d.language;
+  const language = languages().find(([v]) => v === d.language)?.[1] ?? d.language;
   const matches = (found?.key === searchKey(ctx) ? (found.matches ?? []) : []).filter((m) => m.document === n);
   const inSearch = matches.length
     ? `<h3>${esc(t('documents.foundBy', { query: uiState(ctx).query.trim() }))}</h3><ol class="stack doc-matches gap-2_5">${matches
@@ -343,7 +343,7 @@ function listCard(ctx: Context): string {
         <h3>${t('documents.upload')}</h3>
         ${labelled(t('documents.fileLabel'), input({ type: 'file', name: 'file', attrs: { accept: '.pdf,.txt,.md,application/pdf,text/plain,text/markdown', required: true } }))}
         ${labelled(t('documents.col.title'), input({ name: 'title', value: draft?.title ?? '', placeholder: t('documents.titlePlaceholder'), attrs: { maxlength: 200 } }))}
-        ${labelled(t('documents.field.language'), select('language', LANGUAGES, draft?.language ?? ''))}
+        ${labelled(t('documents.field.language'), select('language', languages(), draft?.language ?? ''))}
         <div>${button(t('documents.upload'), { variant: 'primary', type: 'submit', busy: uploading })}</div>
       </form>`
     : '';

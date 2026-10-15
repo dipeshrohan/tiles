@@ -5,6 +5,7 @@
 import { bound, esc, scrollBehavior } from './dom.ts';
 import { icon } from './icons.ts';
 import { forShortcut } from './shortcuts.ts';
+import { t } from './i18n.ts';
 
 export interface SplitOptions {
   open: boolean; // a record is open (on a narrow screen it takes the list's place)
@@ -15,7 +16,7 @@ export interface SplitOptions {
 // The list and the record pane. Each is given as built HTML (a card, usually).
 export function split(listHtml: string, recordHtml: string, o: SplitOptions): string {
   const back = o.open
-    ? `<a class="split-back" href="${esc(o.back)}">${icon('arrow-left', { size: 14 })}Back to the ${esc(o.label ?? 'list')}</a>`
+    ? `<a class="split-back" href="${esc(o.back)}">${icon('arrow-left', { size: 14 })}${esc(t('split.backTo', { list: o.label ?? t('split.list') }))}</a>`
     : '';
   return `<div class="split${o.open ? ' has-record' : ''}"><div class="split-list">${listHtml}</div><div class="split-record">${back}${recordHtml}</div></div>`;
 }
