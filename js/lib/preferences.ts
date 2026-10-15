@@ -71,7 +71,3 @@ export const toApi = ({ timeZone, ...p }: Preferences): ApiPreferences => ({ ...
 
 export const samePreferences = (a: Preferences, b: Preferences): boolean =>
   (Object.keys(DEFAULTS) as (keyof Preferences)[]).every((k) => a[k] === b[k]);
-
-// What changed from one to the other.
-export const changedPreferences = (a: Preferences, b: Preferences): (keyof Preferences)[] =>
-  (Object.keys(DEFAULTS) as (keyof Preferences)[]).filter((k) => a[k] !== b[k]);

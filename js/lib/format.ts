@@ -288,16 +288,21 @@ export const deviceZone = (): string => new Intl.DateTimeFormat().resolvedOption
 
 // A way of writing numbers and dates, for choosing one: its name in the page's language, and a
 // number and today's date written that way ("English (United States)", "1,234.5 · 10/16/2026").
+const samples = new Map<string, { name: string; sample: string }>();
 export function formatSample(code: string, now: When = Date.now()): { name: string; sample: string } {
+  const day = new Date(now);
+  const key = `${code}|${language}|${zone ?? ''}|${day.toDateString()}`;
+  const kept = samples.get(key);
+  if (kept) return kept;
   let name = code;
   try {
-    name = new Intl.DisplayNames([locale], { type: 'language', languageDisplay: 'standard' }).of(code) ?? code;
+    name = new Intl.DisplayNames([language], { type: 'language', languageDisplay: 'standard' }).of(code) ?? code;
   } catch {
     // a browser without DisplayNames: the code
   }
   const n = new Intl.NumberFormat(code, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(1234.5);
-  const d = new Intl.DateTimeFormat(code, { dateStyle: 'short', ...(zone ? { timeZone: zone } : {}) }).format(
-    new Date(now),
-  );
-  return { name, sample: `${n} · ${d}` };
+  const d = new Intl.DateTimeFormat(code, { dateStyle: 'short', ...(zone ? { timeZone: zone } : {}) }).format(day);
+  const made = { name, sample: `${n} · ${d}` };
+  samples.set(key, made);
+  return made;
 }

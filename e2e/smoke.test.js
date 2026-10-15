@@ -146,7 +146,11 @@ test('German: chosen with ?lang= or in your preferences, kept, from disk too; nu
 });
 
 test('your preferences in this browser: each applies at once and stays; the theme button keeps its choice there (U6.06)', async () => {
-  const { page, errors } = await openPage();
+  const context = await browser.newContext({ reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   await page.goto(`${httpBase}#/preferences`);
   await page.waitForSelector('#preferences');
   assert.equal(await page.locator('[data-kept]').innerText(), 'Kept in this browser.');
@@ -160,10 +164,16 @@ test('your preferences in this browser: each applies at once and stays; the them
   await page.uncheck('[name=shortcuts]');
   assert.doesNotMatch(await page.getAttribute('#palette-open', 'aria-keyshortcuts'), /\//);
   await page.selectOption('[name=start]', 'signals');
-  // The theme button at the top changes the same preference.
+  // The theme button at the top changes the same preference; another tab follows.
+  const tab = await context.newPage();
+  await tab.goto(`${httpBase}#/plant`);
+  await tab.waitForSelector('#view h1');
+  assert.equal(await tab.getAttribute('html', 'data-theme'), 'dark');
   await page.click('#theme');
   assert.equal(await html('data-theme'), 'light');
   assert.equal(await page.inputValue('[name=theme]'), 'light');
+  await tab.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  await tab.close();
   // A new visit opens at the start page, as chosen.
   await page.goto('about:blank');
   await page.goto(`${httpBase}#/`);
@@ -194,7 +204,7 @@ test('your preferences in this browser: each applies at once and stays; the them
   );
   assert.equal(await page.locator('#view h1').innerText(), 'Your preferences');
   assert.deepEqual(errors, []);
-  await page.close();
+  await context.close();
 });
 
 test('your preferences with the Tiles API: kept with you, back after signing out and in, in another browser too (U6.06)', async (t) => {
@@ -213,9 +223,9 @@ test('your preferences with the Tiles API: kept with you, back after signing out
   const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
   const signIn = async (page) => {
     await page.goto(`${home}#/settings`);
-    await page.waitForSelector('#account:has-text("Sign in to use this Tiles API")');
+    await page.waitForSelector('#account [data-sign-in]');
     await page.click('#account [data-sign-in]');
-    await page.waitForSelector('#account:has-text("Signed in as Ana Lopez")');
+    await page.waitForSelector('#account [data-sign-out]');
   };
   const { page, errors } = await openPage();
   t.after(() => page.close());
@@ -231,10 +241,12 @@ test('your preferences with the Tiles API: kept with you, back after signing out
   await page.selectOption('[name=density]', 'compact');
   await page.uncheck('[name=shortcuts]');
   await page.selectOption('[name=start]', 'warnings');
+  await page.selectOption('[name=language]', 'de');
+  await page.waitForFunction(() => document.documentElement.lang === 'de');
   const wanted = {
     theme: 'dark',
     density: 'compact',
-    language: 'auto',
+    language: 'de',
     numbers: 'en-US',
     time_zone: 'device',
     motion: 'reduce',
@@ -249,13 +261,14 @@ test('your preferences with the Tiles API: kept with you, back after signing out
   await page.evaluate(() => (location.hash = '#/settings'));
   await page.waitForSelector('#account [data-sign-out]');
   await page.click('#account [data-sign-out]');
-  await page.waitForSelector('#account:has-text("Sign in to use this Tiles API")');
+  await page.waitForSelector('#account [data-sign-in]');
   const other = await openPage();
   t.after(() => other.page.close());
   await signIn(other.page);
   const html = (name) => other.page.getAttribute('html', name);
   await other.page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   assert.equal(await html('data-motion'), 'reduce');
+  await other.page.waitForFunction(() => document.documentElement.lang === 'de');
   await other.page.goto('about:blank');
   await other.page.goto(`${home}#/`);
   await other.page.waitForURL(/#\/warnings$/);

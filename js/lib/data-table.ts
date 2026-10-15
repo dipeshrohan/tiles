@@ -74,7 +74,6 @@ export interface TableOptions<T> {
 
 // The density a table has until it is given its own (U6.06: a person's preference).
 let defaultDensity: Density = 'comfortable';
-export const tableDensity = (): Density => defaultDensity;
 
 // A person's density, for every table: those not given their own, and (`all`, when they choose it)
 // every one kept here too, drawn or not.

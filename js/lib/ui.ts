@@ -235,14 +235,20 @@ export function input(o: InputOptions): string {
   return `<input${attrs({ type: o.type ?? 'text', name: o.name, value: o.value, placeholder: o.placeholder, class: o.class, ...o.attrs })}>`;
 }
 
-// <option>s from [value, label] pairs, the current value selected.
-export function options(list: readonly (readonly [string, string])[], current: string): string {
-  return list.map(([v, l]) => `<option${attrs({ value: v, selected: v === current })}>${esc(l)}</option>`).join('');
+// <option>s from [value, label] pairs, the current value selected; a third item is the label's
+// language, when it isn't the page's (a language named in itself: Deutsch).
+export function options(
+  list: readonly (readonly [string, string] | readonly [string, string, string])[],
+  current: string,
+): string {
+  return list
+    .map(([v, l, lang]) => `<option${attrs({ value: v, selected: v === current, lang })}>${esc(l)}</option>`)
+    .join('');
 }
 
 export function select(
   name: string | null,
-  list: readonly (readonly [string, string])[],
+  list: readonly (readonly [string, string] | readonly [string, string, string])[],
   current: string,
   o: { attrs?: ExtraAttrs & { name?: never }; class?: string } = {},
 ): string {

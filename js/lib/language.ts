@@ -1,5 +1,6 @@
 // The language Tiles is shown in (U6.03): English, German, and a pseudo-locale for testing layouts.
-// Chosen with ?lang=<code> (kept), in Settings, or by the browser's languages; English otherwise.
+// Chosen with ?lang=<code> (kept), in Your preferences (U6.06), or by the browser's languages;
+// English otherwise.
 // A language's messages are a classic script, js/messages-<code>.js (scripts/messages.js), added to
 // the page when it is chosen, so they work from file:// and stay out of the bundle. The
 // pseudo-locale is made here from English: accented and 40% longer, in brackets, so text that was

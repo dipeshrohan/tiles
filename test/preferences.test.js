@@ -2,14 +2,7 @@
 // a person chose over their language's.
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import {
-  changedPreferences,
-  cleanPreferences,
-  DEFAULTS,
-  NUMBER_FORMATS,
-  samePreferences,
-  toApi,
-} from '../js/lib/preferences.ts';
+import { cleanPreferences, DEFAULTS, NUMBER_FORMATS, samePreferences, toApi } from '../js/lib/preferences.ts';
 import { chooseFormat, formatSample, number, setFormatLocale } from '../js/lib/format.ts';
 import { browserLanguage } from '../js/lib/language.ts';
 
@@ -52,7 +45,7 @@ test('preferences kept or sent keep only what is known; the rest default', () =>
   assert.equal(cleanPreferences({ start: 'home' }, o).start, null);
 });
 
-test('as the API takes them, and what changed', () => {
+test('as the API takes them, and back', () => {
   const p = { ...DEFAULTS, timeZone: 'device', start: 'signals' };
   assert.deepEqual(toApi(p), {
     theme: 'system',
@@ -67,7 +60,6 @@ test('as the API takes them, and what changed', () => {
   assert.deepEqual(cleanPreferences(toApi(p), o), p); // and back
   assert.ok(samePreferences(p, { ...p }));
   assert.ok(!samePreferences(p, DEFAULTS));
-  assert.deepEqual(changedPreferences(DEFAULTS, p), ['timeZone', 'start']);
 });
 
 test('a number format chosen wins over the language’s, until it is cleared', () => {
@@ -84,9 +76,12 @@ test('a number format chosen wins over the language’s, until it is cleared', (
   setFormatLocale('en');
 });
 
-test('each format offered is named and shown with an example', () => {
+test('each format offered is named in the page’s language and shown with an example', () => {
   const day = Date.UTC(2026, 9, 16, 12);
   assert.deepEqual(formatSample('en-US', day), { name: 'English (United States)', sample: '1,234.5 · 10/16/26' });
+  chooseFormat('de-DE'); // numbers in German, the page in English: still named in English
+  assert.equal(formatSample('de-CH', day).name, 'German (Switzerland)');
+  chooseFormat(null);
   assert.equal(formatSample('de-DE', day).sample, '1.234,5 · 16.10.26');
   for (const code of NUMBER_FORMATS) assert.match(formatSample(code, day).sample, /1.?234[.,]5 · /);
 });

@@ -23,15 +23,14 @@ const view: View = {
     const p = ctx.preferences.current;
     const site = ctx.preferences.siteZone;
     const kept = ctx.preferences.kept === 'account' ? t('preferences.keptAccount') : t('preferences.keptBrowser');
-    const languages = `<select name="language">${[
-      ['auto', t('preferences.language.auto', { language: languageName(browserLanguage()) })],
-      ...LANGUAGES.map((l) => [l.code, l.name]),
-    ]
-      .map(
-        ([v, l]) =>
-          `<option value="${esc(v ?? '')}"${v !== 'auto' ? ` lang="${esc(v ?? '')}"` : ''}${v === p.language ? ' selected' : ''}>${esc(l ?? '')}</option>`,
-      )
-      .join('')}</select>`;
+    const languages = select(
+      'language',
+      [
+        ['auto', t('preferences.language.auto', { language: languageName(browserLanguage()) })],
+        ...LANGUAGES.map((l): [string, string, string] => [l.code, l.name, l.code]),
+      ],
+      p.language,
+    );
     const numbers: [string, string][] = [
       ['auto', t('preferences.numbers.auto')],
       ...NUMBER_FORMATS.map((code): [string, string] => {
@@ -94,7 +93,7 @@ const view: View = {
           `<h2>${esc(t('preferences.region.title'))}</h2>
           ${field(t('preferences.language.label'), languages, { hint: t('preferences.language.hint') })}
           ${field(t('preferences.numbers.label'), select('numbers', numbers, p.numbers))}
-          ${field(t('preferences.zone.label'), select('timeZone', zones, p.timeZone), { hint: site ? '' : t('preferences.zone.hintLocal') })}`,
+          ${field(t('preferences.zone.label'), select('timeZone', zones, p.timeZone), { hint: ctx.api ? '' : t('preferences.zone.hintLocal') })}`,
           { class: 'stack gap-3' },
         )}
         ${card(

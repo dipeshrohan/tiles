@@ -1043,19 +1043,19 @@ need(document, '#theme').addEventListener('click', () => setPreferences({ theme:
 const PREFS_KEY = 'preferences';
 const LANGUAGE_CODES = LANGUAGES.map((l) => l.code);
 const cleanPrefsOf = (v: unknown): Preferences => cleanPreferences(v, { languages: LANGUAGE_CODES, pages: NAV_PAGES });
-// Kept before U6.06: the theme on its own.
-let preferences: Preferences = cleanPrefsOf(
-  load<unknown>(PREFS_KEY, null) ?? { theme: load<Theme | null>('theme', null) },
-);
-let siteZone: string | null = null;
-
-function currentPreferences(): Preferences {
-  return {
-    ...preferences,
+// As kept here: the theme on its own before U6.06; the language as language.ts keeps it (?lang= too).
+const keptPreferences = (): Preferences =>
+  cleanPrefsOf({
+    ...(load<Record<string, unknown> | null>(PREFS_KEY, null) ?? { theme: load<Theme | null>('theme', null) }),
     language: keptLanguage() ?? 'auto',
-    shortcuts: shortcutsOn(),
-    start: prefs().start ?? null,
-  };
+  });
+let preferences: Preferences = keptPreferences();
+let siteZone: string | null = null;
+let edits = 0; // changes made here: a copy of the person's read before one is out of date
+
+// The language as chosen (it may still be loading); shortcuts and the start page where they are kept.
+function currentPreferences(): Preferences {
+  return { ...preferences, shortcuts: shortcutsOn(), start: prefs().start ?? null };
 }
 
 function applyZone(): void {
@@ -1098,6 +1098,7 @@ function setPreferences(patch: Partial<Preferences>): void {
   const before = currentPreferences();
   const next = cleanPrefsOf({ ...before, ...patch });
   if (samePreferences(before, next)) return;
+  edits++;
   applyPreferences(next, before);
   render();
   keepPreferences();
@@ -1117,8 +1118,10 @@ function keepPreferences(): void {
 async function fetchPreferences(): Promise<void> {
   const site = ctx.ontology.site;
   if (!api || !site) return;
+  const asked = edits;
   const kept = await api.preferences.get(site.id).catch(() => null);
   if (!kept?.preferences) return; // none kept yet: this browser's stay
+  if (edits !== asked) return; // changed here meanwhile: what was sent since wins
   const before = currentPreferences();
   const next = cleanPrefsOf(kept.preferences);
   if (samePreferences(before, next)) return;
@@ -1136,14 +1139,25 @@ function switchLanguage(choice: string, previous: string): void {
       if (choice === 'auto') forgetLanguage();
       else keepLanguage(code);
     } else {
+      // Not loaded: the one before stays chosen (as kept here still), and with the person.
       toast(t('app.languageFailed'), { type: 'error' });
-      if (previous === 'auto') forgetLanguage();
-      else keepLanguage(previous);
+      preferences = { ...preferences, language: previous };
+      keepPreferences();
     }
     translateStatic(document);
     render();
   });
 }
+
+// Changed in another tab: this one follows (it keeps the same, so it sends nothing).
+window.addEventListener('storage', (e) => {
+  if (e.key !== null && e.key !== `tiles:${PREFS_KEY}` && e.key !== 'tiles:language') return; // null: cleared
+  const before = currentPreferences();
+  const next = { ...keptPreferences(), shortcuts: before.shortcuts, start: before.start };
+  if (samePreferences(before, next)) return;
+  applyPreferences(next, before);
+  render();
+});
 need(document, '#menu').innerHTML = icon('menu', { size: 18 });
 
 // ---- command palette (U4.02) ------------------------------------------------
@@ -1834,9 +1848,9 @@ const shortcuts = installShortcuts({
   go: (page) => go(`#/${page === 'home' ? '' : page}`)(),
   title: (page) => NAV.flatMap((g) => g.items).find((v) => v.id === page)?.title ?? null,
   palette: () => palette.open(),
-  changed: () => {
+  changed: (here) => {
     keyHint();
-    keepPreferences(); // turned on or off in the ? list: kept with the person (U6.06)
+    if (here) keepPreferences(); // turned on or off in the ? list: kept with the person (U6.06)
     ctx.rerender();
   },
 });
@@ -2066,5 +2080,3 @@ else
     .then(() => translateStatic(document))
     .catch(reportError)
     .finally(start);
-// A language chosen elsewhere than Preferences (the `tiles:language` event names its code).
-window.addEventListener('tiles:language', (e) => setPreferences({ language: (e as CustomEvent<string>).detail }));
