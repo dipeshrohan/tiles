@@ -2757,6 +2757,100 @@ svg[data-chart]:focus-visible {
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-2);
 }
+/* The filter bar and saved views (U5.06). */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1_5);
+}
+.filter-chip {
+  gap: var(--space-1);
+  padding-right: var(--space-1);
+  cursor: default;
+}
+.chip-x {
+  display: inline-grid;
+  place-items: center;
+  padding: var(--space-0_5);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--soft);
+  cursor: pointer;
+}
+.chip-x:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+.menu-wrap {
+  position: relative;
+}
+.menu-wrap > summary {
+  list-style: none;
+}
+.menu-wrap > summary::-webkit-details-marker {
+  display: none;
+}
+.menu-wrap .menu-panel {
+  position: absolute;
+  left: 0;
+  z-index: var(--z-raised);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 200px;
+  margin: var(--space-1) 0 0;
+  padding: var(--space-2);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-2);
+}
+.views-menu .menu-panel {
+  left: auto;
+  right: 0;
+  min-width: min(360px, 90vw);
+  gap: var(--space-2);
+}
+.menu-item {
+  padding: var(--space-1_5) var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--panel-2);
+}
+.views-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.views-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.views-list a[aria-current='true'] {
+  font-weight: 650;
+}
 .table-frame {
   max-height: min(70vh, 720px);
   overflow: auto;

@@ -50,6 +50,7 @@ from tiles_api.api_sites import router as sites_router
 from tiles_api.api_suggest import router as suggest_router
 from tiles_api.api_sweeps import router as sweeps_router
 from tiles_api.api_ux import router as ux_router
+from tiles_api.api_views import router as views_router
 from tiles_api.api_warnings import router as warnings_router
 from tiles_api.api_wear import router as wear_router
 from tiles_api.logging import configure_logging, new_request_id, request_id_var
@@ -265,6 +266,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ux_router)
     app.include_router(feedback_router)
     app.include_router(home_router)
+    app.include_router(views_router)
     app.include_router(menu_router)
     app.include_router(search_router)
     telemetry.instrument(app, settings)

@@ -101,6 +101,8 @@ import { breadcrumbs, button, clockTime, resetIds } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installCharts } from './lib/charts.ts';
+import { openView, viewsFor } from './lib/filter-bar.ts';
+import { menuViews, viewHref } from './lib/saved-views.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
 import { installShortcuts, shortcutsOn } from './lib/shortcuts.ts';
 import { helpHref, helpItems, helpLoaded, loadHelp, pageSection } from './lib/help.ts';
@@ -699,6 +701,8 @@ function refreshCounts(): void {
     },
   );
 }
+// Saved views read (or changed): the menu lists them.
+document.addEventListener('tiles:views', () => renderNav(currentView()));
 document.addEventListener('tiles:ux', (e) => {
   const { kind, name } = (e as CustomEvent<{ kind: string; name: string }>).detail;
   if (kind === 'task' && /^(warning|review|ontology)\./.test(name) && counts) counts.at = 0;
@@ -725,7 +729,21 @@ function badges(): Record<string, NavBadge> {
 function renderNav(active: View): void {
   const p = prefs();
   document.body.classList.toggle('nav-rail', p.rail);
-  const html = navHtml({ groups: NAV_GROUPS, active: active.id, under: active.under, prefs: p, badges: badges() });
+  const views = menuViews(viewsFor(ctx) ?? []).map((v) => ({
+    id: v.id,
+    name: v.name,
+    href: viewHref(v),
+    shared: v.shared,
+    mine: v.mine,
+  }));
+  const html = navHtml({
+    groups: NAV_GROUPS,
+    active: active.id,
+    under: active.under,
+    prefs: p,
+    badges: badges(),
+    views,
+  });
   // Drawn as before (most redraws of a page): nothing to patch (U3.07).
   if (html !== navDrawn) morph(need(document, '#nav'), html);
   navDrawn = html;
@@ -922,7 +940,9 @@ async function sendSaved(): Promise<void> {
         ? client.copilot.remove(r.site, r.id)
         : r.kind === 'feedback'
           ? client.feedback.remove(r.site, Number(r.id))
-          : client.datasets.remove(r.site, r.id);
+          : r.kind === 'view'
+            ? client.views.remove(r.site, r.id)
+            : client.datasets.remove(r.site, r.id);
     await sent.catch(() => undefined); // the client showed why
   }
 }
@@ -1600,6 +1620,13 @@ need(document, '#nav').addEventListener('click', (e) => {
   const el = e.target instanceof Element ? e.target : null;
   const fold = el?.closest<HTMLElement>('[data-nav-fold]');
   const pin = el?.closest<HTMLElement>('[data-nav-pin]');
+  const saved = el?.closest<HTMLElement>('[data-nav-view]')?.dataset.navView;
+  const view = saved ? viewsFor(ctx)?.find((v) => v.id === saved) : undefined;
+  if (view) {
+    e.preventDefault();
+    openView(ctx, view); // its table settings, then its address
+    return closeMenu();
+  }
   if (fold) setPrefs(toggleFold(prefs(), fold.dataset.navFold ?? ''));
   else if (pin) {
     const next = togglePin(prefs(), pin.dataset.navPin ?? '');

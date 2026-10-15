@@ -38,7 +38,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[Feedback](#feedback) · [Home](#home) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[Feedback](#feedback) · [Home](#home) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
 
 ## Feedback
 
@@ -120,6 +120,55 @@ Go back to your role's cards on this site.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+## Saved views
+
+### `GET /sites/{site_id}/views`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Your saved views and those shared with the site (of one page, or every page), by page and name, yours first.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `page` | query | `warnings` \| `signals` \| `documents` | no |
+
+### `POST /sites/{site_id}/views`
+
+**Who:** site member. **Answers:** 201, 422.
+
+Save a view. Any member keeps their own; sharing it with the site needs engineer or above. A name you already use on the page is refused (409).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** ViewIn (see [openapi.json](openapi.json)).
+
+### `PATCH /sites/{site_id}/views/{view_id}`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Rename a view of yours, change what it keeps, or share or unshare it (sharing needs engineer or above).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `view_id` | path | uuid | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** ViewPatch (see [openapi.json](openapi.json)).
+
+### `DELETE /sites/{site_id}/views/{view_id}`
+
+**Who:** site member. **Answers:** 204, 422.
+
+Delete a view of yours; a site admin may also delete a shared one.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `view_id` | path | uuid | yes |
 | `site_id` | path | uuid | yes |
 
 ## UX analytics

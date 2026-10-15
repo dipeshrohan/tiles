@@ -11,6 +11,7 @@ import {
   titleFrom,
 } from '../lib/documents.ts';
 import type { Context, View } from './types.ts';
+import { bindFilterBar, filterBar, type BarOptions } from '../lib/filter-bar.ts';
 import { listKeys, recordFromHash, rowClicks, split } from '../lib/split.ts';
 import { showHash } from '../lib/url-state.ts';
 import { when } from '../lib/insights.ts';
@@ -180,6 +181,29 @@ function recordCard(ctx: Context): string {
   );
 }
 
+// The filter bar and saved views (U5.06): the search as a chip, with how many matched or are listed.
+function barOptions(ctx: Context): BarOptions {
+  const ui = uiState(ctx);
+  return {
+    page: 'documents',
+    filters: () => ({ q: ui.query }),
+    count: () => {
+      const n = (k: number, one: string, many: string) => `${k.toLocaleString('en-GB')} ${k === 1 ? one : many}`;
+      if (ui.query.trim()) {
+        const matches = found?.key === searchKey(ctx) ? found.matches : null;
+        return matches ? n(matches.length, 'match', 'matches') : '';
+      }
+      const docs = listing?.key === siteId(ctx) ? listing.items : null;
+      return docs ? n(docs.length, 'document', 'documents') : '';
+    },
+    apply: (f) => {
+      ui.query = (f.q ?? '').trim();
+      found = null;
+      ctx.rerender();
+    },
+  };
+}
+
 function searchCard(ctx: Context): string {
   const ui = uiState(ctx);
   const results = found?.key === searchKey(ctx) ? found.matches : undefined;
@@ -213,6 +237,7 @@ function searchCard(ctx: Context): string {
         <div class="self-end">${button('Search', { variant: 'primary', type: 'submit' })}</div>
       </form>
       <p class="small soft">Words find their forms (“valves” finds “valve”); “quoted words” find a phrase; -word leaves a word out.</p>
+      ${filterBar(ctx, barOptions(ctx))}
       <div aria-live="polite">${body}</div>`,
     { class: 'stack gap-3' },
   );
@@ -313,6 +338,17 @@ const view: View = {
   id: 'documents',
   title: 'Documents',
   icon: 'file-text',
+  // The search, in the address (U5.06: a saved view keeps it).
+  query: {
+    read(params, ctx) {
+      const q = (params.get('q') ?? '').trim().slice(0, 200);
+      if (q !== uiState(ctx).query) found = null;
+      uiState(ctx).query = q;
+    },
+    write(ctx) {
+      return { q: uiState(ctx).query || null };
+    },
+  },
   // The document open beside the list.
   crumbs(ctx) {
     const d = openDoc();
@@ -358,6 +394,7 @@ const view: View = {
     if (docs?.length) bindTable(root, listTable(ctx, docs));
     listKeys(root, '[data-doc-list] [data-doc]', (row) => row.getAttribute('data-doc') === String(opened()));
     rowClicks(root, '[data-doc-list]', '[data-doc]');
+    bindFilterBar(root, ctx, barOptions(ctx));
     onAll(root, '[data-retry-search]', 'click', () => {
       found = null;
       ctx.rerender();

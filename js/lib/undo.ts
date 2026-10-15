@@ -17,7 +17,7 @@ type Toast = (message: string, opts?: ToastOptions) => void;
 
 // What a waiting removal is, to send it from another load of the page.
 export interface Removal {
-  kind: 'conversation' | 'dataset' | 'feedback';
+  kind: 'conversation' | 'dataset' | 'feedback' | 'view';
   api: string; // the Tiles API it is on
   site: string;
   id: string;

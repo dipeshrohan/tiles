@@ -7793,6 +7793,46 @@
         "title": "SweepIn",
         "type": "object"
       },
+      "TablePrefs": {
+        "additionalProperties": false,
+        "description": "The table's sort, hidden columns and density, as the browser keeps them.",
+        "properties": {
+          "density": {
+            "default": "comfortable",
+            "enum": [
+              "comfortable",
+              "compact"
+            ],
+            "title": "Density",
+            "type": "string"
+          },
+          "hidden": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 40,
+            "title": "Hidden",
+            "type": "array"
+          },
+          "sort": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sort"
+          }
+        },
+        "title": "TablePrefs",
+        "type": "object"
+      },
       "Teams": {
         "properties": {
           "configured": {
@@ -8296,6 +8336,181 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "View": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mine": {
+            "description": "Whether you own it (and so may change it)",
+            "title": "Mine",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner": {
+            "description": "Its owner's name",
+            "title": "Owner",
+            "type": "string"
+          },
+          "page": {
+            "enum": [
+              "warnings",
+              "signals",
+              "documents"
+            ],
+            "title": "Page",
+            "type": "string"
+          },
+          "query": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Query",
+            "type": "object"
+          },
+          "shared": {
+            "title": "Shared",
+            "type": "boolean"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TablePrefs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "page",
+          "name",
+          "query",
+          "table",
+          "shared",
+          "mine",
+          "owner",
+          "updated_at"
+        ],
+        "title": "View",
+        "type": "object"
+      },
+      "ViewIn": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "page": {
+            "enum": [
+              "warnings",
+              "signals",
+              "documents"
+            ],
+            "title": "Page",
+            "type": "string"
+          },
+          "query": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "The page's filters, as in its address",
+            "title": "Query",
+            "type": "object"
+          },
+          "shared": {
+            "default": false,
+            "title": "Shared",
+            "type": "boolean"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TablePrefs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "page",
+          "name"
+        ],
+        "title": "ViewIn",
+        "type": "object"
+      },
+      "ViewPatch": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "shared": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared"
+          },
+          "table": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TablePrefs"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "ViewPatch",
         "type": "object"
       },
       "WarningDetail": {
@@ -17967,6 +18182,236 @@
         "summary": "Ux Summary",
         "tags": [
           "UX analytics"
+        ]
+      }
+    },
+    "/sites/{site_id}/views": {
+      "get": {
+        "description": "Your saved views and those shared with the site (of one page, or every page), by page and\nname, yours first.",
+        "operationId": "list_views_sites__site_id__views_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "warnings",
+                    "signals",
+                    "documents"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/View"
+                  },
+                  "title": "Response List Views Sites  Site Id  Views Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Views",
+        "tags": [
+          "Saved views"
+        ]
+      },
+      "post": {
+        "description": "Save a view. Any member keeps their own; sharing it with the site needs engineer or above.\nA name you already use on the page is refused (409).",
+        "operationId": "create_view_sites__site_id__views_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/View"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create View",
+        "tags": [
+          "Saved views"
+        ]
+      }
+    },
+    "/sites/{site_id}/views/{view_id}": {
+      "delete": {
+        "description": "Delete a view of yours; a site admin may also delete a shared one.",
+        "operationId": "delete_view_sites__site_id__views__view_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "view_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "View Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete View",
+        "tags": [
+          "Saved views"
+        ]
+      },
+      "patch": {
+        "description": "Rename a view of yours, change what it keeps, or share or unshare it (sharing needs engineer\nor above).",
+        "operationId": "update_view_sites__site_id__views__view_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "view_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "View Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViewPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/View"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update View",
+        "tags": [
+          "Saved views"
         ]
       }
     },
