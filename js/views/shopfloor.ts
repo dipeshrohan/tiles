@@ -1,7 +1,8 @@
-import { announce, esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
+import { announce, bound, esc, onAll, onNavigate, routeOf } from '../lib/dom.ts';
 import type { WarningOutcome } from '../lib/api.ts';
 import { OUTCOMES, when } from '../lib/warnings.ts';
-import { headline, machineBoard, type FloorItem } from '../lib/shopfloor.ts';
+import { CONTRAST_KEY, freshness, headline, machineBoard, type FloorItem } from '../lib/shopfloor.ts';
+import { load, save } from '../lib/store.ts';
 import type { Graph } from '../lib/types.ts';
 import {
   ensureFloor,
@@ -41,10 +42,40 @@ let timer: ReturnType<typeof setInterval> | null = null;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 
+// The screen stays on while the page is shown (U5.08): a tablet on the line must not go dark
+// between warnings. Asked again when the tab comes back (the browser lets it go when hidden).
+let awake: WakeLockSentinel | null = null;
+let waking = false; // asked, not answered: each render binds the page again
+async function keepAwake(): Promise<void> {
+  if (awake || waking || document.hidden || !('wakeLock' in navigator)) return;
+  waking = true;
+  try {
+    const lock = await navigator.wakeLock.request('screen');
+    awake = lock;
+    lock.onrelease = () => {
+      if (awake === lock) awake = null;
+    };
+  } catch {
+    awake = null; // not allowed (a low battery, a policy): the screen sleeps as usual
+  } finally {
+    waking = false;
+  }
+  // Left while it was asked for: let it go.
+  if (awake && routeOf(location.hash) !== 'shopfloor') {
+    void awake.release();
+    awake = null;
+  }
+}
+
+const offline = (): boolean => typeof navigator !== 'undefined' && navigator.onLine === false;
+const contrast = (): boolean => load<boolean>(CONTRAST_KEY, false) === true;
+
 function stop(): void {
   if (timer !== null) clearInterval(timer);
   timer = null;
-  document.body.classList.remove('floor-full');
+  document.body.classList.remove('floor-full', 'floor-contrast');
+  void awake?.release();
+  awake = null;
 }
 
 onNavigate((hash) => {
@@ -66,7 +97,8 @@ function actions(ctx: Context, item: FloorItem, ui: Ui): string {
   if (!ctx.api) return '<p class="small soft">Connect to the Tiles API in Settings to take and resolve warnings.</p>';
   const role = ctx.ontology.role;
   if (role !== 'engineer' && role !== 'admin') return '<p class="small soft">An engineer of the site acts on it.</p>';
-  const wait = busy !== null ? 'disabled' : '';
+  // Offline, a step can't be sent: the buttons say so rather than fail (the banner says why).
+  const wait = busy !== null || offline() ? 'disabled' : '';
   const label = (verb: string) => `${verb}: ${item.machine}, ${item.tag}`;
   if (ui.resolving === item.id) {
     const outcome = (o: WarningOutcome, cls: string) =>
@@ -190,6 +222,7 @@ const view: View = {
         <div><div class="eyebrow">Operations · ${esc(site)}</div>${status}</div>
         <div class="floor-tools">
           ${ctx.api ? '<button class="btn floor-btn" data-floor-refresh>Refresh</button>' : ''}
+          <button class="btn floor-btn" data-floor-contrast aria-pressed="${contrast()}">High contrast</button>
           <button class="btn floor-btn" data-floor-full aria-pressed="${ui.full}">${fullLabel}</button>
         </div>
       </div>`;
@@ -203,16 +236,12 @@ const view: View = {
       return `<div class="floor">${head('<h1 tabindex="-1">Shopfloor</h1>')}<div class="card">${skeleton.list(3, 'Loading the warnings…')}</div></div>`;
     const now = Date.now();
     const { tone, text } = headline(list);
-    const updated =
-      listed().at && ctx.api
-        ? `<div class="small soft" data-floor-updated>${
-            listed().stale
-              ? `As of ${clockTime(listed().at ?? 0)}: the last refresh failed, trying again in 30 seconds`
-              : `Updated ${clockTime(listed().at ?? 0)}; refreshes every 30 seconds`
-          }</div>`
-        : ctx.api
-          ? ''
-          : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
+    const fresh = ctx.api ? freshness({ ...listed(), offline: offline() }, clockTime) : null;
+    const updated = fresh
+      ? `<div class="small ${fresh.tone ? 'floor-stale' : 'soft'}" data-floor-updated ${fresh.tone ? 'role="status"' : ''}>${esc(fresh.text)}</div>`
+      : ctx.api
+        ? ''
+        : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
     shownHeadline = { site: siteId(ctx), text };
     const status = `<h1 class="floor-headline ${tone}" tabindex="-1">${esc(text)}</h1>${updated}`;
     const open = list.filter((i) => i.state !== 'ok');
@@ -231,6 +260,23 @@ const view: View = {
   bind(root, ctx) {
     const ui = uiState(ctx);
     document.body.classList.toggle('floor-full', ui.full);
+    document.body.classList.toggle('floor-contrast', contrast());
+    void keepAwake();
+    document.addEventListener('visibilitychange', () => void keepAwake(), { signal: bound() });
+    onAll(root, '[data-floor-contrast]', 'click', () => {
+      save(CONTRAST_KEY, !contrast());
+      ctx.rerender();
+    });
+    // The network gone and back: say so at once, and refresh as soon as it returns.
+    window.addEventListener('offline', () => ctx.rerender(), { signal: bound() });
+    window.addEventListener(
+      'online',
+      () => {
+        ctx.rerender();
+        if (ctx.api && ctx.ontology.status === 'ready') refreshFloor(ctx);
+      },
+      { signal: bound() },
+    );
     // The first headline is the page's heading, read as the page opens; later ones are news.
     if (shownHeadline && shownHeadline.text !== toldHeadline?.text) {
       if (toldHeadline && toldHeadline.site === shownHeadline.site) announce(shownHeadline.text);

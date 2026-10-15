@@ -3733,6 +3733,77 @@ test('viewers read warnings but cannot act on them; local mode explains the API 
   assert.deepEqual([...v.errors, ...errors], []);
 });
 
+test('the shopfloor field round: high contrast kept, offline said with the last data, back online refreshed, the screen kept on (U5.08)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  raiseFrictionWarnings(fake);
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  // A wake lock that says what was asked of it (headless Chromium has none to give).
+  await page.addInitScript(() => {
+    window.wakeLocks = [];
+    Object.defineProperty(navigator, 'wakeLock', {
+      value: {
+        request: async (type) => {
+          const lock = { type, released: false, onrelease: null };
+          lock.release = async () => {
+            lock.released = true;
+            lock.onrelease?.();
+          };
+          window.wakeLocks.push(lock);
+          return lock;
+        },
+      },
+    });
+  });
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/shopfloor`);
+  await page.waitForSelector('.floor-card');
+  const locks = () => page.evaluate(() => window.wakeLocks.map((l) => [l.type, l.released]));
+  await page.waitForFunction(() => window.wakeLocks.length === 1);
+  assert.deepEqual(await locks(), [['screen', false]]);
+
+  // High contrast for direct light: on, kept after a reload, greys made the ink.
+  await page.click('[data-floor-contrast]');
+  await page.waitForSelector('body.floor-contrast [data-floor-contrast][aria-pressed="true"]');
+  await page.reload();
+  await page.waitForSelector('body.floor-contrast .floor-card');
+  const [ink, soft] = await page.evaluate(() => [
+    getComputedStyle(document.querySelector('.floor-headline')).getPropertyValue('--ink'),
+    getComputedStyle(document.querySelector('.floor-where, .floor-tag')).color,
+  ]);
+  assert.ok(ink && soft, 'colours read');
+  assert.equal(
+    soft,
+    await page.evaluate(() => getComputedStyle(document.querySelector('.floor-card h2')).color),
+    'the tag is as dark as the machine name',
+  );
+
+  // The network gone: the last list stays, "as of" its time, and the steps wait.
+  await page.context().setOffline(true);
+  await page.waitForSelector('[data-floor-updated]:has-text("Offline: as of")');
+  assert.ok(await page.locator('.floor-card').count(), 'the last list is kept');
+  for (const disabled of await page
+    .locator('.floor-card [data-resolve]')
+    .evaluateAll((els) => els.map((e) => e.disabled)))
+    assert.ok(disabled, 'Resolve waits for the network');
+  // Back: refreshed at once.
+  const refreshed = page.waitForRequest((r) => r.method() === 'GET' && /\/warnings\?/.test(r.url()));
+  await page.context().setOffline(false);
+  await refreshed;
+  await page.waitForSelector('[data-floor-updated]:has-text("Updated")');
+  assert.ok(await page.locator('.floor-card [data-resolve]').first().isEnabled());
+
+  // Leaving lets the screen sleep, and takes the contrast with it.
+  await page.evaluate(() => (location.hash = '#/warnings'));
+  await page.waitForFunction(() => window.wakeLocks.every((l) => l.released));
+  assert.ok(!(await page.evaluate(() => document.body.classList.contains('floor-contrast'))));
+  assert.deepEqual(
+    errors.filter((e) => !e.includes('ERR_INTERNET_DISCONNECTED')),
+    [],
+  );
+});
+
 test('the shopfloor view: warnings first on their machines, taken and resolved with big buttons', async (t) => {
   const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
   const apiUrl = await fake.listen();
@@ -3772,8 +3843,11 @@ test('the shopfloor view: warnings first on their machines, taken and resolved w
   await page.waitForFunction(() =>
     document.getAnimations().every((a) => a.effect?.getTiming().iterations === Infinity),
   );
-  for (const box of await page.locator('.floor-btn').evaluateAll((els) => els.map((e) => e.getBoundingClientRect())))
-    assert.ok(box.height >= 64 && box.width >= 64, `a ${box.width}×${box.height} button`);
+  // Every control on the floor, not only its own buttons (U5.08's glove test).
+  for (const box of await page
+    .locator('.floor button, .floor a[href], .floor select, .floor input')
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect())))
+    assert.ok(box.height >= 64 && box.width >= 64, `a ${box.width}×${box.height} control`);
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   assert.ok(overflow <= 0, `page scrolls sideways by ${overflow}px`);
 

@@ -324,7 +324,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* Warnings, Signals and Documents have saved views shared on the pilot site.
 - [x] `U5.07` [#246](https://github.com/dipeshrohan/tiles/issues/246) **Notification centre** · FE+BE · 3d · U2.02
   *Done when:* a review request reaches the reviewer's bell within a minute, with tests.
-- [ ] `U5.08` [#247](https://github.com/dipeshrohan/tiles/issues/247) **Shopfloor field round** · FDE+FE · 2d · U2.06
+- [ ] `U5.08` [#247](https://github.com/dipeshrohan/tiles/issues/247) **Shopfloor field round** · FDE+FE · 2d · U2.06 (the software side is done; the day on the line follows [the field round](pilot/field-round.md))
   *Done when:* technicians on the line can triage with gloves in sunlight, as tested with them.
 - [ ] `U5.09` [#248](https://github.com/dipeshrohan/tiles/issues/248) ◇ **Compare mode** · FE · 3d · U5.03
   *Done when:* engineers on the pilot use it to compare before and after a change.

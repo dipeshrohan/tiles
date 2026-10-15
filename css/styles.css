@@ -3738,6 +3738,36 @@ th .col-resize:focus-visible {
   gap: var(--space-1_5);
   font-size: var(--text-xl);
 }
+/* High contrast (U5.08), for direct light: chosen on the page, or asked for by the system. Every
+   grey becomes the ink, lines and borders thicken, the page is the panel's colour. */
+body.floor-contrast .floor {
+  --soft: var(--ink);
+  --muted: var(--ink);
+  --line: var(--ink);
+  --line-strong: var(--ink);
+  --bg: var(--panel);
+  font-weight: 600;
+}
+body.floor-contrast .main {
+  background: var(--panel);
+}
+body.floor-contrast .floor-card,
+body.floor-contrast .floor-tile,
+body.floor-contrast .btn.floor-btn {
+  border-width: 3px;
+}
+@media (prefers-contrast: more) {
+  .floor {
+    --soft: var(--ink);
+    --muted: var(--ink);
+    --line: var(--ink);
+    --line-strong: var(--ink);
+  }
+}
+.floor-stale {
+  color: var(--warn-ink);
+  font-weight: 650;
+}
 /* Full view: the page alone, for a tablet mounted on the line. */
 body.floor-full .shell {
   grid-template-columns: 1fr;

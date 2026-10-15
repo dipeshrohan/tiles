@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { workingGraph } from '../js/lib/ontology.ts';
 import { seedOntology } from '../js/lib/data.ts';
 import {
+  freshness,
   floorOrder,
   headline,
   machineBoard,
@@ -176,4 +177,20 @@ test('the headline says what needs someone', () => {
     tone: 'bad',
     text: '2 open warnings: 1 signal still out, 2 nobody has taken',
   });
+});
+
+test('the line reads how fresh the floor is: offline, after a failed refresh, or up to date', () => {
+  const clock = () => '14:02';
+  assert.equal(freshness({ at: null, stale: false, offline: false }, clock), null);
+  assert.deepEqual(freshness({ at: 1, stale: false, offline: false }, clock), {
+    text: 'Updated 14:02; refreshes every 30 seconds',
+    tone: '',
+  });
+  assert.deepEqual(freshness({ at: 1, stale: true, offline: false }, clock), {
+    text: 'As of 14:02: the last refresh failed, trying again in 30 seconds',
+    tone: 'warn',
+  });
+  const off = freshness({ at: 1, stale: true, offline: true }, clock);
+  assert.equal(off.tone, 'warn');
+  assert.match(off.text, /^Offline: as of 14:02\. Taking and resolving wait for the network/);
 });
