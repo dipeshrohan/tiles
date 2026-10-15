@@ -166,9 +166,11 @@ Relationships: `contains`, `runs`, `consumes`, `controlledBy`, `emits`, `describ
 
 ### Moving around the canvas
 
-- **Zoom**: scroll the mouse wheel, or use the **+** and **−** buttons. **Fit** shows the whole map.
-- **Move**: drag the canvas.
+- **Zoom**: scroll the mouse wheel, or use the **+** and **−** buttons. **Fit to screen** shows the whole map, and **Focus selection** zooms to the nodes selected.
+- **Move**: drag the canvas, or press or drag on the minimap in its corner (the frame on it is what you see).
 - **Select a node**: click it (or tab to it and press Enter). Its details open in the panel on the right.
+- **Move between nodes**: with a node focused, the arrow keys go to the nearest node that way. Escape clears the selection.
+- **Select several**: Shift-click each node, or hold Shift and drag a box around them. Shift-click a selected node to take it out.
 - **Fold or open a node**: double-click it. A folded node shows "+N" for the nodes hidden below it.
 - **Fold a whole level**: use the fold list: **Show everything**, **Fold signals into their PLC**, **Fold into machines**, **Fold into lines** or **Fold into workcenters**. Large ontologies (over 400 nodes) open with signals folded into their PLC.
 - **Find a node**: type in **Find a node**. Matches light up. Press Enter or **Next** to go to each one; Tiles opens any folds above it.
@@ -182,6 +184,24 @@ Nodes with health issues and nodes touched by your staged changes are marked on 
 2. Choose the **Type** and type a **Label**.
 3. Optionally choose **Link from** and a **Relationship** to connect it to an existing node.
 4. Click **+ Stage node**.
+
+### Relating two nodes by dragging
+
+1. Click the first node. A dot shows on its right edge.
+2. Drag the dot onto the other node.
+3. The panel shows the relationship their types most likely mean (a line `contains` a machine, a PLC `emits` a signal). Change it if needed, or click **Swap direction**.
+4. Click **Add relationship**.
+
+### Changing several nodes at once
+
+With several nodes selected, the panel lists them and offers:
+
+- **Set a property on all of them**: type a key and value and click **Set**.
+- **Delete N nodes and their relationships**. Delete (or Backspace) on a focused node does the same for the selection.
+
+### Undo and redo
+
+**Undo** (Ctrl Z, ⌘ Z on a Mac) takes back the last thing you staged: a node with its relationship, a property set on several nodes or a deletion each go back in one step. **Redo** (Ctrl Shift Z or Ctrl Y) stages it again. Undo works on staged changes only: a commit is undone by reverting it in **History**. After a reload, undo takes back one change at a time.
 
 ### Editing a node
 

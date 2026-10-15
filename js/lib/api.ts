@@ -1232,6 +1232,9 @@ export function createApiClient(options: ApiOptions) {
       // All or none: the API stages every op or, if one doesn't fit, none.
       stageMany: (siteId: string, ops: Op[]) => request<Op[]>('POST', `${site(siteId)}/staged/batch`, ops),
       discard: (siteId: string) => request<void>('DELETE', `${site(siteId)}/staged`),
+      // Undo (U5.05): drops the last `count` of the `of` ops staged; refused if that is no longer what is staged.
+      unstage: (siteId: string, count: number, of: number) =>
+        request<Op[]>('POST', `${site(siteId)}/staged/undo`, { count, of }),
       commit: (siteId: string, message: string) => request<Commit>('POST', `${site(siteId)}/commits`, { message }),
       history: (siteId: string, { limit = 50, offset = 0 } = {}) =>
         request<Commit[]>('GET', `${site(siteId)}/commits?limit=${limit}&offset=${offset}`),

@@ -7983,6 +7983,30 @@
         "title": "Totals",
         "type": "object"
       },
+      "UnstageIn": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "description": "How many of the last staged ops to drop",
+            "maximum": 2000.0,
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "of": {
+            "description": "How many ops you have staged, as you last saw them",
+            "minimum": 1.0,
+            "title": "Of",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "of"
+        ],
+        "title": "UnstageIn",
+        "type": "object"
+      },
       "Unwatched": {
         "properties": {
           "asset": {
@@ -16378,6 +16402,65 @@
           }
         },
         "summary": "Stage Ops",
+        "tags": [
+          "ontology"
+        ]
+      }
+    },
+    "/sites/{site_id}/ontology/staged/undo": {
+      "post": {
+        "description": "Undo: drop your last `count` staged changes (U5.05). Refused (409) when you have staged or\ndiscarded elsewhere since you saw `of` of them. Open to every member, like discarding. Returns\nthe ops still staged.",
+        "operationId": "unstage_ops_sites__site_id__ontology_staged_undo_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UnstageIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Unstage Ops Sites  Site Id  Ontology Staged Undo Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unstage Ops",
         "tags": [
           "ontology"
         ]

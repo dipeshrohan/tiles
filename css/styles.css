@@ -1881,6 +1881,70 @@ tr.selected td {
 .canvas-wrap svg.panning {
   cursor: grabbing;
 }
+/* The builder (U5.05): the minimap in a corner, a box being dragged, a relationship being drawn. */
+.canvas-wrap {
+  position: relative;
+}
+.canvas-wrap svg.minimap {
+  position: absolute;
+  right: var(--space-2);
+  bottom: var(--space-2);
+  width: min(180px, 32%);
+  height: auto;
+  aspect-ratio: 3 / 2;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  cursor: pointer;
+  opacity: 0.92;
+}
+.mini-nodes {
+  fill: var(--line-strong);
+}
+.mini-view {
+  fill: var(--accent-soft, transparent);
+  fill-opacity: 0.35;
+  stroke: var(--accent);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+@media (max-width: 639px) {
+  .canvas-wrap svg.minimap {
+    display: none;
+  }
+}
+.box-select {
+  fill: var(--accent);
+  fill-opacity: 0.08;
+  stroke: var(--accent);
+  stroke-dasharray: 4 3;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.link-preview {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+.node .handle {
+  fill: var(--accent);
+  stroke: var(--panel);
+  stroke-width: 2;
+  cursor: crosshair;
+}
+.node.drop rect:first-child {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+.pick-list {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: grid;
+  gap: var(--space-1);
+}
 .canvas-tools {
   display: flex;
   flex-wrap: wrap;

@@ -1187,6 +1187,18 @@ Stage several changes, all or none (e.g. a node and its relationship). Returns a
 
 **Body:** list of any (see [openapi.json](openapi.json)).
 
+### `POST /sites/{site_id}/ontology/staged/undo`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Undo: drop your last `count` staged changes (U5.05). Refused (409) when you have staged or discarded elsewhere since you saw `of` of them. Open to every member, like discarding. Returns the ops still staged.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** UnstageIn (see [openapi.json](openapi.json)).
+
 ## organisation sign-in
 
 ### `GET /org`

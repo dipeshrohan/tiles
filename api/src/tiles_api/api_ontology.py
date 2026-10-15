@@ -293,6 +293,22 @@ def discard_staged(ctx: Ctx) -> None:
         ctx.audit("ontology.discard", "staged_ops", str(ctx.user.id), before={"ops": dropped})
 
 
+class UnstageIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    count: Annotated[int, Field(ge=1, le=2000, description="How many of the last staged ops to drop")]
+    of: Annotated[int, Field(ge=1, description="How many ops you have staged, as you last saw them")]
+
+
+@router.post("/sites/{site_id}/ontology/staged/undo", response_model=list[dict[str, Any]], tags=["ontology"])
+def unstage_ops(ctx: Ctx, body: UnstageIn) -> list[o.Op]:
+    """Undo: drop your last `count` staged changes (U5.05). Refused (409) when you have staged or
+    discarded elsewhere since you saw `of` of them. Open to every member, like discarding. Returns
+    the ops still staged."""
+    dropped: list[o.Op] = _run(store.unstage, ctx.conn, ctx.site_id, ctx.user, body.count, body.of)
+    ctx.audit("ontology.unstage", "staged_ops", str(ctx.user.id), before={"ops": dropped})
+    return store.load_staged(ctx.conn, ctx.site_id, ctx.user)
+
+
 @router.get("/sites/{site_id}/ontology/commits", response_model=list[Commit], tags=["ontology"])
 def get_history(
     ctx: Ctx, limit: Annotated[int, Query(ge=1, le=500)] = 50, offset: Annotated[int, Query(ge=0)] = 0

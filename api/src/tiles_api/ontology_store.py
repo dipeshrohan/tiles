@@ -119,6 +119,22 @@ def discard(conn: Conn, site_id: uuid.UUID, user: User) -> list[o.Op]:
     return dropped
 
 
+def unstage(conn: Conn, site_id: uuid.UUID, user: User, count: int, of: int) -> list[o.Op]:
+    """Drops the user's last `count` staged ops (undo, U5.05) and returns the ones dropped. `of` is
+    how many the browser saw: another tab having staged or discarded since makes it refuse."""
+    lock_site(conn, site_id)
+    staged = load_staged(conn, site_id, user)
+    if len(staged) != of:
+        raise o.OntologyError("Your staged changes changed elsewhere since: refresh to see them")
+    if count > len(staged):
+        raise o.OntologyError(f"Only {len(staged)} staged change(s) to undo")
+    keep = len(staged) - count
+    conn.execute(
+        "DELETE FROM staged_ops WHERE site_id = %s AND user_id = %s AND position >= %s", [site_id, user.id, keep]
+    )
+    return staged[keep:]
+
+
 def _write_ops(conn: Conn, site_id: uuid.UUID, ops: list[o.Op]) -> None:
     """Apply already-validated ops to the stored graph."""
     for op in ops:

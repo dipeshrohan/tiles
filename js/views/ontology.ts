@@ -7,6 +7,12 @@ import {
   centerOn,
   collapsible,
   fitView,
+  focusView,
+  inBox,
+  likelyRel,
+  minimapPath,
+  stepFrom,
+  type Direction,
   foldedCounts,
   hiddenByCollapse,
   hiddenUnder,
@@ -40,11 +46,13 @@ import type { OntologyImport } from '../lib/api.ts';
 import type { DiffStats, Graph, HealthIssue, HealthReport, NodeType, Op } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { pageHead } from '../lib/ui.ts';
-import { keyAttr } from '../lib/shortcuts.ts';
+import { keyAttr, typing } from '../lib/shortcuts.ts';
 
 interface OntologyUi {
   tab: 'canvas' | 'history' | 'health';
-  selected: string | null;
+  selected: string | null; // the node inspected, or last picked of several
+  selection: string[]; // several picked (shift-click, a box): with `selected`, the nodes selected
+  linking: { from: string; to: string } | null; // a drag from one node to another: the relationship to add
   hidden: NodeType[];
   collapsed: string[] | null; // null: automatic (signals folded away on large ontologies)
   view: ViewBox | null; // the part of the canvas shown; null: all of it
@@ -57,6 +65,8 @@ const uiState = (ctx: Context) =>
   ctx.ui<OntologyUi>('ontology', {
     tab: 'canvas',
     selected: null,
+    selection: [],
+    linking: null,
     hidden: [],
     collapsed: null,
     view: null,
@@ -69,6 +79,57 @@ const uiState = (ctx: Context) =>
 export function showHistory(ctx: Context): void {
   uiState(ctx).tab = 'history';
 }
+
+// The nodes selected (U5.05): those picked, and the one inspected, that are still in the graph.
+function selectedIds(ui: OntologyUi, graph: Graph): string[] {
+  const all = new Set(ui.selection);
+  if (ui.selected) all.add(ui.selected);
+  return [...all].filter((id) => graph.nodes[id]);
+}
+function selectOnly(ui: OntologyUi, id: string | null): void {
+  ui.selected = id;
+  ui.selection = [];
+  ui.linking = null;
+}
+// Shift-click: adds a node to the selection, or takes it out.
+function toggleSelected(ui: OntologyUi, graph: Graph, id: string): void {
+  const all = new Set(selectedIds(ui, graph));
+  if (all.has(id)) all.delete(id);
+  else all.add(id);
+  ui.selection = [...all];
+  ui.selected = all.has(id) ? id : (ui.selection.at(-1) ?? null);
+  ui.linking = null;
+}
+
+// Undo and redo of staged ops (U5.05), for the site they were staged on: each step is what one
+// action staged (a node and its relationship are one step). Steps from before a reload are gone:
+// undo then takes back one op at a time.
+let undoSteps: Op[][] = [];
+let redoSteps: Op[][] = [];
+let redoAt = -1; // how many ops were staged after the last undo or redo: more or fewer since drops redo
+let stepsFor = '';
+let undoNote = ''; // what the last undo or redo did, for screen readers
+function stepsOf(ctx: Context): void {
+  const where = ctx.ontology.site?.id ?? 'local';
+  if (where === stepsFor) return;
+  stepsFor = where;
+  undoSteps = [];
+  redoSteps = [];
+}
+const sameOps = (a: Op[], b: Op[]): boolean => JSON.stringify(a) === JSON.stringify(b);
+// What undo takes back: the last step while the staged ops still end with it, else the last op.
+function undoable(ctx: Context): Op[] {
+  stepsOf(ctx);
+  const staged = ctx.state.repo.staged;
+  const top = undoSteps.at(-1);
+  if (top && top.length <= staged.length && sameOps(staged.slice(-top.length), top)) return top;
+  return staged.slice(-1);
+}
+function canRedo(ctx: Context): boolean {
+  stepsOf(ctx);
+  return redoSteps.length > 0 && ctx.state.repo.staged.length === redoAt;
+}
+const changes = (n: number): string => `${n} change${n === 1 ? '' : 's'}`;
 
 const RELS = ['contains', 'runs', 'consumes', 'controlledBy', 'emits', 'describes', 'reads', 'monitors', 'feeds'];
 
@@ -97,6 +158,7 @@ function collapsedSet(graph: Graph, h: Hierarchy, ui: OntologyUi): Set<string> {
 // The last canvas drawn, for its handlers (zoom limits, where a node is).
 let drawn: (Layout & { graph: Graph }) | null = null;
 let centerAfterRender: string | null = null; // a search result to bring into view once drawn
+let focusAfterRender = false; // focus selection, once the folds hiding some of it are opened
 let canvasTall = ''; // the canvas's height, last worked out
 
 const short = (s: string, n = 19): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -184,6 +246,8 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
   const issueIds = new Set(health.issues.filter((i) => i.level !== 'info').map((i) => i.ref));
   const stagedIds = new Set(ctx.state.repo.staged.flatMap(touchedIds));
   const matches = new Set(searchNodes(graph, ui.search));
+  const picked = new Set(selectedIds(ui, graph));
+  const editor = ctx.ontology.role !== 'viewer';
   const edges = Object.values(graph.edges)
     .map((e) => {
       const a = pos.get(e.from);
@@ -195,7 +259,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       const y1 = a.y + BOX.h / 2;
       const y2 = b.y + BOX.h / 2;
       const dx = Math.max(40, Math.abs(x2 - x1) / 2) * (fwd ? 1 : -1);
-      const hl = ui.selected && (e.from === ui.selected || e.to === ui.selected);
+      const hl = picked.has(e.from) || picked.has(e.to);
       return `<path class="edge ${hl ? 'hl' : ''}" d="M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}"><title>${esc(graph.nodes[e.from]?.label)} —${esc(e.rel)}→ ${esc(graph.nodes[e.to]?.label)}</title></path>`;
     })
     .join('');
@@ -206,7 +270,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       const fold = counts.get(id) ?? 0; // the hidden nodes below it
       const cls = [
         'node',
-        ui.selected === id && 'sel',
+        picked.has(id) && 'sel',
         issueIds.has(id) && 'issue',
         stagedIds.has(id) && 'staged',
         matches.has(id) && 'match',
@@ -217,7 +281,11 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
       return `<g class="${cls}" data-node="${esc(id)}" data-key="node-${esc(id)}" transform="translate(${p.x},${p.y})" tabindex="0" role="button" aria-label="${esc(n.type)} ${esc(n.label)}${fold ? `, ${fold} folded` : ''}">
           <rect width="${BOX.w}" height="${BOX.h}" rx="6"/>
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
-          <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}
+          <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
+            editor && id === ui.selected && picked.size === 1
+              ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>Drag onto another node to relate them</title></circle>`
+              : ''
+          }
           <title>${esc(n.type)}: ${esc(n.label)}${fold ? ` (${fold} folded: double-click to open)` : ''}</title>
         </g>`;
     })
@@ -247,8 +315,17 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
             <span class="row gap-1">
               <button class="btn sm" data-zoom="out" aria-label="Zoom out">−</button>
               <button class="btn sm" data-zoom="in" aria-label="Zoom in">+</button>
-              <button class="btn sm" data-zoom="fit">Fit</button>
-            </span>
+              <button class="btn sm" data-zoom="fit">Fit to screen</button>
+              <button class="btn sm" data-zoom="focus" ${picked.size ? '' : 'disabled'}>Focus selection</button>
+            </span>${
+              editor
+                ? `<span class="row gap-1">
+              <button class="btn sm" data-undo aria-keyshortcuts="Control+Z Meta+Z" data-tooltip="Undo the last staged change (Ctrl Z)" ${undoable(ctx).length ? '' : 'disabled'}>Undo</button>
+              <button class="btn sm" data-redo aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" data-tooltip="Redo (Ctrl Shift Z)" ${canRedo(ctx) ? '' : 'disabled'}>Redo</button>
+              <span class="sr-only" aria-live="polite" data-undo-note>${esc(undoNote)}</span>
+            </span>`
+                : ''
+            }
             <select class="sm" data-fold-level aria-label="Fold the hierarchy">${LEVELS.map(
               ([value, label]) =>
                 `<option value="${value}" ${level?.[0] === value ? 'selected' : ''}>${label}</option>`,
@@ -261,14 +338,25 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
           </div>
           <div class="canvas-wrap" data-tour="onto-canvas">
             <svg data-canvas data-morph="replace" viewBox="${view.x} ${view.y} ${view.w} ${view.h}" preserveAspectRatio="xMidYMid meet">${edges}${nodes}</svg>
+            <svg class="minimap" data-minimap data-morph="replace" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><path class="mini-nodes" d="${minimapPath(pos)}"/><rect class="mini-view" data-mini-view x="${view.x}" y="${view.y}" width="${view.w}" height="${view.h}"/></svg>
           </div>
           <div class="statusbar">
             <span>Nodes: ${total}${pos.size < total ? ` (${pos.size} shown)` : ''}</span><span>Relationships: ${Object.keys(graph.edges).length}</span>
-            <span class="spacer"></span><span class="small soft">Scroll to zoom, drag to move, double-click a node to fold or open it</span>
+            <span class="spacer"></span><span class="small soft">Scroll to zoom, drag to move, Shift-drag to select, ${editor ? 'drag the dot on a selected node onto another to relate them, ' : ''}arrow keys to move between nodes, double-click to fold or open</span>
           </div>
           <div class="chips mt-2">${legend}</div>
         </div>
-        <div class="card" id="inspector">${ui.selected ? inspector(graph, ui.selected, counts, h) : ctx.ontology.role === 'viewer' ? viewOnlyNote() : newNodeForm(graph)}</div>
+        <div class="card" id="inspector">${
+          ui.linking && editor
+            ? linkPanel(graph, ui.linking)
+            : picked.size > 1
+              ? manyPanel(graph, [...picked], editor)
+              : ui.selected
+                ? inspector(graph, ui.selected, counts, h)
+                : editor
+                  ? newNodeForm(graph)
+                  : viewOnlyNote()
+        }</div>
       </div>`;
 }
 
@@ -308,6 +396,62 @@ function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hie
         <button class="btn sm" type="submit">Link</button>
       </form>
       <button class="btn danger sm" data-delete ${rels.length ? `disabled title="Remove its ${rels.length} relationship(s) first"` : ''}>Delete node</button>`;
+}
+
+// A drag from one node onto another (U5.05): the relationship it most likely means, to confirm.
+function linkPanel(graph: Graph, link: { from: string; to: string }): string {
+  const a = graph.nodes[link.from];
+  const b = graph.nodes[link.to];
+  if (!a || !b) return '';
+  const rel = likelyRel(a.type, b.type);
+  return `
+      <div class="card-head"><h2>New relationship</h2><button class="btn sm" type="button" data-link-cancel aria-label="Cancel">✕</button></div>
+      <p class="small mb-3"><b>${esc(a.label)}</b> <span class="soft">${esc(a.type)}</span> → <b>${esc(b.label)}</b> <span class="soft">${esc(b.type)}</span></p>
+      <form class="row wrap gap-2 m-0" id="drag-link-form">
+        <select name="rel" aria-label="Relationship">${RELS.map((r) => `<option ${r === rel ? 'selected' : ''}>${r}</option>`).join('')}</select>
+        <button class="btn primary sm" type="submit">Add relationship</button>
+        <button class="btn sm" type="button" data-link-swap>Swap direction</button>
+      </form>`;
+}
+
+// Relationships to or from any of `ids`.
+function edgesTouching(graph: Graph, ids: string[]): string[] {
+  const set = new Set(ids);
+  return Object.values(graph.edges)
+    .filter((e) => set.has(e.from) || set.has(e.to))
+    .map((e) => e.id);
+}
+
+const MANY_LISTED = 12;
+
+// Several nodes selected (U5.05): what they are, and what can be done to all of them at once.
+function manyPanel(graph: Graph, ids: string[], editor: boolean): string {
+  const edges = edgesTouching(graph, ids).length;
+  const listed = ids
+    .slice(0, MANY_LISTED)
+    .map((id) => {
+      const n = graph.nodes[id];
+      return n
+        ? `<li data-key="pick-${esc(id)}"><a href="#/ontology" data-goto="${esc(id)}">${esc(n.label)}</a> <span class="small soft">${esc(n.type)}</span></li>`
+        : '';
+    })
+    .join('');
+  const more = ids.length > MANY_LISTED ? `<li class="small soft">and ${ids.length - MANY_LISTED} more</li>` : '';
+  return `
+      <div class="card-head"><h2>${ids.length} nodes selected</h2><button class="btn sm" data-deselect aria-label="Clear the selection">✕</button></div>
+      <ul class="pick-list">${listed}${more}</ul>
+      <p class="small soft mt-2 mb-3">Shift-click a node to add it or take it out, or Shift-drag a box around more.</p>
+      ${
+        editor
+          ? `<h3 class="mb-1_5">Set a property on all of them</h3>
+      <form class="row mt-2 mb-4 m-0" id="many-prop-form">
+        <input type="text" name="key" placeholder="key" class="w-6em" required aria-label="Property key" />
+        <input type="text" name="value" placeholder="value" class="grow w-6em" required aria-label="Property value" />
+        <button class="btn sm" type="submit">Set</button>
+      </form>
+      <button class="btn danger sm" data-delete-many>Delete ${ids.length} nodes${edges ? ` and their ${edges} relationship${edges === 1 ? '' : 's'}` : ''}</button>`
+          : ''
+      }`;
 }
 
 // A file being imported (T2.13, API mode): read here, planned by the API, staged once confirmed.
@@ -422,9 +566,19 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     const fit = fitView(v.w, v.h, aspect);
     return { x: v.x + fit.x, y: v.y + fit.y, w: fit.w, h: fit.h };
   };
+  // The minimap's frame follows the view.
+  const miniView = root.querySelector<SVGRectElement>('[data-mini-view]');
+  const frame = (v: ViewBox) => {
+    if (!miniView) return;
+    miniView.setAttribute('x', String(v.x));
+    miniView.setAttribute('y', String(v.y));
+    miniView.setAttribute('width', String(v.w));
+    miniView.setAttribute('height', String(v.h));
+  };
   const setView = (v: ViewBox) => {
     svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`);
     ui.view = v;
+    frame(v);
   };
   const toDrawing = (clientX: number, clientY: number) => {
     const m = svg.getScreenCTM();
@@ -441,6 +595,20 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
         ? fitView(limits.width, limits.height, aspect, svg.clientWidth / MAX_FIT_SCALE)
         : { x: 0, y: 0, w: limits.width, h: limits.height };
     svg.setAttribute('viewBox', `${v.x} ${v.y} ${v.w} ${v.h}`); // not kept: the next render fits again
+    frame(v);
+  };
+  // Focus selection: the view that shows every node selected (opening the folds hiding any).
+  const focusSelection = () => {
+    const ids = selectedIds(ui, ctx.graph);
+    if (!ids.length) return;
+    if (ids.some((id) => !layoutNow.pos.has(id))) {
+      for (const id of ids) reveal(ctx.graph, ui, id);
+      focusAfterRender = true;
+      ctx.rerender();
+      return;
+    }
+    const v = focusView(layoutNow.pos, ids, svg.clientWidth / Math.max(1, svg.clientHeight));
+    if (v) setView(v);
   };
   const zoom = (factor: number, at?: { x: number; y: number }) => {
     const v = shaped();
@@ -460,9 +628,14 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
       wrap.style.height = canvasTall = `${tall}px`;
     }
     if (!ui.view) showAll();
+    else frame(shaped());
     if (centerAfterRender === center) centerAfterRender = null;
     const p = center ? layoutNow.pos.get(center) : undefined;
     if (p) setView(centerOn(shaped(), p));
+    if (focusAfterRender) {
+      focusAfterRender = false;
+      focusSelection();
+    }
   });
 
   svg.addEventListener(
@@ -476,15 +649,34 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
   onAll(root, '[data-zoom]', 'click', (el) => {
     if (el.dataset.zoom === 'in') zoom(1.5);
     else if (el.dataset.zoom === 'out') zoom(1 / 1.5);
+    else if (el.dataset.zoom === 'focus') focusSelection();
     else {
       ui.view = null;
       showAll();
     }
   });
 
-  // Drag to pan; a drag ends without the click that would select a node.
-  let drag: { x: number; y: number; view: ViewBox; scale: number; moved: boolean; id: number } | null = null;
+  // Drag to pan, Shift-drag to select the nodes in a box, and (editors) drag the handle of the node
+  // selected onto another to relate them (U5.05): from anywhere on a node, a drag still pans. A drag ends without the click that would select a node.
+  const editor = ctx.ontology.role !== 'viewer';
+  const NS = 'http://www.w3.org/2000/svg';
+  interface Drag {
+    x: number;
+    y: number;
+    view: ViewBox;
+    scale: number;
+    moved: boolean;
+    id: number;
+    mode: 'pan' | 'box' | 'link';
+    from: string | null;
+    start: { x: number; y: number };
+    mark: SVGElement | null;
+    over: Element | null;
+  }
+  let drag: Drag | null = null;
   let swallowClick = false;
+  const nodeAt = (x: number, y: number): Element | null =>
+    document.elementFromPoint(x, y)?.closest('[data-node]') ?? null;
   svg.addEventListener(
     'pointerdown',
     (e) => {
@@ -492,7 +684,23 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
       if (e.button !== 0) return;
       const view = shaped();
       const scale = Math.max(view.w / Math.max(1, svg.clientWidth), view.h / Math.max(1, svg.clientHeight));
-      drag = { x: e.clientX, y: e.clientY, view, scale, moved: false, id: e.pointerId };
+      const handle = editor && e.target instanceof Element ? e.target.closest('[data-handle]') : null;
+      const from = handle?.closest<SVGGElement>('[data-node]')?.dataset.node ?? null;
+      const mode = e.shiftKey ? 'box' : from ? 'link' : 'pan';
+      const start = toDrawing(e.clientX, e.clientY);
+      drag = {
+        x: e.clientX,
+        y: e.clientY,
+        view,
+        scale,
+        moved: false,
+        id: e.pointerId,
+        mode,
+        from,
+        start,
+        mark: null,
+        over: null,
+      };
     },
     { signal: bound() },
   );
@@ -503,21 +711,118 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
       const dx = e.clientX - drag.x;
       const dy = e.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) < 4) return;
-      if (!drag.moved) svg.setPointerCapture(e.pointerId);
+      if (!drag.moved) {
+        svg.setPointerCapture(e.pointerId);
+        if (drag.mode !== 'pan') {
+          drag.mark = document.createElementNS(NS, drag.mode === 'box' ? 'rect' : 'line');
+          drag.mark.setAttribute('class', drag.mode === 'box' ? 'box-select' : 'link-preview');
+          svg.append(drag.mark);
+        }
+      }
       drag.moved = true;
-      svg.classList.add('panning');
-      setView(panBy(drag.view, -dx * drag.scale, -dy * drag.scale));
+      if (drag.mode === 'pan') {
+        svg.classList.add('panning');
+        setView(panBy(drag.view, -dx * drag.scale, -dy * drag.scale));
+        return;
+      }
+      const at = toDrawing(e.clientX, e.clientY);
+      const mark = drag.mark;
+      if (!mark) return;
+      if (drag.mode === 'box') {
+        mark.setAttribute('x', String(Math.min(at.x, drag.start.x)));
+        mark.setAttribute('y', String(Math.min(at.y, drag.start.y)));
+        mark.setAttribute('width', String(Math.abs(at.x - drag.start.x)));
+        mark.setAttribute('height', String(Math.abs(at.y - drag.start.y)));
+        return;
+      }
+      const p = drag.from ? layoutNow.pos.get(drag.from) : undefined;
+      if (p) {
+        mark.setAttribute('x1', String(p.x + BOX.w / 2));
+        mark.setAttribute('y1', String(p.y + BOX.h / 2));
+      }
+      mark.setAttribute('x2', String(at.x));
+      mark.setAttribute('y2', String(at.y));
+      const over = nodeAt(e.clientX, e.clientY);
+      const target = over && (over as SVGGElement).dataset.node !== drag.from ? over : null;
+      if (target !== drag.over) {
+        drag.over?.classList.remove('drop');
+        target?.classList.add('drop');
+        drag.over = target;
+      }
     },
     { signal: bound() },
   );
   const endDrag = (e: PointerEvent) => {
     if (!drag || e.pointerId !== drag.id) return;
-    swallowClick = drag.moved;
+    const done = drag;
     drag = null;
+    swallowClick = done.moved;
     svg.classList.remove('panning');
+    done.mark?.remove();
+    done.over?.classList.remove('drop');
+    if (!done.moved || e.type === 'pointercancel') return;
+    if (done.mode === 'box') {
+      const at = toDrawing(e.clientX, e.clientY);
+      const ids = inBox(layoutNow.pos, {
+        x: done.start.x,
+        y: done.start.y,
+        w: at.x - done.start.x,
+        h: at.y - done.start.y,
+      });
+      if (!ids.length) return;
+      ui.selection = [...new Set([...selectedIds(ui, ctx.graph), ...ids])];
+      ui.selected ??= ids[0] ?? null;
+      ui.linking = null;
+      ctx.rerender();
+    } else if (done.mode === 'link' && done.from) {
+      const to = (nodeAt(e.clientX, e.clientY) as SVGGElement | null)?.dataset.node;
+      if (!to || to === done.from) return;
+      selectOnly(ui, done.from);
+      ui.linking = { from: done.from, to };
+      ctx.rerender();
+      document.querySelector<HTMLSelectElement>('#drag-link-form select')?.focus({ preventScroll: true });
+    }
   };
   svg.addEventListener('pointerup', endDrag, { signal: bound() });
   svg.addEventListener('pointercancel', endDrag, { signal: bound() });
+
+  // The minimap: press or drag on it to move the view there.
+  const minimap = root.querySelector<SVGSVGElement>('svg[data-minimap]');
+  if (minimap) {
+    let moving: number | null = null;
+    const moveTo = (e: PointerEvent) => {
+      const m = minimap.getScreenCTM();
+      if (!m) return;
+      const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+      const v = shaped();
+      setView({ ...v, x: p.x - v.w / 2, y: p.y - v.h / 2 });
+    };
+    minimap.addEventListener(
+      'pointerdown',
+      (e) => {
+        if (e.button !== 0) return;
+        moving = e.pointerId;
+        minimap.setPointerCapture(e.pointerId);
+        moveTo(e);
+      },
+      { signal: bound() },
+    );
+    minimap.addEventListener(
+      'pointermove',
+      (e) => {
+        if (moving === e.pointerId) moveTo(e);
+      },
+      { signal: bound() },
+    );
+    for (const type of ['pointerup', 'pointercancel'] as const)
+      minimap.addEventListener(
+        type,
+        () => {
+          moving = null;
+        },
+        { signal: bound() },
+      );
+  }
   svg.addEventListener(
     'click',
     (e) => {
@@ -583,7 +888,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
     const id = found[ui.match];
     if (!id) return;
     reveal(ctx.graph, ui, id);
-    ui.selected = id;
+    selectOnly(ui, id);
     centerAfterRender = id;
     ctx.rerender();
     // Keep typing where you were.
@@ -608,7 +913,7 @@ function bindCanvas(root: HTMLElement, ctx: Context, ui: OntologyUi): void {
 // Controls that change the ontology; removed for viewers (the API refuses
 // their writes anyway, this just keeps the page honest).
 const EDIT_CONTROLS =
-  '#node-form, #prop-form, #link-form, [data-unset], [data-unlink], [data-delete], [data-fix-delete], [data-revert], [data-import-demo]';
+  '#node-form, #prop-form, #link-form, #many-prop-form, #drag-link-form, [data-unset], [data-unlink], [data-delete], [data-delete-many], [data-fix-delete], [data-revert], [data-import-demo], [data-undo], [data-redo]';
 
 function viewOnlyNote(): string {
   return `
@@ -761,13 +1066,15 @@ const view: View = {
       linkedNode = null; // once: a node not in the graph is let go
       if (graph.nodes[id]) {
         ui.tab = 'canvas';
-        ui.selected = id;
+        selectOnly(ui, id);
         reveal(graph, ui, id);
         centerAfterRender = id;
       }
     }
     const health = graphHealth(graph);
     if (ui.selected && !graph.nodes[ui.selected]) ui.selected = null;
+    ui.selection = ui.selection.filter((id) => graph.nodes[id]);
+    if (ui.linking && !(graph.nodes[ui.linking.from] && graph.nodes[ui.linking.to])) ui.linking = null;
 
     const { conflict } = safeWorkingGraph(repo);
     const stagedBar = conflict
@@ -820,8 +1127,85 @@ const view: View = {
     const ui = uiState(ctx);
     if (ctx.ontology.role === 'viewer') root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
     const author = ctx.state.user.email;
-    const stageOps = (ops: Op[], ok?: string) => ctx.ontology.act((store, repo) => store.stage(repo, ops), ok);
+    // Each action staged is one step to undo (U5.05); a new one drops what could be redone.
+    const stageOps = (ops: Op[], ok?: string) =>
+      ctx.ontology
+        .act((store, repo) => store.stage(repo, ops), ok)
+        .then((done) => {
+          if (done) {
+            stepsOf(ctx);
+            undoSteps.push(ops);
+            if (undoSteps.length > 100) undoSteps.shift();
+            redoSteps = [];
+            undoNote = '';
+          }
+          return done;
+        });
     const stageOp = (op: Op, ok?: string) => stageOps([op], ok);
+    let undoing = false; // one undo or redo at a time: a key held down waits for each
+    const undo = async () => {
+      const ops = undoable(ctx);
+      if (undoing || !ops.length || ctx.ontology.role === 'viewer') return;
+      undoing = true;
+      const top = undoSteps.at(-1);
+      const done = await ctx.ontology.act((store, repo) => store.unstage(repo, ops.length));
+      undoing = false;
+      if (!done) return;
+      if (top === ops) undoSteps.pop();
+      redoSteps.push(ops);
+      redoAt = ctx.state.repo.staged.length;
+      undoNote = `Undid ${changes(ops.length)}`;
+      ux('task', 'ontology.undo');
+      ctx.rerender();
+    };
+    const redo = async () => {
+      const ops = redoSteps.at(-1);
+      if (undoing || !ops || !canRedo(ctx)) return;
+      undoing = true;
+      const done = await ctx.ontology.act((store, repo) => store.stage(repo, ops));
+      undoing = false;
+      if (!done) {
+        redoSteps = []; // it no longer fits: someone committed a change it conflicts with
+        return;
+      }
+      redoSteps.pop();
+      undoSteps.push(ops);
+      redoAt = ctx.state.repo.staged.length;
+      undoNote = `Redid ${changes(ops.length)}`;
+      ux('task', 'ontology.redo');
+      ctx.rerender();
+    };
+    onAll(root, '[data-undo]', 'click', () => void undo());
+    onAll(root, '[data-redo]', 'click', () => void redo());
+    // Ctrl Z and Ctrl Shift Z (⌘ on a Mac; Ctrl Y too) anywhere on the page but in a field.
+    document.addEventListener(
+      'keydown',
+      (e) => {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey || e.defaultPrevented || typing(e.target)) return;
+        if (document.querySelector('dialog[open]')) return;
+        const key = e.key.toLowerCase();
+        if (key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          void undo();
+        } else if ((key === 'z' && e.shiftKey) || (key === 'y' && !e.shiftKey)) {
+          e.preventDefault();
+          void redo();
+        }
+      },
+      { signal: bound() },
+    );
+    // Deletes the nodes selected and their relationships, as one step to undo.
+    const deleteSelected = () => {
+      const ids = selectedIds(ui, ctx.graph);
+      if (!ids.length || ctx.ontology.role === 'viewer') return;
+      const ops: Op[] = [
+        ...edgesTouching(ctx.graph, ids).map((id): Op => ({ kind: 'removeEdge', id })),
+        ...ids.map((id): Op => ({ kind: 'removeNode', id })),
+      ];
+      selectOnly(ui, null);
+      void stageOps(ops, ids.length === 1 ? 'Node deletion staged' : `Deletion of ${ids.length} nodes staged`);
+    };
+    onAll(root, '[data-delete-many]', 'click', deleteSelected);
     onAll(root, '[data-refresh]', 'click', () => void ctx.ontology.reload());
     onAll(root, '[data-export]', 'click', async (el) => {
       const site = ctx.ontology.site;
@@ -910,7 +1294,7 @@ const view: View = {
     };
     const select = (id: string | undefined, scroll = true) => {
       if (!id) return;
-      ui.selected = id;
+      selectOnly(ui, id);
       ctx.rerender();
       if (scroll) toInspector();
     };
@@ -926,15 +1310,62 @@ const view: View = {
     // the node): the page moving between the two clicks would send the second elsewhere.
     onAll(root, '[data-node]', 'click', (el, e) => {
       if (e.detail > 1) return; // the second of a double click: it folds or opens (bindCanvas)
+      const id = el.dataset.node;
+      if (e.shiftKey && id) {
+        toggleSelected(ui, ctx.graph, id);
+        ctx.rerender();
+        return;
+      }
       pressedNode = el.dataset.node ?? null;
       select(el.dataset.node, false);
       clearTimeout(inspectorTimer);
       inspectorTimer = setTimeout(toInspector, DOUBLE_CLICK_MS);
     });
+    // Keys on a node: Enter or Space selects it (with Shift, adds it), the arrow keys move to the
+    // nearest node that way, Escape clears the selection and Delete deletes what is selected.
+    const ARROWS: Record<string, Direction> = {
+      ArrowLeft: 'left',
+      ArrowRight: 'right',
+      ArrowUp: 'up',
+      ArrowDown: 'down',
+    };
     onAll(root, '[data-node]', 'keydown', (el, e) => {
+      const id = el.dataset.node;
+      if (!id || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        select(el.dataset.node);
+        if (e.shiftKey) {
+          toggleSelected(ui, ctx.graph, id);
+          ctx.rerender();
+        } else select(id);
+        return;
+      }
+      const dir = ARROWS[e.key];
+      if (dir) {
+        e.preventDefault();
+        const next = drawn ? stepFrom(drawn.pos, id, dir) : null;
+        if (!next) return;
+        if (e.shiftKey) {
+          ui.selection = [...new Set([...selectedIds(ui, ctx.graph), next])];
+          ui.selected = next;
+        } else selectOnly(ui, next);
+        const p = drawn?.pos.get(next);
+        const v = ui.view;
+        if (p && v && (p.x < v.x || p.y < v.y || p.x + BOX.w > v.x + v.w || p.y + BOX.h > v.y + v.h))
+          centerAfterRender = next;
+        ctx.rerender();
+        document.querySelector<SVGGElement>(`#view [data-node="${CSS.escape(next)}"]`)?.focus({ preventScroll: true });
+        return;
+      }
+      if (e.key === 'Escape' && selectedIds(ui, ctx.graph).length) {
+        e.preventDefault();
+        selectOnly(ui, null);
+        ctx.rerender();
+        document.querySelector<SVGGElement>(`#view [data-node="${CSS.escape(id)}"]`)?.focus({ preventScroll: true });
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (!selectedIds(ui, ctx.graph).includes(id)) selectOnly(ui, id);
+        e.preventDefault();
+        deleteSelected();
       }
     });
     bindCanvas(root, ctx, ui);
@@ -943,14 +1374,50 @@ const view: View = {
       const id = el.dataset.goto;
       if (!id) return;
       reveal(ctx.graph, ui, id);
-      ui.selected = id;
+      selectOnly(ui, id);
       ui.tab = 'canvas';
       centerAfterRender = id;
       ctx.rerender();
     });
     onAll(root, '[data-deselect]', 'click', () => {
-      ui.selected = null;
+      selectOnly(ui, null);
       ctx.rerender();
+    });
+    onAll(root, '[data-link-cancel]', 'click', () => {
+      ui.linking = null;
+      ctx.rerender();
+    });
+    onAll(root, '[data-link-swap]', 'click', () => {
+      const link = ui.linking;
+      if (!link) return;
+      ui.linking = { from: link.to, to: link.from };
+      ui.selected = link.to;
+      ctx.rerender();
+    });
+    onSubmit(root, '#drag-link-form', (form) => {
+      const link = ui.linking;
+      if (!link) return;
+      const rel = field(form, 'rel');
+      const { from, to } = link;
+      let id = `${from}-${rel}-${to}`;
+      for (let k = 2; ctx.graph.edges[id]; k++) id = `${from}-${rel}-${to}-${k}`;
+      return stageOps([{ kind: 'addEdge', edge: { id, from, rel, to } }], 'Relationship staged').then((ok) => {
+        if (!ok) return;
+        ux('task', 'ontology.related');
+        if (ui.linking === link) ui.linking = null;
+        ctx.rerender();
+      });
+    });
+    onSubmit(root, '#many-prop-form', (form) => {
+      const ids = selectedIds(ui, ctx.graph);
+      const key = field(form, 'key').trim();
+      const raw = field(form, 'value').trim();
+      const value = raw !== '' && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
+      if (!ids.length) return;
+      return stageOps(
+        ids.map((id): Op => ({ kind: 'setProp', id, key, value })),
+        `${key} set on ${ids.length} nodes`,
+      ).then(() => undefined);
     });
     onAll(root, '[data-type]', 'click', (el) => {
       const t = el.dataset.type as NodeType | undefined;
@@ -968,7 +1435,7 @@ const view: View = {
     onAll(root, '[data-delete]', 'click', () => {
       const id = selected();
       if (!id) return;
-      ui.selected = null;
+      selectOnly(ui, null);
       stageOp({ kind: 'removeNode', id }, 'Node deletion staged');
     });
     onAll(root, '[data-fix-delete]', 'click', (el) => {
@@ -1033,7 +1500,7 @@ const view: View = {
       if (from) ops.push({ kind: 'addEdge', edge: { id: `${from}-${rel}-${id}`, from, rel, to: id } });
       void stageOps(ops, 'Node staged — commit to save it').then((ok) => {
         if (ok) {
-          ui.selected = id;
+          selectOnly(ui, id);
           ctx.rerender();
         }
       });

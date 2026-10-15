@@ -296,3 +296,31 @@ def test_batch_staging_is_all_or_nothing(api: TestClient, site: str) -> None:
     assert (res.status_code, res.json()["detail"]) == (409, "Node c already exists")
     assert len(api.get(url(site, "staged")).json()) == 3
     assert api.post(url(site, "staged/batch"), json=[]).status_code == 422
+
+
+def test_undo_drops_my_last_staged_ops(api: TestClient, site: str) -> None:
+    api.post(url(site, "staged/batch"), json=[node("a"), node("b"), node("c")], headers=ALICE)
+    api.post(url(site, "staged"), json=node("x"), headers=BOB)
+    res = api.post(url(site, "staged/undo"), json={"count": 2, "of": 3}, headers=ALICE)
+    assert res.status_code == 200
+    assert [op["node"]["id"] for op in res.json()] == ["a"]
+    assert [op["node"]["id"] for op in api.get(url(site, "staged"), headers=ALICE).json()] == ["a"]
+    assert len(api.get(url(site, "staged"), headers=BOB).json()) == 1
+    # Redo stages them again, after the one kept.
+    api.post(url(site, "staged/batch"), json=[node("b"), node("c")], headers=ALICE)
+    assert [op["node"]["id"] for op in api.get(url(site, "staged"), headers=ALICE).json()] == ["a", "b", "c"]
+
+
+@pytest.mark.parametrize(
+    ("body", "code"),
+    [
+        ({"count": 1, "of": 2}, 409),  # staged elsewhere since: one, not two
+        ({"count": 2, "of": 1}, 409),  # more than there are
+        ({"count": 0, "of": 1}, 422),
+        ({"count": 1}, 422),
+    ],
+)
+def test_undo_refuses_what_it_was_not_shown(api: TestClient, site: str, body: dict[str, int], code: int) -> None:
+    api.post(url(site, "staged"), json=node("a"), headers=ALICE)
+    assert api.post(url(site, "staged/undo"), json=body, headers=ALICE).status_code == code
+    assert len(api.get(url(site, "staged"), headers=ALICE).json()) == 1
