@@ -8,7 +8,7 @@
 // Nothing else in js/ may write a number or a date with a fixed locale (scripts/check-format.js).
 
 // The catalogue's language → how its numbers and dates are written (English as en-GB, writing.md).
-const REGION: Readonly<Record<string, string>> = { en: 'en-GB' };
+const REGION: Readonly<Record<string, string>> = { en: 'en-GB', 'en-XA': 'en-GB' }; // en-XA: the pseudo-locale
 
 let locale = 'en-GB';
 let zone: string | undefined; // undefined: this browser's own

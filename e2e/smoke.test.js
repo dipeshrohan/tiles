@@ -117,6 +117,31 @@ test('works when index.html is opened from disk', async () => {
   await page.close();
 });
 
+test('German: chosen with ?lang= or in Settings, kept, from disk too; numbers and the page’s own words follow (U6.03)', async () => {
+  const { page, errors } = await openPage();
+  await page.goto(`${httpBase}?lang=de#/settings`);
+  await page.waitForSelector('#language select');
+  assert.equal(await page.getAttribute('html', 'lang'), 'de');
+  assert.equal(await page.locator('#view h1').innerText(), 'Einstellungen');
+  assert.equal((await page.locator('.skip-link').innerText()).trim(), 'Zum Inhalt springen');
+  // Kept: the next visit, without ?lang=, is German too; English chosen in Settings at once.
+  await page.goto(`${httpBase}#/settings`);
+  await page.waitForSelector('#language select');
+  assert.equal(await page.locator('#view h1').innerText(), 'Einstellungen');
+  await page.selectOption('#language select', 'en');
+  await page.waitForFunction(() => document.querySelector('#view h1')?.textContent === 'Settings');
+  assert.equal(await page.getAttribute('html', 'lang'), 'en');
+  assert.equal((await page.locator('.skip-link').innerText()).trim(), 'Skip to content');
+  await page.reload();
+  await page.waitForSelector('#language select');
+  assert.equal(await page.locator('#view h1').innerText(), 'Settings');
+  // From disk: the German catalogue is a script beside the bundle.
+  await page.goto(`${fileBase}?lang=de#/settings`);
+  await page.waitForFunction(() => document.querySelector('#view h1')?.textContent === 'Einstellungen');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('pages change with a view transition: a new page cross-fades, a record grows from its row (U3.02)', async () => {
   const { page, errors } = await openPage({ reducedMotion: 'no-preference' });
   // Each transition started, with what was named "record" as it started (the row it grows from).
