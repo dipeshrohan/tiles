@@ -15,7 +15,7 @@ WORKDIR /app
 # Only what the browser loads, so the server can't hand out anything else in the repository.
 COPY package.json server.js index.html ./
 COPY css ./css
-COPY js/tiles.bundle.js js/help-data.js ./js/
+COPY js/tiles.bundle.js js/help-data.js js/messages-*.js ./js/
 
 USER node
 ENV PORT=5173 NODE_ENV=production
