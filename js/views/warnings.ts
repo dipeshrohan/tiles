@@ -46,6 +46,7 @@ import {
   term,
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
+import { bindTable, clearSelection, dataTable, type TableOptions } from '../lib/data-table.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
 // are in their workflow and who has them; each with a chart of its signal around it, its payload
@@ -151,6 +152,112 @@ function filterBar(ctx: Context, f: Filters): string {
   );
 }
 
+const STATUS_RANK: Record<WarningInfo['status'], number> = { raised: 0, acknowledged: 1, resolved: 2 };
+
+// The warnings as a table (U5.02): each signal's button opens it beside the list; sorted, its
+// columns chosen, exported; engineers acknowledge the ones selected at once.
+function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): TableOptions<WarningInfo> {
+  const canAck = actionsFor({ status: 'raised' }, ctx.ontology.role).includes('acknowledge');
+  return {
+    id: 'warnings',
+    label: 'Warnings',
+    columns: [
+      {
+        key: 'signal',
+        label: 'Signal',
+        value: (w) => w.signal_tag,
+        csv: (w) => w.signal_tag,
+        cell: (w) =>
+          `<button class="row-open mono" type="button"${ui.selected === w.id ? ' aria-current="true"' : ''}>${esc(w.signal_tag)}</button>`,
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        value: (w) => STATUS_RANK[w.status],
+        csv: (w) => w.status,
+        cell: (w) => statusBadge(w),
+      },
+      {
+        key: 'started',
+        label: 'Started',
+        value: (w) => w.started_at,
+        csv: (w) => w.started_at,
+        cell: (w) => esc(ago(w.started_at)),
+      },
+      {
+        key: 'out',
+        label: 'Still out',
+        value: (w) => (w.ended_at ? 1 : 0),
+        csv: (w) => (w.ended_at ? 'back' : 'still out'),
+        cell: (w) => signalState(w),
+      },
+      { key: 'detector', label: 'Detector', value: (w) => w.detector, cell: (w) => esc(w.detector) },
+      {
+        key: 'assignee',
+        label: 'Assigned to',
+        value: (w) => w.assignee,
+        cell: (w) => esc(w.assignee ?? 'Unassigned'),
+      },
+      {
+        key: 'outcome',
+        label: 'Outcome',
+        value: (w) => (w.outcome ? OUTCOMES[w.outcome] : null),
+        cell: (w) => (w.outcome ? esc(OUTCOMES[w.outcome]) : '—'),
+      },
+    ],
+    rows: items,
+    key: (w) => w.id,
+    empty,
+    rowAttrs: (w) => ({ 'data-warning': w.id, class: ui.selected === w.id ? 'sel' : undefined }),
+    select: canAck
+      ? {
+          actions: [{ id: 'acknowledge', label: 'Acknowledge', variant: 'primary' }],
+          run: (_action, keys) => acknowledgeAll(ctx, keys),
+        }
+      : undefined,
+    csv: 'warnings.csv',
+  };
+}
+
+// Acknowledges the warnings selected that nobody has yet, four at a time. A refusal stops it (the
+// client says why); what was done is said, and the list fetched again.
+async function acknowledgeAll(ctx: Context, keys: string[]): Promise<void> {
+  const site = siteId(ctx);
+  const api = ctx.api;
+  if (!site || !api) return;
+  const raised = keys.filter((k) => listing?.items?.find((w) => w.id === k)?.status === 'raised');
+  let done = 0;
+  let failed = false;
+  const queue = [...raised];
+  const worker = async (): Promise<void> => {
+    for (let id = queue.shift(); id !== undefined && !failed; id = queue.shift()) {
+      try {
+        await api.warnings.acknowledge(site, id);
+        done++;
+      } catch {
+        failed = true;
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
+  if (done) {
+    ctx.toast(done === 1 ? '1 warning acknowledged' : `${done} warnings acknowledged`, {
+      type: 'success',
+      description: failed
+        ? `${raised.length - done} weren’t: the notice says why.`
+        : raised.length < keys.length
+          ? `${keys.length - raised.length} selected had been acknowledged already.`
+          : undefined,
+    });
+    ux('task', 'warning.acknowledge');
+  } else if (!failed)
+    ctx.toast('Nothing to acknowledge', { description: 'The warnings selected had been acknowledged already.' });
+  clearSelection('warnings');
+  listing = null;
+  detail = null;
+  ctx.rerender();
+}
+
 function listCard(ctx: Context, ui: Ui): string {
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   const unfiltered = ui.filters.show === 'unresolved' && ui.filters.who === 'anyone' && ui.filters.signal === 'all';
@@ -178,24 +285,12 @@ function listCard(ctx: Context, ui: Ui): string {
           body: 'Try other filters, or clear them to see what waits for anyone.',
           action: button('Clear filters', { size: 'sm', attrs: { 'data-clear-filters': true } }),
         });
-  const rows =
-    items === null
-      ? skeleton.list()
-      : items
-          .map(
-            (w) => `
-        <button class="review-row ${ui.selected === w.id ? 'sel' : ''}" data-warning="${esc(w.id)}" data-key="warning-${esc(w.id)}"${ui.selected === w.id ? ' aria-current="true"' : ''}>
-          <span class="row gap-2 justify-between"><b class="mono">${esc(w.signal_tag)}</b>${statusBadge(w)}</span>
-          <span class="small muted">${ago(w.started_at)} · ${esc(w.detector)} · ${signalState(w)}</span>
-          <span class="small">${w.assignee ? `For ${esc(w.assignee)}` : 'Unassigned'}${w.outcome ? ` · ${OUTCOMES[w.outcome]}` : ''}</span>
-        </button>`,
-          )
-          .join('') || empty;
+  const rows = items === null ? skeleton.list() : items.length ? dataTable(listTable(ctx, ui, items, empty)) : empty;
   const more =
     items && listing?.more ? button('Show older warnings', { size: 'sm', attrs: { 'data-more-warnings': true } }) : '';
   // A tour's "Pick a warning" (U4.07) lights the list only when there is one to pick.
   const tour = rows === empty ? '' : ' data-tour="warning-list"';
-  return card(`<div class="review-list" data-warning-list${tour}>${rows}</div>${more}`);
+  return card(`<div data-warning-list${tour}>${rows}</div>${more}`);
 }
 
 function chartCard(w: WarningDetail): string {
@@ -560,10 +655,16 @@ const view: View = {
       ui.filters = { ...ui.filters, [el.dataset.filter ?? '']: value } as Filters;
       ctx.rerender();
     });
-    onAll(root, '[data-warning]', 'click', (el) => {
-      ui.selected = el.dataset.warning ?? null;
+    // On the list, not each row: the table draws rows again as it sorts and scrolls.
+    onAll(root, '[data-warning-list]', 'click', (_el, e) => {
+      const t = e.target instanceof Element ? e.target : null;
+      const row = t?.closest<HTMLElement>('[data-warning]');
+      if (!row || t?.closest('.select-col, .table-tools, .bulk-bar')) return; // a box ticked, not the row opened
+      ui.selected = row.dataset.warning ?? null;
       ctx.rerender();
     });
+    const items = listing?.key === listKey(ctx) ? listing.items : null;
+    if (items?.length) bindTable(root, listTable(ctx, ui, items, ''));
     listKeys(root, '[data-warning-list] [data-warning]', (row) => row.getAttribute('data-warning') === ui.selected);
     // Back to the list (a narrow screen): no warning open, though the address keeps the filters.
     onAll(root, '.split-back', 'click', () => {

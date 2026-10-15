@@ -209,6 +209,37 @@ test('a catalogue of 5,000 signals: search and filters within budget', async (t)
     }),
     'filters',
   );
+  // Every row in one table (U5.02): only those in view are drawn, and it scrolls at 60 fps.
+  await page.waitForFunction(() => !/Loading/.test(document.querySelector('[data-signal-count]')?.textContent ?? ''));
+  const drawn = await page.locator('[data-table="signals"] tbody tr:not(.spacer)').count();
+  assert.ok(drawn < 200, `${drawn} rows drawn of 5,000`);
+  let fps = 0;
+  withinBudget(
+    await measure(page, async () => {
+      fps = await page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            const frame = document.querySelector('[data-table="signals"] .table-frame');
+            const started = performance.now();
+            let frames = 0;
+            const step = () => {
+              frames++;
+              frame.scrollTop += 160; // about four rows a frame: down the whole table in 12 s
+              if (performance.now() - started < 2000) requestAnimationFrame(step);
+              else resolve((frames * 1000) / (performance.now() - started));
+            };
+            requestAnimationFrame(step);
+          }),
+      );
+    }),
+    'scrolling 5,000 rows',
+    { interactions: false },
+  );
+  assert.ok(fps >= 55, `scrolled at ${fps.toFixed(1)} fps`);
+  assert.match(
+    await page.locator('[data-table="signals"] tbody tr:not(.spacer)').first().innerText(),
+    /line\d+\/press/,
+  );
 });
 
 test('the Data explorer with 4 signals over 30 days: ranges and removing a signal within budget', async (t) => {

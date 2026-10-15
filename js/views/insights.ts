@@ -17,10 +17,11 @@ import {
 } from '../lib/insights.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import type { Context, View } from './types.ts';
-import { listKeys, split } from '../lib/split.ts';
+import { listKeys, rowClicks, split } from '../lib/split.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { emptyState, needsApi, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
+import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
 
 // Saved insights (T3.12): findings saved from the correlation finder or the Data explorer, with the
 // question asked, the evidence it gave then and the actions proposed; another engineer accepts or
@@ -83,6 +84,53 @@ async function loadDetail(ctx: Context, n: number): Promise<void> {
   ctx.rerender();
 }
 
+const INSIGHT_RANK: Record<string, number> = { proposed: 0, accepted: 1, rejected: 2 };
+
+// The insights as a table (U5.02): each one's link opens it beside the list.
+function listTable(ctx: Context, n: number | null, items: InsightSummary[]): TableOptions<InsightSummary> {
+  return {
+    id: 'insights',
+    label: 'Insights',
+    columns: [
+      {
+        key: 'insight',
+        label: 'Insight',
+        value: (i) => i.number,
+        csv: (i) => `#${i.number} ${i.title}`,
+        cell: (i) =>
+          `<a class="row-open" href="${insightLink(i.number)}"${n === i.number ? ' aria-current="true"' : ''}>#${i.number} ${esc(i.title)}</a>`,
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        value: (i) => INSIGHT_RANK[i.status] ?? 9,
+        csv: (i) => i.status,
+        cell: (i) => statusBadge(i.status),
+      },
+      {
+        key: 'kind',
+        label: 'From',
+        value: (i) => i.kind,
+        cell: (i) => (i.kind === 'correlation' ? 'Correlation' : 'Signals'),
+      },
+      { key: 'author', label: 'Author', value: (i) => i.author, cell: (i) => esc(i.author) },
+      {
+        key: 'created',
+        label: 'Saved',
+        value: (i) => i.created_at,
+        csv: (i) => i.created_at,
+        cell: (i) => esc(when(i.created_at)),
+      },
+      { key: 'reviewer', label: 'Reviewed by', value: (i) => i.reviewer, cell: (i) => esc(i.reviewer ?? '—') },
+    ],
+    rows: items,
+    key: (i) => String(i.number),
+    empty: '',
+    rowAttrs: (i) => ({ 'data-insight': i.number, class: n === i.number ? 'sel' : undefined }),
+    csv: 'insights.csv',
+  };
+}
+
 function listCard(ctx: Context, ui: Ui): string {
   const tabs = (['proposed', 'accepted', 'rejected', ''] as const)
     .map(
@@ -92,30 +140,18 @@ function listCard(ctx: Context, ui: Ui): string {
     .join('');
   const items = listing?.key === listKey(ctx) ? listing.items : null;
   const n = selected();
-  const rows =
-    items === null
-      ? skeleton.list()
-      : items
-          .map(
-            (
-              i,
-            ) => `<a class="review-row ${n === i.number ? 'sel' : ''}" href="${insightLink(i.number)}" data-insight="${i.number}" data-key="insight-${i.number}"${n === i.number ? ' aria-current="true"' : ''}>
-              <span class="row gap-1_5 justify-between"><b>#${i.number} ${esc(i.title)}</b>${statusBadge(i.status)}</span>
-              <span class="small muted">${i.kind === 'correlation' ? 'Correlation' : 'Signals'} · ${esc(i.author)} · ${esc(when(i.created_at))}</span>
-            </a>`,
-          )
-          .join('') ||
-        emptyState({
-          illustration: ui.status === 'proposed' ? 'done' : 'inbox',
-          compact: true,
-          title: ui.status === 'proposed' ? 'Nothing waits for review' : 'No insights here yet',
-          bodyHtml: `Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.`,
-        });
+  const empty = emptyState({
+    illustration: ui.status === 'proposed' ? 'done' : 'inbox',
+    compact: true,
+    title: ui.status === 'proposed' ? 'Nothing waits for review' : 'No insights here yet',
+    bodyHtml: `Save one from the <a href="#/correlate">correlation finder</a> or the <a href="#/explorer">Data explorer</a>.`,
+  });
+  const rows = items === null ? skeleton.list() : items.length ? dataTable(listTable(ctx, n, items)) : empty;
   const more =
     items && listing && listing.total > items.length
       ? `<p class="small soft">The newest ${items.length} of ${listing.total}.</p>`
       : '';
-  return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div class="review-list" data-insight-list>${rows}</div>${more}</div>`;
+  return `<div class="card"><div class="tabs" role="tablist">${tabs}</div><div data-insight-list>${rows}</div>${more}</div>`;
 }
 
 function evidence(i: Insight): string {
@@ -267,6 +303,9 @@ const view: View = {
       ui.status = (el.dataset.status ?? '') as Ui['status'];
       ctx.rerender();
     });
+    const items = listing?.key === listKey(ctx) ? listing.items : null;
+    if (items?.length) bindTable(root, listTable(ctx, n, items));
+    rowClicks(root, '[data-insight-list]', '[data-insight]');
     listKeys(
       root,
       '[data-insight-list] [data-insight]',

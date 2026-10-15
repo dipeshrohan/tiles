@@ -29,7 +29,10 @@ export function recordFromHash(page: string, hash: string): number | null {
 // What of a row takes a click and the focus: the row, when it is a link or a button, or its first link.
 export function rowTarget(row: Element | null | undefined): HTMLElement | null {
   if (!row) return null;
-  return row.matches('a[href], button') ? (row as HTMLElement) : row.querySelector<HTMLElement>('a[href]');
+  // A table's row (U5.02) opens its record with the button in its first cell.
+  return row.matches('a[href], button')
+    ? (row as HTMLElement)
+    : row.querySelector<HTMLElement>('a[href], button.row-open');
 }
 
 // Whether a row is shown (a narrow screen hides the list while a record is open).
@@ -48,6 +51,24 @@ export function nextRow(count: number, current: number, step: 1 | -1): number | 
 // j and k open the next and previous row of `rows` (in `root`); `isOpen` says which row is open now.
 // A row is opened as a click on it would (a row that is a link or button), or on its first link.
 // The row moved to takes the focus once the page has drawn it, scrolled into view.
+// A list drawn as a table (U5.02): a click anywhere in a row opens its record, as its first cell's
+// link or button does; on the list, so rows the table draws again keep it. Boxes, buttons and links
+// in a row do their own.
+export function rowClicks(root: ParentNode, list: string, rows: string): void {
+  root.querySelectorAll(list).forEach((el) =>
+    el.addEventListener(
+      'click',
+      (e) => {
+        const t = e.target instanceof Element ? e.target : null;
+        const row = t?.closest(rows);
+        if (!row || t?.closest('a, button, input, label, .select-col')) return;
+        rowTarget(row)?.click();
+      },
+      { signal: bound() },
+    ),
+  );
+}
+
 export function listKeys(root: ParentNode, rows: string, isOpen: (row: Element) => boolean): void {
   document.addEventListener(
     'keydown',

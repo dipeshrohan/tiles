@@ -4,6 +4,7 @@
 
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
@@ -2261,6 +2262,79 @@ test('viewers see past imports but cannot run one', async (t) => {
   assert.deepEqual(errors, []);
 });
 
+test('tables v2: sort, choose columns, compact rows, select to plot, export CSV, virtual rows (U5.02)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.addSignals(
+    Array.from({ length: 300 }, (_, i) => ({
+      tag: `press${String(i).padStart(3, '0')}.temp`,
+      unit: i % 2 ? '°C' : 'bar',
+      description: `Sensor ${300 - i}`,
+    })),
+  );
+  const { page, errors } = await openAs(t, apiUrl, null, 'signals');
+  const table = page.locator('[data-table="signals"]');
+  await table.locator('tbody tr').first().waitFor();
+  // 300 rows: only those in view are drawn, the table says how many there are.
+  assert.equal(await table.locator('table').getAttribute('aria-rowcount'), '301');
+  assert.ok((await table.locator('tbody tr:not(.spacer)').count()) < 120);
+  const firstTag = () => table.locator('tbody tr:not(.spacer) td:nth-child(2) code').first().innerText();
+  assert.equal(await firstTag(), 'press000.temp');
+  // Sort by description: ascending, then descending, said with aria-sort.
+  await table.locator('[data-sort="description"]').click();
+  assert.equal(await table.locator('th[data-col="description"]').getAttribute('aria-sort'), 'ascending');
+  assert.equal(await firstTag(), 'press299.temp'); // Sensor 1
+  await table.locator('[data-sort="description"]').click();
+  assert.equal(await table.locator('th[data-col="description"]').getAttribute('aria-sort'), 'descending');
+  // Hide a column, go compact: remembered after a reload.
+  await table.locator('.table-columns summary').click();
+  await table.locator('[data-table-col="source"]').uncheck();
+  assert.equal(await table.locator('th[data-col="source"]').count(), 0);
+  await table.locator('[data-table-density]').click();
+  await page.reload();
+  await table.locator('tbody tr').first().waitFor();
+  assert.equal(await table.locator('th[data-col="source"]').count(), 0);
+  assert.equal(await table.getAttribute('class'), 'data-table density-compact');
+  assert.equal(await table.locator('th[data-col="description"]').getAttribute('aria-sort'), 'descending');
+  // Scrolled to the end (the drawn rows' heights settle the frame's as it goes), the last rows are
+  // drawn; and back at the top, the first.
+  const scrollTo = (end, tag) =>
+    page.waitForFunction(
+      ([end, tag]) => {
+        const f = document.querySelector('[data-table="signals"] .table-frame');
+        // Each poll moves it (an unchanged scrollTop fires no scroll event), as a user scrolling would.
+        f.scrollTop = end ? f.scrollHeight - (f.scrollTop % 2) : f.scrollTop === 0 ? 1 : 0;
+        return [...f.querySelectorAll('tbody code')].some((c) => c.textContent === tag);
+      },
+      [end, tag],
+      { polling: 100 },
+    );
+  await scrollTo(true, 'press299.temp');
+  // A row drawn as the table scrolled works like the first ones: its Edit opens the form.
+  await table.locator('tr[data-row]:has(code:text-is("press299.temp")) [data-edit]').click();
+  await page.waitForSelector('#signal-form');
+  await page.click('[data-cancel-edit]');
+  await scrollTo(false, 'press000.temp');
+  // Export the view as CSV: its columns, every row, in its order.
+  const [download] = await Promise.all([page.waitForEvent('download'), table.locator('[data-table-csv]').click()]);
+  assert.equal(download.suggestedFilename(), 'signals.csv');
+  const csv = readFileSync(await download.path(), 'utf8')
+    .trim()
+    .split('\r\n');
+  assert.equal(csv.length, 301);
+  assert.match(csv[0], /^Tag,Description,Unit,Rate,Ontology node,Latest reading,Quality$/);
+  assert.equal(csv[1], 'press000.temp,Sensor 300,bar,—,,—,not checked');
+  // Select two and plot them; the bar says how many.
+  await table.locator('tbody tr:not(.spacer) [data-table-row]').nth(0).check();
+  await table.locator('tbody tr:not(.spacer) [data-table-row]').nth(1).check();
+  await table.locator('.bulk-bar:has-text("2 selected")').waitFor();
+  await table.locator('[data-table-action="plot"]').click();
+  await page.waitForFunction(() => location.hash.startsWith('#/explorer?signals='));
+  await page.waitForSelector('.explorer-chart');
+  assert.deepEqual(errors, []);
+});
+
 test('the signal catalogue: search, describe a signal and link it to its ontology node', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
@@ -3170,7 +3244,7 @@ test('the warnings inbox: see a warning on its signal, acknowledge, assign, reso
   await b.page.click('[data-act=reopen]');
   await b.page.waitForSelector('#toast:has-text("Reopened")');
   await b.page.click('[data-show=unresolved]');
-  await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("For eng2")`);
+  await b.page.waitForSelector(`[data-warning-list] [data-warning="${out}"]:has-text("eng2")`);
   assert.deepEqual([...a.errors, ...b.errors], []);
 });
 
@@ -4280,7 +4354,7 @@ test('a view is in its address: a reload or a copied link shows the same, and ba
   await a.page.reload();
   await a.page.waitForSelector('[data-warning-detail] .chart');
   assert.equal(await a.page.getAttribute('[data-show="all"]', 'aria-pressed'), 'true');
-  assert.equal(await a.page.getAttribute(`[data-warning="${out}"]`, 'class'), 'review-row sel');
+  assert.equal(await a.page.getAttribute(`[data-warning="${out}"]`, 'class'), 'sel');
   // The same link in another tab.
   const b = await openPage();
   t.after(() => b.page.close());
