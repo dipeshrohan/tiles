@@ -418,6 +418,15 @@ Long ranges show averages with their minimum and maximum, so a year plots as fas
 
 You can also reach this page from a tag on the **Signals** page, from a saved insight, or from a copilot answer.
 
+### Comparing
+
+**Compare**, below the charts, puts two things on one chart, with their difference below it:
+
+- **Two ranges:** one signal over the range shown against another stretch of its own time: **The period just before**, **The same time a day earlier**, **The same time a week earlier**, or **From a start you choose**. Both are lined up from their start (the axis reads "+3 h" since each began), so this week's Monday lies over last week's. Use it to see before and after a change.
+- **Two signals** (with two or more plotted): the same range of two signals, for example the same tag on two machines.
+
+A line under the charts says which is higher on average and by how much, over the points where both have readings. Two signals with different units can be compared, but only their shapes mean something. The comparison is in the page's address, so a link shows it too. **Off** hides it.
+
 ### Checking for wear
 
 Each chart has a wear check. It compares the recent level of the signal (about the last day of the range) with the baseline before it.
