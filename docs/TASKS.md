@@ -341,9 +341,9 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* the pilot's users can use Tiles in German, and no layout breaks in the pseudo-locale.
 - [ ] `U6.04` [#252](https://github.com/dipeshrohan/tiles/issues/252) **Accessibility round 2** · FE · 3d
   *Done when:* the report is merged, and the five flows work with both screen readers.
-- [ ] `U6.05` [#253](https://github.com/dipeshrohan/tiles/issues/253) **Print styles** · FE · 2d
+- [x] `U6.05` [#253](https://github.com/dipeshrohan/tiles/issues/253) **Print styles** · FE · 2d
   *Done when:* each prints on A4 and Letter without cut content.
-- [ ] `U6.06` [#254](https://github.com/dipeshrohan/tiles/issues/254) **Preferences** · FE+BE · 2d · U6.01
+- [x] `U6.06` [#254](https://github.com/dipeshrohan/tiles/issues/254) **Preferences** · FE+BE · 2d · U6.01
   *Done when:* each preference applies at once and survives sign-out and sign-in.
 - [ ] `U6.07` [#255](https://github.com/dipeshrohan/tiles/issues/255) **Usability study 2 and fixes** · PM+FE · 5d · U5.01–U5.05
   *Done when:* the [measures](UI-PLAN.md#goals-and-measures) are reported against their targets in `docs/ui/research/2027-04-v1.md`.
