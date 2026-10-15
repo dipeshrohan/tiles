@@ -2453,17 +2453,34 @@ test('tables v2: sort, choose columns, compact rows, select to plot, export CSV,
   assert.equal(await table.locator('th[data-col="description"]').getAttribute('aria-sort'), 'descending');
   // Scrolled to the end (the drawn rows' heights settle the frame's as it goes), the last rows are
   // drawn; and back at the top, the first.
-  const scrollTo = (end, tag) =>
-    page.waitForFunction(
-      ([end, tag]) => {
+  const scrollTo = async (end, tag) => {
+    try {
+      await page.waitForFunction(
+        ([end, tag]) => {
+          const f = document.querySelector('[data-table="signals"] .table-frame');
+          // Each poll moves it (an unchanged scrollTop fires no scroll event), as a user scrolling
+          // would, and says so: a browser may hold back the event of a move made by script.
+          f.scrollTop = end ? f.scrollHeight - (f.scrollTop % 2) : f.scrollTop === 0 ? 1 : 0;
+          f.dispatchEvent(new Event('scroll'));
+          return [...f.querySelectorAll('tbody code')].some((c) => c.textContent === tag);
+        },
+        [end, tag],
+        { polling: 100, timeout: 10_000 },
+      );
+    } catch (e) {
+      const seen = await page.evaluate(() => {
         const f = document.querySelector('[data-table="signals"] .table-frame');
-        // Each poll moves it (an unchanged scrollTop fires no scroll event), as a user scrolling would.
-        f.scrollTop = end ? f.scrollHeight - (f.scrollTop % 2) : f.scrollTop === 0 ? 1 : 0;
-        return [...f.querySelectorAll('tbody code')].some((c) => c.textContent === tag);
-      },
-      [end, tag],
-      { polling: 100 },
-    );
+        const tags = [...f.querySelectorAll('tbody code')].map((c) => c.textContent);
+        return {
+          scrollTop: f.scrollTop,
+          scrollHeight: f.scrollHeight,
+          height: f.clientHeight,
+          tags: [tags[0], tags.at(-1), tags.length],
+        };
+      });
+      throw new Error(`${tag} never drawn: ${JSON.stringify(seen)}`, { cause: e });
+    }
+  };
   await scrollTo(true, 'press299.temp');
   // A row drawn as the table scrolled works like the first ones: its Edit opens the form.
   await table.locator('tr[data-row]:has(code:text-is("press299.temp")) [data-edit]').click();
