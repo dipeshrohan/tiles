@@ -2,6 +2,7 @@
 // tests. It runs the same ontology logic as the app (js/lib/ontology.ts,
 // loaded through Node's TypeScript type stripping), with one shared head and
 // history and staged changes per user, like the real API.
+import { readFileSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { correlationFinder } from '../js/lib/analysis.ts';
 import { evaluate as evaluateDesign, getModel as getDesignModel } from '../js/lib/design.ts';
@@ -18,6 +19,10 @@ import {
   workingGraph,
   healthCheck,
 } from '../js/lib/ontology.ts';
+
+// The app's modules run here too (the ontology, the importer): with the English catalogue, as the
+// page has it from js/messages-en.js (U6.01).
+globalThis.TILES_MESSAGES ??= { en: JSON.parse(readFileSync(new URL('../js/i18n/en.json', import.meta.url), 'utf8')) };
 
 // With `oidc`, it is also a tiny sign-in provider at /idp that approves every
 // request, checks PKCE, and issues opaque tokens the API accepts. With

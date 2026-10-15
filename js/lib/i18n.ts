@@ -7,31 +7,38 @@
 // A key missing from a locale falls back to English. Keys are typed from en.json: a key that
 // isn't there doesn't compile. `scripts/check-i18n.js` (in `npm run lint`) keeps the locales in
 // step and finds text written straight into a view.
+//
+// The messages themselves aren't in the bundle (its size is budgeted): each catalogue is a classic
+// script, js/messages-<code>.js (scripts/messages.js), that adds itself to window.TILES_MESSAGES;
+// index.html loads English before the bundle. Read when a message is wanted, never at load.
 
-import en from '../i18n/en.json';
+import type english from '../i18n/en.json';
 import { esc } from './dom.ts';
 import { setFormatLocale, upTo } from './format.ts';
 
-export type MessageKey = keyof typeof en;
+export type MessageKey = keyof typeof english;
 export type Params = Readonly<Record<string, string | number>>;
 type Catalogue = Readonly<Partial<Record<string, string>>>;
 
-const catalogues = new Map<string, Catalogue>([['en', en]]);
+const loaded = (): Readonly<Record<string, Catalogue | undefined>> =>
+  (globalThis as { TILES_MESSAGES?: Record<string, Catalogue> }).TILES_MESSAGES ?? {};
+const added = new Map<string, Catalogue>();
+const catalogue = (code: string): Catalogue | undefined => added.get(code) ?? loaded()[code];
 let locale = 'en';
 
-// Adds a locale's messages (German in U6.03; a test's own).
+// Adds a locale's messages (a test's own; a language's script adds itself to TILES_MESSAGES).
 export function addCatalogue(code: string, messages: Catalogue): void {
-  catalogues.set(code, messages);
+  added.set(code, messages);
 }
 
 // The language words are said in; numbers and dates follow it (format.ts, U6.02).
 export function setLocale(code: string): void {
-  locale = catalogues.has(code) ? code : 'en';
+  locale = catalogue(code) ? code : 'en';
   setFormatLocale(locale);
 }
 export const currentLocale = (): string => locale;
 
-const messageOf = (key: MessageKey): string => catalogues.get(locale)?.[key] ?? (en as Catalogue)[key] ?? key;
+const messageOf = (key: MessageKey): string => catalogue(locale)?.[key] ?? catalogue('en')?.[key] ?? key;
 
 // A message as text (escape it with esc() where it goes into HTML).
 export function t(key: MessageKey, params: Params = {}): string {
@@ -47,7 +54,7 @@ export function tHtml(key: MessageKey, params: Params = {}): string {
 // A message named at run time, such as an API error's code (`api.<code>`): null when no catalogue
 // has it, so the caller can fall back to the words it was given.
 export function tKnown(key: string, params: Params = {}): string | null {
-  const message = catalogues.get(locale)?.[key] ?? (en as Catalogue)[key];
+  const message = catalogue(locale)?.[key] ?? catalogue('en')?.[key];
   return message === undefined ? null : formatMessage(message, params, locale);
 }
 
