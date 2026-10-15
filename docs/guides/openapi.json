@@ -4075,6 +4075,38 @@
         "title": "Issue",
         "type": "object"
       },
+      "Kept": {
+        "properties": {
+          "preferences": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/tiles_api__api_preferences__Preferences"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until you keep some (the app's defaults)"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "preferences"
+        ],
+        "title": "Kept",
+        "type": "object"
+      },
       "Layout": {
         "properties": {
           "cards": {
@@ -5104,25 +5136,85 @@
         "title": "PortOut",
         "type": "object"
       },
-      "Preferences": {
+      "Preferences-Input": {
+        "additionalProperties": false,
         "properties": {
-          "email": {
-            "title": "Email",
+          "density": {
+            "description": "How tall table rows are",
+            "enum": [
+              "comfortable",
+              "compact"
+            ],
+            "title": "Density",
             "type": "string"
           },
-          "on_assigned": {
-            "title": "On Assigned",
+          "language": {
+            "description": "A language code (`de`), or `auto`: the browser's",
+            "pattern": "^(auto|[a-z]{2})$",
+            "title": "Language",
+            "type": "string"
+          },
+          "motion": {
+            "description": "Less motion always, or as the system asks",
+            "enum": [
+              "system",
+              "reduce"
+            ],
+            "title": "Motion",
+            "type": "string"
+          },
+          "numbers": {
+            "description": "How numbers and dates are written (`en-US`), or `auto`: as the language does",
+            "pattern": "^(auto|[a-z]{2}-[A-Z]{2})$",
+            "title": "Numbers",
+            "type": "string"
+          },
+          "shortcuts": {
+            "description": "Single-key shortcuts on",
+            "title": "Shortcuts",
             "type": "boolean"
           },
-          "on_raised": {
-            "title": "On Raised",
-            "type": "boolean"
+          "start": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9-]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page the app opens at; null: Home",
+            "title": "Start"
+          },
+          "theme": {
+            "description": "The colours: the system's, or always one",
+            "enum": [
+              "system",
+              "light",
+              "dark"
+            ],
+            "title": "Theme",
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "Times in the site's clock or this device's",
+            "enum": [
+              "site",
+              "device"
+            ],
+            "title": "Time Zone",
+            "type": "string"
           }
         },
         "required": [
-          "on_raised",
-          "on_assigned",
-          "email"
+          "theme",
+          "density",
+          "language",
+          "numbers",
+          "time_zone",
+          "motion",
+          "shortcuts"
         ],
         "title": "Preferences",
         "type": "object"
@@ -9567,6 +9659,29 @@
         "title": "ParamOut",
         "type": "object"
       },
+      "tiles_api__api_notifications__Preferences": {
+        "properties": {
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "on_assigned": {
+            "title": "On Assigned",
+            "type": "boolean"
+          },
+          "on_raised": {
+            "title": "On Raised",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "on_raised",
+          "on_assigned",
+          "email"
+        ],
+        "title": "Preferences",
+        "type": "object"
+      },
       "tiles_api__api_ontology_io__ImportIn": {
         "additionalProperties": false,
         "properties": {
@@ -9675,6 +9790,89 @@
           "events"
         ],
         "title": "Report",
+        "type": "object"
+      },
+      "tiles_api__api_preferences__Preferences": {
+        "additionalProperties": false,
+        "properties": {
+          "density": {
+            "description": "How tall table rows are",
+            "enum": [
+              "comfortable",
+              "compact"
+            ],
+            "title": "Density",
+            "type": "string"
+          },
+          "language": {
+            "description": "A language code (`de`), or `auto`: the browser's",
+            "pattern": "^(auto|[a-z]{2})$",
+            "title": "Language",
+            "type": "string"
+          },
+          "motion": {
+            "description": "Less motion always, or as the system asks",
+            "enum": [
+              "system",
+              "reduce"
+            ],
+            "title": "Motion",
+            "type": "string"
+          },
+          "numbers": {
+            "description": "How numbers and dates are written (`en-US`), or `auto`: as the language does",
+            "pattern": "^(auto|[a-z]{2}-[A-Z]{2})$",
+            "title": "Numbers",
+            "type": "string"
+          },
+          "shortcuts": {
+            "description": "Single-key shortcuts on",
+            "title": "Shortcuts",
+            "type": "boolean"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9-]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The page the app opens at; null: Home",
+            "title": "Start"
+          },
+          "theme": {
+            "description": "The colours: the system's, or always one",
+            "enum": [
+              "system",
+              "light",
+              "dark"
+            ],
+            "title": "Theme",
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "Times in the site's clock or this device's",
+            "enum": [
+              "site",
+              "device"
+            ],
+            "title": "Time Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "theme",
+          "density",
+          "language",
+          "numbers",
+          "time_zone",
+          "motion",
+          "shortcuts"
+        ],
+        "title": "Preferences",
         "type": "object"
       },
       "tiles_api__api_reviews__CommentIn": {
@@ -14792,6 +14990,102 @@
         ]
       }
     },
+    "/sites/{site_id}/me/preferences": {
+      "get": {
+        "description": "Your preferences, the same on every site; null until you keep some.",
+        "operationId": "get_preferences_sites__site_id__me_preferences_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Kept"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Preferences",
+        "tags": [
+          "Preferences"
+        ]
+      },
+      "put": {
+        "description": "Keep your preferences (any member: they are yours alone, on every site).",
+        "operationId": "set_preferences_sites__site_id__me_preferences_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Preferences-Input"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Kept"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Preferences",
+        "tags": [
+          "Preferences"
+        ]
+      }
+    },
     "/sites/{site_id}/members": {
       "get": {
         "description": "The site's members (everyone who has signed in to it) and their roles. Organisation admins are\nadmins of every site, listed here or not.",
@@ -15414,7 +15708,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Preferences"
+                  "$ref": "#/components/schemas/tiles_api__api_notifications__Preferences"
                 }
               }
             },
@@ -15466,7 +15760,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Preferences"
+                  "$ref": "#/components/schemas/tiles_api__api_notifications__Preferences"
                 }
               }
             },

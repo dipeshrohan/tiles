@@ -104,7 +104,7 @@ export interface ShortcutOptions {
   go(page: string): void;
   title(page: string): string | null; // the page's name; null for one not in the menu
   palette(): void; // / where the page has no search
-  changed(): void; // shortcuts turned on or off: the page drawn again, for its aria-keyshortcuts
+  changed(here: boolean): void; // turned on or off (here, or in another tab): the page drawn again, for its aria-keyshortcuts
 }
 
 // The list `?` (or the command palette) shows, and the switch that turns single-key shortcuts off.
@@ -154,7 +154,7 @@ export function installShortcuts(o: ShortcutOptions): { show(): void } {
       (dialog) => {
         dialog.querySelector<HTMLInputElement>('[data-single-keys]')?.addEventListener('change', (e) => {
           setShortcutsOn((e.target as HTMLInputElement).checked);
-          o.changed();
+          o.changed(true);
         });
       },
     ).then(() => (showing = false));
@@ -164,7 +164,7 @@ export function installShortcuts(o: ShortcutOptions): { show(): void } {
   window.addEventListener('storage', (e) => {
     if (e.key !== null && e.key !== `tiles:${KEY}`) return; // null: storage cleared
     on = undefined;
-    o.changed();
+    o.changed(false);
   });
 
   document.addEventListener('keydown', (e) => {

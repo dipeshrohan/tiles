@@ -32,6 +32,7 @@ export const PAGE_HELP = {
   design: 'design-studio',
   onboarding: 'set-up-a-site',
   settings: 'settings',
+  preferences: 'your-preferences',
   styleguide: 'about-and-the-style-guide',
   help: 'finding-your-way',
   glossary: 'glossary',

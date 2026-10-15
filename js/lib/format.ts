@@ -11,6 +11,8 @@
 const REGION: Readonly<Record<string, string>> = { en: 'en-GB', 'en-XA': 'en-GB' }; // en-XA: the pseudo-locale
 
 let locale = 'en-GB';
+let language = 'en-GB'; // the catalogue's language, written out
+let chosen: string | null = null; // a format chosen in Preferences (U6.06), over the language's
 let zone: string | undefined; // undefined: this browser's own
 
 const supported = (code: string): boolean => {
@@ -21,10 +23,23 @@ const supported = (code: string): boolean => {
   }
 };
 
+const resolve = (code: string): string => {
+  const full = REGION[code] ?? code;
+  return supported(full) ? full : 'en-GB';
+};
+
 // The language numbers and dates are written in: a catalogue's code (`en`, `de`) or a full one.
 export function setFormatLocale(code: string): void {
-  const full = REGION[code] ?? code;
-  locale = supported(full) ? full : 'en-GB';
+  language = resolve(code);
+  locale = chosen ?? language;
+  formats.clear();
+}
+
+// How a person chose to have numbers and dates written (`en-US`), whatever the language; null: as
+// the language writes them (U6.06).
+export function chooseFormat(code: string | null): void {
+  chosen = code ? resolve(code) : null;
+  locale = chosen ?? language;
   formats.clear();
 }
 export const formatLocale = (): string => locale;
@@ -264,4 +279,30 @@ export function fromInput(value: string): number {
   if (!m) return Number.NaN;
   const [y, mo, d, h, mi] = m.slice(1, 6).map(Number) as [number, number, number, number, number];
   return zonedTime(y, mo - 1, d, h, mi) + Number(m[6] ?? 0) * SECOND;
+}
+
+// ---- Preferences (U6.06) ----
+
+// This device's own time zone (IANA), whatever the one times are shown in.
+export const deviceZone = (): string => new Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// A way of writing numbers and dates, for choosing one: its name in the page's language, and a
+// number and today's date written that way ("English (United States)", "1,234.5 · 10/16/2026").
+const samples = new Map<string, { name: string; sample: string }>();
+export function formatSample(code: string, now: When = Date.now()): { name: string; sample: string } {
+  const day = new Date(now);
+  const key = `${code}|${language}|${zone ?? ''}|${day.toDateString()}`;
+  const kept = samples.get(key);
+  if (kept) return kept;
+  let name = code;
+  try {
+    name = new Intl.DisplayNames([language], { type: 'language', languageDisplay: 'standard' }).of(code) ?? code;
+  } catch {
+    // a browser without DisplayNames: the code
+  }
+  const n = new Intl.NumberFormat(code, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(1234.5);
+  const d = new Intl.DateTimeFormat(code, { dateStyle: 'short', ...(zone ? { timeZone: zone } : {}) }).format(day);
+  const made = { name, sample: `${n} · ${d}` };
+  samples.set(key, made);
+  return made;
 }

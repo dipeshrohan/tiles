@@ -42,7 +42,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[Feedback](#feedback) · [Home](#home) · [Notifications](#notifications) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[Feedback](#feedback) · [Home](#home) · [Notifications](#notifications) · [Preferences](#preferences) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
 
 ## Feedback
 
@@ -149,6 +149,30 @@ Mark items of your inbox read (`keys`), or all of them (an empty list). Only ite
 | `site_id` | path | uuid | yes |
 
 **Body:** ReadIn (see [openapi.json](openapi.json)).
+
+## Preferences
+
+### `GET /sites/{site_id}/me/preferences`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Your preferences, the same on every site; null until you keep some.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+### `PUT /sites/{site_id}/me/preferences`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Keep your preferences (any member: they are yours alone, on every site).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** Preferences-Input (see [openapi.json](openapi.json)).
 
 ## Saved views
 

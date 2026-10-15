@@ -91,6 +91,7 @@ import imports from './views/imports.ts';
 import signals from './views/signals.ts';
 import help, { guideHtml } from './views/help.ts';
 import glossary, { ENTRIES as GLOSSARY_ENTRIES } from './views/glossary.ts';
+import preferencesView from './views/preferences.ts';
 import type { AppState, AuthContext, Context, OntologyContext, PersistedState, View } from './views/types.ts';
 import type { Graph, Repo, ShotHistory } from './lib/types.ts';
 import { rowTarget, shown } from './lib/split.ts';
@@ -108,7 +109,7 @@ import { openView, viewsFor } from './lib/filter-bar.ts';
 import { menuViews, viewHref } from './lib/saved-views.ts';
 import { INBOX_POLL_MS, announcement, arrivals, bellCount, bellLabel, inboxHtml } from './lib/inbox.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
-import { installShortcuts, shortcutsOn } from './lib/shortcuts.ts';
+import { installShortcuts, setShortcutsOn, shortcutsOn } from './lib/shortcuts.ts';
 import { helpHref, helpItems, helpLoaded, loadHelp, pageSection } from './lib/help.ts';
 import { panelDialog, sheet } from './lib/overlay.ts';
 import {
@@ -129,8 +130,18 @@ import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
 import { searchItems } from './lib/site-search.ts';
 import { t, type MessageKey } from './lib/i18n.ts';
 import { translateStatic } from './lib/static-text.ts';
-import { setTimeZone } from './lib/format.ts';
-import { chosenLanguage, keepLanguage, useLanguage } from './lib/language.ts';
+import { chooseFormat, setTimeZone } from './lib/format.ts';
+import {
+  LANGUAGES,
+  browserLanguage,
+  chosenLanguage,
+  forgetLanguage,
+  keepLanguage,
+  keptLanguage,
+  useLanguage,
+} from './lib/language.ts';
+import { cleanPreferences, samePreferences, toApi, type Preferences } from './lib/preferences.ts';
+import { setTableDensity } from './lib/data-table.ts';
 
 const VIEWS: View[] = [
   home,
@@ -153,6 +164,7 @@ const VIEWS: View[] = [
   imports,
   onboarding,
   settings,
+  preferencesView,
   styleguide, // not in the menu: Settings → About links to it
   help,
   glossary, // not in the menu: Help links to it
@@ -164,7 +176,7 @@ const NAV: { group?: 'operations' | 'data' | 'design' | ''; items: View[] }[] = 
   { group: 'operations', items: [shopfloor, plant, ontology, reviews, warnings, performance, quality, physics] },
   { group: 'data', items: [signals, explorer, correlate, insights, apps, documents, imports] },
   { group: 'design', items: [design] },
-  { group: '', items: [onboarding, settings, help] },
+  { group: '', items: [onboarding, settings, preferencesView, help] },
 ];
 const groupName = (group: string | undefined): string => (group ? t(`app.nav.${group}` as MessageKey) : '');
 
@@ -294,7 +306,8 @@ async function connectOntology(): Promise<void> {
   if (!api) {
     if (ontologyStatus !== 'local') state.repo = localRepo;
     remote = null;
-    setTimeZone(null); // this browser's own zone (U6.02)
+    siteZone = null; // this browser's own zone (U6.02)
+    applyZone();
     ontologyStatus = 'local';
     ontologyError = null;
     return;
@@ -310,7 +323,8 @@ async function connectOntology(): Promise<void> {
     if (seq !== connectSeq) return; // a newer connection's sites are the ones to offer
     knownSites = sites; // for switching sites from the command palette
     const site = await pickSite(api, dataSource.siteId, sites);
-    setTimeZone(site.timezone); // its times in its own zone, named, from the start (U6.02)
+    siteZone = site.timezone ?? null; // its times in its own zone, named, from the start (U6.02), unless you
+    applyZone(); // chose this device's (U6.06)
     const store = remoteStore(api, site);
     const [repo, people] = await Promise.all([store.load(), loadPeople(api, site.id)]);
     if (seq !== connectSeq) return;
@@ -618,6 +632,21 @@ const ctx: Context = {
     render();
     toast(t('app.demoReset'));
     void connectOntology();
+  },
+  preferences: {
+    get current() {
+      return currentPreferences();
+    },
+    get kept() {
+      return api && ctx.ontology.site ? 'account' : 'browser';
+    },
+    get siteZone() {
+      return siteZone;
+    },
+    get pages() {
+      return NAV.flatMap((g) => g.items).map((v) => ({ id: v.id, title: v.title }));
+    },
+    set: (patch) => setPreferences(patch),
   },
   get workRole() {
     const owner = navOwner();
@@ -1006,14 +1035,131 @@ function applyTheme(theme: Theme | null): void {
   else delete document.documentElement.dataset.theme;
   need(document, '#theme').innerHTML = icon(isDark() ? 'sun' : 'moon');
 }
-applyTheme(load<Theme | null>('theme', null));
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () =>
-  applyTheme(load<Theme | null>('theme', null)),
-);
-need(document, '#theme').addEventListener('click', () => {
-  const next: Theme = isDark() ? 'light' : 'dark';
-  applyTheme(next);
-  save('theme', next);
+const themeOf = (p: Preferences): Theme | null => (p.theme === 'system' ? null : p.theme);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => applyTheme(themeOf(preferences)));
+need(document, '#theme').addEventListener('click', () => setPreferences({ theme: isDark() ? 'light' : 'dark' }));
+
+// ---- preferences (U6.06) ----------------------------------------------------
+// Kept here and, with the API, with the person (on every site and browser). The theme, table rows,
+// number format, clock and motion are kept under `preferences`; the language, shortcuts and start
+// page where their own modules keep them (language.ts, shortcuts.ts, the menu's NavPrefs).
+const PREFS_KEY = 'preferences';
+const LANGUAGE_CODES = LANGUAGES.map((l) => l.code);
+const cleanPrefsOf = (v: unknown): Preferences => cleanPreferences(v, { languages: LANGUAGE_CODES, pages: NAV_PAGES });
+// As kept here: the theme on its own before U6.06; the language as language.ts keeps it (?lang= too).
+const keptPreferences = (): Preferences =>
+  cleanPrefsOf({
+    ...(load<Record<string, unknown> | null>(PREFS_KEY, null) ?? { theme: load<Theme | null>('theme', null) }),
+    language: keptLanguage() ?? 'auto',
+  });
+let preferences: Preferences = keptPreferences();
+let siteZone: string | null = null;
+let edits = 0; // changes made here: a copy of the person's read before one is out of date
+
+// The language as chosen (it may still be loading); shortcuts and the start page where they are kept.
+function currentPreferences(): Preferences {
+  return { ...preferences, shortcuts: shortcutsOn(), start: prefs().start ?? null };
+}
+
+function applyZone(): void {
+  setTimeZone(preferences.timeZone === 'site' ? siteZone : null);
+}
+
+// Puts preferences into effect (`before`: those in effect until now; null as the app starts).
+function applyPreferences(next: Preferences, before: Preferences | null): void {
+  preferences = next;
+  save(PREFS_KEY, {
+    theme: next.theme,
+    density: next.density,
+    numbers: next.numbers,
+    timeZone: next.timeZone,
+    motion: next.motion,
+  });
+  applyTheme(themeOf(next));
+  if (next.motion === 'reduce') document.documentElement.dataset.motion = 'reduce';
+  else delete document.documentElement.dataset.motion;
+  setTableDensity(next.density, before !== null && before.density !== next.density);
+  chooseFormat(next.numbers === 'auto' ? null : next.numbers);
+  applyZone();
+  if (!before) return;
+  if (shortcutsOn() !== next.shortcuts) {
+    setShortcutsOn(next.shortcuts);
+    keyHint();
+  }
+  if ((prefs().start ?? null) !== next.start && navOwner()) {
+    const rest = { ...prefs() };
+    delete rest.start;
+    setPrefs(next.start ? { ...rest, start: next.start } : rest);
+  }
+  if (before.language !== next.language) switchLanguage(next.language, before.language);
+}
+applyPreferences(preferences, null);
+
+// Changed by the person (the Preferences page, the theme button, the shortcuts list, the welcome):
+// in effect at once, and kept with them.
+function setPreferences(patch: Partial<Preferences>): void {
+  const before = currentPreferences();
+  const next = cleanPrefsOf({ ...before, ...patch });
+  if (samePreferences(before, next)) return;
+  edits++;
+  applyPreferences(next, before);
+  render();
+  keepPreferences();
+}
+
+// Sent to the API a moment after the last change (a run of changes is one request).
+let keepTimer: ReturnType<typeof setTimeout> | undefined;
+function keepPreferences(): void {
+  clearTimeout(keepTimer);
+  keepTimer = setTimeout(() => {
+    const site = ctx.ontology.site;
+    if (api && site) void api.preferences.set(site.id, toApi(currentPreferences())).catch(() => null);
+  }, 300);
+}
+
+// Once the person is known (API mode): theirs, kept with them, put into effect here.
+async function fetchPreferences(): Promise<void> {
+  const site = ctx.ontology.site;
+  if (!api || !site) return;
+  const asked = edits;
+  const kept = await api.preferences.get(site.id).catch(() => null);
+  if (!kept?.preferences) return; // none kept yet: this browser's stay
+  if (edits !== asked) return; // changed here meanwhile: what was sent since wins
+  const before = currentPreferences();
+  const next = cleanPrefsOf(kept.preferences);
+  if (samePreferences(before, next)) return;
+  applyPreferences(next, before);
+  render();
+}
+
+// Another language (or the browser's, 'auto'): loaded, then every word said again in it. One that
+// can't be loaded says so, and the one before stays chosen.
+function switchLanguage(choice: string, previous: string): void {
+  const code = choice === 'auto' ? browserLanguage() : choice;
+  void useLanguage(code).then((now) => {
+    if (now === null) return; // another was chosen since
+    if (now === code) {
+      if (choice === 'auto') forgetLanguage();
+      else keepLanguage(code);
+    } else {
+      // Not loaded: the one before stays chosen (as kept here still), and with the person.
+      toast(t('app.languageFailed'), { type: 'error' });
+      preferences = { ...preferences, language: previous };
+      keepPreferences();
+    }
+    translateStatic(document);
+    render();
+  });
+}
+
+// Changed in another tab: this one follows (it keeps the same, so it sends nothing).
+window.addEventListener('storage', (e) => {
+  if (e.key !== null && e.key !== `tiles:${PREFS_KEY}` && e.key !== 'tiles:language') return; // null: cleared
+  const before = currentPreferences();
+  const next = { ...keptPreferences(), shortcuts: before.shortcuts, start: before.start };
+  if (samePreferences(before, next)) return;
+  applyPreferences(next, before);
+  render();
 });
 need(document, '#menu').innerHTML = icon('menu', { size: 18 });
 
@@ -1048,6 +1194,11 @@ let welcoming = false;
 function firstRun(): void {
   const owner = navOwner();
   if (!owner) return;
+  // Their preferences first (U6.06): the start page among them.
+  void fetchPreferences().finally(() => arrive(owner));
+}
+function arrive(owner: string): void {
+  if (navOwner() !== owner) return; // someone else since
   const start = prefs().start;
   if (!started && start && start !== 'home' && !navigated && /^#?\/?$/.test(location.hash))
     location.replace(`#/${start}`);
@@ -1118,6 +1269,7 @@ async function showWelcome(): Promise<void> {
         const before = load<{ role?: string } | null>(welcomeKey(owner), null);
         const next = applyRole(prefs(), role, NAV_PAGES, { local: !api, previous: roleSetup(before?.role ?? '') });
         setPrefs(next);
+        keepPreferences(); // its start page is kept with the person
         save(welcomeKey(owner), { seen: true, role: role.id });
         renderNav(currentView());
         // An admin of a site whose plant has no machine yet (onboarding's first step) is offered the
@@ -1699,8 +1851,9 @@ const shortcuts = installShortcuts({
   go: (page) => go(`#/${page === 'home' ? '' : page}`)(),
   title: (page) => NAV.flatMap((g) => g.items).find((v) => v.id === page)?.title ?? null,
   palette: () => palette.open(),
-  changed: () => {
+  changed: (here) => {
     keyHint();
+    if (here) keepPreferences(); // turned on or off in the ? list: kept with the person (U6.06)
     ctx.rerender();
   },
 });
@@ -1930,14 +2083,3 @@ else
     .then(() => translateStatic(document))
     .catch(reportError)
     .finally(start);
-// Chosen in Settings: loaded, kept once it is in, and every word on the page said again in it.
-window.addEventListener('tiles:language', (e) => {
-  const code = (e as CustomEvent<string>).detail;
-  void useLanguage(code).then((now) => {
-    if (now === null) return; // another was chosen since
-    if (now === code) keepLanguage(code);
-    else toast(t('app.languageFailed'), { type: 'error' });
-    translateStatic(document);
-    render();
-  });
-});

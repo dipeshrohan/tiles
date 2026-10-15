@@ -1,5 +1,6 @@
 // The language Tiles is shown in (U6.03): English, German, and a pseudo-locale for testing layouts.
-// Chosen with ?lang=<code> (kept), in Settings, or by the browser's languages; English otherwise.
+// Chosen with ?lang=<code> (kept), in Your preferences (U6.06), or by the browser's languages;
+// English otherwise.
 // A language's messages are a classic script, js/messages-<code>.js (scripts/messages.js), added to
 // the page when it is chosen, so they work from file:// and stay out of the bundle. The
 // pseudo-locale is made here from English: accented and 40% longer, in brackets, so text that was
@@ -30,14 +31,28 @@ export function chosenLanguage(
   }
   const kept = load<string | null>(KEY, null);
   if (known(kept)) return kept;
+  return browserLanguage(browser);
+}
+
+// The browser's first language Tiles has; English without one.
+export function browserLanguage(
+  browser: readonly string[] = typeof navigator === 'undefined' ? [] : navigator.languages,
+): string {
   for (const tag of browser) {
     const base = tag.split('-')[0]?.toLowerCase();
-    if (known(base)) return base;
+    if (known(base) && base !== PSEUDO) return base;
   }
   return 'en';
 }
 
 export const keepLanguage = (code: string): void => save(KEY, code);
+// The language chosen before, if any (U6.06: null, the browser's); never the pseudo-locale.
+export const keptLanguage = (): string | null => {
+  const kept = load<string | null>(KEY, null);
+  return known(kept) && kept !== PSEUDO ? kept : null;
+};
+// Back to the browser's language (U6.06: Preferences' "Your browser's").
+export const forgetLanguage = (): void => save(KEY, null);
 
 type Messages = Record<string, Record<string, string> | undefined>;
 const messages = (): Messages => (globalThis as { TILES_MESSAGES?: Messages }).TILES_MESSAGES ?? {};

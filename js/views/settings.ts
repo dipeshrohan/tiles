@@ -19,8 +19,7 @@ import type { Context, View } from './types.ts';
 import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
-import { currentLocale, t, tHtml, type MessageKey } from '../lib/i18n.ts';
-import { LANGUAGES } from '../lib/language.ts';
+import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 import { dateTime } from '../lib/format.ts';
 
 const AUDIT_ROWS = 200; // the latest changes, in pages of 25
@@ -706,11 +705,11 @@ const view: View = {
           <label class="field">${esc(t('settings.profile.email'))}<input type="text" name="email" value="${esc(user.email)}" required /></label>
           <div><button class="btn primary" type="submit">${esc(t('settings.save'))}</button></div>
         </form>
-        <form class="card stack gap-3" id="language">
-          <h2>${esc(t('settings.language.title'))}</h2>
-          <p class="small soft">${esc(t('settings.language.lead'))}</p>
-          <label class="field">${esc(t('settings.language.label'))}<select name="language">${LANGUAGES.map((l) => `<option value="${esc(l.code)}" lang="${esc(l.code)}"${l.code === currentLocale() ? ' selected' : ''}>${esc(l.name)}</option>`).join('')}</select></label>
-        </form>
+        <div class="card stack gap-3" id="your-preferences">
+          <h2>${esc(t('settings.prefs.title'))}</h2>
+          <p class="small soft">${esc(t('settings.prefs.lead'))}</p>
+          <div>${linkButton(t('settings.prefs.open'), '#/preferences', { icon: 'sliders-horizontal' })}</div>
+        </div>
         <div class="card stack gap-3">
           <h2>${esc(t('settings.demo.title'))}</h2>
           <p class="small soft">${esc(t('settings.demo.lead'))}</p>
@@ -742,11 +741,6 @@ const view: View = {
       </div>`;
   },
   bind(root, ctx) {
-    // Another language at once (U6.03): app.ts loads it and draws the page again in it.
-    onAll(root, '#language select', 'change', (el) => {
-      const code = (el as HTMLSelectElement).value;
-      window.dispatchEvent(new CustomEvent('tiles:language', { detail: code }));
-    });
     onSubmit(root, '#profile', (form) => {
       const name = field(form, 'name').trim();
       const email = field(form, 'email').trim();
