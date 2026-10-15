@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from tiles_api import grounding
+from tiles_api.errors import Refusal
 
 log = logging.getLogger("tiles_api.copilot")
 
@@ -162,7 +163,7 @@ def respond(
     tools: Sequence[Tool],
     max_rounds: int = 8,
     budget: int = 0,
-    stop: Callable[[], str | None] | None = None,
+    stop: Callable[[], Refusal | None] | None = None,
 ) -> Iterator[Event]:
     """Streams the answer to the conversation `history` (ending with the user's question).
     `message` events carry each new message to store, in order; `done` (or `error`) comes last.
@@ -182,12 +183,16 @@ def respond(
     while calls_left > (0 if repaired_once else 1):
         calls_left -= 1
         reason = (
-            f"This question used its budget of {budget:,} tokens before an answer: ask a narrower one"
+            Refusal(
+                "copilot.question_budget",
+                f"This question used its budget of {budget:,} tokens before an answer: ask a narrower one",
+                tokens=f"{budget:,}",
+            )
             if budget and billed(usage) >= budget
             else (stop() if stop and calls_left < max_rounds else None)
         )
         if reason:
-            yield Event("error", {"detail": reason, "usage": usage, "over_budget": True})
+            yield Event("error", {**reason.data(), "usage": usage, "over_budget": True})
             return
         turn: Turn | None = None
         for item in model.stream(system=system, messages=messages, tools=specs):

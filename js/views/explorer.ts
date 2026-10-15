@@ -94,9 +94,9 @@ function wearForm(id: string): string {
   const option = (v: WearState['direction'], text: string) =>
     `<option value="${v}" ${w.direction === v ? 'selected' : ''}>${text}</option>`;
   return `<form class="row gap-2 wrap items-end" data-wear-form="${esc(id)}">
-      <label class="field">${t('explorer.wear.moves')}<select name="direction">${option('either', t('explorer.wear.either'))}${option('up', t('explorer.wear.up'))}${option('down', t('explorer.wear.down'))}</select></label>
-      <label class="field">${t('explorer.wear.limit')}<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="${esc(t('explorer.wear.optional'))}" class="w-8em"></label>
-      <button class="btn sm" type="submit">${t('explorer.wear.check')}</button>
+      <label class="field">${esc(t('explorer.wear.moves'))}<select name="direction">${option('either', t('explorer.wear.either'))}${option('up', t('explorer.wear.up'))}${option('down', t('explorer.wear.down'))}</select></label>
+      <label class="field">${esc(t('explorer.wear.limit'))}<input type="text" name="limit" inputmode="decimal" value="${esc(w.limit)}" placeholder="${esc(t('explorer.wear.optional'))}" class="w-8em"></label>
+      <button class="btn sm" type="submit">${esc(t('explorer.wear.check'))}</button>
     </form>
     <div data-wear-out></div>`;
 }
@@ -214,7 +214,7 @@ export function describe(series: SignalSeries): string {
 function textReadings(series: SignalSeries): string {
   const texts = series.points.filter((p) => p.text !== null).slice(-20);
   if (!texts.length) return '';
-  return `<div class="table-wrap"><table><thead><tr><th>${t('explorer.text.time')}</th><th>${t('explorer.text.value')}</th></tr></thead><tbody>${texts
+  return `<div class="table-wrap"><table><thead><tr><th>${esc(t('explorer.text.time'))}</th><th>${esc(t('explorer.text.value'))}</th></tr></thead><tbody>${texts
     .map((p) => `<tr><td>${esc(new Date(p.at).toLocaleString('en-GB'))}</td><td>${esc(p.text ?? '')}</td></tr>`)
     .join(
       '',
@@ -587,7 +587,7 @@ function compareCard(u: Ui): string {
       ? ''
       : `<div data-compare-result>${compareDrawn?.key === key ? compareDrawn.html : skeleton.chart(t('explorer.compare.loading'), TIME_CHART.height)}</div>`;
   return card(
-    `<div class="row justify-between wrap gap-2"><div><h2>${t('explorer.compare.title')}</h2><p class="small soft">${esc(t('explorer.compare.hint'))}</p></div>${modes}</div>
+    `<div class="row justify-between wrap gap-2"><div><h2>${esc(t('explorer.compare.title'))}</h2><p class="small soft">${esc(t('explorer.compare.hint'))}</p></div>${modes}</div>
       ${form ? `<form class="row gap-2 wrap items-end" id="compare-form">${form}</form>` : ''}
       ${result}`,
     { class: 'stack gap-2_5', attrs: { 'data-compare': true } },
@@ -818,17 +818,17 @@ const view: View = {
     const rangeBar = range
       ? `<form id="explorer-range" class="row gap-2 wrap items-end" data-tour="explorer-range">
           ${(['1h', '24h', '7d', '30d'] as const).map((p) => `<button class="btn sm" type="button" data-preset="${p}">${esc(t('explorer.range.last', { period: p }))}</button>`).join('')}
-          <button class="btn sm" type="button" data-preset="data" title="${esc(t('explorer.range.latestHint'))}">${t('explorer.range.latest')}</button>
-          <label class="field">${t('explorer.range.from')}<input type="datetime-local" name="from" value="${localInput(range.from)}"></label>
-          <label class="field">${t('explorer.range.to')}<input type="datetime-local" name="to" value="${localInput(range.to)}"></label>
-          <button class="btn sm" type="submit">${t('explorer.range.show')}</button>
-          <button class="btn sm" type="button" data-pan="-1" aria-label="${t('explorer.range.earlier')}">←</button>
-          <button class="btn sm" type="button" data-zoom-out>${t('explorer.range.zoomOut')}</button>
-          ${u.zoomedFrom ? `<button class="btn sm" type="button" data-zoom-reset>${t('explorer.range.reset')}</button>` : ''}
-          <button class="btn sm" type="button" data-pan="1" aria-label="${t('explorer.range.later')}">→</button>
-          ${canSave && saving?.key !== chartsKey(u) ? `<button class="btn sm" type="button" data-save-insight>${t('explorer.range.save')}</button>` : ''}
+          <button class="btn sm" type="button" data-preset="data" title="${esc(t('explorer.range.latestHint'))}">${esc(t('explorer.range.latest'))}</button>
+          <label class="field">${esc(t('explorer.range.from'))}<input type="datetime-local" name="from" value="${localInput(range.from)}"></label>
+          <label class="field">${esc(t('explorer.range.to'))}<input type="datetime-local" name="to" value="${localInput(range.to)}"></label>
+          <button class="btn sm" type="submit">${esc(t('explorer.range.show'))}</button>
+          <button class="btn sm" type="button" data-pan="-1" aria-label="${esc(t('explorer.range.earlier'))}">←</button>
+          <button class="btn sm" type="button" data-zoom-out>${esc(t('explorer.range.zoomOut'))}</button>
+          ${u.zoomedFrom ? `<button class="btn sm" type="button" data-zoom-reset>${esc(t('explorer.range.reset'))}</button>` : ''}
+          <button class="btn sm" type="button" data-pan="1" aria-label="${esc(t('explorer.range.later'))}">→</button>
+          ${canSave && saving?.key !== chartsKey(u) ? `<button class="btn sm" type="button" data-save-insight>${esc(t('explorer.range.save'))}</button>` : ''}
         </form>
-        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack gap-1_5"><h3>${t('explorer.save.title')}</h3><p class="small soft">${esc(t('explorer.save.hint'))}</p>${draftForm('insight-save', saving.text, savingBusy)}</div>` : ''}`
+        ${canSave && saving?.key === chartsKey(u) ? `<div class="stack gap-1_5"><h3>${esc(t('explorer.save.title'))}</h3><p class="small soft">${esc(t('explorer.save.hint'))}</p>${draftForm('insight-save', saving.text, savingBusy)}</div>` : ''}`
       : '';
     const charts = picked
       .map(
@@ -841,7 +841,7 @@ const view: View = {
       .join('');
     return `${head}<div class="card stack gap-3">
         <form id="explorer-search" class="row gap-3 wrap" role="search" data-tour="explorer-search">
-          <label class="field grow min-w-field">${t('explorer.search.label')}<input type="search" name="q" placeholder="${esc(t('explorer.search.placeholder'))}" autocomplete="off"${keyAttr('/')}></label>
+          <label class="field grow min-w-field">${esc(t('explorer.search.label'))}<input type="search" name="q" placeholder="${esc(t('explorer.search.placeholder'))}" autocomplete="off"${keyAttr('/')}></label>
         </form>
         <div class="row gap-1_5 wrap" data-explorer-found></div>
         ${picked.length ? `<div class="row gap-1_5 wrap" data-picked>${chips}</div>` : `<p class="small soft">${esc(t('explorer.pickHint'))}</p>`}

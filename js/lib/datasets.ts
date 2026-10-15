@@ -103,8 +103,8 @@ export function forestPlot(findings: CorrelationFinding[], split: boolean, width
   return `<svg class="chart forest" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(summary)}"><title>${esc(summary)}</title>
     <line class="grid" x1="${x(0)}" x2="${x(0)}" y1="12" y2="${height - 18}"/>
     <text class="tick" x="${x(0)}" y="${height - 4}" text-anchor="middle">0</text>
-    <text class="tick" x="${x(-reach)}" y="${height - 4}">${t('datasets.ranLower')}</text>
-    <text class="tick" x="${x(reach)}" y="${height - 4}" text-anchor="end">${t('datasets.ranHigher')}</text>
+    <text class="tick" x="${x(-reach)}" y="${height - 4}">${esc(t('datasets.ranLower'))}</text>
+    <text class="tick" x="${x(reach)}" y="${height - 4}" text-anchor="end">${esc(t('datasets.ranHigher'))}</text>
     ${rows}
   </svg>`;
 }

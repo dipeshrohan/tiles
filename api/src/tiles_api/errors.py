@@ -2,11 +2,12 @@
 
 Every error the API answers carries ``code`` next to its English ``detail``: the browser shows the
 message ``api.<code>`` from its catalogue (``js/i18n/en.json``) with ``params`` filled in, and the
-English ``detail`` only when it has no such message. Raise :class:`Problem`, never a bare
-``HTTPException`` (``tests/test_errors.py`` checks, and that every code has its message with the
-same params); one the API didn't raise itself (FastAPI's 404 for an unknown path, 405…) gets the
-code ``http.<status>``. Validation errors (422 from FastAPI) keep FastAPI's list, whose items carry
-Pydantic's ``type`` and ``ctx``, which the browser translates as ``api.field.<type>``.
+English ``detail`` only when it has no such message. Raise :class:`Problem` (a stream's ``error``
+event says a :class:`Refusal`), never a bare ``HTTPException``; ``tests/test_errors.py`` checks
+that, and that every code has its message with the same params. An error the API didn't raise
+itself (FastAPI's 404 for an unknown path, 405…) gets the code ``http.<status>``. Validation errors
+(422 from FastAPI) keep FastAPI's list, whose items carry Pydantic's ``type`` and ``ctx``, which
+the browser translates as ``api.field.<type>``.
 """
 
 from collections.abc import Mapping
@@ -37,6 +38,19 @@ class Problem(HTTPException):
         super().__init__(status_code, message, dict(headers) if headers else None)
         self.code = code
         self.params = params
+
+
+class Refusal:
+    """An error said in a stream's ``error`` event (the copilot's answer) rather than as a status:
+    a code, the English words and their params, like :class:`Problem`."""
+
+    def __init__(self, code: str, detail: str, **params: Param) -> None:
+        self.code = code
+        self.detail = detail
+        self.params = params
+
+    def data(self) -> dict[str, object]:
+        return {"detail": self.detail, "code": self.code, "params": self.params}
 
 
 def body(exc: StarletteHTTPException) -> dict[str, object]:

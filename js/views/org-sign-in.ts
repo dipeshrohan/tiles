@@ -22,10 +22,10 @@ let revealed: { name: string; token: string; apiUrl: string; user: string } | nu
 
 export function orgSignInCard(): string {
   return `<div class="card stack gap-3 span-all" id="org-sign-in" hidden>
-      <h2>${t('orgSignIn.title')}</h2>
+      <h2>${esc(t('orgSignIn.title'))}</h2>
       <p class="small soft">${tHtml('orgSignIn.lead', { guide: GUIDE })}</p>
       <div data-org-provider aria-live="polite"></div>
-      <h3>${t('orgSignIn.scim.title')}</h3>
+      <h3>${esc(t('orgSignIn.scim.title'))}</h3>
       <div data-scim aria-live="polite"></div>
     </div>`;
 }
@@ -34,23 +34,23 @@ function providerForm(p: IdentityProvider | null, viaProvider: boolean): string 
   const v = (s: string | null | undefined) => esc(s ?? '');
   const updated = p ? ` ${esc(t('orgSignIn.updated', { time: new Date(p.updated_at).toLocaleString('en-GB') }))}` : '';
   const status = !p
-    ? `<p class="small soft">${t('orgSignIn.deploymentProvider')}</p>`
+    ? `<p class="small soft">${esc(t('orgSignIn.deploymentProvider'))}</p>`
     : p.verified
       ? `<p class="small">${tHtml('orgSignIn.signsIn', { issuer: `<b>${esc(p.issuer)}</b>`, enforced: p.enforced ? 'yes' : 'no' })}${updated}</p>`
-      : `<p class="small" data-org-provider-pending><span class="badge warn">${t('orgSignIn.notConfirmed')}</span> ${tHtml('orgSignIn.confirm', { issuer: `<b>${esc(p.issuer)}</b>`, account: `<i>${esc(t('orgSignIn.account'))}</i>` })}${updated}</p>`;
+      : `<p class="small" data-org-provider-pending><span class="badge warn">${esc(t('orgSignIn.notConfirmed'))}</span> ${tHtml('orgSignIn.confirm', { issuer: `<b>${esc(p.issuer)}</b>`, account: `<i>${esc(t('orgSignIn.account'))}</i>` })}${updated}</p>`;
   const enforceHint = viaProvider ? t('orgSignIn.enforce') : t('orgSignIn.enforceFirst');
   return `${status}
     <form class="stack gap-2" id="org-provider-form">
       <label class="field">${tHtml('orgSignIn.form.issuer', { iss: ISS, example: `https://login.microsoftonline.com/${angled(t('orgSignIn.form.tenantId'))}/v2.0` })}<input type="url" name="issuer" value="${v(p?.issuer)}" required autocomplete="off" /></label>
       <div class="grid g2 gap-2">
-        <label class="field">${t('orgSignIn.form.clientId')}<input type="text" name="clientId" value="${v(p?.client_id)}" required autocomplete="off" /></label>
+        <label class="field">${esc(t('orgSignIn.form.clientId'))}<input type="text" name="clientId" value="${v(p?.client_id)}" required autocomplete="off" /></label>
         <label class="field">${tHtml('orgSignIn.form.audience', { aud: AUD })}<input type="text" name="audience" value="${v(p?.audience)}" required autocomplete="off" /></label>
       </div>
       <label class="field">${tHtml('orgSignIn.form.scope', { example: `${SCOPES}${angled(t('orgSignIn.form.apiAppId'))}/access` })}<input type="text" name="scope" value="${v(p?.scope ?? 'openid email profile')}" autocomplete="off" /></label>
-      <label class="field">${t('orgSignIn.form.jwks')}<input type="url" name="jwksUrl" value="${v(p?.jwks_url)}" autocomplete="off" /></label>
+      <label class="field">${esc(t('orgSignIn.form.jwks'))}<input type="url" name="jwksUrl" value="${v(p?.jwks_url)}" autocomplete="off" /></label>
       <label class="field">${tHtml('orgSignIn.form.groups', { example: `<code>${angled(t('orgSignIn.form.groupId'))} = engineer</code>` })}<textarea name="groupRoles" rows="3" spellcheck="false">${esc(groupRolesText(p?.group_roles ?? {}))}</textarea></label>
       <label class="row gap-2"><input type="checkbox" name="enforced" ${p?.enforced ? 'checked' : ''} /> ${esc(enforceHint)}</label>
-      <div class="row gap-2"><button class="btn primary" type="submit">${t('orgSignIn.form.save')}</button>${p ? `<button class="btn danger" type="button" data-org-provider-remove>${t('orgSignIn.remove')}</button>` : ''}</div>
+      <div class="row gap-2"><button class="btn primary" type="submit">${esc(t('orgSignIn.form.save'))}</button>${p ? `<button class="btn danger" type="button" data-org-provider-remove>${esc(t('orgSignIn.remove'))}</button>` : ''}</div>
     </form>`;
 }
 
@@ -67,18 +67,18 @@ function scimHtml(ctx: Context, tokens: ScimToken[]): string {
       : '';
   const active = tokens.filter((tok) => !tok.revoked_at);
   const rows = active.length
-    ? `<div class="table-wrap"><table><thead><tr><th>${t('orgSignIn.scim.head.token')}</th><th>${t('orgSignIn.scim.head.made')}</th><th>${t('orgSignIn.scim.head.lastUsed')}</th><th><span class="sr-only">${t('orgSignIn.scim.head.actions')}</span></th></tr></thead><tbody>${active
+    ? `<div class="table-wrap"><table><thead><tr><th>${esc(t('orgSignIn.scim.head.token'))}</th><th>${esc(t('orgSignIn.scim.head.made'))}</th><th>${esc(t('orgSignIn.scim.head.lastUsed'))}</th><th><span class="sr-only">${esc(t('orgSignIn.scim.head.actions'))}</span></th></tr></thead><tbody>${active
         .map(
           (tok) =>
-            `<tr><td>${esc(tok.name)}</td><td>${esc(new Date(tok.created_at).toLocaleString('en-GB'))}</td><td>${tok.last_used_at ? esc(new Date(tok.last_used_at).toLocaleString('en-GB')) : t('orgSignIn.scim.never')}</td><td><button class="btn sm danger" type="button" data-revoke-scim="${esc(tok.id)}" data-scim-name="${esc(tok.name)}">${t('orgSignIn.scim.revoke')}</button></td></tr>`,
+            `<tr><td>${esc(tok.name)}</td><td>${esc(new Date(tok.created_at).toLocaleString('en-GB'))}</td><td>${tok.last_used_at ? esc(new Date(tok.last_used_at).toLocaleString('en-GB')) : esc(t('orgSignIn.scim.never'))}</td><td><button class="btn sm danger" type="button" data-revoke-scim="${esc(tok.id)}" data-scim-name="${esc(tok.name)}">${esc(t('orgSignIn.scim.revoke'))}</button></td></tr>`,
         )
         .join('')}</tbody></table></div>`
-    : `<p class="small soft">${t('orgSignIn.scim.none')}</p>`;
+    : `<p class="small soft">${esc(t('orgSignIn.scim.none'))}</p>`;
   return `<p class="small">${tHtml('orgSignIn.scim.tenant', { url: `<code>${esc(scimBaseUrl(api.baseUrl))}</code>` })}</p>
     ${shown}${rows}
     <form class="row gap-2 wrap" id="scim-token-form">
-      <label class="field grow min-w-field">${t('orgSignIn.scim.newFor')}<input type="text" name="name" placeholder="${esc(t('orgSignIn.scim.placeholder'))}" maxlength="120" required /></label>
-      <div class="self-end"><button class="btn primary" type="submit">${t('orgSignIn.scim.make')}</button></div>
+      <label class="field grow min-w-field">${esc(t('orgSignIn.scim.newFor'))}<input type="text" name="name" placeholder="${esc(t('orgSignIn.scim.placeholder'))}" maxlength="120" required /></label>
+      <div class="self-end"><button class="btn primary" type="submit">${esc(t('orgSignIn.scim.make'))}</button></div>
     </form>`;
 }
 
@@ -139,7 +139,7 @@ export async function bindOrgSignIn(root: HTMLElement, ctx: Context): Promise<vo
     provider = await api.org.identityProvider();
   } catch {
     card.hidden = false;
-    box.innerHTML = `<p class="small soft">${t('orgSignIn.loadFailed')}</p>`;
+    box.innerHTML = `<p class="small soft">${esc(t('orgSignIn.loadFailed'))}</p>`;
     return;
   }
   card.hidden = false;

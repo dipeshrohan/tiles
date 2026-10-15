@@ -214,7 +214,7 @@ function detailCard(ctx: Context): string {
     editing?.key === key
       ? draftForm('insight-edit', editing.text, busy, t('insights.saveChanges'))
       : `${i.summary ? `<p class="pre-wrap" data-summary>${esc(i.summary)}</p>` : ''}
-        <div><h3>${t('insights.actions')}</h3>${
+        <div><h3>${esc(t('insights.actions'))}</h3>${
           i.actions.length
             ? `<ol data-actions>${i.actions.map((a) => `<li>${esc(a)}</li>`).join('')}</ol>`
             : `<p class="small soft">${esc(t('insights.noActions'))}</p>`
@@ -224,25 +224,25 @@ function detailCard(ctx: Context): string {
   if (note.key !== key) note = { key, text: '' };
   const review = may.review
     ? `<form class="stack gap-2" id="insight-review">
-        <label class="field">${t('insights.review.label')} <span class="small soft">${esc(t('insights.review.needed'))}</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
-        <div class="row gap-2"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? 'disabled' : ''}>${t('insights.review.accept')}</button><button class="btn" type="submit" data-decision="rejected" ${busy ? 'disabled' : ''}>${t('insights.review.reject')}</button></div>
+        <label class="field">${esc(t('insights.review.label'))} <span class="small soft">${esc(t('insights.review.needed'))}</span><textarea name="note" rows="2" maxlength="2000">${esc(note.text)}</textarea></label>
+        <div class="row gap-2"><button class="btn primary" type="submit" data-decision="accepted" ${busy ? 'disabled' : ''}>${esc(t('insights.review.accept'))}</button><button class="btn" type="submit" data-decision="rejected" ${busy ? 'disabled' : ''}>${esc(t('insights.review.reject'))}</button></div>
       </form>`
     : '';
   const tools = [
     may.edit && editing?.key !== key
-      ? `<button class="btn sm" type="button" data-edit${keyAttr('e')}>${t('insights.edit')}</button>`
+      ? `<button class="btn sm" type="button" data-edit${keyAttr('e')}>${esc(t('insights.edit'))}</button>`
       : '',
     may.reopen
-      ? `<button class="btn sm" type="button" data-reopen ${busy ? 'disabled' : ''}>${t('insights.reopen')}</button>`
+      ? `<button class="btn sm" type="button" data-reopen ${busy ? 'disabled' : ''}>${esc(t('insights.reopen'))}</button>`
       : '',
     may.remove
-      ? `<button class="btn sm" type="button" data-remove ${busy ? 'disabled' : ''}>${t('insights.delete')}</button>`
+      ? `<button class="btn sm" type="button" data-remove ${busy ? 'disabled' : ''}>${esc(t('insights.delete'))}</button>`
       : '',
   ].join('');
   return `<div class="card stack gap-3" data-insight-detail>
       ${head}
       ${body}
-      <div class="stack gap-1_5"><h3>${t('insights.evidence')}</h3>
+      <div class="stack gap-1_5"><h3>${esc(t('insights.evidence'))}</h3>
         <p class="small soft" data-source>${tHtml('insights.source', { source: esc(sourceText(i)), when: esc(when(i.created_at)), link: `<a href="${esc(link.href)}">${esc(link.text)}</a>` })}</p>
         ${evidence(i)}
       </div>

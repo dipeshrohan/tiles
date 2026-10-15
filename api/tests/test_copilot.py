@@ -124,7 +124,7 @@ def test_turning_it_off_stops_an_answer_being_written(api: TestClient, site: str
     model.stream = turned_off_meanwhile  # type: ignore[method-assign]
     res = ask(api, site, start(api, site), "How hot is the oil?")
     kinds = events(res.text)
-    assert kinds[-1] == ("error", kinds[-1][1]) and kinds[-1][1]["detail"] == api_copilot.SITE_OFF
+    assert kinds[-1] == ("error", kinds[-1][1]) and kinds[-1][1]["detail"] == api_copilot.SITE_OFF.detail
     assert len(model.calls) == 1  # the second call, with the tool's results, was never made
     usage = api.get(f"/sites/{site}/copilot/usage", headers=ADMIN).json()
     assert (usage["days"][0]["failed"], usage["days"][0]["over_budget"]) == (1, 0)
@@ -249,7 +249,11 @@ def test_a_broken_answer_says_so_counts_its_tokens_and_leaves_a_usable_conversat
     model.stream = broken  # type: ignore[method-assign]
     got = events(ask(api, site, conversation, "What broke?").text)
     assert [k for k, _ in got] == ["tool_use", "tool_result", "text", "error"]
-    assert got[-1][1] == {"detail": "The copilot could not answer: try again in a moment"}
+    assert got[-1][1] == {
+        "detail": "The copilot could not answer: try again in a moment",
+        "code": "copilot.failed",
+        "params": {},
+    }
     with psycopg.connect(database_url, row_factory=dict_row) as conn:
         row = conn.execute(
             "SELECT busy_since, input_tokens, output_tokens FROM conversations WHERE id = %s", [conversation]

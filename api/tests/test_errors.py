@@ -41,9 +41,10 @@ def test_errors_are_problems_with_a_code() -> None:
 def test_every_code_has_its_message_with_the_same_params() -> None:
     catalogue = json.loads(CATALOGUE.read_text())
     problems = []
-    for path, node in calls("Problem"):
+    said = [(p, n, 1) for p, n in calls("Problem")] + [(p, n, 0) for p, n in calls("Refusal")]
+    for path, node, at in said:
         where = f"{path.relative_to(SRC)}:{node.lineno}"
-        code = node.args[1] if len(node.args) > 1 else None
+        code = node.args[at] if len(node.args) > at else None
         if not (isinstance(code, ast.Constant) and isinstance(code.value, str)):
             problems.append(f"{where}: the code must be a string literal")
             continue
@@ -103,10 +104,8 @@ def test_validation_errors_keep_their_types() -> None:
 
 def test_every_api_message_is_one_the_api_sends() -> None:
     """No catalogue words left behind for a code the API no longer sends (fields' are Pydantic's)."""
-    used = {
-        f"api.{n.args[1].value}"
-        for _, n in calls("Problem")
-        if len(n.args) > 1 and isinstance(n.args[1], ast.Constant) and isinstance(n.args[1].value, str)
-    }
+    codes = [n.args[1] for _, n in calls("Problem") if len(n.args) > 1]
+    codes += [n.args[0] for _, n in calls("Refusal") if n.args]
+    used = {f"api.{c.value}" for c in codes if isinstance(c, ast.Constant) and isinstance(c.value, str)}
     keys = {k for k in json.loads(CATALOGUE.read_text()) if k.startswith("api.") and not k.startswith("api.field.")}
     assert not keys - used, f"not sent by the API: {sorted(keys - used)}"

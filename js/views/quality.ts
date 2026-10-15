@@ -62,15 +62,15 @@ const view: View = {
         eyebrow: t('quality.eyebrow'),
         title: t('quality.headTitle'),
         lead: t('quality.lead', { ng, total: rows.length }),
-        actionsHtml: `<div class="seg" role="group" aria-label="${t('quality.segmentation')}">
-          <button data-split="0" class="${ui.split ? '' : 'active'}">${t('quality.pooled')}</button>
-          <button data-split="1" class="${ui.split ? 'active' : ''}">${t('quality.split')}</button>
+        actionsHtml: `<div class="seg" role="group" aria-label="${esc(t('quality.segmentation'))}">
+          <button data-split="0" class="${ui.split ? '' : 'active'}">${esc(t('quality.pooled'))}</button>
+          <button data-split="1" class="${ui.split ? 'active' : ''}">${esc(t('quality.split'))}</button>
         </div>`,
       })}
 
       <div class="grid g2 mb-4">
         <div class="card">
-          <div class="card-head"><h2>${t('quality.effects.title')}</h2><p>${tHtml('quality.effects.hint', { d: term('cohens-d') })}</p></div>
+          <div class="card-head"><h2>${esc(t('quality.effects.title'))}</h2><p>${tHtml('quality.effects.hint', { d: term('cohens-d') })}</p></div>
           ${hbars({ items: effects, width: 480, left: 200, title: t('quality.effects.chartTitle'), format: (x) => (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(2) })}
           ${ui.split ? '' : `<p class="small soft mt-2">${tHtml('quality.effects.pooled', { link: `<a href="#/quality" data-split="1">${esc(t('quality.effects.splitLink'))}</a>` })}</p>`}
         </div>
@@ -85,14 +85,14 @@ const view: View = {
                       <div class="d">${esc(t('quality.delta', { delta: signed(f.delta), unit: f.unit, count: f.ngCount }))}</div></div></div>`,
                   )
                   .join('')
-              : `<div class="card"><div class="empty">${t('quality.noVariable')}</div></div>`
+              : `<div class="card"><div class="empty">${esc(t('quality.noVariable'))}</div></div>`
           }
           ${
             top.length
-              ? `<div class="card"><h3>${t('quality.actions.title')}</h3><ul class="actions-list">
-                  <li>${t('quality.actions.limits')}</li>
-                  <li>${t('quality.actions.track')}</li>
-                  <li>${t('quality.actions.calibrate')}</li></ul></div>`
+              ? `<div class="card"><h3>${esc(t('quality.actions.title'))}</h3><ul class="actions-list">
+                  <li>${esc(t('quality.actions.limits'))}</li>
+                  <li>${esc(t('quality.actions.track'))}</li>
+                  <li>${esc(t('quality.actions.calibrate'))}</li></ul></div>`
               : ''
           }
         </div>
@@ -100,20 +100,20 @@ const view: View = {
 
       <div class="card mb-4">
         <div class="card-head">
-          <div><h2>${t('quality.dumbbell.title')}</h2><p>${t('quality.dumbbell.hint')}</p></div>
-          <select id="variable" aria-label="${t('quality.dumbbell.variable')}">${CUTTER_VARIABLES.map((x) => `<option value="${x.key}" ${x.key === ui.variable ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
+          <div><h2>${esc(t('quality.dumbbell.title'))}</h2><p>${esc(t('quality.dumbbell.hint'))}</p></div>
+          <select id="variable" aria-label="${esc(t('quality.dumbbell.variable'))}">${CUTTER_VARIABLES.map((x) => `<option value="${x.key}" ${x.key === ui.variable ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</select>
         </div>
-        <div class="legend mb-1_5"><span><i class="box bg-bad round"></i>${t('quality.dumbbell.failed')}</span><span><i class="box bg-muted round"></i>${t('quality.dumbbell.healthy')}</span></div>
+        <div class="legend mb-1_5"><span><i class="box bg-bad round"></i>${esc(t('quality.dumbbell.failed'))}</span><span><i class="box bg-muted round"></i>${esc(t('quality.dumbbell.healthy'))}</span></div>
         ${dumbbell({ rows: dumb, width: fitWidth(1040), domain: [Math.min(...all) - pad, Math.max(...all) + pad], xLabel: t('quality.dumbbell.xLabel', { variable: v.label.toLowerCase(), unit: v.unit }) })}
       </div>
 
       <div class="card">
         <div class="card-head">
-          <div><div class="eyebrow">${t('quality.wear.eyebrow')}</div><h2>${t('quality.wear.title')}</h2>
+          <div><div class="eyebrow">${esc(t('quality.wear.eyebrow'))}</div><h2>${esc(t('quality.wear.title'))}</h2>
           <p>${esc(t('quality.wear.hint'))}</p></div>
           <div class="row"><span class="badge bad">${esc(t('quality.wear.cathodeChange', { change: signed(cat.change * 100, 1) }))}</span><span class="badge">${esc(t('quality.wear.anodeChange', { change: signed(an.change * 100, 1) }))}</span></div>
         </div>
-        <div class="legend mb-1_5"><span><i class="bg-bad"></i>${t('quality.wear.cathodeTip')}</span><span><i class="bg-accent"></i>${t('quality.wear.anodeTip')}</span><span><i class="box bg-band"></i>${t('quality.wear.final')}</span></div>
+        <div class="legend mb-1_5"><span><i class="bg-bad"></i>${esc(t('quality.wear.cathodeTip'))}</span><span><i class="bg-accent"></i>${esc(t('quality.wear.anodeTip'))}</span><span><i class="box bg-band"></i>${esc(t('quality.wear.final'))}</span></div>
         ${lineChart({
           series: [
             { values: series.map((s) => s.anode), color: 'var(--accent)', label: t('quality.wear.series.anode') },
@@ -133,8 +133,8 @@ const view: View = {
           height: 260,
         })}
         <div class="grid g2 mt-3">
-          <div><h3>${t('quality.wear.action')}</h3><p class="soft">${tHtml('quality.wear.actionText', { and: `<i>${esc(t('quality.wear.and'))}</i>`, wear: term('wear', 'wear'), hour: wearStart })}</p></div>
-          <div class="kpi"><div class="label">${t('quality.wear.kpi')}</div><div class="value">${fmt(warnHours)} h</div><div class="note">${esc(t('quality.wear.kpiNote', { threshold: fmt(threshold) }))}</div></div>
+          <div><h3>${esc(t('quality.wear.action'))}</h3><p class="soft">${tHtml('quality.wear.actionText', { and: `<i>${esc(t('quality.wear.and'))}</i>`, wear: term('wear', 'wear'), hour: wearStart })}</p></div>
+          <div class="kpi"><div class="label">${esc(t('quality.wear.kpi'))}</div><div class="value">${fmt(warnHours)} h</div><div class="note">${esc(t('quality.wear.kpiNote', { threshold: fmt(threshold) }))}</div></div>
         </div>
       </div>`;
   },

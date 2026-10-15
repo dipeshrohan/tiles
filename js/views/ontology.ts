@@ -296,7 +296,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
           <rect width="5" height="${BOX.h}" rx="2" fill="${NODE_TYPES[n.type].color}" stroke="none"/>
           <text x="13" y="18">${esc(short(n.label, fold ? 15 : 19))}</text>${fold ? `<text class="fold" x="${BOX.w - 7}" y="18" text-anchor="end">+${fold}</text>` : ''}${
             editor && id === ui.selected && picked.size === 1
-              ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>${t('ontology.node.handle')}</title></circle>`
+              ? `<circle class="handle" data-handle cx="${BOX.w}" cy="${BOX.h / 2}" r="6"><title>${esc(t('ontology.node.handle'))}</title></circle>`
               : ''
           }
           <title>${esc(t('ontology.node.title', { type: n.type, label: n.label, count: fold }))}</title>
@@ -326,27 +326,27 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
         <div>
           <div class="canvas-tools">
             <span class="row gap-1">
-              <button class="btn sm" data-zoom="out" aria-label="${t('ontology.zoom.out')}">−</button>
-              <button class="btn sm" data-zoom="in" aria-label="${t('ontology.zoom.in')}">+</button>
-              <button class="btn sm" data-zoom="fit">${t('ontology.zoom.fit')}</button>
-              <button class="btn sm" data-zoom="focus" ${picked.size ? '' : 'disabled'}>${t('ontology.zoom.focus')}</button>
+              <button class="btn sm" data-zoom="out" aria-label="${esc(t('ontology.zoom.out'))}">−</button>
+              <button class="btn sm" data-zoom="in" aria-label="${esc(t('ontology.zoom.in'))}">+</button>
+              <button class="btn sm" data-zoom="fit">${esc(t('ontology.zoom.fit'))}</button>
+              <button class="btn sm" data-zoom="focus" ${picked.size ? '' : 'disabled'}>${esc(t('ontology.zoom.focus'))}</button>
             </span>${
               editor
                 ? `<span class="row gap-1">
-              <button class="btn sm" data-undo aria-keyshortcuts="Control+Z Meta+Z" data-tooltip="${t('ontology.undo.tooltip')}" ${undoable(ctx).length ? '' : 'disabled'}>${t('ontology.undo.label')}</button>
-              <button class="btn sm" data-redo aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" data-tooltip="${t('ontology.redo.tooltip')}" ${canRedo(ctx) ? '' : 'disabled'}>${t('ontology.redo.label')}</button>
+              <button class="btn sm" data-undo aria-keyshortcuts="Control+Z Meta+Z" data-tooltip="${esc(t('ontology.undo.tooltip'))}" ${undoable(ctx).length ? '' : 'disabled'}>${esc(t('ontology.undo.label'))}</button>
+              <button class="btn sm" data-redo aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" data-tooltip="${esc(t('ontology.redo.tooltip'))}" ${canRedo(ctx) ? '' : 'disabled'}>${esc(t('ontology.redo.label'))}</button>
               <span class="sr-only" aria-live="polite" data-undo-note>${esc(undoNote)}</span>
             </span>`
                 : ''
             }
-            <select class="sm" data-fold-level aria-label="${t('ontology.fold.label')}">${LEVELS.map(
+            <select class="sm" data-fold-level aria-label="${esc(t('ontology.fold.label'))}">${LEVELS.map(
               ([value, label]) =>
-                `<option value="${value}" ${level?.[0] === value ? 'selected' : ''}>${t(label)}</option>`,
-            ).join('')}${level ? '' : `<option selected disabled>${t('ontology.fold.byHand')}</option>`}</select>
+                `<option value="${value}" ${level?.[0] === value ? 'selected' : ''}>${esc(t(label))}</option>`,
+            ).join('')}${level ? '' : `<option selected disabled>${esc(t('ontology.fold.byHand'))}</option>`}</select>
             <span class="row canvas-search">
-              <input type="search" data-onto-search${keyAttr('/')} value="${esc(ui.search)}" placeholder="${t('ontology.search.placeholder')}" aria-label="${t('ontology.search.placeholder')}" />
-              <button class="btn sm" data-search-next ${found ? '' : 'disabled'}>${t('ontology.search.next')}</button>
-              <span class="small soft" data-search-count aria-live="polite">${found === null ? '' : t('ontology.search.found', { count: found })}</span>
+              <input type="search" data-onto-search${keyAttr('/')} value="${esc(ui.search)}" placeholder="${esc(t('ontology.search.placeholder'))}" aria-label="${esc(t('ontology.search.placeholder'))}" />
+              <button class="btn sm" data-search-next ${found ? '' : 'disabled'}>${esc(t('ontology.search.next'))}</button>
+              <span class="small soft" data-search-count aria-live="polite">${found === null ? '' : esc(t('ontology.search.found', { count: found }))}</span>
             </span>
           </div>
           <div class="canvas-wrap" data-tour="onto-canvas">
@@ -355,7 +355,7 @@ function canvas(ctx: Context, graph: Graph, health: HealthReport, ui: OntologyUi
           </div>
           <div class="statusbar">
             <span>${esc(t('ontology.status.nodes', { total, shown: pos.size, hidden: pos.size < total ? 'yes' : 'no' }))}</span><span>${esc(t('ontology.status.edges', { count: Object.keys(graph.edges).length }))}</span>
-            <span class="spacer"></span><span class="small soft">${t('ontology.status.hint', { editor: editor ? 'yes' : 'no' })}</span>
+            <span class="spacer"></span><span class="small soft">${esc(t('ontology.status.hint', { editor: editor ? 'yes' : 'no' }))}</span>
           </div>
           <div class="chips mt-2">${legend}</div>
         </div>
@@ -385,30 +385,30 @@ function inspector(graph: Graph, id: string, folded: Map<string, number>, h: Hie
   return `
       <div class="card-head">
         <div><span class="badge"><span class="dot" style="background:${NODE_TYPES[n.type].color}"></span>${esc(n.type)}</span><h2 class="mt-1_5">${esc(n.label)}</h2><div class="muted small mono">${esc(n.id)}</div></div>
-        <button class="btn sm" data-deselect aria-label="${t('ontology.inspector.close')}">✕</button>
+        <button class="btn sm" data-deselect aria-label="${esc(t('ontology.inspector.close'))}">✕</button>
       </div>
       ${path.length > 1 ? `<p class="small soft mb-3">${path.map((p) => esc(p.label)).join(' → ')}</p>` : ''}
       ${below || isFolded ? `<p class="mb-3"><button class="btn sm" data-fold="${esc(id)}">${esc(isFolded ? t('ontology.inspector.open', { count: below }) : t('ontology.inspector.fold', { count: below }))}</button></p>` : ''}
-      <h3 class="mb-1_5">${t('ontology.inspector.properties')}</h3>
+      <h3 class="mb-1_5">${esc(t('ontology.inspector.properties'))}</h3>
       <div class="kv">
-        ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="${esc(t('ontology.inspector.removeProp', { key: k }))}">✕</button>`).join('') || `<span class="muted small span3">${t('ontology.inspector.noProps')}</span>`}
+        ${props.map(([k, v]) => `<span class="k">${esc(k)}</span><span>${esc(v)}</span><button class="btn sm" data-unset="${esc(k)}" aria-label="${esc(t('ontology.inspector.removeProp', { key: k }))}">✕</button>`).join('') || `<span class="muted small span3">${esc(t('ontology.inspector.noProps'))}</span>`}
       </div>
       ${required.length ? `<p class="small text-warn mt-1_5">${esc(t('ontology.inspector.missing', { props: required.join(', ') }))}</p>` : ''}
       <form class="row mt-2 mb-4 m-0" id="prop-form">
-        <input type="text" name="key" placeholder="${t('ontology.prop.key')}" class="w-6em" value="${esc(required[0] ?? '')}" required aria-label="${t('ontology.prop.keyLabel')}" />
-        <input type="text" name="value" placeholder="${t('ontology.prop.value')}" class="grow w-6em" required aria-label="${t('ontology.prop.valueLabel')}" />
-        <button class="btn sm" type="submit">${t('ontology.prop.set')}</button>
+        <input type="text" name="key" placeholder="${esc(t('ontology.prop.key'))}" class="w-6em" value="${esc(required[0] ?? '')}" required aria-label="${esc(t('ontology.prop.keyLabel'))}" />
+        <input type="text" name="value" placeholder="${esc(t('ontology.prop.value'))}" class="grow w-6em" required aria-label="${esc(t('ontology.prop.valueLabel'))}" />
+        <button class="btn sm" type="submit">${esc(t('ontology.prop.set'))}</button>
       </form>
-      <h3 class="mb-1_5">${t('ontology.inspector.relationships')}</h3>
+      <h3 class="mb-1_5">${esc(t('ontology.inspector.relationships'))}</h3>
       <div class="rel-list">
-        ${rels.map((r) => `<div class="rel">${r.outgoing ? '' : '<span class="r">←</span>'}<span class="r">${esc(r.edge.rel)}</span><a href="#/ontology" data-goto="${esc(r.node.id)}">${esc(r.node.label)}</a><span class="spacer"></span><button class="btn sm" data-unlink="${esc(r.edge.id)}" aria-label="${t('ontology.inspector.unlink')}">✕</button></div>`).join('') || `<span class="muted small">${t('ontology.inspector.orphan')}</span>`}
+        ${rels.map((r) => `<div class="rel">${r.outgoing ? '' : '<span class="r">←</span>'}<span class="r">${esc(r.edge.rel)}</span><a href="#/ontology" data-goto="${esc(r.node.id)}">${esc(r.node.label)}</a><span class="spacer"></span><button class="btn sm" data-unlink="${esc(r.edge.id)}" aria-label="${esc(t('ontology.inspector.unlink'))}">✕</button></div>`).join('') || `<span class="muted small">${esc(t('ontology.inspector.orphan'))}</span>`}
       </div>
       <form class="row mt-2 mb-4 m-0" id="link-form">
-        <select name="rel" aria-label="${t('ontology.relationship')}">${RELS.map((r) => `<option>${r}</option>`).join('')}</select>
-        <select name="to" class="grow w-6em" aria-label="${t('ontology.inspector.target')}" required data-morph="if-changed" data-node-options="${versionOf(graph)}" data-except="${esc(id)}"><option value="">${t('ontology.inspector.choose')}</option></select>
-        <button class="btn sm" type="submit">${t('ontology.inspector.link')}</button>
+        <select name="rel" aria-label="${esc(t('ontology.relationship'))}">${RELS.map((r) => `<option>${r}</option>`).join('')}</select>
+        <select name="to" class="grow w-6em" aria-label="${esc(t('ontology.inspector.target'))}" required data-morph="if-changed" data-node-options="${versionOf(graph)}" data-except="${esc(id)}"><option value="">${esc(t('ontology.inspector.choose'))}</option></select>
+        <button class="btn sm" type="submit">${esc(t('ontology.inspector.link'))}</button>
       </form>
-      <button class="btn danger sm" data-delete ${rels.length ? `disabled title="${esc(t('ontology.inspector.removeFirst', { count: rels.length }))}"` : ''}>${t('ontology.inspector.delete')}</button>`;
+      <button class="btn danger sm" data-delete ${rels.length ? `disabled title="${esc(t('ontology.inspector.removeFirst', { count: rels.length }))}"` : ''}>${esc(t('ontology.inspector.delete'))}</button>`;
 }
 
 // A drag from one node onto another (U5.05): the relationship it most likely means, to confirm.
@@ -418,12 +418,12 @@ function linkPanel(graph: Graph, link: { from: string; to: string }): string {
   if (!a || !b) return '';
   const rel = likelyRel(a.type, b.type);
   return `
-      <div class="card-head"><h2>${t('ontology.link.title')}</h2><button class="btn sm" type="button" data-link-cancel aria-label="${t('ontology.cancel')}">✕</button></div>
+      <div class="card-head"><h2>${esc(t('ontology.link.title'))}</h2><button class="btn sm" type="button" data-link-cancel aria-label="${esc(t('ontology.cancel'))}">✕</button></div>
       <p class="small mb-3"><b>${esc(a.label)}</b> <span class="soft">${esc(a.type)}</span> → <b>${esc(b.label)}</b> <span class="soft">${esc(b.type)}</span></p>
       <form class="row wrap gap-2 m-0" id="drag-link-form">
-        <select name="rel" aria-label="${t('ontology.relationship')}">${RELS.map((r) => `<option ${r === rel ? 'selected' : ''}>${r}</option>`).join('')}</select>
-        <button class="btn primary sm" type="submit">${t('ontology.link.add')}</button>
-        <button class="btn sm" type="button" data-link-swap>${t('ontology.link.swap')}</button>
+        <select name="rel" aria-label="${esc(t('ontology.relationship'))}">${RELS.map((r) => `<option ${r === rel ? 'selected' : ''}>${r}</option>`).join('')}</select>
+        <button class="btn primary sm" type="submit">${esc(t('ontology.link.add'))}</button>
+        <button class="btn sm" type="button" data-link-swap>${esc(t('ontology.link.swap'))}</button>
       </form>`;
 }
 
@@ -454,16 +454,16 @@ function manyPanel(graph: Graph, ids: string[], editor: boolean): string {
       ? `<li class="small soft">${esc(t('ontology.many.more', { count: ids.length - MANY_LISTED }))}</li>`
       : '';
   return `
-      <div class="card-head"><h2>${esc(t('ontology.many.title', { count: ids.length }))}</h2><button class="btn sm" data-deselect aria-label="${t('ontology.many.clear')}">✕</button></div>
+      <div class="card-head"><h2>${esc(t('ontology.many.title', { count: ids.length }))}</h2><button class="btn sm" data-deselect aria-label="${esc(t('ontology.many.clear'))}">✕</button></div>
       <ul class="pick-list">${listed}${more}</ul>
-      <p class="small soft mt-2 mb-3">${t('ontology.many.hint')}</p>
+      <p class="small soft mt-2 mb-3">${esc(t('ontology.many.hint'))}</p>
       ${
         editor
-          ? `<h3 class="mb-1_5">${t('ontology.many.setTitle')}</h3>
+          ? `<h3 class="mb-1_5">${esc(t('ontology.many.setTitle'))}</h3>
       <form class="row mt-2 mb-4 m-0" id="many-prop-form">
-        <input type="text" name="key" placeholder="${t('ontology.prop.key')}" class="w-6em" required aria-label="${t('ontology.prop.keyLabel')}" />
-        <input type="text" name="value" placeholder="${t('ontology.prop.value')}" class="grow w-6em" required aria-label="${t('ontology.prop.valueLabel')}" />
-        <button class="btn sm" type="submit">${t('ontology.prop.set')}</button>
+        <input type="text" name="key" placeholder="${esc(t('ontology.prop.key'))}" class="w-6em" required aria-label="${esc(t('ontology.prop.keyLabel'))}" />
+        <input type="text" name="value" placeholder="${esc(t('ontology.prop.value'))}" class="grow w-6em" required aria-label="${esc(t('ontology.prop.valueLabel'))}" />
+        <button class="btn sm" type="submit">${esc(t('ontology.prop.set'))}</button>
       </form>
       <button class="btn danger sm" data-delete-many>${esc(t('ontology.many.delete', { count: ids.length, edges }))}</button>`
           : ''
@@ -516,20 +516,20 @@ function importCard(ctx: Context): string {
   return `
     <div class="card mb-4" id="import-card">
       <div class="card-head"><h2>${esc(t('ontology.import.title', { name: p.name }))}</h2>
-        <label class="row small gap-1_5">${t('ontology.import.mode')}<select name="import-mode" data-import-mode aria-label="${t('ontology.import.modeLabel')}">
-          <option value="merge" ${p.mode === 'merge' ? 'selected' : ''}>${t('ontology.import.merge')}</option>
-          <option value="replace" ${p.mode === 'replace' ? 'selected' : ''}>${t('ontology.import.replace')}</option>
+        <label class="row small gap-1_5">${esc(t('ontology.import.mode'))}<select name="import-mode" data-import-mode aria-label="${esc(t('ontology.import.modeLabel'))}">
+          <option value="merge" ${p.mode === 'merge' ? 'selected' : ''}>${esc(t('ontology.import.merge'))}</option>
+          <option value="replace" ${p.mode === 'replace' ? 'selected' : ''}>${esc(t('ontology.import.replace'))}</option>
         </select></label></div>
       ${
         preview
           ? `<p class="small" data-import-summary>${esc(importSummary(preview.counts))}.${preview.duplicates.length ? ` ${esc(t('ontology.import.duplicates', { count: preview.duplicates.length }))}` : ''}</p>
       <div class="diff review-diff">${lines}${more}</div>
-      <p class="small soft mt-2">${t('ontology.import.staged')}</p>
+      <p class="small soft mt-2">${esc(t('ontology.import.staged'))}</p>
       <div class="row gap-2 mt-2">
         <button class="btn primary" data-import-stage ${preview.total ? '' : 'disabled'}>${esc(t('ontology.import.stage', { changes: changes(preview.total) }))}</button>
-        <button class="btn" data-import-cancel>${t('ontology.cancel')}</button>
+        <button class="btn" data-import-cancel>${esc(t('ontology.cancel'))}</button>
       </div>`
-          : `<p class="small soft">${t('ontology.import.checking')}</p>`
+          : `<p class="small soft">${esc(t('ontology.import.checking'))}</p>`
       }
     </div>`;
 }
@@ -936,22 +936,22 @@ const EDIT_CONTROLS =
 
 function viewOnlyNote(): string {
   return `
-      <div class="card-head"><h2>${t('ontology.viewOnly')}</h2></div>
-      <p class="small soft">${t('ontology.viewOnlyHint')}</p>`;
+      <div class="card-head"><h2>${esc(t('ontology.viewOnly'))}</h2></div>
+      <p class="small soft">${esc(t('ontology.viewOnlyHint'))}</p>`;
 }
 
 function newNodeForm(graph: Graph): string {
   return `
-      <div class="card-head"><h2>${t('ontology.new.title')}</h2></div>
-      <p class="small soft mb-3">${t('ontology.new.hint')}</p>
+      <div class="card-head"><h2>${esc(t('ontology.new.title'))}</h2></div>
+      <p class="small soft mb-3">${esc(t('ontology.new.hint'))}</p>
       <form class="stack gap-2_5 max-w-form" id="node-form" data-tour="onto-add">
-        <label class="field">${t('ontology.new.type')}<select name="type">${Object.keys(NODE_TYPES)
+        <label class="field">${esc(t('ontology.new.type'))}<select name="type">${Object.keys(NODE_TYPES)
           .map((type) => `<option>${type}</option>`)
           .join('')}</select></label>
-        <label class="field">${t('ontology.new.label')}<input type="text" name="label" placeholder="${t('ontology.new.placeholder')}" required /></label>
-        <label class="field">${t('ontology.new.from')}<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">${t('ontology.new.none')}</option></select></label>
-        <label class="field">${t('ontology.relationship')}<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
-        <button class="btn primary" type="submit">${t('ontology.new.stage')}</button>
+        <label class="field">${esc(t('ontology.new.label'))}<input type="text" name="label" placeholder="${esc(t('ontology.new.placeholder'))}" required /></label>
+        <label class="field">${esc(t('ontology.new.from'))}<select name="from" data-morph="if-changed" data-node-options="${versionOf(graph)}"><option value="">${esc(t('ontology.new.none'))}</option></select></label>
+        <label class="field">${esc(t('ontology.relationship'))}<select name="rel">${RELS.map((r) => `<option>${r}</option>`).join('')}</select></label>
+        <button class="btn primary" type="submit">${esc(t('ontology.new.stage'))}</button>
       </form>`;
 }
 
@@ -985,22 +985,22 @@ function history(ctx: Context, graph: Graph): string {
 function healthTab(health: HealthReport, graph: Graph): string {
   const fix = (i: HealthIssue) => {
     if (i.kind === 'orphan')
-      return `<button class="btn sm" data-fix-delete="${esc(i.ref)}">${t('ontology.health.stageDelete')}</button>`;
+      return `<button class="btn sm" data-fix-delete="${esc(i.ref)}">${esc(t('ontology.health.stageDelete'))}</button>`;
     if (i.kind === 'duplicate')
-      return `<button class="btn sm" data-unlink="${esc(i.ref)}">${t('ontology.health.removeDuplicate')}</button>`;
+      return `<button class="btn sm" data-unlink="${esc(i.ref)}">${esc(t('ontology.health.removeDuplicate'))}</button>`;
     if (graph.nodes[i.ref])
-      return `<button class="btn sm" data-goto="${esc(i.ref)}">${t('ontology.health.inspect')}</button>`;
+      return `<button class="btn sm" data-goto="${esc(i.ref)}">${esc(t('ontology.health.inspect'))}</button>`;
     return '';
   };
   return `
       <div class="grid g3 mb-4">
-        <div class="card kpi ${health.score === 100 ? 'good' : ''}"><div class="label">${t('ontology.health.score')}</div><div class="value">${health.score}</div></div>
-        <div class="card kpi"><div class="label">${t('ontology.health.nodes')}</div><div class="value">${health.counts.nodes}</div></div>
-        <div class="card kpi"><div class="label">${t('ontology.inspector.relationships')}</div><div class="value">${health.counts.edges}</div></div>
+        <div class="card kpi ${health.score === 100 ? 'good' : ''}"><div class="label">${esc(t('ontology.health.score'))}</div><div class="value">${health.score}</div></div>
+        <div class="card kpi"><div class="label">${esc(t('ontology.health.nodes'))}</div><div class="value">${health.counts.nodes}</div></div>
+        <div class="card kpi"><div class="label">${esc(t('ontology.inspector.relationships'))}</div><div class="value">${health.counts.edges}</div></div>
       </div>
       <div class="card">
-        <div class="card-head"><h2>${t('ontology.health.checks')}</h2><p>${t('ontology.health.checksHint')}</p></div>
-        ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === 'info' ? '' : 'bad'}">${esc(i.kind)}</span><span class="grow">${esc(i.text)}</span>${fix(i)}</div>`).join('') || `<div class="empty">${t('ontology.health.pass')}</div>`}
+        <div class="card-head"><h2>${esc(t('ontology.health.checks'))}</h2><p>${esc(t('ontology.health.checksHint'))}</p></div>
+        ${health.issues.map((i) => `<div class="issue"><span class="badge ${i.level === 'info' ? '' : 'bad'}">${esc(i.kind)}</span><span class="grow">${esc(i.text)}</span>${fix(i)}</div>`).join('') || `<div class="empty">${esc(t('ontology.health.pass'))}</div>`}
       </div>`;
 }
 
@@ -1020,16 +1020,16 @@ function touchedIds(op: Op): string[] {
 // another engineer first; when the site requires that, there is no Commit.
 function reviewControls(ctx: Context): string {
   const o = ctx.ontology;
-  const commit = `<button class="btn primary" type="submit" value="commit">${t('ontology.commit')}</button>`;
+  const commit = `<button class="btn primary" type="submit" value="commit">${esc(t('ontology.commit'))}</button>`;
   if (o.status !== 'ready') return commit;
   const reviewers = o.members
     .filter((m) => m.user_id !== o.userId && m.role !== 'viewer')
     .sort((a, b) => a.name.localeCompare(b.name));
   return `${o.reviewRequired ? '' : commit}
-          <select name="reviewer" aria-label="${t('ontology.reviewer')}"><option value="">${t('ontology.anyEngineer')}</option>${reviewers
+          <select name="reviewer" aria-label="${esc(t('ontology.reviewer'))}"><option value="">${esc(t('ontology.anyEngineer'))}</option>${reviewers
             .map((m) => `<option value="${esc(m.user_id)}">${esc(m.name)}</option>`)
             .join('')}</select>
-          <button class="btn ${o.reviewRequired ? 'primary' : ''}" type="submit" value="review" data-request-review>${t('ontology.requestReview')}</button>`;
+          <button class="btn ${o.reviewRequired ? 'primary' : ''}" type="submit" value="review" data-request-review>${esc(t('ontology.requestReview'))}</button>`;
 }
 
 const ontologyHead = (): string =>
@@ -1044,14 +1044,14 @@ function sourceBar(ctx: Context): string {
   const o = ctx.ontology;
   if (o.status === 'local') return '';
   if (o.status === 'loading')
-    return `<div class="card source-bar" aria-live="polite">${t('ontology.source.loading')}</div>`;
+    return `<div class="card source-bar" aria-live="polite">${esc(t('ontology.source.loading'))}</div>`;
   if (o.status === 'error')
-    return `<div class="card source-bar" role="alert"><b>${esc(t('ontology.source.error'))}</b> <span class="soft">${esc(o.error)}</span> <span class="row gap-2 mt-2">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? `<button class="btn sm primary" data-sign-in>${t('ontology.source.signIn')}</button>` : ''}<button class="btn sm" type="button" data-reconnect>${t('ontology.source.retry')}</button><a class="btn sm" href="#/settings">${t('ontology.source.settings')}</a></span></div>`;
+    return `<div class="card source-bar" role="alert"><b>${esc(t('ontology.source.error'))}</b> <span class="soft">${esc(o.error)}</span> <span class="row gap-2 mt-2">${ctx.auth.config?.enabled && !ctx.auth.signedIn ? `<button class="btn sm primary" data-sign-in>${esc(t('ontology.source.signIn'))}</button>` : ''}<button class="btn sm" type="button" data-reconnect>${esc(t('ontology.source.retry'))}</button><a class="btn sm" href="#/settings">${esc(t('ontology.source.settings'))}</a></span></div>`;
   const { head, history, staged } = ctx.state.repo;
   const empty = !Object.keys(head.nodes).length && !history.length && !staged.length;
   return `<div class="card source-bar small" aria-live="polite">
-      <span>${tHtml('ontology.source.shared', { site: `<b>${esc(o.site?.name)}</b>` })}${o.reviewRequired ? ` ${t('ontology.source.reviewRequired')}` : ''}${o.role === 'viewer' ? ` <span class="badge">${t('ontology.viewOnly')}</span>` : ''}</span>
-      <span class="row gap-2">${empty ? `<button class="btn sm primary" data-import-demo>${t('ontology.source.demo')}</button>` : ''}<a class="btn sm" href="#/reviews">${t('ontology.source.reviews')}</a><button class="btn sm" data-export="json">${t('ontology.source.exportJson')}</button><button class="btn sm" data-export="csv">${t('ontology.source.exportCsv')}</button>${o.role === 'viewer' ? '' : `<label class="btn sm" ${staged.length ? `aria-disabled="true" title="${t('ontology.source.importFirst')}"` : ''}>${t('ontology.source.import')}<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? 'disabled' : ''} /></label>`}<button class="btn sm" data-refresh>${t('ontology.source.refresh')}</button></span>
+      <span>${tHtml('ontology.source.shared', { site: `<b>${esc(o.site?.name)}</b>` })}${o.reviewRequired ? ` ${t('ontology.source.reviewRequired')}` : ''}${o.role === 'viewer' ? ` <span class="badge">${esc(t('ontology.viewOnly'))}</span>` : ''}</span>
+      <span class="row gap-2">${empty ? `<button class="btn sm primary" data-import-demo>${esc(t('ontology.source.demo'))}</button>` : ''}<a class="btn sm" href="#/reviews">${esc(t('ontology.source.reviews'))}</a><button class="btn sm" data-export="json">${esc(t('ontology.source.exportJson'))}</button><button class="btn sm" data-export="csv">${esc(t('ontology.source.exportCsv'))}</button>${o.role === 'viewer' ? '' : `<label class="btn sm" ${staged.length ? `aria-disabled="true" title="${t('ontology.source.importFirst')}"` : ''}>${esc(t('ontology.source.import'))}<input type="file" accept=".json,.csv,application/json,text/csv" data-import-file hidden ${staged.length ? 'disabled' : ''} /></label>`}<button class="btn sm" data-refresh>${esc(t('ontology.source.refresh'))}</button></span>
     </div>`;
 }
 
@@ -1107,31 +1107,31 @@ const view: View = {
       ? `<div class="staged-bar" role="alert">
           <span class="badge bad">${esc(t('ontology.staged.uncommitted', { count: repo.staged.length }))}</span>
           <span class="grow">${esc(t('ontology.staged.conflict', { conflict }))}</span>
-          <button class="btn" type="button" data-discard>${t('ontology.staged.discard')}</button>
+          <button class="btn" type="button" data-discard>${esc(t('ontology.staged.discard'))}</button>
         </div>`
       : repo.staged.length && ctx.ontology.role === 'viewer'
         ? // Staged before an admin made them a viewer: they can still throw it away.
           `<div class="staged-bar" id="viewer-staged">
           <span class="badge warn">${esc(t('ontology.staged.uncommitted', { count: repo.staged.length }))}</span>
           <span class="grow">${esc(t('ontology.staged.viewer'))}</span>
-          <button class="btn" type="button" data-discard>${t('ontology.staged.discard')}</button>
+          <button class="btn" type="button" data-discard>${esc(t('ontology.staged.discard'))}</button>
         </div>`
         : repo.staged.length
           ? `<form class="staged-bar" id="commit-form" data-tour="onto-commit">
           <span class="badge warn">${esc(t('ontology.staged.uncommitted', { count: repo.staged.length }))}</span>
           <span class="small soft">${statBadges(diffStats(repo.staged))}</span>
-          <input type="text" name="message" placeholder="${t('ontology.staged.placeholder')}" aria-label="${t('ontology.staged.message')}" required />
+          <input type="text" name="message" placeholder="${esc(t('ontology.staged.placeholder'))}" aria-label="${esc(t('ontology.staged.message'))}" required />
           ${reviewControls(ctx)}
-          <button class="btn" type="button" data-discard>${t('ontology.staged.discard')}</button>
+          <button class="btn" type="button" data-discard>${esc(t('ontology.staged.discard'))}</button>
         </form>`
           : '';
 
     const tabs = [
       ['canvas', t('ontology.tab.canvas')],
-      ['history', `${t('ontology.tab.history')} <span class="badge">${repo.history.length}</span>`],
+      ['history', `${esc(t('ontology.tab.history'))} <span class="badge">${repo.history.length}</span>`],
       [
         'health',
-        `${t('ontology.tab.health')} <span class="badge ${health.issues.some((i) => i.level !== 'info') ? 'bad' : 'good'}">${health.score}</span>`,
+        `${esc(t('ontology.tab.health'))} <span class="badge ${health.issues.some((i) => i.level !== 'info') ? 'bad' : 'good'}">${health.score}</span>`,
       ],
     ];
 

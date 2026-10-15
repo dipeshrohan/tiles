@@ -136,10 +136,10 @@ export function runTour(tour: Tour, o: TourOptions): { stop(): void } {
       <p id="tour-body">${esc(step.body)}</p>
       ${note}
       <div class="tour-foot">
-        <button class="btn ghost sm" type="button" data-tour-leave>${t('tour.leave')}</button>
+        <button class="btn ghost sm" type="button" data-tour-leave>${esc(t('tour.leave'))}</button>
         <span class="row gap-2">
-          ${at > 0 ? `<button class="btn sm" type="button" data-tour-back>${t('tour.back')}</button>` : ''}
-          <button class="btn primary sm" type="button" data-tour-next>${final ? t('tour.done') : t('tour.next')}</button>
+          ${at > 0 ? `<button class="btn sm" type="button" data-tour-back>${esc(t('tour.back'))}</button>` : ''}
+          <button class="btn primary sm" type="button" data-tour-next>${final ? esc(t('tour.done')) : esc(t('tour.next'))}</button>
         </span>
       </div>`;
     pop.querySelector<HTMLElement>('#tour-title')?.focus({ preventScroll: true });

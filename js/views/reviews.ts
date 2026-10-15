@@ -229,9 +229,9 @@ function detailCard(ctx: Context, ui: Ui): string {
       </div></div>
       ${outcome}
       ${open && r.conflict ? `<div class="alert" role="alert">${tHtml('reviews.conflict', { title: `<b>${esc(t('reviews.conflictTitle'))}</b>`, why: esc(r.conflict) })}</div>` : ''}
-      <h3 class="mt-3 mb-1_5 m-0">${t('reviews.table.changes')} <span class="small soft">${stats(r.stats)}</span></h3>
+      <h3 class="mt-3 mb-1_5 m-0">${esc(t('reviews.table.changes'))} <span class="small soft">${stats(r.stats)}</span></h3>
       <div class="diff review-diff">${diff}${changes.length > shown.length ? `<div>${esc(t('reviews.more', { count: changes.length - shown.length }))}</div>` : ''}</div>
-      <h3 class="mt-4 mb-1_5 m-0">${t('reviews.discussion')}</h3>
+      <h3 class="mt-4 mb-1_5 m-0">${esc(t('reviews.discussion'))}</h3>
       <div class="thread">${thread || `<p class="small muted">${esc(t(canWrite ? 'reviews.noCommentsWrite' : 'reviews.noComments'))}</p>`}</div>
       ${waiting}
       ${
@@ -239,7 +239,7 @@ function detailCard(ctx: Context, ui: Ui): string {
           ? `<form class="stack gap-2 mt-2_5" id="review-form">
         <textarea name="comment" rows="3" maxlength="4000" placeholder="${esc(t(decide ? 'reviews.form.placeholderDecide' : 'reviews.form.placeholder'))}" aria-label="${esc(t('reviews.form.comment'))}">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
         <fieldset class="row gap-2 border-0 p-0 m-0" ${busy ? 'disabled' : ''}>
-          <button class="btn" type="button" data-act="comment">${t('reviews.form.comment')}</button>
+          <button class="btn" type="button" data-act="comment">${esc(t('reviews.form.comment'))}</button>
           ${decide ? `<button class="btn primary" type="button" data-act="approve" ${r.conflict ? `disabled title="${esc(t('reviews.form.noFit'))}"` : ''}>${esc(t('reviews.form.approve'))}</button><button class="btn danger" type="button" data-act="reject">${esc(t('reviews.form.reject'))}</button>` : ''}
           ${reworkButton(r, mine)}
         </fieldset>

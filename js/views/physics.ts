@@ -44,15 +44,15 @@ const view: View = {
       })}
 
       <div class="grid g4 mb-4">
-        <div class="card kpi"><div class="label">${t('physics.kpi.shots')}</div><div class="value">${fmt(hist.length)}</div><div class="note">${esc(t('physics.kpi.hours', { hours: fmt(toH(hist.length), 0) }))}</div></div>
-        <div class="card kpi good"><div class="label">${t('physics.kpi.predicted')}</div><div class="value">${predicted.length}/${scored.length}</div><div class="note">${esc(t('physics.kpi.codes'))}</div></div>
-        <div class="card kpi"><div class="label">${tHtml('physics.kpi.average', { term: term('warning-time', 'warning time') })}</div><div class="value">${esc(t('physics.events.hours', { hours: fmt(lead, 1) }))}</div><div class="note">${t('physics.kpi.leadNote')}</div></div>
-        <div class="card kpi"><div class="label">${t('physics.kpi.covered')}</div><div class="value">${esc(t('physics.kpi.minutes', { minutes: fmt(predicted.reduce((a, x) => a + x.durationMin, 0)) }))}</div><div class="note">${esc(t('physics.kpi.recorded', { minutes: fmt(scored.reduce((a, x) => a + x.durationMin, 0)) }))}</div></div>
+        <div class="card kpi"><div class="label">${esc(t('physics.kpi.shots'))}</div><div class="value">${fmt(hist.length)}</div><div class="note">${esc(t('physics.kpi.hours', { hours: fmt(toH(hist.length), 0) }))}</div></div>
+        <div class="card kpi good"><div class="label">${esc(t('physics.kpi.predicted'))}</div><div class="value">${predicted.length}/${scored.length}</div><div class="note">${esc(t('physics.kpi.codes'))}</div></div>
+        <div class="card kpi"><div class="label">${tHtml('physics.kpi.average', { term: term('warning-time', 'warning time') })}</div><div class="value">${esc(t('physics.events.hours', { hours: fmt(lead, 1) }))}</div><div class="note">${esc(t('physics.kpi.leadNote'))}</div></div>
+        <div class="card kpi"><div class="label">${esc(t('physics.kpi.covered'))}</div><div class="value">${esc(t('physics.kpi.minutes', { minutes: fmt(predicted.reduce((a, x) => a + x.durationMin, 0)) }))}</div><div class="note">${esc(t('physics.kpi.recorded', { minutes: fmt(scored.reduce((a, x) => a + x.durationMin, 0)) }))}</div></div>
       </div>
 
       <div class="card mb-4">
-        <div class="card-head"><div><h2>${t('physics.run.title')}</h2><p>${t('physics.run.hint')}</p></div>
-          <div class="legend"><span><i class="bg-accent"></i>${t('physics.legend.friction')}</span><span><i class="bg-warn"></i>${t('physics.legend.threshold')}</span><span><i class="box bg-band"></i>${t('physics.legend.window')}</span><span><i class="bg-bad"></i>${t('physics.legend.downtime')}</span></div>
+        <div class="card-head"><div><h2>${esc(t('physics.run.title'))}</h2><p>${esc(t('physics.run.hint'))}</p></div>
+          <div class="legend"><span><i class="bg-accent"></i>${esc(t('physics.legend.friction'))}</span><span><i class="bg-warn"></i>${esc(t('physics.legend.threshold'))}</span><span><i class="box bg-band"></i>${esc(t('physics.legend.window'))}</span><span><i class="bg-bad"></i>${esc(t('physics.legend.downtime'))}</span></div>
         </div>
         <div id="run-chart" class="cursor-crosshair">
         ${lineChart({
@@ -94,11 +94,11 @@ const view: View = {
       <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head">
-            <div><h2>${esc(t('physics.shot.title', { n: ui.shot }))}</h2><p>${flagged ? `<span class="badge bad">${t('physics.shot.over')}</span>` : `<span class="badge good">${t('physics.shot.normal')}</span>`} ${tHtml('physics.shot.estimated', { value: `<b>${esc(fmt(est))} N</b>` })}</p></div>
-            <div class="row"><button class="btn sm" data-step="-1" aria-label="${t('physics.shot.previous')}">‹</button><button class="btn sm" data-step="1" aria-label="${t('physics.shot.next')}">›</button></div>
+            <div><h2>${esc(t('physics.shot.title', { n: ui.shot }))}</h2><p>${flagged ? `<span class="badge bad">${esc(t('physics.shot.over'))}</span>` : `<span class="badge good">${esc(t('physics.shot.normal'))}</span>`} ${tHtml('physics.shot.estimated', { value: `<b>${esc(fmt(est))} N</b>` })}</p></div>
+            <div class="row"><button class="btn sm" data-step="-1" aria-label="${esc(t('physics.shot.previous'))}">‹</button><button class="btn sm" data-step="1" aria-label="${esc(t('physics.shot.next'))}">›</button></div>
           </div>
-          <input type="range" id="shot" min="0" max="${hist.length - 1}" value="${ui.shot}" aria-label="${t('physics.shot.slider')}" />
-          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-accent"></i>${t('physics.legend.hydraulic')}</span><span><i class="bg-warm"></i>${t('physics.legend.metal')}</span></div>
+          <input type="range" id="shot" min="0" max="${hist.length - 1}" value="${ui.shot}" aria-label="${esc(t('physics.shot.slider'))}" />
+          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-accent"></i>${esc(t('physics.legend.hydraulic'))}</span><span><i class="bg-warm"></i>${esc(t('physics.legend.metal'))}</span></div>
           ${lineChart({
             series: [
               { values: payload.ph, color: 'var(--accent)', label: t('physics.series.hydraulic') },
@@ -111,31 +111,31 @@ const view: View = {
             height: 200,
             yMin: 0,
           })}
-          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-soft"></i>${t('physics.legend.velocity')}</span></div>
+          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-soft"></i>${esc(t('physics.legend.velocity'))}</span></div>
           ${lineChart({ series: [{ values: payload.v, color: 'var(--soft)', label: t('physics.series.velocity') }], xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`, yLabel: 'm/s', title: t('physics.shot.velocity', { n: ui.shot }), width: fitWidth(480, 0.5), height: 150, yMin: 0 })}
         </div>
         <div class="card">
-          <div class="card-head"><h2>${t('physics.how.title')}</h2><span class="badge">${esc(t('physics.how.model', { version: '1.3' }))}</span></div>
-          <h3>${t('physics.how.input')}</h3>
+          <div class="card-head"><h2>${esc(t('physics.how.title'))}</h2><span class="badge">${esc(t('physics.how.model', { version: '1.3' }))}</span></div>
+          <h3>${esc(t('physics.how.input'))}</h3>
           <ul class="actions-list soft"><li>${esc(t('physics.how.payloads'))}</li><li>${tHtml('physics.how.baseline', { baseline: term('baseline', 'baseline') })}</li></ul>
-          <h3 class="mt-3">${t('physics.how.physics')}</h3>
+          <h3 class="mt-3">${esc(t('physics.how.physics'))}</h3>
           <p class="soft mt-1">${tHtml('physics.how.equation', { equation: '<code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>', median: term('median', 'median'), residual: term('residual', 'residual'), virtualSensor: term('virtual-sensor', 'virtual sensor') })}</p>
           <p class="small muted mt-1">${constants}</p>
-          <h3 class="mt-3">${t('physics.how.output')}</h3>
-          <ul class="actions-list soft"><li>${t('physics.how.value')}</li><li>${tHtml('physics.how.warning', { persistence: term('persistence', 'persistence'), threshold: term('threshold', 'threshold'), k: term('k'), sigma: term('robust-σ', 'robust σ') })}</li></ul>
-          <h3 class="mt-3">${t('physics.how.used')}</h3>
+          <h3 class="mt-3">${esc(t('physics.how.output'))}</h3>
+          <ul class="actions-list soft"><li>${esc(t('physics.how.value'))}</li><li>${tHtml('physics.how.warning', { persistence: term('persistence', 'persistence'), threshold: term('threshold', 'threshold'), k: term('k'), sigma: term('robust-σ', 'robust σ') })}</li></ul>
+          <h3 class="mt-3">${esc(t('physics.how.used'))}</h3>
           <p class="soft mt-1">${tHtml('physics.how.predicts', { code: SEIZURE })}</p>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>${t('physics.events.title')}</h2></div>
+        <div class="card-head"><h2>${esc(t('physics.events.title'))}</h2></div>
         <div class="table-wrap"><table>
-          <thead><tr><th>${t('physics.events.event')}</th><th>${t('physics.events.code')}</th><th class="num">${t('physics.events.at')}</th><th class="num">${t('physics.events.duration')}</th><th>${t('physics.events.predicted')}</th><th class="num">${t('physics.events.lead')}</th></tr></thead>
+          <thead><tr><th>${esc(t('physics.events.event'))}</th><th>${esc(t('physics.events.code'))}</th><th class="num">${esc(t('physics.events.at'))}</th><th class="num">${esc(t('physics.events.duration'))}</th><th>${esc(t('physics.events.predicted'))}</th><th class="num">${esc(t('physics.events.lead'))}</th></tr></thead>
           <tbody>${scored
             .map(
               (d) =>
-                `<tr class="clickable" data-goto="${d.shot - d.leadShots}"><td>${esc(d.id)}</td><td class="mono">${esc(d.code)}</td><td class="num">${esc(t('physics.events.hours', { hours: fmt(toH(d.shot), 1) }))}</td><td class="num">${esc(t('physics.kpi.minutes', { minutes: d.durationMin }))}</td><td>${d.predicted ? `<span class="badge good">${t('physics.events.warned')}</span>` : `<span class="badge bad">${t('physics.events.missed')}</span>`}</td><td class="num">${d.predicted ? esc(t('physics.events.hours', { hours: fmt(d.leadHours, 1) })) : '–'}</td></tr>`,
+                `<tr class="clickable" data-goto="${d.shot - d.leadShots}"><td>${esc(d.id)}</td><td class="mono">${esc(d.code)}</td><td class="num">${esc(t('physics.events.hours', { hours: fmt(toH(d.shot), 1) }))}</td><td class="num">${esc(t('physics.kpi.minutes', { minutes: d.durationMin }))}</td><td>${d.predicted ? `<span class="badge good">${esc(t('physics.events.warned'))}</span>` : `<span class="badge bad">${esc(t('physics.events.missed'))}</span>`}</td><td class="num">${d.predicted ? esc(t('physics.events.hours', { hours: fmt(d.leadHours, 1) })) : '–'}</td></tr>`,
             )
             .join('')}</tbody>
         </table></div>

@@ -91,11 +91,11 @@ function listCard(ctx: Context, ui: Ui): string {
         emptyState({ compact: true, title: t('correlate.empty.title'), body: t('correlate.empty.body') });
   const form = canEdit
     ? `<form class="stack gap-2 mt-3" id="dataset-form">
-        <h3>${t('correlate.upload.title')}</h3>
-        <p class="small soft">${t('correlate.upload.hint')}</p>
-        <label class="field">${t('correlate.upload.file')}<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
+        <h3>${esc(t('correlate.upload.title'))}</h3>
+        <p class="small soft">${esc(t('correlate.upload.hint'))}</p>
+        <label class="field">${esc(t('correlate.upload.file'))}<input type="file" name="file" accept=".csv,text/csv,text/plain"></label>
         ${chosen.file ? `<p class="small" data-chosen-file>${esc(t('correlate.upload.chosen', { name: chosen.file.name }))}</p>` : ''}
-        <label class="field">${t('correlate.upload.name')}<input type="text" name="name" maxlength="200" value="${esc(chosen.name)}" placeholder="${esc(t('correlate.upload.namePlaceholder'))}"></label>
+        <label class="field">${esc(t('correlate.upload.name'))}<input type="text" name="name" maxlength="200" value="${esc(chosen.name)}" placeholder="${esc(t('correlate.upload.namePlaceholder'))}"></label>
         <div><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(upload ? t('correlate.upload.progress', { done: fmt(upload.done, 0), total: fmt(upload.total, 0) }) : t('correlate.upload.submit'))}</button></div>
       </form>`
     : '';
@@ -126,20 +126,20 @@ function analysisCard(ctx: Context, ui: Ui): string {
   return `<div class="card stack gap-3" data-analysis>
       <div class="row justify-between items-start gap-3">
         <div><h2>${esc(d.name)}</h2><p class="small soft">${esc(t('correlate.batches', { count: d.row_count, n: fmt(d.row_count, 0) }))}</p></div>
-        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy ? 'disabled' : ''}>${t('correlate.delete')}</button>` : ''}
+        ${canEdit ? `<button class="btn" type="button" data-delete-dataset ${busy ? 'disabled' : ''}>${esc(t('correlate.delete'))}</button>` : ''}
       </div>
       ${preview}
       <form class="stack gap-2_5" id="correlate-form">
         <div class="row gap-3 wrap items-end">
-          <label class="field">${t('correlate.form.outcome')}<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? '')).join('')}</select></label>
+          <label class="field">${esc(t('correlate.form.outcome'))}<select name="outcome">${d.columns.map((c) => option(c.name, outcome?.name ?? '')).join('')}</select></label>
           <label class="field">${esc(t(outcome?.kind === 'bool' ? 'correlate.form.failedWhenBool' : 'correlate.form.failedWhen'))}<input type="text" name="ng" value="${esc(ui.ngText)}" placeholder="${outcome?.kind === 'bool' ? TRUE : esc(t('correlate.form.ngPlaceholder'))}" class="w-12em"></label>
-          <label class="field">${t('correlate.form.splitBy')}<select name="split"><option value="">${esc(t('correlate.form.pooled'))}</option>${d.columns
+          <label class="field">${esc(t('correlate.form.splitBy'))}<select name="split"><option value="">${esc(t('correlate.form.pooled'))}</option>${d.columns
             .filter((c) => c.kind !== 'number' && c.name !== outcome?.name)
             .map((c) => option(c.name, ui.split))
             .join('')}</select></label>
-          <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${t('correlate.form.find')}</button>
+          <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(t('correlate.form.find'))}</button>
         </div>
-        <fieldset class="row gap-2_5 wrap border-0 p-0 m-0"><legend class="small soft">${t('correlate.form.variables')}</legend>${numbers
+        <fieldset class="row gap-2_5 wrap border-0 p-0 m-0"><legend class="small soft">${esc(t('correlate.form.variables'))}</legend>${numbers
           .filter((n) => n !== outcome?.name)
           .map(
             (n) =>
@@ -168,7 +168,7 @@ function resultBlock(r: CorrelationResult, split: boolean): string {
       ${said}
       <p class="small soft">${tHtml('correlate.forest', { term: term('forest-plot', t('correlate.term.forestPlot')) })}</p>
       ${forestPlot(r.findings, split)}
-      <div class="table-wrap"><table><thead><tr><th>${term('segment', t('correlate.head.segment'))}</th><th>${t('correlate.head.variable')}</th><th>${t('correlate.head.failedMean')}</th><th>${t('correlate.head.goodMean')}</th><th>${term('cohens-d', 'd')}</th><th>${tHtml('correlate.head.ci', { term: term('confidence-interval', t('correlate.term.ci')) })}</th><th>${term('point-biserial-r', 'r')}</th><th>${t('correlate.head.failedGood')}</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>${term('segment', t('correlate.head.segment'))}</th><th>${esc(t('correlate.head.variable'))}</th><th>${esc(t('correlate.head.failedMean'))}</th><th>${esc(t('correlate.head.goodMean'))}</th><th>${term('cohens-d', 'd')}</th><th>${tHtml('correlate.head.ci', { term: term('confidence-interval', t('correlate.term.ci')) })}</th><th>${term('point-biserial-r', 'r')}</th><th>${esc(t('correlate.head.failedGood'))}</th></tr></thead><tbody>${rows}</tbody></table></div>
     </div>`;
 }
 

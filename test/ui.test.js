@@ -308,13 +308,24 @@ test("a site that didn't load: a failed connection says to check the API, an ans
 
 test('the client’s "can’t reach" is recognised in the language it was said in (U6.01)', async () => {
   const { addCatalogue, setLocale } = await import('../js/lib/i18n.ts');
+  const { createApiClient } = await import('../js/lib/api.ts');
   addCatalogue('xx', {
-    'apiClient.unreachable': 'Die Tiles-API unter {base} antwortet nicht',
+    'apiClient.unreachable': '{base} antwortet nicht',
     'ui.nothingAnsweredAt': 'Unter {address} antwortete nichts',
+    'ui.cantReach': 'Die Tiles-API ist nicht erreichbar',
   });
   setLocale('xx');
   try {
-    const down = apiUnreachable('Die Tiles-API unter http://h:8000 antwortet nicht: Failed to fetch');
+    const api = createApiClient({
+      baseUrl: 'http://h:8000',
+      fetch: async () => {
+        throw new TypeError('Failed to fetch');
+      },
+    });
+    const said = (await api.sites().catch((e) => e)).message;
+    assert.equal(said, 'http://h:8000 antwortet nicht');
+    const down = apiUnreachable(said);
+    assert.match(down, /Die Tiles-API ist nicht erreichbar<\/h2>/);
     assert.match(down, /<p>Unter http:\/\/h:8000 antwortete nichts\./);
   } finally {
     setLocale('en');

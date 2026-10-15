@@ -19,7 +19,7 @@ from typing import Any
 
 from fastapi import status
 
-from tiles_api.errors import Problem
+from tiles_api.errors import Problem, Refusal
 from tiles_api.settings import Settings
 from tiles_api.store import Conn, all_sites, one
 
@@ -143,7 +143,7 @@ def save(conn: Conn, t: Tally, total_ms: int | None = None) -> None:
     )
 
 
-def over_daily(conn: Conn, settings: Settings, org_id: uuid.UUID) -> str | None:
+def over_daily(conn: Conn, settings: Settings, org_id: uuid.UUID) -> Refusal | None:
     """Why the organisation may not use more tokens today, if it may not: checked between the model
     calls of a question too, so questions running at once can't each spend a whole budget."""
     daily = settings.copilot_org_daily_tokens
@@ -157,8 +157,12 @@ def over_daily(conn: Conn, settings: Settings, org_id: uuid.UUID) -> str | None:
                 [org_id],
             ).fetchone()
         )["n"]
-    return (
-        f"Your organisation has used its copilot budget of {daily:,} tokens for today (UTC)" if today >= daily else None
+    if today < daily:
+        return None
+    return Refusal(
+        "copilot.daily_budget",
+        f"Your organisation has used its copilot budget of {daily:,} tokens for today (UTC)",
+        tokens=f"{daily:,}",
     )
 
 

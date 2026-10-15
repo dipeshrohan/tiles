@@ -2,7 +2,7 @@
 // questions and answers with the tools behind each, an answer as it streams in, its text with
 // citations linked to the tool results, and where each tool's evidence lives in Tiles.
 
-import type { CopilotGrounding, CopilotMessage } from './api.ts';
+import { saidError, type CopilotGrounding, type CopilotMessage } from './api.ts';
 import { esc } from './dom.ts';
 import { t } from './i18n.ts';
 
@@ -143,7 +143,7 @@ export function applyEvent(a: Answer, event: string, data: Record<string, unknow
     case 'grounding':
       return { ...a, grounding: data as unknown as CopilotGrounding };
     case 'error':
-      return { ...a, error: String(data.detail ?? t('copilotChat.couldNotAnswer')), done: true };
+      return { ...a, error: saidError(data) ?? t('copilotChat.couldNotAnswer'), done: true };
     case 'done':
       return { ...a, done: true };
     default:

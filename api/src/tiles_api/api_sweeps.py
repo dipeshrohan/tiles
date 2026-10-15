@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Query, Request, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, field_validator, model_validator
 
-from tiles_api import api_runs, sweeps
+from tiles_api import api_models, api_runs, sweeps
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.errors import Problem
 from tiles_api.models import store
@@ -127,13 +127,7 @@ def start_sweep(
     try:
         model_id = store.model_id(ctx.conn, ctx.org_id, model)
     except store.ModelChanged as e:
-        raise Problem(
-            status.HTTP_409_CONFLICT,
-            "model.spec_changed",
-            f"Model {spec.key} {spec.version} was stored with another spec. Give the change a new version.",
-            key=spec.key,
-            version=spec.version,
-        ) from e
+        raise api_models.spec_changed(status.HTTP_409_CONFLICT, spec.key, spec.version) from e
     total = body.x.steps * (body.y.steps if body.y else 1)
     sweep_id = one(
         ctx.conn.execute(

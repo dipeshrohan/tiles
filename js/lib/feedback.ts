@@ -48,17 +48,17 @@ export function formHtml(o: FormOptions): string {
       `<label class="mood"><input type="radio" name="mood" value="${m.id}" required><span class="mood-emoji" aria-hidden="true">${m.emoji}</span><span>${esc(m.label)}</span></label>`,
   ).join('');
   const shot = o.canShoot
-    ? `<label class="row gap-2"><input type="checkbox" name="shot" data-feedback-shot> ${t('feedback.attach')}</label>
+    ? `<label class="row gap-2"><input type="checkbox" name="shot" data-feedback-shot> ${esc(t('feedback.attach'))}</label>
       <div class="feedback-shot" data-feedback-preview hidden></div>`
-    : `<p class="small soft">${t('feedback.cantShoot')}</p>`;
+    : `<p class="small soft">${esc(t('feedback.cantShoot'))}</p>`;
   return `<form class="stack gap-3" data-feedback-form>
       <fieldset class="moods">
-        <legend>${t('feedback.question')}</legend>
+        <legend>${esc(t('feedback.question'))}</legend>
         <div class="row gap-2 wrap">${moods}</div>
       </fieldset>
-      <label class="field">${t('feedback.text')}
+      <label class="field">${esc(t('feedback.text'))}
         <textarea name="text" rows="4" required maxlength="${MAX_TEXT}" aria-describedby="feedback-text-hint"></textarea>
-        <span class="small soft" id="feedback-text-hint">${t('feedback.textHint')}</span>
+        <span class="small soft" id="feedback-text-hint">${esc(t('feedback.textHint'))}</span>
       </label>
       <label class="row gap-2"><input type="checkbox" name="named"> ${esc(t('feedback.includeName', { name: o.name }))}</label>
       ${shot}

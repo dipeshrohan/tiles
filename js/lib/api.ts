@@ -914,7 +914,15 @@ export const STREAM_CUT = 'client.stream_cut';
 export const UNREACHABLE = 'client.unreachable';
 export const NOT_JSON = 'client.not_json';
 const offline = () => new ApiError(t('apiClient.offline'), 0, null, [], OFFLINE_WRITE);
-const unreachable = (base: string) => new ApiError(t('apiClient.unreachable', { base }), 0, null, [], UNREACHABLE);
+// The "can't reach" words said, in whatever language, with the address each names: pages keep an
+// error's words, and apiUnreachable() knows these by them (U6.01), without reading the words.
+const saidUnreachable = new Map<string, string>();
+export const unreachableAddress = (message: string): string | null => saidUnreachable.get(message) ?? null;
+const unreachable = (base: string) => {
+  const message = t('apiClient.unreachable', { base });
+  saidUnreachable.set(message, base);
+  return new ApiError(message, 0, null, [], UNREACHABLE);
+};
 
 type Method = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -949,9 +957,18 @@ export const errorCode = (body: unknown): string | null => {
   return typeof code === 'string' ? code : null;
 };
 
-export function errorMessage(body: unknown, status: number): string {
+// An error's words: the catalogue's for its code, else the English it came with (null without).
+// Also what a stream's `error` event says (the copilot's).
+export function saidError(body: unknown): string | null {
   const code = errorCode(body);
   const said = code ? tKnown(`api.${code}`, paramsOf((body as ErrorBody).params)) : null;
+  if (said !== null) return said;
+  const detail = (body as ErrorBody | null)?.detail;
+  return typeof detail === 'string' && detail ? detail : null;
+}
+
+export function errorMessage(body: unknown, status: number): string {
+  const said = saidError(body);
   if (said !== null) return said;
   const detail = detailOf(body);
   if (typeof detail === 'string' && detail) return detail;

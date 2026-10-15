@@ -1,6 +1,7 @@
 // Shared page components (U1.04), as HTML strings like the views. Text is escaped here; `*Html`
 // options and `action` take markup the caller has built (with esc() on anything interpolated).
 import { esc } from './dom.ts';
+import { unreachableAddress } from './api.ts';
 import { errorDetails } from './errors.ts';
 import { VERSION } from './version.ts';
 import { icon, type IconName } from './icons.ts';
@@ -318,13 +319,11 @@ export function tabs(o: {
 // a reason (no sites, no access, signed out) says that reason. Try again reconnects and Sign in signs
 // in (both handled in app.ts).
 const UNREACHABLE = /can.t reach|failed to fetch|networkerror|not reachable|timed out|load failed/i;
-// The client's "can't reach" message, in this language or in English, and the address it names.
+// The client's "can't reach" (api.ts knows its own, in any language) and the address it names; or,
+// from elsewhere, the English.
 function unreachableAt(reason: string): [string, string | undefined] | null {
-  const [lead = '', rest = ''] = t('apiClient.unreachable', { base: '\u0001' }).split('\u0001');
-  if (lead && reason.startsWith(lead) && reason.slice(lead.length).trim()) {
-    const address = reason.slice(lead.length).split(/\s/)[0]?.replace(/[.:]$/, '');
-    return rest.trim() && !reason.includes(rest.trim()) ? null : [reason, address];
-  }
+  const address = unreachableAddress(reason);
+  if (address !== null) return [reason, address];
   const english = /^Can.t reach the Tiles API(?: at (\S+?))?[.:]?(?:\s|$)/i.exec(reason);
   return english ? [english[0], english[1]] : null;
 }

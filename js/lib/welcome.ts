@@ -127,8 +127,8 @@ export function rolesHtml(c: WelcomeContext): string {
   ).join('');
   return `<p class="soft">${esc(welcomeIntro(c))}</p>
     <fieldset class="welcome-roles"><legend>${esc(t('welcome.question'))}</legend>${roles}</fieldset>
-    <p class="small soft">${t('welcome.choiceHint')}</p>
-    <div class="dialog-foot"><button class="btn ghost" type="button" data-welcome-skip>${t('welcome.skip')}</button></div>`;
+    <p class="small soft">${esc(t('welcome.choiceHint'))}</p>
+    <div class="dialog-foot"><button class="btn ghost" type="button" data-welcome-skip>${esc(t('welcome.skip'))}</button></div>`;
 }
 
 // The second step: what the role set (the menu as it now is: `prefs`), and where to go next. An admin
@@ -158,6 +158,6 @@ export function nextHtml(
   ].filter(Boolean);
   const at = `<b>${esc(start)}</b>`;
   return `<p>${pins.length ? tHtml('welcome.opensWith', { start: at, pinned: listed }) : tHtml('welcome.opens', { start: at })}</p>
-    <p class="small soft">${t('welcome.again')}</p>
+    <p class="small soft">${esc(t('welcome.again'))}</p>
     <div class="dialog-foot">${actions.join('')}</div>`;
 }

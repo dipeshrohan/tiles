@@ -31,7 +31,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from tiles_api import assistant, copilot_usage, grounding
 from tiles_api.api_ontology import Admin, Ctx, SiteContext
 from tiles_api.copilot_tools import tools_for
-from tiles_api.errors import Problem
+from tiles_api.errors import Problem, Refusal
 from tiles_api.store import Conn, one, scope_to_site, side_pool
 
 router = APIRouter(tags=["copilot"])
@@ -40,7 +40,7 @@ log = logging.getLogger("tiles_api.copilot")
 MAX_MESSAGES = 200  # stored per conversation (each tool round adds two)
 MAX_HISTORY_CHARS = 400_000  # about 100,000 tokens of conversation sent with each question
 BUSY_MINUTES = 10  # an answer that has stored nothing for this long is taken as lost
-SITE_OFF = "The copilot is off on this site: an admin turns it on in Settings"
+SITE_OFF = Refusal("copilot.off_on_site", "The copilot is off on this site: an admin turns it on in Settings")
 NO_NUL = r"^[^\x00]*$"  # PostgreSQL text can't hold NUL
 
 
@@ -379,9 +379,9 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
     def stream() -> Iterator[str]:
         # Every call's tokens, so a broken-off answer is counted too; saved with each stored message.
         tally = copilot_usage.Tally(usage_id, org_id)
-        over_daily: list[str] = []  # why the organisation may not go on today, found after a message
+        over_daily: list[Refusal] = []  # why the organisation may not go on today, found after a message
 
-        def stop() -> str | None:  # asked before each model call after the first
+        def stop() -> Refusal | None:  # asked before each model call after the first
             if over_daily:
                 return over_daily[0]
             with site_conn() as conn:  # turned off meanwhile: nothing more goes to the provider
@@ -405,7 +405,7 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                     tally.first_text_ms = ms()  # the user sees text (a draft withdrawn later, too)
                 elif event.kind == "done":
                     tally.outcome, tally.grounded = "answered", bool(event.data.get("grounded"))
-                elif event.kind == "error" and event.data.get("over_budget") and event.data["detail"] != SITE_OFF:
+                elif event.kind == "error" and event.data.get("over_budget") and event.data["code"] != SITE_OFF.code:
                     tally.outcome = "over_budget"
                 if event.kind == "message":
                     with site_conn() as conn:  # stored, the answer's lease renewed, its usage so far
@@ -426,7 +426,8 @@ def ask(ctx: Ctx, request: Request, conversation_id: uuid.UUID, body: AskIn) -> 
                 yield _event(event.kind, event.data)
         except Exception:
             log.exception("copilot answer failed", extra={"conversation": str(conversation_id)})
-            yield _event("error", {"detail": "The copilot could not answer: try again in a moment"})
+            failed = Refusal("copilot.failed", "The copilot could not answer: try again in a moment")
+            yield _event("error", failed.data())
         finally:
             if tally.outcome == "running":  # it ended without an answer
                 tally.outcome = "failed"

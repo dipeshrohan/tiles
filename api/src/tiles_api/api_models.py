@@ -83,6 +83,18 @@ def no_model(key: str, version: str | None) -> Problem:
     return Problem(status.HTTP_404_NOT_FOUND, "model.not_found", f"No model {key}", key=key)
 
 
+def spec_changed(status_code: int, key: str, version: str) -> Problem:
+    """A model version stored with another spec (store.ModelChanged): 409 for a request, 500 for a
+    binding, whose spec is the deployment's."""
+    return Problem(
+        status_code,
+        "model.spec_changed",
+        f"Model {key} {version} was stored with another spec. Give the change a new version.",
+        key=key,
+        version=version,
+    )
+
+
 @router.get("/sites/{site_id}/models/{key}", response_model=list[ModelOut])
 def model_versions(ctx: Ctx, key: str, request: Request) -> list[dict[str, Any]]:
     """A model's versions, newest first."""

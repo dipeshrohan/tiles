@@ -121,7 +121,7 @@ function actions(ctx: Context, item: FloorItem, ui: Ui): string {
     return `<p class="floor-ask">${esc(t('shopfloor.whatWasIt'))}</p>
       <div class="floor-actions">
         ${outcome('true_alarm', 'danger')}${outcome('false_alarm', '')}${outcome('unknown', '')}
-        <button class="btn floor-btn" data-cancel ${wait}>${t('shopfloor.back')}</button>
+        <button class="btn floor-btn" data-cancel ${wait}>${esc(t('shopfloor.back'))}</button>
       </div>`;
   }
   // Taking a warning from a colleague asks first: a brushed button mustn't take it off them.
@@ -129,7 +129,7 @@ function actions(ctx: Context, item: FloorItem, ui: Ui): string {
     return `<p class="floor-ask">${esc(t('shopfloor.takeFrom', { name: item.assignee }))}</p>
       <div class="floor-actions">
         <button class="btn primary floor-btn" data-take="${esc(item.id)}" ${send}>${esc(t('shopfloor.yesTake'))}</button>
-        <button class="btn floor-btn" data-cancel ${wait}>${t('shopfloor.back')}</button>
+        <button class="btn floor-btn" data-cancel ${wait}>${esc(t('shopfloor.back'))}</button>
       </div>`;
   }
   const mine = item.assigneeId !== null && item.assigneeId === ctx.ontology.userId;
@@ -237,19 +237,19 @@ const view: View = {
     const head = (status: string) => `<div class="floor-head">
         <div><div class="eyebrow">${esc(t('shopfloor.eyebrow', { site }))}</div>${status}</div>
         <div class="floor-tools">
-          ${ctx.api ? `<button class="btn floor-btn" data-floor-refresh>${t('shopfloor.refresh')}</button>` : ''}
-          ${systemContrast() ? '' : `<button class="btn floor-btn" data-floor-contrast aria-pressed="${contrast()}">${t('shopfloor.contrast')}</button>`}
+          ${ctx.api ? `<button class="btn floor-btn" data-floor-refresh>${esc(t('shopfloor.refresh'))}</button>` : ''}
+          ${systemContrast() ? '' : `<button class="btn floor-btn" data-floor-contrast aria-pressed="${contrast()}">${esc(t('shopfloor.contrast'))}</button>`}
           <button class="btn floor-btn" data-floor-full aria-pressed="${ui.full}">${esc(fullLabel)}</button>
         </div>
       </div>`;
     if (ctx.api && ctx.ontology.status === 'loading')
       return `<div class="floor">${head(`<h1 tabindex="-1">${esc(t('shopfloor.loadingPage'))}</h1>`)}</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')
-      return `<div class="floor">${head(`<h1 tabindex="-1">${t('shopfloor.title')}</h1>`)}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn), size: 'lg' })}</div>`;
+      return `<div class="floor">${head(`<h1 tabindex="-1">${esc(t('shopfloor.title'))}</h1>`)}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn), size: 'lg' })}</div>`;
     const graph = ctx.graph; // made afresh at each read: once for the whole page
     const list = floorItems(ctx, graph);
     if (list === null)
-      return `<div class="floor">${head(`<h1 tabindex="-1">${t('shopfloor.title')}</h1>`)}<div class="card">${skeleton.list(3, t('shopfloor.loadingWarnings'))}</div></div>`;
+      return `<div class="floor">${head(`<h1 tabindex="-1">${esc(t('shopfloor.title'))}</h1>`)}<div class="card">${skeleton.list(3, t('shopfloor.loadingWarnings'))}</div></div>`;
     const now = Date.now();
     const { tone, text } = headline(list);
     const fresh = ctx.api ? freshness({ ...listed(), offline: offline() }, clockTime) : null;
@@ -273,7 +273,7 @@ const view: View = {
       ? `<div class="floor-cards">${open.map((i) => card(ctx, i, ui, now)).join('')}</div>${more}`
       : '';
     return `<div class="floor">${head(status)}${cards}
-        <h2 class="floor-section">${t('shopfloor.machines')}</h2>${board(graph, list)}</div>`;
+        <h2 class="floor-section">${esc(t('shopfloor.machines'))}</h2>${board(graph, list)}</div>`;
   },
   bind(root, ctx) {
     const ui = uiState(ctx);

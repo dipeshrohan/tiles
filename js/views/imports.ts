@@ -80,11 +80,11 @@ function mappingForm(l: Loaded): string {
   const long = m.long !== null;
   const columns = long
     ? `<div class="row gap-3 wrap">
-        <label class="field">${t('imports.map.tagColumn')}<select name="tagColumn">${options(l.header, m.long?.tagColumn ?? -1, [m.timeColumn])}</select></label>
-        <label class="field">${t('imports.map.valueColumn')}<select name="valueColumn">${options(l.header, m.long?.valueColumn ?? -1, [m.timeColumn])}</select></label>
+        <label class="field">${esc(t('imports.map.tagColumn'))}<select name="tagColumn">${options(l.header, m.long?.tagColumn ?? -1, [m.timeColumn])}</select></label>
+        <label class="field">${esc(t('imports.map.valueColumn'))}<select name="valueColumn">${options(l.header, m.long?.valueColumn ?? -1, [m.timeColumn])}</select></label>
       </div>
       <p class="small soft">${esc(t('imports.map.longHint'))}</p>`
-    : `<div class="table-wrap"><table><thead><tr><th>${t('imports.map.import')}</th><th>${t('imports.map.column')}</th><th>${t('imports.map.signal')}</th></tr></thead><tbody>${l.header
+    : `<div class="table-wrap"><table><thead><tr><th>${esc(t('imports.map.import'))}</th><th>${esc(t('imports.map.column'))}</th><th>${esc(t('imports.map.signal'))}</th></tr></thead><tbody>${l.header
         .map((h, i) =>
           i === m.timeColumn
             ? ''
@@ -98,8 +98,8 @@ function mappingForm(l: Loaded): string {
         <label><input type="radio" name="shape" value="long" ${long ? 'checked' : ''}> ${esc(t('imports.map.long'))}</label>
       </fieldset>
       <div class="row gap-3 wrap">
-        <label class="field">${t('imports.map.timeColumn')}<select name="timeColumn">${options(l.header, m.timeColumn)}</select></label>
-        <label class="field">${t('imports.map.timeFormat')}<select name="timeFormat">${FORMATS.map(([f, label]) => `<option value="${f}" ${f === m.timeFormat ? 'selected' : ''}>${esc(t(label))}</option>`).join('')}</select></label>
+        <label class="field">${esc(t('imports.map.timeColumn'))}<select name="timeColumn">${options(l.header, m.timeColumn)}</select></label>
+        <label class="field">${esc(t('imports.map.timeFormat'))}<select name="timeFormat">${FORMATS.map(([f, label]) => `<option value="${f}" ${f === m.timeFormat ? 'selected' : ''}>${esc(t(label))}</option>`).join('')}</select></label>
         <label class="field">${esc(t('imports.map.timeZone'))}<input type="text" name="timeZone" value="${esc(m.timeZone)}"></label>
       </div>
       <div class="row gap-4 wrap">
@@ -204,15 +204,15 @@ function preview(l: Loaded): string {
 
 function importCard(ctx: Context): string {
   if (!ctx.api || !ctx.ontology.site)
-    return `<div class="card stack gap-2"><h2>${t('imports.card.title')}</h2><p class="small soft">${tHtml('imports.card.noApi', { link: `<a href="#/settings">${esc(t('imports.card.settings'))}</a>` })}</p></div>`;
+    return `<div class="card stack gap-2"><h2>${esc(t('imports.card.title'))}</h2><p class="small soft">${tHtml('imports.card.noApi', { link: `<a href="#/settings">${esc(t('imports.card.settings'))}</a>` })}</p></div>`;
   if (ctx.ontology.role === 'viewer')
-    return `<div class="card stack gap-2"><h2>${t('imports.card.title')}</h2><p class="small soft">${esc(t('imports.card.viewer'))}</p></div>`;
+    return `<div class="card stack gap-2"><h2>${esc(t('imports.card.title'))}</h2><p class="small soft">${esc(t('imports.card.viewer'))}</p></div>`;
   const l = loaded;
   const busy = running !== null;
   return `<div class="card stack gap-3" id="import-card">
-      <h2>${t('imports.card.title')}</h2>
+      <h2>${esc(t('imports.card.title'))}</h2>
       <p class="small soft">${esc(t('imports.card.lead'))}</p>
-      <label class="field">${t('imports.card.file')}<input type="file" accept=".csv,.tsv,.txt,text/csv" data-import-file ${busy ? 'disabled' : ''}></label>
+      <label class="field">${esc(t('imports.card.file'))}<input type="file" accept=".csv,.tsv,.txt,text/csv" data-import-file ${busy ? 'disabled' : ''}></label>
       ${
         l
           ? `<p class="small">${tHtml('imports.card.loaded', { name: `<b>${esc(l.fileName)}</b>`, rows: l.rows.length, columns: l.header.length })}</p>
@@ -220,8 +220,8 @@ function importCard(ctx: Context): string {
              ${mappingForm(l)}
              <div data-import-check aria-live="polite">${summaryBox(l)}</div>
              <div class="row gap-2">
-               <button class="btn primary" type="button" data-import-run ${busy || mappingProblems(l.header, l.mapping).length ? 'disabled' : ''}>${t('imports.map.import')}</button>
-               ${busy ? `<button class="btn" type="button" data-import-cancel>${t('imports.stop')}</button>` : ''}
+               <button class="btn primary" type="button" data-import-run ${busy || mappingProblems(l.header, l.mapping).length ? 'disabled' : ''}>${esc(t('imports.map.import'))}</button>
+               ${busy ? `<button class="btn" type="button" data-import-cancel>${esc(t('imports.stop'))}</button>` : ''}
              </div>`
           : ''
       }
@@ -236,7 +236,7 @@ function progress(r: Running): string {
 }
 
 function historyCard(): string {
-  return `<div class="card stack gap-3"><h2>${t('imports.history.title')}</h2><div data-import-history aria-live="polite">${skeleton.table(3, 5, t('imports.history.loading'))}</div></div>`;
+  return `<div class="card stack gap-3"><h2>${esc(t('imports.history.title'))}</h2><div data-import-history aria-live="polite">${skeleton.table(3, 5, t('imports.history.loading'))}</div></div>`;
 }
 
 export function historyTable(runs: ImportRun[]): string {
@@ -248,10 +248,10 @@ export function historyTable(runs: ImportRun[]): string {
       title: t('imports.history.emptyTitle'),
       body: t('imports.history.emptyBody'),
     });
-  return `<div class="table-wrap"><table><thead><tr><th>${t('imports.card.file')}</th><th>${t('imports.history.by')}</th><th>${t('imports.history.started')}</th><th>${t('imports.history.readings')}</th><th>${t('imports.history.new')}</th><th>${t('imports.history.status')}</th></tr></thead><tbody>${runs
+  return `<div class="table-wrap"><table><thead><tr><th>${esc(t('imports.card.file'))}</th><th>${esc(t('imports.history.by'))}</th><th>${esc(t('imports.history.started'))}</th><th>${esc(t('imports.history.readings'))}</th><th>${esc(t('imports.history.new'))}</th><th>${esc(t('imports.history.status'))}</th></tr></thead><tbody>${runs
     .map(
       (r) =>
-        `<tr><td>${esc(r.name)}</td><td>${esc(r.created_by ?? '—')}</td><td>${esc(new Date(r.created_at).toLocaleString('en-GB'))}</td><td>${esc(fmt(r.received, 0))}</td><td>${esc(fmt(r.stored, 0))}</td><td>${r.finished_at ? `<span class="badge good">${t('imports.history.finished')}</span>` : `<span class="badge warn">${t('imports.history.notFinished')}</span>`}</td></tr>`,
+        `<tr><td>${esc(r.name)}</td><td>${esc(r.created_by ?? '—')}</td><td>${esc(new Date(r.created_at).toLocaleString('en-GB'))}</td><td>${esc(fmt(r.received, 0))}</td><td>${esc(fmt(r.stored, 0))}</td><td>${r.finished_at ? `<span class="badge good">${esc(t('imports.history.finished'))}</span>` : `<span class="badge warn">${esc(t('imports.history.notFinished'))}</span>`}</td></tr>`,
     )
     .join('')}</tbody></table></div>`;
 }

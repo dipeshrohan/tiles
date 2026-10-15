@@ -340,14 +340,14 @@ function listCard(ctx: Context): string {
           });
   const upload = canEdit(ctx)
     ? `<form class="stack gap-2" id="doc-upload">
-        <h3>${t('documents.upload')}</h3>
+        <h3>${esc(t('documents.upload'))}</h3>
         ${labelled(t('documents.fileLabel'), input({ type: 'file', name: 'file', attrs: { accept: '.pdf,.txt,.md,application/pdf,text/plain,text/markdown', required: true } }))}
         ${labelled(t('documents.col.title'), input({ name: 'title', value: draft?.title ?? '', placeholder: t('documents.titlePlaceholder'), attrs: { maxlength: 200 } }))}
         ${labelled(t('documents.field.language'), select('language', languages(), draft?.language ?? ''))}
         <div>${button(t('documents.upload'), { variant: 'primary', type: 'submit', busy: uploading })}</div>
       </form>`
     : '';
-  return card(`<h2>${t('documents.title')}</h2><div data-doc-list>${rows}</div>${upload}`, {
+  return card(`<h2>${esc(t('documents.title'))}</h2><div data-doc-list>${rows}</div>${upload}`, {
     class: 'stack gap-2',
   });
 }

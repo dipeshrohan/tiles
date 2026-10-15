@@ -33,7 +33,7 @@ from fastapi import APIRouter, Query, Request, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
-from tiles_api import pdf
+from tiles_api import api_models, pdf
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.errors import Problem
 from tiles_api.models import design, store
@@ -145,7 +145,7 @@ def _model(ctx: SiteContext, request: Request, key: str, version: str | None) ->
     try:
         model = store.find(ctx.conn, ctx.org_id, request.app.state.settings, _key(key), full)
     except KeyError as e:
-        raise Problem(status.HTTP_404_NOT_FOUND, "run.no_model", str(e.args[0]), reason=str(e.args[0])) from e
+        raise api_models.no_model(_key(key), full) from e
     if model.spec.kind != "design":
         raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -261,7 +261,7 @@ def _store(
     try:
         model_id = store.model_id(ctx.conn, ctx.org_id, model)
     except store.ModelChanged as e:
-        raise Problem(status.HTTP_409_CONFLICT, "run.model_changed", str(e), reason=str(e)) from e
+        raise api_models.spec_changed(status.HTTP_409_CONFLICT, s.key, s.version) from e
     number: int = one(
         ctx.conn.execute(
             """

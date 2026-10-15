@@ -86,10 +86,10 @@ function controls(shown: Ui): string {
     `<option value="${v}" ${v === current ? 'selected' : ''}>${label}</option>`;
   return `<form class="card source-bar small" id="performance-form">
       <span class="row gap-3 wrap items-end">
-        <label class="row gap-1_5">${t('performance.form.last')} <select name="days">${PERIODS.map((d) => option(d, esc(t('performance.form.days', { count: d })), u.days)).join('')}</select></label>
-        <label class="row gap-1_5" title="${esc(t('performance.form.horizonHint'))}">${t('performance.form.horizon')} <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join('')}</select></label>
-        <label class="row gap-1_5 grow min-w-field">${t('performance.form.codes')} <input type="text" name="codes" value="${esc(u.codes)}" placeholder="${esc(t('performance.form.codesPlaceholder'))}" class="grow"></label>
-        <button class="btn sm primary" type="submit">${t('performance.form.show')}</button>
+        <label class="row gap-1_5">${esc(t('performance.form.last'))} <select name="days">${PERIODS.map((d) => option(d, esc(t('performance.form.days', { count: d })), u.days)).join('')}</select></label>
+        <label class="row gap-1_5" title="${esc(t('performance.form.horizonHint'))}">${esc(t('performance.form.horizon'))} <select name="horizon">${HORIZONS.map((h) => option(h, `${h} h`, u.horizonHours)).join('')}</select></label>
+        <label class="row gap-1_5 grow min-w-field">${esc(t('performance.form.codes'))} <input type="text" name="codes" value="${esc(u.codes)}" placeholder="${esc(t('performance.form.codesPlaceholder'))}" class="grow"></label>
+        <button class="btn sm primary" type="submit">${esc(t('performance.form.show'))}</button>
       </span>
     </form>`;
 }
@@ -99,7 +99,7 @@ function detectorsCard(ctx: Context, r: PerformanceReport): string {
   const rows = r.detectors
     .map((d) => {
       const asset = canEdit
-        ? `<form class="row gap-1_5 nowrap" data-asset-form="${esc(d.id)}"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? '')}" maxlength="100" placeholder="${esc(t('performance.assetPlaceholder'))}" aria-label="${esc(t('performance.assetLabel', { name: d.name }))}" class="w-7em"><button class="btn sm" type="submit">${t('performance.set')}</button></form>`
+        ? `<form class="row gap-1_5 nowrap" data-asset-form="${esc(d.id)}"><input type="text" name="asset" value="${esc(assetDrafts.get(d.id) ?? d.asset ?? '')}" maxlength="100" placeholder="${esc(t('performance.assetPlaceholder'))}" aria-label="${esc(t('performance.assetLabel', { name: d.name }))}" class="w-7em"><button class="btn sm" type="submit">${esc(t('performance.set'))}</button></form>`
         : esc(d.asset ?? '–');
       const c = d.confirmed;
       const scored = d.matched
@@ -112,10 +112,10 @@ function detectorsCard(ctx: Context, r: PerformanceReport): string {
     ? `<p class="small soft" data-unwatched>${tHtml('performance.unwatched', { assets: r.unwatched.map((u) => esc(t('performance.unwatchedAsset', { asset: u.asset, count: u.events }))).join(', ') })}</p>`
     : '';
   return `<div class="card stack gap-2_5">
-      <h2>${t('performance.byDetector')}</h2>
+      <h2>${esc(t('performance.byDetector'))}</h2>
       ${
         r.detectors.length
-          ? `<div class="table-wrap"><table><thead><tr><th>${term('detector', 'Detector')}</th><th>${term('asset', 'Asset')}</th><th>${t('performance.head.warnings')}</th><th>${tHtml('performance.head.recall', { term: term('recall', 'recall') })}</th><th>${tHtml('performance.head.precision', { term: term('precision', 'precision') })}</th><th>${term('false-per-day', t('performance.head.falsePerDay'))}</th><th>${tHtml('performance.head.warningTime', { term: term('warning-time', t('performance.head.warningTimeTerm')), spread: term('percentile', 'p10 to p90') })}</th><th>${tHtml('performance.head.outcome', { term: term('outcome', 'outcome') })}</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          ? `<div class="table-wrap"><table><thead><tr><th>${term('detector', 'Detector')}</th><th>${term('asset', 'Asset')}</th><th>${esc(t('performance.head.warnings'))}</th><th>${tHtml('performance.head.recall', { term: term('recall', 'recall') })}</th><th>${tHtml('performance.head.precision', { term: term('precision', 'precision') })}</th><th>${term('false-per-day', t('performance.head.falsePerDay'))}</th><th>${tHtml('performance.head.warningTime', { term: term('warning-time', t('performance.head.warningTimeTerm')), spread: term('percentile', 'p10 to p90') })}</th><th>${tHtml('performance.head.outcome', { term: term('outcome', 'outcome') })}</th></tr></thead><tbody>${rows}</tbody></table></div>`
           : emptyState({
               illustration: 'chart',
               compact: true,
@@ -134,16 +134,16 @@ function eventsCard(r: PerformanceReport): string {
       (e) =>
         `<tr><td>${esc(when(e.at, Date.now()))}</td><td>${esc(e.asset)}</td><td>${esc(e.kind)}</td><td class="mono">${esc(e.code)}</td><td>${
           e.warned_at && e.warning_seconds !== null
-            ? `<span class="badge good">${t('performance.warned')}</span> ${esc(t('performance.ahead', { duration: duration(e.warning_seconds), detector: e.detector ?? t('performance.aDetector') }))}`
-            : `<span class="badge bad">${t('performance.missed')}</span>`
+            ? `<span class="badge good">${esc(t('performance.warned'))}</span> ${esc(t('performance.ahead', { duration: duration(e.warning_seconds), detector: e.detector ?? t('performance.aDetector') }))}`
+            : `<span class="badge bad">${esc(t('performance.missed'))}</span>`
         }</td></tr>`,
     )
     .join('');
   return `<div class="card stack gap-2_5">
-      <h2>${t('performance.events')}</h2>
+      <h2>${esc(t('performance.events'))}</h2>
       ${
         r.events.length
-          ? `<div class="table-wrap"><table><thead><tr><th>${t('performance.head.when')}</th><th>${t('performance.head.asset')}</th><th>${t('performance.head.kind')}</th><th>${t('performance.head.code')}</th><th>${t('performance.head.warning')}</th></tr></thead><tbody>${rows}</tbody></table></div>`
+          ? `<div class="table-wrap"><table><thead><tr><th>${esc(t('performance.head.when'))}</th><th>${esc(t('performance.head.asset'))}</th><th>${esc(t('performance.head.kind'))}</th><th>${esc(t('performance.head.code'))}</th><th>${esc(t('performance.head.warning'))}</th></tr></thead><tbody>${rows}</tbody></table></div>`
           : emptyState({
               compact: true,
               level: 3,

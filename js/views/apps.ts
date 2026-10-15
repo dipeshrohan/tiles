@@ -159,8 +159,10 @@ function listCard(ctx: Context): string {
             title: t('apps.empty.title'),
             body: t(canEdit(ctx) ? 'apps.empty.engineer' : 'apps.empty.viewer'),
           });
-  const make = canEdit(ctx) ? `<a class="btn primary sm" href="#/apps/new" data-new-app>${t('apps.newApp')}</a>` : '';
-  return `<div class="card stack gap-2"><div class="row justify-between gap-2"><h2>${t('apps.apps')}</h2>${make}</div><div class="review-list" data-app-list>${rows}</div></div>`;
+  const make = canEdit(ctx)
+    ? `<a class="btn primary sm" href="#/apps/new" data-new-app>${esc(t('apps.newApp'))}</a>`
+    : '';
+  return `<div class="card stack gap-2"><div class="row justify-between gap-2"><h2>${esc(t('apps.apps'))}</h2>${make}</div><div class="review-list" data-app-list>${rows}</div></div>`;
 }
 
 function templateCards(list: AppTemplate[]): string {
@@ -183,9 +185,9 @@ function formCard(ctx: Context, d: Draft, template: AppTemplate, editing: Studio
   return `<form class="card stack gap-2_5" id="app-form">
       <h2>${esc(title)}</h2>
       <p class="small soft">${esc(template.summary)}</p>
-      <label class="field" for="app-name">${t('apps.form.name')}<input id="app-name" type="text" name="__name" data-api="name" value="${esc(d.name)}" maxlength="120" required /></label>
+      <label class="field" for="app-name">${esc(t('apps.form.name'))}<input id="app-name" type="text" name="__name" data-api="name" value="${esc(d.name)}" maxlength="120" required /></label>
       <div class="grid g2 app-fields gap-2_5">${fields}</div>
-      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(t(editing ? 'apps.form.save' : 'apps.form.make'))}</button><a class="btn" href="${editing ? appLink(editing.number) : '#/apps'}">${t('apps.form.cancel')}</a></div>
+      <div class="row gap-2"><button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(t(editing ? 'apps.form.save' : 'apps.form.make'))}</button><a class="btn" href="${editing ? appLink(editing.number) : '#/apps'}">${esc(t('apps.form.cancel'))}</a></div>
     </form>`;
 }
 
@@ -194,7 +196,7 @@ function newCard(ctx: Context): string {
   if (templates?.failed) return `<div class="card">${retry('apps.failed.templates', 'data-retry-templates')}</div>`;
   if (!list) return `<div class="card">${skeleton.list(3, t('apps.loadingTemplates'))}</div>`;
   if (!draft || draft.key !== 'new' || !list.some((tpl) => tpl.id === draft?.template))
-    return `<div class="card stack gap-2_5"><h2>${t('apps.newApp')}</h2><p class="small soft">${esc(t('apps.chooseTemplate'))}</p>${templateCards(list)}</div>`;
+    return `<div class="card stack gap-2_5"><h2>${esc(t('apps.newApp'))}</h2><p class="small soft">${esc(t('apps.chooseTemplate'))}</p>${templateCards(list)}</div>`;
   const template = list.find((tpl) => tpl.id === draft?.template);
   return template ? formCard(ctx, draft, template, null) : '';
 }
@@ -210,7 +212,7 @@ function detailCard(ctx: Context): string {
   if (items === null) return `<div class="card">${skeleton.card()}</div>`;
   const app = items.find((a) => a.number === n);
   if (!app)
-    return `<div class="card">${emptyState({ illustration: 'search', title: t('apps.missing.title', { number: n }), body: t('apps.missing.body'), action: `<a class="btn" href="#/apps">${t('apps.missing.all')}</a>` })}</div>`;
+    return `<div class="card">${emptyState({ illustration: 'search', title: t('apps.missing.title', { number: n }), body: t('apps.missing.body'), action: `<a class="btn" href="#/apps">${esc(t('apps.missing.all'))}</a>` })}</div>`;
   const template = templates?.list?.find((tpl) => tpl.id === app.template);
   if (editKey()) {
     if (templates?.failed) return `<div class="card">${retry('apps.failed.templates', 'data-retry-templates')}</div>`;
@@ -220,7 +222,7 @@ function detailCard(ctx: Context): string {
     return formCard(ctx, draft, template, app);
   }
   const r = result?.key === resultKey(ctx, app) ? result : null;
-  const settings = `<details><summary class="small">${t('apps.settings')}</summary><ul class="small" data-app-settings>${configSummary(
+  const settings = `<details><summary class="small">${esc(t('apps.settings'))}</summary><ul class="small" data-app-settings>${configSummary(
     template,
     app.config,
     app.signal_tag,
@@ -228,7 +230,7 @@ function detailCard(ctx: Context): string {
     .map((line) => `<li>${esc(line)}</li>`)
     .join('')}</ul></details>`;
   const tools = canEdit(ctx)
-    ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app${keyAttr('e')}>${t('apps.change')}</a><button class="btn sm danger" type="button" data-archive-app ${busy ? 'disabled' : ''}>${t('apps.archive')}</button></div>`
+    ? `<div class="row gap-2"><a class="btn sm" href="${appLink(app.number)}/edit" data-edit-app${keyAttr('e')}>${esc(t('apps.change'))}</a><button class="btn sm danger" type="button" data-archive-app ${busy ? 'disabled' : ''}>${esc(t('apps.archive'))}</button></div>`
     : '';
   let body: string;
   if (!r) body = `<p class="small soft">${esc(t('apps.running'))}</p>`;
@@ -251,7 +253,7 @@ function detailCard(ctx: Context): string {
       <div class="row justify-between items-start gap-3 wrap">
         <div><h2>#${app.number} ${esc(app.name)}</h2>
         <p class="small soft">${tHtml('apps.madeBy', { template: esc(app.template_title), signal: `<code>${esc(app.signal_tag ?? t('apps.noSignal'))}</code>`, name: esc(app.created_by) })}</p></div>
-        <button class="btn sm" type="button" data-rerun>${t('apps.runAgain')}</button>
+        <button class="btn sm" type="button" data-rerun>${esc(t('apps.runAgain'))}</button>
       </div>
       ${body}
       ${settings}

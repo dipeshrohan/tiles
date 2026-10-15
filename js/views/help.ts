@@ -57,7 +57,7 @@ export function contentsHtml(sections: readonly HelpSection[], current: string |
     }
     items.push(`<li>${link(s)}${subs.length ? `<ul>${subs.join('')}</ul>` : ''}</li>`);
   }
-  return `<nav class="help-toc" aria-label="${t('help.contents')}"><ul>${items.join('')}</ul></nav>`;
+  return `<nav class="help-toc" aria-label="${esc(t('help.contents'))}"><ul>${items.join('')}</ul></nav>`;
 }
 
 // The guided tours (U4.07), on the guide's first page: each with what it shows and a way to start it.
@@ -71,7 +71,7 @@ export function toursCard(withApi: boolean): string {
     });
     return `<li class="tour-item" data-key="tour-${esc(tour.id)}"><div><b>${esc(tour.title)}</b><p class="small soft">${esc(tour.summary)}${can ? '' : ` ${esc(t('help.tours.needsApi'))}`}</p></div>${start}</li>`;
   }).join('');
-  return `<section class="card mb-4" aria-labelledby="tours-title"><h2 id="tours-title" class="mb-2">${t('help.tours.title')}</h2><p class="small soft mb-3">${t('help.tours.lead')}</p><ul class="tour-list">${rows}</ul></section>`;
+  return `<section class="card mb-4" aria-labelledby="tours-title"><h2 id="tours-title" class="mb-2">${esc(t('help.tours.title'))}</h2><p class="small soft mb-3">${esc(t('help.tours.lead'))}</p><ul class="tour-list">${rows}</ul></section>`;
 }
 
 const view: View = {
@@ -97,7 +97,7 @@ const view: View = {
       s
         ? `<a class="help-step ${cls}" href="${esc(helpHref(s.slug))}"><span class="small soft">${esc(label)}</span>${esc(s.title)}</a>`
         : '<span></span>';
-    const steps = `<nav class="help-steps" aria-label="${t('help.steps')}">${step(prev, t('help.previous'), 'prev')}${step(next, t('help.next'), 'next')}</nav>`;
+    const steps = `<nav class="help-steps" aria-label="${esc(t('help.steps'))}">${step(prev, t('help.previous'), 'prev')}${step(next, t('help.next'), 'next')}</nav>`;
     const tours = slug ? '' : toursCard(Boolean(ctx.api));
     return `${head}${tours}<div class="help-layout">${contentsHtml(data.sections, slug ?? top?.slug ?? null)}<article class="help-article prose">${guideHtml(shown)}${steps}</article></div>`;
   },

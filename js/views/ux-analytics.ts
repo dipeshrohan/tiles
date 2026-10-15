@@ -16,8 +16,8 @@ const KIND_LABELS: Record<UxSummary['counts'][number]['kind'], MessageKey> = {
 
 export function uxCard(): string {
   return `<div class="card stack gap-3 span-all" id="ux-analytics" hidden>
-      <h2>${t('ux.title')}</h2>
-      <p class="small soft">${t('ux.lead')}</p>
+      <h2>${esc(t('ux.title'))}</h2>
+      <p class="small soft">${esc(t('ux.lead'))}</p>
       <div data-ux-setting aria-live="polite">${skeleton.text(1, t('ux.loading'))}</div>
       <div data-ux-counts aria-live="polite"></div>
     </div>`;
@@ -70,7 +70,7 @@ export async function bindUx(root: HTMLElement, ctx: Context): Promise<void> {
   if (!orgAdmin) {
     // Site admins see whether it is on; their organisation's admins decide.
     const on = site ? (await api.ux.enabled(site.id).catch(() => ({ enabled: false }))).enabled : false;
-    setting.innerHTML = `<p class="small">${t(on ? 'ux.on' : 'ux.off')} ${t('ux.orgDecides')}</p>`;
+    setting.innerHTML = `<p class="small">${esc(t(on ? 'ux.on' : 'ux.off'))} ${esc(t('ux.orgDecides'))}</p>`;
     return showCounts();
   }
   let on: boolean;
@@ -80,7 +80,7 @@ export async function bindUx(root: HTMLElement, ctx: Context): Promise<void> {
     setting.innerHTML = loadFailed(t('ux.settingName'), 3);
     return showCounts();
   }
-  setting.innerHTML = `<label class="row gap-2"><input type="checkbox" name="ux-enabled" data-ux-enabled ${on ? 'checked' : ''} /> ${t('ux.toggle')}</label>`;
+  setting.innerHTML = `<label class="row gap-2"><input type="checkbox" name="ux-enabled" data-ux-enabled ${on ? 'checked' : ''} /> ${esc(t('ux.toggle'))}</label>`;
   const box = setting.querySelector<HTMLInputElement>('[data-ux-enabled]');
   box?.addEventListener(
     'change',

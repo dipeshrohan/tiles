@@ -123,7 +123,7 @@ function answerBody(a: Answer, cited: Answer['tools'], conversation: string | nu
           a.feedback?.comment ? `<span class="small soft">“${esc(a.feedback.comment)}”</span>` : ''
         }</div>${
           rating?.key === rateKey
-            ? `<form class="row gap-1_5 mt-1_5" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="${esc(t('chat.whatWrong'))}" value="${esc(rating.comment)}" class="grow"><button class="btn sm" type="submit">${t('chat.send')}</button></form>`
+            ? `<form class="row gap-1_5 mt-1_5" data-rate-form="${a.seq}"><input type="text" name="comment" maxlength="2000" placeholder="${esc(t('chat.whatWrong'))}" value="${esc(rating.comment)}" class="grow"><button class="btn sm" type="submit">${esc(t('chat.send'))}</button></form>`
             : ''
         }`
       : '';
@@ -172,7 +172,7 @@ function remoteRender(ctx: Context): string {
   const loading = ui.conversation && thread?.key !== key && !live;
   return `<div class="copilot">
       <div class="card stack gap-2">
-        <button class="btn primary" type="button" data-new-conversation>${t('chat.newConversation')}</button>
+        <button class="btn primary" type="button" data-new-conversation>${esc(t('chat.newConversation'))}</button>
         <div class="review-list" data-conversations>${items}</div>
       </div>
       <div class="chat">
@@ -191,9 +191,9 @@ function remoteRender(ctx: Context): string {
             .map((s) => `<button class="chip" type="button" data-q="${esc(s)}">${esc(s)}</button>`)
             .join('')}</div>
           <form class="composer" id="composer" data-tour="chat-ask">
-            <input type="text" name="q" value="${esc(draft)}" placeholder="${esc(t('chat.placeholderApi'))}" autocomplete="off" aria-label="${t('chat.question')}" ${busy ? 'disabled' : ''} />
-            <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${t('chat.ask')}</button>
-            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy ? 'disabled' : ''}>${t('chat.delete')}</button>` : ''}
+            <input type="text" name="q" value="${esc(draft)}" placeholder="${esc(t('chat.placeholderApi'))}" autocomplete="off" aria-label="${esc(t('chat.question'))}" ${busy ? 'disabled' : ''} />
+            <button class="btn primary" type="submit" ${busy ? 'disabled' : ''}>${esc(t('chat.ask'))}</button>
+            ${ui.conversation ? `<button class="btn" type="button" data-delete-conversation ${busy ? 'disabled' : ''}>${esc(t('chat.delete'))}</button>` : ''}
           </form>
           <p class="small soft mt-1_5">${esc(t('chat.privacy'))}</p>
         </div>
@@ -425,8 +425,8 @@ function localRender(ctx: Context, note = ''): string {
             .map((s) => `<button class="chip" data-q="${esc(s)}">${esc(s)}</button>`)
             .join('')}</div>
           <form class="composer" id="composer" data-tour="chat-ask">
-            <input type="text" name="q" value="${esc(draft)}" placeholder="${esc(t('chat.placeholderLocal'))}" autocomplete="off" aria-label="${t('chat.question')}" />
-            <button class="btn primary" type="submit">${t('chat.ask')}</button>
+            <input type="text" name="q" value="${esc(draft)}" placeholder="${esc(t('chat.placeholderLocal'))}" autocomplete="off" aria-label="${esc(t('chat.question'))}" />
+            <button class="btn primary" type="submit">${esc(t('chat.ask'))}</button>
           </form>
         </div>
       </div>`;

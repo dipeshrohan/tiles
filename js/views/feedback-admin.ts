@@ -12,8 +12,8 @@ import { t } from '../lib/i18n.ts';
 
 export function feedbackCard(): string {
   return `<div class="card stack gap-3 span-all" id="feedback">
-      <h2>${t('feedbackAdmin.title')}</h2>
-      <p class="small soft">${t('feedbackAdmin.lead')}</p>
+      <h2>${esc(t('feedbackAdmin.title'))}</h2>
+      <p class="small soft">${esc(t('feedbackAdmin.lead'))}</p>
       <div data-feedback-list data-morph="if-changed" tabindex="-1">${skeleton.list(3, t('feedbackAdmin.loading'))}</div>
     </div>`;
 }
@@ -64,7 +64,7 @@ export async function bindFeedback(root: HTMLElement, ctx: Context): Promise<voi
               await infoDialog({
                 title: t('feedbackAdmin.screenshotTitle'),
                 wide: true,
-                contentHtml: `<div class="feedback-view"><img src="${esc(url)}" alt="${t('feedbackAdmin.screenshotAlt')}"></div>`,
+                contentHtml: `<div class="feedback-view"><img src="${esc(url)}" alt="${esc(t('feedbackAdmin.screenshotAlt'))}"></div>`,
               });
             } finally {
               URL.revokeObjectURL(url);

@@ -194,13 +194,7 @@ def bind(ctx: Editor, body: BindingIn, request: Request) -> dict[str, Any]:
     try:
         model_id = store.model_id(ctx.conn, ctx.org_id, model)
     except store.ModelChanged as e:
-        raise Problem(
-            status.HTTP_500_INTERNAL_SERVER_ERROR,
-            "model.spec_changed",
-            f"Model {spec.key} {spec.version} was stored with another spec. Give the change a new version.",
-            key=spec.key,
-            version=spec.version,
-        ) from e
+        raise api_models.spec_changed(status.HTTP_500_INTERNAL_SERVER_ERROR, spec.key, spec.version) from e
     inputs = {k: str(v) for k, v in body.inputs.items()}
     binding_id = ctx.conn.execute(
         """

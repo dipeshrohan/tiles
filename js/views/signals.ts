@@ -871,7 +871,7 @@ const view: View = {
     return `${head}${card(`${search}${filterBar(ctx, barOptions(ctx))}<div data-signal-results aria-live="polite">${skeleton.table(6, 9, t('signals.loading'))}</div>`, { class: 'stack gap-3' })}
       ${card(
         `<div class="row justify-between wrap gap-2">
-          <div><h2>${t('signals.map.title')}</h2><p class="small soft">${esc(t('signals.map.hint'))}</p></div>
+          <div><h2>${esc(t('signals.map.title'))}</h2><p class="small soft">${esc(t('signals.map.hint'))}</p></div>
           ${button(t('signals.map.suggest'), { attrs: { 'data-suggest': true } })}
         </div>
         <div data-mapping-results aria-live="polite">${mappingHtml(ctx)}</div>`,

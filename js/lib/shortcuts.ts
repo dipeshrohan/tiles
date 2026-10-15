@@ -126,7 +126,7 @@ export function shortcutsHtml(o: Pick<ShortcutOptions, 'title'>, mac: boolean): 
     )}
     ${table(t('shortcuts.onPage'), PAGE_KEYS.map(([k, does]) => row(k, t(does))).join(''))}
     </div>
-    <label class="row gap-2"><input type="checkbox" name="single-keys" data-single-keys ${shortcutsOn() ? 'checked' : ''} /> ${t('shortcuts.singleKeys')}</label>
+    <label class="row gap-2"><input type="checkbox" name="single-keys" data-single-keys ${shortcutsOn() ? 'checked' : ''} /> ${esc(t('shortcuts.singleKeys'))}</label>
     <p class="small soft">${esc(t('shortcuts.singleKeysHint', { palette: mac ? '⌘ K' : PALETTE }))}</p>`;
 }
 

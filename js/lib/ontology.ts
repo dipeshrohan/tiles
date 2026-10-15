@@ -178,14 +178,14 @@ export function commit(repo: Repo, { message, author, date = new Date().toISOStr
   return { head: graph, history: [entry, ...repo.history], staged: [] };
 }
 
+// Stored in the history, so in one language, as the API's ontology.py writes it (parity).
+const revertMessage = (message: string): string => `Revert "${message}"`; // i18n-ok
+
 export function revert(repo: Repo, id: string, { author, date }: { author: string; date?: string }): Repo {
   const target = repo.history.find((c) => c.id === id);
   if (!target) throw new Error(t('ontology.error.commitNotFound', { id }));
   if (repo.staged.length) throw new Error(t('ontology.error.stagedFirst'));
-  return commit(
-    { ...repo, staged: target.inverses },
-    { message: t('ontology.revertMessage', { message: target.message }), author, date },
-  );
+  return commit({ ...repo, staged: target.inverses }, { message: revertMessage(target.message), author, date });
 }
 
 // ---- Health check -------------------------------------------------------
