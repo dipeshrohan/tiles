@@ -19,8 +19,18 @@ import type { Context, View } from './types.ts';
 import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
+import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 
 const AUDIT_ROWS = 200; // the latest changes, in pages of 25
+
+// Names of files, commands and examples, written as they are.
+const NOTIFY_JOB = 'tiles-notify'; // i18n-ok
+const TEAMS_EXAMPLE = 'https://….webhook.office.com/…'; // i18n-ok
+const EDGE_README = 'edge/README.md'; // i18n-ok
+const TOKEN_FILE = 'token'; // i18n-ok
+const CONFIG_FILE = 'tiles-edge.toml'; // i18n-ok
+const COMPOSE_UP = 'docker compose up'; // i18n-ok
+const API_EXAMPLE = 'http://localhost:8000'; // i18n-ok
 
 // Sign-in to the Tiles API, shown in API mode.
 function accountCard(ctx: Context): string {
@@ -29,25 +39,22 @@ function accountCard(ctx: Context): string {
   let body: string;
   // An organisation with its own identity provider (T5.05) signs in through it, by its slug.
   const orgForm = `<form class="row gap-2 wrap" id="org-sign-in-form">
-      <label class="field grow min-w-field">Or with your organisation's own sign-in<input type="text" name="org" value="${esc(ctx.auth.signInOrg)}" placeholder="your organisation, e.g. acme" pattern="[A-Za-z0-9][A-Za-z0-9\\-]{0,62}" required /></label>
-      <div class="self-end"><button class="btn" type="submit">Sign in with it</button></div>
+      <label class="field grow min-w-field">${esc(t('settings.account.orgLabel'))}<input type="text" name="org" value="${esc(ctx.auth.signInOrg)}" placeholder="${esc(t('settings.account.orgPlaceholder'))}" pattern="[A-Za-z0-9][A-Za-z0-9\\-]{0,62}" required /></label>
+      <div class="self-end"><button class="btn" type="submit">${esc(t('settings.account.orgSubmit'))}</button></div>
     </form>`;
-  if (!config) body = '<p class="small soft">Checking how this API signs people in…</p>';
+  if (!config) body = `<p class="small soft">${esc(t('settings.account.checking'))}</p>`;
   else if (signedIn)
-    body = `<p>Signed in as <b>${esc(user.name)}</b> <span class="soft">(${esc(user.email)})</span>${
-      ctx.auth.signInOrg ? ` through <b>${esc(ctx.auth.signInOrg)}</b>'s own sign-in` : ''
-    }</p>
-      <div><button class="btn" type="button" data-sign-out>Sign out</button></div>`;
-  else if (!config.enabled)
-    body = `<p class="small soft">This API has no sign-in of its own; requests act as the development user.</p>${orgForm}`;
+    body = `<p>${tHtml(ctx.auth.signInOrg ? 'settings.account.signedInThrough' : 'settings.account.signedIn', {
+      name: `<b>${esc(user.name)}</b>`,
+      email: `<span class="soft">(${esc(user.email)})</span>`,
+      org: `<b>${esc(ctx.auth.signInOrg)}</b>`,
+    })}</p>
+      <div><button class="btn" type="button" data-sign-out>${esc(t('settings.account.signOut'))}</button></div>`;
+  else if (!config.enabled) body = `<p class="small soft">${esc(t('settings.account.noSignIn'))}</p>${orgForm}`;
   else
-    body = `<p class="small soft">${
-      config.dev_identity
-        ? 'Not signed in: until you sign in, you act as the development user.'
-        : 'Sign in to use this Tiles API.'
-    }</p>
-      <div><button class="btn primary" type="button" data-sign-in>Sign in</button></div>${orgForm}`;
-  return `<div class="card stack gap-3" id="account"><h2>Account</h2>${body}</div>`;
+    body = `<p class="small soft">${esc(t(config.dev_identity ? 'settings.account.devUser' : 'settings.account.signInFirst'))}</p>
+      <div><button class="btn primary" type="button" data-sign-in>${esc(t('settings.account.signIn'))}</button></div>${orgForm}`;
+  return `<div class="card stack gap-3" id="account"><h2>${esc(t('settings.account.title'))}</h2>${body}</div>`;
 }
 
 // One line per change: what it did, in words.
@@ -56,39 +63,51 @@ export function describeAudit(e: AuditEntry): string {
   const role = (v: unknown) => (v as { role?: string } | null)?.role ?? '?';
   switch (e.action) {
     case 'ontology.stage':
-      return `Staged ${ops(e.after)} change(s)`;
+      return t('settings.audit.staged', { count: ops(e.after) });
     case 'ontology.discard':
-      return `Discarded ${ops(e.before)} staged change(s)`;
+      return t('settings.audit.discarded', { count: ops(e.before) });
     case 'ontology.commit':
-      return `Committed “${(e.after as { message?: string } | null)?.message ?? ''}”`;
+      return t('settings.audit.committed', { message: (e.after as { message?: string } | null)?.message ?? '' });
     case 'ontology.revert':
-      return `Reverted commit ${(e.before as { reverted?: string } | null)?.reverted ?? ''}`;
+      return t('settings.audit.reverted', { commit: (e.before as { reverted?: string } | null)?.reverted ?? '' });
     case 'member.role':
-      return `Changed a member's role from ${role(e.before)} to ${role(e.after)}`;
+      return t('settings.audit.role', { from: role(e.before), to: role(e.after) });
     case 'agent.register':
-      return `Registered edge agent ${(e.after as { name?: string } | null)?.name ?? ''}`;
+      return t('settings.audit.agentRegistered', { name: (e.after as { name?: string } | null)?.name ?? '' });
     case 'agent.revoke':
-      return `Revoked edge agent ${(e.before as { name?: string } | null)?.name ?? ''}`;
+      return t('settings.audit.agentRevoked', { name: (e.before as { name?: string } | null)?.name ?? '' });
     case 'signal.update': {
       const fields = Object.keys((e.after as Record<string, unknown> | null) ?? {}).filter((k) => k !== 'tag');
-      const names: Record<string, string> = {
-        node_id: 'ontology link',
-        sample_rate_hz: 'sample rate',
-        range_min: 'expected minimum',
-        range_max: 'expected maximum',
-        stuck_after_s: 'stuck limit',
+      const names: Record<string, MessageKey> = {
+        node_id: 'settings.audit.field.nodeId',
+        sample_rate_hz: 'settings.audit.field.sampleRate',
+        range_min: 'settings.audit.field.rangeMin',
+        range_max: 'settings.audit.field.rangeMax',
+        stuck_after_s: 'settings.audit.field.stuckAfter',
       };
-      return `Changed ${fields.map((f) => names[f] ?? f).join(', ')} of signal ${(e.after as { tag?: string } | null)?.tag ?? ''}`;
+      const named = (f: string): string => {
+        const key = names[f];
+        return key ? t(key) : f;
+      };
+      return t('settings.audit.signal', {
+        fields: fields.map(named).join(', '),
+        tag: (e.after as { tag?: string } | null)?.tag ?? '',
+      });
     }
     case 'signal.quality_check': {
       const a = e.after as { checked?: number; good?: number; warn?: number; bad?: number } | null;
-      return `Checked the quality of ${a?.checked ?? 0} signal(s): ${a?.good ?? 0} good, ${a?.warn ?? 0} with warnings, ${a?.bad ?? 0} with problems`;
+      return t('settings.audit.quality', {
+        count: a?.checked ?? 0,
+        good: a?.good ?? 0,
+        warn: a?.warn ?? 0,
+        bad: a?.bad ?? 0,
+      });
     }
     case 'import.start':
-      return `Started importing ${(e.after as { name?: string } | null)?.name ?? ''}`;
+      return t('settings.audit.importStarted', { name: (e.after as { name?: string } | null)?.name ?? '' });
     case 'import.finish': {
       const a = e.after as { received?: number; stored?: number } | null;
-      return `Finished an import: ${a?.stored ?? 0} new readings of ${a?.received ?? 0} sent`;
+      return t('settings.audit.importFinished', { stored: a?.stored ?? 0, received: a?.received ?? 0 });
     }
     default:
       return `${e.action} ${e.entity_type} ${e.entity_id}`;
@@ -97,9 +116,9 @@ export function describeAudit(e: AuditEntry): string {
 
 function auditCard(): string {
   return `<div class="card stack gap-3 span-all" id="audit">
-      <h2>Audit log</h2>
-      <p class="small soft">Every change on this site: who, what and when. Only site admins see this.</p>
-      <div data-audit-rows aria-live="polite">${skeleton.table(4, 4, 'Loading the audit log…')}</div>
+      <h2>${esc(t('settings.audit.title'))}</h2>
+      <p class="small soft">${esc(t('settings.audit.lead'))}</p>
+      <div data-audit-rows aria-live="polite">${skeleton.table(4, 4, t('settings.audit.loading'))}</div>
     </div>`;
 }
 
@@ -112,19 +131,24 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
     // A table of the latest changes (U5.02): sorted, in pages, exported as CSV.
     const o: TableOptions<AuditEntry> = {
       id: 'audit',
-      label: 'Audit log',
+      label: t('settings.audit.title'),
       columns: [
         {
           key: 'at',
-          label: 'When',
+          label: t('settings.audit.col.when'),
           value: (e) => e.at,
           cell: (e) => esc(new Date(e.at).toLocaleString('en-GB')),
         },
-        { key: 'who', label: 'Who', value: (e) => e.actor_name, cell: (e) => esc(e.actor_name) },
-        { key: 'what', label: 'What', value: (e) => describeAudit(e), cell: (e) => esc(describeAudit(e)) },
+        { key: 'who', label: t('settings.audit.col.who'), value: (e) => e.actor_name, cell: (e) => esc(e.actor_name) },
+        {
+          key: 'what',
+          label: t('settings.audit.col.what'),
+          value: (e) => describeAudit(e),
+          cell: (e) => esc(describeAudit(e)),
+        },
         {
           key: 'request',
-          label: 'Request ID',
+          label: t('settings.audit.col.request'),
           value: (e) => e.request_id ?? '',
           cell: (e) => `<code>${esc(e.request_id ?? '—')}</code>`,
         },
@@ -134,39 +158,47 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
       empty: emptyState({
         compact: true,
         level: 3,
-        title: 'No changes yet',
-        body: 'Each change to the site (a commit, a signal edit, a member’s role) is listed here with who made it.',
+        title: t('settings.audit.emptyTitle'),
+        body: t('settings.audit.emptyBody'),
       }),
-      status: `<p class="small soft m-0">The latest ${entries.length === AUDIT_ROWS ? fmt(AUDIT_ROWS) : fmt(entries.length)} change(s).</p>`,
+      status: `<p class="small soft m-0">${esc(t('settings.audit.status', { count: entries.length, shown: fmt(entries.length) }))}</p>`,
       pageSize: 25,
       csv: 'audit-log.csv',
     };
     box.innerHTML = dataTable(o);
     bindTable(box, o);
   } catch {
-    box.innerHTML = loadFailed('The audit log');
+    box.innerHTML = loadFailed(t('settings.audit.failed'));
   }
 }
 
 function copilotUsageCard(): string {
   return `<div class="card stack gap-3 span-all" id="copilot-usage">
-      <h2>Copilot usage</h2>
-      <p class="small soft">Questions asked on this site over the last 30 days (UTC), the tokens they used and how long answers took. Tokens are weighted by price, in input tokens: an output token counts five, a prompt-cache write one and a quarter, a cache read a tenth. Only site admins see this.</p>
-      <div data-copilot-usage aria-live="polite">${skeleton.text(3, 'Loading the usage…')}</div>
+      <h2>${esc(t('settings.usage.title'))}</h2>
+      <p class="small soft">${esc(t('settings.usage.lead'))}</p>
+      <div data-copilot-usage aria-live="polite">${skeleton.text(3, t('settings.usage.loading'))}</div>
     </div>`;
 }
 
 function usageHtml(u: CopilotUsage): string {
-  const t = usageTotals(u);
+  const total = usageTotals(u);
   const b = budgetToday(u);
   const l = u.limits;
-  const limit = (n: number, what: string) => (n ? `${fmt(n)} ${what}` : `no limit on ${what}`);
+  const limit = (n: number, what: 'orgPerMinute' | 'userPerMinute' | 'orgDaily' | 'perQuestion') =>
+    n ? t(`settings.usage.limit.${what}`, { n: fmt(n) }) : t(`settings.usage.noLimit.${what}`);
   const budget =
     b.limit === null
-      ? `Today the organisation has used ${esc(tokens(b.used))} tokens (no daily limit).`
-      : `Today the organisation has used ${esc(tokens(b.used))} of its ${esc(tokens(b.limit))} tokens (${esc(percent(b.share))}); this site ${esc(tokens(u.today.site_billed_tokens))}.`;
+      ? esc(t('settings.usage.budgetNoLimit', { used: tokens(b.used) }))
+      : esc(
+          t('settings.usage.budget', {
+            used: tokens(b.used),
+            limit: tokens(b.limit),
+            share: percent(b.share),
+            site: tokens(u.today.site_billed_tokens),
+          }),
+        );
   const days = u.days.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Day</th><th>Questions</th><th>Answered</th><th>Failed</th><th>Over budget</th><th>Ungrounded</th><th>Tokens</th><th>From cache</th><th>First text (median · 95%)</th><th>Whole answer (median · 95%)</th></tr></thead><tbody>${u.days
+    ? `<div class="table-wrap"><table><thead><tr><th>${esc(t('settings.usage.col.day'))}</th><th>${esc(t('settings.usage.col.questions'))}</th><th>${esc(t('settings.usage.col.answered'))}</th><th>${esc(t('settings.usage.col.failed'))}</th><th>${esc(t('settings.usage.col.overBudget'))}</th><th>${esc(t('settings.usage.col.ungrounded'))}</th><th>${esc(t('settings.usage.col.tokens'))}</th><th>${esc(t('settings.usage.col.fromCache'))}</th><th>${esc(t('settings.usage.col.firstText'))}</th><th>${esc(t('settings.usage.col.wholeAnswer'))}</th></tr></thead><tbody>${u.days
         .map(
           (d) =>
             `<tr><td>${esc(d.day)}</td><td>${fmt(d.questions)}</td><td>${fmt(d.answered)}</td><td>${fmt(d.failed)}</td><td>${fmt(d.over_budget)}</td><td>${fmt(d.ungrounded)}</td><td>${esc(tokens(d.billed_tokens))}</td><td>${esc(percent(cacheShare(d)))}</td><td>${esc(duration(d.first_text_p50_ms))} · ${esc(duration(d.first_text_p95_ms))}</td><td>${esc(duration(d.total_p50_ms))} · ${esc(duration(d.total_p95_ms))}</td></tr>`,
@@ -175,11 +207,13 @@ function usageHtml(u: CopilotUsage): string {
     : emptyState({
         compact: true,
         level: 3,
-        title: 'No questions in the last 30 days',
-        bodyHtml: 'Questions asked on the <a href="#/chat">Copilot</a> page are counted here, by day and by person.',
+        title: t('settings.usage.emptyTitle'),
+        bodyHtml: tHtml('settings.usage.emptyBody', {
+          link: `<a href="#/chat">${esc(t('settings.usage.copilot'))}</a>`,
+        }),
       });
   const users = u.users.length
-    ? `<div class="table-wrap"><table><thead><tr><th>Who</th><th>Questions</th><th>Tokens</th></tr></thead><tbody>${u.users
+    ? `<div class="table-wrap"><table><thead><tr><th>${esc(t('settings.usage.col.who'))}</th><th>${esc(t('settings.usage.col.questions'))}</th><th>${esc(t('settings.usage.col.tokens'))}</th></tr></thead><tbody>${u.users
         .map(
           (p) =>
             `<tr><td>${esc(p.user)} <span class="soft small">${esc(p.email)}</span></td><td>${fmt(p.questions)}</td><td>${esc(tokens(p.billed_tokens))}</td></tr>`,
@@ -188,15 +222,22 @@ function usageHtml(u: CopilotUsage): string {
     : '';
   return `<p data-copilot-budget>${budget}</p>
     <div class="row gap-6 wrap" data-copilot-totals>
-      <div><div class="small soft">Questions</div><strong>${fmt(t.questions)}</strong></div>
-      <div><div class="small soft">Answered</div><strong>${fmt(t.answered)}</strong></div>
-      <div><div class="small soft">Failed</div><strong>${fmt(t.failed)}</strong></div>
-      <div><div class="small soft">Over budget</div><strong>${fmt(t.overBudget)}</strong></div>
-      <div><div class="small soft">Tokens</div><strong>${esc(tokens(t.billed))}</strong></div>
-      <div><div class="small soft">From cache</div><strong>${esc(percent(t.cacheShare))}</strong></div>
+      <div><div class="small soft">${esc(t('settings.usage.col.questions'))}</div><strong>${fmt(total.questions)}</strong></div>
+      <div><div class="small soft">${esc(t('settings.usage.col.answered'))}</div><strong>${fmt(total.answered)}</strong></div>
+      <div><div class="small soft">${esc(t('settings.usage.col.failed'))}</div><strong>${fmt(total.failed)}</strong></div>
+      <div><div class="small soft">${esc(t('settings.usage.col.overBudget'))}</div><strong>${fmt(total.overBudget)}</strong></div>
+      <div><div class="small soft">${esc(t('settings.usage.col.tokens'))}</div><strong>${esc(tokens(total.billed))}</strong></div>
+      <div><div class="small soft">${esc(t('settings.usage.col.fromCache'))}</div><strong>${esc(percent(total.cacheShare))}</strong></div>
     </div>
     ${days}${users}
-    <p class="small soft">Limits: ${esc(limit(l.org_questions_per_minute, 'questions a minute per organisation'))}; ${esc(limit(l.user_questions_per_minute, 'questions a minute per person'))}; ${esc(limit(l.org_daily_tokens, 'tokens a day per organisation'))}; ${esc(limit(l.question_tokens, 'tokens per question'))}. Set with the API's TILES_COPILOT_* variables.</p>`;
+    <p class="small soft">${esc(
+      t('settings.usage.limits', {
+        orgPerMinute: limit(l.org_questions_per_minute, 'orgPerMinute'),
+        userPerMinute: limit(l.user_questions_per_minute, 'userPerMinute'),
+        orgDaily: limit(l.org_daily_tokens, 'orgDaily'),
+        perQuestion: limit(l.question_tokens, 'perQuestion'),
+      }),
+    )}</p>`;
 }
 
 async function fillCopilotUsage(root: HTMLElement, ctx: Context): Promise<void> {
@@ -206,17 +247,17 @@ async function fillCopilotUsage(root: HTMLElement, ctx: Context): Promise<void> 
   try {
     box.innerHTML = usageHtml(await ctx.api.copilot.usage(site.id, 30));
   } catch {
-    box.innerHTML = loadFailed('Copilot usage');
+    box.innerHTML = loadFailed(t('settings.usage.title'));
   }
 }
 
 // The copilot on this site (threat model G-A4): admins turn it on, knowing what it sends.
 function copilotPolicyCard(): string {
   return `<div class="card stack gap-3" id="copilot-policy">
-      <h2>Copilot on this site</h2>
-      <p class="small soft">When it is on, each question, and the site's data the copilot reads to answer it (only what the person asking may see), goes to Anthropic's API under your deployment's terms. Nothing is sent while it is off: the Copilot page answers with its built-in skills on the demo data.</p>
-      <label class="row gap-2"><input type="checkbox" name="copilot-enabled" data-copilot-enabled disabled /> Use the copilot on this site</label>
-      <p class="small soft" data-copilot-policy aria-live="polite">Loading…</p>
+      <h2>${esc(t('settings.policy.title'))}</h2>
+      <p class="small soft">${esc(t('settings.policy.lead'))}</p>
+      <label class="row gap-2"><input type="checkbox" name="copilot-enabled" data-copilot-enabled disabled /> ${esc(t('settings.policy.toggle'))}</label>
+      <p class="small soft" data-copilot-policy aria-live="polite">${esc(t('settings.loading'))}</p>
     </div>`;
 }
 
@@ -229,12 +270,12 @@ async function bindCopilotPolicy(root: HTMLElement, ctx: Context): Promise<void>
   const show = (s: { configured: boolean; enabled: boolean }) => {
     box.checked = s.enabled;
     box.disabled = false;
-    note.textContent = `${s.enabled ? 'On' : 'Off'} for this site.${s.configured ? '' : ' The copilot service is not set up on this Tiles API yet (TILES_ANTHROPIC_API_KEY and TILES_COPILOT_MODEL), so it answers nothing until it is.'}`;
+    note.textContent = `${t(s.enabled ? 'settings.policy.on' : 'settings.policy.off')}${s.configured ? '' : ` ${t('settings.policy.notSetUp')}`}`;
   };
   try {
     show(await api.copilot.status(site.id));
   } catch {
-    note.textContent = 'Whether the copilot is on could not be loaded.';
+    note.textContent = t('settings.policy.failed');
     return;
   }
   box.addEventListener(
@@ -244,7 +285,7 @@ async function bindCopilotPolicy(root: HTMLElement, ctx: Context): Promise<void>
       box.disabled = true;
       try {
         show(await api.copilot.setEnabled(site.id, wanted));
-        ctx.toast(wanted ? 'The copilot is on for this site' : 'The copilot is off for this site');
+        ctx.toast(t(wanted ? 'settings.policy.turnedOn' : 'settings.policy.turnedOff'));
       } catch {
         box.checked = !wanted;
         box.disabled = false;
@@ -259,37 +300,39 @@ function notificationsCard(ctx: Context): string {
   const canChoose = role === 'engineer' || role === 'admin';
   const mine = canChoose
     ? `<form class="stack gap-2" id="notify-prefs" aria-live="polite">
-        <p class="small soft" data-notify-email>Loading…</p>
-        <label class="row gap-2"><input type="checkbox" name="on_assigned" disabled /> A warning someone assigns to me</label>
-        <label class="row gap-2"><input type="checkbox" name="on_raised" disabled /> Every new warning on this site</label>
-        <div><button class="btn primary" type="submit" disabled>Save</button></div>
+        <p class="small soft" data-notify-email>${esc(t('settings.loading'))}</p>
+        <label class="row gap-2"><input type="checkbox" name="on_assigned" disabled /> ${esc(t('settings.notify.onAssigned'))}</label>
+        <label class="row gap-2"><input type="checkbox" name="on_raised" disabled /> ${esc(t('settings.notify.onRaised'))}</label>
+        <div><button class="btn primary" type="submit" disabled>${esc(t('settings.save'))}</button></div>
       </form>`
-    : '<p class="small soft">Engineers and admins of the site choose which warnings they hear about.</p>';
+    : `<p class="small soft">${esc(t('settings.notify.readOnly'))}</p>`;
   const teams =
     role === 'admin'
       ? `<form class="stack gap-2" id="teams-form">
-        <h3>Microsoft Teams channel</h3>
-        <p class="small soft" data-teams-status>Loading…</p>
-        <label class="field">Webhook URL (from the channel's Workflows, or an incoming webhook; leave it empty to keep the one set)<input type="url" name="url" placeholder="https://….webhook.office.com/…" autocomplete="off" /></label>
-        <label class="row gap-2"><input type="checkbox" name="on_raised" checked /> Post every new warning there</label>
-        <div class="row gap-2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-teams-remove>Remove the channel</button></div>
+        <h3>${esc(t('settings.teams.title'))}</h3>
+        <p class="small soft" data-teams-status>${esc(t('settings.loading'))}</p>
+        <label class="field">${esc(t('settings.teams.urlLabel'))}<input type="url" name="url" placeholder="${esc(TEAMS_EXAMPLE)}" autocomplete="off" /></label>
+        <label class="row gap-2"><input type="checkbox" name="on_raised" checked /> ${esc(t('settings.teams.onRaised'))}</label>
+        <div class="row gap-2"><button class="btn primary" type="submit">${esc(t('settings.save'))}</button><button class="btn" type="button" data-teams-remove>${esc(t('settings.teams.remove'))}</button></div>
       </form>
-      <h3>Recent messages</h3>
-      <div data-deliveries aria-live="polite">${skeleton.table(3, 4, 'Loading the deliveries…')}</div>`
+      <h3>${esc(t('settings.teams.recent'))}</h3>
+      <div data-deliveries aria-live="polite">${skeleton.table(3, 4, t('settings.teams.loading'))}</div>`
       : '';
   return `<div class="card stack gap-3 span-all" id="notifications">
-      <h2>Notifications</h2>
-      <p class="small soft">Emails about warnings on this site, sent by the Tiles API's <code>tiles-notify</code> job.</p>
+      <h2>${esc(t('settings.notify.title'))}</h2>
+      <p class="small soft">${tHtml('settings.notify.lead', { job: `<code>${esc(NOTIFY_JOB)}</code>` })}</p>
       ${mine}
       ${teams}
     </div>`;
 }
 
 export function deliveryState(d: Pick<Delivery, 'sent_at' | 'failed_at' | 'attempts' | 'last_error'>): string {
-  if (d.sent_at) return '<span class="badge good">Sent</span>';
-  if (d.failed_at) return `<span class="badge bad" title="${esc(d.last_error ?? '')}">Gave up</span>`;
-  if (d.attempts) return `<span class="badge warn" title="${esc(d.last_error ?? '')}">Retrying</span>`;
-  return '<span class="badge">Waiting</span>';
+  if (d.sent_at) return `<span class="badge good">${esc(t('settings.delivery.sent'))}</span>`;
+  if (d.failed_at)
+    return `<span class="badge bad" title="${esc(d.last_error ?? '')}">${esc(t('settings.delivery.gaveUp'))}</span>`;
+  if (d.attempts)
+    return `<span class="badge warn" title="${esc(d.last_error ?? '')}">${esc(t('settings.delivery.retrying'))}</span>`;
+  return `<span class="badge">${esc(t('settings.delivery.waiting'))}</span>`;
 }
 
 // Choices made but not yet saved, kept across re-renders (the page re-renders as the API answers),
@@ -320,7 +363,7 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
   if (prefsForm) {
     const box = (name: string) => need<HTMLInputElement>(prefsForm, `[name=${name}]`);
     const show = (p: NotificationPrefs) => {
-      need(prefsForm, '[data-notify-email]').textContent = `Emails go to ${p.email}. Send me:`;
+      need(prefsForm, '[data-notify-email]').textContent = t('settings.notify.emailsGoTo', { email: p.email });
       box('on_raised').checked = draft.on_raised ?? p.on_raised;
       box('on_assigned').checked = draft.on_assigned ?? p.on_assigned;
       for (const el of prefsForm.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button'))
@@ -329,7 +372,7 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
     for (const name of ['on_raised', 'on_assigned'] as const)
       box(name).addEventListener('change', () => (draft[name] = box(name).checked), { signal: bound() });
     api.notifications.preferences(site.id).then(show, () => {
-      need(prefsForm, '[data-notify-email]').textContent = 'Your preferences could not be loaded.';
+      need(prefsForm, '[data-notify-email]').textContent = t('settings.notify.failed');
     });
     onSubmit(root, '#notify-prefs', () => {
       const prefs = { on_raised: box('on_raised').checked, on_assigned: box('on_assigned').checked };
@@ -338,7 +381,7 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
           delete draft.on_raised;
           delete draft.on_assigned;
           show(p);
-          ctx.toast('Notification preferences saved');
+          ctx.toast(t('settings.notify.saved'));
         },
         () => undefined, // the client showed why
       );
@@ -348,12 +391,12 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
   if (!teamsForm) return;
   const status = need(teamsForm, '[data-teams-status]');
   let configured = false;
-  const showTeams = (t: TeamsChannel) => {
-    configured = t.configured;
-    status.textContent = t.configured
-      ? `Connected to a channel at ${t.host}${t.on_raised ? ', which hears of every new warning' : ', posting nothing for now'}. Paste a new URL to change it.`
-      : 'No channel yet.';
-    need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked = draft.teams_on_raised ?? t.on_raised;
+  const showTeams = (ch: TeamsChannel) => {
+    configured = ch.configured;
+    status.textContent = ch.configured
+      ? t(ch.on_raised ? 'settings.teams.connectedAll' : 'settings.teams.connectedNone', { host: ch.host ?? '' })
+      : t('settings.teams.none');
+    need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked = draft.teams_on_raised ?? ch.on_raised;
   };
   const urlBox = need<HTMLInputElement>(teamsForm, '[name=url]');
   const onRaisedBox = need<HTMLInputElement>(teamsForm, '[name=on_raised]');
@@ -361,16 +404,22 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
   if (draft.teams_on_raised !== undefined) onRaisedBox.checked = draft.teams_on_raised;
   urlBox.addEventListener('input', () => (draft.url = urlBox.value), { signal: bound() });
   onRaisedBox.addEventListener('change', () => (draft.teams_on_raised = onRaisedBox.checked), { signal: bound() });
-  api.notifications.teams(site.id).then(showTeams, () => (status.textContent = 'The channel could not be loaded.'));
+  api.notifications.teams(site.id).then(showTeams, () => (status.textContent = t('settings.teams.failed')));
   const save = (url: string | null | undefined) =>
     api.notifications.setTeams(site.id, url, need<HTMLInputElement>(teamsForm, '[name=on_raised]').checked).then(
-      (t) => {
+      (ch) => {
         delete draft.url;
         delete draft.teams_on_raised;
         teamsForm.reset();
-        showTeams(t);
+        showTeams(ch);
         ctx.toast(
-          url === undefined ? 'Teams channel updated' : t.configured ? 'Teams channel saved' : 'Teams channel removed',
+          t(
+            url === undefined
+              ? 'settings.teams.updated'
+              : ch.configured
+                ? 'settings.teams.saved'
+                : 'settings.teams.removed',
+          ),
         );
       },
       () => undefined, // the client showed why
@@ -378,16 +427,16 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
   onSubmit(root, '#teams-form', (form) => {
     const url = field(form, 'url').trim();
     if (!url && !configured) {
-      ctx.toast('Paste the channel’s webhook URL');
+      ctx.toast(t('settings.teams.pasteUrl'));
       return;
     }
     return save(url || undefined); // no URL: keep the channel, change only what it hears of
   });
   onAll(root, '[data-teams-remove]', 'click', async () => {
     const yes = await confirmDialog({
-      title: 'Stop posting to the Teams channel?',
-      body: 'Warnings stop going to the channel. Its address isn’t kept: to post again, set it again.',
-      confirm: 'Stop posting',
+      title: t('settings.teams.confirmTitle'),
+      body: t('settings.teams.confirmBody'),
+      confirm: t('settings.teams.confirm'),
       tone: 'danger',
     });
     if (yes) void save(null);
@@ -397,20 +446,20 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
   try {
     const rows = await api.notifications.deliveries(site.id, { limit: 20 });
     list.innerHTML = rows.length
-      ? `<div class="table-wrap"><table><thead><tr><th>When</th><th>What</th><th>To</th><th>State</th><th>Why</th></tr></thead><tbody>${rows
+      ? `<div class="table-wrap"><table><thead><tr><th>${esc(t('settings.delivery.col.when'))}</th><th>${esc(t('settings.delivery.col.what'))}</th><th>${esc(t('settings.delivery.col.to'))}</th><th>${esc(t('settings.delivery.col.state'))}</th><th>${esc(t('settings.delivery.col.why'))}</th></tr></thead><tbody>${rows
           .map(
             (d) =>
-              `<tr><td>${esc(new Date(d.created_at).toLocaleString('en-GB'))}</td><td>${d.kind === 'warning_raised' ? 'New warning' : 'Assigned'} · <span class="mono">${esc(d.signal_tag)}</span></td><td>${esc(d.recipient)}</td><td>${deliveryState(d)}</td><td class="small">${esc(d.sent_at ? '' : (d.last_error ?? ''))}</td></tr>`,
+              `<tr><td>${esc(new Date(d.created_at).toLocaleString('en-GB'))}</td><td>${esc(t(d.kind === 'warning_raised' ? 'settings.delivery.raised' : 'settings.delivery.assigned'))} · <span class="mono">${esc(d.signal_tag)}</span></td><td>${esc(d.recipient)}</td><td>${deliveryState(d)}</td><td class="small">${esc(d.sent_at ? '' : (d.last_error ?? ''))}</td></tr>`,
           )
           .join('')}</tbody></table></div>`
       : emptyState({
           compact: true,
           level: 4,
-          title: 'Nothing sent yet',
-          body: 'Messages appear here when a warning is raised or assigned to someone who asked to hear of it.',
+          title: t('settings.delivery.emptyTitle'),
+          body: t('settings.delivery.emptyBody'),
         });
   } catch {
-    list.innerHTML = loadFailed('The messages', 4);
+    list.innerHTML = loadFailed(t('settings.delivery.failed'), 4);
   }
 }
 
@@ -458,15 +507,15 @@ export function tokenStillShown(
 
 function agentsCard(admin: boolean): string {
   return `<div class="card stack gap-3 span-all" id="agents">
-      <h2>Edge agents</h2>
-      <p class="small soft">Agents run on the plant network and send data out to Tiles; they open no ports. Each one reports a heartbeat, so you can see whether it is online. See <code>edge/README.md</code> to install one.</p>
+      <h2>${esc(t('settings.agents.title'))}</h2>
+      <p class="small soft">${tHtml('settings.agents.lead', { readme: `<code>${esc(EDGE_README)}</code>` })}</p>
       <div data-agent-token aria-live="polite"></div>
-      <div data-agent-rows aria-live="polite">${skeleton.table(2, 5, 'Loading the edge agents…')}</div>
+      <div data-agent-rows aria-live="polite">${skeleton.table(2, 5, t('settings.agents.loading'))}</div>
       ${
         admin
           ? `<form class="row gap-2 wrap" id="agent-form">
-          <label class="field grow min-w-field">New agent name<input type="text" name="name" placeholder="e.g. press-shop-edge" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="Letters, digits, dot, dash or underscore; up to 63" required /></label>
-          <div class="self-end"><button class="btn primary" type="submit">Register agent</button></div>
+          <label class="field grow min-w-field">${esc(t('settings.agents.nameLabel'))}<input type="text" name="name" placeholder="${esc(t('settings.agents.namePlaceholder'))}" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{0,62}" title="${esc(t('settings.agents.nameRule'))}" required /></label>
+          <div class="self-end"><button class="btn primary" type="submit">${esc(t('settings.agents.register'))}</button></div>
         </form>`
           : ''
       }
@@ -490,10 +539,12 @@ export function bufferSummary(a: Pick<EdgeAgent, 'buffer'>): string {
   const b = a.buffer;
   if (!b) return '—';
   const tone = b.dropped > 0 ? 'bad' : b.problem ? 'warn' : 'good';
-  const since = b.oldest_at ? `, oldest from ${new Date(b.oldest_at).toLocaleString('en-GB')}` : '';
-  const counts = `${b.sent} sent, ${b.dropped} dropped (buffer full or not writable), ${b.rejected} rejected by Tiles`;
-  const title = `${b.queued} waiting${since}. ${counts}.${b.problem ? ` ${b.problem}` : ''}`;
-  return `<span class="badge ${tone}" title="${esc(title)}">${esc(b.queued.toLocaleString('en-GB'))} queued</span>`;
+  const waiting = b.oldest_at
+    ? t('settings.buffer.waitingSince', { queued: b.queued, when: new Date(b.oldest_at).toLocaleString('en-GB') })
+    : t('settings.buffer.waiting', { queued: b.queued });
+  const counts = t('settings.buffer.counts', { sent: b.sent, dropped: b.dropped, rejected: b.rejected });
+  const title = `${waiting}. ${counts}.${b.problem ? ` ${b.problem}` : ''}`;
+  return `<span class="badge ${tone}" title="${esc(title)}">${esc(t('settings.buffer.queued', { queued: b.queued.toLocaleString('en-GB') }))}</span>`;
 }
 
 function agentStatus(a: EdgeAgent): string {
@@ -512,11 +563,11 @@ function showToken(root: HTMLElement, ctx: Context): void {
   }
   const config = `[tiles]\nurl = "${revealed.apiUrl}"\ntoken_file = "token"\n\n[agent]\nheartbeat_seconds = 30`;
   box.innerHTML = `<div class="stack gap-2">
-      <p><b>Token for ${esc(revealed.name)}.</b> Copy it now: Tiles keeps only its hash and won't show it again. Save it as <code>token</code> next to the agent's config file, readable only by the agent.</p>
+      <p>${tHtml('settings.token.lead', { title: `<b>${esc(t('settings.token.for', { name: revealed.name }))}</b>`, file: `<code>${esc(TOKEN_FILE)}</code>` })}</p>
       <pre class="code-block" data-token>${esc(revealed.token)}</pre>
-      <p class="small soft">Config file (<code>tiles-edge.toml</code>):</p>
+      <p class="small soft">${tHtml('settings.token.config', { file: `<code>${esc(CONFIG_FILE)}</code>` })}</p>
       <pre class="code-block">${esc(config)}</pre>
-      <div><button class="btn" type="button" data-token-done>Done, I've saved it</button></div>
+      <div><button class="btn" type="button" data-token-done>${esc(t('settings.token.done'))}</button></div>
     </div>`;
   onAll(box, '[data-token-done]', 'click', () => {
     revealed = null;
@@ -534,35 +585,50 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
   try {
     agents = await api.agents.list(site.id);
   } catch {
-    box.innerHTML = loadFailed('The agents');
+    box.innerHTML = loadFailed(t('settings.agents.failed'));
     return;
   }
   // The agents as a table (U5.02): sorted, their columns chosen.
   const o: TableOptions<EdgeAgent> = {
     id: 'agents',
-    label: 'Edge agents',
+    label: t('settings.agents.title'),
     columns: [
-      { key: 'name', label: 'Agent', value: (a) => a.name, cell: (a) => esc(a.name) },
-      { key: 'status', label: 'Status', value: (a) => a.status, cell: (a) => agentStatus(a) },
+      { key: 'name', label: t('settings.agents.col.name'), value: (a) => a.name, cell: (a) => esc(a.name) },
+      { key: 'status', label: t('settings.agents.col.status'), value: (a) => a.status, cell: (a) => agentStatus(a) },
       {
         key: 'seen',
-        label: 'Last heartbeat',
+        label: t('settings.agents.col.seen'),
         value: (a) => a.last_seen_at,
         cell: (a) => (a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'),
       },
-      { key: 'host', label: 'Host', value: (a) => a.hostname, cell: (a) => esc(a.hostname ?? '—') },
-      { key: 'version', label: 'Version', value: (a) => a.version, cell: (a) => esc(a.version ?? '—') },
-      { key: 'connectors', label: 'Connectors', cell: (a) => connectorList(a) },
-      { key: 'buffer', label: 'Buffer', value: (a) => a.buffer?.queued ?? null, cell: (a) => bufferSummary(a) },
+      {
+        key: 'host',
+        label: t('settings.agents.col.host'),
+        value: (a) => a.hostname,
+        cell: (a) => esc(a.hostname ?? '—'),
+      },
+      {
+        key: 'version',
+        label: t('settings.agents.col.version'),
+        value: (a) => a.version,
+        cell: (a) => esc(a.version ?? '—'),
+      },
+      { key: 'connectors', label: t('settings.agents.col.connectors'), cell: (a) => connectorList(a) },
+      {
+        key: 'buffer',
+        label: t('settings.agents.col.buffer'),
+        value: (a) => a.buffer?.queued ?? null,
+        cell: (a) => bufferSummary(a),
+      },
       ...(admin
         ? [
             {
               key: 'actions',
-              label: 'Actions',
+              label: t('settings.agents.col.actions'),
               srOnly: true,
               fixed: true,
               cell: (a: EdgeAgent) =>
-                `<button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">Revoke</button>`,
+                `<button class="btn sm danger" type="button" data-revoke-agent="${esc(a.id)}" data-agent-name="${esc(a.name)}">${esc(t('settings.agents.revoke'))}</button>`,
             },
           ]
         : []),
@@ -572,10 +638,8 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
     empty: emptyState({
       compact: true,
       level: 3,
-      title: 'No edge agents yet',
-      body: admin
-        ? 'Register one below, then put its token in the agent’s config on the plant network. It connects out to Tiles; nothing connects in.'
-        : 'An admin of this site registers edge agents; they send the plant’s readings to Tiles.',
+      title: t('settings.agents.emptyTitle'),
+      body: admin ? t('settings.agents.emptyAdmin') : t('settings.agents.emptyOther'),
     }),
   };
   box.innerHTML = dataTable(o);
@@ -583,15 +647,15 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
   onAll(box, '[data-revoke-agent]', 'click', async (el) => {
     const name = el.dataset.agentName ?? '';
     const yes = await confirmDialog({
-      title: `Revoke ${name}?`,
-      body: 'Its token stops working at once, and the agent stops sending readings.',
-      confirm: 'Revoke',
+      title: t('settings.agents.confirmTitle', { name }),
+      body: t('settings.agents.confirmBody'),
+      confirm: t('settings.agents.revoke'),
       tone: 'danger',
     });
     if (!yes) return;
     api.agents.revoke(site.id, el.dataset.revokeAgent ?? '').then(
       () => {
-        ctx.toast(`Revoked ${name}`);
+        ctx.toast(t('settings.agents.revoked', { name }));
         return fillAgents(root, ctx);
       },
       () => undefined, // the client already showed why
@@ -621,7 +685,9 @@ function bindAgents(root: HTMLElement, ctx: Context): void {
 
 const view: View = {
   id: 'settings',
-  title: 'Settings',
+  get title() {
+    return t('settings.title');
+  },
   icon: 'settings',
   render(ctx) {
     const { user } = ctx.state;
@@ -629,27 +695,27 @@ const view: View = {
     // The form shows what is being typed; the page follows what is saved.
     const typed = sourceDraft?.base === sourceKey(ds) ? sourceDraft : ds;
     return `
-      ${pageHead({ eyebrow: 'Workspace', title: 'Settings' })}
+      ${pageHead({ eyebrow: t('settings.eyebrow'), title: t('settings.title') })}
       <div class="grid g2">
         <form class="card stack gap-3" id="profile">
-          <h2>Profile</h2>
-          <p class="small soft">Your name and email are recorded as the author of ontology commits and design runs.</p>
-          <label class="field">Name<input type="text" name="name" value="${esc(user.name)}" required /></label>
-          <label class="field">Email<input type="text" name="email" value="${esc(user.email)}" required /></label>
-          <div><button class="btn primary" type="submit">Save</button></div>
+          <h2>${esc(t('settings.profile.title'))}</h2>
+          <p class="small soft">${esc(t('settings.profile.lead'))}</p>
+          <label class="field">${esc(t('settings.profile.name'))}<input type="text" name="name" value="${esc(user.name)}" required /></label>
+          <label class="field">${esc(t('settings.profile.email'))}<input type="text" name="email" value="${esc(user.email)}" required /></label>
+          <div><button class="btn primary" type="submit">${esc(t('settings.save'))}</button></div>
         </form>
         <div class="card stack gap-3">
-          <h2>Demo data</h2>
-          <p class="small soft">Plant data (cutter batches, welder power, die-cast shots) is synthetic and regenerated from fixed seeds. Your ontology commits, design runs and chat are saved in this browser.</p>
-          <div><button class="btn danger" data-reset>Reset workspace</button></div>
+          <h2>${esc(t('settings.demo.title'))}</h2>
+          <p class="small soft">${esc(t('settings.demo.lead'))}</p>
+          <div><button class="btn danger" data-reset>${esc(t('settings.demo.reset'))}</button></div>
         </div>
         <form class="card stack gap-3" id="datasource">
-          <h2>Data source</h2>
-          <p class="small soft">Keep data in this browser, or share it through the Tiles API (<code>docker compose up</code> starts one on port 8000). Pages move to the API one at a time.</p>
-          <label class="row gap-2"><input type="radio" name="mode" value="local" ${typed.mode === 'local' ? 'checked' : ''} /> This browser only</label>
-          <label class="row gap-2"><input type="radio" name="mode" value="api" ${typed.mode === 'api' ? 'checked' : ''} /> Tiles API</label>
-          <label class="field">API address<input type="url" name="apiUrl" value="${esc(typed.apiUrl)}" placeholder="http://localhost:8000" /></label>
-          <div class="row gap-2"><button class="btn primary" type="submit">Save</button><button class="btn" type="button" data-test-api>Test connection</button></div>
+          <h2>${esc(t('settings.source.title'))}</h2>
+          <p class="small soft">${tHtml('settings.source.lead', { command: `<code>${esc(COMPOSE_UP)}</code>` })}</p>
+          <label class="row gap-2"><input type="radio" name="mode" value="local" ${typed.mode === 'local' ? 'checked' : ''} /> ${esc(t('settings.source.local'))}</label>
+          <label class="row gap-2"><input type="radio" name="mode" value="api" ${typed.mode === 'api' ? 'checked' : ''} /> ${esc(t('settings.source.api'))}</label>
+          <label class="field">${esc(t('settings.source.address'))}<input type="url" name="apiUrl" value="${esc(typed.apiUrl)}" placeholder="${esc(API_EXAMPLE)}" /></label>
+          <div class="row gap-2"><button class="btn primary" type="submit">${esc(t('settings.save'))}</button><button class="btn" type="button" data-test-api>${esc(t('settings.source.test'))}</button></div>
           <p class="small soft" data-api-status aria-live="polite">${esc(apiCheck)}</p>
         </form>
         ${ds.mode === 'api' ? accountCard(ctx) : ''}
@@ -662,9 +728,9 @@ const view: View = {
         ${ctx.api && ctx.ontology.role === 'admin' && ctx.ontology.site ? feedbackCard() : ''}
         ${ctx.ontology.role === 'admin' ? auditCard() : ''}
         <div class="card stack gap-3" id="about">
-          <h2>About</h2>
-          <p class="small soft">Tiles works from this browser on its own, or with the Tiles API for a shared site. Press Ctrl K (⌘ K on a Mac) or / to find any page or action.</p>
-          <div>${linkButton('Style guide', '#/styleguide', { icon: 'palette' })}</div>
+          <h2>${esc(t('settings.about.title'))}</h2>
+          <p class="small soft">${esc(t('settings.about.lead'))}</p>
+          <div>${linkButton(t('settings.about.styleguide'), '#/styleguide', { icon: 'palette' })}</div>
         </div>
       </div>`;
   },
@@ -673,20 +739,20 @@ const view: View = {
       const name = field(form, 'name').trim();
       const email = field(form, 'email').trim();
       ctx.update((s) => (s.user = { name, email }));
-      ctx.toast('Profile saved');
+      ctx.toast(t('settings.profile.saved'));
     });
     onSubmit(root, '#datasource', (form) => {
       const { mode, apiUrl: typedUrl } = readSource(form);
       const apiUrl = normalizeBaseUrl(typedUrl);
       // Only API mode needs an address; local mode keeps the last good one.
       if (mode === 'api' && !isHttpUrl(apiUrl)) {
-        ctx.toast('Enter the API address, e.g. http://localhost:8000');
+        ctx.toast(t('settings.source.needAddress'));
         return;
       }
       apiCheck = '';
       sourceDraft = null;
       ctx.setDataSource({ mode, apiUrl: isHttpUrl(apiUrl) ? apiUrl : ctx.dataSource.apiUrl });
-      ctx.toast(mode === 'api' ? 'Using the Tiles API' : 'Using this browser only');
+      ctx.toast(t(mode === 'api' ? 'settings.source.usingApi' : 'settings.source.usingLocal'));
     });
     const source = need<HTMLFormElement>(root, '#datasource');
     source.addEventListener(
@@ -706,16 +772,16 @@ const view: View = {
         const status = document.querySelector('#view [data-api-status]');
         if (status) status.textContent = text;
       };
-      show('Checking…');
+      show(t('settings.source.checking'));
       try {
         const h = await createApiClient({ baseUrl: url, onError: (e) => ctx.toast(e.message) }).health();
         show(
           isTilesHealth(h)
-            ? `Connected: Tiles API ${h.version} (${h.env})`
-            : 'Something answered there, but it is not the Tiles API',
+            ? t('settings.source.connected', { version: h.version, env: h.env })
+            : t('settings.source.notTiles'),
         );
       } catch {
-        show('Not reachable');
+        show(t('settings.source.unreachable'));
       }
     });
     if (ctx.ontology.role === 'admin') {
@@ -733,9 +799,9 @@ const view: View = {
     void bindUx(root, ctx);
     onAll(root, '[data-reset]', 'click', async () => {
       const yes = await confirmDialog({
-        title: 'Reset this browser’s workspace?',
-        body: 'Ontology history, design runs and chat go back to the demo defaults. This can’t be undone.',
-        confirm: 'Reset workspace',
+        title: t('settings.demo.confirmTitle'),
+        body: t('settings.demo.confirmBody'),
+        confirm: t('settings.demo.reset'),
         tone: 'danger',
         typeToConfirm: 'reset',
       });

@@ -6,6 +6,7 @@ import { keyAttrs } from '../lib/shortcuts.ts';
 import { emptyState, field as labelled, input, pageHead } from '../lib/ui.ts';
 import { savedScroll } from '../lib/url-state.ts';
 import type { Context, View } from './types.ts';
+import { t } from '../lib/i18n.ts';
 
 interface Ui {
   q: string;
@@ -55,7 +56,9 @@ let wasShown = false;
 
 const view: View = {
   id: 'glossary',
-  title: 'Glossary',
+  get title() {
+    return t('glossary.title');
+  },
   icon: 'book-a',
   under: 'help',
   render(ctx) {
@@ -70,17 +73,17 @@ const view: View = {
     }
     const { q } = u;
     const head = pageHead({
-      eyebrow: 'Help',
-      title: 'Glossary',
-      lead: 'The words Tiles uses, in plain words. On a page, a word with a dotted underline is one of them: point at it, Tab to it or tap it.',
+      eyebrow: t('common.help'),
+      title: t('glossary.title'),
+      lead: t('glossary.lead'),
     });
     const search = `<div class="row gap-3 wrap mb-4" role="search">${labelled(
-      'Find a term',
+      t('glossary.find'),
       input({
         type: 'search',
         name: 'q',
         value: q,
-        placeholder: 'e.g. baseline, Cohen',
+        placeholder: t('glossary.findPlaceholder'),
         attrs: { autocomplete: 'off', ...keyAttrs('/') },
       }),
       { class: 'grow min-w-field' },
@@ -98,7 +101,7 @@ const view: View = {
                 .join('')}</dl></section>`,
           )
           .join('')
-      : emptyState({ illustration: 'search', title: 'No term matches', body: 'Try fewer or other words.' });
+      : emptyState({ illustration: 'search', title: t('glossary.noneTitle'), body: t('glossary.noneBody') });
     return `<div data-glossary>${head}${search}${list}</div>`;
   },
   bind(root, ctx) {

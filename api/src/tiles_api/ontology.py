@@ -150,7 +150,8 @@ def _apply(g: Graph, op: Op, degree: dict[str, int] | None = None) -> Op:
         else:
             attached = degree.get(op["id"], 0)
         if attached:
-            raise OntologyError(f"Node {op['id']} still has {attached} relationship(s)")
+            noun = "relationship" if attached == 1 else "relationships"
+            raise OntologyError(f"Node {op['id']} still has {attached:,} {noun}")
         del g["nodes"][op["id"]]
         return {"kind": "addNode", "node": existing}
     if kind == "addEdge":

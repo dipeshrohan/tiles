@@ -15,6 +15,7 @@ import { icon } from './icons.ts';
 import { load, save } from './store.ts';
 import { morph } from './morph.ts';
 import { csvField } from './csv.ts';
+import { t, tHtml } from './i18n.ts';
 
 export const VIRTUAL_AFTER = 200; // rows: beyond, only those in view are drawn (500 drawn at once take over 50 ms)
 const OVERSCAN = 12; // rows drawn above and below the view
@@ -238,7 +239,7 @@ function head<T>(o: TableOptions<T>, s: Live, cols: Column<T>[], rows: readonly 
   const all = rows.length > 0 && rows.every((r) => s.selected.has(o.key(r)));
   const some = !all && rows.some((r) => s.selected.has(o.key(r)));
   const check = o.select
-    ? `<th scope="col" class="select-col"><input type="checkbox" data-table-all aria-label="Select every row"${all ? ' checked' : ''}${some ? ' data-mixed' : ''}></th>`
+    ? `<th scope="col" class="select-col"><input type="checkbox" data-table-all aria-label="${esc(t('dataTable.selectAll'))}"${all ? ' checked' : ''}${some ? ' data-mixed' : ''}></th>`
     : '';
   return `<thead><tr>${check}${cols
     .map((c) => {
@@ -250,7 +251,7 @@ function head<T>(o: TableOptions<T>, s: Live, cols: Column<T>[], rows: readonly 
         : label;
       const resize = c.srOnly
         ? ''
-        : `<span class="col-resize" role="separator" aria-orientation="vertical" tabindex="0" aria-label="Width of ${esc(c.label)}" aria-valuemin="${MIN_WIDTH}" aria-valuemax="${MAX_WIDTH}" aria-valuenow="${s.prefs.widths[c.key] ?? c.width ?? 160}" data-resize="${esc(c.key)}"></span>`;
+        : `<span class="col-resize" role="separator" aria-orientation="vertical" tabindex="0" aria-label="${esc(t('dataTable.widthOf', { column: c.label }))}" aria-valuemin="${MIN_WIDTH}" aria-valuemax="${MAX_WIDTH}" aria-valuenow="${s.prefs.widths[c.key] ?? c.width ?? 160}" data-resize="${esc(c.key)}"></span>`;
       return `<th scope="col"${attrs({ 'aria-sort': c.value ? sort : undefined, class: c.numeric ? 'num' : undefined, 'data-col': c.key })}>${inner}${resize}</th>`;
     })
     .join('')}</tr></thead>`;
@@ -260,7 +261,7 @@ function rowHtml<T>(o: TableOptions<T>, s: Live, cols: Column<T>[], row: T, inde
   const key = o.key(row);
   const picked = s.selected.has(key);
   const check = o.select
-    ? `<td class="select-col"><input type="checkbox" data-table-row="${esc(key)}" aria-label="Select row ${index + 1}"${picked ? ' checked' : ''}></td>`
+    ? `<td class="select-col"><input type="checkbox" data-table-row="${esc(key)}" aria-label="${esc(t('dataTable.selectRow', { n: index + 1 }))}"${picked ? ' checked' : ''}></td>`
     : '';
   const extra = o.rowAttrs?.(row) ?? {};
   return `<tr${attrs({ ...extra, 'data-key': `row-${key}`, 'aria-rowindex': index + 2, 'aria-selected': o.select ? picked : undefined })}>${check}${cols
@@ -299,8 +300,8 @@ function inner<T>(o: TableOptions<T>): string {
       <div class="table-status">${o.status ?? ''}</div>
       ${
         choosable.length
-          ? `<details class="table-columns"><summary class="btn sm ghost">${icon('columns-3', { size: 14 })}Columns</summary>
-        <fieldset class="menu-panel"><legend class="sr-only">Columns shown</legend>${choosable
+          ? `<details class="table-columns"><summary class="btn sm ghost">${icon('columns-3', { size: 14 })}${esc(t('dataTable.columns'))}</summary>
+        <fieldset class="menu-panel"><legend class="sr-only">${esc(t('dataTable.columnsShown'))}</legend>${choosable
           .map(
             (c) =>
               `<label class="row gap-2"><input type="checkbox" data-table-col="${esc(c.key)}"${s.prefs.hidden.includes(c.key) ? '' : ' checked'}> ${esc(c.label)}</label>`,
@@ -308,30 +309,30 @@ function inner<T>(o: TableOptions<T>): string {
           .join('')}</fieldset></details>`
           : ''
       }
-      ${button('Compact', { size: 'sm', variant: 'ghost', attrs: { 'data-table-density': true, 'aria-pressed': s.prefs.density === 'compact' } })}
-      ${o.csv && o.rows?.length ? button('Export CSV', { size: 'sm', variant: 'ghost', icon: 'download', attrs: { 'data-table-csv': true } }) : ''}
+      ${button(t('dataTable.compact'), { size: 'sm', variant: 'ghost', attrs: { 'data-table-density': true, 'aria-pressed': s.prefs.density === 'compact' } })}
+      ${o.csv && o.rows?.length ? button(t('dataTable.exportCsv'), { size: 'sm', variant: 'ghost', icon: 'download', attrs: { 'data-table-csv': true } }) : ''}
     </div>`;
   if (o.rows === null)
-    return `${tools}${skeleton.table(6, Math.min(cols.length, 6), `Loading ${o.label.toLowerCase()}…`)}`;
+    return `${tools}${skeleton.table(6, Math.min(cols.length, 6), t('dataTable.loading', { what: o.label.toLowerCase() }))}`;
   if (!o.rows.length) return `${tools}${o.empty}`;
   const rows = ordered(o, s);
   const keys = new Set(rows.map(o.key));
   for (const k of s.selected) if (!keys.has(k)) s.selected.delete(k); // gone from the list
   const bar =
     o.select && s.selected.size
-      ? `<div class="bulk-bar" role="region" aria-label="Selected rows"><span><b>${s.selected.size}</b> selected</span>${o.select.actions
+      ? `<div class="bulk-bar" role="region" aria-label="${esc(t('dataTable.selectedRows'))}"><span>${tHtml('dataTable.selected', { count: `<b>${s.selected.size}</b>` })}</span>${o.select.actions
           .map((a) =>
             button(a.label, { size: 'sm', variant: a.variant ?? 'secondary', attrs: { 'data-table-action': a.id } }),
           )
           .join(
             '',
-          )}${button('Clear selection', { size: 'sm', variant: 'ghost', attrs: { 'data-table-clear': true } })}</div>`
+          )}${button(t('dataTable.clearSelection'), { size: 'sm', variant: 'ghost', attrs: { 'data-table-clear': true } })}</div>`
       : '';
   const pages = o.pageSize ? Math.max(1, Math.ceil(rows.length / o.pageSize)) : 1;
   if (s.page >= pages) s.page = pages - 1;
   const paging =
     o.pageSize && pages > 1
-      ? `<nav class="table-paging row gap-2" aria-label="Pages of ${esc(o.label.toLowerCase())}"><span class="small soft">${s.page * o.pageSize + 1}–${Math.min(rows.length, (s.page + 1) * o.pageSize)} of ${rows.length}</span>${button('Previous', { size: 'sm', disabled: s.page === 0, attrs: { 'data-table-page': -1 } })}${button('Next', { size: 'sm', disabled: s.page >= pages - 1, attrs: { 'data-table-page': 1 } })}</nav>`
+      ? `<nav class="table-paging row gap-2" aria-label="${esc(t('dataTable.pagesOf', { what: o.label.toLowerCase() }))}"><span class="small soft">${esc(t('dataTable.range', { from: s.page * o.pageSize + 1, to: Math.min(rows.length, (s.page + 1) * o.pageSize), total: rows.length }))}</span>${button(t('dataTable.previous'), { size: 'sm', disabled: s.page === 0, attrs: { 'data-table-page': -1 } })}${button(t('dataTable.next'), { size: 'sm', disabled: s.page >= pages - 1, attrs: { 'data-table-page': 1 } })}</nav>`
       : '';
   const virtual = !o.pageSize && rows.length > VIRTUAL_AFTER;
   const widths = cols.map((c) => s.prefs.widths[c.key] ?? c.width);

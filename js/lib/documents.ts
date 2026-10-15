@@ -2,22 +2,26 @@
 // matched words marked. The Documents page draws them.
 
 import { esc } from './dom.ts';
+import { t, type MessageKey } from './i18n.ts';
 
 // The largest file the API takes (api/src/tiles_api/documents.py, MAX_BYTES).
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
 
 // The languages a document can be searched in (the API's full-text configurations).
-export const LANGUAGES = [
-  ['english', 'English'],
-  ['german', 'German'],
-  ['french', 'French'],
-  ['spanish', 'Spanish'],
-  ['italian', 'Italian'],
-  ['dutch', 'Dutch'],
-  ['portuguese', 'Portuguese'],
-  ['swedish', 'Swedish'],
-  ['simple', 'Other (no stemming)'],
-] as const;
+const LANGUAGE_KEYS = [
+  ['english', 'documents.language.english'],
+  ['german', 'documents.language.german'],
+  ['french', 'documents.language.french'],
+  ['spanish', 'documents.language.spanish'],
+  ['italian', 'documents.language.italian'],
+  ['dutch', 'documents.language.dutch'],
+  ['portuguese', 'documents.language.portuguese'],
+  ['swedish', 'documents.language.swedish'],
+  ['simple', 'documents.language.simple'],
+] as const satisfies readonly (readonly [string, MessageKey])[];
+
+// Each as [value, its name], in the language of the moment.
+export const languages = (): [string, string][] => LANGUAGE_KEYS.map(([value, key]) => [value, t(key)]);
 
 // What to send a file as: a PDF, text or Markdown, by its type or else its name; null otherwise.
 export function contentTypeOf(file: { name: string; type: string }): string | null {

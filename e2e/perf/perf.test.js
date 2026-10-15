@@ -185,13 +185,13 @@ test('a catalogue of 5,000 signals: search and filters within budget', async (t)
   fake.addSignals(list);
   const page = await openPage(t);
   await page.goto(`${base}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("5,000 signal(s)")', { timeout: 30_000 });
+  await page.waitForSelector('[data-signal-count]:has-text("5,000 signals.")', { timeout: 30_000 });
   withinBudget(await measure(page, () => page.waitForTimeout(1000)), 'loaded and left alone', { interactions: false });
   withinBudget(
     await measure(page, async () => {
       await page.click('#signal-search [name=q]');
       await page.keyboard.type('press7', { delay: 30 });
-      await page.waitForSelector('[data-signal-count]:has-text("500 signal(s)")');
+      await page.waitForSelector('[data-signal-count]:has-text("500 signals.")');
     }),
     'search',
   );
@@ -199,13 +199,13 @@ test('a catalogue of 5,000 signals: search and filters within budget', async (t)
     await measure(page, async () => {
       await page.keyboard.press('ControlOrMeta+a');
       await page.keyboard.press('Backspace');
-      await page.waitForSelector('[data-signal-count]:has-text("5,000 signal(s)")');
+      await page.waitForSelector('[data-signal-count]:has-text("5,000 signals.")');
       await page.focus('#signal-search [name=source]');
       await page.keyboard.press('ArrowDown'); // Edge agents
       await page.keyboard.press('ArrowDown'); // Imports
-      await page.waitForSelector('[data-signal-count]:has-text("1,500 signal(s)")');
+      await page.waitForSelector('[data-signal-count]:has-text("1,500 signals.")');
       await page.keyboard.press('Home'); // Any
-      await page.waitForSelector('[data-signal-count]:has-text("5,000 signal(s)")');
+      await page.waitForSelector('[data-signal-count]:has-text("5,000 signals.")');
     }),
     'filters',
   );

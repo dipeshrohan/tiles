@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import { helpPlugin } from './scripts/help.js';
+import { messagesPlugin } from './scripts/messages.js';
 
 const outDir = process.env.TILES_OUT_DIR ?? 'js';
 
@@ -8,8 +9,9 @@ const outDir = process.env.TILES_OUT_DIR ?? 'js';
 // file is opened straight from disk (file://), where browsers block module
 // scripts.
 export default defineConfig({
-  // The user guide, as each page's help (U4.04): js/help-data.js, beside the bundle.
-  plugins: [helpPlugin(outDir)],
+  // The user guide, as each page's help (U4.04): js/help-data.js, beside the bundle; and the message
+  // catalogues (U6.01): js/messages-<code>.js.
+  plugins: [helpPlugin(outDir), messagesPlugin(outDir)],
   build: {
     outDir,
     emptyOutDir: false,
@@ -27,5 +29,7 @@ export default defineConfig({
   },
   test: {
     include: ['test/**/*.test.{js,ts}'],
+    // The English catalogue, as index.html's js/messages-en.js gives it to the page.
+    setupFiles: ['test/setup.js'],
   },
 });

@@ -11,12 +11,13 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from psycopg.types.json import Jsonb
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 
 from tiles_api import api_datasets, api_series
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["insights"])
@@ -122,13 +123,13 @@ FROM insights WHERE site_id = %s AND number = %s
 def _find(ctx: SiteContext, number: int, *, lock: bool = False) -> dict[str, Any]:
     row = ctx.conn.execute(DETAIL + (" FOR UPDATE" if lock else ""), [ctx.site_id, number]).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Insight #{number} not found")
+        raise Problem(status.HTTP_404_NOT_FOUND, "insight.not_found", f"Insight #{number} not found", number=number)
     return row
 
 
-def _own(ctx: SiteContext, insight: dict[str, Any], what: str) -> None:
+def _own(ctx: SiteContext, insight: dict[str, Any], refused: Problem) -> None:
     if insight["author_id"] != ctx.user.id and ctx.user.role != "admin":
-        raise HTTPException(status.HTTP_403_FORBIDDEN, f"Only its author (or an admin) {what} an insight")
+        raise refused
 
 
 def evidence_for(ctx: SiteContext, source: CorrelationSource | SeriesSource) -> dict[str, Any]:
@@ -220,9 +221,19 @@ def edit_insight(ctx: Editor, number: int, body: InsightEdit) -> dict[str, Any]:
     """Change the title, summary or actions while it waits for review (its author, or an admin).
     The query and evidence stay: a different finding is a new insight."""
     insight = _find(ctx, number, lock=True)
-    _own(ctx, insight, "edits")
+    _own(
+        ctx,
+        insight,
+        Problem(status.HTTP_403_FORBIDDEN, "insight.edit_not_author", "Only its author (or an admin) edits an insight"),
+    )
     if insight["status"] != "proposed":
-        raise HTTPException(status.HTTP_409_CONFLICT, f"Insight #{number} is {insight['status']}: reopen it first")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "insight.closed",
+            f"Insight #{number} is {insight['status']}: reopen it first",
+            number=number,
+            status=insight["status"],
+        )
     changes = body.model_dump(exclude_none=True)
     if not changes:
         return insight
@@ -255,12 +266,18 @@ def review_insight(ctx: Editor, number: int, body: ReviewIn) -> dict[str, Any]:
     """Accept or reject it: another engineer than its author; rejecting says why."""
     insight = _find(ctx, number, lock=True)
     if insight["author_id"] == ctx.user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Another engineer reviews your insight")
+        raise Problem(status.HTTP_403_FORBIDDEN, "insight.own_review", "Another engineer reviews your insight")
     if insight["status"] != "proposed":
-        raise HTTPException(status.HTTP_409_CONFLICT, f"Insight #{number} is already {insight['status']}")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "insight.already_decided",
+            f"Insight #{number} is already {insight['status']}",
+            number=number,
+            status=insight["status"],
+        )
     note = body.note.strip()
     if body.decision == "rejected" and not note:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Say why the insight is rejected")
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "insight.reason_needed", "Say why the insight is rejected")
     ctx.conn.execute(
         """
         UPDATE insights SET status = %s, reviewer_id = %s, reviewer_name = %s, reviewed_at = now(),
@@ -277,9 +294,20 @@ def review_insight(ctx: Editor, number: int, body: ReviewIn) -> dict[str, Any]:
 def reopen_insight(ctx: Editor, number: int) -> dict[str, Any]:
     """Back to waiting for review (its author, or an admin), e.g. to revise a rejected one."""
     insight = _find(ctx, number, lock=True)
-    _own(ctx, insight, "reopens")
+    _own(
+        ctx,
+        insight,
+        Problem(
+            status.HTTP_403_FORBIDDEN, "insight.reopen_not_author", "Only its author (or an admin) reopens an insight"
+        ),
+    )
     if insight["status"] == "proposed":
-        raise HTTPException(status.HTTP_409_CONFLICT, f"Insight #{number} already waits for review")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "insight.already_waiting",
+            f"Insight #{number} already waits for review",
+            number=number,
+        )
     ctx.conn.execute(
         """
         UPDATE insights SET status = 'proposed', reviewer_id = NULL, reviewer_name = NULL, reviewed_at = NULL,
@@ -296,6 +324,12 @@ def reopen_insight(ctx: Editor, number: int) -> dict[str, Any]:
 def delete_insight(ctx: Editor, number: int) -> None:
     """Delete an insight (its author, or an admin)."""
     insight = _find(ctx, number, lock=True)
-    _own(ctx, insight, "deletes")
+    _own(
+        ctx,
+        insight,
+        Problem(
+            status.HTTP_403_FORBIDDEN, "insight.delete_not_author", "Only its author (or an admin) deletes an insight"
+        ),
+    )
     ctx.conn.execute("DELETE FROM insights WHERE site_id = %s AND number = %s", [ctx.site_id, number])
     ctx.audit("insight.delete", "insight", str(number), before={"title": insight["title"], "status": insight["status"]})

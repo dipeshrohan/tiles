@@ -7,6 +7,7 @@
 import { esc } from './dom.ts';
 import { infoDialog } from './overlay.ts';
 import { load, save } from './store.ts';
+import { t, type MessageKey } from './i18n.ts';
 
 // The pages g reaches, by the letter after it.
 export const GO_KEYS: readonly (readonly [string, string])[] = [
@@ -28,17 +29,22 @@ export const GO_KEYS: readonly (readonly [string, string])[] = [
 ];
 const GO = new Map(GO_KEYS);
 
-// The keys a page gives its buttons and fields, and what they do there.
-export const PAGE_KEYS: readonly (readonly [string, string])[] = [
-  ['/', 'Search the page (the command palette where the page has no search)'],
-  ['a', 'Acknowledge the warning open'],
-  ['s', 'Assign the warning open to me'],
-  ['r', 'Resolve the warning open: choose its outcome'],
-  ['n', 'Open the next warning, after acting on one'],
-  ['e', 'Edit the insight or app open'],
-  ['Ctrl Z', 'Undo the last change staged to the ontology (⌘ Z on a Mac)'],
-  ['Ctrl Shift Z', 'Redo it (or Ctrl Y)'],
-  ['← → ↑ ↓', 'Move between nodes on the ontology canvas'],
+// Key names, as keyboards print them.
+const UNDO = 'Ctrl Z'; // i18n-ok
+const REDO = 'Ctrl Shift Z'; // i18n-ok
+const PALETTE = 'Ctrl K'; // i18n-ok
+
+// The keys a page gives its buttons and fields, and what they do there (a message's key).
+export const PAGE_KEYS: readonly (readonly [string, MessageKey])[] = [
+  ['/', 'shortcuts.page.search'],
+  ['a', 'shortcuts.page.acknowledge'],
+  ['s', 'shortcuts.page.assign'],
+  ['r', 'shortcuts.page.resolve'],
+  ['n', 'shortcuts.page.nextWarning'],
+  ['e', 'shortcuts.page.edit'],
+  [UNDO, 'shortcuts.page.undo'],
+  [REDO, 'shortcuts.page.redo'],
+  ['← → ↑ ↓', 'shortcuts.page.move'],
 ];
 
 // On or off for this browser; kept in memory too, for when storage is blocked.
@@ -86,7 +92,7 @@ export function keyTarget(root: ParentNode, key: string): HTMLElement | null {
 }
 
 // The words for a key in the list and in tooltips.
-export const keyLabel = (key: string): string => (key === ' ' ? 'Space' : key);
+export const keyLabel = (key: string): string => (key === ' ' ? t('shortcuts.space') : key);
 const kbd = (keys: string): string =>
   keys
     .split(' ')
@@ -108,20 +114,20 @@ export function shortcutsHtml(o: Pick<ShortcutOptions, 'title'>, mac: boolean): 
   const table = (caption: string, rows: string): string =>
     `<div class="table-wrap"><table class="small shortcuts"><caption>${esc(caption)}</caption><tbody>${rows}</tbody></table></div>`;
   const pages = GO_KEYS.flatMap(([k, page]) => {
-    const t = o.title(page);
-    return t ? [row(`g ${k}`, t)] : [];
+    const name = o.title(page);
+    return name ? [row(`g ${k}`, name)] : [];
   }).join('');
   return `<div class="shortcut-list">
-    ${table('Anywhere', row(mac ? '⌘ K' : 'Ctrl K', 'Open the command palette') + row('?', 'Show this list'))}
-    ${table('Go to a page: g, then', pages)}
+    ${table(t('shortcuts.anywhere'), row(mac ? '⌘ K' : PALETTE, t('shortcuts.palette')) + row('?', t('shortcuts.list')))}
+    ${table(t('shortcuts.goTo'), pages)}
     ${table(
-      'In a list of records',
-      row('j', 'Open the next') + row('k', 'Open the previous') + row('Enter', 'Open the one with the focus'),
+      t('shortcuts.inList'),
+      row('j', t('shortcuts.next')) + row('k', t('shortcuts.previous')) + row('Enter', t('shortcuts.focused')),
     )}
-    ${table('On a page', PAGE_KEYS.map(([k, does]) => row(k, does)).join(''))}
+    ${table(t('shortcuts.onPage'), PAGE_KEYS.map(([k, does]) => row(k, t(does))).join(''))}
     </div>
-    <label class="row gap-2"><input type="checkbox" name="single-keys" data-single-keys ${shortcutsOn() ? 'checked' : ''} /> Use single-key shortcuts</label>
-    <p class="small soft">Turn them off if they get in the way of a screen reader or speech input. ${mac ? '⌘ K' : 'Ctrl K'} works either way, and finds this list as “Keyboard shortcuts”.</p>`;
+    <label class="row gap-2"><input type="checkbox" name="single-keys" data-single-keys ${shortcutsOn() ? 'checked' : ''} /> ${esc(t('shortcuts.singleKeys'))}</label>
+    <p class="small soft">${esc(t('shortcuts.singleKeysHint', { palette: mac ? '⌘ K' : PALETTE }))}</p>`;
 }
 
 // How long g waits for its letter.
@@ -140,8 +146,8 @@ export function installShortcuts(o: ShortcutOptions): { show(): void } {
     showing = true;
     void infoDialog(
       {
-        title: 'Keyboard shortcuts',
-        body: 'Not while typing in a field.',
+        title: t('shortcuts.title'),
+        body: t('shortcuts.notTyping'),
         contentHtml: shortcutsHtml(o, mac),
         wide: true,
       },

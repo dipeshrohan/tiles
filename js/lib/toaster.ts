@@ -5,6 +5,7 @@
 // readers hear each once: from the page's status region, or an alert region for errors.
 import { esc } from './dom.ts';
 import { icon, type IconName } from './icons.ts';
+import { t } from './i18n.ts';
 
 export type ToastType = 'default' | 'success' | 'info' | 'warning' | 'error';
 
@@ -119,9 +120,9 @@ export function createToaster(stack: HTMLElement): Toast {
       opts.description ? `<div class="toast-desc">${esc(opts.description)}</div>` : ''
     }${
       opts.requestId
-        ? `<div class="toast-meta">Request ID <code>${esc(opts.requestId)}</code> <button class="toast-copy" type="button" data-toast-copy aria-label="Copy the request ID" data-tooltip="Copy">${icon('copy', { size: 12 })}</button></div>`
+        ? `<div class="toast-meta">${esc(t('toaster.requestId'))} <code>${esc(opts.requestId)}</code> <button class="toast-copy" type="button" data-toast-copy aria-label="${esc(t('toaster.copyRequestId'))}" data-tooltip="${esc(t('toaster.copy'))}">${icon('copy', { size: 12 })}</button></div>`
         : ''
-    }</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ''}<button class="toast-close" type="button" aria-label="Dismiss">${icon('x', { size: 14 })}</button>`;
+    }</div>${opts.action ? `<button class="btn sm" type="button" data-toast-action>${esc(opts.action.label)}</button>` : ''}<button class="toast-close" type="button" aria-label="${esc(t('toaster.dismiss'))}">${icon('x', { size: 14 })}</button>`;
     item.querySelector('[data-toast-action]')?.addEventListener('click', () => {
       done.delete(item);
       opts.action?.run();
@@ -135,19 +136,19 @@ export function createToaster(stack: HTMLElement): Toast {
       const done = (label: string): void => {
         copy.dataset.tooltip = label;
         announce(polite, label);
-        setTimeout(() => (copy.dataset.tooltip = 'Copy'), 2000);
+        setTimeout(() => (copy.dataset.tooltip = t('toaster.copy')), 2000);
       };
       // The clipboard needs a secure page (not file://): say so rather than fail silently.
       void (navigator.clipboard?.writeText(opts.requestId ?? '') ?? Promise.reject(new Error('no clipboard'))).then(
-        () => done('Request ID copied'),
-        () => done("Can't copy here: select the ID instead"),
+        () => done(t('toaster.copied')),
+        () => done(t('toaster.cantCopy')),
       );
     });
     stack.append(item);
     const open = [...stack.querySelectorAll<HTMLElement>('.toast-item:not([data-state=closed])')];
     for (const old of open.slice(0, Math.max(0, open.length - MAX))) remove(old);
     sync();
-    const words = [message, opts.description, opts.requestId ? `Request ID ${opts.requestId}` : '']
+    const words = [message, opts.description, opts.requestId ? t('toaster.requestIdIs', { id: opts.requestId }) : '']
       .filter(Boolean)
       .join('. ');
     if (!repeat) announce(type === 'error' ? urgent : polite, words);

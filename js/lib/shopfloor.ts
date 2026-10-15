@@ -5,6 +5,7 @@
 import type { WarningInfo } from './api.ts';
 import { incoming, outgoing, signalByLabel, signalByTag } from './graph-index.ts';
 import type { Graph, OntologyNode } from './types.ts';
+import { t } from './i18n.ts';
 
 // How a warning stands on the floor, worst first.
 export type FloorState = 'out' | 'new' | 'taken' | 'ok';
@@ -158,14 +159,16 @@ export function headline(items: readonly FloorItem[]): { tone: 'bad' | 'warn' | 
   const open = items.filter((i) => i.state !== 'ok');
   const out = open.filter((i) => i.state === 'out').length;
   const untaken = open.filter((i) => i.status === 'raised').length;
-  if (!open.length) return { tone: 'good', text: 'All clear: no open warnings' };
-  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-  const parts = [out ? `${plural(out, 'signal')} still out` : '', untaken ? `${untaken} nobody has taken` : ''].filter(
-    Boolean,
-  );
+  if (!open.length) return { tone: 'good', text: t('shopfloor.headline.clear') };
+  const parts = [
+    out ? t('shopfloor.headline.out', { count: out }) : '',
+    untaken ? t('shopfloor.headline.untaken', { count: untaken }) : '',
+  ].filter(Boolean);
   return {
     tone: out || untaken ? 'bad' : 'warn',
-    text: `${plural(open.length, 'open warning')}${parts.length ? `: ${parts.join(', ')}` : ''}`,
+    text: parts.length
+      ? t('shopfloor.headline.openWith', { count: open.length, parts: parts.join(', ') })
+      : t('shopfloor.headline.open', { count: open.length }),
   };
 }
 
@@ -184,18 +187,18 @@ export function freshness(
 ): Freshness | null {
   // Nothing read yet: never "all clear" when nothing is known.
   if (o.at === null) {
-    if (o.offline) return { text: 'Offline: the warnings can’t be read until the network is back.', tone: 'warn' };
-    if (o.stale) return { text: 'The warnings could not be read: trying again in 30 seconds', tone: 'warn' };
+    if (o.offline) return { text: t('shopfloor.fresh.offlineNothing'), tone: 'warn' };
+    if (o.stale) return { text: t('shopfloor.fresh.failedNothing'), tone: 'warn' };
     return null;
   }
   const at = clock(o.at);
   if (o.offline)
     return {
-      text: `Offline: as of ${at}. Taking and resolving wait for the network; the list refreshes when it is back.`,
+      text: t('shopfloor.fresh.offline', { at }),
       tone: 'warn',
     };
-  if (o.stale) return { text: `As of ${at}: the last refresh failed, trying again in 30 seconds`, tone: 'warn' };
-  return { text: `Updated ${at}; refreshes every 30 seconds`, tone: '' };
+  if (o.stale) return { text: t('shopfloor.fresh.stale', { at }), tone: 'warn' };
+  return { text: t('shopfloor.fresh.updated', { at }), tone: '' };
 }
 
 // The high-contrast option for direct light: kept for this browser (the tablet on the line).

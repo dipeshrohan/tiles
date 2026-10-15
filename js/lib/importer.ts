@@ -9,6 +9,7 @@
 // milliseconds. Times written without an offset are in the chosen time zone.
 
 import type { FieldError } from './forms.ts';
+import { t } from './i18n.ts';
 
 export type TimeFormat = 'iso' | 'dmy' | 'mdy' | 'epoch-s' | 'epoch-ms';
 
@@ -240,18 +241,18 @@ export function mappingProblems(header: string[], m: ImportMapping): string[] {
   if (m.long) {
     const { tagColumn, valueColumn } = m.long;
     const inFile = (i: number) => i >= 0 && i < header.length;
-    if (!inFile(tagColumn) || !inFile(valueColumn)) problems.push('Choose the tag column and the value column.');
+    if (!inFile(tagColumn) || !inFile(valueColumn)) problems.push(t('importer.problem.tagAndValue'));
     else if (new Set([m.timeColumn, tagColumn, valueColumn]).size < 3)
-      problems.push('The time, tag and value columns must be three different columns.');
+      problems.push(t('importer.problem.threeColumns'));
   } else {
     const tags = Object.values(m.columns);
-    if (!tags.length) problems.push('Choose at least one column to import.');
-    const bad = tags.filter((t) => !TAG_PATTERN.test(t));
+    if (!tags.length) problems.push(t('importer.problem.noColumns'));
+    const bad = tags.filter((tag) => !TAG_PATTERN.test(tag));
     if (bad.length)
       problems.push(
-        `${bad.map((t) => `“${t}”`).join(', ')}: signal names use lower-case letters, digits, dot, dash and underscore.`,
+        t('importer.problem.badNames', { names: bad.map((tag) => t('importer.quoted', { text: tag })).join(', ') }),
       );
-    if (new Set(tags).size < tags.length) problems.push('Two columns map to the same signal.');
+    if (new Set(tags).size < tags.length) problems.push(t('importer.problem.sameSignal'));
   }
   return problems;
 }
@@ -261,9 +262,9 @@ export function mappingProblems(header: string[], m: ImportMapping): string[] {
 export function mappingFieldProblems(header: string[], m: ImportMapping): FieldError[] {
   const fields: FieldError[] = [];
   if (!(m.timeColumn >= 0 && m.timeColumn < header.length))
-    fields.push({ name: 'timeColumn', message: 'Choose the column with the times.' });
+    fields.push({ name: 'timeColumn', message: t('importer.problem.timeColumn') });
   if (!isTimeZone(m.timeZone))
-    fields.push({ name: 'timeZone', message: `“${m.timeZone}” isn't a time zone, e.g. UTC or Europe/Berlin.` });
+    fields.push({ name: 'timeZone', message: t('importer.problem.timeZone', { zone: m.timeZone }) });
   return fields;
 }
 
@@ -290,7 +291,8 @@ export function* readings(
 ): Generator<Reading, ImportStats> {
   const skip = (row: number, reason: string, detail: string) => {
     stats.skipped[reason] = (stats.skipped[reason] ?? 0) + 1;
-    if (stats.examples.length < MAX_EXAMPLES) stats.examples.push({ row, message: `${reason}: ${detail}` });
+    if (stats.examples.length < MAX_EXAMPLES)
+      stats.examples.push({ row, message: t('importer.skip.example', { reason, detail }) });
   };
   for (let r = 0; r < rows.length; r++) {
     const row = rows[r] ?? [];
@@ -298,25 +300,25 @@ export function* readings(
     stats.rows++;
     const timeCell = row[m.timeColumn] ?? '';
     if (!timeCell.trim()) {
-      skip(line, 'no time', 'the time cell is empty');
+      skip(line, t('importer.skip.noTime'), t('importer.skip.emptyTime'));
       continue;
     }
-    const t = parseTime(timeCell, m.timeFormat, m.timeZone);
-    if (t === null) {
-      skip(line, 'unreadable time', `“${timeCell}”`);
+    const time = parseTime(timeCell, m.timeFormat, m.timeZone);
+    if (time === null) {
+      skip(line, t('importer.skip.unreadableTime'), t('importer.quoted', { text: timeCell }));
       continue;
     }
-    if (t > now + MAX_AHEAD_MS) {
-      skip(line, 'time in the future', `“${timeCell}”`);
+    if (time > now + MAX_AHEAD_MS) {
+      skip(line, t('importer.skip.future'), t('importer.quoted', { text: timeCell }));
       continue;
     }
-    const at = isoTime(t);
+    const at = isoTime(time);
     const cells: [string, string][] = m.long
       ? (() => {
           const raw = row[m.long.tagColumn] ?? '';
           const tag = slugTag(raw);
           if (!tag) {
-            skip(line, 'unusable tag', `“${raw}”`);
+            skip(line, t('importer.skip.unusableTag'), t('importer.quoted', { text: raw }));
             return [];
           }
           // TT 101 and TT-101 both become tt-101: the first one seen keeps the name, and the
@@ -324,7 +326,7 @@ export function* readings(
           const source = stats.tagSources.get(tag);
           if (source === undefined) stats.tagSources.set(tag, raw);
           else if (source !== raw) {
-            skip(line, 'tag that clashes with another', `“${raw}” and “${source}” both become ${tag}`);
+            skip(line, t('importer.skip.clash'), t('importer.skip.clashDetail', { raw, source, tag }));
             return [];
           }
           return [[tag, row[m.long.valueColumn] ?? '']];
@@ -335,17 +337,17 @@ export function* readings(
       let value: number | string | null = parseNumber(cell, m.decimalComma);
       if (value === null) {
         if (!m.keepText) {
-          skip(line, 'not a number', `“${cell.slice(0, 40)}” in ${signal}`);
+          skip(line, t('importer.skip.notNumber'), t('importer.skip.quotedIn', { cell: cell.slice(0, 40), signal }));
           continue;
         }
         value = cell.trim();
         if (value.length > MAX_TEXT || value.includes('\0')) {
-          skip(line, 'text too long or not plain', `in ${signal}`);
+          skip(line, t('importer.skip.badText'), t('importer.skip.in', { signal }));
           continue;
         }
       } else if (Number.isInteger(value) && !Number.isSafeInteger(value)) {
         // Beyond 2^53 a double can't tell neighbouring integers apart: 2^53 + 1 reads as 2^53.
-        skip(line, 'number too large to store exactly', `${cell} in ${signal}`);
+        skip(line, t('importer.skip.tooLarge'), t('importer.skip.cellIn', { cell, signal }));
         continue;
       }
       stats.readings++;

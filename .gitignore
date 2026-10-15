@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 .DS_Store
 __pycache__/
 .venv/
@@ -10,3 +10,4 @@ api/.env
 .env
 # Screenshots and diffs of a failed visual regression run (npm run test:visual).
 e2e/visual/output/
+js/i18n/en.json.lock

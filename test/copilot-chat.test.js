@@ -111,6 +111,13 @@ test('an answer builds up from its events', () => {
   assert.equal(a.done, true);
   const failed = applyEvent(emptyAnswer(), 'error', { detail: 'The copilot could not answer' });
   assert.deepEqual([failed.error, failed.done], ['The copilot could not answer', true]);
+  // With its code, in the catalogue's words (U6.01).
+  const over = applyEvent(emptyAnswer(), 'error', {
+    detail: 'English words',
+    code: 'copilot.question_budget',
+    params: { tokens: '1,000' },
+  });
+  assert.equal(over.error, 'This question used its budget of 1,000 tokens before an answer: ask a narrower one');
 });
 
 test('an answer is shown escaped, with its names, emphasis and citations linked to known tools', () => {

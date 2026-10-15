@@ -4,13 +4,14 @@ file turned into staged changes (see ontology_io.py)."""
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 
 from tiles_api import ontology as o
 from tiles_api import ontology_io as io_
 from tiles_api import ontology_store as store
 from tiles_api.api_ontology import Ctx, Editor
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["ontology"])
@@ -70,28 +71,35 @@ def import_file(ctx: Editor, body: ImportIn) -> dict[str, Any]:
     """
     store.lock_site(ctx.conn, ctx.site_id)
     if store.load_staged(ctx.conn, ctx.site_id, ctx.user):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Commit, send or discard your staged changes first")
+        raise Problem(
+            status.HTTP_409_CONFLICT, "ontology.staged_pending", "Commit, send or discard your staged changes first"
+        )
     latest = ctx.conn.execute(
         "SELECT id FROM commits WHERE site_id = %s ORDER BY seq DESC LIMIT 1", [ctx.site_id]
     ).fetchone()
     commit = latest["id"] if latest else None
     if "expect_commit" in body.model_fields_set and body.expect_commit != commit:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "The ontology has changed since the preview: check the changes again"
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "ontology.changed_since_preview",
+            "The ontology has changed since the preview: check the changes again",
         )
     try:
         target = io_.read(body.content, body.format)
         planned = io_.plan(store.load_head(ctx.conn, ctx.site_id), target, body.mode)
     except io_.FileProblems as e:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, "The file can't be imported: " + "; ".join(e.problems)
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "ontology.import_invalid",
+            "The file can't be imported: " + "; ".join(e.problems),
+            problems="; ".join(e.problems),
         ) from e
     staged = False
     if planned.ops and not body.dry_run:
         try:
             store.stage(ctx.conn, ctx.site_id, ctx.user, *planned.ops)
         except o.OntologyError as e:  # pragma: no cover - the plan applies to the head by construction
-            raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+            raise Problem(status.HTTP_409_CONFLICT, "ontology.conflict", str(e), reason=str(e)) from e
         staged = True
         after = {"name": body.name, "format": body.format, "mode": body.mode, "counts": planned.counts}
         ctx.audit("ontology.import", "staged_ops", str(ctx.user.id), after=after)

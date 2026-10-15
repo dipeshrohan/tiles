@@ -15,6 +15,7 @@ import {
   warningById,
 } from './floor-data.ts';
 import type { Context, View } from './types.ts';
+import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 import { apiUnreachable, clockTime } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 import { skeleton } from '../lib/ui.ts';
@@ -95,48 +96,54 @@ onNavigate((hash) => {
 function since(item: FloorItem, now: number): string {
   if (!item.startedAt) return '';
   return item.out
-    ? `Out since ${esc(when(item.startedAt, now))}`
-    : `Started ${esc(when(item.startedAt, now))}, back ${esc(when(item.endedAt ?? item.startedAt, now))}`;
+    ? esc(t('shopfloor.outSince', { when: when(item.startedAt, now) }))
+    : esc(
+        t('shopfloor.startedBack', {
+          started: when(item.startedAt, now),
+          back: when(item.endedAt ?? item.startedAt, now),
+        }),
+      );
 }
 
 function actions(ctx: Context, item: FloorItem, ui: Ui): string {
-  if (!ctx.api) return '<p class="small soft">Connect to the Tiles API in Settings to take and resolve warnings.</p>';
+  if (!ctx.api) return `<p class="small soft">${esc(t('shopfloor.noApi'))}</p>`;
   const role = ctx.ontology.role;
-  if (role !== 'engineer' && role !== 'admin') return '<p class="small soft">An engineer of the site acts on it.</p>';
+  if (role !== 'engineer' && role !== 'admin') return `<p class="small soft">${esc(t('shopfloor.viewer'))}</p>`;
   // Offline, a step can't be sent: its buttons wait (the line under the headline says why); Back
   // sends nothing, so it never waits for the network.
   const wait = busy !== null ? 'disabled' : '';
   const send = busy !== null || offline() ? 'disabled' : '';
-  const label = (verb: string) => `${verb}: ${item.machine}, ${item.tag}`;
+  const label = (verb: MessageKey) =>
+    t('shopfloor.actionLabel', { verb: t(verb), machine: item.machine, tag: item.tag });
   if (ui.resolving === item.id) {
     const outcome = (o: WarningOutcome, cls: string) =>
       `<button class="btn floor-btn ${cls}" data-outcome="${o}" data-id="${esc(item.id)}" ${send}>${OUTCOMES[o]}</button>`;
-    return `<p class="floor-ask">What was it?</p>
+    return `<p class="floor-ask">${esc(t('shopfloor.whatWasIt'))}</p>
       <div class="floor-actions">
         ${outcome('true_alarm', 'danger')}${outcome('false_alarm', '')}${outcome('unknown', '')}
-        <button class="btn floor-btn" data-cancel ${wait}>Back</button>
+        <button class="btn floor-btn" data-cancel ${wait}>${esc(t('shopfloor.back'))}</button>
       </div>`;
   }
   // Taking a warning from a colleague asks first: a brushed button mustn't take it off them.
   if (ui.taking === item.id && item.assignee) {
-    return `<p class="floor-ask">Take it from ${esc(item.assignee)}?</p>
+    return `<p class="floor-ask">${esc(t('shopfloor.takeFrom', { name: item.assignee }))}</p>
       <div class="floor-actions">
-        <button class="btn primary floor-btn" data-take="${esc(item.id)}" ${send}>Yes, take it</button>
-        <button class="btn floor-btn" data-cancel ${wait}>Back</button>
+        <button class="btn primary floor-btn" data-take="${esc(item.id)}" ${send}>${esc(t('shopfloor.yesTake'))}</button>
+        <button class="btn floor-btn" data-cancel ${wait}>${esc(t('shopfloor.back'))}</button>
       </div>`;
   }
   const mine = item.assigneeId !== null && item.assigneeId === ctx.ontology.userId;
   const take =
     item.status === 'raised' && !item.assignee
-      ? `<button class="btn primary floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label("I'm on it"))}" ${send}>I'm on it</button>`
+      ? `<button class="btn primary floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label('shopfloor.onIt'))}" ${send}>${esc(t('shopfloor.onIt'))}</button>`
       : mine
         ? ''
         : item.assignee
-          ? `<button class="btn floor-btn" data-ask-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${send}>Take it</button>`
-          : `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label('Take it'))}" ${send}>Take it</button>`;
+          ? `<button class="btn floor-btn" data-ask-take="${esc(item.id)}" aria-label="${esc(label('shopfloor.take'))}" ${send}>${esc(t('shopfloor.take'))}</button>`
+          : `<button class="btn floor-btn" data-take="${esc(item.id)}" aria-label="${esc(label('shopfloor.take'))}" ${send}>${esc(t('shopfloor.take'))}</button>`;
   return `<div class="floor-actions">${take}
-      <button class="btn floor-btn" data-resolve="${esc(item.id)}" aria-label="${esc(label('Resolve'))}" ${send}>Resolve</button>
-      <button class="btn floor-btn" data-open="${esc(item.id)}" aria-label="${esc(label('Details'))}">Details</button>
+      <button class="btn floor-btn" data-resolve="${esc(item.id)}" aria-label="${esc(label('shopfloor.resolve'))}" ${send}>${esc(t('shopfloor.resolve'))}</button>
+      <button class="btn floor-btn" data-open="${esc(item.id)}" aria-label="${esc(label('shopfloor.details'))}">${esc(t('shopfloor.details'))}</button>
     </div>`;
 }
 
@@ -145,11 +152,11 @@ function card(ctx: Context, item: FloorItem, ui: Ui, now: number): string {
   const where = item.path.length ? `<div class="floor-where">${esc(item.path.join(' › '))}</div>` : '';
   // Who has it, unless the badge already says nobody does.
   const who = item.assignee
-    ? `<p><b>${esc(item.assignee)}</b> has it</p>`
+    ? `<p>${tHtml('shopfloor.hasIt', { name: `<b>${esc(item.assignee)}</b>` })}</p>`
     : item.status === 'acknowledged'
-      ? '<p>Acknowledged, nobody assigned</p>'
+      ? `<p>${esc(t('shopfloor.acknowledged'))}</p>`
       : item.state === 'out'
-        ? '<p>Nobody has it yet</p>'
+        ? `<p>${esc(t('shopfloor.nobody'))}</p>`
         : '';
   return `<article class="floor-card s-${item.state}" aria-label="${esc(`${item.machine}: ${label}`)}">
       ${where}
@@ -158,23 +165,22 @@ function card(ctx: Context, item: FloorItem, ui: Ui, now: number): string {
       <p class="floor-state"><span class="badge ${cls}">${label}</span> ${since(item, now)}</p>
       <p class="small">${esc(item.detail)}</p>
       ${who}
-      ${busy === item.id ? '<p class="small soft" role="status">Sending…</p>' : ''}
+      ${busy === item.id ? `<p class="small soft" role="status">${esc(t('shopfloor.sending'))}</p>` : ''}
       ${actions(ctx, item, ui)}
     </article>`;
 }
 
 function board(graph: Graph, list: FloorItem[]): string {
   const tiles = machineBoard(graph, list);
-  if (!tiles.length)
-    return '<p class="small soft">The ontology has no machines yet: add them on the Ontology page to see them here.</p>';
+  if (!tiles.length) return `<p class="small soft">${esc(t('shopfloor.noMachines'))}</p>`;
   return `<div class="floor-board">${tiles
-    .map((t) => {
-      const [cls, label] = STATE_LABEL[t.state];
-      const count = t.warnings ? `${t.warnings} warning${t.warnings === 1 ? '' : 's'}` : 'No warnings';
-      return `<div class="floor-tile s-${t.state}">
-          <div class="floor-where">${esc(t.path.join(' › '))}</div>
-          <b>${esc(t.label)}</b>
-          <span><span class="badge ${cls}">${t.state === 'ok' ? 'OK' : label}</span> <span class="small">${count}</span></span>
+    .map((tile) => {
+      const [cls, label] = STATE_LABEL[tile.state];
+      const count = t('shopfloor.warnings', { count: tile.warnings });
+      return `<div class="floor-tile s-${tile.state}">
+          <div class="floor-where">${esc(tile.path.join(' › '))}</div>
+          <b>${esc(tile.label)}</b>
+          <span><span class="badge ${cls}">${esc(tile.state === 'ok' ? t('floor.state.ok') : label)}</span> <span class="small">${esc(count)}</span></span>
         </div>`;
     })
     .join('')}</div>`;
@@ -192,7 +198,7 @@ async function take(ctx: Context, id: string): Promise<void> {
     if (me && w.assignee_id !== me) await ctx.api.warnings.assign(site, id, me);
     uiState(ctx).taking = null;
     // Without your user id (not known yet) it can only be acknowledged: say so.
-    ctx.toast(me ? `It's yours: ${w.signal_tag}` : `Acknowledged: ${w.signal_tag}`);
+    ctx.toast(t(me ? 'shopfloor.toast.yours' : 'shopfloor.toast.acknowledged', { tag: w.signal_tag }));
   } catch {
     // The client showed why; the list shows the warning as it is now.
   } finally {
@@ -209,7 +215,7 @@ async function resolve(ctx: Context, id: string, outcome: WarningOutcome): Promi
   try {
     await ctx.api.warnings.resolve(site, id, outcome);
     uiState(ctx).resolving = null;
-    ctx.toast(`Resolved as ${OUTCOMES[outcome].toLowerCase()}`);
+    ctx.toast(t('shopfloor.toast.resolved', { outcome: OUTCOMES[outcome].toLowerCase() }));
   } catch {
     // The client showed why.
   } finally {
@@ -220,28 +226,30 @@ async function resolve(ctx: Context, id: string, outcome: WarningOutcome): Promi
 
 const view: View = {
   id: 'shopfloor',
-  title: 'Shopfloor',
+  get title() {
+    return t('shopfloor.title');
+  },
   icon: 'hard-hat',
   render(ctx) {
     const ui = uiState(ctx);
-    const site = ctx.ontology.site?.name ?? (ctx.api ? '' : 'Demo plant');
-    const fullLabel = ui.full ? 'Show navigation' : 'Full view';
+    const site = ctx.ontology.site?.name ?? (ctx.api ? '' : t('shopfloor.demoPlant'));
+    const fullLabel = t(ui.full ? 'shopfloor.showNav' : 'shopfloor.fullView');
     const head = (status: string) => `<div class="floor-head">
-        <div><div class="eyebrow">Operations · ${esc(site)}</div>${status}</div>
+        <div><div class="eyebrow">${esc(t('shopfloor.eyebrow', { site }))}</div>${status}</div>
         <div class="floor-tools">
-          ${ctx.api ? '<button class="btn floor-btn" data-floor-refresh>Refresh</button>' : ''}
-          ${systemContrast() ? '' : `<button class="btn floor-btn" data-floor-contrast aria-pressed="${contrast()}">High contrast</button>`}
-          <button class="btn floor-btn" data-floor-full aria-pressed="${ui.full}">${fullLabel}</button>
+          ${ctx.api ? `<button class="btn floor-btn" data-floor-refresh>${esc(t('shopfloor.refresh'))}</button>` : ''}
+          ${systemContrast() ? '' : `<button class="btn floor-btn" data-floor-contrast aria-pressed="${contrast()}">${esc(t('shopfloor.contrast'))}</button>`}
+          <button class="btn floor-btn" data-floor-full aria-pressed="${ui.full}">${esc(fullLabel)}</button>
         </div>
       </div>`;
     if (ctx.api && ctx.ontology.status === 'loading')
-      return `<div class="floor">${head('<h1 tabindex="-1">Loading…</h1>')}</div>`;
+      return `<div class="floor">${head(`<h1 tabindex="-1">${esc(t('shopfloor.loadingPage'))}</h1>`)}</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')
-      return `<div class="floor">${head('<h1 tabindex="-1">Shopfloor</h1>')}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn), size: 'lg' })}</div>`;
+      return `<div class="floor">${head(`<h1 tabindex="-1">${esc(t('shopfloor.title'))}</h1>`)}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn), size: 'lg' })}</div>`;
     const graph = ctx.graph; // made afresh at each read: once for the whole page
     const list = floorItems(ctx, graph);
     if (list === null)
-      return `<div class="floor">${head('<h1 tabindex="-1">Shopfloor</h1>')}<div class="card">${skeleton.list(3, 'Loading the warnings…')}</div></div>`;
+      return `<div class="floor">${head(`<h1 tabindex="-1">${esc(t('shopfloor.title'))}</h1>`)}<div class="card">${skeleton.list(3, t('shopfloor.loadingWarnings'))}</div></div>`;
     const now = Date.now();
     const { tone, text } = headline(list);
     const fresh = ctx.api ? freshness({ ...listed(), offline: offline() }, clockTime) : null;
@@ -253,21 +261,19 @@ const view: View = {
         ? alert
         : ctx.api
           ? ''
-          : '<div class="small soft">Demo data from this browser’s plunger-friction detector</div>';
+          : `<div class="small soft">${esc(t('shopfloor.demoData'))}</div>`;
     shownHeadline = { site: siteId(ctx), text };
     const status = `<h1 class="floor-headline ${tone}" tabindex="-1">${esc(text)}</h1>${updated}`;
     const open = list.filter((i) => i.state !== 'ok');
     // A question about a warning that has left the floor (someone else resolved it) is dropped.
     if (ui.resolving && !open.some((i) => i.id === ui.resolving)) ui.resolving = null;
     if (ui.taking && !open.some((i) => i.id === ui.taking)) ui.taking = null;
-    const more = listed().more
-      ? `<p class="small soft">Showing the ${PAGE} newest open warnings; the Warnings page has the rest.</p>`
-      : '';
+    const more = listed().more ? `<p class="small soft">${esc(t('shopfloor.more', { count: PAGE }))}</p>` : '';
     const cards = open.length
       ? `<div class="floor-cards">${open.map((i) => card(ctx, i, ui, now)).join('')}</div>${more}`
       : '';
     return `<div class="floor">${head(status)}${cards}
-        <h2 class="floor-section">Machines</h2>${board(graph, list)}</div>`;
+        <h2 class="floor-section">${esc(t('shopfloor.machines'))}</h2>${board(graph, list)}</div>`;
   },
   bind(root, ctx) {
     const ui = uiState(ctx);

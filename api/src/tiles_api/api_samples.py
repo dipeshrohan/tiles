@@ -16,11 +16,12 @@ and sets only that one aside.
 from datetime import timedelta
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Header, HTTPException, status
+from fastapi import APIRouter, Header, status
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, Strict, field_validator
 
 from tiles_api import telemetry
 from tiles_api.api_agents import calling_agent
+from tiles_api.errors import Problem
 from tiles_api.store import DbConn, one
 
 router = APIRouter(tags=["edge agents"])
@@ -75,9 +76,13 @@ def store_samples(conn: Any, site_id: Any, source: str, samples: list[SampleIn])
     now = one(conn.execute("SELECT clock_timestamp() AS now").fetchone())["now"]
     for i, s in enumerate(samples):
         if s.at > now + MAX_AHEAD:
-            raise HTTPException(
+            raise Problem(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "sample.from_future",
                 f"sample {i} ({s.signal}) is stamped {s.at.isoformat()}, more than a day ahead of Tiles's clock",
+                index=i,
+                signal=s.signal,
+                at=s.at.isoformat(),
             )
 
     tags = sorted({s.signal for s in samples})

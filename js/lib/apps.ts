@@ -5,6 +5,7 @@ import { esc } from './dom.ts';
 import type { AppConfig, AppParam, AppResult, AppTemplate } from './api.ts';
 import type { TimeChartOptions, TimePoint } from './svg.ts';
 import type { FieldError } from './forms.ts';
+import { t } from './i18n.ts';
 
 export const appLink = (n: number): string => `#/apps/${n}`;
 
@@ -29,11 +30,11 @@ export interface SignalOption {
 export function paramField(p: AppParam, value: unknown, signals: SignalOption[]): string {
   const id = `app-param-${p.name}`;
   const help = p.help ? ` <span class="small soft">${esc(p.help)}</span>` : '';
-  const label = `${esc(p.label)}${p.optional ? ' <span class="small soft">(optional)</span>' : ''}${help}`;
+  const label = `${esc(p.label)}${p.optional ? ` <span class="small soft">${esc(t('apps.optional'))}</span>` : ''}${help}`;
   if (p.kind === 'signal') {
     const known = signals.some((s) => s.id === value);
     const options = [
-      `<option value="" ${value ? '' : 'selected'} disabled>Choose a signal</option>`,
+      `<option value="" ${value ? '' : 'selected'} disabled>${esc(t('apps.chooseSignal'))}</option>`,
       ...(value && !known ? [`<option value="${esc(String(value))}" selected>${esc(String(value))}</option>`] : []),
       ...signals.map(
         (s) =>
@@ -64,36 +65,37 @@ export function paramField(p: AppParam, value: unknown, signals: SignalOption[])
 // The settings as typed (`values`: each field's value, or the checked values of a `choices`), checked
 // as the API does; the problems in words.
 export function readConfig(
-  t: AppTemplate,
+  template: AppTemplate,
   values: Record<string, string | string[]>,
 ): { config: AppConfig; problems: FieldError[] } {
   const config: AppConfig = {};
   const problems: FieldError[] = [];
   const problem = (p: AppParam, message: string) => problems.push({ name: p.name, message });
-  for (const p of t.params) {
+  for (const p of template.params) {
     const raw = values[p.name];
     if (p.kind === 'choices') {
       const chosen = (Array.isArray(raw) ? raw : []).filter((v) => p.choices.some(([c]) => c === v));
-      if (!chosen.length) problem(p, `${p.label}: choose at least one`);
+      if (!chosen.length) problem(p, t('apps.problem.chooseSome', { label: p.label }));
       config[p.name] = chosen;
       continue;
     }
     const text = (Array.isArray(raw) ? raw[0] : raw)?.trim() ?? '';
     if (text === '') {
-      if (!p.optional) problem(p, `${p.label} is needed`);
+      if (!p.optional) problem(p, t('apps.problem.needed', { label: p.label }));
       config[p.name] = null;
       continue;
     }
     if (p.kind === 'signal' || p.kind === 'choice') {
-      if (p.kind === 'choice' && !p.choices.some(([c]) => c === text)) problem(p, `${p.label}: choose one`);
+      if (p.kind === 'choice' && !p.choices.some(([c]) => c === text))
+        problem(p, t('apps.problem.chooseOne', { label: p.label }));
       config[p.name] = text;
       continue;
     }
     const n = Number(text);
-    if (!Number.isFinite(n)) problem(p, `${p.label} must be a number`);
-    else if (p.kind === 'integer' && !Number.isInteger(n)) problem(p, `${p.label} must be a whole number`);
+    if (!Number.isFinite(n)) problem(p, t('apps.problem.number', { label: p.label }));
+    else if (p.kind === 'integer' && !Number.isInteger(n)) problem(p, t('apps.problem.whole', { label: p.label }));
     else if ((p.minimum !== null && n < p.minimum) || (p.maximum !== null && n > p.maximum))
-      problem(p, `${p.label} must be from ${p.minimum ?? '…'} to ${p.maximum ?? '…'}`);
+      problem(p, t('apps.problem.range', { label: p.label, min: p.minimum ?? '…', max: p.maximum ?? '…' }));
     config[p.name] = n;
   }
   return { config, problems };
@@ -130,8 +132,8 @@ export function resultChart(r: AppResult): Omit<TimeChartOptions, 'width'> {
 
 export function statusBadge(status: AppResult['status']): string {
   const tone = { ok: 'good', alert: 'bad', no_data: '' }[status];
-  const text = { ok: 'OK', alert: 'Alert', no_data: 'No data' }[status];
-  return `<span class="badge ${tone}">${text}</span>`;
+  const key = ({ ok: 'apps.status.ok', alert: 'apps.status.alert', no_data: 'apps.status.noData' } as const)[status];
+  return `<span class="badge ${tone}">${esc(t(key))}</span>`;
 }
 
 export function factText(f: AppResult['facts'][number]): string {

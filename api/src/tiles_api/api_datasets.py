@@ -8,12 +8,13 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, model_validator
 
 from tiles_api import correlate
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
+from tiles_api.errors import Problem
 
 router = APIRouter(tags=["datasets"])
 
@@ -125,7 +126,7 @@ def find_dataset(ctx: SiteContext, dataset_id: uuid.UUID, lock: bool = False) ->
         ctx.conn.execute("SELECT 1 FROM datasets WHERE id = %s AND site_id = %s FOR UPDATE", [dataset_id, ctx.site_id])
     row = ctx.conn.execute(DATASETS + " AND d.id = %s", [ctx.site_id, dataset_id]).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such dataset")
+        raise Problem(status.HTTP_404_NOT_FOUND, "dataset.not_found", "No such dataset")
     return row
 
 
@@ -146,7 +147,9 @@ def create_dataset(ctx: Editor, body: DatasetIn) -> dict[str, Any]:
         [ctx.site_id, body.name, body.description, Jsonb([c.model_dump() for c in body.columns]), ctx.user.id],
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"A dataset is already called {body.name}")
+        raise Problem(
+            status.HTTP_409_CONFLICT, "dataset.name_taken", f"A dataset is already called {body.name}", name=body.name
+        )
     ctx.audit("dataset.create", "dataset", str(row["id"]), after={"name": body.name, "columns": len(body.columns)})
     return find_dataset(ctx, row["id"])
 
@@ -176,13 +179,25 @@ def _check(columns: list[dict[str, str]], rows: list[dict[str, Any]]) -> list[di
     for n, row in enumerate(rows, start=1):
         unknown = row.keys() - kinds.keys()
         if unknown:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, f"Row {n}: no column {sorted(unknown)[0]!r} in this dataset"
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "dataset.row_unknown_column",
+                f"Row {n}: no column '{sorted(unknown)[0]}' in this dataset",
+                row=n,
+                column=sorted(unknown)[0],
             )
         for name, value in row.items():
             if not _fits(kinds[name], value):
-                must = {"number": "a number", "text": "text", "bool": "true or false"}[kinds[name]]
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Row {n}: {name} must be {must}")
+                bad = status.HTTP_422_UNPROCESSABLE_CONTENT
+                if kinds[name] == "number":
+                    raise Problem(
+                        bad, "dataset.row_not_number", f"Row {n}: {name} must be a number", row=n, column=name
+                    )
+                if kinds[name] == "bool":
+                    raise Problem(
+                        bad, "dataset.row_not_bool", f"Row {n}: {name} must be true or false", row=n, column=name
+                    )
+                raise Problem(bad, "dataset.row_not_text", f"Row {n}: {name} must be text", row=n, column=name)
         out.append({name: row.get(name) for name in kinds})
     return out
 
@@ -192,7 +207,12 @@ def add_rows(ctx: Editor, dataset_id: uuid.UUID, body: RowsIn) -> dict[str, Any]
     """Append a batch of rows (at most 5,000), in order."""
     d = find_dataset(ctx, dataset_id, lock=True)
     if d["row_count"] + len(body.rows) > MAX_ROWS:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"A dataset holds at most {MAX_ROWS} rows")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "dataset.too_many_rows",
+            f"A dataset holds at most {MAX_ROWS} rows",
+            max=MAX_ROWS,
+        )
     rows = _check(d["columns"], body.rows)
     first = d["row_count"]
     ctx.conn.execute(
@@ -254,23 +274,43 @@ def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: floa
     kinds = {c["name"]: c["kind"] for c in d["columns"]}
     for name in [body.outcome, *([body.split] if body.split else []), *(body.variables or [])]:
         if name not in kinds:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"No column {name!r} in this dataset")
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "dataset.no_column",
+                f"No column '{name}' in this dataset",
+                column=name,
+            )
     if body.ng_values is None and kinds[body.outcome] != "bool":
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, f"Say which values of {body.outcome} mean a failed batch (ng_values)"
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "dataset.ng_values_missing",
+            f"Say which values of {body.outcome} mean a failed batch (ng_values)",
+            column=body.outcome,
         )
     ng_values = body.ng_values if body.ng_values is not None else [True]
     variables = body.variables or [
         name for name, kind in kinds.items() if kind == "number" and name not in (body.outcome, body.split)
     ]
     if not variables:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "This dataset has no number columns to compare")
-    if not_numbers := [v for v in variables if kinds[v] != "number"]:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{not_numbers[0]} is not a number column")
-    if d["row_count"] * len(variables) > MAX_WORK:
-        raise HTTPException(
+        raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "dataset.no_number_columns",
+            "This dataset has no number columns to compare",
+        )
+    if not_numbers := [v for v in variables if kinds[v] != "number"]:
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "dataset.not_number_column",
+            f"{not_numbers[0]} is not a number column",
+            column=not_numbers[0],
+        )
+    if d["row_count"] * len(variables) > MAX_WORK:
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "dataset.too_much_work",
             f"{d['row_count']} rows x {len(variables)} variables is too much at once: choose fewer variables",
+            rows=d["row_count"],
+            variables=len(variables),
         )
     needed = list(dict.fromkeys([body.outcome, *([body.split] if body.split else []), *variables]))
     rows = [
@@ -284,8 +324,12 @@ def run(ctx: SiteContext, d: dict[str, Any], body: CorrelateIn, min_effect: floa
         )
     ]
     if body.split and len({correlate.segment_of(r.get(body.split)) for r in rows}) > MAX_SEGMENTS:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, f"{body.split} has more than {MAX_SEGMENTS} values to split by"
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "dataset.too_many_segments",
+            f"{body.split} has more than {MAX_SEGMENTS} values to split by",
+            column=body.split,
+            max=MAX_SEGMENTS,
         )
 
     def is_ng(value: Any) -> bool:

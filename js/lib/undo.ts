@@ -9,6 +9,7 @@
 //   archives (a document, an app).
 import type { ToastOptions } from './toaster.ts';
 import { ux } from './analytics.ts';
+import { t } from './i18n.ts';
 
 export const UNDO_MS = 8000;
 export const SAVED_KEY = 'tiles.waitingRemovals';
@@ -65,7 +66,7 @@ export function removeLater(o: {
     duration: UNDO_MS,
     distinct: true,
     action: {
-      label: 'Undo',
+      label: t('undo.undo'),
       run: () => {
         if (settled) return;
         settled = true;
@@ -140,7 +141,7 @@ export async function removeNow(o: {
     duration: UNDO_MS,
     distinct: true,
     action: {
-      label: 'Undo',
+      label: t('undo.undo'),
       run: () => {
         ux('task', 'undo');
         void o.undo().then(

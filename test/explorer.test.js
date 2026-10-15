@@ -66,7 +66,7 @@ test('points to plot, and how far apart they may be and still be joined', () => 
 
 test('what a series holds, in words', () => {
   assert.equal(describeSeries(series([])), 'No readings in this range');
-  assert.equal(describeSeries(series([reading(0, 1), reading(1, 2)])), '2 reading(s)');
+  assert.equal(describeSeries(series([reading(0, 1), reading(1, 2)])), '2 readings');
   assert.equal(
     describeSeries(series([reading(0, 1, { n: 3600 }), reading(60, 2, { n: 1200 })], 3600)),
     '4,800 readings, as 2 averages of 1 h with their range',

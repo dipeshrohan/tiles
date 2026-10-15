@@ -7,6 +7,7 @@ import type { ApiSweep, DesignProject, DesignRun } from '../lib/api.ts';
 import type { DesignModel, ParamSpec, Params, Run } from '../lib/types.ts';
 import type { Context, View } from './types.ts';
 import { emptyState, pageHead, skeleton } from '../lib/ui.ts';
+import { t } from '../lib/i18n.ts';
 
 const defaults = (model: DesignModel): Params => Object.fromEntries(model.params.map((p) => [p.key, p.default]));
 const stepFor = (p: ParamSpec): number =>
@@ -69,7 +70,7 @@ function follow(ctx: Context, site: string, key: string, failures = 0): void {
           const bar = document.querySelector<HTMLProgressElement>('#view [data-sweep-progress]');
           if (bar) bar.value = sweep.done;
           const text = document.querySelector('#view [data-sweep-done]');
-          if (text) text.textContent = `${fmt(sweep.done)} of ${fmt(sweep.total)} points`;
+          if (text) text.textContent = t('design.sweep.points', { done: fmt(sweep.done), total: fmt(sweep.total) });
           follow(ctx, site, key);
           return;
         }
@@ -88,24 +89,24 @@ function sweepControls(ctx: Context, key: string, canStart: boolean): string {
   const shown = apiSweep?.key === key ? apiSweep.sweep : null;
   if (shown && sweepRunning(shown))
     return `<div class="row gap-2" data-api-sweep>
-      <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="Sweep progress"></progress>
-      <span class="small soft" data-sweep-done>${fmt(shown.done)} of ${fmt(shown.total)} points</span>
-      ${canStart && !shown.cancel_requested ? '<button class="btn sm" data-sweep-cancel>Cancel</button>' : ''}
+      <progress data-sweep-progress max="${shown.total}" value="${shown.done}" aria-label="${esc(t('design.sweep.progress'))}"></progress>
+      <span class="small soft" data-sweep-done>${esc(t('design.sweep.points', { done: fmt(shown.done), total: fmt(shown.total) }))}</span>
+      ${canStart && !shown.cancel_requested ? `<button class="btn sm" data-sweep-cancel>${esc(t('design.sweep.cancel'))}</button>` : ''}
     </div>`;
   const state =
     shown?.status === 'done'
-      ? `API sweep: ${fmt(shown.total)} points${shown.cached ? ', from an identical earlier sweep' : ''}`
+      ? esc(t('design.sweep.done', { total: fmt(shown.total), cached: shown.cached ? 'yes' : 'no' }))
       : shown?.status === 'cancelled'
-        ? `Cancelled after ${fmt(shown.done)} of ${fmt(shown.total)} points`
+        ? esc(t('design.sweep.cancelled', { done: fmt(shown.done), total: fmt(shown.total) }))
         : shown?.status === 'failed'
-          ? `The sweep failed: ${esc(shown.error ?? 'no reason given')}`
+          ? esc(t('design.sweep.failed', { reason: shown.error ?? t('design.sweep.noReason') }))
           : '';
   return `<div class="row gap-2 wrap" data-api-sweep>
       ${state ? `<span class="small soft" data-sweep-state>${state}</span>` : ''}
       ${
         canStart
-          ? `<label class="row small gap-1_5">Points per axis <select id="sweep-steps" aria-label="Points per axis">${SWEEP_STEPS.map((n) => `<option value="${n}" ${n === ui.sweepSteps ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-             <button class="btn sm" data-sweep-start>Run on the API</button>`
+          ? `<label class="row small gap-1_5">${esc(t('design.sweep.pointsPerAxis'))} <select id="sweep-steps" aria-label="${esc(t('design.sweep.pointsPerAxis'))}">${SWEEP_STEPS.map((n) => `<option value="${n}" ${n === ui.sweepSteps ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+             <button class="btn sm" data-sweep-start>${esc(t('design.sweep.run'))}</button>`
           : ''
       }
     </div>`;
@@ -176,22 +177,22 @@ function projectBar(ctx: Context, site: string): string {
   const canWrite = ctx.ontology.role !== null && ctx.ontology.role !== 'viewer';
   const choose =
     items === null
-      ? '<span class="small soft" aria-busy="true">Loading projects…</span>'
+      ? `<span class="small soft" aria-busy="true">${esc(t('design.project.loading'))}</span>`
       : items.length
-        ? `<label class="row gap-2">Project <select id="project" aria-label="Design project">${items
+        ? `<label class="row gap-2">${esc(t('design.project.label'))} <select id="project" aria-label="${esc(t('design.project.aria'))}">${items
             .map(
               (p) =>
-                `<option value="${esc(p.id)}" ${p.id === shown?.id ? 'selected' : ''}>${esc(p.name)} (${p.runs} run${p.runs === 1 ? '' : 's'})</option>`,
+                `<option value="${esc(p.id)}" ${p.id === shown?.id ? 'selected' : ''}>${esc(t('design.project.option', { name: p.name, count: p.runs }))}</option>`,
             )
             .join('')}</select></label>`
-        : `<span class="small soft">No projects yet on this site${canWrite ? ': create one to keep runs together' : ''}.</span>`;
+        : `<span class="small soft">${esc(t('design.project.none', { canWrite: canWrite ? 'yes' : 'no' }))}</span>`;
   const create = canWrite
-    ? `<form id="new-project" class="row gap-2"><input type="text" name="name" maxlength="200" placeholder="New project name" aria-label="New project name" required /><button class="btn sm" type="submit">Create project</button></form>`
+    ? `<form id="new-project" class="row gap-2"><input type="text" name="name" maxlength="200" placeholder="${esc(t('design.project.newName'))}" aria-label="${esc(t('design.project.newName'))}" required /><button class="btn sm" type="submit">${esc(t('design.project.create'))}</button></form>`
     : '';
   return `<div class="card row gap-4 wrap justify-between mb-4" data-projects>
       <div class="row gap-4 wrap">${choose}${shown?.description ? `<span class="small soft">${esc(shown.description)}</span>` : ''}</div>
       ${create}
-      <span class="small soft basis-full">Runs in a project are stored on the site and shared with everyone on it.</span>
+      <span class="small soft basis-full">${esc(t('design.project.shared'))}</span>
     </div>`;
 }
 
@@ -215,7 +216,9 @@ function current(ctx: Context) {
 
 const view: View = {
   id: 'design',
-  title: 'Design studio',
+  get title() {
+    return t('design.title');
+  },
   icon: 'drafting-compass',
   render(ctx) {
     const { ui, model, params, version } = current(ctx);
@@ -244,24 +247,24 @@ const view: View = {
 
     return `
       ${pageHead({
-        eyebrow: 'Design · Co-engineer',
-        title: 'Design studio',
-        lead: 'Explore physics models from first principles. Every run records the model version and parameters that produced it, so any result can be traced, compared and exported for audit.',
-        actionsHtml: `<div class="seg" role="group" aria-label="Model">${Object.values(MODELS)
+        eyebrow: t('design.eyebrow'),
+        title: t('design.title'),
+        lead: t('design.lead'),
+        actionsHtml: `<div class="seg" role="group" aria-label="${esc(t('design.model'))}">${Object.values(MODELS)
           .map(
             (m) => `<button data-model="${m.id}" class="${m.id === model.id ? 'active' : ''}">${esc(m.name)}</button>`,
           )
           .join('')}</div>`,
       })}
-      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${ctx.ontology.status === 'error' ? "Can't reach the Tiles API: runs can't be saved or shown until it answers." : 'Connecting to the Tiles API…'}</span>${ctx.ontology.status === 'error' ? ` <button class="btn sm" type="button" data-reconnect>Try again</button>` : ''}</div>` : ''}
+      ${site ? projectBar(ctx, site) : apiWaiting(ctx) ? `<div class="card mb-4" data-projects><span class="small soft">${esc(t(ctx.ontology.status === 'error' ? 'design.api.unreachable' : 'design.api.connecting'))}</span>${ctx.ontology.status === 'error' ? ` <button class="btn sm" type="button" data-reconnect>${esc(t('design.api.tryAgain'))}</button>` : ''}</div>` : ''}
 
       <div class="grid g3 mb-4">
         <div class="card">
           <div class="card-head"><div><h2>${esc(model.name)}</h2><p>${esc(model.domain)}</p></div>
-            <select id="version" aria-label="Model version">${Object.keys(model.versions)
+            <select id="version" aria-label="${esc(t('design.version'))}">${Object.keys(model.versions)
               .map(
                 (v) =>
-                  `<option value="${v}" ${v === version ? 'selected' : ''}>v${v}${v === model.latest ? ' (latest)' : ''}</option>`,
+                  `<option value="${v}" ${v === version ? 'selected' : ''}>v${v}${v === model.latest ? esc(t('design.latest')) : ''}</option>`,
               )
               .join('')}</select>
           </div>
@@ -274,13 +277,13 @@ const view: View = {
               </div>`,
             )
             .join('')}
-          <button class="btn sm" data-reset>Reset to defaults</button>
+          <button class="btn sm" data-reset>${esc(t('design.reset'))}</button>
         </div>
         <div class="card">
           <div class="label soft small">${esc(model.output.label)}</div>
           <div class="result-big"><span id="result">${fmt(value, 2)}</span> <span class="muted text-lg">${esc(unit)}</span></div>
-          <div class="small muted mb-3_5">model ${esc(model.id)} v${esc(version)}</div>
-          <h3>Across model versions</h3>
+          <div class="small muted mb-3_5">${esc(t('design.modelVersion', { id: model.id, version }))}</div>
+          <h3>${esc(t('design.acrossVersions'))}</h3>
           <table class="mt-1_5 mb-3_5 m-0"><tbody>${Object.keys(model.versions)
             .map(
               (v) =>
@@ -288,24 +291,24 @@ const view: View = {
             )
             .join('')}</tbody></table>
           <form id="run-form" class="stack gap-2">
-            <input type="text" name="note" maxlength="500" placeholder="Note for this run (optional)" aria-label="Run note" />
-            <button class="btn primary" type="submit" ${canSave && !saving ? '' : 'disabled'}>Save run${site && project ? ` to ${esc(project.name)}` : ''}</button>
-            ${site && !project ? '<span class="small soft">Create a project to save runs on the site.</span>' : ''}
+            <input type="text" name="note" maxlength="500" placeholder="${esc(t('design.run.note'))}" aria-label="${esc(t('design.run.noteLabel'))}" />
+            <button class="btn primary" type="submit" ${canSave && !saving ? '' : 'disabled'}>${esc(site && project ? t('design.run.saveTo', { project: project.name }) : t('design.run.save'))}</button>
+            ${site && !project ? `<span class="small soft">${esc(t('design.run.needProject'))}</span>` : ''}
           </form>
         </div>
         <div class="card">
-          <div class="card-head"><div><h2>Sensitivity</h2><p>Output change for ±10% of each range</p></div></div>
-          ${hbars({ items: sens.map((s) => ({ label: s.label, value: s.delta, color: 'var(--accent)' })), width: 320, left: 120, title: 'Output change for ±10% of each range', format: (x) => `${x >= 0 ? '+' : '−'}${fmt(Math.abs(x), 2)}` })}
+          <div class="card-head"><div><h2>${esc(t('design.sensitivity'))}</h2><p>${esc(t('design.sensitivityHint'))}</p></div></div>
+          ${hbars({ items: sens.map((s) => ({ label: s.label, value: s.delta, color: 'var(--accent)' })), width: 320, left: 120, title: t('design.sensitivityHint'), format: (x) => `${x >= 0 ? '+' : '−'}${fmt(Math.abs(x), 2)}` })}
         </div>
       </div>
 
       <div class="grid g2 mb-4">
         <div class="card">
-          <div class="card-head"><div><h2>Parameter sweep</h2><p>${fmt(sw.min, 2)} – ${fmt(sw.max, 2)} ${esc(unit)} · other parameters held at current values</p></div>
+          <div class="card-head"><div><h2>${esc(t('design.sweep.title'))}</h2><p>${esc(t('design.sweep.held', { range: `${fmt(sw.min, 2)} – ${fmt(sw.max, 2)} ${unit}` }))}</p></div>
             <div class="row">
-              <select id="sweep-x" aria-label="X parameter">${model.params.map((p) => `<option value="${p.key}" ${p.key === xKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
+              <select id="sweep-x" aria-label="${esc(t('design.sweep.x'))}">${model.params.map((p) => `<option value="${p.key}" ${p.key === xKey ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}</select>
               <span class="muted">×</span>
-              <select id="sweep-y" aria-label="Y parameter">${model.params
+              <select id="sweep-y" aria-label="${esc(t('design.sweep.y'))}">${model.params
                 .filter((p) => p.key !== xKey)
                 .map((p) => `<option value="${p.key}" ${p.key === yKey ? 'selected' : ''}>${esc(p.label)}</option>`)
                 .join('')}</select>
@@ -315,21 +318,21 @@ const view: View = {
           ${heatmap({ ...sw, xLabel: label(xKey), yLabel: label(yKey), format: (v) => `${fmt(v, 2)} ${unit}` })}
         </div>
         <div class="card">
-          <div class="card-head"><div><h2>Run history</h2><p>Click a run to restore its exact parameters.</p></div>
+          <div class="card-head"><div><h2>${esc(t('design.history'))}</h2><p>${esc(t('design.historyHint'))}</p></div>
             ${
               site
-                ? `<div class="row gap-1_5"><button class="btn sm" data-audit="json" ${runs.length ? '' : 'disabled'} title="The latest run with its whole lineage, each model version's spec and a SHA-256 digest">Audit record (JSON)</button><button class="btn sm" data-audit="pdf" ${runs.length ? '' : 'disabled'}>Audit report (PDF)</button><button class="btn sm" data-export ${runs.length ? '' : 'disabled'} title="Every run of this model in the project, branches too">All runs (JSON)</button></div>`
-                : `<button class="btn sm" data-export ${runs.length ? '' : 'disabled'}>Export audit record</button>`
+                ? `<div class="row gap-1_5"><button class="btn sm" data-audit="json" ${runs.length ? '' : 'disabled'} title="${esc(t('design.audit.jsonHint'))}">${esc(t('design.audit.json'))}</button><button class="btn sm" data-audit="pdf" ${runs.length ? '' : 'disabled'}>${esc(t('design.audit.pdf'))}</button><button class="btn sm" data-export ${runs.length ? '' : 'disabled'} title="${esc(t('design.audit.allHint'))}">${esc(t('design.audit.all'))}</button></div>`
+                : `<button class="btn sm" data-export ${runs.length ? '' : 'disabled'}>${esc(t('design.audit.export'))}</button>`
             }
           </div>
           ${
             runs.length
-              ? `<div class="table-wrap"><table><thead><tr><th>Run</th><th>Changed vs parent</th><th class="num">${esc(model.output.label)}</th></tr></thead><tbody>
+              ? `<div class="table-wrap"><table><thead><tr><th>${esc(t('design.col.run'))}</th><th>${esc(t('design.col.changed'))}</th><th class="num">${esc(model.output.label)}</th></tr></thead><tbody>
                 ${runs
                   .map((r) => {
                     const diff = diffOf(r);
-                    return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : '<span class="muted">untitled</span>'}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
-                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join('<br>') || 'no change' : 'first run'}</td>
+                    return `<tr class="clickable" data-run="${esc(r.id)}"><td><b>v${esc(r.version)}</b> ${r.note ? esc(r.note) : `<span class="muted">${esc(t('design.untitled'))}</span>`}<div class="small muted">${esc(r.author)} · ${timeAgo(r.date)}</div></td>
+                      <td class="diff">${r.parent ? diff.map((d) => `${esc(label(d.key))}: ${show(d.from)} → ${show(d.to)}`).join('<br>') || esc(t('design.noChange')) : esc(t('design.firstRun'))}</td>
                       <td class="num"><b>${fmt(r.value, 2)}</b> ${esc(unit)}</td></tr>`;
                   })
                   .join('')}</tbody></table></div>`
@@ -338,22 +341,22 @@ const view: View = {
                     illustration: 'select',
                     compact: true,
                     level: 3,
-                    title: 'Pick a project to see its runs',
-                    body: `Runs are kept in a design project shared with the site. Pick one above${ctx.ontology.role !== null && ctx.ontology.role !== 'viewer' ? ', or create one' : ''}.`,
+                    title: t('design.pick'),
+                    body: t('design.pickBody', {
+                      canWrite: ctx.ontology.role !== null && ctx.ontology.role !== 'viewer' ? 'yes' : 'no',
+                    }),
                   })
                 : site && !fetched?.loaded
-                  ? skeleton.list(3, 'Loading runs…')
+                  ? skeleton.list(3, t('design.loadingRuns'))
                   : remote && !site
                     ? ''
                     : emptyState({
                         illustration: 'chart',
                         compact: true,
                         level: 3,
-                        title: 'No runs yet',
+                        title: t('design.noRuns'),
                         body:
-                          remote && ctx.ontology.role === 'viewer'
-                            ? 'Engineers save runs here: each keeps its parameters with the output, to compare and restore them.'
-                            : 'Adjust the parameters, then save a run: it keeps them with the output, so you can compare and restore them.',
+                          remote && ctx.ontology.role === 'viewer' ? t('design.noRunsViewer') : t('design.noRunsBody'),
                       })
           }
         </div>
@@ -424,7 +427,7 @@ const view: View = {
         const created = await ctx.api.designProjects.create(site, name);
         ui.project = created.id;
         projects = { site, items: [created, ...(projects?.site === site ? projects.items : [])] };
-        ctx.toast(`Project “${created.name}” created`);
+        ctx.toast(t('design.project.created', { name: created.name }));
         ctx.rerender();
       } catch {
         // The client showed why (a name taken, say).
@@ -496,7 +499,7 @@ const view: View = {
             parent: headOf(items, model.id),
             project: project.id,
           });
-          ctx.toast(`Run saved to ${project.name}`);
+          ctx.toast(t('design.run.savedTo', { project: project.name }));
           if (apiRuns?.key === key) apiRuns = { key, items: [created, ...items], loaded: true };
           if (projects?.site === site)
             projects = {
@@ -526,7 +529,7 @@ const view: View = {
           }),
         );
       });
-      ctx.toast('Run saved');
+      ctx.toast(t('design.run.saved'));
     });
     const shownRuns = (): Run[] => {
       if (!site && !apiWaiting(ctx)) return ctx.state.runs.filter((r) => r.modelId === model.id);
@@ -539,7 +542,7 @@ const view: View = {
       ui.params[model.id] = { ...run.params };
       ui.versions[model.id] = run.version;
       ctx.rerender();
-      ctx.toast(`Restored run “${run.note || (site ? `#${run.id}` : run.id)}”`);
+      ctx.toast(t('design.run.restored', { run: run.note || (site ? `#${run.id}` : run.id) }));
     });
     const download = (blob: Blob, name: string) => {
       const a = document.createElement('a');

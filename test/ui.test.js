@@ -306,6 +306,32 @@ test("a site that didn't load: a failed connection says to check the API, an ans
   assert.match(apiUnreachable(null, { size: 'lg' }), /class="btn lg"/);
 });
 
+test('the client’s "can’t reach" is recognised in the language it was said in (U6.01)', async () => {
+  const { addCatalogue, setLocale } = await import('../js/lib/i18n.ts');
+  const { createApiClient } = await import('../js/lib/api.ts');
+  addCatalogue('xx', {
+    'apiClient.unreachable': '{base} antwortet nicht',
+    'ui.nothingAnsweredAt': 'Unter {address} antwortete nichts',
+    'ui.cantReach': 'Die Tiles-API ist nicht erreichbar',
+  });
+  setLocale('xx');
+  try {
+    const api = createApiClient({
+      baseUrl: 'http://h:8000',
+      fetch: async () => {
+        throw new TypeError('Failed to fetch');
+      },
+    });
+    const said = (await api.sites().catch((e) => e)).message;
+    assert.equal(said, 'http://h:8000 antwortet nicht');
+    const down = apiUnreachable(said);
+    assert.match(down, /Die Tiles-API ist nicht erreichbar<\/h2>/);
+    assert.match(down, /<p>Unter http:\/\/h:8000 antwortete nichts\./);
+  } finally {
+    setLocale('en');
+  }
+});
+
 test('the wait counts from when loading began, not from each render', async () => {
   const waitOf = (html) => Number(/--wait:(\d+)ms/.exec(html)?.[1]);
   const first = waitOf(skeleton.text());

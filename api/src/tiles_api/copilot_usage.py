@@ -17,8 +17,9 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from fastapi import HTTPException, status
+from fastapi import status
 
+from tiles_api.errors import Problem, Refusal
 from tiles_api.settings import Settings
 from tiles_api.store import Conn, all_sites, one
 
@@ -36,10 +37,9 @@ WHERE org_id = %(o)s AND asked_at >= least(now() - interval '1 minute', date_tru
 """
 
 
-def _refuse(detail: str, seconds: float) -> HTTPException:
-    return HTTPException(
-        status.HTTP_429_TOO_MANY_REQUESTS, detail, headers={"Retry-After": str(max(1, math.ceil(seconds)))}
-    )
+def _retry(seconds: float) -> dict[str, str]:
+    """The Retry-After header of a refusal (429)."""
+    return {"Retry-After": str(max(1, math.ceil(seconds)))}
 
 
 def _wait(ages: list[float], limit: int) -> float:
@@ -63,20 +63,30 @@ def admit(
         c = one(conn.execute(COUNTS, {"o": org_id, "u": user_id}).fetchone())
     per_user = settings.copilot_user_questions_per_minute
     if per_user and len(c["user_ages"]) >= per_user:
-        raise _refuse(
-            f"You have asked {per_user} questions in the last minute: wait a moment", _wait(c["user_ages"], per_user)
+        raise Problem(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "copilot.user_rate",
+            f"You have asked {per_user} questions in the last minute: wait a moment",
+            headers=_retry(_wait(c["user_ages"], per_user)),
+            count=per_user,
         )
     per_org = settings.copilot_org_questions_per_minute
     if per_org and len(c["org_ages"]) >= per_org:
-        raise _refuse(
+        raise Problem(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "copilot.org_rate",
             f"Your organisation has asked {per_org} questions in the last minute: wait a moment",
-            _wait(c["org_ages"], per_org),
+            headers=_retry(_wait(c["org_ages"], per_org)),
+            count=per_org,
         )
     daily = settings.copilot_org_daily_tokens
     if daily and c["today"] >= daily:
-        raise _refuse(
+        raise Problem(
+            status.HTTP_429_TOO_MANY_REQUESTS,
+            "copilot.daily_budget",
             f"Your organisation has used its copilot budget of {daily:,} tokens for today (UTC)",
-            float(c["until_tomorrow"]),
+            headers=_retry(float(c["until_tomorrow"])),
+            tokens=f"{daily:,}",
         )
     row = conn.execute(
         "INSERT INTO copilot_usage (org_id, site_id, user_id, conversation_id) VALUES (%s, %s, %s, %s) RETURNING id",
@@ -133,7 +143,7 @@ def save(conn: Conn, t: Tally, total_ms: int | None = None) -> None:
     )
 
 
-def over_daily(conn: Conn, settings: Settings, org_id: uuid.UUID) -> str | None:
+def over_daily(conn: Conn, settings: Settings, org_id: uuid.UUID) -> Refusal | None:
     """Why the organisation may not use more tokens today, if it may not: checked between the model
     calls of a question too, so questions running at once can't each spend a whole budget."""
     daily = settings.copilot_org_daily_tokens
@@ -147,8 +157,12 @@ def over_daily(conn: Conn, settings: Settings, org_id: uuid.UUID) -> str | None:
                 [org_id],
             ).fetchone()
         )["n"]
-    return (
-        f"Your organisation has used its copilot budget of {daily:,} tokens for today (UTC)" if today >= daily else None
+    if today < daily:
+        return None
+    return Refusal(
+        "copilot.daily_budget",
+        f"Your organisation has used its copilot budget of {daily:,} tokens for today (UTC)",
+        tokens=f"{daily:,}",
     )
 
 

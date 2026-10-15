@@ -810,7 +810,7 @@
           null,
           null,
           null,
-          "Node s still has 1 relationship(s)",
+          "Node s still has 1 relationship",
           null,
           null
         ],
@@ -1475,7 +1475,7 @@
           "Node ghost not found",
           null,
           null,
-          "Node a still has 1 relationship(s)",
+          "Node a still has 1 relationship",
           "Relationship a-feeds-b already exists",
           "A commit needs a message",
           null,

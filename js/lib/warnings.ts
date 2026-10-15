@@ -4,6 +4,7 @@
 
 import { oneOf } from './url-state.ts';
 import type { WarningActivity, WarningDetail, WarningInfo, WarningOutcome, WarningQuery } from './api.ts';
+import { t } from './i18n.ts';
 
 export type Show = 'unresolved' | 'raised' | 'acknowledged' | 'resolved' | 'all';
 export type Who = 'anyone' | 'me' | 'none';
@@ -37,24 +38,48 @@ export function filtersQuery(f: Filters): Record<string, string | null> {
   };
 }
 
+// Getters: the words are read when shown, in the language of the moment.
 export const SHOW_LABELS: Record<Show, string> = {
-  unresolved: 'To do',
-  raised: 'New',
-  acknowledged: 'Acknowledged',
-  resolved: 'Resolved',
-  all: 'All',
+  get unresolved() {
+    return t('warnings.show.unresolved');
+  },
+  get raised() {
+    return t('warnings.show.raised');
+  },
+  get acknowledged() {
+    return t('warnings.show.acknowledged');
+  },
+  get resolved() {
+    return t('warnings.show.resolved');
+  },
+  get all() {
+    return t('warnings.show.all');
+  },
 };
 
-export const STATUS: Record<WarningInfo['status'], [cls: 'bad' | 'warn' | 'good', label: string]> = {
-  raised: ['bad', 'New'],
-  acknowledged: ['warn', 'Acknowledged'],
-  resolved: ['good', 'Resolved'],
+type StatusLook = [cls: 'bad' | 'warn' | 'good', label: string];
+export const STATUS: Record<WarningInfo['status'], StatusLook> = {
+  get raised(): StatusLook {
+    return ['bad', t('warnings.show.raised')];
+  },
+  get acknowledged(): StatusLook {
+    return ['warn', t('warnings.show.acknowledged')];
+  },
+  get resolved(): StatusLook {
+    return ['good', t('warnings.show.resolved')];
+  },
 };
 
 export const OUTCOMES: Record<WarningOutcome, string> = {
-  true_alarm: 'True alarm',
-  false_alarm: 'False alarm',
-  unknown: 'Unknown',
+  get true_alarm() {
+    return t('warnings.outcomes.trueAlarm');
+  },
+  get false_alarm() {
+    return t('warnings.outcomes.falseAlarm');
+  },
+  get unknown() {
+    return t('warnings.outcomes.unknown');
+  },
 };
 
 export function queryFor(f: Filters): WarningQuery {
@@ -79,12 +104,12 @@ const HOUR = 3_600_000;
 
 // When something happened, as a shift reads it: minutes or hours ago today, else the date and time.
 export function when(iso: string, now: number): string {
-  const t = Date.parse(iso);
-  const ago = now - t;
-  if (ago >= 0 && ago < MINUTE) return 'just now';
-  if (ago >= 0 && ago < HOUR) return `${Math.floor(ago / MINUTE)} min ago`;
-  if (ago >= 0 && ago < 12 * HOUR) return `${Math.floor(ago / HOUR)} h ago`;
-  return new Date(t).toLocaleString('en-GB', {
+  const at = Date.parse(iso);
+  const ago = now - at;
+  if (ago >= 0 && ago < MINUTE) return t('warnings.ago.justNow');
+  if (ago >= 0 && ago < HOUR) return t('warnings.ago.minutes', { n: Math.floor(ago / MINUTE) });
+  if (ago >= 0 && ago < 12 * HOUR) return t('warnings.ago.hours', { n: Math.floor(ago / HOUR) });
+  return new Date(at).toLocaleString('en-GB', {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -112,48 +137,56 @@ const num = (x: number): string => {
 export function howFar(w: Pick<WarningInfo, 'peak' | 'baseline' | 'threshold' | 'side'>): string {
   const allowed = w.threshold - w.baseline;
   const times = allowed ? (w.peak - w.baseline) / allowed : NaN;
-  const word = w.side === 'above' ? 'above' : 'below';
-  return `Peak ${num(w.peak)}, ${word} the threshold of ${num(w.threshold)} (baseline ${num(w.baseline)}${
-    Number.isFinite(times) ? `; ${times.toLocaleString('en-GB', { maximumFractionDigits: 1 })}× the allowed spread` : ''
-  })`;
+  const values = {
+    peak: num(w.peak),
+    side: w.side === 'above' ? 'above' : 'below',
+    threshold: num(w.threshold),
+    baseline: num(w.baseline),
+  };
+  return Number.isFinite(times)
+    ? t('warnings.howFarSpread', { ...values, times: times.toLocaleString('en-GB', { maximumFractionDigits: 1 }) })
+    : t('warnings.howFar', values);
 }
 
 export function activityText(a: WarningActivity): string {
-  const who = a.actor ?? 'someone';
+  const who = a.actor ?? t('warnings.detail.someone');
   switch (a.action) {
     case 'raised':
-      return 'Raised by the detector';
+      return t('warnings.activity.raised');
     case 'acknowledged':
-      return `${who} acknowledged it`;
+      return t('warnings.activity.acknowledged', { who });
     case 'assigned':
-      return `${who} assigned it to ${a.assignee ?? 'someone'}`;
+      return t('warnings.activity.assigned', { who, assignee: a.assignee ?? t('warnings.detail.someone') });
     case 'unassigned':
-      return `${who} unassigned it`;
+      return t('warnings.activity.unassigned', { who });
     case 'resolved':
-      return `${who} resolved it: ${a.outcome ? OUTCOMES[a.outcome].toLowerCase() : 'no outcome'}`;
+      return t('warnings.activity.resolved', {
+        who,
+        outcome: a.outcome ? OUTCOMES[a.outcome].toLowerCase() : t('warnings.activity.noOutcome'),
+      });
     case 'reopened':
-      return `${who} reopened it`;
+      return t('warnings.activity.reopened', { who });
     case 'commented':
-      return `${who} commented`;
+      return t('warnings.activity.commented', { who });
   }
 }
 
 // The warning's payload: what the detector saw and was set to, as label and value rows.
 export function payload(w: WarningDetail): [string, string][] {
   const settings = Object.entries(w.detector_config).map(
-    ([k, v]) => [`Detector ${k.replace(/_/g, ' ')}`, String(v)] as [string, string],
+    ([k, v]) => [t('warnings.payload.detectorSetting', { name: k.replace(/_/g, ' ') }), String(v)] as [string, string],
   );
   return [
-    ['Signal', w.signal_tag],
-    ['Detector', w.detector],
-    ['Side', w.side],
-    ['Peak', num(w.peak)],
-    ['Threshold', num(w.threshold)],
-    ['Baseline', num(w.baseline)],
-    ['Readings out', String(w.readings)],
-    ['Started', w.started_at],
-    ['Last out', w.last_at],
-    ['Back in', w.ended_at ?? 'still out'],
+    [t('warnings.payload.signal'), w.signal_tag],
+    [t('warnings.payload.detector'), w.detector],
+    [t('warnings.payload.side'), w.side],
+    [t('warnings.payload.peak'), num(w.peak)],
+    [t('warnings.payload.threshold'), num(w.threshold)],
+    [t('warnings.payload.baseline'), num(w.baseline)],
+    [t('warnings.payload.readingsOut'), String(w.readings)],
+    [t('warnings.payload.started'), w.started_at],
+    [t('warnings.payload.lastOut'), w.last_at],
+    [t('warnings.payload.backIn'), w.ended_at ?? t('warnings.stillOut')],
     ...settings,
   ];
 }

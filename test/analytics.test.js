@@ -75,7 +75,7 @@ test('admins see counts, by kind, with the names escaped', () => {
     sessions: 3,
     counts: [{ kind: 'task', name: 'warning.<b>', events: 1200, sessions: 2 }],
   });
-  assert.match(html, /3 browser session\(s\) in the last 30 days/);
+  assert.match(html, /3 browser sessions in the last 30 days/);
   assert.match(html, /<td>Task done<\/td><td><code>warning\.&lt;b&gt;<\/code><\/td><td class="num">1,200<\/td>/);
   assert.match(countsHtml({ enabled: false, days: 30, sessions: 0, counts: [] }), /hasn’t turned UX analytics on/);
 });

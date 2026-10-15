@@ -8,10 +8,11 @@ from contextlib import contextmanager
 from typing import Annotated, Any
 
 import psycopg
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request, status
 from psycopg.rows import DictRow, dict_row, tuple_row
 from psycopg_pool import ConnectionPool
 
+from tiles_api.errors import Problem
 from tiles_api.settings import Settings
 
 Conn = psycopg.Connection[DictRow]
@@ -98,8 +99,11 @@ async def db_slot(request: Request) -> AsyncIterator[None]:
         async with asyncio.timeout(state.settings.db_wait_seconds):
             await slots.acquire()
     except TimeoutError:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE, "Tiles is busy: try again in a moment", headers={"Retry-After": "2"}
+        raise Problem(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "server.busy",
+            "Tiles is busy: try again in a moment",
+            headers={"Retry-After": "2"},
         ) from None
     try:
         yield

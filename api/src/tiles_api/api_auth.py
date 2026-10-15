@@ -2,10 +2,11 @@
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel
 
 from tiles_api.auth import SLUG, Principal, authenticate
+from tiles_api.errors import Problem
 from tiles_api.org_sign_in import provider_by_org
 from tiles_api.settings import Settings
 
@@ -42,7 +43,7 @@ def auth_config(request: Request, org: Annotated[str | None, Query(max_length=63
     if org is not None:
         provider = provider_by_org(request.app.state, org.strip().lower()) if SLUG.match(org.strip().lower()) else None
         if provider is None:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "That organisation has no sign-in of its own")
+            raise Problem(status.HTTP_404_NOT_FOUND, "org.no_sign_in", "That organisation has no sign-in of its own")
         return AuthConfig(
             enabled=True,
             issuer=provider.issuer,

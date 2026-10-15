@@ -6,6 +6,7 @@
 import { applyOps, commit, createRepo, discard, revert, stage, workingGraph } from './ontology.ts';
 import type { ApiClient, Site } from './api.ts';
 import type { Graph, Op, Repo } from './types.ts';
+import { t } from './i18n.ts';
 
 export interface OntologyStore {
   readonly kind: 'local' | 'api';
@@ -22,8 +23,6 @@ export interface OntologyStore {
   requestReview(repo: Repo, request: { message?: string; reviewerId?: string; reverts?: string }): Promise<Repo>;
 }
 
-const NO_REVIEWS = 'Reviews need a shared ontology: connect to the Tiles API in Settings';
-
 export const localStore: OntologyStore = {
   kind: 'local',
   stage: async (repo, ops) => ops.reduce((r, op) => stage(r, op), repo),
@@ -31,7 +30,7 @@ export const localStore: OntologyStore = {
   unstage: async (repo, count) => ({ ...repo, staged: repo.staged.slice(0, Math.max(0, repo.staged.length - count)) }),
   commit: async (repo, message, author) => commit(repo, { message, author }),
   revert: async (repo, id, author) => revert(repo, id, { author }),
-  requestReview: () => Promise.reject(new Error(NO_REVIEWS)),
+  requestReview: () => Promise.reject(new Error(t('ontologyStore.noReviews'))),
 };
 
 // History is fetched in one page; plenty for the pilot, paged later if needed.
@@ -104,7 +103,7 @@ export function safeWorkingGraph(repo: Repo): { graph: Graph; conflict: string |
 export async function pickSite(api: ApiClient, preferred?: string, listed?: Site[]): Promise<Site> {
   const sites = listed ?? (await api.sites());
   const site = sites.find((s) => s.id === preferred) ?? sites[0];
-  if (!site) throw new Error('The Tiles API has no sites yet. Run `tiles-seed` (Docker Compose does this for you).');
+  if (!site) throw new Error(t('ontologyStore.noSites'));
   return site;
 }
 

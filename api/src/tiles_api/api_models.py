@@ -3,10 +3,11 @@ organisation's own served over HTTP, T4.15), and evaluating one on given inputs.
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, Request, status
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 from tiles_api.api_ontology import Ctx
+from tiles_api.errors import Problem
 from tiles_api.models import store  # importing the package registers the built-in models
 from tiles_api.models.registry import ModelError, evaluate
 from tiles_api.models.remote import RemoteError
@@ -69,13 +70,38 @@ def list_models(ctx: Ctx, request: Request) -> list[dict[str, Any]]:
     return [store.describe(m) for m in store.usable(ctx.conn, ctx.org_id, request.app.state.settings)]
 
 
+def no_model(key: str, version: str | None) -> Problem:
+    """404 for a model, or a version of it, that isn't there (store.find's KeyError)."""
+    if version:
+        return Problem(
+            status.HTTP_404_NOT_FOUND,
+            "model.version_not_found",
+            f"No model {key} version {version}",
+            key=key,
+            version=version,
+        )
+    return Problem(status.HTTP_404_NOT_FOUND, "model.not_found", f"No model {key}", key=key)
+
+
+def spec_changed(status_code: int, key: str, version: str) -> Problem:
+    """A model version stored with another spec (store.ModelChanged): 409 for a request, 500 for a
+    binding, whose spec is the deployment's."""
+    return Problem(
+        status_code,
+        "model.spec_changed",
+        f"Model {key} {version} was stored with another spec. Give the change a new version.",
+        key=key,
+        version=version,
+    )
+
+
 @router.get("/sites/{site_id}/models/{key}", response_model=list[ModelOut])
 def model_versions(ctx: Ctx, key: str, request: Request) -> list[dict[str, Any]]:
     """A model's versions, newest first."""
     usable = store.usable(ctx.conn, ctx.org_id, request.app.state.settings)
     versions = [store.describe(m) for m in reversed(usable) if m.spec.key == key]
     if not versions:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No model {key}")
+        raise Problem(status.HTTP_404_NOT_FOUND, "model.not_found", f"No model {key}", key=key)
     return versions
 
 
@@ -89,11 +115,11 @@ def evaluate_model(ctx: Ctx, key: str, body: EvaluateIn, request: Request) -> di
     try:
         model = store.find(ctx.conn, ctx.org_id, request.app.state.settings, key, body.version)
     except KeyError as e:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, e.args[0]) from e
+        raise no_model(key, body.version) from e
     try:
         outputs = evaluate(model, body.inputs, body.params)
     except RemoteError as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from e
+        raise Problem(status.HTTP_502_BAD_GATEWAY, "model.remote_failed", str(e), reason=str(e)) from e
     except ModelError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "model.invalid", str(e), reason=str(e)) from e
     return {"key": model.spec.key, "version": model.spec.version, "outputs": outputs}

@@ -13,10 +13,11 @@ what a person finds is what the site's row security lets this request read.
 
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from tiles_api.api_ontology import Ctx
+from tiles_api.errors import Problem
 
 router = APIRouter(tags=["search"])
 
@@ -212,7 +213,7 @@ def search(
     `more` when there are others."""
     text = q.strip()
     if len(text) < 2:
-        raise HTTPException(422, "Search for two characters or more")
+        raise Problem(422, "search.too_short", "Search for two characters or more")
     wanted = list(dict.fromkeys(kinds or KINDS))  # each kind once, whatever was repeated
     rows = ctx.conn.execute(search_sql(wanted), params(text, ctx.site_id, limit)).fetchall()
     found: dict[str, list[dict[str, Any]]] = {}

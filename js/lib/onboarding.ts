@@ -6,31 +6,27 @@ import type { Graph, NodeType, Op } from './types.ts';
 import type { Onboarding } from './api.ts';
 import { machineOf } from './shopfloor.ts';
 import { outgoing, signalByTag } from './graph-index.ts';
+import { t, type MessageKey } from './i18n.ts';
 
 export type StepKey = 'site' | 'outline' | 'agent' | 'mapping' | 'dashboard';
 
+// A step's words, read when shown (the language may change after load).
+const step = (key: StepKey, title: MessageKey, why: MessageKey): { key: StepKey; title: string; why: string } => ({
+  key,
+  get title() {
+    return t(title);
+  },
+  get why() {
+    return t(why);
+  },
+});
+
 export const STEPS: { key: StepKey; title: string; why: string }[] = [
-  { key: 'site', title: 'Create the site', why: 'A site holds one plant’s ontology, signals, warnings and people.' },
-  {
-    key: 'outline',
-    title: 'Outline the plant',
-    why: 'Lines and machines, each with its controller: where signals and warnings belong.',
-  },
-  {
-    key: 'agent',
-    title: 'Connect an edge agent',
-    why: 'It runs on site, reads the controllers and historians, and sends the readings out to Tiles.',
-  },
-  {
-    key: 'mapping',
-    title: 'Map the tags',
-    why: 'Each tag linked to its Signal node, so readings land on their machine.',
-  },
-  {
-    key: 'dashboard',
-    title: 'Open the first dashboard',
-    why: 'A machine’s page with its live readings, and the Shopfloor view for the line.',
-  },
+  step('site', 'onboarding.step.site', 'onboarding.step.siteWhy'),
+  step('outline', 'onboarding.step.outline', 'onboarding.step.outlineWhy'),
+  step('agent', 'onboarding.step.agent', 'onboarding.step.agentWhy'),
+  step('mapping', 'onboarding.step.mapping', 'onboarding.step.mappingWhy'),
+  step('dashboard', 'onboarding.step.dashboard', 'onboarding.step.dashboardWhy'),
 ];
 
 // A site's slug from its name: lower case, digits and dashes, as the API wants it.
@@ -47,7 +43,8 @@ export function slugFrom(name: string): string {
   );
 }
 
-export const PROTOCOLS = ['OPC UA', 'MQTT (Sparkplug B)', 'Modbus TCP', 'SQL historian'] as const;
+// Kept on the PLC nodes as written: names, not words to translate.
+export const PROTOCOLS = ['OPC UA', 'MQTT (Sparkplug B)', 'Modbus TCP', 'SQL historian'] as const; // i18n-ok
 
 export interface Outline {
   site: string; // the site's name: its Site node, made if the ontology has none
@@ -81,9 +78,9 @@ export function freeAgentName(taken: readonly string[]): string {
 }
 
 export function outlineProblem(o: Outline): string | null {
-  if (!o.line.trim()) return 'Name the line';
-  if (!o.machines.length) return 'Name at least one machine';
-  if (o.machines.length > 200) return 'Outline up to 200 machines at once';
+  if (!o.line.trim()) return t('onboarding.problem.line');
+  if (!o.machines.length) return t('onboarding.problem.machine');
+  if (o.machines.length > 200) return t('onboarding.problem.tooMany');
   return null;
 }
 
@@ -171,19 +168,20 @@ export interface DemoTag {
   suggest: string | null; // a Signal node of that machine, when one fits
 }
 
+// The demo plant's data (its Signal nodes' names), like the rest of the seeded plant.
 export const DEMO_TAGS: readonly DemoTag[] = [
-  { tag: 'dc02.hyd_pressure', unit: 'bar', description: 'Hydraulic pressure', machine: 'm-dc02', suggest: 'sig-ph' },
-  { tag: 'dc02.metal_pressure', unit: 'bar', description: 'Metal pressure', machine: 'm-dc02', suggest: 'sig-pm' },
-  { tag: 'dc02.plunger_vel', unit: 'm/s', description: 'Plunger velocity', machine: 'm-dc02', suggest: 'sig-vel' },
-  { tag: 'dc02.die_temp', unit: '°C', description: 'Die temperature', machine: 'm-dc02', suggest: null },
+  { tag: 'dc02.hyd_pressure', unit: 'bar', description: 'Hydraulic pressure', machine: 'm-dc02', suggest: 'sig-ph' }, // i18n-ok
+  { tag: 'dc02.metal_pressure', unit: 'bar', description: 'Metal pressure', machine: 'm-dc02', suggest: 'sig-pm' }, // i18n-ok
+  { tag: 'dc02.plunger_vel', unit: 'm/s', description: 'Plunger velocity', machine: 'm-dc02', suggest: 'sig-vel' }, // i18n-ok
+  { tag: 'dc02.die_temp', unit: '°C', description: 'Die temperature', machine: 'm-dc02', suggest: null }, // i18n-ok
   {
     tag: 'c01.front_tension',
     unit: 'N·10⁻¹',
-    description: 'Front stock tension',
+    description: 'Front stock tension', // i18n-ok
     machine: 'm-cut01',
     suggest: 'sig-tension',
   },
-  { tag: 'w03.weld_power', unit: 'W', description: 'Median welding power', machine: 'm-weld03', suggest: 'sig-power' },
+  { tag: 'w03.weld_power', unit: 'W', description: 'Median welding power', machine: 'm-weld03', suggest: 'sig-power' }, // i18n-ok
 ];
 
 export type Suggestion =
@@ -196,48 +194,51 @@ export const mappedTo = (graph: Graph, tag: string): string | null => signalByTa
 
 // What to map a demo tag to: its named Signal node when that is still there and free; else a new
 // Signal node under its machine's controller; else nothing (the machine or its PLC is gone).
-export function suggestFor(graph: Graph, t: DemoTag): Suggestion {
-  const node = t.suggest ? graph.nodes[t.suggest] : undefined;
-  const machine = graph.nodes[t.machine];
+export function suggestFor(graph: Graph, tag: DemoTag): Suggestion {
+  const node = tag.suggest ? graph.nodes[tag.suggest] : undefined;
+  const machine = graph.nodes[tag.machine];
   if (
     node?.type === 'Signal' &&
-    (node.props.tag === undefined || node.props.tag === t.tag) &&
-    machineOf(graph, node.id) === t.machine // still that machine's
+    (node.props.tag === undefined || node.props.tag === tag.tag) &&
+    machineOf(graph, node.id) === tag.machine // still that machine's
   )
     return {
       kind: 'link',
       node: node.id,
       label: node.label,
-      why: `Its description matches ${node.label}, on ${machine?.label ?? 'its machine'}`,
+      why: t('onboarding.why.link', { signal: node.label, machine: machine?.label ?? t('onboarding.why.machine') }),
     };
-  const plc = outgoing(graph, t.machine, 'controlledBy').find((id) => graph.nodes[id]?.type === 'PLC');
+  const plc = outgoing(graph, tag.machine, 'controlledBy').find((id) => graph.nodes[id]?.type === 'PLC');
   if (machine && plc && graph.nodes[plc])
     return {
       kind: 'new',
       plc,
-      label: t.description,
-      why: `No Signal node fits: a new one under ${graph.nodes[plc]!.label}, ${machine.label}’s controller`,
+      label: tag.description,
+      why: t('onboarding.why.new', { plc: graph.nodes[plc]!.label, machine: machine.label }),
     };
-  return { kind: 'none', why: 'Its machine isn’t in the ontology any more' };
+  return { kind: 'none', why: t('onboarding.why.none') };
 }
 
 // The ops that map tags as suggested (those with a suggestion, not mapped yet).
 export function mappingOps(graph: Graph, tags: readonly DemoTag[]): Op[] {
   const taken = new Set([...Object.keys(graph.nodes), ...Object.keys(graph.edges)]);
   const ops: Op[] = [];
-  for (const t of tags) {
-    if (mappedTo(graph, t.tag)) continue;
-    const s = suggestFor(graph, t);
-    if (s.kind === 'link') ops.push({ kind: 'setProp', id: s.node, key: 'tag', value: t.tag });
+  for (const tag of tags) {
+    if (mappedTo(graph, tag.tag)) continue;
+    const s = suggestFor(graph, tag);
+    if (s.kind === 'link') ops.push({ kind: 'setProp', id: s.node, key: 'tag', value: tag.tag });
     else if (s.kind === 'new') {
-      let id = `sig-${slugFrom(t.tag)}`;
-      for (let n = 2; taken.has(id); n++) id = `sig-${slugFrom(t.tag)}-${n}`;
+      let id = `sig-${slugFrom(tag.tag)}`;
+      for (let n = 2; taken.has(id); n++) id = `sig-${slugFrom(tag.tag)}-${n}`;
       taken.add(id);
       let edge = `${s.plc}-emits-${id}`;
       for (let n = 2; taken.has(edge); n++) edge = `${s.plc}-emits-${id}-${n}`;
       taken.add(edge);
       ops.push(
-        { kind: 'addNode', node: { id, type: 'Signal', label: t.description, props: { unit: t.unit, tag: t.tag } } },
+        {
+          kind: 'addNode',
+          node: { id, type: 'Signal', label: tag.description, props: { unit: tag.unit, tag: tag.tag } },
+        },
         { kind: 'addEdge', edge: { id: edge, from: s.plc, rel: 'emits', to: id } },
       );
     }
@@ -245,12 +246,10 @@ export function mappingOps(graph: Graph, tags: readonly DemoTag[]): Op[] {
   return ops;
 }
 
-const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
-
 // The progress the API's /onboarding gives, worked out from this browser's ontology and setup.
 export function localProgress(graph: Graph, setup: LocalSetup): Onboarding {
   const machines = Object.values(graph.nodes).filter((n) => n.type === 'Machine');
-  const mapped = DEMO_TAGS.map((t) => mappedTo(graph, t.tag)).filter((id): id is string => id !== null);
+  const mapped = DEMO_TAGS.map((d) => mappedTo(graph, d.tag)).filter((id): id is string => id !== null);
   const counts = new Map<string, number>();
   for (const id of mapped) {
     const m = machineOf(graph, id);
@@ -261,31 +260,31 @@ export function localProgress(graph: Graph, setup: LocalSetup): Onboarding {
   )[0];
   const dashboard = best ? { id: best[0], label: graph.nodes[best[0]]!.label } : null;
   const steps: Onboarding['steps'] = [
-    { key: 'site', done: true, detail: 'This browser’s demo plant' },
+    { key: 'site', done: true, detail: t('onboarding.progress.site') },
     {
       key: 'outline',
       done: machines.length > 0,
       detail: machines.length
-        ? `${plural(machines.length, 'machine')} in the ontology`
-        : 'No machines in the ontology yet',
+        ? t('onboarding.progress.machines', { count: machines.length })
+        : t('onboarding.progress.noMachines'),
     },
     {
       key: 'agent',
       done: setup.agent,
-      detail: setup.agent ? 'The demo agent has called in' : 'No edge agent yet',
+      detail: setup.agent ? t('onboarding.progress.agent') : t('onboarding.progress.noAgent'),
     },
     {
       key: 'mapping',
       done: mapped.length > 0,
-      detail: `${mapped.length} of ${plural(DEMO_TAGS.length, 'demo tag')} mapped`,
+      detail: t('onboarding.progress.mapped', { mapped: mapped.length, count: DEMO_TAGS.length }),
     },
     {
       key: 'dashboard',
       done: dashboard !== null,
       detail:
         dashboard && best
-          ? `${dashboard.label}: ${plural(best[1], 'mapped signal')}`
-          : 'Needs a machine with a mapped signal',
+          ? t('onboarding.progress.dashboard', { machine: dashboard.label, count: best[1] })
+          : t('onboarding.progress.noDashboard'),
     },
   ];
   return {

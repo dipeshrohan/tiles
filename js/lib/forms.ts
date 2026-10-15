@@ -4,6 +4,8 @@
 // each is left, never while it is first being typed. The Tiles API's 422 answers name fields too
 // (`loc`, `msg`); they are shown on the form that was sent last. onSubmit (dom.ts) does all of it.
 
+import { t } from './i18n.ts';
+
 export interface FieldError {
   name: string; // the control's name (or the API's path to it, e.g. "config.limit")
   message: string;
@@ -49,30 +51,30 @@ const lower = (s: string): string => (/^[A-Z][A-Z]/.test(s) ? s : s.charAt(0).to
 export function problemWith(el: Control): string | null {
   const v = el.validity;
   if (v.valid) return null;
-  const label = labelOf(el) ? `the ${lower(labelOf(el))}` : 'a value';
+  const label = labelOf(el) ? t('forms.theLabel', { label: lower(labelOf(el)) }) : t('forms.aValue');
   if (v.valueMissing) {
-    if (el instanceof HTMLSelectElement) return `Choose ${label}`;
-    if (el instanceof HTMLInputElement && el.type === 'file') return 'Choose a file';
-    if (el instanceof HTMLInputElement && el.type === 'checkbox') return 'Tick this to carry on';
-    return `Enter ${label}`;
+    if (el instanceof HTMLSelectElement) return t('forms.choose', { label });
+    if (el instanceof HTMLInputElement && el.type === 'file') return t('forms.chooseFile');
+    if (el instanceof HTMLInputElement && el.type === 'checkbox') return t('forms.tick');
+    return t('forms.enter', { label });
   }
   if (v.badInput) {
     const type = (el as HTMLInputElement).type;
-    return type === 'number' || type === 'range' ? 'Enter a number' : `Enter all of ${label}`;
+    return type === 'number' || type === 'range' ? t('forms.enterNumber') : t('forms.enterAll', { label });
   }
   if (v.typeMismatch) {
     const type = (el as HTMLInputElement).type;
-    if (type === 'email') return 'Enter an email address, like name@example.com';
-    if (type === 'url') return 'Enter a web address, starting with https://';
+    if (type === 'email') return t('forms.enterEmail');
+    if (type === 'url') return t('forms.enterUrl');
   }
   const input = el as HTMLInputElement;
-  if (v.patternMismatch) return el.title || `Check the format of ${label}`;
-  if (v.rangeUnderflow) return `Enter ${input.min} or more`;
-  if (v.rangeOverflow) return `Enter ${input.max} or less`;
-  if (v.stepMismatch) return `Enter a multiple of ${input.step}`;
-  if (v.tooShort) return `Enter at least ${input.minLength} characters`;
-  if (v.tooLong) return `Enter at most ${input.maxLength} characters`;
-  return el.validationMessage || `Check ${label}`;
+  if (v.patternMismatch) return el.title || t('forms.checkFormat', { label });
+  if (v.rangeUnderflow) return t('forms.min', { min: input.min });
+  if (v.rangeOverflow) return t('forms.max', { max: input.max });
+  if (v.stepMismatch) return t('forms.step', { step: input.step });
+  if (v.tooShort) return t('forms.tooShort', { count: input.minLength });
+  if (v.tooLong) return t('forms.tooLong', { count: input.maxLength });
+  return el.validationMessage || t('forms.check', { label });
 }
 
 // A form's fields; `locked` ones too when an error is to be shown (a form is often drawn disabled
@@ -166,7 +168,7 @@ export function showErrors(
   summary.tabIndex = -1;
   const title = doc.createElement('p');
   title.className = 'error-summary-title';
-  title.textContent = errors.length === 1 ? 'Check this field' : `Check these ${errors.length} fields`;
+  title.textContent = t('forms.summary', { count: errors.length });
   const list = doc.createElement('ul');
   for (const e of errors) {
     const li = doc.createElement('li');

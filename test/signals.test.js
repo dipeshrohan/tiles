@@ -114,10 +114,7 @@ test('quality badges and the report behind them', () => {
   assert.match(badge, />Warnings</);
   assert.match(badge, /title="1 gap\(s\) longer than 3 min; the longest 10 min &lt;b&gt;"/);
   const detail = qualityDetail(REPORT);
-  assert.match(
-    detail,
-    /1,430 reading\(s\) in the 24 h up to the latest, expected every 60 s, 99\.3% of the time covered/,
-  );
+  assert.match(detail, /1,430 readings in the 24 h up to the latest, expected every 60 s, 99\.3% of the time covered/);
   assert.match(detail, /warning<\/span> 1 gap\(s\)[^<]*&lt;b&gt;/);
   assert.match(qualityDetail({ ...REPORT, badge: 'good', issues: [] }), /No gaps, stuck values/);
   assert.match(
@@ -146,7 +143,7 @@ test('signal changes read as sentences in the audit log', () => {
       entity_type: 'site',
       after: { hours: 24, checked: 5, good: 3, warn: 1, bad: 1, unknown: 0 },
     }),
-    'Checked the quality of 5 signal(s): 3 good, 1 with warnings, 1 with problems',
+    'Checked the quality of 5 signals: 3 good, 1 with warnings, 1 with problems',
   );
 });
 

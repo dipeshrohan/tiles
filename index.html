@@ -17,14 +17,14 @@
     <meta name="tiles-api" content="" />
   </head>
   <body>
-    <a class="skip-link" href="#/" data-skip>Skip to content</a>
+    <a class="skip-link" href="#/" data-skip data-i18n="app.static.skip">Skip to content</a>
     <div class="shell">
       <aside class="sidebar" id="sidebar">
         <a class="brand" href="#/">
           <span class="logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
           <span>Tiles</span>
         </a>
-        <nav id="nav" aria-label="Pages"></nav>
+        <nav id="nav" aria-label="Pages" data-i18n-label="app.static.pages"></nav>
         <div class="user" id="user"></div>
       </aside>
       <div class="scrim" id="scrim" hidden></div>
@@ -37,10 +37,12 @@
             aria-controls="sidebar"
             aria-expanded="false"
             data-tooltip="Menu"
+            data-i18n-label="app.static.toggleNav"
+            data-i18n-tooltip="app.static.menu"
           ></button>
-          <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+          <nav class="crumbs" id="crumbs" aria-label="Breadcrumb" data-i18n-label="app.static.breadcrumb"></nav>
           <button class="search-btn" id="palette-open" type="button" aria-keyshortcuts="Control+K Meta+K /">
-            <span class="search-btn-label">Search…</span><kbd>Ctrl K</kbd>
+            <span class="search-btn-label" data-i18n="app.static.search">Search…</span><kbd>Ctrl K</kbd>
           </button>
           <button
             class="icon-btn"
@@ -49,6 +51,8 @@
             aria-label="Notifications"
             aria-haspopup="dialog"
             data-tooltip="Notifications"
+            data-i18n-label="app.inbox.title"
+            data-i18n-tooltip="app.inbox.title"
             hidden
           ></button>
           <button
@@ -57,21 +61,26 @@
             type="button"
             aria-label="Help for this page"
             data-tooltip="Help for this page"
+            data-i18n-label="whatsNew.help"
+            data-i18n-tooltip="whatsNew.help"
           ></button>
           <button
             class="icon-btn"
             id="theme"
             aria-label="Toggle light or dark theme"
             data-tooltip="Light or dark theme"
+            data-i18n-label="app.static.theme"
+            data-i18n-tooltip="app.static.themeTip"
           ></button>
         </header>
         <div class="offline-banner" id="offline" role="status" hidden></div>
         <main id="view" tabindex="-1"></main>
       </div>
     </div>
-    <ol class="toaster" id="toast" aria-label="Notifications"></ol>
+    <ol class="toaster" id="toast" aria-label="Notifications" data-i18n-label="app.static.toasts"></ol>
     <!-- Read out by screen readers when a page has news (a live region must be there before it changes). -->
     <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
+    <script src="js/messages-en.js" defer></script>
     <script src="js/tiles.bundle.js" defer></script>
   </body>
 </html>

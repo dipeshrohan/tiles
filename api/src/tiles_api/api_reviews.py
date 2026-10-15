@@ -19,13 +19,14 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
 from tiles_api import ontology as o
 from tiles_api import ontology_store as store
 from tiles_api.api_ontology import Admin, Ctx, DiffStats, Editor, SiteContext, can_edit
+from tiles_api.errors import Problem
 from tiles_api.store import one
 
 router = APIRouter(tags=["reviews"])
@@ -110,7 +111,9 @@ def _find(ctx: SiteContext, number: int, *, lock: bool = False) -> dict[str, Any
         SUMMARY + " AND r.number = %s" + (" FOR UPDATE OF r" if lock else ""), [ctx.site_id, number]
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Change request #{number} not found")
+        raise Problem(
+            status.HTTP_404_NOT_FOUND, "review.not_found", f"Change request #{number} not found", ref=f"#{number}"
+        )
     ops = one(
         ctx.conn.execute(
             "SELECT ops FROM change_requests WHERE site_id = %s AND number = %s", [ctx.site_id, number]
@@ -161,12 +164,24 @@ def _close(ctx: SiteContext, number: int, new_status: Status, commit_id: str | N
 
 def _may_decide(ctx: SiteContext, req: dict[str, Any]) -> None:
     if req["status"] != "open":
-        raise HTTPException(status.HTTP_409_CONFLICT, f"Change request #{req['number']} is already {req['status']}")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "review.closed",
+            f"Change request #{req['number']} is already {req['status']}",
+            ref=f"#{req['number']}",
+            status=req["status"],
+        )
     if req["author_id"] == ctx.user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can't review your own change: ask another engineer")
+        raise Problem(
+            status.HTTP_403_FORBIDDEN, "review.own_change", "You can't review your own change: ask another engineer"
+        )
     if req["reviewer_id"] not in (None, ctx.user.id) and ctx.user.role != "admin":
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, f"Change request #{req['number']} waits for {req['reviewer']} (or an admin)"
+        raise Problem(
+            status.HTTP_403_FORBIDDEN,
+            "review.waits_for_reviewer",
+            f"Change request #{req['number']} waits for {req['reviewer']} (or an admin)",
+            ref=f"#{req['number']}",
+            reviewer=req["reviewer"],
         )
 
 
@@ -215,21 +230,29 @@ def request_review(ctx: Editor, body: ReviewIn) -> dict[str, Any]:
     message = body.message.strip()
     if body.reverts is not None:
         if staged:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT, "Request a review of your staged changes or discard them first"
+            raise Problem(
+                status.HTTP_409_CONFLICT,
+                "review.revert_with_staged",
+                "Request a review of your staged changes or discard them first",
             )
         try:
             target = store.find_commit(ctx.conn, ctx.site_id, body.reverts)
         except store.NotFound as e:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, str(e)) from e
+            raise Problem(
+                status.HTTP_404_NOT_FOUND, "commit.not_found", f"Commit {body.reverts} not found", commit=body.reverts
+            ) from e
         ops = target["inverses"]
         message = message or o.revert_info(target, ctx.user.name)["message"]
     else:
         ops = staged
         if not ops:
-            raise HTTPException(status.HTTP_409_CONFLICT, "Nothing to review: stage some changes first")
+            raise Problem(
+                status.HTTP_409_CONFLICT, "review.nothing_staged", "Nothing to review: stage some changes first"
+            )
         if not message:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A change request needs a message")
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "review.message_missing", "A change request needs a message"
+            )
     number = open_request(ctx, ops, message, body.reviewer_id, body.reverts)
     if body.reverts is None:
         ctx.conn.execute("DELETE FROM staged_ops WHERE site_id = %s AND user_id = %s", [ctx.site_id, ctx.user.id])
@@ -251,13 +274,17 @@ def open_request(
     try:
         o.apply_ops(store.load_head(ctx.conn, ctx.site_id), ops)
     except o.OntologyError as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+        raise Problem(status.HTTP_409_CONFLICT, "review.does_not_fit", str(e), reason=str(e)) from e
     if reviewer_id is not None:
         if reviewer_id == ctx.user.id:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Ask someone else to review your change")
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT, "review.self_reviewer", "Ask someone else to review your change"
+            )
         if not can_edit(ctx.conn, ctx.site_id, ctx.org_id, reviewer_id):
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, "The reviewer must be an engineer or admin of this site"
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "review.reviewer_not_editor",
+                "The reviewer must be an engineer or admin of this site",
             )
     number: int = one(
         ctx.conn.execute(
@@ -313,7 +340,7 @@ def comment(ctx: Editor, number: int, body: CommentIn) -> dict[str, Any]:
     """Comment on a change request."""
     text = body.body.strip()
     if not text:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Write a comment first")
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "review.comment_missing", "Write a comment first")
     _find(ctx, number, lock=True)
     _note(ctx, number, text)
     ctx.audit("ontology.review.comment", "change_request", str(number), after={"body": text})
@@ -338,8 +365,11 @@ def approve(ctx: Editor, number: int, body: DecisionIn) -> dict[str, Any]:
             reviewer=ctx.user.name,
         )
     except o.OntologyError as e:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, f"This change no longer fits the ontology ({e}). Its author can rework it."
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "review.no_longer_fits",
+            f"This change no longer fits the ontology ({e}). Its author can rework it.",
+            reason=str(e),
         ) from e
     _close(ctx, number, "approved", entry["id"])
     _note(ctx, number, body.comment.strip(), "approved")
@@ -353,7 +383,7 @@ def reject(ctx: Editor, number: int, body: DecisionIn) -> dict[str, Any]:
     Not its author; its named reviewer if it has one, any engineer otherwise, or an admin."""
     reason = body.comment.strip()
     if not reason:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Say why the change is rejected")
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "review.reason_missing", "Say why the change is rejected")
     req = _find(ctx, number, lock=True)
     _may_decide(ctx, req)
     _close(ctx, number, "rejected")
@@ -373,23 +403,35 @@ def rework(ctx: Editor, number: int) -> dict[str, Any]:
     store.lock_site(ctx.conn, ctx.site_id)
     req = _find(ctx, number, lock=True)
     if req["author_id"] != ctx.user.id:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only the author of a change request can rework it")
+        raise Problem(
+            status.HTTP_403_FORBIDDEN, "review.not_author", "Only the author of a change request can rework it"
+        )
     if req["status"] == "approved":
-        raise HTTPException(status.HTTP_409_CONFLICT, f"Change request #{number} is already committed")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "review.committed",
+            f"Change request #{number} is already committed",
+            ref=f"#{number}",
+        )
     if req["reverts"] is not None:
         if req["status"] != "open":
-            raise HTTPException(status.HTTP_409_CONFLICT, "Request the revert again from the history")
+            raise Problem(status.HTTP_409_CONFLICT, "review.revert_again", "Request the revert again from the history")
         _close(ctx, number, "withdrawn")
         _note(ctx, number, "", "withdrawn")
         ctx.audit("ontology.review.rework", "change_request", str(number), after={"ops": []})
         return _review(ctx, number)
     if store.load_staged(ctx.conn, ctx.site_id, ctx.user):
-        raise HTTPException(status.HTTP_409_CONFLICT, "Commit, send or discard your staged changes first")
+        raise Problem(
+            status.HTTP_409_CONFLICT, "review.staged_changes_first", "Commit, send or discard your staged changes first"
+        )
     try:
         store.stage(ctx.conn, ctx.site_id, ctx.user, *req["ops"])
     except o.OntologyError as e:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, f"This change no longer fits the ontology ({e}). Make it again instead."
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "review.rework_no_longer_fits",
+            f"This change no longer fits the ontology ({e}). Make it again instead.",
+            reason=str(e),
         ) from e
     if req["status"] == "open":
         _close(ctx, number, "withdrawn")

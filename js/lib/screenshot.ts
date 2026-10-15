@@ -50,7 +50,7 @@ function copyOfPage(): { copy: HTMLElement; css: string } {
     const from = all[i];
     if (!from || from === document.body || (!from.scrollTop && !from.scrollLeft)) return;
     el.setAttribute('data-shot-scroll', String(i));
-    css += `[data-shot-scroll="${i}"]>*{translate:${-from.scrollLeft}px ${-from.scrollTop}px}`;
+    css += `[data-shot-scroll="${i}"]>*{translate:${-from.scrollLeft}px ${-from.scrollTop}px}`; // i18n-ok (CSS)
   });
   const fields = page.querySelectorAll('input, textarea, select, canvas');
   copy.querySelectorAll('input, textarea, select, canvas').forEach((el, i) => {
@@ -86,7 +86,7 @@ const loadImage = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('The picture of the page could not be drawn'));
+    img.onerror = () => reject(new Error('The picture of the page could not be drawn')); // i18n-ok (caught: never shown)
     img.src = src;
   });
 

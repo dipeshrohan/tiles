@@ -29,12 +29,13 @@ import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Query, Request, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
-from tiles_api import pdf
+from tiles_api import api_models, pdf
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
+from tiles_api.errors import Problem
 from tiles_api.models import design, store
 from tiles_api.models.registry import Model, ModelError, evaluate, version_key
 from tiles_api.models.remote import RemoteError
@@ -144,11 +145,14 @@ def _model(ctx: SiteContext, request: Request, key: str, version: str | None) ->
     try:
         model = store.find(ctx.conn, ctx.org_id, request.app.state.settings, _key(key), full)
     except KeyError as e:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(e.args[0])) from e
+        raise api_models.no_model(_key(key), full) from e
     if model.spec.kind != "design":
-        raise HTTPException(
+        raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "run.not_design_model",
             f"{model.spec.key} is a {model.spec.kind} model: only design models run",
+            model=model.spec.key,
+            kind=model.spec.kind,
         )
     return model
 
@@ -220,7 +224,7 @@ def _shown(row: dict[str, Any]) -> dict[str, Any]:
 def _row(ctx: SiteContext, number: int) -> dict[str, Any]:
     row = ctx.conn.execute(RUNS + " AND r.number = %(n)s", {"site": ctx.site_id, "n": number}).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"No run {number} on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "run.not_found", f"No run {number} on this site", number=number)
     return row
 
 
@@ -235,9 +239,9 @@ def _run(model: Model, params: dict[str, float]) -> tuple[dict[str, float], dict
     try:
         out = evaluate(model, {}, params)
     except RemoteError as e:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(e)) from e
+        raise Problem(status.HTTP_502_BAD_GATEWAY, "run.model_endpoint_failed", str(e), reason=str(e)) from e
     except ModelError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "run.model_refused", str(e), reason=str(e)) from e
     full = {p.name: float(params.get(p.name, p.default)) for p in model.spec.params}
     return full, {name: values[0] if values else None for name, values in out.items()}
 
@@ -257,7 +261,7 @@ def _store(
     try:
         model_id = store.model_id(ctx.conn, ctx.org_id, model)
     except store.ModelChanged as e:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(e)) from e
+        raise api_models.spec_changed(status.HTTP_409_CONFLICT, s.key, s.version) from e
     number: int = one(
         ctx.conn.execute(
             """
@@ -323,17 +327,26 @@ def create_run(ctx: Editor, body: RunIn, request: Request) -> dict[str, Any]:
             "SELECT 1 FROM design_projects WHERE site_id = %s AND id = %s", [ctx.site_id, body.project]
         ).fetchone()
     ):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such design project on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "design_project.not_found", "No such design project on this site")
     parent_id = None
     if body.parent is not None:
         parent = _row(ctx, body.parent)
         if parent["model"] != model.spec.key:
-            raise HTTPException(
+            raise Problem(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "run.parent_of_other_model",
                 f"Run {body.parent} is of {parent['model']}, not {model.spec.key}",
+                parent=body.parent,
+                parent_model=parent["model"],
+                model=model.spec.key,
             )
         if parent["project"] != body.project:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Run {body.parent} is in another project")
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "run.parent_in_other_project",
+                f"Run {body.parent} is in another project",
+                parent=body.parent,
+            )
         parent_id = parent["id"]
     number = _store(ctx, model, run, body.note.strip(), parent_id, None, body.project)
     ctx.audit(
@@ -355,8 +368,14 @@ def compare(ctx: Ctx, a: Annotated[int, Query(ge=1)], b: Annotated[int, Query(ge
     """What changed from run `a` to run `b` (of one model, in any versions)."""
     ra, rb = _row(ctx, a), _row(ctx, b)
     if ra["model"] != rb["model"]:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, f"Run {a} is of {ra['model']} and run {b} of {rb['model']}"
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "run.compare_other_models",
+            f"Run {a} is of {ra['model']} and run {b} of {rb['model']}",
+            a=a,
+            model_a=ra["model"],
+            b=b,
+            model_b=rb["model"],
         )
     sa, sb = _shown(ra), _shown(rb)
     outputs = []
@@ -404,14 +423,23 @@ def restore_run(ctx: Editor, number: int, request: Request, body: RestoreIn | No
     row = _row(ctx, number)
     model = _stored_model(ctx, request, row)
     if model is None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, f"Run {number}'s model {row['model']} {row['version']} is no longer registered"
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "run.model_gone",
+            f"Run {number}'s model {row['model']} {row['version']} is no longer registered",
+            number=number,
+            model=row["model"],
+            version=row["version"],
         )
     run = _run(model, row["params"])
     if run[1] != row["output"]:  # a published version never changes (models/published.json)
-        raise HTTPException(
+        raise Problem(
             status.HTTP_409_CONFLICT,
+            "run.output_changed",
             f"Run {number} gives another output now: model {row['model']} {row['version']} changed",
+            number=number,
+            model=row["model"],
+            version=row["version"],
         )
     _lock(ctx)
     head = one(
@@ -440,7 +468,7 @@ def _project(ctx: SiteContext, project_id: uuid.UUID) -> dict[str, Any]:
         PROJECTS + " AND p.id = %(id)s GROUP BY p.id", {"site": ctx.site_id, "id": project_id}
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such design project on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "design_project.not_found", "No such design project on this site")
     return row
 
 
@@ -465,7 +493,12 @@ def create_project(ctx: Editor, body: ProjectIn) -> dict[str, Any]:
         [ctx.site_id, name, body.description.strip(), ctx.user.name],
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_409_CONFLICT, f"There is already a project called {name!r}")
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "design_project.name_taken",
+            f"There is already a project called '{name}'",
+            name=name,
+        )
     ctx.audit("design_project.create", "design_project", str(row["id"]), after={"name": name})
     return _project(ctx, row["id"])
 

@@ -1903,7 +1903,7 @@ test('UX analytics: off until an organisation admin turns it on; then counts, an
     'page:warnings',
     'task:warning.acknowledge',
     'palette:open',
-    'palette:chose.signals',
+    'palette:chose.signal',
   ])
     assert.ok(kept.has(want), want);
   // Nothing about who, or which record: no e-mail, no warning or signal id, no tag.
@@ -1915,7 +1915,7 @@ test('UX analytics: off until an organisation admin turns it on; then counts, an
   await a.page.evaluate(() => (location.hash = '#/settings'));
   await a.page.waitForSelector('#ux-analytics [data-ux-sessions]');
   assert.match(await a.page.locator('#ux-analytics table').innerText(), /Task done\s+warning\.acknowledge\s+1\s+1/);
-  assert.match(await a.page.locator('[data-ux-sessions]').innerText(), /^1 browser session\(s\)/);
+  assert.match(await a.page.locator('[data-ux-sessions]').innerText(), /^1 browser session in/);
   assert.deepEqual(a.errors, []);
 
   // Engineers don't see the card.
@@ -2129,7 +2129,7 @@ test('Documents: an engineer uploads an SOP, searches it, and opens the page a m
     buffer: Buffer.from(sop),
   });
   await page.click('#doc-upload button[type=submit]');
-  await page.waitForSelector('#toast:has-text("Uploaded SOP 14 start-up: 3 page(s)")');
+  await page.waitForSelector('#toast:has-text("Uploaded SOP 14 start-up: 3 pages")');
   await page.waitForSelector('[data-doc-list]:has-text("SOP 14 start-up")');
   assert.equal(fake.siteDocuments[0].content.toString(), sop); // sent as it is
 
@@ -2338,7 +2338,7 @@ test('an engineer imports a CSV file, mapped to signals, and importing it again 
   await page.locator('[name=tag-2]').dispatchEvent('change');
   assert.match(
     await page.locator('[data-import-summary]').innerText(),
-    /^3 readings for 2 signal\(s\) in 2 rows from 2026-10-01 06:00:00 to 2026-10-01 06:01:00 UTC\.$/,
+    /^3 readings for 2 signals in 2 rows from 2026-10-01 06:00:00 to 2026-10-01 06:01:00 UTC\.$/,
   );
   await page.click('[data-import-run]');
   await page.waitForSelector('[data-import-progress]:has-text("Done. 3 new readings stored")');
@@ -2371,7 +2371,7 @@ test('a historian export with one row per reading maps each row by its tag', asy
   });
   await page.waitForSelector('#import-mapping');
   assert.equal(await page.isChecked('[name=shape][value=long]'), true);
-  assert.match(await page.locator('[data-import-summary]').innerText(), /^2 readings for 2 signal\(s\)/);
+  assert.match(await page.locator('[data-import-summary]').innerText(), /^2 readings for 2 signals/);
   await page.click('[data-import-run]');
   await page.waitForSelector('[data-import-progress]:has-text("Done. 2 new readings stored")');
   assert.deepEqual([...fake.samples.keys()].sort(), [
@@ -2527,11 +2527,11 @@ test('the signal catalogue: search, describe a signal and link it to its ontolog
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("3 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("3 signals.")');
   await page.fill('#signal-search [name=q]', 'press1');
-  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signals.")');
   await page.selectOption('#signal-search [name=linked]', 'no');
-  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signals.")');
 
   const row = page.locator('tr', { hasText: 'press1.temperature' }).first();
   assert.match(await row.innerText(), /Edge agent press-shop-edge/);
@@ -2542,7 +2542,7 @@ test('the signal catalogue: search, describe a signal and link it to its ontolog
   await page.selectOption('#signal-form [name=node]', 'sig-p1-temp');
   await page.click('#signal-form button[type=submit]');
   // Linked now, it leaves the "Not linked" list.
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   assert.equal(await page.locator('tr', { hasText: 'press1.temperature' }).count(), 0);
   assert.equal(await page.locator('#signal-form').count(), 0);
 
@@ -2591,7 +2591,7 @@ test('leaving the signals page mid-search never leaves it loading', async (t) =>
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signals.")');
   fake.slowSearch('oven', 600);
   await page.fill('#signal-search [name=q]', 'oven');
   // Away and back before the typed search is sent, while the page's own search is still waiting.
@@ -2599,7 +2599,7 @@ test('leaving the signals page mid-search never leaves it loading', async (t) =>
     location.hash = '#/import';
     location.hash = '#/signals';
   });
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   await page.waitForTimeout(800);
   assert.match(await page.locator('[data-signal-results]').innerText(), /oven\.temp/);
   assert.deepEqual(errors, []);
@@ -2613,7 +2613,7 @@ test('an edit started while the list refreshes survives the refresh, and a faile
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   await page.evaluate(() => (location.hash = '#/import'));
   // Back on the page: the last list shows at once while a slow refresh runs.
   fake.slowSearch('', 1200);
@@ -2645,7 +2645,7 @@ test("a refresh keeps only the fields being edited, and another engineer's chang
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   await page.evaluate(() => (location.hash = '#/import'));
   fake.slowSearch('', 1200);
   await page.evaluate(() => (location.hash = '#/signals'));
@@ -2750,7 +2750,7 @@ test('a search typed just before leaving the signals page is never sent', async 
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   const searches = () => fake.requests.filter((r) => /^GET \/sites\/[^/]+\/signals$/.test(r)).length;
   const before = searches();
   await page.fill('#signal-search [name=q]', 'oven');
@@ -2770,11 +2770,11 @@ test('a slow answer to an earlier search never replaces the current one', async 
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signals.")');
   await page.fill('#signal-search [name=q]', 'press');
   await page.waitForTimeout(400); // the slow search is sent
   await page.fill('#signal-search [name=q]', 'oven');
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   await page.waitForTimeout(1600); // the slow answer arrives, and is dropped
   assert.match(await page.locator('[data-signal-results] tbody').innerText(), /oven\.temp/);
   assert.doesNotMatch(await page.locator('[data-signal-results] tbody').innerText(), /press1/);
@@ -2794,22 +2794,22 @@ test('quality badges: check the signals listed, read a report, filter by badge',
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signals.")');
   assert.equal(await page.locator('[data-signal-results] .badge:has-text("Not checked")').count(), 2);
 
   await page.click('[data-check-quality]');
-  await page.waitForSelector('#toast:has-text("Checked 2 signal(s): 1 good, 0 with warnings, 1 with problems")');
+  await page.waitForSelector('#toast:has-text("Checked 2 signals: 1 good, 0 with warnings, 1 with problems")');
   await page.waitForSelector('[data-signal-results] .badge.bad:has-text("Problems")');
   await page.locator('tr', { hasText: 'press1.force' }).first().locator('[data-quality]').click();
   await page.waitForSelector('.quality-row:has-text("No reading for 2.5 h")');
 
   await page.selectOption('#signal-search [name=quality]', 'good');
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   assert.match(await page.locator('[data-signal-results] tbody').innerText(), /press1\.temperature/);
 
   // The expected range is set in the edit form.
   await page.selectOption('#signal-search [name=quality]', '');
-  await page.waitForSelector('[data-signal-count]:has-text("2 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("2 signals.")');
   await page.locator('tr', { hasText: 'press1.temperature' }).first().locator('[data-edit]').click();
   await page.fill('#signal-form [name=min]', '5');
   await page.fill('#signal-form [name=max]', '5');
@@ -2834,13 +2834,13 @@ test('a quality check still shows as running after leaving the page and coming b
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   await page.click('[data-check-quality]');
   await page.evaluate(() => (location.hash = '#/import'));
   await page.evaluate(() => (location.hash = '#/signals'));
   await page.waitForSelector('[data-check-quality][aria-busy=true]');
   assert.equal(await page.locator('[data-check-quality]').isDisabled(), true);
-  await page.waitForSelector('#toast:has-text("Checked 1 signal(s)")');
+  await page.waitForSelector('#toast:has-text("Checked 1 signal")');
   await page.waitForSelector('[data-check-quality]:not([aria-busy]):not([disabled])');
   assert.equal(await page.locator('[data-check-quality]').isDisabled(), false);
   assert.deepEqual(errors, []);
@@ -2906,7 +2906,7 @@ test('charts v2: exact values with a mouse, a finger and the keys; a legend; PNG
   await page.mouse.up();
   await page.waitForSelector('[data-zoom-reset]');
   await page.click('[data-zoom-reset]');
-  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  await page.waitForSelector('[data-series-note]:has-text("288 readings")');
   assert.equal(await page.locator('[data-zoom-reset]').count(), 0);
   assert.deepEqual(errors, []);
 });
@@ -3013,7 +3013,7 @@ test('the data explorer: plot signals, zoom in by dragging, zoom out into bucket
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
   // The Signals page links each tag to the explorer.
   await page.click('[data-signal-results] a:has-text("press1.temperature")');
-  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")'); // the day up to the latest
+  await page.waitForSelector('[data-series-note]:has-text("288 readings")'); // the day up to the latest
   assert.match(await page.locator('[data-charts] svg').first().innerHTML(), /<path data-part="line" d="M/);
 
   // Drag across the middle half of the chart: about half a day.
@@ -3025,12 +3025,12 @@ test('the data explorer: plot signals, zoom in by dragging, zoom out into bucket
   await page.waitForFunction(() => {
     const note = document.querySelector('[data-series-note]')?.textContent ?? '';
     const n = Number(note.replace(/[^0-9]/g, ''));
-    return /reading\(s\)/.test(note) && n > 80 && n < 200;
+    return /readings?\b/.test(note) && n > 80 && n < 200;
   });
 
   // More readings than the chart's points: the API averages them.
   await page.click('[data-preset="data"]');
-  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  await page.waitForSelector('[data-series-note]:has-text("288 readings")');
   for (let i = 0; i < 3; i++) await page.click('[data-zoom-out]'); // eight days, around the same middle
   await page.waitForSelector('[data-series-note]:has-text("1,152 readings, as")');
   assert.match(await page.locator('[data-zoom] svg').first().innerHTML(), /fill-opacity/);
@@ -3060,7 +3060,7 @@ test('on a wide screen, drag-zoom keeps the stretch dragged, and search text sur
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/explorer`);
   await page.fill('#explorer-search [name=q]', 'press1');
   await page.click('[data-explorer-found] [data-add]:has-text("press1.temperature")');
-  await page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  await page.waitForSelector('[data-series-note]:has-text("288 readings")');
   assert.equal(await page.inputValue('#explorer-search [name=q]'), 'press1'); // still there to add the next
   // Drag over the second fifth of the chart: about a fifth of the day.
   const box = await page.locator('[data-zoom] svg').first().boundingBox();
@@ -3071,7 +3071,7 @@ test('on a wide screen, drag-zoom keeps the stretch dragged, and search text sur
   await page.waitForFunction(() => {
     const note = document.querySelector('[data-series-note]')?.textContent ?? '';
     const n = Number(note.replace(/[^0-9]/g, ''));
-    return /reading\(s\)/.test(note) && n > 30 && n < 90;
+    return /readings?\b/.test(note) && n > 30 && n < 90;
   });
   assert.deepEqual(errors, []);
 });
@@ -3133,7 +3133,7 @@ test('viewers browse the signal catalogue but cannot edit it', async (t) => {
   const { page, errors } = await openPage();
   t.after(() => page.close());
   await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/signals`);
-  await page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   assert.equal(await page.locator('[data-edit]').count(), 0);
   assert.equal(await page.locator('[data-check-quality]').count(), 0);
   assert.deepEqual(errors, []);
@@ -4533,7 +4533,7 @@ test('warning performance: what the warnings caught, per detector, for the codes
   const events = a.page.locator('tbody tr', { hasText: 'DT-SEIZURE' });
   assert.match(await events.innerText(), /warned\s+1\.8 h ahead, by dc1-friction/);
   assert.match(await a.page.locator('tbody tr', { hasText: 'scrap' }).innerText(), /missed/);
-  await a.page.waitForSelector('[data-unwatched]:has-text("No detector watches DC-02 (1 event(s))")');
+  await a.page.waitForSelector('[data-unwatched]:has-text("No detector watches DC-02 (1 event)")');
   assert.match(await a.page.locator('[data-detector-row="d2"]').innerText(), /Set its asset/);
 
   // Another period, horizon and codes: asked for as such.
@@ -4623,8 +4623,8 @@ test('the correlation finder: upload a batch table, split it, and read the effec
   await a.page.waitForSelector('[data-chosen-file]:has-text("cutter.csv")');
   await a.page.fill('#dataset-form [name=name]', 'Cutter batches');
   await a.page.click('#dataset-form button[type=submit]');
-  await a.page.waitForSelector('#toast:has-text("Cutter batches: 720 batch(es) uploaded")');
-  await a.page.waitForSelector('[data-analysis]:has-text("720 batch(es)")');
+  await a.page.waitForSelector('#toast:has-text("Cutter batches: 720 batches uploaded")');
+  await a.page.waitForSelector('[data-analysis]:has-text("720 batches")');
   // yes/no became a true/false column, the outcome by default.
   assert.equal(await a.page.inputValue('#correlate-form [name=outcome]'), 'ng');
   await a.page.selectOption('#correlate-form [name=split]', 'material');
@@ -4672,7 +4672,7 @@ test('the correlation finder: a failed upload leaves nothing behind, and enginee
   await a.page.setInputFiles('#dataset-form [name=file]', file);
   await a.page.waitForSelector('[data-chosen-file]');
   await a.page.click('#dataset-form button[type=submit]');
-  await a.page.waitForSelector('[data-analysis]:has-text("720 batch(es)")');
+  await a.page.waitForSelector('[data-analysis]:has-text("720 batches")');
   await a.page.selectOption('#correlate-form [name=split]', 'material');
   await a.page.selectOption('#correlate-form [name=outcome]', 'material');
   await a.page.fill('#correlate-form [name=ng]', 'anode');
@@ -4711,14 +4711,14 @@ test('saved insights: save a correlation, another engineer reviews it, its autho
   });
   await a.page.waitForSelector('[data-chosen-file]');
   await a.page.click('#dataset-form button[type=submit]');
-  await a.page.waitForSelector('[data-analysis]:has-text("720 batch(es)")');
+  await a.page.waitForSelector('[data-analysis]:has-text("720 batches")');
   await a.page.selectOption('#correlate-form [name=split]', 'material');
   await a.page.click('#correlate-form button[type=submit]');
   await a.page.waitForSelector('[data-explanations]');
   await a.page.click('[data-save-insight]');
   // A first draft from the strongest clear effect.
   assert.equal(await a.page.inputValue('#insight-save [name=title]'), 'tension separates failed batches (anode)');
-  assert.match(await a.page.inputValue('#insight-save [name=summary]'), /cutter: 720 batch\(es\)/);
+  assert.match(await a.page.inputValue('#insight-save [name=summary]'), /cutter: 720 batches/);
   await a.page.fill('#insight-save [name=actions]', 'Lower anode tension\n\n- Check cathode rolls ');
   await rerender(a.page); // what is typed survives
   assert.equal(
@@ -4980,22 +4980,22 @@ test('a view is in its address: a reload or a copied link shows the same, and ba
 
   // Signals: what is searched, as it is typed.
   await a.page.evaluate(() => (location.hash = '#/signals'));
-  await a.page.waitForSelector('[data-signal-count]:has-text("signal(s)")');
+  await a.page.waitForSelector('[data-signal-count]:has-text("signal")');
   await a.page.fill('#signal-search [name=q]', 'press');
   await a.page.selectOption('#signal-search [name=linked]', 'no');
   assert.equal(await hash(), '#/signals?q=press&linked=no');
   await a.page.reload();
-  await a.page.waitForSelector('[data-signal-count]:has-text("1 signal(s)")');
+  await a.page.waitForSelector('[data-signal-count]:has-text("1 signal.")');
   assert.equal(await a.page.inputValue('#signal-search [name=q]'), 'press');
   assert.equal(await a.page.inputValue('#signal-search [name=linked]'), 'no');
 
   // The explorer: the signals plotted and their range.
   await a.page.click('[data-signal-results] a:has-text("press1.temperature")');
-  await a.page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  await a.page.waitForSelector('[data-series-note]:has-text("288 readings")');
   const plotted = await hash();
   assert.match(plotted, new RegExp(`^#/explorer\\?signals=${temp.id}&from=.+&to=.+$`));
   await a.page.reload();
-  await a.page.waitForSelector('[data-series-note]:has-text("288 reading(s)")');
+  await a.page.waitForSelector('[data-series-note]:has-text("288 readings")');
   assert.equal(await hash(), plotted);
 
   // Back: the page where it was scrolled to; a new visit starts at the top.
@@ -5139,7 +5139,7 @@ test('the menu: groups fold, pages pin, recent pages, counts and an icon rail, a
   const warnings = page.locator('#nav [data-key="nav-menu-warnings"] a');
   await warnings.locator('.badge').waitFor();
   assert.match(await warnings.innerText(), /Warnings\s*2/);
-  assert.match(await warnings.locator('.sr-only').innerText(), /2 open warning\(s\)/);
+  assert.match(await warnings.locator('.sr-only').innerText(), /2 open warnings/);
   assert.match(await page.locator('#nav [data-key="nav-menu-reviews"] a').innerText(), /1/);
 
   // A group folds from the keyboard, and stays folded after a reload.

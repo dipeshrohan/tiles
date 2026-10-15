@@ -221,7 +221,7 @@ What the browser records, and nothing else:
 | --- | --- | --- |
 | Page viewed | The page's id | `warnings` |
 | Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo`, `tour.finished`, `feedback.sent`, `home.card-added`, `home.card-removed`, `signal.quality-checked`, `warning.assign`, `warning.resolve`, `warning.next`, `ontology.related`, `ontology.undo`, `ontology.redo`, `view.saved`, `view.shared`, `view.opened`, `signal.compared` |
-| Command palette | Opened, or the kind of thing chosen | `open`, `chose.signals` |
+| Command palette | Opened, or the kind of thing chosen (`page`, `do` for an action, `site`, `help`, `term`, or a search result's kind: `signal`, `node`, `warning`, `insight`, `document`, `app`) | `open`, `chose.signal` |
 | Help opened | The help topic | `welcome` (the first-run welcome), `tour.triage` (a tour started), `whatsnew`, `feedback` (the feedback form opened), `inbox` (the notifications opened) |
 | Error shown | Its kind | `api.403`, `offline` |
 

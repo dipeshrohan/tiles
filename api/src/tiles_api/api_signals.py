@@ -13,11 +13,12 @@ import uuid
 from datetime import datetime
 from typing import Annotated, Any, Literal, LiteralString
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Query, status
 from psycopg import errors, sql
 from pydantic import BaseModel, ConfigDict, Field, FiniteFloat, field_validator
 
 from tiles_api.api_ontology import Ctx, Editor
+from tiles_api.errors import Problem
 from tiles_api.quality import DEFAULT_HOURS, SIGNAL, Badge, Report, check_signal, check_site
 from tiles_api.store import one
 
@@ -173,7 +174,7 @@ def list_signals(
 def _get(ctx: Any, signal_id: uuid.UUID) -> Signal:
     row = ctx.conn.execute(SELECT + " WHERE g.id = %s AND g.site_id = %s", [signal_id, ctx.site_id]).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such signal on this site")
+        raise Problem(status.HTTP_404_NOT_FOUND, "signal.not_found", "No such signal on this site")
     return Signal(**row)
 
 
@@ -203,15 +204,19 @@ def update_signal(ctx: Editor, signal_id: uuid.UUID, body: SignalPatch) -> Signa
             "SELECT type FROM ontology_nodes WHERE site_id = %s AND id = %s", [ctx.site_id, node_id]
         ).fetchone()
         if node is None or node["type"] != "Signal":
-            raise HTTPException(
+            raise Problem(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "signal.node_not_committed",
                 f"{node_id} is not a Signal node of the committed ontology; commit it there first",
+                node=node_id,
             )
     low = changes.get("range_min", before.range_min)
     high = changes.get("range_max", before.range_max)
     if low is not None and high is not None and low >= high:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT, "The expected range's minimum must be below its maximum"
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "signal.range_inverted",
+            "The expected range's minimum must be below its maximum",
         )
     if not changes:
         return before
@@ -226,8 +231,19 @@ def update_signal(ctx: Editor, signal_id: uuid.UUID, body: SignalPatch) -> Signa
         other = ctx.conn.execute(
             "SELECT tag FROM signals WHERE site_id = %s AND node_id = %s", [ctx.site_id, node_id]
         ).fetchone()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, f"{node_id} is already linked to {other['tag'] if other else 'another signal'}"
+        if other:
+            raise Problem(
+                status.HTTP_409_CONFLICT,
+                "signal.node_linked",
+                f"{node_id} is already linked to {other['tag']}",
+                node=str(node_id),
+                tag=other["tag"],
+            ) from None
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "signal.node_linked_elsewhere",
+            f"{node_id} is already linked to another signal",
+            node=str(node_id),
         ) from None
     ctx.audit(
         "signal.update",
@@ -252,10 +268,13 @@ def check_quality(ctx: Editor, body: QualityCheckIn) -> QualityCheckOut:
     if body.signal_ids is None:
         count = one(ctx.conn.execute("SELECT count(*) AS n FROM signals WHERE site_id = %s", [ctx.site_id]).fetchone())
         if count["n"] > MAX_CHECK:
-            raise HTTPException(
+            raise Problem(
                 status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "signal.check_too_many",
                 f"This site has {count['n']} signals: list up to {MAX_CHECK} of them, or check the whole site "
                 "with tiles-check-quality",
+                count=count["n"],
+                most=MAX_CHECK,
             )
     badges = check_site(ctx.conn, ctx.site_id, body.signal_ids, body.hours)
     checked = sum(badges.values())

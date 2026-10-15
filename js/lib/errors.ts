@@ -1,12 +1,14 @@
 // What a failed request to the Tiles API means to the person who made it (U2.06), as the writing
 // guide asks: what happened, why, and what they can do. Pure: the toast and the pages use it.
 
-import { STREAM_CUT } from './api.ts';
+import { OFFLINE_WRITE, STREAM_CUT } from './api.ts';
+import { t } from './i18n.ts';
 
 export interface ApiFailure {
   status: number; // 0: no answer (offline, or the API is down)
   message: string; // the API's detail, or the client's words
   requestId?: string | null;
+  code?: string | null; // ApiError.code
 }
 
 export type WayOut = 'back' | 'refresh' | 'sign-in' | null;
@@ -18,55 +20,31 @@ export interface Described {
 }
 
 const sentence = (s: string): string => {
-  const t = s.trim();
-  return !t || /[.!?)]$/.test(t) ? t : `${t}.`;
+  const said = s.trim();
+  return !said || /[.!?)]$/.test(said) ? said : `${said}.`;
 };
 
 export function describeApiError(e: ApiFailure): Described {
   const detail = sentence(e.message);
   switch (true) {
     case e.status === 0:
-      return e.message.startsWith("You're offline") || e.message === STREAM_CUT
+      return e.code === OFFLINE_WRITE || e.code === STREAM_CUT
         ? { message: e.message, action: null }
-        : {
-            message: "Can't reach the Tiles API",
-            description: `${detail} Check your connection, and that the API is running.`,
-            action: null,
-          };
+        : { message: t('errors.unreachable'), description: t('errors.unreachableWhy', { detail }), action: null };
     case e.status === 401:
-      return {
-        message: 'Your session has ended',
-        description: `${detail} Sign in again to carry on.`,
-        action: 'sign-in',
-      };
+      return { message: t('errors.signedOut'), description: t('errors.signedOutWhy', { detail }), action: 'sign-in' };
     case e.status === 403:
-      return {
-        message: "You don't have access to this",
-        description: `${detail} A site admin can give you the role it needs (engineer to change things, admin to manage the site).`,
-        action: null,
-      };
+      return { message: t('errors.forbidden'), description: t('errors.forbiddenWhy', { detail }), action: null };
     case e.status === 404:
-      return { message: 'Not found', description: `${detail} It may have been archived or removed.`, action: 'back' };
+      return { message: t('errors.notFound'), description: t('errors.notFoundWhy', { detail }), action: 'back' };
     case e.status === 409:
-      return {
-        message: 'This changed while you were working',
-        description: `${detail} Refresh to see the latest, then try again.`,
-        action: 'refresh',
-      };
+      return { message: t('errors.conflict'), description: t('errors.conflictWhy', { detail }), action: 'refresh' };
     case e.status === 422:
-      return {
-        message: "This wasn't accepted",
-        description: `${detail} Correct it, then try again.`,
-        action: null,
-      };
+      return { message: t('errors.refused'), description: t('errors.refusedWhy', { detail }), action: null };
     case e.status === 429:
-      return { message: 'Too many requests', description: `${detail} Wait a moment, then try again.`, action: null };
+      return { message: t('errors.tooMany'), description: t('errors.tooManyWhy', { detail }), action: null };
     case e.status >= 500:
-      return {
-        message: 'The Tiles API had a problem',
-        description: `${detail} Try again; if it keeps happening, give the request ID to your administrator.`,
-        action: null,
-      };
+      return { message: t('errors.server'), description: t('errors.serverWhy', { detail }), action: null };
     default:
       return { message: e.message, action: null };
   }
@@ -81,11 +59,11 @@ export function errorDetails(o: {
   version: string;
 }): string {
   return [
-    `What: ${o.what}`,
-    o.requestId ? `Request ID: ${o.requestId}` : '',
-    `Page: ${o.page}`,
-    `Time: ${o.at.toISOString()}`,
-    `Tiles: ${o.version}`,
+    t('errors.details.what', { what: o.what }),
+    o.requestId ? t('errors.details.request', { id: o.requestId }) : '',
+    t('errors.details.page', { page: o.page }),
+    t('errors.details.time', { time: o.at.toISOString() }),
+    t('errors.details.version', { version: o.version }),
   ]
     .filter(Boolean)
     .join('\n');

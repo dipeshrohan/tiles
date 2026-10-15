@@ -5,6 +5,7 @@
 // role's, and what each makes of the site's data. Words follow docs/ui/writing.md.
 import type { EdgeAgent, InsightSummary, ReviewSummary, SignalInfo, WarningInfo } from './api.ts';
 import type { MachineTile } from './shopfloor.ts';
+import { t, type MessageKey } from './i18n.ts';
 
 export type CardId =
   'my-warnings' | 'machines-out' | 'shift' | 'reviews' | 'insights' | 'freshness' | 'agents' | 'quality';
@@ -28,45 +29,27 @@ export interface CardDef {
   needs: readonly Need[];
 }
 
+// A card's words are read when shown (the language can change after load).
+const card = (id: CardId, title: MessageKey, summary: MessageKey, needs: readonly Need[]): CardDef => ({
+  id,
+  get title() {
+    return t(title);
+  },
+  get summary() {
+    return t(summary);
+  },
+  needs,
+});
+
 export const CARDS: readonly CardDef[] = [
-  {
-    id: 'my-warnings',
-    title: 'My open warnings',
-    summary: 'Warnings assigned to you that aren’t resolved',
-    needs: ['my-warnings'],
-  },
-  {
-    id: 'machines-out',
-    title: 'Machines out of range',
-    summary: 'Machines with a signal still outside its usual range',
-    needs: ['open-warnings', 'links'],
-  },
-  {
-    id: 'shift',
-    title: 'This shift',
-    summary: 'Warnings raised since the shift began, and how many are acknowledged',
-    needs: ['recent-warnings'],
-  },
-  {
-    id: 'reviews',
-    title: 'Reviews waiting for me',
-    summary: 'Change requests you may approve',
-    needs: ['reviews'],
-  },
-  { id: 'insights', title: 'Recent insights', summary: 'The newest saved findings', needs: ['insights'] },
-  {
-    id: 'freshness',
-    title: 'Data freshness',
-    summary: 'Signals whose readings have stopped arriving',
-    needs: ['signals'],
-  },
-  { id: 'agents', title: 'Edge agents', summary: 'Agents that are offline or have never called in', needs: ['agents'] },
-  {
-    id: 'quality',
-    title: 'Data quality',
-    summary: 'Signals whose last quality check found problems',
-    needs: ['quality'],
-  },
+  card('my-warnings', 'homeCards.myWarnings.title', 'homeCards.myWarnings.summary', ['my-warnings']),
+  card('machines-out', 'homeCards.machinesOut.title', 'homeCards.machinesOut.summary', ['open-warnings', 'links']),
+  card('shift', 'homeCards.shift.title', 'homeCards.shift.summary', ['recent-warnings']),
+  card('reviews', 'homeCards.reviews.title', 'homeCards.reviews.summary', ['reviews']),
+  card('insights', 'homeCards.insights.title', 'homeCards.insights.summary', ['insights']),
+  card('freshness', 'homeCards.freshness.title', 'homeCards.freshness.summary', ['signals']),
+  card('agents', 'homeCards.agents.title', 'homeCards.agents.summary', ['agents']),
+  card('quality', 'homeCards.quality.title', 'homeCards.quality.summary', ['quality']),
 ];
 
 export const cardOf = (id: string): CardDef | undefined => CARDS.find((c) => c.id === id);
@@ -81,10 +64,18 @@ export const ROLE_CARDS: Readonly<Record<HomeRole, readonly CardId[]>> = {
 };
 
 export const ROLE_LABELS: Readonly<Record<HomeRole, string>> = {
-  maintenance: 'maintenance',
-  engineer: 'engineers',
-  'shift-lead': 'shift leads',
-  admin: 'admins',
+  get maintenance() {
+    return t('homeCards.role.maintenance');
+  },
+  get engineer() {
+    return t('homeCards.role.engineer');
+  },
+  get 'shift-lead'() {
+    return t('homeCards.role.shiftLead');
+  },
+  get admin() {
+    return t('homeCards.role.admin');
+  },
 };
 
 // The role Home is set for: the one chosen in the welcome, else the site role's nearest.

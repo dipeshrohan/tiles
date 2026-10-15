@@ -126,6 +126,8 @@ import { hasNews, helpLabel, SEEN_KEY, seenOnFirstLoad, whatsNewHtml, whatsNewTi
 import { VERSION } from './lib/version.ts';
 import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
 import { searchItems } from './lib/site-search.ts';
+import { t, type MessageKey } from './lib/i18n.ts';
+import { translateStatic } from './lib/static-text.ts';
 
 const VIEWS: View[] = [
   home,
@@ -153,20 +155,26 @@ const VIEWS: View[] = [
   glossary, // not in the menu: Help links to it
 ];
 
-const NAV: { group?: string; items: View[] }[] = [
+// A group's id keeps each person's folded groups; its name is shown (`app.nav.<id>`).
+const NAV: { group?: 'operations' | 'data' | 'design' | ''; items: View[] }[] = [
   { items: [home, chat] },
-  { group: 'Operations', items: [shopfloor, plant, ontology, reviews, warnings, performance, quality, physics] },
-  { group: 'Data', items: [signals, explorer, correlate, insights, apps, documents, imports] },
-  { group: 'Design', items: [design] },
+  { group: 'operations', items: [shopfloor, plant, ontology, reviews, warnings, performance, quality, physics] },
+  { group: 'data', items: [signals, explorer, correlate, insights, apps, documents, imports] },
+  { group: 'design', items: [design] },
   { group: '', items: [onboarding, settings, help] },
 ];
+const groupName = (group: string | undefined): string => (group ? t(`app.nav.${group}` as MessageKey) : '');
+
+// index.html's own words (the skip link, the top bar's labels) in the catalogue's language, before
+// anything is drawn (U6.01).
+translateStatic(document);
 
 // Toasts and tooltips are the page's, from the start (a live region must exist before it speaks).
 const toast = createToaster(need(document, '#toast'));
 installTooltips();
 // Charts read point by point, and saved (U5.03): their values are read out by the page's announcer.
 installCharts(need(document, '#announcer'), (what) =>
-  toast(what, { type: 'error', description: 'Try again, or save its data as CSV instead.' }),
+  toast(what, { type: 'error', description: t('app.chartSaveFailed') }),
 );
 
 // ---- state ------------------------------------------------------------
@@ -176,7 +184,7 @@ function freshState(): PersistedState {
     repo: seedOntology(),
     runs: [],
     chat: [],
-    user: { name: 'Demo User', email: 'demo@example.com' },
+    user: { name: t('app.demoUser'), email: 'demo@example.com' },
   };
 }
 
@@ -357,7 +365,7 @@ const ontologyCtx: OntologyContext = {
   async act(change, ok) {
     const store: OntologyStore | null = api ? remote : localStore;
     if (!store) {
-      toast('The ontology is still loading from the Tiles API');
+      toast(t('app.ontologyLoading'));
       return false;
     }
     const seq = connectSeq; // a data-source switch while we wait makes the result stale
@@ -404,12 +412,12 @@ function makeApi(): ApiClient | null {
     // What happened, why and what to do (U2.06), with the way out when there is one.
     onError: (e) => {
       // Offline says so itself, and a stream cut off mid-answer was reached.
-      if (e.status === 0 && e.message !== OFFLINE_WRITE && e.message !== STREAM_CUT) showOffline('unreachable');
+      if (e.status === 0 && e.code !== OFFLINE_WRITE && e.code !== STREAM_CUT) showOffline('unreachable');
       ux(
         'error',
-        e.message === OFFLINE_WRITE
+        e.code === OFFLINE_WRITE
           ? 'offline'
-          : e.message === STREAM_CUT
+          : e.code === STREAM_CUT
             ? 'api.stream-cut'
             : `api.${e.status || 'unreachable'}`,
       );
@@ -419,11 +427,11 @@ function makeApi(): ApiClient | null {
       const action =
         // Only where there is somewhere to go back to.
         d.action === 'back' && history.length > 1
-          ? { label: 'Go back', run: () => history.back() }
+          ? { label: t('app.goBack'), run: () => history.back() }
           : d.action === 'refresh'
-            ? { label: 'Refresh', run: () => location.reload() }
+            ? { label: t('app.refresh'), run: () => location.reload() }
             : d.action === 'sign-in' && authConfig?.enabled
-              ? { label: 'Sign in', run: () => void ctx.auth.signIn() }
+              ? { label: t('app.signIn'), run: () => void ctx.auth.signIn() }
               : undefined;
       toast(d.message, { type: 'error', description: d.description, requestId: e.requestId, action });
     },
@@ -451,7 +459,7 @@ async function finishSignIn(): Promise<void> {
     const done = await completeSignIn(location.search);
     if (done) {
       history.replaceState(null, '', cleanCallbackUrl(location.href, done.returnTo));
-      toast('Signed in');
+      toast(t('app.signedIn'));
     } else {
       // Back from the provider's sign-out: return to the page we left.
       const back = takeSignOutReturn();
@@ -503,7 +511,7 @@ const authCtx: AuthContext = {
     return load<string>('signin-org', '');
   },
   async signIn(org?: string) {
-    if (!canRedirect()) return toast('Open Tiles over http(s) to sign in');
+    if (!canRedirect()) return toast(t('app.signInNeedsHttp'));
     // An organisation's own provider (T5.05), or the API's.
     let config = authConfig;
     const slug = org?.trim().toLowerCase();
@@ -512,10 +520,12 @@ const authCtx: AuthContext = {
         config = await api.authConfig(slug);
       } catch (e) {
         const status = (e as { status?: number }).status;
-        return toast(status === 404 ? `${slug} has no sign-in of its own` : `Can't start sign-in: ${String(e)}`);
+        return toast(
+          status === 404 ? t('app.noOwnSignIn', { org: slug }) : t('app.cantStartSignIn', { error: String(e) }),
+        );
       }
     }
-    if (!config?.enabled || !config.issuer) return toast('This Tiles API has no sign-in configured');
+    if (!config?.enabled || !config.issuer) return toast(t('app.noSignIn'));
     save('signin-org', slug ?? '');
     try {
       location.assign(
@@ -531,7 +541,7 @@ const authCtx: AuthContext = {
         ),
       );
     } catch (e) {
-      toast(`Can't start sign-in: ${e instanceof Error ? e.message : String(e)}`);
+      toast(t('app.cantStartSignIn', { error: e instanceof Error ? e.message : String(e) }));
     }
   },
   async signOut() {
@@ -541,7 +551,7 @@ const authCtx: AuthContext = {
     const url = await signOut(redirectUri(), location.search + location.hash);
     if (url) location.assign(url);
     else {
-      toast('Signed out');
+      toast(t('app.signedOut'));
       await refreshAuth();
       void connectOntology();
     }
@@ -599,7 +609,7 @@ const ctx: Context = {
     localRepo = state.repo;
     persist();
     render();
-    toast('Demo data reset');
+    toast(t('app.demoReset'));
     void connectOntology();
   },
   get workRole() {
@@ -637,12 +647,14 @@ function currentView(): View {
 // ---- the menu (U3.06) --------------------------------------------------------------------
 // Groups that fold, pins and recent pages, counts, and the icon rail; each person's choices kept in
 // this browser (js/lib/nav.ts).
-const NAV_GROUPS: NavGroup[] = NAV.map((g, i) => ({
-  id: g.group ? g.group.toLowerCase() : `g${i}`,
-  title: g.group ?? '',
-  pages: g.items.map((v) => ({ id: v.id, title: v.title, icon: v.icon })),
-}));
-const NAV_PAGES = NAV_GROUPS.flatMap((g) => g.pages.map((p) => p.id));
+// Made when the menu is drawn, so its names are in the language of the moment.
+const navGroups = (): NavGroup[] =>
+  NAV.map((g, i) => ({
+    id: g.group || `g${i}`,
+    title: groupName(g.group),
+    pages: g.items.map((v) => ({ id: v.id, title: v.title, icon: v.icon })),
+  }));
+const NAV_PAGES = NAV.flatMap((g) => g.items.map((v) => v.id));
 let navFor = '';
 let navPrefs: NavPrefs = DEFAULT_PREFS;
 // Whose choices: in API mode the signed-in person (once known), otherwise this browser's profile.
@@ -715,17 +727,21 @@ document.addEventListener('tiles:ux', (e) => {
 function badges(): Record<string, NavBadge> {
   const out: Record<string, NavBadge> = {};
   const open = demoReady() ? state.detection.alerts.length : 0;
-  if (open) out.physics = { count: open, tone: 'bad', says: `${open} warning(s) on the demo data` };
+  if (open) out.physics = { count: open, tone: 'bad', says: t('app.badge.demoWarnings', { count: open }) };
   const staged = state.repo.staged.length;
   const issues = staged ? 0 : graphHealth(ctx.graph).issues.filter((i) => i.level !== 'info').length;
-  if (staged) out.ontology = { count: staged, tone: 'warn', says: `${staged} staged change(s)` };
-  else if (issues) out.ontology = { count: issues, tone: '', says: `${issues} health issue(s)` };
+  if (staged) out.ontology = { count: staged, tone: 'warn', says: t('app.badge.staged', { count: staged }) };
+  else if (issues) out.ontology = { count: issues, tone: '', says: t('app.badge.health', { count: issues }) };
   const site = ctx.ontology.site;
   if (counts && site && counts.site === site.id) {
     if (counts.warnings)
-      out.warnings = { count: counts.warnings, tone: 'bad', says: `${counts.warnings} open warning(s)` };
+      out.warnings = {
+        count: counts.warnings,
+        tone: 'bad',
+        says: t('app.badge.openWarnings', { count: counts.warnings }),
+      };
     if (counts.reviews)
-      out.reviews = { count: counts.reviews, tone: 'warn', says: `${counts.reviews} review(s) waiting for you` };
+      out.reviews = { count: counts.reviews, tone: 'warn', says: t('app.badge.reviews', { count: counts.reviews }) };
   }
   return out;
 }
@@ -741,7 +757,7 @@ function renderNav(active: View): void {
     mine: v.mine,
   }));
   const html = navHtml({
-    groups: NAV_GROUPS,
+    groups: navGroups(),
     active: active.id,
     under: active.under,
     prefs: p,
@@ -803,7 +819,7 @@ function render(): void {
   // Home › the page › the record or place it shows (after render and bind, from what they show; the
   // record comes from the URL, so a reload or a shared link shows the same).
   need(document, '#crumbs').innerHTML = breadcrumbs([
-    { label: 'Home', href: '#/' },
+    { label: t('home.title'), href: '#/' },
     ...VIEWS.filter((v) => v.id === view.under).map((v) => ({ label: v.title, href: `#/${v.id}` })),
     ...(view === home ? [] : [{ label: view.title, href: `#/${view.id}` }]),
     ...(view.crumbs?.(ctx) ?? []),
@@ -851,8 +867,8 @@ need(document, '#view').addEventListener('click', (e) => {
     const copy = el.closest<HTMLElement>('[data-copy-details]');
     if (copy)
       void (navigator.clipboard?.writeText(copy.dataset.copyDetails ?? '') ?? Promise.reject(new Error())).then(
-        () => toast('Details copied', { type: 'success' }),
-        () => toast("Can't copy here", { description: copy.dataset.copyDetails, duration: 15000 }),
+        () => toast(t('app.detailsCopied'), { type: 'success' }),
+        () => toast(t('app.cantCopy'), { description: copy.dataset.copyDetails, duration: 15000 }),
       );
   }
 });
@@ -870,10 +886,8 @@ function showOffline(kind: 'offline' | 'unreachable'): void {
   const banner = need(document, '#offline');
   const since = clockTime(offlineSince);
   banner.innerHTML = `${icon(kind === 'offline' ? 'wifi-off' : 'cloud-off')}<span>${
-    kind === 'offline'
-      ? `You're offline. What you see is as of ${since}; changes can't be sent until the connection is back.`
-      : `Can't reach the Tiles API. What you see is as of ${since}.`
-  }</span>${api ? button('Try again', { size: 'sm', attrs: { 'data-offline-retry': true } }) : ''}`;
+    kind === 'offline' ? esc(t('app.offline', { time: since })) : esc(t('app.unreachable', { time: since }))
+  }</span>${api ? button(t('app.tryAgain'), { size: 'sm', attrs: { 'data-offline-retry': true } }) : ''}`;
   banner.hidden = false;
 }
 function hideOffline(kind?: 'offline' | 'unreachable'): void {
@@ -998,19 +1012,22 @@ need(document, '#menu').innerHTML = icon('menu', { size: 18 });
 
 // ---- command palette (U4.02) ------------------------------------------------
 
+// Words a site is found by in the palette, besides its slug.
+const SITE_WORDS = 'site plant'; // i18n-ok
 const go = (hash: string) => () => {
   location.hash = hash;
 };
-// The glossary's terms (U4.05), after the rest like the guide's headings; made once.
-const GLOSSARY_ITEMS: PaletteItem[] = GLOSSARY_ENTRIES.map((e) => ({
-  id: `term:${e.key}`,
-  label: e.term,
-  group: 'Glossary',
-  icon: 'book-a',
-  hint: e.group,
-  late: true,
-  run: go(`#/glossary/${encodeURIComponent(e.key)}`),
-}));
+// The glossary's terms (U4.05), after the rest like the guide's headings.
+const glossaryItems = (): PaletteItem[] =>
+  GLOSSARY_ENTRIES.map((e) => ({
+    id: `term:${e.key}`,
+    label: e.term,
+    group: t('glossary.title'),
+    icon: 'book-a',
+    hint: e.group,
+    late: true,
+    run: go(`#/glossary/${encodeURIComponent(e.key)}`),
+  }));
 // The guide's headings join the palette once loaded (U4.04): asked for once, as the palette first opens.
 let helpAsked = false;
 
@@ -1042,9 +1059,9 @@ function startTour(id: string): void {
   // doesn't leave the tour's first step.
   if (document.querySelector('dialog.palette')) return void requestAnimationFrame(() => startTour(id));
   if (!canRun(tour, Boolean(api))) {
-    toast('This tour needs the Tiles API', {
+    toast(t('app.tourNeedsApi'), {
       type: 'info',
-      description: 'Connect to it in Settings, under Data source.',
+      description: t('app.tourNeedsApiHow'),
     });
     return;
   }
@@ -1073,7 +1090,7 @@ async function showWelcome(): Promise<void> {
   const c = welcomeContext();
   await panelDialog(
     {
-      title: 'Welcome to Tiles',
+      title: t('app.welcomeTitle'),
       contentHtml: `<div class="stack gap-3" data-welcome>${rolesHtml(c)}</div>`,
       wide: true,
     },
@@ -1132,12 +1149,14 @@ async function openHelp(): Promise<void> {
     if (!first) return;
     await sheet(
       {
-        label: 'Help',
+        label: t('common.help'),
         title: first.title,
         contentHtml: `<div class="prose">${first.html}${guideHtml(rest, { ids: false })}</div>`,
-        footHtml: `<button class="btn sm ghost" type="button" data-whats-new>What’s new in ${esc(VERSION)}</button>${
-          api ? '<button class="btn sm ghost" type="button" data-feedback-open>Send feedback</button>' : ''
-        }<a class="btn sm" href="${esc(helpHref(first.slug))}">Open the full guide</a>`,
+        footHtml: `<button class="btn sm ghost" type="button" data-whats-new>${esc(t('app.help.whatsNewIn', { version: VERSION }))}</button>${
+          api
+            ? `<button class="btn sm ghost" type="button" data-feedback-open>${esc(t('app.help.sendFeedback'))}</button>`
+            : ''
+        }<a class="btn sm" href="${esc(helpHref(first.slug))}">${esc(t('app.help.fullGuide'))}</a>`,
       },
       (dialog, close) => {
         dialog.querySelector('[data-whats-new]')?.addEventListener('click', () => {
@@ -1155,7 +1174,7 @@ async function openHelp(): Promise<void> {
     if (then === 'whats-new') void openWhatsNew();
     if (then === 'feedback') void openFeedback();
   } catch (e) {
-    toast("The help couldn't be loaded", { type: 'error', description: e instanceof Error ? e.message : String(e) });
+    toast(t('app.help.failed'), { type: 'error', description: e instanceof Error ? e.message : String(e) });
   } finally {
     helpOpen = false;
   }
@@ -1240,10 +1259,10 @@ async function openInbox(): Promise<void> {
   ux('help', 'inbox');
   await sheet(
     {
-      title: 'Notifications',
+      title: t('app.inbox.title'),
       label: site.name,
-      contentHtml: `<div data-inbox>${inbox?.key === key ? inboxHtml(items()) : loadingState('Loading your notifications…')}</div>`,
-      footHtml: button('Mark all read', { attrs: { 'data-inbox-all': true } }),
+      contentHtml: `<div data-inbox>${inbox?.key === key ? inboxHtml(items()) : loadingState(t('app.inbox.loading'))}</div>`,
+      footHtml: button(t('app.inbox.markAll'), { attrs: { 'data-inbox-all': true } }),
     },
     (dialog) => {
       const body = dialog.querySelector<HTMLElement>('[data-inbox]');
@@ -1303,20 +1322,20 @@ async function openWhatsNew(): Promise<void> {
   try {
     const w = (await loadHelp()).whatsNew;
     if (!w) {
-      toast('What’s new isn’t in this copy of the help', {
+      toast(t('app.news.missing'), {
         type: 'error',
-        description: 'Reload the page. If it stays, the app’s help file is out of date: rebuild it.',
+        description: t('app.news.missingHow'),
       });
       return;
     }
     save(SEEN_KEY, VERSION);
     markNews();
     ux('help', 'whatsnew');
-    await sheet({ label: 'What’s new', title: whatsNewTitle(w), contentHtml: whatsNewHtml(w) });
+    await sheet({ label: t('app.whatsNew'), title: whatsNewTitle(w), contentHtml: whatsNewHtml(w) });
   } catch (e) {
-    toast('What’s new couldn’t be loaded', {
+    toast(t('app.news.failed'), {
       type: 'error',
-      description: `${e instanceof Error ? e.message : String(e)}. Reload the page to try again.`,
+      description: t('app.news.failedHow', { error: e instanceof Error ? e.message : String(e) }),
     });
   } finally {
     newsOpen = false;
@@ -1332,9 +1351,9 @@ async function openFeedback(): Promise<void> {
   const client = api;
   const site = ctx.ontology.site;
   if (!client || !site) {
-    toast('Feedback needs the Tiles API', {
+    toast(t('app.feedback.needsApi'), {
       type: 'info',
-      description: 'It goes to your site’s admins. Connect to the Tiles API in Settings to send it.',
+      description: t('app.feedback.needsApiHow'),
     });
     return;
   }
@@ -1345,8 +1364,8 @@ async function openFeedback(): Promise<void> {
   try {
     await panelDialog(
       {
-        title: 'Send feedback',
-        body: 'Tell us what works for you and what doesn’t.',
+        title: t('app.help.sendFeedback'),
+        body: t('app.feedback.lead'),
         contentHtml: formHtml({
           page: view.title,
           version: VERSION,
@@ -1374,14 +1393,14 @@ async function openFeedback(): Promise<void> {
           if (!box.checked || !preview) return unshot();
           const mine = ++taking;
           preview.hidden = false;
-          preview.innerHTML = '<p class="small soft" role="status">Taking the screenshot…</p>';
+          preview.innerHTML = `<p class="small soft" role="status">${esc(t('app.feedback.taking'))}</p>`;
           void capturePage().then((url) => {
             if (mine !== taking || !box.checked) return;
             if (!url) {
               unshot();
-              toast('The screenshot couldn’t be made', {
+              toast(t('app.feedback.shotFailed'), {
                 type: 'error',
-                description: 'Send your feedback without it, and say what you see instead.',
+                description: t('app.feedback.shotFailedHow'),
               });
               return;
             }
@@ -1406,8 +1425,8 @@ async function openFeedback(): Promise<void> {
           const mood = form.querySelector<HTMLInputElement>('input[name="mood"]:checked')?.value ?? '';
           const text = form.querySelector<HTMLTextAreaElement>('textarea[name="text"]')?.value ?? '';
           const errors = [
-            ...(mood ? [] : [{ name: 'mood', message: 'Choose how Tiles is working for you' }]),
-            ...(text.trim() ? [] : [{ name: 'text', message: 'Say what you’d like to tell us' }]),
+            ...(mood ? [] : [{ name: 'mood', message: t('app.feedback.needMood') }]),
+            ...(text.trim() ? [] : [{ name: 'text', message: t('app.feedback.needText') }]),
           ];
           if (errors.length) {
             showErrors(form, errors);
@@ -1438,7 +1457,7 @@ async function openFeedback(): Promise<void> {
               () => {
                 ux('task', 'feedback.sent');
                 close();
-                toast('Feedback sent', { type: 'success', description: 'Thank you. Your site’s admins will read it.' });
+                toast(t('app.feedback.sent'), { type: 'success', description: t('app.feedback.thanks') });
               },
               () => undefined, // the client said why; what was typed stays
             )
@@ -1460,105 +1479,105 @@ const palette = installPalette({
       g.items.map((v) => ({
         id: `page:${v.id}`,
         label: v.title,
-        group: 'Pages',
+        group: t('app.palette.group.pages'),
         icon: v.icon,
-        hint: g.group || undefined,
+        hint: groupName(g.group) || undefined,
         run: go(`#/${v.id === 'home' ? '' : v.id}`),
       })),
     );
     const actions: PaletteItem[] = [
       {
         id: 'do:ask',
-        label: 'Ask the copilot',
-        group: 'Actions',
+        label: t('app.palette.do.ask'),
+        group: t('app.palette.group.actions'),
         icon: 'sparkles',
         keywords: 'question chat ai',
         run: go('#/chat'),
       },
       {
         id: 'do:triage',
-        label: 'Triage open warnings',
-        group: 'Actions',
+        label: t('app.palette.do.triage'),
+        group: t('app.palette.group.actions'),
         icon: 'triangle-alert',
         keywords: 'alarm acknowledge assign resolve inbox',
         run: go('#/warnings'),
       },
       {
         id: 'do:ontology',
-        label: 'Change the ontology',
-        group: 'Actions',
+        label: t('app.palette.do.ontology'),
+        group: t('app.palette.group.actions'),
         icon: 'network',
         keywords: 'node machine line add edit commit model plant',
         run: go('#/ontology'),
       },
       {
         id: 'do:review',
-        label: 'Review change requests',
-        group: 'Actions',
+        label: t('app.palette.do.review'),
+        group: t('app.palette.group.actions'),
         icon: 'git-pull-request',
         keywords: 'approve reject ontology commit',
         run: go('#/reviews'),
       },
       {
         id: 'do:correlate',
-        label: 'Run a correlation on a batch table',
-        group: 'Actions',
+        label: t('app.palette.do.correlate'),
+        group: t('app.palette.group.actions'),
         icon: 'chart-scatter',
         keywords: 'root cause csv upload effect scrap ng',
         run: go('#/correlate'),
       },
       {
         id: 'do:site',
-        label: 'Set up a new site',
-        group: 'Actions',
+        label: t('app.palette.do.site'),
+        group: t('app.palette.group.actions'),
         icon: 'factory',
         keywords: 'onboarding wizard plant agent',
         run: go('#/onboarding'),
       },
       {
         id: 'do:plot',
-        label: 'Plot a signal',
-        group: 'Actions',
+        label: t('app.palette.do.plot'),
+        group: t('app.palette.group.actions'),
         icon: 'chart-line',
         keywords: 'explorer chart readings',
         run: go('#/explorer'),
       },
       {
         id: 'do:import',
-        label: 'Import readings from a file',
-        group: 'Actions',
+        label: t('app.palette.do.import'),
+        group: t('app.palette.group.actions'),
         icon: 'upload',
         keywords: 'csv historian upload',
         run: go('#/import'),
       },
       {
         id: 'do:docs',
-        label: 'Search documents and SOPs',
-        group: 'Actions',
+        label: t('app.palette.do.docs'),
+        group: t('app.palette.group.actions'),
         icon: 'book-open',
         keywords: 'manual procedure pdf',
         run: go('#/documents'),
       },
       {
         id: 'do:help',
-        label: 'Help for this page',
-        group: 'Actions',
+        label: t('app.palette.do.help'),
+        group: t('app.palette.group.actions'),
         icon: 'circle-help',
         keywords: 'guide how manual explain',
         run: () => void openHelp(),
       },
-      ...TOURS.filter((t) => canRun(t, Boolean(api))).map((t): PaletteItem => ({
-        id: `do:tour:${t.id}`,
-        label: `Take the tour: ${t.title}`,
-        group: 'Actions',
+      ...TOURS.filter((tour) => canRun(tour, Boolean(api))).map((tour): PaletteItem => ({
+        id: `do:tour:${tour.id}`,
+        label: t('app.palette.tour', { tour: tour.title }),
+        group: t('app.palette.group.actions'),
         icon: 'circle-help',
         keywords: 'tour guide show me how help',
-        run: () => startTour(t.id),
+        run: () => startTour(tour.id),
       })),
       {
         id: 'do:whats-new',
-        label: 'What’s new',
-        group: 'Actions',
+        label: t('app.whatsNew'),
+        group: t('app.palette.group.actions'),
         icon: 'circle-help',
         keywords: 'changelog release version changes new features',
         run: () => void openWhatsNew(),
@@ -1567,8 +1586,8 @@ const palette = installPalette({
         ? [
             {
               id: 'do:feedback',
-              label: 'Send feedback',
-              group: 'Actions',
+              label: t('app.help.sendFeedback'),
+              group: t('app.palette.group.actions'),
               icon: 'message-square',
               keywords: 'feedback comment suggest problem idea complain report',
               run: () => void openFeedback(),
@@ -1577,32 +1596,32 @@ const palette = installPalette({
         : []),
       {
         id: 'do:welcome',
-        label: 'Show the welcome',
-        group: 'Actions',
+        label: t('app.palette.do.welcome'),
+        group: t('app.palette.group.actions'),
         icon: 'circle-help',
         keywords: 'first run role start page getting started demo',
         run: () => void showWelcome(),
       },
       {
         id: 'do:glossary',
-        label: 'Glossary',
-        group: 'Actions',
+        label: t('glossary.title'),
+        group: t('app.palette.group.actions'),
         icon: 'book-a',
         keywords: 'terms words meaning definitions',
         run: go('#/glossary'),
       },
       {
         id: 'do:shortcuts',
-        label: 'Keyboard shortcuts',
-        group: 'Actions',
+        label: t('app.palette.do.shortcuts'),
+        group: t('app.palette.group.actions'),
         icon: 'keyboard',
         keywords: 'keys hotkeys help turn off single',
         run: () => shortcuts.show(),
       },
       {
         id: 'do:theme',
-        label: isDark() ? 'Switch to the light theme' : 'Switch to the dark theme',
-        group: 'Actions',
+        label: isDark() ? t('app.palette.do.lightTheme') : t('app.palette.do.darkTheme'),
+        group: t('app.palette.group.actions'),
         icon: isDark() ? 'sun' : 'moon',
         keywords: 'theme dark light mode appearance',
         run: () => need(document, '#theme').click(),
@@ -1616,10 +1635,10 @@ const palette = installPalette({
             .filter((s) => s.id !== here)
             .map((s) => ({
               id: `site:${s.id}`,
-              label: `Switch to ${s.name}`,
-              group: 'Sites',
+              label: t('app.palette.switchSite', { site: s.name }),
+              group: t('app.palette.group.sites'),
               icon: 'factory',
-              keywords: `site plant ${s.slug}`,
+              keywords: `${SITE_WORDS} ${s.slug}`,
               run: () => ctx.setDataSource({ ...dataSource, siteId: s.id }),
             }))
         : [];
@@ -1633,7 +1652,7 @@ const palette = installPalette({
           location.hash = href;
         })
       : [];
-    return [...pages, ...actions, ...sites, ...helpFound, ...GLOSSARY_ITEMS];
+    return [...pages, ...actions, ...sites, ...helpFound, ...glossaryItems()];
   },
   canSearch: () => Boolean(api && ctx.ontology.site),
   // Where records picked come from: they come back among the recent picks there only.
@@ -1650,8 +1669,8 @@ const palette = installPalette({
   typed: (q) => [
     {
       id: 'do:ask-this',
-      label: `Ask the copilot “${q}”`,
-      group: 'Ask',
+      label: t('app.palette.askThis', { question: q }),
+      group: t('app.palette.group.ask'),
       icon: 'sparkles',
       run: () => {
         prefill(q);
@@ -1755,7 +1774,7 @@ need(document, '#nav').addEventListener('click', (e) => {
   if (fold) setPrefs(toggleFold(prefs(), fold.dataset.navFold ?? ''));
   else if (pin) {
     const next = togglePin(prefs(), pin.dataset.navPin ?? '');
-    if (next === prefs()) toast(`Unpin a page first: up to ${MAX_PINNED} can be pinned`);
+    if (next === prefs()) toast(t('app.maxPinned', { max: MAX_PINNED }));
     else setPrefs(next);
   } else if (el?.closest('[data-nav-rail]')) setPrefs({ ...prefs(), rail: !prefs().rail });
   else return closeMenu();

@@ -42,7 +42,7 @@ test('the headline numbers', () => {
   assert.deepEqual(
     kpis(totals).map((k) => [k.value, k.note, k.tone]),
     [
-      ['75.0%', '3 of 4 downtime or scrap event(s)', 'good'],
+      ['75.0%', '3 of 4 downtime or scrap events', 'good'],
       ['75.0%', '3 of 4; 1 too recent to tell', ''],
       ['66.6%', '2 true, 1 false, 0 unknown, 2 open', ''],
       ['1.8 h', '1.7 h to 2.1 h (10th to 90th percentile)', ''],

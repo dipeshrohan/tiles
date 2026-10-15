@@ -4,6 +4,7 @@
 
 import { esc } from './dom.ts';
 import { icon, type IconName } from './icons.ts';
+import { t } from './i18n.ts';
 
 export interface NavPage {
   id: string;
@@ -92,7 +93,7 @@ function row(p: NavPage, o: NavDraw, where: 'menu' | 'pinned' | 'recent'): strin
   const pin =
     where === 'recent'
       ? ''
-      : `<button class="nav-pin" type="button" data-nav-pin="${esc(p.id)}" aria-pressed="${pinned}" aria-label="${pinned ? 'Unpin' : 'Pin'} ${esc(p.title)}">${icon(pinned ? 'pin-off' : 'pin', { size: 14 })}</button>`;
+      : `<button class="nav-pin" type="button" data-nav-pin="${esc(p.id)}" aria-pressed="${pinned}" aria-label="${esc(t(pinned ? 'nav.unpin' : 'nav.pin', { page: p.title }))}">${icon(pinned ? 'pin-off' : 'pin', { size: 14 })}</button>`;
   return `<div class="nav-row" data-key="nav-${where}-${esc(p.id)}"><a class="nav-link${marked ? ' active' : ''}" href="${href(p.id)}"${aria}${tip}><span class="ico">${icon(p.icon)}</span><span class="nav-label">${esc(p.title)}</span>${badgeHtml(o.badges[p.id])}</a>${pin}</div>`;
 }
 
@@ -115,7 +116,7 @@ export interface NavView {
 
 function viewRow(v: NavView, o: NavDraw): string {
   const tip = o.prefs.rail ? ` data-tooltip="${esc(v.name)}"` : '';
-  const whose = v.mine ? (v.shared ? ', shared' : '') : ', shared with you';
+  const whose = v.mine ? (v.shared ? t('nav.shared') : '') : t('nav.sharedWithYou');
   return `<div class="nav-row" data-key="nav-view-${esc(v.id)}"><a class="nav-link" href="${esc(v.href)}" data-nav-view="${esc(v.id)}"${tip}><span class="ico">${icon('bookmark')}</span><span class="nav-label">${esc(v.name)}</span><span class="sr-only">${esc(whose)}</span></a></div>`;
 }
 
@@ -138,17 +139,17 @@ export function navHtml(o: NavDraw): string {
     .filter((id) => id !== o.active && id !== o.under && !o.prefs.pinned.includes(id))
     .flatMap((id) => page(id) ?? []);
   const folded = (id: string) => o.prefs.folded.includes(id);
-  const rail = `<button class="nav-rail-toggle" type="button" data-nav-rail aria-pressed="${o.prefs.rail}" aria-label="${o.prefs.rail ? 'Show the menu’s names' : 'Show the menu as icons'}" data-tooltip="${o.prefs.rail ? 'Show names' : 'Icons only'}">${icon(o.prefs.rail ? 'panel-left-open' : 'panel-left-close', { size: 16 })}</button>`;
+  const rail = `<button class="nav-rail-toggle" type="button" data-nav-rail aria-pressed="${o.prefs.rail}" aria-label="${esc(t(o.prefs.rail ? 'nav.showNames' : 'nav.showIcons'))}" data-tooltip="${esc(t(o.prefs.rail ? 'nav.names' : 'nav.iconsOnly'))}">${icon(o.prefs.rail ? 'panel-left-open' : 'panel-left-close', { size: 16 })}</button>`;
   return [
     rail,
     pinned.length
-      ? section('pinned', 'Pinned', pinned.map((p) => row(p, o, 'pinned')).join(''), true, folded('pinned'))
+      ? section('pinned', t('nav.pinned'), pinned.map((p) => row(p, o, 'pinned')).join(''), true, folded('pinned'))
       : '',
     o.views?.length
-      ? section('views', 'Saved views', o.views.map((v) => viewRow(v, o)).join(''), true, folded('views'))
+      ? section('views', t('nav.savedViews'), o.views.map((v) => viewRow(v, o)).join(''), true, folded('views'))
       : '',
     recent.length
-      ? section('recent', 'Recent', recent.map((p) => row(p, o, 'recent')).join(''), true, folded('recent'))
+      ? section('recent', t('common.recent'), recent.map((p) => row(p, o, 'recent')).join(''), true, folded('recent'))
       : '',
     ...o.groups.map((g, i) =>
       section(g.id, g.title, g.pages.map((p) => row(p, o, 'menu')).join(''), Boolean(g.title), folded(g.id), i > 0),

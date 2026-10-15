@@ -4,6 +4,7 @@
 import type { CorrelationFinding, DatasetColumn, DatasetValue } from './api.ts';
 import { esc } from './dom.ts';
 import { parseNumber } from './importer.ts';
+import { t } from './i18n.ts';
 
 const TRUE = new Set(['true', 'yes']);
 const FALSE = new Set(['false', 'no']);
@@ -49,16 +50,13 @@ export function parseNgValues(text: string, kind: DatasetColumn['kind']): Datase
     .split(',')
     .map((p) => p.trim())
     .filter(Boolean);
-  if (!parts.length) return kind === 'bool' ? [true] : 'Type the value(s) that mean a failed batch, e.g. NG';
+  if (!parts.length) return kind === 'bool' ? [true] : t('datasets.ngEmpty');
   if (kind === 'number') {
     const numbers = parts.map((p) => parseNumber(p, false));
-    return numbers.every((n) => n !== null)
-      ? (numbers as number[])
-      : 'The failed values of a number column are numbers';
+    return numbers.every((n) => n !== null) ? (numbers as number[]) : t('datasets.ngNumbers');
   }
   if (kind === 'bool') {
-    if (!parts.every((p) => TRUE.has(p.toLowerCase()) || FALSE.has(p.toLowerCase())))
-      return 'The failed values of a true/false column are true or false';
+    if (!parts.every((p) => TRUE.has(p.toLowerCase()) || FALSE.has(p.toLowerCase()))) return t('datasets.ngBools');
     return parts.map((p) => TRUE.has(p.toLowerCase()));
   }
   return parts;
@@ -67,8 +65,7 @@ export function parseNgValues(text: string, kind: DatasetColumn['kind']): Datase
 // Each effect with its 95% interval on one scale, 0 marked: those whose interval misses 0 stand out.
 export function forestPlot(findings: CorrelationFinding[], split: boolean, width = 760): string {
   const shown = findings.filter((f) => f.ci_low !== null && f.ci_high !== null).slice(0, 24);
-  if (!shown.length)
-    return '<p class="small soft">No effect could be measured: each group needs two batches or more.</p>';
+  if (!shown.length) return `<p class="small soft">${esc(t('datasets.noEffect'))}</p>`;
   const label = 220;
   const pad = 16;
   const rowH = 24;
@@ -82,22 +79,32 @@ export function forestPlot(findings: CorrelationFinding[], split: boolean, width
       const name = split ? `${f.segment} · ${f.variable}` : f.variable;
       return `<text class="tick" x="${label}" y="${y + 4}" text-anchor="end">${esc(name)}</text>
         <line class="ci ${cls}" x1="${x(f.ci_low!).toFixed(1)}" x2="${x(f.ci_high!).toFixed(1)}" y1="${y}" y2="${y}"/>
-        <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>d = ${f.effect.toFixed(2)} (95% CI ${f.ci_low!.toFixed(2)} to ${f.ci_high!.toFixed(2)})</title></circle>`;
+        <circle class="ci ${cls}" cx="${x(f.effect).toFixed(1)}" cy="${y}" r="4"><title>${esc(t('datasets.pointTitle', { d: f.effect.toFixed(2), low: f.ci_low!.toFixed(2), high: f.ci_high!.toFixed(2) }))}</title></circle>`;
     })
     .join('');
   // For screen readers: the effects whose interval misses 0, as the plot makes them stand out.
   const clear = shown.filter((f) => f.clear);
   const name = (f: CorrelationFinding) => (split ? `${f.segment} · ${f.variable}` : f.variable);
-  const summary = `Effect sizes with their 95% confidence intervals, ${shown.length} shown. ${
-    clear.length
-      ? `Clear effects: ${clear.map((f) => `${name(f)} d = ${f.effect.toFixed(2)} (${f.ci_low!.toFixed(2)} to ${f.ci_high!.toFixed(2)})`).join('; ')}`
-      : 'No interval misses 0'
-  }`;
+  const detail = clear.length
+    ? t('datasets.clearEffects', {
+        list: clear
+          .map((f) =>
+            t('datasets.clearEffect', {
+              name: name(f),
+              d: f.effect.toFixed(2),
+              low: f.ci_low!.toFixed(2),
+              high: f.ci_high!.toFixed(2),
+            }),
+          )
+          .join('; '),
+      })
+    : t('datasets.noClear');
+  const summary = t('datasets.summary', { count: shown.length, detail });
   return `<svg class="chart forest" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(summary)}"><title>${esc(summary)}</title>
     <line class="grid" x1="${x(0)}" x2="${x(0)}" y1="12" y2="${height - 18}"/>
     <text class="tick" x="${x(0)}" y="${height - 4}" text-anchor="middle">0</text>
-    <text class="tick" x="${x(-reach)}" y="${height - 4}">failed ran lower</text>
-    <text class="tick" x="${x(reach)}" y="${height - 4}" text-anchor="end">failed ran higher</text>
+    <text class="tick" x="${x(-reach)}" y="${height - 4}">${esc(t('datasets.ranLower'))}</text>
+    <text class="tick" x="${x(reach)}" y="${height - 4}" text-anchor="end">${esc(t('datasets.ranHigher'))}</text>
     ${rows}
   </svg>`;
 }

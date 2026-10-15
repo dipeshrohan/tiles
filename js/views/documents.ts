@@ -3,7 +3,7 @@ import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf, bound
 import type { DocumentMatch, SiteDocument } from '../lib/api.ts';
 import {
   contentTypeOf,
-  LANGUAGES,
+  languages,
   MAX_UPLOAD_BYTES,
   pageFragment,
   sizeText,
@@ -32,6 +32,7 @@ import {
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
 import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 
 // Documents (T4.08): the site's SOPs, manuals and lessons learned, searched by their words, each
 // match with its document and page; the copilot searches them too. Engineers upload and archive.
@@ -122,58 +123,60 @@ function recordCard(ctx: Context): string {
       emptyState({
         illustration: 'documents',
         compact: true,
-        title: 'Choose a document',
-        body: 'Its details, and the pages a search found in it, show here. Use j and k to move through the list.',
+        title: t('documents.choose'),
+        body: t('documents.chooseBody'),
       }),
     );
   if (listing?.failed)
     return card(
       errorState({
-        title: 'The document could not be loaded',
-        body: 'The list of documents didn’t come from the Tiles API. Try again; if it keeps failing, check the connection in Settings.',
+        title: t('documents.docFailed'),
+        body: t('documents.docFailedBody'),
         retry: 'retry-docs',
         compact: true,
       }),
     );
   const items = listing?.key === siteId(ctx) ? listing.items : null;
-  if (items === null) return card(skeleton.card('Loading the document…'));
+  if (items === null) return card(skeleton.card(t('documents.loadingDoc')));
   const d = items.find((x) => x.number === n);
   if (!d)
     return card(
       emptyState({
         illustration: 'search',
         compact: true,
-        title: `Document ${n} isn’t here`,
-        bodyHtml: `It may have been archived, or be on another site. <a href="${docLink(null)}">See all documents</a>.`,
+        title: t('documents.missing', { n }),
+        bodyHtml: tHtml('documents.missingBody', {
+          link: `<a href="${docLink(null)}">${esc(t('documents.seeAll'))}</a>`,
+        }),
       }),
     );
-  const language = LANGUAGES.find(([v]) => v === d.language)?.[1] ?? d.language;
+  const language = languages().find(([v]) => v === d.language)?.[1] ?? d.language;
   const matches = (found?.key === searchKey(ctx) ? (found.matches ?? []) : []).filter((m) => m.document === n);
   const inSearch = matches.length
-    ? `<h3>Found by “${esc(uiState(ctx).query.trim())}”</h3><ol class="stack doc-matches gap-2_5">${matches
+    ? `<h3>${esc(t('documents.foundBy', { query: uiState(ctx).query.trim() }))}</h3><ol class="stack doc-matches gap-2_5">${matches
         .map(
           (m) =>
-            `<li class="doc-match"><div class="row gap-2 justify-between wrap"><b>Page ${m.page}</b>${button(`Open page ${m.page}`, { size: 'sm', attrs: { 'data-open': m.document, 'data-page': m.page } })}</div><p class="small">${snippetHtml(m.snippet)}</p></li>`,
+            `<li class="doc-match"><div class="row gap-2 justify-between wrap"><b>${esc(t('documents.page', { n: m.page }))}</b>${button(t('documents.openPage', { n: m.page }), { size: 'sm', attrs: { 'data-open': m.document, 'data-page': m.page } })}</div><p class="small">${snippetHtml(m.snippet)}</p></li>`,
         )
         .join('')}</ol>`
     : '';
   return card(
-    `<div class="row gap-2 justify-between wrap"><h2>${esc(d.title)}</h2><span class="row gap-1">${button('Open', { size: 'sm', variant: 'primary', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
+    `<div class="row gap-2 justify-between wrap"><h2>${esc(d.title)}</h2><span class="row gap-1">${button(t('documents.open'), { size: 'sm', variant: 'primary', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
       canEdit(ctx)
-        ? button('Archive', {
+        ? button(t('documents.archive'), {
             size: 'sm',
             variant: 'danger',
-            attrs: { 'data-archive-doc': d.number, 'aria-label': `Archive ${d.title}` },
+            attrs: { 'data-archive-doc': d.number, 'aria-label': t('documents.archiveNamed', { title: d.title }) },
           })
         : ''
     }</span></div>
     ${kv([
-      ['File', d.filename],
-      ['Pages', String(d.pages)],
-      ['Size', sizeText(d.size)],
-      ['Language', language],
-      ['Uploaded by', d.uploaded_by],
-      ['Uploaded', when(d.created_at)],
+      [t('documents.field.file'), d.filename],
+      [t('documents.field.pages'), String(d.pages)],
+      [t('documents.field.size'), sizeText(d.size)],
+      [t('documents.field.language'), language],
+      [t('documents.field.uploadedBy'), d.uploaded_by],
+      [t('documents.field.uploaded'), when(d.created_at)],
       ['SHA-256', `${d.sha256.slice(0, 12)}…`],
     ])}
     ${inSearch}`,
@@ -188,13 +191,14 @@ function barOptions(ctx: Context): BarOptions {
     page: 'documents',
     filters: () => ({ q: ui.query }),
     count: () => {
-      const n = (k: number, one: string, many: string) => `${k.toLocaleString('en-GB')} ${k === 1 ? one : many}`;
+      const n = (k: number, key: 'documents.count.matches' | 'documents.count.documents') =>
+        t(key, { count: k, n: k.toLocaleString('en-GB') });
       if (ui.query.trim()) {
         const matches = found?.key === searchKey(ctx) ? found.matches : null;
-        return matches ? n(matches.length, 'match', 'matches') : '';
+        return matches ? n(matches.length, 'documents.count.matches') : '';
       }
       const docs = listing?.key === siteId(ctx) ? listing.items : null;
-      return docs ? n(docs.length, 'document', 'documents') : '';
+      return docs ? n(docs.length, 'documents.count.documents') : '';
     },
     apply: (f) => {
       ui.query = (f.q ?? '').trim();
@@ -209,15 +213,15 @@ function searchCard(ctx: Context): string {
   const results = found?.key === searchKey(ctx) ? found.matches : undefined;
   let body = '';
   if (found?.key === searchKey(ctx) && found.failed)
-    body = `<p class="small" role="alert">The search could not be run. ${button('Try again', { size: 'sm', attrs: { 'data-retry-search': true } })}</p>`;
-  else if (ui.query.trim() && results === null) body = '<p class="small soft">Searching…</p>';
+    body = `<p class="small" role="alert">${esc(t('documents.searchFailed'))} ${button(t('documents.tryAgain'), { size: 'sm', attrs: { 'data-retry-search': true } })}</p>`;
+  else if (ui.query.trim() && results === null) body = `<p class="small soft">${esc(t('documents.searching'))}</p>`;
   else if (results && !results.length)
     body = `<div data-no-matches>${emptyState({
       illustration: 'search',
       compact: true,
       level: 3,
-      title: `Nothing matches “${ui.query.trim()}”`,
-      body: 'Search finds whole words in the documents’ own language. Try fewer words, or other words for the same thing.',
+      title: t('documents.noMatches', { query: ui.query.trim() }),
+      body: t('documents.noMatchesBody'),
     })}</div>`;
   else if (results)
     body = `<ol class="stack doc-matches gap-2_5" data-matches>${results
@@ -225,7 +229,7 @@ function searchCard(ctx: Context): string {
         (m) => `<li class="doc-match">
           <div class="row gap-2 justify-between wrap">
             <b>${esc(m.title)}</b>
-            ${button(`Open page ${m.page}`, { size: 'sm', attrs: { 'data-open': m.document, 'data-page': m.page } })}
+            ${button(t('documents.openPage', { n: m.page }), { size: 'sm', attrs: { 'data-open': m.document, 'data-page': m.page } })}
           </div>
           <p class="small">${snippetHtml(m.snippet)}</p>
         </li>`,
@@ -233,10 +237,10 @@ function searchCard(ctx: Context): string {
       .join('')}</ol>`;
   return card(
     `<form class="row gap-2 wrap" id="doc-search" role="search">
-        ${labelled('Search the documents', input({ type: 'search', name: 'q', value: ui.query, placeholder: 'e.g. plunger tip replace, "hydraulic pressure"', attrs: keyAttrs('/') }), { class: 'grow min-w-field' })}
-        <div class="self-end">${button('Search', { variant: 'primary', type: 'submit' })}</div>
+        ${labelled(t('documents.searchLabel'), input({ type: 'search', name: 'q', value: ui.query, placeholder: t('documents.searchPlaceholder'), attrs: keyAttrs('/') }), { class: 'grow min-w-field' })}
+        <div class="self-end">${button(t('documents.search'), { variant: 'primary', type: 'submit' })}</div>
       </form>
-      <p class="small soft">Words find their forms (“valves” finds “valve”); “quoted words” find a phrase; -word leaves a word out.</p>
+      <p class="small soft">${esc(t('documents.searchHint'))}</p>
       ${filterBar(ctx, barOptions(ctx))}
       <div aria-live="polite">${body}</div>`,
     { class: 'stack gap-3' },
@@ -249,45 +253,59 @@ function listTable(ctx: Context, items: SiteDocument[]): TableOptions<SiteDocume
   const n = opened();
   return {
     id: 'documents',
-    label: 'Documents',
+    label: t('documents.title'),
     columns: [
       {
         key: 'title',
-        label: 'Title',
+        label: t('documents.col.title'),
         value: (d) => d.title,
         csv: (d) => d.title,
         cell: (d) =>
           `<a class="row-open doc-link" href="${docLink(d.number)}"${n === d.number ? ' aria-current="true"' : ''}>${esc(d.title)}</a>`,
       },
-      { key: 'pages', label: 'Pages', numeric: true, value: (d) => d.pages, cell: (d) => String(d.pages) },
+      {
+        key: 'pages',
+        label: t('documents.field.pages'),
+        numeric: true,
+        value: (d) => d.pages,
+        cell: (d) => String(d.pages),
+      },
       {
         key: 'size',
-        label: 'Size',
+        label: t('documents.field.size'),
         numeric: true,
         value: (d) => d.size,
         csv: (d) => String(d.size),
         cell: (d) => esc(sizeText(d.size)),
       },
-      { key: 'by', label: 'Uploaded by', value: (d) => d.uploaded_by, cell: (d) => esc(d.uploaded_by) },
+      {
+        key: 'by',
+        label: t('documents.field.uploadedBy'),
+        value: (d) => d.uploaded_by,
+        cell: (d) => esc(d.uploaded_by),
+      },
       {
         key: 'at',
-        label: 'Uploaded',
+        label: t('documents.field.uploaded'),
         value: (d) => d.created_at,
         csv: (d) => d.created_at,
         cell: (d) => esc(when(d.created_at)),
       },
       {
         key: 'actions',
-        label: 'Actions',
+        label: t('documents.col.actions'),
         srOnly: true,
         fixed: true,
         cell: (d) =>
-          `<span class="row gap-1">${button('Open', { size: 'sm', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
+          `<span class="row gap-1">${button(t('documents.open'), { size: 'sm', attrs: { 'data-open': d.number, 'data-page': 1 } })}${
             canEdit(ctx)
-              ? button('Archive', {
+              ? button(t('documents.archive'), {
                   size: 'sm',
                   variant: 'danger',
-                  attrs: { 'data-archive-doc': d.number, 'aria-label': `Archive ${d.title}` },
+                  attrs: {
+                    'data-archive-doc': d.number,
+                    'aria-label': t('documents.archiveNamed', { title: d.title }),
+                  },
                 })
               : ''
           }</span>`,
@@ -305,8 +323,8 @@ function listCard(ctx: Context): string {
   const items = listing?.key === siteId(ctx) ? listing.items : null;
   const rows = listing?.failed
     ? errorState({
-        title: 'The documents could not be loaded',
-        body: 'The Tiles API didn’t send them (the notice says why). Try again; if it keeps failing, check the connection in Settings.',
+        title: t('documents.listFailed'),
+        body: t('documents.listFailedBody'),
         retry: 'retry-docs',
         compact: true,
       })
@@ -317,26 +335,28 @@ function listCard(ctx: Context): string {
         : emptyState({
             illustration: 'documents',
             compact: true,
-            title: 'No documents yet',
-            body: canEdit(ctx) ? 'Upload SOPs, manuals and lessons learned below.' : undefined,
+            title: t('documents.none'),
+            body: canEdit(ctx) ? t('documents.noneBody') : undefined,
           });
   const upload = canEdit(ctx)
     ? `<form class="stack gap-2" id="doc-upload">
-        <h3>Upload</h3>
-        ${labelled('File (PDF, text or Markdown, up to 20 MB)', input({ type: 'file', name: 'file', attrs: { accept: '.pdf,.txt,.md,application/pdf,text/plain,text/markdown', required: true } }))}
-        ${labelled('Title', input({ name: 'title', value: draft?.title ?? '', placeholder: 'From the file name', attrs: { maxlength: 200 } }))}
-        ${labelled('Language', select('language', LANGUAGES, draft?.language ?? ''))}
-        <div>${button('Upload', { variant: 'primary', type: 'submit', busy: uploading })}</div>
+        <h3>${esc(t('documents.upload'))}</h3>
+        ${labelled(t('documents.fileLabel'), input({ type: 'file', name: 'file', attrs: { accept: '.pdf,.txt,.md,application/pdf,text/plain,text/markdown', required: true } }))}
+        ${labelled(t('documents.col.title'), input({ name: 'title', value: draft?.title ?? '', placeholder: t('documents.titlePlaceholder'), attrs: { maxlength: 200 } }))}
+        ${labelled(t('documents.field.language'), select('language', languages(), draft?.language ?? ''))}
+        <div>${button(t('documents.upload'), { variant: 'primary', type: 'submit', busy: uploading })}</div>
       </form>`
     : '';
-  return card(`<h2>Documents</h2><div data-doc-list>${rows}</div>${upload}`, {
+  return card(`<h2>${esc(t('documents.title'))}</h2><div data-doc-list>${rows}</div>${upload}`, {
     class: 'stack gap-2',
   });
 }
 
 const view: View = {
   id: 'documents',
-  title: 'Documents',
+  get title() {
+    return t('documents.title');
+  },
   icon: 'file-text',
   // The search, in the address (U5.06: a saved view keeps it).
   query: {
@@ -356,19 +376,19 @@ const view: View = {
   },
   render(ctx) {
     const head = pageHead({
-      eyebrow: 'Data · Knowledge',
-      title: 'Documents',
-      lead: 'SOPs, manuals and lessons learned, searched by their words: each match with its page. The copilot searches them too, and cites the page.',
+      eyebrow: t('documents.eyebrow'),
+      title: t('documents.title'),
+      lead: t('documents.lead'),
     });
-    if (!ctx.api) return `${head}${card(needsApi(`Documents are kept by the Tiles API.`))}`;
+    if (!ctx.api) return `${head}${card(needsApi(esc(t('documents.needsApi'))))}`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}${card(skeleton.card('Loading from the Tiles API…'))}`;
+    if (o.status === 'loading') return `${head}${card(skeleton.card(t('documents.loadingApi')))}`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     return `${head}${searchCard(ctx)}${split(listCard(ctx), recordCard(ctx), {
       open: opened() !== null,
       back: docLink(null),
-      label: 'documents',
+      label: t('documents.splitLabel'),
     })}`;
   },
   bind(root, ctx) {
@@ -417,7 +437,7 @@ const view: View = {
       const wasOpen = opened() === n;
       return removeNow({
         toast: ctx.toast,
-        message: `Archived ${doc.title}`,
+        message: t('documents.archived', { title: doc.title }),
         send: () =>
           api.documents.archive(site, n).then(() => {
             if (wasOpen && opened() === n) showHash(docLink(null));
@@ -428,15 +448,15 @@ const view: View = {
           if (wasOpen && opened() === null) showHash(docLink(n));
           refresh();
         },
-        restoredMessage: `Restored ${doc.title}`,
+        restoredMessage: t('documents.restored', { title: doc.title }),
       });
     };
     onAction(root, '[data-archive-doc]:not([data-doc-list] *)', archive);
     onAll(root, '[data-doc-list]', 'click', (_list, e) => {
-      const t = e.target instanceof Element ? e.target : null;
-      const opener = t?.closest<HTMLElement>('[data-open]');
+      const hit = e.target instanceof Element ? e.target : null;
+      const opener = hit?.closest<HTMLElement>('[data-open]');
       if (opener) return void open(ctx, Number(opener.dataset.open), Number(opener.dataset.page));
-      const btn = t?.closest<HTMLButtonElement>('[data-archive-doc]');
+      const btn = hit?.closest<HTMLButtonElement>('[data-archive-doc]');
       if (!btn || btn.disabled) return;
       // Held while it is sent, as onAction holds a button.
       const sent = archive(btn);
@@ -468,16 +488,16 @@ const view: View = {
       const file = need<HTMLInputElement>(form, '[name=file]').files?.[0];
       if (!file || uploading) return;
       const type = contentTypeOf(file);
-      if (!type) return void ctx.toast('Upload a PDF, a text file or a Markdown file');
-      if (file.size > MAX_UPLOAD_BYTES) return void ctx.toast('The file is larger than 20 MB');
-      const title = field(form, 'title').trim() || titleFrom(file.name) || 'Document';
+      if (!type) return void ctx.toast(t('documents.wrongType'));
+      if (file.size > MAX_UPLOAD_BYTES) return void ctx.toast(t('documents.tooLarge'));
+      const title = field(form, 'title').trim() || titleFrom(file.name) || t('documents.fallbackTitle');
       uploading = true;
       ctx.rerender();
       return api.documents
         .upload(site, file, type, { title, filename: file.name, language: field(form, 'language') })
         .then(
           (doc) => {
-            ctx.toast(`Uploaded ${doc.title}: ${doc.pages} page(s)`);
+            ctx.toast(t('documents.uploadedToast', { title: doc.title, count: doc.pages }));
             ux('task', 'document.uploaded');
             draft = null;
             listing = null;

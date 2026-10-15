@@ -9,6 +9,7 @@
 // The chart stays plain SVG: the crosshair is drawn into it, and goes when the page draws it again.
 import { chartCsv, chartData, fileName, nearest, readout, step, togglePart, type ChartData } from './chart-data.ts';
 import { download } from './dom.ts';
+import { t } from './i18n.ts';
 
 const NS = 'http://www.w3.org/2000/svg';
 // The reading shown, per chart, and the data it is a reading of: a chart drawn again with other data
@@ -85,13 +86,13 @@ export function drawCrosshair(svg: SVGSVGElement, i: number): void {
   const top = Math.max(2, d.top);
   g.append(el('rect', { class: 'crosshair-box', x: left, y: top, width: w, height: h, rx: 4 }));
   lines.forEach((l, n) => {
-    const t = el('text', {
+    const text = el('text', {
       x: left + 6,
       y: top + 4 + lineH * (n + 1) - 3,
       class: n ? 'crosshair-value' : 'crosshair-time',
     });
-    t.textContent = l;
-    g.append(t);
+    text.textContent = l;
+    g.append(text);
   });
   svg.append(g);
 }
@@ -198,7 +199,7 @@ export function installCharts(region: HTMLElement, failed: (what: string) => voi
     const svg = chartOf(e.target);
     const d = svg ? dataOf(svg) : undefined;
     if (!svg || !d || !d.xs.length) return;
-    if (!anyShown(svg, d)) return say('Every part of this chart is hidden: show one with its legend to read it.');
+    if (!anyShown(svg, d)) return say(t('charts.allHidden'));
     const i = at.get(svg) ?? step(d, d.xs.length, -1, shownSeries(svg)); // the latest reading
     drawCrosshair(svg, i);
     say(readout(d, i, shownSeries(svg)));
@@ -238,10 +239,10 @@ export function installCharts(region: HTMLElement, failed: (what: string) => voi
     say(readout(d, i, shown));
   });
   document.addEventListener('click', (e) => {
-    const t = e.target instanceof Element ? e.target : null;
-    const toggle = t?.closest<HTMLButtonElement>('[data-chart-toggle]');
-    const png = t?.closest('[data-chart-png]');
-    const csv = t?.closest('[data-chart-csv]');
+    const target = e.target instanceof Element ? e.target : null;
+    const toggle = target?.closest<HTMLButtonElement>('[data-chart-toggle]');
+    const png = target?.closest('[data-chart-png]');
+    const csv = target?.closest('[data-chart-csv]');
     const tool = toggle ?? png ?? csv;
     const svg = tool ? svgFor(tool) : null;
     const id = svg?.dataset.chart;
@@ -261,7 +262,7 @@ export function installCharts(region: HTMLElement, failed: (what: string) => voi
       svg.dataset.hidden = [...parts].join(' ');
       clearCrosshair(svg);
       at.delete(svg);
-    } else if (png) savePng(svg, d.title).catch(() => failed('The chart couldn’t be saved as an image'));
+    } else if (png) savePng(svg, d.title).catch(() => failed(t('charts.pngFailed')));
     else download(fileName(d.title, 'csv'), chartCsv(d), 'text/csv;charset=utf-8');
   });
 }

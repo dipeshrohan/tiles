@@ -8,12 +8,13 @@ import { when } from '../lib/insights.ts';
 import { emptyState, loadFailed, skeleton } from '../lib/ui.ts';
 import { infoDialog } from '../lib/overlay.ts';
 import { isRemoving, removeLater } from '../lib/undo.ts';
+import { t } from '../lib/i18n.ts';
 
 export function feedbackCard(): string {
   return `<div class="card stack gap-3 span-all" id="feedback">
-      <h2>Feedback</h2>
-      <p class="small soft">What people on this site sent with Send feedback (in the help panel), newest first. It is anonymous unless they chose to give their name.</p>
-      <div data-feedback-list data-morph="if-changed" tabindex="-1">${skeleton.list(3, 'Loading the feedback…')}</div>
+      <h2>${esc(t('feedbackAdmin.title'))}</h2>
+      <p class="small soft">${esc(t('feedbackAdmin.lead'))}</p>
+      <div data-feedback-list data-morph="if-changed" tabindex="-1">${skeleton.list(3, t('feedbackAdmin.loading'))}</div>
     </div>`;
 }
 
@@ -33,15 +34,15 @@ export async function bindFeedback(root: HTMLElement, ctx: Context): Promise<voi
       : emptyState({
           compact: true,
           level: 3,
-          title: 'No feedback yet',
-          body: 'What people send with Send feedback, in the help panel, shows here.',
+          title: t('feedbackAdmin.emptyTitle'),
+          body: t('feedbackAdmin.emptyBody'),
         });
   };
   const fetch = async (): Promise<void> => {
     try {
       lists.set(box, await api.feedback.list(site.id));
     } catch {
-      if (box.isConnected) box.innerHTML = loadFailed('The feedback');
+      if (box.isConnected) box.innerHTML = loadFailed(t('feedbackAdmin.name'));
       return;
     }
     if (box.isConnected) draw();
@@ -61,9 +62,9 @@ export async function bindFeedback(root: HTMLElement, ctx: Context): Promise<voi
             const url = URL.createObjectURL(blob);
             try {
               await infoDialog({
-                title: 'Screenshot',
+                title: t('feedbackAdmin.screenshotTitle'),
                 wide: true,
-                contentHtml: `<div class="feedback-view"><img src="${esc(url)}" alt="The screenshot sent with this feedback"></div>`,
+                contentHtml: `<div class="feedback-view"><img src="${esc(url)}" alt="${esc(t('feedbackAdmin.screenshotAlt'))}"></div>`,
               });
             } finally {
               URL.revokeObjectURL(url);
@@ -78,7 +79,7 @@ export async function bindFeedback(root: HTMLElement, ctx: Context): Promise<voi
           ?.dataset.feedbackDelete;
         removeLater({
           toast: ctx.toast,
-          message: 'Feedback deleted',
+          message: t('feedbackAdmin.deleted'),
           removal: removal(id),
           hide: () => {
             draw();

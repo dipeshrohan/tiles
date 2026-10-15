@@ -3,6 +3,7 @@
 // part a saved view keeps, and the address that opens one. Pure, so it is unit-tested.
 
 import { SHOW_LABELS } from './warnings.ts';
+import { t, type MessageKey } from './i18n.ts';
 import type { SavedView, SavedViewTable, ViewPage } from './api.ts';
 import type { TablePrefs } from './data-table.ts';
 
@@ -15,41 +16,77 @@ export interface FilterDef {
 
 export const VIEW_PAGES: readonly ViewPage[] = ['warnings', 'signals', 'documents'];
 
+// Words read when shown (the language can change after load): a value's words, and a filter's.
+function words<K extends string>(keys: Readonly<Record<K, MessageKey>>): Record<K, string> {
+  const out = {} as Record<K, string>;
+  for (const [value, key] of Object.entries(keys) as [K, MessageKey][])
+    Object.defineProperty(out, value, { get: () => t(key), enumerable: true });
+  return out;
+}
+const filter = (
+  param: string,
+  label: MessageKey,
+  values: Readonly<Record<string, string>> | null,
+  fallback: string,
+): FilterDef => ({
+  param,
+  get label() {
+    return t(label);
+  },
+  values,
+  fallback,
+});
+
 export const FILTERS: Readonly<Record<ViewPage, readonly FilterDef[]>> = {
   warnings: [
-    { param: 'show', label: 'Status', values: SHOW_LABELS, fallback: 'unresolved' },
-    { param: 'who', label: 'Assigned to', values: { anyone: 'anyone', me: 'me', none: 'nobody' }, fallback: 'anyone' },
-    {
-      param: 'signal',
-      label: 'Signal',
-      values: { all: 'out or back', open: 'still out', ended: 'back in' },
-      fallback: 'all',
-    },
+    filter('show', 'warnings.filter.status', SHOW_LABELS, 'unresolved'),
+    filter(
+      'who',
+      'warnings.filter.assignedTo',
+      words({ anyone: 'warnings.filter.anyone', me: 'warnings.filter.me', none: 'warnings.filter.nobody' }),
+      'anyone',
+    ),
+    filter(
+      'signal',
+      'warnings.filter.signal',
+      words({ all: 'warnings.filter.outOrBack', open: 'warnings.stillOut', ended: 'warnings.filter.backIn' }),
+      'all',
+    ),
   ],
   signals: [
-    { param: 'q', label: 'Search', values: null, fallback: '' },
-    {
-      param: 'source',
-      label: 'Source',
-      values: { '': 'Any', edge: 'Edge agents', import: 'Imports', manual: 'Entered by hand' },
-      fallback: '',
-    },
-    { param: 'linked', label: 'Ontology link', values: { '': 'Any', yes: 'Linked', no: 'Not linked' }, fallback: '' },
-    {
-      param: 'quality',
-      label: 'Quality',
-      values: {
-        '': 'Any',
-        bad: 'Problems',
-        warn: 'Warnings',
-        good: 'Good',
-        unknown: 'No data',
-        unchecked: 'Not checked',
-      },
-      fallback: '',
-    },
+    filter('q', 'signals.filter.search', null, ''),
+    filter(
+      'source',
+      'signals.filter.source',
+      words({
+        '': 'signals.filter.any',
+        edge: 'signals.filter.edge',
+        import: 'signals.filter.imports',
+        manual: 'signals.source.manual',
+      }),
+      '',
+    ),
+    filter(
+      'linked',
+      'signals.filter.link',
+      words({ '': 'signals.filter.any', yes: 'signals.filter.linked', no: 'signals.filter.notLinked' }),
+      '',
+    ),
+    filter(
+      'quality',
+      'signals.filter.quality',
+      words({
+        '': 'signals.filter.any',
+        bad: 'signals.quality.bad',
+        warn: 'signals.quality.warn',
+        good: 'signals.quality.good',
+        unknown: 'signals.quality.unknown',
+        unchecked: 'signals.quality.unchecked',
+      }),
+      '',
+    ),
   ],
-  documents: [{ param: 'q', label: 'Search', values: null, fallback: '' }],
+  documents: [filter('q', 'documents.search', null, '')],
 };
 
 export type Filters = Record<string, string>;

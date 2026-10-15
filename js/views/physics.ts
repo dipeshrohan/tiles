@@ -4,13 +4,20 @@ import { fitWidth, lineChart } from '../lib/svg.ts';
 import { esc, fmt, need, onAll, bound } from '../lib/dom.ts';
 import type { Context, View } from './types.ts';
 import { badge, pageHead, term } from '../lib/ui.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 
 const uiState = (ctx: Context) =>
   ctx.ui<{ shot: number }>('physics', { shot: ctx.state.detection.alerts[0]?.firstShot ?? 0 });
 
+// Symbols and codes, the same in every language.
+const constants = `m = ${PLUNGER.mass} kg · A<sub>h</sub> = ${PLUNGER.hydraulicArea} m² · A<sub>m</sub> = ${PLUNGER.metalArea} m²`; // i18n-ok
+const SEIZURE = '<code>DT-SEIZURE</code>'; // i18n-ok
+
 const view: View = {
   id: 'physics',
-  title: 'Factory physics',
+  get title() {
+    return t('physics.title');
+  },
   icon: 'atom',
   render(ctx) {
     const { shots, detection, scored } = ctx.state;
@@ -27,37 +34,57 @@ const view: View = {
 
     return `
       ${pageHead({
-        eyebrow: 'Operations · Virtual sensor',
-        title: 'Plunger friction · Die-caster DC-02',
-        lead: "Friction can't be measured directly. Solving the plunger's equation of motion for every shot turns pressure and velocity payloads into a friction value, which climbs before the plunger seizes.",
-        actionsHtml: badge(`● ${detection.alerts.length} warning window(s)`, detection.alerts.length ? 'bad' : 'good'),
+        eyebrow: t('common.eyebrow.virtualSensor'),
+        title: t('physics.headTitle'),
+        lead: t('physics.lead'),
+        actionsHtml: badge(
+          t('physics.windows', { count: detection.alerts.length }),
+          detection.alerts.length ? 'bad' : 'good',
+        ),
       })}
 
       <div class="grid g4 mb-4">
-        <div class="card kpi"><div class="label">Shots analysed</div><div class="value">${fmt(hist.length)}</div><div class="note">${fmt(toH(hist.length), 0)} h of production</div></div>
-        <div class="card kpi good"><div class="label">Stops predicted</div><div class="value">${predicted.length}/${scored.length}</div><div class="note">seizure &amp; lubrication codes</div></div>
-        <div class="card kpi"><div class="label">Average ${term('warning-time', 'warning time')}</div><div class="value">${fmt(lead, 1)} h</div><div class="note">from first warning to stop</div></div>
-        <div class="card kpi"><div class="label">Downtime covered</div><div class="value">${fmt(predicted.reduce((a, x) => a + x.durationMin, 0))} min</div><div class="note">of ${fmt(scored.reduce((a, x) => a + x.durationMin, 0))} min recorded</div></div>
+        <div class="card kpi"><div class="label">${esc(t('physics.kpi.shots'))}</div><div class="value">${fmt(hist.length)}</div><div class="note">${esc(t('physics.kpi.hours', { hours: fmt(toH(hist.length), 0) }))}</div></div>
+        <div class="card kpi good"><div class="label">${esc(t('physics.kpi.predicted'))}</div><div class="value">${predicted.length}/${scored.length}</div><div class="note">${esc(t('physics.kpi.codes'))}</div></div>
+        <div class="card kpi"><div class="label">${tHtml('physics.kpi.average', { term: term('warning-time', 'warning time') })}</div><div class="value">${esc(t('physics.events.hours', { hours: fmt(lead, 1) }))}</div><div class="note">${esc(t('physics.kpi.leadNote'))}</div></div>
+        <div class="card kpi"><div class="label">${esc(t('physics.kpi.covered'))}</div><div class="value">${esc(t('physics.kpi.minutes', { minutes: fmt(predicted.reduce((a, x) => a + x.durationMin, 0)) }))}</div><div class="note">${esc(t('physics.kpi.recorded', { minutes: fmt(scored.reduce((a, x) => a + x.durationMin, 0)) }))}</div></div>
       </div>
 
       <div class="card mb-4">
-        <div class="card-head"><div><h2>Run chart</h2><p>Click anywhere on the chart to inspect that shot.</p></div>
-          <div class="legend"><span><i class="bg-accent"></i>Friction (virtual sensor)</span><span><i class="bg-warn"></i>Threshold</span><span><i class="box bg-band"></i>Warning window</span><span><i class="bg-bad"></i>Downtime event</span></div>
+        <div class="card-head"><div><h2>${esc(t('physics.run.title'))}</h2><p>${esc(t('physics.run.hint'))}</p></div>
+          <div class="legend"><span><i class="bg-accent"></i>${esc(t('physics.legend.friction'))}</span><span><i class="bg-warn"></i>${esc(t('physics.legend.threshold'))}</span><span><i class="box bg-band"></i>${esc(t('physics.legend.window'))}</span><span><i class="bg-bad"></i>${esc(t('physics.legend.downtime'))}</span></div>
         </div>
         <div id="run-chart" class="cursor-crosshair">
         ${lineChart({
           series: [
-            { values: hist.map((h) => h.friction), color: 'var(--accent)', width: 1.2, label: 'friction' },
-            { values: detection.thresholds, color: 'var(--warn)', width: 1.4, dash: '4 3', label: 'threshold' },
+            {
+              values: hist.map((h) => h.friction),
+              color: 'var(--accent)',
+              width: 1.2,
+              label: t('physics.series.friction'),
+            },
+            {
+              values: detection.thresholds,
+              color: 'var(--warn)',
+              width: 1.4,
+              dash: '4 3',
+              label: t('physics.series.threshold'),
+            },
           ],
           bands: detection.alerts.map((a) => ({ from: a.firstShot, to: a.lastShot, color: 'var(--band)' })),
           markers: [
             ...shots.downtime.map((d) => ({ x: d.shot, label: d.id, color: 'var(--bad)' })),
-            { x: ui.shot, label: `shot ${ui.shot}`, color: 'var(--ink)', width: 1, bottom: true },
+            {
+              x: ui.shot,
+              label: t('physics.marker.shot', { n: ui.shot }),
+              color: 'var(--ink)',
+              width: 1,
+              bottom: true,
+            },
           ],
           xFormat: (i) => `${fmt(toH(i), 0)}h`,
-          yLabel: 'Friction (N)',
-          title: 'Plunger friction by shot (N)',
+          yLabel: t('physics.run.yLabel'),
+          title: t('physics.run.chartTitle'),
           width: fitWidth(1040),
           height: 300,
         })}
@@ -67,48 +94,48 @@ const view: View = {
       <div class="grid g2 mb-4">
         <div class="card">
           <div class="card-head">
-            <div><h2>Shot ${ui.shot} payload</h2><p>${flagged ? '<span class="badge bad">over threshold</span>' : '<span class="badge good">normal</span>'} · estimated friction <b>${fmt(est)} N</b></p></div>
-            <div class="row"><button class="btn sm" data-step="-1" aria-label="Previous shot">‹</button><button class="btn sm" data-step="1" aria-label="Next shot">›</button></div>
+            <div><h2>${esc(t('physics.shot.title', { n: ui.shot }))}</h2><p>${flagged ? `<span class="badge bad">${esc(t('physics.shot.over'))}</span>` : `<span class="badge good">${esc(t('physics.shot.normal'))}</span>`} ${tHtml('physics.shot.estimated', { value: `<b>${esc(fmt(est))} N</b>` })}</p></div>
+            <div class="row"><button class="btn sm" data-step="-1" aria-label="${esc(t('physics.shot.previous'))}">‹</button><button class="btn sm" data-step="1" aria-label="${esc(t('physics.shot.next'))}">›</button></div>
           </div>
-          <input type="range" id="shot" min="0" max="${hist.length - 1}" value="${ui.shot}" aria-label="Shot" />
-          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-accent"></i>Hydraulic pressure (bar)</span><span><i class="bg-warm"></i>Metal pressure (bar)</span></div>
+          <input type="range" id="shot" min="0" max="${hist.length - 1}" value="${ui.shot}" aria-label="${esc(t('physics.shot.slider'))}" />
+          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-accent"></i>${esc(t('physics.legend.hydraulic'))}</span><span><i class="bg-warm"></i>${esc(t('physics.legend.metal'))}</span></div>
           ${lineChart({
             series: [
-              { values: payload.ph, color: 'var(--accent)', label: 'hydraulic pressure' },
-              { values: payload.pm, color: 'var(--warm)', label: 'metal pressure' },
+              { values: payload.ph, color: 'var(--accent)', label: t('physics.series.hydraulic') },
+              { values: payload.pm, color: 'var(--warm)', label: t('physics.series.metal') },
             ],
             xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`,
             yLabel: 'bar',
-            title: `Shot ${ui.shot} pressures (bar)`,
+            title: t('physics.shot.pressures', { n: ui.shot }),
             width: fitWidth(480, 0.5),
             height: 200,
             yMin: 0,
           })}
-          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-soft"></i>Plunger velocity (m/s)</span></div>
-          ${lineChart({ series: [{ values: payload.v, color: 'var(--soft)', label: 'velocity' }], xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`, yLabel: 'm/s', title: `Shot ${ui.shot} plunger velocity (m/s)`, width: fitWidth(480, 0.5), height: 150, yMin: 0 })}
+          <div class="legend mt-2 mb-2 m-0"><span><i class="bg-soft"></i>${esc(t('physics.legend.velocity'))}</span></div>
+          ${lineChart({ series: [{ values: payload.v, color: 'var(--soft)', label: t('physics.series.velocity') }], xFormat: (i) => `${fmt(i * PLUNGER.dt * 1000)}ms`, yLabel: 'm/s', title: t('physics.shot.velocity', { n: ui.shot }), width: fitWidth(480, 0.5), height: 150, yMin: 0 })}
         </div>
         <div class="card">
-          <div class="card-head"><h2>How it works</h2><span class="badge">model v1.3</span></div>
-          <h3>Input data</h3>
-          <ul class="actions-list soft"><li>Shot payloads: plunger displacement, velocity, hydraulic &amp; metal pressure</li><li>Past 200 shots for a rolling ${term('baseline', 'baseline')}</li></ul>
-          <h3 class="mt-3">The physics</h3>
-          <p class="soft mt-1">Equation of motion: <code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>. Solved per sample; the ${term('median', 'median')} ${term('residual', 'residual')} is the shot's friction, a ${term('virtual-sensor', 'virtual sensor')}.</p>
-          <p class="small muted mt-1">m = ${PLUNGER.mass} kg · A<sub>h</sub> = ${PLUNGER.hydraulicArea} m² · A<sub>m</sub> = ${PLUNGER.metalArea} m²</p>
-          <h3 class="mt-3">Output</h3>
-          <ul class="actions-list soft"><li>Friction value for every shot</li><li>Warning after 3 consecutive shots (its ${term('persistence', 'persistence')}) above the ${term('threshold', 'threshold')}: the median + 4 (${term('k')}) ${term('robust-σ', 'robust σ')}</li></ul>
-          <h3 class="mt-3">How it is used</h3>
-          <p class="soft mt-1">A friction warning predicts plunger seizure downtime (<code>DT-SEIZURE</code>) and is delivered through the warning workflow.</p>
+          <div class="card-head"><h2>${esc(t('physics.how.title'))}</h2><span class="badge">${esc(t('physics.how.model', { version: '1.3' }))}</span></div>
+          <h3>${esc(t('physics.how.input'))}</h3>
+          <ul class="actions-list soft"><li>${esc(t('physics.how.payloads'))}</li><li>${tHtml('physics.how.baseline', { baseline: term('baseline', 'baseline') })}</li></ul>
+          <h3 class="mt-3">${esc(t('physics.how.physics'))}</h3>
+          <p class="soft mt-1">${tHtml('physics.how.equation', { equation: '<code>m·a = P<sub>h</sub>·A<sub>h</sub> − P<sub>m</sub>·A<sub>m</sub> − F</code>', median: term('median', 'median'), residual: term('residual', 'residual'), virtualSensor: term('virtual-sensor', 'virtual sensor') })}</p>
+          <p class="small muted mt-1">${constants}</p>
+          <h3 class="mt-3">${esc(t('physics.how.output'))}</h3>
+          <ul class="actions-list soft"><li>${esc(t('physics.how.value'))}</li><li>${tHtml('physics.how.warning', { persistence: term('persistence', 'persistence'), threshold: term('threshold', 'threshold'), k: term('k'), sigma: term('robust-σ', 'robust σ') })}</li></ul>
+          <h3 class="mt-3">${esc(t('physics.how.used'))}</h3>
+          <p class="soft mt-1">${tHtml('physics.how.predicts', { code: SEIZURE })}</p>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-head"><h2>Downtime events</h2></div>
+        <div class="card-head"><h2>${esc(t('physics.events.title'))}</h2></div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Event</th><th>Code</th><th class="num">At</th><th class="num">Duration</th><th>Predicted</th><th class="num">Lead time</th></tr></thead>
+          <thead><tr><th>${esc(t('physics.events.event'))}</th><th>${esc(t('physics.events.code'))}</th><th class="num">${esc(t('physics.events.at'))}</th><th class="num">${esc(t('physics.events.duration'))}</th><th>${esc(t('physics.events.predicted'))}</th><th class="num">${esc(t('physics.events.lead'))}</th></tr></thead>
           <tbody>${scored
             .map(
               (d) =>
-                `<tr class="clickable" data-goto="${d.shot - d.leadShots}"><td>${esc(d.id)}</td><td class="mono">${esc(d.code)}</td><td class="num">${fmt(toH(d.shot), 1)} h</td><td class="num">${d.durationMin} min</td><td>${d.predicted ? '<span class="badge good">✓ warned</span>' : '<span class="badge bad">missed</span>'}</td><td class="num">${d.predicted ? `${fmt(d.leadHours, 1)} h` : '–'}</td></tr>`,
+                `<tr class="clickable" data-goto="${d.shot - d.leadShots}"><td>${esc(d.id)}</td><td class="mono">${esc(d.code)}</td><td class="num">${esc(t('physics.events.hours', { hours: fmt(toH(d.shot), 1) }))}</td><td class="num">${esc(t('physics.kpi.minutes', { minutes: d.durationMin }))}</td><td>${d.predicted ? `<span class="badge good">${esc(t('physics.events.warned'))}</span>` : `<span class="badge bad">${esc(t('physics.events.missed'))}</span>`}</td><td class="num">${d.predicted ? esc(t('physics.events.hours', { hours: fmt(d.leadHours, 1) })) : '–'}</td></tr>`,
             )
             .join('')}</tbody>
         </table></div>

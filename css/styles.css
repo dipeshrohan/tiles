@@ -1680,6 +1680,7 @@ tr.selected td {
 }
 .engine .k {
   font-size: var(--text-2xs);
+  text-transform: uppercase;
   letter-spacing: 0.1em;
   opacity: 0.75;
 }

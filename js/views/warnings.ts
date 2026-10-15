@@ -48,6 +48,7 @@ import {
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
 import { bindTable, clearSelection, dataTable, tableOrder, type TableOptions } from '../lib/data-table.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
 // are in their workflow and who has them; each with a chart of its signal around it, its payload
@@ -114,21 +115,22 @@ function statusBadge(w: Pick<WarningInfo, 'status'>): string {
   return badge(label, cls);
 }
 
-const signalState = (w: WarningInfo): string => (w.ended_at ? `back ${ago(w.ended_at)}` : '<b>still out</b>');
+const signalState = (w: WarningInfo): string =>
+  w.ended_at ? esc(t('warnings.back', { when: ago(w.ended_at) })) : `<b>${esc(t('warnings.stillOut'))}</b>`;
 
 function filterControls(ctx: Context, f: Filters): string {
   const shows = (Object.keys(SHOW_LABELS) as Show[]).map((s) => [s, SHOW_LABELS[s]] as const);
   return card(
-    `${tabs({ label: 'Status', items: shows, current: f.show, data: 'show' })}
+    `${tabs({ label: t('warnings.filter.status'), items: shows, current: f.show, data: 'show' })}
       <span class="row gap-3 wrap">
         ${field(
-          'Assigned to',
+          t('warnings.filter.assignedTo'),
           select(
             null,
             [
-              ['anyone', 'anyone'],
-              ['me', 'me'],
-              ['none', 'nobody'],
+              ['anyone', t('warnings.filter.anyone')],
+              ['me', t('warnings.filter.me')],
+              ['none', t('warnings.filter.nobody')],
             ],
             f.who,
             { attrs: { 'data-filter': 'who' } },
@@ -136,20 +138,20 @@ function filterControls(ctx: Context, f: Filters): string {
           { inline: true },
         )}
         ${field(
-          'Signal',
+          t('warnings.filter.signal'),
           select(
             null,
             [
-              ['all', 'out or back'],
-              ['open', 'still out'],
-              ['ended', 'back in'],
+              ['all', t('warnings.filter.outOrBack')],
+              ['open', t('warnings.stillOut')],
+              ['ended', t('warnings.filter.backIn')],
             ],
             f.signal,
             { attrs: { 'data-filter': 'signal' } },
           ),
           { inline: true },
         )}
-        ${button('Refresh', { size: 'sm', attrs: { 'data-refresh-warnings': true } })}
+        ${button(t('warnings.refresh'), { size: 'sm', attrs: { 'data-refresh-warnings': true } })}
       </span>
       ${filterBar(ctx, barOptions(ctx))}`,
     { class: 'source-bar small', attrs: { 'data-tour': 'warning-filters' } },
@@ -165,7 +167,7 @@ function barOptions(ctx: Context): BarOptions {
     count: () => {
       const items = listing?.key === listKey(ctx) ? listing.items : null;
       if (!items) return '';
-      return `${items.length}${listing?.more ? '+' : ''} warning${items.length === 1 ? '' : 's'}`;
+      return t('warnings.count', { shown: `${items.length}${listing?.more ? '+' : ''}`, count: items.length });
     },
     apply: (f) => {
       acted = null;
@@ -182,16 +184,18 @@ const STATUS_RANK: Record<WarningInfo['status'], number> = { raised: 0, acknowle
 function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): TableOptions<WarningInfo> {
   const can = actionsFor({ status: 'raised' }, ctx.ontology.role);
   const bulk = [
-    ...(can.includes('acknowledge') ? [{ id: 'acknowledge', label: 'Acknowledge', variant: 'primary' as const }] : []),
-    ...(can.includes('assign') && ctx.ontology.userId ? [{ id: 'assign-me', label: 'Assign to me' }] : []),
+    ...(can.includes('acknowledge')
+      ? [{ id: 'acknowledge', label: t('warnings.acknowledge'), variant: 'primary' as const }]
+      : []),
+    ...(can.includes('assign') && ctx.ontology.userId ? [{ id: 'assign-me', label: t('warnings.assignToMe') }] : []),
   ];
   return {
     id: 'warnings',
-    label: 'Warnings',
+    label: t('warnings.title'),
     columns: [
       {
         key: 'signal',
-        label: 'Signal',
+        label: t('warnings.col.signal'),
         value: (w) => w.signal_tag,
         csv: (w) => w.signal_tag,
         cell: (w) =>
@@ -199,35 +203,35 @@ function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): T
       },
       {
         key: 'status',
-        label: 'Status',
+        label: t('warnings.col.status'),
         value: (w) => STATUS_RANK[w.status],
         csv: (w) => w.status,
         cell: (w) => statusBadge(w),
       },
       {
         key: 'started',
-        label: 'Started',
+        label: t('warnings.col.started'),
         value: (w) => w.started_at,
         csv: (w) => w.started_at,
         cell: (w) => esc(ago(w.started_at)),
       },
       {
         key: 'out',
-        label: 'Still out',
+        label: t('warnings.col.out'),
         value: (w) => (w.ended_at ? 1 : 0),
-        csv: (w) => (w.ended_at ? 'back' : 'still out'),
+        csv: (w) => (w.ended_at ? t('warnings.csvBack') : t('warnings.stillOut')),
         cell: (w) => signalState(w),
       },
-      { key: 'detector', label: 'Detector', value: (w) => w.detector, cell: (w) => esc(w.detector) },
+      { key: 'detector', label: t('warnings.col.detector'), value: (w) => w.detector, cell: (w) => esc(w.detector) },
       {
         key: 'assignee',
-        label: 'Assigned to',
+        label: t('warnings.col.assignee'),
         value: (w) => w.assignee,
-        cell: (w) => esc(w.assignee ?? 'Unassigned'),
+        cell: (w) => esc(w.assignee ?? t('warnings.unassigned')),
       },
       {
         key: 'outcome',
-        label: 'Outcome',
+        label: t('warnings.col.outcome'),
         value: (w) => (w.outcome ? OUTCOMES[w.outcome] : null),
         cell: (w) => (w.outcome ? esc(OUTCOMES[w.outcome]) : '—'),
       },
@@ -271,19 +275,20 @@ async function bulkAct(ctx: Context, action: string, keys: string[]): Promise<vo
   };
   await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
   if (done) {
-    const verb = assigning ? 'assigned to you' : 'acknowledged';
-    ctx.toast(done === 1 ? `1 warning ${verb}` : `${done} warnings ${verb}`, {
+    ctx.toast(t(assigning ? 'warnings.bulk.assigned' : 'warnings.bulk.acknowledged', { count: done }), {
       type: 'success',
       description: failed
-        ? `${raised.length - done} weren’t: the notice says why.`
+        ? t('warnings.bulk.failed', { count: raised.length - done })
         : raised.length < keys.length
-          ? `${keys.length - raised.length} selected had been ${assigning ? 'yours' : 'acknowledged'} already.`
+          ? t(assigning ? 'warnings.bulk.hadBeenYours' : 'warnings.bulk.hadBeenAcknowledged', {
+              count: keys.length - raised.length,
+            })
           : undefined,
     });
     ux('task', assigning ? 'warning.assign' : 'warning.acknowledge');
   } else if (!failed)
-    ctx.toast(assigning ? 'Nothing to assign' : 'Nothing to acknowledge', {
-      description: `The warnings selected had been ${assigning ? 'yours' : 'acknowledged'} already.`,
+    ctx.toast(t(assigning ? 'warnings.bulk.nothingToAssign' : 'warnings.bulk.nothingToAcknowledge'), {
+      description: t(assigning ? 'warnings.bulk.allYours' : 'warnings.bulk.allAcknowledged'),
     });
   clearSelection('warnings');
   listing = null;
@@ -300,27 +305,29 @@ function listCard(ctx: Context, ui: Ui): string {
     ? emptyState({
         illustration: 'inbox',
         compact: true,
-        title: 'No warnings yet',
-        body: 'Detectors raise a warning when a signal leaves its usual range; they are listed here as they come.',
+        title: t('warnings.empty.noneTitle'),
+        body: t('warnings.empty.noneBody'),
       })
     : unfiltered
       ? emptyState({
           illustration: 'done',
           compact: true,
-          title: 'Nothing to do: no warning waits for anyone',
-          body: 'Detectors raise a warning when a signal leaves its usual range. Resolved ones are under All.',
-          action: button('Show all warnings', { size: 'sm', attrs: { 'data-show': 'all' } }),
+          title: t('warnings.empty.doneTitle'),
+          body: t('warnings.empty.doneBody'),
+          action: button(t('warnings.empty.showAll'), { size: 'sm', attrs: { 'data-show': 'all' } }),
         })
       : emptyState({
           illustration: 'search',
           compact: true,
-          title: 'No warnings match these filters',
-          body: 'Try other filters, or clear them to see what waits for anyone.',
-          action: button('Clear filters', { size: 'sm', attrs: { 'data-clear-filters': true } }),
+          title: t('warnings.empty.filteredTitle'),
+          body: t('warnings.empty.filteredBody'),
+          action: button(t('warnings.empty.clear'), { size: 'sm', attrs: { 'data-clear-filters': true } }),
         });
   const rows = items === null ? skeleton.list() : items.length ? dataTable(listTable(ctx, ui, items, empty)) : empty;
   const more =
-    items && listing?.more ? button('Show older warnings', { size: 'sm', attrs: { 'data-more-warnings': true } }) : '';
+    items && listing?.more
+      ? button(t('warnings.showOlder'), { size: 'sm', attrs: { 'data-more-warnings': true } })
+      : '';
   // A tour's "Pick a warning" (U4.07) lights the list only when there is one to pick.
   const tour = rows === empty ? '' : ' data-tour="warning-list"';
   return card(`<div data-warning-list${tour}>${rows}</div>${more}`);
@@ -329,8 +336,8 @@ function listCard(ctx: Context, ui: Ui): string {
 function chartCard(w: WarningDetail): string {
   const fetched = series?.key === seriesKey(w) ? series : null;
   const s = fetched?.data;
-  if (!fetched || s === undefined) return skeleton.chart('Loading the signal…', TIME_CHART.height);
-  if (s === null) return '<p class="small muted">The signal’s readings could not be loaded.</p>';
+  if (!fetched || s === undefined) return skeleton.chart(t('warnings.chart.loading'), TIME_CHART.height);
+  if (s === null) return `<p class="small muted">${esc(t('warnings.chart.failed'))}</p>`;
   const { from, to, start, end } = fetched.range; // the range the readings were fetched for
   const points = toPoints(s);
   return `<div class="explorer-chart" data-tour="warning-chart">${timeChart({
@@ -339,14 +346,16 @@ function chartCard(w: WarningDetail): string {
     to,
     gap: gapFor(s, points),
     yLabel: s.unit ?? '',
-    title: `${w.signal_tag} around the warning${s.unit ? ` (${s.unit})` : ''}`,
+    title: s.unit
+      ? t('warnings.chart.titleUnit', { tag: w.signal_tag, unit: s.unit })
+      : t('warnings.chart.title', { tag: w.signal_tag }),
     width: fitWidth(TIME_CHART.width),
     levels: [
-      { v: w.threshold, label: 'threshold' },
-      { v: w.baseline, label: 'baseline' },
+      { v: w.threshold, label: t('warnings.chart.threshold') },
+      { v: w.baseline, label: t('warnings.chart.baseline') },
     ],
     spans: [{ from: start, to: end }],
-  })}<p class="small soft mt-1">The ${term('detector', 'detector')} compares each reading with the ${term('baseline', 'baseline')}; a reading past the ${term('threshold', 'threshold')} is out, and enough in a row (its ${term('persistence', 'persistence')}) raise the warning, shaded.</p></div>`;
+  })}<p class="small soft mt-1">${tHtml('warnings.chart.how', { detector: term('detector', 'detector'), baseline: term('baseline', 'baseline'), threshold: term('threshold', 'threshold'), persistence: term('persistence', 'persistence') })}</p></div>`;
 }
 
 function actionsForm(ctx: Context, w: WarningDetail): string {
@@ -357,7 +366,7 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
   // so Assign never unassigns by accident.
   const current: [string, string][] =
     w.assignee_id && !people.some((m) => m.user_id === w.assignee_id)
-      ? [[w.assignee_id, w.assignee ?? 'current assignee']]
+      ? [[w.assignee_id, w.assignee ?? t('warnings.currentAssignee')]]
       : [];
   const has = (a: string) => actions.includes(a as never);
   const actButton = (label: string, a: string, variant?: 'primary') =>
@@ -371,31 +380,34 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
     });
   const assign = has('assign')
     ? `<span class="row gap-1_5">${field(
-        'Assign to',
+        t('warnings.assignTo'),
         select(
           'assignee',
           [
-            ['', 'nobody'],
+            ['', t('warnings.filter.nobody')],
             ...current,
-            ...people.map((m) => [m.user_id, `${m.name}${m.user_id === ctx.ontology.userId ? ' (me)' : ''}`] as const),
+            ...people.map(
+              (m) =>
+                [m.user_id, m.user_id === ctx.ontology.userId ? t('warnings.me', { name: m.name }) : m.name] as const,
+            ),
           ],
           w.assignee_id ?? '',
         ),
         { inline: true },
-      )}${actButton('Assign', 'assign')}${w.assignee_id !== ctx.ontology.userId && ctx.ontology.userId ? actButton('Assign to me', 'assign-me') : ''}</span>`
+      )}${actButton(t('warnings.assign'), 'assign')}${w.assignee_id !== ctx.ontology.userId && ctx.ontology.userId ? actButton(t('warnings.assignToMe'), 'assign-me') : ''}</span>`
     : '';
   const outcomes = (Object.keys(OUTCOMES) as WarningOutcome[]).map((o) => [o, OUTCOMES[o]] as const);
   const resolve = has('resolve')
-    ? `<span class="row gap-1_5">${field('Outcome', select('outcome', outcomes, '', { attrs: keyAttrs('r') }), { inline: true })}${actButton('Resolve', 'resolve', 'primary')}</span>`
+    ? `<span class="row gap-1_5">${field(t('warnings.outcome'), select('outcome', outcomes, '', { attrs: keyAttrs('r') }), { inline: true })}${actButton(t('warnings.resolve'), 'resolve', 'primary')}</span>`
     : '';
   return `<form class="stack gap-2 mt-2_5" id="warning-form" data-tour="warning-actions">
-      <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
+      <textarea name="note" rows="2" maxlength="2000" placeholder="${esc(t('warnings.notePlaceholder'))}" aria-label="${esc(t('warnings.note'))}">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
       <fieldset class="row gap-y-2 gap-x-4 border-0 p-0 m-0 wrap" ${busy ? 'disabled' : ''}>
-        ${has('acknowledge') ? actButton('Acknowledge', 'acknowledge', 'primary') : ''}
+        ${has('acknowledge') ? actButton(t('warnings.acknowledge'), 'acknowledge', 'primary') : ''}
         ${assign}
         ${resolve}
-        ${has('reopen') ? actButton('Reopen', 'reopen') : ''}
-        ${actButton('Comment', 'comment')}
+        ${has('reopen') ? actButton(t('warnings.reopen'), 'reopen') : ''}
+        ${actButton(t('warnings.comment'), 'comment')}
       </fieldset>
     </form>`;
 }
@@ -405,13 +417,13 @@ function detailCard(ctx: Context, ui: Ui): string {
     return card(
       emptyState({
         illustration: 'select',
-        title: 'Select a warning',
-        body: 'Its signal and what was done about it show here.',
+        title: t('warnings.detail.selectTitle'),
+        body: t('warnings.detail.selectBody'),
       }),
     );
   const w = detail?.key === detailKey(ctx) ? detail.warning : null;
   if (!w && detailFailed === detailKey(ctx))
-    return card(errorState({ title: 'This warning could not be loaded', body: 'Refresh to try again.' }), {
+    return card(errorState({ title: t('warnings.detail.failedTitle'), body: t('warnings.detail.failedBody') }), {
       attrs: { 'data-warning-detail': true },
     });
   if (!w) return card(skeleton.card(), { attrs: { 'data-warning-detail': true } });
@@ -426,26 +438,26 @@ function detailCard(ctx: Context, ui: Ui): string {
     .join('');
   const resolved =
     w.status === 'resolved' && w.outcome
-      ? `<p class="small">${OUTCOMES[w.outcome]}, resolved by ${esc(w.resolved_by ?? 'someone')} ${w.resolved_at ? ago(w.resolved_at) : ''}${w.resolution_note ? `: ${esc(w.resolution_note)}` : '.'}</p>`
+      ? `<p class="small">${esc(t('warnings.detail.resolvedBy', { outcome: OUTCOMES[w.outcome], who: w.resolved_by ?? t('warnings.detail.someone'), when: w.resolved_at ? ago(w.resolved_at) : '' }))}${w.resolution_note ? `: ${esc(w.resolution_note)}` : '.'}</p>`
       : '';
   const readOnly =
-    ctx.ontology.role === 'viewer' ? '<p class="small soft">Engineers and admins of the site act on warnings.</p>' : '';
+    ctx.ontology.role === 'viewer' ? `<p class="small soft">${esc(t('warnings.detail.readOnly'))}</p>` : '';
   return card(
     `
       <div class="card-head"><div>
-        ${statusBadge(w)} ${w.ended_at ? '' : badge('Signal still out', 'bad')}
+        ${statusBadge(w)} ${w.ended_at ? '' : badge(t('warnings.detail.signalStillOut'), 'bad')}
         <h2 class="mono mt-1_5">${esc(w.signal_tag)}</h2>
-        <div class="small muted">${esc(w.detector)} · started ${ago(w.started_at)} · ${w.readings} reading(s) out · ${w.assignee ? `for ${esc(w.assignee)}` : 'unassigned'}</div>
+        <div class="small muted">${esc(w.detector)} · ${esc(t('warnings.detail.started', { when: ago(w.started_at) }))} · ${esc(t('warnings.detail.readingsOut', { count: w.readings }))} · ${esc(w.assignee ? t('warnings.detail.for', { name: w.assignee }) : t('warnings.detail.unassigned'))}</div>
       </div></div>
       <p class="small" data-how-far>${esc(howFar(w))}</p>
       ${resolved}
       ${chartCard(w)}
-      <h3 class="mt-4 mb-1_5 m-0">Activity</h3>
+      <h3 class="mt-4 mb-1_5 m-0">${esc(t('warnings.detail.activity'))}</h3>
       <div class="thread">${activity}</div>
       ${readOnly}
       ${actionsForm(ctx, w)}
-      ${acted?.id === w.id ? `<p class="row gap-2 mt-2_5">${button('Next warning', { variant: 'primary', icon: 'arrow-right', attrs: { 'data-next-warning': true, ...keyAttrs('n') } })}</p>` : ''}
-      <details class="mt-3_5"><summary class="small">Payload</summary>
+      ${acted?.id === w.id ? `<p class="row gap-2 mt-2_5">${button(t('warnings.detail.next'), { variant: 'primary', icon: 'arrow-right', attrs: { 'data-next-warning': true, ...keyAttrs('n') } })}</p>` : ''}
+      <details class="mt-3_5"><summary class="small">${esc(t('warnings.detail.payload'))}</summary>
         ${kv(payload(w), { valueClass: 'mono' })}
       </details>`,
     { attrs: { 'data-warning-detail': true } },
@@ -578,7 +590,7 @@ function nextWarning(ctx: Context): void {
     }
     acted = null;
     ctx.rerender();
-    ctx.toast('That was the last warning in the list');
+    ctx.toast(t('warnings.lastInList'));
     return;
   }
   acted = null;
@@ -627,21 +639,24 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
     if (draft.key === key) draft = { key: '', text: '' };
     // Assigning it to whom it already was changes nothing (a note is kept as a comment).
     const same = (action === 'assign' || action === 'assign-me') && warning.assignee_id === w.assignee_id;
+    const kept = note ? 'yes' : 'no';
     const done: Record<string, string> = {
-      acknowledge: 'Acknowledged',
+      acknowledge: t('warnings.done.acknowledged'),
       assign: same
-        ? `${warning.assignee ? `Already assigned to ${warning.assignee}` : 'Already unassigned'}${note ? '; your note is kept as a comment' : ''}`
+        ? warning.assignee
+          ? t('warnings.done.alreadyAssignedTo', { name: warning.assignee, note: kept })
+          : t('warnings.done.alreadyUnassigned', { note: kept })
         : warning.assignee
-          ? `Assigned to ${warning.assignee}`
-          : 'Unassigned',
-      'assign-me': same
-        ? `Already assigned to you${note ? '; your note is kept as a comment' : ''}`
-        : 'Assigned to you',
-      resolve: `Resolved as ${warning.outcome ? OUTCOMES[warning.outcome].toLowerCase() : 'done'}`,
-      reopen: 'Reopened',
-      comment: 'Comment added',
+          ? t('warnings.done.assignedTo', { name: warning.assignee })
+          : t('warnings.done.unassigned'),
+      'assign-me': same ? t('warnings.done.alreadyYours', { note: kept }) : t('warnings.done.assignedToYou'),
+      resolve: t('warnings.done.resolvedAs', {
+        outcome: warning.outcome ? OUTCOMES[warning.outcome].toLowerCase() : t('warnings.done.done'),
+      }),
+      reopen: t('warnings.done.reopened'),
+      comment: t('warnings.done.comment'),
     };
-    ctx.toast(done[action] ?? 'Done');
+    ctx.toast(done[action] ?? t('warnings.done.other'));
     ux('task', `warning.${action === 'assign-me' ? 'assign' : action}`);
     if (action !== 'comment' && !same) listing = null; // it may have left the list's filters
     // Done with this one: Next warning (n) opens the one after it in the list (U5.04).
@@ -673,7 +688,9 @@ export function openWarning(ctx: Context, id: string): void {
 
 const view: View = {
   id: 'warnings',
-  title: 'Warnings',
+  get title() {
+    return t('warnings.title');
+  },
   icon: 'triangle-alert',
   // Its filters and the warning open, in the address (U3.05): `#/warnings?show=all&warning=12`.
   query: {
@@ -699,21 +716,20 @@ const view: View = {
   render(ctx) {
     openLinked(ctx); // a linked warning waiting for the site
     const head = pageHead({
-      eyebrow: 'Operations · Detection',
-      title: 'Warnings',
-      lead: 'What the detectors raised: see the signal around each warning, then acknowledge it, assign it, and resolve it with what it turned out to be.',
+      eyebrow: t('warnings.eyebrow'),
+      title: t('warnings.title'),
+      lead: t('warnings.lead'),
     });
-    if (!ctx.api)
-      return `${head}${card(needsApi(`Warnings come from detectors running on the Tiles API, and everyone on a site works the same ones.`))}`;
+    if (!ctx.api) return `${head}${card(needsApi(esc(t('warnings.needsApi'))))}`;
     const o = ctx.ontology;
-    if (o.status === 'loading') return `${head}${card(skeleton.card('Loading from the Tiles API…'))}`;
+    if (o.status === 'loading') return `${head}${card(skeleton.card(t('warnings.loading')))}`;
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
     return `${head}${filterControls(ctx, ui.filters)}${split(listCard(ctx, ui), detailCard(ctx, ui), {
       open: ui.selected !== null,
       back: withQuery('#/warnings', filtersQuery(ui.filters)),
-      label: 'warnings',
+      label: t('warnings.splitLabel'),
     })}`;
   },
   bind(root, ctx) {
@@ -751,9 +767,9 @@ const view: View = {
     });
     // On the list, not each row: the table draws rows again as it sorts and scrolls.
     onAll(root, '[data-warning-list]', 'click', (_el, e) => {
-      const t = e.target instanceof Element ? e.target : null;
-      const row = t?.closest<HTMLElement>('[data-warning]');
-      if (!row || t?.closest('.select-col, .table-tools, .bulk-bar')) return; // a box ticked, not the row opened
+      const target = e.target instanceof Element ? e.target : null;
+      const row = target?.closest<HTMLElement>('[data-warning]');
+      if (!row || target?.closest('.select-col, .table-tools, .bulk-bar')) return; // a box ticked, not the row opened
       ui.selected = row.dataset.warning ?? null;
       ctx.rerender();
     });
@@ -789,7 +805,7 @@ const view: View = {
       const action = el.dataset.act ?? '';
       const note = box.value.trim();
       if (action === 'comment' && !note) {
-        ctx.toast('Write the comment first');
+        ctx.toast(t('warnings.writeCommentFirst'));
         return void box.focus();
       }
       void act(ctx, action, note, form);

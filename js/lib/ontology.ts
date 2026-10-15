@@ -14,6 +14,7 @@ import type {
   Op,
   Repo,
 } from './types.ts';
+import { t } from './i18n.ts';
 
 export const NODE_TYPES: Record<NodeType, { color: string; required: string[] }> = {
   Enterprise: { color: '#173f3c', required: [] },
@@ -62,39 +63,39 @@ function degrees(g: Graph): Map<string, number> {
 function applyInPlace(g: Graph, op: Op, degree?: Map<string, number>): Op {
   switch (op.kind) {
     case 'addNode': {
-      if (g.nodes[op.node.id]) throw new Error(`Node ${op.node.id} already exists`);
-      if (!isNodeType(op.node.type)) throw new Error(`Unknown node type ${op.node.type}`);
+      if (g.nodes[op.node.id]) throw new Error(t('ontology.error.nodeExists', { id: op.node.id }));
+      if (!isNodeType(op.node.type)) throw new Error(t('ontology.error.unknownType', { type: op.node.type }));
       g.nodes[op.node.id] = { ...op.node, props: op.node.props ?? {} };
       return { kind: 'removeNode', id: op.node.id };
     }
     case 'removeNode': {
       const node = g.nodes[op.id];
-      if (!node) throw new Error(`Node ${op.id} not found`);
+      if (!node) throw new Error(t('ontology.error.nodeNotFound', { id: op.id }));
       const attached = degree
         ? (degree.get(op.id) ?? 0)
         : Object.values(g.edges).filter((e) => e.from === op.id || e.to === op.id).length;
-      if (attached) throw new Error(`Node ${op.id} still has ${attached} relationship(s)`);
+      if (attached) throw new Error(t('ontology.error.nodeAttached', { id: op.id, count: attached }));
       delete g.nodes[op.id];
       return { kind: 'addNode', node };
     }
     case 'addEdge': {
       const e = op.edge;
-      if (g.edges[e.id]) throw new Error(`Relationship ${e.id} already exists`);
-      if (!g.nodes[e.from] || !g.nodes[e.to]) throw new Error(`Relationship ${e.id} points at a missing node`);
+      if (g.edges[e.id]) throw new Error(t('ontology.error.edgeExists', { id: e.id }));
+      if (!g.nodes[e.from] || !g.nodes[e.to]) throw new Error(t('ontology.error.dangling', { id: e.id }));
       g.edges[e.id] = { ...e };
       if (degree) for (const end of new Set([e.from, e.to])) degree.set(end, (degree.get(end) ?? 0) + 1);
       return { kind: 'removeEdge', id: e.id };
     }
     case 'removeEdge': {
       const edge = g.edges[op.id];
-      if (!edge) throw new Error(`Relationship ${op.id} not found`);
+      if (!edge) throw new Error(t('ontology.error.edgeNotFound', { id: op.id }));
       delete g.edges[op.id];
       if (degree) for (const end of new Set([edge.from, edge.to])) degree.set(end, (degree.get(end) ?? 1) - 1);
       return { kind: 'addEdge', edge };
     }
     case 'setProp': {
       const node = g.nodes[op.id];
-      if (!node) throw new Error(`Node ${op.id} not found`);
+      if (!node) throw new Error(t('ontology.error.nodeNotFound', { id: op.id }));
       const had = Object.prototype.hasOwnProperty.call(node.props, op.key);
       const props = { ...node.props };
       if (op.value === undefined) delete props[op.key];
@@ -106,7 +107,7 @@ function applyInPlace(g: Graph, op: Op, degree?: Map<string, number>): Op {
     }
     default: {
       const unknown: { kind?: unknown } = op;
-      throw new Error(`Unknown op ${String(unknown.kind)}`);
+      throw new Error(t('ontology.error.unknownOp', { kind: String(unknown.kind) }));
     }
   }
 }
@@ -162,8 +163,8 @@ export interface CommitInfo {
 }
 
 export function commit(repo: Repo, { message, author, date = new Date().toISOString() }: CommitInfo): Repo {
-  if (!repo.staged.length) throw new Error('Nothing to commit');
-  if (!message || !message.trim()) throw new Error('A commit needs a message');
+  if (!repo.staged.length) throw new Error(t('ontology.error.nothingToCommit'));
+  if (!message || !message.trim()) throw new Error(t('ontology.error.noMessage'));
   const { graph, inverses } = applyOps(repo.head, repo.staged);
   const entry: Commit = {
     id: commitId(),
@@ -177,11 +178,14 @@ export function commit(repo: Repo, { message, author, date = new Date().toISOStr
   return { head: graph, history: [entry, ...repo.history], staged: [] };
 }
 
+// Stored in the history, so in one language, as the API's ontology.py writes it (parity).
+const revertMessage = (message: string): string => `Revert "${message}"`; // i18n-ok
+
 export function revert(repo: Repo, id: string, { author, date }: { author: string; date?: string }): Repo {
   const target = repo.history.find((c) => c.id === id);
-  if (!target) throw new Error(`Commit ${id} not found`);
-  if (repo.staged.length) throw new Error('Commit or discard staged changes first');
-  return commit({ ...repo, staged: target.inverses }, { message: `Revert "${target.message}"`, author, date });
+  if (!target) throw new Error(t('ontology.error.commitNotFound', { id }));
+  if (repo.staged.length) throw new Error(t('ontology.error.stagedFirst'));
+  return commit({ ...repo, staged: target.inverses }, { message: revertMessage(target.message), author, date });
 }
 
 // ---- Health check -------------------------------------------------------
@@ -209,7 +213,7 @@ export function healthCheck(graph: Graph): HealthReport {
         level: 'error',
         kind: 'dangling',
         ref: e.id,
-        text: `Relationship ${e.id} points at a missing node`,
+        text: t('ontology.error.dangling', { id: e.id }),
       });
       continue;
     }
@@ -222,20 +226,25 @@ export function healthCheck(graph: Graph): HealthReport {
         level: 'warn',
         kind: 'duplicate',
         ref: e.id,
-        text: `Duplicate relationship ${from.label} —${e.rel}→ ${to.label} (also ${first})`,
+        text: t('ontology.health.duplicate', { from: from.label, rel: e.rel, to: to.label, first }),
       });
     } else seen.set(key, e.id);
   }
   for (const n of nodes) {
     if (degree.get(n.id) === 0)
-      issues.push({ level: 'warn', kind: 'orphan', ref: n.id, text: `${n.type} "${n.label}" has no relationships` });
+      issues.push({
+        level: 'warn',
+        kind: 'orphan',
+        ref: n.id,
+        text: t('ontology.health.orphan', { type: n.type, label: n.label }),
+      });
     for (const req of NODE_TYPES[n.type]?.required ?? []) {
       if (n.props?.[req] === undefined || n.props[req] === '') {
         issues.push({
           level: 'info',
           kind: 'missing-prop',
           ref: n.id,
-          text: `${n.type} "${n.label}" is missing "${req}"`,
+          text: t('ontology.health.missingProp', { type: n.type, label: n.label, prop: req }),
         });
       }
     }

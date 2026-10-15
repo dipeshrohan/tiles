@@ -3,6 +3,7 @@
 import type { SignalSeries } from './api.ts';
 import { esc, fmt } from './dom.ts';
 import { hiddenParts, registerChart, type ChartData } from './chart-data.ts';
+import { t } from './i18n.ts';
 
 export interface Series {
   values: (number | null)[];
@@ -102,9 +103,7 @@ function niceStep(raw: number): number {
 // A chart that can be read point by point (U5.03) is also focusable, says how, and carries its data's
 // id (js/lib/chart-data.ts) and the parts its legend hid.
 function open(width: number, height: number, title: string, summary: string, cls = 'chart', id?: string): string {
-  const name = [title, summary, id ? 'Point at it, or focus it and use the arrow keys, to read each value' : '']
-    .filter(Boolean)
-    .join('. ');
+  const name = [title, summary, id ? t('svg.readHint') : ''].filter(Boolean).join('. ');
   const read = id ? ` data-chart="${id}" tabindex="0"` : '';
   return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}"${read}>`;
 }
@@ -126,20 +125,23 @@ function chartBox(id: string, title: string, chart: string, legend: LegendItem[]
     .replace(/data-part="([\w-]+)"/g, (m: string, part: string) => (off.has(part) ? `${m} display="none"` : m));
   const keys =
     legend.length > 1
-      ? `<span class="chart-legend" role="group" aria-label="Show or hide">${legend
+      ? `<span class="chart-legend" role="group" aria-label="${esc(t('svg.showOrHide'))}">${legend
           .map(
             (l) =>
               `<button class="chart-key" type="button" data-chart-toggle="${esc(l.part)}" aria-pressed="${!off.has(l.part)}"><span class="chart-swatch" style="--swatch:${l.color}"></span>${esc(l.label)}</button>`,
           )
           .join('')}</span>`
       : '<span></span>';
-  return `<div class="chart-box"><div class="chart-tools" data-chart-for="${id}">${keys}<span class="chart-actions"><button class="btn ghost sm" type="button" data-chart-png aria-label="Save ${esc(title || 'the chart')} as a PNG image">PNG</button><button class="btn ghost sm" type="button" data-chart-csv aria-label="Export the data of ${esc(title || 'the chart')} as CSV">CSV</button></span></div>${svg}</div>`;
+  const named = title || t('svg.theChart');
+  return `<div class="chart-box"><div class="chart-tools" data-chart-for="${id}">${keys}<span class="chart-actions"><button class="btn ghost sm" type="button" data-chart-png aria-label="${esc(t('svg.savePng', { title: named }))}">${esc(t('svg.png'))}</button><button class="btn ghost sm" type="button" data-chart-csv aria-label="${esc(t('svg.exportCsv', { title: named }))}">${esc(t('svg.csv'))}</button></span></div>${svg}</div>`;
 }
 
 // "a, b and c"; with more than `max`, the first ones and how many more.
 export function listed(items: string[], max = 8): string {
-  const shown = items.length > max ? [...items.slice(0, max), `${items.length - max} more`] : items;
-  return shown.length < 2 ? (shown[0] ?? '') : `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}`;
+  const shown = items.length > max ? [...items.slice(0, max), t('svg.more', { count: items.length - max })] : items;
+  return shown.length < 2
+    ? (shown[0] ?? '')
+    : t('svg.and', { list: shown.slice(0, -1).join(', '), last: shown.at(-1) ?? '' });
 }
 
 // A number as a summary reads it: as many digits as its size needs, no trailing zeros.
@@ -167,8 +169,8 @@ function extent(values: Iterable<number>): [number, number] {
 
 // "lo to hi", or one number when they read the same.
 const span = ([lo, hi]: [number, number], format = num): string => {
-  if (!Number.isFinite(lo)) return 'no values';
-  return format(lo) === format(hi) ? format(lo) : `${format(lo)} to ${format(hi)}`;
+  if (!Number.isFinite(lo)) return t('svg.noValues');
+  return format(lo) === format(hi) ? format(lo) : t('svg.span', { lo: format(lo), hi: format(hi) });
 };
 const range = (values: number[], format = num): string => span(extent(values), format);
 
@@ -211,7 +213,9 @@ export function lineChart({
     });
     return `<path data-part="s${series.indexOf(s)}" d="${d}" fill="none" stroke="${s.color}" stroke-width="${s.width ?? 1.5}" ${s.dash ? `stroke-dasharray="${s.dash}"` : ''} stroke-linejoin="round"/>`;
   });
-  const names = series.map((s, i) => s.label ?? (series.length > 1 ? `Line ${i + 1}` : yLabel || 'Value'));
+  const names = series.map(
+    (s, i) => s.label ?? (series.length > 1 ? t('svg.lineN', { n: i + 1 }) : yLabel || t('svg.value')),
+  );
   const xText = (i: number) => `${xLabel ? `${xLabel} ` : ''}${xFormat(i)}`;
   const unit = yLabel ? ` ${yLabel}` : '';
   const ok = (v: number | null | undefined): v is number => v !== null && v !== undefined && Number.isFinite(v);
@@ -236,13 +240,13 @@ export function lineChart({
   };
   const id = registerChart(data);
   const summary = [
-    `${n} points${xLabel ? ` along ${xLabel}` : ''}`,
+    xLabel ? t('svg.pointsAlong', { count: n, axis: xLabel }) : t('svg.points', { count: n }),
     ...series.map(
       (s, i) =>
-        `${s.label ?? (series.length > 1 ? `line ${i + 1}` : 'values')} ${range(s.values.filter((v): v is number => v !== null && Number.isFinite(v)))}`,
+        `${s.label ?? (series.length > 1 ? t('svg.lineLower', { n: i + 1 }) : t('svg.values'))} ${range(s.values.filter((v): v is number => v !== null && Number.isFinite(v)))}`,
     ),
-    bands.length ? `${bands.length} shaded window${bands.length === 1 ? '' : 's'}` : '',
-    markers.length ? `marked: ${listed(markers.map((m) => m.label))}` : '',
+    bands.length ? t('svg.shadedWindows', { count: bands.length }) : '',
+    markers.length ? t('svg.marked', { list: listed(markers.map((m) => m.label)) }) : '',
   ].filter(Boolean);
   const svg = `${open(width, height, title, summary.join('; '), 'chart', id)}
     ${bands.map((b) => `<rect x="${x(b.from)}" y="${PAD.t}" width="${Math.max(2, x(b.to) - x(b.from))}" height="${height - PAD.t - PAD.b}" fill="${b.color}"/>`).join('')}
@@ -278,7 +282,7 @@ export function dumbbell({
   left?: number;
 }): string {
   const height = rows.length * rowH + 44;
-  const summary = listed(rows.map((r) => `${r.label}: ${fmt(r.a)} against ${fmt(r.b)}`));
+  const summary = listed(rows.map((r) => t('svg.against', { label: r.label, a: fmt(r.a), b: fmt(r.b) })));
   const x = scale(domain[0], domain[1], left, width - 20);
   const xt = ticks(domain[0], domain[1], 6);
   return `${open(width, height, xLabel, summary)}
@@ -306,7 +310,7 @@ export function hbars({
   rowH = 28,
   format = (v: number) => fmt(v, 2),
   left = 190,
-  title = 'Bar chart',
+  title = t('svg.barChart'),
 }: {
   items: BarItem[];
   width?: number;
@@ -352,13 +356,13 @@ export function heatmap({
   const bottom = 40;
   const cw = (width - left - 10) / xs.length;
   const ch = (height - bottom - 10) / ys.length;
-  const t = (v: number) => (v - min) / (max - min || 1);
+  const share = (v: number) => (v - min) / (max - min || 1);
   const cells: string[] = [];
   ys.forEach((yv, j) => {
     xs.forEach((xv, i) => {
       const v = grid[j]?.[i] ?? NaN;
       cells.push(
-        `<rect x="${left + i * cw}" y="${10 + (ys.length - 1 - j) * ch}" width="${cw + 0.5}" height="${ch + 0.5}" fill="var(--accent)" fill-opacity="${(0.08 + 0.92 * t(v)).toFixed(3)}"><title>${esc(xLabel)} ${fmt(xv, 1)}, ${esc(yLabel)} ${fmt(yv, 1)} → ${format(v)}</title></rect>`,
+        `<rect x="${left + i * cw}" y="${10 + (ys.length - 1 - j) * ch}" width="${cw + 0.5}" height="${ch + 0.5}" fill="var(--accent)" fill-opacity="${(0.08 + 0.92 * share(v)).toFixed(3)}"><title>${esc(xLabel)} ${fmt(xv, 1)}, ${esc(yLabel)} ${fmt(yv, 1)} → ${format(v)}</title></rect>`,
       );
     });
   });
@@ -374,11 +378,19 @@ export function heatmap({
       if (v > highest.v) highest = { v, x: xv, y: yv };
     }),
   );
-  const cell = (c: typeof lowest) => `${format(c.v)} at ${xLabel} ${fmt(c.x, 1)}, ${yLabel} ${fmt(c.y, 1)}`;
+  const cell = (c: typeof lowest) =>
+    t('svg.cellAt', { value: format(c.v), x: xLabel, xv: fmt(c.x, 1), y: yLabel, yv: fmt(c.y, 1) });
   const summary = Number.isFinite(lowest.v)
-    ? `${xs.length} × ${ys.length} grid of ${xLabel} by ${yLabel}; lowest ${cell(lowest)}; highest ${cell(highest)}`
-    : 'no values';
-  return `${open(width, height, 'Parameter sweep', summary)}
+    ? t('svg.grid', {
+        cols: xs.length,
+        rows: ys.length,
+        x: xLabel,
+        y: yLabel,
+        lowest: cell(lowest),
+        highest: cell(highest),
+      })
+    : t('svg.noValues');
+  return `${open(width, height, t('svg.sweep'), summary)}
     ${cells.join('')}
     ${xi.map((i) => `<text class="tick" x="${left + (i + 0.5) * cw}" y="${height - bottom + 16}" text-anchor="middle">${fmt(xs[i] ?? NaN, 1)}</text>`).join('')}
     ${yi.map((j) => `<text class="tick" x="${left - 6}" y="${10 + (ys.length - 1 - j + 0.5) * ch + 4}" text-anchor="end">${fmt(ys[j] ?? NaN, 1)}</text>`).join('')}
@@ -517,9 +529,9 @@ export function timeChart({
   title = yLabel,
 }: TimeChartOptions): string {
   const shown = points.filter((p) => p.t >= from && p.t <= to);
-  const when = `from ${at(from)} to ${at(to)}`;
+  const when = t('svg.fromTo', { from: at(from), to: at(to) });
   if (!shown.length)
-    return `${open(width, height, title, `No readings ${when}`)}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">No readings in this range</text></svg>`;
+    return `${open(width, height, title, t('svg.noReadings', { when }))}<text class="axis" x="${width / 2}" y="${height / 2}" text-anchor="middle">${esc(t('svg.noReadingsRange'))}</text></svg>`;
   const marks = levels.filter((l) => Number.isFinite(l.v)).map((l) => l.v);
   const [dataLo] = extent(shown.map((p) => p.lo));
   const [, dataHi] = extent(shown.map((p) => p.hi));
@@ -578,11 +590,11 @@ export function timeChart({
     .join('');
   const last = shown[shown.length - 1]!;
   const summary = [
-    `${shown.length} reading${shown.length === 1 ? '' : 's'} ${when}`,
-    `values ${span([dataLo, dataHi])}`,
-    `latest ${num(last.v)} at ${at(last.t)}`,
+    t('svg.readings', { count: shown.length, when }),
+    t('svg.valuesRange', { range: span([dataLo, dataHi]) }),
+    t('svg.latest', { value: num(last.v), time: at(last.t) }),
     ...levels.filter((l) => Number.isFinite(l.v)).map((l) => `${l.label} ${num(l.v)}`),
-    spans.length ? `${spans.length} shaded stretch${spans.length === 1 ? '' : 'es'}` : '',
+    spans.length ? t('svg.shadedStretches', { count: spans.length }) : '',
   ].filter(Boolean);
   // What each reading reads out as, and the data behind the chart (U5.03).
   const unit = yLabel ? ` ${yLabel}` : '';
@@ -593,10 +605,12 @@ export function timeChart({
     labels: shown.map((p) => readTime(p.t, to - from)),
     series: [
       {
-        name: ranged ? 'Average' : 'Reading',
+        name: ranged ? t('svg.average') : t('svg.reading'),
         ys: shown.map((p) => y(p.v)),
         text: shown.map((p) =>
-          p.hi > p.lo ? `${num(p.v)}${unit} (min ${num(p.lo)}, max ${num(p.hi)})` : `${num(p.v)}${unit}`,
+          p.hi > p.lo
+            ? t('svg.minMax', { value: `${num(p.v)}${unit}`, lo: num(p.lo), hi: num(p.hi) })
+            : `${num(p.v)}${unit}`,
         ),
       },
     ],
@@ -611,18 +625,18 @@ export function timeChart({
   };
   const id = registerChart(data);
   const legend: LegendItem[] = [
-    { part: 'line', label: ranged ? 'Average' : 'Readings', color },
-    ...(ranged ? [{ part: 'band', label: 'Min to max', color }] : []),
+    { part: 'line', label: ranged ? t('svg.average') : t('svg.readingsLabel'), color },
+    ...(ranged ? [{ part: 'band', label: t('svg.minToMax'), color }] : []),
     ...(refs
       ? [
           {
             part: 'levels',
-            label: levels.length === 1 ? (levels[0]?.label ?? 'Level') : 'Levels',
+            label: levels.length === 1 ? (levels[0]?.label ?? t('svg.level')) : t('svg.levels'),
             color: 'var(--soft)',
           },
         ]
       : []),
-    ...(shade ? [{ part: 'spans', label: 'Shaded', color: 'var(--bad)' }] : []),
+    ...(shade ? [{ part: 'spans', label: t('svg.shaded'), color: 'var(--bad)' }] : []),
   ];
   const svg = `${open(width, height, title, summary.join('; '), 'chart', id)}
     ${yt.map((t) => `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${y(t)}" y2="${y(t)}"/><text class="tick" x="${PAD.l - 6}" y="${y(t) + 4}" text-anchor="end">${fmt(t, Math.abs(hi - lo) < 10 ? 2 : 0)}</text>`).join('')}

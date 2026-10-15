@@ -20,6 +20,7 @@ import type { Context, Crumb, View } from './types.ts';
 import { button, card, emptyState, linkButton, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
+import { t, tHtml } from '../lib/i18n.ts';
 
 // The plant navigator (T5.17): the ontology's hierarchy as places to drill into, site → workcenter
 // → line or cell → machine, each with its open warnings rolled up; a machine shows what it has
@@ -39,9 +40,9 @@ let typing: ReturnType<typeof setTimeout> | undefined;
 let shownTrail: Crumb[] = [];
 
 const badge = (state: FloorItem['state'], count: number): string => {
-  if (!count) return '<span class="badge good">OK</span>';
+  if (!count) return `<span class="badge good">${esc(t('plant.ok'))}</span>`;
   const [cls, label] = STATE_LABEL[state];
-  return `<span class="badge ${cls}">${count} warning${count === 1 ? '' : 's'}: ${label.toLowerCase()}</span>`;
+  return `<span class="badge ${cls}">${esc(t('plant.badge', { count, state: label.toLowerCase() }))}</span>`;
 };
 
 function placeCard(graph: Graph, node: OntologyNode, items: FloorItem[] | null): string {
@@ -50,7 +51,7 @@ function placeCard(graph: Graph, node: OntologyNode, items: FloorItem[] | null):
   const what =
     node.type === 'Machine'
       ? 'Machine'
-      : `${node.type} · ${machines ? `${machines} machine${machines === 1 ? '' : 's'}` : 'no machines'}`;
+      : `${node.type} · ${machines ? t('plant.machines', { count: machines }) : t('plant.noMachines')}`;
   const { state, warnings } = items ? rollUp(graph, items, node.id, under) : { state: 'ok' as const, warnings: [] };
   return `<a class="place-card s-${items ? state : 'none'}" href="${placeLink(node.id)}" data-place="${esc(node.id)}">
       <span class="small soft">${esc(what)}</span>
@@ -67,15 +68,15 @@ function warningsCard(items: FloorItem[], now: number, onMachine = false): strin
       const about = [
         onMachine ? '' : esc(i.machine),
         i.startedAt ? esc(when(i.startedAt, now)) : '',
-        i.assignee ? `${esc(i.assignee)} has it` : '',
+        i.assignee ? esc(t('plant.hasIt', { name: i.assignee })) : '',
       ].filter(Boolean);
       return `<li class="plant-warning">
           <span><span class="badge ${cls}">${label}</span> <b class="mono">${esc(i.tag)}</b> <span class="small soft">${about.join(' · ')}</span></span>
-          ${i.id.startsWith('demo-') ? '' : `<button class="btn sm" data-open-warning="${esc(i.id)}">Details</button>`}
+          ${i.id.startsWith('demo-') ? '' : `<button class="btn sm" data-open-warning="${esc(i.id)}">${esc(t('plant.details'))}</button>`}
         </li>`;
     })
     .join('');
-  return `<div class="card"><div class="card-head"><h2>Open warnings</h2><a class="btn sm" href="#/shopfloor">Shopfloor</a></div><ul class="plant-list">${rows}</ul></div>`;
+  return `<div class="card"><div class="card-head"><h2>${esc(t('plant.openWarnings'))}</h2><a class="btn sm" href="#/shopfloor">${esc(t('plant.shopfloor'))}</a></div><ul class="plant-list">${rows}</ul></div>`;
 }
 
 const reading = (s: SignalInfo | undefined, now: number): string => {
@@ -102,20 +103,20 @@ function signalsCard(ctx: Context, signals: OntologyNode[], now: number): string
           <td>${esc(n.label)}</td>
           ${tags ? `<td class="mono small">${esc(tag)}</td>` : ''}
           <td>${ctx.api ? reading(s, now) : esc(unit)}</td>
-          <td>${s ? `<a class="btn sm" href="#/explorer?signal=${encodeURIComponent(s.id)}">Plot</a>` : ''}</td>
+          <td>${s ? `<a class="btn sm" href="#/explorer?signal=${encodeURIComponent(s.id)}">${esc(t('plant.plot'))}</a>` : ''}</td>
         </tr>`,
     )
     .join('');
-  const head = ctx.api ? 'Latest reading' : 'Unit';
-  return `<div class="card"><div class="card-head"><h2>Signals</h2></div>
-      <div class="table-wrap"><table><thead><tr><th>Signal</th>${tags ? '<th>Tag</th>' : ''}<th>${head}</th><th><span class="sr-only">Plot</span></th></tr></thead><tbody>${rows}</tbody></table></div>
-      ${ctx.api ? '<p class="small soft">A signal shows its reading once a tag is linked to it on the Signals page.</p>' : ''}
+  const head = ctx.api ? t('plant.latestReading') : t('plant.unit');
+  return `<div class="card"><div class="card-head"><h2>${esc(t('plant.signals'))}</h2></div>
+      <div class="table-wrap"><table><thead><tr><th>${esc(t('plant.signal'))}</th>${tags ? `<th>${esc(t('plant.tag'))}</th>` : ''}<th>${esc(head)}</th><th><span class="sr-only">${esc(t('plant.plot'))}</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+      ${ctx.api ? `<p class="small soft">${esc(t('plant.linkHint'))}</p>` : ''}
     </div>`;
 }
 
 const list = (title: string, entries: string[]): string =>
   entries.length
-    ? `<div class="card"><div class="card-head"><h2>${title}</h2></div><ul class="plant-list">${entries.join('')}</ul></div>`
+    ? `<div class="card"><div class="card-head"><h2>${esc(title)}</h2></div><ul class="plant-list">${entries.join('')}</ul></div>`
     : '';
 
 const item = (n: OntologyNode, extra = ''): string => `<li><span>${esc(n.label)}${extra}</span></li>`;
@@ -142,43 +143,43 @@ function machinePage(ctx: Context, graph: Graph, node: OntologyNode, items: Floo
   };
   return `${warningsCard(warnings, now, true)}
     <div class="plant-sheet">
-      ${facts ? `<div class="card"><div class="card-head"><h2>About</h2></div>${facts}</div>` : ''}
+      ${facts ? `<div class="card"><div class="card-head"><h2>${esc(t('plant.about'))}</h2></div>${facts}</div>` : ''}
       ${signalsCard(ctx, signals, now)}
       ${list(
-        'Controlled by',
+        t('plant.controlledBy'),
         sheet.plcs.map((p) =>
-          item(p.plc, `${prop(p.plc, 'protocol')} · ${p.signals.length} signal${p.signals.length === 1 ? '' : 's'}`),
+          item(p.plc, `${prop(p.plc, 'protocol')} · ${esc(t('plant.plcSignals', { count: p.signals.length }))}`),
         ),
       )}
       ${list(
-        'Runs',
+        t('plant.runs'),
         sheet.processes.map((p) =>
           item(
             p.process,
             p.materials.length
-              ? ` <span class="small soft">consumes ${esc(p.materials.map((m) => m.label).join(', '))}</span>`
+              ? ` <span class="small soft">${esc(t('plant.consumes', { materials: p.materials.map((m) => m.label).join(', ') }))}</span>`
               : '',
           ),
         ),
       )}
       ${list(
-        'Fed by',
+        t('plant.fedBy'),
         sheet.feedsFrom.map((n) => placeItem(n)),
       )}
       ${list(
-        'Feeds',
+        t('plant.feeds'),
         sheet.feedsTo.map((n) => placeItem(n)),
       )}
       ${list(
-        'Watched by models',
+        t('plant.watchedBy'),
         sheet.models.map((n) => item(n, prop(n, 'version'))),
       )}
       ${list(
-        'Documents',
+        t('plant.documents'),
         sheet.documents.map((n) => item(n)),
       )}
       ${list(
-        'Parts',
+        t('plant.parts'),
         sheet.parts.map((n) => placeItem(n)),
       )}
     </div>`;
@@ -193,9 +194,9 @@ function placePage(graph: Graph, id: string, items: FloorItem[] | null, now: num
         emptyState({
           illustration: 'launch',
           compact: true,
-          title: 'Nothing is inside this place yet',
-          body: 'Lines and machines appear here once the ontology says they are in it (a contains relationship).',
-          action: linkButton('Open the Ontology', '#/ontology', { size: 'sm', icon: 'network' }),
+          title: t('plant.emptyTitle'),
+          body: t('plant.emptyBody'),
+          action: linkButton(t('plant.openOntology'), '#/ontology', { size: 'sm', icon: 'network' }),
         }),
       );
   return `${cards}${warningsCard(warnings, now)}`;
@@ -216,15 +217,17 @@ function searchResults(graph: Graph, query: string): string {
       : emptyState({
           illustration: 'search',
           compact: true,
-          title: `No place is called “${query.trim()}”`,
-          body: 'Search by a site’s, line’s or machine’s name, or part of it.',
+          title: t('plant.noMatch', { query: query.trim() }),
+          body: t('plant.noMatchBody'),
         })
   }</div>`;
 }
 
 const view: View = {
   id: 'plant',
-  title: 'Plant',
+  get title() {
+    return t('plant.title');
+  },
   icon: 'factory',
   crumbs: () => shownTrail,
   render(ctx) {
@@ -236,29 +239,29 @@ const view: View = {
     const id = asked ?? (tops.length === 1 ? (tops[0] ?? null) : null);
     const node = id ? graph.nodes[id] : undefined;
     shownTrail = node ? trail(graph, node.id).map((n) => ({ label: n.label, href: placeLink(n.id) })) : [];
-    const title = node?.label ?? 'Plant';
-    const kind = node ? node.type : 'Site → line → machine';
+    const title = node?.label ?? t('plant.title');
+    const kind = node ? node.type : t('plant.hierarchy');
     const search = `<form class="plant-search" data-plant-search role="search">
-        <input name="q" type="search" placeholder="Find a line or machine" aria-label="Find a place" value="${esc(ui.query)}" autocomplete="off"${keyAttr('/')}>
+        <input name="q" type="search" placeholder="${esc(t('plant.searchPlaceholder'))}" aria-label="${esc(t('plant.searchLabel'))}" value="${esc(ui.query)}" autocomplete="off"${keyAttr('/')}>
       </form>`;
     const head = pageHead({
-      eyebrow: `Operations · ${kind}`,
+      eyebrow: t('plant.eyebrow', { kind }),
       title,
-      actionsHtml: `<div class="row gap-2">${search}${ctx.api ? button('Refresh', { attrs: { 'data-plant-refresh': true } }) : ''}</div>`,
+      actionsHtml: `<div class="row gap-2">${search}${ctx.api ? button(t('plant.refresh'), { attrs: { 'data-plant-refresh': true } }) : ''}</div>`,
     });
     if (ctx.api && ctx.ontology.status === 'loading')
-      return `${head}<div class="card">${skeleton.card('Loading from the Tiles API…')}</div>`;
+      return `${head}<div class="card">${skeleton.card(t('plant.loading'))}</div>`;
     if (ctx.api && ctx.ontology.status !== 'ready')
       return `${head}${apiUnreachable(ctx.ontology.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const results = searchResults(graph, ui.query);
     if (!tops.length)
-      return `${head}${results}<div class="card"><p>The ontology has no sites, lines or machines yet. Build the hierarchy on the <a href="#/ontology">Ontology</a> page: a site contains workcenters, which contain lines and cells, which contain machines.</p></div>`;
+      return `${head}${results}<div class="card"><p>${tHtml('plant.noPlaces', { link: `<a href="#/ontology">${esc(t('plant.ontology'))}</a>` })}</p></div>`;
     const items = floorItems(ctx, graph);
     const now = Date.now();
     if (asked && !node)
-      return `${head}${results}<div class="card" role="alert"><p>This place isn’t in the ontology any more. <a href="#/plant">Start from the top</a>.</p></div>`;
+      return `${head}${results}<div class="card" role="alert"><p>${tHtml('plant.gone', { link: `<a href="#/plant">${esc(t('plant.startFromTop'))}</a>` })}</p></div>`;
     if (!node) {
-      const cards = tops.map((t) => placeCard(graph, graph.nodes[t] as OntologyNode, items)).join('');
+      const cards = tops.map((top) => placeCard(graph, graph.nodes[top] as OntologyNode, items)).join('');
       return `${head}${results}<div class="place-grid">${cards}</div>`;
     }
     const body =

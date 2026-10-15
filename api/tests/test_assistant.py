@@ -9,6 +9,7 @@ from anthropic.types import Message, TextBlock, ToolUseBlock, Usage
 
 from tiles_api import assistant, grounding
 from tiles_api.assistant import Event, Tool, ToolError, Turn
+from tiles_api.errors import Refusal
 
 
 class Scripted:
@@ -235,6 +236,7 @@ def test_a_question_stops_at_its_token_budget() -> None:
     last = events[-1]
     assert last.kind == "error" and last.data["over_budget"] is True
     assert "budget of 1,000 tokens" in last.data["detail"]
+    assert (last.data["code"], last.data["params"]) == ("copilot.question_budget", {"tokens": "1,000"})
     assert last.data["usage"] == {"input_tokens": 1200}
     # Without a budget it goes on.
     model = Scripted(*rounds, ([], Turn([text(grounding.DECLINE + ".")], "end_turn")))
@@ -245,9 +247,9 @@ def test_a_question_stops_at_its_token_budget() -> None:
 def test_a_question_stops_when_told_to_between_calls() -> None:
     # The organisation's daily budget, found spent while the question runs.
     asked: list[int] = []
-    reasons = iter([None, "Spent for today"])
+    reasons = iter([None, Refusal("copilot.daily_budget", "Spent for today", tokens="5")])
 
-    def stop() -> str | None:
+    def stop() -> Refusal | None:
         asked.append(1)
         return next(reasons)
 
@@ -258,6 +260,7 @@ def test_a_question_stops_when_told_to_between_calls() -> None:
     assert len(asked) == 2
     assert events[-1].kind == "error"
     assert events[-1].data["detail"] == "Spent for today" and events[-1].data["over_budget"] is True
+    assert (events[-1].data["code"], events[-1].data["params"]) == ("copilot.daily_budget", {"tokens": "5"})
 
 
 def test_empty_answers_and_unrun_tool_calls_are_not_kept() -> None:

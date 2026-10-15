@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Annotated, Any, Literal
 
 import psycopg
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, StrictFloat, StrictInt, ValidationError
 
@@ -20,6 +20,7 @@ from tiles_api import audit, sealed
 from tiles_api.api_models import ModelOut
 from tiles_api.api_ontology import Auth
 from tiles_api.api_sites import OrgAdmin, OrgCaller, org_admin
+from tiles_api.errors import Problem
 from tiles_api.models import github, remote, store
 from tiles_api.models.registry import ModelError, ModelSpec, Param, Port, registry
 from tiles_api.models.store import OWN_MODELS
@@ -79,15 +80,26 @@ class SpecIn(BaseModel):
                 params=tuple(Param(**(p.model_dump() | {"default": float(p.default)})) for p in self.params),
             )
         except ModelError as e:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+            raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "org_model.invalid_spec", str(e), reason=str(e)) from e
         if spec.kind == "design" and spec.inputs:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT, "A design model takes parameters only, no inputs"
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "org_model.design_with_inputs",
+                "A design model takes parameters only, no inputs",
             )
         if spec.kind == "virtual-sensor" and not spec.inputs:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A virtual sensor needs at least one input")
+            raise Problem(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                "org_model.sensor_without_inputs",
+                "A virtual sensor needs at least one input",
+            )
         if any(m.spec.key == spec.key for m in registry.all()):
-            raise HTTPException(status.HTTP_409_CONFLICT, f"{spec.key} is a built-in model's key: choose another")
+            raise Problem(
+                status.HTTP_409_CONFLICT,
+                "org_model.builtin_key",
+                f"{spec.key} is a built-in model's key: choose another",
+                key=spec.key,
+            )
         return spec
 
 
@@ -150,7 +162,7 @@ def _url(request: Request, url: str) -> str:
     url = url.strip()
     problem = remote.endpoint_problem(url, request.app.state.settings)
     if problem:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, problem)
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "org_model.endpoint_refused", problem, reason=problem)
     return url
 
 
@@ -211,9 +223,12 @@ def _insert(caller: OrgCaller, spec: ModelSpec, columns: dict[str, Any]) -> dict
                 ).fetchone()
             )
     except psycopg.errors.UniqueViolation:
-        raise HTTPException(
+        raise Problem(
             status.HTTP_409_CONFLICT,
+            "org_model.version_taken",
             f"{spec.key} {spec.version} is registered already: a version never changes, so give a new one",
+            key=spec.key,
+            version=spec.version,
         ) from None
 
 
@@ -265,8 +280,9 @@ def fetched_model(body: GithubModelIn, _admin: Annotated[None, Depends(admin_fir
     """The model's code and spec from GitHub, bounded by GITHUB_TIMEOUT."""
     settings = request.app.state.settings
     if not settings.sandbox_url or settings.sandbox_token is None:
-        raise HTTPException(
+        raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "org_model.no_sandbox",
             "This deployment has no sandbox for models from GitHub: its operator sets TILES_SANDBOX_URL",
         )
     try:
@@ -275,13 +291,21 @@ def fetched_model(body: GithubModelIn, _admin: Annotated[None, Depends(admin_fir
         archive = github.fetch(body.repo, body.commit, token, GITHUB_TIMEOUT)
         found, code = github.pack(archive, path)
     except github.GithubError as e:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(e)) from e
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, "org_model.github_fetch_failed", str(e), reason=str(e)
+        ) from e
     try:
         described = GithubSpecIn.model_validate(found)
     except ValidationError as e:
         where = f"{path}/{github.SPEC_FILE}" if path else github.SPEC_FILE
         problems = "; ".join(f"{'.'.join(map(str, err['loc']))}: {err['msg']}" for err in e.errors()[:5])
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{where}: {problems}") from None
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "org_model.github_spec_invalid",
+            f"{where}: {problems}",
+            file=where,
+            problems=problems,
+        ) from None
     return Fetched(body.repo, body.commit, path, described.to_spec(), described.entry, code)
 
 
@@ -334,22 +358,34 @@ def change_own_model(key: str, version: str, body: ModelChange, caller: OrgAdmin
         OWN_MODELS + " AND key = %s AND version = %s FOR UPDATE", [caller.org_id, key, version]
     ).fetchone()
     if row is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Your organisation has no model {key} {version} of its own")
+        raise Problem(
+            status.HTTP_404_NOT_FOUND,
+            "org_model.not_found",
+            f"Your organisation has no model {key} {version} of its own",
+            key=key,
+            version=version,
+        )
     if row["source"] == github.SOURCE and (body.endpoint_url is not None or body.token is not None or body.clear_token):
-        raise HTTPException(
+        raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "org_model.github_has_no_endpoint",
             "A model from GitHub has no endpoint or token: register a new version for new code",
         )
     if body.token is not None and body.clear_token:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Give a new token or clear it, not both")
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "org_model.token_given_and_cleared",
+            "Give a new token or clear it, not both",
+        )
     url = row["endpoint_url"] if body.endpoint_url is None else _url(request, body.endpoint_url)
     moved = row["endpoint_url"] is not None and (
         urllib.parse.urlsplit(url).hostname != urllib.parse.urlsplit(row["endpoint_url"]).hostname
     )
     if moved and row["endpoint_token"] is not None and body.token is None and not body.clear_token:
         # The token was given for the old host: it isn't sent to another unless someone says so.
-        raise HTTPException(
+        raise Problem(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "org_model.endpoint_host_moved",
             "The endpoint moves to another host: give its token, or clear_token to send none",
         )
     token = row["endpoint_token"]

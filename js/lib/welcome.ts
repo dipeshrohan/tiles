@@ -6,6 +6,7 @@
 import { esc } from './dom.ts';
 import { helpHref } from './help.ts';
 import { MAX_PINNED, type NavPrefs } from './nav.ts';
+import { t, tHtml } from './i18n.ts';
 
 export type WorkRole = 'engineer' | 'maintenance' | 'shift-lead' | 'admin';
 
@@ -22,8 +23,12 @@ export interface RoleSetup {
 export const WORK_ROLES: readonly RoleSetup[] = [
   {
     id: 'engineer',
-    label: 'Engineer',
-    says: 'I look for causes in the data and keep the plant model up to date.',
+    get label() {
+      return t('welcome.role.engineer');
+    },
+    get says() {
+      return t('welcome.role.engineerSays');
+    },
     start: 'explorer',
     localStart: 'quality',
     pins: ['signals', 'explorer', 'correlate', 'ontology'],
@@ -31,8 +36,12 @@ export const WORK_ROLES: readonly RoleSetup[] = [
   },
   {
     id: 'maintenance',
-    label: 'Maintenance',
-    says: 'I work warnings and keep the machines running.',
+    get label() {
+      return t('welcome.role.maintenance');
+    },
+    get says() {
+      return t('welcome.role.maintenanceSays');
+    },
     start: 'warnings',
     localStart: 'physics',
     pins: ['warnings', 'plant', 'documents'],
@@ -40,16 +49,24 @@ export const WORK_ROLES: readonly RoleSetup[] = [
   },
   {
     id: 'shift-lead',
-    label: 'Shift lead',
-    says: 'I watch my line during the shift and act on what goes wrong.',
+    get label() {
+      return t('welcome.role.shiftLead');
+    },
+    get says() {
+      return t('welcome.role.shiftLeadSays');
+    },
     start: 'shopfloor',
     pins: ['shopfloor', 'warnings', 'plant'],
     fold: ['data', 'design'],
   },
   {
     id: 'admin',
-    label: 'Admin',
-    says: 'I set up sites, people and the connections to the plant.',
+    get label() {
+      return t('welcome.role.admin');
+    },
+    get says() {
+      return t('welcome.role.adminSays');
+    },
     start: 'settings',
     pins: ['settings', 'onboarding', 'reviews'],
     fold: ['design'],
@@ -99,9 +116,7 @@ export interface WelcomeContext {
 
 // What Tiles is showing: the demo plant in local mode, or the site.
 export function welcomeIntro(c: WelcomeContext): string {
-  return c.site === null
-    ? 'This is Tiles with its demo plant: a battery plant with a die-caster, a notching cutter and a tab welder. Its readings are made up, and what you change stays in this browser.'
-    : `You’re on ${c.site}: its plant model, signals, warnings and insights, shared with everyone on the site.`;
+  return c.site === null ? t('welcome.introLocal') : t('welcome.introSite', { site: c.site });
 }
 
 // The first step: what Tiles shows, and the roles to choose from.
@@ -111,9 +126,9 @@ export function rolesHtml(c: WelcomeContext): string {
       `<button class="welcome-role" type="button" data-role="${esc(r.id)}"><span class="welcome-role-name">${esc(r.label)}</span><span class="small soft">${esc(r.says)}</span></button>`,
   ).join('');
   return `<p class="soft">${esc(welcomeIntro(c))}</p>
-    <fieldset class="welcome-roles"><legend>What do you mostly do?</legend>${roles}</fieldset>
-    <p class="small soft">Your choice sets the page Tiles opens at and the pages pinned at the top of the menu. You can change both later.</p>
-    <div class="dialog-foot"><button class="btn ghost" type="button" data-welcome-skip>Just look around</button></div>`;
+    <fieldset class="welcome-roles"><legend>${esc(t('welcome.question'))}</legend>${roles}</fieldset>
+    <p class="small soft">${esc(t('welcome.choiceHint'))}</p>
+    <div class="dialog-foot"><button class="btn ghost" type="button" data-welcome-skip>${esc(t('welcome.skip'))}</button></div>`;
 }
 
 // The second step: what the role set (the menu as it now is: `prefs`), and where to go next. An admin
@@ -125,19 +140,24 @@ export function nextHtml(
   o: { setUp: boolean; helpFor: string | null; tour?: { id: string; title: string } | null },
 ): string {
   const pins = role.pins.filter((p) => prefs.pinned.includes(p)).map((p) => `<b>${esc(c.title(p))}</b>`);
-  const listed = pins.length > 1 ? `${pins.slice(0, -1).join(', ')} and ${pins.at(-1)}` : (pins[0] ?? '');
+  const listed =
+    pins.length > 1
+      ? tHtml('welcome.list', { first: pins.slice(0, -1).join(', '), last: pins.at(-1) ?? '' })
+      : (pins[0] ?? '');
   const page = prefs.start ?? 'home';
   const start = c.title(page);
   const actions = [
-    o.setUp ? `<a class="btn primary" href="#/onboarding">Set up the site</a>` : '',
-    `<a class="btn${o.setUp ? '' : ' primary'}" href="#/${page === 'home' ? '' : esc(page)}">Go to ${esc(start)}</a>`,
+    o.setUp ? `<a class="btn primary" href="#/onboarding">${esc(t('welcome.setUp'))}</a>` : '',
+    `<a class="btn${o.setUp ? '' : ' primary'}" href="#/${page === 'home' ? '' : esc(page)}">${esc(t('welcome.goTo', { page: start }))}</a>`,
     o.tour
-      ? `<button class="btn" type="button" data-start-tour="${esc(o.tour.id)}">Take the tour: ${esc(o.tour.title)}</button>`
+      ? `<button class="btn" type="button" data-start-tour="${esc(o.tour.id)}">${esc(t('welcome.tour', { title: o.tour.title }))}</button>`
       : '',
-    o.helpFor ? `<a class="btn ghost" href="${esc(helpHref(o.helpFor))}">Read how ${esc(start)} works</a>` : '',
+    o.helpFor
+      ? `<a class="btn ghost" href="${esc(helpHref(o.helpFor))}">${esc(t('welcome.readHow', { page: start }))}</a>`
+      : '',
   ].filter(Boolean);
-  const opens = `Tiles will open at <b>${esc(start)}</b>`;
-  return `<p>${pins.length ? `${opens}, with ${listed} pinned in the menu.` : `${opens}.`}</p>
-    <p class="small soft">To see this again, open Help and choose Show the welcome.</p>
+  const at = `<b>${esc(start)}</b>`;
+  return `<p>${pins.length ? tHtml('welcome.opensWith', { start: at, pinned: listed }) : tHtml('welcome.opens', { start: at })}</p>
+    <p class="small soft">${esc(t('welcome.again'))}</p>
     <div class="dialog-foot">${actions.join('')}</div>`;
 }

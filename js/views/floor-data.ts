@@ -4,6 +4,7 @@ import { floorOrder, machineOf, pathOf, placeWarning, type FloorItem, type Floor
 import { howFar } from '../lib/warnings.ts';
 import type { Graph } from '../lib/types.ts';
 import type { Context } from './types.ts';
+import { t } from '../lib/i18n.ts';
 
 // What the Shopfloor (T5.16) and Plant (T5.17) pages share: the site's open warnings and its
 // signal catalogue's linked tags (which place warnings on machines, and give a machine's signals
@@ -141,9 +142,9 @@ export function floorItems(ctx: Context, graph: Graph): FloorItem[] | null {
     const machine = machineId ? graph.nodes[machineId] : undefined;
     return ctx.state.detection.alerts.map((a, i) => ({
       id: `demo-${i}`,
-      tag: 'Plunger friction',
+      tag: t('floor.demoTag'),
       machineId,
-      machine: machine?.label ?? 'Die-caster',
+      machine: machine?.label ?? t('floor.demoMachine'),
       path: machineId ? pathOf(graph, machineId) : [],
       state: 'new' as FloorState,
       status: 'raised' as const,
@@ -152,7 +153,7 @@ export function floorItems(ctx: Context, graph: Graph): FloorItem[] | null {
       endedAt: null,
       assignee: null,
       assigneeId: null,
-      detail: `Shots ${fmt(a.firstShot)}–${fmt(a.lastShot)}, friction peak ${fmt(a.peak, 2)}`,
+      detail: t('floor.demoDetail', { first: fmt(a.firstShot), last: fmt(a.lastShot), peak: fmt(a.peak, 2) }),
     }));
   }
   const site = siteId(ctx);
@@ -161,9 +162,18 @@ export function floorItems(ctx: Context, graph: Graph): FloorItem[] | null {
   return listing.items.map((w) => placeWarning(graph, w, map, howFar(w))).sort(floorOrder);
 }
 
-export const STATE_LABEL: Record<FloorState, [cls: string, label: string]> = {
-  out: ['bad', 'Signal still out'],
-  new: ['bad', 'Nobody has it'],
-  taken: ['warn', 'Being handled'],
-  ok: ['good', 'OK'],
+// Getters, so a label is read in the current language.
+export const STATE_LABEL: Readonly<Record<FloorState, [cls: string, label: string]>> = {
+  get out(): [string, string] {
+    return ['bad', t('floor.state.out')];
+  },
+  get new(): [string, string] {
+    return ['bad', t('floor.state.new')];
+  },
+  get taken(): [string, string] {
+    return ['warn', t('floor.state.taken')];
+  },
+  get ok(): [string, string] {
+    return ['good', t('floor.state.ok')];
+  },
 };

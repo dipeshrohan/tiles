@@ -16,9 +16,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from opentelemetry import trace
 from pydantic import BaseModel
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from tiles_api import readiness, telemetry
+from tiles_api import errors, readiness, telemetry
 from tiles_api.api_agents import router as agents_router
 from tiles_api.api_apps import router as apps_router
 from tiles_api.api_auth import router as auth_router
@@ -218,7 +219,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request: Request, exc: RequestValidationError) -> JSONResponse:
         """FastAPI's own answer, except that a NaN in the request doesn't turn it into a 500."""
-        return JSONResponse({"detail": _finite(jsonable_encoder(exc.errors()))}, status_code=422)
+        detail = _finite(jsonable_encoder(exc.errors()))
+        return JSONResponse({"detail": detail, "code": "validation", "params": {}}, status_code=422)
+
+    # Every other error carries its code (U6.01, errors.py).
+    app.add_exception_handler(StarletteHTTPException, errors.answer)
 
     @app.get("/health", response_model=Health, tags=["meta"])
     def health() -> Health:
