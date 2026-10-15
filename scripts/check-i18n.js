@@ -181,8 +181,10 @@ export function htmlKeys(html) {
   return new Set([...html.matchAll(/\sdata-i18n(?:-[a-z]+)?="([^"]+)"/g)].map((m) => m[1]));
 }
 
-// A message's ICU shape: its {values}, and its plurals and selects with their option keys (each
-// option's own shape inside), in order of appearance sorted, so a translation can move them.
+// A message's ICU shape: its {values}, and its plurals and selects with what is inside them, in any
+// order, so a translation can move them. A select keeps its option keys; a plural's keys are the
+// language's own (pluralProblems), so the shape has what its options hold together, and whether
+// every option says the number (#).
 export function shape(message) {
   const closing = (t, open) => {
     let depth = 0;
@@ -207,14 +209,74 @@ export function shape(message) {
         const o = body.indexOf('{', k);
         if (o < 0) break;
         const e = closing(body, o);
-        options.push(`${body.slice(k, o).trim()}:${shape(body.slice(o + 1, e))}`);
+        options.push([body.slice(k, o).trim(), body.slice(o + 1, e)]);
         k = e + 1;
       }
-      parts.push(`{${name.trim()},${kind.trim()},${options.sort().join('|')}}`);
+      if (kind.trim() === 'plural') {
+        const inside = [...new Set(options.flatMap(([, b]) => shape(b).match(/\{[^{}]*\}/g) ?? []))].sort();
+        const hash = options.length > 0 && options.every(([, b]) => b.includes('#'));
+        parts.push(`{${name.trim()},plural,${inside.join('')}${hash ? ',#' : ''}}`);
+      } else
+        parts.push(
+          `{${name.trim()},${kind.trim()},${options
+            .map(([key, b]) => `${key}:${shape(b)}`)
+            .sort()
+            .join('|')}}`,
+        );
     }
     i = end + 1;
   }
   return parts.sort().join('');
+}
+
+// A message's arguments, nested ones too: [{ name, kind, options: [[key, body]] }].
+function args(message) {
+  const closing = (t, open) => {
+    let depth = 0;
+    for (let i = open; i < t.length; i++) {
+      if (t[i] === '{') depth++;
+      else if (t[i] === '}' && --depth === 0) return i;
+    }
+    return -1;
+  };
+  const out = [];
+  for (let i = 0; ;) {
+    const open = message.indexOf('{', i);
+    if (open < 0) break;
+    const end = closing(message, open);
+    if (end < 0) break;
+    const [name, kind, ...rest] = message.slice(open + 1, end).split(',');
+    if (kind !== undefined) {
+      const body = rest.join(',');
+      const options = [];
+      for (let k = 0; ;) {
+        const o = body.indexOf('{', k);
+        if (o < 0) break;
+        const e = closing(body, o);
+        options.push([body.slice(k, o).trim(), body.slice(o + 1, e)]);
+        k = e + 1;
+      }
+      out.push({ name: name.trim(), kind: kind.trim(), options });
+      for (const [, b] of options) out.push(...args(b));
+    }
+    i = end + 1;
+  }
+  return out;
+}
+
+// A plural's options that the language doesn't have (its Intl.PluralRules categories, or =n), or a
+// missing `other`.
+export function pluralProblems(message, locale) {
+  const categories = new Intl.PluralRules(locale).resolvedOptions().pluralCategories;
+  const problems = [];
+  for (const a of args(message).filter((a) => a.kind === 'plural')) {
+    const keys = a.options.map(([k]) => k);
+    if (!keys.includes('other')) problems.push(`{${a.name}} has no "other"`);
+    for (const k of keys)
+      if (!/^=\d+$/.test(k) && !categories.includes(k))
+        problems.push(`{${a.name}}: "${k}" isn't a plural form in ${locale}`);
+  }
+  return problems;
 }
 
 export function check() {
@@ -230,6 +292,9 @@ export function check() {
     for (const k of keys.filter((k) => other.includes(k))) {
       if (!String(messages[k]).trim()) problems.push(`js/i18n/${f}: ${k} is empty`);
       else if (shape(messages[k]) !== shape(en[k])) problems.push(`js/i18n/${f}: ${k} doesn't have English's {values}`);
+      else
+        for (const p of pluralProblems(messages[k], f.replace(/\.json$/, '')))
+          problems.push(`js/i18n/${f}: ${k}: ${p}`);
     }
   }
   // Every key is used somewhere (a key named whole, or a family named by its prefix: `t(`warnings.status.${s}`)`).

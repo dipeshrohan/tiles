@@ -237,6 +237,7 @@
   "app.inbox.loading": "Ihre Benachrichtigungen werden geladen…",
   "app.inbox.markAll": "Alle als gelesen markieren",
   "app.inbox.title": "Benachrichtigungen",
+  "app.languageFailed": "Diese Sprache konnte nicht geladen werden: Tiles bleibt auf Englisch. Laden Sie die Seite neu und versuchen Sie es noch einmal.",
   "app.maxPinned": "Lösen Sie zuerst eine angeheftete Seite: Es können höchstens {max} angeheftet werden",
   "app.nav.data": "Daten",
   "app.nav.design": "Design",

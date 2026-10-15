@@ -25,7 +25,7 @@ export function chosenLanguage(
 ): string {
   const asked = new URLSearchParams(search).get('lang');
   if (known(asked)) {
-    save(KEY, asked);
+    if (asked !== PSEUDO) save(KEY, asked); // the pseudo-locale is for this visit only, never kept
     return asked;
   }
   const kept = load<string | null>(KEY, null);
@@ -65,10 +65,16 @@ function loadScript(code: string): Promise<void> {
   return p;
 }
 
-// Shows the page in a language: its messages loaded (once) and set; English if they can't be.
-export async function useLanguage(code: string): Promise<string> {
+let pseudoMade = false;
+let latest = 0;
+
+// Shows the page in a language: its messages loaded (once) and set; English if they can't be. Only
+// the latest asked is set: a slow catalogue arriving after another choice changes nothing (null).
+export async function useLanguage(code: string): Promise<string | null> {
+  const mine = ++latest;
   if (code === PSEUDO) {
-    if (!messages()[PSEUDO]) addCatalogue(PSEUDO, pseudoCatalogue(messages().en ?? {}));
+    if (!pseudoMade) addCatalogue(PSEUDO, pseudoCatalogue(messages().en ?? {}));
+    pseudoMade = true;
   } else if (code !== 'en' && !messages()[code]) {
     try {
       await loadScript(code);
@@ -76,6 +82,7 @@ export async function useLanguage(code: string): Promise<string> {
       code = 'en';
     }
   }
+  if (mine !== latest) return null;
   setLocale(code);
   if (typeof document !== 'undefined') document.documentElement.lang = code === PSEUDO ? 'en' : currentLocale();
   return currentLocale();
@@ -133,10 +140,39 @@ function accent(message: string): string {
   return out;
 }
 
+// How many characters a person sees: values left out, a plural or select as its longest option.
+function visible(message: string): number {
+  let n = 0;
+  let i = 0;
+  while (i < message.length) {
+    const open = message.indexOf('{', i);
+    n += (open < 0 ? message.slice(i) : message.slice(i, open)).length;
+    if (open < 0) break;
+    const end = closing(message, open);
+    if (end < 0) break;
+    const [, kind, ...rest] = message.slice(open + 1, end).split(',');
+    if (kind !== undefined) {
+      const body = rest.join(',');
+      let longest = 0;
+      for (let k = 0; k < body.length;) {
+        const o = body.indexOf('{', k);
+        if (o < 0) break;
+        const e = closing(body, o);
+        if (e < 0) break;
+        longest = Math.max(longest, visible(body.slice(o + 1, e)));
+        k = e + 1;
+      }
+      n += longest;
+    }
+    i = end + 1;
+  }
+  return n;
+}
+
 // Accented, 40% longer and in brackets: "[Śàṽé ·····]".
 export function pseudo(message: string): string {
   const text = accent(message);
-  const length = message.replace(/\{[^{}]*\}/g, '').length;
+  const length = visible(message);
   return `[${text}${length ? ` ${'·'.repeat(Math.max(1, Math.round(length * 0.4)))}` : ''}]`;
 }
 

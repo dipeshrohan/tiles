@@ -237,6 +237,7 @@
   "app.inbox.loading": "Loading your notifications…",
   "app.inbox.markAll": "Mark all read",
   "app.inbox.title": "Notifications",
+  "app.languageFailed": "That language couldn't be loaded: Tiles stays in English. Reload the page and try again.",
   "app.maxPinned": "Unpin a page first: up to {max} can be pinned",
   "app.nav.data": "Data",
   "app.nav.design": "Design",
