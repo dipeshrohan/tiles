@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, need, onAll, onNavigate, routeOf, bound } from '../lib/dom.ts';
+import { esc, need, onAll, onNavigate, routeOf, bound, scrollBehavior } from '../lib/dom.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import {
   ApiError,
@@ -27,7 +27,7 @@ import {
   when,
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { listKeys, split } from '../lib/split.ts';
+import { listKeys, rowTarget, split } from '../lib/split.ts';
 import { withQuery } from '../lib/url-state.ts';
 import {
   badge,
@@ -46,7 +46,7 @@ import {
   term,
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
-import { bindTable, clearSelection, dataTable, type TableOptions } from '../lib/data-table.ts';
+import { bindTable, clearSelection, dataTable, tableOrder, type TableOptions } from '../lib/data-table.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
 // are in their workflow and who has them; each with a chart of its signal around it, its payload
@@ -94,6 +94,8 @@ function openLinked(ctx: Context): void {
 // Others act on warnings and detectors raise new ones while you are elsewhere: each visit fetches afresh.
 onNavigate((hash) => {
   if (routeOf(hash) !== 'warnings') {
+    acted = null;
+    wantNext = false;
     listing = null;
     detail = null;
     detailFailed = null;
@@ -226,9 +228,13 @@ async function bulkAct(ctx: Context, action: string, keys: string[]): Promise<vo
   const api = ctx.api;
   const me = ctx.ontology.userId;
   if (!site || !api) return;
-  const item = (k: string) => listing?.items?.find((w) => w.id === k);
+  const byId = new Map((listing?.items ?? []).map((w) => [w.id, w]));
   const assigning = action === 'assign-me';
-  const raised = keys.filter((k) => (assigning ? me && item(k)?.assignee_id !== me : item(k)?.status === 'raised'));
+  // Only those it would change: not mine yet and not resolved (assigning), or new (acknowledging).
+  const raised = keys.filter((k) => {
+    const w = byId.get(k);
+    return assigning ? Boolean(me) && w?.status !== 'resolved' && w?.assignee_id !== me : w?.status === 'raised';
+  });
   let done = 0;
   let failed = false;
   const queue = [...raised];
@@ -521,25 +527,49 @@ async function fetchMembers(ctx: Context): Promise<void> {
   ctx.rerender();
 }
 
-// The warning last acted on, and where its row was: Next warning opens the row after it (or, when it
-// left the list, the one that took its place).
+// The warning last acted on, and where it was in the list's order: Next warning opens the one after
+// it (or, when it left the list, the one that took its place). `wantNext`: asked for while the list
+// was being fetched again, or its next page; done when it comes.
 let acted: { id: string; at: number } | null = null;
-const rows = (): HTMLElement[] => [...document.querySelectorAll<HTMLElement>('[data-warning-list] [data-warning]')];
-const rowIndex = (id: string): number => rows().findIndex((r) => r.dataset.warning === id);
+let wantNext = false;
+
+// The list's warnings in the order its table shows them, every one (drawn or not); null while fetched.
+function inOrder(ctx: Context): WarningInfo[] | null {
+  const items = listing?.key === listKey(ctx) ? listing.items : null;
+  return items ? tableOrder(listTable(ctx, uiState(ctx), items, '')) : null;
+}
 
 function nextWarning(ctx: Context): void {
-  const list = rows();
-  if (!acted || !list.length) return;
-  const here = list.findIndex((r) => r.dataset.warning === acted?.id);
+  if (!acted) return;
+  const list = inOrder(ctx);
+  if (!list) {
+    wantNext = true; // the list is on its way
+    return;
+  }
+  wantNext = false;
+  const here = list.findIndex((w) => w.id === acted?.id);
   const next = here >= 0 ? list[here + 1] : list[Math.min(Math.max(acted.at, 0), list.length - 1)];
-  acted = null;
-  if (!next?.dataset.warning) {
+  if (!next) {
+    if (listing?.more) {
+      wantNext = true; // older warnings first
+      void fetchMore(ctx);
+      return;
+    }
+    acted = null;
+    ctx.rerender();
     ctx.toast('That was the last warning in the list');
     return;
   }
-  Object.assign(uiState(ctx), { selected: next.dataset.warning });
+  acted = null;
+  Object.assign(uiState(ctx), { selected: next.id });
   ctx.rerender();
   ux('task', 'warning.next');
+  // As j and k do: the focus on its row, in view.
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-warning-list] [data-warning="${CSS.escape(next.id)}"]`);
+    rowTarget(row)?.focus({ preventScroll: true });
+    row?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
+  });
 }
 
 async function act(ctx: Context, action: string, note: string, form: HTMLFormElement): Promise<void> {
@@ -583,7 +613,9 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
         : warning.assignee
           ? `Assigned to ${warning.assignee}`
           : 'Unassigned',
-      'assign-me': 'Assigned to you',
+      'assign-me': same
+        ? `Already assigned to you${note ? '; your note is kept as a comment' : ''}`
+        : 'Assigned to you',
       resolve: `Resolved as ${warning.outcome ? OUTCOMES[warning.outcome].toLowerCase() : 'done'}`,
       reopen: 'Reopened',
       comment: 'Comment added',
@@ -592,7 +624,7 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
     ux('task', `warning.${action === 'assign-me' ? 'assign' : action}`);
     if (action !== 'comment' && !same) listing = null; // it may have left the list's filters
     // Done with this one: Next warning (n) opens the one after it in the list (U5.04).
-    if (action !== 'comment') acted = { id: w.id, at: rowIndex(w.id) };
+    if (action !== 'comment') acted = { id: w.id, at: inOrder(ctx)?.findIndex((i) => i.id === w.id) ?? 0 };
   } catch {
     // The client showed why. An acknowledgement shown at once is taken back at once; then, as after
     // any refused step, the warning and the list are fetched again (someone may have changed it).
@@ -667,7 +699,11 @@ const view: View = {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
     const ui = uiState(ctx);
     const site = siteId(ctx);
-    if (ui.site !== site) Object.assign(ui, { selected: null, site }); // another site's warning
+    if (ui.site !== site) {
+      Object.assign(ui, { selected: null, site }); // another site's warning
+      acted = null;
+    }
+    if (wantNext && listing?.key === listKey(ctx) && listing.items) nextWarning(ctx); // asked for while it came
     if (listing?.key !== listKey(ctx)) void fetchList(ctx);
     // A failed fetch waits for Refresh, rather than retrying at every render.
     if (ui.selected !== null && detail?.key !== detailKey(ctx) && detailFailed !== detailKey(ctx))
@@ -678,6 +714,7 @@ const view: View = {
       void fetchMembers(ctx);
 
     onAll(root, '[data-show]', 'click', (el) => {
+      acted = null; // another list: no next in it
       ui.filters = { ...ui.filters, show: (el.dataset.show as Show | undefined) ?? 'unresolved' };
       ctx.rerender();
     });
@@ -686,6 +723,7 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-filter]', 'change', (el) => {
+      acted = null;
       const value = (el as HTMLSelectElement).value;
       ui.filters = { ...ui.filters, [el.dataset.filter ?? '']: value } as Filters;
       ctx.rerender();
