@@ -32,6 +32,9 @@ const GO = new Map(GO_KEYS);
 export const PAGE_KEYS: readonly (readonly [string, string])[] = [
   ['/', 'Search the page (the command palette where the page has no search)'],
   ['a', 'Acknowledge the warning open'],
+  ['s', 'Assign the warning open to me'],
+  ['r', 'Resolve the warning open: choose its outcome'],
+  ['n', 'Open the next warning, after acting on one'],
   ['e', 'Edit the insight or app open'],
 ];
 
@@ -190,7 +193,9 @@ export function installShortcuts(o: ShortcutOptions): { show(): void } {
     }
     if (target) {
       e.preventDefault();
-      target.click();
+      // A field takes the focus (the warning's outcome, U5.04); a button or link is pressed.
+      if (target.matches('input, select, textarea')) target.focus();
+      else target.click();
     }
   });
   return { show };

@@ -3266,6 +3266,56 @@ function raiseFrictionWarnings(fake) {
   return { out, over };
 }
 
+test('warning triage by keyboard: j opens, s assigns to me, a acknowledges, r the outcome, n the next; bulk assign (U5.04)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const at = (m) => new Date(Date.now() - m * 60_000).toISOString();
+  const ids = [3, 2, 1].map((n) =>
+    fake.raiseWarning(`press${n}.temp`, [{ at: at(40), value: 9 }], {
+      started_at: at(30 + n),
+      last_at: at(1),
+      peak: 9,
+      baseline: 4,
+      threshold: 7,
+      readings: 12,
+    }),
+  );
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  await page.waitForSelector(`[data-warning="${ids[0]}"]`);
+  await page.focus('#view h1');
+  // j opens the first; s assigns it to me; Next warning (n) opens the one after it.
+  await page.keyboard.press('j');
+  await page.waitForSelector('[data-act="assign-me"]');
+  await page.keyboard.press('s');
+  await page.waitForSelector('#toast:has-text("Assigned to you")');
+  await page.waitForSelector('[data-next-warning]');
+  const opened = () => page.locator('[data-warning-list] tr.sel').getAttribute('data-warning');
+  const first = await opened();
+  await page.keyboard.press('n');
+  await page.waitForFunction(
+    (was) => document.querySelector('[data-warning-list] tr.sel')?.getAttribute('data-warning') !== was,
+    first,
+  );
+  // a acknowledges it; r goes to its outcome, chosen with the keys, and Resolve.
+  await page.waitForSelector('[data-act="acknowledge"]');
+  await page.keyboard.press('a');
+  await page.waitForSelector('#toast:has-text("Acknowledged")');
+  await page.waitForSelector('[data-act="resolve"]');
+  await page.keyboard.press('r');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('name')), 'outcome');
+  await page.selectOption('#warning-form [name=outcome]', 'false_alarm');
+  await page.click('[data-act="resolve"]');
+  await page.waitForSelector('#toast:has-text("Resolved as")');
+  await page.waitForSelector('[data-next-warning]');
+  // Bulk: the rest assigned to me at once (the resolved one has left To do).
+  await page.locator('[data-warning-list] [data-table-all]').check();
+  await page.click('[data-table-action="assign-me"]');
+  await page.waitForSelector('#toast:has-text("assigned to you")');
+  await waitFor(() => fake.warnings.filter((w) => w.assignee_id === 'demo@example.com').length === 2);
+  assert.deepEqual(errors, []);
+});
+
 test('the warnings inbox: see a warning on its signal, acknowledge, assign, resolve and reopen it', async (t) => {
   const fake = createFakeApi({ roles: { 'viewer@example.com': 'viewer' } });
   const apiUrl = await fake.listen();

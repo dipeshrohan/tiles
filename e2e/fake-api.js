@@ -2122,6 +2122,7 @@ export function createFakeApi({
 
   return {
     server,
+    warnings, // as stored, newest first (U5.04 tests check who they are assigned to)
     requests,
     bearersSeen,
     scopesAsked,
