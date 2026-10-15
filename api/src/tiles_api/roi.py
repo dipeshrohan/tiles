@@ -16,7 +16,7 @@ same data gives the same digest, and a changed reading changes it.
 import hashlib
 import json
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from tiles_api import performance
@@ -38,7 +38,7 @@ def _events(conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime, code
                coalesce(s.value_text, s.value::text, s.value_bool::text) AS code
         FROM site_samples s JOIN signals g ON g.id = s.signal_id
         WHERE g.site_id = %(site)s AND g.event_kind = ANY(%(kinds)s::text[]) AND g.asset IS NOT NULL
-          AND s.at >= %(start)s AND s.at <= %(end)s
+          AND s.at >= %(start)s AND s.at < %(end)s
           AND coalesce(s.value <> 0, s.value_bool, s.value_text <> '')
           AND (g.event_kind <> 'downtime' OR cardinality(%(codes)s::text[]) = 0
                OR coalesce(s.value_text, s.value::text, s.value_bool::text) = ANY(%(codes)s::text[]))
@@ -56,6 +56,20 @@ def _events(conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime, code
     if len(rows) > performance.MAX_EVENTS:
         raise TooMany(f"More than {performance.MAX_EVENTS} events in a period: choose a shorter one")
     return [dict(r) for r in rows]
+
+
+def _scored(
+    conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime, horizon: timedelta, codes: list[str]
+) -> dict[str, Any]:
+    """Warning performance's totals for the period's stops. Its end is inclusive; a microsecond (the
+    database's resolution) earlier makes it exclusive, as here, so a stop at the boundary counts once."""
+    try:
+        report = performance.report(
+            conn, site_id, start, end - timedelta(microseconds=1), horizon, codes, event_kinds=["downtime"]
+        )
+    except ValueError as e:
+        raise TooMany(str(e)) from e
+    return dict(report["totals"])
 
 
 def _rate(count: int, days: float, parts: float | None) -> float | None:
@@ -77,6 +91,10 @@ def _warnings(totals: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _utc(period: tuple[datetime, datetime]) -> tuple[datetime, datetime]:
+    return period[0].astimezone(UTC), period[1].astimezone(UTC)
+
+
 def report(
     conn: Conn,
     site_id: uuid.UUID,
@@ -89,7 +107,9 @@ def report(
     """The pilot against the baseline. `inputs`: `hours_per_stop` and `hours_source`,
     `cost_per_hour`, `cost_per_scrap` and `currency`, `baseline_parts` and `pilot_parts` (each may
     be None)."""
-    periods = {"baseline": baseline, "pilot": pilot}
+    # In UTC, so the Markdown says the times it shows and one moment gives one digest.
+    periods = {"baseline": _utc(baseline), "pilot": _utc(pilot)}
+    baseline, pilot = periods["baseline"], periods["pilot"]
     if baseline[1] > pilot[0] or any(end <= start for start, end in periods.values()):
         raise ValueError("Each period must end after it starts, and the baseline before the pilot")
     by_unit = inputs.get("baseline_parts") is not None and inputs.get("pilot_parts") is not None
@@ -116,7 +136,7 @@ def report(
                 {"asset": a} | {k: sum(1 for e in events if e["asset"] == a and e["kind"] == k) for k in KINDS}
                 for a in assets
             ],
-            "warnings": _warnings(performance.report(conn, site_id, start, end, horizon, codes)["totals"]),
+            "warnings": _warnings(_scored(conn, site_id, start, end, horizon, codes)),
         }
     b, p = out["periods"]["baseline"], out["periods"]["pilot"]
     scale = (p["parts"] / 1000) if by_unit else p["days"]  # the pilot period in the rates' unit
@@ -166,6 +186,11 @@ def _minutes(seconds: float | None) -> str:
     return "not measured" if seconds is None else f"{seconds / 60:.0f} min"
 
 
+def _cell(text: str) -> str:
+    """Text in a Markdown table's cell: its pipes escaped, on one line."""
+    return " ".join(text.split()).replace("|", "\\|")
+
+
 def markdown(r: dict[str, Any]) -> str:
     """The report as Markdown, in English (a document for the partner, kept as it was made)."""
     b, p, i, a = r["periods"]["baseline"], r["periods"]["pilot"], r["inputs"], r["avoided"]
@@ -178,6 +203,17 @@ def markdown(r: dict[str, Any]) -> str:
 
     def money(v: float | None) -> str:
         return "not measured" if v is None else f"{v:,.0f} {cur}".strip()
+
+    method = []
+    if i.get("hours_per_stop") is not None:
+        source = f" ({' '.join(str(i['hours_source']).split())})" if i.get("hours_source") else ""
+        method.append(f"- Downtime hours: avoided stops x {_n(i['hours_per_stop'], 2)} h per stop{source}.")
+    costs = [
+        f"downtime hours x {money(i['cost_per_hour'])} per hour" if i.get("cost_per_hour") is not None else "",
+        f"scrap events x {money(i['cost_per_scrap'])} each" if i.get("cost_per_scrap") is not None else "",
+    ]
+    if any(costs):
+        method.append(f"- Cost: {', plus '.join(c for c in costs if c)}.")
 
     lines = [
         "# ROI report",
@@ -216,14 +252,12 @@ def markdown(r: dict[str, Any]) -> str:
         "",
         "## How each number is made",
         "",
-        "- Events are the readings on event signals (Warning performance) with an asset, counted from "
-        "the start to the end of each period; a reading of 0 or false is not an event.",
+        "- Events are the readings on event signals (Warning performance) with an asset, from the start "
+        "of each period up to (not including) its end; a reading of 0 or false is not an event.",
         f"- Rates are events {unit}. Avoided is the baseline's rate over the pilot period, less the pilot's count.",
-        f"- Downtime hours: avoided stops x {_n(i.get('hours_per_stop'), 2)} h per stop"
-        + (f" ({i['hours_source']})." if i.get("hours_source") else "."),
-        f"- Cost: downtime hours x {money(i.get('cost_per_hour'))} per hour, plus scrap events x "
-        f"{money(i.get('cost_per_scrap'))} each.",
-        "- Warning figures are Warning performance's over each period; a period no detector judged has none.",
+        *method,
+        "- Warning figures are Warning performance's for the unplanned stops in each period; a period no "
+        "detector judged has none.",
         "",
         "Counted events:",
         "",
@@ -236,6 +270,6 @@ def markdown(r: dict[str, Any]) -> str:
         for x in (b, p):
             row = next((y for y in x["by_asset"] if y["asset"] == asset), {"downtime": 0, "scrap": 0})
             cells += [str(row["downtime"]), str(row["scrap"])]
-        lines.append(f"| {asset} | {' | '.join(cells)} |")
+        lines.append(f"| {_cell(asset)} | {' | '.join(cells)} |")
     lines += ["", f"Digest (SHA-256 of the inputs and every counted event): `{r['digest']}`", ""]
     return "\n".join(lines)

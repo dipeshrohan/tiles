@@ -314,7 +314,7 @@ const view: View = {
       const u = uiState(ctx);
       const body = roiRequest(values, u.horizonHours, parseCodes(u.codes));
       if (Array.isArray(body)) return showErrors(form, body);
-      roi = { form: values, report: roi?.report ?? null };
+      roi = { form: values, report: null }; // the last report was made from other values
       return api.roi(site, body).then(
         (report) => {
           roi = { form: values, report };

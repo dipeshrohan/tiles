@@ -1,6 +1,6 @@
 """The ROI report (T6.01): the pilot period against the baseline, from the site's events and warnings."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi.testclient import TestClient
@@ -69,11 +69,13 @@ def test_the_pilot_is_compared_with_the_baseline(api: TestClient, site: str) -> 
     # No detector judged the baseline, so it has no warning figures; the pilot has Warning performance's.
     assert b["warnings"]["recall"] is None and b["warnings"]["median_warning_seconds"] is None
     assert (p["warnings"]["warnings"], p["warnings"]["caught"], p["warnings"]["precision"]) == (3, 3, 1)
+    assert p["warnings"]["events"] == 3  # DC-01's stops: not its scrap, and DC-02 has no detector
     assert p["warnings"]["median_warning_seconds"] > 0
     md = out["markdown"]
     assert md.startswith("# ROI report\n")
     assert "| Unplanned stops per day | 0.50 |" in md
     assert "2.50 h per stop (MES export 2026-06)" in md
+    assert "- Cost: downtime hours x 1,000 EUR per hour, plus scrap events x 50 EUR each." in md
     assert "| DC-01 | 10 | 4 | 3 | 1 |" in md
     assert f"`{out['digest']}`" in md
 
@@ -93,6 +95,28 @@ def test_the_same_data_gives_the_same_digest_and_a_new_reading_changes_it(
     assert again["periods"]["baseline"]["counts"]["downtime"] == 11
     assert again["digest"] != first["digest"]
     assert roi(api, site, **s, cost_per_hour=1)["digest"] != again["digest"]  # the inputs count too
+
+
+def test_a_stop_at_the_boundary_counts_once_and_times_are_utc(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+) -> None:
+    s = setup(api, site)
+    s.pop("pilot_days")
+    s["baseline_end"] = s["pilot_start"]
+    before = roi(api, site, **s)["periods"]
+    send(api, site, [{"signal": "mes.dc2.downtime", "at": s["pilot_start"], "value": "DT-TOOL"}])
+    out = roi(api, site, **s)
+    after = out["periods"]
+    assert after["baseline"]["counts"] == before["baseline"]["counts"]
+    assert after["pilot"]["counts"]["downtime"] == before["pilot"]["counts"]["downtime"] + 1
+    # The same moments written with another offset: the same report, said in UTC.
+    shifted = {k: datetime.fromisoformat(v).astimezone(timezone(timedelta(hours=2))).isoformat() for k, v in s.items()}
+    again = roi(api, site, 200, **shifted)
+    assert again["digest"] == out["digest"]
+    assert again["periods"]["pilot"]["start"].endswith("Z") or again["periods"]["pilot"]["start"].endswith("+00:00")
+    assert "UTC" in again["markdown"] and "h per stop" not in again["markdown"]  # no stop length given
+    assert "- Cost:" not in again["markdown"]
 
 
 def test_rates_per_thousand_parts_and_codes(api: TestClient, site: str) -> None:  # noqa: F811
