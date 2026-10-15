@@ -2945,11 +2945,18 @@ test('compare mode: this day against a week earlier, shift-aligned with the diff
   await page.selectOption('#compare-form [name=against]', 'week');
   const summary = card.locator('[data-compare-summary]');
   await summary.waitFor();
-  assert.match(await summary.textContent(), /^On average This range is higher by 10 N \(0\.[0-9]+%\)/);
-  assert.match(await card.innerText(), /Earlier: 31 Aug 2026, \d\d:00 to 1 Sept 2026, \d\d:00/);
+  assert.match(await summary.textContent(), /^On average this range is higher by 10 N \(0\.[0-9]+%\)/);
+  assert.match(await card.innerText(), /The other range: 31 Aug 2026, \d\d:00 to 1 Sept? 2026, \d\d:00/);
   assert.equal(await card.locator('svg.chart').count(), 2); // the overlay and the difference
   assert.match(await card.locator('svg.chart').first().getAttribute('aria-label'), /since its start/);
   assert.match(page.url(), /compare=ranges&cs=[^&]+&against=week/);
+  // From a start you choose: asked for first; the main charts aren't drawn again meanwhile.
+  const chart = await page.locator('[data-charts] svg[data-chart]').first().elementHandle();
+  await page.selectOption('#compare-form [name=against]', 'custom');
+  await card.locator('[data-compare-result]:has-text("Choose where the other range starts")').waitFor();
+  assert.ok(await chart.evaluate((el) => el.isConnected), 'the charts stay as they are');
+  await page.selectOption('#compare-form [name=against]', 'week');
+  await summary.waitFor();
   // In the address: a reload shows the same comparison.
   await page.reload();
   await page.locator('[data-compare-summary]').waitFor();

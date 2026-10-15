@@ -1,6 +1,6 @@
 import { test } from 'vitest';
 import assert from 'node:assert/strict';
-import { align, bucketMeans, offsetLabel, otherRange, summarise } from '../js/lib/compare.ts';
+import { align, bucketMeans, offsetLabel, otherRange, overlap, summarise } from '../js/lib/compare.ts';
 import { compareFromQuery, compareQuery, summaryText } from '../js/views/explorer.ts';
 
 const H = 3_600_000;
@@ -14,6 +14,11 @@ test('the range compared is as long, starting earlier: just before, a day, a wee
   assert.deepEqual(otherRange(r, 'week'), { from: T0 - 7 * D, to: T0 - 7 * D + 6 * H });
   assert.deepEqual(otherRange(r, 'custom', T0 - 3 * D), { from: T0 - 3 * D, to: T0 - 3 * D + 6 * H });
   assert.deepEqual(otherRange(r, 'custom'), otherRange(r, 'before')); // no start chosen yet
+  // A month against a week earlier: they share three weeks.
+  const month = { from: T0, to: T0 + 30 * D };
+  assert.ok(overlap(month, otherRange(month, 'week')));
+  assert.ok(!overlap(r, otherRange(r, 'week')));
+  assert.ok(!overlap(r, otherRange(r, 'before'))); // touching is not sharing
 });
 
 test('readings become bucket means; a bucket with none is a gap', () => {
@@ -72,8 +77,8 @@ test('the shared axis reads as time since each range began', () => {
   assert.equal(offsetLabel(45 * 60_000), '+45 min');
   assert.equal(offsetLabel(2.5 * H), '+2 h 30 min');
   assert.equal(offsetLabel(3 * H), '+3 h');
-  assert.equal(offsetLabel(3 * D), '+3 d');
-  assert.equal(offsetLabel(3 * D + 5 * H), '+3 d 5 h');
+  assert.equal(offsetLabel(3 * D), '+3 days');
+  assert.equal(offsetLabel(3 * D + 5 * H), '+3 days 5 h');
 });
 
 test('the comparison is in the address, and read back from it', () => {

@@ -2,13 +2,23 @@ import { ux } from '../lib/analytics.ts';
 import { esc, field, fmt, onAll, onSubmit, bound } from '../lib/dom.ts';
 import type { SignalInfo, SignalSeries } from '../lib/api.ts';
 import { fitWidth, gapFor, lineChart, num, TIME_CHART, timeAt, timeChart, toPoints } from '../lib/svg.ts';
-import { AGAINST, align, offsetLabel, otherRange, summarise, type Against, type Summary } from '../lib/compare.ts';
-import { bindDraft, draftForm, insightLink, readDraft, seriesDraft, type DraftText } from '../lib/insights.ts';
+import {
+  AGAINST,
+  align,
+  offsetLabel,
+  otherRange,
+  overlap,
+  summarise,
+  type Against,
+  type Summary,
+} from '../lib/compare.ts';
+import { morph } from '../lib/morph.ts';
+import { bindDraft, draftForm, insightLink, readDraft, seriesDraft, when, type DraftText } from '../lib/insights.ts';
 import { parseLimit, wearBlock, wearPlan } from '../lib/wear.ts';
 import type { WearCheckResult } from '../lib/api.ts';
 import { catalogue } from './signals.ts';
 import type { Context, View } from './types.ts';
-import { needsApi, pageHead, skeleton, loadFailed, tabs } from '../lib/ui.ts';
+import { card, field as labelled, input, needsApi, pageHead, select, skeleton, loadFailed, tabs } from '../lib/ui.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
@@ -488,6 +498,9 @@ async function saveInsight(ctx: Context): Promise<void> {
 
 const COMPARE_BUCKETS = 240;
 let latestCompare = 0;
+// The comparison last drawn, by what it compares: a page drawn again for something else shows it as
+// it was, without asking for its readings again.
+let compareDrawn: { key: string; html: string } | null = null;
 
 // The comparison asked for, its signals checked against those plotted.
 function compareOf(u: Ui): Compare {
@@ -527,44 +540,54 @@ export function compareFromQuery(params: URLSearchParams): Compare | null {
   };
 }
 
-const rangeText = (from: number, to: number): string => {
-  const f = (t: number) => new Date(t).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
-  return `${f(from)} to ${f(to)}`;
-};
+const spanText = (span: { from: number; to: number }): string =>
+  `${when(new Date(span.from).toISOString())} to ${when(new Date(span.to).toISOString())}`;
+
+function compareForm(u: Ui, c: Compare): string {
+  const signals = u.picked.map((p) => [p.id, p.tag] as const);
+  if (c.mode === 'ranges')
+    return `${labelled('Signal', select('signal', signals, c.signal ?? ''))}
+      ${labelled(
+        'Against',
+        select(
+          'against',
+          AGAINSTS.map((a) => [a, AGAINST[a]] as const),
+          c.against,
+        ),
+      )}
+      ${c.against === 'custom' ? labelled('Its start', input({ type: 'datetime-local', name: 'start', value: c.start ? localInput(c.start) : '' })) : ''}`;
+  if (c.mode === 'signals')
+    return `${labelled('First', select('a', signals, c.a ?? ''))}${labelled('Second', select('b', signals, c.b ?? ''))}`;
+  return '';
+}
 
 function compareCard(u: Ui): string {
   const c = compareOf(u);
-  const picked = u.picked;
-  const options = (name: string, current: string | null, label: string) =>
-    `<label class="field">${label}<select name="${name}">${picked
-      .map((p) => `<option value="${esc(p.id)}" ${p.id === current ? 'selected' : ''}>${esc(p.tag)}</option>`)
-      .join('')}</select></label>`;
   const modes = tabs({
     label: 'Compare',
     items: [
       ['off', 'Off'],
       ['ranges', 'Two ranges'],
-      ...(picked.length > 1 ? ([['signals', 'Two signals']] as const) : []),
+      ...(u.picked.length > 1 ? ([['signals', 'Two signals']] as const) : []),
     ],
     current: c.mode,
     data: 'compare-mode',
   });
-  const form =
-    c.mode === 'ranges'
-      ? `${options('signal', c.signal, 'Signal')}
-        <label class="field">Against<select name="against">${AGAINSTS.map((a) => `<option value="${a}" ${a === c.against ? 'selected' : ''}>${esc(AGAINST[a])}</option>`).join('')}</select></label>
-        ${c.against === 'custom' ? `<label class="field">Its start<input type="datetime-local" name="start" value="${c.start ? localInput(c.start) : ''}" required></label>` : ''}`
-      : c.mode === 'signals'
-        ? `${options('a', c.a, 'First')}${options('b', c.b, 'Second')}`
-        : '';
-  return `<div class="card stack gap-2_5" data-compare>
-      <div class="row justify-between wrap gap-2"><div><h2>Compare</h2><p class="small soft">One signal against another stretch of its own time, shifted to line up, or two signals over this range; with the difference.</p></div>${modes}</div>
+  const form = compareForm(u, c);
+  const key = compareKey(u);
+  const result =
+    c.mode === 'off'
+      ? ''
+      : `<div data-compare-result>${compareDrawn?.key === key ? compareDrawn.html : skeleton.chart('Loading the comparison…', TIME_CHART.height)}</div>`;
+  return card(
+    `<div class="row justify-between wrap gap-2"><div><h2>Compare</h2><p class="small soft">One signal against another stretch of its own time, lined up from their starts, or two signals over this range; with the difference.</p></div>${modes}</div>
       ${form ? `<form class="row gap-2 wrap items-end" id="compare-form">${form}</form>` : ''}
-      ${c.mode === 'off' ? '' : `<div data-compare-result>${skeleton.chart('Loading the comparison…', TIME_CHART.height)}</div>`}
-    </div>`;
+      ${result}`,
+    { class: 'stack gap-2_5', attrs: { 'data-compare': true } },
+  );
 }
 
-const number = (v: number): string => num(v);
+const compareKey = (u: Ui): string => JSON.stringify([compareOf(u), u.range, u.picked.map((p) => [p.id, p.unit])]);
 
 export function summaryText(s: Summary, names: [string, string], unit: string): string {
   if (s.meanA === null || s.meanB === null || s.diff === null)
@@ -572,54 +595,63 @@ export function summaryText(s: Summary, names: [string, string], unit: string): 
   const u = unit ? ` ${unit}` : '';
   const way = s.diff > 0 ? 'higher' : s.diff < 0 ? 'lower' : 'the same';
   const by =
-    s.diff === 0 ? '' : ` by ${number(Math.abs(s.diff))}${u}${s.pct === null ? '' : ` (${number(Math.abs(s.pct))}%)`}`;
-  return `On average ${names[1]} is ${way}${by}: ${number(s.meanB)}${u} against ${number(s.meanA)}${u}, over ${s.shared} points where both have readings.`;
+    s.diff === 0 ? '' : ` by ${num(Math.abs(s.diff))}${u}${s.pct === null ? '' : ` (${num(Math.abs(s.pct))}%)`}`;
+  return `On average ${names[1]} is ${way}${by}: ${num(s.meanB)}${u} against ${num(s.meanA)}${u}, over ${s.shared} points where both have readings.`;
 }
 
+// Draws the comparison into its card, from the readings of both (or what was drawn last for it).
 function loadCompare(root: HTMLElement, ctx: Context): void {
   const site = ctx.ontology.site;
   const u = ui(ctx);
   const c = compareOf(u);
   const box = root.querySelector<HTMLElement>('[data-compare-result]');
   if (!ctx.api || !site || !u.range || !box || c.mode === 'off') return;
-  const api = ctx.api;
-  const mine = ++latestCompare;
+  const key = compareKey(u);
+  if (compareDrawn?.key === key) return; // drawn already, as it is now
+  const show = (html: string) => {
+    compareDrawn = { key, html };
+    if (box.isConnected) box.innerHTML = html;
+  };
   const range = { from: Date.parse(u.range.from), to: Date.parse(u.range.to) };
+  if (c.mode === 'ranges' && c.against === 'custom' && !c.start)
+    return show('<p class="small soft">Choose where the other range starts.</p>');
+  const other = c.mode === 'ranges' ? otherRange(range, c.against, c.start ? Date.parse(c.start) : null) : range;
+  if (c.mode === 'ranges' && overlap(range, other))
+    return show(
+      `<p class="small soft">The other range (${esc(spanText(other))}) shares time with this one, so the difference would be the signal against itself. Show a shorter range, or compare with the period just before.</p>`,
+    );
   const tagOf = (id: string | null) => u.picked.find((p) => p.id === id);
   const one = tagOf(c.mode === 'ranges' ? c.signal : c.a);
   const two = tagOf(c.mode === 'ranges' ? c.signal : c.b);
   if (!one || !two) return;
-  const other = c.mode === 'ranges' ? otherRange(range, c.against, c.start ? Date.parse(c.start) : null) : range;
+  const api = ctx.api;
+  const mine = ++latestCompare;
   const get = (id: string, span: { from: number; to: number }) =>
     api.signals.series(site.id, id, new Date(span.from).toISOString(), new Date(span.to).toISOString(), POINTS);
-  // A, the earlier range (or the first signal); B, this range (or the second signal).
-  const aSpan = c.mode === 'ranges' ? other : range;
-  Promise.all([get(one.id, aSpan), get(two.id, range)]).then(
+  // A: the other range (or the first signal); B: this range (or the second signal).
+  Promise.all([get(one.id, other), get(two.id, range)]).then(
     ([sa, sb]) => {
-      if (mine !== latestCompare || !box.isConnected) return;
-      const read = (s: SignalSeries) => toPoints(s).map((p) => ({ t: p.t, v: p.v }));
-      const x = align(read(sa), aSpan, read(sb), range, COMPARE_BUCKETS);
-      const unit = c.mode === 'ranges' || one.unit === two.unit ? (one.unit ?? '') : '';
-      const xFormat =
-        c.mode === 'ranges'
-          ? (i: number) => offsetLabel(i * x.width)
-          : (i: number) =>
-              new Date(range.from + i * x.width).toLocaleString('en-GB', { dateStyle: 'short', timeStyle: 'short' });
-      const legend = c.mode === 'ranges' ? ['Earlier', 'This range'] : [one.tag, two.tag];
+      if (mine !== latestCompare) return;
+      const read = (r: SignalSeries) => toPoints(r).map((p) => ({ t: p.t, v: p.v }));
+      const x = align(read(sa), other, read(sb), range, COMPARE_BUCKETS);
+      const ranges = c.mode === 'ranges';
+      const legend: [string, string] = ranges ? ['Other range', 'This range'] : [one.tag, two.tag];
+      const said: [string, string] = ranges ? ['the other range', 'this range'] : [one.tag, two.tag];
+      const unitsDiffer = !ranges && (one.unit ?? '') !== (two.unit ?? '');
+      const unit = unitsDiffer ? '' : (one.unit ?? '');
+      const xFormat = ranges
+        ? (i: number) => offsetLabel(i * x.width)
+        : (i: number) => when(new Date(range.from + i * x.width).toISOString());
       const width = fitWidth(TIME_CHART.width);
-      const unitsDiffer = c.mode === 'signals' && (one.unit ?? '') !== (two.unit ?? '');
-      box.innerHTML = `${lineChart({
+      show(`${lineChart({
         series: [
           { values: x.a, color: 'var(--soft)', label: legend[0], dash: '5 3' },
           { values: x.b, color: 'var(--accent)', label: legend[1] },
         ],
         xFormat,
-        xLabel: c.mode === 'ranges' ? 'since its start' : '',
+        xLabel: ranges ? 'since its start' : '',
         yLabel: unit,
-        title:
-          c.mode === 'ranges'
-            ? `${one.tag}: this range and ${AGAINST[c.against].toLowerCase()}`
-            : `${one.tag} and ${two.tag}`,
+        title: ranges ? `${one.tag}: this range and ${AGAINST[c.against].toLowerCase()}` : `${one.tag} and ${two.tag}`,
         width,
         height: TIME_CHART.height,
       })}
@@ -627,19 +659,75 @@ function loadCompare(root: HTMLElement, ctx: Context): void {
         series: [{ values: x.diff, color: 'var(--warm)', label: `${legend[1]} − ${legend[0]}` }],
         xFormat,
         yLabel: unit,
-        title: `The difference, ${legend[1]} minus ${legend[0]}${unit ? ` (${unit})` : ''}`,
+        title: `The difference, ${said[1]} minus ${said[0]}${unit ? ` (${unit})` : ''}`,
         width,
         height: 160,
       })}
-      <p class="small" data-compare-summary>${esc(summaryText(summarise(x), [legend[0] ?? '', legend[1] ?? ''], unit))}</p>
-      ${c.mode === 'ranges' ? `<p class="small soft">Earlier: ${esc(rangeText(aSpan.from, aSpan.to))}. Each range is lined up from its start.</p>` : ''}
-      ${unitsDiffer ? `<p class="small text-warn">Their units differ (${esc(one.unit ?? 'none')}, ${esc(two.unit ?? 'none')}): the difference is only a shape.</p>` : ''}`;
+      <p class="small" data-compare-summary>${esc(summaryText(summarise(x), said, unit))}</p>
+      ${ranges ? `<p class="small soft">The other range: ${esc(spanText(other))}. Each is lined up from its start.</p>` : ''}
+      ${unitsDiffer ? `<p class="small text-warn">Their units differ (${esc(one.unit ?? 'none')}, ${esc(two.unit ?? 'none')}): the difference is only a shape.</p>` : ''}`);
       ux('task', 'signal.compared');
     },
     () => {
       if (mine === latestCompare && box.isConnected) box.innerHTML = loadFailed('The readings to compare');
     },
   );
+}
+
+// A change to the comparison draws its card alone (the charts above stay as they are).
+function redrawCompare(root: HTMLElement, ctx: Context): void {
+  const wrap = root.querySelector<HTMLElement>('[data-compare-wrap]');
+  if (!wrap) return;
+  morph(wrap, compareCard(ui(ctx)));
+  ctx.address();
+  loadCompare(root, ctx);
+}
+
+function bindCompare(root: HTMLElement, ctx: Context): void {
+  const wrap = root.querySelector<HTMLElement>('[data-compare-wrap]');
+  if (!wrap) return;
+  wrap.addEventListener(
+    'click',
+    (e) => {
+      const mode = (e.target instanceof Element ? e.target.closest<HTMLElement>('[data-compare-mode]') : null)?.dataset
+        .compareMode;
+      if (mode !== 'off' && mode !== 'ranges' && mode !== 'signals') return;
+      const u = ui(ctx);
+      u.compare = { ...compareOf(u), mode };
+      redrawCompare(root, ctx);
+    },
+    { signal: bound() },
+  );
+  wrap.addEventListener(
+    'change',
+    (e) => {
+      const form = e.target instanceof Element ? e.target.closest<HTMLFormElement>('#compare-form') : null;
+      if (!form) return;
+      const u = ui(ctx);
+      const c = compareOf(u);
+      const read = (name: string) => form.querySelector<HTMLSelectElement | HTMLInputElement>(`[name=${name}]`)?.value;
+      const against = read('against');
+      const start = read('start');
+      u.compare = {
+        ...c,
+        signal: read('signal') ?? c.signal,
+        against: AGAINSTS.includes(against as Against) ? (against as Against) : c.against,
+        // Cleared, it is cleared (the card then asks for one).
+        start:
+          start === undefined
+            ? c.start
+            : start && Number.isFinite(Date.parse(start))
+              ? new Date(start).toISOString()
+              : null,
+        a: read('a') ?? c.a,
+        b: read('b') ?? c.b,
+      };
+      redrawCompare(root, ctx);
+    },
+    { signal: bound() },
+  );
+  wrap.addEventListener('submit', (e) => e.preventDefault(), { signal: bound() });
+  loadCompare(root, ctx);
 }
 
 const view: View = {
@@ -683,7 +771,13 @@ const view: View = {
       return `${head}<div class="card">${needsApi(`Readings are kept in the Tiles API.`)}</div>`;
     const u = ui(ctx);
     if (u.catalogue !== catalogue(ctx))
-      Object.assign(u, { picked: [], range: null, zoomedFrom: null, catalogue: catalogue(ctx) });
+      Object.assign(u, {
+        picked: [],
+        range: null,
+        zoomedFrom: null,
+        compare: { ...NO_COMPARE },
+        catalogue: catalogue(ctx),
+      });
     for (const id of wearStates.keys()) if (!u.picked.some((p) => p.id === id)) wearStates.delete(id);
     const { picked, range } = u;
     const canSave = ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
@@ -726,7 +820,7 @@ const view: View = {
         ${rangeBar}
       </div>
       <div class="stack gap-3 mt-3" data-charts data-tour="explorer-charts">${charts}</div>
-      ${picked.length && range ? `<div class="mt-3">${compareCard(u)}</div>` : ''}`;
+      ${picked.length && range ? `<div class="mt-3" data-compare-wrap>${compareCard(u)}</div>` : ''}`;
   },
   bind(root, ctx) {
     clearTimeout(findTimer);
@@ -798,35 +892,7 @@ const view: View = {
     }
     root.querySelectorAll<HTMLElement>('[data-wear]').forEach((box) => drawWear(box, ctx));
     loadCharts(root, ctx);
-    // Compare mode: its mode, then what it compares (each change draws it again).
-    onAll(root, '[data-compare-mode]', 'click', (el) => {
-      const u = ui(ctx);
-      const mode = el.dataset.compareMode;
-      if (mode === 'off' || mode === 'ranges' || mode === 'signals') u.compare = { ...compareOf(u), mode };
-      ctx.rerender();
-    });
-    const compareForm = root.querySelector<HTMLFormElement>('#compare-form');
-    if (compareForm) {
-      const update = () => {
-        const u = ui(ctx);
-        const c = compareOf(u);
-        const read = (name: string) =>
-          compareForm.querySelector<HTMLSelectElement | HTMLInputElement>(`[name=${name}]`)?.value;
-        const start = read('start');
-        u.compare = {
-          ...c,
-          signal: read('signal') ?? c.signal,
-          against: AGAINSTS.includes(read('against') as Against) ? (read('against') as Against) : c.against,
-          start: start && Number.isFinite(Date.parse(start)) ? new Date(start).toISOString() : c.start,
-          a: read('a') ?? c.a,
-          b: read('b') ?? c.b,
-        };
-        ctx.rerender();
-      };
-      compareForm.addEventListener('change', update, { signal: bound() });
-      compareForm.addEventListener('submit', (e) => e.preventDefault(), { signal: bound() });
-    }
-    loadCompare(root, ctx);
+    bindCompare(root, ctx);
   },
 };
 

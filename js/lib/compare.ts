@@ -11,7 +11,13 @@ export const AGAINST: Readonly<Record<Against, string>> = {
   custom: 'From a start you choose',
 };
 
-const DAY = 86_400_000;
+// A day or a week earlier on the calendar, in local time: across a clock change "the same time"
+// stays the same time of day.
+function daysEarlier(t: number, days: number): number {
+  const d = new Date(t);
+  d.setDate(d.getDate() - days);
+  return d.getTime();
+}
 
 export interface Span {
   from: number; // ms; `to` is excluded
@@ -25,12 +31,15 @@ export function otherRange(range: Span, against: Against, start: number | null =
     against === 'before'
       ? range.from - length
       : against === 'day'
-        ? range.from - DAY
+        ? daysEarlier(range.from, 1)
         : against === 'week'
-          ? range.from - 7 * DAY
+          ? daysEarlier(range.from, 7)
           : (start ?? range.from - length);
   return { from, to: from + length };
 }
+
+// Whether two ranges share time: then the difference is the signal against itself, shifted.
+export const overlap = (a: Span, b: Span): boolean => a.from < b.to && b.from < a.to;
 
 export interface Reading {
   t: number; // ms
@@ -108,12 +117,13 @@ export function summarise(x: Aligned): Summary {
   return { meanA, meanB, diff, pct: meanA === 0 ? null : (diff / Math.abs(meanA)) * 100, shared: n };
 }
 
-// How far into the range a bucket is, for the shared axis: "+2 h 30 min", "+3 d".
+// How far into the range a bucket is, for the shared axis (docs/ui/writing.md's durations):
+// "+45 min", "+2 h 30 min", "+3 days", "+3 days 5 h".
 export function offsetLabel(ms: number): string {
   const minutes = Math.round(ms / 60_000);
   if (minutes < 60) return `+${minutes} min`;
   const hours = Math.floor(minutes / 60);
   if (hours < 48) return minutes % 60 ? `+${hours} h ${minutes % 60} min` : `+${hours} h`;
   const days = Math.floor(hours / 24);
-  return hours % 24 ? `+${days} d ${hours % 24} h` : `+${days} d`;
+  return `+${days} days${hours % 24 ? ` ${hours % 24} h` : ''}`;
 }
