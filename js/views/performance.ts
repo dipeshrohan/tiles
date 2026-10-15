@@ -1,4 +1,4 @@
-import { esc, onAll, onSubmit, onNavigate, routeOf, bound } from '../lib/dom.ts';
+import { esc, onAll, onSubmit, onNavigate, routeOf, bound, onAction, download } from '../lib/dom.ts';
 import type { PerformanceReport } from '../lib/api.ts';
 import { duration, HORIZONS, kpis, parseCodes, PERIODS, share, spread, type Kpi } from '../lib/performance.ts';
 import { when } from '../lib/warnings.ts';
@@ -13,8 +13,24 @@ import {
   loadFailed,
   term,
   inSentence,
+  field,
+  input,
+  button,
+  table,
+  kv,
 } from '../lib/ui.ts';
 import { GLOSSARY } from '../lib/glossary-data.ts';
+import { showErrors } from '../lib/forms.ts';
+import { number, percent } from '../lib/format.ts';
+import {
+  change,
+  defaultPeriods,
+  fileName,
+  roiRequest,
+  type RoiForm,
+  type RoiPeriod,
+  type RoiReport,
+} from '../lib/roi.ts';
 import { t, tHtml } from '../lib/i18n.ts';
 
 // Warning performance (T3.10): how the real warnings did against the downtime and scrap the MES
@@ -34,6 +50,8 @@ let seq = 0;
 // The form as being changed, not yet shown: kept when an answer re-renders the page meanwhile.
 let pending: { days: number; horizonHours: number; codes: string } | null = null;
 const assetDrafts = new Map<string, string>(); // detector id -> the asset being typed
+// The ROI report (T6.01): the form as last sent (drawn again with it) and the report it made.
+let roi: { form: RoiForm; report: RoiReport | null } | null = null;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const keyFor = (ctx: Context): string => {
@@ -47,6 +65,7 @@ onNavigate((hash) => {
     fetched = null;
     pending = null;
     assetDrafts.clear();
+    roi = null;
   }
 });
 
@@ -156,6 +175,74 @@ function eventsCard(r: PerformanceReport): string {
     </div>`;
 }
 
+// A number for the report: a dash when there is none.
+const num = (v: number | null, digits = 1): string => (v === null ? '–' : number(v, digits));
+
+function roiResult(r: RoiReport): string {
+  const b = r.periods.baseline;
+  const p = r.periods.pilot;
+  const perParts = b.parts !== null;
+  const unit = t(perParts ? 'performance.roi.perParts' : 'performance.roi.perDay');
+  const rateRow = (label: string, k: 'downtime' | 'scrap') => {
+    const c = change(b.rates[k], p.rates[k]);
+    return `<tr><th scope="row">${esc(label)}</th><td>${esc(num(b.rates[k], 2))}</td><td>${esc(num(p.rates[k], 2))}</td><td>${esc(c === null ? '–' : `${c > 0 ? '+' : ''}${percent(c)}`)}</td></tr>`;
+  };
+  const warnRow = (label: string, f: (w: RoiPeriod['warnings']) => string) =>
+    `<tr><th scope="row">${esc(label)}</th><td>${esc(f(b.warnings))}</td><td>${esc(f(p.warnings))}</td><td></td></tr>`;
+  const minutes = (s: number | null) => (s === null ? '–' : duration(s));
+  const rows =
+    rateRow(t('performance.roi.stops', { unit }), 'downtime') +
+    rateRow(t('performance.roi.scrap', { unit }), 'scrap') +
+    warnRow(t('performance.roi.recall'), (w) => share(w.recall)) +
+    warnRow(t('performance.roi.precision'), (w) => share(w.precision)) +
+    warnRow(t('performance.roi.falsePerDay'), (w) => num(w.false_per_day, 2)) +
+    warnRow(t('performance.roi.warningTime'), (w) => minutes(w.median_warning_seconds));
+  const a = r.avoided;
+  const currency = typeof r.inputs.currency === 'string' ? r.inputs.currency : '';
+  const cost = a.cost === null ? '–' : `${number(a.cost)}${currency ? ` ${currency}` : ''}`;
+  return `<div class="stack gap-3" data-roi-result>
+      ${table({ headers: [t('performance.roi.measure'), t('performance.roi.baseline'), t('performance.roi.pilot'), t('performance.roi.change')], rowsHtml: rows })}
+      <h3>${esc(t('performance.roi.avoided'))}</h3>
+      ${kv([
+        [t('performance.roi.avoidedStops'), num(a.stops)],
+        [t('performance.roi.avoidedHours'), num(a.downtime_hours)],
+        [t('performance.roi.avoidedScrap'), num(a.scrap)],
+        [t('performance.roi.avoidedCost'), cost],
+      ])}
+      <p class="small soft">${esc(t('performance.roi.digest'))} <code class="mono roi-digest" data-roi-digest>${esc(r.digest)}</code></p>
+      <div class="row gap-2 wrap no-print">${button(t('performance.roi.download'), { icon: 'download', attrs: { 'data-roi-download': '' } })}</div>
+    </div>`;
+}
+
+function roiCard(): string {
+  const f: RoiForm = roi?.form ?? defaultPeriods(Date.now());
+  const date = (name: string, label: string) =>
+    field(label, input({ name, type: 'date', value: f[name] ?? '', attrs: { required: true } }));
+  const amount = (name: string, label: string, hint?: string) =>
+    field(label, input({ name, type: 'number', value: f[name] ?? '', attrs: { min: '0', step: 'any' } }), { hint });
+  return `<div class="card stack gap-3" id="roi">
+      <h2>${esc(t('performance.roi.title'))}</h2>
+      <p class="small soft">${esc(t('performance.roi.lead'))}</p>
+      <form id="roi-form" class="stack gap-3 no-print">
+        <div class="roi-form">
+          ${date('baselineFrom', t('performance.roi.baselineFrom'))}
+          ${date('baselineTo', t('performance.roi.baselineTo'))}
+          ${date('pilotFrom', t('performance.roi.pilotFrom'))}
+          ${date('pilotTo', t('performance.roi.pilotTo'))}
+          ${amount('hoursPerStop', t('performance.roi.hoursPerStop'), t('performance.roi.hoursPerStopHint'))}
+          ${field(t('performance.roi.hoursSource'), input({ name: 'hoursSource', value: f.hoursSource ?? '', attrs: { maxlength: '200' } }))}
+          ${amount('costPerHour', t('performance.roi.costPerHour'))}
+          ${amount('costPerScrap', t('performance.roi.costPerScrap'))}
+          ${field(t('performance.roi.currency'), input({ name: 'currency', value: f.currency ?? '', placeholder: 'EUR', attrs: { maxlength: '3', pattern: '[A-Za-z]{3}', title: t('performance.roi.error.currency') } }))}
+          ${amount('baselineParts', t('performance.roi.baselineParts'), t('performance.roi.partsHint'))}
+          ${amount('pilotParts', t('performance.roi.pilotParts'))}
+        </div>
+        <div>${button(t('performance.roi.make'), { variant: 'primary', type: 'submit' })}</div>
+      </form>
+      ${roi?.report ? roiResult(roi.report) : ''}
+    </div>`;
+}
+
 const view: View = {
   id: 'performance',
   get title() {
@@ -187,7 +274,7 @@ const view: View = {
             `<div class="card kpi ${k.tone}"><div class="label">${kpiLabel(k)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`,
         )
         .join('');
-      body = `<div class="grid g4" data-kpis>${tiles}</div>${detectorsCard(ctx, r)}${eventsCard(r)}`;
+      body = `<div class="grid g4" data-kpis>${tiles}</div>${detectorsCard(ctx, r)}${eventsCard(r)}${roiCard()}`;
     }
     return `${head}${controls(u)}<div class="stack gap-4 mt-4">${body}</div>`;
   },
@@ -218,6 +305,27 @@ const view: View = {
       },
       { signal: bound() },
     );
+    onSubmit(root, '#roi-form', (form) => {
+      const site = siteId(ctx);
+      const api = ctx.api;
+      if (!site || !api) return;
+      const values: RoiForm = {};
+      new FormData(form).forEach((v, k) => (values[k] = String(v)));
+      const u = uiState(ctx);
+      const body = roiRequest(values, u.horizonHours, parseCodes(u.codes));
+      if (Array.isArray(body)) return showErrors(form, body);
+      roi = { form: values, report: roi?.report ?? null };
+      return api.roi(site, body).then(
+        (report) => {
+          roi = { form: values, report };
+          ctx.rerender();
+        },
+        () => undefined, // the client showed why, on the form
+      );
+    });
+    onAction(root, '[data-roi-download]', () => {
+      if (roi?.report) download(fileName(roi.report), roi.report.markdown, 'text/markdown');
+    });
     onAll(root, '[data-asset-form] [name=asset]', 'input', (el) => {
       const id = el.closest<HTMLElement>('[data-asset-form]')?.dataset.assetForm;
       if (id) assetDrafts.set(id, (el as HTMLInputElement).value);

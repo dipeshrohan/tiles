@@ -189,7 +189,7 @@ GitHub issues are the live tracker; close the issue when a task is done. Filter 
 ## Month 6: Prove value and ship v1.0 (Apr 2027)
 
 ### Value
-- [ ] `T6.01` [#93](https://github.com/dipeshrohan/tiles/issues/93) ★ **ROI report:** downtime avoided, scrap reduced, warning time and false-alarm rate against the month-2 baseline, with each number reproducible from the data · PM+ML · 3d · T5.02
+- [ ] `T6.01` [#93](https://github.com/dipeshrohan/tiles/issues/93) ★ **ROI report:** downtime avoided, scrap reduced, warning time and false-alarm rate against the month-2 baseline, with each number reproducible from the data · PM+ML · 3d · T5.02 · The report is built (the ROI report on Warning performance, `POST /sites/{id}/roi`); it is done when the pilot's is made and signed off
 - [ ] `T6.02` [#94](https://github.com/dipeshrohan/tiles/issues/94) ★ **Partner sign-off meeting** and a production-deployment quote · PM+TL · 1d · T6.01
 - [ ] `T6.03` [#95](https://github.com/dipeshrohan/tiles/issues/95) **Case study write-up** (anonymised if needed) · PM · 1.5d · T6.02
 

@@ -1866,6 +1866,18 @@ The last `days`: each detector's warnings scored against its asset's events (an 
 | `horizon_hours` | query | number | no |
 | `codes` | query | list of string | no |
 
+### `POST /sites/{site_id}/roi`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The pilot period against the baseline: unplanned stops and scrap per day (or per 1,000 parts), what was avoided in hours and cost (from the plant's mean stop length and costs), and the warnings' recall, precision, false warnings per day and warning time in each period. Reads only; the same data gives the same `digest`.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** RoiIn (see [openapi.json](openapi.json)).
+
 ### `GET /sites/{site_id}/warnings`
 
 **Who:** site member. **Answers:** 200, 422.
