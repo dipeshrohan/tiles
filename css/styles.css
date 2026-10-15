@@ -770,9 +770,9 @@ button.nav-group .icon {
   }
 }
 .crumbs a {
-  display: inline-flex;
-  align-items: center;
-  min-height: var(--target-min); /* WCAG 2.2 target size (U6.04) */
+  /* WCAG 2.2 target size (U6.04): tall as a line, so it stays a flex item whose text can end in "…". */
+  min-height: var(--target-min);
+  line-height: var(--target-min);
   color: var(--muted);
   text-decoration: none;
   overflow: hidden;
@@ -2969,6 +2969,7 @@ svg[data-chart]:focus-visible {
 th .th-sort {
   display: inline-flex;
   align-items: center;
+  min-height: var(--target-min); /* WCAG 2.2 target size (U6.04) */
   gap: var(--space-1);
   padding: 0;
   border: 0;
@@ -2984,25 +2985,41 @@ th[aria-sort='ascending'] .th-sort svg,
 th[aria-sort='descending'] .th-sort svg {
   opacity: 1;
 }
+/* The handle to drag a column wider: 24 px to aim at (WCAG 2.2 target size, U6.04), its line drawn
+   at the column's edge. */
 th .col-resize {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 8px;
+  width: var(--target-min);
   cursor: col-resize;
   touch-action: none;
 }
 th .col-resize:hover,
 th .col-resize:focus-visible {
-  background: var(--line-strong);
+  background: linear-gradient(to left, var(--line-strong) 3px, transparent 3px);
 }
 .table-frame th {
   position: sticky; /* the resize handle's box, and stuck to the top */
 }
+/* The columns to show, each a label to tick (WCAG 2.2 target size, U6.04). */
+.table-columns label {
+  min-height: var(--target-min);
+}
+/* In a table, a checkbox (to select its row) and a link are a target's size (WCAG 2.2, U6.04). */
+.table-frame :is(td, th) input[type='checkbox'] {
+  width: var(--target-min);
+  height: var(--target-min);
+}
+.table-frame td a {
+  display: inline-block;
+  line-height: var(--target-min);
+}
 /* A list of records as a table (U5.02): the first cell's button opens the record beside it; the
    open one's row is marked. */
 .row-open {
+  min-height: var(--target-min); /* WCAG 2.2 target size (U6.04) */
   padding: 0;
   border: 0;
   background: none;
@@ -4402,18 +4419,18 @@ td.sg-scheme {
   background: var(--line-strong) !important;
 }
 
-/* What is chosen (the page you're on, a pressed filter, a selected row) shows by colour and
-   background, which forced colours (Windows High Contrast) replace: an outline in the system's
-   highlight instead (U6.04). */
+/* What is chosen (the page you're on, the section or step you're at, a pressed filter, a selected
+   row) shows by colour and background, which forced colours (Windows High Contrast) replace: an
+   outline in the system's highlight instead (U6.04). The focus is outside and thicker, so a chosen
+   control shows when it has it too. */
 @media (forced-colors: active) {
-  :is(
+  :where(
     .nav-link.active,
     .seg button.active,
-    [aria-current='page'],
-    [aria-current='true'],
+    [aria-current]:not([aria-current='false']),
     [aria-pressed='true'],
     [aria-selected='true']
-  ):not(tr) {
+  ):not(tr, [id='view'], h1) {
     outline: 2px solid Highlight;
     outline-offset: -2px;
   }
@@ -4423,5 +4440,15 @@ td.sg-scheme {
   .nav-link.active::before,
   .seg button.active::before {
     background: Highlight;
+  }
+  :focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 2px;
+  }
+  #view:focus-visible,
+  #view h1:focus-visible,
+  .help-article :is(h2, h3):focus-visible,
+  .tour-pop h2:focus-visible {
+    outline: none;
   }
 }

@@ -4,15 +4,15 @@ Tiles aims at WCAG 2.2 AA for every page, in the light and the dark theme, with 
 
 ## What the tests check, on every change
 
-`e2e/a11y.test.js` runs in CI's Browser smoke test job:
+`e2e/a11y.test.js` runs in CI's Browser smoke test job. The round-2 checks (reflow, focus, forced colours, target size) run on every page in local mode, and on Home, Warnings, Change reviews, Signals, Insights, Apps and Documents with the API (a fake one holding a warning and a change request):
 
 | Check | WCAG | How |
 | --- | --- | --- |
 | axe-core's A and AA rules, and the best practices that matter here | 2.1 A/AA | Every page in light and dark, in local mode and with the API's data on screen (charts, Apps and Documents included); dialogs, toasts, tooltips, the command palette, the shortcuts and the help |
-| Reflow | 1.4.10 | Every page at 320 px wide (1280 px at 400%) and at 640 px (200%): nothing scrolls sideways. A table or chart scrolls inside its own box. |
-| Focus visible | 2.4.7 | Tab through every page: each control the keyboard reaches shows an outline or a ring |
+| Reflow | 1.4.10 | Every page at 320 px wide (1280 px at 400%) and at 640 px (200%): nothing scrolls sideways, measured inside the scrollbar. A table or chart scrolls inside its own box. |
+| Focus visible | 2.4.7 | Tab through every page to the end: each control the keyboard reaches shows an outline or a ring it hasn't at rest |
 | Forced colours | 1.4.11, 2.4.7 | The same walk in forced colours (Windows High Contrast), where shadows are dropped: each control shows an outline. What is chosen (the page you're on, a pressed filter, a selected row) is outlined in the system's highlight colour, not shown by background alone. |
-| Target size | 2.5.8 (2.2) | Each control is 24 by 24 px or more, or sits in a sentence, or a 24 px square on it touches no other control. `--target-min` (24 px) is the token; the Shopfloor uses 64 px. |
+| Target size | 2.5.8 (2.2) | Each control (with its label, when it has one) is 24 by 24 px or more; or is inline in running text; or a 24 px circle on its centre touches no other control and no other small control's circle. `--target-min` (24 px) is the token; the Shopfloor uses 64 px. |
 | Keyboard order | 2.4.1, 2.4.3 | The first Tab offers **Skip to content**; the menu says whether it is open |
 | Live regions | 4.1.3 | The Shopfloor's headline, toasts and the notification count are announced |
 
@@ -25,9 +25,10 @@ The visual tests (`e2e/visual/`) add the pseudo-locale (U6.03): every page with 
 | The Copilot page was 1 px wider than a 320 px window: a long chip or button set the width of its grid | `.chat` has a `minmax(0, 1fr)` column |
 | The breadcrumbs' links were 20 px tall, side by side | `min-height: var(--target-min)` |
 | The menu's group headings (which fold their group) were 21 px tall, next to the pages | the same |
-| In forced colours, the page you're on in the menu, pressed filter buttons and selected rows showed only by background, which High Contrast replaces | outlined in `Highlight` (`@media (forced-colors: active)` at the end of `css/styles.css`) |
+| In forced colours, the page you're on in the menu, the section of the guide or the wizard's step you're at, pressed filter buttons and selected rows showed only by background, which High Contrast replaces | outlined in `Highlight`; the focus is a thicker outline outside, so a chosen control shows when it has it too (`@media (forced-colors: active)` at the end of `css/styles.css`) |
+| In tables: the row checkboxes (16 px), the sort buttons in the headings (18 px), the column resize handles (8 px), links in cells (16 px), the buttons that open a record (20 px) and the labels in the Columns menu (22 px) | each `--target-min`; the resize handle is 24 px wide with its line at the column's edge |
 
-Checked and found fine: Apps and Documents (already in the API-data run), focus rings on every control in both colour modes, and reflow at 200%.
+Checked and found fine: focus rings on every control in both colour modes (Apps and Documents included), and reflow at 200%.
 
 ## Exceptions
 
