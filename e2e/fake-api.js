@@ -1795,8 +1795,9 @@ export function createFakeApi({
       }
       if (url.pathname === `/sites/${site.id}/members`) return send(200, [...members].sort().map(memberOf));
       const path = url.pathname.slice(base.length);
-      // Like the real API, anyone may discard their own staged changes.
-      if (role === 'viewer' && req.method !== 'GET' && !(path === '/staged' && req.method === 'DELETE'))
+      // Like the real API, anyone may discard (or undo) their own staged changes.
+      const ownStaged = (path === '/staged' && req.method === 'DELETE') || path === '/staged/undo';
+      if (role === 'viewer' && req.method !== 'GET' && !ownStaged)
         return send(403, { detail: 'Your role on this site is viewer; this needs engineer or above' });
       const repo = repoFor(user);
       if (path === '/graph') return send(200, url.searchParams.get('view') === 'head' ? head : workingGraph(repo));
@@ -1813,6 +1814,13 @@ export function createFakeApi({
         const next = stage(repo, await body(req));
         staged.set(user, next.staged);
         return send(201, next.staged);
+      }
+      if (path === '/staged/undo' && req.method === 'POST') {
+        const { count, of } = await body(req);
+        if (of !== repo.staged.length || count > repo.staged.length)
+          return send(409, { detail: 'Your staged changes changed elsewhere since: refresh to see them' });
+        staged.set(user, repo.staged.slice(0, repo.staged.length - count));
+        return send(200, staged.get(user));
       }
       if (path === '/staged' && req.method === 'DELETE') {
         staged.delete(user);

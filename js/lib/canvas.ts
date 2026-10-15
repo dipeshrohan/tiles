@@ -249,3 +249,96 @@ export function revealPath(graph: Graph, id: string, collapsed: ReadonlySet<stri
     }
   return [...out];
 }
+
+// ---- the builder (U5.05): keyboard moves, box selection, focus, the minimap, drag to relate --------
+
+export type Direction = 'left' | 'right' | 'up' | 'down';
+
+// The node an arrow key moves to from `from`: the nearest one on that side, a node straight
+// across counting for more than one off to the side. Null at the edge.
+export function stepFrom(pos: ReadonlyMap<string, Point>, from: string, dir: Direction): string | null {
+  const a = pos.get(from);
+  if (!a) return null;
+  let best: string | null = null;
+  let bestScore = Infinity;
+  for (const [id, b] of pos) {
+    if (id === from) continue;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const ahead = dir === 'right' ? dx : dir === 'left' ? -dx : dir === 'down' ? dy : -dy;
+    const aside = dir === 'right' || dir === 'left' ? Math.abs(dy) : Math.abs(dx);
+    if (ahead <= 0) continue;
+    const score = ahead + aside * 3;
+    if (score < bestScore) {
+      bestScore = score;
+      best = id;
+    }
+  }
+  return best;
+}
+
+export interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+// Nodes a dragged box touches, in drawing coordinates (the box from any corner).
+export function inBox(pos: ReadonlyMap<string, Point>, box: Box): string[] {
+  const x0 = Math.min(box.x, box.x + box.w);
+  const x1 = Math.max(box.x, box.x + box.w);
+  const y0 = Math.min(box.y, box.y + box.h);
+  const y1 = Math.max(box.y, box.y + box.h);
+  const out: string[] = [];
+  for (const [id, p] of pos) if (p.x < x1 && p.x + BOX.w > x0 && p.y < y1 && p.y + BOX.h > y0) out.push(id);
+  return out;
+}
+
+// The view that shows the given nodes (focus selection), with a margin, in a viewport of
+// `aspect`; never closer than MIN_VIEW_WIDTH. Null when none of them is drawn.
+export function focusView(
+  pos: ReadonlyMap<string, Point>,
+  ids: Iterable<string>,
+  aspect: number,
+  margin = 48,
+): View | null {
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const id of ids) {
+    const p = pos.get(id);
+    if (!p) continue;
+    x0 = Math.min(x0, p.x);
+    y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x + BOX.w);
+    y1 = Math.max(y1, p.y + BOX.h);
+  }
+  if (x0 === Infinity) return null;
+  const width = x1 - x0 + margin * 2;
+  const height = y1 - y0 + margin * 2;
+  const fit = fitView(width, height, aspect);
+  return { x: x0 - margin + fit.x, y: y0 - margin + fit.y, w: fit.w, h: fit.h };
+}
+
+// The minimap's nodes as one path (2,000 rectangles as one element stay cheap to draw).
+export function minimapPath(pos: ReadonlyMap<string, Point>): string {
+  let d = '';
+  for (const p of pos.values()) d += `M${p.x} ${p.y}h${BOX.w}v${BOX.h}h-${BOX.w}z`;
+  return d;
+}
+
+// The relationship a drag from one node to another most likely means, by their types (the
+// hierarchy of docs/data-model.md); the person can change it before adding it.
+export function likelyRel(from: NodeType, to: NodeType): string {
+  const level = (t: NodeType) => COLUMNS.findIndex((types) => types.includes(t));
+  if (from === 'Document') return 'describes';
+  if (from === 'Model') return to === 'Signal' ? 'reads' : 'monitors';
+  if (from === 'PLC' && to === 'Signal') return 'emits';
+  if ((from === 'Machine' || from === 'Cell' || from === 'Line') && to === 'PLC') return 'controlledBy';
+  if ((from === 'Machine' || from === 'Line' || from === 'Cell') && to === 'Process') return 'runs';
+  if (from === 'Process' && to === 'Material') return 'consumes';
+  if (from === to) return 'feeds';
+  return level(from) < level(to) ? 'contains' : 'feeds';
+}

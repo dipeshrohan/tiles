@@ -318,7 +318,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* exact values can be read with a mouse, touch and keyboard, with a11y tests.
 - [x] `U5.04` [#243](https://github.com/dipeshrohan/tiles/issues/243) **Warning triage flow** · FE · 3d · U3.08, U5.02
   *Done when:* triaging 10 warnings takes under half the U1.01 time.
-- [ ] `U5.05` [#244](https://github.com/dipeshrohan/tiles/issues/244) **Ontology builder UX** · FE · 5d · U3.03
+- [x] `U5.05` [#244](https://github.com/dipeshrohan/tiles/issues/244) **Ontology builder UX** · FE · 5d · U3.03
   *Done when:* committing a 5-node change takes under half the U1.01 time, and the performance check stays green.
 - [ ] `U5.06` [#245](https://github.com/dipeshrohan/tiles/issues/245) **Filter bar and saved views** · FE+BE · 3d · U3.05
   *Done when:* Warnings, Signals and Documents have saved views shared on the pilot site.

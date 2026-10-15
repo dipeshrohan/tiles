@@ -36,6 +36,9 @@ export const PAGE_KEYS: readonly (readonly [string, string])[] = [
   ['r', 'Resolve the warning open: choose its outcome'],
   ['n', 'Open the next warning, after acting on one'],
   ['e', 'Edit the insight or app open'],
+  ['Ctrl Z', 'Undo the last change staged to the ontology (⌘ Z on a Mac)'],
+  ['Ctrl Shift Z', 'Redo it (or Ctrl Y)'],
+  ['← → ↑ ↓', 'Move between nodes on the ontology canvas'],
 ];
 
 // On or off for this browser; kept in memory too, for when storage is blocked.
@@ -62,7 +65,7 @@ export function forShortcut(e: KeyboardEvent): boolean {
 // Where keys are text: a field typed in, a select (letters pick options), an editable element. A
 // checkbox, radio or button with the focus is not.
 const NOT_TYPED = new Set(['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file', 'image']);
-function typing(t: EventTarget | null): boolean {
+export function typing(t: EventTarget | null): boolean {
   if (!(t instanceof Element)) return false;
   if (t instanceof HTMLInputElement) return !NOT_TYPED.has(t.type);
   return Boolean(t.closest('textarea, select, [contenteditable]:not([contenteditable="false"])'));

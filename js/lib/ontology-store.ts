@@ -13,6 +13,8 @@ export interface OntologyStore {
   // so a batch is never half-applied by a bad op.
   stage(repo: Repo, ops: Op[]): Promise<Repo>;
   discard(repo: Repo): Promise<Repo>;
+  // Undo (U5.05): drops the last `count` staged ops (redo stages them again).
+  unstage(repo: Repo, count: number): Promise<Repo>;
   commit(repo: Repo, message: string, author: string): Promise<Repo>;
   revert(repo: Repo, commitId: string, author: string): Promise<Repo>;
   // Sends the staged changes (or the revert of a commit) for review instead of
@@ -26,6 +28,7 @@ export const localStore: OntologyStore = {
   kind: 'local',
   stage: async (repo, ops) => ops.reduce((r, op) => stage(r, op), repo),
   discard: async (repo) => discard(repo),
+  unstage: async (repo, count) => ({ ...repo, staged: repo.staged.slice(0, Math.max(0, repo.staged.length - count)) }),
   commit: async (repo, message, author) => commit(repo, { message, author }),
   revert: async (repo, id, author) => revert(repo, id, { author }),
   requestReview: () => Promise.reject(new Error(NO_REVIEWS)),
@@ -60,6 +63,10 @@ export function remoteStore(api: ApiClient, site: Site): RemoteStore {
     },
     async discard() {
       await o.discard(site.id);
+      return load();
+    },
+    async unstage(repo, count) {
+      await o.unstage(site.id, count, repo.staged.length);
       return load();
     },
     async commit(_repo, message) {
@@ -106,3 +113,16 @@ export async function pickSite(api: ApiClient, preferred?: string, listed?: Site
 export function historyOps(repo: Repo): Op[] {
   return [...repo.history].reverse().flatMap((c) => c.ops);
 }
+
+// Ops compared by content: the API gives them back from JSONB with their keys in another order.
+const canonical = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(canonical)
+    : v && typeof v === 'object'
+      ? Object.fromEntries(
+          Object.entries(v)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([k, x]) => [k, canonical(x)]),
+        )
+      : v;
+export const sameOps = (a: Op[], b: Op[]): boolean => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));

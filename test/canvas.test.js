@@ -5,6 +5,11 @@ import {
   canvasHeight,
   centerOn,
   fitView,
+  focusView,
+  inBox,
+  likelyRel,
+  minimapPath,
+  stepFrom,
   foldedCounts,
   hiddenByCollapse,
   hiddenUnder,
@@ -151,4 +156,61 @@ test('the drawing ends at its last node; search has no cap; a visible node needs
   assert.equal(layout(lines, () => true).width, BOX.pad + BOX.w + BOX.pad + 2 * 152); // third column, no blank after
   assert.equal(searchNodes(largePlantGraph(), 'signal').length, 1792);
   assert.deepEqual(revealPath(plant, 'shared', new Set(['plc'])), []); // m2 shows it
+});
+
+// ---- the builder (U5.05) ----
+
+const grid = new Map([
+  ['a', { x: 0, y: 0 }],
+  ['b', { x: 152, y: 0 }],
+  ['c', { x: 152, y: 38 }],
+  ['d', { x: 0, y: 76 }],
+  ['far', { x: 152, y: 400 }],
+]);
+
+test('the arrow keys move to the nearest node that way, straight across before one off to the side', () => {
+  assert.equal(stepFrom(grid, 'a', 'right'), 'b');
+  assert.equal(stepFrom(grid, 'b', 'left'), 'a');
+  assert.equal(stepFrom(grid, 'a', 'down'), 'd');
+  assert.equal(stepFrom(grid, 'c', 'up'), 'b');
+  assert.equal(stepFrom(grid, 'd', 'right'), 'c'); // nearer in its row than b
+  assert.equal(stepFrom(grid, 'a', 'left'), null); // the edge
+  assert.equal(stepFrom(grid, 'gone', 'left'), null);
+});
+
+test('a box selects the nodes it touches, dragged from any corner', () => {
+  assert.deepEqual(inBox(grid, { x: -5, y: -5, w: 160, h: 50 }).sort(), ['a', 'b', 'c']);
+  assert.deepEqual(inBox(grid, { x: 155, y: 45, w: -160, h: -50 }).sort(), ['a', 'b', 'c']);
+  assert.deepEqual(inBox(grid, { x: 500, y: 500, w: 10, h: 10 }), []);
+});
+
+test('focus selection shows every node selected with a margin, never closer than a readable width', () => {
+  const v = focusView(grid, ['a', 'far'], 2);
+  assert.ok(v.x <= 0 && v.y <= 0);
+  assert.ok(v.x + v.w >= 152 + BOX.w && v.y + v.h >= 400 + BOX.h);
+  assert.equal(Math.round((v.w / v.h) * 100) / 100, 2);
+  const one = focusView(grid, ['a'], 2);
+  assert.ok(one.w >= 240);
+  assert.equal(focusView(grid, ['gone'], 2), null);
+});
+
+test('the minimap draws every node as one path', () => {
+  const d = minimapPath(grid);
+  assert.equal(d.match(/M/g).length, grid.size);
+  assert.ok(d.startsWith(`M0 0h${BOX.w}v${BOX.h}`));
+  const big = layout(largePlantGraph(), () => true);
+  assert.equal(minimapPath(big.pos).match(/M/g).length, big.pos.size);
+});
+
+test('a drag between two nodes suggests the relationship the data model uses for their types', () => {
+  assert.equal(likelyRel('Line', 'Machine'), 'contains');
+  assert.equal(likelyRel('Site', 'Workcenter'), 'contains');
+  assert.equal(likelyRel('Machine', 'PLC'), 'controlledBy');
+  assert.equal(likelyRel('PLC', 'Signal'), 'emits');
+  assert.equal(likelyRel('Machine', 'Process'), 'runs');
+  assert.equal(likelyRel('Process', 'Material'), 'consumes');
+  assert.equal(likelyRel('Document', 'Machine'), 'describes');
+  assert.equal(likelyRel('Model', 'Signal'), 'reads');
+  assert.equal(likelyRel('Model', 'Machine'), 'monitors');
+  assert.equal(likelyRel('Machine', 'Machine'), 'feeds');
 });

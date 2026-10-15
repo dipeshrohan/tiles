@@ -412,7 +412,20 @@ test('keyboard shortcuts: g goes to a page, / searches it, ? lists them, and the
   assert.equal(await hash(), '#/warnings');
   await page.goto(`${httpBase}#/ontology`);
   await page.waitForSelector('[data-onto-search]');
-  assert.equal(await page.locator('#view [aria-keyshortcuts]').count(), 0, 'off after a reload too');
+  // Single keys only: Ctrl Z (undo on the Ontology page) and the like stay, as WCAG 2.1.4 allows.
+  const single = () =>
+    page.$$eval(
+      '#view [aria-keyshortcuts]',
+      (els) =>
+        els.filter((el) =>
+          el
+            .getAttribute('aria-keyshortcuts')
+            .split(' ')
+            .some((k) => !k.includes('+')),
+        ).length,
+    );
+  assert.equal(await single(), 0, 'off after a reload too');
+  assert.equal(await page.getAttribute('[data-undo]', 'aria-keyshortcuts'), 'Control+Z Meta+Z');
   assert.equal(await page.getAttribute('#palette-open', 'aria-keyshortcuts'), 'Control+K Meta+K');
   await page.focus('#view h1');
   for (const key of ['?', '/', 'g', 'h']) await page.keyboard.press(key);
@@ -984,6 +997,147 @@ test('ontology change can be staged, committed and reverted', async () => {
   assert.match(await page.locator('.commit').first().innerText(), /Revert "add alarms node"/);
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+test('the ontology builder: relate by dragging, several at once, keys, minimap, undo and redo (U5.05)', async (t) => {
+  const { page, errors } = await openPage({ viewport: { width: 1600, height: 1000 } });
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/ontology`);
+  const uncommitted = (n) => page.waitForSelector(`.staged-bar .badge:has-text("${n} uncommitted")`);
+  const viewBox = async () => (await page.getAttribute('svg[data-canvas]', 'viewBox')).split(' ').map(Number);
+
+  // A new machine, then a drag from its line's handle onto it: the relationship its types suggest.
+  await page.selectOption('#node-form [name=type]', 'Machine');
+  await page.fill('#node-form [name=label]', 'Laser cutter C-02');
+  await page.click('#node-form button[type=submit]');
+  await uncommitted(1);
+  await page.click('[data-node="ln-cut1"]');
+  await page.waitForSelector('#inspector h2:has-text("Cutting Line 1")');
+  const handle = await page.locator('[data-node="ln-cut1"] [data-handle]').boundingBox();
+  const target = await page.locator('[data-node="machine-laser-cutter-c-02"]').boundingBox();
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForSelector('#drag-link-form');
+  assert.equal(await page.inputValue('#drag-link-form [name=rel]'), 'contains');
+  assert.match(await page.locator('#inspector').innerText(), /Cutting Line 1 Line → Laser cutter C-02 Machine/);
+  await page.click('#drag-link-form button[type=submit]');
+  await uncommitted(2);
+  assert.ok(await page.locator('path.edge.hl').count(), 'the new relationship is drawn');
+
+  // Ctrl Z takes back the relationship, Ctrl Shift Z puts it back; the buttons do the same.
+  await page.focus('[data-node="ln-cut1"]');
+  await page.keyboard.press('Control+z');
+  await uncommitted(1);
+  await page.keyboard.press('Control+Shift+z');
+  await uncommitted(2);
+  await page.click('[data-undo]');
+  await uncommitted(1);
+  assert.match(await page.locator('[data-undo-note]').textContent(), /Undid 1 change/);
+  await page.click('[data-redo]');
+  await uncommitted(2);
+
+  // Shift-click selects several; a property set on all of them is one step to undo.
+  await page.locator('[data-node="m-cut01"]').click({ modifiers: ['Shift'] });
+  await page.locator('[data-node="m-weld03"]').click({ modifiers: ['Shift'] });
+  await page.waitForSelector('#inspector h2:has-text("3 nodes selected")'); // with the line selected before
+  await page.locator('[data-node="ln-cut1"]').click({ modifiers: ['Shift'] }); // and out again
+  await page.waitForSelector('#inspector h2:has-text("2 nodes selected")');
+  await page.fill('#many-prop-form [name=key]', 'area');
+  await page.fill('#many-prop-form [name=value]', 'Hall 2');
+  await page.click('#many-prop-form button[type=submit]');
+  await uncommitted(4);
+  await page.click('[data-undo]');
+  await uncommitted(2);
+  await page.click('[data-redo]');
+  await uncommitted(4);
+
+  // Focus selection zooms to them; Fit to screen shows everything again.
+  const all = await viewBox();
+  await page.click('[data-zoom="focus"]');
+  const focused = await viewBox();
+  assert.ok(focused[2] < all[2], `focused: ${all} → ${focused}`);
+  await page.click('[data-zoom="fit"]');
+  assert.ok((await viewBox())[2] >= all[2] - 1);
+
+  // A box dragged with Shift selects what it touches.
+  await page.click('#inspector [data-deselect]');
+  const a = await page.locator('[data-node="p-notch"]').boundingBox();
+  const b = await page.locator('[data-node="p-shot"]').boundingBox();
+  await page.keyboard.down('Shift');
+  await page.mouse.move(a.x - 6, a.y - 6);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width + 6, b.y + b.height + 6, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  const picked = await page.locator('#inspector h2').textContent();
+  assert.match(picked, /^\d+ nodes selected$/);
+  for (const id of ['p-notch', 'p-shot'])
+    assert.ok(await page.locator(`[data-node="${id}"].sel`).count(), `${id} selected`);
+
+  // The arrow keys move between nodes; Escape clears the selection.
+  await page.focus('[data-node="ln-cut1"]');
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('#inspector h2:has-text("Cutting Line 1")');
+  await page.keyboard.press('ArrowRight');
+  const moved = await page.evaluate(() => document.activeElement?.getAttribute('data-node'));
+  assert.ok(moved && moved !== 'ln-cut1', `moved to ${moved}`);
+  assert.equal(await page.locator(`[data-node="${moved}"].sel`).count(), 1);
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('#node-form');
+
+  // The minimap moves the view: zoomed in, a press on its far corner goes there.
+  for (let i = 0; i < 3; i++) await page.click('[data-zoom="in"]');
+  const zoomed = await viewBox();
+  const mini = await page.locator('svg[data-minimap]').boundingBox();
+  await page.mouse.click(mini.x + mini.width - 4, mini.y + mini.height - 4);
+  const there = await viewBox();
+  assert.ok(there[0] > zoomed[0], `moved right: ${zoomed} → ${there}`);
+  const frame = await page.locator('[data-mini-view]').evaluate((r) => Number(r.getAttribute('x')));
+  assert.ok(Math.abs(frame - there[0]) < 1, 'the minimap frame follows the view');
+
+  // Delete removes a node with its relationships as one step; undo brings both back.
+  await page.click('[data-zoom="fit"]');
+  await page.focus('[data-node="machine-laser-cutter-c-02"]');
+  await page.keyboard.press('Delete');
+  await uncommitted(6); // and its relationship: two more ops
+  assert.equal(await page.locator('[data-node="machine-laser-cutter-c-02"]').count(), 0);
+  await page.keyboard.press('Control+z');
+  await uncommitted(4);
+  assert.equal(await page.locator('[data-node="machine-laser-cutter-c-02"]').count(), 1);
+
+  // Committed, there is nothing left to undo.
+  await page.fill('#commit-form [name=message]', 'add laser cutter C-02');
+  await page.click('#commit-form button[type=submit]');
+  await page.waitForSelector('.staged-bar', { state: 'detached' });
+  assert.ok(await page.locator('[data-undo]').isDisabled());
+  assert.deepEqual(errors, []);
+});
+
+test('undo in API mode drops the last staged change on the server', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/ontology`);
+  await page.waitForSelector('.source-bar:has-text("Shared through the Tiles API")');
+  for (const label of ['Line A', 'Line B']) {
+    await page.selectOption('#node-form [name=type]', 'Line');
+    await page.fill('#node-form [name=label]', label);
+    await page.click('#node-form button[type=submit]');
+    await page.waitForSelector(`[data-node="line-${label.toLowerCase().replace(' ', '-')}"]`);
+    await page.click('#inspector [data-deselect]');
+  }
+  const undone = page.waitForRequest((r) => r.method() === 'POST' && r.url().endsWith('/ontology/staged/undo'));
+  await page.click('[data-undo]');
+  assert.deepEqual((await undone).postDataJSON(), { count: 1, of: 2 });
+  await page.waitForSelector('.staged-bar .badge:has-text("1 uncommitted")');
+  assert.equal(await page.locator('[data-node="line-line-b"]').count(), 0);
+  await page.click('[data-redo]');
+  await page.waitForSelector('[data-node="line-line-b"]');
+  assert.deepEqual(errors, []);
 });
 
 test('on an ultrawide screen the page and its charts use the whole width', async (t) => {

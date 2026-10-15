@@ -26,6 +26,7 @@ function fakeApi(served = { head: emptyGraph(), staged: [], history: [] }, sites
       stage: rec('stage', []),
       stageMany: rec('stageMany', []),
       discard: rec('discard', undefined),
+      unstage: rec('unstage', []),
       commit: rec('commit', {}),
       revert: rec('revert', {}),
     },
@@ -113,4 +114,30 @@ test('staged ops that no longer fit the head are reported, not thrown', () => {
   });
   assert.equal(stale.conflict, 'Node a not found');
   assert.deepEqual(stale.graph, emptyGraph());
+});
+
+test('undo drops the last staged ops: in this browser, or through the API with how many it saw', async () => {
+  let repo = createRepo();
+  for (const id of ['a', 'b', 'c']) repo = stage(repo, node(id));
+  const local = await localStore.unstage(repo, 2);
+  assert.deepEqual(
+    local.staged.map((op) => op.node.id),
+    ['a'],
+  );
+  assert.deepEqual((await localStore.unstage(local, 5)).staged, []);
+
+  const api = fakeApi();
+  await remoteStore(api, site).unstage(repo, 2);
+  assert.deepEqual(
+    api.calls.find((c) => c[0] === 'unstage'),
+    ['unstage', 's1', 2, 3],
+  );
+});
+
+test('ops compare by content, whatever order their keys came back in', async () => {
+  const { sameOps } = await import('../js/lib/ontology-store.ts');
+  const sent = [{ kind: 'addEdge', edge: { id: 'e', from: 'a', rel: 'contains', to: 'b' } }];
+  const stored = [{ edge: { to: 'b', id: 'e', rel: 'contains', from: 'a' }, kind: 'addEdge' }];
+  assert.ok(sameOps(sent, stored));
+  assert.ok(!sameOps(sent, [{ ...stored[0], edge: { ...stored[0].edge, to: 'c' } }]));
 });
