@@ -2324,7 +2324,7 @@ test('tables v2: sort, choose columns, compact rows, select to plot, export CSV,
           tags: [tags[0], tags.at(-1), tags.length],
         };
       });
-      throw new Error(`${tag} never drawn: ${JSON.stringify(seen)} (${e.message})`);
+      throw new Error(`${tag} never drawn: ${JSON.stringify(seen)}`, { cause: e });
     }
   };
   await scrollTo(true, 'press299.temp');
