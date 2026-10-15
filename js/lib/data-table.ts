@@ -9,11 +9,12 @@
 // A page draws `dataTable(o)` in its HTML and calls `bindTable(root, o)` in bind; changes to the
 // table's own state (sort, columns, scrolling) redraw only the table, through the morph, so a form
 // in a row keeps what is typed.
-import { esc, bound, setBusy } from './dom.ts';
+import { esc, bound, download, setBusy } from './dom.ts';
 import { attrs, button, skeleton, type Attrs } from './ui.ts';
 import { icon } from './icons.ts';
 import { load, save } from './store.ts';
 import { morph } from './morph.ts';
+import { csvField } from './csv.ts';
 
 export const VIRTUAL_AFTER = 200; // rows: beyond, only those in view are drawn (500 drawn at once take over 50 ms)
 const OVERSCAN = 12; // rows drawn above and below the view
@@ -184,11 +185,7 @@ export function windowOf(
 // spreadsheet doesn't run it as a formula.
 export function toCsv<T>(rows: readonly T[], columns: readonly Column<T>[], text: (html: string) => string): string {
   const cols = columns.filter((c) => !c.srOnly);
-  const field = (v: string): string => {
-    const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
-    return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
-  };
-  const line = (values: string[]) => values.map(field).join(',');
+  const line = (values: string[]) => values.map(csvField).join(',');
   return `${[
     line(cols.map((c) => c.label)),
     ...rows.map((r) => line(cols.map((c) => (c.csv ? c.csv(r) : text(c.cell(r)))))),
@@ -366,11 +363,7 @@ export function bindTable<T>(root: ParentNode, o: TableOptions<T>): void {
       }
       if (t?.closest('[data-table-csv]')) {
         const csv = toCsv(sorted(), visibleColumns(o.columns, s.prefs), textOf);
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-        a.download = o.csv ?? `${o.id}.csv`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        download(o.csv ?? `${o.id}.csv`, csv, 'text/csv;charset=utf-8');
         return;
       }
       const step = t?.closest<HTMLElement>('[data-table-page]')?.dataset.tablePage;

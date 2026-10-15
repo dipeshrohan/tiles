@@ -2628,20 +2628,6 @@ svg[data-chart]:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
-svg[data-hidden~='line'] [data-part='line'],
-svg[data-hidden~='band'] [data-part='band'],
-svg[data-hidden~='levels'] [data-part='levels'],
-svg[data-hidden~='spans'] [data-part='spans'],
-svg[data-hidden~='s0'] [data-part='s0'],
-svg[data-hidden~='s1'] [data-part='s1'],
-svg[data-hidden~='s2'] [data-part='s2'],
-svg[data-hidden~='s3'] [data-part='s3'],
-svg[data-hidden~='s4'] [data-part='s4'],
-svg[data-hidden~='s5'] [data-part='s5'],
-svg[data-hidden~='s6'] [data-part='s6'],
-svg[data-hidden~='s7'] [data-part='s7'] {
-  display: none;
-}
 .crosshair line {
   stroke: var(--soft);
   stroke-width: 1;

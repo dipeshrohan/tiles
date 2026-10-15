@@ -8,9 +8,20 @@
 // - its legend shows and hides each part; PNG saves it as an image, CSV its data.
 // The chart stays plain SVG: the crosshair is drawn into it, and goes when the page draws it again.
 import { chartCsv, chartData, fileName, nearest, readout, step, togglePart, type ChartData } from './chart-data.ts';
+import { download } from './dom.ts';
 
 const NS = 'http://www.w3.org/2000/svg';
-const at = new WeakMap<SVGSVGElement, number>(); // the reading shown, per chart
+// The reading shown, per chart, and the data it is a reading of: a chart drawn again with other data
+// (the same element, patched) starts again.
+const shownAt = new WeakMap<SVGSVGElement, { id: string; i: number }>();
+const at = {
+  get: (svg: SVGSVGElement): number | undefined => {
+    const s = shownAt.get(svg);
+    return s && s.id === svg.dataset.chart && svg.querySelector(':scope > g.crosshair') ? s.i : undefined;
+  },
+  set: (svg: SVGSVGElement, i: number) => shownAt.set(svg, { id: svg.dataset.chart ?? '', i }),
+  delete: (svg: SVGSVGElement) => shownAt.delete(svg),
+};
 
 const chartOf = (el: EventTarget | null): SVGSVGElement | null =>
   el instanceof Element ? el.closest<SVGSVGElement>('svg[data-chart]') : null;
@@ -23,6 +34,12 @@ function shownSeries(svg: SVGSVGElement): (k: number) => boolean {
   const off = new Set((svg.dataset.hidden ?? '').split(' ').filter(Boolean));
   return (k) => !off.has(`s${k}`) && !(k === 0 && off.has('line'));
 }
+
+// Whether any shown series has a reading to read.
+const anyShown = (svg: SVGSVGElement, d: ChartData): boolean => {
+  const shown = shownSeries(svg);
+  return d.series.some((s, k) => shown(k) && s.ys.some((y) => y !== null));
+};
 
 // The chart's own units (its viewBox) under a point on the screen.
 function unitsAt(svg: SVGSVGElement, clientX: number): number {
@@ -89,14 +106,6 @@ const say = (text: string): void => {
   });
 };
 
-function download(name: string, blob: Blob): void {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-
 // The styles a chart is drawn with, written onto a copy of it, so the copy looks the same alone
 // (an image has no stylesheet). Each element's own computed look, without reading the stylesheet.
 const KEEP = [
@@ -145,21 +154,23 @@ async function savePng(svg: SVGSVGElement, title: string): Promise<void> {
   g.fillRect(0, 0, canvas.width, canvas.height);
   g.drawImage(img, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
-  if (blob) download(fileName(title, 'png'), blob);
+  if (!blob) throw new Error('the image could not be made');
+  download(fileName(title, 'png'), blob);
 }
 
 // The chart a tool belongs to: the one after its tools, in its box.
 const svgFor = (tool: Element): SVGSVGElement | null =>
   tool.closest('.chart-box')?.querySelector<SVGSVGElement>('svg[data-chart]') ?? null;
 
-export function installCharts(region: HTMLElement): void {
+// `failed`: says a chart couldn't be saved (the app's toast).
+export function installCharts(region: HTMLElement, failed: (what: string) => void = () => {}): void {
   live = region;
   document.addEventListener('pointermove', (e) => {
     const svg = chartOf(e.target);
     if (!svg || e.pointerType === 'touch') return; // a finger reads on a tap: it scrolls when it moves
     const d = dataOf(svg);
     const i = d ? nearest(d, unitsAt(svg, e.clientX), shownSeries(svg)) : null;
-    if (i !== null && i !== at.get(svg)) drawCrosshair(svg, i);
+    if (i !== null && i !== at.get(svg)) drawCrosshair(svg, i); // at.get: none after a redraw
   });
   // A tap (or a click) shows the nearest reading, and keeps it until the next.
   document.addEventListener('pointerdown', (e) => {
@@ -187,6 +198,7 @@ export function installCharts(region: HTMLElement): void {
     const svg = chartOf(e.target);
     const d = svg ? dataOf(svg) : undefined;
     if (!svg || !d || !d.xs.length) return;
+    if (!anyShown(svg, d)) return say('Every part of this chart is hidden: show one with its legend to read it.');
     const i = at.get(svg) ?? step(d, d.xs.length, -1, shownSeries(svg)); // the latest reading
     drawCrosshair(svg, i);
     say(readout(d, i, shownSeries(svg)));
@@ -203,6 +215,7 @@ export function installCharts(region: HTMLElement): void {
     const d = svg ? dataOf(svg) : undefined;
     if (!svg || !d || !d.xs.length || e.altKey || e.ctrlKey || e.metaKey) return;
     const shown = shownSeries(svg);
+    if (!anyShown(svg, d)) return;
     const now = at.get(svg) ?? step(d, d.xs.length, -1, shown);
     const moves: Record<string, () => number> = {
       ArrowRight: () => step(d, now, 1, shown),
@@ -236,7 +249,11 @@ export function installCharts(region: HTMLElement): void {
     if (!svg || !id || !d) return;
     if (toggle) {
       const part = toggle.dataset.chartToggle ?? '';
-      const off = togglePart(id, part);
+      const off = togglePart(svg.dataset.chartKey ?? id, part);
+      svg.querySelectorAll(`[data-part="${CSS.escape(part)}"]`).forEach((p) => {
+        if (off) p.setAttribute('display', 'none');
+        else p.removeAttribute('display');
+      });
       toggle.setAttribute('aria-pressed', String(!off));
       const parts = new Set((svg.dataset.hidden ?? '').split(' ').filter(Boolean));
       if (off) parts.add(part);
@@ -244,7 +261,7 @@ export function installCharts(region: HTMLElement): void {
       svg.dataset.hidden = [...parts].join(' ');
       clearCrosshair(svg);
       at.delete(svg);
-    } else if (png) void savePng(svg, d.title);
-    else download(fileName(d.title, 'csv'), new Blob([chartCsv(d)], { type: 'text/csv;charset=utf-8' }));
+    } else if (png) savePng(svg, d.title).catch(() => failed('The chart couldn’t be saved as an image'));
+    else download(fileName(d.title, 'csv'), chartCsv(d), 'text/csv;charset=utf-8');
   });
 }

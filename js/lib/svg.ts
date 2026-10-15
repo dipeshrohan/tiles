@@ -105,7 +105,7 @@ function open(width: number, height: number, title: string, summary: string, cls
   const name = [title, summary, id ? 'Point at it, or focus it and use the arrow keys, to read each value' : '']
     .filter(Boolean)
     .join('. ');
-  const read = id ? ` data-chart="${id}" tabindex="0" data-hidden="${esc([...hiddenParts(id)].join(' '))}"` : '';
+  const read = id ? ` data-chart="${id}" tabindex="0"` : '';
   return `<svg class="${cls}" viewBox="0 0 ${width} ${height}" style="max-width:${width * 1.5}px" role="img" aria-label="${esc(name)}"${read}>`;
 }
 
@@ -117,8 +117,13 @@ export interface LegendItem {
 
 // The chart with its tools above it (U5.03): a legend whose items show and hide their part (when
 // there is more than one), and the chart saved as PNG or its data as CSV.
-function chartBox(id: string, title: string, svg: string, legend: LegendItem[]): string {
-  const off = hiddenParts(id);
+function chartBox(id: string, title: string, chart: string, legend: LegendItem[]): string {
+  // What the legend hid stays hidden by what the chart is, whatever its data (panned, zoomed).
+  const key = `${title}|${legend.map((l) => l.part).join(',')}`;
+  const off = hiddenParts(key);
+  const svg = chart
+    .replace('<svg ', `<svg data-chart-key="${esc(key)}" data-hidden="${esc([...off].join(' '))}" `)
+    .replace(/data-part="([\w-]+)"/g, (m: string, part: string) => (off.has(part) ? `${m} display="none"` : m));
   const keys =
     legend.length > 1
       ? `<span class="chart-legend" role="group" aria-label="Show or hide">${legend
@@ -626,13 +631,21 @@ export function timeChart({
 }
 
 // A reading's time as read out: to the second for short ranges, the minute otherwise; local time.
+const TO_MINUTE = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+const TO_SECOND = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
 function readTime(t: number, span: number): string {
-  return new Date(t).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    ...(span < 6 * HOUR ? { second: '2-digit' as const } : {}),
-  });
+  return (span < 6 * HOUR ? TO_SECOND : TO_MINUTE).format(t);
 }

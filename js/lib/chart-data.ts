@@ -3,6 +3,7 @@
 // plain SVG strings: each registers its data here under an id made from the data itself, and carries
 // it as `data-chart`; js/lib/charts.ts reads it back when someone points at, touches or focuses the
 // chart. Pure: no DOM.
+import { csvField } from './csv.ts';
 
 export interface ChartSeries {
   name: string; // in the readout and the legend: "Readings", "Front stock tension"
@@ -34,14 +35,17 @@ export function chartId(d: ChartData): string {
     }
   };
   mix(d.title);
-  mix(String(d.xs.length));
-  for (let i = 0; i < d.xs.length; i += Math.max(1, Math.floor(d.xs.length / 64))) mix(`${d.xs[i]}|${d.labels[i]}`);
+  for (let i = 0; i < d.xs.length; i++) mix(`${d.xs[i]}|${d.labels[i]}`);
   for (const s of d.series) {
     mix(s.name);
-    for (let i = 0; i < s.text.length; i += Math.max(1, Math.floor(s.text.length / 64))) mix(s.text[i] ?? '');
+    for (const t of s.text) mix(`|${t}`);
   }
-  mix(String(d.xs.at(-1)));
-  return `c${(h >>> 0).toString(36)}`;
+  // A second, independent pass (another seed) makes two charts' ids meeting all but impossible.
+  const first = h >>> 0;
+  h = 0x01000193;
+  mix(JSON.stringify(d.series.map((s) => s.ys)));
+  mix(String(d.top) + String(d.bottom));
+  return `c${first.toString(36)}${(h >>> 0).toString(36)}`;
 }
 
 export function registerChart(d: ChartData): string {
@@ -108,11 +112,7 @@ export function readout(d: ChartData, i: number, shown: (i: number) => boolean =
 
 // The data as CSV (RFC 4180; a value starting =, +, - or @ is kept from running as a formula).
 export function chartCsv(d: ChartData): string {
-  const field = (v: string | number): string => {
-    const s = typeof v === 'number' ? String(v) : /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
-    return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
-  return `${[d.csv.head, ...d.csv.rows].map((r) => r.map(field).join(',')).join('\r\n')}\r\n`;
+  return `${[d.csv.head, ...d.csv.rows].map((r) => r.map(csvField).join(',')).join('\r\n')}\r\n`;
 }
 
 // A file name from the chart's title: "plunger-friction-dc-02".
@@ -125,14 +125,16 @@ export const fileName = (title: string, ext: string): string =>
       .slice(0, 60) || 'chart'
   }.${ext}`;
 
-// Parts of a chart someone hid with its legend ("line", "band", "s1"…), kept while the page shows it
-// so a chart drawn again stays as they left it.
+// Parts of a chart someone hid with its legend ("line", "band", "s1"…), kept in this tab by what the
+// chart is (its title and parts), not its data: panned or zoomed, it stays as they left it.
 const hidden = new Map<string, Set<string>>();
-export const hiddenParts = (id: string): Set<string> => hidden.get(id) ?? new Set();
-export function togglePart(id: string, part: string): boolean {
-  const set = new Set(hiddenParts(id));
+export const hiddenParts = (key: string): Set<string> => hidden.get(key) ?? new Set();
+export function togglePart(key: string, part: string): boolean {
+  const set = new Set(hiddenParts(key));
   const off = !set.delete(part);
   if (off) set.add(part);
-  hidden.set(id, set);
+  hidden.delete(key);
+  hidden.set(key, set);
+  while (hidden.size > MAX) hidden.delete(hidden.keys().next().value as string);
   return off;
 }

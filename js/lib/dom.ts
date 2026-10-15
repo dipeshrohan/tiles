@@ -177,8 +177,8 @@ function hold(owner: HTMLElement, button: HTMLButtonElement | null, work: unknow
 }
 
 // Hands the browser a file to save, made here (e.g. an export fetched with credentials).
-export function download(name: string, text: string, type: string): void {
-  const url = URL.createObjectURL(new Blob([text], { type }));
+export function download(name: string, data: string | Blob, type = 'application/octet-stream'): void {
+  const url = URL.createObjectURL(typeof data === 'string' ? new Blob([data], { type }) : data);
   const a = document.createElement('a');
   a.href = url;
   a.download = name;

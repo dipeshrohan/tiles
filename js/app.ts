@@ -160,7 +160,9 @@ const NAV: { group?: string; items: View[] }[] = [
 const toast = createToaster(need(document, '#toast'));
 installTooltips();
 // Charts read point by point, and saved (U5.03): their values are read out by the page's announcer.
-installCharts(need(document, '#announcer'));
+installCharts(need(document, '#announcer'), (what) =>
+  toast(what, { type: 'error', description: 'Try again, or save its data as CSV instead.' }),
+);
 
 // ---- state ------------------------------------------------------------
 

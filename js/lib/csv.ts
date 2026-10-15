@@ -65,3 +65,11 @@ export function parseCsv(text: string, delimiter: Delimiter = detectDelimiter(te
   if (cell !== '' || row.length) endRow();
   return rows;
 }
+
+// One CSV field as RFC 4180 writes it (quoted when it has a comma, a quote or a line break), and a
+// value starting =, +, - or @ kept from running as a formula in a spreadsheet. Tables and charts
+// export with it (U5.02, U5.03).
+export function csvField(v: string | number): string {
+  const s = typeof v === 'number' ? String(v) : /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}

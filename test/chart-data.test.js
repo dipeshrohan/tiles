@@ -129,3 +129,22 @@ test('time and line charts register their readings, read out with units, and com
   ]);
   assert.match(line, /data-chart-toggle="s1"/);
 });
+
+test('what the legend hid stays hidden for the same chart drawn with other data', () => {
+  const T0 = Date.parse('2026-08-01T00:00:00Z');
+  const draw = (shift) =>
+    timeChart({
+      points: [0, 1].map((i) => ({ t: T0 + (i + shift) * 60_000, v: 10 + i, lo: 9 + i, hi: 11 + i })),
+      from: T0,
+      to: T0 + 5 * 60_000,
+      gap: 120_000,
+      yLabel: 'kept °C',
+    });
+  const key = /data-chart-key="([^"]+)"/.exec(draw(0))?.[1].replace(/&amp;/g, '&');
+  togglePart(key, 'band');
+  const later = draw(1); // panned: other data, another id
+  assert.match(later, /data-hidden="band"/);
+  assert.match(later, /data-part="band" display="none"/);
+  assert.doesNotMatch(later, /data-part="line" display="none"/);
+  togglePart(key, 'band');
+});
