@@ -252,7 +252,7 @@ function loadCharts(root: HTMLElement, ctx: Context): void {
   if (!ctx.api || !site || !range) return;
   const mine = ++latestLoad;
   for (const p of picked) {
-    const box = root.querySelector<HTMLElement>(`[data-chart="${CSS.escape(p.id)}"]`);
+    const box = root.querySelector<HTMLElement>(`[data-plot="${CSS.escape(p.id)}"]`);
     ctx.api.signals.series(site.id, p.id, range.from, range.to, POINTS).then(
       (series) => {
         if (mine !== latestLoad || !box?.isConnected) return;
@@ -534,7 +534,7 @@ const view: View = {
       .map(
         (p) => `<div class="card stack gap-1_5">
           <div class="row justify-between"><strong><code>${esc(p.tag)}</code></strong><span class="small soft">${esc(p.unit ?? '')}</span></div>
-          <div data-chart="${esc(p.id)}">${skeleton.chart('Loading the readings…', TIME_CHART.height)}</div>
+          <div data-plot="${esc(p.id)}">${skeleton.chart('Loading the readings…', TIME_CHART.height)}</div>
           <div data-wear="${esc(p.id)}"></div>
         </div>`,
       )

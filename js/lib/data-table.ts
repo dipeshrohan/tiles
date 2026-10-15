@@ -481,8 +481,11 @@ export function bindTable<T>(root: ParentNode, o: TableOptions<T>): void {
     const rows = sorted();
     const h = s.rowHeight ?? ROW_HEIGHT[s.prefs.density];
     const top = frame.querySelector('thead')?.getBoundingClientRect().height ?? 0;
-    const { start } = windowOf(rows.length, frame.scrollTop - top, frame.clientHeight, h);
-    if (Math.abs(start - s.start) < OVERSCAN / 2) return;
+    const { start, end } = windowOf(rows.length, frame.scrollTop - top, frame.clientHeight, h);
+    // A small move keeps the rows drawn (the overscan covers it), except at either end: the first
+    // or last rows are always drawn when scrolled to.
+    if (start === s.start) return;
+    if (Math.abs(start - s.start) < OVERSCAN / 2 && start > 0 && end < rows.length) return;
     s.start = start;
     const tbody = frame.querySelector('tbody');
     if (tbody) morph(tbody, bodyHtml(o, s, visibleColumns(o.columns, s.prefs), rows));
