@@ -1725,6 +1725,10 @@ tr.selected td {
 .feed-item:last-child {
   border-bottom: 0;
 }
+.feed-item .what {
+  min-width: 0; /* a long word wraps, so the time keeps its place on a narrow screen */
+  overflow-wrap: anywhere;
+}
 .feed-item .when {
   margin-left: auto;
   color: var(--muted);

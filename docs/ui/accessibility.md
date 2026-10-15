@@ -23,6 +23,7 @@ The visual tests (`e2e/visual/`) add the pseudo-locale (U6.03): every page with 
 | Found | Fix |
 | --- | --- |
 | The Copilot page was 1 px wider than a 320 px window: a long chip or button set the width of its grid | `.chat` has a `minmax(0, 1fr)` column |
+| With a wider fallback font (CI's), a date on Home's recent activity pushed the page 5 px wider than 320 px: the text beside it couldn't shrink | that text wraps (`.feed-item .what`) |
 | The breadcrumbs' links were 20 px tall, side by side | `min-height: var(--target-min)` |
 | The menu's group headings (which fold their group) were 21 px tall, next to the pages | the same |
 | In forced colours, the page you're on in the menu, the section of the guide or the wizard's step you're at, pressed filter buttons and selected rows showed only by background, which High Contrast replaces | outlined in `Highlight`; the focus is a thicker outline outside, so a chosen control shows when it has it too (`@media (forced-colors: active)` at the end of `css/styles.css`) |
