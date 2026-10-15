@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, need, onAll, onNavigate, routeOf, bound } from '../lib/dom.ts';
+import { esc, need, onAll, onNavigate, routeOf, bound, scrollBehavior } from '../lib/dom.ts';
 import { fitWidth, gapFor, TIME_CHART, timeChart, toPoints } from '../lib/svg.ts';
 import {
   ApiError,
@@ -27,7 +27,7 @@ import {
   when,
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
-import { listKeys, split } from '../lib/split.ts';
+import { listKeys, rowTarget, split } from '../lib/split.ts';
 import { withQuery } from '../lib/url-state.ts';
 import {
   badge,
@@ -46,7 +46,7 @@ import {
   term,
 } from '../lib/ui.ts';
 import { keyAttrs } from '../lib/shortcuts.ts';
-import { bindTable, clearSelection, dataTable, type TableOptions } from '../lib/data-table.ts';
+import { bindTable, clearSelection, dataTable, tableOrder, type TableOptions } from '../lib/data-table.ts';
 
 // The warnings inbox (T3.08): the warnings detectors raised on the site, filtered by where they
 // are in their workflow and who has them; each with a chart of its signal around it, its payload
@@ -94,6 +94,8 @@ function openLinked(ctx: Context): void {
 // Others act on warnings and detectors raise new ones while you are elsewhere: each visit fetches afresh.
 onNavigate((hash) => {
   if (routeOf(hash) !== 'warnings') {
+    acted = null;
+    wantNext = false;
     listing = null;
     detail = null;
     detailFailed = null;
@@ -157,7 +159,11 @@ const STATUS_RANK: Record<WarningInfo['status'], number> = { raised: 0, acknowle
 // The warnings as a table (U5.02): each signal's button opens it beside the list; sorted, its
 // columns chosen, exported; engineers acknowledge the ones selected at once.
 function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): TableOptions<WarningInfo> {
-  const canAck = actionsFor({ status: 'raised' }, ctx.ontology.role).includes('acknowledge');
+  const can = actionsFor({ status: 'raised' }, ctx.ontology.role);
+  const bulk = [
+    ...(can.includes('acknowledge') ? [{ id: 'acknowledge', label: 'Acknowledge', variant: 'primary' as const }] : []),
+    ...(can.includes('assign') && ctx.ontology.userId ? [{ id: 'assign-me', label: 'Assign to me' }] : []),
+  ];
   return {
     id: 'warnings',
     label: 'Warnings',
@@ -209,30 +215,33 @@ function listTable(ctx: Context, ui: Ui, items: WarningInfo[], empty: string): T
     key: (w) => w.id,
     empty,
     rowAttrs: (w) => ({ 'data-warning': w.id, class: ui.selected === w.id ? 'sel' : undefined }),
-    select: canAck
-      ? {
-          actions: [{ id: 'acknowledge', label: 'Acknowledge', variant: 'primary' }],
-          run: (_action, keys) => acknowledgeAll(ctx, keys),
-        }
-      : undefined,
+    select: bulk.length ? { actions: bulk, run: (action, keys) => bulkAct(ctx, action, keys) } : undefined,
     csv: 'warnings.csv',
   };
 }
 
-// Acknowledges the warnings selected that nobody has yet, four at a time. A refusal stops it (the
-// client says why); what was done is said, and the list fetched again.
-async function acknowledgeAll(ctx: Context, keys: string[]): Promise<void> {
+// Acknowledges the warnings selected that nobody has yet, or assigns them to me (those not mine
+// already), four at a time. A refusal stops it (the client says why); what was done is said, and
+// the list fetched again.
+async function bulkAct(ctx: Context, action: string, keys: string[]): Promise<void> {
   const site = siteId(ctx);
   const api = ctx.api;
+  const me = ctx.ontology.userId;
   if (!site || !api) return;
-  const raised = keys.filter((k) => listing?.items?.find((w) => w.id === k)?.status === 'raised');
+  const byId = new Map((listing?.items ?? []).map((w) => [w.id, w]));
+  const assigning = action === 'assign-me';
+  // Only those it would change: not mine yet and not resolved (assigning), or new (acknowledging).
+  const raised = keys.filter((k) => {
+    const w = byId.get(k);
+    return assigning ? Boolean(me) && w?.status !== 'resolved' && w?.assignee_id !== me : w?.status === 'raised';
+  });
   let done = 0;
   let failed = false;
   const queue = [...raised];
   const worker = async (): Promise<void> => {
     for (let id = queue.shift(); id !== undefined && !failed; id = queue.shift()) {
       try {
-        await api.warnings.acknowledge(site, id);
+        await (assigning ? api.warnings.assign(site, id, me) : api.warnings.acknowledge(site, id));
         done++;
       } catch {
         failed = true;
@@ -241,17 +250,20 @@ async function acknowledgeAll(ctx: Context, keys: string[]): Promise<void> {
   };
   await Promise.all(Array.from({ length: Math.min(4, queue.length) }, worker));
   if (done) {
-    ctx.toast(done === 1 ? '1 warning acknowledged' : `${done} warnings acknowledged`, {
+    const verb = assigning ? 'assigned to you' : 'acknowledged';
+    ctx.toast(done === 1 ? `1 warning ${verb}` : `${done} warnings ${verb}`, {
       type: 'success',
       description: failed
         ? `${raised.length - done} weren’t: the notice says why.`
         : raised.length < keys.length
-          ? `${keys.length - raised.length} selected had been acknowledged already.`
+          ? `${keys.length - raised.length} selected had been ${assigning ? 'yours' : 'acknowledged'} already.`
           : undefined,
     });
-    ux('task', 'warning.acknowledge');
+    ux('task', assigning ? 'warning.assign' : 'warning.acknowledge');
   } else if (!failed)
-    ctx.toast('Nothing to acknowledge', { description: 'The warnings selected had been acknowledged already.' });
+    ctx.toast(assigning ? 'Nothing to assign' : 'Nothing to acknowledge', {
+      description: `The warnings selected had been ${assigning ? 'yours' : 'acknowledged'} already.`,
+    });
   clearSelection('warnings');
   listing = null;
   detail = null;
@@ -331,7 +343,10 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
     button(label, {
       variant,
       busy: busy === a,
-      attrs: { 'data-act': a, ...(a === 'acknowledge' ? keyAttrs('a') : {}) },
+      attrs: {
+        'data-act': a,
+        ...(a === 'acknowledge' ? keyAttrs('a') : a === 'assign-me' ? keyAttrs('s') : {}),
+      },
     });
   const assign = has('assign')
     ? `<span class="row gap-1_5">${field(
@@ -346,11 +361,11 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
           w.assignee_id ?? '',
         ),
         { inline: true },
-      )}${actButton('Assign', 'assign')}</span>`
+      )}${actButton('Assign', 'assign')}${w.assignee_id !== ctx.ontology.userId && ctx.ontology.userId ? actButton('Assign to me', 'assign-me') : ''}</span>`
     : '';
   const outcomes = (Object.keys(OUTCOMES) as WarningOutcome[]).map((o) => [o, OUTCOMES[o]] as const);
   const resolve = has('resolve')
-    ? `<span class="row gap-1_5">${field('Outcome', select('outcome', outcomes, ''), { inline: true })}${actButton('Resolve', 'resolve', 'primary')}</span>`
+    ? `<span class="row gap-1_5">${field('Outcome', select('outcome', outcomes, '', { attrs: keyAttrs('r') }), { inline: true })}${actButton('Resolve', 'resolve', 'primary')}</span>`
     : '';
   return `<form class="stack gap-2 mt-2_5" id="warning-form" data-tour="warning-actions">
       <textarea name="note" rows="2" maxlength="2000" placeholder="A note (optional, except for a comment)" aria-label="Note">${draft.key === detailKey(ctx) ? esc(draft.text) : ''}</textarea>
@@ -408,6 +423,7 @@ function detailCard(ctx: Context, ui: Ui): string {
       <div class="thread">${activity}</div>
       ${readOnly}
       ${actionsForm(ctx, w)}
+      ${acted?.id === w.id ? `<p class="row gap-2 mt-2_5">${button('Next warning', { variant: 'primary', icon: 'arrow-right', attrs: { 'data-next-warning': true, ...keyAttrs('n') } })}</p>` : ''}
       <details class="mt-3_5"><summary class="small">Payload</summary>
         ${kv(payload(w), { valueClass: 'mono' })}
       </details>`,
@@ -511,6 +527,51 @@ async function fetchMembers(ctx: Context): Promise<void> {
   ctx.rerender();
 }
 
+// The warning last acted on, and where it was in the list's order: Next warning opens the one after
+// it (or, when it left the list, the one that took its place). `wantNext`: asked for while the list
+// was being fetched again, or its next page; done when it comes.
+let acted: { id: string; at: number } | null = null;
+let wantNext = false;
+
+// The list's warnings in the order its table shows them, every one (drawn or not); null while fetched.
+function inOrder(ctx: Context): WarningInfo[] | null {
+  const items = listing?.key === listKey(ctx) ? listing.items : null;
+  return items ? tableOrder(listTable(ctx, uiState(ctx), items, '')) : null;
+}
+
+function nextWarning(ctx: Context): void {
+  if (!acted) return;
+  const list = inOrder(ctx);
+  if (!list) {
+    wantNext = true; // the list is on its way
+    return;
+  }
+  wantNext = false;
+  const here = list.findIndex((w) => w.id === acted?.id);
+  const next = here >= 0 ? list[here + 1] : list[Math.min(Math.max(acted.at, 0), list.length - 1)];
+  if (!next) {
+    if (listing?.more) {
+      wantNext = true; // older warnings first
+      void fetchMore(ctx);
+      return;
+    }
+    acted = null;
+    ctx.rerender();
+    ctx.toast('That was the last warning in the list');
+    return;
+  }
+  acted = null;
+  Object.assign(uiState(ctx), { selected: next.id });
+  ctx.rerender();
+  ux('task', 'warning.next');
+  // As j and k do: the focus on its row, in view.
+  requestAnimationFrame(() => {
+    const row = document.querySelector(`[data-warning-list] [data-warning="${CSS.escape(next.id)}"]`);
+    rowTarget(row)?.focus({ preventScroll: true });
+    row?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
+  });
+}
+
 async function act(ctx: Context, action: string, note: string, form: HTMLFormElement): Promise<void> {
   const site = siteId(ctx);
   const w = detail?.warning;
@@ -520,6 +581,7 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
   const calls: Record<string, () => Promise<WarningDetail>> = {
     acknowledge: () => api.acknowledge(site, w.id, note),
     assign: () => api.assign(site, w.id, value('assignee') || null, note),
+    'assign-me': () => api.assign(site, w.id, ctx.ontology.userId, note),
     resolve: () => api.resolve(site, w.id, value('outcome') as WarningOutcome, note),
     reopen: () => api.reopen(site, w.id, note),
     comment: () => api.comment(site, w.id, note),
@@ -543,7 +605,7 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
     detail = { key, warning };
     if (draft.key === key) draft = { key: '', text: '' };
     // Assigning it to whom it already was changes nothing (a note is kept as a comment).
-    const same = action === 'assign' && warning.assignee_id === w.assignee_id;
+    const same = (action === 'assign' || action === 'assign-me') && warning.assignee_id === w.assignee_id;
     const done: Record<string, string> = {
       acknowledge: 'Acknowledged',
       assign: same
@@ -551,13 +613,18 @@ async function act(ctx: Context, action: string, note: string, form: HTMLFormEle
         : warning.assignee
           ? `Assigned to ${warning.assignee}`
           : 'Unassigned',
+      'assign-me': same
+        ? `Already assigned to you${note ? '; your note is kept as a comment' : ''}`
+        : 'Assigned to you',
       resolve: `Resolved as ${warning.outcome ? OUTCOMES[warning.outcome].toLowerCase() : 'done'}`,
       reopen: 'Reopened',
       comment: 'Comment added',
     };
     ctx.toast(done[action] ?? 'Done');
-    ux('task', `warning.${action}`);
+    ux('task', `warning.${action === 'assign-me' ? 'assign' : action}`);
     if (action !== 'comment' && !same) listing = null; // it may have left the list's filters
+    // Done with this one: Next warning (n) opens the one after it in the list (U5.04).
+    if (action !== 'comment') acted = { id: w.id, at: inOrder(ctx)?.findIndex((i) => i.id === w.id) ?? 0 };
   } catch {
     // The client showed why. An acknowledgement shown at once is taken back at once; then, as after
     // any refused step, the warning and the list are fetched again (someone may have changed it).
@@ -632,7 +699,11 @@ const view: View = {
     if (!ctx.api || ctx.ontology.status !== 'ready') return;
     const ui = uiState(ctx);
     const site = siteId(ctx);
-    if (ui.site !== site) Object.assign(ui, { selected: null, site }); // another site's warning
+    if (ui.site !== site) {
+      Object.assign(ui, { selected: null, site }); // another site's warning
+      acted = null;
+    }
+    if (wantNext && listing?.key === listKey(ctx) && listing.items) nextWarning(ctx); // asked for while it came
     if (listing?.key !== listKey(ctx)) void fetchList(ctx);
     // A failed fetch waits for Refresh, rather than retrying at every render.
     if (ui.selected !== null && detail?.key !== detailKey(ctx) && detailFailed !== detailKey(ctx))
@@ -643,6 +714,7 @@ const view: View = {
       void fetchMembers(ctx);
 
     onAll(root, '[data-show]', 'click', (el) => {
+      acted = null; // another list: no next in it
       ui.filters = { ...ui.filters, show: (el.dataset.show as Show | undefined) ?? 'unresolved' };
       ctx.rerender();
     });
@@ -651,6 +723,7 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-filter]', 'change', (el) => {
+      acted = null;
       const value = (el as HTMLSelectElement).value;
       ui.filters = { ...ui.filters, [el.dataset.filter ?? '']: value } as Filters;
       ctx.rerender();
@@ -687,6 +760,7 @@ const view: View = {
       },
       { signal: bound() },
     );
+    onAll(root, '[data-next-warning]', 'click', () => nextWarning(ctx));
     onAll(root, '[data-act]', 'click', (el) => {
       const form = need<HTMLFormElement>(root, '#warning-form');
       const box = need<HTMLTextAreaElement>(form, 'textarea');

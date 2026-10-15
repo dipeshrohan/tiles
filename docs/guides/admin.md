@@ -220,7 +220,7 @@ What the browser records, and nothing else:
 | Kind | Name | Example |
 | --- | --- | --- |
 | Page viewed | The page's id | `warnings` |
-| Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo`, `tour.finished`, `feedback.sent`, `home.card-added`, `home.card-removed`, `signal.quality-checked` |
+| Task done | What was done | `warning.acknowledge`, `signal.plotted`, `ontology.committed`, `undo`, `tour.finished`, `feedback.sent`, `home.card-added`, `home.card-removed`, `signal.quality-checked`, `warning.assign`, `warning.resolve`, `warning.next` |
 | Command palette | Opened, or the kind of thing chosen | `open`, `chose.signals` |
 | Help opened | The help topic | `welcome` (the first-run welcome), `tour.triage` (a tour started), `whatsnew`, `feedback` (the feedback form opened) |
 | Error shown | Its kind | `api.403`, `offline` |

@@ -133,6 +133,9 @@ function ordered<T>(o: TableOptions<T>, s: Live): T[] {
   return s.sorted.out as T[];
 }
 
+// A table's rows in the order it shows them (its sort), all of them, drawn or not.
+export const tableOrder = <T>(o: TableOptions<T>): T[] => ordered(o, stateOf(o));
+
 // Unticks a table's rows (after a bulk action has done its work).
 export const clearSelection = (id: string): void => live.get(id)?.selected.clear();
 

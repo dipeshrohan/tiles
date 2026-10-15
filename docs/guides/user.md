@@ -117,7 +117,7 @@ The app hides controls you can't use. If you think you need more rights, ask a s
 - **Send feedback:** tell your site's admins what works and what doesn't. Open the help (the **?** button) and choose **Send feedback**, or find it with Ctrl K or on the Help page. Choose how Tiles is working for you, say what happened, and send it. It goes with the page you were on, the version and your browser. It is anonymous unless you tick **Include my name**. Tick **Attach a screenshot of this page** to send a picture of the page as you see it: it is shown to you first, and **Remove the screenshot** takes it off. It needs the Tiles API.
 - **Tours:** a few steps on the pages themselves, each lighting up the part of the page it is about: **Triage a warning**, **Find and plot a signal**, **Change the plant model** and **Ask the copilot**. Start one from **Help** (on the guide's first page), from Ctrl K ("tour"), or from the welcome. Use **Next** and **Back**; leave at any step with **Leave the tour** or Escape. The page stays usable underneath, so you can try each step as you go. The first two need the Tiles API.
 - **Help on every page:** the **?** button at the top shows the part of this guide about the page you are on, beside it; **Open the full guide** opens the whole guide on the **Help** page (in the menu, at the bottom), at that part. Ctrl K finds the guide's headings too. The help is part of the app: it works offline.
-- **Keyboard shortcuts:** press **?** to see them all. **g** then a letter goes to a page (**g w** Warnings, **g s** Signals, **g e** Data explorer, **g o** Ontology builder…); on a page, **a** acknowledges the warning open, **e** edits the insight or app open and **/** goes to its search box. A button with a key shows it when you point at it. Keys do nothing while you type in a field. If single keys get in the way of your screen reader or speech input, turn them off in the **?** list (find it again with Ctrl K, "Keyboard shortcuts").
+- **Keyboard shortcuts:** press **?** to see them all. **g** then a letter goes to a page (**g w** Warnings, **g s** Signals, **g e** Data explorer, **g o** Ontology builder…); on a page, **a** acknowledges the warning open (**s** assigns it to you, **r** goes to its outcome, **n** opens the next), **e** edits the insight or app open and **/** goes to its search box. A button with a key shows it when you point at it. Keys do nothing while you type in a field. If single keys get in the way of your screen reader or speech input, turn them off in the **?** list (find it again with Ctrl K, "Keyboard shortcuts").
 - The button at the top switches between light and dark themes. On a phone, the menu button opens the left menu over the page; tap beside it, swipe it to the left or press Escape to close it.
 - Short messages ("toasts") appear at the bottom of the screen when something is saved or fails.
 - **With a keyboard:** the first Tab offers **Skip to content**, past the menu. Every control is reachable with Tab and works with Enter or Space; ontology nodes too. **With a screen reader:** each chart is described with the numbers it shows (its span, range, latest value, thresholds and shaded warnings), and toasts and the Shopfloor's headline are announced. Tiles follows the system's reduced-motion setting.
@@ -446,12 +446,16 @@ A warning can be resolved while the signal is still out, and the signal can be b
 2. Optionally write a note in the text box. It is saved with the step.
 3. Take a step:
    - **Acknowledge**: you have seen it (only for new warnings).
-   - **Assign**: choose a person under **Assign to** and click **Assign**. Choose **nobody** to unassign.
+   - **Assign**: choose a person under **Assign to** and click **Assign**, or **Assign to me**. Choose **nobody** to unassign.
    - **Resolve**: choose an **Outcome**: **True alarm**, **False alarm** or **Unknown**, then click **Resolve**.
    - **Reopen**: for a resolved warning that needs more work.
    - **Comment**: adds your note without changing anything. A comment needs text.
 
 Every step and comment is kept in **Activity**, with who did it and when. Open **Payload** to see what the detector saw and how it was set.
+
+After a step, **Next warning** opens the next one in the list, so you can work through them in turn.
+
+**Triage by keyboard:** **j** and **k** open the next and previous warning, **a** acknowledges the one open, **s** assigns it to you, **r** goes to its **Outcome** (choose with the arrow keys, then **Resolve**), and **n** opens the next warning after a step. To act on many at once, tick them in the list: **Acknowledge** or **Assign to me** does them all.
 
 Tips:
 
