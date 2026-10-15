@@ -488,21 +488,29 @@ async function unseenFocus(page) {
     window.__rest = new WeakMap();
     for (const el of document.querySelectorAll('*')) window.__rest.set(el, window.__look(el));
     window.__walked = new WeakSet();
+    // Whether the focus shows on the control that has it: waited for up to 600 ms, as a browser may
+    // give the look from before the focus for a few frames (seen in forced colours); a control with no
+    // focus style never shows one.
+    window.__shows = async (el) => {
+      const rest = window.__rest.get(el) ?? { outline: '', ring: '' };
+      const until = performance.now() + 600;
+      for (;;) {
+        await new Promise((done) => requestAnimationFrame(done));
+        const now = window.__look(el);
+        if ((now.outline && now.outline !== rest.outline) || (now.ring && now.ring !== rest.ring)) return true;
+        if (performance.now() > until) return false;
+      }
+    };
   });
   const unseen = [];
   for (let i = 0; ; i++) {
     if (i === 600) return [...unseen, 'more than 600 controls: the walk did not finish'];
     await page.keyboard.press('Tab');
     const at = await page.evaluate(async () => {
-      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))); // the ring fades in
       const el = document.activeElement;
       if (!el || el === document.body || window.__walked.has(el)) return null;
       window.__walked.add(el);
-      const focused = window.__look(el);
-      const rest = window.__rest.get(el) ?? { outline: '', ring: '' };
-      const shown =
-        (focused.outline && focused.outline !== rest.outline) || (focused.ring && focused.ring !== rest.ring);
-      return { what: `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`, shown: Boolean(shown) };
+      return { what: `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`, shown: await window.__shows(el) };
     });
     if (!at) break;
     if (at.shown) continue;
@@ -510,15 +518,7 @@ async function unseenFocus(page) {
     // came): a control with no focus style fails both times.
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    const again = await page.evaluate(async () => {
-      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
-      const el = document.activeElement;
-      const focused = window.__look(el);
-      const rest = window.__rest.get(el) ?? { outline: '', ring: '' };
-      return Boolean(
-        (focused.outline && focused.outline !== rest.outline) || (focused.ring && focused.ring !== rest.ring),
-      );
-    });
+    const again = await page.evaluate(() => window.__shows(document.activeElement));
     if (!again) unseen.push(at.what);
   }
   return unseen;

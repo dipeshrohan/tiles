@@ -80,6 +80,12 @@
     <ol class="toaster" id="toast" aria-label="Notifications" data-i18n-label="app.static.toasts"></ol>
     <!-- Read out by screen readers when a page has news (a live region must be there before it changes). -->
     <div class="sr-only" id="announcer" role="status" aria-live="polite"></div>
+    <!-- Print (U6.05): the hatching of a chart's shaded stretches on paper (css/styles.css). -->
+    <svg class="print-defs" aria-hidden="true" focusable="false" width="0" height="0">
+      <pattern id="print-hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+        <rect width="1.5" height="6" fill="currentColor" />
+      </pattern>
+    </svg>
     <script src="js/messages-en.js" defer></script>
     <script src="js/tiles.bundle.js" defer></script>
   </body>
