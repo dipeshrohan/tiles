@@ -129,6 +129,7 @@ import { searchItems } from './lib/site-search.ts';
 import { t, type MessageKey } from './lib/i18n.ts';
 import { translateStatic } from './lib/static-text.ts';
 import { setTimeZone } from './lib/format.ts';
+import { chosenLanguage, keepLanguage, useLanguage } from './lib/language.ts';
 
 const VIEWS: View[] = [
   home,
@@ -1897,7 +1898,6 @@ function navigate(): void {
     () => undefined,
   );
 }
-window.addEventListener('hashchange', navigate);
 watchSections(document); // a section someone opens fades its content in (U3.04)
 watchScroll(); // each history entry keeps its scroll, put back on back and forward (U3.05)
 // In API mode, show the loading state from the first paint (never local data).
@@ -1906,12 +1906,35 @@ if (api) {
   state.repo = createRepo();
   ontologyStatus = 'loading';
 }
-render();
-if (!api) firstRun(); // in local mode the person is this browser's profile, known at once
-setTimeout(makeDemoSoon, 0);
-void (async () => {
-  await finishSignIn(); // so the first API calls carry the new token
-  await refreshAuth();
-  await sendSaved();
-  await connectOntology();
-})();
+function start(): void {
+  window.addEventListener('hashchange', navigate); // from here: before, the page isn't in its language yet
+  render();
+  if (!api) firstRun(); // in local mode the person is this browser's profile, known at once
+  setTimeout(makeDemoSoon, 0);
+  void (async () => {
+    await finishSignIn(); // so the first API calls carry the new token
+    await refreshAuth();
+    await sendSaved();
+    await connectOntology();
+  })();
+}
+// In the language chosen (U6.03): another than English first loads its messages, then draws; the
+// page is drawn whatever happens on the way.
+const language = chosenLanguage();
+if (language === 'en') start();
+else
+  void useLanguage(language)
+    .then(() => translateStatic(document))
+    .catch(reportError)
+    .finally(start);
+// Chosen in Settings: loaded, kept once it is in, and every word on the page said again in it.
+window.addEventListener('tiles:language', (e) => {
+  const code = (e as CustomEvent<string>).detail;
+  void useLanguage(code).then((now) => {
+    if (now === null) return; // another was chosen since
+    if (now === code) keepLanguage(code);
+    else toast(t('app.languageFailed'), { type: 'error' });
+    translateStatic(document);
+    render();
+  });
+});
