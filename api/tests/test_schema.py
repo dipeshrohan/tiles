@@ -66,6 +66,7 @@ TABLES = {
     "ux_events",
     "feedback",
     "home_layouts",
+    "saved_views",
 }
 
 
