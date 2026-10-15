@@ -79,11 +79,13 @@ export function parseNumber(cell: string, decimalComma: boolean): number | null 
 // ---- times ------------------------------------------------------------------
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
+// Reads a time's parts in a zone, to parse it, not to show it: one fixed locale (U6.02).
+const PARSE_LOCALE = 'en-US';
 
 function formatter(zone: string): Intl.DateTimeFormat {
   let f = formatters.get(zone);
   if (!f) {
-    f = new Intl.DateTimeFormat('en-US', {
+    f = new Intl.DateTimeFormat(PARSE_LOCALE, {
       timeZone: zone,
       hourCycle: 'h23',
       year: 'numeric',

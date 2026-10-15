@@ -31,6 +31,7 @@ import { seedOntology } from '../lib/data.ts';
 import {
   download,
   esc,
+  fmt,
   field,
   need,
   onAll,
@@ -1240,8 +1241,8 @@ const view: View = {
       if (ops.length > MOST_OPS) {
         ctx.toast(
           t('ontology.toast.tooMany', {
-            count: ops.length.toLocaleString('en-GB'),
-            most: MOST_OPS.toLocaleString('en-GB'),
+            count: fmt(ops.length),
+            most: fmt(MOST_OPS),
           }),
         );
         return;
@@ -1457,7 +1458,7 @@ const view: View = {
       const value = parseValue(field(form, 'value').trim());
       if (!ids.length) return;
       if (ids.length > MOST_OPS) {
-        ctx.toast(t('ontology.toast.tooManyProps', { most: MOST_OPS.toLocaleString('en-GB') }));
+        ctx.toast(t('ontology.toast.tooManyProps', { most: fmt(MOST_OPS) }));
         return;
       }
       return stageOps(

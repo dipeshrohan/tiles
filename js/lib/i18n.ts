@@ -10,6 +10,7 @@
 
 import en from '../i18n/en.json';
 import { esc } from './dom.ts';
+import { setFormatLocale } from './format.ts';
 
 export type MessageKey = keyof typeof en;
 export type Params = Readonly<Record<string, string | number>>;
@@ -23,8 +24,10 @@ export function addCatalogue(code: string, messages: Catalogue): void {
   catalogues.set(code, messages);
 }
 
+// The language words are said in; numbers and dates follow it (format.ts, U6.02).
 export function setLocale(code: string): void {
   locale = catalogues.has(code) ? code : 'en';
+  setFormatLocale(locale);
 }
 export const currentLocale = (): string => locale;
 

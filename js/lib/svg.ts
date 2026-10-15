@@ -4,6 +4,7 @@ import type { SignalSeries } from './api.ts';
 import { esc, fmt } from './dom.ts';
 import { hiddenParts, registerChart, type ChartData } from './chart-data.ts';
 import { t } from './i18n.ts';
+import { clockOf, dateTime, dayMonth, month, significant, time, upTo, year } from './format.ts';
 
 export interface Series {
   values: (number | null)[];
@@ -148,12 +149,11 @@ export function listed(items: string[], max = 8): string {
 // Below 1, three significant digits (0.000234, not 0).
 // The formatters are made once: toLocaleString makes one for every call, and a chart reads out
 // thousands of points (U5.03).
-const SIGNIFICANT = new Intl.NumberFormat('en-GB', { maximumSignificantDigits: 3 });
-const FRACTION = [0, 1, 2].map((digits) => new Intl.NumberFormat('en-GB', { maximumFractionDigits: digits }));
+// format.ts keeps one formatter per language and options.
 export const num = (x: number): string => {
   const abs = Math.abs(x);
-  if (abs > 0 && abs < 1) return SIGNIFICANT.format(x);
-  return (FRACTION[abs >= 100 ? 0 : abs >= 10 ? 1 : 2] ?? SIGNIFICANT).format(x);
+  if (abs > 0 && abs < 1) return significant(x, 3);
+  return upTo(x, abs >= 100 ? 0 : abs >= 10 ? 1 : 2);
 };
 
 // The lowest and highest of some values, in one pass (no spreading: there may be many).
@@ -497,14 +497,13 @@ export function timeTicks(from: number, to: number, n = 6): { step: number; tick
 }
 
 export function tickLabel(t: number, step: number): string {
-  const d = new Date(t);
-  const two = (n: number) => String(n).padStart(2, '0');
-  const time = `${two(d.getHours())}:${two(d.getMinutes())}${step < MINUTE ? `:${two(d.getSeconds())}` : ''}`;
-  if (step >= 365 * DAY) return String(d.getFullYear());
-  if (step >= 30 * DAY) return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
-  const date = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  // In the site's zone (format.ts, U6.02).
+  if (step >= 365 * DAY) return year(t);
+  if (step >= 30 * DAY) return month(t);
+  const date = dayMonth(t);
   if (step >= DAY) return date;
-  return d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 ? date : time;
+  const c = clockOf(t);
+  return c.hour === 0 && c.minute === 0 && c.second === 0 ? date : time(t, { seconds: step < MINUTE });
 }
 
 // The time under x (in chart units), kept within the axis.
@@ -647,22 +646,8 @@ export function timeChart({
   return chartBox(id, title, svg, legend);
 }
 
-// A reading's time as read out: to the second for short ranges, the minute otherwise; local time.
-const TO_MINUTE = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-const TO_SECOND = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  hour: '2-digit',
-  minute: '2-digit',
-  second: '2-digit',
-});
+// A reading's time as read out: to the second for short ranges, the minute otherwise; in the site's
+// zone (the chart's summary names it).
 function readTime(t: number, span: number): string {
-  return (span < 6 * HOUR ? TO_SECOND : TO_MINUTE).format(t);
+  return dateTime(t, { seconds: span < 6 * HOUR, zone: false });
 }

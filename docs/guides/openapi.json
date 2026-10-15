@@ -7369,13 +7369,19 @@
           "slug": {
             "title": "Slug",
             "type": "string"
+          },
+          "timezone": {
+            "description": "The site's IANA time zone (e.g. Europe/Berlin): its times are shown in it",
+            "title": "Timezone",
+            "type": "string"
           }
         },
         "required": [
           "id",
           "slug",
           "name",
-          "org"
+          "org",
+          "timezone"
         ],
         "title": "Site",
         "type": "object"

@@ -9,6 +9,7 @@ import type { Context } from './types.ts';
 import { loadFailed } from '../lib/ui.ts';
 import { confirmDialog } from '../lib/overlay.ts';
 import { t, tHtml } from '../lib/i18n.ts';
+import { dateTime } from '../lib/format.ts';
 
 // A SCIM token just made: shown until dismissed, to the admin who made it, for that API only.
 const GUIDE = '<code>docs/guides/entra-id.md</code>'; // i18n-ok
@@ -32,7 +33,7 @@ export function orgSignInCard(): string {
 
 function providerForm(p: IdentityProvider | null, viaProvider: boolean): string {
   const v = (s: string | null | undefined) => esc(s ?? '');
-  const updated = p ? ` ${esc(t('orgSignIn.updated', { time: new Date(p.updated_at).toLocaleString('en-GB') }))}` : '';
+  const updated = p ? ` ${esc(t('orgSignIn.updated', { time: dateTime(p.updated_at) }))}` : '';
   const status = !p
     ? `<p class="small soft">${esc(t('orgSignIn.deploymentProvider'))}</p>`
     : p.verified
@@ -70,7 +71,7 @@ function scimHtml(ctx: Context, tokens: ScimToken[]): string {
     ? `<div class="table-wrap"><table><thead><tr><th>${esc(t('orgSignIn.scim.head.token'))}</th><th>${esc(t('orgSignIn.scim.head.made'))}</th><th>${esc(t('orgSignIn.scim.head.lastUsed'))}</th><th><span class="sr-only">${esc(t('orgSignIn.scim.head.actions'))}</span></th></tr></thead><tbody>${active
         .map(
           (tok) =>
-            `<tr><td>${esc(tok.name)}</td><td>${esc(new Date(tok.created_at).toLocaleString('en-GB'))}</td><td>${tok.last_used_at ? esc(new Date(tok.last_used_at).toLocaleString('en-GB')) : esc(t('orgSignIn.scim.never'))}</td><td><button class="btn sm danger" type="button" data-revoke-scim="${esc(tok.id)}" data-scim-name="${esc(tok.name)}">${esc(t('orgSignIn.scim.revoke'))}</button></td></tr>`,
+            `<tr><td>${esc(tok.name)}</td><td>${esc(dateTime(tok.created_at))}</td><td>${tok.last_used_at ? esc(dateTime(tok.last_used_at)) : esc(t('orgSignIn.scim.never'))}</td><td><button class="btn sm danger" type="button" data-revoke-scim="${esc(tok.id)}" data-scim-name="${esc(tok.name)}">${esc(t('orgSignIn.scim.revoke'))}</button></td></tr>`,
         )
         .join('')}</tbody></table></div>`
     : `<p class="small soft">${esc(t('orgSignIn.scim.none'))}</p>`;

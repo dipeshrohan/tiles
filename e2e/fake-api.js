@@ -138,6 +138,7 @@ export function createFakeApi({
   slowWritesMs = 0,
   roles = {},
   slowAuthConfigMs = 0,
+  timezone = 'UTC', // the site's (U6.02): its times are shown in it
   failImportFinish = false,
   copilot = false, // whether the copilot service is on (T4.01)
   copilotEnabled = true, // whether the site's admins turned it on (threat model G-A4)
@@ -149,7 +150,7 @@ export function createFakeApi({
   let orgProvider = null;
   const scimTokens = [];
   const tokens = new Set();
-  const site = { id: '11111111-1111-1111-1111-111111111111', slug: 'plant-1', name: 'Plant 1', org: 'demo' };
+  const site = { id: '11111111-1111-1111-1111-111111111111', slug: 'plant-1', name: 'Plant 1', org: 'demo', timezone };
   const sites = [site]; // the organisation's; only `site` is served
   let head = createRepo().head;
   let history = [];
@@ -566,7 +567,7 @@ export function createFakeApi({
           return send(422, { detail: 'Give the site a name, a slug and a time zone' });
         if (sites.some((x) => x.slug === slug))
           return send(409, { detail: `Your organisation already has a site called ${slug}` });
-        const made = { id: randomUUID(), slug, name: String(name).trim(), org: 'demo' };
+        const made = { id: randomUUID(), slug, name: String(name).trim(), org: 'demo', timezone };
         sites.push(made);
         return send(201, made);
       }

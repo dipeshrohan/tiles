@@ -4,6 +4,7 @@
 import type { Distribution, Scores } from './api.ts';
 import type { GlossaryKey } from './glossary-data.ts';
 import { t } from './i18n.ts';
+import { duration as lengthOfTime } from './format.ts';
 
 export const PERIODS = [1, 7, 30, 90] as const; // days
 export const HORIZONS = [1, 2, 4, 8, 24] as const; // hours
@@ -13,13 +14,8 @@ export function share(x: number | null): string {
   return x === null ? '–' : `${(Math.floor(x * 1000) / 10).toFixed(1)}%`;
 }
 
-// A length of time as people say it.
-export function duration(seconds: number): string {
-  if (seconds < 90) return `${Math.round(seconds)} s`;
-  if (seconds < 90 * 60) return `${Math.round(seconds / 60)} min`;
-  if (seconds < 48 * 3600) return `${(seconds / 3600).toFixed(1)} h`;
-  return `${(seconds / 86400).toFixed(1)} d`;
-}
+// A length of time as people say it (format.ts, writing.md).
+export const duration = (seconds: number): string => lengthOfTime(seconds * 1000);
 
 export function spread(d: Distribution | null): string {
   return d ? t('performance.spread', { median: duration(d.median), p10: duration(d.p10), p90: duration(d.p90) }) : '–';

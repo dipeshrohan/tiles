@@ -31,6 +31,7 @@ import { placeLink } from '../lib/plant.ts';
 import { onAll } from '../lib/dom.ts';
 import { ux } from '../lib/analytics.ts';
 import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
+import { time } from '../lib/format.ts';
 
 // Home (U5.01): in local mode, the demo's hero and figures; with the Tiles API, cards set by your
 // role that each answer "what needs me now?", which you can add, remove and order (Customise).
@@ -112,7 +113,7 @@ function cardBody(ctx: Context, id: CardId, now: number): string | null {
       const s = shiftSummary(all, start);
       // A full page that doesn't reach back to the shift's start: there may be more.
       const atLeast = all.length === WARNINGS_PAGE && all.every((w) => Date.parse(w.started_at) >= start.getTime());
-      const since = start.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const since = time(start);
       if (!s.raised.length) return nothing(t('home.shift.none', { since }), t('home.shift.noneBody'));
       return `${figure(s.waiting.length, t('home.shift.figure', { raised: `${fmt(s.raised.length)}${atLeast ? '+' : ''}`, since }), s.waiting.length ? 'bad' : 'good', atLeast)}
         <p class="small soft">${esc(t('home.shift.acknowledged', { n: fmt(s.acknowledged) }))}</p>

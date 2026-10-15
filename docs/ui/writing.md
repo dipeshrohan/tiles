@@ -67,10 +67,11 @@ Ask only about what can't be undone (revoking a token, resetting the workspace).
 
 ## Numbers, units and dates
 
-- **Numbers** with a comma for thousands and a point for decimals (12,480.5), as `fmt()` in `js/lib/dom.ts` writes them, and only the digits that mean something: a friction value to the newton, a share to one decimal.
-- **Units** after the number, with a space, in SI symbols: 140 bar, 3,580 N, 2.5 s, 18 °C, 50 Hz. Percent with no space: 24.2%. Use the unit the signal's catalogue entry gives.
-- **Dates** as 1 Oct 2026 (day, short month, year), and times in 24 hours: 09:42. Recent moments are relative ("3 min ago", "yesterday"), with the exact time in a tooltip or beside it where it matters (warnings, audit). Times are the browser's local time unless a page says otherwise.
-- **Durations** in the largest unit that keeps them readable: "57 min", "2 h 10 min", "3 days".
+- **Numbers** as the reader's language writes them, through `js/lib/format.ts` (U6.02): in English a comma for thousands and a point for decimals (12,480.5; 12.480,5 in German), and only the digits that mean something: a friction value to the newton, a share to one decimal. `fmt()` in `js/lib/dom.ts` is `number()`; `upTo()`, `significant()` and `percent()` are its others. Never `toLocaleString('en-GB')` or an `Intl` formatter with a locale written in (`scripts/check-format.js`, in lint).
+- **Units** after the number, with a space, in SI symbols: 140 bar, 3,580 N, 2.5 s, 18 °C, 50 Hz. Percent as the language writes it: 24.2% in English. Use the unit the signal's catalogue entry gives.
+- **Dates** as the language writes them, in English 15 Oct 2026 (`date()`), and times in 24 hours: 09:42 (`time()`). A time with its date (`dateTime()`) names its zone: 15 Oct 2026, 09:42 CEST. Times are in the site's time zone (set with the site, `setTimeZone`), so everyone reads the plant's own clock; without the API, this browser's. Recent moments are relative ("3 minutes ago", "yesterday", `relative()` and `timeAgo()`), with the exact time in a tooltip or beside it where it matters (warnings, audit).
+- **Durations** in the largest unit that keeps them readable (`duration()`): "45 s", "57 min", "2 h 10 min", "3 days".
+- **Sorting** as the language sorts, numbers inside text by value ("Line 2" before "Line 10"): `textOrder()`.
 - **Ranges** with an en dash and no spaces for numbers (140–160 bar), and "to" in sentences ("from 140 to 160 bar").
 
 ## Words Tiles uses
