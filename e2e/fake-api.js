@@ -297,6 +297,7 @@ export function createFakeApi({
   let uxEnabled = false;
   const uxEvents = [];
   const homeLayouts = new Map(); // Home by role (U5.01): user → { cards, updated_at }
+  const userPreferences = new Map(); // Preferences (U6.06): user → { preferences, updated_at }
   const inboxReads = new Map(); // The notification centre (U5.07): user → the keys read
   const savedViews = []; // Saved views (U5.06): { id, owner, page, name, query, table, shared, updated_at }
   let viewIds = 0;
@@ -632,6 +633,7 @@ export function createFakeApi({
         !url.pathname.startsWith(base) &&
         url.pathname !== `/sites/${site.id}/me` &&
         url.pathname !== `/sites/${site.id}/me/home` &&
+        url.pathname !== `/sites/${site.id}/me/preferences` &&
         !url.pathname.startsWith(`/sites/${site.id}/views`) &&
         !url.pathname.startsWith(`/sites/${site.id}/inbox`) &&
         url.pathname !== `/sites/${site.id}/onboarding` &&
@@ -1903,6 +1905,27 @@ export function createFakeApi({
         }
         return send(200, homeLayouts.get(user) ?? { cards: null, updated_at: null });
       }
+      // Preferences (U6.06): each person's, on every site; checked as the API checks them.
+      if (url.pathname === `/sites/${site.id}/me/preferences`) {
+        if (req.method === 'PUT') {
+          const b = await body(req);
+          const keys = ['theme', 'density', 'language', 'numbers', 'time_zone', 'motion', 'shortcuts', 'start'];
+          const ok =
+            b &&
+            Object.keys(b).every((k) => keys.includes(k)) &&
+            ['system', 'light', 'dark'].includes(b.theme) &&
+            ['comfortable', 'compact'].includes(b.density) &&
+            /^(auto|[a-z]{2})$/.test(b.language) &&
+            /^(auto|[a-z]{2}-[A-Z]{2})$/.test(b.numbers) &&
+            ['site', 'device'].includes(b.time_zone) &&
+            ['system', 'reduce'].includes(b.motion) &&
+            typeof b.shortcuts === 'boolean' &&
+            (b.start === null || b.start === undefined || /^[a-z][a-z0-9-]{0,31}$/.test(b.start));
+          if (!ok) return send(422, { detail: 'Not preferences' });
+          userPreferences.set(user, { preferences: { start: null, ...b }, updated_at: new Date().toISOString() });
+        }
+        return send(200, userPreferences.get(user) ?? { preferences: null, updated_at: null });
+      }
       if (url.pathname === `/sites/${site.id}/members`) return send(200, [...members].sort().map(memberOf));
       const path = url.pathname.slice(base.length);
       // Like the real API, anyone may discard (or undo) their own staged changes.
@@ -2254,6 +2277,7 @@ export function createFakeApi({
     uxEvents,
     appFeedback,
     homeLayouts,
+    userPreferences,
     savedViews,
     copilotUsage,
     // Design runs stored on the site (T4.11), latest last.

@@ -6,6 +6,7 @@
 import { apiFieldErrors, type FieldError } from './forms.ts';
 import { t, tKnown, type Params } from './i18n.ts';
 import { sseParser, type SseEvent } from './sse.ts';
+import type { ApiPreferences } from './preferences.ts';
 import type { Commit, DiffStats, Graph, HealthReport, Op } from './types.ts';
 
 export interface Site {
@@ -1255,6 +1256,22 @@ export function createApiClient(options: ApiOptions) {
           { cards },
         ),
       reset: (siteId: string) => request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/me/home`),
+    },
+    // Preferences (U6.06): yours, the same on every site; null until you keep some.
+    preferences: {
+      get: (siteId: string) =>
+        request<{ preferences: ApiPreferences | null; updated_at: string | null }>(
+          'GET',
+          `/sites/${encodeURIComponent(siteId)}/me/preferences`,
+          undefined,
+          { silent: true },
+        ),
+      set: (siteId: string, preferences: ApiPreferences) =>
+        request<{ preferences: ApiPreferences | null; updated_at: string | null }>(
+          'PUT',
+          `/sites/${encodeURIComponent(siteId)}/me/preferences`,
+          preferences,
+        ),
     },
     // UX analytics (U1.09): whether a site records them, the events, and their counts (admins).
     ux: {

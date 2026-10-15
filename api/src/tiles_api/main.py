@@ -42,6 +42,7 @@ from tiles_api.api_ontology import router as ontology_router
 from tiles_api.api_ontology_io import router as ontology_io_router
 from tiles_api.api_org_models import router as org_models_router
 from tiles_api.api_performance import router as performance_router
+from tiles_api.api_preferences import router as preferences_router
 from tiles_api.api_reviews import router as reviews_router
 from tiles_api.api_runs import router as runs_router
 from tiles_api.api_samples import router as samples_router
@@ -272,6 +273,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ux_router)
     app.include_router(feedback_router)
     app.include_router(home_router)
+    app.include_router(preferences_router)
     app.include_router(views_router)
     app.include_router(inbox_router)
     app.include_router(menu_router)

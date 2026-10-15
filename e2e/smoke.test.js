@@ -32,6 +32,7 @@ const PAGES = [
   'import',
   'onboarding',
   'settings',
+  'preferences',
   'help',
   'help/warnings',
   'glossary',
@@ -117,29 +118,173 @@ test('works when index.html is opened from disk', async () => {
   await page.close();
 });
 
-test('German: chosen with ?lang= or in Settings, kept, from disk too; numbers and the page’s own words follow (U6.03)', async () => {
+test('German: chosen with ?lang= or in your preferences, kept, from disk too; numbers and the page’s own words follow (U6.03)', async () => {
   const { page, errors } = await openPage();
-  await page.goto(`${httpBase}?lang=de#/settings`);
-  await page.waitForSelector('#language select');
+  const language = '#preferences select[name=language]';
+  await page.goto(`${httpBase}?lang=de#/preferences`);
+  await page.waitForSelector(language);
   assert.equal(await page.getAttribute('html', 'lang'), 'de');
-  assert.equal(await page.locator('#view h1').innerText(), 'Einstellungen');
+  assert.equal(await page.locator('#view h1').innerText(), 'Ihre Einstellungen');
   assert.equal((await page.locator('.skip-link').innerText()).trim(), 'Zum Inhalt springen');
-  // Kept: the next visit, without ?lang=, is German too; English chosen in Settings at once.
-  await page.goto(`${httpBase}#/settings`);
-  await page.waitForSelector('#language select');
-  assert.equal(await page.locator('#view h1').innerText(), 'Einstellungen');
-  await page.selectOption('#language select', 'en');
-  await page.waitForFunction(() => document.querySelector('#view h1')?.textContent === 'Settings');
+  // Kept: the next visit, without ?lang=, is German too; English chosen in your preferences at once.
+  await page.goto(`${httpBase}#/preferences`);
+  await page.waitForSelector(language);
+  assert.equal(await page.locator('#view h1').innerText(), 'Ihre Einstellungen');
+  assert.equal(await page.inputValue(language), 'de');
+  await page.selectOption(language, 'en');
+  await page.waitForFunction(() => document.querySelector('#view h1')?.textContent === 'Your preferences');
   assert.equal(await page.getAttribute('html', 'lang'), 'en');
   assert.equal((await page.locator('.skip-link').innerText()).trim(), 'Skip to content');
   await page.reload();
-  await page.waitForSelector('#language select');
-  assert.equal(await page.locator('#view h1').innerText(), 'Settings');
+  await page.waitForSelector(language);
+  assert.equal(await page.locator('#view h1').innerText(), 'Your preferences');
   // From disk: the German catalogue is a script beside the bundle.
-  await page.goto(`${fileBase}?lang=de#/settings`);
-  await page.waitForFunction(() => document.querySelector('#view h1')?.textContent === 'Einstellungen');
+  await page.goto(`${fileBase}?lang=de#/preferences`);
+  await page.waitForFunction(() => document.querySelector('#view h1')?.textContent === 'Ihre Einstellungen');
   assert.deepEqual(errors, []);
   await page.close();
+});
+
+test('your preferences in this browser: each applies at once and stays; the theme button keeps its choice there (U6.06)', async () => {
+  const context = await browser.newContext({ reducedMotion: 'reduce' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  await page.goto(`${httpBase}#/preferences`);
+  await page.waitForSelector('#preferences');
+  assert.equal(await page.locator('[data-kept]').innerText(), 'Kept in this browser.');
+  const html = (name) => page.getAttribute('html', name);
+  await page.selectOption('[name=theme]', 'dark');
+  assert.equal(await html('data-theme'), 'dark');
+  await page.selectOption('[name=motion]', 'reduce');
+  assert.equal(await html('data-motion'), 'reduce');
+  await page.selectOption('[name=numbers]', 'de-DE');
+  await page.selectOption('[name=density]', 'compact');
+  await page.uncheck('[name=shortcuts]');
+  assert.doesNotMatch(await page.getAttribute('#palette-open', 'aria-keyshortcuts'), /\//);
+  await page.selectOption('[name=start]', 'signals');
+  // The theme button at the top changes the same preference; another tab follows.
+  const tab = await context.newPage();
+  await tab.goto(`${httpBase}#/plant`);
+  await tab.waitForSelector('#view h1');
+  assert.equal(await tab.getAttribute('html', 'data-theme'), 'dark');
+  await page.click('#theme');
+  assert.equal(await html('data-theme'), 'light');
+  assert.equal(await page.inputValue('[name=theme]'), 'light');
+  await tab.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  await tab.close();
+  // A new visit opens at the start page, as chosen.
+  await page.goto('about:blank');
+  await page.goto(`${httpBase}#/`);
+  await page.waitForURL(/#\/signals$/);
+  assert.equal(await html('data-theme'), 'light');
+  assert.equal(await html('data-motion'), 'reduce');
+  await page.goto(`${httpBase}#/preferences`);
+  await page.waitForSelector('#preferences');
+  assert.deepEqual(
+    await page.evaluate(() =>
+      Object.fromEntries(
+        [...document.querySelectorAll('#preferences [name]')].map((el) => [
+          el.name,
+          el.type === 'checkbox' ? el.checked : el.value,
+        ]),
+      ),
+    ),
+    {
+      theme: 'light',
+      density: 'compact',
+      motion: 'reduce',
+      language: 'auto',
+      numbers: 'de-DE',
+      timeZone: 'site',
+      start: 'signals',
+      shortcuts: false,
+    },
+  );
+  assert.equal(await page.locator('#view h1').innerText(), 'Your preferences');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('your preferences with the Tiles API: kept with you, back after signing out and in, in another browser too (U6.06)', async (t) => {
+  const fake = createFakeApi({ oidc: true, requireSignIn: true });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const at = new Date(Date.now() - 60_000).toISOString();
+  fake.raiseWarning('dc1.friction', [{ at, value: 1900 }], {
+    started_at: at,
+    last_at: at,
+    peak: 1900,
+    baseline: 1800,
+    threshold: 1850,
+    readings: 1,
+  });
+  const home = `${httpBase}?api=${encodeURIComponent(apiUrl)}`;
+  const signIn = async (page) => {
+    await page.goto(`${home}#/settings`);
+    await page.waitForSelector('#account [data-sign-in]');
+    await page.click('#account [data-sign-in]');
+    await page.waitForSelector('#account [data-sign-out]');
+  };
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await signIn(page);
+  await page.evaluate(() => (location.hash = '#/preferences'));
+  await page.waitForSelector('[data-kept]:has-text("Kept with your account")');
+  // The site's clock is offered by its name.
+  assert.match(await page.locator('[name=timeZone] option[value=site]').innerText(), /In the site's clock \(.+\)/);
+  await page.selectOption('[name=theme]', 'dark');
+  await page.selectOption('[name=motion]', 'reduce');
+  await page.selectOption('[name=numbers]', 'en-US');
+  await page.selectOption('[name=timeZone]', 'device');
+  await page.selectOption('[name=density]', 'compact');
+  await page.uncheck('[name=shortcuts]');
+  await page.selectOption('[name=start]', 'warnings');
+  await page.selectOption('[name=language]', 'de');
+  await page.waitForFunction(() => document.documentElement.lang === 'de');
+  const wanted = {
+    theme: 'dark',
+    density: 'compact',
+    language: 'de',
+    numbers: 'en-US',
+    time_zone: 'device',
+    motion: 'reduce',
+    shortcuts: false,
+    start: 'warnings',
+  };
+  const kept = () => [...fake.userPreferences.values()][0]?.preferences ?? null;
+  for (let i = 0; i < 50 && JSON.stringify(kept()) !== JSON.stringify(wanted); i++) await page.waitForTimeout(100);
+  assert.deepEqual(kept(), wanted);
+  assert.equal(fake.userPreferences.size, 1);
+  // Signed out, and in again from another browser (nothing kept in it): all of them come back.
+  await page.evaluate(() => (location.hash = '#/settings'));
+  await page.waitForSelector('#account [data-sign-out]');
+  await page.click('#account [data-sign-out]');
+  await page.waitForSelector('#account [data-sign-in]');
+  const other = await openPage();
+  t.after(() => other.page.close());
+  await signIn(other.page);
+  const html = (name) => other.page.getAttribute('html', name);
+  await other.page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  assert.equal(await html('data-motion'), 'reduce');
+  await other.page.waitForFunction(() => document.documentElement.lang === 'de');
+  await other.page.goto('about:blank');
+  await other.page.goto(`${home}#/`);
+  await other.page.waitForURL(/#\/warnings$/);
+  await other.page.waitForSelector('.data-table.density-compact');
+  await other.page.evaluate(() => (location.hash = '#/preferences'));
+  await other.page.waitForSelector('#preferences');
+  await other.page.waitForFunction(() => document.querySelector('[name=numbers]')?.value === 'en-US');
+  assert.equal(await other.page.inputValue('[name=timeZone]'), 'device');
+  assert.equal(await other.page.inputValue('[name=density]'), 'compact');
+  assert.equal(await other.page.isChecked('[name=shortcuts]'), false);
+  assert.equal(await other.page.inputValue('[name=start]'), 'warnings');
+  for (const e of [errors, other.errors])
+    assert.deepEqual(
+      e.filter((x) => !/Failed to load resource: the server responded with a status of 401/.test(x)),
+      [],
+    );
 });
 
 test('pages change with a view transition: a new page cross-fades, a record grows from its row (U3.02)', async () => {

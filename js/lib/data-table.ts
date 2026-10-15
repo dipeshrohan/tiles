@@ -12,7 +12,7 @@
 import { esc, bound, download, setBusy } from './dom.ts';
 import { attrs, button, skeleton, type Attrs } from './ui.ts';
 import { icon } from './icons.ts';
-import { load, save } from './store.ts';
+import { load, save, storedKeys } from './store.ts';
 import { morph } from './morph.ts';
 import { csvField } from './csv.ts';
 import { t, tHtml } from './i18n.ts';
@@ -72,6 +72,24 @@ export interface TableOptions<T> {
 
 // ---- preferences and state ----
 
+// The density a table has until it is given its own (U6.06: a person's preference).
+let defaultDensity: Density = 'comfortable';
+
+// A person's density, for every table: those not given their own, and (`all`, when they choose it)
+// every one kept here too, drawn or not.
+export function setTableDensity(density: Density, all = false): void {
+  defaultDensity = density;
+  if (!all) return;
+  for (const key of storedKeys().filter((k) => k.startsWith('table:'))) {
+    const kept = load<unknown>(key, null);
+    if (kept && typeof kept === 'object') save(key, { ...kept, density });
+  }
+  for (const s of live.values()) {
+    s.prefs = { ...s.prefs, density };
+    s.rowHeight = null; // another density: measured again
+  }
+}
+
 // Preferences as kept (an older app's, or edited): only known columns and sane values.
 export function cleanPrefs(value: unknown, keys: readonly string[]): TablePrefs {
   const v = (typeof value === 'object' && value !== null ? value : {}) as Partial<Record<keyof TablePrefs, unknown>>;
@@ -89,7 +107,7 @@ export function cleanPrefs(value: unknown, keys: readonly string[]): TablePrefs 
         .filter(([k, w]) => known.has(k) && typeof w === 'number' && Number.isFinite(w))
         .map(([k, w]) => [k, clampWidth(w as number)]),
     ),
-    density: v.density === 'compact' ? 'compact' : 'comfortable',
+    density: v.density === 'compact' || v.density === 'comfortable' ? v.density : defaultDensity,
   };
 }
 
@@ -146,7 +164,7 @@ export function tablePrefs(id: string): TablePrefs | null {
   const s = live.get(id);
   if (s) return s.prefs;
   const kept = load<Partial<TablePrefs> | null>(`table:${id}`, null);
-  return kept && typeof kept === 'object' ? { ...DEFAULT_PREFS, ...kept } : null;
+  return kept && typeof kept === 'object' ? { ...DEFAULT_PREFS, density: defaultDensity, ...kept } : null;
 }
 
 // Puts a saved view's settings on a table (its column widths stay); checked against its columns
@@ -154,7 +172,7 @@ export function tablePrefs(id: string): TablePrefs | null {
 export function setTablePrefs(id: string, t: Pick<TablePrefs, 'sort' | 'hidden' | 'density'>): void {
   const s = live.get(id);
   const next: TablePrefs = {
-    ...(tablePrefs(id) ?? DEFAULT_PREFS),
+    ...(tablePrefs(id) ?? { ...DEFAULT_PREFS, density: defaultDensity }),
     sort: t.sort,
     hidden: [...t.hidden],
     density: t.density,
