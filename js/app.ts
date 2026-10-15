@@ -129,6 +129,7 @@ import { searchItems } from './lib/site-search.ts';
 import { t, type MessageKey } from './lib/i18n.ts';
 import { translateStatic } from './lib/static-text.ts';
 import { setTimeZone } from './lib/format.ts';
+import { chosenLanguage, keepLanguage, useLanguage } from './lib/language.ts';
 
 const VIEWS: View[] = [
   home,
@@ -1906,12 +1907,31 @@ if (api) {
   state.repo = createRepo();
   ontologyStatus = 'loading';
 }
-render();
-if (!api) firstRun(); // in local mode the person is this browser's profile, known at once
-setTimeout(makeDemoSoon, 0);
-void (async () => {
-  await finishSignIn(); // so the first API calls carry the new token
-  await refreshAuth();
-  await sendSaved();
-  await connectOntology();
-})();
+function start(): void {
+  render();
+  if (!api) firstRun(); // in local mode the person is this browser's profile, known at once
+  setTimeout(makeDemoSoon, 0);
+  void (async () => {
+    await finishSignIn(); // so the first API calls carry the new token
+    await refreshAuth();
+    await sendSaved();
+    await connectOntology();
+  })();
+}
+// In the language chosen (U6.03): another than English first loads its messages, then draws.
+const language = chosenLanguage();
+if (language === 'en') start();
+else
+  void useLanguage(language).then(() => {
+    translateStatic(document);
+    start();
+  });
+// Chosen in Settings: kept, loaded, and every word on the page said again in it.
+window.addEventListener('tiles:language', (e) => {
+  const code = (e as CustomEvent<string>).detail;
+  keepLanguage(code);
+  void useLanguage(code).then(() => {
+    translateStatic(document);
+    render();
+  });
+});

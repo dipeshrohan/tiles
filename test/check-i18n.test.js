@@ -36,3 +36,14 @@ test("index.html's data-i18n attributes count as using their keys", () => {
 test('the repository passes its own check', () => {
   assert.deepEqual(check(), []);
 });
+
+test('a translation keeps English’s values, plurals and selects (U6.03)', async () => {
+  const { shape } = await import('../scripts/check-i18n.js');
+  const en = '{count, plural, one {# signal for {name}} other {# signals for {name}}}';
+  assert.equal(shape('{count, plural, one {# Signal für {name}} other {# Signale für {name}}}'), shape(en));
+  assert.notEqual(shape('{count, plural, other {# Signale}}'), shape(en)); // an option dropped
+  assert.notEqual(shape('{n, plural, one {# Signal für {name}} other {# Signale für {name}}}'), shape(en));
+  assert.notEqual(shape('Signale für {wer}'), shape('Signals for {name}'));
+  // Moved within the sentence is fine.
+  assert.equal(shape('{b} und {a}'), shape('{a} and {b}'));
+});

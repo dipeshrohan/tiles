@@ -56,6 +56,9 @@ const VARIANTS = [
   { name: 'light', colorScheme: 'light', viewport: { width: 1280, height: 800 } },
   { name: 'dark', colorScheme: 'dark', viewport: { width: 1280, height: 800 } },
   { name: 'phone', colorScheme: 'light', viewport: { width: 390, height: 844 } },
+  // The pseudo-locale (U6.03): every word accented and 40% longer, so a layout that breaks with longer
+  // text (German's) shows, and any word not from the catalogue stands out unaccented.
+  { name: 'pseudo', colorScheme: 'light', viewport: { width: 1280, height: 800 }, query: '?lang=en-XA' },
 ];
 
 let browser;
@@ -248,9 +251,14 @@ for (const variant of VARIANTS) {
     for (const route of PAGES) {
       const page = await newPage(variant);
       try {
-        await page.goto(`${base}#/${route}`);
+        await page.goto(`${base}${variant.query ?? ''}#/${route}`);
         await page.waitForSelector('#view > *');
         await settle(page);
+        // Longer words never push the page sideways.
+        if (variant.name === 'pseudo') {
+          const wide = await page.evaluate(() => document.documentElement.scrollWidth - innerWidth);
+          assert.ok(wide <= 0, `${route || 'home'}: ${wide} px wider than the window in the pseudo-locale`);
+        }
         await check(`${slug(route)}.${variant.name}`, await stableShot(page, { fullPage: true }));
       } catch (e) {
         failures.push(`${route || 'home'}: ${e.message}`);

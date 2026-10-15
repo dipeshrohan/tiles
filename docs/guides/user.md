@@ -849,6 +849,10 @@ Admins see usage on the **Settings** page.
 
 Your **Name** and **Email** are recorded as the author of ontology commits and design runs. Edit them and click **Save**. When you sign in to a Tiles API, they come from your sign-in.
 
+### Language
+
+**Language** shows Tiles in English or German (Deutsch), in this browser, at once; numbers, dates and the order of lists follow it. The first time, Tiles uses your browser's language if it has it. A link can name one too: add `?lang=de` to the address. This guide and the glossary are in English.
+
 ### Demo data
 
 **Reset workspace** resets this browser's ontology history, design runs and chat to the demo defaults. It doesn't touch data on a Tiles API, and it keeps your data source choice.

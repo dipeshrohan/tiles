@@ -181,18 +181,60 @@ export function htmlKeys(html) {
   return new Set([...html.matchAll(/\sdata-i18n(?:-[a-z]+)?="([^"]+)"/g)].map((m) => m[1]));
 }
 
+// A message's ICU shape: its {values}, and its plurals and selects with their option keys (each
+// option's own shape inside), in order of appearance sorted, so a translation can move them.
+export function shape(message) {
+  const closing = (t, open) => {
+    let depth = 0;
+    for (let i = open; i < t.length; i++) {
+      if (t[i] === '{') depth++;
+      else if (t[i] === '}' && --depth === 0) return i;
+    }
+    return -1;
+  };
+  const parts = [];
+  for (let i = 0; ;) {
+    const open = message.indexOf('{', i);
+    if (open < 0) break;
+    const end = closing(message, open);
+    if (end < 0) return 'unbalanced';
+    const [name, kind, ...rest] = message.slice(open + 1, end).split(',');
+    if (kind === undefined) parts.push(`{${name.trim()}}`);
+    else {
+      const body = rest.join(',');
+      const options = [];
+      for (let k = 0; ;) {
+        const o = body.indexOf('{', k);
+        if (o < 0) break;
+        const e = closing(body, o);
+        options.push(`${body.slice(k, o).trim()}:${shape(body.slice(o + 1, e))}`);
+        k = e + 1;
+      }
+      parts.push(`{${name.trim()},${kind.trim()},${options.sort().join('|')}}`);
+    }
+    i = end + 1;
+  }
+  return parts.sort().join('');
+}
+
 export function check() {
   const problems = [];
   const en = JSON.parse(read('js/i18n/en.json'));
   const keys = Object.keys(en);
   for (const f of readdirSync(join(root, 'js/i18n')).filter((f) => f.endsWith('.json') && f !== 'en.json')) {
-    const other = Object.keys(JSON.parse(read(`js/i18n/${f}`)));
+    const messages = JSON.parse(read(`js/i18n/${f}`));
+    const other = Object.keys(messages);
     for (const k of keys.filter((k) => !other.includes(k))) problems.push(`js/i18n/${f}: missing ${k}`);
     for (const k of other.filter((k) => !keys.includes(k))) problems.push(`js/i18n/${f}: not in English: ${k}`);
+    // The same values, plurals and selects with the same option keys, and some words (U6.03).
+    for (const k of keys.filter((k) => other.includes(k))) {
+      if (!String(messages[k]).trim()) problems.push(`js/i18n/${f}: ${k} is empty`);
+      else if (shape(messages[k]) !== shape(en[k])) problems.push(`js/i18n/${f}: ${k} doesn't have English's {values}`);
+    }
   }
   // Every key is used somewhere (a key named whole, or a family named by its prefix: `t(`warnings.status.${s}`)`).
   const code = walk('js')
-    .filter((f) => f !== 'js/tiles.bundle.js')
+    .filter((f) => f !== 'js/tiles.bundle.js' && !/^js\/(messages-[\w-]+|help-data)\.js$/.test(f))
     .map(read)
     .join('\n');
   const fromHtml = htmlKeys(read('index.html'));

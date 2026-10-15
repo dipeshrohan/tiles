@@ -103,6 +103,12 @@ Every word a page shows comes from the message catalogue, `js/i18n/en.json` (U6.
 - **What isn't words stays in code**: units, codes (`DT-SEIZURE`), tags, commands and paths. `scripts/check-i18n.js` (in `npm run lint`) finds text written straight into `js/app.ts`, `js/views` and `js/lib`; a line that holds something that only looks like words ends with `// i18n-ok`. The glossary, the demo plant's data and the style guide's code samples are content, not messages.
 - **The API's errors** carry a `code` and `params` next to their English (`api/src/tiles_api/errors.py`: raise `Problem(status, "warning.not_found", "No such warning")`); the catalogue's `api.<code>` says them, with the same `{params}` (`api/tests/test_errors.py` checks both sides).
 
+### Translating Tiles
+
+German (`js/i18n/de.json`, U6.03) is the first translation. A language is a catalogue with exactly English's keys, each message with English's `{values}`, plurals and selects (their option keys too: `one`, `other`, `=0`, `yes`…); `scripts/check-i18n.js` checks both, and the build makes it `js/messages-<code>.js`, loaded when the language is chosen (`js/lib/language.ts`: `?lang=`, Settings, then the browser's). To add one: its catalogue, its entry in `LANGUAGES` (named in its own language), and a native-speaking engineer's review of the terms against the glossary. German uses *Sie*, buttons in the infinitive ("Speichern"), "Engineer" and "Admin" for the roles, and the terms agreed in the brief kept with the catalogue's history.
+
+**The pseudo-locale** (`?lang=en-XA`) shows every message accented, 40% longer and in brackets: a word that doesn't change was never put in the catalogue, and a layout that breaks with longer words shows at once. The visual tests run every page in it, and fail when one is pushed wider than the window.
+
 ## Reviewing a page
 
 When a page is added or changed, its PR checks:
