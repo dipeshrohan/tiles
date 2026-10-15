@@ -133,3 +133,11 @@ test('undo drops the last staged ops: in this browser, or through the API with h
     ['unstage', 's1', 2, 3],
   );
 });
+
+test('ops compare by content, whatever order their keys came back in', async () => {
+  const { sameOps } = await import('../js/lib/ontology-store.ts');
+  const sent = [{ kind: 'addEdge', edge: { id: 'e', from: 'a', rel: 'contains', to: 'b' } }];
+  const stored = [{ edge: { to: 'b', id: 'e', rel: 'contains', from: 'a' }, kind: 'addEdge' }];
+  assert.ok(sameOps(sent, stored));
+  assert.ok(!sameOps(sent, [{ ...stored[0], edge: { ...stored[0].edge, to: 'c' } }]));
+});

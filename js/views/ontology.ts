@@ -26,7 +26,7 @@ import {
   type Layout,
   type View as ViewBox,
 } from '../lib/canvas.ts';
-import { historyOps, safeWorkingGraph, type RemoteStore } from '../lib/ontology-store.ts';
+import { historyOps, safeWorkingGraph, sameOps, type RemoteStore } from '../lib/ontology-store.ts';
 import { seedOntology } from '../lib/data.ts';
 import {
   download,
@@ -116,7 +116,17 @@ function stepsOf(ctx: Context): void {
   undoSteps = [];
   redoSteps = [];
 }
-const sameOps = (a: Op[], b: Op[]): boolean => JSON.stringify(a) === JSON.stringify(b);
+let undoing = false; // one undo or redo at a time, across renders: a key held down waits for each
+// The most one step stages (the API's batch limit): a larger selection is changed in parts.
+export const MOST_OPS = 2000;
+// A property value as typed: a number when it reads as one.
+const parseValue = (raw: string): string | number => (raw !== '' && !Number.isNaN(Number(raw)) ? Number(raw) : raw);
+// A relationship's id, unique in the graph.
+function edgeId(graph: Graph, from: string, rel: string, to: string): string {
+  let id = `${from}-${rel}-${to}`;
+  for (let k = 2; graph.edges[id]; k++) id = `${from}-${rel}-${to}-${k}`;
+  return id;
+}
 // What undo takes back: the last step while the staged ops still end with it, else the last op.
 function undoable(ctx: Context): Op[] {
   stepsOf(ctx);
@@ -1128,60 +1138,69 @@ const view: View = {
     if (ctx.ontology.role === 'viewer') root.querySelectorAll(EDIT_CONTROLS).forEach((el) => el.remove());
     const author = ctx.state.user.email;
     // Each action staged is one step to undo (U5.05); a new one drops what could be redone.
-    const stageOps = (ops: Op[], ok?: string) =>
-      ctx.ontology
-        .act((store, repo) => store.stage(repo, ops), ok)
-        .then((done) => {
-          if (done) {
-            stepsOf(ctx);
-            undoSteps.push(ops);
-            if (undoSteps.length > 100) undoSteps.shift();
-            redoSteps = [];
-            undoNote = '';
-          }
-          return done;
-        });
+    // The steps are kept as the change lands, before the page is drawn with it (its Undo and Redo
+    // buttons and the note then show the new state, drawn once).
+    const stageOps = (ops: Op[], ok?: string, then?: () => void) =>
+      ctx.ontology.act(async (store, repo) => {
+        const next = await store.stage(repo, ops);
+        stepsOf(ctx);
+        undoSteps.push(ops);
+        if (undoSteps.length > 100) undoSteps.shift();
+        redoSteps = [];
+        undoNote = '';
+        then?.();
+        return next;
+      }, ok);
     const stageOp = (op: Op, ok?: string) => stageOps([op], ok);
-    let undoing = false; // one undo or redo at a time: a key held down waits for each
     const undo = async () => {
       const ops = undoable(ctx);
       if (undoing || !ops.length || ctx.ontology.role === 'viewer') return;
       undoing = true;
       const top = undoSteps.at(-1);
-      const done = await ctx.ontology.act((store, repo) => store.unstage(repo, ops.length));
-      undoing = false;
-      if (!done) return;
-      if (top === ops) undoSteps.pop();
-      redoSteps.push(ops);
-      redoAt = ctx.state.repo.staged.length;
-      undoNote = `Undid ${changes(ops.length)}`;
-      ux('task', 'ontology.undo');
-      ctx.rerender();
+      try {
+        const done = await ctx.ontology.act(async (store, repo) => {
+          const next = await store.unstage(repo, ops.length);
+          if (top === ops) undoSteps.pop();
+          redoSteps.push(ops);
+          redoAt = next.staged.length;
+          undoNote = `Undid ${changes(ops.length)}`;
+          return next;
+        });
+        if (done) ux('task', 'ontology.undo');
+      } finally {
+        undoing = false;
+      }
     };
+    // A redo that fails stays to be tried again (offline, a busy server); one that no longer fits
+    // (a conflicting commit since) fails again with the reason.
     const redo = async () => {
       const ops = redoSteps.at(-1);
       if (undoing || !ops || !canRedo(ctx)) return;
       undoing = true;
-      const done = await ctx.ontology.act((store, repo) => store.stage(repo, ops));
-      undoing = false;
-      if (!done) {
-        redoSteps = []; // it no longer fits: someone committed a change it conflicts with
-        return;
+      try {
+        const done = await ctx.ontology.act(async (store, repo) => {
+          const next = await store.stage(repo, ops);
+          redoSteps.pop();
+          undoSteps.push(ops);
+          redoAt = next.staged.length;
+          undoNote = `Redid ${changes(ops.length)}`;
+          return next;
+        });
+        if (done) ux('task', 'ontology.redo');
+      } finally {
+        undoing = false;
       }
-      redoSteps.pop();
-      undoSteps.push(ops);
-      redoAt = ctx.state.repo.staged.length;
-      undoNote = `Redid ${changes(ops.length)}`;
-      ux('task', 'ontology.redo');
-      ctx.rerender();
     };
     onAll(root, '[data-undo]', 'click', () => void undo());
     onAll(root, '[data-redo]', 'click', () => void redo());
-    // Ctrl Z and Ctrl Shift Z (⌘ on a Mac; Ctrl Y too) anywhere on the page but in a field.
+    // Ctrl Z and Ctrl Shift Z (⌘ on a Mac; Ctrl Y too) on the page, not in a field, an overlay (help,
+    // a tour) or the menu.
     document.addEventListener(
       'keydown',
       (e) => {
         if (!(e.ctrlKey || e.metaKey) || e.altKey || e.defaultPrevented || typing(e.target)) return;
+        const t = e.target;
+        if (!(t === document.body || (t instanceof Element && t.closest('#view')))) return;
         if (document.querySelector('dialog[open]')) return;
         const key = e.key.toLowerCase();
         if (key === 'z' && !e.shiftKey) {
@@ -1202,6 +1221,12 @@ const view: View = {
         ...edgesTouching(ctx.graph, ids).map((id): Op => ({ kind: 'removeEdge', id })),
         ...ids.map((id): Op => ({ kind: 'removeNode', id })),
       ];
+      if (ops.length > MOST_OPS) {
+        ctx.toast(
+          `That is ${ops.length.toLocaleString('en-GB')} changes, more than ${MOST_OPS.toLocaleString('en-GB')} at once: select fewer nodes`,
+        );
+        return;
+      }
       selectOnly(ui, null);
       void stageOps(ops, ids.length === 1 ? 'Node deletion staged' : `Deletion of ${ids.length} nodes staged`);
     };
@@ -1399,25 +1424,24 @@ const view: View = {
       if (!link) return;
       const rel = field(form, 'rel');
       const { from, to } = link;
-      let id = `${from}-${rel}-${to}`;
-      for (let k = 2; ctx.graph.edges[id]; k++) id = `${from}-${rel}-${to}-${k}`;
-      return stageOps([{ kind: 'addEdge', edge: { id, from, rel, to } }], 'Relationship staged').then((ok) => {
-        if (!ok) return;
-        ux('task', 'ontology.related');
+      const id = edgeId(ctx.graph, from, rel, to);
+      return stageOps([{ kind: 'addEdge', edge: { id, from, rel, to } }], 'Relationship staged', () => {
         if (ui.linking === link) ui.linking = null;
-        ctx.rerender();
-      });
+      }).then((ok) => ok && ux('task', 'ontology.related'));
     });
     onSubmit(root, '#many-prop-form', (form) => {
       const ids = selectedIds(ui, ctx.graph);
       const key = field(form, 'key').trim();
-      const raw = field(form, 'value').trim();
-      const value = raw !== '' && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
+      const value = parseValue(field(form, 'value').trim());
       if (!ids.length) return;
+      if (ids.length > MOST_OPS) {
+        ctx.toast(`Set a property on at most ${MOST_OPS.toLocaleString('en-GB')} nodes at once: select fewer`);
+        return;
+      }
       return stageOps(
         ids.map((id): Op => ({ kind: 'setProp', id, key, value })),
-        `${key} set on ${ids.length} nodes`,
-      ).then(() => undefined);
+        `Property ${key} set on ${ids.length} nodes`,
+      );
     });
     onAll(root, '[data-type]', 'click', (el) => {
       const t = el.dataset.type as NodeType | undefined;
@@ -1470,16 +1494,14 @@ const view: View = {
       const id = selected();
       if (!id) return;
       const key = field(form, 'key').trim();
-      const raw = field(form, 'value').trim();
-      const value = raw !== '' && !Number.isNaN(Number(raw)) ? Number(raw) : raw;
-      stageOp({ kind: 'setProp', id, key, value });
+      stageOp({ kind: 'setProp', id, key, value: parseValue(field(form, 'value').trim()) });
     });
     onSubmit(root, '#link-form', (form) => {
       const from = selected();
       if (!from) return;
       const rel = field(form, 'rel');
       const to = field(form, 'to');
-      stageOp({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
+      stageOp({ kind: 'addEdge', edge: { id: edgeId(ctx.graph, from, rel, to), from, rel, to } });
     });
     for (const type of ['focus', 'pointerdown', 'keydown'] as const)
       onAll(root, 'select[data-node-options]', type, (el) => fillNodeOptions(el as HTMLSelectElement, ctx.graph));

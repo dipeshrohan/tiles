@@ -412,7 +412,20 @@ test('keyboard shortcuts: g goes to a page, / searches it, ? lists them, and the
   assert.equal(await hash(), '#/warnings');
   await page.goto(`${httpBase}#/ontology`);
   await page.waitForSelector('[data-onto-search]');
-  assert.equal(await page.locator('#view [aria-keyshortcuts]').count(), 0, 'off after a reload too');
+  // Single keys only: Ctrl Z (undo on the Ontology page) and the like stay, as WCAG 2.1.4 allows.
+  const single = () =>
+    page.$$eval(
+      '#view [aria-keyshortcuts]',
+      (els) =>
+        els.filter((el) =>
+          el
+            .getAttribute('aria-keyshortcuts')
+            .split(' ')
+            .some((k) => !k.includes('+')),
+        ).length,
+    );
+  assert.equal(await single(), 0, 'off after a reload too');
+  assert.equal(await page.getAttribute('[data-undo]', 'aria-keyshortcuts'), 'Control+Z Meta+Z');
   assert.equal(await page.getAttribute('#palette-open', 'aria-keyshortcuts'), 'Control+K Meta+K');
   await page.focus('#view h1');
   for (const key of ['?', '/', 'g', 'h']) await page.keyboard.press(key);

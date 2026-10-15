@@ -113,3 +113,16 @@ export async function pickSite(api: ApiClient, preferred?: string, listed?: Site
 export function historyOps(repo: Repo): Op[] {
   return [...repo.history].reverse().flatMap((c) => c.ops);
 }
+
+// Ops compared by content: the API gives them back from JSONB with their keys in another order.
+const canonical = (v: unknown): unknown =>
+  Array.isArray(v)
+    ? v.map(canonical)
+    : v && typeof v === 'object'
+      ? Object.fromEntries(
+          Object.entries(v)
+            .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+            .map(([k, x]) => [k, canonical(x)]),
+        )
+      : v;
+export const sameOps = (a: Op[], b: Op[]): boolean => JSON.stringify(canonical(a)) === JSON.stringify(canonical(b));
