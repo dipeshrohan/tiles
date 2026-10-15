@@ -383,6 +383,21 @@ export interface WearCheckResult {
   buckets: { at: string; value: number; n: number }[];
 }
 
+// An item of your inbox (U5.07): something waiting for you, with the page that shows it.
+export interface InboxItem {
+  key: string;
+  kind: 'warning' | 'review' | 'insight' | 'import';
+  title: string;
+  detail: string;
+  href: string;
+  at: string;
+  read: boolean;
+}
+export interface Inbox {
+  items: InboxItem[];
+  unread: number;
+}
+
 // A saved view (U5.06): a page's filters (its address's query) and its table's sort, hidden
 // columns and density, kept under a name; shared ones show for everyone on the site.
 export type ViewPage = 'warnings' | 'signals' | 'documents';
@@ -1129,6 +1144,13 @@ export function createApiClient(options: ApiOptions) {
             silent: true,
           },
         ),
+    },
+    // The notification centre (U5.07): what waits for you on a site, and marking it read.
+    inbox: {
+      get: (siteId: string) =>
+        request<Inbox>('GET', `/sites/${encodeURIComponent(siteId)}/inbox`, undefined, { silent: true }),
+      read: (siteId: string, keys: string[]) =>
+        request<Inbox>('POST', `/sites/${encodeURIComponent(siteId)}/inbox/read`, { keys }),
     },
     // Saved views (U5.06): a page's filters and table settings under a name, yours or shared.
     views: {

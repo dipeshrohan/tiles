@@ -322,7 +322,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
   *Done when:* committing a 5-node change takes under half the U1.01 time, and the performance check stays green.
 - [x] `U5.06` [#245](https://github.com/dipeshrohan/tiles/issues/245) **Filter bar and saved views** · FE+BE · 3d · U3.05
   *Done when:* Warnings, Signals and Documents have saved views shared on the pilot site.
-- [ ] `U5.07` [#246](https://github.com/dipeshrohan/tiles/issues/246) **Notification centre** · FE+BE · 3d · U2.02
+- [x] `U5.07` [#246](https://github.com/dipeshrohan/tiles/issues/246) **Notification centre** · FE+BE · 3d · U2.02
   *Done when:* a review request reaches the reviewer's bell within a minute, with tests.
 - [ ] `U5.08` [#247](https://github.com/dipeshrohan/tiles/issues/247) **Shopfloor field round** · FDE+FE · 2d · U2.06
   *Done when:* technicians on the line can triage with gloves in sunlight, as tested with them.

@@ -38,7 +38,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[Feedback](#feedback) · [Home](#home) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
+[Feedback](#feedback) · [Home](#home) · [Notifications](#notifications) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings)
 
 ## Feedback
 
@@ -121,6 +121,30 @@ Go back to your role's cards on this site.
 | Parameter | In | Type | Required |
 |---|---|---|---|
 | `site_id` | path | uuid | yes |
+
+## Notifications
+
+### `GET /sites/{site_id}/inbox`
+
+**Who:** site member. **Answers:** 200, 422.
+
+What waits for you on this site, newest first (at most 50), each marked read or not.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/inbox/read`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Mark items of your inbox read (`keys`), or all of them (an empty list). Only items in your inbox now are marked. Returns the inbox.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** ReadIn (see [openapi.json](openapi.json)).
 
 ## Saved views
 

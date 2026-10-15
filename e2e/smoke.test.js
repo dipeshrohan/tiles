@@ -3421,6 +3421,71 @@ function raiseFrictionWarnings(fake) {
   return { out, over };
 }
 
+test('the notification centre: a review asked of me reaches my bell within a minute, then is read (U5.07)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.clock.install(); // the minute between asks, run fast
+  await page.goto(`${httpBase}?api=${encodeURIComponent(apiUrl)}#/warnings`);
+  const bell = page.locator('#inbox-open');
+  await page.waitForSelector('#inbox-open[aria-label="Notifications, none unread"]');
+  assert.equal(await bell.locator('.bell-count').count(), 0);
+  const reviewer = await page.evaluate(async (api) => {
+    const sites = await (await fetch(`${api}/sites`)).json();
+    return (await (await fetch(`${api}/sites/${sites[0].id}/me`)).json()).user_id;
+  }, apiUrl);
+
+  // Someone asks me for a review: within the minute, the bell says so, and it is announced.
+  const node = { id: 'machine-press-9', type: 'Machine', label: 'Press 9', props: {} };
+  fake.requestReviewAs('maria@example.com', [{ kind: 'addNode', node }], 'Add press 9', reviewer);
+  await page.clock.fastForward(61_000);
+  await page.waitForSelector('#inbox-open[aria-label="Notifications, 1 unread"]');
+  assert.equal(await bell.locator('.bell-count').textContent(), '1');
+  assert.equal(
+    await page.locator('#announcer').textContent(),
+    'New notification: Change request #1 waits for your review',
+  );
+
+  // The sheet lists it, linked; Mark read clears the count.
+  await bell.click();
+  const sheet = page.locator('dialog.sheet:has-text("Notifications")');
+  await sheet.locator('.inbox-item.unread:has-text("Change request #1 waits for your review")').waitFor();
+  assert.match(await sheet.locator('.inbox-item').innerText(), /Add press 9 \(from maria\)/);
+  await sheet.locator('[data-inbox-read]').click();
+  await sheet.locator('.inbox-item:not(.unread)').waitFor();
+  await page.waitForSelector('#inbox-open[aria-label="Notifications, none unread"]');
+  // Its link opens the review, and closes the sheet.
+  await sheet.locator('[data-inbox-open]').click();
+  await sheet.waitFor({ state: 'detached' });
+  assert.match(page.url(), /#\/reviews\/1$/);
+
+  // A second one, read by opening it; Mark all read takes the rest.
+  fake.requestReviewAs(
+    'maria@example.com',
+    [{ kind: 'addNode', node: { ...node, id: 'machine-press-10' } }],
+    'Add press 10',
+  );
+  await page.clock.fastForward(61_000);
+  await page.waitForSelector('#inbox-open[aria-label="Notifications, 1 unread"]');
+  await bell.click();
+  await sheet.locator('[data-inbox-all]').click();
+  await page.waitForSelector('#inbox-open[aria-label="Notifications, none unread"]');
+  assert.equal(await sheet.locator('.inbox-item.unread').count(), 0);
+  await page.keyboard.press('Escape');
+  assert.deepEqual(errors, []);
+});
+
+test('the bell stays away in local mode', async (t) => {
+  const { page, errors } = await openPage();
+  t.after(() => page.close());
+  await page.goto(`${httpBase}#/`);
+  await page.waitForSelector('#view h1');
+  assert.ok(await page.locator('#inbox-open').isHidden());
+  assert.deepEqual(errors, []);
+});
+
 test('filter bar and saved views: chips, add filter, clear, save and share a view, the menu opens it (U5.06)', async (t) => {
   const fake = createFakeApi({ roles: { 'vic@example.com': 'viewer' } });
   const apiUrl = await fake.listen();
