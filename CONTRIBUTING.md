@@ -71,6 +71,7 @@ A finding without a fix yet doesn't fail the build. For one that can't be fixed 
 - **Every bug fix ships with a regression test.** Never skip or disable a test to get green.
 - **No runtime dependencies** in the browser app. Dev dependencies are fine.
 - **Synthetic data is seeded**, so results are reproducible; keep it that way.
+- **Build a page from [the UI handbook](docs/ui/README.md)** (U6.08): a new page step by step, what to use for each part, and the review checklist to go through before asking for a review.
 - **Start from the style guide** (`#/styleguide`, linked from Settings → About): it shows each token and component with the code for it.
 - **Write as [docs/ui/writing.md](docs/ui/writing.md) says**: sentence case, buttons that are verbs, errors that say what happened, why and what to do. `test/copy.test.js` checks what it can.
 - **Build pages from the components** in `js/lib/ui.ts` (`button`, `badge`, `card`, `field`, `select`, `table`, `tabs`, `pageHead`, `errorState`…): they escape what they show and keep pages alike.
