@@ -2303,7 +2303,8 @@ test('tables v2: sort, choose columns, compact rows, select to plot, export CSV,
     page.waitForFunction(
       ([end, tag]) => {
         const f = document.querySelector('[data-table="signals"] .table-frame');
-        f.scrollTop = end ? f.scrollHeight : 0;
+        // Each poll moves it (an unchanged scrollTop fires no scroll event), as a user scrolling would.
+        f.scrollTop = end ? f.scrollHeight - (f.scrollTop % 2) : f.scrollTop === 0 ? 1 : 0;
         return [...f.querySelectorAll('tbody code')].some((c) => c.textContent === tag);
       },
       [end, tag],
