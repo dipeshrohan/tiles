@@ -56,6 +56,8 @@
   --space-6: 24px;
   --space-7: 28px;
   --space-8: 32px;
+  /* The least a control measures, across and down (WCAG 2.2 target size, U6.04); 64 px on the Shopfloor. */
+  --target-min: 24px;
 
   /* Type: sizes and line heights. */
   --text-2xs: 11px;
@@ -485,6 +487,7 @@ nav {
 button.nav-group {
   display: flex;
   align-items: center;
+  min-height: var(--target-min);
   justify-content: space-between;
   width: 100%;
   border: 0;
@@ -767,6 +770,9 @@ button.nav-group .icon {
   }
 }
 .crumbs a {
+  /* WCAG 2.2 target size (U6.04): tall as a line, so it stays a flex item whose text can end in "…". */
+  min-height: var(--target-min);
+  line-height: var(--target-min);
   color: var(--muted);
   text-decoration: none;
   overflow: hidden;
@@ -1719,6 +1725,10 @@ tr.selected td {
 .feed-item:last-child {
   border-bottom: 0;
 }
+.feed-item .what {
+  min-width: 0; /* a long word wraps, so the time keeps its place on a narrow screen */
+  overflow-wrap: anywhere;
+}
 .feed-item .when {
   margin-left: auto;
   color: var(--muted);
@@ -1730,6 +1740,7 @@ tr.selected td {
 .chat {
   display: grid;
   grid-template-rows: 1fr auto;
+  grid-template-columns: minmax(0, 1fr); /* its contents never push it wider: 320 px reflow (U6.04) */
   height: calc(100vh - 52px - 48px - 70px);
   min-height: 420px;
 }
@@ -2962,6 +2973,7 @@ svg[data-chart]:focus-visible {
 th .th-sort {
   display: inline-flex;
   align-items: center;
+  min-height: var(--target-min); /* WCAG 2.2 target size (U6.04) */
   gap: var(--space-1);
   padding: 0;
   border: 0;
@@ -2977,25 +2989,41 @@ th[aria-sort='ascending'] .th-sort svg,
 th[aria-sort='descending'] .th-sort svg {
   opacity: 1;
 }
+/* The handle to drag a column wider: 24 px to aim at (WCAG 2.2 target size, U6.04), its line drawn
+   at the column's edge. */
 th .col-resize {
   position: absolute;
   top: 0;
   right: 0;
   bottom: 0;
-  width: 8px;
+  width: var(--target-min);
   cursor: col-resize;
   touch-action: none;
 }
 th .col-resize:hover,
 th .col-resize:focus-visible {
-  background: var(--line-strong);
+  background: linear-gradient(to left, var(--line-strong) 3px, transparent 3px);
 }
 .table-frame th {
   position: sticky; /* the resize handle's box, and stuck to the top */
 }
+/* The columns to show, each a label to tick (WCAG 2.2 target size, U6.04). */
+.table-columns label {
+  min-height: var(--target-min);
+}
+/* In a table, a checkbox (to select its row) and a link are a target's size (WCAG 2.2, U6.04). */
+.table-frame :is(td, th) input[type='checkbox'] {
+  width: var(--target-min);
+  height: var(--target-min);
+}
+.table-frame td a {
+  display: inline-block;
+  line-height: var(--target-min);
+}
 /* A list of records as a table (U5.02): the first cell's button opens the record beside it; the
    open one's row is marked. */
 .row-open {
+  min-height: var(--target-min); /* WCAG 2.2 target size (U6.04) */
   padding: 0;
   border: 0;
   background: none;
@@ -4393,4 +4421,38 @@ td.sg-scheme {
 }
 .bg-line-strong {
   background: var(--line-strong) !important;
+}
+
+/* What is chosen (the page you're on, the section or step you're at, a pressed filter, a selected
+   row) shows by colour and background, which forced colours (Windows High Contrast) replace: an
+   outline in the system's highlight instead (U6.04). The focus is outside and thicker, so a chosen
+   control shows when it has it too. */
+@media (forced-colors: active) {
+  :where(
+    .nav-link.active,
+    .seg button.active,
+    [aria-current]:not([aria-current='false']),
+    [aria-pressed='true'],
+    [aria-selected='true']
+  ):not(tr, [id='view'], h1) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  :is(tr.sel, tr[aria-selected='true']) > td {
+    border-block: 2px solid Highlight;
+  }
+  .nav-link.active::before,
+  .seg button.active::before {
+    background: Highlight;
+  }
+  :focus-visible {
+    outline: 3px solid CanvasText;
+    outline-offset: 2px;
+  }
+  #view:focus-visible,
+  #view h1:focus-visible,
+  .help-article :is(h2, h3):focus-visible,
+  .tour-pop h2:focus-visible {
+    outline: none;
+  }
 }
