@@ -2628,6 +2628,57 @@ kbd {
   border-radius: var(--radius-full);
   background: var(--accent);
 }
+/* The notification centre (U5.07): the bell's count, and the inbox in its sheet. */
+#inbox-open {
+  position: relative;
+}
+.bell-count {
+  position: absolute;
+  top: var(--space-0_5);
+  right: var(--space-0_5);
+  min-width: 18px;
+  padding: 0 var(--space-1);
+  border: 2px solid var(--panel);
+  border-radius: var(--radius-full);
+  background: var(--bad);
+  color: var(--bad-ink);
+  font-size: var(--text-2xs);
+  font-weight: 650;
+  line-height: var(--leading-snug);
+  text-align: center;
+}
+.inbox-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.inbox-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2_5);
+  padding: var(--space-2_5);
+  border-radius: var(--radius-md);
+}
+.inbox-item.unread {
+  background: var(--accent-soft);
+}
+.inbox-ico {
+  padding-top: var(--space-0_5);
+  color: var(--soft);
+}
+.inbox-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-0_5);
+  min-width: 0;
+}
+.inbox-item.unread .inbox-text a {
+  font-weight: 650;
+}
 .whats-new .whats-new-link {
   margin-left: var(--space-1);
   font-size: var(--text-xs);

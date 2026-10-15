@@ -291,6 +291,7 @@ export function createFakeApi({
   let uxEnabled = false;
   const uxEvents = [];
   const homeLayouts = new Map(); // Home by role (U5.01): user → { cards, updated_at }
+  const inboxReads = new Map(); // The notification centre (U5.07): user → the keys read
   const savedViews = []; // Saved views (U5.06): { id, owner, page, name, query, table, shared, updated_at }
   let viewIds = 0;
   const appFeedback = []; // In-app feedback (U4.09), newest last: { id, …, user, screenshot (a data URL or null) }
@@ -626,6 +627,7 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/me` &&
         url.pathname !== `/sites/${site.id}/me/home` &&
         !url.pathname.startsWith(`/sites/${site.id}/views`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/inbox`) &&
         url.pathname !== `/sites/${site.id}/onboarding` &&
         url.pathname !== `/sites/${site.id}/members` &&
         !url.pathname.endsWith('/audit') &&
@@ -1214,6 +1216,49 @@ export function createFakeApi({
           .filter((g) => g.results.length)
           .sort((a, b) => b.results[0].score - a.results[0].score);
         return send(200, { query: q, groups });
+      }
+      // The notification centre (U5.07): worked out like the API's, from warnings assigned to you by
+      // someone else and the reviews you may approve; read marks kept per user.
+      if (url.pathname.startsWith(`/sites/${site.id}/inbox`)) {
+        const editor = role === 'engineer' || role === 'admin';
+        const items = [
+          ...warnings.flatMap((w) => {
+            const a = [...w.activity].reverse().find((x) => x.action === 'assigned');
+            if (w.resolved_at || w.assignee_id !== user || !a || a.assignee !== user || a.actor === user) return [];
+            return [
+              {
+                key: `warning:${w.id}:${w.activity.indexOf(a)}`,
+                kind: 'warning',
+                title: `Warning on ${w.signal_tag} assigned to you`,
+                detail: `By ${a.actor.split('@')[0]}${w.ended_at ? '' : ', still out'}`,
+                href: `#/warnings?show=all&warning=${w.id}`,
+                at: a.at,
+              },
+            ];
+          }),
+          ...(editor
+            ? reviews
+                .filter(
+                  (r) => r.status === 'open' && r.author_id !== user && (!r.reviewer_id || r.reviewer_id === user),
+                )
+                .map((r) => ({
+                  key: `review:${r.number}`,
+                  kind: 'review',
+                  title: `Change request #${r.number} waits for your review`,
+                  detail: `${r.message} (from ${r.author})`,
+                  href: `#/reviews/${r.number}`,
+                  at: r.created_at,
+                }))
+            : []),
+        ].sort((a, b) => b.at.localeCompare(a.at));
+        const read = inboxReads.get(user) ?? new Set();
+        if (req.method === 'POST') {
+          const { keys } = await body(req);
+          for (const k of keys.length ? keys : items.map((i) => i.key)) if (items.some((i) => i.key === k)) read.add(k);
+          inboxReads.set(user, read);
+        }
+        const shown = items.map((i) => ({ ...i, read: read.has(i.key) }));
+        return send(200, { items: shown, unread: shown.filter((i) => !i.read).length });
       }
       // The menu's counts (U3.06): open warnings, and reviews an engineer may approve.
       if (url.pathname === `/sites/${site.id}/menu-counts`) {

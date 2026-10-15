@@ -141,6 +141,9 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     at: at(120 - i),
     value: 1800 + (i > 90 ? 20 * (i - 90) : 0),
   }));
+  // A change request waiting for review: an unread item under the bell (U5.07).
+  const press = { id: 'machine-press-9', type: 'Machine', label: 'Press 9', props: {} };
+  fake.requestReviewAs('maria@example.com', [{ kind: 'addNode', node: press }], 'Add press 9');
   const id = fake.raiseWarning('dc1.friction', readings, {
     started_at: at(29),
     last_at: at(1),
@@ -254,6 +257,19 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     await check('feedback');
     await page.keyboard.press('Escape');
     await page.waitForSelector('dialog[open]', { state: 'detached' });
+    // Notifications (U5.07): the bell's count and its sheet with an unread item.
+    await page.evaluate(() => (location.hash = '#/warnings'));
+    await page.waitForSelector('#inbox-open:not([hidden])');
+    await page.click('#inbox-open');
+    await page.waitForSelector('dialog.sheet[open] .inbox-item.unread');
+    await check('notifications');
+    await page.keyboard.press('Escape');
+    await page.waitForSelector('dialog[open]', { state: 'detached' });
+    // Filters and saved views (U5.06): the bar's menus open.
+    await page.click('[data-filter-bar="warnings"] [data-views-menu] summary');
+    await page.waitForSelector('[data-views-menu][open] [data-view-save]');
+    await page.click('[data-filter-bar="warnings"] [data-add-filter] summary');
+    await check('filter bar');
     await page.close();
     assert.deepEqual(problems, [], colorScheme);
   }

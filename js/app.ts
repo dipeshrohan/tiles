@@ -15,6 +15,8 @@ import {
   type ApiClient,
   type AuthConfig,
   type DataSource,
+  type Inbox,
+  type InboxItem,
   type Membership,
   type Site,
 } from './lib/api.ts';
@@ -97,12 +99,13 @@ import { describeApiError } from './lib/errors.ts';
 import { afterRender, clearErrors, setFieldError, showApiErrors, showErrors } from './lib/forms.ts';
 import { keepWaiting, saveWaiting, takeSaved } from './lib/undo.ts';
 import { createTracker, keepLeft, newSession, takeLeft, ux, type UxEvent } from './lib/analytics.ts';
-import { breadcrumbs, button, clockTime, resetIds } from './lib/ui.ts';
+import { breadcrumbs, button, clockTime, loadingState, resetIds } from './lib/ui.ts';
 import { createToaster } from './lib/toaster.ts';
 import { installTooltips } from './lib/tooltip.ts';
 import { installCharts } from './lib/charts.ts';
 import { openView, viewsFor } from './lib/filter-bar.ts';
 import { menuViews, viewHref } from './lib/saved-views.ts';
+import { INBOX_POLL_MS, announcement, arrivals, bellCount, bellLabel, inboxHtml } from './lib/inbox.ts';
 import { installPalette, type PaletteItem } from './lib/palette.ts';
 import { installShortcuts, shortcutsOn } from './lib/shortcuts.ts';
 import { helpHref, helpItems, helpLoaded, loadHelp, pageSection } from './lib/help.ts';
@@ -686,6 +689,7 @@ function setPrefs(next: NavPrefs): void {
 let counts: { site: string; warnings: number; reviews: number; at: number } | null = null;
 let counting = false;
 function refreshCounts(): void {
+  refreshInbox();
   const site = ctx.ontology.site;
   if (!api || !site || ctx.ontology.status !== 'ready' || counting) return;
   if (counts?.site === site.id && Date.now() - counts.at < 60_000) return;
@@ -1156,6 +1160,127 @@ async function openHelp(): Promise<void> {
     helpOpen = false;
   }
 }
+// ---- the notification centre (U5.07) ------------------------------------------------
+// With the Tiles API, a bell in the top bar: what waits for you on the site (warnings assigned to
+// you, reviews asked of you, insights to review, imports that didn't finish), asked for at most once
+// a minute; new items are announced politely; the sheet lists them, each linked, to mark read.
+const bell = need(document, '#inbox-open');
+bell.insertAdjacentHTML('afterbegin', icon('bell'));
+let inbox: { key: string; data: Inbox } | null = null;
+let inboxAsked: { key: string; at: number } | null = null; // when it was last asked (answered or not)
+let inboxSeen: Set<string> | null = null; // the unread keys last time: what is new since
+let inboxAsking = false;
+let inboxWrites = 0; // a mark read since a question was asked makes its answer stale
+const inboxKey = (): string =>
+  api && ctx.ontology.site ? `${api.baseUrl}|${ctx.ontology.site.id}|${ctx.ontology.userId}` : '';
+function drawBell(): void {
+  const key = inboxKey();
+  bell.hidden = !key || ctx.ontology.status !== 'ready';
+  const unread = inbox?.key === key ? inbox.data.unread : 0;
+  bell.querySelector('.bell-count')?.remove();
+  if (unread)
+    bell.insertAdjacentHTML('beforeend', `<span class="bell-count" aria-hidden="true">${bellCount(unread)}</span>`);
+  bell.setAttribute('aria-label', bellLabel(unread));
+  bell.dataset.tooltip = bellLabel(unread);
+}
+function keepInbox(key: string, data: Inbox): void {
+  if (inbox?.key !== key) inboxSeen = null; // another site or person: what waits is not news
+  const said = announcement(arrivals(inboxSeen, data.items));
+  if (said) need(document, '#announcer').textContent = said;
+  inbox = { key, data };
+  inboxSeen = new Set(data.items.filter((i) => !i.read).map((i) => i.key));
+  drawBell();
+  document.dispatchEvent(new CustomEvent('tiles:inbox'));
+}
+// Asks what waits, at most once a minute (counted from when it was asked, so the minute's timer
+// finds it due), failed or not; `force` asks now.
+function refreshInbox(force = false): void {
+  const key = inboxKey();
+  const site = ctx.ontology.site;
+  drawBell();
+  if (!api || !site || !key || ctx.ontology.status !== 'ready' || inboxAsking) return;
+  if (!force && inboxAsked?.key === key && Date.now() - inboxAsked.at < INBOX_POLL_MS - 1000) return;
+  inboxAsking = true;
+  inboxAsked = { key, at: Date.now() };
+  const writes = inboxWrites;
+  api.inbox.get(site.id).then(
+    (data) => {
+      inboxAsking = false;
+      if (inboxKey() === key && writes === inboxWrites) keepInbox(key, data);
+    },
+    () => {
+      inboxAsking = false; // kept as it was; asked again in a minute
+    },
+  );
+}
+setInterval(() => {
+  if (document.visibilityState === 'visible') refreshInbox();
+}, INBOX_POLL_MS);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshInbox();
+});
+async function openInbox(): Promise<void> {
+  const site = ctx.ontology.site;
+  const key = inboxKey();
+  if (!api || !site || !key) return;
+  const client = api;
+  const items = (): InboxItem[] => (inbox?.key === key ? inbox.data.items : []);
+  // Marks read; the list drawn again keeps the focus near where it was (the item's link).
+  const markRead = async (keys: string[], body: HTMLElement): Promise<void> => {
+    inboxWrites++;
+    try {
+      keepInbox(key, await client.inbox.read(site.id, keys));
+    } catch {
+      // the client showed why
+    }
+    const focused = keys.length === 1 ? keys[0] : null;
+    morph(body, inboxHtml(items()));
+    if (focused) body.querySelector<HTMLElement>(`[data-inbox-open="${CSS.escape(focused)}"]`)?.focus();
+  };
+  ux('help', 'inbox');
+  await sheet(
+    {
+      title: 'Notifications',
+      label: site.name,
+      contentHtml: `<div data-inbox>${inbox?.key === key ? inboxHtml(items()) : loadingState('Loading your notifications…')}</div>`,
+      footHtml: button('Mark all read', { attrs: { 'data-inbox-all': true } }),
+    },
+    (dialog) => {
+      const body = dialog.querySelector<HTMLElement>('[data-inbox]');
+      if (!body) return;
+      // The latest, as it opens; the list follows what the bell learns while it is open.
+      refreshInbox(true);
+      const redraw = () => {
+        if (body.isConnected) morph(body, inboxHtml(items()));
+      };
+      document.addEventListener('tiles:inbox', redraw);
+      dialog.addEventListener('close', () => document.removeEventListener('tiles:inbox', redraw), { once: true });
+      dialog.addEventListener('click', (e) => {
+        const t = e.target instanceof Element ? e.target : null;
+        const one = t?.closest<HTMLElement>('[data-inbox-read]')?.dataset.inboxRead;
+        if (one) void markRead([one], body);
+        // Mark all read: those shown (one that arrives meanwhile stays new).
+        else if (t?.closest('[data-inbox-all]')) {
+          const shown = [...body.querySelectorAll<HTMLElement>('[data-inbox-read]')].flatMap((b) =>
+            b.dataset.inboxRead ? [b.dataset.inboxRead] : [],
+          );
+          if (shown.length) void markRead(shown, body);
+        }
+        // Opening an item marks it read (its link closes the sheet).
+        const opened = t?.closest<HTMLElement>('[data-inbox-open]')?.dataset.inboxOpen;
+        if (opened && items().some((i) => i.key === opened && !i.read)) {
+          inboxWrites++;
+          void client.inbox.read(site.id, [opened]).then(
+            (data) => keepInbox(key, data),
+            () => undefined,
+          );
+        }
+      });
+    },
+  );
+}
+bell.addEventListener('click', () => void openInbox());
+
 const helpButton = need(document, '#help-open');
 helpButton.insertAdjacentHTML('afterbegin', icon('circle-help'));
 helpButton.addEventListener('click', () => void openHelp());

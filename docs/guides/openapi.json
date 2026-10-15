@@ -3611,6 +3611,79 @@
         "title": "ImportOut",
         "type": "object"
       },
+      "Inbox": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InboxItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "unread"
+        ],
+        "title": "Inbox",
+        "type": "object"
+      },
+      "InboxItem": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "href": {
+            "description": "The page that shows it, as an address in the app",
+            "title": "Href",
+            "type": "string"
+          },
+          "key": {
+            "description": "The item and its version: read marks are kept by it",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "warning",
+              "review",
+              "insight",
+              "import"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "read": {
+            "title": "Read",
+            "type": "boolean"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "title",
+          "detail",
+          "href",
+          "at",
+          "read"
+        ],
+        "title": "InboxItem",
+        "type": "object"
+      },
       "Insight": {
         "properties": {
           "actions": {
@@ -5360,6 +5433,26 @@
           "badges"
         ],
         "title": "QualityCheckOut",
+        "type": "object"
+      },
+      "ReadIn": {
+        "properties": {
+          "keys": {
+            "description": "The items read; none: every item in your inbox now",
+            "items": {
+              "maxLength": 120,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Keys",
+            "type": "array"
+          }
+        },
+        "required": [
+          "keys"
+        ],
+        "title": "ReadIn",
         "type": "object"
       },
       "Ready": {
@@ -14003,6 +14096,104 @@
         "summary": "Import Samples",
         "tags": [
           "imports"
+        ]
+      }
+    },
+    "/sites/{site_id}/inbox": {
+      "get": {
+        "description": "What waits for you on this site, newest first (at most 50), each marked read or not.",
+        "operationId": "get_inbox_sites__site_id__inbox_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inbox"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Inbox",
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/sites/{site_id}/inbox/read": {
+      "post": {
+        "description": "Mark items of your inbox read (`keys`), or all of them (an empty list). Only items in your\ninbox now are marked. Marks of items no longer waiting go after 90 days. Returns the inbox.",
+        "operationId": "mark_read_sites__site_id__inbox_read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Inbox"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mark Read",
+        "tags": [
+          "Notifications"
         ]
       }
     },
