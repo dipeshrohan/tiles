@@ -56,6 +56,8 @@
   --space-6: 24px;
   --space-7: 28px;
   --space-8: 32px;
+  /* The least a control measures, across and down (WCAG 2.2 target size, U6.04); 64 px on the Shopfloor. */
+  --target-min: 24px;
 
   /* Type: sizes and line heights. */
   --text-2xs: 11px;
@@ -485,6 +487,7 @@ nav {
 button.nav-group {
   display: flex;
   align-items: center;
+  min-height: var(--target-min);
   justify-content: space-between;
   width: 100%;
   border: 0;
@@ -767,6 +770,9 @@ button.nav-group .icon {
   }
 }
 .crumbs a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--target-min); /* WCAG 2.2 target size (U6.04) */
   color: var(--muted);
   text-decoration: none;
   overflow: hidden;
@@ -1730,6 +1736,7 @@ tr.selected td {
 .chat {
   display: grid;
   grid-template-rows: 1fr auto;
+  grid-template-columns: minmax(0, 1fr); /* its contents never push it wider: 320 px reflow (U6.04) */
   height: calc(100vh - 52px - 48px - 70px);
   min-height: 420px;
 }
@@ -4393,4 +4400,28 @@ td.sg-scheme {
 }
 .bg-line-strong {
   background: var(--line-strong) !important;
+}
+
+/* What is chosen (the page you're on, a pressed filter, a selected row) shows by colour and
+   background, which forced colours (Windows High Contrast) replace: an outline in the system's
+   highlight instead (U6.04). */
+@media (forced-colors: active) {
+  :is(
+    .nav-link.active,
+    .seg button.active,
+    [aria-current='page'],
+    [aria-current='true'],
+    [aria-pressed='true'],
+    [aria-selected='true']
+  ):not(tr) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  :is(tr.sel, tr[aria-selected='true']) > td {
+    border-block: 2px solid Highlight;
+  }
+  .nav-link.active::before,
+  .seg button.active::before {
+    background: Highlight;
+  }
 }
