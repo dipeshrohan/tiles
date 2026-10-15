@@ -2871,7 +2871,7 @@ test('charts v2: exact values with a mouse, a finger and the keys; a legend; PNG
   await page.mouse.move(box.x + box.width * 0.5, box.y + box.height / 2);
   const readout = page.locator('[data-charts] svg g.crosshair');
   await readout.waitFor();
-  assert.match(await readout.textContent(), /Sept? 2026, \d\d:\d\d(:\d\d)?\d+(\.\d+)? °C/);
+  assert.match(await readout.textContent(), /Sept? 2026, \d\d:\d\d(:\d\d)?( [\w+:-]+)?\d+(\.\d+)? °C/);
   // The keys: the latest reading first (the pointer gone), then one back, read out.
   await page.mouse.move(0, 0);
   await svg.focus();
@@ -2963,7 +2963,7 @@ test('compare mode: this day against a week earlier, shift-aligned with the diff
   const summary = card.locator('[data-compare-summary]');
   await summary.waitFor();
   assert.match(await summary.textContent(), /^On average this range is higher by 10 N \(0\.[0-9]+%\)/);
-  assert.match(await card.innerText(), /The other range: 31 Aug 2026, \d\d:00 to 1 Sept? 2026, \d\d:00/);
+  assert.match(await card.innerText(), /The other range: 31 Aug 2026, \d\d:00( UTC)? to 1 Sept? 2026, \d\d:00( UTC)?/);
   assert.equal(await card.locator('svg.chart').count(), 2); // the overlay and the difference
   assert.match(await card.locator('svg.chart').first().getAttribute('aria-label'), /since its start/);
   assert.match(page.url(), /compare=ranges&cs=[^&]+&against=week/);
@@ -4529,9 +4529,9 @@ test('warning performance: what the warnings caught, per detector, for the codes
   assert.match(tiles[0], /Events warned of \(recall\)\s+75\.0%\s+3 of 4/);
   assert.match(tiles[1], /Warnings an event followed \(precision\)\s+100\.0%/);
   assert.match(tiles[2], /Confirmed true by people\s+100\.0%\s+1 true, 0 false, 0 unknown, 2 open/);
-  assert.match(tiles[3], /Warning time \(median\)\s+1\.8 h/);
+  assert.match(tiles[3], /Warning time \(median\)\s+1 h 49 min/);
   const events = a.page.locator('tbody tr', { hasText: 'DT-SEIZURE' });
-  assert.match(await events.innerText(), /warned\s+1\.8 h ahead, by dc1-friction/);
+  assert.match(await events.innerText(), /warned\s+1 h 49 min ahead, by dc1-friction/);
   assert.match(await a.page.locator('tbody tr', { hasText: 'scrap' }).innerText(), /missed/);
   await a.page.waitForSelector('[data-unwatched]:has-text("No detector watches DC-02 (1 event)")');
   assert.match(await a.page.locator('[data-detector-row="d2"]').innerText(), /Set its asset/);
