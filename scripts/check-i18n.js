@@ -192,7 +192,7 @@ export function check() {
   }
   // Every key is used somewhere (a key named whole, or a family named by its prefix: `t(`warnings.status.${s}`)`).
   const code = walk('js')
-    .filter((f) => f !== 'js/tiles.bundle.js')
+    .filter((f) => f !== 'js/tiles.bundle.js' && !/^js\/(messages-[\w-]+|help-data)\.js$/.test(f))
     .map(read)
     .join('\n');
   const fromHtml = htmlKeys(read('index.html'));
