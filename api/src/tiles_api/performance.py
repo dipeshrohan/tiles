@@ -64,9 +64,16 @@ def _confirmed(warnings: list[dict[str, Any]]) -> dict[str, int]:
 
 
 def report(
-    conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime, horizon: timedelta, codes: list[str]
+    conn: Conn,
+    site_id: uuid.UUID,
+    start: datetime,
+    end: datetime,
+    horizon: timedelta,
+    codes: list[str],
+    event_kinds: list[str] | None = None,
 ) -> dict[str, Any]:
-    """The site's warnings and events from `start` to `end`, scored per detector and in total."""
+    """The site's warnings and events from `start` to `end`, scored per detector and in total;
+    `event_kinds` counts only events of those kinds (the ROI report's downtime)."""
     events = conn.execute(
         """
         SELECT s.at, g.asset, g.event_kind AS kind, g.tag AS signal_tag,
@@ -77,9 +84,10 @@ def report(
           AND coalesce(s.value <> 0, s.value_bool, s.value_text <> '')
           AND (cardinality(%(codes)s::text[]) = 0
                OR coalesce(s.value_text, s.value::text, s.value_bool::text) = ANY(%(codes)s::text[]))
+          AND (%(kinds)s::text[] IS NULL OR g.event_kind = ANY(%(kinds)s::text[]))
         ORDER BY s.at LIMIT %(limit)s
         """,
-        {"site": site_id, "start": start, "end": end, "codes": codes, "limit": MAX_EVENTS + 1},
+        {"site": site_id, "start": start, "end": end, "codes": codes, "kinds": event_kinds, "limit": MAX_EVENTS + 1},
     ).fetchall()
     if len(events) > MAX_EVENTS:
         raise ValueError(f"More than {MAX_EVENTS} events in this period: choose a shorter one, or some codes")

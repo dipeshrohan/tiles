@@ -7,6 +7,7 @@ import { apiFieldErrors, type FieldError } from './forms.ts';
 import { t, tKnown, type Params } from './i18n.ts';
 import { sseParser, type SseEvent } from './sse.ts';
 import type { ApiPreferences } from './preferences.ts';
+import type { RoiReport, RoiRequest } from './roi.ts';
 import type { Commit, DiffStats, Graph, HealthReport, Op } from './types.ts';
 
 export interface Site {
@@ -1446,6 +1447,9 @@ export function createApiClient(options: ApiOptions) {
       const qs = params.toString();
       return request<PerformanceReport>('GET', `/sites/${encodeURIComponent(siteId)}/performance${qs ? `?${qs}` : ''}`);
     },
+    // The pilot period against the baseline (T6.01): stops, scrap and warnings, what was avoided, a digest.
+    roi: (siteId: string, body: RoiRequest) =>
+      request<RoiReport>('POST', `/sites/${encodeURIComponent(siteId)}/roi`, body),
     // Sets (or clears) the asset a detector watches, which matches its warnings to that asset's events.
     setDetectorAsset: (siteId: string, detectorId: string, asset: string | null) =>
       request<{ id: string; asset: string | null }>(

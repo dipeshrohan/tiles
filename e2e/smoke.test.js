@@ -4729,6 +4729,103 @@ test('warning performance: what the warnings caught, per detector, for the codes
   assert.deepEqual([...a.errors, ...v.errors], []);
 });
 
+function roiReport() {
+  const period = (start, end, downtime, scrap, warnings) => ({
+    start,
+    end,
+    days: 30,
+    parts: null,
+    counts: { downtime: downtime * 30, scrap: scrap * 30 },
+    rates: { downtime, scrap },
+    by_asset: [{ asset: 'DC-01', downtime: downtime * 30, scrap: scrap * 30 }],
+    warnings,
+  });
+  const none = {
+    warnings: 0,
+    events: 15,
+    caught: 0,
+    recall: null,
+    precision: null,
+    false_per_day: null,
+    median_warning_seconds: null,
+  };
+  return {
+    periods: {
+      baseline: period('2026-05-01T00:00:00Z', '2026-05-31T00:00:00Z', 0.5, 0.2, none),
+      pilot: period('2026-06-01T00:00:00Z', '2026-07-01T00:00:00Z', 0.125, 0.1, {
+        warnings: 4,
+        events: 4,
+        caught: 3,
+        recall: 0.75,
+        precision: 1,
+        false_per_day: 0,
+        median_warning_seconds: 6540,
+      }),
+    },
+    avoided: { stops: 11.25, downtime_hours: 28.125, scrap: 3, cost: 28275 },
+    inputs: { currency: 'EUR' },
+    digest: 'a'.repeat(64),
+    markdown: '# ROI report\n',
+  };
+}
+
+test('the ROI report: the periods and costs asked for, the numbers shown, the Markdown downloaded', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.setPerformance(performanceReport());
+  fake.setRoi(roiReport());
+  const a = await openAs(t, apiUrl, null, 'performance');
+  await a.page.waitForSelector('#roi-form');
+  // The first periods: the last 30 days, and the 90 before them.
+  const pilotFrom = await a.page.inputValue('#roi-form [name=pilotFrom]');
+  const baselineTo = await a.page.inputValue('#roi-form [name=baselineTo]');
+  assert.equal(Date.parse(pilotFrom) - Date.parse(baselineTo), 86_400_000);
+
+  // A baseline that ends before it starts is refused on the form.
+  await a.page.fill('#roi-form [name=baselineFrom]', '2026-05-01');
+  await a.page.fill('#roi-form [name=baselineTo]', '2026-04-01');
+  await a.page.fill('#roi-form [name=pilotFrom]', '2026-06-01');
+  await a.page.fill('#roi-form [name=pilotTo]', '2026-06-30');
+  await a.page.click('#roi-form button[type=submit]');
+  await a.page.waitForSelector('#roi-form [name=baselineTo][aria-invalid=true]');
+  assert.match(await a.page.locator('#roi-form').innerText(), /Choose a last day on or after the first/);
+  assert.equal(fake.roiRequests().length, 0);
+
+  await a.page.fill('#roi-form [name=baselineTo]', '2026-05-30');
+  await a.page.fill('#roi-form [name=hoursPerStop]', '2.5');
+  await a.page.fill('#roi-form [name=hoursSource]', 'MES export, June');
+  await a.page.fill('#roi-form [name=costPerHour]', '1000');
+  await a.page.fill('#roi-form [name=costPerScrap]', '50');
+  await a.page.fill('#roi-form [name=currency]', 'eur');
+  await a.page.click('#roi-form button[type=submit]');
+  await a.page.waitForSelector('[data-roi-result]');
+  const sent = fake.roiRequests().at(-1);
+  const day = 86_400_000;
+  assert.equal(Date.parse(sent.baseline_end) - Date.parse(sent.baseline_start), 30 * day);
+  assert.equal(Date.parse(sent.pilot_start) - Date.parse(sent.baseline_end), day);
+  assert.equal(Date.parse(sent.pilot_end) - Date.parse(sent.pilot_start), 30 * day);
+  assert.deepEqual(
+    [sent.hours_per_stop, sent.hours_source, sent.cost_per_hour, sent.cost_per_scrap, sent.currency, sent.pilot_parts],
+    [2.5, 'MES export, June', 1000, 50, 'EUR', null],
+  );
+  assert.deepEqual([sent.horizon_hours, sent.codes], [8, []]); // the page's own horizon and codes
+
+  const result = a.page.locator('[data-roi-result]');
+  assert.match(await result.locator('tr', { hasText: 'Unplanned stops per day' }).innerText(), /0\.50\s+0\.13\s+-75%/);
+  assert.match(await result.locator('tr', { hasText: 'Stops warned of' }).innerText(), /–\s+75\.0%/);
+  assert.match(await result.locator('tr', { hasText: 'Downtime hours' }).innerText(), /28\.1/);
+  assert.match(await result.locator('tr', { hasText: 'Cost' }).innerText(), /28,275 EUR/);
+  assert.equal(await a.page.locator('[data-roi-digest]').innerText(), 'a'.repeat(64));
+  // The form keeps what was sent.
+  assert.equal(await a.page.inputValue('#roi-form [name=hoursSource]'), 'MES export, June');
+
+  const [download] = await Promise.all([a.page.waitForEvent('download'), a.page.click('[data-roi-download]')]);
+  assert.equal(download.suggestedFilename(), 'roi-2026-06-01-2026-06-30.md');
+  assert.equal(readFileSync(await download.path(), 'utf8'), '# ROI report\n');
+  assert.deepEqual(a.errors, []);
+});
+
 test('a signal is marked as an MES event stream with its asset', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

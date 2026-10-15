@@ -875,6 +875,16 @@ main {
 .g4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
+/* The ROI report's form (T6.01): as many fields to a row as fit. */
+.roi-form {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  align-items: start;
+}
+.roi-digest {
+  overflow-wrap: anywhere;
+}
 .span2 {
   grid-column: span 2;
 }

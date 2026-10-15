@@ -360,6 +360,29 @@
         "title": "AskIn",
         "type": "object"
       },
+      "AssetCounts": {
+        "properties": {
+          "asset": {
+            "title": "Asset",
+            "type": "string"
+          },
+          "downtime": {
+            "title": "Downtime",
+            "type": "integer"
+          },
+          "scrap": {
+            "title": "Scrap",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asset",
+          "downtime",
+          "scrap"
+        ],
+        "title": "AssetCounts",
+        "type": "object"
+      },
       "AssignIn": {
         "additionalProperties": false,
         "properties": {
@@ -528,6 +551,62 @@
           "email"
         ],
         "title": "Author",
+        "type": "object"
+      },
+      "Avoided": {
+        "properties": {
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "downtime_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downtime Hours"
+          },
+          "scrap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scrap"
+          },
+          "stops": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stops"
+          }
+        },
+        "required": [
+          "stops",
+          "downtime_hours",
+          "scrap",
+          "cost"
+        ],
+        "title": "Avoided",
         "type": "object"
       },
       "Axis": {
@@ -1676,6 +1755,24 @@
           "sessions"
         ],
         "title": "Count",
+        "type": "object"
+      },
+      "Counts": {
+        "properties": {
+          "downtime": {
+            "title": "Downtime",
+            "type": "integer"
+          },
+          "scrap": {
+            "title": "Scrap",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "downtime",
+          "scrap"
+        ],
+        "title": "Counts",
         "type": "object"
       },
       "Dataset": {
@@ -5058,6 +5155,79 @@
         "title": "ParamIn",
         "type": "object"
       },
+      "Period": {
+        "properties": {
+          "by_asset": {
+            "items": {
+              "$ref": "#/components/schemas/AssetCounts"
+            },
+            "title": "By Asset",
+            "type": "array"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/Counts"
+          },
+          "days": {
+            "title": "Days",
+            "type": "number"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "parts": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parts"
+          },
+          "rates": {
+            "$ref": "#/components/schemas/Rates"
+          },
+          "start": {
+            "format": "date-time",
+            "title": "Start",
+            "type": "string"
+          },
+          "warnings": {
+            "$ref": "#/components/schemas/Warnings"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "days",
+          "parts",
+          "counts",
+          "rates",
+          "by_asset",
+          "warnings"
+        ],
+        "title": "Period",
+        "type": "object"
+      },
+      "Periods": {
+        "properties": {
+          "baseline": {
+            "$ref": "#/components/schemas/Period"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/Period"
+          }
+        },
+        "required": [
+          "baseline",
+          "pilot"
+        ],
+        "title": "Periods",
+        "type": "object"
+      },
       "Policy": {
         "properties": {
           "required": {
@@ -5525,6 +5695,38 @@
           "badges"
         ],
         "title": "QualityCheckOut",
+        "type": "object"
+      },
+      "Rates": {
+        "properties": {
+          "downtime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downtime"
+          },
+          "scrap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scrap"
+          }
+        },
+        "required": [
+          "downtime",
+          "scrap"
+        ],
+        "title": "Rates",
         "type": "object"
       },
       "ReadIn": {
@@ -6190,6 +6392,172 @@
           "comments"
         ],
         "title": "ReviewSummary",
+        "type": "object"
+      },
+      "RoiIn": {
+        "additionalProperties": false,
+        "properties": {
+          "baseline_end": {
+            "format": "date-time",
+            "title": "Baseline End",
+            "type": "string"
+          },
+          "baseline_parts": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Parts"
+          },
+          "baseline_start": {
+            "format": "date-time",
+            "title": "Baseline Start",
+            "type": "string"
+          },
+          "codes": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Codes",
+            "type": "array"
+          },
+          "cost_per_hour": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Hour"
+          },
+          "cost_per_scrap": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Scrap"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "horizon_hours": {
+            "default": 8,
+            "exclusiveMinimum": 0.0,
+            "maximum": 720.0,
+            "title": "Horizon Hours",
+            "type": "number"
+          },
+          "hours_per_stop": {
+            "anyOf": [
+              {
+                "maximum": 720.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Stop"
+          },
+          "hours_source": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Source"
+          },
+          "pilot_end": {
+            "format": "date-time",
+            "title": "Pilot End",
+            "type": "string"
+          },
+          "pilot_parts": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pilot Parts"
+          },
+          "pilot_start": {
+            "format": "date-time",
+            "title": "Pilot Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "baseline_start",
+          "baseline_end",
+          "pilot_start",
+          "pilot_end"
+        ],
+        "title": "RoiIn",
+        "type": "object"
+      },
+      "RoiOut": {
+        "properties": {
+          "avoided": {
+            "$ref": "#/components/schemas/Avoided"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "inputs": {
+            "additionalProperties": true,
+            "title": "Inputs",
+            "type": "object"
+          },
+          "markdown": {
+            "title": "Markdown",
+            "type": "string"
+          },
+          "periods": {
+            "$ref": "#/components/schemas/Periods"
+          }
+        },
+        "required": [
+          "periods",
+          "avoided",
+          "inputs",
+          "digest",
+          "markdown"
+        ],
+        "title": "RoiOut",
         "type": "object"
       },
       "RoleIn": {
@@ -9110,6 +9478,77 @@
           "resolution_note"
         ],
         "title": "WarningOut",
+        "type": "object"
+      },
+      "Warnings": {
+        "properties": {
+          "caught": {
+            "title": "Caught",
+            "type": "integer"
+          },
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "false_per_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "False Per Day"
+          },
+          "median_warning_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Warning Seconds"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          },
+          "recall": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall"
+          },
+          "warnings": {
+            "title": "Warnings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "warnings",
+          "events",
+          "caught",
+          "recall",
+          "precision",
+          "false_per_day",
+          "median_warning_seconds"
+        ],
+        "title": "Warnings",
         "type": "object"
       },
       "WearIn": {
@@ -17251,6 +17690,60 @@
           }
         },
         "summary": "Warning Performance",
+        "tags": [
+          "warnings"
+        ]
+      }
+    },
+    "/sites/{site_id}/roi": {
+      "post": {
+        "description": "The pilot period against the baseline: unplanned stops and scrap per day (or per 1,000 parts),\nwhat was avoided in hours and cost (from the plant's mean stop length and costs), and the\nwarnings' recall, precision, false warnings per day and warning time in each period. Reads only;\nthe same data gives the same `digest`.",
+        "operationId": "roi_report_sites__site_id__roi_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoiIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoiOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Roi Report",
         "tags": [
           "warnings"
         ]

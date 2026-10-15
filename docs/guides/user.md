@@ -570,6 +570,24 @@ You see:
 
 A detector with no asset can't be scored. In **By detector**, type the asset (for example DC-01) and click **Set**. If events exist for assets that no detector watches, the page lists them.
 
+### The ROI report
+
+At the foot of the page, **ROI report** compares a pilot period with a baseline before it: the return the pilot shows, for the people who decide on it.
+
+1. Choose the **Baseline** and **Pilot** days. They start as the 90 days before the last 30, and the last 30. Each period runs from the start of its first day to the end of its last, on the site's clock, and the baseline must end before the pilot starts.
+2. Optionally give **Mean stop length (h)** and where it comes from. Tiles keeps no end times, so take it from the plant's downtime export, the same one the baseline was counted from.
+3. Optionally give the **Cost of an hour of downtime**, the **Cost of a scrap event** and the **Currency**.
+4. Optionally give the **Parts made** in each period. With both, rates are per 1,000 parts instead of per day.
+5. Click **Make report**.
+
+The report counts the unplanned stops and scrap in each period with the codes and **Warned within** chosen above, in the same way as the rest of the page. It shows:
+
+- each period's rates and the change between them;
+- in each period, the stops warned of, the warnings followed by a stop, the false warnings per day and the median warning time ("–" where no detector judged the period);
+- what was avoided in the pilot period: the baseline's rate over the pilot period less what the pilot had, in stops, hours, scrap and cost.
+
+**Download Markdown** saves the report with how each number is made and the events counted per asset. The **digest** is a fingerprint of the inputs and every event counted: made again on the same data, the report has the same digest, and any change to a counted reading changes it.
+
 ---
 
 ## Factory physics and Process & quality (demo pages)
