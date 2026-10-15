@@ -102,6 +102,21 @@ export interface NavDraw {
   under?: string; // the page it belongs to (the style guide: Settings)
   prefs: NavPrefs;
   badges: Record<string, NavBadge>;
+  views?: NavView[]; // saved views (U5.06): yours and those shared on the site
+}
+
+export interface NavView {
+  id: string;
+  name: string;
+  href: string;
+  shared: boolean;
+  mine: boolean;
+}
+
+function viewRow(v: NavView, o: NavDraw): string {
+  const tip = o.prefs.rail ? ` data-tooltip="${esc(v.name)}"` : '';
+  const whose = v.mine ? (v.shared ? ', shared' : '') : ', shared with you';
+  return `<div class="nav-row" data-key="nav-view-${esc(v.id)}"><a class="nav-link" href="${esc(v.href)}" data-nav-view="${esc(v.id)}"${tip}><span class="ico">${icon('bookmark')}</span><span class="nav-label">${esc(v.name)}</span><span class="sr-only">${esc(whose)}</span></a></div>`;
 }
 
 // A section of the menu: its heading folds it (a named group), or just names it.
@@ -128,6 +143,9 @@ export function navHtml(o: NavDraw): string {
     rail,
     pinned.length
       ? section('pinned', 'Pinned', pinned.map((p) => row(p, o, 'pinned')).join(''), true, folded('pinned'))
+      : '',
+    o.views?.length
+      ? section('views', 'Saved views', o.views.map((v) => viewRow(v, o)).join(''), true, folded('views'))
       : '',
     recent.length
       ? section('recent', 'Recent', recent.map((p) => row(p, o, 'recent')).join(''), true, folded('recent'))

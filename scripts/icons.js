@@ -93,6 +93,7 @@ export const NAMES = [
   // The menu (U3.06)
   'pin',
   'pin-off',
+  'bookmark',
   'panel-left-close',
   'panel-left-open',
   'arrow-left',

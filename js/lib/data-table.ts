@@ -139,6 +139,33 @@ export const tableOrder = <T>(o: TableOptions<T>): T[] => ordered(o, stateOf(o))
 // Unticks a table's rows (after a bulk action has done its work).
 export const clearSelection = (id: string): void => live.get(id)?.selected.clear();
 
+// A table's settings (U5.06: a saved view keeps them): those drawn, or kept from another visit.
+export function tablePrefs(id: string): TablePrefs | null {
+  const s = live.get(id);
+  if (s) return s.prefs;
+  const kept = load<Partial<TablePrefs> | null>(`table:${id}`, null);
+  return kept && typeof kept === 'object' ? { ...DEFAULT_PREFS, ...kept } : null;
+}
+
+// Puts a saved view's settings on a table (its column widths stay); checked against its columns
+// the next time it is drawn.
+export function setTablePrefs(id: string, t: Pick<TablePrefs, 'sort' | 'hidden' | 'density'>): void {
+  const s = live.get(id);
+  const next: TablePrefs = {
+    ...(tablePrefs(id) ?? DEFAULT_PREFS),
+    sort: t.sort,
+    hidden: [...t.hidden],
+    density: t.density,
+  };
+  if (s) {
+    s.prefs = next;
+    s.sorted = null;
+    s.page = 0;
+    s.rowHeight = null; // another density: measured again
+  }
+  save(`table:${id}`, next);
+}
+
 // Forgets every table's state in this tab (tests).
 export const resetTables = (): void => live.clear();
 

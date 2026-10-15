@@ -27,6 +27,7 @@ import {
   when,
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
+import { bindFilterBar, filterBar, type BarOptions } from '../lib/filter-bar.ts';
 import { listKeys, rowTarget, split } from '../lib/split.ts';
 import { withQuery } from '../lib/url-state.ts';
 import {
@@ -115,7 +116,7 @@ function statusBadge(w: Pick<WarningInfo, 'status'>): string {
 
 const signalState = (w: WarningInfo): string => (w.ended_at ? `back ${ago(w.ended_at)}` : '<b>still out</b>');
 
-function filterBar(ctx: Context, f: Filters): string {
+function filterControls(ctx: Context, f: Filters): string {
   const shows = (Object.keys(SHOW_LABELS) as Show[]).map((s) => [s, SHOW_LABELS[s]] as const);
   return card(
     `${tabs({ label: 'Status', items: shows, current: f.show, data: 'show' })}
@@ -149,9 +150,29 @@ function filterBar(ctx: Context, f: Filters): string {
           { inline: true },
         )}
         ${button('Refresh', { size: 'sm', attrs: { 'data-refresh-warnings': true } })}
-      </span>`,
+      </span>
+      ${filterBar(ctx, barOptions(ctx))}`,
     { class: 'source-bar small', attrs: { 'data-tour': 'warning-filters' } },
   );
+}
+
+// The filter bar and saved views (U5.06): the same filters as chips, with the count listed.
+function barOptions(ctx: Context): BarOptions {
+  const ui = uiState(ctx);
+  return {
+    page: 'warnings',
+    filters: () => ({ ...ui.filters }),
+    count: () => {
+      const items = listing?.key === listKey(ctx) ? listing.items : null;
+      if (!items) return '';
+      return `${items.length}${listing?.more ? '+' : ''} warning${items.length === 1 ? '' : 's'}`;
+    },
+    apply: (f) => {
+      acted = null;
+      ui.filters = filtersFromQuery(new URLSearchParams(f));
+      ctx.rerender();
+    },
+  };
 }
 
 const STATUS_RANK: Record<WarningInfo['status'], number> = { raised: 0, acknowledged: 1, resolved: 2 };
@@ -689,7 +710,7 @@ const view: View = {
     if (o.status !== 'ready')
       return `${head}${apiUnreachable(o.error, { signIn: Boolean(ctx.auth.config?.enabled && !ctx.auth.signedIn) })}`;
     const ui = uiState(ctx);
-    return `${head}${filterBar(ctx, ui.filters)}${split(listCard(ctx, ui), detailCard(ctx, ui), {
+    return `${head}${filterControls(ctx, ui.filters)}${split(listCard(ctx, ui), detailCard(ctx, ui), {
       open: ui.selected !== null,
       back: withQuery('#/warnings', filtersQuery(ui.filters)),
       label: 'warnings',
@@ -753,6 +774,7 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-more-warnings]', 'click', () => void fetchMore(ctx));
+    bindFilterBar(root, ctx, barOptions(ctx));
     root.querySelector<HTMLTextAreaElement>('#warning-form textarea')?.addEventListener(
       'input',
       (e) => {

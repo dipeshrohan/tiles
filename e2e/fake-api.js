@@ -291,6 +291,8 @@ export function createFakeApi({
   let uxEnabled = false;
   const uxEvents = [];
   const homeLayouts = new Map(); // Home by role (U5.01): user → { cards, updated_at }
+  const savedViews = []; // Saved views (U5.06): { id, owner, page, name, query, table, shared, updated_at }
+  let viewIds = 0;
   const appFeedback = []; // In-app feedback (U4.09), newest last: { id, …, user, screenshot (a data URL or null) }
   const siteDocuments = []; // Document search (T4.08): { number, title, …, pages: [text], content, archived }
   let appsFailures = 0; // the next lists of templates and apps that fail, as a restarting API's would
@@ -623,6 +625,7 @@ export function createFakeApi({
         !url.pathname.startsWith(base) &&
         url.pathname !== `/sites/${site.id}/me` &&
         url.pathname !== `/sites/${site.id}/me/home` &&
+        !url.pathname.startsWith(`/sites/${site.id}/views`) &&
         url.pathname !== `/sites/${site.id}/onboarding` &&
         url.pathname !== `/sites/${site.id}/members` &&
         !url.pathname.endsWith('/audit') &&
@@ -1775,6 +1778,62 @@ export function createFakeApi({
       if (url.pathname.startsWith(warningsPath))
         return await warningRoute(url, url.pathname.slice(warningsPath.length), user, role, memberOf);
       if (url.pathname === `/sites/${site.id}/me`) return send(200, memberOf(user));
+      // Saved views (U5.06): yours and those shared; only engineers share; owners change them.
+      if (url.pathname.startsWith(`/sites/${site.id}/views`)) {
+        const id = url.pathname.slice(`/sites/${site.id}/views/`.length);
+        const shown = (v) => ({ ...v, owner: memberOf(v.owner).name, mine: v.owner === user });
+        const mayShare = role === 'engineer' || role === 'admin';
+        if (req.method === 'GET' && !id) {
+          const page = url.searchParams.get('page');
+          return send(
+            200,
+            savedViews
+              .filter((v) => (v.shared || v.owner === user) && (!page || v.page === page))
+              .sort(
+                (a, b) =>
+                  a.page.localeCompare(b.page) ||
+                  (b.owner === user) - (a.owner === user) ||
+                  a.name.localeCompare(b.name),
+              )
+              .map(shown),
+          );
+        }
+        if (req.method === 'POST' && !id) {
+          const b = await body(req);
+          if (b.shared && !mayShare)
+            return send(403, { detail: `Your role on this site is ${role}; sharing a view needs engineer or above` });
+          if (savedViews.some((v) => v.owner === user && v.page === b.page && v.name === b.name.trim()))
+            return send(409, { detail: `You already have a view named ${b.name.trim()} on this page` });
+          const v = {
+            id: `v${++viewIds}`,
+            owner: user,
+            page: b.page,
+            name: b.name.trim(),
+            query: b.query ?? {},
+            table: b.table ?? null,
+            shared: Boolean(b.shared),
+            updated_at: new Date().toISOString(),
+          };
+          savedViews.push(v);
+          return send(201, shown(v));
+        }
+        const v = savedViews.find((x) => x.id === id && (x.shared || x.owner === user));
+        if (!v) return send(404, { detail: 'No such view' });
+        if (req.method === 'PATCH') {
+          if (v.owner !== user) return send(403, { detail: 'Only its owner changes a view' });
+          const b = await body(req);
+          if (b.shared && !v.shared && !mayShare)
+            return send(403, { detail: 'Sharing a view needs engineer or above' });
+          Object.assign(v, b, { updated_at: new Date().toISOString() });
+          return send(200, shown(v));
+        }
+        if (req.method === 'DELETE') {
+          if (v.owner !== user && !(v.shared && role === 'admin'))
+            return send(403, { detail: 'Only its owner or a site admin deletes a shared view' });
+          savedViews.splice(savedViews.indexOf(v), 1);
+          return send(204);
+        }
+      }
       // Home by role (U5.01): each person's cards, null for their role's.
       if (url.pathname === `/sites/${site.id}/me/home`) {
         if (req.method === 'PUT') {
@@ -2144,6 +2203,7 @@ export function createFakeApi({
     uxEvents,
     appFeedback,
     homeLayouts,
+    savedViews,
     copilotUsage,
     // Design runs stored on the site (T4.11), latest last.
     designRuns,

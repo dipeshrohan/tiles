@@ -12,6 +12,7 @@ import {
 } from '../lib/api.ts';
 import { oneOf } from '../lib/url-state.ts';
 import type { Context, View } from './types.ts';
+import { bindFilterBar, filterBar, type BarOptions } from '../lib/filter-bar.ts';
 import { isFieldError, showErrors, type FieldError } from '../lib/forms.ts';
 import {
   badge,
@@ -472,9 +473,34 @@ async function search(root: HTMLElement, ctx: Context): Promise<void> {
 export const untouched = (el: Pick<HTMLInputElement, 'value' | 'defaultValue'>): boolean =>
   el.value === el.defaultValue.replace(/[\r\n]/g, '');
 
+// The filter bar and saved views (U5.06): the search and filters as chips, with how many match.
+let bar: { redraw(): void } | null = null;
+function barOptions(ctx: Context): BarOptions {
+  return {
+    page: 'signals',
+    filters: () => ({ ...ui(ctx).query }),
+    count: () =>
+      results && !failed && resultsQuery === JSON.stringify(ui(ctx).query)
+        ? `${results.total.toLocaleString('en-GB')} signal${results.total === 1 ? '' : 's'}`
+        : '',
+    apply: (f) => {
+      const u = ui(ctx);
+      u.query = {
+        q: f.q ?? '',
+        source: (f.source ?? '') as Ui['query']['source'],
+        linked: (f.linked ?? '') as Ui['query']['linked'],
+        quality: (f.quality ?? '') as Ui['query']['quality'],
+      };
+      u.editing = null;
+      ctx.rerender();
+    },
+  };
+}
+
 function fill(root: HTMLElement, ctx: Context): void {
   const box = root.querySelector('[data-signal-results]');
   if (!box) return;
+  bar?.redraw();
   // An edit in progress survives the refresh: its fields, and where the cursor was.
   const form = box.querySelector<HTMLFormElement>('#signal-form');
   // Only fields the user changed: the rest show what the refresh brings (another engineer's edit, say).
@@ -814,7 +840,7 @@ const view: View = {
               : ''
           }
         </form>`;
-    return `${head}${card(`${search}<div data-signal-results aria-live="polite">${skeleton.table(6, 9, 'Loading the signals…')}</div>`, { class: 'stack gap-3' })}
+    return `${head}${card(`${search}${filterBar(ctx, barOptions(ctx))}<div data-signal-results aria-live="polite">${skeleton.table(6, 9, 'Loading the signals…')}</div>`, { class: 'stack gap-3' })}
       ${card(
         `<div class="row justify-between wrap gap-2">
           <div><h2>Map tags to the ontology</h2><p class="small soft">Tiles suggests a Signal node for each tag that has none: one to link, or one to create under the PLC the tag comes from. Every suggestion says why.</p></div>
@@ -827,6 +853,7 @@ const view: View = {
   bind(root, ctx) {
     const form = root.querySelector<HTMLFormElement>('#signal-search');
     if (!form) return;
+    bar = bindFilterBar(root, ctx, barOptions(ctx));
     clearTimeout(searchTimer); // a search typed on the page this one replaces
     if (results && resultsFor === catalogue(ctx) && resultsQuery === JSON.stringify(ui(ctx).query))
       fill(root, ctx); // show the last answer at once, then refresh it
@@ -842,6 +869,7 @@ const view: View = {
       };
       u.editing = null;
       ctx.address(); // the search and filters, in the address as they change
+      bar?.redraw();
       clearTimeout(searchTimer);
       searchTimer = setTimeout(() => void search(root, ctx), 250);
     };

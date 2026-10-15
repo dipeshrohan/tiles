@@ -383,6 +383,28 @@ export interface WearCheckResult {
   buckets: { at: string; value: number; n: number }[];
 }
 
+// A saved view (U5.06): a page's filters (its address's query) and its table's sort, hidden
+// columns and density, kept under a name; shared ones show for everyone on the site.
+export type ViewPage = 'warnings' | 'signals' | 'documents';
+export interface SavedViewTable {
+  sort: { key: string; dir: 'asc' | 'desc' } | null;
+  hidden: string[];
+  density: 'comfortable' | 'compact';
+}
+export interface SavedViewIn {
+  page: ViewPage;
+  name: string;
+  query: Record<string, string>;
+  table: SavedViewTable | null;
+  shared: boolean;
+}
+export interface SavedView extends SavedViewIn {
+  id: string;
+  mine: boolean;
+  owner: string;
+  updated_at: string;
+}
+
 // A suggested ontology node for an unmapped tag (T2.11): link an existing node, or create one by
 // staging `ops`.
 export interface MappingSuggestion {
@@ -1107,6 +1129,17 @@ export function createApiClient(options: ApiOptions) {
             silent: true,
           },
         ),
+    },
+    // Saved views (U5.06): a page's filters and table settings under a name, yours or shared.
+    views: {
+      list: (siteId: string, opts: { silent?: boolean } = {}) =>
+        request<SavedView[]>('GET', `/sites/${encodeURIComponent(siteId)}/views`, undefined, opts),
+      create: (siteId: string, view: SavedViewIn) =>
+        request<SavedView>('POST', `/sites/${encodeURIComponent(siteId)}/views`, view),
+      update: (siteId: string, id: string, change: Partial<SavedViewIn>) =>
+        request<SavedView>('PATCH', `/sites/${encodeURIComponent(siteId)}/views/${encodeURIComponent(id)}`, change),
+      remove: (siteId: string, id: string) =>
+        request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/views/${encodeURIComponent(id)}`),
     },
     // Home by role (U5.01): the cards you keep on your home on a site; null: your role's.
     home: {

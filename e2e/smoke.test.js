@@ -3438,6 +3438,117 @@ function raiseFrictionWarnings(fake) {
   return { out, over };
 }
 
+test('filter bar and saved views: chips, add filter, clear, save and share a view, the menu opens it (U5.06)', async (t) => {
+  const fake = createFakeApi({ roles: { 'vic@example.com': 'viewer' } });
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const at = (m) => new Date(Date.now() - m * 60_000).toISOString();
+  for (const n of [1, 2, 3])
+    fake.raiseWarning(`press${n}.temp`, [{ at: at(40), value: 9 }], {
+      started_at: at(30 + n),
+      last_at: at(1),
+      peak: 9,
+      baseline: 4,
+      threshold: 7,
+      readings: 12,
+    });
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  const bar = page.locator('[data-filter-bar="warnings"]');
+  await bar.locator('[data-filter-count]:has-text("3 warnings")').waitFor();
+  assert.equal(await bar.locator('.filter-chips').innerText(), 'No filters');
+
+  // A filter set shows as a chip; its × takes it off.
+  await page.click('[data-show="raised"]');
+  await bar.locator('.filter-chip:has-text("Status: New")').waitFor();
+  await bar.locator('[data-filter-remove="show"]').click();
+  await bar.locator('.filter-chips:has-text("No filters")').waitFor();
+  assert.equal(await page.getAttribute('[data-show="unresolved"]', 'aria-pressed'), 'true');
+
+  // Add filter goes to that filter's control.
+  await bar.locator('[data-add-filter] summary').click();
+  await bar.locator('[data-filter-add="who"]').click();
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-filter')), 'who');
+  await page.selectOption('[data-filter="who"]', 'me');
+  await bar.locator('.filter-chip:has-text("Assigned to: me")').waitFor();
+
+  // Saved with a name and shared; the bar then names it.
+  await bar.locator('[data-views-menu] summary').click();
+  await bar.locator('[data-view-save]').click();
+  const dialog = page.locator('dialog:has([data-save-view])');
+  await dialog.locator('[name=name]').fill('Assigned to me');
+  await dialog.locator('[name=shared]').check();
+  await dialog.locator('button[type=submit]').click();
+  await page.waitForSelector('#toast:has-text("Assigned to me saved and shared")');
+  await bar.locator('[data-views-menu] summary:has-text("Assigned to me")').waitFor();
+  assert.deepEqual(
+    fake.savedViews.map((v) => [v.name, v.page, v.query, v.shared]),
+    [['Assigned to me', 'warnings', { who: 'me' }, true]],
+  );
+  // A name used already on the page is refused, and the dialog stays.
+  await bar.locator('[data-views-menu] summary').click();
+  await bar.locator('[data-view-save]').click();
+  await dialog.locator('[name=name]').fill('Assigned to me');
+  await dialog.locator('button[type=submit]').click();
+  await page.waitForSelector('#toast:has-text("already have a view named")');
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached' });
+
+  // Clear all, then the menu's saved view puts its filters back.
+  await bar.locator('[data-filter-clear]').click();
+  await bar.locator('.filter-chips:has-text("No filters")').waitFor();
+  await page.click('#nav [data-nav-view]:has-text("Assigned to me")');
+  await bar.locator('.filter-chip:has-text("Assigned to: me")').waitFor();
+  assert.match(page.url(), /who=me/);
+
+  // On Signals: a search kept as a private view, opened from the menu on another page.
+  await page.evaluate(() => (location.hash = '#/signals'));
+  const sbar = page.locator('[data-filter-bar="signals"]');
+  await sbar.waitFor();
+  await page.fill('#signal-search [name=q]', 'press');
+  await sbar.locator('.filter-chip:has-text("Search: “press”")').waitFor();
+  await sbar.locator('[data-views-menu] summary').click();
+  await sbar.locator('[data-view-save]').click();
+  await dialog.locator('[name=name]').fill('Presses');
+  await dialog.locator('button[type=submit]').click();
+  await page.waitForSelector('#toast:has-text("Presses saved")');
+  await page.evaluate(() => (location.hash = '#/warnings'));
+  await bar.waitFor();
+  await page.click('#nav [data-nav-view]:has-text("Presses")');
+  await sbar.locator('.filter-chip:has-text("Search: “press”")').waitFor();
+  assert.equal(await page.inputValue('#signal-search [name=q]'), 'press');
+  // Deleted at once, with Undo.
+  await sbar.locator('[data-views-menu] summary').click();
+  await sbar.locator('[data-view-delete]').click();
+  await page.waitForSelector('#toast:has-text("Presses deleted")');
+  assert.equal(await sbar.locator('[data-view-open]').count(), 0);
+  await page.click('#toast button:has-text("Undo")');
+  await sbar.locator('[data-view-open]:has-text("Presses")').waitFor();
+
+  // On Documents, the search is a filter too, and in the address.
+  await page.evaluate(() => (location.hash = '#/documents'));
+  await page.fill('#doc-search [name=q]', 'valve');
+  await page.click('#doc-search button[type=submit]');
+  await page.locator('[data-filter-bar="documents"] .filter-chip:has-text("Search: “valve”")').waitFor();
+  assert.match(page.url(), /q=valve/);
+  // The one refusal asked for: the name used twice.
+  assert.deepEqual(
+    errors.filter((e) => !e.includes('409 (Conflict)')),
+    [],
+  );
+
+  // A viewer sees the shared view, can't change it, and keeps views of their own only.
+  const viewer = await openAs(t, apiUrl, 'vic@example.com', 'warnings');
+  const vbar = viewer.page.locator('[data-filter-bar="warnings"]');
+  await vbar.locator('[data-views-menu] summary').click();
+  await vbar.locator('[data-view-open]:has-text("Assigned to me")').waitFor();
+  assert.match(await vbar.locator('.views-list').innerText(), /By demo/);
+  assert.equal(await vbar.locator('[data-view-share], [data-view-delete]').count(), 0);
+  await vbar.locator('[data-view-save]').click();
+  await viewer.page.waitForSelector('dialog:has-text("Only engineers and admins share views")');
+  assert.equal(await viewer.page.locator('dialog [name=shared]').count(), 0);
+  assert.deepEqual(viewer.errors, []);
+});
+
 test('warning triage by keyboard: j opens, s assigns to me, a acknowledges, r the outcome, n the next; bulk assign (U5.04)', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
