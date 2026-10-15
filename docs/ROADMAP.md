@@ -113,13 +113,17 @@ Tiles v1.0 running on one real production line at a design-partner plant. It con
 
 ## Risks and mitigations
 
-| Risk | Mitigation |
-|---|---|
-| No design partner, or slow data access (biggest risk) | Secure the partner before month 2. Plan for CSV/historian backfill if live access is late. Keep developing against public datasets (NASA turbofan, SECOM) in the meantime |
-| Warnings don't transfer to real machines | Backtest before going live; treat thresholds as configuration, not code; track precision and warning time on a dashboard from day one |
-| Copilot inventing answers | Tool-only answers, an evaluation gate in the automated checks, visible step traces |
-| Too much scope | Cut ◇ items first. Never cut data quality checks, the evaluation suite or the audit log |
-| Plant IT/OT security approval | Outbound-only edge agent, security review started in month 3, customer-hosted option |
+Reviewed monthly (T0.02). Last review: 15 October 2026. The software on the critical path is built; everything still open needs the design partner or other people, so the first risk now decides the plan.
+
+| Risk | Mitigation | Where it stands |
+|---|---|---|
+| No design partner, or slow data access (biggest risk) | Secure the partner before month 2. Plan for CSV/historian backfill if live access is late. Keep developing against public datasets (NASA turbofan, SECOM) in the meantime | **Open, and now blocking.** The assessment (T2.16), data access (T2.17), tuning (T3.06), go-live (T5.01) and the ROI report on real data (T6.01) all wait on it. Ready for the visit: the [assessment kit](pilot/assessment.md), CSV imports, the edge agent and the ROI report |
+| Warnings don't transfer to real machines | Backtest before going live; treat thresholds as configuration, not code; track precision and warning time on a dashboard from day one | Tooling done: the backtest, Warning performance and the ROI report. Untested on partner history until T3.06 |
+| Copilot inventing answers | Tool-only answers, an evaluation gate in the automated checks, visible step traces | Grounding check and evaluation gate in CI on 17 cases from a known plant. The 100+ real partner questions (T4.05) need the partner |
+| Too much scope | Cut ◇ items first. Never cut data quality checks, the evaluation suite or the audit log | No ◇ items left open; nothing to cut |
+| Plant IT/OT security approval | Outbound-only edge agent, security review started in month 3, customer-hosted option | The [partner review pack](security/partner-review.md) is ready to share (T3.15). The external penetration test (T6.07) needs a vendor and must finish before v1.0 (T6.09) |
+| The interface isn't tested with real users | The UI plan's two moderated studies (U1.01, U6.07) and the shop-floor field round (U5.08) | **Open.** The [study kit](ui/research/README.md) and the [field round](pilot/field-round.md) are ready; neither has run, so the SUS and task measures have no numbers yet |
+| German and accessibility unchecked by people | A native speaker reviews the German (U6.03); the five flows are walked with NVDA and VoiceOver (U6.04) | **Open.** Automated checks pass (the pseudo-locale, axe, reflow, forced colours); the people-run checks haven't been done |
 
 ## Metrics to track monthly
 
