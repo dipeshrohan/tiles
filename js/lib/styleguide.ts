@@ -86,7 +86,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
     id: 'space',
     title: 'Spacing',
     kind: 'space',
-    note: 'A 4 px scale with half steps: --space-N is N × 4 px. Utilities use the same steps (.gap-2, .mt-3).',
+    note: 'A 4 px scale with half steps: --space-N is N × 4 px. Utilities use the same steps (.gap-2, .mt-3). --target-min is the least a control measures (WCAG 2.2).',
     tokens: [
       '--space-px',
       '--space-0_5',
@@ -101,6 +101,7 @@ export const TOKEN_GROUPS: TokenGroup[] = [
       '--space-6',
       '--space-7',
       '--space-8',
+      '--target-min',
     ],
   },
   {

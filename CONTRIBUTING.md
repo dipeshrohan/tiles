@@ -76,7 +76,7 @@ A finding without a fix yet doesn't fail the build. For one that can't be fixed 
 - **Build pages from the components** in `js/lib/ui.ts` (`button`, `badge`, `card`, `field`, `select`, `table`, `tabs`, `pageHead`, `errorState`…): they escape what they show and keep pages alike.
 - **No inline styles.** Use a component class, or the utilities at the end of `css/styles.css` (`.gap-2`, `.mt-3`, `.grow`, `.wrap`, `.justify-between`, `.text-bad`…; the number is the `--space-*` step). `npm run lint` refuses a `style` attribute unless its value is computed, like a chart's width.
 - **Escape user-visible strings** with `esc()` from `js/lib/dom.js` when building HTML.
-- **Accessible to keyboard and screen-reader users (WCAG 2.1 AA).** `e2e/a11y.test.js` runs axe on every page, in light and dark, and fails on any violation. So:
+- **Accessible to keyboard and screen-reader users (WCAG 2.1 AA, and 2.2's target size; [the report](docs/ui/accessibility.md)).** `e2e/a11y.test.js` runs axe on every page, in light and dark, and fails on any violation. So:
   - make controls `<button>`s and `<a>`s, not clickable `div`s;
   - give every form field a label, and every table column a header (an `sr-only` one for a column of buttons);
   - draw charts with `js/lib/svg.ts`, which names each one and summarises its numbers for screen readers (pass a `title`);
