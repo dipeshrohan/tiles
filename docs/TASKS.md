@@ -335,7 +335,7 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 - [x] `U6.01` [#249](https://github.com/dipeshrohan/tiles/issues/249) **Internationalisation** · FE · 4d · U1.04
   *Done when:* every view's text comes from the catalogue, and the check runs in CI.
-- [ ] `U6.02` [#250](https://github.com/dipeshrohan/tiles/issues/250) **Numbers, dates and units by locale** · FE · 2d · U6.01
+- [x] `U6.02` [#250](https://github.com/dipeshrohan/tiles/issues/250) **Numbers, dates and units by locale** · FE · 2d · U6.01
   *Done when:* no `toLocaleString` with a hard-coded locale remains, and tests cover three locales.
 - [ ] `U6.03` [#251](https://github.com/dipeshrohan/tiles/issues/251) **German, and a pseudo-locale** · PM+FE · 3d · U6.01
   *Done when:* the pilot's users can use Tiles in German, and no layout breaks in the pseudo-locale.

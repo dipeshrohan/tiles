@@ -3,6 +3,7 @@
 import { cohensD, mean, pearson, median } from './stats.ts';
 import type { Variable } from './types.ts';
 import { t } from './i18n.ts';
+import { number } from './format.ts';
 
 // Rows are plain records; fields are looked up by name.
 const field = (row: object, key: string): unknown => (row as Record<string, unknown>)[key];
@@ -109,5 +110,5 @@ export function wearCheck<K extends string>(
 }
 
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
-const fmt = (n: number): string => Math.round(n).toLocaleString('en-US');
+const fmt = (n: number): string => number(Math.round(n));
 const signed = (n: number): string => `${n >= 0 ? '+' : '−'}${fmt(Math.abs(n))}`;

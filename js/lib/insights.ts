@@ -5,6 +5,7 @@
 import type { CorrelationResult, Insight, InsightDraft, InsightStatus, InsightSummary } from './api.ts';
 import { esc, bound } from './dom.ts';
 import { t, type MessageKey } from './i18n.ts';
+import { dateTime } from './format.ts';
 
 export const MAX_ACTIONS = 20;
 
@@ -78,8 +79,7 @@ export function seriesDraft(tags: string[], from: string, to: string): DraftText
   };
 }
 
-export const when = (iso: string): string =>
-  new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+export const when = (iso: string): string => dateTime(iso);
 
 // The form to save (or edit) an insight. `id` tells the page's forms apart.
 export function draftForm(id: string, text: DraftText, busy: boolean, submit = t('insights.form.save')): string {

@@ -18,6 +18,7 @@ import type { Context, View } from './types.ts';
 import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
 import { setFieldError } from '../lib/forms.ts';
 import { emptyState, pageHead, skeleton, loadFailed } from '../lib/ui.ts';
+import { dateTime } from '../lib/format.ts';
 
 // Bulk import (T2.07): backfill readings from a CSV file or historian export. The file is
 // read here, in the browser, and sent to the Tiles API in batches; nothing is uploaded
@@ -251,7 +252,7 @@ export function historyTable(runs: ImportRun[]): string {
   return `<div class="table-wrap"><table><thead><tr><th>${esc(t('imports.card.file'))}</th><th>${esc(t('imports.history.by'))}</th><th>${esc(t('imports.history.started'))}</th><th>${esc(t('imports.history.readings'))}</th><th>${esc(t('imports.history.new'))}</th><th>${esc(t('imports.history.status'))}</th></tr></thead><tbody>${runs
     .map(
       (r) =>
-        `<tr><td>${esc(r.name)}</td><td>${esc(r.created_by ?? '—')}</td><td>${esc(new Date(r.created_at).toLocaleString('en-GB'))}</td><td>${esc(fmt(r.received, 0))}</td><td>${esc(fmt(r.stored, 0))}</td><td>${r.finished_at ? `<span class="badge good">${esc(t('imports.history.finished'))}</span>` : `<span class="badge warn">${esc(t('imports.history.notFinished'))}</span>`}</td></tr>`,
+        `<tr><td>${esc(r.name)}</td><td>${esc(r.created_by ?? '—')}</td><td>${esc(dateTime(r.created_at))}</td><td>${esc(fmt(r.received, 0))}</td><td>${esc(fmt(r.stored, 0))}</td><td>${r.finished_at ? `<span class="badge good">${esc(t('imports.history.finished'))}</span>` : `<span class="badge warn">${esc(t('imports.history.notFinished'))}</span>`}</td></tr>`,
     )
     .join('')}</tbody></table></div>`;
 }

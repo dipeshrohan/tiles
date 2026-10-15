@@ -17,6 +17,7 @@ import type { Context, View } from './types.ts';
 import { isRemoving, removeLater } from '../lib/undo.ts';
 import { emptyState, loadingState, button, pageHead, skeleton } from '../lib/ui.ts';
 import { t, tHtml } from '../lib/i18n.ts';
+import { dateTime } from '../lib/format.ts';
 
 // The copilot page. With the Tiles API and its copilot on (T4.01–T4.04): your conversations, each
 // answer streamed in with the tools it used (expandable, each citation linked to its result and
@@ -144,7 +145,7 @@ function remoteRender(ctx: Context): string {
       : list
           .map(
             (c) =>
-              `<button class="review-row ${ui.conversation === c.id ? 'sel' : ''}" data-conversation="${esc(c.id)}" data-key="conversation-${esc(c.id)}"><b>${esc(c.title || t('chat.newConversation'))}</b><span class="small muted">${new Date(c.updated_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}</span></button>`,
+              `<button class="review-row ${ui.conversation === c.id ? 'sel' : ''}" data-conversation="${esc(c.id)}" data-key="conversation-${esc(c.id)}"><b>${esc(c.title || t('chat.newConversation'))}</b><span class="small muted">${esc(dateTime(c.updated_at, { zone: false }))}</span></button>`,
           )
           .join('') ||
         emptyState({ compact: true, title: t('chat.noConversations'), body: t('chat.noConversationsBody') });

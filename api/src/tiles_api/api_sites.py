@@ -131,7 +131,7 @@ def create_site(body: NewSite, caller: OrgAdmin) -> dict[str, Any]:
         entity_id=str(site_id),
         after=body.model_dump(),
     )
-    return {"id": site_id, "slug": body.slug, "name": body.name, "org": caller.org_slug}
+    return {"id": site_id, "slug": body.slug, "name": body.name, "org": caller.org_slug, "timezone": body.timezone}
 
 
 StepKey = Literal["site", "outline", "agent", "mapping", "dashboard"]

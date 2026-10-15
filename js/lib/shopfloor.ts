@@ -6,6 +6,7 @@ import type { WarningInfo } from './api.ts';
 import { incoming, outgoing, signalByLabel, signalByTag } from './graph-index.ts';
 import type { Graph, OntologyNode } from './types.ts';
 import { t } from './i18n.ts';
+import { textOrder } from './format.ts';
 
 // How a warning stands on the floor, worst first.
 export type FloorState = 'out' | 'new' | 'taken' | 'ok';
@@ -150,8 +151,8 @@ export function machineBoard(graph: Graph, items: readonly FloorItem[]): Machine
     return { id: m.id, label: m.label, path: pathOf(graph, m.id), state, warnings: mine.length };
   });
   const where = (t: MachineTile) => [...t.path, t.label].join('\u0000');
-  const collator = new Intl.Collator('en', { numeric: true });
-  return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || collator.compare(where(a), where(b)));
+  const text = textOrder({ numeric: true });
+  return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || text.compare(where(a), where(b)));
 }
 
 // The page's headline: what needs someone now.

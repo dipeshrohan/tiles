@@ -20,6 +20,7 @@ import { emptyState, linkButton, pageHead, skeleton, loadFailed } from '../lib/u
 import { confirmDialog } from '../lib/overlay.ts';
 import { bindTable, dataTable, type TableOptions } from '../lib/data-table.ts';
 import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
+import { dateTime } from '../lib/format.ts';
 
 const AUDIT_ROWS = 200; // the latest changes, in pages of 25
 
@@ -137,7 +138,7 @@ async function fillAudit(root: HTMLElement, ctx: Context): Promise<void> {
           key: 'at',
           label: t('settings.audit.col.when'),
           value: (e) => e.at,
-          cell: (e) => esc(new Date(e.at).toLocaleString('en-GB')),
+          cell: (e) => esc(dateTime(e.at)),
         },
         { key: 'who', label: t('settings.audit.col.who'), value: (e) => e.actor_name, cell: (e) => esc(e.actor_name) },
         {
@@ -449,7 +450,7 @@ async function fillNotifications(root: HTMLElement, ctx: Context): Promise<void>
       ? `<div class="table-wrap"><table><thead><tr><th>${esc(t('settings.delivery.col.when'))}</th><th>${esc(t('settings.delivery.col.what'))}</th><th>${esc(t('settings.delivery.col.to'))}</th><th>${esc(t('settings.delivery.col.state'))}</th><th>${esc(t('settings.delivery.col.why'))}</th></tr></thead><tbody>${rows
           .map(
             (d) =>
-              `<tr><td>${esc(new Date(d.created_at).toLocaleString('en-GB'))}</td><td>${esc(t(d.kind === 'warning_raised' ? 'settings.delivery.raised' : 'settings.delivery.assigned'))} · <span class="mono">${esc(d.signal_tag)}</span></td><td>${esc(d.recipient)}</td><td>${deliveryState(d)}</td><td class="small">${esc(d.sent_at ? '' : (d.last_error ?? ''))}</td></tr>`,
+              `<tr><td>${esc(dateTime(d.created_at))}</td><td>${esc(t(d.kind === 'warning_raised' ? 'settings.delivery.raised' : 'settings.delivery.assigned'))} · <span class="mono">${esc(d.signal_tag)}</span></td><td>${esc(d.recipient)}</td><td>${deliveryState(d)}</td><td class="small">${esc(d.sent_at ? '' : (d.last_error ?? ''))}</td></tr>`,
           )
           .join('')}</tbody></table></div>`
       : emptyState({
@@ -540,11 +541,11 @@ export function bufferSummary(a: Pick<EdgeAgent, 'buffer'>): string {
   if (!b) return '—';
   const tone = b.dropped > 0 ? 'bad' : b.problem ? 'warn' : 'good';
   const waiting = b.oldest_at
-    ? t('settings.buffer.waitingSince', { queued: b.queued, when: new Date(b.oldest_at).toLocaleString('en-GB') })
+    ? t('settings.buffer.waitingSince', { queued: b.queued, when: dateTime(b.oldest_at) })
     : t('settings.buffer.waiting', { queued: b.queued });
   const counts = t('settings.buffer.counts', { sent: b.sent, dropped: b.dropped, rejected: b.rejected });
   const title = `${waiting}. ${counts}.${b.problem ? ` ${b.problem}` : ''}`;
-  return `<span class="badge ${tone}" title="${esc(title)}">${esc(t('settings.buffer.queued', { queued: b.queued.toLocaleString('en-GB') }))}</span>`;
+  return `<span class="badge ${tone}" title="${esc(title)}">${esc(t('settings.buffer.queued', { queued: fmt(b.queued) }))}</span>`;
 }
 
 function agentStatus(a: EdgeAgent): string {
@@ -599,7 +600,7 @@ async function fillAgents(root: HTMLElement, ctx: Context): Promise<void> {
         key: 'seen',
         label: t('settings.agents.col.seen'),
         value: (a) => a.last_seen_at,
-        cell: (a) => (a.last_seen_at ? esc(new Date(a.last_seen_at).toLocaleString('en-GB')) : '—'),
+        cell: (a) => (a.last_seen_at ? esc(dateTime(a.last_seen_at)) : '—'),
       },
       {
         key: 'host',

@@ -21,6 +21,7 @@ import type { Context, View } from './types.ts';
 import { card, field as labelled, input, needsApi, pageHead, select, skeleton, loadFailed, tabs } from '../lib/ui.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
 import { t } from '../lib/i18n.ts';
+import { dateTime, duration as lengthOfTime, fromInput, inputValue } from '../lib/format.ts';
 
 // Data Explorer (T2.10): plot any of the site's signals over a time range. The API downsamples
 // long ranges into buckets (average, minimum and maximum), so a year plots as fast as an hour;
@@ -192,12 +193,7 @@ export function pan(range: Range, direction: -1 | 1): Range {
   return { from: iso(from + shift), to: iso(to + shift) };
 }
 
-function duration(seconds: number): string {
-  if (seconds < 60) return `${+seconds.toPrecision(3)} s`;
-  if (seconds < 3600) return `${+(seconds / 60).toPrecision(3)} min`;
-  if (seconds < 48 * 3600) return `${+(seconds / 3600).toPrecision(3)} h`;
-  return `${+(seconds / 86400).toPrecision(3)} d`;
-}
+const duration = (seconds: number): string => lengthOfTime(seconds * 1000);
 
 export function describe(series: SignalSeries): string {
   const readings = series.points.reduce((n, p) => n + p.n, 0);
@@ -215,7 +211,7 @@ function textReadings(series: SignalSeries): string {
   const texts = series.points.filter((p) => p.text !== null).slice(-20);
   if (!texts.length) return '';
   return `<div class="table-wrap"><table><thead><tr><th>${esc(t('explorer.text.time'))}</th><th>${esc(t('explorer.text.value'))}</th></tr></thead><tbody>${texts
-    .map((p) => `<tr><td>${esc(new Date(p.at).toLocaleString('en-GB'))}</td><td>${esc(p.text ?? '')}</td></tr>`)
+    .map((p) => `<tr><td>${esc(dateTime(p.at, { seconds: true }))}</td><td>${esc(p.text ?? '')}</td></tr>`)
     .join(
       '',
     )}</tbody></table></div><p class="small soft">${esc(t('explorer.text.latest', { count: texts.length }))}</p>`;
@@ -244,11 +240,8 @@ function chartFor(series: SignalSeries, range: Range): string {
     }</p>`;
 }
 
-const localInput = (isoTime: string): string => {
-  const d = new Date(isoTime);
-  const two = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
-};
+// The range's inputs are on the site's clock, like its charts (format.ts, U6.02).
+const localInput = (isoTime: string): string => inputValue(isoTime);
 
 // A new range. `drag`: dragged across a chart to zoom in, so Reset zoom can go back to the range it
 // started from; `move`: panned or zoomed out from there, which keeps that; `new`: another range
@@ -743,8 +736,8 @@ function bindCompare(root: HTMLElement, ctx: Context): void {
         start:
           start === undefined
             ? c.start
-            : start && Number.isFinite(Date.parse(start))
-              ? new Date(start).toISOString()
+            : start && Number.isFinite(fromInput(start))
+              ? new Date(fromInput(start)).toISOString()
               : null,
         a: read('a') ?? c.a,
         b: read('b') ?? c.b,
@@ -879,7 +872,7 @@ const view: View = {
           // The inputs show whole minutes: one left as shown keeps its exact time.
           const read = (name: 'from' | 'to') => {
             const typed = field(form, name);
-            return typed === localInput(range[name]) ? Date.parse(range[name]) : Date.parse(typed);
+            return typed === localInput(range[name]) ? Date.parse(range[name]) : fromInput(typed);
           };
           const from = read('from');
           const to = read('to');

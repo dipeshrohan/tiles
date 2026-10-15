@@ -1,6 +1,7 @@
 // The copilot's usage dashboard (T4.07), pure: totals over the days shown, the share of the
 // prompt read from the cache, and numbers as an admin reads them.
 import type { CopilotUsage } from './api.ts';
+import { number, percent as percentOf, upTo } from './format.ts';
 
 export interface UsageTotals {
   questions: number;
@@ -58,7 +59,7 @@ export function tokens(n: number): string {
 // 850 ms, 2.4 s; a dash for none.
 export function duration(ms: number | null): string {
   if (ms === null) return '–';
-  return ms < 1000 ? `${Math.round(ms)} ms` : `${+(ms / 1000).toFixed(1)} s`;
+  return ms < 1000 ? `${number(Math.round(ms))} ms` : `${upTo(ms / 1000, 1)} s`;
 }
 
-export const percent = (share: number | null): string => (share === null ? '–' : `${Math.round(share * 100)}%`);
+export const percent = (share: number | null): string => (share === null ? '–' : percentOf(share));

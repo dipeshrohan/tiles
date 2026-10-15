@@ -8,6 +8,7 @@ import { icon, type IconName } from './icons.ts';
 import { illustration, type IllustrationName } from './illustrations.ts';
 import { GLOSSARY, type GlossaryKey } from './glossary-data.ts';
 import { t } from './i18n.ts';
+import { time } from './format.ts';
 
 // setBusy lives in dom.ts (onSubmit and onAction use it); it is offered here with the components.
 export { setBusy } from './dom.ts';
@@ -355,8 +356,7 @@ export function apiUnreachable(reason: string | null, o: { signIn?: boolean; siz
 }
 
 // A time of day as pages show it ("09:05"), for "as of" and "updated" lines.
-export const clockTime = (at: number | Date): string =>
-  new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+export const clockTime = (at: number | Date): string => time(at);
 
 // When a failure was first shown: a page drawn again for the same failure (every render) keeps the
 // time it happened, so the copied details point support at the right moment.

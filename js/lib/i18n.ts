@@ -14,6 +14,7 @@
 
 import type english from '../i18n/en.json';
 import { esc } from './dom.ts';
+import { setFormatLocale, upTo } from './format.ts';
 
 export type MessageKey = keyof typeof english;
 export type Params = Readonly<Record<string, string | number>>;
@@ -30,8 +31,10 @@ export function addCatalogue(code: string, messages: Catalogue): void {
   added.set(code, messages);
 }
 
+// The language words are said in; numbers and dates follow it (format.ts, U6.02).
 export function setLocale(code: string): void {
   locale = catalogue(code) ? code : 'en';
+  setFormatLocale(locale);
 }
 export const currentLocale = (): string => locale;
 
@@ -61,13 +64,15 @@ const pluralRule = (code: string): Intl.PluralRules => {
   if (!rule) plurals.set(code, (rule = new Intl.PluralRules(code)));
   return rule;
 };
-// `#` in a plural is its number, written as the language writes numbers (1,430 in English).
+// `#` in a plural is its number, written as numbers are on this page (format.ts, U6.02: 1,430 in
+// English); a message said in another language than the page's, in that language's way.
 const numbers = new Map<string, Intl.NumberFormat>();
 const countText = (code: string, value: unknown): string => {
   if (typeof value !== 'number') return String(value ?? '');
-  let format = numbers.get(code);
-  if (!format) numbers.set(code, (format = new Intl.NumberFormat(code)));
-  return format.format(value);
+  if (code === locale) return upTo(value, 3);
+  let other = numbers.get(code);
+  if (!other) numbers.set(code, (other = new Intl.NumberFormat(code)));
+  return other.format(value);
 };
 
 // The index of the brace closing the one at `open`.

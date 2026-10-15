@@ -8,6 +8,7 @@ import { detectFrictionAlerts, scoreAlerts } from './physics.ts';
 import { healthCheck, findNodes, neighbors, pathTo } from './ontology.ts';
 import type { CutterBatch, Graph, OntologyNode, ShotHistory, WeldData } from './types.ts';
 import { t, type MessageKey } from './i18n.ts';
+import { percent } from './format.ts';
 
 export interface CopilotContext {
   graph: Graph;
@@ -37,7 +38,7 @@ const materialsOf = (graph: Graph, processId: string): string[] =>
     .filter((n) => n.outgoing && n.edge.rel === 'consumes')
     .map((n) => n.node.label);
 
-const pct = (x: number): string => `${x >= 0 ? '+' : '−'}${Math.abs(x * 100).toFixed(1)}%`;
+const pct = (x: number): string => `${x >= 0 ? '+' : '−'}${percent(Math.abs(x), 1)}`;
 
 const SKILLS: Skill[] = [
   {

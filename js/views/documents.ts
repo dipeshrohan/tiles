@@ -1,5 +1,5 @@
 import { ux } from '../lib/analytics.ts';
-import { esc, field, need, onAction, onAll, onNavigate, onSubmit, routeOf, bound, setBusy } from '../lib/dom.ts';
+import { esc, field, fmt, need, onAction, onAll, onNavigate, onSubmit, routeOf, bound, setBusy } from '../lib/dom.ts';
 import type { DocumentMatch, SiteDocument } from '../lib/api.ts';
 import {
   contentTypeOf,
@@ -192,7 +192,7 @@ function barOptions(ctx: Context): BarOptions {
     filters: () => ({ q: ui.query }),
     count: () => {
       const n = (k: number, key: 'documents.count.matches' | 'documents.count.documents') =>
-        t(key, { count: k, n: k.toLocaleString('en-GB') });
+        t(key, { count: k, n: fmt(k) });
       if (ui.query.trim()) {
         const matches = found?.key === searchKey(ctx) ? found.matches : null;
         return matches ? n(matches.length, 'documents.count.matches') : '';

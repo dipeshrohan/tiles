@@ -16,6 +16,7 @@ import { load, save } from './store.ts';
 import { morph } from './morph.ts';
 import { csvField } from './csv.ts';
 import { t, tHtml } from './i18n.ts';
+import { textOrder } from './format.ts';
 
 export const VIRTUAL_AFTER = 200; // rows: beyond, only those in view are drawn (500 drawn at once take over 50 ms)
 const OVERSCAN = 12; // rows drawn above and below the view
@@ -176,7 +177,7 @@ export function visibleColumns<T>(columns: readonly Column<T>[], prefs: TablePre
   return columns.filter((c, i) => i === 0 || c.fixed || !prefs.hidden.includes(c.key));
 }
 
-const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+const collator = (): Intl.Collator => textOrder({ numeric: true, sensitivity: 'base' });
 
 // The rows in the order asked: by the column's value, empty ones last either way; stable.
 export function sortRows<T>(rows: readonly T[], columns: readonly Column<T>[], sort: TablePrefs['sort']): T[] {
@@ -184,6 +185,7 @@ export function sortRows<T>(rows: readonly T[], columns: readonly Column<T>[], s
   if (!sort || !col?.value) return [...rows];
   const value = col.value;
   const dir = sort.dir === 'asc' ? 1 : -1;
+  const text = collator(); // once per sort, not per comparison
   return rows
     .map((row, i) => ({ row, i, v: value(row) }))
     .sort((a, b) => {
@@ -191,7 +193,7 @@ export function sortRows<T>(rows: readonly T[], columns: readonly Column<T>[], s
       const y = b.v;
       if (x === null || x === '') return y === null || y === '' ? a.i - b.i : 1;
       if (y === null || y === '') return -1;
-      const c = typeof x === 'number' && typeof y === 'number' ? x - y : collator.compare(String(x), String(y));
+      const c = typeof x === 'number' && typeof y === 'number' ? x - y : text.compare(String(x), String(y));
       return c * dir || a.i - b.i;
     })
     .map((r) => r.row);

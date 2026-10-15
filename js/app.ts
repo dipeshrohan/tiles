@@ -128,6 +128,7 @@ import { canRun, ROLE_TOURS, tourOf, TOURS } from './lib/tours.ts';
 import { searchItems } from './lib/site-search.ts';
 import { t, type MessageKey } from './lib/i18n.ts';
 import { translateStatic } from './lib/static-text.ts';
+import { setTimeZone } from './lib/format.ts';
 
 const VIEWS: View[] = [
   home,
@@ -289,6 +290,7 @@ async function connectOntology(): Promise<void> {
   if (!api) {
     if (ontologyStatus !== 'local') state.repo = localRepo;
     remote = null;
+    setTimeZone(null); // this browser's own zone (U6.02)
     ontologyStatus = 'local';
     ontologyError = null;
     return;
@@ -304,6 +306,7 @@ async function connectOntology(): Promise<void> {
     if (seq !== connectSeq) return; // a newer connection's sites are the ones to offer
     knownSites = sites; // for switching sites from the command palette
     const site = await pickSite(api, dataSource.siteId, sites);
+    setTimeZone(site.timezone); // its times in its own zone, named, from the start (U6.02)
     const store = remoteStore(api, site);
     const [repo, people] = await Promise.all([store.load(), loadPeople(api, site.id)]);
     if (seq !== connectSeq) return;

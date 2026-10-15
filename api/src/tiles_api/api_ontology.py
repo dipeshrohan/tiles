@@ -113,6 +113,7 @@ class Site(BaseModel):
     slug: str
     name: str
     org: str
+    timezone: str = Field(description="The site's IANA time zone (e.g. Europe/Berlin): its times are shown in it")
 
 
 def _op_dict(op: AddNode | RemoveNode | AddEdge | RemoveEdge | SetProp) -> o.Op:
@@ -214,7 +215,7 @@ def _run(fn: Any, *args: Any) -> Any:
 @router.get("/sites", response_model=list[Site], tags=["sites"])
 def list_sites(conn: DbConn, principal: Auth) -> list[dict[str, Any]]:
     """Sites in your organisation (every site for the dev identity)."""
-    sql = "SELECT s.id, s.slug, s.name, o.slug AS org FROM sites s JOIN orgs o ON o.id = s.org_id"
+    sql = "SELECT s.id, s.slug, s.name, o.slug AS org, s.timezone FROM sites s JOIN orgs o ON o.id = s.org_id"
     if principal.org is None:
         return conn.execute(sql + " ORDER BY o.slug, s.slug").fetchall()
     # First sign-in creates the organisation and the user, even before any site exists.

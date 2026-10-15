@@ -34,6 +34,7 @@ import {
 import { keyAttrs } from '../lib/shortcuts.ts';
 import { bindTable, dataTable, type Column, type TableOptions } from '../lib/data-table.ts';
 import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
+import { dateTime, percent as percentOf } from '../lib/format.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
@@ -88,7 +89,7 @@ export function latest(s: Pick<SignalInfo, 'last_value' | 'last_at' | 'unit'>): 
   const v = s.last_value;
   const value = typeof v === 'number' ? String(+v.toPrecision(6)) : String(v);
   const unit = typeof v === 'number' && s.unit ? ` ${s.unit}` : '';
-  return `${value}${unit} · ${new Date(s.last_at).toLocaleString('en-GB')}`;
+  return `${value}${unit} · ${dateTime(s.last_at)}`;
 }
 
 const QUALITY: Record<QualityReport['badge'] | 'unchecked', [MessageKey, Tone]> = {
@@ -107,11 +108,11 @@ export function qualityBadge(report: QualityReport | null): string {
 }
 
 // Rounded down, as the API does, so a share just below a limit doesn't read as on it.
-const percent = (x: number) => `${(Math.floor(x * 1000) / 10).toFixed(1)}%`;
+const percent = (x: number) => percentOf(Math.floor(x * 1000) / 1000, 1); // never rounded up to 100%
 
 // The report behind a badge: what was checked and what was found.
 export function qualityDetail(report: QualityReport): string {
-  const when = new Date(report.checked_at).toLocaleString('en-GB');
+  const when = dateTime(report.checked_at);
   const facts = [
     t('signals.quality.readings', {
       count: report.readings,
@@ -499,7 +500,7 @@ function barOptions(ctx: Context): BarOptions {
     filters: () => ({ ...ui(ctx).query }),
     count: () =>
       results && !failed && resultsQuery === JSON.stringify(ui(ctx).query)
-        ? t('signals.bar.count', { count: results.total, n: results.total.toLocaleString('en-GB') })
+        ? t('signals.bar.count', { count: results.total, n: fmt(results.total) })
         : '',
     apply: (f) => {
       const u = ui(ctx);

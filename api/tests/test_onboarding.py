@@ -36,8 +36,9 @@ def test_an_organisation_admin_creates_a_site_and_is_its_admin(
         res = api.post("/sites", json=body, headers=ADMIN)
         assert res.status_code == 201, res.text
         made = res.json()
-        assert (made["slug"], made["name"], made["org"]) == (slug, "Plant 2", "demo")
-        assert made["id"] in [s["id"] for s in api.get("/sites", headers=ENG).json()]
+        assert (made["slug"], made["name"], made["org"], made["timezone"]) == (slug, "Plant 2", "demo", "Europe/Berlin")
+        listed = {s["id"]: s for s in api.get("/sites", headers=ENG).json()}
+        assert listed[made["id"]]["timezone"] == "Europe/Berlin"  # its times are shown in it (U6.02)
         with psycopg.connect(database_url) as conn:
             row = conn.execute(
                 "SELECT s.timezone, m.role FROM sites s JOIN site_members m ON m.site_id = s.id"

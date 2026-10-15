@@ -13,9 +13,12 @@ test('shares round down, so nearly all never reads as all', () => {
 test('durations and their spread read as people say them', () => {
   assert.deepEqual(
     [duration(40), duration(600), duration(7790), duration(3 * 86400)],
-    ['40 s', '10 min', '2.2 h', '3.0 d'],
+    ['40 s', '10 min', '2 h 10 min', '3 days'],
   );
-  assert.equal(spread({ count: 3, min: 1, p10: 600, median: 7790, p90: 9000, max: 9001 }), '2.2 h (10 min to 2.5 h)');
+  assert.equal(
+    spread({ count: 3, min: 1, p10: 600, median: 7790, p90: 9000, max: 9001 }),
+    '2 h 10 min (10 min to 2 h 30 min)',
+  );
   assert.equal(spread(null), '–');
 });
 
@@ -45,7 +48,7 @@ test('the headline numbers', () => {
       ['75.0%', '3 of 4 downtime or scrap events', 'good'],
       ['75.0%', '3 of 4; 1 too recent to tell', ''],
       ['66.6%', '2 true, 1 false, 0 unknown, 2 open', ''],
-      ['1.8 h', '1.7 h to 2.1 h (10th to 90th percentile)', ''],
+      ['1 h 49 min', '1 h 43 min to 2 h 6 min (10th to 90th percentile)', ''],
     ],
   );
   const none = kpis({

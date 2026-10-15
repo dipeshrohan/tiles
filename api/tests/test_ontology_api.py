@@ -62,7 +62,9 @@ def url(site: str, path: str) -> str:
 
 
 def test_sites_lists_the_demo_site(api: TestClient, site: str) -> None:
-    assert api.get("/sites").json() == [{"id": site, "slug": "plant-1", "name": "Plant 1", "org": "demo"}]
+    assert api.get("/sites").json() == [
+        {"id": site, "slug": "plant-1", "name": "Plant 1", "org": "demo", "timezone": "UTC"}
+    ]
 
 
 def test_seed_is_idempotent(settings: Settings, site: str) -> None:

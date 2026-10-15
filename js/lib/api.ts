@@ -13,6 +13,7 @@ export interface Site {
   slug: string;
   name: string;
   org: string;
+  timezone?: string; // IANA (Europe/Berlin): its times are shown in it (U6.02)
 }
 
 export interface ApiHealth {

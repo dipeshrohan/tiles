@@ -5,6 +5,7 @@
 import { oneOf } from './url-state.ts';
 import type { WarningActivity, WarningDetail, WarningInfo, WarningOutcome, WarningQuery } from './api.ts';
 import { t } from './i18n.ts';
+import { dateTime, upTo } from './format.ts';
 
 export type Show = 'unresolved' | 'raised' | 'acknowledged' | 'resolved' | 'all';
 export type Who = 'anyone' | 'me' | 'none';
@@ -109,13 +110,7 @@ export function when(iso: string, now: number): string {
   if (ago >= 0 && ago < MINUTE) return t('warnings.ago.justNow');
   if (ago >= 0 && ago < HOUR) return t('warnings.ago.minutes', { n: Math.floor(ago / MINUTE) });
   if (ago >= 0 && ago < 12 * HOUR) return t('warnings.ago.hours', { n: Math.floor(ago / HOUR) });
-  return new Date(at).toLocaleString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return dateTime(at, { zone: false });
 }
 
 // The time the chart shows: the warning, with twice its length (at least an hour) before it for
@@ -130,7 +125,7 @@ export function chartRange(w: Pick<WarningInfo, 'started_at' | 'last_at' | 'ende
 const num = (x: number): string => {
   const abs = Math.abs(x);
   const digits = abs >= 100 ? 0 : abs >= 10 ? 1 : abs >= 1 ? 2 : 3;
-  return x.toLocaleString('en-GB', { maximumFractionDigits: digits });
+  return upTo(x, digits);
 };
 
 // How far out it went: the peak against the threshold, as a multiple of the allowed spread.
@@ -144,7 +139,7 @@ export function howFar(w: Pick<WarningInfo, 'peak' | 'baseline' | 'threshold' | 
     baseline: num(w.baseline),
   };
   return Number.isFinite(times)
-    ? t('warnings.howFarSpread', { ...values, times: times.toLocaleString('en-GB', { maximumFractionDigits: 1 }) })
+    ? t('warnings.howFarSpread', { ...values, times: upTo(times, 1) })
     : t('warnings.howFar', values);
 }
 
