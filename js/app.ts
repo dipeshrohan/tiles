@@ -306,12 +306,12 @@ async function connectOntology(): Promise<void> {
     if (seq !== connectSeq) return; // a newer connection's sites are the ones to offer
     knownSites = sites; // for switching sites from the command palette
     const site = await pickSite(api, dataSource.siteId, sites);
+    setTimeZone(site.timezone); // its times in its own zone, named, from the start (U6.02)
     const store = remoteStore(api, site);
     const [repo, people] = await Promise.all([store.load(), loadPeople(api, site.id)]);
     if (seq !== connectSeq) return;
     remote = store;
     state.repo = repo;
-    setTimeZone(site.timezone); // its times in its own zone, named (U6.02)
     setPeople(people);
     ontologyStatus = 'ready';
     void startUx(api, site.id);

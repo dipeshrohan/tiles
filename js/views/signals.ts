@@ -34,7 +34,7 @@ import {
 import { keyAttrs } from '../lib/shortcuts.ts';
 import { bindTable, dataTable, type Column, type TableOptions } from '../lib/data-table.ts';
 import { t, tHtml, type MessageKey } from '../lib/i18n.ts';
-import { dateTime } from '../lib/format.ts';
+import { dateTime, percent as percentOf } from '../lib/format.ts';
 
 // Signal catalogue (T2.08): every tag the site has readings for, searchable, with what is known
 // about it. Engineers add the unit, sample rate and a description, and link each tag to its
@@ -108,7 +108,7 @@ export function qualityBadge(report: QualityReport | null): string {
 }
 
 // Rounded down, as the API does, so a share just below a limit doesn't read as on it.
-const percent = (x: number) => `${(Math.floor(x * 1000) / 10).toFixed(1)}%`;
+const percent = (x: number) => percentOf(Math.floor(x * 1000) / 1000, 1); // never rounded up to 100%
 
 // The report behind a badge: what was checked and what was found.
 export function qualityDetail(report: QualityReport): string {

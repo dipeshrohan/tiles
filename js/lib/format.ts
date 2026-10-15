@@ -95,15 +95,17 @@ export function duration(ms: number): string {
   if (!Number.isFinite(ms)) return NOT_A_NUMBER;
   const sign = ms < 0 ? '−' : '';
   const a = Math.abs(ms);
-  if (a < MINUTE) return `${sign}${upTo(a / SECOND, a < 10 * SECOND ? 1 : 0)} s`;
-  if (a < HOUR) return `${sign}${number(Math.round(a / MINUTE))} min`;
-  if (a < 2 * DAY) {
-    const minutes = Math.round(a / MINUTE);
-    const [h, m] = [Math.floor(minutes / 60), minutes % 60];
+  // Each unit as it will be rounded, so 59.6 s is "1 min", not "60 s".
+  const seconds = a < 10 * SECOND ? Math.round(a / 100) / 10 : Math.round(a / SECOND);
+  if (seconds < 60) return `${sign}${upTo(seconds, 1)} s`;
+  const minutes = a < 10 * MINUTE ? Math.round(a / (MINUTE / 10)) / 10 : Math.round(a / MINUTE);
+  if (minutes < 60) return `${sign}${upTo(minutes, 1)} min`;
+  const whole = Math.round(a / MINUTE);
+  if (whole < 48 * 60) {
+    const [h, m] = [Math.floor(whole / 60), whole % 60];
     return `${sign}${number(h)} h${m ? ` ${number(m)} min` : ''}`;
   }
-  const days = Math.round(a / DAY);
-  return sign + numbers({ style: 'unit', unit: 'day', unitDisplay: 'long' }).format(days);
+  return sign + numbers({ style: 'unit', unit: 'day', unitDisplay: 'long' }).format(Math.round(a / DAY));
 }
 
 type When = string | number | Date;
@@ -155,37 +157,25 @@ export function dayMonth(w: When): string {
   return valid(d) ? dates({ day: 'numeric', month: 'short' }).format(d) : NOT_A_NUMBER;
 }
 
-const STEPS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ['second', SECOND],
-  ['minute', MINUTE],
-  ['hour', HOUR],
-  ['day', DAY],
-];
-
-// How long ago (or until): "3 minutes ago", "yesterday", "in 2 hours"; past a week, the date.
+// How long ago (or until): "3 minutes ago", "an hour ago", "yesterday", "in 2 hours"; from a week,
+// the date. Each unit takes over where the smaller would round up to it (45 s, 45 min, 22 h).
 export function relative(w: When, now: number = Date.now()): string {
   const d = at(w);
   if (!valid(d)) return NOT_A_NUMBER;
   const ms = d.getTime() - now;
-  if (Math.abs(ms) >= 7 * DAY) return date(d);
-  if (Math.abs(ms) < 45 * SECOND) {
-    return cached('r', { numeric: 'auto' }, () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })).format(
-      0,
-      'second',
-    );
-  }
-  let unit: Intl.RelativeTimeFormatUnit = 'second';
-  let size = SECOND;
-  for (const [u, s] of STEPS) if (Math.abs(ms) >= s) [unit, size] = [u, s];
+  const a = Math.abs(ms);
   const rtf = cached('r', { numeric: 'auto' }, () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }));
-  return rtf.format(Math.round(ms / size), unit);
+  if (a < 45 * SECOND) return rtf.format(0, 'second');
+  if (a < 45 * MINUTE) return rtf.format(Math.round(ms / MINUTE), 'minute');
+  if (a < 22 * HOUR) return rtf.format(Math.round(ms / HOUR), 'hour');
+  const days = Math.round(ms / DAY);
+  return Math.abs(days) >= 7 ? date(d) : rtf.format(days, 'day');
 }
 
 // The hour, minute and second of a time in the site's zone (a chart's ticks fall on midnight).
 export function clockOf(w: When): { hour: number; minute: number; second: number } {
-  const parts = dates({ hour: 'numeric', minute: 'numeric', second: 'numeric', hourCycle: 'h23' }).formatToParts(at(w));
-  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  return { hour: part('hour'), minute: part('minute'), second: part('second') };
+  const { hour, minute, second } = zonedParts(w);
+  return { hour, minute, second };
 }
 
 // A year: 2026 (a chart's axis over years).
@@ -201,4 +191,77 @@ export function textOrder(o: Intl.CollatorOptions = {}): Intl.Collator {
   let c = collators.get(key);
   if (!c) collators.set(key, (c = new Intl.Collator(locale, o)));
   return c;
+}
+
+// The site's wall clock, for working out times (not showing them): read in a fixed locale with
+// Latin digits, whatever the language.
+const wall = (): Intl.DateTimeFormat =>
+  cached(
+    'w',
+    {},
+    () =>
+      new Intl.DateTimeFormat('en-US', {
+        ...(zone ? { timeZone: zone } : {}),
+        hourCycle: 'h23',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+      }),
+  );
+
+// A moment as the site's calendar and clock have it: month from 0, like Date.
+export function zonedParts(w: When): {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+} {
+  const parts = wall().formatToParts(at(w));
+  const part = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return {
+    year: part('year'),
+    month: part('month') - 1,
+    day: part('day'),
+    hour: part('hour') % 24,
+    minute: part('minute'),
+    second: part('second'),
+  };
+}
+
+// How far the site's clock is ahead of UTC at a moment, in minutes (120 for CEST).
+export function zoneOffset(w: When): number {
+  const t = at(w).getTime();
+  const p = zonedParts(t);
+  const asUtc = Date.UTC(p.year, p.month, p.day, p.hour, p.minute, p.second);
+  return Math.round((asUtc - Math.floor(t / 1000) * 1000) / MINUTE);
+}
+
+// The moment the site's clock shows a wall time (month from 0; days and months past their end roll
+// over, like Date.UTC). A time skipped by a clock change comes out an hour later.
+export function zonedTime(year: number, month: number, day = 1, hour = 0, minute = 0): number {
+  const guess = Date.UTC(year, month, day, hour, minute);
+  const first = guess - zoneOffset(guess) * MINUTE;
+  const second = guess - zoneOffset(first) * MINUTE;
+  return second;
+}
+
+const two = (n: number): string => String(n).padStart(2, '0');
+
+// A moment as a datetime-local input's value on the site's clock: 2026-10-15T09:30.
+export function inputValue(w: When): string {
+  const p = zonedParts(w);
+  return `${p.year}-${two(p.month + 1)}-${two(p.day)}T${two(p.hour)}:${two(p.minute)}`;
+}
+
+// A datetime-local input's value, read on the site's clock: the moment, or NaN.
+export function fromInput(value: string): number {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
+  if (!m) return Number.NaN;
+  const [y, mo, d, h, mi] = m.slice(1, 6).map(Number) as [number, number, number, number, number];
+  return zonedTime(y, mo - 1, d, h, mi) + Number(m[6] ?? 0) * SECOND;
 }

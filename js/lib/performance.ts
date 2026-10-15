@@ -4,14 +4,14 @@
 import type { Distribution, Scores } from './api.ts';
 import type { GlossaryKey } from './glossary-data.ts';
 import { t } from './i18n.ts';
-import { duration as lengthOfTime } from './format.ts';
+import { duration as lengthOfTime, percent as percentOf } from './format.ts';
 
 export const PERIODS = [1, 7, 30, 90] as const; // days
 export const HORIZONS = [1, 2, 4, 8, 24] as const; // hours
 
 // A share, rounded down to a tenth of a percent, so one just short of all never reads as 100%.
 export function share(x: number | null): string {
-  return x === null ? '–' : `${(Math.floor(x * 1000) / 10).toFixed(1)}%`;
+  return x === null ? '–' : percentOf(Math.floor(x * 1000) / 1000, 1);
 }
 
 // A length of time as people say it (format.ts, writing.md).

@@ -185,6 +185,7 @@ export function sortRows<T>(rows: readonly T[], columns: readonly Column<T>[], s
   if (!sort || !col?.value) return [...rows];
   const value = col.value;
   const dir = sort.dir === 'asc' ? 1 : -1;
+  const text = collator(); // once per sort, not per comparison
   return rows
     .map((row, i) => ({ row, i, v: value(row) }))
     .sort((a, b) => {
@@ -192,7 +193,7 @@ export function sortRows<T>(rows: readonly T[], columns: readonly Column<T>[], s
       const y = b.v;
       if (x === null || x === '') return y === null || y === '' ? a.i - b.i : 1;
       if (y === null || y === '') return -1;
-      const c = typeof x === 'number' && typeof y === 'number' ? x - y : collator().compare(String(x), String(y));
+      const c = typeof x === 'number' && typeof y === 'number' ? x - y : text.compare(String(x), String(y));
       return c * dir || a.i - b.i;
     })
     .map((r) => r.row);

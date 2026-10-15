@@ -15,15 +15,22 @@ const walk = (dir) =>
     return /\.ts$/.test(f) ? [path] : [];
   });
 
-// toLocaleString('…'), toLocaleDateString('…'), toLocaleTimeString('…'), new Intl.X('…'), Intl.X('…').
-const FIXED = /\.toLocale(?:Date|Time)?String\(\s*['"`]|\bIntl\.\w+\(\s*['"`]/;
-// …and toLocaleString() with no locale at all: the browser's, not the person's chosen one.
-const BROWSER = /\.toLocale(?:Date|Time)?String\(\s*\)/;
+// A locale written in, the browser's (none, or undefined), across line breaks too:
+// toLocale(Date|Time)String('…' | undefined | ), new Intl.X('…' | undefined), localeCompare(x, '…').
+const FIXED = [
+  /\.toLocale(?:Date|Time)?String\(\s*(?:['"`]|undefined\b|\))/g,
+  /\bIntl\.\w+\(\s*(?:['"`]|undefined\b)/g,
+  /\.localeCompare\([^()]*?,\s*['"`]/g,
+  // A percentage put together by hand: `${(x * 100).toFixed(1)}%` (percent() writes it the language's way).
+  /toFixed\(\d*\)\}\s*%/g,
+];
 
 export function findFixed(src) {
-  return src
-    .split('\n')
-    .flatMap((line, i) => (FIXED.test(line) || BROWSER.test(line) ? [{ line: i + 1, text: line.trim() }] : []));
+  const lineOf = (i) => src.slice(0, i).split('\n').length;
+  const hits = FIXED.flatMap((re) => [...src.matchAll(re)].map((m) => m.index));
+  return [...new Set(hits.map(lineOf))]
+    .sort((a, b) => a - b)
+    .map((line) => ({ line, text: src.split('\n')[line - 1].trim() }));
 }
 
 export function check() {

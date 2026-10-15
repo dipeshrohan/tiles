@@ -16,8 +16,11 @@ const isPlace = (graph: Graph, id: string): boolean => {
   return node !== undefined && HIERARCHY.includes(node.type);
 };
 
-const byLabel = (graph: Graph) => (a: string, b: string) =>
-  collator().compare(graph.nodes[a]?.label ?? a, graph.nodes[b]?.label ?? b) || a.localeCompare(b);
+const byLabel = (graph: Graph) => {
+  const text = collator(); // once per sort, not per comparison
+  return (a: string, b: string) =>
+    text.compare(graph.nodes[a]?.label ?? a, graph.nodes[b]?.label ?? b) || a.localeCompare(b);
+};
 
 const nodes = (graph: Graph, ids: readonly string[]): OntologyNode[] =>
   ids.flatMap((id) => (graph.nodes[id] ? [graph.nodes[id]] : [])).sort((a, b) => byLabel(graph)(a.id, b.id));
@@ -111,6 +114,7 @@ export function findPlaces(
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return [];
   const q = words.join(' ');
+  const text = collator(); // once per search, not per comparison
   return Object.values(graph.nodes)
     .filter((n) => HIERARCHY.includes(n.type) && words.every((w) => n.label.toLowerCase().includes(w)))
     .map((n) => {
@@ -123,7 +127,7 @@ export function findPlaces(
       (a, b) =>
         Number(b.starts) - Number(a.starts) ||
         a.path.length - b.path.length ||
-        collator().compare(a.label, b.label) ||
+        text.compare(a.label, b.label) ||
         a.id.localeCompare(b.id),
     )
     .slice(0, limit)

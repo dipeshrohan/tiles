@@ -76,12 +76,21 @@ test('machines out: the ones with a signal still out', () => {
   );
 });
 
-test('the shift under way starts at 06:00, 14:00 or 22:00, and counts what was raised since', () => {
+test('the shift under way starts at 06:00, 14:00 or 22:00, and counts what was raised since', async () => {
   const at = (h, m = 0) => new Date(2026, 9, 14, h, m);
   assert.equal(shiftStart(at(13, 59)).getTime(), at(6).getTime());
   assert.equal(shiftStart(at(14)).getTime(), at(14).getTime());
   assert.equal(shiftStart(at(23, 5)).getTime(), at(22).getTime());
   assert.equal(shiftStart(at(3)).getTime(), new Date(2026, 9, 13, 22).getTime());
+  // On the site's clock, wherever the browser is (U6.02): 05:30 UTC is 07:30 in Berlin, in its 06:00 shift.
+  const { setTimeZone } = await import('../js/lib/format.ts');
+  setTimeZone('Europe/Berlin');
+  try {
+    assert.equal(shiftStart(new Date('2026-10-14T05:30:00Z')).toISOString(), '2026-10-14T04:00:00.000Z');
+    assert.equal(shiftStart(new Date('2026-10-14T02:00:00Z')).toISOString(), '2026-10-13T20:00:00.000Z');
+  } finally {
+    setTimeZone(null);
+  }
   const start = at(6);
   const s = shiftSummary(
     [

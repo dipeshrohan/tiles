@@ -6,7 +6,7 @@ import type { AppConfig, AppParam, AppResult, AppTemplate } from './api.ts';
 import type { TimeChartOptions, TimePoint } from './svg.ts';
 import type { FieldError } from './forms.ts';
 import { t } from './i18n.ts';
-import { upTo } from './format.ts';
+import { percent, upTo } from './format.ts';
 
 export const appLink = (n: number): string => `#/apps/${n}`;
 
@@ -138,7 +138,7 @@ export function statusBadge(status: AppResult['status']): string {
 }
 
 export function factText(f: AppResult['facts'][number]): string {
-  if (f.format === 'percent') return `${(f.value * 100).toFixed(1)}%`;
+  if (f.format === 'percent') return percent(f.value, 1);
   const abs = Math.abs(f.value);
   return abs !== 0 && abs < 1 ? f.value.toPrecision(3) : upTo(f.value, 1);
 }

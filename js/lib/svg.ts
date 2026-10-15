@@ -4,7 +4,19 @@ import type { SignalSeries } from './api.ts';
 import { esc, fmt } from './dom.ts';
 import { hiddenParts, registerChart, type ChartData } from './chart-data.ts';
 import { t } from './i18n.ts';
-import { clockOf, dateTime, dayMonth, month, significant, time, upTo, year } from './format.ts';
+import {
+  clockOf,
+  dateTime,
+  dayMonth,
+  month,
+  significant,
+  time,
+  upTo,
+  year,
+  zonedParts,
+  zonedTime,
+  zoneOffset,
+} from './format.ts';
 
 export interface Series {
   values: (number | null)[];
@@ -470,27 +482,28 @@ const STEPS = [
   365 * DAY,
 ];
 
-// About `n` tick times between from and to, on round local times (whole minutes, hours, days).
+// About `n` tick times between from and to, on round times of the site's clock (whole minutes,
+// hours, days; format.ts's zone, U6.02).
 export function timeTicks(from: number, to: number, n = 6): { step: number; ticks: number[] } {
   const step = STEPS.find((s) => (to - from) / s <= n) ?? STEPS[STEPS.length - 1]!;
   const ticks: number[] = [];
   if (step >= 30 * DAY) {
     // Months, quarters, half-years and years start on the 1st of a calendar month.
     const months = Math.round(step / (30.4 * DAY));
-    const d = new Date(from);
-    const first = new Date(d.getFullYear(), d.getMonth() - (d.getMonth() % months), 1);
+    const d = zonedParts(from);
+    const firstMonth = d.month - (d.month % months);
     for (let i = 0; ; i += months) {
-      const t = new Date(first.getFullYear(), first.getMonth() + i, 1).getTime();
+      const t = zonedTime(d.year, firstMonth + i, 1);
       if (t > to) break;
       if (t >= from) ticks.push(t);
     }
     return { step, ticks };
   }
-  // Align to local time, so hour and day ticks fall on the hour and at midnight, also after a
+  // Align to the site's clock, so hour and day ticks fall on the hour and at midnight, also after a
   // daylight-saving change within the range (each tick moves by the change in offset since `from`).
-  const offset = new Date(from).getTimezoneOffset() * MINUTE;
+  const offset = -zoneOffset(from) * MINUTE;
   for (let t = Math.ceil((from - offset) / step) * step + offset; t <= to; t += step) {
-    const shifted = step >= HOUR ? t + new Date(t).getTimezoneOffset() * MINUTE - offset : t;
+    const shifted = step >= HOUR ? t - zoneOffset(t) * MINUTE - offset : t;
     if (shifted >= from && shifted <= to) ticks.push(shifted);
   }
   return { step, ticks };
@@ -646,8 +659,8 @@ export function timeChart({
   return chartBox(id, title, svg, legend);
 }
 
-// A reading's time as read out: to the second for short ranges, the minute otherwise; in the site's
-// zone (the chart's summary names it).
+// A reading's time as read out: to the second for short ranges, the minute otherwise; on the site's
+// clock, its zone named (format.ts, U6.02).
 function readTime(t: number, span: number): string {
-  return dateTime(t, { seconds: span < 6 * HOUR, zone: false });
+  return dateTime(t, { seconds: span < 6 * HOUR });
 }

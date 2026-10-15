@@ -6,6 +6,7 @@
 import type { EdgeAgent, InsightSummary, ReviewSummary, SignalInfo, WarningInfo } from './api.ts';
 import type { MachineTile } from './shopfloor.ts';
 import { t, type MessageKey } from './i18n.ts';
+import { zonedParts, zonedTime } from './format.ts';
 
 export type CardId =
   'my-warnings' | 'machines-out' | 'shift' | 'reviews' | 'insights' | 'freshness' | 'agents' | 'quality';
@@ -119,19 +120,12 @@ export function myWarnings(warnings: readonly WarningInfo[], userId: string | nu
 
 export const machinesOut = (tiles: readonly MachineTile[]): MachineTile[] => tiles.filter((t) => t.state === 'out');
 
-// Shifts start at 06:00, 14:00 and 22:00 (this browser's time): the start of the one under way.
+// Shifts start at 06:00, 14:00 and 22:00 on the site's clock (format.ts, U6.02): the start of the
+// one under way.
 export function shiftStart(now: Date): Date {
-  const start = new Date(now);
-  start.setMinutes(0, 0, 0);
-  const h = now.getHours();
-  if (h >= 22) start.setHours(22);
-  else if (h >= 14) start.setHours(14);
-  else if (h >= 6) start.setHours(6);
-  else {
-    start.setDate(start.getDate() - 1);
-    start.setHours(22);
-  }
-  return start;
+  const p = zonedParts(now);
+  const hour = p.hour >= 22 ? 22 : p.hour >= 14 ? 14 : p.hour >= 6 ? 6 : -2; // -2: 22:00 the day before
+  return new Date(zonedTime(p.year, p.month, p.day, hour));
 }
 
 export interface ShiftSummary {

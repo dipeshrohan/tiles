@@ -84,6 +84,10 @@ test('durations in the largest unit that keeps them readable (writing.md)', () =
   assert.equal(duration(3 * 3_600_000), '3 h');
   assert.equal(duration(3 * 86_400_000), '3 days');
   assert.equal(duration(-45_000), '−45 s');
+  // Rounded as shown: no "60 s" or "60 min"; a bucket of 90 s is 1.5 min.
+  assert.equal(duration(59_600), '1 min');
+  assert.equal(duration(59.7 * 60_000), '1 h');
+  assert.equal(duration(90_000), '1.5 min');
   setFormatLocale('de');
   assert.equal(duration(2_500), '2,5 s');
   assert.equal(duration(3 * 86_400_000), '3 Tage');
@@ -96,6 +100,10 @@ test('relative time says how long ago, in the language; past a week, the date', 
   assert.equal(relative(now - 2 * 3_600_000, now), '2 hours ago');
   assert.equal(relative(now - 86_400_000, now), 'yesterday');
   assert.equal(relative(now + 2 * 3_600_000, now), 'in 2 hours');
+  // A unit takes over where the smaller would round up to it.
+  assert.equal(relative(now - (59 * 60_000 + 40_000), now), '1 hour ago');
+  assert.equal(relative(now - (23 * 3_600_000 + 40 * 60_000), now), 'yesterday');
+  assert.equal(relative(now - 6.6 * 86_400_000, now), date(now - 6.6 * 86_400_000));
   assert.equal(relative(now - 10 * 86_400_000, now), date(now - 10 * 86_400_000));
   setFormatLocale('de');
   assert.equal(relative(now - 3 * 60_000, now), 'vor 3 Minuten');
@@ -119,5 +127,51 @@ test('no number or date is written with a fixed locale outside format.ts', () =>
     [1, 2, 3],
   );
   assert.deepEqual(findFixed('new Intl.DateTimeFormat(PARSE_LOCALE, {});'), []);
+  // Wrapped by Prettier, the browser's own, or a sort in a fixed language.
+  assert.deepEqual(
+    findFixed("x.toLocaleString(\n  'en-GB',\n  { maximumFractionDigits: 1 },\n);").map((h) => h.line),
+    [1],
+  );
+  assert.deepEqual(findFixed('x.toLocaleString(undefined, { style: "percent" });').length, 1);
+  assert.deepEqual(findFixed("a.localeCompare(b, 'en');").length, 1);
+  assert.deepEqual(findFixed('a.localeCompare(b);'), []);
+  assert.deepEqual(findFixed('const p = `${(x * 100).toFixed(1)}%`;').length, 1);
   assert.deepEqual(check(), []);
+});
+
+test('chart ticks fall on the site’s midnights, hours and month starts, labelled in its zone', async () => {
+  const { timeTicks, tickLabel } = await import('../js/lib/svg.ts');
+  const { zonedParts, zonedTime, zoneOffset } = await import('../js/lib/format.ts');
+  setTimeZone('Europe/Berlin');
+  assert.equal(zoneOffset('2026-10-15T00:00:00Z'), 120);
+  assert.equal(zoneOffset('2026-12-15T00:00:00Z'), 60);
+  assert.equal(new Date(zonedTime(2026, 9, 15)).toISOString(), '2026-10-14T22:00:00.000Z');
+  // Two days in 6-hour steps: one tick at each Berlin midnight, labelled with the date.
+  const from = Date.parse('2026-10-14T00:00:00Z');
+  const { step, ticks } = timeTicks(from, from + 2 * 86_400_000);
+  const midnights = ticks.filter((t) => zonedParts(t).hour === 0);
+  assert.ok(midnights.length >= 1);
+  assert.ok(ticks.every((t) => zonedParts(t).minute === 0 && zonedParts(t).hour % 6 === 0));
+  assert.equal(tickLabel(midnights[0], step), '15 Oct');
+  // Across the clock change (25 Oct), hours stay on the hour.
+  const change = Date.parse('2026-10-24T12:00:00Z');
+  assert.ok(timeTicks(change, change + 86_400_000).ticks.every((t) => zonedParts(t).minute === 0));
+  // A year in months, for Chicago: each on the 1st at midnight there.
+  setTimeZone('America/Chicago');
+  const months = timeTicks(Date.parse('2026-01-15T00:00:00Z'), Date.parse('2026-12-20T00:00:00Z'));
+  assert.ok(months.ticks.length >= 3); // quarters
+  for (const t of months.ticks) assert.deepEqual([zonedParts(t).day, zonedParts(t).hour], [1, 0]);
+  // A zone half an hour off UTC: hour ticks still on its hour.
+  setTimeZone('Asia/Kolkata');
+  const hours = timeTicks(from, from + 6 * 3_600_000);
+  assert.ok(hours.ticks.every((t) => zonedParts(t).minute === 0));
+});
+
+test('date and time inputs are on the site’s clock', async () => {
+  const { fromInput, inputValue } = await import('../js/lib/format.ts');
+  setTimeZone('Europe/Berlin');
+  assert.equal(inputValue('2026-10-15T07:30:59Z'), '2026-10-15T09:30');
+  assert.equal(new Date(fromInput('2026-10-15T09:30')).toISOString(), '2026-10-15T07:30:00.000Z');
+  assert.equal(new Date(fromInput('2026-12-15T09:30')).toISOString(), '2026-12-15T08:30:00.000Z');
+  assert.ok(Number.isNaN(fromInput('yesterday')));
 });

@@ -128,17 +128,16 @@ test('month and year ticks start on the 1st, and their labels say the year', () 
   assert.equal(tickLabel(new Date(2025, 0, 1).getTime(), 365 * 24 * H), '2025');
 });
 
-test('hour and day ticks stay on round local times across a daylight-saving change', () => {
-  const tz = process.env.TZ;
-  process.env.TZ = 'Europe/Berlin'; // clocks go back on 25 Oct 2026
+test('hour and day ticks stay on the site’s round times across a daylight-saving change', async () => {
+  const { setTimeZone, zonedParts } = await import('../js/lib/format.ts');
+  setTimeZone('Europe/Berlin'); // clocks go back on 25 Oct 2026
   try {
     const from = Date.parse('2026-10-22T00:00:00+02:00');
     const { ticks } = timeTicks(from, Date.parse('2026-10-28T00:00:00+01:00'));
     assert.ok(ticks.length >= 3);
-    for (const t of ticks) assert.equal(new Date(t).getHours(), 0, new Date(t).toString());
+    for (const t of ticks) assert.equal(zonedParts(t).hour, 0, new Date(t).toISOString());
   } finally {
-    if (tz === undefined) delete process.env.TZ;
-    else process.env.TZ = tz;
+    setTimeZone(null);
   }
 });
 

@@ -151,8 +151,8 @@ export function machineBoard(graph: Graph, items: readonly FloorItem[]): Machine
     return { id: m.id, label: m.label, path: pathOf(graph, m.id), state, warnings: mine.length };
   });
   const where = (t: MachineTile) => [...t.path, t.label].join('\u0000');
-  const collator = (): Intl.Collator => textOrder({ numeric: true });
-  return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || collator().compare(where(a), where(b)));
+  const text = textOrder({ numeric: true });
+  return tiles.sort((a, b) => RANK[a.state] - RANK[b.state] || text.compare(where(a), where(b)));
 }
 
 // The page's headline: what needs someone now.
