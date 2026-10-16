@@ -1,6 +1,6 @@
-# Tiles: the next 6 months (draft)
+# Tiles: the next 6 months
 
-**Window:** May – Oct 2027, after v1.0 · **Status:** draft for review; its tasks become GitHub issues once it is agreed · **Before it:** [ROADMAP.md](ROADMAP.md)
+**Window:** May – Oct 2027, after v1.0 · **Status:** agreed in review; its tasks become GitHub issues · **Before it:** [ROADMAP.md](ROADMAP.md)
 
 ## Goal
 
@@ -146,8 +146,13 @@ What v1.0 leaves in place, and what this plan builds on:
 | Recommendations aren't trusted | Start with suggestions shown beside the warning, not pushed; record outcomes from the first one |
 | Attribution: is the extra return Tiles' or the plant's own work? | Per-machine ROI with the same baseline, and machines without new models as a comparison |
 
-## Questions for review
+## Decisions and open questions
 
-1. Is three times v1.0's avoided cost the right target, or should it be an absolute figure?
-2. Which CMMS does the partner run, and will their IT allow an API connection?
-3. Should recommendations (month 11) wait until months 7–10 are proven, and move to the next plan?
+Decided in review (October 2026):
+
+- **The target is relative:** three times v1.0's avoided cost, made the same way, against the same baseline.
+- **Recommendations stay in month 11,** after months 7–10, with their guard rails.
+
+Open, for the partner:
+
+- Which CMMS do they run, and will their IT allow an API connection for work orders (T9.02)? Until then, T9.02 starts with CSV export.
