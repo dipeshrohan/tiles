@@ -4890,8 +4890,8 @@ test('a line shows what is watched on each machine and what is missing (T7.01)',
   assert.equal(fake.coverageQueries().length, 3);
   // A machine's own page has no coverage card; its link opens it.
   await a.page.click('[data-coverage] a[data-place="m2"]');
-  await a.page.waitForFunction(() => location.hash === '#/plant/m2');
-  assert.equal(await a.page.locator('[data-coverage]').count(), 0);
+  await a.page.waitForSelector('.page-head h1:has-text("Press 2")');
+  await a.page.waitForSelector('[data-coverage]', { state: 'detached' }); // the line's card goes with it
   assert.deepEqual(a.errors, []);
 });
 
