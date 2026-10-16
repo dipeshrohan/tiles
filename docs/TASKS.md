@@ -365,7 +365,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
 
 ### Month 7: The whole line (May 2027)
 
-- [ ] `T7.01` [#333](https://github.com/dipeshrohan/tiles/issues/333) **Line coverage map** · FE+BE · 3d
+- [x] `T7.01` [#333](https://github.com/dipeshrohan/tiles/issues/333) **Line coverage map** · FE+BE · 3d
   *Done when:* the map lists every machine on the line with what it has and what it lacks.
 - [ ] `T7.02` [#334](https://github.com/dipeshrohan/tiles/issues/334) **Detector templates by machine type** · BE+ML · 4d · T7.01
   *Done when:* a template is applied to every die-casting cell on the line, each detector with its own backtest report.
