@@ -28,6 +28,8 @@ The type ISA-95 calls Area is named `Workcenter` in Tiles. Existing ontologies, 
 
 A `Machine` is the ISA-95 work unit. Smaller equipment modules (a spindle, a pump inside a machine) are not separate types yet. Model them as properties of the machine, or as `Machine` nodes contained by it, until a customer needs more.
 
+Two properties tie machines and signals to the detectors Tiles sets up (T7.02): a `Machine`'s `kind` (for example `die-caster`) says which detector templates apply to it, and a `Signal`'s `measure` (for example `friction`) says which of its signals a template watches. A machine's `asset` property is the name the MES knows it by (T7.01).
+
 ## Everything else
 
 These types sit beside the hierarchy rather than in it:

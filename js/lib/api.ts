@@ -619,6 +619,65 @@ export interface Coverage {
   totals: { machines: number; covered: number; with_signals: number; with_detectors: number; with_events: number };
 }
 
+// Detector templates (T7.02): a machine type's detector, applied to every machine of the kind.
+export interface TemplateGrid {
+  window: number[];
+  k: number[];
+  persist: number[];
+  direction: ('above' | 'below' | 'both')[];
+  cooldown: number[];
+  flat_spread: number[];
+}
+export interface DetectorTemplateIn {
+  name: string;
+  machine_kind: string;
+  measure: string;
+  grid: Partial<TemplateGrid>;
+  horizon_seconds: number;
+  codes: string[];
+}
+export interface DetectorTemplate extends DetectorTemplateIn {
+  id: string;
+  grid: TemplateGrid;
+  lateness_seconds: number;
+  created_by: string | null;
+  created_at: string;
+}
+export type AppliedResult = 'created' | 'exists' | 'no_signal' | 'no_tag' | 'no_history';
+export interface AppliedMachine {
+  machine: string;
+  label: string;
+  asset: string;
+  result: AppliedResult;
+  signal_tag: string | null;
+  detector_id: string | null;
+  detector: string | null;
+  config: Record<string, unknown> | null;
+  readings: number | null;
+  events: number | null;
+  recall: number | null;
+  precision: number | null;
+  false_per_day: number | null;
+}
+export interface TemplateApplied {
+  template: string;
+  place: string | null;
+  machines: AppliedMachine[];
+}
+export interface DetectorBacktest {
+  detector_id: string;
+  template: string | null;
+  config: Record<string, unknown>;
+  readings: number;
+  events: number;
+  recall: number | null;
+  precision: number | null;
+  false_per_day: number | null;
+  report: string;
+  created_by: string | null;
+  created_at: string;
+}
+
 // Batch tables and the correlation finder (T3.11).
 export interface DatasetColumn {
   name: string;
@@ -1494,6 +1553,23 @@ export function createApiClient(options: ApiOptions) {
     setPlannedCodes: (siteId: string, codes: string[]) =>
       request<PlannedStops>('PUT', `/sites/${encodeURIComponent(siteId)}/planned-codes`, { codes }),
     // What is watched on each machine at or under a place, and what is missing (T7.01).
+    detectorTemplates: (siteId: string) =>
+      request<DetectorTemplate[]>('GET', `/sites/${encodeURIComponent(siteId)}/detector-templates`),
+    addDetectorTemplate: (siteId: string, body: DetectorTemplateIn) =>
+      request<DetectorTemplate>('POST', `/sites/${encodeURIComponent(siteId)}/detector-templates`, body),
+    removeDetectorTemplate: (siteId: string, id: string) =>
+      request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/detector-templates/${encodeURIComponent(id)}`),
+    applyDetectorTemplate: (siteId: string, id: string, place: string | null) =>
+      request<TemplateApplied>(
+        'POST',
+        `/sites/${encodeURIComponent(siteId)}/detector-templates/${encodeURIComponent(id)}/apply`,
+        { place },
+      ),
+    detectorBacktest: (siteId: string, detectorId: string) =>
+      request<DetectorBacktest>(
+        'GET',
+        `/sites/${encodeURIComponent(siteId)}/detectors/${encodeURIComponent(detectorId)}/backtest`,
+      ),
     coverage: (siteId: string, place: string) =>
       request<Coverage>('GET', `/sites/${encodeURIComponent(siteId)}/coverage?place=${encodeURIComponent(place)}`),
     // The pilot period against the baseline (T6.01): stops, scrap and warnings, what was avoided, a digest.

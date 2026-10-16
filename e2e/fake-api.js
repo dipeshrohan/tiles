@@ -349,6 +349,10 @@ export function createFakeApi({
   // The ROI report (T6.01): the report a test sets, and the requests the page sent.
   let roiReport = null;
   const roiRequests = [];
+  // Detector templates (T7.02): those made, what applying one answers (a test sets it), the places asked.
+  const detectorTemplates = [];
+  let templateApply = null;
+  const templateApplies = [];
   // Planned stops (T7.03): stops entered and the MES's planned codes.
   const plannedStops = [];
   let plannedCodes = [];
@@ -657,6 +661,8 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/roi` &&
         url.pathname !== `/sites/${site.id}/coverage` &&
         !url.pathname.startsWith(`/sites/${site.id}/planned-`) &&
+        !url.pathname.startsWith(`/sites/${site.id}/detector-templates`) &&
+        !/^\/sites\/[^/]+\/detectors\/[^/]+\/backtest$/.test(url.pathname) &&
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
         !url.pathname.startsWith(`/sites/${site.id}/apps`) &&
@@ -1613,6 +1619,72 @@ export function createFakeApi({
         const none = { machines: 0, covered: 0, with_signals: 0, with_detectors: 0, with_events: 0 };
         return send(200, coverageReport ?? { place: url.searchParams.get('place'), machines: [], totals: none });
       }
+      if (url.pathname === `/sites/${site.id}/detector-templates` && req.method === 'GET') {
+        return send(200, detectorTemplates);
+      }
+      if (url.pathname.startsWith(`/sites/${site.id}/detector-templates`)) {
+        if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+        if (req.method === 'POST' && url.pathname === `/sites/${site.id}/detector-templates`) {
+          const b = await body(req);
+          if (detectorTemplates.some((x) => x.name === b.name))
+            return send(409, {
+              detail: `A template is already called ${b.name}`,
+              code: 'template.name_taken',
+              params: { name: b.name },
+            });
+          const grid = {
+            window: [200],
+            k: [3, 4, 5],
+            persist: [3],
+            direction: ['above'],
+            cooldown: [0],
+            flat_spread: [1],
+            ...b.grid,
+          };
+          const tpl = {
+            id: `tpl-${detectorTemplates.length + 1}`,
+            codes: [],
+            lateness_seconds: 300,
+            ...b,
+            grid,
+            created_by: user,
+            created_at: new Date().toISOString(),
+          };
+          detectorTemplates.push(tpl);
+          detectorTemplates.sort((a, c) => a.name.localeCompare(c.name, 'en'));
+          return send(201, tpl);
+        }
+        const tpl = detectorTemplates.find((x) =>
+          url.pathname.startsWith(`/sites/${site.id}/detector-templates/${x.id}`),
+        );
+        if (!tpl) return send(404, { detail: 'No such detector template', code: 'template.not_found', params: {} });
+        if (req.method === 'DELETE') {
+          detectorTemplates.splice(detectorTemplates.indexOf(tpl), 1);
+          res.writeHead(204);
+          return res.end();
+        }
+        templateApplies.push({ template: tpl.id, ...(await body(req)) });
+        return send(200, templateApply ?? { template: tpl.name, place: null, machines: [] });
+      }
+      const backtestOf = /^\/sites\/[^/]+\/detectors\/([^/]+)\/backtest$/.exec(url.pathname);
+      if (backtestOf) {
+        const m = templateApply?.machines.find((x) => x.detector_id === backtestOf[1]);
+        if (!m)
+          return send(404, { detail: 'This detector has no backtest kept', code: 'template.no_backtest', params: {} });
+        return send(200, {
+          detector_id: m.detector_id,
+          template: templateApply.template,
+          config: m.config,
+          readings: m.readings,
+          events: m.events,
+          recall: m.recall,
+          precision: m.precision,
+          false_per_day: m.false_per_day,
+          report: `# Backtest: ${m.signal_tag}\n`,
+          created_by: user,
+          created_at: new Date().toISOString(),
+        });
+      }
       if (url.pathname === `/sites/${site.id}/planned-stops` && req.method === 'GET') {
         return send(200, { stops: plannedStops, more: false, codes: plannedCodes });
       }
@@ -2481,6 +2553,12 @@ export function createFakeApi({
       roiReport = report;
     },
     roiRequests: () => [...roiRequests],
+    // Lets a test set what applying a detector template answers (T7.02), and read the templates and applies.
+    setTemplateApply(out) {
+      templateApply = out;
+    },
+    detectorTemplates: () => [...detectorTemplates],
+    templateApplies: () => [...templateApplies],
     // The planned stops and codes the page left (T7.03).
     planned: () => ({ stops: [...plannedStops], codes: [...plannedCodes] }),
     // Lets a test add a message to the site's outbox listing, as tiles-notify would leave it.

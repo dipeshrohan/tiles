@@ -29,6 +29,7 @@ import {
   table,
 } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
+import { bindTemplates, templatesCard } from './detector-templates.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
 import { t, tHtml } from '../lib/i18n.ts';
 
@@ -293,7 +294,7 @@ function placePage(ctx: Context, graph: Graph, id: string, items: FloorItem[] | 
           action: linkButton(t('plant.openOntology'), '#/ontology', { size: 'sm', icon: 'network' }),
         }),
       );
-  return `${cards}${warningsCard(warnings, now)}${ctx.api && inside.length ? coverageCard(ctx, id) : ''}`;
+  return `${cards}${warningsCard(warnings, now)}${ctx.api && inside.length ? coverageCard(ctx, id) + templatesCard(ctx, id) : ''}`;
 }
 
 function searchResults(graph: Graph, query: string): string {
@@ -422,6 +423,7 @@ const view: View = {
     // The coverage of a place (not a machine), asked once per place.
     const place = root.querySelector<HTMLElement>('[data-coverage]') ? shownPlace(ctx) : null;
     if (place && coverage?.key !== coverageKey(ctx, place)) void loadCoverage(ctx, place);
+    if (place) bindTemplates(root, ctx, place, () => void loadCoverage(ctx, place, true));
     onAll(root, '[data-plant-refresh]', 'click', () => {
       refreshFloor(ctx);
       if (place) void loadCoverage(ctx, place, true);
