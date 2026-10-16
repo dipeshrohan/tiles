@@ -4844,10 +4844,14 @@ test('planned stops: engineers enter them and the MES codes, viewers only read t
   await a.page.waitForSelector('#planned-form [name=to][aria-invalid=true]');
   assert.equal(fake.planned().stops.length, 0);
 
+  // A report made before the stop is entered goes: it counted that stop.
+  await a.page.click('#roi-form button[type=submit]');
+  await a.page.waitForSelector('[data-roi-result]');
   await a.page.fill('#planned-form [name=to]', '2026-06-02T10:00');
   await a.page.fill('#planned-form [name=reason]', 'Die change');
   await a.page.click('#planned-form button[type=submit]');
   await a.page.waitForSelector('[data-planned-remove]');
+  await a.page.waitForSelector('[data-roi-result]', { state: 'detached' });
   const [stop] = fake.planned().stops;
   assert.deepEqual([stop.asset, stop.reason], ['DC-01', 'Die change']);
   assert.equal(Date.parse(stop.ends_at) - Date.parse(stop.starts_at), 2 * 3_600_000);

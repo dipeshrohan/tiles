@@ -107,10 +107,18 @@ def report(
     # From a horizon before the period: such a warning may warn of an event in it (it isn't counted).
     warnings = conn.execute(
         """
-        SELECT detector_id, started_at, last_at, peak, baseline, threshold, side, readings, outcome
-        FROM warnings WHERE site_id = %s AND started_at >= %s AND started_at <= %s ORDER BY started_at
+        SELECT w.detector_id, w.started_at, w.last_at, w.peak, w.baseline, w.threshold, w.side, w.readings,
+               w.outcome
+        FROM warnings w JOIN detectors d ON d.id = w.detector_id
+        WHERE w.site_id = %(site)s AND w.started_at >= %(from)s AND w.started_at <= %(end)s
+          -- One that starts within a planned stop for its asset is the planned work (T7.03), not counted.
+          AND NOT EXISTS (
+              SELECT 1 FROM planned_stops p
+              WHERE p.site_id = w.site_id AND (p.asset IS NULL OR p.asset = d.asset)
+                AND w.started_at >= p.starts_at AND w.started_at < p.ends_at)
+        ORDER BY w.started_at
         """,
-        [site_id, start - horizon, end],
+        {"site": site_id, "from": start - horizon, "end": end},
     ).fetchall()
     by_detector: dict[uuid.UUID, list[dict[str, Any]]] = {d["id"]: [] for d in detectors}
     for w in warnings:

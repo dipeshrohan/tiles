@@ -1671,6 +1671,7 @@
   "performance.planned.removed": "Planned stop removed",
   "performance.planned.add": "Add planned stop",
   "performance.planned.added": "Planned stop added",
+  "performance.planned.more": "Only the latest 500 planned stops are listed; older ones still apply.",
   "performance.planned.noStops": "No planned stops entered.",
   "performance.planned.order": "Choose an end after the start.",
   "physics.events.at": "At",

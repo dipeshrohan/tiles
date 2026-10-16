@@ -1,11 +1,11 @@
 """Planned stops (T7.03): planned downtime that Warning performance and the ROI report leave out."""
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from fastapi.testclient import TestClient
 from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
-from test_performance import HORIZON_H, plant, report
+from test_performance import HORIZON_H, plant, report, send
 
 
 def stops(api: TestClient, site: str, **query: str) -> Any:  # noqa: F811
@@ -94,3 +94,69 @@ def test_planned_downtime_is_left_out_of_warning_performance(api: TestClient, si
     assert roi["periods"]["pilot"]["counts"]["downtime"] == 2  # DC-01's two seizures; lubrication and DC-02's planned
     # Setting the codes again with none clears them.
     assert api.put(f"/sites/{site}/planned-codes", json={"codes": []}, headers=ENG).json()["codes"] == []
+
+
+def test_a_stop_is_planned_from_its_start_up_to_its_end(api: TestClient, site: str) -> None:  # noqa: F811
+    p = plant(api, site)
+    at = p["at"][1000]  # DC-02's one stop
+    ending = add(api, site, asset="DC-02", starts_at=(at - timedelta(hours=1)).isoformat(), ends_at=at.isoformat())
+    assert report(api, site)["unwatched"] == [{"asset": "DC-02", "events": 1}]  # it ended as the stop began
+    api.delete(f"/sites/{site}/planned-stops/{ending['id']}", headers=ENG)
+    add(api, site, asset="DC-02", starts_at=at.isoformat(), ends_at=(at + timedelta(hours=1)).isoformat())
+    assert report(api, site)["unwatched"] == []  # it started as the stop began
+
+
+def test_a_whole_site_stop_leaves_out_its_stops_and_the_warnings_raised_in_it(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+) -> None:
+    p = plant(api, site)
+    before = report(api, site)["totals"]
+    assert (before["events"], before["warnings"]) == (4, 3)
+    # The planned work moves the signals: a warning that starts in it is that work, not a false one.
+    first = min(w["started_at"] for w in api.get(f"/sites/{site}/warnings", headers=VIEWER).json())
+    started = datetime.fromisoformat(first)
+    add(api, site, starts_at=started.isoformat(), ends_at=(started + timedelta(minutes=1)).isoformat())
+    after = report(api, site)["totals"]
+    assert after["warnings"] == 2
+    # A stop over DC-02's stop, for no asset in particular: the whole site.
+    at = p["at"][1000]
+    add(api, site, starts_at=(at - timedelta(minutes=1)).isoformat(), ends_at=(at + timedelta(minutes=1)).isoformat())
+    assert report(api, site)["unwatched"] == []
+
+
+def test_the_roi_report_leaves_planned_downtime_out_of_the_baseline_and_names_it(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+) -> None:
+    p = plant(api, site)
+    early = p["at"][0] - timedelta(days=5)
+    send(api, site, [{"signal": "mes.dc2.downtime", "at": early.isoformat(), "value": "DT-TOOL"}])
+    body = {
+        "baseline_start": (p["at"][0] - timedelta(days=10)).isoformat(),
+        "baseline_end": (p["at"][0] - timedelta(days=1)).isoformat(),
+        "pilot_start": p["at"][0].isoformat(),
+        "pilot_end": (p["at"][-1] + timedelta(minutes=5)).isoformat(),
+        "horizon_hours": HORIZON_H,
+    }
+
+    def roi() -> Any:
+        res = api.post(f"/sites/{site}/roi", json=body, headers=VIEWER)
+        assert res.status_code == 200, res.text
+        return res.json()
+
+    first = roi()
+    assert first["periods"]["baseline"]["counts"]["downtime"] == 1
+    assert (first["inputs"]["planned_codes"], first["inputs"]["planned_stops"]) == ([], [])
+    add(api, site, asset="DC-02", starts_at=(early - timedelta(hours=1)).isoformat(), ends_at=early.isoformat())
+    assert roi()["digest"] != first["digest"]  # a stop in the periods changes it, even one that leaves nothing out
+    add(api, site, asset="DC-02", starts_at=early.isoformat(), ends_at=(early + timedelta(hours=1)).isoformat())
+    api.put(f"/sites/{site}/planned-codes", json={"codes": ["PM"]}, headers=ENG)
+    out = roi()
+    assert out["periods"]["baseline"]["counts"]["downtime"] == 0
+    assert out["inputs"]["planned_codes"] == ["PM"]
+    assert [s["asset"] for s in out["inputs"]["planned_stops"]] == ["DC-02", "DC-02"]
+    assert "Planned downtime left out: codes PM; 2 planned stops in the periods" in out["markdown"]
+    audit = api.get(f"/sites/{site}/audit", headers={"X-Tiles-User": "admin@example.com"}).json()
+    entries = audit["entries"] if isinstance(audit, dict) else audit
+    assert any(e["action"] == "planned_codes.update" for e in entries)

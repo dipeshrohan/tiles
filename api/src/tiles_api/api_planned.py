@@ -46,8 +46,11 @@ class CodesIn(BaseModel):
 
 class Planned(BaseModel):
     stops: list[Stop]
+    more: bool  # more stops than these overlap the range: ask for a shorter one
     codes: list[str]  # the MES's planned-downtime codes
 
+
+MAX_STOPS = 500
 
 STOPS = """
 SELECT p.id, p.asset, p.starts_at, p.ends_at, p.reason, u.name AS created_by, p.created_at
@@ -66,14 +69,14 @@ def planned_stops(
     since: Annotated[AwareDatetime | None, Query()] = None,
     until: Annotated[AwareDatetime | None, Query()] = None,
 ) -> dict[str, Any]:
-    """The site's planned stops that overlap `since`…`until` (all of them without), latest first, and
-    its planned-downtime codes."""
+    """The site's planned stops that overlap `since`…`until` (all of them without), latest first, at
+    most 500 (`more` says there are others), and its planned-downtime codes."""
     rows = ctx.conn.execute(
         STOPS + " WHERE p.site_id = %(site)s AND (%(until)s::timestamptz IS NULL OR p.starts_at < %(until)s)"
-        " AND (%(since)s::timestamptz IS NULL OR p.ends_at > %(since)s) ORDER BY p.starts_at DESC LIMIT 500",
-        {"site": ctx.site_id, "since": since, "until": until},
+        " AND (%(since)s::timestamptz IS NULL OR p.ends_at > %(since)s) ORDER BY p.starts_at DESC LIMIT %(limit)s",
+        {"site": ctx.site_id, "since": since, "until": until, "limit": MAX_STOPS + 1},
     ).fetchall()
-    return {"stops": rows, "codes": _codes(ctx)}
+    return {"stops": rows[:MAX_STOPS], "more": len(rows) > MAX_STOPS, "codes": _codes(ctx)}
 
 
 @router.post("/sites/{site_id}/planned-stops", response_model=Stop, status_code=status.HTTP_201_CREATED)
@@ -116,9 +119,10 @@ def set_planned_codes(ctx: Editor, body: CodesIn) -> dict[str, Any]:
     Warning performance and the ROI report leave it out. Engineers and admins; audited."""
     before = _codes(ctx)
     after = sorted(set(body.codes))
+    # One change of a site's codes at a time, so two at once can't both insert a code.
+    ctx.conn.execute("SELECT pg_advisory_xact_lock(hashtextextended('planned_codes:' || %s::text, 0))", [ctx.site_id])
     ctx.conn.execute("DELETE FROM planned_codes WHERE site_id = %s", [ctx.site_id])
-    for code in after:
-        ctx.conn.execute("INSERT INTO planned_codes (site_id, code) VALUES (%s, %s)", [ctx.site_id, code])
+    ctx.conn.execute("INSERT INTO planned_codes (site_id, code) SELECT %s, unnest(%s::text[])", [ctx.site_id, after])
     if before != after:
         ctx.audit("planned_codes.update", "site", str(ctx.site_id), before={"codes": before}, after={"codes": after})
     return planned_stops(ctx)

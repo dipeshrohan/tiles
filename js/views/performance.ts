@@ -54,6 +54,9 @@ const assetDrafts = new Map<string, string>(); // detector id -> the asset being
 let roi: { form: RoiForm; report: RoiReport | null } | null = null;
 // Planned stops (T7.03): null while loading, 'failed' when the API refused.
 let planned: PlannedStops | null | 'failed' = null;
+let plannedSeq = 0; // only the latest request's answer is shown
+// What the add form held when sent, drawn again until the stop is added (a check that fails keeps it).
+let plannedDraft: Record<'asset' | 'from' | 'to' | 'reason', string> | null = null;
 
 const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const keyFor = (ctx: Context): string => {
@@ -69,17 +72,23 @@ onNavigate((hash) => {
     assetDrafts.clear();
     roi = null;
     planned = null;
+    plannedSeq++;
+    plannedDraft = null;
   }
 });
 
 async function loadPlanned(ctx: Context): Promise<void> {
   const site = siteId(ctx);
   if (!ctx.api || !site) return;
+  const mine = ++plannedSeq;
+  let answer: PlannedStops | 'failed';
   try {
-    planned = await ctx.api.plannedStops(site);
+    answer = await ctx.api.plannedStops(site);
   } catch {
-    planned = 'failed'; // the client showed why
+    answer = 'failed'; // the client showed why
   }
+  if (mine !== plannedSeq) return; // a later request, or the page was left
+  planned = answer;
   ctx.rerender();
 }
 
@@ -262,15 +271,17 @@ function plannedCard(ctx: Context): string {
     t('performance.planned.reason'),
     ...(canEdit ? [{ label: t('performance.planned.actions'), srOnly: true }] : []),
   ];
+  const more = planned.more ? `<p class="small soft">${esc(t('performance.planned.more'))}</p>` : '';
   const list = planned.stops.length
-    ? table({ headers, rowsHtml: rows })
+    ? table({ headers, rowsHtml: rows }) + more
     : `<p class="small soft">${esc(t('performance.planned.noStops'))}</p>`;
+  const d = plannedDraft;
   const addForm = canEdit
     ? `<form id="planned-form" class="roi-form no-print">
-        ${field(t('performance.planned.asset'), input({ name: 'asset', placeholder: t('performance.planned.wholeSite'), attrs: { maxlength: '100' } }), { hint: t('performance.planned.assetHint') })}
-        ${field(t('performance.planned.from'), input({ name: 'from', type: 'datetime-local', attrs: { required: true } }))}
-        ${field(t('performance.planned.to'), input({ name: 'to', type: 'datetime-local', attrs: { required: true } }))}
-        ${field(t('performance.planned.reason'), input({ name: 'reason', attrs: { maxlength: '200' } }))}
+        ${field(t('performance.planned.asset'), input({ name: 'asset', value: d?.asset ?? '', placeholder: t('performance.planned.wholeSite'), attrs: { maxlength: '100' } }), { hint: t('performance.planned.assetHint') })}
+        ${field(t('performance.planned.from'), input({ name: 'from', type: 'datetime-local', value: d?.from ?? '', attrs: { required: true } }))}
+        ${field(t('performance.planned.to'), input({ name: 'to', type: 'datetime-local', value: d?.to ?? '', attrs: { required: true } }))}
+        ${field(t('performance.planned.reason'), input({ name: 'reason', value: d?.reason ?? '', attrs: { maxlength: '200' } }))}
         <div>${button(t('performance.planned.add'), { type: 'submit', variant: 'primary' })}</div>
       </form>`
     : '';
@@ -389,6 +400,7 @@ const view: View = {
     // Planned stops (T7.03): a change shows in the report at once.
     const changed = (): void => {
       fetched = null;
+      if (roi) roi = { ...roi, report: null }; // made with the planned stops as they were
       ctx.rerender();
     };
     onSubmit(root, '#planned-codes', (form) => {
@@ -407,19 +419,22 @@ const view: View = {
       const site = siteId(ctx);
       if (!site || !ctx.api) return;
       const data = new FormData(form);
-      const from = fromInput(String(data.get('from') ?? ''));
-      const to = fromInput(String(data.get('to') ?? ''));
+      const text = (name: string): string => String(data.get(name) ?? '');
+      plannedDraft = { asset: text('asset'), from: text('from'), to: text('to'), reason: text('reason') };
+      const from = fromInput(plannedDraft.from);
+      const to = fromInput(plannedDraft.to);
       if (!(to > from)) return showErrors(form, [{ name: 'to', message: t('performance.planned.order') }]);
-      const asset = String(data.get('asset') ?? '').trim();
+      const asset = plannedDraft.asset.trim();
       return ctx.api
         .addPlannedStop(site, {
           asset: asset || null,
           starts_at: new Date(from).toISOString(),
           ends_at: new Date(to).toISOString(),
-          reason: String(data.get('reason') ?? '').trim(),
+          reason: plannedDraft.reason.trim(),
         })
         .then(
           () => {
+            plannedDraft = null;
             form.reset();
             ctx.toast(t('performance.planned.added'));
             changed();

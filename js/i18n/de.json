@@ -1671,6 +1671,7 @@
   "performance.planned.removed": "Geplanter Stillstand entfernt",
   "performance.planned.add": "Geplanten Stillstand hinzufügen",
   "performance.planned.added": "Geplanter Stillstand hinzugefügt",
+  "performance.planned.more": "Nur die letzten 500 geplanten Stillstände sind aufgeführt; ältere gelten weiterhin.",
   "performance.planned.noStops": "Keine geplanten Stillstände eingetragen.",
   "performance.planned.order": "Wählen Sie ein Ende nach dem Beginn.",
   "physics.events.at": "Zeitpunkt",

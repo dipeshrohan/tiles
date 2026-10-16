@@ -75,6 +75,27 @@ def _scored(
     return dict(report["totals"])
 
 
+def _planned(conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime) -> dict[str, Any]:
+    """The planned downtime left out (T7.03): the site's planned codes and the planned stops that
+    overlap `start`…`end`, so the digest changes when they do."""
+    codes = conn.execute("SELECT code FROM planned_codes WHERE site_id = %s ORDER BY code", [site_id]).fetchall()
+    stops = conn.execute(
+        "SELECT asset, starts_at, ends_at FROM planned_stops"
+        " WHERE site_id = %s AND starts_at < %s AND ends_at > %s ORDER BY starts_at, asset NULLS FIRST, ends_at",
+        [site_id, end, start],
+    ).fetchall()
+    return {
+        "planned_codes": [r["code"] for r in codes],
+        "planned_stops": [
+            {"asset": r["asset"], "start": _iso(r["starts_at"]), "end": _iso(r["ends_at"])} for r in stops
+        ],
+    }
+
+
+def _iso(at: datetime) -> str:
+    return at.astimezone(UTC).isoformat()
+
+
 def _rate(count: int, days: float, parts: float | None) -> float | None:
     if parts is not None:
         return count / parts * 1000 if parts > 0 else None
@@ -118,7 +139,9 @@ def report(
     by_unit = inputs.get("baseline_parts") is not None and inputs.get("pilot_parts") is not None
     out: dict[str, Any] = {
         "periods": {},
-        "inputs": inputs | {"codes": codes, "horizon_seconds": horizon.total_seconds()},
+        "inputs": inputs
+        | {"codes": codes, "horizon_seconds": horizon.total_seconds()}
+        | _planned(conn, site_id, baseline[0], pilot[1]),
     }
     counted: dict[str, list[dict[str, Any]]] = {}
     for name, (start, end) in periods.items():
@@ -225,6 +248,8 @@ def markdown(r: dict[str, Any]) -> str:
         f"- Pilot: {period(p)}",
         f"- Downtime codes counted: {', '.join(i['codes']) or 'all'}",
         f"- A warning counts when it starts up to {i['horizon_seconds'] / 3600:g} h before an event",
+        f"- Planned downtime left out: codes {', '.join(i.get('planned_codes', [])) or 'none'};"
+        f" {len(i.get('planned_stops', []))} planned stops in the periods",
         "",
         "## Results",
         "",

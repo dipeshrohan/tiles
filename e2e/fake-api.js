@@ -1614,13 +1614,13 @@ export function createFakeApi({
         return send(200, coverageReport ?? { place: url.searchParams.get('place'), machines: [], totals: none });
       }
       if (url.pathname === `/sites/${site.id}/planned-stops` && req.method === 'GET') {
-        return send(200, { stops: plannedStops, codes: plannedCodes });
+        return send(200, { stops: plannedStops, more: false, codes: plannedCodes });
       }
       if (url.pathname.startsWith(`/sites/${site.id}/planned-`)) {
         if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
         if (url.pathname === `/sites/${site.id}/planned-codes` && req.method === 'PUT') {
           plannedCodes = [...new Set((await body(req)).codes)].sort();
-          return send(200, { stops: plannedStops, codes: plannedCodes });
+          return send(200, { stops: plannedStops, more: false, codes: plannedCodes });
         }
         if (url.pathname === `/sites/${site.id}/planned-stops` && req.method === 'POST') {
           const b = await body(req);

@@ -596,6 +596,7 @@ export interface PlannedStop {
 }
 export interface PlannedStops {
   stops: PlannedStop[];
+  more: boolean; // more than these 500: the oldest aren't listed
   codes: string[];
 }
 

@@ -1893,7 +1893,7 @@ Sets the MES's planned-downtime codes: a downtime event with one of them is plan
 
 **Who:** site member. **Answers:** 200, 422.
 
-The site's planned stops that overlap `since`…`until` (all of them without), latest first, and its planned-downtime codes.
+The site's planned stops that overlap `since`…`until` (all of them without), latest first, at most 500 (`more` says there are others), and its planned-downtime codes.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
