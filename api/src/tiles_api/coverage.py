@@ -5,8 +5,8 @@ A machine's signals are the Signal nodes its PLCs emit (Machine controlledBy PLC
 those it contains itself, as the Plant page finds them (js/lib/plant.ts). A signal node counts once
 a catalogue tag is linked to it (signals.node_id). Its detectors and model bindings are the enabled
 ones on those tags. Its event streams are the catalogue's event signals (downtime, scrap, other)
-whose asset is the machine's: the node's `asset` property when it has one, else its label, compared
-without case, the way Warning performance matches events to detectors.
+whose asset is the machine's: the node's `asset` property when it has one, else its label, exactly
+as written, the way Warning performance matches events to detectors' assets.
 
 What is missing, in the order it must be done: a signal node or a linked tag, then a detector, then
 an event stream (without which its warnings can't be scored).
@@ -26,31 +26,41 @@ class NoPlace(LookupError):
     """The place named isn't a place of the committed ontology."""
 
 
-def _out(graph: Graph, node: str, rel: str) -> list[str]:
-    return [
-        e["to"] for e in graph["edges"].values() if e["from"] == node and e["rel"] == rel and e["to"] in graph["nodes"]
-    ]
+class Index:
+    """The graph's relationships, read once: each node's targets by relationship, and the places
+    that contain each node (in the graph's order), so a large plant isn't scanned per node."""
+
+    def __init__(self, graph: Graph) -> None:
+        self.graph = graph
+        self.outs: dict[tuple[str, str], list[str]] = {}
+        self.containers: dict[str, list[str]] = {}
+        for e in graph["edges"].values():
+            if e["to"] not in graph["nodes"]:
+                continue
+            self.outs.setdefault((e["from"], e["rel"]), []).append(e["to"])
+            if e["rel"] == "contains" and self.is_place(e["from"]):
+                self.containers.setdefault(e["to"], []).append(e["from"])
+
+    def out(self, node: str, rel: str) -> list[str]:
+        return self.outs.get((node, rel), [])
+
+    def is_place(self, node: str) -> bool:
+        found = self.graph["nodes"].get(node)
+        return found is not None and found["type"] in PLACES
+
+    def parent_place(self, node: str) -> str | None:
+        """The first place that contains it, as js/lib/plant.ts parentPlace takes it."""
+        return next(iter(self.containers.get(node, [])), None)
 
 
-def _is_place(graph: Graph, node: str) -> bool:
-    found = graph["nodes"].get(node)
-    return found is not None and found["type"] in PLACES
-
-
-def _parent_place(graph: Graph, node: str) -> str | None:
-    for e in graph["edges"].values():
-        if e["to"] == node and e["rel"] == "contains" and _is_place(graph, e["from"]):
-            return e["from"]
-    return None
-
-
-def machines_under(graph: Graph, place: str | None) -> list[str]:
+def machines_under(index: Index, place: str | None) -> list[str]:
     """Every machine at or under `place` (every machine of the site without one), by name."""
+    nodes = index.graph["nodes"]
     found: list[str] = []
     if place is None:
-        found = [n for n, node in graph["nodes"].items() if node["type"] == "Machine"]
+        found = [n for n, node in nodes.items() if node["type"] == "Machine"]
     else:
-        if not _is_place(graph, place):
+        if not index.is_place(place):
             raise NoPlace(place)
         seen: set[str] = set()
         stack = [place]
@@ -59,21 +69,18 @@ def machines_under(graph: Graph, place: str | None) -> list[str]:
             if at in seen:
                 continue
             seen.add(at)
-            if graph["nodes"][at]["type"] == "Machine":
+            if nodes[at]["type"] == "Machine":
                 found.append(at)
-            stack += [
-                c
-                for c in _out(graph, at, "contains")
-                if graph["nodes"][c]["type"] in PLACES and _parent_place(graph, c) == at
-            ]
-    return sorted(found, key=lambda n: (graph["nodes"][n]["label"].lower(), n))
+            stack += [c for c in index.out(at, "contains") if index.is_place(c) and index.parent_place(c) == at]
+    return sorted(found, key=lambda n: (nodes[n]["label"].lower(), n))
 
 
-def signal_nodes(graph: Graph, machine: str) -> list[str]:
+def signal_nodes(index: Index, machine: str) -> list[str]:
     """The machine's Signal nodes: those its PLCs emit and those it contains itself."""
-    found = [s for plc in _out(graph, machine, "controlledBy") for s in _out(graph, plc, "emits")]
-    found += [c for c in _out(graph, machine, "contains") if graph["nodes"][c]["type"] == "Signal"]
-    return sorted({s for s in found if graph["nodes"][s]["type"] == "Signal"})
+    nodes = index.graph["nodes"]
+    found = [s for plc in index.out(machine, "controlledBy") for s in index.out(plc, "emits")]
+    found += [c for c in index.out(machine, "contains") if nodes[c]["type"] == "Signal"]
+    return sorted({s for s in found if nodes[s]["type"] == "Signal"})
 
 
 def asset_of(graph: Graph, machine: str) -> str:
@@ -86,8 +93,9 @@ def asset_of(graph: Graph, machine: str) -> str:
 def report(conn: Conn, site_id: uuid.UUID, place: str | None) -> dict[str, Any]:
     """The coverage of every machine at or under `place`, and the totals."""
     graph = ontology_store.load_head(conn, site_id)
-    machines = machines_under(graph, place)
-    nodes = {m: signal_nodes(graph, m) for m in machines}
+    index = Index(graph)
+    machines = machines_under(index, place)
+    nodes = {m: signal_nodes(index, m) for m in machines}
     every = sorted({n for ns in nodes.values() for n in ns})
     linked = {
         r["node_id"]: r
@@ -107,7 +115,7 @@ def report(conn: Conn, site_id: uuid.UUID, place: str | None) -> dict[str, Any]:
         "SELECT id, inputs FROM model_bindings WHERE site_id = %s AND enabled", [site_id]
     ).fetchall()
     events = conn.execute(
-        "SELECT tag, event_kind, lower(asset) AS asset FROM signals"
+        "SELECT tag, event_kind, asset FROM signals"
         " WHERE site_id = %s AND event_kind IS NOT NULL AND asset IS NOT NULL ORDER BY tag",
         [site_id],
     ).fetchall()
@@ -116,7 +124,7 @@ def report(conn: Conn, site_id: uuid.UUID, place: str | None) -> dict[str, Any]:
         mine = [linked[n] for n in nodes[m] if n in linked]
         tag_ids = {r["id"] for r in mine}
         asset = asset_of(graph, m)
-        streams = [{"tag": e["tag"], "kind": e["event_kind"]} for e in events if e["asset"] == asset.lower()]
+        streams = [{"tag": e["tag"], "kind": e["event_kind"]} for e in events if e["asset"] == asset]
         models = sum(1 for b in bindings if tag_ids & {_uuid(v) for v in b["inputs"].values()})
         row = {
             "id": m,

@@ -1754,6 +1754,7 @@
   "plant.coverage.title": "Coverage",
   "plant.coverage.loading": "Loading the coverage",
   "plant.coverage.summary": "{covered} of {machines, plural, one {# machine} other {# machines}} fully watched.",
+  "plant.coverage.noMachines": "No machines under this place yet: add them to the plant model.",
   "plant.coverage.machine": "Machine",
   "plant.coverage.signals": "Signals",
   "plant.coverage.signalsOf": "{linked} of {nodes} linked",

@@ -56,13 +56,15 @@ def plant(api: TestClient, site: str) -> None:  # noqa: F811
             {"signal": "p2.force", "at": at.isoformat(), "value": 11},
             {"signal": "mes.p1.downtime", "at": at.isoformat(), "value": "DT-1"},
             {"signal": "mes.p2.scrap", "at": at.isoformat(), "value": 1},
+            {"signal": "mes.p3.downtime", "at": at.isoformat(), "value": "DT-3"},
         ],
     )
     for tag, change in (
         ("p1.force", {"node_id": "s1"}),
         ("p2.force", {"node_id": "s3"}),
-        ("mes.p1.downtime", {"event_kind": "downtime", "asset": "p-1"}),  # any case
+        ("mes.p1.downtime", {"event_kind": "downtime", "asset": "P-1"}),
         ("mes.p2.scrap", {"event_kind": "scrap", "asset": "Press 2"}),  # its label: no asset property
+        ("mes.p3.downtime", {"event_kind": "downtime", "asset": "press 3"}),  # not its name as written
     ):
         res = api.patch(f"/sites/{site}/signals/{signal_id(api, site, tag)}", json=change, headers=ENG)
         assert res.status_code == 200, res.text
@@ -114,6 +116,6 @@ def test_signal_nodes_unlinked_and_contained() -> None:
     g["nodes"]["m"] = {"id": "m", "type": "Machine", "label": "M", "props": {}}
     g["nodes"]["s"] = {"id": "s", "type": "Signal", "label": "S", "props": {}}
     g["edges"]["e"] = {"id": "e", "from": "m", "rel": "contains", "to": "s"}
-    assert coverage.signal_nodes(g, "m") == ["s"]  # a signal the machine contains itself counts
+    assert coverage.signal_nodes(coverage.Index(g), "m") == ["s"]  # a signal the machine contains itself counts
     row = {"signal_nodes": 1, "signals": 0, "detectors": 0, "event_streams": []}
     assert coverage.missing(row) == ["linked_tags", "event_stream"]

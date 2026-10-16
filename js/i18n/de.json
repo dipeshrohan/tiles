@@ -1754,6 +1754,7 @@
   "plant.coverage.title": "Abdeckung",
   "plant.coverage.loading": "Abdeckung wird geladen",
   "plant.coverage.summary": "{covered} von {machines, plural, one {# Maschine} other {# Maschinen}} vollständig überwacht.",
+  "plant.coverage.noMachines": "Unter diesem Ort gibt es noch keine Maschinen: Fügen Sie sie dem Anlagenmodell hinzu.",
   "plant.coverage.machine": "Maschine",
   "plant.coverage.signals": "Signale",
   "plant.coverage.signalsOf": "{linked} von {nodes} verknüpft",

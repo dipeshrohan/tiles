@@ -4878,7 +4878,16 @@ test('a line shows what is watched on each machine and what is missing (T7.01)',
   assert.match(p1, /Press 1\s+2 of 2 linked\s+1\s+0\s+mes\.m1\.downtime\s+Complete/);
   const p2 = await a.page.locator('[data-coverage] tr[data-key="m2"]').innerText();
   assert.match(p2, /0 of 2 linked[\s\S]*None for Press 2[\s\S]*No tags linked[\s\S]*No event stream/);
-  assert.ok(fake.coverageQueries().includes('line-a'));
+  assert.deepEqual(fake.coverageQueries(), ['line-a']);
+  // Refresh asks again; coming back from another page (a tag linked there) asks again too.
+  await a.page.click('[data-plant-refresh]');
+  await a.page.waitForFunction(() => document.querySelector('[data-coverage] table'));
+  assert.equal(fake.coverageQueries().length, 2);
+  await a.page.evaluate(() => (location.hash = '#/signals'));
+  await a.page.waitForSelector('#view h1:has-text("Signals")');
+  await a.page.evaluate(() => (location.hash = '#/plant/line-a'));
+  await a.page.waitForSelector('[data-coverage] table');
+  assert.equal(fake.coverageQueries().length, 3);
   // A machine's own page has no coverage card; its link opens it.
   await a.page.click('[data-coverage] a[data-place="m2"]');
   await a.page.waitForFunction(() => location.hash === '#/plant/m2');

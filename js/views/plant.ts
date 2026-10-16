@@ -1,4 +1,4 @@
-import { esc, fmt, onAll, bound } from '../lib/dom.ts';
+import { esc, fmt, onAll, bound, onNavigate, routeOf } from '../lib/dom.ts';
 import type { Coverage, CoverageGap, SignalInfo } from '../lib/api.ts';
 import {
   findPlaces,
@@ -53,11 +53,17 @@ let shownTrail: Crumb[] = [];
 let coverage: { key: string; data: Coverage | null | 'failed' } | null = null;
 const coverageKey = (ctx: Context, place: string): string => `${ctx.ontology.site?.id ?? ''}|${place}`;
 
-async function loadCoverage(ctx: Context, place: string): Promise<void> {
+// Tags are linked and detectors added on other pages: coming back asks again.
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'plant') coverage = null;
+});
+
+async function loadCoverage(ctx: Context, place: string, redraw = false): Promise<void> {
   const site = ctx.ontology.site?.id;
   if (!ctx.api || !site) return;
   const key = coverageKey(ctx, place);
   coverage = { key, data: null };
+  if (redraw) ctx.rerender(); // a refresh shows the skeleton while it loads (a first load already does)
   let data: Coverage | 'failed';
   try {
     data = await ctx.api.coverage(site, place);
@@ -78,13 +84,17 @@ const GAP_LABEL: Record<CoverageGap, () => string> = {
 };
 
 function coverageCard(ctx: Context, place: string): string {
+  if (!ctx.ontology.site) return '';
   const shown = coverage?.key === coverageKey(ctx, place) ? coverage.data : null;
   const title = `<div class="card-head"><h2>${esc(t('plant.coverage.title'))}</h2></div>`;
   if (shown === 'failed')
     return card(`${title}${loadFailed(t('plant.coverage.title'), 3)}`, { attrs: { 'data-coverage': '' } });
   if (!shown)
     return card(`${title}${skeleton.table(3, 6, t('plant.coverage.loading'))}`, { attrs: { 'data-coverage': '' } });
-  if (!shown.machines.length) return '';
+  if (!shown.machines.length)
+    return card(`${title}<p class="small soft">${esc(t('plant.coverage.noMachines'))}</p>`, {
+      attrs: { 'data-coverage': '' },
+    });
   const rows = shown.machines
     .map((m) => {
       const gaps = m.missing.length
@@ -414,7 +424,7 @@ const view: View = {
     if (place && coverage?.key !== coverageKey(ctx, place)) void loadCoverage(ctx, place);
     onAll(root, '[data-plant-refresh]', 'click', () => {
       refreshFloor(ctx);
-      if (place) void loadCoverage(ctx, place);
+      if (place) void loadCoverage(ctx, place, true);
     });
     onAll(root, '[data-open-warning]', 'click', (el) => openWarning(ctx, el.dataset.openWarning ?? ''));
   },
