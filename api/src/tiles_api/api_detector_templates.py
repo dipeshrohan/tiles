@@ -16,6 +16,7 @@ already has the detector is left as it is.
 Engineers write, audited; everyone reads.
 """
 
+import hashlib
 import re
 import uuid
 from datetime import datetime
@@ -25,7 +26,7 @@ from fastapi import APIRouter, Response, status
 from psycopg.types.json import Jsonb
 from pydantic import BaseModel, ConfigDict, Field
 
-from tiles_api import api_detectors, coverage, ontology_store
+from tiles_api import api_detectors, backtest, coverage, ontology_store
 from tiles_api.api_backtest import RUNNING, BacktestIn, EventIn, run_backtest
 from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.detection import Config
@@ -35,7 +36,7 @@ from tiles_api.store import one
 
 router = APIRouter(tags=["detection"])
 
-MAX_MACHINES = 50  # applied at once
+MAX_MACHINES = 20  # applied at once: each is a backtest, in one request
 Text = Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S(.*\S)?$")]
 Values = Field(min_length=1, max_length=4)  # values to try for one setting; every combination is tried
 
@@ -142,6 +143,10 @@ def list_templates(ctx: Ctx) -> list[dict[str, Any]]:
 def create_template(ctx: Editor, body: TemplateIn) -> dict[str, Any]:
     """Sets up a detector for a kind of machine: the signal it watches and the settings to try.
     Engineers and admins; audited."""
+    try:
+        backtest.check_size(0, backtest.settings(**body.grid.model_dump()))
+    except ValueError as e:  # more combinations than one backtest may try
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "backtest.invalid", str(e), reason=str(e)) from e
     row = ctx.conn.execute(
         """
         INSERT INTO detector_templates
@@ -189,10 +194,15 @@ def watched(graph: Graph, index: coverage.Index, machine: str, measure: str) -> 
     return next(iter(by_prop or by_label), None)
 
 
-def detector_name(template: str, asset: str) -> str:
-    """`<template>-<asset>`, as a detector may be called."""
+def detector_name(template: str, asset: str, unique: bool = False) -> str:
+    """`<template>-<asset>`, as a detector may be called; `unique` adds a short hash of the asset, for
+    when another machine's detector has the name (assets that differ only in case, punctuation or
+    past the length a name may have)."""
     slug = re.sub(r"[^a-z0-9._-]+", "-", asset.casefold()).strip("-._") or "machine"
-    return f"{template}-{slug}"[:63].rstrip("-._")
+    if not unique:
+        return f"{template}-{slug}"[:63].rstrip("-._")
+    tag = hashlib.sha256(asset.encode()).hexdigest()[:6]
+    return f"{f'{template}-{slug}'[:56].rstrip('-._')}-{tag}"
 
 
 def _events(ctx: SiteContext, asset: str, codes: list[str]) -> list[dict[str, Any]]:
@@ -216,10 +226,17 @@ def _events(ctx: SiteContext, asset: str, codes: list[str]) -> list[dict[str, An
 def _apply_one(
     ctx: SiteContext, t: dict[str, Any], machine: str, label: str, asset: str, signal: dict[str, Any]
 ) -> dict[str, Any]:
-    name = detector_name(t["name"], asset)
     out: dict[str, Any] = {"machine": machine, "label": label, "asset": asset, "signal_tag": signal["tag"]}
+    # The machine has it when a detector already watches this signal for this asset, whatever its name.
+    have = ctx.conn.execute(
+        "SELECT name FROM detectors WHERE site_id = %s AND signal_id = %s AND asset = %s ORDER BY name LIMIT 1",
+        [ctx.site_id, signal["id"], asset],
+    ).fetchone()
+    if have:
+        return out | {"result": "exists", "detector": have["name"]}
+    name = detector_name(t["name"], asset)
     if ctx.conn.execute("SELECT 1 FROM detectors WHERE site_id = %s AND name = %s", [ctx.site_id, name]).fetchone():
-        return out | {"result": "exists", "detector": name}
+        name = detector_name(t["name"], asset, unique=True)  # another machine's, or one made by hand
     grid = Grid.model_validate(t["grid"])
     events = _events(ctx, asset, t["codes"])
     body = BacktestIn(
@@ -231,12 +248,14 @@ def _apply_one(
     bt = run_backtest(ctx.conn, ctx.site_id, body, latest=True)
     if not bt["readings"]:
         return out | {"result": "no_history"}
+    # Only stops within the history replayed can be warned of (backtest.score leaves the others out).
+    scored = [e for e in events if bt["first_at"] <= e["at"] <= bt["last_at"]]
     first = Config(**{k: v[0] for k, v in grid.model_dump().items()}).as_json()
     best = bt["settings"][0]  # ranked best first
-    if not events:
+    if not scored:
         best = next((s for s in bt["settings"] if s["config"] == first), best)
     report = bt["report"]
-    if not events:
+    if not scored:
         report += "\nNo unplanned downtime to score against: the detector takes each setting's first value.\n"
     made = api_detectors.insert(
         ctx, name, signal["id"], best["config"], t["lateness_seconds"], asset, template=uuid.UUID(str(t["id"]))
@@ -256,7 +275,7 @@ def _apply_one(
             t["id"],
             Jsonb(best["config"]),
             bt["readings"],
-            len(events),
+            len(scored),
             scores["recall"],
             scores["precision"],
             scores["false_per_day"],
@@ -273,7 +292,7 @@ def _apply_one(
             "detector": name,
             "config": best["config"],
             "readings": bt["readings"],
-            "events": len(events),
+            "events": len(scored),
         }
     )
 

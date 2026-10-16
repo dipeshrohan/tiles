@@ -558,7 +558,7 @@ On a place that holds machines (API mode), **Detector templates** sets up a dete
 2. Link each of those signals to its tag on the Signals page, and mark the MES's downtime signals with their asset, as for Warning performance.
 3. Open **New template**:
    - give it a **Name**, the **Machine kind** and the **Signal measure**;
-   - give the values to try for **k values**, **Readings in a row** and **Baseline readings**, up to four of each, separated by spaces;
+   - give the values to try for **k values**, **Readings in a row** and **Baseline readings**, up to four of each, separated by spaces, and up to 48 combinations in all;
    - choose which way to warn, and **Warned within**: how long before a stop a warning counts;
    - optionally give the **Downtime codes** it should warn of.
 4. Click **Add template**, then **Apply here** on the line or cell.

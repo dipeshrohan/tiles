@@ -12,7 +12,10 @@ import type { Context } from './types.ts';
 
 // The site's templates (null while loading), and what applying one did, for the place it was applied to.
 let templates: { site: string; list: DetectorTemplate[] | null | 'failed' } | null = null;
-let applied: { place: string; out: TemplateApplied } | null = null;
+// The settings one backtest may try at once (backtest.MAX_SETTINGS).
+const MAX_SETTINGS = 48;
+
+let applied: { key: string; template: string; out: TemplateApplied } | null = null;
 // What the new template's form held when sent, drawn again until it is made.
 let draft: Record<string, string> | null = null;
 
@@ -25,6 +28,7 @@ onNavigate((hash) => {
 });
 
 const siteOf = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
+const placeKey = (site: string, place: string): string => `${site}|${place}`;
 const canEdit = (ctx: Context): boolean => ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
 
 async function load(ctx: Context, site: string): Promise<void> {
@@ -162,7 +166,7 @@ export function templatesCard(ctx: Context, place: string): string {
         rowsHtml: rows,
       })
     : `<p class="small soft">${esc(t('plant.templates.none'))}</p>`;
-  const result = applied?.place === place ? appliedTable(applied.out) : '';
+  const result = applied?.key === placeKey(site, place) ? appliedTable(applied.out) : '';
   return card(`${head}${listHtml}${result}${edit ? form() : ''}`, { attrs: { 'data-templates': '' } });
 }
 
@@ -171,7 +175,10 @@ export function bindTemplates(root: ParentNode, ctx: Context, place: string, cha
   const site = siteOf(ctx);
   const api = ctx.api;
   if (!api || !site || !root.querySelector('[data-templates]')) return;
-  if (templates?.site !== site) void load(ctx, site);
+  if (templates?.site !== site) {
+    draft = null; // another site's form
+    void load(ctx, site);
+  }
   onSubmit(root, '#template-form', (f) => {
     const data = new FormData(f);
     const text = (name: string): string => String(data.get(name) ?? '').trim();
@@ -189,6 +196,8 @@ export function bindTemplates(root: ParentNode, ctx: Context, place: string, cha
       errors.push({ name: 'persist', message: t('plant.templates.error.persist') });
     if (tooMany(window) || window?.some((x) => x < 10 || x > 2000))
       errors.push({ name: 'window', message: t('plant.templates.error.window') });
+    if (!errors.length && k && persist && window && k.length * persist.length * window.length > MAX_SETTINGS)
+      errors.push({ name: 'k', message: t('plant.templates.error.tooMany', { most: MAX_SETTINGS }) });
     if (errors.length || !k || !persist || !window) return showErrors(f, errors);
     const direction = (draft.direction ?? 'above') as 'above' | 'below' | 'both';
     return api
@@ -217,7 +226,7 @@ export function bindTemplates(root: ParentNode, ctx: Context, place: string, cha
     const id = el.dataset.templateApply ?? '';
     return api.applyDetectorTemplate(site, id, place).then(
       (out) => {
-        applied = { place, out };
+        applied = { key: placeKey(site, place), template: id, out };
         const made = out.machines.filter((m) => m.result === 'created').length;
         ctx.toast(t('plant.templates.appliedToast', { count: made, template: out.template }));
         changed();
@@ -237,6 +246,7 @@ export function bindTemplates(root: ParentNode, ctx: Context, place: string, cha
     if (!yes) return;
     await api.removeDetectorTemplate(site, id).then(
       () => {
+        if (applied?.template === id) applied = null; // its results go with it
         ctx.toast(t('plant.templates.removed', { name }));
         void load(ctx, site);
       },

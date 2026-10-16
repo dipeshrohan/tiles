@@ -1833,6 +1833,7 @@
   "plant.templates.error.k": "Geben Sie ein bis vier Werte über 0 und bis 50 ein, durch Leerzeichen getrennt.",
   "plant.templates.error.persist": "Geben Sie ein bis vier ganze Zahlen ab 1 ein, durch Leerzeichen getrennt.",
   "plant.templates.error.window": "Geben Sie ein bis vier ganze Zahlen von 10 bis 2.000 ein, durch Leerzeichen getrennt.",
+  "plant.templates.error.tooMany": "Das sind mehr als {most} Kombinationen von Einstellungen: Geben Sie weniger Werte an.",
   "plant.templates.appliedTitle": "Angewendet: {template}",
   "plant.templates.appliedToast": "{count, plural, =0 {Keine neuen Detektoren} one {# Detektor erstellt} other {# Detektoren erstellt}} aus {template}",
   "plant.templates.appliedHint": "Gewarnt und Fehlwarnungen pro Tag stammen aus dem Backtest der gewählten Einstellung. Eine Maschine ohne ungeplante Stillstände erhält jeweils den ersten Wert.",

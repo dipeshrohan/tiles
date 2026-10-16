@@ -1833,6 +1833,7 @@
   "plant.templates.error.k": "Enter one to four values above 0 and up to 50, separated by spaces.",
   "plant.templates.error.persist": "Enter one to four whole numbers of 1 or more, separated by spaces.",
   "plant.templates.error.window": "Enter one to four whole numbers from 10 to 2,000, separated by spaces.",
+  "plant.templates.error.tooMany": "That is more than {most} combinations of settings: give fewer values.",
   "plant.templates.appliedTitle": "Applied: {template}",
   "plant.templates.appliedToast": "{count, plural, =0 {No new detectors} one {# detector made} other {# detectors made}} from {template}",
   "plant.templates.appliedHint": "Warned of and false warnings per day are the chosen setting's backtest. A machine with no unplanned stops takes each setting's first value.",

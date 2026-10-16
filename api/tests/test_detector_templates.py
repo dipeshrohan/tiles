@@ -4,11 +4,13 @@ line, each tuned by a backtest on its own history and kept with its report."""
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 from test_detectors import FIXTURE
 from test_performance import EVERY, HORIZON_H, send, signal_id
 
+from tiles_api import backtest
 from tiles_api.api_detector_templates import detector_name
 
 NODES = [
@@ -148,3 +150,61 @@ def test_detector_names() -> None:
     assert detector_name("t", "Press 2 / Line A") == "t-press-2-line-a"
     assert detector_name("t", "///") == "t-machine"
     assert len(detector_name("a" * 40, "b" * 100)) <= 63
+    assert detector_name("t", "DC 01", unique=True) != detector_name("t", "dc-01", unique=True)
+    assert len(detector_name("a" * 40, "b" * 100, unique=True)) <= 63
+
+
+def test_a_long_history_is_cut_to_its_latest_readings_and_only_its_stops_count(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plant(api, site)
+    monkeypatch.setattr(backtest, "MAX_READINGS", 1_000)  # less than the 1,600 readings stored
+    t = api.post(f"/sites/{site}/detector-templates", json=TEMPLATE, headers=ENG).json()
+    out = api.post(f"/sites/{site}/detector-templates/{t['id']}/apply", json={}, headers=ENG).json()
+    dc1 = next(m for m in out["machines"] if m["machine"] == "dc1")
+    # The latest 1,000 readings: the stop at shot 560 is before them, so two stops count.
+    assert (dc1["readings"], dc1["events"]) == (1_000, 2)
+    bt = api.get(f"/sites/{site}/detectors/{dc1['detector_id']}/backtest", headers=VIEWER).json()
+    assert "1000 readings" in bt["report"]
+
+
+def test_a_grid_too_big_for_one_backtest_is_refused(api: TestClient, site: str) -> None:  # noqa: F811
+    grid = {"window": [100, 200], "k": [2.0, 3.0, 4.0, 5.0], "persist": [1, 2, 3, 4], "cooldown": [0, 10]}
+    res = api.post(f"/sites/{site}/detector-templates", json=dict(TEMPLATE, grid=grid), headers=ENG)
+    assert (res.status_code, res.json()["code"]) == (422, "backtest.invalid")
+    assert "64 settings" in res.json()["detail"]
+
+
+def test_machines_whose_assets_name_alike_each_get_a_detector(api: TestClient, site: str) -> None:  # noqa: F811
+    plant(api, site)
+    # DC-04 gets DC-01's signal shape under an asset that names alike: "dc 01" slugs as DC-01 does.
+    ops = [
+        {"kind": "setProp", "id": "dc4", "key": "asset", "value": "dc 01"},
+        {"kind": "addNode", "node": {"id": "plc4", "type": "PLC", "label": "PLC 4", "props": {}}},
+        {"kind": "addNode", "node": {"id": "s4", "type": "Signal", "label": "DC-04 friction", "props": {}}},
+        {"kind": "addEdge", "edge": {"id": "dc4-c", "from": "dc4", "rel": "controlledBy", "to": "plc4"}},
+        {"kind": "addEdge", "edge": {"id": "plc4-e", "from": "plc4", "rel": "emits", "to": "s4"}},
+    ]
+    assert api.post(f"/sites/{site}/ontology/staged/batch", json=ops, headers=ENG).status_code == 201
+    assert api.post(f"/sites/{site}/ontology/commits", json={"message": "DC-04"}, headers=ENG).status_code in (200, 201)
+    end = datetime.now(UTC).replace(microsecond=0)
+    send(api, site, [{"signal": "dc4.friction", "at": (end - i * EVERY).isoformat(), "value": 1.0} for i in range(50)])
+    res = api.patch(
+        f"/sites/{site}/signals/{signal_id(api, site, 'dc4.friction')}", json={"node_id": "s4"}, headers=ENG
+    )
+    assert res.status_code == 200, res.text
+    t = api.post(f"/sites/{site}/detector-templates", json=TEMPLATE, headers=ENG).json()
+    out = api.post(f"/sites/{site}/detector-templates/{t['id']}/apply", json={}, headers=ENG).json()
+    by = {m["machine"]: m for m in out["machines"]}
+    assert (by["dc1"]["result"], by["dc4"]["result"]) == ("created", "created")
+    assert by["dc1"]["detector"] == "dc-friction-dc-01"
+    assert by["dc4"]["detector"].startswith("dc-friction-dc-01-") and len(by["dc4"]["detector"]) == 24
+    # Applied again, each machine has its own: found by its signal and asset, not its name.
+    again = api.post(f"/sites/{site}/detector-templates/{t['id']}/apply", json={}, headers=ENG).json()
+    assert {m["machine"]: m["detector"] for m in again["machines"] if m["result"] == "exists"} == {
+        "dc1": "dc-friction-dc-01",
+        "dc2": "dc-friction-dc-02",
+        "dc4": by["dc4"]["detector"],
+    }
