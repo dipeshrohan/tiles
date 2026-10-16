@@ -3,18 +3,21 @@ the tools give on that plant (an oracle model asks the right tools and states th
 citing them; the grounding check then proves each fact is in a tool result)."""
 
 import json
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
-from test_agents import api  # noqa: F401 - a fixture
+from test_agents import ENG, api, site  # noqa: F401 - api and site are fixtures
 
 from tiles_api import evaluation, grounding
 from tiles_api.assistant import Turn
 from tiles_api.evaluation import Case, Result, Summary, Thresholds
 from tiles_api.settings import Settings
+from tiles_api.store import one
 
 # The tool calls that answer each case (what a good copilot would ask).
 PLANS: dict[str, list[tuple[str, dict[str, Any]]]] = {
@@ -176,3 +179,92 @@ def test_the_cases_file_is_json_in_the_documented_form() -> None:
     assert set(raw) == {"about", "cases"}
     allowed = {"id", "question", "tools", "facts", "absent", "decline"}
     assert all(set(c) <= allowed for c in raw["cases"])
+
+
+# A partner's set (T4.05): written as CSV, asked on an existing site as one of its members.
+
+CSV = """﻿id,question,tools,facts,absent,decline,notes
+machines,Which machines are on Line 2?,graph_query,DC-01; DC-02,Old trim press,,from the shift lead
+,,,,,,a note between cases is skipped
+pressure,What was DC-01's last hydraulic pressure?,time_series,152 | 152.0,,no,
+weather,What's the weather in Linz?,,,,yes,
+"""
+
+
+def test_a_partner_set_is_read_from_csv(tmp_path: Path) -> None:
+    path = tmp_path / "questions.csv"
+    path.write_text(CSV, encoding="utf-8")
+    got = evaluation.cases(path)
+    assert got == [
+        Case("machines", "Which machines are on Line 2?", ("graph_query",), ("DC-01", "DC-02"), ("Old trim press",)),
+        Case("pressure", "What was DC-01's last hydraulic pressure?", ("time_series",), (("152", "152.0"),)),
+        Case("weather", "What's the weather in Linz?", decline=True),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("text", "why"),
+    [
+        ("question,facts\nHow many?,3\n", "no id column"),
+        ("id,question,facts,decline\na,How many?,3,maybe\n", "Row 2: decline is 'maybe'"),
+        ("id,question,tools,facts\na,How many?,ask_the_oracle,3\n", "no tool is called ask_the_oracle"),
+        ("id,question,facts\na,How many?,3\na,How many more?,4\n", "Case a: its id is used twice"),
+        ("id,question\na,How many?\n", "give the facts its answer must state"),
+        ("id,question,facts,decline\na,What's the weather?,sunny,yes\n", "a case to decline has no facts"),
+    ],
+)
+def test_a_csv_that_cant_be_scored_says_which_case_and_why(text: str, why: str) -> None:
+    with pytest.raises(evaluation.CaseError, match=why):
+        evaluation.read_csv(text)
+
+
+def test_the_built_in_set_names_only_the_copilots_tools() -> None:
+    names = evaluation.tool_names()
+    assert {"graph_query", "time_series", "search_documents", "propose_ontology_change"} <= names
+    assert all(set(c.tools) <= names for c in evaluation.cases())
+
+
+def test_a_set_is_asked_on_an_existing_site_as_its_member(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    from datetime import UTC, datetime
+
+    from tiles_api.evaluation import plant
+
+    plant.load(api, site, ENG, datetime.now(UTC))
+    cases = [c for c in evaluation.cases() if c.id in ("machines-on-line", "last-pressure", "unknown-machine")]
+    with psycopg.connect(database_url) as conn:
+        sites_before = conn.execute("SELECT count(*) FROM sites").fetchone()
+        slug = str(one(conn.execute("SELECT slug FROM sites WHERE id = %s", [site]).fetchone())[0])
+    summary = evaluation.run(Oracle(cases), None, database_url, cases, on=evaluation.OnSite(slug, "eng@example.com"))
+    assert (summary.accuracy, summary.unsupported, summary.passed) == (1.0, 0, True)
+    with psycopg.connect(database_url) as conn:
+        assert conn.execute("SELECT count(*) FROM sites").fetchone() == sites_before  # nothing made or loaded
+
+    with pytest.raises(evaluation.CaseError, match="isn't a member"):
+        evaluation.run(Oracle(cases), None, database_url, cases, on=evaluation.OnSite(site, "stranger@example.com"))
+    with pytest.raises(evaluation.CaseError, match="names no site"):
+        evaluation.run(
+            Oracle(cases), None, database_url, cases, on=evaluation.OnSite("no-such-site", "eng@example.com")
+        )
+
+
+def test_site_and_as_go_together(capsys: Any) -> None:
+    with pytest.raises(SystemExit) as e:
+        evaluation.main(["--site", "plant-1"])
+    assert e.value.code == 2 and "--site and --as go together" in capsys.readouterr().err
+
+
+DOCS = Path(__file__).resolve().parents[2] / "docs" / "pilot"
+
+
+def test_the_collection_guides_template_and_tools_are_current() -> None:
+    template = evaluation.cases(DOCS / "copilot-questions.csv")
+    built_in = {c.id: c for c in evaluation.cases()}
+    assert [c.id for c in template] == ["machines-on-line", "last-pressure", "unknown-machine"]
+    assert all(c.question == built_in[c.id].question for c in template)  # examples the plant answers
+    guide = (DOCS / "copilot-questions.md").read_text()
+    listed = set(re.findall(r"^\| `(\w+)` \| ", guide.split("## The tools")[1].split("## ")[0], re.M))
+    assert listed == evaluation.tool_names()
