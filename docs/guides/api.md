@@ -591,6 +591,52 @@ Replay a signal's history with each combination of detection settings and score 
 
 **Body:** BacktestIn (see [openapi.json](openapi.json)).
 
+### `GET /sites/{site_id}/detector-templates`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The site's detector templates, by name.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/detector-templates`
+
+**Who:** engineer. **Answers:** 201, 422.
+
+Sets up a detector for a kind of machine: the signal it watches and the settings to try. Engineers and admins; audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** TemplateIn (see [openapi.json](openapi.json)).
+
+### `DELETE /sites/{site_id}/detector-templates/{template_id}`
+
+**Who:** engineer. **Answers:** 204, 422.
+
+Removes a template; the detectors made from it stay. Engineers and admins; audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `template_id` | path | uuid | yes |
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/detector-templates/{template_id}/apply`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Applies the template to every machine of its kind at or under `place` (the whole site without one): a detector for each, tuned by a backtest on that machine's history and unplanned downtime, kept with its report. Machines that already have it are left as they are. Engineers and admins; audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `template_id` | path | uuid | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** ApplyIn (see [openapi.json](openapi.json)).
+
 ### `GET /sites/{site_id}/detectors`
 
 **Who:** site member. **Answers:** 200, 422.
@@ -631,6 +677,17 @@ Set (or clear, with null) the asset the detector watches, to match its warnings 
 **Who:** engineer. **Answers:** 204, 422.
 
 Stop the detector. Its warnings stay; one still open ends now, since nothing will update it.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `detector_id` | path | uuid | yes |
+| `site_id` | path | uuid | yes |
+
+### `GET /sites/{site_id}/detectors/{detector_id}/backtest`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The backtest a detector was tuned by, with its Markdown report.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

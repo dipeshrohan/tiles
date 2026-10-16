@@ -343,6 +343,194 @@
         "title": "AppUpdate",
         "type": "object"
       },
+      "Applied": {
+        "properties": {
+          "asset": {
+            "title": "Asset",
+            "type": "string"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          },
+          "detector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detector"
+          },
+          "detector_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detector Id"
+          },
+          "events": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Events"
+          },
+          "false_per_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "False Per Day"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "machine": {
+            "title": "Machine",
+            "type": "string"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          },
+          "readings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readings"
+          },
+          "recall": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall"
+          },
+          "result": {
+            "enum": [
+              "created",
+              "exists",
+              "no_signal",
+              "no_tag",
+              "no_history"
+            ],
+            "title": "Result",
+            "type": "string"
+          },
+          "signal_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signal Tag"
+          }
+        },
+        "required": [
+          "machine",
+          "label",
+          "asset",
+          "result"
+        ],
+        "title": "Applied",
+        "type": "object"
+      },
+      "ApplyIn": {
+        "additionalProperties": false,
+        "properties": {
+          "place": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place"
+          }
+        },
+        "title": "ApplyIn",
+        "type": "object"
+      },
+      "ApplyOut": {
+        "properties": {
+          "machines": {
+            "items": {
+              "$ref": "#/components/schemas/Applied"
+            },
+            "title": "Machines",
+            "type": "array"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place"
+          },
+          "template": {
+            "title": "Template",
+            "type": "string"
+          }
+        },
+        "required": [
+          "template",
+          "place",
+          "machines"
+        ],
+        "title": "ApplyOut",
+        "type": "object"
+      },
       "AskIn": {
         "additionalProperties": false,
         "properties": {
@@ -654,6 +842,107 @@
           "steps"
         ],
         "title": "Axis",
+        "type": "object"
+      },
+      "Backtest": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "detector_id": {
+            "format": "uuid",
+            "title": "Detector Id",
+            "type": "string"
+          },
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "false_per_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "False Per Day"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          },
+          "readings": {
+            "title": "Readings",
+            "type": "integer"
+          },
+          "recall": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall"
+          },
+          "report": {
+            "title": "Report",
+            "type": "string"
+          },
+          "template": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template"
+          }
+        },
+        "required": [
+          "detector_id",
+          "template",
+          "config",
+          "readings",
+          "events",
+          "recall",
+          "precision",
+          "false_per_day",
+          "report",
+          "created_by",
+          "created_at"
+        ],
+        "title": "Backtest",
         "type": "object"
       },
       "BacktestIn": {
@@ -3333,6 +3622,102 @@
           "edges"
         ],
         "title": "Graph",
+        "type": "object"
+      },
+      "Grid": {
+        "additionalProperties": false,
+        "properties": {
+          "cooldown": {
+            "default": [
+              0
+            ],
+            "items": {
+              "maximum": 1000000.0,
+              "minimum": 0.0,
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Cooldown",
+            "type": "array"
+          },
+          "direction": {
+            "default": [
+              "above"
+            ],
+            "items": {
+              "enum": [
+                "above",
+                "below",
+                "both"
+              ],
+              "type": "string"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Direction",
+            "type": "array"
+          },
+          "flat_spread": {
+            "default": [
+              1.0
+            ],
+            "items": {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1000000000000.0,
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Flat Spread",
+            "type": "array"
+          },
+          "k": {
+            "default": [
+              3.0,
+              4.0,
+              5.0
+            ],
+            "items": {
+              "exclusiveMinimum": 0.0,
+              "maximum": 50.0,
+              "type": "number"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "K",
+            "type": "array"
+          },
+          "persist": {
+            "default": [
+              3
+            ],
+            "items": {
+              "maximum": 10000.0,
+              "minimum": 1.0,
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Persist",
+            "type": "array"
+          },
+          "window": {
+            "default": [
+              200
+            ],
+            "items": {
+              "maximum": 2000.0,
+              "minimum": 10.0,
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Window",
+            "type": "array"
+          }
+        },
+        "title": "Grid",
         "type": "object"
       },
       "Group": {
@@ -8729,6 +9114,157 @@
         "title": "TeamsIn",
         "type": "object"
       },
+      "Template": {
+        "properties": {
+          "codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Codes",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "grid": {
+            "$ref": "#/components/schemas/Grid"
+          },
+          "horizon_seconds": {
+            "title": "Horizon Seconds",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "lateness_seconds": {
+            "title": "Lateness Seconds",
+            "type": "number"
+          },
+          "machine_kind": {
+            "title": "Machine Kind",
+            "type": "string"
+          },
+          "measure": {
+            "title": "Measure",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "machine_kind",
+          "measure",
+          "grid",
+          "horizon_seconds",
+          "codes",
+          "lateness_seconds",
+          "created_by",
+          "created_at"
+        ],
+        "title": "Template",
+        "type": "object"
+      },
+      "TemplateIn": {
+        "additionalProperties": false,
+        "properties": {
+          "codes": {
+            "default": [],
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^\\S(.*\\S)?$",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Codes",
+            "type": "array"
+          },
+          "grid": {
+            "$ref": "#/components/schemas/Grid",
+            "default": {
+              "cooldown": [
+                0
+              ],
+              "direction": [
+                "above"
+              ],
+              "flat_spread": [
+                1.0
+              ],
+              "k": [
+                3.0,
+                4.0,
+                5.0
+              ],
+              "persist": [
+                3
+              ],
+              "window": [
+                200
+              ]
+            }
+          },
+          "horizon_seconds": {
+            "default": 28800,
+            "exclusiveMinimum": 0.0,
+            "maximum": 7776000.0,
+            "title": "Horizon Seconds",
+            "type": "number"
+          },
+          "lateness_seconds": {
+            "default": 300,
+            "maximum": 604800.0,
+            "minimum": 0.0,
+            "title": "Lateness Seconds",
+            "type": "number"
+          },
+          "machine_kind": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$",
+            "title": "Machine Kind",
+            "type": "string"
+          },
+          "measure": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^\\S(.*\\S)?$",
+            "title": "Measure",
+            "type": "string"
+          },
+          "name": {
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,39}$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "machine_kind",
+          "measure"
+        ],
+        "title": "TemplateIn",
+        "type": "object"
+      },
       "TemplateOut": {
         "properties": {
           "id": {
@@ -14054,6 +14590,217 @@
         ]
       }
     },
+    "/sites/{site_id}/detector-templates": {
+      "get": {
+        "description": "The site's detector templates, by name.",
+        "operationId": "list_templates_sites__site_id__detector_templates_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Template"
+                  },
+                  "title": "Response List Templates Sites  Site Id  Detector Templates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Templates",
+        "tags": [
+          "detection"
+        ]
+      },
+      "post": {
+        "description": "Sets up a detector for a kind of machine: the signal it watches and the settings to try.\nEngineers and admins; audited.",
+        "operationId": "create_template_sites__site_id__detector_templates_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Template"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Template",
+        "tags": [
+          "detection"
+        ]
+      }
+    },
+    "/sites/{site_id}/detector-templates/{template_id}": {
+      "delete": {
+        "description": "Removes a template; the detectors made from it stay. Engineers and admins; audited.",
+        "operationId": "remove_template_sites__site_id__detector_templates__template_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Template",
+        "tags": [
+          "detection"
+        ]
+      }
+    },
+    "/sites/{site_id}/detector-templates/{template_id}/apply": {
+      "post": {
+        "description": "Applies the template to every machine of its kind at or under `place` (the whole site without\none): a detector for each, tuned by a backtest on that machine's history and unplanned downtime,\nkept with its report. Machines that already have it are left as they are. Engineers and admins;\naudited.",
+        "operationId": "apply_template_sites__site_id__detector_templates__template_id__apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "template_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Template Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Template",
+        "tags": [
+          "detection"
+        ]
+      }
+    },
     "/sites/{site_id}/detectors": {
       "get": {
         "description": "The site's detectors, by name, with their settings and state.",
@@ -14258,6 +15005,60 @@
           }
         },
         "summary": "Update Detector",
+        "tags": [
+          "detection"
+        ]
+      }
+    },
+    "/sites/{site_id}/detectors/{detector_id}/backtest": {
+      "get": {
+        "description": "The backtest a detector was tuned by, with its Markdown report.",
+        "operationId": "detector_backtest_sites__site_id__detectors__detector_id__backtest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "detector_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Detector Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Backtest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Detector Backtest",
         "tags": [
           "detection"
         ]

@@ -99,25 +99,40 @@ def create_detector(ctx: Editor, body: DetectorIn) -> dict[str, Any]:
     ).fetchone():
         raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "signal.not_on_site", "Not a signal of this site")
     config = Config(**body.model_dump(include=set(SETTINGS))).as_json()
+    made = insert(ctx, body.name, body.signal_id, config, body.lateness_seconds, body.asset)
+    if made is None:  # also when another request took the name a moment ago
+        raise Problem(
+            status.HTTP_409_CONFLICT, "detector.name_taken", f"A detector is already called {body.name}", name=body.name
+        )
+    return _get(ctx, made)
+
+
+def insert(
+    ctx: SiteContext,
+    name: str,
+    signal_id: uuid.UUID,
+    config: dict[str, Any],
+    lateness_seconds: float,
+    asset: str | None,
+    template: uuid.UUID | None = None,
+) -> uuid.UUID | None:
+    """Adds a detector, audited; None when the name is taken."""
     row = ctx.conn.execute(
         """
         INSERT INTO detectors (site_id, signal_id, name, config, lateness_s, asset, created_by)
         VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT (site_id, name) DO NOTHING RETURNING id
         """,
-        [ctx.site_id, body.signal_id, body.name, Jsonb(config), body.lateness_seconds, body.asset, ctx.user.id],
+        [ctx.site_id, signal_id, name, Jsonb(config), lateness_seconds, asset, ctx.user.id],
     ).fetchone()
-    if row is None:  # also when another request took the name a moment ago
-        raise Problem(
-            status.HTTP_409_CONFLICT, "detector.name_taken", f"A detector is already called {body.name}", name=body.name
-        )
-    after = {"name": body.name, "signal_id": str(body.signal_id), "config": config}
-    ctx.audit(
-        "detector.create",
-        "detector",
-        str(row["id"]),
-        after=after | {"lateness_s": body.lateness_seconds, "asset": body.asset},
-    )
-    return _get(ctx, row["id"])
+    if row is None:
+        return None
+    after: dict[str, Any] = {"name": name, "signal_id": str(signal_id), "config": config}
+    after |= {"lateness_s": lateness_seconds, "asset": asset}
+    if template is not None:
+        after["template_id"] = str(template)
+    ctx.audit("detector.create", "detector", str(row["id"]), after=after)
+    detector: uuid.UUID = row["id"]
+    return detector
 
 
 @router.patch("/sites/{site_id}/detectors/{detector_id}", response_model=Detector)

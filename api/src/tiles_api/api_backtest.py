@@ -95,8 +95,9 @@ class BacktestOut(BaseModel):
     report: str  # Markdown
 
 
-def run_backtest(conn: Conn, site_id: uuid.UUID, body: BacktestIn) -> dict[str, Any]:
-    """Runs the backtest; ValueError if the signal isn't the site's or it would be too big."""
+def run_backtest(conn: Conn, site_id: uuid.UUID, body: BacktestIn, latest: bool = False) -> dict[str, Any]:
+    """Runs the backtest; ValueError if the signal isn't the site's or it would be too big. With
+    `latest`, a history too long for the settings is cut to its latest readings instead."""
     signal = conn.execute(
         "SELECT tag FROM signals WHERE site_id = %s AND id = %s", [site_id, body.signal_id]
     ).fetchone()
@@ -111,10 +112,14 @@ def run_backtest(conn: Conn, site_id: uuid.UUID, body: BacktestIn) -> dict[str, 
     bounds = [(sql.SQL("AND at >= %s"), body.start), (sql.SQL("AND at < %s"), body.end)]
     given = [(clause, value) for clause, value in bounds if value is not None]
     query = sql.SQL(
-        "SELECT at, value FROM site_samples WHERE signal_id = %s AND value IS NOT NULL {} ORDER BY at LIMIT %s"
-    ).format(sql.SQL(" ").join(clause for clause, _ in given))
-    rows = conn.execute(query, [body.signal_id, *(value for _, value in given), most + 1]).fetchall()
-    if len(rows) > most:
+        "SELECT at, value FROM site_samples WHERE signal_id = %s AND value IS NOT NULL {} ORDER BY at {} LIMIT %s"
+    ).format(sql.SQL(" ").join(clause for clause, _ in given), sql.SQL("DESC" if latest else "ASC"))
+    rows = conn.execute(
+        query, [body.signal_id, *(value for _, value in given), most if latest else most + 1]
+    ).fetchall()
+    if latest:
+        rows.reverse()
+    elif len(rows) > most:
         raise ValueError(
             f"More than {most} readings with {len(configs)} setting(s): choose a shorter period or fewer settings"
         )
