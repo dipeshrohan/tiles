@@ -575,6 +575,16 @@ You see:
 
 A detector with no asset can't be scored. In **By detector**, type the asset (for example DC-01) and click **Set**. If events exist for assets that no detector watches, the page lists them.
 
+### Planned stops (engineers and admins)
+
+Planned downtime, such as a die change or planned maintenance, isn't a stop a warning could have prevented, so the report and the ROI report leave it out. Everyone sees the **Planned stops** card; engineers and admins change it.
+
+- **Planned-downtime codes:** the codes your MES uses for planned downtime, for example `PM, CHANGEOVER`. Click **Save codes**. A downtime event with one of them is planned.
+- **Add a planned stop:** an **Asset** (empty for the whole site), **From** and **To** on the site's clock and an optional **Reason**, then **Add planned stop**. A downtime event of that asset (or any asset, for the whole site) that starts within it is planned.
+- **Remove** takes a stop out again; the report counts its events once more.
+
+A warning that starts within a planned stop for its detector's asset (or the whole site) is the planned work moving the signal, so it isn't counted either. Scrap is never planned downtime: it is always counted. The ROI report names the planned codes and stops it left out, and they are part of its digest.
+
 ### The ROI report
 
 At the foot of the page, **ROI report** compares a pilot period with a baseline before it: the return the pilot shows, for the people who decide on it.

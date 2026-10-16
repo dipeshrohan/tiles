@@ -1191,6 +1191,27 @@
         "title": "Change",
         "type": "object"
       },
+      "CodesIn": {
+        "additionalProperties": false,
+        "properties": {
+          "codes": {
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^\\S(.*\\S)?$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "title": "Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "codes"
+        ],
+        "title": "CodesIn",
+        "type": "object"
+      },
       "Column": {
         "additionalProperties": false,
         "properties": {
@@ -5348,6 +5369,35 @@
         "title": "Periods",
         "type": "object"
       },
+      "Planned": {
+        "properties": {
+          "codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Codes",
+            "type": "array"
+          },
+          "more": {
+            "title": "More",
+            "type": "boolean"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/Stop"
+            },
+            "title": "Stops",
+            "type": "array"
+          }
+        },
+        "required": [
+          "stops",
+          "more",
+          "codes"
+        ],
+        "title": "Planned",
+        "type": "object"
+      },
       "Policy": {
         "properties": {
           "required": {
@@ -8113,6 +8163,108 @@
           "detail"
         ],
         "title": "Step",
+        "type": "object"
+      },
+      "Stop": {
+        "properties": {
+          "asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "asset",
+          "starts_at",
+          "ends_at",
+          "reason",
+          "created_by",
+          "created_at"
+        ],
+        "title": "Stop",
+        "type": "object"
+      },
+      "StopIn": {
+        "additionalProperties": false,
+        "properties": {
+          "asset": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "pattern": "^\\S(.*\\S)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "reason": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Reason",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "starts_at",
+          "ends_at"
+        ],
+        "title": "StopIn",
         "type": "object"
       },
       "Stored": {
@@ -17905,6 +18057,237 @@
           }
         },
         "summary": "Warning Performance",
+        "tags": [
+          "warnings"
+        ]
+      }
+    },
+    "/sites/{site_id}/planned-codes": {
+      "put": {
+        "description": "Sets the MES's planned-downtime codes: a downtime event with one of them is planned, and\nWarning performance and the ROI report leave it out. Engineers and admins; audited.",
+        "operationId": "set_planned_codes_sites__site_id__planned_codes_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodesIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Planned"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Planned Codes",
+        "tags": [
+          "warnings"
+        ]
+      }
+    },
+    "/sites/{site_id}/planned-stops": {
+      "get": {
+        "description": "The site's planned stops that overlap `since`\u2026`until` (all of them without), latest first, at\nmost 500 (`more` says there are others), and its planned-downtime codes.",
+        "operationId": "planned_stops_sites__site_id__planned_stops_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Planned"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Planned Stops",
+        "tags": [
+          "warnings"
+        ]
+      },
+      "post": {
+        "description": "Enters a planned stop for an asset (or, without one, for the whole site). Engineers and\nadmins; audited.",
+        "operationId": "add_planned_stop_sites__site_id__planned_stops_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StopIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Stop"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Planned Stop",
+        "tags": [
+          "warnings"
+        ]
+      }
+    },
+    "/sites/{site_id}/planned-stops/{stop_id}": {
+      "delete": {
+        "description": "Removes a planned stop. Engineers and admins; audited.",
+        "operationId": "remove_planned_stop_sites__site_id__planned_stops__stop_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "stop_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Stop Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Planned Stop",
         "tags": [
           "warnings"
         ]

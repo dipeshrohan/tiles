@@ -43,6 +43,7 @@ from tiles_api.api_ontology import router as ontology_router
 from tiles_api.api_ontology_io import router as ontology_io_router
 from tiles_api.api_org_models import router as org_models_router
 from tiles_api.api_performance import router as performance_router
+from tiles_api.api_planned import router as planned_router
 from tiles_api.api_preferences import router as preferences_router
 from tiles_api.api_reviews import router as reviews_router
 from tiles_api.api_roi import router as roi_router
@@ -260,6 +261,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(performance_router)
     app.include_router(coverage_router)
+    app.include_router(planned_router)
     app.include_router(roi_router)
     app.include_router(datasets_router)
     app.include_router(reviews_router)

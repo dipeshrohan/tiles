@@ -1877,6 +1877,53 @@ The last `days`: each detector's warnings scored against its asset's events (an 
 | `horizon_hours` | query | number | no |
 | `codes` | query | list of string | no |
 
+### `PUT /sites/{site_id}/planned-codes`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Sets the MES's planned-downtime codes: a downtime event with one of them is planned, and Warning performance and the ROI report leave it out. Engineers and admins; audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** CodesIn (see [openapi.json](openapi.json)).
+
+### `GET /sites/{site_id}/planned-stops`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The site's planned stops that overlap `since`…`until` (all of them without), latest first, at most 500 (`more` says there are others), and its planned-downtime codes.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `since` | query | date-time | no |
+| `until` | query | date-time | no |
+
+### `POST /sites/{site_id}/planned-stops`
+
+**Who:** engineer. **Answers:** 201, 422.
+
+Enters a planned stop for an asset (or, without one, for the whole site). Engineers and admins; audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** StopIn (see [openapi.json](openapi.json)).
+
+### `DELETE /sites/{site_id}/planned-stops/{stop_id}`
+
+**Who:** engineer. **Answers:** 204, 422.
+
+Removes a planned stop. Engineers and admins; audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `stop_id` | path | uuid | yes |
+| `site_id` | path | uuid | yes |
+
 ### `POST /sites/{site_id}/roi`
 
 **Who:** site member. **Answers:** 200, 422.

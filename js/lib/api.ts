@@ -584,6 +584,22 @@ export interface PerformanceReport {
   }[];
 }
 
+// Planned stops (T7.03): entered per asset (null: the whole site), and the MES's planned codes.
+export interface PlannedStop {
+  id: string;
+  asset: string | null;
+  starts_at: string;
+  ends_at: string;
+  reason: string;
+  created_by: string | null;
+  created_at: string;
+}
+export interface PlannedStops {
+  stops: PlannedStop[];
+  more: boolean; // more than these 500: the oldest aren't listed
+  codes: string[];
+}
+
 // Line coverage (T7.01): per machine, what Tiles watches and what is missing, in the order to do it.
 export type CoverageGap = 'signal_nodes' | 'linked_tags' | 'detector' | 'event_stream';
 export interface MachineCoverage {
@@ -1466,6 +1482,17 @@ export function createApiClient(options: ApiOptions) {
       const qs = params.toString();
       return request<PerformanceReport>('GET', `/sites/${encodeURIComponent(siteId)}/performance${qs ? `?${qs}` : ''}`);
     },
+    // Planned downtime (T7.03), left out of Warning performance and the ROI report.
+    plannedStops: (siteId: string) =>
+      request<PlannedStops>('GET', `/sites/${encodeURIComponent(siteId)}/planned-stops`),
+    addPlannedStop: (
+      siteId: string,
+      body: { asset: string | null; starts_at: string; ends_at: string; reason: string },
+    ) => request<PlannedStop>('POST', `/sites/${encodeURIComponent(siteId)}/planned-stops`, body),
+    removePlannedStop: (siteId: string, id: string) =>
+      request<void>('DELETE', `/sites/${encodeURIComponent(siteId)}/planned-stops/${encodeURIComponent(id)}`),
+    setPlannedCodes: (siteId: string, codes: string[]) =>
+      request<PlannedStops>('PUT', `/sites/${encodeURIComponent(siteId)}/planned-codes`, { codes }),
     // What is watched on each machine at or under a place, and what is missing (T7.01).
     coverage: (siteId: string, place: string) =>
       request<Coverage>('GET', `/sites/${encodeURIComponent(siteId)}/coverage?place=${encodeURIComponent(place)}`),

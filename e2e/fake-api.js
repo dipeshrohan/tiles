@@ -349,6 +349,9 @@ export function createFakeApi({
   // The ROI report (T6.01): the report a test sets, and the requests the page sent.
   let roiReport = null;
   const roiRequests = [];
+  // Planned stops (T7.03): stops entered and the MES's planned codes.
+  const plannedStops = [];
+  let plannedCodes = [];
   const audit = []; // newest first, like the API
   let auditId = 0;
   const bearersSeen = []; // every bearer token sent to this API
@@ -653,6 +656,7 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/performance` &&
         url.pathname !== `/sites/${site.id}/roi` &&
         url.pathname !== `/sites/${site.id}/coverage` &&
+        !url.pathname.startsWith(`/sites/${site.id}/planned-`) &&
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
         !url.pathname.startsWith(`/sites/${site.id}/apps`) &&
@@ -1609,6 +1613,40 @@ export function createFakeApi({
         const none = { machines: 0, covered: 0, with_signals: 0, with_detectors: 0, with_events: 0 };
         return send(200, coverageReport ?? { place: url.searchParams.get('place'), machines: [], totals: none });
       }
+      if (url.pathname === `/sites/${site.id}/planned-stops` && req.method === 'GET') {
+        return send(200, { stops: plannedStops, more: false, codes: plannedCodes });
+      }
+      if (url.pathname.startsWith(`/sites/${site.id}/planned-`)) {
+        if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
+        if (url.pathname === `/sites/${site.id}/planned-codes` && req.method === 'PUT') {
+          plannedCodes = [...new Set((await body(req)).codes)].sort();
+          return send(200, { stops: plannedStops, more: false, codes: plannedCodes });
+        }
+        if (url.pathname === `/sites/${site.id}/planned-stops` && req.method === 'POST') {
+          const b = await body(req);
+          if (!(Date.parse(b.ends_at) > Date.parse(b.starts_at)))
+            return send(422, { detail: 'A planned stop must end after it starts', code: 'planned.order', params: {} });
+          const stop = {
+            id: `stop-${plannedStops.length + 1}`,
+            asset: b.asset ?? null,
+            starts_at: new Date(b.starts_at).toISOString(),
+            ends_at: new Date(b.ends_at).toISOString(),
+            reason: b.reason ?? '',
+            created_by: user,
+            created_at: new Date().toISOString(),
+          };
+          plannedStops.push(stop);
+          plannedStops.sort((a, c) => c.starts_at.localeCompare(a.starts_at));
+          return send(201, stop);
+        }
+        const i = plannedStops.findIndex((s) => url.pathname === `/sites/${site.id}/planned-stops/${s.id}`);
+        if (req.method === 'DELETE' && i >= 0) {
+          plannedStops.splice(i, 1);
+          res.writeHead(204);
+          return res.end();
+        }
+        return send(404, { detail: 'No such planned stop', code: 'planned.not_found', params: {} });
+      }
       if (url.pathname === `/sites/${site.id}/roi` && req.method === 'POST') {
         roiRequests.push(await body(req));
         return roiReport ? send(200, roiReport) : send(503, { detail: 'No report set' });
@@ -2443,6 +2481,8 @@ export function createFakeApi({
       roiReport = report;
     },
     roiRequests: () => [...roiRequests],
+    // The planned stops and codes the page left (T7.03).
+    planned: () => ({ stops: [...plannedStops], codes: [...plannedCodes] }),
     // Lets a test add a message to the site's outbox listing, as tiles-notify would leave it.
     addDelivery(d) {
       deliveries.unshift({

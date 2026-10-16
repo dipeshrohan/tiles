@@ -4826,6 +4826,56 @@ test('the ROI report: the periods and costs asked for, the numbers shown, the Ma
   assert.deepEqual(a.errors, []);
 });
 
+test('planned stops: engineers enter them and the MES codes, viewers only read them (T7.03)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  fake.setPerformance(performanceReport());
+  fake.setRoi(roiReport());
+  const a = await openAs(t, apiUrl, null, 'performance');
+  await a.page.waitForSelector('#planned-form');
+  assert.match(await a.page.locator('[data-planned]').innerText(), /No planned stops/);
+
+  // A stop that ends before it starts is refused on the form.
+  await a.page.fill('#planned-form [name=asset]', 'DC-01');
+  await a.page.fill('#planned-form [name=from]', '2026-06-02T08:00');
+  await a.page.fill('#planned-form [name=to]', '2026-06-02T06:00');
+  await a.page.click('#planned-form button[type=submit]');
+  await a.page.waitForSelector('#planned-form [name=to][aria-invalid=true]');
+  assert.equal(fake.planned().stops.length, 0);
+
+  // A report made before the stop is entered goes: it counted that stop.
+  await a.page.click('#roi-form button[type=submit]');
+  await a.page.waitForSelector('[data-roi-result]');
+  await a.page.fill('#planned-form [name=to]', '2026-06-02T10:00');
+  await a.page.fill('#planned-form [name=reason]', 'Die change');
+  await a.page.click('#planned-form button[type=submit]');
+  await a.page.waitForSelector('[data-planned-remove]');
+  await a.page.waitForSelector('[data-roi-result]', { state: 'detached' });
+  const [stop] = fake.planned().stops;
+  assert.deepEqual([stop.asset, stop.reason], ['DC-01', 'Die change']);
+  assert.equal(Date.parse(stop.ends_at) - Date.parse(stop.starts_at), 2 * 3_600_000);
+  assert.match(await a.page.locator('[data-planned] tbody').innerText(), /DC-01[\s\S]*Die change/);
+
+  await a.page.fill('#planned-codes [name=codes]', 'PM, changeover , PM');
+  await a.page.click('#planned-codes button[type=submit]');
+  await a.page.waitForFunction(() => document.querySelector('#planned-codes [name=codes]')?.value === 'PM, changeover');
+  assert.deepEqual(fake.planned().codes, ['PM', 'changeover']);
+
+  await a.page.click('[data-planned-remove]');
+  await a.page.waitForSelector('[data-planned-remove]', { state: 'detached' });
+  assert.equal(fake.planned().stops.length, 0);
+  assert.deepEqual(a.errors, []);
+
+  // A viewer sees the codes, not the forms.
+  fake.setRole('demo@example.com', 'viewer');
+  const v = await openAs(t, apiUrl, null, 'performance');
+  await v.page.waitForSelector('[data-planned] p', { hasText: 'PM' });
+  assert.match(await v.page.locator('[data-planned]').innerText(), /PM, changeover/);
+  assert.equal(await v.page.locator('#planned-form, #planned-codes').count(), 0);
+  assert.deepEqual(v.errors, []);
+});
+
 test('a line shows what is watched on each machine and what is missing (T7.01)', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
