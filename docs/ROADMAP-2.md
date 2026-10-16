@@ -1,6 +1,6 @@
 # Tiles: the next 6 months
 
-**Window:** May – Oct 2027, after v1.0 · **Status:** agreed in review; its tasks become GitHub issues · **Before it:** [ROADMAP.md](ROADMAP.md)
+**Window:** May – Oct 2027, after v1.0 · **Status:** agreed in review · **Tasks:** [TASKS.md](TASKS.md#months-712-deeper-on-the-pilot-line-may--oct-2027), issues #327–#355 · **Before it:** [ROADMAP.md](ROADMAP.md)
 
 ## Goal
 
@@ -96,44 +96,44 @@ What v1.0 leaves in place, and what this plan builds on:
 
 ### Month 7
 
-- `T7.01` **Line coverage map:** per machine, its signals, detectors, models and event streams, and what is missing · FE+BE · 3d
-- `T7.02` **Detector templates by machine type:** define once, apply to every machine of the type, each backtested on its own history · BE+ML · 4d · T7.01
-- `T7.03` **Planned stops calendar:** from the MES's planned-downtime codes or entered by hand; Warning performance and the ROI report leave them out · BE+FE · 3d
-- `T7.04` **Map the rest of the line** with the partner (edge agent tags, ontology) · FDE · 5d · T7.01
+- `T7.01` [#333](https://github.com/dipeshrohan/tiles/issues/333) **Line coverage map:** per machine, its signals, detectors, models and event streams, and what is missing · FE+BE · 3d
+- `T7.02` [#334](https://github.com/dipeshrohan/tiles/issues/334) **Detector templates by machine type:** define once, apply to every machine of the type, each backtested on its own history · BE+ML · 4d · T7.01
+- `T7.03` [#335](https://github.com/dipeshrohan/tiles/issues/335) **Planned stops calendar:** from the MES's planned-downtime codes or entered by hand; Warning performance and the ROI report leave them out · BE+FE · 3d
+- `T7.04` [#336](https://github.com/dipeshrohan/tiles/issues/336) **Map the rest of the line** with the partner (edge agent tags, ontology) · FDE · 5d · T7.01
 
 ### Month 8
 
-- `T8.01` **Choose three failure modes** from the baseline's downtime by hours and cost, with the partner · PM+ML · 1d · T7.04
-- `T8.02` **Model 1** (registry, parity fixture, backtest) · ML · 5d · T8.01
-- `T8.03` **Model 2** · ML · 5d · T8.01
-- `T8.04` **Model 3** · ML · 5d · T8.01
-- `T8.05` **Bind and go live** on the line, each after its backtest beats its target · FDE+ML · 2d · T8.02–T8.04
+- `T8.01` [#337](https://github.com/dipeshrohan/tiles/issues/337) **Choose three failure modes** from the baseline's downtime by hours and cost, with the partner · PM+ML · 1d · T7.04
+- `T8.02` [#338](https://github.com/dipeshrohan/tiles/issues/338) **Model 1** (registry, parity fixture, backtest) · ML · 5d · T8.01
+- `T8.03` [#339](https://github.com/dipeshrohan/tiles/issues/339) **Model 2** · ML · 5d · T8.01
+- `T8.04` [#340](https://github.com/dipeshrohan/tiles/issues/340) **Model 3** · ML · 5d · T8.01
+- `T8.05` [#341](https://github.com/dipeshrohan/tiles/issues/341) **Bind and go live** on the line, each after its backtest beats its target · FDE+ML · 2d · T8.02–T8.04
 
 ### Month 9
 
-- `T9.01` **Remaining life per component:** time to a limit with its interval, on the machine's page and the Plant page · ML+FE · 4d
-- `T9.02` **Work orders out:** a draft in the CMMS (SAP PM or Maximo through their APIs, or CSV), outbound only, approved by a person, audited · BE · 5d
-- `T9.03` **Next maintenance window:** the planned stop before a predicted limit · BE+FE · 2d · T7.03, T9.01
+- `T9.01` [#342](https://github.com/dipeshrohan/tiles/issues/342) **Remaining life per component:** time to a limit with its interval, on the machine's page and the Plant page · ML+FE · 4d
+- `T9.02` [#343](https://github.com/dipeshrohan/tiles/issues/343) **Work orders out:** a draft in the CMMS (SAP PM or Maximo through their APIs, or CSV), outbound only, approved by a person, audited · BE · 5d
+- `T9.03` [#344](https://github.com/dipeshrohan/tiles/issues/344) **Next maintenance window:** the planned stop before a predicted limit · BE+FE · 2d · T7.03, T9.01
 
 ### Month 10
 
-- `T10.01` **Machine timeline:** warnings, events, changes and readings on one axis · FE+BE · 5d
-- `T10.02` **Similar past warnings** with their outcomes, and the correlation finder opened from a warning · ML+FE · 4d
-- `T10.03` **Copilot root-cause tool** over the timeline, with evaluation cases · BE · 4d · T10.01
-- `T10.04` **Time to cause** measured in the warning workflow · BE · 1d
+- `T10.01` [#345](https://github.com/dipeshrohan/tiles/issues/345) **Machine timeline:** warnings, events, changes and readings on one axis · FE+BE · 5d
+- `T10.02` [#346](https://github.com/dipeshrohan/tiles/issues/346) **Similar past warnings** with their outcomes, and the correlation finder opened from a warning · ML+FE · 4d
+- `T10.03` [#347](https://github.com/dipeshrohan/tiles/issues/347) **Copilot root-cause tool** over the timeline, with evaluation cases · BE · 4d · T10.01
+- `T10.04` [#348](https://github.com/dipeshrohan/tiles/issues/348) **Time to cause** measured in the warning workflow · BE · 1d
 
 ### Month 11
 
-- `T11.01` **Process model for recommendations** on the line's main quality driver · ML · 5d · T8.01
-- `T11.02` **Recommendations:** a sweep on the live state, within limits, approved by an engineer · BE+FE · 5d · T11.01
-- `T11.03` **Outcome tracking:** what followed an applied recommendation against what was expected · BE · 3d · T11.02
-- `T11.04` **Guard rails:** limits per parameter, refusal outside them, audit · BE · 2d · T11.02
+- `T11.01` [#349](https://github.com/dipeshrohan/tiles/issues/349) **Process model for recommendations** on the line's main quality driver · ML · 5d · T8.01
+- `T11.02` [#350](https://github.com/dipeshrohan/tiles/issues/350) **Recommendations:** a sweep on the live state, within limits, approved by an engineer · BE+FE · 5d · T11.01
+- `T11.03` [#351](https://github.com/dipeshrohan/tiles/issues/351) **Outcome tracking:** what followed an applied recommendation against what was expected · BE · 3d · T11.02
+- `T11.04` [#352](https://github.com/dipeshrohan/tiles/issues/352) **Guard rails:** limits per parameter, refusal outside them, audit · BE · 2d · T11.02
 
 ### Month 12
 
-- `T12.01` **ROI report v2:** per machine and per model · BE+FE · 3d
-- `T12.02` **Partner sign-off** and the case for the next plant · PM+TL · 1d · T12.01
-- `T12.03` **Release v1.1** · TL · 1d
+- `T12.01` [#353](https://github.com/dipeshrohan/tiles/issues/353) **ROI report v2:** per machine and per model · BE+FE · 3d
+- `T12.02` [#354](https://github.com/dipeshrohan/tiles/issues/354) **Partner sign-off** and the case for the next plant · PM+TL · 1d · T12.01
+- `T12.03` [#355](https://github.com/dipeshrohan/tiles/issues/355) **Release v1.1** · TL · 1d
 
 **Totals:** 24 tasks, about 79 engineer-days of build work, before review, pilot support and overruns.
 
