@@ -62,7 +62,7 @@ The trust boundaries, from the inside out:
 
 | Threat | What could happen | Mitigation | Status |
 |---|---|---|---|
-| **T**ampering / XSS | Data (tags, notes, node labels) runs as script | Every interpolation goes through `esc()`: a rule in CLAUDE.md and CONTRIBUTING, checked in review (no lint rule enforces it); no runtime dependencies | Partial: no Content-Security-Policy from `server.js` (G-B1) |
+| **T**ampering / XSS | Data (tags, notes, node labels) runs as script | Every interpolation goes through `esc()`: a rule in CLAUDE.md and CONTRIBUTING, checked in review (no lint rule enforces it); no runtime dependencies; a Content-Security-Policy without inline scripts (`server.js`) | Done (G-B1) |
 | **I**nformation disclosure | Tokens are stolen from storage | Tokens are in sessionStorage, not localStorage, and are refreshed before expiry; a Content-Security-Policy allows scripts from the app's own server only (`server.js`), and the sign-in code never leaves in a referrer | Done (G-B1) |
 | **S**poofing / clickjacking | The app is framed by another site | `frame-ancestors 'none'` and `X-Frame-Options: DENY` (`server.js`, tested) | Done (G-B1) |
 
@@ -130,4 +130,4 @@ The trust boundaries, from the inside out:
 | G-E4 / G-S2 | Sign releases and images (Sigstore cosign) and verify them at install | T6.04 |
 | G-S3 | Document and enforce the API's egress allowlist | Done: [hybrid mode](../hybrid.md) lists it; `networkPolicy.egressAllowlist` enforces it with Cilium, T5.11 |
 
-Review this document when an ADR changes a trust boundary, before each release (T6.04), and after the penetration test (T6.07). The [SOC 2 and ISO 27001 readiness plan](compliance-readiness.md) tracks these actions among its controls.
+Review this document when an ADR changes a trust boundary, before each release (T6.04), and after the penetration test (T6.07), whose scope is the [penetration test brief](pentest-brief.md). The [SOC 2 and ISO 27001 readiness plan](compliance-readiness.md) tracks these actions among its controls.
