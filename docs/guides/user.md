@@ -542,6 +542,11 @@ The Plant page walks the site the way it is laid out: site, workcenters, lines a
   - its signals: those its PLCs emit, and any it contains. In API mode each has its tag and latest reading, and **Plot** opens it in the Data explorer, once its tag is linked to the signal on the Signals page;
   - its controllers, the processes it runs and their materials, the models that watch it, its documents;
   - the machines that feed it and that it feeds, as links.
+- **Coverage** (API mode, on a place that holds machines) lists each machine under it with what Tiles watches and what is still missing:
+  - **Signals:** how many of the machine's signals in the plant model have a tag linked (on the Signals page);
+  - **Detectors** and **Models** on those tags;
+  - **Event streams:** the MES's downtime, scrap and other event signals for the machine. They are matched by the machine's `asset` property in the ontology (the name the MES uses, such as `DC-01`), or by its name when it has none;
+  - **Missing,** in the order to do it: signals in the plant model, then linked tags, a detector and an event stream. A machine with nothing missing is **Complete**, and the line's count of fully watched machines is above the table.
 - **Find a line or machine** searches the places by name, for every word you type. **Enter** opens the best match.
 - Each place has its own address (`#/plant/<node id>`), so you can bookmark a line or put a machine's page on a tablet beside it.
 

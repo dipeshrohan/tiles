@@ -4826,6 +4826,66 @@ test('the ROI report: the periods and costs asked for, the numbers shown, the Ma
   assert.deepEqual(a.errors, []);
 });
 
+test('a line shows what is watched on each machine and what is missing (T7.01)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = (id, type, label) => ({ kind: 'addNode', node: { id, type, label, props: {} } });
+  const edge = (from, rel, to) => ({ kind: 'addEdge', edge: { id: `${from}-${rel}-${to}`, from, rel, to } });
+  fake.commitAs(
+    'maria',
+    [
+      node('site', 'Site', 'Plant'),
+      node('line-a', 'Line', 'Line A'),
+      node('m1', 'Machine', 'Press 1'),
+      node('m2', 'Machine', 'Press 2'),
+      edge('site', 'contains', 'line-a'),
+      edge('line-a', 'contains', 'm1'),
+      edge('line-a', 'contains', 'm2'),
+    ],
+    'Line A',
+  );
+  const machine = (id, label, extra) => ({
+    id,
+    label,
+    asset: label,
+    signal_nodes: 2,
+    signals: 2,
+    detectors: 1,
+    models: 0,
+    event_streams: [{ tag: `mes.${id}.downtime`, kind: 'downtime' }],
+    missing: [],
+    ...extra,
+  });
+  fake.setCoverage({
+    place: 'line-a',
+    machines: [
+      machine('m1', 'Press 1', {}),
+      machine('m2', 'Press 2', {
+        signals: 0,
+        detectors: 0,
+        event_streams: [],
+        missing: ['linked_tags', 'event_stream'],
+      }),
+    ],
+    totals: { machines: 2, covered: 1, with_signals: 1, with_detectors: 1, with_events: 1 },
+  });
+  const a = await openAs(t, apiUrl, null, 'plant');
+  await a.page.evaluate(() => (location.hash = '#/plant/line-a'));
+  await a.page.waitForSelector('[data-coverage] table');
+  assert.equal(await a.page.innerText('[data-coverage-summary]'), '1 of 2 machines fully watched.');
+  const p1 = await a.page.locator('[data-coverage] tr[data-key="m1"]').innerText();
+  assert.match(p1, /Press 1\s+2 of 2 linked\s+1\s+0\s+mes\.m1\.downtime\s+Complete/);
+  const p2 = await a.page.locator('[data-coverage] tr[data-key="m2"]').innerText();
+  assert.match(p2, /0 of 2 linked[\s\S]*None for Press 2[\s\S]*No tags linked[\s\S]*No event stream/);
+  assert.ok(fake.coverageQueries().includes('line-a'));
+  // A machine's own page has no coverage card; its link opens it.
+  await a.page.click('[data-coverage] a[data-place="m2"]');
+  await a.page.waitForFunction(() => location.hash === '#/plant/m2');
+  assert.equal(await a.page.locator('[data-coverage]').count(), 0);
+  assert.deepEqual(a.errors, []);
+});
+
 test('a signal is marked as an MES event stream with its asset', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

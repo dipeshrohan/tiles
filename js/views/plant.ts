@@ -1,5 +1,5 @@
 import { esc, fmt, onAll, bound } from '../lib/dom.ts';
-import type { SignalInfo } from '../lib/api.ts';
+import type { Coverage, CoverageGap, SignalInfo } from '../lib/api.ts';
 import {
   findPlaces,
   machineSheet,
@@ -17,7 +17,17 @@ import type { Graph, OntologyNode } from '../lib/types.ts';
 import { when } from '../lib/warnings.ts';
 import { ensureFloor, floorItems, linkedSignals, refreshFloor, STATE_LABEL } from './floor-data.ts';
 import type { Context, Crumb, View } from './types.ts';
-import { button, card, emptyState, linkButton, pageHead, skeleton, apiUnreachable } from '../lib/ui.ts';
+import {
+  button,
+  card,
+  emptyState,
+  linkButton,
+  pageHead,
+  skeleton,
+  apiUnreachable,
+  loadFailed,
+  table,
+} from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
 import { t, tHtml } from '../lib/i18n.ts';
@@ -38,6 +48,80 @@ let typing: ReturnType<typeof setTimeout> | undefined;
 
 // The trail to the place the page last showed, for the breadcrumbs (worked out once, in render).
 let shownTrail: Crumb[] = [];
+
+// The coverage of the place shown (T7.01): asked once per place, again on Refresh. null: loading.
+let coverage: { key: string; data: Coverage | null | 'failed' } | null = null;
+const coverageKey = (ctx: Context, place: string): string => `${ctx.ontology.site?.id ?? ''}|${place}`;
+
+async function loadCoverage(ctx: Context, place: string): Promise<void> {
+  const site = ctx.ontology.site?.id;
+  if (!ctx.api || !site) return;
+  const key = coverageKey(ctx, place);
+  coverage = { key, data: null };
+  let data: Coverage | 'failed';
+  try {
+    data = await ctx.api.coverage(site, place);
+  } catch {
+    data = 'failed'; // the client showed why
+  }
+  if (coverage?.key === key) {
+    coverage = { key, data };
+    ctx.rerender();
+  }
+}
+
+const GAP_LABEL: Record<CoverageGap, () => string> = {
+  signal_nodes: () => t('plant.coverage.gap.signalNodes'),
+  linked_tags: () => t('plant.coverage.gap.linkedTags'),
+  detector: () => t('plant.coverage.gap.detector'),
+  event_stream: () => t('plant.coverage.gap.eventStream'),
+};
+
+function coverageCard(ctx: Context, place: string): string {
+  const shown = coverage?.key === coverageKey(ctx, place) ? coverage.data : null;
+  const title = `<div class="card-head"><h2>${esc(t('plant.coverage.title'))}</h2></div>`;
+  if (shown === 'failed')
+    return card(`${title}${loadFailed(t('plant.coverage.title'), 3)}`, { attrs: { 'data-coverage': '' } });
+  if (!shown)
+    return card(`${title}${skeleton.table(3, 6, t('plant.coverage.loading'))}`, { attrs: { 'data-coverage': '' } });
+  if (!shown.machines.length) return '';
+  const rows = shown.machines
+    .map((m) => {
+      const gaps = m.missing.length
+        ? m.missing.map((g) => `<span class="badge warn">${esc(GAP_LABEL[g]())}</span>`).join(' ')
+        : `<span class="badge good">${esc(t('plant.coverage.complete'))}</span>`;
+      const events = m.event_streams.length
+        ? esc(m.event_streams.map((e) => e.tag).join(', '))
+        : `<span class="soft">${esc(t('plant.coverage.noEvents', { asset: m.asset }))}</span>`;
+      return `<tr data-key="${esc(m.id)}">
+          <td><a href="${placeLink(m.id)}" data-place="${esc(m.id)}">${esc(m.label)}</a></td>
+          <td>${esc(t('plant.coverage.signalsOf', { linked: m.signals, nodes: m.signal_nodes }))}</td>
+          <td>${esc(fmt(m.detectors))}</td>
+          <td>${esc(fmt(m.models))}</td>
+          <td class="small">${events}</td>
+          <td>${gaps}</td>
+        </tr>`;
+    })
+    .join('');
+  const s = shown.totals;
+  return card(
+    `${title}
+      <p class="small soft" data-coverage-summary>${esc(t('plant.coverage.summary', { covered: s.covered, machines: s.machines }))}</p>
+      ${table({
+        headers: [
+          t('plant.coverage.machine'),
+          t('plant.coverage.signals'),
+          t('plant.coverage.detectors'),
+          t('plant.coverage.models'),
+          t('plant.coverage.events'),
+          t('plant.coverage.missing'),
+        ],
+        rowsHtml: rows,
+      })}
+      <p class="small soft">${esc(t('plant.coverage.hint'))}</p>`,
+    { attrs: { 'data-coverage': '' } },
+  );
+}
 
 const badge = (state: FloorItem['state'], count: number): string => {
   if (!count) return `<span class="badge good">${esc(t('plant.ok'))}</span>`;
@@ -185,7 +269,7 @@ function machinePage(ctx: Context, graph: Graph, node: OntologyNode, items: Floo
     </div>`;
 }
 
-function placePage(graph: Graph, id: string, items: FloorItem[] | null, now: number): string {
+function placePage(ctx: Context, graph: Graph, id: string, items: FloorItem[] | null, now: number): string {
   const inside = placesIn(graph, id);
   const warnings = items ? rollUp(graph, items, id).warnings : [];
   const cards = inside.length
@@ -199,7 +283,7 @@ function placePage(graph: Graph, id: string, items: FloorItem[] | null, now: num
           action: linkButton(t('plant.openOntology'), '#/ontology', { size: 'sm', icon: 'network' }),
         }),
       );
-  return `${cards}${warningsCard(warnings, now)}`;
+  return `${cards}${warningsCard(warnings, now)}${ctx.api && inside.length ? coverageCard(ctx, id) : ''}`;
 }
 
 function searchResults(graph: Graph, query: string): string {
@@ -221,6 +305,12 @@ function searchResults(graph: Graph, query: string): string {
           body: t('plant.noMatchBody'),
         })
   }</div>`;
+}
+
+// The place the address names, or the only top place.
+function shownPlace(ctx: Context): string | null {
+  const tops = topPlaces(ctx.graph);
+  return placeFromHash(location.hash) ?? (tops.length === 1 ? (tops[0] ?? null) : null);
 }
 
 const view: View = {
@@ -265,7 +355,7 @@ const view: View = {
       return `${head}${results}<div class="place-grid">${cards}</div>`;
     }
     const body =
-      node.type === 'Machine' ? machinePage(ctx, graph, node, items, now) : placePage(graph, node.id, items, now);
+      node.type === 'Machine' ? machinePage(ctx, graph, node, items, now) : placePage(ctx, graph, node.id, items, now);
     return `${head}${results}${body}`;
   },
   bind(root, ctx) {
@@ -319,7 +409,13 @@ const view: View = {
     onAll(root, '[data-place]', 'click', () => {
       ui.query = '';
     });
-    onAll(root, '[data-plant-refresh]', 'click', () => refreshFloor(ctx));
+    // The coverage of a place (not a machine), asked once per place.
+    const place = root.querySelector<HTMLElement>('[data-coverage]') ? shownPlace(ctx) : null;
+    if (place && coverage?.key !== coverageKey(ctx, place)) void loadCoverage(ctx, place);
+    onAll(root, '[data-plant-refresh]', 'click', () => {
+      refreshFloor(ctx);
+      if (place) void loadCoverage(ctx, place);
+    });
     onAll(root, '[data-open-warning]', 'click', (el) => openWarning(ctx, el.dataset.openWarning ?? ''));
   },
 };

@@ -1164,6 +1164,17 @@ Point the site at a Teams channel's webhook (Workflows, or an incoming webhook),
 
 ## ontology
 
+### `GET /sites/{site_id}/coverage`
+
+**Who:** site member. **Answers:** 200, 422.
+
+Each machine at or under `place` (a node of the committed ontology: a site, workcenter, line, cell or machine; without it, every machine of the site): its signals, detectors, models and event streams, and what is missing. Event streams are matched by the machine's `asset` property, or its label without one.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `place` | query | string | no |
+
 ### `GET /sites/{site_id}/ontology/commits`
 
 **Who:** site member. **Answers:** 200, 422.

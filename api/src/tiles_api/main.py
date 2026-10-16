@@ -25,6 +25,7 @@ from tiles_api.api_apps import router as apps_router
 from tiles_api.api_auth import router as auth_router
 from tiles_api.api_backtest import router as backtest_router
 from tiles_api.api_copilot import router as copilot_router
+from tiles_api.api_coverage import router as coverage_router
 from tiles_api.api_datasets import router as datasets_router
 from tiles_api.api_detectors import router as detectors_router
 from tiles_api.api_documents import router as documents_router
@@ -258,6 +259,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(warnings_router)
     app.include_router(notifications_router)
     app.include_router(performance_router)
+    app.include_router(coverage_router)
     app.include_router(roi_router)
     app.include_router(datasets_router)
     app.include_router(reviews_router)

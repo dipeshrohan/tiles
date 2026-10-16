@@ -1775,6 +1775,38 @@
         "title": "Counts",
         "type": "object"
       },
+      "Coverage": {
+        "properties": {
+          "machines": {
+            "items": {
+              "$ref": "#/components/schemas/MachineCoverage"
+            },
+            "title": "Machines",
+            "type": "array"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/tiles_api__api_coverage__Totals"
+          }
+        },
+        "required": [
+          "place",
+          "machines",
+          "totals"
+        ],
+        "title": "Coverage",
+        "type": "object"
+      },
       "Dataset": {
         "properties": {
           "columns": {
@@ -2792,6 +2824,29 @@
           "detector"
         ],
         "title": "EventRow",
+        "type": "object"
+      },
+      "EventStream": {
+        "properties": {
+          "kind": {
+            "enum": [
+              "downtime",
+              "scrap",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag",
+          "kind"
+        ],
+        "title": "EventStream",
         "type": "object"
       },
       "Events": {
@@ -4275,6 +4330,71 @@
           "value"
         ],
         "title": "Level",
+        "type": "object"
+      },
+      "MachineCoverage": {
+        "properties": {
+          "asset": {
+            "title": "Asset",
+            "type": "string"
+          },
+          "detectors": {
+            "title": "Detectors",
+            "type": "integer"
+          },
+          "event_streams": {
+            "items": {
+              "$ref": "#/components/schemas/EventStream"
+            },
+            "title": "Event Streams",
+            "type": "array"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "missing": {
+            "items": {
+              "enum": [
+                "signal_nodes",
+                "linked_tags",
+                "detector",
+                "event_stream"
+              ],
+              "type": "string"
+            },
+            "title": "Missing",
+            "type": "array"
+          },
+          "models": {
+            "title": "Models",
+            "type": "integer"
+          },
+          "signal_nodes": {
+            "title": "Signal Nodes",
+            "type": "integer"
+          },
+          "signals": {
+            "title": "Signals",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "asset",
+          "signal_nodes",
+          "signals",
+          "detectors",
+          "models",
+          "event_streams",
+          "missing"
+        ],
+        "title": "MachineCoverage",
         "type": "object"
       },
       "Match": {
@@ -8493,95 +8613,6 @@
         "title": "TemplateOut",
         "type": "object"
       },
-      "Totals": {
-        "properties": {
-          "caught": {
-            "title": "Caught",
-            "type": "integer"
-          },
-          "confirmed": {
-            "$ref": "#/components/schemas/Confirmed"
-          },
-          "events": {
-            "title": "Events",
-            "type": "integer"
-          },
-          "false_per_day": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "False Per Day"
-          },
-          "false_warnings": {
-            "title": "False Warnings",
-            "type": "integer"
-          },
-          "pending_warnings": {
-            "title": "Pending Warnings",
-            "type": "integer"
-          },
-          "precision": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Precision"
-          },
-          "recall": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Recall"
-          },
-          "true_warnings": {
-            "title": "True Warnings",
-            "type": "integer"
-          },
-          "warning_seconds": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/Spread"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "warnings": {
-            "title": "Warnings",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "warnings",
-          "true_warnings",
-          "false_warnings",
-          "pending_warnings",
-          "events",
-          "caught",
-          "recall",
-          "precision",
-          "false_per_day",
-          "warning_seconds",
-          "confirmed"
-        ],
-        "title": "Totals",
-        "type": "object"
-      },
       "UnstageIn": {
         "additionalProperties": false,
         "properties": {
@@ -9911,6 +9942,39 @@
         "title": "PolicyIn",
         "type": "object"
       },
+      "tiles_api__api_coverage__Totals": {
+        "properties": {
+          "covered": {
+            "title": "Covered",
+            "type": "integer"
+          },
+          "machines": {
+            "title": "Machines",
+            "type": "integer"
+          },
+          "with_detectors": {
+            "title": "With Detectors",
+            "type": "integer"
+          },
+          "with_events": {
+            "title": "With Events",
+            "type": "integer"
+          },
+          "with_signals": {
+            "title": "With Signals",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "machines",
+          "covered",
+          "with_signals",
+          "with_detectors",
+          "with_events"
+        ],
+        "title": "Totals",
+        "type": "object"
+      },
       "tiles_api__api_detectors__RunOut": {
         "properties": {
           "caught_up": {
@@ -10209,7 +10273,7 @@
             "type": "string"
           },
           "totals": {
-            "$ref": "#/components/schemas/Totals"
+            "$ref": "#/components/schemas/tiles_api__api_performance__Totals"
           },
           "unwatched": {
             "items": {
@@ -10229,6 +10293,95 @@
           "events"
         ],
         "title": "Report",
+        "type": "object"
+      },
+      "tiles_api__api_performance__Totals": {
+        "properties": {
+          "caught": {
+            "title": "Caught",
+            "type": "integer"
+          },
+          "confirmed": {
+            "$ref": "#/components/schemas/Confirmed"
+          },
+          "events": {
+            "title": "Events",
+            "type": "integer"
+          },
+          "false_per_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "False Per Day"
+          },
+          "false_warnings": {
+            "title": "False Warnings",
+            "type": "integer"
+          },
+          "pending_warnings": {
+            "title": "Pending Warnings",
+            "type": "integer"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          },
+          "recall": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall"
+          },
+          "true_warnings": {
+            "title": "True Warnings",
+            "type": "integer"
+          },
+          "warning_seconds": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Spread"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "warnings": {
+            "title": "Warnings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "warnings",
+          "true_warnings",
+          "false_warnings",
+          "pending_warnings",
+          "events",
+          "caught",
+          "recall",
+          "precision",
+          "false_per_day",
+          "warning_seconds",
+          "confirmed"
+        ],
+        "title": "Totals",
         "type": "object"
       },
       "tiles_api__api_preferences__Preferences": {
@@ -13245,6 +13398,68 @@
         "summary": "Usage",
         "tags": [
           "copilot"
+        ]
+      }
+    },
+    "/sites/{site_id}/coverage": {
+      "get": {
+        "description": "Each machine at or under `place` (a node of the committed ontology: a site, workcenter, line,\ncell or machine; without it, every machine of the site): its signals, detectors, models and\nevent streams, and what is missing. Event streams are matched by the machine's `asset`\nproperty, or its label without one.",
+        "operationId": "line_coverage_sites__site_id__coverage_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "place",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Place"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Coverage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Line Coverage",
+        "tags": [
+          "ontology"
         ]
       }
     },

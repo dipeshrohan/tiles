@@ -343,6 +343,9 @@ export function createFakeApi({
   // Batch tables (T3.11): like the API, the correlation finder ranks with the browser's own.
   const datasets = []; // { id, name, description, columns, rows, created_by, created_at }
   const performanceQueries = [];
+  // Line coverage (T7.01): what a test sets, and the places the page asked about.
+  let coverageReport = null;
+  const coverageQueries = [];
   // The ROI report (T6.01): the report a test sets, and the requests the page sent.
   let roiReport = null;
   const roiRequests = [];
@@ -649,6 +652,7 @@ export function createFakeApi({
         !url.pathname.startsWith(`/sites/${site.id}/notifications`) &&
         url.pathname !== `/sites/${site.id}/performance` &&
         url.pathname !== `/sites/${site.id}/roi` &&
+        url.pathname !== `/sites/${site.id}/coverage` &&
         !url.pathname.startsWith(`/sites/${site.id}/datasets`) &&
         !url.pathname.startsWith(`/sites/${site.id}/insights`) &&
         !url.pathname.startsWith(`/sites/${site.id}/apps`) &&
@@ -1600,6 +1604,11 @@ export function createFakeApi({
         correlations.push(q);
         return send(200, correlationOf(d, q));
       }
+      if (url.pathname === `/sites/${site.id}/coverage`) {
+        coverageQueries.push(url.searchParams.get('place'));
+        const none = { machines: 0, covered: 0, with_signals: 0, with_detectors: 0, with_events: 0 };
+        return send(200, coverageReport ?? { place: url.searchParams.get('place'), machines: [], totals: none });
+      }
       if (url.pathname === `/sites/${site.id}/roi` && req.method === 'POST') {
         roiRequests.push(await body(req));
         return roiReport ? send(200, roiReport) : send(503, { detail: 'No report set' });
@@ -2424,6 +2433,11 @@ export function createFakeApi({
       performanceReport = report;
     },
     performanceQueries: () => [...performanceQueries],
+    // Lets a test set the line coverage the API answers with (T7.01), and read what was asked.
+    setCoverage(report) {
+      coverageReport = report;
+    },
+    coverageQueries: () => [...coverageQueries],
     // Lets a test set the ROI report the API answers with (T6.01), and read what was asked.
     setRoi(report) {
       roiReport = report;
