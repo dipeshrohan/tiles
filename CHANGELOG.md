@@ -31,6 +31,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - e-mail and Teams notifications;
   - warning performance against downtime and scrap events;
   - line coverage on the Plant page: each machine's signals, detectors, models and event streams, and what is still missing;
+  - planned stops: planned-downtime codes and stops entered per asset or for the whole site, left out of Warning performance and the ROI report;
   - the ROI report: a pilot period against its baseline, with what was avoided in stops, hours, scrap and cost, as Markdown with a digest of the events it counted.
 - **Analysis:**
   - a correlation finder over batch tables;

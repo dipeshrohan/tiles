@@ -3,9 +3,10 @@ the same way the backtest scores a replay (backtest.score), and what people said
 
 An event is a reading on an event signal (signals.event_kind) with an asset, in the period. A
 reading of 0 or false is not an event (a scrap count of nothing). The code is its text, or its
-number. A detector's warnings count for its asset's events; an asset with several detectors
-counts an event caught when any of them warned, for the totals. Events of assets no detector
-watches are counted apart (`unwatched`): no detector could have caught them.
+number. Planned downtime (T7.03, migration 0039: a planned code, or a stop within a planned stop
+for its asset or the whole site) is not an event. A detector's warnings count for its asset's
+events; an asset with several detectors counts an event caught when any of them warned, for the
+totals. Events of assets no detector watches are counted apart (`unwatched`): no detector could have caught them.
 
 Each detector is scored over the part of the period it judged: from its signal's first reading
 to where its runs got to (`done_until`); events outside that couldn't have been warned of, so
@@ -85,6 +86,10 @@ def report(
           AND (cardinality(%(codes)s::text[]) = 0
                OR coalesce(s.value_text, s.value::text, s.value_bool::text) = ANY(%(codes)s::text[]))
           AND (%(kinds)s::text[] IS NULL OR g.event_kind = ANY(%(kinds)s::text[]))
+          -- Planned downtime (T7.03): a planned code, or a stop within a planned stop for its asset.
+          AND NOT (g.event_kind = 'downtime'
+                   AND tiles_planned(g.site_id, g.asset, s.at,
+                                     coalesce(s.value_text, s.value::text, s.value_bool::text)))
         ORDER BY s.at LIMIT %(limit)s
         """,
         {"site": site_id, "start": start, "end": end, "codes": codes, "kinds": event_kinds, "limit": MAX_EVENTS + 1},

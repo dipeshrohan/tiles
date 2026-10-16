@@ -42,6 +42,9 @@ def _events(conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime, code
           AND coalesce(s.value <> 0, s.value_bool, s.value_text <> '')
           AND (g.event_kind <> 'downtime' OR cardinality(%(codes)s::text[]) = 0
                OR coalesce(s.value_text, s.value::text, s.value_bool::text) = ANY(%(codes)s::text[]))
+          AND NOT (g.event_kind = 'downtime'
+                   AND tiles_planned(g.site_id, g.asset, s.at,
+                                     coalesce(s.value_text, s.value::text, s.value_bool::text)))
         ORDER BY s.at, g.asset, g.event_kind, code LIMIT %(limit)s
         """,
         {
