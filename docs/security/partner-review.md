@@ -108,7 +108,7 @@ Nothing goes anywhere else.
 These are the threat model's open [actions](threat-model.md#actions), as they stand. Say them
 plainly in the review, and agree with the plant when each must close:
 
-- **Not certified:** no penetration test yet (T6.07) and no SOC 2 or ISO 27001 certification
+- **Not certified:** no penetration test yet (T6.07; its scope is in the [penetration test brief](pentest-brief.md)) and no SOC 2 or ISO 27001 certification
   ([timeline](compliance-readiness.md#timeline)).
 - **G-D2:** a database login for the API and the jobs that can't change the schema. They already
   work as a role that can't (G-D1), but they hold the login that can.
