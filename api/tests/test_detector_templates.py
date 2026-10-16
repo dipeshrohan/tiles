@@ -6,7 +6,8 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
-from test_performance import EVERY, FIXTURE, HORIZON_H, send, signal_id
+from test_detectors import FIXTURE
+from test_performance import EVERY, HORIZON_H, send, signal_id
 
 from tiles_api.api_detector_templates import detector_name
 
