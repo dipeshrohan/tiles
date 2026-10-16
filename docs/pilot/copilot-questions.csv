@@ -1,0 +1,4 @@
+id,question,tools,facts,absent,decline,notes
+machines-on-line,Which machines are on Line 2?,graph_query,DC-01; DC-02,Old trim press,,Examples from the evaluation plant: replace these rows with the partner's questions
+last-pressure,What was the last hydraulic pressure reading on DC-01?,time_series,152 | 152.0,,,A fact with alternatives: any one of them counts
+unknown-machine,What is the spindle speed of the DC-03 cell right now?,,,,yes,There is no DC-03: the right answer says the data doesn't have it
