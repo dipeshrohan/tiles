@@ -359,6 +359,71 @@ A parallel track that turns the 20 pages into one consistent, quick and self-exp
 
 ---
 
+## Months 7–12: deeper on the pilot line (May – Oct 2027)
+
+The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's return. Parent issues: [Month 7](https://github.com/dipeshrohan/tiles/issues/327) · [Month 8](https://github.com/dipeshrohan/tiles/issues/328) · [Month 9](https://github.com/dipeshrohan/tiles/issues/329) · [Month 10](https://github.com/dipeshrohan/tiles/issues/330) · [Month 11](https://github.com/dipeshrohan/tiles/issues/331) · [Month 12](https://github.com/dipeshrohan/tiles/issues/332).
+
+### Month 7: The whole line (May 2027)
+
+- [ ] `T7.01` [#333](https://github.com/dipeshrohan/tiles/issues/333) **Line coverage map** · FE+BE · 3d
+  *Done when:* the map lists every machine on the line with what it has and what it lacks.
+- [ ] `T7.02` [#334](https://github.com/dipeshrohan/tiles/issues/334) **Detector templates by machine type** · BE+ML · 4d · T7.01
+  *Done when:* a template is applied to every die-casting cell on the line, each detector with its own backtest report.
+- [ ] `T7.03` [#335](https://github.com/dipeshrohan/tiles/issues/335) **Planned stops calendar** · BE+FE · 3d
+  *Done when:* a planned stop is left out of Warning performance and the ROI report, with a test for each.
+- [ ] `T7.04` [#336](https://github.com/dipeshrohan/tiles/issues/336) **Map the rest of the line** · FDE · 5d · T7.01
+  *Done when:* every machine on the line has its tags mapped to Signal nodes in the ontology.
+### Month 8: More failure modes (Jun 2027)
+
+- [ ] `T8.01` [#337](https://github.com/dipeshrohan/tiles/issues/337) **Choose three failure modes** · PM+ML · 1d · T7.04
+  *Done when:* three failure modes are chosen and recorded with their baseline hours, cost and the history available.
+- [ ] `T8.02` [#338](https://github.com/dipeshrohan/tiles/issues/338) **Failure-mode model 1** · ML · 5d · T8.01
+  *Done when:* the model is in the registry and its backtest report beats its target.
+- [ ] `T8.03` [#339](https://github.com/dipeshrohan/tiles/issues/339) **Failure-mode model 2** · ML · 5d · T8.01
+  *Done when:* the model is in the registry and its backtest report beats its target.
+- [ ] `T8.04` [#340](https://github.com/dipeshrohan/tiles/issues/340) **Failure-mode model 3** · ML · 5d · T8.01
+  *Done when:* the model is in the registry and its backtest report beats its target.
+- [ ] `T8.05` [#341](https://github.com/dipeshrohan/tiles/issues/341) **Bind the new models and go live** · FDE+ML · 2d · T8.02–T8.04
+  *Done when:* the three models are bound on the line and their warnings reach the warning workflow.
+### Month 9: From warning to planned work (Jul 2027)
+
+- [ ] `T9.01` [#342](https://github.com/dipeshrohan/tiles/issues/342) **Remaining life per component** · ML+FE · 4d
+  *Done when:* each watched component shows its time to its limit, with an interval.
+- [ ] `T9.02` [#343](https://github.com/dipeshrohan/tiles/issues/343) **Work orders out** · BE · 5d
+  *Done when:* an approved warning creates a work-order draft in the CMMS or as CSV, and the step is audited.
+- [ ] `T9.03` [#344](https://github.com/dipeshrohan/tiles/issues/344) **Next maintenance window** · BE+FE · 2d · T7.03, T9.01
+  *Done when:* a predicted limit shows the planned stop before it, or says there is none in time.
+### Month 10: Causes, faster (Aug 2027)
+
+- [ ] `T10.01` [#345](https://github.com/dipeshrohan/tiles/issues/345) **Machine timeline** · FE+BE · 5d
+  *Done when:* a machine's page shows its warnings, events, changes and readings on one axis.
+- [ ] `T10.02` [#346](https://github.com/dipeshrohan/tiles/issues/346) **Similar past warnings** · ML+FE · 4d
+  *Done when:* a warning shows its most similar past warnings and how each was resolved.
+- [ ] `T10.03` [#347](https://github.com/dipeshrohan/tiles/issues/347) **Copilot root-cause tool** · BE · 4d · T10.01
+  *Done when:* root-cause cases are added to the evaluation set and pass the gate, grounded.
+- [ ] `T10.04` [#348](https://github.com/dipeshrohan/tiles/issues/348) **Time to cause** · BE · 1d
+  *Done when:* Warning performance shows the median time from a stop to its recorded cause, per month.
+### Month 11: Recommendations the line acts on (Sep 2027)
+
+- [ ] `T11.01` [#349](https://github.com/dipeshrohan/tiles/issues/349) **Process model for recommendations** · ML · 5d · T8.01
+  *Done when:* the model predicts the quality driver within its stated error on held-out history.
+- [ ] `T11.02` [#350](https://github.com/dipeshrohan/tiles/issues/350) **Setpoint recommendations** · BE+FE · 5d · T11.01
+  *Done when:* an engineer can approve a recommendation, and none is ever outside its limits.
+- [ ] `T11.03` [#351](https://github.com/dipeshrohan/tiles/issues/351) **Recommendation outcomes** · BE · 3d · T11.02
+  *Done when:* each applied recommendation shows its expected and actual outcome.
+- [ ] `T11.04` [#352](https://github.com/dipeshrohan/tiles/issues/352) **Recommendation guard rails** · BE · 2d · T11.02
+  *Done when:* a recommendation outside a limit is refused, with a test, and every recommendation is in the audit log.
+### Month 12: Prove it (Oct 2027)
+
+- [ ] `T12.01` [#353](https://github.com/dipeshrohan/tiles/issues/353) **ROI report v2** · BE+FE · 3d
+  *Done when:* the ROI report breaks the avoided cost down per machine and per model, with the same digest method.
+- [ ] `T12.02` [#354](https://github.com/dipeshrohan/tiles/issues/354) **Partner sign-off on three times the return** · PM+TL · 1d · T12.01
+  *Done when:* the partner signs the report.
+- [ ] `T12.03` [#355](https://github.com/dipeshrohan/tiles/issues/355) **Release v1.1** · TL · 1d
+  *Done when:* v1.1 is tagged and deployed on the pilot.
+
+---
+
 ## Ongoing (every month)
 
 - [ ] `T0.01` [#104](https://github.com/dipeshrohan/tiles/issues/104) **Monthly metrics review:** warning recall, precision and warning time; copilot accuracy; data freshness; weekly active users; ontology health; onboarding time · PM
