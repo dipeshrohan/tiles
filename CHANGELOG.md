@@ -30,6 +30,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - a plant navigator from the site to its lines and machines, built from the ontology's hierarchy, with open warnings on every place and a page per machine: its signals with their latest readings, controllers, processes, models, documents and neighbours (T5.17);
   - e-mail and Teams notifications;
   - warning performance against downtime and scrap events;
+  - line coverage on the Plant page: each machine's signals, detectors, models and event streams, and what is still missing;
   - the ROI report: a pilot period against its baseline, with what was avoided in stops, hours, scrap and cost, as Markdown with a digest of the events it counted.
 - **Analysis:**
   - a correlation finder over batch tables;

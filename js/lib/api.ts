@@ -584,6 +584,25 @@ export interface PerformanceReport {
   }[];
 }
 
+// Line coverage (T7.01): per machine, what Tiles watches and what is missing, in the order to do it.
+export type CoverageGap = 'signal_nodes' | 'linked_tags' | 'detector' | 'event_stream';
+export interface MachineCoverage {
+  id: string;
+  label: string;
+  asset: string; // the name its events are matched by
+  signal_nodes: number;
+  signals: number; // of the signal nodes, linked to a catalogue tag
+  detectors: number;
+  models: number;
+  event_streams: { tag: string; kind: 'downtime' | 'scrap' | 'other' }[];
+  missing: CoverageGap[];
+}
+export interface Coverage {
+  place: string | null;
+  machines: MachineCoverage[];
+  totals: { machines: number; covered: number; with_signals: number; with_detectors: number; with_events: number };
+}
+
 // Batch tables and the correlation finder (T3.11).
 export interface DatasetColumn {
   name: string;
@@ -1447,6 +1466,9 @@ export function createApiClient(options: ApiOptions) {
       const qs = params.toString();
       return request<PerformanceReport>('GET', `/sites/${encodeURIComponent(siteId)}/performance${qs ? `?${qs}` : ''}`);
     },
+    // What is watched on each machine at or under a place, and what is missing (T7.01).
+    coverage: (siteId: string, place: string) =>
+      request<Coverage>('GET', `/sites/${encodeURIComponent(siteId)}/coverage?place=${encodeURIComponent(place)}`),
     // The pilot period against the baseline (T6.01): stops, scrap and warnings, what was avoided, a digest.
     roi: (siteId: string, body: RoiRequest) =>
       request<RoiReport>('POST', `/sites/${encodeURIComponent(siteId)}/roi`, body),
