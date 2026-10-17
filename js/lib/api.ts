@@ -581,7 +581,9 @@ export interface PerformanceReport {
     warned_at: string | null;
     warning_seconds: number | null;
     detector: string | null;
+    cause_seconds: number | null; // from the stop to its warning resolved as a true alarm (T10.04)
   }[];
+  time_to_cause: { month: string; stops: number; median_seconds: number }[]; // YYYY-MM, oldest first
 }
 
 // Planned stops (T7.03): entered per asset (null: the whole site), and the MES's planned codes.

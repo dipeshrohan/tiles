@@ -1437,6 +1437,29 @@
         "title": "BufferStatus",
         "type": "object"
       },
+      "CauseMonth": {
+        "properties": {
+          "median_seconds": {
+            "title": "Median Seconds",
+            "type": "number"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "stops": {
+            "title": "Stops",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "stops",
+          "median_seconds"
+        ],
+        "title": "CauseMonth",
+        "type": "object"
+      },
       "Change": {
         "properties": {
           "after": {
@@ -3071,6 +3094,17 @@
             "title": "At",
             "type": "string"
           },
+          "cause_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cause Seconds"
+          },
           "code": {
             "title": "Code",
             "type": "string"
@@ -3131,7 +3165,8 @@
           "code",
           "warned_at",
           "warning_seconds",
-          "detector"
+          "detector",
+          "cause_seconds"
         ],
         "title": "EventRow",
         "type": "object"
@@ -10960,6 +10995,13 @@
             "title": "Start",
             "type": "string"
           },
+          "time_to_cause": {
+            "items": {
+              "$ref": "#/components/schemas/CauseMonth"
+            },
+            "title": "Time To Cause",
+            "type": "array"
+          },
           "totals": {
             "$ref": "#/components/schemas/tiles_api__api_performance__Totals"
           },
@@ -10978,7 +11020,8 @@
           "totals",
           "detectors",
           "unwatched",
-          "events"
+          "events",
+          "time_to_cause"
         ],
         "title": "Report",
         "type": "object"

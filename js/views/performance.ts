@@ -21,7 +21,7 @@ import {
 } from '../lib/ui.ts';
 import { GLOSSARY } from '../lib/glossary-data.ts';
 import { showErrors } from '../lib/forms.ts';
-import { dateTime, fromInput, number, percent } from '../lib/format.ts';
+import { dateTime, fromInput, month, number, percent } from '../lib/format.ts';
 import {
   change,
   defaultPeriods,
@@ -199,6 +199,28 @@ function eventsCard(r: PerformanceReport): string {
     </div>`;
 }
 
+// Time to cause (T10.04): per month, the median time from a stop to its warning resolved as a true alarm.
+function causeCard(r: PerformanceReport): string {
+  const rows = r.time_to_cause
+    .map(
+      (m) =>
+        `<tr data-key="${esc(m.month)}"><td>${esc(month(`${m.month}-15T12:00:00Z`))}</td><td>${esc(number(m.stops))}</td><td>${esc(duration(m.median_seconds))}</td></tr>`,
+    )
+    .join('');
+  return `<div class="card stack gap-2_5" data-cause>
+      <h2>${esc(t('performance.cause.title'))}</h2>
+      <p class="small soft">${esc(t('performance.cause.lead'))}</p>
+      ${
+        r.time_to_cause.length
+          ? table({
+              headers: [t('performance.cause.month'), t('performance.cause.stops'), t('performance.cause.median')],
+              rowsHtml: rows,
+            })
+          : `<p class="small soft">${esc(t('performance.cause.none'))}</p>`
+      }
+    </div>`;
+}
+
 // A number for the report: a dash when there is none.
 const num = (v: number | null, digits = 1): string => (v === null ? '–' : number(v, digits));
 
@@ -348,7 +370,7 @@ const view: View = {
             `<div class="card kpi ${k.tone}"><div class="label">${kpiLabel(k)}</div><div class="value">${esc(k.value)}</div><div class="note">${esc(k.note)}</div></div>`,
         )
         .join('');
-      body = `<div class="grid g4" data-kpis>${tiles}</div>${detectorsCard(ctx, r)}${eventsCard(r)}${plannedCard(ctx)}${roiCard()}`;
+      body = `<div class="grid g4" data-kpis>${tiles}</div>${detectorsCard(ctx, r)}${eventsCard(r)}${causeCard(r)}${plannedCard(ctx)}${roiCard()}`;
     }
     return `${head}${controls(u)}<div class="stack gap-4 mt-4">${body}</div>`;
   },

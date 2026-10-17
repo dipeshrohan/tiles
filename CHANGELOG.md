@@ -32,6 +32,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - warning performance against downtime and scrap events;
   - line coverage on the Plant page: each machine's signals, detectors, models and event streams, and what is still missing;
   - planned stops: planned-downtime codes and stops entered per asset or for the whole site, left out of Warning performance and the ROI report;
+  - time to cause on Warning performance: per month, the median time from a stop to its warning resolved as a true alarm;
   - detector templates: a detector set up once for a kind of machine and applied to every machine of that kind on a line, each tuned by a backtest on its own history and kept with its report;
   - the ROI report: a pilot period against its baseline, with what was avoided in stops, hours, scrap and cost, as Markdown with a digest of the events it counted.
 - **Analysis:**

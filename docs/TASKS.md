@@ -401,7 +401,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
   *Done when:* a warning shows its most similar past warnings and how each was resolved.
 - [ ] `T10.03` [#347](https://github.com/dipeshrohan/tiles/issues/347) **Copilot root-cause tool** · BE · 4d · T10.01
   *Done when:* root-cause cases are added to the evaluation set and pass the gate, grounded.
-- [ ] `T10.04` [#348](https://github.com/dipeshrohan/tiles/issues/348) **Time to cause** · BE · 1d
+- [x] `T10.04` [#348](https://github.com/dipeshrohan/tiles/issues/348) **Time to cause** · BE · 1d
   *Done when:* Warning performance shows the median time from a stop to its recorded cause, per month.
 ### Month 11: Recommendations the line acts on (Sep 2027)
 
