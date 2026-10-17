@@ -2,6 +2,7 @@
 signal over HTTP, with its trend and the time to a limit."""
 
 import json
+import random
 from datetime import timedelta
 from pathlib import Path
 from typing import Any
@@ -146,3 +147,34 @@ def test_the_threshold_is_written_as_given(api: TestClient, site: str) -> None: 
     signal = load(api, site, "w03.cathode_power", FIXTURE["cathode"], step=HOUR)
     out = check(api, site, signal, baseline_hours=48, threshold=0.025).json()
     assert "(the threshold is 2.5%)" in out["text"]
+
+
+def test_sens_interval_of_the_slope_and_the_time_to_a_limit() -> None:
+    # Six pairwise slopes, sorted -1, 0.5, 0.667, 1, 1.5, 2; for 4 points C = 1.96 * sqrt(4 * 3 * 13 / 18).
+    pts = [wear.Bucket(0, 0), wear.Bucket(1, 1), wear.Bucket(2, 3), wear.Bucket(3, 2)]
+    assert wear.sen_interval(pts) == (-1, 2)
+    assert wear.sen_interval(pts[:2]) is None  # too few to say
+    # SciPy's theilslopes on the same points gives these (scipy.stats.theilslopes(y, x, 0.95)).
+    xs = range(10)
+    ys = [0.0, 1.3, 1.9, 3.4, 3.8, 5.6, 5.9, 7.3, 8.2, 8.8]
+    assert wear.sen_interval([wear.Bucket(x, y) for x, y in zip(xs, ys, strict=True)]) == (0.9, 1.08)
+    tied = [1, 1, 2, 2, 2, 3, 3, 4, 4, 5]  # tied values narrow the interval, as SciPy's does
+    assert wear.sen_interval([wear.Bucket(x, y) for x, y in zip(xs, tied, strict=True)]) == (1 / 3, 0.5)
+    rng = random.Random(7)  # noqa: S311 - test data
+    rising = [wear.Bucket(i, 10 + 0.5 * i + rng.gauss(0, 1)) for i in range(24)]
+    low, high = wear.sen_interval(rising) or (0, 0)
+    assert low < (wear.theil_sen(rising) or 0) < high and low > 0.3 and high < 0.7
+    flat = [wear.Bucket(i - 10, 10) for i in range(8)]
+    a = wear.assess(flat, rising, direction="up", limit=40)
+    assert a.hours_to_limit is not None and a.hours_interval is not None
+    earliest, latest = a.hours_interval
+    assert latest is not None and earliest < a.hours_to_limit < latest
+    # A slope that may be falling: there is an earliest time, but it may never get there.
+    assert wear._hours_between(40, 10, (-0.1, 0.5), "up") == (60, None)
+    assert wear._hours_between(40, 10, (0.25, 0.5), "up") == (60, 120)
+    assert wear._hours_between(40, 10, (-0.5, -0.1), "up") is None
+    # The median slope may miss the limit while the interval's fastest reaches it: maybe.
+    steady = [wear.Bucket(i, 10 + (0.3 if i % 2 else -0.3) + 0.01 * i) for i in range(24)]
+    c = wear.assess(flat, steady, direction="up", limit=11)
+    assert c.hours_interval is not None and c.hours_interval[0] > 0
+    assert wear._hours_between(None, 10, (0.25, 0.5), "up") is None

@@ -29,6 +29,8 @@ const SIG = {
   stuck_after_s: null,
   event_kind: null,
   asset: null,
+  wear_limit: null,
+  wear_direction: null,
   quality: null,
 };
 
@@ -61,6 +63,21 @@ test('the latest reading, with its unit', () => {
   assert.match(latest({ ...SIG, last_value: 'running' }), /^running · /);
   assert.match(latest({ ...SIG, last_value: true }), /^true · /);
   assert.equal(latest({ ...SIG, last_at: null, last_value: null }), '—');
+});
+
+test('the edit form sets a wear limit and its direction, and clears them (T9.01)', () => {
+  const same = { unit: '°C', rate: '10', description: 'Platen, upper', node: '', wearLimit: '', wearDirection: '' };
+  assert.deepEqual(changeFrom(same, SIG), {});
+  assert.deepEqual(changeFrom({ ...same, wearLimit: '2,5e2', wearDirection: 'up' }, SIG), {
+    wear_limit: 250,
+    wear_direction: 'up',
+  });
+  const set = { ...SIG, wear_limit: 250, wear_direction: 'up' };
+  assert.deepEqual(changeFrom({ ...same, wearLimit: '250', wearDirection: 'up' }, set), {});
+  assert.deepEqual(changeFrom(same, set), { wear_limit: null, wear_direction: null });
+  assert.equal(changeFrom({ ...same, wearLimit: 'lots' }, SIG).name, 'wearLimit');
+  assert.equal(changeFrom({ ...same, wearLimit: '250' }, SIG).name, 'wearDirection'); // a limit needs a direction
+  assert.deepEqual(changeFrom({ ...same, wearDirection: 'down' }, SIG), {}); // a direction alone is dropped
 });
 
 test('the edit form sends only what changed; blanks clear', () => {

@@ -36,6 +36,8 @@ EDITABLE = (
     "stuck_after_s",
     "event_kind",
     "asset",
+    "wear_limit",
+    "wear_direction",
 )
 # Changing one of these changes what the quality check finds, so the signal is checked again.
 CHECKED = {"unit", "sample_rate_hz", "node_id", "range_min", "range_max", "stuck_after_s"}
@@ -55,6 +57,8 @@ class Signal(BaseModel):
     stuck_after_s: float | None  # how long one value may repeat (None: an hour)
     event_kind: Literal["downtime", "scrap", "other"] | None  # an event stream: each reading is an event
     asset: str | None  # the machine (as the MES names it) the signal belongs to
+    wear_limit: float | None  # the level at which the component it measures is worn out (T9.01)
+    wear_direction: Literal["up", "down"] | None  # which way wear moves it: set with a wear limit
     created_at: datetime
     last_at: datetime | None  # the latest reading
     last_value: float | str | bool | None
@@ -89,6 +93,8 @@ class SignalPatch(NoBooleans):
     stuck_after_s: Annotated[float, Field(gt=0, le=30 * 86400)] | None = None
     event_kind: Literal["downtime", "scrap", "other"] | None = None
     asset: Annotated[str, Field(min_length=1, max_length=100, pattern=r"^\S(.*\S)?$")] | None = None
+    wear_limit: Annotated[float, Field(ge=-1e15, le=1e15, allow_inf_nan=False)] | None = None
+    wear_direction: Literal["up", "down"] | None = None
 
 
 class QualityCheckIn(NoBooleans):
@@ -104,7 +110,8 @@ class QualityCheckOut(BaseModel):
 
 SELECT: LiteralString = """
 SELECT g.id, g.tag, g.unit, g.sample_rate_hz, g.source, g.description, g.node_id, g.range_min, g.range_max,
-       g.stuck_after_s, g.event_kind, g.asset, g.created_at, n.label AS node_label, l.at AS last_at,
+       g.stuck_after_s, g.event_kind, g.asset, g.wear_limit, g.wear_direction, g.created_at,
+       n.label AS node_label, l.at AS last_at,
        coalesce(to_jsonb(l.value), to_jsonb(l.value_text), to_jsonb(l.value_bool)) AS last_value,
        q.report AS quality
 FROM signals g
@@ -217,6 +224,14 @@ def update_signal(ctx: Editor, signal_id: uuid.UUID, body: SignalPatch) -> Signa
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "signal.range_inverted",
             "The expected range's minimum must be below its maximum",
+        )
+    limit = changes.get("wear_limit", before.wear_limit)
+    direction = changes.get("wear_direction", before.wear_direction)
+    if (limit is None) != (direction is None):
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "signal.wear_direction",
+            "A wear limit needs the way wear moves the signal (up or down), and only a wear limit has one",
         )
     if not changes:
         return before

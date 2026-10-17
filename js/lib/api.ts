@@ -302,6 +302,8 @@ export interface SignalInfo {
   stuck_after_s: number | null; // how long one value may repeat (null: an hour)
   event_kind: 'downtime' | 'scrap' | 'other' | null; // an event stream (T3.10): each reading is an event
   asset: string | null; // the machine it belongs to, as the MES names it
+  wear_limit: number | null; // the level at which the component it measures is worn out (T9.01)
+  wear_direction: 'up' | 'down' | null; // which way wear moves it: set with a wear limit
   created_at: string;
   last_at: string | null;
   last_value: number | string | boolean | null;
@@ -334,8 +336,35 @@ export type SignalChange = Partial<
     | 'stuck_after_s'
     | 'event_kind'
     | 'asset'
+    | 'wear_limit'
+    | 'wear_direction'
   >
 >;
+
+// Remaining life (T9.01): each component's time to its wear limit, with Sen's interval.
+export interface ComponentLife {
+  machine: string;
+  machine_label: string;
+  node_id: string;
+  component: string;
+  signal_id: string;
+  tag: string;
+  unit: string | null;
+  limit: number;
+  direction: 'up' | 'down';
+  verdict: 'wearing' | 'stable' | 'not_enough_data';
+  level: number | null;
+  slope_per_day: number | null;
+  hours_to_limit: number | null; // 0: there already; null: not getting there at this pace
+  hours_earliest: number | null;
+  hours_latest: number | null; // null with an earliest: it may never get there
+  end: string;
+}
+export interface RemainingLife {
+  place: string | null;
+  components: ComponentLife[];
+  more: boolean;
+}
 
 // A signal's readings over a range (T2.10): as they are (bucket_s null), or bucketed.
 export interface SignalSeries {
@@ -1555,6 +1584,11 @@ export function createApiClient(options: ApiOptions) {
     setPlannedCodes: (siteId: string, codes: string[]) =>
       request<PlannedStops>('PUT', `/sites/${encodeURIComponent(siteId)}/planned-codes`, { codes }),
     // What is watched on each machine at or under a place, and what is missing (T7.01).
+    remainingLife: (siteId: string, place: string) =>
+      request<RemainingLife>(
+        'GET',
+        `/sites/${encodeURIComponent(siteId)}/remaining-life?place=${encodeURIComponent(place)}`,
+      ),
     detectorTemplates: (siteId: string) =>
       request<DetectorTemplate[]>('GET', `/sites/${encodeURIComponent(siteId)}/detector-templates`),
     addDetectorTemplate: (siteId: string, body: DetectorTemplateIn) =>

@@ -1752,6 +1752,17 @@ Finds a site's signals (by tag, description, asset), ontology nodes (label, id, 
 
 ## signals
 
+### `GET /sites/{site_id}/remaining-life`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The time until each component at or under `place` (the whole site without one) reaches its wear limit, with its interval, soonest first.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `place` | query | string | no |
+
 ### `GET /sites/{site_id}/signals`
 
 **Who:** site member. **Answers:** 200, 422.
