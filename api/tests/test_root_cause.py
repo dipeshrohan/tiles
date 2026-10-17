@@ -81,14 +81,40 @@ def test_a_planned_stop_is_said_to_be_planned(api: TestClient, site: str, tool: 
 
 def test_moved_is_in_robust_units_of_the_readings_before() -> None:
     t0 = datetime(2026, 10, 1, tzinfo=UTC)
-    points: list[dict[str, Any]] = [{"at": t0 + i * HOUR, "value": v} for i, v in enumerate([10, 11, 9, 10, 12, 4])]
-    m = root_cause.moved(points, t0 + 5 * HOUR)
+
+    def at(values: list[float]) -> list[dict[str, Any]]:
+        return [{"at": t0 + i * HOUR, "value": v, "min": v, "max": v, "n": 1} for i, v in enumerate(values)]
+
+    m = root_cause.moved(at([10, 11, 9, 10, 12, 4]), t0 + 5 * HOUR)
     assert m is not None
     spread = 1.4826 * statistics.median(abs(v - 10) for v in [10, 11, 9, 10, 12])
     assert (m["median_before"], m["furthest"], m["change"], m["change_pct"]) == (10, 4, -6, -60.0)
-    assert m["robust_z"] == round(-6 / spread, 1)
-    assert root_cause.moved(points[:2], t0 + HOUR) is None  # too few before
-    flat = [{"at": t0 + i * HOUR, "value": 5.0} for i in range(5)]
-    assert root_cause.moved(flat, t0 + 4 * HOUR)["robust_z"] == 0.0  # type: ignore[index]
-    flat[-1]["value"] = 6.0
-    assert root_cause.moved(flat, t0 + 4 * HOUR)["robust_z"] == 30.0  # type: ignore[index]  # off a flat line
+    assert (m["robust_z"], m["off_flat_line"], m["bucketed"]) == (round(-6 / spread, 1), False, False)
+    assert root_cause.moved(at([10, 11]), t0 + 2 * HOUR) is None  # too few before
+    # Off a flat line there is no spread to measure by: no z, said so.
+    flat = root_cause.moved(at([5, 5, 5, 5, 6]), t0 + 4 * HOUR)
+    assert flat is not None and (flat["robust_z"], flat["off_flat_line"]) == (None, True)
+    still = root_cause.moved(at([5, 5, 5, 5, 5]), t0 + 4 * HOUR)
+    assert still is not None and (still["robust_z"], still["off_flat_line"]) == (None, False)
+    # A fall below a negative median is a negative change.
+    below = root_cause.moved(at([-10, -11, -9, -10, -20]), t0 + 4 * HOUR)
+    assert below is not None and below["change_pct"] == -100.0
+
+
+def test_a_bucket_counts_by_its_min_and_max() -> None:
+    t0 = datetime(2026, 10, 1, tzinfo=UTC)
+    buckets = [{"at": t0 + i * HOUR, "value": 100.0, "min": 99.0, "max": 101.0, "n": 60} for i in range(6)]
+    buckets[5] = {"at": t0 + 5 * HOUR, "value": 99.0, "min": 70.0, "max": 101.0, "n": 60}  # a short drop
+    m = root_cause.moved(buckets, t0 + 5 * HOUR)
+    assert m is not None
+    assert (m["furthest"], m["furthest_at"], m["bucketed"]) == (70.0, t0 + 5 * HOUR, True)  # read, not averaged
+    assert m["robust_z"] is not None and m["robust_z"] <= -root_cause.MOVED
+
+
+def test_leads_are_moves_of_a_few_spreads_or_off_a_flat_line() -> None:
+    lead = {"change_pct": -12.0, "robust_z": -4.0, "off_flat_line": False}
+    assert root_cause._is_lead(lead)
+    assert not root_cause._is_lead({**lead, "robust_z": -2.0})
+    assert not root_cause._is_lead({**lead, "change_pct": 0.5})  # a tiny change, however steady before
+    assert root_cause._is_lead({**lead, "robust_z": None, "off_flat_line": True})
+    assert root_cause._is_lead({**lead, "robust_z": None, "off_flat_line": True, "change_pct": None})  # from 0

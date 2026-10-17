@@ -390,7 +390,7 @@ def why_stopped(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
     machine = _text(args, "machine")
     if not machine:
         raise ToolError("Give the machine: its name in the plant model or its asset (graph_query lists them)")
-    return root_cause.analyse(ctx, machine, _time(args, "at"), _int(args, "hours", 12, 1, 72))
+    return root_cause.analyse(ctx, machine, _time(args, "at"), _int(args, "hours", 12, 2, 72))
 
 
 def correlate(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -653,7 +653,7 @@ def tools_for(open_ctx: OpenCtx, *, can_propose: bool = False, conversation_id: 
             {
                 "machine": {"type": "string", "description": "The machine's name in the plant model, or its asset"},
                 "at": TIME,
-                "hours": {"type": "integer", "minimum": 1, "maximum": 72},
+                "hours": {"type": "integer", "minimum": 2, "maximum": 72},
             },
             why_stopped,
             ["machine"],
