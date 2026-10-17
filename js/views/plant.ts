@@ -30,6 +30,7 @@ import {
 } from '../lib/ui.ts';
 import { openWarning } from './warnings.ts';
 import { bindTemplates, templatesCard } from './detector-templates.ts';
+import { lifeCard, lifeWanted, loadLife } from './remaining-life.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
 import { t, tHtml } from '../lib/i18n.ts';
 
@@ -236,7 +237,7 @@ function machinePage(ctx: Context, graph: Graph, node: OntologyNode, items: Floo
     const v = n.props[key];
     return v === undefined ? '' : ` <span class="small soft">${esc(v)}</span>`;
   };
-  return `${warningsCard(warnings, now, true)}
+  return `${warningsCard(warnings, now, true)}${lifeCard(ctx, node.id, true)}
     <div class="plant-sheet">
       ${facts ? `<div class="card"><div class="card-head"><h2>${esc(t('plant.about'))}</h2></div>${facts}</div>` : ''}
       ${signalsCard(ctx, signals, now)}
@@ -294,7 +295,7 @@ function placePage(ctx: Context, graph: Graph, id: string, items: FloorItem[] | 
           action: linkButton(t('plant.openOntology'), '#/ontology', { size: 'sm', icon: 'network' }),
         }),
       );
-  return `${cards}${warningsCard(warnings, now)}${ctx.api && inside.length ? coverageCard(ctx, id) + templatesCard(ctx, id) : ''}`;
+  return `${cards}${warningsCard(warnings, now)}${ctx.api && inside.length ? coverageCard(ctx, id) + lifeCard(ctx, id) + templatesCard(ctx, id) : ''}`;
 }
 
 function searchResults(graph: Graph, query: string): string {
@@ -424,9 +425,13 @@ const view: View = {
     const place = root.querySelector<HTMLElement>('[data-coverage]') ? shownPlace(ctx) : null;
     if (place && coverage?.key !== coverageKey(ctx, place)) void loadCoverage(ctx, place);
     if (place) bindTemplates(root, ctx, place, () => void loadCoverage(ctx, place, true));
+    // Remaining life (T9.01): on a place and on a machine.
+    const lifePlace = root.querySelector('[data-life]') ? shownPlace(ctx) : null;
+    if (lifePlace && lifeWanted(ctx, lifePlace)) void loadLife(ctx, lifePlace);
     onAll(root, '[data-plant-refresh]', 'click', () => {
       refreshFloor(ctx);
       if (place) void loadCoverage(ctx, place, true);
+      if (lifePlace) void loadLife(ctx, lifePlace, true);
     });
     onAll(root, '[data-open-warning]', 'click', (el) => openWarning(ctx, el.dataset.openWarning ?? ''));
   },

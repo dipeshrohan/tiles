@@ -387,7 +387,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
   *Done when:* the three models are bound on the line and their warnings reach the warning workflow.
 ### Month 9: From warning to planned work (Jul 2027)
 
-- [ ] `T9.01` [#342](https://github.com/dipeshrohan/tiles/issues/342) **Remaining life per component** · ML+FE · 4d
+- [x] `T9.01` [#342](https://github.com/dipeshrohan/tiles/issues/342) **Remaining life per component** · ML+FE · 4d
   *Done when:* each watched component shows its time to its limit, with an interval.
 - [ ] `T9.02` [#343](https://github.com/dipeshrohan/tiles/issues/343) **Work orders out** · BE · 5d
   *Done when:* an approved warning creates a work-order draft in the CMMS or as CSV, and the step is audited.

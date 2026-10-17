@@ -147,6 +147,8 @@ export function changeFrom(
     stuck?: string; // minutes
     events?: string; // '' (a measurement), downtime, scrap or other
     asset?: string;
+    wearLimit?: string; // the level at which the component is worn out (T9.01)
+    wearDirection?: string; // '', up or down
   },
   s: SignalInfo,
 ): SignalChange | FieldError {
@@ -193,6 +195,15 @@ export function changeFrom(
       ? stuckS === s.stuck_after_s
       : Math.abs(stuckS - s.stuck_after_s) < 1e-6;
   if (!sameStuck) change.stuck_after_s = stuckS;
+  if (form.wearLimit !== undefined) {
+    const limit = number(form.wearLimit);
+    if (limit === undefined) return { name: 'wearLimit', message: t('signals.error.wearLimit') };
+    if (limit !== s.wear_limit) change.wear_limit = limit;
+  }
+  if (form.wearDirection !== undefined) {
+    const direction = (form.wearDirection || null) as SignalInfo['wear_direction'];
+    if (direction !== s.wear_direction) change.wear_direction = direction;
+  }
   return change;
 }
 
@@ -260,6 +271,29 @@ function editRow(ctx: Context, s: SignalInfo): string {
           {
             title: t('signals.edit.assetHint'),
           },
+        )}
+        ${labelled(
+          t('signals.edit.wearLimit'),
+          input({
+            name: 'wearLimit',
+            value: String(s.wear_limit ?? ''),
+            class: 'w-7em',
+            attrs: { inputmode: 'decimal', 'data-api': 'wear_limit' },
+          }),
+          { title: t('signals.edit.wearLimitHint') },
+        )}
+        ${labelled(
+          t('signals.edit.wearDirection'),
+          select(
+            'wearDirection',
+            [
+              ['', t('signals.edit.wearToward')],
+              ['up', t('signals.edit.wearUp')],
+              ['down', t('signals.edit.wearDown')],
+            ],
+            s.wear_direction ?? '',
+            { attrs: { 'data-api': 'wear_direction' } },
+          ),
         )}
         ${button(t('signals.edit.save'), { variant: 'primary', type: 'submit', busy: saving === s.id })}
         ${button(t('signals.edit.cancel'), { attrs: { 'data-cancel-edit': true } })}
@@ -618,6 +652,8 @@ function bindResults(root: HTMLElement, ctx: Context): void {
         stuck: field(form, 'stuck'),
         events: field(form, 'events'),
         asset: text('asset', sig.asset ?? ''),
+        wearLimit: field(form, 'wearLimit'),
+        wearDirection: field(form, 'wearDirection'),
       },
       sig,
     );

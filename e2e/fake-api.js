@@ -179,6 +179,8 @@ export function createFakeApi({
         range_min: null,
         range_max: null,
         stuck_after_s: null,
+        wear_limit: null,
+        wear_direction: null,
         quality: null,
       };
       sig.created_at = new Date().toISOString();
@@ -349,6 +351,9 @@ export function createFakeApi({
   // The ROI report (T6.01): the report a test sets, and the requests the page sent.
   let roiReport = null;
   const roiRequests = [];
+  // Remaining life (T9.01): what a test sets, and the places the page asked about.
+  let remainingLife = null;
+  const lifeQueries = [];
   // Detector templates (T7.02): those made, what applying one answers (a test sets it), the places asked.
   const detectorTemplates = [];
   let templateApply = null;
@@ -660,6 +665,7 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/performance` &&
         url.pathname !== `/sites/${site.id}/roi` &&
         url.pathname !== `/sites/${site.id}/coverage` &&
+        url.pathname !== `/sites/${site.id}/remaining-life` &&
         !url.pathname.startsWith(`/sites/${site.id}/planned-`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detector-templates`) &&
         !/^\/sites\/[^/]+\/detectors\/[^/]+\/backtest$/.test(url.pathname) &&
@@ -1619,6 +1625,10 @@ export function createFakeApi({
         const none = { machines: 0, covered: 0, with_signals: 0, with_detectors: 0, with_events: 0 };
         return send(200, coverageReport ?? { place: url.searchParams.get('place'), machines: [], totals: none });
       }
+      if (url.pathname === `/sites/${site.id}/remaining-life`) {
+        lifeQueries.push(url.searchParams.get('place'));
+        return send(200, remainingLife ?? { place: url.searchParams.get('place'), components: [], more: false });
+      }
       if (url.pathname === `/sites/${site.id}/detector-templates` && req.method === 'GET') {
         return send(200, detectorTemplates);
       }
@@ -2553,6 +2563,11 @@ export function createFakeApi({
       roiReport = report;
     },
     roiRequests: () => [...roiRequests],
+    // Lets a test set the remaining life the API answers with (T9.01), and read the places asked.
+    setRemainingLife(out) {
+      remainingLife = out;
+    },
+    lifeQueries: () => [...lifeQueries],
     // Lets a test set what applying a detector template answers (T7.02), and read the templates and applies.
     setTemplateApply(out) {
       templateApply = out;

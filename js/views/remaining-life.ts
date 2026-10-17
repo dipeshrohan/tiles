@@ -1,0 +1,91 @@
+// Remaining life on the Plant page (T9.01): each component at or under a place, its time to its
+// wear limit with an interval, soonest first. Asked once per site and place, again on Refresh.
+import type { ComponentLife, RemainingLife } from '../lib/api.ts';
+import { esc, onNavigate, routeOf } from '../lib/dom.ts';
+import { duration, number } from '../lib/format.ts';
+import { t } from '../lib/i18n.ts';
+import { card, loadFailed, skeleton, table } from '../lib/ui.ts';
+import type { Context } from './types.ts';
+
+let life: { key: string; data: RemainingLife | null | 'failed' } | null = null;
+const keyOf = (ctx: Context, place: string): string => `${ctx.ontology.site?.id ?? ''}|${place}`;
+
+// Readings come in all the time: coming back asks again.
+onNavigate((hash) => {
+  if (routeOf(hash) !== 'plant') life = null;
+});
+
+export async function loadLife(ctx: Context, place: string, redraw = false): Promise<void> {
+  const site = ctx.ontology.site?.id;
+  if (!ctx.api || !site) return;
+  const key = keyOf(ctx, place);
+  life = { key, data: null };
+  if (redraw) ctx.rerender();
+  let data: RemainingLife | 'failed';
+  try {
+    data = await ctx.api.remainingLife(site, place);
+  } catch {
+    data = 'failed'; // the client showed why
+  }
+  if (life?.key === key) {
+    life = { key, data };
+    ctx.rerender();
+  }
+}
+
+// Asked when the card is drawn and nothing is known yet for this place.
+export function lifeWanted(ctx: Context, place: string): boolean {
+  return life?.key !== keyOf(ctx, place);
+}
+
+const HOUR = 3_600_000;
+const value = (x: number | null, unit: string | null): string =>
+  x === null ? '–' : unit ? `${number(x, 1)} ${unit}` : number(x, 1); // i18n-ok
+
+// When it reaches its limit: now, in about some time (earliest to latest), or not at this pace.
+export function timeLeft(c: ComponentLife): string {
+  if (c.hours_to_limit === null) return t('plant.life.never');
+  if (c.hours_to_limit === 0) return t('plant.life.now');
+  const at = duration(c.hours_to_limit * HOUR);
+  if (c.hours_earliest === null) return t('plant.life.in', { duration: at });
+  const earliest = duration(c.hours_earliest * HOUR);
+  return c.hours_latest === null
+    ? t('plant.life.inOrNever', { duration: at, earliest })
+    : t('plant.life.inBetween', { duration: at, earliest, latest: duration(c.hours_latest * HOUR) });
+}
+
+export function lifeCard(ctx: Context, place: string, onMachine = false): string {
+  if (!ctx.api || !ctx.ontology.site) return '';
+  const shown = life?.key === keyOf(ctx, place) ? life.data : null;
+  const head = `<div class="card-head"><h2>${esc(t('plant.life.title'))}</h2></div>`;
+  const attrs = { attrs: { 'data-life': '' } };
+  if (shown === 'failed') return card(`${head}${loadFailed(t('plant.life.title'), 3)}`, attrs);
+  if (!shown) return card(`${head}${skeleton.table(2, 4, t('plant.life.loading'))}`, attrs);
+  if (!shown.components.length) return card(`${head}<p class="small soft">${esc(t('plant.life.none'))}</p>`, attrs);
+  const rows = shown.components
+    .map((c) => {
+      const soon = c.hours_to_limit !== null && c.hours_to_limit <= 7 * 24;
+      return `<tr data-key="${esc(c.signal_id)}">
+          ${onMachine ? '' : `<td>${esc(c.machine_label)}</td>`}
+          <td>${esc(c.component)} <span class="small soft mono">${esc(c.tag)}</span></td>
+          <td>${esc(value(c.level, c.unit))} / ${esc(value(c.limit, c.unit))}</td>
+          <td${soon ? ' class="text-bad"' : ''}>${esc(timeLeft(c))}</td>
+        </tr>`;
+    })
+    .join('');
+  return card(
+    `${head}
+      <p class="small soft">${esc(t('plant.life.lead'))}</p>
+      ${table({
+        headers: [
+          ...(onMachine ? [] : [t('plant.coverage.machine')]),
+          t('plant.life.component'),
+          t('plant.life.level'),
+          t('plant.life.left'),
+        ],
+        rowsHtml: rows,
+      })}
+      ${shown.more ? `<p class="small soft">${esc(t('plant.life.more'))}</p>` : ''}`,
+    attrs,
+  );
+}
