@@ -147,3 +147,37 @@ def test_a_place_with_no_components(api: TestClient, site: str) -> None:  # noqa
     assert api.post(f"/sites/{site}/ontology/staged/batch", json=ops, headers=ENG).status_code == 201
     assert api.post(f"/sites/{site}/ontology/commits", json={"message": "a"}, headers=ENG).status_code in (200, 201)
     assert life(api, site, place="line") == {"place": "line", "components": [], "more": False}
+
+
+def test_the_next_planned_stop_before_a_predicted_limit(api: TestClient, site: str) -> None:  # noqa: F811
+    plant(api, site)
+    first = life(api, site, place="line")["components"][0]
+    assert (first["tag"], first["window_needed"], first["window"]) == ("w1.tip", True, None)  # none in time
+    end = datetime.fromisoformat(first["end"])
+    at = end + timedelta(hours=first["hours_to_limit"])
+
+    def stop(asset: str | None, after: timedelta, reason: str) -> Any:
+        body = {
+            "starts_at": (end + after).isoformat(),
+            "ends_at": (end + after + timedelta(hours=2)).isoformat(),
+            "reason": reason,
+        }
+        if asset:
+            body["asset"] = asset
+        res = api.post(f"/sites/{site}/planned-stops", json=body, headers=ENG)
+        assert res.status_code == 201, res.text
+        return res.json()
+
+    stop("Welder 2", timedelta(hours=2), "Not this welder")  # another machine's
+    stop(None, at - end + timedelta(hours=1), "After the limit")  # too late
+    near = stop("Welder 1", timedelta(hours=1), "Tip change")  # the machine's label: no asset property
+    later = stop(None, timedelta(hours=6), "Shutdown")
+    tip1 = life(api, site, place="line")["components"][0]
+    assert tip1["window"]["id"] == near["id"] and tip1["window"]["reason"] == "Tip change"
+    assert tip1["window_safe"] is True  # an hour from now is before the earliest it may come
+    # Once that one is gone, the whole-site stop is next.
+    assert api.delete(f"/sites/{site}/planned-stops/{near['id']}", headers=ENG).status_code == 204
+    assert life(api, site, place="line")["components"][0]["window"]["id"] == later["id"]
+    # A steady component isn't heading for its limit: no window is looked for.
+    steady = life(api, site, place="m2")["components"][0]
+    assert (steady["window_needed"], steady["window"]) == (False, None)

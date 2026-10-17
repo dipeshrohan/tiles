@@ -1777,6 +1777,32 @@
             ],
             "title": "Verdict",
             "type": "string"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Window"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "window_needed": {
+            "default": false,
+            "title": "Window Needed",
+            "type": "boolean"
+          },
+          "window_safe": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window Safe"
           }
         },
         "required": [
@@ -10772,6 +10798,49 @@
           "buckets"
         ],
         "title": "WearOut",
+        "type": "object"
+      },
+      "Window": {
+        "properties": {
+          "asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
+          "ends_at": {
+            "format": "date-time",
+            "title": "Ends At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "starts_at": {
+            "format": "date-time",
+            "title": "Starts At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "asset",
+          "starts_at",
+          "ends_at",
+          "reason"
+        ],
+        "title": "Window",
         "type": "object"
       },
       "WindowIn": {

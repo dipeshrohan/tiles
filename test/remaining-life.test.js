@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { timeLeft } from '../js/views/remaining-life.ts';
+import { timeLeft, windowCell } from '../js/views/remaining-life.ts';
 
 const c = (extra) => ({ verdict: 'wearing', hours_to_limit: 25, hours_earliest: 20, hours_latest: 31, ...extra });
 
@@ -23,5 +23,20 @@ describe('remaining life (T9.01)', () => {
     expect(timeLeft(c({ hours_to_limit: 400, hours_earliest: 72, hours_latest: 41_666_667 }))).toBe(
       'In about 17 days (3 days to over a year)',
     );
+  });
+  it('names the next planned stop before the limit, or that there is none (T9.03)', () => {
+    expect(windowCell(c({ window_needed: false }))).toBe('<td class="soft">–</td>');
+    expect(windowCell(c({ window_needed: true, window: null }))).toContain('None before the limit');
+    const stop = {
+      id: 's',
+      asset: null,
+      starts_at: '2026-06-02T06:00:00Z',
+      ends_at: '2026-06-02T08:00:00Z',
+      reason: '<b>',
+    };
+    const cell = windowCell(c({ window_needed: true, window: stop, window_safe: true }));
+    expect(cell).toContain('&lt;b&gt;, 2 Jun 2026');
+    expect(cell).not.toContain('May be too late');
+    expect(windowCell(c({ window_needed: true, window: stop, window_safe: false }))).toContain('May be too late');
   });
 });

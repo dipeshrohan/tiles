@@ -4983,13 +4983,34 @@ test('remaining life: each component’s time to its wear limit on a line and a 
     level: 150,
     slope_per_day: 48,
     end: new Date().toISOString(),
+    window: null,
+    window_needed: false,
+    window_safe: null,
     ...extra,
   });
   fake.setRemainingLife({
     place: 'line-a',
     components: [
-      component('w1.tip', 'Tip power', { hours_to_limit: 25, hours_earliest: 20, hours_latest: 31 }),
-      component('w1.arm', 'Arm current', { hours_to_limit: 400, hours_earliest: 200, hours_latest: null }),
+      component('w1.tip', 'Tip power', {
+        hours_to_limit: 25,
+        hours_earliest: 20,
+        hours_latest: 31,
+        window_needed: true,
+        window: {
+          id: 'stop-1',
+          asset: 'Welder 1',
+          starts_at: '2026-06-02T06:00:00Z',
+          ends_at: '2026-06-02T08:00:00Z',
+          reason: 'Tip change',
+        },
+        window_safe: false,
+      }),
+      component('w1.arm', 'Arm current', {
+        hours_to_limit: 400,
+        hours_earliest: 200,
+        hours_latest: null,
+        window_needed: true,
+      }),
       component('w1.gas', 'Gas flow', {
         verdict: 'stable',
         hours_to_limit: null,
@@ -5004,14 +5025,15 @@ test('remaining life: each component’s time to its wear limit on a line and a 
   await a.page.waitForSelector('[data-life] table');
   const rows = await a.page.locator('[data-life] tbody tr').allInnerTexts();
   assert.match(rows[0], /Welder 1\s+Tip power w1\.tip\s+150\.0 W \/ 200\.0 W\s+In about 25 h \(20 h to 31 h\)/);
-  assert.match(rows[1], /In about 17 days: from 8 days, or maybe never/);
+  assert.match(rows[0], /Tip change, 2 Jun 2026[^\n]*May be too late/); // the next planned stop (T9.03)
+  assert.match(rows[1], /In about 17 days: from 8 days, or maybe never\s+None before the limit/);
   assert.match(rows[2], /Not at this pace/);
   assert.equal(await a.page.locator('[data-life] tbody tr:first-child td.text-bad').count(), 1); // within a week
   assert.deepEqual(fake.lifeQueries(), ['line-a']);
   // On the machine's own page, without the machine column; Refresh asks again.
   await a.page.evaluate(() => (location.hash = '#/plant/w1'));
   await a.page.waitForSelector('.page-head h1:has-text("Welder 1")');
-  await a.page.waitForFunction(() => document.querySelectorAll('[data-life] thead th').length === 3);
+  await a.page.waitForFunction(() => document.querySelectorAll('[data-life] thead th').length === 4);
   assert.deepEqual(fake.lifeQueries(), ['line-a', 'w1']);
   await a.page.click('[data-plant-refresh]');
   await a.page.waitForFunction(() => document.querySelector('[data-life] table'));

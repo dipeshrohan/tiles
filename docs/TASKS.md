@@ -391,7 +391,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
   *Done when:* each watched component shows its time to its limit, with an interval.
 - [ ] `T9.02` [#343](https://github.com/dipeshrohan/tiles/issues/343) **Work orders out** · BE · 5d
   *Done when:* an approved warning creates a work-order draft in the CMMS or as CSV, and the step is audited.
-- [ ] `T9.03` [#344](https://github.com/dipeshrohan/tiles/issues/344) **Next maintenance window** · BE+FE · 2d · T7.03, T9.01
+- [x] `T9.03` [#344](https://github.com/dipeshrohan/tiles/issues/344) **Next maintenance window** · BE+FE · 2d · T7.03, T9.01
   *Done when:* a predicted limit shows the planned stop before it, or says there is none in time.
 ### Month 10: Causes, faster (Aug 2027)
 
