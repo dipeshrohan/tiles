@@ -4955,6 +4955,106 @@ test('a line shows what is watched on each machine and what is missing (T7.01)',
   assert.deepEqual(a.errors, []);
 });
 
+test('a detector template is applied to every die-caster on a line, each with its report (T7.02)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = (id, type, label) => ({ kind: 'addNode', node: { id, type, label, props: {} } });
+  fake.commitAs(
+    'maria',
+    [
+      node('line-a', 'Line', 'Line A'),
+      node('dc1', 'Machine', 'Die-caster 1'),
+      { kind: 'addEdge', edge: { id: 'e1', from: 'line-a', rel: 'contains', to: 'dc1' } },
+    ],
+    'Line A',
+  );
+  const machine = (id, label, result, extra = {}) => ({
+    machine: id,
+    label,
+    asset: label,
+    result,
+    signal_tag: null,
+    detector_id: null,
+    detector: null,
+    config: null,
+    readings: null,
+    events: null,
+    recall: null,
+    precision: null,
+    false_per_day: null,
+    ...extra,
+  });
+  fake.setTemplateApply({
+    template: 'dc-friction',
+    place: 'line-a',
+    machines: [
+      machine('dc3', 'Die-caster 3', 'no_tag'),
+      machine('dc1', 'Die-caster 1', 'created', {
+        signal_tag: 'dc1.friction',
+        detector_id: 'det-1',
+        detector: 'dc-friction-dc-01',
+        config: { k: 4 },
+        readings: 1600,
+        events: 3,
+        recall: 1,
+        precision: 1,
+        false_per_day: 0,
+      }),
+    ],
+  });
+  const a = await openAs(t, apiUrl, null, 'plant');
+  await a.page.evaluate(() => (location.hash = '#/plant/line-a'));
+  await a.page.waitForSelector('[data-templates] [data-template-new]');
+  assert.match(await a.page.innerText('[data-templates]'), /No templates yet/);
+
+  // Values that aren't numbers are refused on the form, and what was typed stays.
+  await a.page.click('[data-template-new] summary');
+  await a.page.fill('#template-form [name=name]', 'dc-friction');
+  await a.page.fill('#template-form [name=kind]', 'die-caster');
+  await a.page.fill('#template-form [name=measure]', 'friction');
+  await a.page.fill('#template-form [name=k]', '3 four');
+  await a.page.click('#template-form button[type=submit]');
+  await a.page.waitForSelector('#template-form [name=k][aria-invalid=true]');
+  assert.equal(fake.detectorTemplates().length, 0);
+  await a.page.fill('#template-form [name=k]', '3 4 5');
+  await a.page.fill('#template-form [name=persist]', '2 3');
+  await a.page.fill('#template-form [name=codes]', 'DT-SEIZURE');
+  await a.page.click('#template-form button[type=submit]');
+  await a.page.waitForSelector('[data-template-apply]');
+  const [tpl] = fake.detectorTemplates();
+  assert.deepEqual(
+    [tpl.machine_kind, tpl.measure, tpl.grid.k, tpl.grid.persist, tpl.codes, tpl.horizon_seconds],
+    ['die-caster', 'friction', [3, 4, 5], [2, 3], ['DT-SEIZURE'], 8 * 3600],
+  );
+  assert.match(
+    await a.page.locator('[data-templates] tbody').innerText(),
+    /dc-friction\s+die-caster\s+friction\s+6 settings/,
+  );
+
+  // Applied here: what was made first, each with its backtest report.
+  const asked = fake.coverageQueries().length;
+  await a.page.click('[data-template-apply]');
+  await a.page.waitForSelector('[data-template-applied] table');
+  assert.deepEqual(fake.templateApplies(), [{ template: tpl.id, place: 'line-a' }]);
+  const rows = await a.page.locator('[data-template-applied] tbody tr').allInnerTexts();
+  assert.match(rows[0], /Die-caster 1\s+Made\s+dc-friction-dc-01\s+3\s+100%\s+0\.00/);
+  assert.match(rows[1], /Die-caster 3\s+No linked tag/);
+  const [download] = await Promise.all([a.page.waitForEvent('download'), a.page.click('[data-template-report]')]);
+  assert.equal(download.suggestedFilename(), 'backtest-dc-friction-dc-01.md');
+  assert.equal(readFileSync(await download.path(), 'utf8'), '# Backtest: dc1.friction\n');
+  assert.ok(fake.coverageQueries().length > asked); // the line's coverage asked again
+  assert.deepEqual(a.errors, []);
+
+  // A viewer sees the templates, not the actions.
+  fake.setRole('demo@example.com', 'viewer');
+  const v = await openAs(t, apiUrl, null, 'plant');
+  await v.page.evaluate(() => (location.hash = '#/plant/line-a'));
+  await v.page.waitForSelector('[data-templates] tbody tr');
+  assert.equal(await v.page.locator('[data-template-apply], #template-form').count(), 0);
+  assert.deepEqual(v.errors, []);
+});
+
 test('a signal is marked as an MES event stream with its asset', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

@@ -367,7 +367,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
 
 - [x] `T7.01` [#333](https://github.com/dipeshrohan/tiles/issues/333) **Line coverage map** · FE+BE · 3d
   *Done when:* the map lists every machine on the line with what it has and what it lacks.
-- [ ] `T7.02` [#334](https://github.com/dipeshrohan/tiles/issues/334) **Detector templates by machine type** · BE+ML · 4d · T7.01
+- [x] `T7.02` [#334](https://github.com/dipeshrohan/tiles/issues/334) **Detector templates by machine type** · BE+ML · 4d · T7.01
   *Done when:* a template is applied to every die-casting cell on the line, each detector with its own backtest report.
 - [x] `T7.03` [#335](https://github.com/dipeshrohan/tiles/issues/335) **Planned stops calendar** · BE+FE · 3d
   *Done when:* a planned stop is left out of Warning performance and the ROI report, with a test for each.
