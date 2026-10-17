@@ -571,6 +571,10 @@ You see:
 - **By detector**: each detector's warnings, events warned of, the share followed by an event, false warnings per day, warning time (median, 10th to 90th percentile) and how people resolved its warnings.
 - **Events**: each event with its asset, kind and code, and whether it was **warned** (and how far ahead) or **missed**.
 
+### Time to cause
+
+**Time to cause** shows, per month on the site's clock, how long after a stop its cause was recorded, and for how many stops. A stop's cause is recorded when the warning that warned of it is resolved as a **true alarm** on the Warnings page; a cause recorded before the stop counts as 0. Stops with no warning, or whose warning is still open or resolved otherwise, aren't counted.
+
 ### Matching a detector to an asset (engineers and admins)
 
 A detector with no asset can't be scored. In **By detector**, type the asset (for example DC-01) and click **Set**. If events exist for assets that no detector watches, the page lists them.

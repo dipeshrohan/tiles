@@ -4673,6 +4673,7 @@ function performanceReport() {
         warned_at: null,
         warning_seconds: null,
         detector: null,
+        cause_seconds: null,
       },
       {
         at: iso(120),
@@ -4683,7 +4684,12 @@ function performanceReport() {
         warned_at: iso(229),
         warning_seconds: 6555,
         detector: 'dc1-friction',
+        cause_seconds: 2700,
       },
+    ],
+    time_to_cause: [
+      { month: '2026-09', stops: 3, median_seconds: 5400 },
+      { month: '2026-10', stops: 1, median_seconds: 2700 },
     ],
   };
 }
@@ -4705,6 +4711,10 @@ test('warning performance: what the warnings caught, per detector, for the codes
   assert.match(await a.page.locator('tbody tr', { hasText: 'scrap' }).innerText(), /missed/);
   await a.page.waitForSelector('[data-unwatched]:has-text("No detector watches DC-02 (1 event)")');
   assert.match(await a.page.locator('[data-detector-row="d2"]').innerText(), /Set its asset/);
+  // Time to cause (T10.04): the median per month, on the site's clock.
+  const causes = await a.page.locator('[data-cause] tbody tr').allInnerTexts();
+  assert.match(causes[0], /Sept? 2026\s+3\s+1 h 30 min/);
+  assert.match(causes[1], /Oct 2026\s+1\s+45 min/);
 
   // Another period, horizon and codes: asked for as such.
   await a.page.selectOption('#performance-form [name=days]', '7');

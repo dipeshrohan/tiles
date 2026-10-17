@@ -80,6 +80,13 @@ class EventRow(BaseModel):
     warned_at: datetime | None
     warning_seconds: float | None
     detector: str | None
+    cause_seconds: float | None  # from the stop to its cause being recorded (its warning resolved as a true alarm)
+
+
+class CauseMonth(BaseModel):
+    month: str  # YYYY-MM on the site's clock
+    stops: int  # stops with a recorded cause
+    median_seconds: float
 
 
 class Report(BaseModel):
@@ -90,6 +97,7 @@ class Report(BaseModel):
     detectors: list[DetectorRow]
     unwatched: list[Unwatched]  # events of assets no detector watches
     events: list[EventRow]  # newest first, at most 200
+    time_to_cause: list[CauseMonth]  # per month, oldest first (T10.04)
 
 
 @router.get("/sites/{site_id}/performance", response_model=Report)

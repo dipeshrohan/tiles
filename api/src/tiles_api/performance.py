@@ -16,14 +16,16 @@ detector got to is pending, as in the backtest. The site-wide false warnings per
 the whole period.
 """
 
+import statistics
 import uuid
 from dataclasses import asdict
 from datetime import datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from tiles_api.backtest import Event, Outcome, score, spread_of
 from tiles_api.detection import Alert, Config
-from tiles_api.store import Conn
+from tiles_api.store import Conn, one
 
 MAX_EVENTS = 20_000  # per period; more and the period is too long to read at once
 OUTCOMES = ("true_alarm", "false_alarm", "unknown")
@@ -75,6 +77,7 @@ def report(
 ) -> dict[str, Any]:
     """The site's warnings and events from `start` to `end`, scored per detector and in total;
     `event_kinds` counts only events of those kinds (the ROI report's downtime)."""
+    zone = one(conn.execute("SELECT timezone FROM sites WHERE id = %s", [site_id]).fetchone())["timezone"]
     events = conn.execute(
         """
         SELECT s.at, g.asset, g.event_kind AS kind, g.tag AS signal_tag,
@@ -108,7 +111,7 @@ def report(
     warnings = conn.execute(
         """
         SELECT w.detector_id, w.started_at, w.last_at, w.peak, w.baseline, w.threshold, w.side, w.readings,
-               w.outcome
+               w.outcome, w.resolved_at
         FROM warnings w JOIN detectors d ON d.id = w.detector_id
         WHERE w.site_id = %(site)s AND w.started_at >= %(from)s AND w.started_at <= %(end)s
           -- One that starts within a planned stop for its asset is the planned work (T7.03), not counted.
@@ -176,6 +179,8 @@ def report(
         mine = sorted((w for d in theirs for w in by_detector[d["id"]]), key=lambda w: w["started_at"])
         people += counted(mine)
         who = {w["started_at"]: names[w["detector_id"]] for w in reversed(mine)}  # the earliest's detector
+        # Each warning's cause, as people recorded it: resolved as a true alarm (T10.04).
+        cause = {w["started_at"]: w["resolved_at"] for w in reversed(mine) if w["outcome"] == "true_alarm"}
         outcome = score(
             Config(),
             [_alert(w) for w in mine],
@@ -200,6 +205,7 @@ def report(
                     "warned_at": o.warned_at,
                     "warning_seconds": o.warning_time.total_seconds() if o.warning_time else None,
                     "detector": who.get(o.warned_at) if o.warned_at else None,
+                    "cause_seconds": _cause(o.event.at, cause.get(o.warned_at) if o.warned_at else None),
                 }
             )
     days = (end - start).total_seconds() / 86400
@@ -225,4 +231,22 @@ def report(
         "detectors": rows,
         "unwatched": [{"asset": a, "events": n} for a, n in sorted(unwatched.items())],
         "events": shown[:200],
+        "time_to_cause": time_to_cause(shown, zone),
     }
+
+
+def _cause(stop: datetime, resolved: datetime | None) -> float | None:
+    """Seconds from a stop to its cause being recorded; 0 when it was recorded before the stop."""
+    return None if resolved is None else max(0.0, (resolved - stop).total_seconds())
+
+
+def time_to_cause(events: list[dict[str, Any]], zone: str) -> list[dict[str, Any]]:
+    """Per month on the site's clock, oldest first: the stops with a recorded cause and the median
+    time from the stop to it (T10.04). A cause is recorded when the warning that warned of the stop
+    is resolved as a true alarm."""
+    tz = ZoneInfo(zone)
+    months: dict[str, list[float]] = {}
+    for e in events:
+        if e["kind"] == "downtime" and e["cause_seconds"] is not None:
+            months.setdefault(e["at"].astimezone(tz).strftime("%Y-%m"), []).append(e["cause_seconds"])
+    return [{"month": m, "stops": len(v), "median_seconds": statistics.median(v)} for m, v in sorted(months.items())]

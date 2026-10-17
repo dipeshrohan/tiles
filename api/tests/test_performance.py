@@ -200,3 +200,46 @@ def test_only_what_a_detector_judged_counts_and_a_warning_before_the_period_stil
     assert (t["events"], t["caught"], t["warnings"], t["false_warnings"]) == (1, 1, 0, 0)
     (event,) = recent["events"]
     assert event["warning_seconds"] == FIXTURE["scored"][2]["leadShots"] * FIXTURE["cycleSeconds"]
+
+
+def test_time_to_cause_is_from_each_stop_to_its_warning_resolved_as_a_true_alarm(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+) -> None:
+    plant(api, site)
+    assert report(api, site)["time_to_cause"] == []  # no cause recorded yet
+    warnings = api.get(f"/sites/{site}/warnings", headers=VIEWER).json()
+    for w, outcome in zip(warnings, ("true_alarm", "true_alarm", "false_alarm"), strict=True):
+        res = api.post(f"/sites/{site}/warnings/{w['id']}/resolve", json={"outcome": outcome}, headers=ENG)
+        assert res.status_code == 200, res.text
+    out = report(api, site)
+    stops = [e for e in out["events"] if e["kind"] == "downtime" and e["cause_seconds"] is not None]
+    assert len(stops) == 2  # the false alarm records no cause
+    resolved = datetime.now(UTC)
+    for e in stops:  # resolved just now: from each stop to now
+        since = (resolved - datetime.fromisoformat(e["at"])).total_seconds()
+        assert since - 60 < e["cause_seconds"] <= since
+    months = out["time_to_cause"]
+    assert sum(m["stops"] for m in months) == 2
+    assert all(len(m["month"]) == 7 and m["median_seconds"] > 0 for m in months)
+
+
+def test_time_to_cause_is_per_month_on_the_sites_clock() -> None:
+    def stop(at: str, seconds: float | None, kind: str = "downtime") -> dict[str, Any]:
+        return {"at": datetime.fromisoformat(at), "kind": kind, "cause_seconds": seconds}
+
+    events = [
+        stop("2027-05-31T23:30:00+00:00", 600),  # 1 June in Berlin
+        stop("2027-06-10T08:00:00+00:00", 1800),
+        stop("2027-06-11T08:00:00+00:00", 3600),
+        stop("2027-05-10T08:00:00+00:00", 7200),
+        stop("2027-05-12T08:00:00+00:00", None),  # no cause recorded
+        stop("2027-05-13T08:00:00+00:00", 60, kind="scrap"),  # not a stop
+    ]
+    assert performance.time_to_cause(events, "Europe/Berlin") == [
+        {"month": "2027-05", "stops": 1, "median_seconds": 7200},
+        {"month": "2027-06", "stops": 3, "median_seconds": 1800},
+    ]
+    assert performance.time_to_cause(events, "UTC")[0] == {"month": "2027-05", "stops": 2, "median_seconds": 3900}
+    resolved = datetime(2027, 6, 1, tzinfo=UTC)
+    assert performance._cause(resolved, resolved - timedelta(hours=1)) == 0  # known before the stop
