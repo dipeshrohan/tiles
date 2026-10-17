@@ -557,6 +557,8 @@ On a place that holds machines, and on each machine's page (API mode), **Remaini
 
 For each, Tiles runs the wear check: the last day of hourly readings against the three days before it. It shows the level **now** and the **limit**, and when the component **reaches its limit** at the pace of the last day, with an interval: the earliest and latest times the slope's 95% confidence interval allows. "or maybe never" means the slope could be flat or moving away from the limit. **Not at this pace** means it isn't heading there now, or "maybe from" a time when the interval allows it. **Not enough readings to say** means there isn't a day of readings and three before it. Times past a year read "over a year". The soonest are first, and those within a week are in red. **Refresh** asks again.
 
+**Next planned stop** is the next planned stop (on the Warning performance page's Planned stops card) for the component's machine, or for the whole site, that is on now or starts before the predicted limit: the window to change the part in. **None before the limit** means there is none in time, so plan one. **May be too late** means it starts after the earliest time the limit may come.
+
 ### Detector templates (engineers and admins)
 
 On a place that holds machines (API mode), **Detector templates** sets up a detector once for a kind of machine and applies it to every machine of that kind under the place. Each detector is tuned on its own machine.

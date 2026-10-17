@@ -359,6 +359,9 @@ export interface ComponentLife {
   hours_earliest: number | null;
   hours_latest: number | null; // null with an earliest: it may never get there
   end: string;
+  window: { id: string; asset: string | null; starts_at: string; ends_at: string; reason: string } | null; // T9.03
+  window_needed: boolean; // heading for its limit: null window means none in time
+  window_safe: boolean | null; // it starts before the earliest the limit may come
 }
 export interface RemainingLife {
   place: string | null;

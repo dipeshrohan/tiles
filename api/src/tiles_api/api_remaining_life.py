@@ -8,6 +8,11 @@ against the three before it, ending at its latest reading); the time to the limi
 Theil-Sen slope of the last day, and its interval at the ends of Sen's 95% interval of that slope
 (wear.sen_interval). Soonest first; then those that don't get there at their pace; then those
 without enough readings to say. Everyone reads it.
+
+Next maintenance window (T9.03): for a component heading for its limit, the next planned stop
+(T7.03, `planned_stops`) for its machine's asset (coverage.asset_of) or the whole site that is on
+now or starts before the predicted limit; none means there is none in time. `window_safe` says
+whether it starts before the earliest the limit may come (Sen's interval), when that is known.
 """
 
 import uuid
@@ -21,10 +26,19 @@ from tiles_api import coverage, ontology_store
 from tiles_api.api_ontology import Ctx
 from tiles_api.api_wear import WearIn, run_check
 from tiles_api.errors import Problem
+from tiles_api.ontology import Graph
 
 router = APIRouter(tags=["signals"])
 
 MAX_COMPONENTS = 50  # a wear check each, in one request
+
+
+class Window(BaseModel):
+    id: uuid.UUID
+    asset: str | None  # None: the whole site
+    starts_at: datetime
+    ends_at: datetime
+    reason: str
 
 
 class Component(BaseModel):
@@ -44,6 +58,9 @@ class Component(BaseModel):
     hours_earliest: float | None
     hours_latest: float | None  # None with an earliest: it may never get there
     end: datetime  # the readings up to here
+    window: Window | None = None  # the next planned stop before the predicted limit (T9.03)
+    window_needed: bool = False  # heading for the limit: a window is looked for (None found: none in time)
+    window_safe: bool | None = None  # it starts before the earliest the limit may come
 
 
 class RemainingLife(BaseModel):
@@ -112,5 +129,29 @@ def remaining_life(ctx: Ctx, place: Annotated[str | None, Query(max_length=200)]
         group = 2 if c["verdict"] == "not_enough_data" else 1 if c["hours_to_limit"] is None else 0
         return group, c["hours_to_limit"] or 0.0, c["machine_label"], c["tag"]
 
+    _windows(ctx, graph, out, now)
     out.sort(key=order)
     return {"place": place, "components": out, "more": len(rows) > MAX_COMPONENTS}
+
+
+def _windows(ctx: Ctx, graph: Graph, components: list[dict[str, Any]], now: datetime) -> None:
+    """Sets each heading component's next planned stop before its predicted limit (T9.03)."""
+    heading = [c for c in components if c["hours_to_limit"]]  # not None, not there already
+    if not heading:
+        return
+    for c in heading:
+        c["limit_at"] = c["end"] + timedelta(hours=c["hours_to_limit"])
+        c["asset"] = coverage.asset_of(graph, c["machine"])
+    stops = ctx.conn.execute(
+        "SELECT id, asset, starts_at, ends_at, reason FROM planned_stops"
+        " WHERE site_id = %s AND ends_at > %s AND starts_at < %s AND (asset IS NULL OR asset = ANY(%s))"
+        " ORDER BY starts_at, ends_at LIMIT 2000",
+        [ctx.site_id, now, max(c["limit_at"] for c in heading), sorted({c["asset"] for c in heading})],
+    ).fetchall()
+    for c in heading:
+        c["window_needed"] = True
+        found = next((s for s in stops if (s["asset"] in (None, c["asset"])) and s["starts_at"] < c["limit_at"]), None)
+        c["window"] = dict(found) if found else None
+        if found and c["hours_earliest"] is not None:
+            c["window_safe"] = found["starts_at"] < c["end"] + timedelta(hours=c["hours_earliest"])
+        del c["limit_at"], c["asset"]

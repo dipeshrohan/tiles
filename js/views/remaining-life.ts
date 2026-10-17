@@ -2,7 +2,7 @@
 // wear limit with an interval, soonest first. Asked once per site and place, again on Refresh.
 import type { ComponentLife, RemainingLife } from '../lib/api.ts';
 import { esc, onNavigate, routeOf } from '../lib/dom.ts';
-import { duration, number } from '../lib/format.ts';
+import { dateTime, duration, number } from '../lib/format.ts';
 import { t } from '../lib/i18n.ts';
 import { card, loadFailed, skeleton, table } from '../lib/ui.ts';
 import type { Context } from './types.ts';
@@ -64,6 +64,18 @@ export function timeLeft(c: ComponentLife): string {
     : t('plant.life.inBetween', { duration: at, earliest, latest: span(c.hours_latest) });
 }
 
+// The next planned stop before the predicted limit (T9.03), or that there is none in time.
+export function windowCell(c: ComponentLife): string {
+  if (!c.window_needed) return `<td class="soft">–</td>`;
+  if (!c.window) return `<td class="text-bad">${esc(t('plant.life.noWindow'))}</td>`;
+  const when = dateTime(c.window.starts_at);
+  const text = c.window.reason
+    ? t('plant.life.windowReason', { reason: c.window.reason, when })
+    : t('plant.life.window', { when });
+  const late = c.window_safe === false ? ` <span class="badge warn">${esc(t('plant.life.windowLate'))}</span>` : '';
+  return `<td>${esc(text)}${late}</td>`;
+}
+
 export function lifeCard(ctx: Context, place: string, onMachine = false): string {
   if (!ctx.api || !ctx.ontology.site) return '';
   const shown = life?.key === keyOf(ctx, place) ? life.data : null;
@@ -79,7 +91,8 @@ export function lifeCard(ctx: Context, place: string, onMachine = false): string
           ${onMachine ? '' : `<td>${esc(c.machine_label)}</td>`}
           <td>${esc(c.component)} <span class="small soft mono">${esc(c.tag)}</span></td>
           <td>${esc(value(c.level, c.unit))} / ${esc(value(c.limit, c.unit))}</td>
-          <td${soon ? ' class="text-bad"' : ''}>${esc(timeLeft(c))}</td>
+          <td${soon ? ' class="text-bad"' : c.verdict === 'not_enough_data' ? ' class="soft"' : ''}>${esc(timeLeft(c))}</td>
+          ${windowCell(c)}
         </tr>`;
     })
     .join('');
@@ -92,6 +105,7 @@ export function lifeCard(ctx: Context, place: string, onMachine = false): string
           t('plant.life.component'),
           t('plant.life.level'),
           t('plant.life.left'),
+          t('plant.life.windowHead'),
         ],
         rowsHtml: rows,
       })}
