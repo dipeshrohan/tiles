@@ -9807,8 +9807,15 @@
             "type": "string"
           },
           "author": {
-            "title": "Author",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
           },
           "kind": {
             "enum": [

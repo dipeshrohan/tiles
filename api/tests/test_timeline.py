@@ -93,7 +93,7 @@ def test_a_machines_warnings_events_stops_changes_and_readings_share_one_range(a
         ("ontology", "Line 1", "#1"),
         ("signal", "signal.update", "dc1.friction"),
     ]
-    assert out["changes"][0]["author"]
+    assert out["changes"][2]["author"]  # the commit's, for everyone
 
 
 def test_a_commit_counts_when_it_touches_the_machine_its_plc_or_its_signals(api: TestClient, site: str) -> None:  # noqa: F811
@@ -132,3 +132,21 @@ def test_more_than_the_shown_items_says_so(api: TestClient, site: str, monkeypat
     monkeypatch.setattr(api_timeline, "MAX_ITEMS", 2)
     out = timeline(api, site, machine="dc1", **{"from": (p["at"][0] - timedelta(hours=1)).isoformat()})
     assert out["more"] and len(out["events"]) == 2 and len(out["warnings"]) == 2
+
+
+def test_only_engineers_and_admins_see_who_changed_a_signal_or_detector(api: TestClient, site: str) -> None:  # noqa: F811
+    machine_plant(api, site)
+    seen = timeline(api, site, machine="dc1")["changes"]
+    assert [c["author"] is None for c in seen] == [c["kind"] != "ontology" for c in seen]  # a viewer
+    res = api.get(f"/sites/{site}/timeline", params={"machine": "dc1"}, headers=ENG)
+    assert all(c["author"] for c in res.json()["changes"])
+
+
+def test_more_signals_and_commits_than_looked_at_say_so(api: TestClient, site: str, monkeypatch: Any) -> None:  # noqa: F811
+    machine_plant(api, site)
+    monkeypatch.setattr(api_timeline, "MAX_SIGNALS", 0)
+    out = timeline(api, site, machine="dc1")
+    assert (out["signals"], out["more_signals"], out["more"]) == ([], True, False)
+    commit(api, site, [{"kind": "setProp", "id": "dc2", "key": "kind", "value": "die-caster"}], "DC-02 kind")
+    monkeypatch.setattr(api_timeline, "MAX_COMMITS", 1)
+    assert timeline(api, site, machine="dc1")["more"]

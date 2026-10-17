@@ -17,10 +17,12 @@ const RANGE_LABEL: Record<Range, MessageKey> = {
   month: 'timeline.range.month',
 };
 
-let range: Range = 'week';
 let shown: { key: string; data: MachineTimeline | null | 'failed' } | null = null;
 let asked = 0; // only the latest request's answer is shown
-const keyOf = (ctx: Context, machine: string): string => `${ctx.ontology.site?.id ?? ''}|${machine}|${range}`;
+// The range chosen is kept for the tab (U3.05), for every machine.
+const uiState = (ctx: Context) => ctx.ui<{ range: Range }>('plant-timeline', { range: 'week' });
+const keyOf = (ctx: Context, machine: string): string =>
+  `${ctx.ontology.site?.id ?? ''}|${machine}|${uiState(ctx).range}`;
 
 // Readings come in all the time: coming back asks again.
 onNavigate((hash) => {
@@ -34,7 +36,7 @@ export async function loadTimeline(ctx: Context, machine: string, redraw = false
   const mine = ++asked;
   shown = { key, data: null };
   if (redraw) ctx.rerender();
-  const { from, to } = rangeOf(range, Date.now());
+  const { from, to } = rangeOf(uiState(ctx).range, Date.now());
   let data: MachineTimeline | 'failed';
   try {
     data = await ctx.api.timeline(site, machine, from, to);
@@ -72,7 +74,11 @@ function body(tl: MachineTimeline): string {
     .slice(0, SHOWN)
     .map((i) => {
       const when =
-        i.to === undefined ? dateTime(i.at) : t('timeline.fromTo', { from: dateTime(i.at), to: dateTime(i.to) });
+        i.to === undefined
+          ? dateTime(i.at)
+          : i.ongoing
+            ? t('timeline.fromOngoing', { from: dateTime(i.at) })
+            : t('timeline.fromTo', { from: dateTime(i.at), to: dateTime(i.to) });
       const what = i.warning
         ? `<a href="#/warnings?show=all&amp;warning=${encodeURIComponent(i.warning)}">${esc(i.what)}</a>`
         : esc(i.what);
@@ -96,7 +102,7 @@ export function timelineCard(ctx: Context, machine: string): string {
   const choose = tabs({
     label: t('timeline.range'),
     items: RANGES.map((r) => [r, t(RANGE_LABEL[r])] as const),
-    current: range,
+    current: uiState(ctx).range,
     data: 'timeline-range',
   });
   const head = `<div class="card-head"><h2>${esc(t('timeline.title'))}</h2>${choose}</div>`;
@@ -113,7 +119,8 @@ export function bindTimeline(root: HTMLElement, ctx: Context, machine: string): 
     b.addEventListener(
       'click',
       () => {
-        range = (b.dataset.timelineRange as Range | undefined) ?? 'week';
+        const chosen = b.dataset.timelineRange as Range | undefined;
+        if (chosen && RANGES.includes(chosen)) uiState(ctx).range = chosen;
         void loadTimeline(ctx, machine, true);
       },
       { signal: bound() },

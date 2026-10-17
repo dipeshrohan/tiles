@@ -59,7 +59,14 @@ describe('machine timeline (T10.01)', () => {
       ['warning', 'friction', 'dc1.friction, open'],
     ]);
     // A warning still out runs to the range's end.
-    expect(items.at(-1).to).toBe(Date.parse(tl.end));
+    expect(items.at(-1)).toMatchObject({ to: Date.parse(tl.end), ongoing: true });
+    expect(items[1].ongoing).toBe(false);
+    // A viewer isn't told who changed a signal or detector.
+    const viewer = { ...tl, changes: [{ ...tl.changes[1], author: null }] };
+    expect(itemsOf(viewer).find((i) => i.kind === 'change')).toMatchObject({
+      what: 'Detector friction changed',
+      detail: '',
+    });
   });
   it('makes lanes of them', () => {
     const lanes = lanesOf(itemsOf(tl));

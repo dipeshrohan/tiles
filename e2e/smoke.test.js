@@ -5147,6 +5147,11 @@ test('a machine’s timeline puts its warnings, events, stops and changes over i
   await a.page.waitForSelector('[data-timeline] table');
   const day = fake.timelineQueries().at(-1);
   assert.ok(Math.abs(Date.parse(day.to) - Date.parse(day.from) - 24 * hour) < 1000);
+  // The range chosen stays across a reload.
+  await a.page.reload();
+  await a.page.waitForSelector('[data-timeline] table');
+  const reloaded = fake.timelineQueries().at(-1);
+  assert.ok(Math.abs(Date.parse(reloaded.to) - Date.parse(reloaded.from) - 24 * hour) < 1000);
   assert.deepEqual(a.errors, []);
 });
 

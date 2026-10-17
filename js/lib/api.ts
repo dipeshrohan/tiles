@@ -389,7 +389,13 @@ export interface MachineTimeline {
   }[];
   events: { at: string; kind: 'downtime' | 'scrap' | 'other'; code: string; tag: string; planned: boolean }[];
   planned: { id: string; asset: string | null; starts_at: string; ends_at: string; reason: string }[];
-  changes: { at: string; kind: 'ontology' | 'signal' | 'detector'; action: string; subject: string; author: string }[];
+  changes: {
+    at: string;
+    kind: 'ontology' | 'signal' | 'detector';
+    action: string;
+    subject: string;
+    author: string | null; // null: a viewer doesn't see who changed a signal or detector
+  }[];
   more: boolean; // a kind had more than the API gives: choose a shorter range
 }
 

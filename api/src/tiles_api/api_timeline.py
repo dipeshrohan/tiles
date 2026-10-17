@@ -8,7 +8,8 @@ or with its asset (coverage.asset_of), that are out at some time in the range. I
 readings of the event signals with its asset, each marked when it is planned downtime (T7.03,
 `tiles_planned`). Its planned stops are those for its asset or the whole site. Its changes are the
 ontology commits whose ops touch the machine, its PLCs or its Signal nodes, and the edits of its
-signals and detectors in the audit log (what was done and by whom, not the values). Everyone reads it.
+signals and detectors in the audit log (what was done and by whom, not the values; who only for
+engineers and admins, as the audit log itself is for admins). Everyone reads it.
 """
 
 import uuid
@@ -19,7 +20,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import AwareDatetime, BaseModel
 
 from tiles_api import coverage, ontology_store
-from tiles_api.api_ontology import Ctx
+from tiles_api.api_ontology import ROLE_RANK, Ctx
 from tiles_api.api_series import Series, read_series
 from tiles_api.errors import Problem
 
@@ -30,6 +31,7 @@ MAX_SPAN = timedelta(days=31)
 MAX_SIGNALS = 6  # charts on one page
 POINTS = 400  # per chart
 MAX_ITEMS = 500  # of each kind
+MAX_COMMITS = 5000  # looked at for the changes that touch the machine
 
 
 class TimelineWarning(BaseModel):
@@ -63,7 +65,7 @@ class TimelineChange(BaseModel):
     kind: Literal["ontology", "signal", "detector"]
     action: str  # the commit's message, or the audit log's action (signal.update…)
     subject: str  # the commit's number, the signal's tag or the detector's name
-    author: str
+    author: str | None  # None for a viewer's signal and detector edits: the audit log is for admins
 
 
 class Timeline(BaseModel):
@@ -164,8 +166,8 @@ def timeline(
             {**span, "asset": asset},
         ).fetchall()
     )
-    changes = _changes(ctx, index, machine, nodes, tags, asset, span)
-    more = more or len(changes) > MAX_ITEMS
+    changes, unread = _changes(ctx, index, machine, nodes, tags, asset, span)
+    more = more or unread or len(changes) > MAX_ITEMS
     return {
         "machine": machine,
         "label": node["label"],
@@ -190,19 +192,22 @@ def _changes(
     tags: list[dict[str, Any]],
     asset: str,
     span: dict[str, Any],
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], bool]:
     """The commits that touch the machine, its PLCs or its Signal nodes, and the audited edits of
-    its signals and detectors, in time order (one more than MAX_ITEMS when there are more)."""
+    its signals and detectors, in time order (one more than MAX_ITEMS when there are more); and
+    whether there were more commits than MAX_COMMITS to look at."""
     mine = {machine, *index.out(machine, "controlledBy"), *nodes}
     out: list[dict[str, Any]] = []
+    authors = ROLE_RANK.get(ctx.user.role, -1) >= ROLE_RANK["engineer"]
     # A commit's ops name nodes by id, or relationships by id (removeEdge), whose ends are in the
     # inverse; ops and inverses together name every node a commit touched.
-    for c in ctx.conn.execute(
+    commits = ctx.conn.execute(
         "SELECT seq, message, author_name, created_at, ops, inverses FROM commits"
         " WHERE site_id = %(site)s AND created_at >= %(start)s AND created_at < %(end)s"
-        " ORDER BY created_at, seq LIMIT 5000",
-        span,
-    ):
+        " ORDER BY created_at, seq LIMIT %(commits)s",
+        {**span, "commits": MAX_COMMITS + 1},
+    ).fetchall()
+    for c in commits[:MAX_COMMITS]:
         if mine & {n for op in [*c["ops"], *c["inverses"]] for n in _touched(op)}:
             out.append(
                 {
@@ -238,11 +243,11 @@ def _changes(
                 "kind": a["entity_type"],
                 "action": a["action"],
                 "subject": subjects[(a["entity_type"], a["entity_id"])],
-                "author": a["actor_name"],
+                "author": a["actor_name"] if authors else None,
             }
         )
     out.sort(key=lambda c: c["at"])
-    return out
+    return out, len(commits) > MAX_COMMITS
 
 
 def _touched(op: dict[str, Any]) -> set[str]:

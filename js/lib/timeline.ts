@@ -23,6 +23,7 @@ export interface Item {
   what: string; // the detector, the code, the reason, the commit's message or the change
   detail: string; // the tag, the author, the outcome
   warning?: string; // its id, to open it
+  ongoing?: boolean; // a warning still out: `to` is the range's end
   plannedDowntime?: boolean;
 }
 
@@ -59,6 +60,7 @@ export function itemsOf(tl: MachineTimeline): Item[] {
         ? t('timeline.warningResolved', { tag: w.tag, outcome: t(OUTCOME[w.outcome]) })
         : t('timeline.warningStatus', { tag: w.tag, status: t(STATUS[w.status]) }),
       warning: w.id,
+      ongoing: !w.ended_at,
     })),
     ...tl.events.map((e) => ({
       at: Date.parse(e.at),
@@ -80,7 +82,10 @@ export function itemsOf(tl: MachineTimeline): Item[] {
         at: Date.parse(c.at),
         kind: 'change' as const,
         what: c.kind === 'ontology' ? c.action : action ? t(action, { subject: c.subject }) : c.action,
-        detail: c.kind === 'ontology' ? t('timeline.commit', { number: c.subject, author: c.author }) : c.author,
+        detail:
+          c.kind === 'ontology'
+            ? t('timeline.commit', { number: c.subject, author: c.author ?? '' })
+            : (c.author ?? ''),
       };
     }),
   ];
@@ -92,7 +97,9 @@ export function lanesOf(items: Item[]): Lane[] {
   const mark = (i: Item) => ({
     from: i.at,
     ...(i.to === undefined ? {} : { to: i.to }),
-    label: `${dateTime(i.at)}: ${i.what} (${i.detail})`, // i18n-ok
+    label: i.detail
+      ? t('timeline.markLabel', { when: dateTime(i.at), what: i.what, detail: i.detail })
+      : t('timeline.markShort', { when: dateTime(i.at), what: i.what }),
   });
   const lane = (label: string, color: string, kinds: ItemKind[]): Lane => ({
     label,
