@@ -31,6 +31,7 @@ import {
 import { openWarning } from './warnings.ts';
 import { bindTemplates, templatesCard } from './detector-templates.ts';
 import { lifeCard, lifeWanted, loadLife } from './remaining-life.ts';
+import { bindTimeline, loadTimeline, timelineCard } from './timeline.ts';
 import { keyAttr } from '../lib/shortcuts.ts';
 import { t, tHtml } from '../lib/i18n.ts';
 
@@ -278,7 +279,8 @@ function machinePage(ctx: Context, graph: Graph, node: OntologyNode, items: Floo
         t('plant.parts'),
         sheet.parts.map((n) => placeItem(n)),
       )}
-    </div>`;
+    </div>
+    ${timelineCard(ctx, node.id)}`;
 }
 
 function placePage(ctx: Context, graph: Graph, id: string, items: FloorItem[] | null, now: number): string {
@@ -428,10 +430,14 @@ const view: View = {
     // Remaining life (T9.01): on a place and on a machine.
     const lifePlace = root.querySelector('[data-life]') ? shownPlace(ctx) : null;
     if (lifePlace && lifeWanted(ctx, lifePlace)) void loadLife(ctx, lifePlace);
+    // The machine timeline (T10.01): on a machine.
+    const machine = root.querySelector('[data-timeline]') ? shownPlace(ctx) : null;
+    if (machine) bindTimeline(root, ctx, machine);
     onAll(root, '[data-plant-refresh]', 'click', () => {
       refreshFloor(ctx);
       if (place) void loadCoverage(ctx, place, true);
       if (lifePlace) void loadLife(ctx, lifePlace, true);
+      if (machine) void loadTimeline(ctx, machine, true);
     });
     onAll(root, '[data-open-warning]', 'click', (el) => openWarning(ctx, el.dataset.openWarning ?? ''));
   },

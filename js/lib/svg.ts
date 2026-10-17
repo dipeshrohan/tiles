@@ -664,3 +664,59 @@ export function timeChart({
 function readTime(t: number, span: number): string {
   return dateTime(t, { seconds: span < 6 * HOUR });
 }
+
+// Lanes of marks on a time axis (the machine timeline, T10.01): each lane a row of stretches (from
+// and to) and instants (from alone), on the same axis as a timeChart of the same width and range,
+// so the charts drawn under it line up with it. Each mark's label is its tooltip; the lanes' counts
+// are the summary, and the page lists the marks themselves.
+export interface Lane {
+  label: string;
+  color: string;
+  marks: { from: number; to?: number; label: string }[];
+}
+
+const LANE = 30;
+
+export function laneChart({
+  lanes,
+  from,
+  to,
+  width = TIME_CHART.width,
+  title,
+}: {
+  lanes: Lane[];
+  from: number;
+  to: number;
+  width?: number;
+  title: string;
+}): string {
+  const height = PAD.t + lanes.length * LANE + PAD.b - 12;
+  const x = scale(from, to, PAD.l, width - PAD.r);
+  const clip = (v: number) => Math.min(width - PAD.r, Math.max(PAD.l, x(v)));
+  const { step, ticks: xt } = timeTicks(from, to);
+  const rows = lanes
+    .map((lane, i) => {
+      const top = PAD.t - 12 + i * LANE;
+      const marks = lane.marks
+        .filter((m) => (m.to ?? m.from) >= from && m.from <= to)
+        .map((m) => {
+          const tip = `<title>${esc(m.label)}</title>`;
+          if (m.to === undefined)
+            return `<circle cx="${clip(m.from).toFixed(1)}" cy="${top + 20}" r="4" fill="${lane.color}">${tip}</circle>`;
+          const a = clip(m.from);
+          const w = Math.max(3, clip(m.to) - a);
+          return `<rect x="${a.toFixed(1)}" y="${top + 14}" width="${w.toFixed(1)}" height="12" rx="2" fill="${lane.color}" fill-opacity="0.7">${tip}</rect>`;
+        })
+        .join('');
+      return `<line class="grid" x1="${PAD.l}" x2="${width - PAD.r}" y1="${top + 20}" y2="${top + 20}"/><text class="tick strong" x="${PAD.l}" y="${top + 9}">${esc(lane.label)}</text>${marks}`;
+    })
+    .join('');
+  const summary = [
+    t('svg.fromTo', { from: at(from), to: at(to) }),
+    ...lanes.map((l) => t('svg.laneCount', { lane: l.label, count: fmt(l.marks.length, 0) })),
+  ].join('; ');
+  return `${open(width, height, title, summary, 'chart lanes')}
+    ${xt.map((v) => `<line class="grid" x1="${x(v)}" x2="${x(v)}" y1="${PAD.t - 12}" y2="${height - PAD.b + 4}"/><text class="tick" x="${x(v)}" y="${height - PAD.b + 18}" text-anchor="middle">${esc(tickLabel(v, step))}</text>`).join('')}
+    ${rows}
+  </svg>`;
+}

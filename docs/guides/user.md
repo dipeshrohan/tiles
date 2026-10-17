@@ -551,6 +551,16 @@ The Plant page walks the site the way it is laid out: site, workcenters, lines a
 - **Find a line or machine** searches the places by name, for every word you type. **Enter** opens the best match.
 - Each place has its own address (`#/plant/<node id>`), so you can bookmark a line or put a machine's page on a tablet beside it.
 
+### Machine timeline
+
+On each machine's page (API mode), **Timeline** puts what happened to the machine on one time axis, over the last **24 hours**, **7 days** or **30 days**:
+
+- **Lanes** for its warnings (from their start to their end, or to now while the signal is still out), its stops and other events from the MES (matched by its `asset` property, as for Coverage), the planned stops for it or the whole site, and the changes to it: plant model commits that touch the machine, its PLCs or its signals, and edits of its signals and detectors. Point at a mark to read it.
+- **Its readings** below, one chart per linked signal (the first six), on the same axis, with its warnings shaded.
+- **A list** of everything, newest first, each warning a link to it on the Warnings page. A stop in a planned stop or with a planned code says **planned downtime**.
+
+**Refresh** asks again. A range with more than 500 of one kind says so: choose a shorter one.
+
 ### Remaining life
 
 On a place that holds machines, and on each machine's page (API mode), **Remaining life** lists each component with a wear limit: a Signal node of the machine whose linked tag has a **Wear limit** on the Signals page.

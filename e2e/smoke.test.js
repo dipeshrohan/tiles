@@ -5069,6 +5069,87 @@ test('remaining life: each component’s time to its wear limit on a line and a 
   assert.deepEqual(a.errors, []);
 });
 
+test('a machine’s timeline puts its warnings, events, stops and changes over its readings (T10.01)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const node = (id, type, label) => ({ kind: 'addNode', node: { id, type, label, props: {} } });
+  fake.commitAs(
+    'maria',
+    [
+      node('line-a', 'Line', 'Line A'),
+      node('dc1', 'Machine', 'Die-caster 1'),
+      { kind: 'addEdge', edge: { id: 'e1', from: 'line-a', rel: 'contains', to: 'dc1' } },
+    ],
+    'Line A',
+  );
+  const hour = 3_600_000;
+  const ago = (h) => new Date(Date.now() - h * hour).toISOString();
+  fake.setTimeline({
+    label: 'Die-caster 1',
+    signals: [
+      {
+        signal_id: 's1',
+        tag: 'dc1.friction',
+        unit: 'kN',
+        start: ago(168),
+        end: ago(0),
+        bucket_s: null,
+        points: Array.from({ length: 48 }, (_, i) => ({
+          at: ago(48 - i),
+          value: 10 + (i % 5),
+          min: null,
+          max: null,
+          n: 1,
+          text: null,
+        })),
+      },
+    ],
+    warnings: [
+      {
+        id: 'w-1',
+        detector: 'dc1-friction',
+        tag: 'dc1.friction',
+        started_at: ago(30),
+        ended_at: ago(28),
+        status: 'resolved',
+        outcome: 'true_alarm',
+      },
+    ],
+    events: [{ at: ago(27), kind: 'downtime', code: 'DT-SEIZURE', tag: 'mes.dc1.downtime', planned: false }],
+    planned: [{ id: 'p-1', asset: 'DC-01', starts_at: ago(10), ends_at: ago(8), reason: 'Die change' }],
+    changes: [{ at: ago(50), kind: 'ontology', action: 'New PLC', subject: '#3', author: 'Maria' }],
+  });
+  const a = await openAs(t, apiUrl, null, 'plant');
+  await a.page.evaluate(() => (location.hash = '#/plant/dc1'));
+  await a.page.waitForSelector('[data-timeline] table');
+  const lanes = await a.page.getAttribute('[data-timeline] svg.lanes', 'aria-label');
+  assert.match(
+    lanes,
+    /What happened on Die-caster 1\..*Warnings: 1; Stops: 1; Other events: 0; Planned stops: 1; Changes: 1/,
+  );
+  assert.equal(await a.page.locator('[data-timeline] svg[data-chart]').count(), 1); // the friction readings
+  const rows = await a.page.locator('[data-timeline] tbody tr').allInnerTexts();
+  assert.equal(rows.length, 4);
+  assert.match(rows[0], /Planned stop\s+Die change DC-01/); // newest first
+  assert.match(rows[1], /Stop\s+DT-SEIZURE mes\.dc1\.downtime/);
+  assert.match(rows[2], /Warning\s+dc1-friction dc1\.friction, resolved as a true alarm/);
+  assert.match(rows[3], /Change\s+New PLC Plant model change #3 by Maria/);
+  assert.equal(await a.page.getAttribute('[data-timeline] tbody a', 'href'), '#/warnings?show=all&warning=w-1');
+  const [first] = fake.timelineQueries();
+  assert.equal(first.machine, 'dc1');
+  assert.ok(Math.abs(Date.parse(first.to) - Date.parse(first.from) - 7 * 24 * hour) < 1000); // a week by default
+  // Another range asks again.
+  await a.page.click('[data-timeline-range="day"]');
+  await a.page.waitForFunction(
+    () => document.querySelector('[data-timeline-range="day"]')?.getAttribute('aria-pressed') === 'true',
+  );
+  await a.page.waitForSelector('[data-timeline] table');
+  const day = fake.timelineQueries().at(-1);
+  assert.ok(Math.abs(Date.parse(day.to) - Date.parse(day.from) - 24 * hour) < 1000);
+  assert.deepEqual(a.errors, []);
+});
+
 test('a detector template is applied to every die-caster on a line, each with its report (T7.02)', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();
