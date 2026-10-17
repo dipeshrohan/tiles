@@ -862,7 +862,9 @@ The copilot uses read-only tools that look at your site as you are allowed to se
 - Wear checks.
 - Virtual sensors.
 - Warnings and events.
+- Why a machine stopped ("why did DC-01 stop on Tuesday?"): its timeline before the stop, with leads such as its warnings, the signals that moved before it and the changes made to it, strongest first. The answer links to the machine's timeline. Leads are what Tiles recorded before the stop, not proof of its cause.
 - The correlation finder on batch tables.
+- The site's documents.
 
 For engineers and admins it can also propose ontology changes (see below).
 

@@ -82,6 +82,12 @@
       "facts": ["DT-HYD", "DT-TIP"]
     },
     {
+      "id": "root-cause-latest",
+      "question": "Why did DC-01 stop most recently?",
+      "tools": ["root_cause"],
+      "facts": ["DT-HYD", "dc01.hydraulic_pressure", "131"]
+    },
+    {
       "id": "sop-plunger-tip",
       "question": "According to our SOPs, when should the plunger tip be replaced?",
       "tools": ["search_documents"],

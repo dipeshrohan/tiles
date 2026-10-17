@@ -192,6 +192,19 @@ export function evidenceLink(
       return tool.input.kind === 'events'
         ? { href: '#/performance', text: t('copilotChat.evidence.performance') }
         : { href: '#/warnings', text: t('copilotChat.evidence.warnings') };
+    case 'root_cause': {
+      // The machine's timeline on the Plant page (T10.03), named at the start of its result.
+      const id = /^\{"machine":\s*"((?:[^"\\]|\\.)*)"/.exec(tool.preview ?? '')?.[1];
+      let machine: unknown;
+      try {
+        machine = id === undefined ? null : JSON.parse(`"${id}"`);
+      } catch {
+        machine = null;
+      }
+      return typeof machine === 'string'
+        ? { href: `#/plant/${encodeURIComponent(machine)}`, text: t('copilotChat.evidence.timeline') }
+        : null;
+    }
     case 'correlate':
       return { href: '#/correlate', text: t('copilotChat.evidence.correlate') };
     case 'virtual_sensors':

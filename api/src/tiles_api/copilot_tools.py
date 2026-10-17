@@ -8,7 +8,8 @@ may use); the API's own checks (HTTPException, validation) become ToolErrors.
 
 The tools are the browser copilot's skills on the site's real data: the ontology (graph query and
 health check), signals (search, time series, wear check), virtual sensors, warnings and events,
-the correlation finder on uploaded batch tables, and the site's documents (T4.08).
+the correlation finder on uploaded batch tables, the site's documents (T4.08), and a machine's
+timeline before a stop (root_cause, T10.03).
 """
 
 import math
@@ -32,6 +33,7 @@ from tiles_api import (
     api_wear,
     ontology,
     ontology_store,
+    root_cause,
 )
 from tiles_api.api_ontology import OpIn, SiteContext, _op_dict, can_edit
 from tiles_api.assistant import Tool, ToolError
@@ -383,6 +385,14 @@ def events(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
     return {"since": since, "until": until, "events": rows}
 
 
+def why_stopped(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
+    """A machine's stop and what happened on it before (T10.03, root_cause.py)."""
+    machine = _text(args, "machine")
+    if not machine:
+        raise ToolError("Give the machine: its name in the plant model or its asset (graph_query lists them)")
+    return root_cause.analyse(ctx, machine, _time(args, "at"), _int(args, "hours", 12, 1, 72))
+
+
 def correlate(ctx: SiteContext, args: dict[str, Any]) -> dict[str, Any]:
     """The correlation finder on an uploaded batch table."""
     name = _text(args, "dataset")
@@ -632,6 +642,21 @@ def tools_for(open_ctx: OpenCtx, *, can_propose: bool = False, conversation_id: 
                 "limit": {"type": "integer", "minimum": 1, "maximum": 50},
             },
             events,
+        ),
+        tool(
+            "root_cause",
+            "Why did a machine stop? Reads its timeline before a stop (the one nearest `at`, else its latest "
+            "unplanned stop in 30 days) over the `hours` before it (default 12): leads, strongest first: its "
+            "warnings and how long before the stop they started, its signals that moved before it (robust z, "
+            "change), and changes to it (plant model, signals, detectors); whether the stop was planned and how "
+            "often its code came in the 30 days before. Leads are not proof: say what they show.",
+            {
+                "machine": {"type": "string", "description": "The machine's name in the plant model, or its asset"},
+                "at": TIME,
+                "hours": {"type": "integer", "minimum": 1, "maximum": 72},
+            },
+            why_stopped,
+            ["machine"],
         ),
         tool(
             "search_documents",

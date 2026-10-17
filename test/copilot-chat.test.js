@@ -136,6 +136,13 @@ test('each tool links to where its evidence is, and its call reads plainly', () 
   assert.equal(evidenceLink({ name: 'events', input: { kind: 'events' } }).href, '#/performance');
   assert.equal(evidenceLink({ name: 'events', input: {} }).href, '#/warnings');
   assert.equal(evidenceLink({ name: 'site_overview', input: {} }), null);
+  // A root cause links to the machine's timeline, named at the start of its result (T10.03).
+  const why = { name: 'root_cause', input: { machine: 'DC-01' } };
+  assert.deepEqual(evidenceLink({ ...why, preview: '{"machine": "dc 01/\\"a\\"", "label": "DC-01"' }), {
+    href: '#/plant/dc%2001%2F%22a%22',
+    text: 'Open the machine’s timeline',
+  });
+  assert.equal(evidenceLink({ ...why, preview: '' }), null);
   // A proposal links to the change request it opened, once its result is stored (T4.09).
   const proposal = { name: 'propose_ontology_change', input: { message: 'm', ops: [] } };
   assert.deepEqual(evidenceLink({ ...proposal, preview: '{"change_request": 12, "status": "open"}' }), {

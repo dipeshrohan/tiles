@@ -61,6 +61,7 @@ What the copilot can call; a case names the ones its answer needs:
 | `wear_check` | Whether a signal's level has moved from its baseline, how fast, and when it reaches a limit |
 | `virtual_sensors` | The physics models bound to signals and their outputs |
 | `events` | Warnings and the MES's events (downtime, scrap) |
+| `root_cause` | A machine's stop and what happened on it before: warnings, signals that moved, changes |
 | `search_documents` | Passages from the site's documents (SOPs, manuals, history), with their page |
 | `correlate` | The correlation finder on an uploaded batch table |
 | `propose_ontology_change` | A change request to the ontology (engineers and admins), for another engineer to approve |

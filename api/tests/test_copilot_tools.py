@@ -69,6 +69,7 @@ def test_every_tool_is_described_for_the_model(tool: Run) -> None:
         "wear_check",
         "virtual_sensors",
         "events",
+        "root_cause",
         "search_documents",
         "correlate",
     ]

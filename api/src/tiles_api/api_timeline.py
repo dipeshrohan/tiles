@@ -20,7 +20,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import AwareDatetime, BaseModel
 
 from tiles_api import coverage, ontology_store
-from tiles_api.api_ontology import ROLE_RANK, Ctx
+from tiles_api.api_ontology import ROLE_RANK, Ctx, SiteContext
 from tiles_api.api_series import Series, read_series
 from tiles_api.errors import Problem
 
@@ -103,6 +103,12 @@ def timeline(
             f"A timeline can be at most {MAX_SPAN.days} days",
             days=MAX_SPAN.days,
         )
+    return read(ctx, machine, start, end)
+
+
+def read(ctx: SiteContext, machine: str, start: datetime, end: datetime, points: int = POINTS) -> dict[str, Any]:
+    """The timeline of a Machine node from `start` to `end`, as `GET …/timeline` answers it (the
+    copilot's root_cause tool reads it too)."""
     graph = ontology_store.load_head(ctx.conn, ctx.site_id)
     node = graph["nodes"].get(machine)
     if node is None or node["type"] != "Machine":
@@ -174,7 +180,7 @@ def timeline(
         "asset": asset,
         "start": start,
         "end": end,
-        "signals": [read_series(ctx, t["id"], start, end, POINTS, signal=t) for t in readings[:MAX_SIGNALS]],
+        "signals": [read_series(ctx, t["id"], start, end, points, signal=t) for t in readings[:MAX_SIGNALS]],
         "more_signals": len(readings) > MAX_SIGNALS,
         "warnings": warnings,
         "events": events,
@@ -185,7 +191,7 @@ def timeline(
 
 
 def _changes(
-    ctx: Ctx,
+    ctx: SiteContext,
     index: coverage.Index,
     machine: str,
     nodes: list[str],

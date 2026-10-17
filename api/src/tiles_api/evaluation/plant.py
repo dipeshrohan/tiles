@@ -26,9 +26,12 @@ SOP = (
 
 
 def hydraulic_pressure() -> list[float]:
-    """72 hourly readings in bar: 146 to 154, a peak of 158 at hour 60, ending at 152."""
+    """72 hourly readings in bar: 146 to 154, a peak of 158 at hour 60, falling to 138 and 131 in the two
+    hours before the DT-HYD stop five hours before the end (root cause, T10.03), ending at 152."""
     values = [150.0 + ((i * 7) % 9) - 4 for i in range(72)]
     values[60] = 158.0
+    values[64] = 138.0
+    values[65] = 131.0
     values[71] = 152.0
     return values
 
@@ -52,12 +55,12 @@ def plunger_friction() -> list[float]:
     return values
 
 
-DOWNTIME = (("DT-HYD", 50), ("DT-TIP", 20), ("DT-HYD", 5))  # (code, hours before the end)
+DOWNTIME = (("DT-HYD", 50), ("DT-TIP", 20), ("DT-HYD", 5))  # (code, hours before the end): DC-01's stops
 
 NODES: tuple[tuple[str, str, str, dict[str, str]], ...] = (
     ("line-2", "Line", "Line 2", {}),
-    ("dc-01", "Machine", "DC-01 die-casting cell", {"vendor": "Bühler"}),
-    ("dc-02", "Machine", "DC-02 die-casting cell", {"vendor": "Idra"}),
+    ("dc-01", "Machine", "DC-01 die-casting cell", {"vendor": "Bühler", "asset": "DC-01"}),
+    ("dc-02", "Machine", "DC-02 die-casting cell", {"vendor": "Idra", "asset": "DC-02"}),
     ("plc-dc01", "PLC", "PLC DC-01", {"protocol": "OPC UA"}),
     ("plc-dc02", "PLC", "PLC DC-02", {"protocol": "MQTT"}),
     ("sig-dc01-hp", "Signal", "DC-01 hydraulic pressure", {"unit": "bar"}),
@@ -122,7 +125,10 @@ def load(api: "TestClient", site: str, who: dict[str, str], now: datetime) -> No
     }
     for tag, (unit, values) in units.items():
         signal = _import(api, site, who, tag, hourly, HOUR, values)
-        _ok(api.patch(f"/sites/{site}/signals/{signal}", json={"unit": unit}, headers=who), f"unit of {tag}")
+        change: dict[str, Any] = {"unit": unit}
+        if tag == "dc01.hydraulic_pressure":
+            change["node_id"] = "sig-dc01-hp"  # on DC-01's timeline (T10.01)
+        _ok(api.patch(f"/sites/{site}/signals/{signal}", json=change, headers=who), f"unit of {tag}")
 
     friction = plunger_friction()
     signal = _import(api, site, who, "dc01.plunger_friction", end - (len(friction) - 1) * MINUTE, MINUTE, friction)
