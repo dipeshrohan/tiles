@@ -98,6 +98,7 @@ class Report(BaseModel):
     unwatched: list[Unwatched]  # events of assets no detector watches
     events: list[EventRow]  # newest first, at most 200
     time_to_cause: list[CauseMonth]  # per month, oldest first (T10.04)
+    caught_by: dict[str, int]  # events warned of, by the detector whose warning came first
 
 
 @router.get("/sites/{site_id}/performance", response_model=Report)

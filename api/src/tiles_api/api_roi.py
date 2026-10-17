@@ -81,9 +81,32 @@ class Avoided(BaseModel):
     cost: float | None
 
 
+class KindCounts(BaseModel):
+    downtime: int
+    scrap: int
+
+
+class MachineRow(BaseModel):
+    asset: str
+    baseline: KindCounts
+    pilot: KindCounts
+    avoided: Avoided  # its baseline rate over the pilot period, less its pilot count (T12.01)
+
+
+class ModelRow(BaseModel):
+    detector: str
+    stops_warned: int  # the pilot's stops its warning came first for
+    share: float  # of the stops warned of
+    stops: float | None  # its share of the avoided stops, hours and their cost
+    downtime_hours: float | None
+    cost: float | None
+
+
 class RoiOut(BaseModel):
     periods: Periods
     avoided: Avoided
+    by_machine: list[MachineRow]  # add up to `avoided`
+    by_model: list[ModelRow]  # the avoided stops shared by the stops each detector warned of
     inputs: dict[str, Any]
     digest: str  # SHA-256 of the inputs and every counted event
     markdown: str

@@ -35,7 +35,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - time to cause on Warning performance: per month, the median time from a stop to its warning resolved as a true alarm;
   - remaining life on the Plant page: each component's time to its wear limit, with a 95% interval, from a wear limit set on its signal, and the next planned stop before it (or that there is none in time);
   - detector templates: a detector set up once for a kind of machine and applied to every machine of that kind on a line, each tuned by a backtest on its own history and kept with its report;
-  - the ROI report: a pilot period against its baseline, with what was avoided in stops, hours, scrap and cost, as Markdown with a digest of the events it counted.
+  - the ROI report: a pilot period against its baseline, with what was avoided in stops, hours, scrap and cost, broken down per machine and per model, as Markdown with a digest of the events it counted.
 - **Analysis:**
   - a correlation finder over batch tables;
   - saved insights with evidence and proposed actions;

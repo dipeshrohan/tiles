@@ -42,9 +42,32 @@ export interface RoiPeriod {
   warnings: RoiWarnings;
 }
 
+export interface RoiAvoided {
+  stops: number | null;
+  downtime_hours: number | null;
+  scrap: number | null;
+  cost: number | null;
+}
+
 export interface RoiReport {
   periods: { baseline: RoiPeriod; pilot: RoiPeriod };
-  avoided: { stops: number | null; downtime_hours: number | null; scrap: number | null; cost: number | null };
+  avoided: RoiAvoided;
+  // Per machine and per model (T12.01): the machines' rows add up to `avoided`; each detector has its
+  // share of the avoided stops, hours and their cost by the stops it warned of first.
+  by_machine: {
+    asset: string;
+    baseline: { downtime: number; scrap: number };
+    pilot: { downtime: number; scrap: number };
+    avoided: RoiAvoided;
+  }[];
+  by_model: {
+    detector: string;
+    stops_warned: number;
+    share: number;
+    stops: number | null;
+    downtime_hours: number | null;
+    cost: number | null;
+  }[];
   inputs: Record<string, unknown>;
   digest: string; // SHA-256 of the inputs and every counted event
   markdown: string;

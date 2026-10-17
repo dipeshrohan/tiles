@@ -4867,6 +4867,24 @@
         "title": "Kept",
         "type": "object"
       },
+      "KindCounts": {
+        "properties": {
+          "downtime": {
+            "title": "Downtime",
+            "type": "integer"
+          },
+          "scrap": {
+            "title": "Scrap",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "downtime",
+          "scrap"
+        ],
+        "title": "KindCounts",
+        "type": "object"
+      },
       "Layout": {
         "properties": {
           "cards": {
@@ -5003,6 +5021,31 @@
           "missing"
         ],
         "title": "MachineCoverage",
+        "type": "object"
+      },
+      "MachineRow": {
+        "properties": {
+          "asset": {
+            "title": "Asset",
+            "type": "string"
+          },
+          "avoided": {
+            "$ref": "#/components/schemas/Avoided"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/KindCounts"
+          },
+          "pilot": {
+            "$ref": "#/components/schemas/KindCounts"
+          }
+        },
+        "required": [
+          "asset",
+          "baseline",
+          "pilot",
+          "avoided"
+        ],
+        "title": "MachineRow",
         "type": "object"
       },
       "Match": {
@@ -5314,6 +5357,65 @@
           "params"
         ],
         "title": "ModelOut",
+        "type": "object"
+      },
+      "ModelRow": {
+        "properties": {
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "detector": {
+            "title": "Detector",
+            "type": "string"
+          },
+          "downtime_hours": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Downtime Hours"
+          },
+          "share": {
+            "title": "Share",
+            "type": "number"
+          },
+          "stops": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stops"
+          },
+          "stops_warned": {
+            "title": "Stops Warned",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "detector",
+          "stops_warned",
+          "share",
+          "stops",
+          "downtime_hours",
+          "cost"
+        ],
+        "title": "ModelRow",
         "type": "object"
       },
       "MyOrg": {
@@ -7323,6 +7425,20 @@
           "avoided": {
             "$ref": "#/components/schemas/Avoided"
           },
+          "by_machine": {
+            "items": {
+              "$ref": "#/components/schemas/MachineRow"
+            },
+            "title": "By Machine",
+            "type": "array"
+          },
+          "by_model": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRow"
+            },
+            "title": "By Model",
+            "type": "array"
+          },
           "digest": {
             "title": "Digest",
             "type": "string"
@@ -7343,6 +7459,8 @@
         "required": [
           "periods",
           "avoided",
+          "by_machine",
+          "by_model",
           "inputs",
           "digest",
           "markdown"
@@ -11290,6 +11408,13 @@
       },
       "tiles_api__api_performance__Report": {
         "properties": {
+          "caught_by": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Caught By",
+            "type": "object"
+          },
           "detectors": {
             "items": {
               "$ref": "#/components/schemas/DetectorRow"
@@ -11344,7 +11469,8 @@
           "detectors",
           "unwatched",
           "events",
-          "time_to_cause"
+          "time_to_cause",
+          "caught_by"
         ],
         "title": "Report",
         "type": "object"
