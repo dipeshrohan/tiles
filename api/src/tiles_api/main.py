@@ -57,6 +57,7 @@ from tiles_api.api_signals import router as signals_router
 from tiles_api.api_sites import router as sites_router
 from tiles_api.api_suggest import router as suggest_router
 from tiles_api.api_sweeps import router as sweeps_router
+from tiles_api.api_timeline import router as timeline_router
 from tiles_api.api_ux import router as ux_router
 from tiles_api.api_views import router as views_router
 from tiles_api.api_warnings import router as warnings_router
@@ -276,6 +277,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(series_router)
     app.include_router(wear_router)
     app.include_router(remaining_life_router)
+    app.include_router(timeline_router)
     app.include_router(insights_router)
     app.include_router(runs_router)
     app.include_router(sweeps_router)

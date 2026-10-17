@@ -354,6 +354,9 @@ export function createFakeApi({
   // Remaining life (T9.01): what a test sets, and the places the page asked about.
   let remainingLife = null;
   const lifeQueries = [];
+  // The machine timeline (T10.01): what a test sets, and what the page asked for.
+  let timeline = null;
+  const timelineQueries = [];
   // Detector templates (T7.02): those made, what applying one answers (a test sets it), the places asked.
   const detectorTemplates = [];
   let templateApply = null;
@@ -666,6 +669,7 @@ export function createFakeApi({
         url.pathname !== `/sites/${site.id}/roi` &&
         url.pathname !== `/sites/${site.id}/coverage` &&
         url.pathname !== `/sites/${site.id}/remaining-life` &&
+        url.pathname !== `/sites/${site.id}/timeline` &&
         !url.pathname.startsWith(`/sites/${site.id}/planned-`) &&
         !url.pathname.startsWith(`/sites/${site.id}/detector-templates`) &&
         !/^\/sites\/[^/]+\/detectors\/[^/]+\/backtest$/.test(url.pathname) &&
@@ -1629,6 +1633,28 @@ export function createFakeApi({
         lifeQueries.push(url.searchParams.get('place'));
         return send(200, remainingLife ?? { place: url.searchParams.get('place'), components: [], more: false });
       }
+      if (url.pathname === `/sites/${site.id}/timeline`) {
+        const q = Object.fromEntries(url.searchParams);
+        timelineQueries.push(q);
+        const empty = {
+          signals: [],
+          more_signals: false,
+          warnings: [],
+          events: [],
+          planned: [],
+          changes: [],
+          more: false,
+        };
+        return send(200, {
+          machine: q.machine,
+          label: q.machine,
+          asset: q.machine,
+          ...empty,
+          ...timeline,
+          start: q.from,
+          end: q.to,
+        });
+      }
       if (url.pathname === `/sites/${site.id}/detector-templates` && req.method === 'GET') {
         return send(200, detectorTemplates);
       }
@@ -2568,6 +2594,11 @@ export function createFakeApi({
       remainingLife = out;
     },
     lifeQueries: () => [...lifeQueries],
+    // Lets a test set the machine timeline the API answers with (T10.01), and read what was asked.
+    setTimeline(out) {
+      timeline = out;
+    },
+    timelineQueries: () => [...timelineQueries],
     // Lets a test set what applying a detector template answers (T7.02), and read the templates and applies.
     setTemplateApply(out) {
       templateApply = out;

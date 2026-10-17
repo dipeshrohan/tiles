@@ -1368,6 +1368,19 @@ Undo: drop your last `count` staged changes (U5.05). Refused (409) when you have
 
 **Body:** UnstageIn (see [openapi.json](openapi.json)).
 
+### `GET /sites/{site_id}/timeline`
+
+**Who:** site member. **Answers:** 200, 422.
+
+A machine's warnings, events, planned stops, changes and readings from `from` to `to` (the seven days to now without them; at most 31 days).
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `machine` | query | string | yes |
+| `from` | query | date-time | no |
+| `to` | query | date-time | no |
+
 ## organisation sign-in
 
 ### `GET /org`

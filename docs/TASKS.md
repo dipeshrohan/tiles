@@ -395,7 +395,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
   *Done when:* a predicted limit shows the planned stop before it, or says there is none in time.
 ### Month 10: Causes, faster (Aug 2027)
 
-- [ ] `T10.01` [#345](https://github.com/dipeshrohan/tiles/issues/345) **Machine timeline** · FE+BE · 5d
+- [x] `T10.01` [#345](https://github.com/dipeshrohan/tiles/issues/345) **Machine timeline** · FE+BE · 5d
   *Done when:* a machine's page shows its warnings, events, changes and readings on one axis.
 - [ ] `T10.02` [#346](https://github.com/dipeshrohan/tiles/issues/346) **Similar past warnings** · ML+FE · 4d
   *Done when:* a warning shows its most similar past warnings and how each was resolved.

@@ -369,6 +369,36 @@ export interface RemainingLife {
   more: boolean;
 }
 
+// A machine's timeline (T10.01): its warnings, events, planned stops, changes and readings over one range.
+export interface MachineTimeline {
+  machine: string;
+  label: string;
+  asset: string;
+  start: string;
+  end: string;
+  signals: SignalSeries[];
+  more_signals: boolean;
+  warnings: {
+    id: string;
+    detector: string;
+    tag: string;
+    started_at: string;
+    ended_at: string | null; // null: still out
+    status: 'open' | 'acknowledged' | 'resolved';
+    outcome: 'true_alarm' | 'false_alarm' | 'unknown' | null;
+  }[];
+  events: { at: string; kind: 'downtime' | 'scrap' | 'other'; code: string; tag: string; planned: boolean }[];
+  planned: { id: string; asset: string | null; starts_at: string; ends_at: string; reason: string }[];
+  changes: {
+    at: string;
+    kind: 'ontology' | 'signal' | 'detector';
+    action: string;
+    subject: string;
+    author: string | null; // null: a viewer doesn't see who changed a signal or detector
+  }[];
+  more: boolean; // a kind had more than the API gives: choose a shorter range
+}
+
 // A signal's readings over a range (T2.10): as they are (bucket_s null), or bucketed.
 export interface SignalSeries {
   signal_id: string;
@@ -1591,6 +1621,11 @@ export function createApiClient(options: ApiOptions) {
       request<RemainingLife>(
         'GET',
         `/sites/${encodeURIComponent(siteId)}/remaining-life?place=${encodeURIComponent(place)}`,
+      ),
+    timeline: (siteId: string, machine: string, from: string, to: string) =>
+      request<MachineTimeline>(
+        'GET',
+        `/sites/${encodeURIComponent(siteId)}/timeline?${new URLSearchParams({ machine, from, to }).toString()}`,
       ),
     detectorTemplates: (siteId: string) =>
       request<DetectorTemplate[]>('GET', `/sites/${encodeURIComponent(siteId)}/detector-templates`),
