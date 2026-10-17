@@ -68,6 +68,8 @@ class WearOut(BaseModel):
     change: float | None
     slope_per_day: float | None
     hours_to_limit: float | None
+    hours_to_limit_earliest: float | None  # Sen's 95% interval of the slope (T9.01)
+    hours_to_limit_latest: float | None  # None with an earliest: it may never get there
     baseline_buckets: int
     recent_buckets: int
     text: str
@@ -168,6 +170,8 @@ def run_check(
         "change": a.change,
         "slope_per_day": None if a.slope_per_hour is None else a.slope_per_hour * 24,
         "hours_to_limit": a.hours_to_limit,
+        "hours_to_limit_earliest": a.hours_interval[0] if a.hours_interval else None,
+        "hours_to_limit_latest": a.hours_interval[1] if a.hours_interval else None,
         "baseline_buckets": a.baseline_buckets,
         "recent_buckets": a.recent_buckets,
         "text": explain(a, signal["unit"], body.limit, body),

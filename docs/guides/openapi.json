@@ -1659,6 +1659,154 @@
         "title": "Comparison",
         "type": "object"
       },
+      "Component": {
+        "properties": {
+          "component": {
+            "title": "Component",
+            "type": "string"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "enum": [
+                  "up",
+                  "down"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "hours_earliest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Earliest"
+          },
+          "hours_latest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Latest"
+          },
+          "hours_to_limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours To Limit"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "number"
+          },
+          "machine": {
+            "title": "Machine",
+            "type": "string"
+          },
+          "machine_label": {
+            "title": "Machine Label",
+            "type": "string"
+          },
+          "node_id": {
+            "title": "Node Id",
+            "type": "string"
+          },
+          "signal_id": {
+            "format": "uuid",
+            "title": "Signal Id",
+            "type": "string"
+          },
+          "slope_per_day": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slope Per Day"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "verdict": {
+            "enum": [
+              "wearing",
+              "stable",
+              "not_enough_data"
+            ],
+            "title": "Verdict",
+            "type": "string"
+          }
+        },
+        "required": [
+          "machine",
+          "machine_label",
+          "node_id",
+          "component",
+          "signal_id",
+          "tag",
+          "unit",
+          "limit",
+          "direction",
+          "verdict",
+          "level",
+          "slope_per_day",
+          "hours_to_limit",
+          "hours_earliest",
+          "hours_latest",
+          "end"
+        ],
+        "title": "Component",
+        "type": "object"
+      },
       "Confirmed": {
         "properties": {
           "false_alarm": {
@@ -6368,6 +6516,39 @@
         "title": "Ready",
         "type": "object"
       },
+      "RemainingLife": {
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/Component"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "more": {
+            "title": "More",
+            "type": "boolean"
+          },
+          "place": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Place"
+          }
+        },
+        "required": [
+          "place",
+          "components",
+          "more"
+        ],
+        "title": "RemainingLife",
+        "type": "object"
+      },
       "RemoveEdge": {
         "additionalProperties": false,
         "properties": {
@@ -8229,6 +8410,32 @@
               }
             ],
             "title": "Unit"
+          },
+          "wear_direction": {
+            "anyOf": [
+              {
+                "enum": [
+                  "up",
+                  "down"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wear Direction"
+          },
+          "wear_limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wear Limit"
           }
         },
         "required": [
@@ -8245,6 +8452,8 @@
           "stuck_after_s",
           "event_kind",
           "asset",
+          "wear_limit",
+          "wear_direction",
           "created_at",
           "last_at",
           "last_value",
@@ -8396,6 +8605,34 @@
               }
             ],
             "title": "Unit"
+          },
+          "wear_direction": {
+            "anyOf": [
+              {
+                "enum": [
+                  "up",
+                  "down"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wear Direction"
+          },
+          "wear_limit": {
+            "anyOf": [
+              {
+                "maximum": 1000000000000000.0,
+                "minimum": -1000000000000000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wear Limit"
           }
         },
         "title": "SignalPatch",
@@ -10429,6 +10666,28 @@
             ],
             "title": "Hours To Limit"
           },
+          "hours_to_limit_earliest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours To Limit Earliest"
+          },
+          "hours_to_limit_latest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours To Limit Latest"
+          },
           "last": {
             "anyOf": [
               {
@@ -10512,6 +10771,8 @@
           "change",
           "slope_per_day",
           "hours_to_limit",
+          "hours_to_limit_earliest",
+          "hours_to_limit_latest",
           "baseline_buckets",
           "recent_buckets",
           "text",
@@ -19134,6 +19395,67 @@
         "summary": "Remove Planned Stop",
         "tags": [
           "warnings"
+        ]
+      }
+    },
+    "/sites/{site_id}/remaining-life": {
+      "get": {
+        "description": "The time until each component at or under `place` (the whole site without one) reaches its\nwear limit, with its interval, soonest first.",
+        "operationId": "remaining_life_sites__site_id__remaining_life_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "place",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Place"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemainingLife"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remaining Life",
+        "tags": [
+          "signals"
         ]
       }
     },

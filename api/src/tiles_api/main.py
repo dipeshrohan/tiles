@@ -46,6 +46,7 @@ from tiles_api.api_org_models import router as org_models_router
 from tiles_api.api_performance import router as performance_router
 from tiles_api.api_planned import router as planned_router
 from tiles_api.api_preferences import router as preferences_router
+from tiles_api.api_remaining_life import router as remaining_life_router
 from tiles_api.api_reviews import router as reviews_router
 from tiles_api.api_roi import router as roi_router
 from tiles_api.api_runs import router as runs_router
@@ -274,6 +275,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(signals_router)
     app.include_router(series_router)
     app.include_router(wear_router)
+    app.include_router(remaining_life_router)
     app.include_router(insights_router)
     app.include_router(runs_router)
     app.include_router(sweeps_router)
