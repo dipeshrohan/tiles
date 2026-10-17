@@ -550,6 +550,23 @@ The Plant page walks the site the way it is laid out: site, workcenters, lines a
 - **Find a line or machine** searches the places by name, for every word you type. **Enter** opens the best match.
 - Each place has its own address (`#/plant/<node id>`), so you can bookmark a line or put a machine's page on a tablet beside it.
 
+### Detector templates (engineers and admins)
+
+On a place that holds machines (API mode), **Detector templates** sets up a detector once for a kind of machine and applies it to every machine of that kind under the place. Each detector is tuned on its own machine.
+
+1. In the ontology, give each machine a `kind` property (for example `die-caster`), and give the signal to watch a `measure` property (for example `friction`). Without a `measure`, a signal whose name contains the word is used.
+2. Link each of those signals to its tag on the Signals page, and mark the MES's downtime signals with their asset, as for Warning performance.
+3. Open **New template**:
+   - give it a **Name**, the **Machine kind** and the **Signal measure**;
+   - give the values to try for **k values**, **Readings in a row** and **Baseline readings**, up to four of each, separated by spaces, and up to 48 combinations in all;
+   - choose which way to warn, and **Warned within**: how long before a stop a warning counts;
+   - optionally give the **Downtime codes** it should warn of.
+4. Click **Add template**, then **Apply here** on the line or cell.
+
+For each machine of that kind, Tiles replays the signal's history with every combination of the values and scores the warnings against that machine's unplanned stops (planned stops left out). The best setting becomes a detector called `<template>-<asset>`, watching that machine's asset. A machine with no unplanned stops yet takes the first value of each setting.
+
+The results list each machine: **Made**, with the stops, the share warned of and the false warnings per day; **Already there** when it has the detector; or what is missing (**No signal node**, **No linked tag**, **No readings**). **Download report** saves the detector's backtest as Markdown: every setting tried and how each scored. Applying the template again makes only the detectors still missing. Removing a template keeps the detectors made from it.
+
 ---
 
 ## Warning performance
