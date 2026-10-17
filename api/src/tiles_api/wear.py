@@ -17,7 +17,8 @@ variance of Kendall's S) makes the earliest and latest times the level could rea
 
 import math
 import statistics
-from collections.abc import Sequence
+from collections import Counter
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
@@ -68,14 +69,20 @@ def theil_sen(points: Sequence[Bucket]) -> float | None:
 def sen_interval(points: Sequence[Bucket], z: float = 1.96) -> tuple[float, float] | None:
     """Sen's confidence interval of the Theil-Sen slope (per hour), as SciPy's theilslopes takes it:
     among the N sorted pairwise slopes, those at round((N - C) / 2) - 1 and round((N + C) / 2),
-    C = z * sqrt(Var S) for Kendall's S over n points (no ties). None for fewer than three points."""
+    C = z * sqrt(Var S) for Kendall's S over n points, less the terms of tied times and tied values.
+    None for fewer than three points."""
     slopes = sorted(
         (b.value - a.value) / (b.at - a.at) for i, a in enumerate(points) for b in points[i + 1 :] if b.at != a.at
     )
     n, total = len(points), len(slopes)
     if n < 3 or not total:
         return None
-    c = z * math.sqrt(n * (n - 1) * (2 * n + 5) / 18)
+
+    def ties(values: Iterable[float]) -> int:
+        return sum(k * (k - 1) * (2 * k + 5) for k in Counter(values).values() if k > 1)
+
+    variance = (n * (n - 1) * (2 * n + 5) - ties(p.at for p in points) - ties(p.value for p in points)) / 18
+    c = z * math.sqrt(max(0.0, variance))
     low = max(0, round((total - c) / 2) - 1)
     high = min(total - 1, round((total + c) / 2))
     return slopes[low], slopes[high]
@@ -116,7 +123,7 @@ def assess(
         len(baseline),
         len(recent),
         slope_interval=interval,
-        hours_interval=_hours_between(limit, level, interval, toward) if hours is not None else None,
+        hours_interval=_hours_between(limit, level, interval, toward),
     )
 
 
@@ -125,7 +132,8 @@ def _hours_between(
 ) -> tuple[float, float | None] | None:
     """The earliest and latest hours to `limit` over the slope's interval: the fastest slope
     towards it gives the earliest; the slowest, the latest, or None when the interval reaches a
-    slope that never gets there."""
+    slope that never gets there. Given even when the median slope doesn't get there, as long as
+    the interval's fastest one does: it may."""
     if limit is None or interval is None:
         return None
     times = [_hours_to(limit, level, s, direction) for s in interval]

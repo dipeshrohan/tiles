@@ -351,7 +351,7 @@ Every matching signal is in one table (up to 10,000; it fills as they arrive), a
    - **Stuck after (min)**: how long a value may stay the same before it counts as stuck (60 if empty).
    - **Events**: mark the signal as an event stream (**downtime**, **scrap** or **other events**). Each reading is then an event, and its value is the event code. Leave **none: readings** for normal signals.
    - **Asset**: the machine as your MES names it, for example DC-01. Events are matched to detectors by asset.
-   - **Wear limit**: the level at which the component this signal measures is worn out, for example a welder tip's power. With **Wear moves it** (up, down, or towards the limit), its remaining life shows on the Plant page.
+   - **Wear limit**: the level at which the component this signal measures is worn out, for example a welder tip's power. Choose which way **Wear moves it** (up or down): a limit needs one. Its remaining life then shows on the Plant page.
 3. Click **Save**, or **Cancel**.
 
 ### Checking data quality
@@ -555,7 +555,7 @@ The Plant page walks the site the way it is laid out: site, workcenters, lines a
 
 On a place that holds machines, and on each machine's page (API mode), **Remaining life** lists each component with a wear limit: a Signal node of the machine whose linked tag has a **Wear limit** on the Signals page.
 
-For each, Tiles runs the wear check: the last day of hourly readings against the three days before it. It shows the level **now** and the **limit**, and when the component **reaches its limit** at the pace of the last day, with an interval: the earliest and latest times the slope's 95% confidence interval allows. "or maybe never" means the slope could be flat or moving away from the limit; **Not at this pace** means it isn't heading there now. The soonest are first, and those within a week are in red. **Refresh** asks again.
+For each, Tiles runs the wear check: the last day of hourly readings against the three days before it. It shows the level **now** and the **limit**, and when the component **reaches its limit** at the pace of the last day, with an interval: the earliest and latest times the slope's 95% confidence interval allows. "or maybe never" means the slope could be flat or moving away from the limit. **Not at this pace** means it isn't heading there now, or "maybe from" a time when the interval allows it. **Not enough readings to say** means there isn't a day of readings and three before it. Times past a year read "over a year". The soonest are first, and those within a week are in red. **Refresh** asks again.
 
 ### Detector templates (engineers and admins)
 

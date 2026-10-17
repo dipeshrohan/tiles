@@ -76,6 +76,8 @@ test('the edit form sets a wear limit and its direction, and clears them (T9.01)
   assert.deepEqual(changeFrom({ ...same, wearLimit: '250', wearDirection: 'up' }, set), {});
   assert.deepEqual(changeFrom(same, set), { wear_limit: null, wear_direction: null });
   assert.equal(changeFrom({ ...same, wearLimit: 'lots' }, SIG).name, 'wearLimit');
+  assert.equal(changeFrom({ ...same, wearLimit: '250' }, SIG).name, 'wearDirection'); // a limit needs a direction
+  assert.deepEqual(changeFrom({ ...same, wearDirection: 'down' }, SIG), {}); // a direction alone is dropped
 });
 
 test('the edit form sends only what changed; blanks clear', () => {

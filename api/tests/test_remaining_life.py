@@ -4,9 +4,12 @@ import random
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 from test_agents import ENG, VIEWER, api, site  # noqa: F401 - api and site are fixtures
 from test_performance import send, signal_id
+
+from tiles_api import api_remaining_life
 
 NODES: list[tuple[str, str, str, dict[str, Any]]] = [
     ("line", "Line", "Line A", {}),
@@ -52,7 +55,7 @@ def plant(api: TestClient, site: str) -> None:  # noqa: F811
     send(api, site, samples)
     for tag, change in (
         ("w1.tip", {"node_id": "tip1", "wear_limit": 200, "wear_direction": "up", "unit": "W"}),
-        ("w2.tip", {"node_id": "tip2", "wear_limit": 200}),
+        ("w2.tip", {"node_id": "tip2", "wear_limit": 200, "wear_direction": "up"}),
         ("w2.coolant", {"node_id": "cool2"}),  # no wear limit: not a component
     ):
         res = api.patch(f"/sites/{site}/signals/{signal_id(api, site, tag)}", json=change, headers=ENG)
@@ -95,7 +98,52 @@ def test_a_wear_limit_is_set_on_the_signal_and_cleared(api: TestClient, site: st
     sid = signal_id(api, site, "w1.tip")
     bad = api.patch(f"/sites/{site}/signals/{sid}", json={"wear_direction": "sideways"}, headers=ENG)
     assert bad.status_code == 422
+    # A limit says which way wear moves the signal; a direction needs a limit.
+    sid2 = signal_id(api, site, "w2.coolant")
+    alone = api.patch(f"/sites/{site}/signals/{sid2}", json={"wear_limit": 30}, headers=ENG)
+    assert (alone.status_code, alone.json()["code"]) == (422, "signal.wear_direction")
+    alone = api.patch(f"/sites/{site}/signals/{sid}", json={"wear_limit": None}, headers=ENG)
+    assert (alone.status_code, alone.json()["code"]) == (422, "signal.wear_direction")
     assert api.patch(f"/sites/{site}/signals/{sid}", json={"wear_limit": 1}, headers=VIEWER).status_code == 403
     res = api.patch(f"/sites/{site}/signals/{sid}", json={"wear_limit": None, "wear_direction": None}, headers=ENG)
     assert (res.json()["wear_limit"], res.json()["wear_direction"]) == (None, None)
     assert [c["tag"] for c in life(api, site)["components"]] == ["w2.tip"]
+
+
+def test_past_its_limit_first_and_no_readings_last(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plant(api, site)
+    # Welder 2's tip is past a limit just set below it; the coolant has a limit but no history to judge.
+    tip2, cool2 = signal_id(api, site, "w2.tip"), signal_id(api, site, "w2.coolant")
+    assert api.patch(f"/sites/{site}/signals/{tip2}", json={"wear_limit": 90}, headers=ENG).status_code == 200
+    cool = {"wear_limit": 10, "wear_direction": "down"}
+    assert api.patch(f"/sites/{site}/signals/{cool2}", json=cool, headers=ENG).status_code == 200
+    send(api, site, [{"signal": "w2.spare", "at": datetime.now(UTC).isoformat(), "value": 1}])
+    ops = [
+        {"kind": "addNode", "node": {"id": "spare2", "type": "Signal", "label": "Welder 2 spare", "props": {}}},
+        {"kind": "addEdge", "edge": {"id": "plc2-spare", "from": "plc2", "rel": "emits", "to": "spare2"}},
+    ]
+    assert api.post(f"/sites/{site}/ontology/staged/batch", json=ops, headers=ENG).status_code == 201
+    assert api.post(f"/sites/{site}/ontology/commits", json={"message": "spare"}, headers=ENG).status_code in (200, 201)
+    spare = {"node_id": "spare2", "wear_limit": 5, "wear_direction": "up"}
+    assert (
+        api.patch(f"/sites/{site}/signals/{signal_id(api, site, 'w2.spare')}", json=spare, headers=ENG).status_code
+        == 200
+    )
+    out = life(api, site, place="line")["components"]
+    assert [(c["tag"], c["hours_to_limit"]) for c in out][:2] == [("w2.tip", 0), ("w1.tip", out[1]["hours_to_limit"])]
+    assert out[-1]["tag"] == "w2.spare" and out[-1]["verdict"] == "not_enough_data"
+    # More components than one request checks: the first ones, and `more`.
+    monkeypatch.setattr(api_remaining_life, "MAX_COMPONENTS", 2)
+    cut = life(api, site, place="line")
+    assert (len(cut["components"]), cut["more"]) == (2, True)
+
+
+def test_a_place_with_no_components(api: TestClient, site: str) -> None:  # noqa: F811
+    ops = [{"kind": "addNode", "node": {"id": "line", "type": "Line", "label": "Line A", "props": {}}}]
+    assert api.post(f"/sites/{site}/ontology/staged/batch", json=ops, headers=ENG).status_code == 201
+    assert api.post(f"/sites/{site}/ontology/commits", json={"message": "a"}, headers=ENG).status_code in (200, 201)
+    assert life(api, site, place="line") == {"place": "line", "components": [], "more": False}

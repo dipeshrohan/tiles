@@ -8,6 +8,7 @@ import { card, loadFailed, skeleton, table } from '../lib/ui.ts';
 import type { Context } from './types.ts';
 
 let life: { key: string; data: RemainingLife | null | 'failed' } | null = null;
+let asked = 0; // only the latest request's answer is shown
 const keyOf = (ctx: Context, place: string): string => `${ctx.ontology.site?.id ?? ''}|${place}`;
 
 // Readings come in all the time: coming back asks again.
@@ -19,6 +20,7 @@ export async function loadLife(ctx: Context, place: string, redraw = false): Pro
   const site = ctx.ontology.site?.id;
   if (!ctx.api || !site) return;
   const key = keyOf(ctx, place);
+  const mine = ++asked;
   life = { key, data: null };
   if (redraw) ctx.rerender();
   let data: RemainingLife | 'failed';
@@ -27,7 +29,7 @@ export async function loadLife(ctx: Context, place: string, redraw = false): Pro
   } catch {
     data = 'failed'; // the client showed why
   }
-  if (life?.key === key) {
+  if (mine === asked && life?.key === key) {
     life = { key, data };
     ctx.rerender();
   }
@@ -42,16 +44,24 @@ const HOUR = 3_600_000;
 const value = (x: number | null, unit: string | null): string =>
   x === null ? '–' : unit ? `${number(x, 1)} ${unit}` : number(x, 1); // i18n-ok
 
-// When it reaches its limit: now, in about some time (earliest to latest), or not at this pace.
+const YEAR_HOURS = 365 * 24;
+// A time to show: past a year it is "over a year", whatever the slope's last digits make it.
+const span = (hours: number): string => (hours > YEAR_HOURS ? t('plant.life.overYear') : duration(hours * HOUR));
+
+// When it reaches its limit: now, in about some time (earliest to latest), maybe, or not at this pace.
 export function timeLeft(c: ComponentLife): string {
-  if (c.hours_to_limit === null) return t('plant.life.never');
+  if (c.verdict === 'not_enough_data') return t('plant.life.noData');
+  if (c.hours_to_limit === null)
+    return c.hours_earliest === null
+      ? t('plant.life.never')
+      : t('plant.life.maybe', { earliest: span(c.hours_earliest) });
   if (c.hours_to_limit === 0) return t('plant.life.now');
-  const at = duration(c.hours_to_limit * HOUR);
+  const at = span(c.hours_to_limit);
   if (c.hours_earliest === null) return t('plant.life.in', { duration: at });
-  const earliest = duration(c.hours_earliest * HOUR);
+  const earliest = span(c.hours_earliest);
   return c.hours_latest === null
     ? t('plant.life.inOrNever', { duration: at, earliest })
-    : t('plant.life.inBetween', { duration: at, earliest, latest: duration(c.hours_latest * HOUR) });
+    : t('plant.life.inBetween', { duration: at, earliest, latest: span(c.hours_latest) });
 }
 
 export function lifeCard(ctx: Context, place: string, onMachine = false): string {

@@ -154,6 +154,12 @@ def test_sens_interval_of_the_slope_and_the_time_to_a_limit() -> None:
     pts = [wear.Bucket(0, 0), wear.Bucket(1, 1), wear.Bucket(2, 3), wear.Bucket(3, 2)]
     assert wear.sen_interval(pts) == (-1, 2)
     assert wear.sen_interval(pts[:2]) is None  # too few to say
+    # SciPy's theilslopes on the same points gives these (scipy.stats.theilslopes(y, x, 0.95)).
+    xs = range(10)
+    ys = [0.0, 1.3, 1.9, 3.4, 3.8, 5.6, 5.9, 7.3, 8.2, 8.8]
+    assert wear.sen_interval([wear.Bucket(x, y) for x, y in zip(xs, ys, strict=True)]) == (0.9, 1.08)
+    tied = [1, 1, 2, 2, 2, 3, 3, 4, 4, 5]  # tied values narrow the interval, as SciPy's does
+    assert wear.sen_interval([wear.Bucket(x, y) for x, y in zip(xs, tied, strict=True)]) == (1 / 3, 0.5)
     rng = random.Random(7)  # noqa: S311 - test data
     rising = [wear.Bucket(i, 10 + 0.5 * i + rng.gauss(0, 1)) for i in range(24)]
     low, high = wear.sen_interval(rising) or (0, 0)
@@ -167,4 +173,8 @@ def test_sens_interval_of_the_slope_and_the_time_to_a_limit() -> None:
     assert wear._hours_between(40, 10, (-0.1, 0.5), "up") == (60, None)
     assert wear._hours_between(40, 10, (0.25, 0.5), "up") == (60, 120)
     assert wear._hours_between(40, 10, (-0.5, -0.1), "up") is None
+    # The median slope may miss the limit while the interval's fastest reaches it: maybe.
+    steady = [wear.Bucket(i, 10 + (0.3 if i % 2 else -0.3) + 0.01 * i) for i in range(24)]
+    c = wear.assess(flat, steady, direction="up", limit=11)
+    assert c.hours_interval is not None and c.hours_interval[0] > 0
     assert wear._hours_between(None, 10, (0.25, 0.5), "up") is None

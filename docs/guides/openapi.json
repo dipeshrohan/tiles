@@ -1666,19 +1666,12 @@
             "type": "string"
           },
           "direction": {
-            "anyOf": [
-              {
-                "enum": [
-                  "up",
-                  "down"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "enum": [
+              "up",
+              "down"
             ],
-            "title": "Direction"
+            "title": "Direction",
+            "type": "string"
           },
           "end": {
             "format": "date-time",

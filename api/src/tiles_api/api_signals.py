@@ -58,7 +58,7 @@ class Signal(BaseModel):
     event_kind: Literal["downtime", "scrap", "other"] | None  # an event stream: each reading is an event
     asset: str | None  # the machine (as the MES names it) the signal belongs to
     wear_limit: float | None  # the level at which the component it measures is worn out (T9.01)
-    wear_direction: Literal["up", "down"] | None  # which way wear moves it (None: towards the limit)
+    wear_direction: Literal["up", "down"] | None  # which way wear moves it: set with a wear limit
     created_at: datetime
     last_at: datetime | None  # the latest reading
     last_value: float | str | bool | None
@@ -224,6 +224,14 @@ def update_signal(ctx: Editor, signal_id: uuid.UUID, body: SignalPatch) -> Signa
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "signal.range_inverted",
             "The expected range's minimum must be below its maximum",
+        )
+    limit = changes.get("wear_limit", before.wear_limit)
+    direction = changes.get("wear_direction", before.wear_direction)
+    if (limit is None) != (direction is None):
+        raise Problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "signal.wear_direction",
+            "A wear limit needs the way wear moves the signal (up or down), and only a wear limit has one",
         )
     if not changes:
         return before

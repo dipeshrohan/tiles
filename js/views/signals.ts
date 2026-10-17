@@ -198,10 +198,11 @@ export function changeFrom(
   if (form.wearLimit !== undefined) {
     const limit = number(form.wearLimit);
     if (limit === undefined) return { name: 'wearLimit', message: t('signals.error.wearLimit') };
+    // A limit goes with the way wear moves the signal; no limit, no direction.
+    const direction = limit === null ? null : ((form.wearDirection || null) as SignalInfo['wear_direction']);
+    if (limit !== null && direction === null)
+      return { name: 'wearDirection', message: t('signals.error.wearDirection') };
     if (limit !== s.wear_limit) change.wear_limit = limit;
-  }
-  if (form.wearDirection !== undefined) {
-    const direction = (form.wearDirection || null) as SignalInfo['wear_direction'];
     if (direction !== s.wear_direction) change.wear_direction = direction;
   }
   return change;
@@ -287,7 +288,7 @@ function editRow(ctx: Context, s: SignalInfo): string {
           select(
             'wearDirection',
             [
-              ['', t('signals.edit.wearToward')],
+              ['', t('signals.edit.wearNone')],
               ['up', t('signals.edit.wearUp')],
               ['down', t('signals.edit.wearDown')],
             ],

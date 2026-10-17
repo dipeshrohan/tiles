@@ -2,15 +2,16 @@
 its wear signal reaches its wear limit, with an interval.
 
 A component is a Signal node of a machine (as coverage.py finds them) whose linked catalogue tag
-has a wear limit (`signals.wear_limit`, set on the Signals page). Each runs the wear check
-(api_wear.run_check: hourly buckets, the last day against the three before it, towards the limit
-or in the signal's `wear_direction`); the time to the limit is at the Theil-Sen slope of the last
-day, and its interval at the ends of Sen's 95% interval of that slope (wear.sen_interval). Soonest
-first; those that never get there at their pace last. Everyone reads it.
+has a wear limit and the way wear moves it (`signals.wear_limit`, `wear_direction`, set together
+on the Signals page). Each runs the wear check (api_wear.run_check: hourly buckets, the last day
+against the three before it, ending at its latest reading); the time to the limit is at the
+Theil-Sen slope of the last day, and its interval at the ends of Sen's 95% interval of that slope
+(wear.sen_interval). Soonest first; then those that don't get there at their pace; then those
+without enough readings to say. Everyone reads it.
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Query, status
@@ -23,7 +24,7 @@ from tiles_api.errors import Problem
 
 router = APIRouter(tags=["signals"])
 
-MAX_COMPONENTS = 100  # a wear check each
+MAX_COMPONENTS = 50  # a wear check each, in one request
 
 
 class Component(BaseModel):
@@ -35,7 +36,7 @@ class Component(BaseModel):
     tag: str
     unit: str | None
     limit: float
-    direction: Literal["up", "down"] | None
+    direction: Literal["up", "down"]
     verdict: Literal["wearing", "stable", "not_enough_data"]
     level: float | None  # the recent level
     slope_per_day: float | None
@@ -69,10 +70,22 @@ def remaining_life(ctx: Ctx, place: Annotated[str | None, Query(max_length=200)]
         " WHERE site_id = %s AND wear_limit IS NOT NULL AND node_id = ANY(%s) ORDER BY tag",
         [ctx.site_id, list(owner)],
     ).fetchall()
+    shown = rows[:MAX_COMPONENTS]
+    # Each one's latest reading, in one statement (run_check would ask once per signal).
+    latest = {
+        r["signal_id"]: r["at"]
+        for r in ctx.conn.execute(
+            "SELECT signal_id, max(at) AS at FROM site_samples WHERE signal_id = ANY(%s) GROUP BY signal_id",
+            [[r["id"] for r in shown]],
+        ).fetchall()
+    }
+    now = datetime.now(UTC)
     out = []
-    for r in rows[:MAX_COMPONENTS]:
+    for r in shown:
         machine = owner[r["node_id"]]
-        body = WearIn(direction=r["wear_direction"] or "either", limit=r["wear_limit"])
+        last = latest.get(r["id"])
+        end = last + timedelta(microseconds=1) if last else now
+        body = WearIn(end=end, direction=r["wear_direction"], limit=r["wear_limit"])
         w = run_check(ctx, r["id"], body, signal=r)
         out.append(
             {
@@ -94,5 +107,10 @@ def remaining_life(ctx: Ctx, place: Annotated[str | None, Query(max_length=200)]
                 "end": w["end"],
             }
         )
-    out.sort(key=lambda c: (c["hours_to_limit"] is None, c["hours_to_limit"] or 0, c["machine_label"], c["tag"]))
+
+    def order(c: dict[str, Any]) -> tuple[int, float, str, str]:
+        group = 2 if c["verdict"] == "not_enough_data" else 1 if c["hours_to_limit"] is None else 0
+        return group, c["hours_to_limit"] or 0.0, c["machine_label"], c["tag"]
+
+    out.sort(key=order)
     return {"place": place, "components": out, "more": len(rows) > MAX_COMPONENTS}

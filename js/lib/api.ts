@@ -303,7 +303,7 @@ export interface SignalInfo {
   event_kind: 'downtime' | 'scrap' | 'other' | null; // an event stream (T3.10): each reading is an event
   asset: string | null; // the machine it belongs to, as the MES names it
   wear_limit: number | null; // the level at which the component it measures is worn out (T9.01)
-  wear_direction: 'up' | 'down' | null; // which way wear moves it (null: towards the limit)
+  wear_direction: 'up' | 'down' | null; // which way wear moves it: set with a wear limit
   created_at: string;
   last_at: string | null;
   last_value: number | string | boolean | null;
@@ -351,7 +351,7 @@ export interface ComponentLife {
   tag: string;
   unit: string | null;
   limit: number;
-  direction: 'up' | 'down' | null;
+  direction: 'up' | 'down';
   verdict: 'wearing' | 'stable' | 'not_enough_data';
   level: number | null;
   slope_per_day: number | null;
