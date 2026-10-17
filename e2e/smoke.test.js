@@ -4773,6 +4773,24 @@ function roiReport() {
       }),
     },
     avoided: { stops: 11.25, downtime_hours: 28.125, scrap: 3, cost: 28275 },
+    by_machine: [
+      {
+        asset: 'DC-01',
+        baseline: { downtime: 15, scrap: 6 },
+        pilot: { downtime: 3, scrap: 3 },
+        avoided: { stops: 12.25, downtime_hours: 30.625, scrap: 3, cost: 30775 },
+      },
+      {
+        asset: 'DC-02',
+        baseline: { downtime: 0, scrap: 0 },
+        pilot: { downtime: 1, scrap: 0 },
+        avoided: { stops: -1, downtime_hours: -2.5, scrap: 0, cost: -2500 },
+      },
+    ],
+    by_model: [
+      { detector: 'dc1-friction', stops_warned: 2, share: 2 / 3, stops: 7.5, downtime_hours: 18.75, cost: 18750 },
+      { detector: 'dc1-current', stops_warned: 1, share: 1 / 3, stops: 3.75, downtime_hours: 9.375, cost: 9375 },
+    ],
     inputs: { currency: 'EUR' },
     digest: 'a'.repeat(64),
     markdown: '# ROI report\n',
@@ -4822,11 +4840,21 @@ test('the ROI report: the periods and costs asked for, the numbers shown, the Ma
   assert.deepEqual([sent.horizon_hours, sent.codes], [8, []]); // the page's own horizon and codes
 
   const result = a.page.locator('[data-roi-result]');
-  assert.match(await result.locator('tr', { hasText: 'Unplanned stops per day' }).innerText(), /0\.50\s+0\.13\s+-75%/);
-  assert.match(await result.locator('tr', { hasText: 'Stops warned of' }).innerText(), /–\s+75\.0%/);
-  assert.match(await result.locator('tr', { hasText: 'Downtime hours' }).innerText(), /28\.1/);
-  assert.match(await result.locator('tr', { hasText: 'Cost' }).innerText(), /28,275 EUR/);
+  assert.match(
+    await result.locator('tbody tr', { hasText: 'Unplanned stops per day' }).innerText(),
+    /0\.50\s+0\.13\s+-75%/,
+  );
+  assert.match(await result.locator('tbody tr', { hasText: 'Stops warned of' }).innerText(), /–\s+75\.0%/);
+  assert.match(await result.locator('tbody tr', { hasText: 'Downtime hours' }).innerText(), /28\.1/);
+  assert.match(await result.locator('tbody tr', { hasText: 'Cost' }).innerText(), /28,275 EUR/);
   assert.equal(await a.page.locator('[data-roi-digest]').innerText(), 'a'.repeat(64));
+  // Per machine and per model (T12.01).
+  const machines = await a.page.locator('[data-roi-machines] tbody tr').allInnerTexts();
+  assert.match(machines[0], /DC-01\s+12\.3\s+30\.6\s+3\.0\s+30,775 EUR/);
+  assert.match(machines[1], /DC-02\s+-1\.0\s+-2\.5\s+0\.0\s+-2,500 EUR/);
+  const models = await a.page.locator('[data-roi-models] tbody tr').allInnerTexts();
+  assert.match(models[0], /dc1-friction\s+2\s+67%\s+7\.5\s+18,750 EUR/);
+  assert.match(models[1], /dc1-current\s+1\s+33%/);
   // The form keeps what was sent.
   assert.equal(await a.page.inputValue('#roi-form [name=hoursSource]'), 'MES export, June');
 

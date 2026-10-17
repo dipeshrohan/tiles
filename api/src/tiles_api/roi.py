@@ -63,7 +63,7 @@ def _events(conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime, code
 
 def _scored(
     conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime, horizon: timedelta, codes: list[str]
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, int]]:
     """Warning performance's totals for the period's stops. Its end is inclusive; a microsecond (the
     database's resolution) earlier makes it exclusive, as here, so a stop at the boundary counts once."""
     try:
@@ -72,7 +72,7 @@ def _scored(
         )
     except ValueError as e:
         raise TooMany(str(e)) from e
-    return dict(report["totals"])
+    return dict(report["totals"]), dict(report["caught_by"])
 
 
 def _planned(conn: Conn, site_id: uuid.UUID, start: datetime, end: datetime) -> dict[str, Any]:
@@ -144,7 +144,9 @@ def report(
         | _planned(conn, site_id, baseline[0], pilot[1]),
     }
     counted: dict[str, list[dict[str, Any]]] = {}
+    caught: dict[str, dict[str, int]] = {}
     for name, (start, end) in periods.items():
+        totals, caught[name] = _scored(conn, site_id, start, end, horizon, codes)
         events = _events(conn, site_id, start, end, codes)
         counted[name] = events
         days = (end - start).total_seconds() / 86400
@@ -162,7 +164,7 @@ def report(
                 {"asset": a} | {k: sum(1 for e in events if e["asset"] == a and e["kind"] == k) for k in KINDS}
                 for a in assets
             ],
-            "warnings": _warnings(_scored(conn, site_id, start, end, horizon, codes)),
+            "warnings": _warnings(totals),
         }
     b, p = out["periods"]["baseline"], out["periods"]["pilot"]
     scale = (p["parts"] / 1000) if by_unit else p["days"]  # the pilot period in the rates' unit
@@ -183,14 +185,74 @@ def report(
     if avoided["scrap"] is not None and inputs.get("cost_per_scrap") is not None:
         money.append(avoided["scrap"] * inputs["cost_per_scrap"])
     out["avoided"]["cost"] = sum(money) if money else None
-    out["digest"] = digest(out["inputs"], periods, counted)
+    out["by_machine"] = _by_machine(b, p, scale, by_unit, inputs)
+    out["by_model"] = _by_model(caught["pilot"], out["avoided"], inputs)
+    out["digest"] = digest(out["inputs"], periods, counted, caught)
     out["markdown"] = markdown(out)
     return out
 
 
-def digest(inputs: dict[str, Any], periods: dict[str, tuple[datetime, datetime]], counted: dict[str, Any]) -> str:
-    """SHA-256 of the inputs, the periods and every counted event, in a fixed order."""
+def _avoided_of(stops: float | None, scrap: float | None, inputs: dict[str, Any]) -> dict[str, float | None]:
+    """Stops and scrap avoided, made into hours and cost as the totals are."""
+    hours = inputs.get("hours_per_stop")
+    downtime_hours = None if stops is None or hours is None else stops * hours
+    money = []
+    if downtime_hours is not None and inputs.get("cost_per_hour") is not None:
+        money.append(downtime_hours * inputs["cost_per_hour"])
+    if scrap is not None and inputs.get("cost_per_scrap") is not None:
+        money.append(scrap * inputs["cost_per_scrap"])
+    return {"stops": stops, "downtime_hours": downtime_hours, "scrap": scrap, "cost": sum(money) if money else None}
+
+
+def _by_machine(
+    b: dict[str, Any], p: dict[str, Any], scale: float, by_unit: bool, inputs: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """Per asset (T12.01): its baseline rate over the pilot period, less its pilot count, as the
+    totals are made (per day, or per 1,000 of the site's parts); the rows add up to the totals."""
+    assets = sorted({x["asset"] for x in b["by_asset"]} | {x["asset"] for x in p["by_asset"]})
+    out = []
+    for asset in assets:
+        before = next((x for x in b["by_asset"] if x["asset"] == asset), {k: 0 for k in KINDS})
+        after = next((x for x in p["by_asset"] if x["asset"] == asset), {k: 0 for k in KINDS})
+        avoided: dict[str, float | None] = {}
+        for k in KINDS:
+            rate = _rate(before[k], b["days"], b["parts"] if by_unit else None)
+            avoided[k] = None if rate is None else rate * scale - after[k]
+        out.append(
+            {"asset": asset, "baseline": {k: before[k] for k in KINDS}, "pilot": {k: after[k] for k in KINDS}}
+            | {"avoided": _avoided_of(avoided["downtime"], avoided["scrap"], inputs)}
+        )
+    return out
+
+
+def _by_model(caught: dict[str, int], avoided: dict[str, Any], inputs: dict[str, Any]) -> list[dict[str, Any]]:
+    """Per detector (T12.01): the pilot's stops it warned of first, and its share of the avoided
+    stops, downtime hours and their cost in proportion to them, as the stops warned of are the
+    ones a warning could have prevented. The shares add up to the totals for stops and hours;
+    scrap avoided isn't shared, as no warning here is of scrap."""
+    warned = sum(caught.values())
+    rows: list[dict[str, Any]] = []
+    for name, n in sorted(caught.items(), key=lambda kv: (-kv[1], kv[0])):
+        share = n / warned
+        stops = None if avoided["stops"] is None else avoided["stops"] * share
+        hours = None if avoided["downtime_hours"] is None else avoided["downtime_hours"] * share
+        cost = None if hours is None or inputs.get("cost_per_hour") is None else hours * inputs["cost_per_hour"]
+        rows.append(
+            {"detector": name, "stops_warned": n, "share": share, "stops": stops, "downtime_hours": hours, "cost": cost}
+        )
+    return rows
+
+
+def digest(
+    inputs: dict[str, Any],
+    periods: dict[str, tuple[datetime, datetime]],
+    counted: dict[str, Any],
+    caught: dict[str, dict[str, int]] | None = None,
+) -> str:
+    """SHA-256 of the inputs, the periods, every counted event and (v2) the stops each detector
+    warned of first, in a fixed order."""
     body = {
+        "caught": caught or {},
         "inputs": inputs,
         "periods": {k: [s.isoformat(), e.isoformat()] for k, (s, e) in periods.items()},
         "events": {k: [[e["at"].isoformat(), e["asset"], e["kind"], e["code"]] for e in v] for k, v in counted.items()},
@@ -299,5 +361,44 @@ def markdown(r: dict[str, Any]) -> str:
             row = next((y for y in x["by_asset"] if y["asset"] == asset), {"downtime": 0, "scrap": 0})
             cells += [str(row["downtime"]), str(row["scrap"])]
         lines.append(f"| {_cell(asset)} | {' | '.join(cells)} |")
-    lines += ["", f"Digest (SHA-256 of the inputs and every counted event): `{r['digest']}`", ""]
+    lines += [
+        "",
+        "## By machine",
+        "",
+        "Each machine's baseline rate over the pilot period, less its pilot count, as the totals are "
+        "made; the rows add up to the totals.",
+        "",
+        "| Asset | Stops avoided | Downtime hours | Scrap avoided | Cost |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for m in r["by_machine"]:
+        x = m["avoided"]
+        lines.append(
+            f"| {_cell(m['asset'])} | {_n(x['stops'])} | {_n(x['downtime_hours'])} | {_n(x['scrap'])} "
+            f"| {money(x['cost'])} |"
+        )
+    lines += [
+        "",
+        "## By model",
+        "",
+        "Each detector's share of the avoided stops, downtime hours and their cost, in proportion to "
+        "the pilot's stops its warning came first for. Scrap avoided isn't shared out.",
+        "",
+    ]
+    if r["by_model"]:
+        lines += ["| Detector | Stops warned of | Share | Stops avoided | Downtime hours | Cost |"]
+        lines += ["| --- | --- | --- | --- | --- | --- |"]
+        for d in r["by_model"]:
+            lines.append(
+                f"| {_cell(d['detector'])} | {d['stops_warned']} | {_pct(d['share'])} | {_n(d['stops'])} "
+                f"| {_n(d['downtime_hours'])} | {money(d['cost'])} |"
+            )
+    else:
+        lines.append("No detector warned of a stop in the pilot period.")
+    lines += [
+        "",
+        "Digest (SHA-256 of the inputs, every counted event and the stops each detector warned of first): "
+        f"`{r['digest']}`",
+        "",
+    ]
     return "\n".join(lines)

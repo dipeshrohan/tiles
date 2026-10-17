@@ -631,7 +631,12 @@ The report counts the unplanned stops and scrap in each period with the codes an
 - in each period, the stops warned of, the warnings followed by a stop, the false warnings per day and the median warning time ("–" where no detector judged the period);
 - what was avoided in the pilot period: the baseline's rate over the pilot period less what the pilot had, in stops, hours, scrap and cost.
 
-**Download Markdown** saves the report with how each number is made and the events counted per asset. The **digest** is a fingerprint of the inputs and every event counted: made again on the same data, the report has the same digest, and any change to a counted reading changes it.
+Below that, the avoided cost is broken down:
+
+- **By machine:** each machine's baseline rate over the pilot period, less its pilot count, made the same way as the totals. The rows add up to the totals; a machine with more stops in the pilot than its baseline rate shows a negative number.
+- **By model:** each detector's share of the avoided stops, downtime hours and their cost, in proportion to the pilot's stops its warning came first for. Scrap avoided isn't shared out, as the warnings are of stops.
+
+**Download Markdown** saves the report with how each number is made and the events counted per asset. The **digest** is a fingerprint of the inputs, every event counted and the stops each detector warned of first: made again on the same data, the report has the same digest, and any change to a counted reading changes it.
 
 ---
 

@@ -245,7 +245,20 @@ function roiResult(r: RoiReport): string {
     warnRow(t('performance.roi.warningTime'), (w) => minutes(w.median_warning_seconds));
   const a = r.avoided;
   const currency = typeof r.inputs.currency === 'string' ? r.inputs.currency : '';
-  const cost = a.cost === null ? '–' : `${number(a.cost)}${currency ? ` ${currency}` : ''}`;
+  const money = (v: number | null): string => (v === null ? '–' : `${number(v)}${currency ? ` ${currency}` : ''}`);
+  const cost = money(a.cost);
+  const machines = r.by_machine
+    .map(
+      (m) =>
+        `<tr data-key="${esc(m.asset)}"><th scope="row">${esc(m.asset)}</th><td>${esc(num(m.avoided.stops))}</td><td>${esc(num(m.avoided.downtime_hours))}</td><td>${esc(num(m.avoided.scrap))}</td><td>${esc(money(m.avoided.cost))}</td></tr>`,
+    )
+    .join('');
+  const models = r.by_model
+    .map(
+      (d) =>
+        `<tr data-key="${esc(d.detector)}"><th scope="row">${esc(d.detector)}</th><td>${esc(number(d.stops_warned))}</td><td>${esc(percent(d.share))}</td><td>${esc(num(d.stops))}</td><td>${esc(money(d.cost))}</td></tr>`,
+    )
+    .join('');
   return `<div class="stack gap-3" data-roi-result>
       ${table({ headers: [t('performance.roi.measure'), t('performance.roi.baseline'), t('performance.roi.pilot'), t('performance.roi.change')], rowsHtml: rows })}
       <h3>${esc(t('performance.roi.avoided'))}</h3>
@@ -255,6 +268,15 @@ function roiResult(r: RoiReport): string {
         [t('performance.roi.avoidedScrap'), num(a.scrap)],
         [t('performance.roi.avoidedCost'), cost],
       ])}
+      <h3>${esc(t('performance.roi.byMachine'))}</h3>
+      <div data-roi-machines>${table({ headers: [t('performance.roi.asset'), t('performance.roi.avoidedStops'), t('performance.roi.avoidedHours'), t('performance.roi.avoidedScrap'), t('performance.roi.avoidedCost')], rowsHtml: machines })}</div>
+      <h3>${esc(t('performance.roi.byModel'))}</h3>
+      <p class="small soft">${esc(t('performance.roi.byModelLead'))}</p>
+      ${
+        r.by_model.length
+          ? `<div data-roi-models>${table({ headers: [t('performance.roi.detector'), t('performance.roi.stopsWarned'), t('performance.roi.share'), t('performance.roi.avoidedStops'), t('performance.roi.avoidedCost')], rowsHtml: models })}</div>`
+          : `<p class="small soft">${esc(t('performance.roi.noModels'))}</p>`
+      }
       <p class="small soft">${esc(t('performance.roi.digest'))} <code class="mono roi-digest" data-roi-digest>${esc(r.digest)}</code></p>
       <div class="row gap-2 wrap no-print">${button(t('performance.roi.download'), { icon: 'download', attrs: { 'data-roi-download': '' } })}</div>
     </div>`;

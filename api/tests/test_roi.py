@@ -153,3 +153,39 @@ def test_an_engineer_reads_the_same_report(api: TestClient, site: str) -> None: 
     res = api.post(f"/sites/{site}/roi", json={"horizon_hours": HORIZON_H, **s}, headers=ENG)
     assert res.status_code == 200
     assert res.json()["digest"] == roi(api, site, **s)["digest"]
+
+
+def test_the_avoided_cost_per_machine_and_per_model(api: TestClient, site: str) -> None:  # noqa: F811
+    s = setup(api, site)
+    days = s.pop("pilot_days")
+    out = roi(api, site, **s, hours_per_stop=2.5, cost_per_hour=1000, cost_per_scrap=50, currency="EUR")
+    a = out["avoided"]
+    # Per machine: DC-01 had all the baseline's stops and scrap; DC-02 had none, so its one pilot stop is -1.
+    by = {m["asset"]: m for m in out["by_machine"]}
+    assert sorted(by) == ["DC-01", "DC-02"]
+    assert by["DC-01"]["baseline"] == {"downtime": 10, "scrap": 4}
+    assert by["DC-01"]["pilot"] == {"downtime": 3, "scrap": 1}
+    assert abs(by["DC-01"]["avoided"]["stops"] - (0.5 * days - 3)) < 1e-9
+    assert by["DC-02"]["avoided"]["stops"] == -1
+    # The rows add up to the totals.
+    for k in ("stops", "downtime_hours", "scrap", "cost"):
+        assert abs(sum(m["avoided"][k] for m in out["by_machine"]) - a[k]) < 1e-6
+    # Per model: the one detector warned first of DC-01's three stops: the whole share.
+    (model,) = out["by_model"]
+    assert (model["detector"], model["stops_warned"], model["share"]) == ("dc1-friction", 3, 1)
+    assert abs(model["stops"] - a["stops"]) < 1e-9 and abs(model["cost"] - a["downtime_hours"] * 1000) < 1e-6
+    md = out["markdown"]
+    assert "## By machine" in md and "| DC-02 | -1 | -2.5 | 0 | -2,500 EUR |" in md
+    assert "| dc1-friction | 3 | 100% |" in md
+    # Without the cost inputs, the breakdowns say so too.
+    bare = roi(api, site, **s)
+    assert bare["by_machine"][0]["avoided"]["cost"] is None and bare["by_model"][0]["cost"] is None
+
+
+def test_no_detector_warned_of_a_stop(api: TestClient, site: str) -> None:  # noqa: F811
+    s = setup(api, site)
+    s.pop("pilot_days")
+    s["pilot_end"] = (datetime.fromisoformat(s["pilot_start"]) + timedelta(minutes=1)).isoformat()
+    out = roi(api, site, **s)
+    assert out["by_model"] == []
+    assert "No detector warned of a stop in the pilot period." in out["markdown"]

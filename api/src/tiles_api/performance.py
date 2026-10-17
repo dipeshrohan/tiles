@@ -172,6 +172,7 @@ def report(
     totals = {k: 0 for k in ("warnings", "true_warnings", "false_warnings", "pending_warnings", "events", "caught")}
     seconds: list[float] = []
     shown: list[dict[str, Any]] = []
+    caught_by: dict[str, int] = {}  # each event warned of, by the detector whose warning came first
     people: list[dict[str, Any]] = []
     for asset in watched:
         theirs = [d for d in detectors if d["asset"] == asset]
@@ -195,6 +196,8 @@ def report(
         seconds += [o.warning_time.total_seconds() for o in outcome.events if o.warning_time is not None]
         for o in outcome.events:
             source = kinds[id(o.event)]
+            if o.warned_at and o.warned_at in who:
+                caught_by[who[o.warned_at]] = caught_by.get(who[o.warned_at], 0) + 1
             shown.append(
                 {
                     "at": o.event.at,
@@ -232,6 +235,7 @@ def report(
         "unwatched": [{"asset": a, "events": n} for a, n in sorted(unwatched.items())],
         "events": shown[:200],
         "time_to_cause": time_to_cause(shown, zone),
+        "caught_by": dict(sorted(caught_by.items())),
     }
 
 
