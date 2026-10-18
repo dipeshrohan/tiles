@@ -42,7 +42,7 @@ generated from the code (`tiles-apidoc`, T6.05); the machine-readable descriptio
 
 ## Endpoints by area
 
-[Feedback](#feedback) · [Home](#home) · [Notifications](#notifications) · [Preferences](#preferences) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings) · [work orders](#work-orders)
+[Feedback](#feedback) · [Home](#home) · [Notifications](#notifications) · [Preferences](#preferences) · [Saved views](#saved-views) · [UX analytics](#ux-analytics) · [apps](#apps) · [auth](#auth) · [copilot](#copilot) · [datasets](#datasets) · [detection](#detection) · [documents](#documents) · [edge agents](#edge-agents) · [imports](#imports) · [insights](#insights) · [members](#members) · [menu](#menu) · [meta](#meta) · [models](#models) · [notifications](#notifications) · [ontology](#ontology) · [organisation sign-in](#organisation-sign-in) · [provisioning](#provisioning) · [recommendations](#recommendations) · [reviews](#reviews) · [runs](#runs) · [search](#search) · [signals](#signals) · [sites](#sites) · [sweeps](#sweeps) · [warnings](#warnings) · [work orders](#work-orders)
 
 ## Feedback
 
@@ -1530,6 +1530,119 @@ Deletes a user: they can't sign in, their site memberships end, and SCIM no long
 |---|---|---|---|
 | `user_id` | path | string | yes |
 
+## recommendations
+
+### `GET /sites/{site_id}/recommendation-limits`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The limits engineers set per model parameter: no recommendation goes outside them.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `model` | query | string | no |
+
+### `PUT /sites/{site_id}/recommendation-limits/{model}/{param}`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Sets a parameter's limit for recommendations (engineers): within the model's own bounds, its min at most its max. Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `model` | path | string | yes |
+| `param` | path | string | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** LimitIn (see [openapi.json](openapi.json)).
+
+### `DELETE /sites/{site_id}/recommendation-limits/{model}/{param}`
+
+**Who:** engineer. **Answers:** 204, 422.
+
+Removes a parameter's limit (engineers): it can't be recommended until it has one again. Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `model` | path | string | yes |
+| `param` | path | string | yes |
+| `site_id` | path | uuid | yes |
+
+### `GET /sites/{site_id}/recommendations`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The site's recommendations, newest first: those still open (proposed or approved, not yet applied) by default, all, or those with one status; of one machine with `asset`.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+| `show` | query | `open` \| `all` \| `proposed` \| `approved` \| `rejected` \| `applied` | no |
+| `asset` | query | string | no |
+
+### `POST /sites/{site_id}/recommendations`
+
+**Who:** engineer. **Answers:** 201, 422.
+
+Sweeps the model's settable parameters within their limits over the line's state (given, or read from signals over the hour before `at`) and proposes the setting that lowers `objective` the most (engineers). Refused when a settable parameter has no limit or when nothing inside the limits beats the current setting. Someone else approves it. Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `site_id` | path | uuid | yes |
+
+**Body:** RecommendIn (see [openapi.json](openapi.json)).
+
+### `GET /sites/{site_id}/recommendations/{number}`
+
+**Who:** site member. **Answers:** 200, 422.
+
+One recommendation, with the state it was swept on, its limits and what the model expected.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+### `POST /sites/{site_id}/recommendations/{number}/applied`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Records that the line applied an approved recommendation, by hand (engineers). Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** AppliedIn (see [openapi.json](openapi.json)).
+
+### `POST /sites/{site_id}/recommendations/{number}/approve`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Approves a proposed recommendation for the line to apply (engineers; not its proposer). Refused when a value now lies outside its parameter's limit, as the limits are now. Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** tiles_api__api_recommendations__DecisionIn (see [openapi.json](openapi.json)).
+
+### `POST /sites/{site_id}/recommendations/{number}/reject`
+
+**Who:** engineer. **Answers:** 200, 422.
+
+Rejects a proposed recommendation (engineers, its proposer too: withdrawing it). Audited.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `number` | path | integer | yes |
+| `site_id` | path | uuid | yes |
+
+**Body:** tiles_api__api_recommendations__DecisionIn (see [openapi.json](openapi.json)).
+
 ## reviews
 
 ### `GET /sites/{site_id}/ontology/review-policy`
@@ -1601,7 +1714,7 @@ Approve a change request: its ops are committed, with its author as author and y
 | `number` | path | integer | yes |
 | `site_id` | path | uuid | yes |
 
-**Body:** DecisionIn (see [openapi.json](openapi.json)).
+**Body:** tiles_api__api_reviews__DecisionIn (see [openapi.json](openapi.json)).
 
 ### `POST /sites/{site_id}/ontology/reviews/{number}/comments`
 
@@ -1627,7 +1740,7 @@ Reject a change request, saying why. Nothing is committed; its author can rework
 | `number` | path | integer | yes |
 | `site_id` | path | uuid | yes |
 
-**Body:** DecisionIn (see [openapi.json](openapi.json)).
+**Body:** tiles_api__api_reviews__DecisionIn (see [openapi.json](openapi.json)).
 
 ### `POST /sites/{site_id}/ontology/reviews/{number}/rework`
 

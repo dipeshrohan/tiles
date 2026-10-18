@@ -479,6 +479,30 @@
         "title": "Applied",
         "type": "object"
       },
+      "AppliedIn": {
+        "properties": {
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "note": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "title": "AppliedIn",
+        "type": "object"
+      },
       "ApplyIn": {
         "additionalProperties": false,
         "properties": {
@@ -2457,20 +2481,6 @@
           "columns"
         ],
         "title": "DatasetIn",
-        "type": "object"
-      },
-      "DecisionIn": {
-        "additionalProperties": false,
-        "properties": {
-          "comment": {
-            "default": "",
-            "maxLength": 4000,
-            "pattern": "^[^\\x00]*$",
-            "title": "Comment",
-            "type": "string"
-          }
-        },
-        "title": "DecisionIn",
         "type": "object"
       },
       "Delivery": {
@@ -4992,6 +5002,82 @@
         "title": "Level",
         "type": "object"
       },
+      "LimitIn": {
+        "properties": {
+          "max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Max"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Min"
+          }
+        },
+        "required": [
+          "min",
+          "max"
+        ],
+        "title": "LimitIn",
+        "type": "object"
+      },
+      "LimitOut": {
+        "properties": {
+          "max": {
+            "title": "Max",
+            "type": "number"
+          },
+          "min": {
+            "title": "Min",
+            "type": "number"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "param": {
+            "title": "Param",
+            "type": "string"
+          },
+          "set_at": {
+            "format": "date-time",
+            "title": "Set At",
+            "type": "string"
+          },
+          "set_by": {
+            "title": "Set By",
+            "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model",
+          "param",
+          "unit",
+          "min",
+          "max",
+          "set_by",
+          "set_at"
+        ],
+        "title": "LimitOut",
+        "type": "object"
+      },
       "MachineCoverage": {
         "properties": {
           "asset": {
@@ -6669,6 +6755,298 @@
           "checks"
         ],
         "title": "Ready",
+        "type": "object"
+      },
+      "RecommendIn": {
+        "properties": {
+          "asset": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
+          "at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "At"
+          },
+          "model": {
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "objective": {
+            "maxLength": 63,
+            "minLength": 1,
+            "title": "Objective",
+            "type": "string"
+          },
+          "settable": {
+            "items": {
+              "maxLength": 63,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Settable",
+            "type": "array"
+          },
+          "signals": {
+            "additionalProperties": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "default": {},
+            "maxProperties": 50,
+            "propertyNames": {
+              "maxLength": 63,
+              "minLength": 1
+            },
+            "title": "Signals",
+            "type": "object"
+          },
+          "state": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "default": {},
+            "maxProperties": 50,
+            "propertyNames": {
+              "maxLength": 63,
+              "minLength": 1
+            },
+            "title": "State",
+            "type": "object"
+          },
+          "steps": {
+            "default": 11,
+            "maximum": 41.0,
+            "minimum": 2.0,
+            "title": "Steps",
+            "type": "integer"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "model",
+          "objective",
+          "settable"
+        ],
+        "title": "RecommendIn",
+        "type": "object"
+      },
+      "Recommendation": {
+        "properties": {
+          "applied_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied At"
+          },
+          "applied_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applied By"
+          },
+          "applied_note": {
+            "title": "Applied Note",
+            "type": "string"
+          },
+          "asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_note": {
+            "title": "Decision Note",
+            "type": "string"
+          },
+          "expected": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "title": "Expected",
+            "type": "object"
+          },
+          "limits": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            "title": "Limits",
+            "type": "object"
+          },
+          "mine": {
+            "title": "Mine",
+            "type": "boolean"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "objective": {
+            "title": "Objective",
+            "type": "string"
+          },
+          "proposal": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Proposal",
+            "type": "object"
+          },
+          "proposed_at": {
+            "format": "date-time",
+            "title": "Proposed At",
+            "type": "string"
+          },
+          "proposed_by": {
+            "title": "Proposed By",
+            "type": "string"
+          },
+          "sources": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/Source"
+            },
+            "title": "Sources",
+            "type": "object"
+          },
+          "state": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "State",
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "proposed",
+              "approved",
+              "rejected",
+              "applied"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "model",
+          "version",
+          "objective",
+          "asset",
+          "state",
+          "sources",
+          "proposal",
+          "limits",
+          "expected",
+          "status",
+          "proposed_by",
+          "proposed_at",
+          "decided_by",
+          "decided_at",
+          "decision_note",
+          "applied_by",
+          "applied_at",
+          "applied_note",
+          "mine"
+        ],
+        "title": "Recommendation",
         "type": "object"
       },
       "RemainingLife": {
@@ -9052,6 +9430,36 @@
           "timezone"
         ],
         "title": "Site",
+        "type": "object"
+      },
+      "Source": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "readings": {
+            "title": "Readings",
+            "type": "integer"
+          },
+          "signal_id": {
+            "format": "uuid",
+            "title": "Signal Id",
+            "type": "string"
+          },
+          "tag": {
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "signal_id",
+          "tag",
+          "at",
+          "readings"
+        ],
+        "title": "Source",
         "type": "object"
       },
       "Span": {
@@ -12640,6 +13048,18 @@
         "title": "Preferences",
         "type": "object"
       },
+      "tiles_api__api_recommendations__DecisionIn": {
+        "properties": {
+          "note": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "title": "DecisionIn",
+        "type": "object"
+      },
       "tiles_api__api_reviews__CommentIn": {
         "additionalProperties": false,
         "properties": {
@@ -12654,6 +13074,20 @@
           "body"
         ],
         "title": "CommentIn",
+        "type": "object"
+      },
+      "tiles_api__api_reviews__DecisionIn": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "default": "",
+            "maxLength": 4000,
+            "pattern": "^[^\\x00]*$",
+            "title": "Comment",
+            "type": "string"
+          }
+        },
+        "title": "DecisionIn",
         "type": "object"
       },
       "tiles_api__api_reviews__PolicyIn": {
@@ -19733,7 +20167,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DecisionIn"
+                "$ref": "#/components/schemas/tiles_api__api_reviews__DecisionIn"
               }
             }
           },
@@ -19859,7 +20293,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DecisionIn"
+                "$ref": "#/components/schemas/tiles_api__api_reviews__DecisionIn"
               }
             }
           },
@@ -20576,6 +21010,572 @@
         "summary": "Remove Planned Stop",
         "tags": [
           "warnings"
+        ]
+      }
+    },
+    "/sites/{site_id}/recommendation-limits": {
+      "get": {
+        "description": "The limits engineers set per model parameter: no recommendation goes outside them.",
+        "operationId": "list_limits_sites__site_id__recommendation_limits_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LimitOut"
+                  },
+                  "title": "Response List Limits Sites  Site Id  Recommendation Limits Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Limits",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/sites/{site_id}/recommendation-limits/{model}/{param}": {
+      "delete": {
+        "description": "Removes a parameter's limit (engineers): it can't be recommended until it has one again. Audited.",
+        "operationId": "remove_limit_sites__site_id__recommendation_limits__model___param__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model",
+            "required": true,
+            "schema": {
+              "title": "Model",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "param",
+            "required": true,
+            "schema": {
+              "title": "Param",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Limit",
+        "tags": [
+          "recommendations"
+        ]
+      },
+      "put": {
+        "description": "Sets a parameter's limit for recommendations (engineers): within the model's own bounds, its\nmin at most its max. Audited.",
+        "operationId": "set_limit_sites__site_id__recommendation_limits__model___param__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model",
+            "required": true,
+            "schema": {
+              "title": "Model",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "param",
+            "required": true,
+            "schema": {
+              "title": "Param",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LimitIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LimitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Limit",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/sites/{site_id}/recommendations": {
+      "get": {
+        "description": "The site's recommendations, newest first: those still open (proposed or approved, not yet\napplied) by default, all, or those with one status; of one machine with `asset`.",
+        "operationId": "list_recommendations_sites__site_id__recommendations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "show",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "all",
+                "proposed",
+                "approved",
+                "rejected",
+                "applied"
+              ],
+              "title": "Show",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asset",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 100,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Asset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Recommendation"
+                  },
+                  "title": "Response List Recommendations Sites  Site Id  Recommendations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Recommendations",
+        "tags": [
+          "recommendations"
+        ]
+      },
+      "post": {
+        "description": "Sweeps the model's settable parameters within their limits over the line's state (given, or\nread from signals over the hour before `at`) and proposes the setting that lowers `objective`\nthe most (engineers). Refused when a settable parameter has no limit or when nothing inside the\nlimits beats the current setting. Someone else approves it. Audited.",
+        "operationId": "propose_sites__site_id__recommendations_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Propose",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/sites/{site_id}/recommendations/{number}": {
+      "get": {
+        "description": "One recommendation, with the state it was swept on, its limits and what the model expected.",
+        "operationId": "get_recommendation_sites__site_id__recommendations__number__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Recommendation",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/sites/{site_id}/recommendations/{number}/applied": {
+      "post": {
+        "description": "Records that the line applied an approved recommendation, by hand (engineers). Audited.",
+        "operationId": "applied_sites__site_id__recommendations__number__applied_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppliedIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Applied",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/sites/{site_id}/recommendations/{number}/approve": {
+      "post": {
+        "description": "Approves a proposed recommendation for the line to apply (engineers; not its proposer). Refused\nwhen a value now lies outside its parameter's limit, as the limits are now. Audited.",
+        "operationId": "approve_sites__site_id__recommendations__number__approve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/tiles_api__api_recommendations__DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Approve",
+        "tags": [
+          "recommendations"
+        ]
+      }
+    },
+    "/sites/{site_id}/recommendations/{number}/reject": {
+      "post": {
+        "description": "Rejects a proposed recommendation (engineers, its proposer too: withdrawing it). Audited.",
+        "operationId": "reject_sites__site_id__recommendations__number__reject_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "number",
+            "required": true,
+            "schema": {
+              "title": "Number",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/tiles_api__api_recommendations__DecisionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recommendation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reject",
+        "tags": [
+          "recommendations"
         ]
       }
     },
