@@ -2109,3 +2109,15 @@ Close it with its outcome: a true alarm, a false alarm, or unknown (acknowledgin
 | `site_id` | path | uuid | yes |
 
 **Body:** ResolveIn (see [openapi.json](openapi.json)).
+
+### `GET /sites/{site_id}/warnings/{warning_id}/similar`
+
+**Who:** site member. **Answers:** 200, 422.
+
+The earlier warnings most like this one (same signal, detector or asset; how far past its threshold and how long), with how each was resolved and the first event of its asset in the 24 hours after it; and the batch tables that name its asset or tag, for the correlation finder.
+
+| Parameter | In | Type | Required |
+|---|---|---|---|
+| `warning_id` | path | uuid | yes |
+| `site_id` | path | uuid | yes |
+| `limit` | query | integer | no |

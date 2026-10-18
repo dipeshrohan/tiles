@@ -5,6 +5,7 @@ import {
   ApiError,
   type Membership,
   type SignalSeries,
+  type SimilarWarnings,
   type WarningDetail,
   type WarningInfo,
   type WarningOutcome,
@@ -27,6 +28,7 @@ import {
   when,
 } from '../lib/warnings.ts';
 import type { Context, View } from './types.ts';
+import { followedText, match, summary, whyText } from '../lib/similar.ts';
 import { bindFilterBar, filterBar, type BarOptions } from '../lib/filter-bar.ts';
 import { listKeys, rowTarget, split } from '../lib/split.ts';
 import { withQuery } from '../lib/url-state.ts';
@@ -42,6 +44,7 @@ import {
   pageHead,
   select,
   tabs,
+  table,
   skeleton,
   apiUnreachable,
   term,
@@ -72,6 +75,9 @@ let detailFailed: string | null = null; // the detail key whose fetch failed (no
 // The readings around a warning, and the stretch of time they were fetched for (undefined data: loading).
 let series: { key: string; data: SignalSeries | null | undefined; range: ReturnType<typeof chartRange> } | null = null;
 let members: { site: string; people: Membership[] } | null = null;
+// Similar past warnings (T10.02), for the warning they were asked for (undefined data: loading).
+let similar: { key: string; data: SimilarWarnings | null | undefined } | null = null;
+let similarSeq = 0;
 let listSeq = 0;
 let detailSeq = 0;
 let seriesSeq = 0;
@@ -102,6 +108,7 @@ onNavigate((hash) => {
     detail = null;
     detailFailed = null;
     series = null;
+    similar = null;
     members = null; // roles change, and people join
   }
 });
@@ -412,6 +419,47 @@ function actionsForm(ctx: Context, w: WarningDetail): string {
     </form>`;
 }
 
+// The earlier warnings most like this one, how they ended and what followed; and the batch tables
+// that name its machine or tag, to open in the correlation finder (T10.02).
+function similarCard(w: WarningDetail): string {
+  const shown = similar?.key === w.id ? similar.data : undefined;
+  const head = `<h3 class="mt-4 mb-1_5 m-0">${esc(t('similar.title'))}</h3>`;
+  if (shown === undefined) return `<div data-similar>${head}${skeleton.text(2, t('similar.loading'))}</div>`;
+  if (shown === null) return `<div data-similar>${head}<p class="small muted">${esc(t('similar.failed'))}</p></div>`;
+  const rows = shown.similar
+    .map(
+      (s) => `<tr data-key="${esc(s.id)}">
+        <td class="nowrap">${esc(ago(s.started_at))}</td>
+        <td><a href="#/warnings?show=all&amp;warning=${encodeURIComponent(s.id)}">${esc(s.detector)}</a> <span class="small soft mono">${esc(s.signal_tag)}</span></td>
+        <td>${esc(match(s))}</td>
+        <td>${s.outcome ? esc(OUTCOMES[s.outcome]) : esc(t('similar.open'))}${s.resolution_note ? ` <span class="small soft">${esc(s.resolution_note)}</span>` : ''}</td>
+        <td>${esc(followedText(s))}</td>
+      </tr>`,
+    )
+    .join('');
+  const list = shown.similar.length
+    ? `<p class="small">${esc(summary(shown))}</p>${table({
+        headers: [
+          t('similar.started'),
+          t('similar.warning'),
+          t('similar.match'),
+          t('similar.outcome'),
+          t('similar.followedHead'),
+        ],
+        rowsHtml: rows,
+      })}`
+    : `<p class="small soft">${esc(t('similar.none', { count: shown.compared }))}</p>`;
+  const datasets = shown.datasets.length
+    ? `<ul class="small m-0">${shown.datasets
+        .map(
+          (d) =>
+            `<li><a href="#/correlate?dataset=${encodeURIComponent(d.id)}">${esc(t('similar.openDataset', { name: d.name }))}</a> <span class="soft">${esc(whyText(d))}</span></li>`,
+        )
+        .join('')}</ul>`
+    : `<p class="small soft">${esc(t('similar.noDataset', { name: shown.asset ?? w.signal_tag }))} <a href="#/correlate">${esc(t('similar.correlate'))}</a></p>`;
+  return `<div data-similar>${head}${list}<h4 class="mt-3 mb-1 m-0 small">${esc(t('similar.correlateHead'))}</h4>${datasets}</div>`;
+}
+
 function detailCard(ctx: Context, ui: Ui): string {
   if (ui.selected === null)
     return card(
@@ -452,6 +500,7 @@ function detailCard(ctx: Context, ui: Ui): string {
       <p class="small" data-how-far>${esc(howFar(w))}</p>
       ${resolved}
       ${chartCard(w)}
+      ${similarCard(w)}
       <h3 class="mt-4 mb-1_5 m-0">${esc(t('warnings.detail.activity'))}</h3>
       <div class="thread">${activity}</div>
       ${readOnly}
@@ -524,6 +573,22 @@ async function fetchSeries(ctx: Context, w: WarningDetail): Promise<void> {
   }
   if (seq !== seriesSeq) return;
   series = { key, data, range };
+  ctx.rerender();
+}
+
+async function fetchSimilar(ctx: Context, w: WarningDetail): Promise<void> {
+  const site = siteId(ctx);
+  if (!ctx.api || !site) return;
+  const seq = ++similarSeq;
+  similar = { key: w.id, data: undefined };
+  let data: SimilarWarnings | null;
+  try {
+    data = await ctx.api.warnings.similar(site, w.id);
+  } catch {
+    data = null; // the client showed why
+  }
+  if (seq !== similarSeq) return;
+  similar = { key: w.id, data };
   ctx.rerender();
 }
 
@@ -747,6 +812,7 @@ const view: View = {
       void fetchDetail(ctx);
     const shown = detail?.key === detailKey(ctx) ? detail.warning : null;
     if (shown && series?.key !== seriesKey(shown)) void fetchSeries(ctx, shown); // once per warning
+    if (shown && similar?.key !== shown.id) void fetchSimilar(ctx, shown);
     if (site && members?.site !== site && actionsFor({ status: 'raised' }, ctx.ontology.role).length)
       void fetchMembers(ctx);
 
@@ -787,6 +853,7 @@ const view: View = {
       detail = null;
       detailFailed = null;
       series = null;
+      similar = null;
       ctx.rerender();
     });
     onAll(root, '[data-more-warnings]', 'click', () => void fetchMore(ctx));

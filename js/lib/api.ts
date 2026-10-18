@@ -369,6 +369,36 @@ export interface RemainingLife {
   more: boolean;
 }
 
+// Similar past warnings (T10.02): the earlier warnings most like one, and batch tables to correlate.
+export interface SimilarWarning {
+  id: string;
+  detector: string;
+  signal_tag: string;
+  asset: string | null;
+  started_at: string;
+  ended_at: string | null;
+  status: 'raised' | 'acknowledged' | 'resolved';
+  outcome: WarningOutcome | null;
+  resolution_note: string;
+  resolved_at: string | null;
+  score: number; // 0 to 1
+  shared: ('signal' | 'detector' | 'asset' | 'side')[];
+  severity: number;
+  hours: number;
+  followed: { kind: 'downtime' | 'scrap' | 'other'; code: string; at: string; hours_after: number } | null;
+}
+export interface SimilarWarnings {
+  warning_id: string;
+  asset: string | null;
+  severity: number;
+  hours: number;
+  compared: number;
+  similar: SimilarWarning[];
+  outcomes: { true_alarm: number; false_alarm: number; unknown: number; open: number };
+  followed: number;
+  datasets: { id: string; name: string; why: 'name' | 'column' | 'value'; matched: string }[];
+}
+
 // A machine's timeline (T10.01): its warnings, events, planned stops, changes and readings over one range.
 export interface MachineTimeline {
   machine: string;
@@ -1584,6 +1614,7 @@ export function createApiClient(options: ApiOptions) {
     warnings: {
       list: (siteId: string, q: WarningQuery = {}) => request<WarningInfo[]>('GET', `${warning(siteId)}${query(q)}`),
       get: (siteId: string, id: string) => request<WarningDetail>('GET', warning(siteId, id)),
+      similar: (siteId: string, id: string) => request<SimilarWarnings>('GET', `${warning(siteId, id)}/similar`),
       acknowledge: (siteId: string, id: string, note = '') =>
         request<WarningDetail>('POST', `${warning(siteId, id)}/acknowledge`, { note }),
       // null unassigns.

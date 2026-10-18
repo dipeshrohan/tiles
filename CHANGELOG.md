@@ -34,6 +34,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - planned stops: planned-downtime codes and stops entered per asset or for the whole site, left out of Warning performance and the ROI report;
   - time to cause on Warning performance: per month, the median time from a stop to its warning resolved as a true alarm;
   - a machine's timeline on the Plant page: its warnings, stops, planned stops and changes over its readings, on one time axis;
+  - similar past warnings on a warning: how they were resolved and what followed them, and the batch tables to open in the correlation finder;
   - the copilot answers why a machine stopped from its timeline, with the leads before the stop and a link to it;
   - remaining life on the Plant page: each component's time to its wear limit, with a 95% interval, from a wear limit set on its signal, and the next planned stop before it (or that there is none in time);
   - detector templates: a detector set up once for a kind of machine and applied to every machine of that kind on a line, each tuned by a backtest on its own history and kept with its report;
