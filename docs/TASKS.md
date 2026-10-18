@@ -409,7 +409,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
   *Done when:* the model predicts the quality driver within its stated error on held-out history.
 - [x] `T11.02` [#350](https://github.com/dipeshrohan/tiles/issues/350) **Setpoint recommendations** · BE+FE · 5d · T11.01
   *Done when:* an engineer can approve a recommendation, and none is ever outside its limits.
-- [ ] `T11.03` [#351](https://github.com/dipeshrohan/tiles/issues/351) **Recommendation outcomes** · BE · 3d · T11.02
+- [x] `T11.03` [#351](https://github.com/dipeshrohan/tiles/issues/351) **Recommendation outcomes** · BE · 3d · T11.02
   *Done when:* each applied recommendation shows its expected and actual outcome.
 - [x] `T11.04` [#352](https://github.com/dipeshrohan/tiles/issues/352) **Recommendation guard rails** · BE · 2d · T11.02
   *Done when:* a recommendation outside a limit is refused, with a test, and every recommendation is in the audit log.
