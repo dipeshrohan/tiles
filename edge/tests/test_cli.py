@@ -54,7 +54,7 @@ def test_the_single_file_build_keeps_exit_codes(tmp_path: Path) -> None:
         [sys.executable, "-m", "zipapp", str(src), "-m", "tiles_edge.cli:entry", "-o", str(pyz)], check=True
     )
     version = subprocess.run([sys.executable, str(pyz), "--version"], capture_output=True, text=True, check=True)  # noqa: S603
-    assert version.stdout.strip() == "tiles-edge 1.0.0"
+    assert version.stdout.strip() == "tiles-edge 1.1.0"
     missing = subprocess.run([sys.executable, str(pyz), "check", "-c", str(tmp_path / "nope.toml")], check=False)  # noqa: S603
     assert missing.returncode == 2
 

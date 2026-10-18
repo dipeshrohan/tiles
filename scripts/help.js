@@ -226,10 +226,18 @@ export const TASK_PAGES = {
 /* eslint-disable no-control-regex -- \u0001 and \u0002 mark links and headings between the steps */
 export function whatsNew(markdown) {
   const lines = markdown.split('\n');
-  const start = lines.findIndex((l) => /^## \[/.test(l));
-  if (start < 0) throw new Error(`${CHANGELOG} has no version section`);
+  const heads = lines.flatMap((l, i) => (/^## \[/.test(l) ? [i] : []));
+  if (!heads.length) throw new Error(`${CHANGELOG} has no version section`);
+  // The newest section with entries: a version just opened, still empty, shows the last one's.
+  const ends = heads.map((_, k) => heads[k + 1] ?? -1);
+  const has = (k) => lines.slice(heads[k] + 1, ends[k] < 0 ? undefined : ends[k]).some((l) => /^\s*[-*]\s/.test(l));
+  const k = Math.max(
+    0,
+    heads.findIndex((_, i) => has(i)),
+  );
+  const start = heads[k];
+  const end = ends[k];
   const head = /^## \[([^\]]+)\](?: - (.*))?$/.exec(lines[start]) ?? [];
-  const end = lines.findIndex((l, i) => i > start && /^## \[/.test(l));
   // An entry's lines as one (a wrapped entry is linked as a whole); headings set apart.
   const joined = [];
   for (const line of lines.slice(start + 1, end < 0 ? undefined : end)) {

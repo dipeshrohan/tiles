@@ -1,6 +1,6 @@
 {
   "name": "tiles",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Tiles: factory model, virtual sensors, root-cause analysis and design studies for industrial teams.",
   "type": "module",
   "private": true,

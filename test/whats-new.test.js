@@ -57,11 +57,18 @@ test("what's new is the changelog's top section, its entries linked to the pages
   assert.doesNotMatch(w.html, /older things/); // only the top section
   assert.equal(whatsNew(CHANGELOG.replace('1.2.0] - Unreleased', '1.2.0] - 2026-10-20')).date, '2026-10-20');
   assert.throws(() => whatsNew('# Changelog\n\nnothing'), /no version section/);
+  // A version just opened, with no entries yet, shows the newest one that has them.
+  const opened = whatsNew(CHANGELOG.replace('## [1.2.0]', '## [1.3.0] - Unreleased\n\nNothing yet.\n\n## [1.2.0]'));
+  assert.equal(opened.version, '1.2.0');
+  assert.match(opened.html, /^<p>The next one\.<\/p>/);
 });
 
-test('the real changelog: its top section is this version, and entries link to pages there are', () => {
-  const w = whatsNew(readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8'));
-  assert.equal(w.version, VERSION);
+test('the real changelog: its top section is this version (or, while it is empty, the last), and entries link to pages there are', () => {
+  const text = readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
+  const w = whatsNew(text);
+  const versions = [...text.matchAll(/^## \[([^\]]+)\]/gm)].map((m) => m[1]);
+  assert.equal(versions[0], VERSION);
+  assert.ok(w.version === VERSION || w.version === versions[1], w.version);
   assert.ok((w.html.match(/whats-new-link/g) ?? []).length >= 10);
   const pages = pageIds();
   for (const [task, [route]] of Object.entries(TASK_PAGES))

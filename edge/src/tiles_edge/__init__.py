@@ -1,3 +1,3 @@
 """Tiles edge agent (ADR 003): runs on the plant network and only connects out to Tiles."""
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"

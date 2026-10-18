@@ -89,7 +89,7 @@ CI's API job runs it from `main` on every pull request, and from the latest rele
       - the changelog section for it has a date.
    2. It publishes the images `tiles-api`, `tiles-web` and `tiles-edge`, tagged `X.Y.Z` and `X.Y`.
    3. It publishes a GitHub release with the changelog section as its notes and three files: the Helm chart (`tiles-X.Y.Z.tgz`, its images pinned to `X.Y.Z`), the edge agent as one file (`tiles-edge-X.Y.Z.pyz`) and their `SHA256SUMS`.
-4. **Start the next version** in the next pull request: run `node scripts/version.js set` with the planned version (usually the next minor), and add its `## [X.Y.Z] - Unreleased` section above.
+4. **Start the next version** in the next pull request: run `node scripts/version.js set` with the planned version (usually the next minor), and add its `## [X.Y.Z] - Unreleased` section above. Until that section has entries, What's new shows the release's.
 5. **Deploy** the released chart, or the repository's chart with the image tags pinned (`images.api.tag=X.Y.Z`, `images.web.tag=X.Y.Z`), with `helm upgrade`. The API migrates as it starts. Take a backup first ([backups](runbooks/backups.md)).
 
 **Pre-releases** (`X.Y.Z-rc.1`) follow the same steps and are marked as pre-releases on GitHub.
