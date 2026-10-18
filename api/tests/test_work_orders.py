@@ -3,6 +3,7 @@ someone else, exported as CSV for the CMMS, closed with their outcome; audited."
 
 import csv
 import io
+import uuid
 from typing import Any
 
 import psycopg
@@ -11,6 +12,10 @@ from test_agents import ADMIN, ENG, VIEWER, api, site  # noqa: F401 - api and si
 from test_performance import plant, signal_id
 from test_remaining_life import plant as worn_plant
 from test_reviews import ENG2
+
+from tiles_api import work_order_job
+from tiles_api.settings import Settings
+from tiles_api.store import connect_job
 
 BASE = "/sites/{}/work-orders"
 
@@ -155,3 +160,57 @@ def test_the_machine_is_found_for_a_warning_without_one_and_kept_short(
     assert api.post(f"/sites/{site}/ontology/commits", json={"message": "long"}, headers=ENG).status_code in (200, 201)
     order = post(api, site, status=201, source="remaining_life", signal_id=tip, title="Replace the tip")
     assert order["asset"] is None
+
+
+def drafted(database_url: str, site: str) -> list[int]:  # noqa: F811
+    """Runs tiles-draft-work-orders on the site, as the job does."""
+    with connect_job(Settings(_env_file=None, database_url=database_url)) as conn:
+        made = work_order_job.run(conn, uuid.UUID(site))
+        conn.commit()
+    return made
+
+
+def test_tiles_drafts_one_for_a_component_nearing_its_limit_and_a_person_approves_it(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+    database_url: str,
+) -> None:
+    worn_plant(api, site)  # w1.tip reaches 200 W in about 25 h; w2.tip is steady
+    policy = f"/sites/{site}/work-orders/policy"
+    assert api.get(policy, headers=VIEWER).json() == {"lead_days": None}
+    assert drafted(database_url, site) == []  # off
+    assert api.put(policy, json={"lead_days": 1}, headers=ENG).status_code == 403  # admins set it
+    assert api.put(policy, json={"lead_days": 0}, headers=ADMIN).status_code == 422
+    assert api.put(policy, json={"lead_days": 1}, headers=ADMIN).json() == {"lead_days": 1}
+    assert drafted(database_url, site) == []  # 25 h is more than a day away
+    api.put(policy, json={"lead_days": 2}, headers=ADMIN)
+    assert drafted(database_url, site) == [1]
+    [order] = listed(api, site)
+    assert (order["source"], order["signal_tag"], order["asset"], order["drafted_by"]) == (
+        "remaining_life",
+        "w1.tip",
+        "Welder 1",
+        "Tiles",
+    )
+    assert order["title"] == "Replace Welder 1 tip power on Welder 1 before its wear limit"
+    assert order["priority"] == "high" and order["due_at"] and order["mine"] is False
+    assert order["description"].startswith("Drafted by Tiles from remaining life: w1.tip is at ")
+    assert "No planned stop comes before it." in order["description"]
+    # Once open, not again; nor by hand.
+    assert drafted(database_url, site) == []
+    tip = signal_id(api, site, "w1.tip")
+    again = post(api, site, status=409, source="remaining_life", signal_id=tip, title="Again")
+    assert (again["code"], again["params"]) == ("work_order.exists_component", {"number": 1})
+    # Anyone with the engineer role approves it: Tiles drafted it.
+    assert post(api, site, "/1/approve")["approved_by"] == "eng"
+    post(api, site, "/1/outcome", outcome="done", note="Tip replaced")
+    assert drafted(database_url, site) == [2]  # still wearing: a new one once the first is closed
+    actions = [e["action"] for e in api.get(f"/sites/{site}/audit", headers=ADMIN).json()]
+    assert "work_order.policy" in actions
+    entry = next(e for e in api.get(f"/sites/{site}/audit", headers=ADMIN).json() if e["entity_id"] == "2")
+    assert (entry["action"], entry["actor_name"]) == ("work_order.draft", "Tiles")
+    with connect_job(Settings(_env_file=None, database_url=database_url)) as conn:
+        assert uuid.UUID(site) in work_order_job.due(conn)
+    api.put(policy, json={"lead_days": None}, headers=ADMIN)
+    with connect_job(Settings(_env_file=None, database_url=database_url)) as conn:
+        assert uuid.UUID(site) not in work_order_job.due(conn)

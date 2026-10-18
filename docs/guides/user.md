@@ -665,6 +665,8 @@ Below that, the avoided cost is broken down:
 3. **Export.** **Export approved as CSV** downloads every approved work order as one file for the CMMS's import (most take one: SAP PM through a mass upload, Maximo through its integration framework), and marks them exported with the file's name. If the download was lost, **Download again** on any of them gives the same file. A cell that a spreadsheet would run as a formula starts with a quote.
 4. **Close.** When the work is done, **Mark done**; when it turned out not to be needed, **Not needed**. **Cancel work order** takes back one not done yet (cancel it in the CMMS too if it was exported).
 
+**Drafted by Tiles.** An admin can have Tiles draft work orders itself: set **Draft automatically, days before a wear limit** (empty turns it off). Every hour, Tiles drafts one for each component whose **Remaining life** says it reaches its wear limit within that many days (or is there already), unless it has one open. Its details say what was predicted, it is due at the next planned stop before the limit (or at the limit), and it is high priority within two days. It is drafted by **Tiles**, so any engineer approves it; nothing goes out until someone does. A component has one open work order at a time, however it was drafted.
+
 Engineers and admins draft, approve, export and close work orders; everyone sees them. Each step is in the audit log.
 
 ## Factory physics and Process & quality (demo pages)

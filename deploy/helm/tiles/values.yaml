@@ -122,6 +122,7 @@ jobs:
   runModels: { enabled: true, schedule: '*/5 * * * *', command: tiles-run-models }
   detect: { enabled: true, schedule: '*/5 * * * *', command: tiles-detect }
   notify: { enabled: true, schedule: '* * * * *', command: tiles-notify }
+  draftWorkOrders: { enabled: true, schedule: '17 * * * *', command: tiles-draft-work-orders }
   runSweeps: { enabled: true, schedule: '*/2 * * * *', command: tiles-run-sweeps }
 jobDefaults:
   activeDeadlineSeconds: 1800

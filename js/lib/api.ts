@@ -1705,6 +1705,13 @@ export function createApiClient(options: ApiOptions) {
         request<WorkOrder>('POST', `/sites/${encodeURIComponent(siteId)}/work-orders/${n}/cancel`, { note }),
       outcome: (siteId: string, n: number, outcome: 'done' | 'not_needed', note = '') =>
         request<WorkOrder>('POST', `/sites/${encodeURIComponent(siteId)}/work-orders/${n}/outcome`, { outcome, note }),
+      // How many days before a component's predicted wear limit Tiles drafts one (null: it doesn't).
+      policy: (siteId: string) =>
+        request<{ lead_days: number | null }>('GET', `/sites/${encodeURIComponent(siteId)}/work-orders/policy`),
+      setPolicy: (siteId: string, leadDays: number | null) =>
+        request<{ lead_days: number | null }>('PUT', `/sites/${encodeURIComponent(siteId)}/work-orders/policy`, {
+          lead_days: leadDays,
+        }),
       // Every approved one, or `again` an earlier export's file once more.
       export: (siteId: string, again?: string) =>
         request<{ name: string; numbers: number[]; csv: string }>(

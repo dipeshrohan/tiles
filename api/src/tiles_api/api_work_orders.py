@@ -23,9 +23,9 @@ from fastapi import APIRouter, Query, status
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
 from tiles_api import coverage, ontology_store
-from tiles_api.api_ontology import Ctx, Editor, SiteContext
+from tiles_api.api_ontology import Admin, Ctx, Editor, SiteContext
 from tiles_api.errors import Problem
-from tiles_api.store import one
+from tiles_api.store import Conn, one
 
 router = APIRouter(tags=["work orders"])
 
@@ -177,35 +177,58 @@ def list_work_orders(
     return [_out(ctx, r) for r in rows]
 
 
+class WorkOrderPolicy(BaseModel):
+    # Tiles drafts a work order for each component predicted to reach its wear limit within this
+    # many days (tiles-draft-work-orders); None: it doesn't.
+    lead_days: Annotated[int, Field(ge=1, le=365)] | None = None
+
+
+@router.get("/sites/{site_id}/work-orders/policy", response_model=WorkOrderPolicy)
+def get_policy(ctx: Ctx) -> dict[str, Any]:
+    """Whether Tiles drafts work orders for components nearing their wear limit, and how early."""
+    row = one(ctx.conn.execute("SELECT work_order_lead_days FROM sites WHERE id = %s", [ctx.site_id]).fetchone())
+    return {"lead_days": row["work_order_lead_days"]}
+
+
+@router.put("/sites/{site_id}/work-orders/policy", response_model=WorkOrderPolicy)
+def set_policy(ctx: Admin, body: WorkOrderPolicy) -> dict[str, Any]:
+    """Sets how many days before a component's predicted wear limit Tiles drafts a work order for it,
+    or turns that off (admins). Audited."""
+    before = get_policy(ctx)
+    ctx.conn.execute("UPDATE sites SET work_order_lead_days = %s WHERE id = %s", [body.lead_days, ctx.site_id])
+    ctx.audit("work_order.policy", "site", str(ctx.site_id), before=before, after=body.model_dump())
+    return body.model_dump()
+
+
 @router.get("/sites/{site_id}/work-orders/{number}", response_model=WorkOrder)
 def get_work_order(ctx: Ctx, number: int) -> dict[str, Any]:
     """One work order."""
     return _out(ctx, _get(ctx, number))
 
 
-def _fit(asset: Any) -> str | None:
+def fit_asset(asset: Any) -> str | None:
     """An asset name the work order can keep: 1 to 100 characters, else none."""
     text = str(asset).strip() if asset else ""
     return text if 0 < len(text) <= MAX_ASSET else None
 
 
-def _machine_asset(ctx: SiteContext, signal_id: uuid.UUID) -> str | None:
+def machine_asset(conn: Conn, site_id: uuid.UUID, signal_id: uuid.UUID) -> str | None:
     """The asset of the machine whose Signal node the tag is linked to, else the signal's own."""
-    signal = ctx.conn.execute(
-        "SELECT node_id, asset FROM signals WHERE site_id = %s AND id = %s", [ctx.site_id, signal_id]
+    signal = conn.execute(
+        "SELECT node_id, asset FROM signals WHERE site_id = %s AND id = %s", [site_id, signal_id]
     ).fetchone()
     if signal is None:
         raise Problem(status.HTTP_404_NOT_FOUND, "signal.not_found", "No such signal on this site")
     if signal["node_id"]:
-        graph = ontology_store.load_head(ctx.conn, ctx.site_id)
+        graph = ontology_store.load_head(conn, site_id)
         index = coverage.Index(graph)
         machine = next(
             (m for m in coverage.machines_under(index, None) if signal["node_id"] in coverage.signal_nodes(index, m)),
             None,
         )
-        if machine and (found := _fit(coverage.asset_of(graph, machine))):
+        if machine and (found := fit_asset(coverage.asset_of(graph, machine))):
             return found
-    return _fit(signal["asset"])
+    return fit_asset(signal["asset"])
 
 
 def _asset_of(ctx: SiteContext, body: WorkOrderIn) -> str | None:
@@ -219,9 +242,9 @@ def _asset_of(ctx: SiteContext, body: WorkOrderIn) -> str | None:
         ).fetchone()
         if found is None:
             raise Problem(status.HTTP_404_NOT_FOUND, "warning.not_found", "No such warning")
-        return _fit(found["asset"]) or _machine_asset(ctx, found["signal_id"])
+        return fit_asset(found["asset"]) or machine_asset(ctx.conn, ctx.site_id, found["signal_id"])
     if body.signal_id is not None:
-        return _machine_asset(ctx, body.signal_id)
+        return machine_asset(ctx.conn, ctx.site_id, body.signal_id)
     return body.asset
 
 
@@ -244,37 +267,97 @@ def draft(ctx: Editor, body: WorkOrderIn) -> dict[str, Any]:
                 f"Work order {taken['number']} is already open for this warning",
                 number=taken["number"],
             )
-    number = one(
-        ctx.conn.execute(
-            "INSERT INTO work_order_numbers (site_id, last) VALUES (%s, 1)"
-            " ON CONFLICT (site_id) DO UPDATE SET last = work_order_numbers.last + 1 RETURNING last",
-            [ctx.site_id],
-        ).fetchone()
-    )["last"]
-    ctx.conn.execute(
+    if body.source == "remaining_life" and body.signal_id is not None:
+        _component_free(ctx.conn, ctx.site_id, body.signal_id)
+    number = insert(
+        ctx.conn,
+        ctx.site_id,
+        source=body.source,
+        warning_id=body.warning_id,
+        signal_id=body.signal_id,
+        asset=asset,
+        title=body.title,
+        description=body.description,
+        priority=body.priority,
+        due_at=body.due_at,
+        drafted_by_id=ctx.user.id,
+        drafted_by=ctx.user.name,
+    )
+    row = _get(ctx, number)
+    ctx.audit("work_order.draft", "work_order", str(number), after=_audited(row))
+    return _out(ctx, row)
+
+
+def open_for_component(conn: Conn, site_id: uuid.UUID, signal_id: uuid.UUID) -> int | None:
+    """The number of the component's open work order, if it has one (locking the signal, so two
+    drafts at once can't both find none)."""
+    conn.execute("SELECT 1 FROM signals WHERE site_id = %s AND id = %s FOR UPDATE", [site_id, signal_id])
+    row = conn.execute(
+        "SELECT number FROM work_orders WHERE site_id = %s AND signal_id = %s AND source = 'remaining_life'"
+        " AND status = ANY(%s)",
+        [site_id, signal_id, list(OPEN)],
+    ).fetchone()
+    return int(row["number"]) if row else None
+
+
+def _component_free(conn: Conn, site_id: uuid.UUID, signal_id: uuid.UUID) -> None:
+    taken = open_for_component(conn, site_id, signal_id)
+    if taken is not None:
+        raise Problem(
+            status.HTTP_409_CONFLICT,
+            "work_order.exists_component",
+            f"Work order {taken} is already open for this component",
+            number=taken,
+        )
+
+
+def insert(
+    conn: Conn,
+    site_id: uuid.UUID,
+    *,
+    source: str,
+    warning_id: uuid.UUID | None,
+    signal_id: uuid.UUID | None,
+    asset: str | None,
+    title: str,
+    description: str,
+    priority: str,
+    due_at: datetime | None,
+    drafted_by_id: uuid.UUID | None,  # None: drafted by Tiles
+    drafted_by: str,
+) -> int:
+    """A new draft, numbered after the site's last; its number."""
+    number = int(
+        one(
+            conn.execute(
+                "INSERT INTO work_order_numbers (site_id, last) VALUES (%s, 1)"
+                " ON CONFLICT (site_id) DO UPDATE SET last = work_order_numbers.last + 1 RETURNING last",
+                [site_id],
+            ).fetchone()
+        )["last"]
+    )
+    conn.execute(
         """
         INSERT INTO work_orders (site_id, number, source, warning_id, signal_id, asset, title, description,
                                  priority, due_at, drafted_by_id, drafted_by)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         [
-            ctx.site_id,
+            site_id,
             number,
-            body.source,
-            body.warning_id,
-            body.signal_id,
+            source,
+            warning_id,
+            signal_id,
             asset,
-            body.title,
-            body.description,
-            body.priority,
-            body.due_at,
-            ctx.user.id,
-            ctx.user.name,
+            title,
+            description,
+            priority,
+            due_at,
+            drafted_by_id,
+            drafted_by,
         ],
     )
-    row = _get(ctx, number)
-    ctx.audit("work_order.draft", "work_order", str(number), after=_audited(row))
-    return _out(ctx, row)
+    return number
 
 
 def _audited(row: dict[str, Any]) -> dict[str, Any]:

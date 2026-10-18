@@ -11960,6 +11960,25 @@
         "title": "WorkOrderOutcome",
         "type": "object"
       },
+      "WorkOrderPolicy": {
+        "properties": {
+          "lead_days": {
+            "anyOf": [
+              {
+                "maximum": 365.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lead Days"
+          }
+        },
+        "title": "WorkOrderPolicy",
+        "type": "object"
+      },
       "tiles_api__api_apps__ParamOut": {
         "properties": {
           "choices": {
@@ -23188,6 +23207,102 @@
           }
         },
         "summary": "Export",
+        "tags": [
+          "work orders"
+        ]
+      }
+    },
+    "/sites/{site_id}/work-orders/policy": {
+      "get": {
+        "description": "Whether Tiles drafts work orders for components nearing their wear limit, and how early.",
+        "operationId": "get_policy_sites__site_id__work_orders_policy_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderPolicy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Policy",
+        "tags": [
+          "work orders"
+        ]
+      },
+      "put": {
+        "description": "Sets how many days before a component's predicted wear limit Tiles drafts a work order for it,\nor turns that off (admins). Audited.",
+        "operationId": "set_policy_sites__site_id__work_orders_policy_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkOrderPolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkOrderPolicy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Policy",
         "tags": [
           "work orders"
         ]
