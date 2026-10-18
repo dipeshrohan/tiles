@@ -186,7 +186,7 @@ def signal_questions(year: "Year") -> list[Question]:
                 f"Which signal shows the friction on {c.asset}'s plunger?",
                 ["find_signals"],
                 [tag],
-                plan=[("find_signals", {"query": f"friction {c.asset}"})],
+                plan=[("find_signals", {"query": f"{c.asset} shot cylinder pressure"})],
                 data=[(tag, *window)],
             )
         )
@@ -220,7 +220,7 @@ def signal_questions(year: "Year") -> list[Question]:
             "Which signal tells me the accumulator on DC-04 is losing its precharge?",
             ["find_signals"],
             ["dc04.pressure_buildup_time"],
-            plan=[("find_signals", {"query": "dc04 build-up"})],
+            plan=[("find_signals", {"query": "DC-04 intensification pressure build-up"})],
             data=[("dc04.pressure_buildup_time", *window)],
         ),
         Question(

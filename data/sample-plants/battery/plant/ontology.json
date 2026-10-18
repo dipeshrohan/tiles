@@ -1386,17 +1386,9 @@
       }
     },
     {
-      "id": "doc-ll-2025-01",
-      "type": "Document",
-      "label": "Lessons learned: slot die on CT-A1, 31 December 2025",
-      "props": {
-        "number": "LL-2025-01"
-      }
-    },
-    {
       "id": "doc-ll-2026-01",
       "type": "Document",
-      "label": "Lessons learned: ultrasonic horn on UW-01, 25 January 2026",
+      "label": "Lessons learned: desiccant wheel on DR-01, 13 January 2026",
       "props": {
         "number": "LL-2026-01"
       }
@@ -1404,7 +1396,7 @@
     {
       "id": "doc-ll-2026-02",
       "type": "Document",
-      "label": "Lessons learned: channel contacts on FM-01, 26 January 2026",
+      "label": "Lessons learned: ultrasonic horn on UW-01, 25 January 2026",
       "props": {
         "number": "LL-2026-02"
       }
@@ -1412,7 +1404,7 @@
     {
       "id": "doc-ll-2026-03",
       "type": "Document",
-      "label": "Lessons learned: channel contacts on FM-02, 05 February 2026",
+      "label": "Lessons learned: channel contacts on FM-01, 26 January 2026",
       "props": {
         "number": "LL-2026-03"
       }
@@ -1420,7 +1412,7 @@
     {
       "id": "doc-ll-2026-04",
       "type": "Document",
-      "label": "Lessons learned: slot die on CT-A1, 16 February 2026",
+      "label": "Lessons learned: channel contacts on FM-02, 05 February 2026",
       "props": {
         "number": "LL-2026-04"
       }
@@ -1428,7 +1420,7 @@
     {
       "id": "doc-ll-2026-05",
       "type": "Document",
-      "label": "Lessons learned: dryer zone 3 fan on CT-A1, 03 March 2026",
+      "label": "Lessons learned: slot die on CT-A1, 16 February 2026",
       "props": {
         "number": "LL-2026-05"
       }
@@ -1436,7 +1428,7 @@
     {
       "id": "doc-ll-2026-06",
       "type": "Document",
-      "label": "Lessons learned: channel contacts on FM-01, 11 June 2026",
+      "label": "Lessons learned: dryer zone 3 fan on CT-A1, 03 March 2026",
       "props": {
         "number": "LL-2026-06"
       }
@@ -1444,7 +1436,7 @@
     {
       "id": "doc-ll-2026-07",
       "type": "Document",
-      "label": "Lessons learned: ultrasonic horn on UW-01, 17 June 2026",
+      "label": "Lessons learned: channel contacts on FM-01, 11 June 2026",
       "props": {
         "number": "LL-2026-07"
       }
@@ -1452,7 +1444,7 @@
     {
       "id": "doc-ll-2026-08",
       "type": "Document",
-      "label": "Lessons learned: work roll bearing on CL-A1, 15 August 2026",
+      "label": "Lessons learned: slot die on CT-A1, 17 June 2026",
       "props": {
         "number": "LL-2026-08"
       }
@@ -1460,9 +1452,17 @@
     {
       "id": "doc-ll-2026-09",
       "type": "Document",
-      "label": "Lessons learned: dryer zone 3 fan on CT-A1, 24 August 2026",
+      "label": "Lessons learned: work roll bearing on CL-A1, 15 August 2026",
       "props": {
         "number": "LL-2026-09"
+      }
+    },
+    {
+      "id": "doc-ll-2026-10",
+      "type": "Document",
+      "label": "Lessons learned: dryer zone 3 fan on CT-A1, 24 August 2026",
+      "props": {
+        "number": "LL-2026-10"
       }
     },
     {
@@ -2776,34 +2776,28 @@
       "to": "varnhem"
     },
     {
-      "id": "doc-ll-2025-01-describes-ct-a1",
-      "from": "doc-ll-2025-01",
+      "id": "doc-ll-2026-01-describes-dr-01",
+      "from": "doc-ll-2026-01",
       "rel": "describes",
-      "to": "ct-a1"
+      "to": "dr-01"
     },
     {
-      "id": "doc-ll-2026-01-describes-uw-01",
-      "from": "doc-ll-2026-01",
+      "id": "doc-ll-2026-02-describes-uw-01",
+      "from": "doc-ll-2026-02",
       "rel": "describes",
       "to": "uw-01"
     },
     {
-      "id": "doc-ll-2026-02-describes-fm-01",
-      "from": "doc-ll-2026-02",
+      "id": "doc-ll-2026-03-describes-fm-01",
+      "from": "doc-ll-2026-03",
       "rel": "describes",
       "to": "fm-01"
     },
     {
-      "id": "doc-ll-2026-03-describes-fm-02",
-      "from": "doc-ll-2026-03",
-      "rel": "describes",
-      "to": "fm-02"
-    },
-    {
-      "id": "doc-ll-2026-04-describes-ct-a1",
+      "id": "doc-ll-2026-04-describes-fm-02",
       "from": "doc-ll-2026-04",
       "rel": "describes",
-      "to": "ct-a1"
+      "to": "fm-02"
     },
     {
       "id": "doc-ll-2026-05-describes-ct-a1",
@@ -2812,26 +2806,32 @@
       "to": "ct-a1"
     },
     {
-      "id": "doc-ll-2026-06-describes-fm-01",
+      "id": "doc-ll-2026-06-describes-ct-a1",
       "from": "doc-ll-2026-06",
+      "rel": "describes",
+      "to": "ct-a1"
+    },
+    {
+      "id": "doc-ll-2026-07-describes-fm-01",
+      "from": "doc-ll-2026-07",
       "rel": "describes",
       "to": "fm-01"
     },
     {
-      "id": "doc-ll-2026-07-describes-uw-01",
-      "from": "doc-ll-2026-07",
+      "id": "doc-ll-2026-08-describes-ct-a1",
+      "from": "doc-ll-2026-08",
       "rel": "describes",
-      "to": "uw-01"
+      "to": "ct-a1"
     },
     {
-      "id": "doc-ll-2026-08-describes-cl-a1",
-      "from": "doc-ll-2026-08",
+      "id": "doc-ll-2026-09-describes-cl-a1",
+      "from": "doc-ll-2026-09",
       "rel": "describes",
       "to": "cl-a1"
     },
     {
-      "id": "doc-ll-2026-09-describes-ct-a1",
-      "from": "doc-ll-2026-09",
+      "id": "doc-ll-2026-10-describes-ct-a1",
+      "from": "doc-ll-2026-10",
       "rel": "describes",
       "to": "ct-a1"
     },
