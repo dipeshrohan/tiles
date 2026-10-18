@@ -1033,7 +1033,13 @@ export function createFakeApi({
           );
           for (const t of tools) {
             await emit('tool_use', { id: t.id, name: t.name, input: t.input, n: t.n });
-            await emit('tool_result', { id: t.id, name: t.name, is_error: Boolean(t.isError), n: t.n });
+            await emit('tool_result', {
+              id: t.id,
+              name: t.name,
+              is_error: Boolean(t.isError),
+              n: t.n,
+              preview: JSON.stringify(t.result ?? null).slice(0, 300),
+            });
           }
           store(
             'user',

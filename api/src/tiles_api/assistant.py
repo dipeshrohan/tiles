@@ -77,6 +77,7 @@ class ToolError(Exception):
     """A tool could not answer (bad input, nothing found): the model is told why."""
 
 
+PREVIEW = 300  # characters of a tool result sent with its event (js/lib/copilot-chat.ts shows as many)
 EventKind = Literal["text", "tool_use", "tool_result", "message", "usage", "retract", "grounding", "done", "error"]
 
 
@@ -236,8 +237,17 @@ def respond(
             args = call.get("input") or {}
             yield Event("tool_use", {"id": call["id"], "name": call["name"], "input": args, "n": n})
             out, failed = _result(by_name.get(call["name"]), call["name"], args)
+            # Its start, as the conversation's stored result shows it, so the page links its evidence at once.
             yield Event(
-                "tool_result", {"id": call["id"], "name": call["name"], "is_error": failed, "chars": len(out), "n": n}
+                "tool_result",
+                {
+                    "id": call["id"],
+                    "name": call["name"],
+                    "is_error": failed,
+                    "chars": len(out),
+                    "n": n,
+                    "preview": out[:PREVIEW],
+                },
             )
             labelled = grounding.label(n, call["name"], args, out)
             results.append({"type": "tool_result", "tool_use_id": call["id"], "content": labelled, "is_error": failed})

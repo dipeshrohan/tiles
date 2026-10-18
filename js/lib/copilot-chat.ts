@@ -136,7 +136,16 @@ export function applyEvent(a: Answer, event: string, data: Record<string, unknow
     case 'tool_result':
       return {
         ...a,
-        tools: a.tools.map((t) => (t.id === data.id ? { ...t, isError: Boolean(data.is_error) } : t)),
+        // Its start comes with it (T10.03): an evidence link that names what it found shows at once.
+        tools: a.tools.map((t) =>
+          t.id === data.id
+            ? {
+                ...t,
+                isError: Boolean(data.is_error),
+                preview: typeof data.preview === 'string' ? preview(data.preview) : t.preview,
+              }
+            : t,
+        ),
       };
     case 'retract':
       return { ...a, text: '', retracted: [...a.retracted, { text: a.text, reason: String(data.reason ?? '') }] };
