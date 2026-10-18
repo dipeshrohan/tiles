@@ -2,11 +2,20 @@
 lessons-learned reports on the year's costliest breakdowns, and monthly operations reports."""
 
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from tiles_api.sample_plant.biologics import simulate as sim
-from tiles_api.sample_plant.biologics.plant import BATCH_COST_EUR, BY_ASSET, CODES, MACHINES, PART_COSTS, ZONE
+from tiles_api.sample_plant.biologics.plant import (
+    BATCH_COST_EUR,
+    BY_ASSET,
+    CODES,
+    END,
+    MACHINES,
+    PART_COSTS,
+    START,
+    ZONE,
+)
 from tiles_api.sample_plant.common import Episode, Stats, Stop
 
 SOPS: dict[str, tuple[str, str, tuple[str, ...]]] = {
@@ -76,8 +85,8 @@ the CIP skids (DT-WFI).
 downstream process lead.
 
 The centrifuge runs at 6,500 rpm for about 6 hours a harvest; the centrate goes straight to depth
-filtration. Its spindle vibration is normally about 1.9 mm/s; above 4.5 mm/s plan a bearing change.
-At 7.1 mm/s of spindle vibration the centrifuge trips (DT-CEN).
+filtration. Its spindle vibration is normally about 1.9 mm/s; above 4.5 mm/s a bearing change is
+planned (PL-BRG). At 7.1 mm/s of spindle vibration the centrifuge trips (DT-CEN).
 
 The clarified harvest is held at 2 to 8 °C in HT-01 for at most 72 hours before capture.
 """,
@@ -198,8 +207,8 @@ still is serviced every month.
         """Applies to AHU-01, which supplies the filling room FR-01. Owner: maintenance and reliability.
 
 The final filters' pressure drop (`filter_dp`) is normally about 175 Pa and checked every month. At
-450 Pa the AHU's final filters are changed, and every six months anyway (PL-FLT). Loaded filters
-lower the room's pressure and raise its particle counts.
+450 Pa the AHU's final filters are changed on the next weekday day shift, and every six months
+anyway (PL-FLT). Loaded filters lower the room's pressure and raise its particle counts.
 """,
         ("ahu-01", "fr-01"),
     ),
@@ -272,7 +281,12 @@ def monthly_reports(year: sim.Year) -> dict[str, str]:
     for d in year.deviations:
         devs[_month(d.opened)][d.classification] += 1
     out = {}
-    for month in sorted(by_month):
+    months = []
+    first = START.replace(day=1)
+    while first < END:
+        months.append(first.strftime("%Y-%m"))
+        first = (first + timedelta(days=32)).replace(day=1)
+    for month in months:
         title = datetime.strptime(month, "%Y-%m").strftime("%B %Y")
         rows = []
         for m in MACHINES:
@@ -320,10 +334,13 @@ ROOT_CAUSES = {
     "pump": "a dosing pump's piston wore; its needle under-filled the vials.",
 }
 ACTIONS = {
-    "seal": "replace the seal at the turnaround once its barrier fluid loss passes 3 mL/h (SOP-USP-03).",
+    "seal": "trend the barrier fluid loss through each batch: a seal past 3 mL/h at the turnaround is changed then"
+    " (SOP-USP-03), but one that wears fast fails before it.",
     "wfi": "clean the still's heat exchanger when the conductivity passes 1.0 µS/cm (SOP-UT-01).",
-    "filter": "change the filters at 450 Pa, not only every six months (SOP-UT-02).",
-    "bearing": "plan the bearing change at 4.5 mm/s (SOP-DSP-01).",
+    "filter": "change the filters within the shift once they pass 450 Pa, not on the next weekday day shift"
+    " (SOP-UT-02).",
+    "bearing": "trend the vibration from harvest to harvest: the change planned at 4.5 mm/s (SOP-DSP-01) comes too"
+    " late for bearings that wear fast.",
     "bed": "repack at an asymmetry of 1.6, and trend the drug substance's aggregates (SOP-DSP-04).",
     "membrane": "replace the cassettes when the water flux falls below 70 LMH/bar (SOP-DSP-05).",
     "leak": "stop at a leak rate of 20 µbar·L/s, and trend it from cycle to cycle (SOP-FF-02).",

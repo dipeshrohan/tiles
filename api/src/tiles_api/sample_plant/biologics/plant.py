@@ -65,6 +65,7 @@ DOWNTIME_CODES = (
     Code("PL-RSN", "Planned Protein A resin replacement", "Planned", True),
     Code("PL-COL", "Planned column repack", "Planned", True),
     Code("PL-UF", "Planned cassette replacement", "Planned", True),
+    Code("PL-BRG", "Planned centrifuge bearing change", "Planned", True),
     Code("PL-FLT", "Planned HVAC filter change", "Planned", True),
     Code("PL-SHD", "Site shutdown", "Planned", True),
 )

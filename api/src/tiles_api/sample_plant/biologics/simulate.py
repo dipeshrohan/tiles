@@ -55,6 +55,12 @@ GRID = Station.GRID
 DAY = 86400.0
 HOUR = 3600.0
 SHUTDOWN_BUFFER = 3 * 86400.0
+MAX_HOLD = 24 * 3600.0  # how long an N-1 culture may wait for its reactor (SOP-USP-01)
+SEEDS = ("WB-01", "WB-02", "SB-01", "SB-02")
+PM_TEXT = "Bioreactor maintenance every six batches: seal, valves, probes"
+VIBRATION_PLAN, VIBRATION_TRIP = 4.5, 7.1  # mm/s: a bearing change planned, the centrifuge trips (SOP-DSP-01)
+LYO_CYCLE = 62 * 3600.0
+FILTER_CHANGE = 450.0  # Pa: the AHU's final filters are changed (SOP-UT-02)
 NO_END = float("inf")
 
 # The process model: the ground truth behind the QC results and the vials' fate.
@@ -68,7 +74,7 @@ PROCESS = {
     "chamber_pressure_ubar": "100 + 2.5 * (leak_rate - 4), leak_rate = 4 + 16 * leak ** 1.5 (µbar·L/s)",
     "product_temp_max_c": "-35.2 + 0.035 * (chamber_pressure - 100) + 1.6 * edge_vial + shelf_bias + noise(0.6)",
     "cake": "collapsed when product_temp_max > -32.0 (the formulation's collapse temperature)",
-    "dp_moisture_pct": "0.85 + 0.02 * (chamber_pressure - 100) + noise(0.07)",
+    "dp_moisture_pct": "0.85 + 0.07 * (chamber_pressure - 100) + noise(0.07)",
     "fill_weight_g": "10.30 - 0.25 * pump ** 1.5 on the worn needle + noise(0.035 + 0.05 * pump)",
     "contamination_per_hour": "0.8e-5 + 3.5e-4 * seal ** 2, seal: the agitator seal's wear (0 to 1)",
     "specifications": "bulk HMW <= 2.0 %, HCP <= 50 ppm, endotoxin <= 0.10 EU/mg; product moisture <= 2.0 %",
@@ -101,7 +107,7 @@ SEAL = _mode(
     (30.0, 0.25),
     "Agitator mechanical seal",
     ("Seal barrier fluid alarm: mechanical seal replaced", "Seal leaking into the vessel: agitator seal changed"),
-    "Seal faces worn at the six-monthly maintenance: replaced",
+    "Seal faces worn, found at the bioreactor's planned maintenance: replaced",
 )
 WFI = _mode(
     "wfi",
@@ -122,7 +128,7 @@ FILTER = _mode(
     "filter",
     "DT-HVAC",
     4.0,
-    (8.0, 25.0),
+    (4.0, 20.0),
     1.5,
     0.4,
     (7.0, 0.3),
@@ -281,6 +287,8 @@ class Batch:
     contaminated_at: float | None = None
     detected_at: float | None = None
     seal_wear: float = 0.0  # the seal's wear when the culture ended
+    maintenance: bool = False  # the reactor's maintenance (every six batches) comes before it
+    n1_ready: float = 0.0  # when the N-1 culture was due to be transferred
     # The culture, hour by hour from inoculation.
     vcd: array[float] = field(default_factory=lambda: array("d"))
     viability: array[float] = field(default_factory=lambda: array("d"))
@@ -420,6 +428,17 @@ class Plant:
         self.holds: list[tuple[float, float]] = []  # harvest holds in HT-01
         self.freezer: list[float] = []  # freezer door openings
         self.seal_change: set[str] = set()  # a seal change planned at a turnaround
+        # The upstream events: time, order, kind and batch or reactor.
+        self.events: list[tuple[float, int, str, str]] = []
+        self.seq = 0
+        self.batch_no = 0
+        self.by_id: dict[str, Batch] = {}
+        self.free_at: dict[str, float] = {}  # when each reactor is free for its turnaround
+        self.inoculations: dict[str, int] = {}
+        self.waiting: dict[str, Batch] = {}  # a turnaround waiting for its reactor's harvest
+        self.held: dict[str, Batch | None] = {}  # the culture on each seed station
+        self.seed_waiting: dict[str, list[Batch]] = {"WB": [], "SB": []}
+        self.shut = (cal.SHUTDOWN[0].timestamp(), cal.SHUTDOWN[1].timestamp())
 
     def station(self, asset: str, **kw: object) -> Station:
         st = Station(asset, self.w, SEED, start=self.t0, end=self.t1, **kw)  # type: ignore[arg-type]
@@ -431,6 +450,31 @@ class Plant:
         t = max(ready, st.t)
         i = self.w.index(t)
         return max(t, self.w.intervals[i][0]) if i < len(self.w.intervals) else self.t1
+
+    def slot(self, st: Station, ready: float, duration: float) -> float:
+        """When `st.run(ready, duration)` would start if nothing broke down: the same working time
+        and planned and imposed stops, none of them taken."""
+        t, free, pi, xi = max(ready, st.t), st.t, st.pi, st.xi
+        while True:
+            t = max(t, free)
+            i = self.w.index(t)
+            if i >= len(self.w.intervals) or t >= st.end:
+                return st.end
+            a, b = self.w.intervals[i]
+            t = max(t, a)
+            if t + duration > b and duration < b - a:
+                t = b
+            elif pi < len(st.planned) and t < st.planned[pi][0] < t + duration:
+                t = st.planned[pi][0]
+            elif pi < len(st.planned) and st.planned[pi][0] <= t:
+                start, end = st.planned[pi][:2]
+                pi += 1
+                free = max(free, start) + (end - start)
+            elif xi < len(st.external) and st.external[xi][0] <= t:
+                free = max(free, st.external[xi][1])
+                xi += 1
+            else:
+                return t
 
     def deviate(
         self,
@@ -472,6 +516,7 @@ class Plant:
             on_planned=self._ahu_planned,
         )
         fr = self.station("FR-01")
+        days = [s.start.timestamp() + HOUR for s in self.shifts if s.name == "D" and s.start.weekday() < 5]
         wfi_stops: Planned = []
         hvac_stops: Planned = []
         noise = {"wfi": 0.0, "toc": 0.0, "dp": 0.0, "cr": 0.0}
@@ -516,6 +561,11 @@ class Plant:
                             episode=ep.id,
                         )
                     else:
+                        if "AHU-01" in self.pending:  # the filters are changed in the repair instead
+                            self.pending.discard("AHU-01")
+                            ahu.planned[ahu.pi :] = [
+                                p for p in ahu.planned[ahu.pi :] if not p[3].startswith("Final filters")
+                            ]
                         fr.stops.append(Stop("FR-01", t, t + dur, m.code, False, text, ep.id))
                         self.deviate(
                             t,
@@ -526,7 +576,8 @@ class Plant:
                             "major",
                             "Filling room pressure cascade lost",
                             f"FR-01's pressure to the corridor fell below 10 Pa. {text}.",
-                            "The AHU's final filters loaded up faster than the six-monthly change allows",
+                            "The AHU's final filters passed 450 Pa and loaded up before their change on the"
+                            " next weekday day shift",
                             capa=True,
                             episode=ep.id,
                         )
@@ -546,7 +597,13 @@ class Plant:
             self.write("site", "wfi01.return_velocity", t, round(1.4 + r.gauss(0, 0.02), 2))
             self.write("site", "csg01.pressure", t, round(3.1 + r.gauss(0, 0.04), 2))
             self.write("site", "csg01.condensate_conductivity", t, round(0.9 + r.gauss(0, 0.04), 2))
-            self.write("site", "ahu01.filter_dp", t, round(175 + 300 * s_a**1.5 + noise["dp"], 0))
+            filter_dp = round(175 + 300 * s_a**1.5 + noise["dp"], 0)
+            self.write("site", "ahu01.filter_dp", t, filter_dp)
+            if filter_dp >= FILTER_CHANGE and "AHU-01" not in self.pending:  # changed on the next weekday day shift
+                at = days[bisect.bisect_right(days, t)] if t < days[-1] else self.t1
+                text = f"Final filters changed: pressure drop {filter_dp:.0f} Pa"
+                bisect.insort(ahu.planned, (at, at + 8 * HOUR, "PL-FLT", text))
+                self.pending.add("AHU-01")
             self.write("site", "ahu01.supply_temp", t, round(19.0 + r.gauss(0, 0.15), 1))
             self.write("site", "ahu01.supply_rh", t, round(45 + 6 * seasonal(t, ZONE) + r.gauss(0, 1.0), 1))
             out = any(a <= t < b for a, b, _, _ in hvac_stops[-1:])
@@ -565,6 +622,7 @@ class Plant:
 
     def _ahu_planned(self, st: Station, code: str, start: float, end: float) -> None:
         if code == "PL-FLT":
+            self.pending.discard(st.asset)
             for ep in st.episodes:
                 if ep.resolved_at is None and ep.onset <= start:
                     ep.resolved_at, ep.peak = start, ep.severity(self.w.seconds(start), start)
@@ -697,144 +755,260 @@ class Plant:
         self.write(f"{k}-unit", f"{k}.osmolality", t, round(300 + 6 * min(tau, 14) + r.gauss(0, 3), 0))
 
     def upstream(self, wfi_stops: Planned) -> None:
-        """The year's batches, in time order: each reactor's turnaround, seed train and culture, and
-        each harvest with its purification as the culture ends (`downstream`)."""
+        """The year's batches, as events in time order: each seed train's steps on the rocking and
+        N-1 bioreactors, each reactor's turnaround and culture, and each harvest with its
+        purification as the culture ends. The next batch's seed train starts when its reactor's
+        batch is inoculated, so that it is ready as the reactor is; an N-1 culture the reactor
+        can't take within 24 hours is discarded."""
         r = random.Random(f"{SEED}/upstream")
         ext = list(wfi_stops)
-        for a in ("WB-01", "WB-02", "SB-01", "SB-02"):
+        for a in SEEDS:
             self.station(a, random_stops=SEED_STOPS, planned=monthly_pm(self.shifts, 2, 4), grid=self._seed_grid)
+            self.held[a] = None
         for i in range(1, 5):
             a = f"BR-0{i}"
             self.station(a, random_stops=BR_STOPS, modes=(SEAL,), grid=self._br_grid, on_planned=self._br_planned)
             self.current[a] = None
+            self.free_at[a] = self.t0
+            self.inoculations[a] = 0
         self.station("MP-01", random_stops=STATION_STOPS, planned=monthly_pm(self.shifts, 3, 4), external=ext)
         self.station("CIP-01", random_stops=STATION_STOPS, planned=monthly_pm(self.shifts, 5, 4), external=ext)
         self.downstream_stations(ext)
-        shut_a, shut_b = cal.SHUTDOWN[0].timestamp(), cal.SHUTDOWN[1].timestamp()
-        events: list[tuple[float, int, str, str]] = []  # time, order, kind, reactor
-        n_batches = {f"BR-0{i}": 0 for i in range(1, 5)}
-        plan_end = {f"BR-0{i}": 0.0 for i in range(1, 5)}
-        batches: dict[str, Batch] = {}
-        seq = 0
-        for i in range(1, 5):  # the first batches' seed trains ran in September
-            heapq.heappush(events, (self.t0 + (0.4 + 3.6 * (i - 1)) * DAY, seq, "free", f"BR-0{i}"))
-            seq += 1
-        while events:
-            t, _, kind, reactor = heapq.heappop(events)
+        self._first_batches(r)
+        while self.events:
+            t, _, kind, key = heapq.heappop(self.events)
             if kind == "free":
-                first = n_batches[reactor] == 0
-                n_batches[reactor] += 1
-                if first:
-                    seed_start, inoc = t - 15.5 * DAY, t
+                self.free_at[key] = t
+                if key in self.waiting:
+                    self._turn(self.waiting.pop(key), t)
+                continue
+            b = self.by_id[key]
+            if kind == "wb":
+                self._wb(b, t)
+            elif kind == "sb":
+                self._sb(b, t, r)
+            elif kind == "turn":
+                if self.free_at[b.reactor] > t:  # its culture isn't harvested yet
+                    self.waiting[b.reactor] = b
                 else:
-                    seed_start = plan_end[reactor] - 14.5 * DAY
-                    inoc = max(t + 1.2 * DAY, seed_start + 15.5 * DAY)
-                # No culture over the shutdown: the last is planned to end SHUTDOWN_BUFFER before it, as
-                # its seed train and turnaround can be held up.
-                if inoc + 14.5 * DAY + SHUTDOWN_BUFFER > shut_a and inoc < shut_b:
-                    idx = int(reactor[-1]) - 1
-                    seed_start = shut_b + (1.0 + 3.6 * idx) * DAY
-                    inoc = seed_start + 15.5 * DAY
-                if inoc >= self.t1 - 2 * DAY:
-                    continue
-                n = len(self.year.batches) + 1
-                yy = datetime.fromtimestamp(inoc, ZONE).strftime("%y")
-                b = Batch(f"B{yy}{n:03d}", reactor, f"WCB-17-{(n * 7) % 400 + 1:03d}", seed_start, inoc)
-                self.year.batches.append(b)
-                batches[b.id] = b
-                if not self._start_batch(b, t, first, r):
-                    self.year.batches.remove(b)
-                    continue
-                plan_end[reactor] = b.inoculated + 14.0 * DAY + 0.25 * DAY
-                end = self._grow(b, b.inoculated + 14.0 * DAY, r)
-                if b.lost:
-                    heapq.heappush(events, (end, seq, "free", reactor))
-                elif end < self.t1:
-                    heapq.heappush(events, (end, seq, f"harvest:{b.id}", reactor))
-                seq += 1
+                    self._turn(b, t)
+            elif kind == "clean":
+                self._clean(b, t, r)
+            elif kind == "inoculate":
+                br = self.stations[b.reactor]
+                br.advance(t, "idle")
+                br.t = t
+                self._inoculate(b, t, r)
+                self._release(b.sb, t, r)
             else:
-                b = batches[kind.split(":", 1)[1]]
                 free = self.harvest(b, t, r)
                 if free < self.t1:
-                    heapq.heappush(events, (free, seq, "free", reactor))
-                    seq += 1
-        for a in ("WB-01", "WB-02", "SB-01", "SB-02", "MP-01", "CIP-01"):
+                    self._push(free, "free", b.reactor)
+        for a in (*SEEDS, "MP-01", "CIP-01"):
             self.stations[a].finish()
         for i in range(1, 5):
             self.stations[f"BR-0{i}"].finish()
 
-    def _start_batch(self, b: Batch, free: float, first: bool, r: random.Random) -> bool:
-        """The seed train and the reactor's turnaround; False if the year ends first."""
-        br = self.stations[b.reactor]
-        if first:
-            b.wb, b.sb = ("WB-01", "SB-01") if int(b.reactor[-1]) % 2 else ("WB-02", "SB-02")
+    def _push(self, t: float, kind: str, key: str) -> None:
+        heapq.heappush(self.events, (t, self.seq, kind, key))
+        self.seq += 1
+
+    def _new_batch(self, reactor: str, seed_start: float, inoc: float, maintenance: bool) -> Batch:
+        self.batch_no += 1
+        n = self.batch_no
+        yy = datetime.fromtimestamp(inoc, ZONE).strftime("%y")
+        b = Batch(f"B{yy}{n:03d}", reactor, f"WCB-17-{(n * 7) % 400 + 1:03d}", seed_start, inoc)
+        b.maintenance = maintenance
+        self.year.batches.append(b)
+        self.by_id[b.id] = b
+        return b
+
+    def _first_batches(self, r: random.Random) -> None:
+        """The first batch of each reactor, whose seed train began in September: what is left of it
+        runs on the seed stations, and the reactor's turnaround runs before it if there is time."""
+        booked = []
+        for i in range(1, 5):
+            reactor = f"BR-0{i}"
+            inoc = self.t0 + (0.4 + 3.6 * (i - 1)) * DAY
+            b = self._new_batch(reactor, inoc - 15.5 * DAY, inoc, False)
+            b.wb, b.sb = ("WB-01", "SB-01") if i % 2 else ("WB-02", "SB-02")
             b.wb_span = (b.seed_start + 9 * DAY, b.seed_start + 12 * DAY)
-            b.sb_span = (b.seed_start + 12 * DAY, b.inoculated if b.inoculated else b.planned_inoculation)
+            b.sb_span, b.n1_ready = (b.seed_start + 12 * DAY, inoc), inoc
             b.transfer_vcd, b.transfer_viability = r.gauss(5.2, 0.3), r.gauss(97.0, 0.6)
-        else:
-            wb = min((self.stations["WB-01"], self.stations["WB-02"]), key=lambda s: s.t)
-            ws, we = wb.run(b.seed_start + 9 * DAY, 3 * DAY)
-            sb = min((self.stations["SB-01"], self.stations["SB-02"]), key=lambda s: s.t)
-            ss, se = sb.run(we, 3.5 * DAY)
-            if se >= self.t1:
-                b.status = "seed train at the end of the year"
-                return False
-            b.wb, b.sb, b.wb_span = wb.asset, sb.asset, (ws, we)
-            b.transfer_vcd, b.transfer_viability = r.gauss(5.2, 0.3), r.gauss(97.0, 0.6)
-            # The reactor: pending maintenance, CIP, SIP and media, ready just before the seed is.
-            if len([x for x in self.year.batches if x.reactor == b.reactor]) % 6 == 0:
-                at = max(free, br.t)
-                bisect.insort(
-                    br.planned,
-                    (at, at + 36 * HOUR, "PL-PM", "Six-monthly bioreactor maintenance: seal, valves, probes"),
-                )
-            ready = max(free, se - 1.4 * DAY)
-            # The turnaround's seal check (SOP-USP-03): a seal losing over 3 mL/h is changed now, mostly.
-            at = self.earliest(br, ready)
-            loss = 0.6 + 9.0 * br.sev("seal", at) ** 1.6
-            if loss > 3.0 and r.random() < 0.6:
+            booked += [(*b.wb_span, b.wb), (*b.sb_span, b.sb)]
+            self.held[b.sb] = b
+            turn = inoc - 1.4 * DAY
+            self._push(*((turn, "turn") if turn >= self.t0 else (inoc, "inoculate")), b.id)
+        for a, e, asset in sorted(booked):
+            if e > self.t0:
+                st = self.stations[asset]
+                st.advance(max(a, self.t0), "idle")
+                st.advance(e, "run")
+                st.run_s += e - max(a, self.t0)
+                st.t = e
+
+    def _plan(self, reactor: str, now: float, culture_end: float, maintenance: bool) -> None:
+        """The reactor's next batch: its vial is thawed so that its N-1 culture is ready as the
+        reactor is (after its maintenance, every six batches), or after the shutdown."""
+        seed_start = max(now, culture_end + (36 * HOUR if maintenance else 0.0) - 14.5 * DAY)
+        inoc = seed_start + 15.5 * DAY
+        # No culture over the shutdown: the last is planned to end SHUTDOWN_BUFFER before it, as its
+        # seed train and turnaround can be held up.
+        if inoc + 14.5 * DAY + SHUTDOWN_BUFFER > self.shut[0] and inoc < self.shut[1]:
+            idx = int(reactor[-1]) - 1
+            seed_start = max(seed_start, self.shut[1] + (1.0 + 3.6 * idx) * DAY)
+            inoc = seed_start + 15.5 * DAY
+        if inoc >= self.t1 - 2 * DAY:
+            return
+        b = self._new_batch(reactor, seed_start, inoc, maintenance)
+        self._push(seed_start + 9 * DAY, "wb", b.id)
+
+    def _release(self, asset: str, t: float, r: random.Random) -> None:
+        """A seed station is free for the next culture once its own culture has moved on."""
+        self.held[asset] = None
+        waiting = self.seed_waiting[asset[:2]]
+        if waiting:
+            b = waiting.pop(0)
+            if asset.startswith("WB"):
+                self._wb(b, t)
+            else:
+                self._sb(b, t, r)
+
+    def _wb(self, b: Batch, t: float) -> None:
+        """The shake flasks go to whichever rocking bioreactor is free first."""
+        free = [self.stations[a] for a in ("WB-01", "WB-02") if self.held[a] is None]
+        if not free:
+            self.seed_waiting["WB"].append(b)
+            return
+        wb = min(free, key=lambda s: s.t)
+        ws, we = wb.run(t, 3 * DAY)
+        if we >= self.t1:
+            b.status = "seed train at the end of the year"
+            return
+        self.held[wb.asset] = b
+        b.wb, b.wb_span = wb.asset, (ws, we)
+        self._push(we, "sb", b.id)
+
+    def _sb(self, b: Batch, t: float, r: random.Random) -> None:
+        """The rocking culture goes to an N-1 bioreactor; it grows on until one is free."""
+        free = [self.stations[a] for a in ("SB-01", "SB-02") if self.held[a] is None]
+        if not free:
+            self.seed_waiting["SB"].append(b)
+            return
+        sb = min(free, key=lambda s: s.t)
+        ss, se = sb.run(t, 3.5 * DAY)
+        wb = self.stations[b.wb]
+        if ss > b.wb_span[1]:  # the rocking culture is held until the N-1 bioreactor takes it
+            wb.advance(ss, "run")
+            wb.run_s += ss - b.wb_span[1]
+            wb.t = max(wb.t, ss)
+            b.wb_span = (b.wb_span[0], ss)
+        self._release(wb.asset, t, r)
+        if se >= self.t1:
+            b.status = "seed train at the end of the year"
+            return
+        self.held[sb.asset] = b
+        b.sb, b.sb_span, b.n1_ready = sb.asset, (ss, se), se
+        b.transfer_vcd, b.transfer_viability = r.gauss(5.2, 0.3), r.gauss(97.0, 0.6)
+        lead = 1.4 * DAY + (36 * HOUR if b.maintenance else 0.0)
+        self._push(max(t, se - lead), "turn", b.id)
+
+    def _turn(self, b: Batch, t: float) -> None:
+        """The reactor's turnaround, from when it is free: its maintenance every six batches, the
+        seal check (SOP-USP-03: a seal losing over 3 mL/h is changed now), then CIP, SIP and media."""
+        br = self.stations[b.reactor]
+        at = self.earliest(br, t)
+        if b.maintenance:
+            bisect.insort(br.planned, (at, at + 36 * HOUR, "PL-PM", PM_TEXT))
+        loss = 0.6 + 9.0 * br.sev("seal", at) ** 1.6
+        if loss > 3.0:
+            if not b.maintenance:  # the maintenance changes it anyway
                 text = f"Agitator seal replaced at turnaround: barrier fluid loss {loss:.1f} mL/h"
                 bisect.insort(br.planned, (at, at + 24 * HOUR, "PL-PM", text))
-                self.seal_change.add(b.reactor)
-            br_ready, _ = br.run(ready, 0.0)
-            mp = self.stations["MP-01"]
-            ms, me = mp.run(br_ready - 4 * HOUR, 8 * HOUR)
-            osmo, ph = r.gauss(305, 3), r.gauss(7.10, 0.02)
-            lot = f"M{b.id[1:]}"
-            self.year.media.append((lot, ms, me, osmo, ph))
-            self.write("mp01-unit", "mp01.osmolality", me, round(osmo, 0))
-            self.write("mp01-unit", "mp01.ph", me, round(ph, 2))
-            cs, ce = self.stations["CIP-01"].run(br_ready, 3 * HOUR)
-            self.write("cip01-unit", "cip01.final_rinse_conductivity", ce, round(abs(r.gauss(0.9, 0.08)), 2))
-            self.phase[b.reactor] = "cip"
-            _, e1 = br.run(cs, 3 * HOUR)
-            self.phase[b.reactor] = "sip"
-            _, e2 = br.run(e1, 2.5 * HOUR)
-            self.phase[b.reactor] = "media"
-            _, e3 = br.run(max(e2, me), 10 * HOUR)
-            if e3 >= self.t1:
-                return False
-            inoc = max(e3, se)
-            b.seed_hold_h = max(0.0, inoc - se) / HOUR
-            if inoc > se:  # the N-1 culture is held until the reactor is ready
-                sb.advance(inoc, "run")
-                sb.run_s += inoc - se
-                sb.t = inoc
-            br.advance(inoc, "run")
-            br.t = inoc
-            b.sb_span = (ss, inoc)
-            b.inoculated = inoc
-            k = sb.asset.lower().replace("-", "")
-            self.write(f"{k}-unit", f"{k}.final_vcd", inoc, round(b.transfer_vcd + 0.3 * b.seed_hold_h / 24, 2))
-            self.write(f"{k}-unit", f"{k}.final_viability", inoc, round(b.transfer_viability, 1))
-        if first:
-            b.inoculated = b.planned_inoculation
-            br.advance(b.inoculated, "idle")
-            br.t = b.inoculated
+            self.seal_change.add(b.reactor)
+        br_ready, _ = br.run(t, 0.0)
+        self._push(max(t, br_ready - 4 * HOUR), "clean", b.id)
+
+    def _clean(self, b: Batch, t: float, r: random.Random) -> None:
+        br = self.stations[b.reactor]
+        br_ready = br.t
+        mp = self.stations["MP-01"]
+        ms, me = mp.run(t, 8 * HOUR)
+        osmo, ph = r.gauss(305, 3), r.gauss(7.10, 0.02)
+        lot = f"M{b.id[1:]}"
+        self.year.media.append((lot, ms, me, osmo, ph))
+        self.write("mp01-unit", "mp01.osmolality", me, round(osmo, 0))
+        self.write("mp01-unit", "mp01.ph", me, round(ph, 2))
+        cs, ce = self.stations["CIP-01"].run(br_ready, 3 * HOUR)
+        self.write("cip01-unit", "cip01.final_rinse_conductivity", ce, round(abs(r.gauss(0.9, 0.08)), 2))
+        self.phase[b.reactor] = "cip"
+        _, e1 = br.run(cs, 3 * HOUR)
+        self.phase[b.reactor] = "sip"
+        _, e2 = br.run(e1, 2.5 * HOUR)
+        self.phase[b.reactor] = "media"
+        _, e3 = br.run(max(e2, me), 10 * HOUR)
+        sb = self.stations[b.sb]
+        se = b.n1_ready
+        if e3 >= self.t1:
+            b.status = "seed train at the end of the year"
+            return
+        if e3 - se > MAX_HOLD:  # the N-1 culture can't wait so long: discarded, and a vial thawed again
+            gone = se + MAX_HOLD
+            sb.advance(gone, "run")
+            sb.run_s += MAX_HOLD
+            sb.t = max(sb.t, gone)
+            b.sb_span = (b.sb_span[0], gone)
+            b.status = "seed train discarded"
+            self.deviate(
+                gone,
+                "Upstream",
+                b.sb,
+                b.id,
+                "Process",
+                "major",
+                f"N-1 culture for batch {b.id} discarded",
+                f"{b.reactor} wasn't ready within 24 hours of the N-1 culture's transfer time; the culture"
+                " was discarded and a new vial of the working cell bank thawed.",
+                "The reactor's turnaround ran late after a stop",
+            )
+            self._release(b.sb, t, r)
+            self.phase[b.reactor] = ""
+            self._plan(b.reactor, t, t, False)
+            return
+        inoc = max(e3, se)
+        hold = inoc - se
+        if hold > 0:  # the N-1 culture is held until the reactor is ready: older and less viable
+            sb.advance(inoc, "run")
+            sb.run_s += hold
+            sb.t = max(sb.t, inoc)
+        br.advance(inoc, "run")
+        br.t = inoc
+        b.sb_span = (b.sb_span[0], inoc)
+        self._inoculate(b, inoc, r)
+        self._release(b.sb, t, r)
+
+    def _inoculate(self, b: Batch, inoc: float, r: random.Random) -> None:
+        """The production culture: grown to its harvest (or its loss), with the reactor's next
+        batch planned as it starts."""
+        b.seed_hold_h = max(0.0, inoc - b.n1_ready) / HOUR
+        b.transfer_vcd += 0.3 * b.seed_hold_h / 24
+        b.transfer_viability -= 0.8 * b.seed_hold_h / 24
+        k = b.sb.lower().replace("-", "")
+        self.write(f"{k}-unit", f"{k}.final_vcd", inoc, round(b.transfer_vcd, 2))
+        self.write(f"{k}-unit", f"{k}.final_viability", inoc, round(b.transfer_viability, 1))
+        b.inoculated = inoc
+        self.inoculations[b.reactor] += 1
         self._culture(b, r)
         self.current[b.reactor] = b
         self.phase[b.reactor] = "culture"
-        return True
+        self.free_at[b.reactor] = NO_END
+        n = self.inoculations[b.reactor] + 1
+        self._plan(b.reactor, inoc, inoc + 14.25 * DAY, n % 6 == 0)
+        end = self._grow(b, inoc + 14.0 * DAY, r)
+        if b.lost:
+            self._push(end, "free", b.reactor)
+        elif end < self.t1:
+            self._push(end, "harvest", b.id)
 
     def _grow(self, b: Batch, until: float, r: random.Random) -> float:
         """The culture up to `until` (or the year's end), hour by hour: the daily sample, the seal's
@@ -940,6 +1114,7 @@ class Plant:
             random_stops=DSP_STOPS,
             modes=(BEARING,),
             planned=monthly_pm(self.shifts, 6, 6, "Monthly centrifuge maintenance and vibration check"),
+            on_planned=self._found_planned,
         )
         self.station("DF-01", random_stops=STATION_STOPS, planned=monthly_pm(self.shifts, 6, 3))
         self.station("BP-01", random_stops=STATION_STOPS, planned=monthly_pm(self.shifts, 7, 4), external=ext)
@@ -979,14 +1154,17 @@ class Plant:
             self.year.resin_changes.append(start)
 
     def _found_planned(self, st: Station, code: str, start: float, end: float) -> None:
-        if code in ("PL-COL", "PL-UF"):
+        found = {
+            "PL-COL": "Found by the pre-use test: column repacked",
+            "PL-UF": "Found by the pre-use test: cassettes replaced",
+            "PL-BRG": "Found by the vibration trend: bearings changed",
+        }
+        if code in found:
             self.pending.discard(st.asset)
             for ep in st.episodes:
                 if ep.resolved_at is None and ep.onset <= start:
                     ep.resolved_at, ep.peak = start, ep.severity(self.w.seconds(start), start)
-                    ep.outcome = "Found by the pre-use test: " + (
-                        "column repacked" if code == "PL-COL" else "cassettes replaced"
-                    )
+                    ep.outcome = found[code]
 
     def _minutes(
         self, stream: str, start: float, end: float, values: Callable[[float, float], dict[str, float]]
@@ -1001,9 +1179,15 @@ class Plant:
         """The batch's harvest at the end of its culture (when the centrifuge can take it), and its
         purification to a drug substance lot. Returns when its reactor is free."""
         br, cf, df = self.stations[b.reactor], self.stations["CF-01"], self.stations["DF-01"]
-        t0 = self.earliest(cf, at)
+        t0 = self.slot(cf, at, 6 * HOUR)
+        if t0 > br.t:  # the culture goes on until the centrifuge can take it
+            self._grow(b, min(t0, self.t1), r)
+            if b.lost:
+                return br.t
+        if t0 >= self.t1:
+            return self.t1
         bearing = cf.sev("bearing", t0)
-        if bearing >= 1.0:  # the start-up trips on vibration
+        if 1.9 + 6.0 * bearing**1.5 >= VIBRATION_TRIP:  # the start-up trips on vibration
             self._minutes(
                 "cf01-run",
                 t0,
@@ -1013,12 +1197,17 @@ class Plant:
                     "cf01.vibration": round(1.9 + 6.0 * bearing**1.5 * min(1.0, m / 6) + r.gauss(0, 0.08), 2),
                 },
             )
+            ep = next(e for e in cf.episodes if e.mode == "bearing" and e.onset <= t0 and e.resolved_at is None)
+            ep.failed_at, ep.peak = t0, bearing
+            ep.outcome = "Failed: the centrifuge tripped on vibration at start-up"
+            dur = max(4 * HOUR, cf.r_stop.lognormvariate(math.log(BEARING.stop_hours[0] * HOUR), BEARING.stop_hours[1]))
+            cf.t = cf.breakdown(t0, dur, BEARING.code, BEARING.comments[0], ep, BEARING.component)
         hs, he = cf.run(at, 6 * HOUR)
         if he >= self.t1:
-            b.status = "in culture at the end of the year"
+            self._grow(b, self.t1, r)
             return self.t1
         b.harvest_delay_h = (hs - at) / HOUR
-        if hs > br.t:  # the culture goes on until the centrifuge takes it
+        if hs > br.t:
             self._grow(b, hs, r)
             if b.lost:
                 return br.t
@@ -1050,6 +1239,12 @@ class Plant:
             },
         )
         self.write("cf01-unit", "cf01.centrate_turbidity", he, round(b.centrate_ntu, 0))
+        vibration = 1.9 + 6.0 * bearing**1.5
+        if vibration > VIBRATION_PLAN and "CF-01" not in self.pending:
+            at = self.earliest(cf, he)
+            text = f"Spindle bearings changed: vibration {vibration:.1f} mm/s at the last harvest"
+            bisect.insort(cf.planned, (at, at + 16 * HOUR, "PL-BRG", text))
+            self.pending.add("CF-01")
         ds, de = df.run(hs, 6 * HOUR)
         self.write("df01-unit", "df01.max_dp", de, round(b.df_dp, 2))
         b.steps += [
@@ -1124,7 +1319,7 @@ class Plant:
         asym, cdp = 1.1 + 1.0 * bed**1.4 + r.gauss(0, 0.03), 1.4 + 1.0 * bed**1.5 + r.gauss(0, 0.03)
         self.write("cs02-unit", "cs02.cex_asymmetry", t0, round(asym, 2))
         self.write("cs02-unit", "cs02.cex_dp", t0, round(cdp, 2))
-        if asym > 1.6 and bed < 1.0 and r.random() < 0.5 and "CS-02" not in self.pending:
+        if asym > 1.6 and bed < 1.0 and "CS-02" not in self.pending:
             bisect.insort(cs2.planned, (t0, t0 + 16 * HOUR, "PL-COL", f"CEX column repacked: asymmetry {asym:.2f}"))
             self.pending.add("CS-02")
         a2, e2 = cs2.run(ve, 11 * HOUR)
@@ -1163,7 +1358,7 @@ class Plant:
         mem = uf.sev("membrane", t0)
         nwp = 100 * (1 - 0.40 * mem**1.3) + r.gauss(0, 1.5)
         self.write("uf01-unit", "uf01.nwp", t0, round(nwp, 1))
-        if nwp < 70 and mem < 1.0 and r.random() < 0.6 and "UF-01" not in self.pending:
+        if nwp < 70 and mem < 1.0 and "UF-01" not in self.pending:
             bisect.insort(uf.planned, (t0, t0 + 8 * HOUR, "PL-UF", f"Cassettes replaced: water flux {nwp:.0f} LMH/bar"))
             self.pending.add("UF-01")
         ua, ue = uf.run(fe, 8 * HOUR * (1 + 0.5 * mem))
@@ -1292,9 +1487,12 @@ class Plant:
         )
         cp = self.station("CP-01", random_stops=CAP_STOPS, external=ext, planned=monthly_pm(self.shifts, 16, 4))
         avi = self.station("AVI-01", random_stops=AVI_STOPS, planned=monthly_pm(self.shifts, 17, 4))
-        lots = sorted((b for b in self.year.batches if b.bulk_status == "released"), key=lambda b: b.bulk_end)
-        for b in lots:
-            ready = b.bulk_end + 7 * DAY
+        # A lot is thawed once QC has released it, and at least a week after it was frozen.
+        lots = sorted(
+            ((max(b.bulk_end + 7 * DAY, b.bulk_tested), b) for b in self.year.batches if b.bulk_status == "released"),
+            key=lambda x: x[0],
+        )
+        for ready, b in lots:
             if ready >= self.t1:
                 continue
             # The pre-cycle leak test, and its repair when it fails.
@@ -1308,22 +1506,28 @@ class Plant:
                 rate = 4 + 16 * leak**1.5 + r.gauss(0, 0.4)
                 self.write("ly01-unit", "ly01.leak_rate", ly_ready - 600, round(rate, 1))
             vials = int(b.bulk_g * 0.985 / 1.0)
-            t0 = self.earliest(fl, ly_ready)
-            pump = fl.sev("pump", t0)
-            head = random.Random(f"{SEED}/head/{b.id}").randrange(HEADS)
+            filling = vials / 60 * 60 + 1800
+            # The vials are loaded into the lyophiliser as they are filled: filling starts when both
+            # the filler and a whole cycle of the lyophiliser are free.
+            start = ly_ready
+            for _ in range(20):
+                fs0 = self.slot(fl, self.slot(ly, start, LYO_CYCLE), filling)
+                start = self.slot(ly, fs0, LYO_CYCLE)
+                if start == fs0:
+                    break
+            pump = fl.sev("pump", fs0)
             if pump >= 1.0:  # the start-up checks find the worn pump
+                head = self._worn_head(fl, fs0, b)
                 for i in range(2 * HEADS):
                     hd = i % HEADS
                     w = FILL_G - (0.25 * pump**1.5 if hd == head else 0.0) + r.gauss(0, 0.035 + 0.05 * pump)
-                    self.write("fl01-unit", "fl01.fill_weight", t0 + 10 * i, round(w, 3))
-            fs, fe = fl.run(ly_ready, vials / 60 * 60 + 1800)
+                    self.write("fl01-unit", "fl01.fill_weight", fs0 + 10 * i, round(w, 3))
+            fs, fe = fl.run(fs0, filling)
             if fe >= self.t1:
                 break
             pump = fl.sev("pump", fs)
-            for ep in fl.episodes:  # the pump's piston: one needle
-                if ep.mode == "pump" and ep.onset <= fs and ep.resolved_at is None:
-                    head = random.Random(ep.id).randrange(HEADS)
-            ls, le = ly.run(fs, 62 * HOUR)
+            head = self._worn_head(fl, fs, b)
+            ls, le = ly.run(fs, LYO_CYCLE)
             if le >= self.t1:
                 break
             leak = ly.sev("leak", ls)
@@ -1351,7 +1555,7 @@ class Plant:
             self._lyo_minutes(lot, r)
             self.fills.append((fs, fe))
             self.freezer.append(fs - DAY)
-            lot.moisture = 0.85 + 0.02 * (pressure - 100) + r.gauss(0, 0.07)
+            lot.moisture = 0.85 + 0.07 * (pressure - 100) + r.gauss(0, 0.07)
             lot.em_cfu = sum(1 for _ in range(3) if r.random() < 0.01 + 0.3 * max(0.0, lot.room - 0.6))
             lot.tested = ve + r.uniform(4, 7) * DAY
             self.year.lab.append((lot.tested, "lab.dp_moisture", round(lot.moisture, 2)))
@@ -1388,6 +1592,13 @@ class Plant:
             self.year.lots.append(lot)
         for st in (fl, ly, cp, avi):
             st.finish()
+
+    def _worn_head(self, fl: Station, t: float, b: Batch) -> int:
+        """The needle a worn dosing pump under-fills: its piston's; else any, for the lot."""
+        for ep in fl.episodes:
+            if ep.mode == "pump" and ep.onset <= t and ep.resolved_at is None:
+                return random.Random(ep.id).randrange(HEADS)
+        return random.Random(f"{SEED}/head/{b.id}").randrange(HEADS)
 
     def _vials(self, lot: FillLot, r: random.Random) -> None:
         fs, fe = lot.fill
@@ -1569,4 +1780,15 @@ def statistics_mean(values: array[float]) -> float:
     return sum(values) / len(values)
 
 
-__all__ = ["PROCESS", "Batch", "Cycle", "Deviation", "FillLot", "Plant", "Year"]
+__all__ = [
+    "PROCESS",
+    "SEEDS",
+    "VIBRATION_PLAN",
+    "VIBRATION_TRIP",
+    "Batch",
+    "Cycle",
+    "Deviation",
+    "FillLot",
+    "Plant",
+    "Year",
+]

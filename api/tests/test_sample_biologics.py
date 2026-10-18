@@ -25,7 +25,7 @@ from tiles_api import evaluation, ontology, ontology_io
 from tiles_api.sample_plant import common
 from tiles_api.sample_plant.biologics import generate, questions
 from tiles_api.sample_plant.biologics import simulate as sim
-from tiles_api.sample_plant.biologics.plant import ZONE
+from tiles_api.sample_plant.biologics.plant import END, ZONE
 
 DATA = Path(__file__).resolve().parents[2] / "data" / "sample-plants" / "biologics"
 Built = tuple[Path, sim.Year, common.Stats, common.Capture]
@@ -92,6 +92,65 @@ def test_the_year_runs_like_a_biologics_site(built: Built) -> None:
     assert not [b.id for b in batches if b.inoculated < shut[1] and b.ended > shut[0]]
 
 
+def test_the_schedule_holds_together(built: Built) -> None:
+    out, year, _, _ = built
+    t1 = END.timestamp()
+    batches = [b for b in year.batches if b.inoculated]
+    # Each seed station runs one culture at a time, none started in its own stops, and each step
+    # follows the last: rocking bioreactor, N-1 bioreactor (held 24 hours at most), production.
+    for asset in sim.SEEDS:
+        spans = sorted([b.wb_span for b in batches if b.wb == asset] + [b.sb_span for b in batches if b.sb == asset])
+        assert all(x[1] <= y[0] + 1e-6 for x, y in itertools.pairwise(spans)), asset
+        assert _inside([s for s in spans if s[0] >= year.t0], year.stations[asset].stops) == 0, asset
+        assert sum(e - max(a, year.t0) for a, e in spans if e > year.t0) <= year.stations[asset].run_s + 1, asset
+    for b in batches:
+        assert b.wb_span[1] <= b.sb_span[0] + 1e-6 and b.sb_span[1] == b.inoculated, b.id
+        assert b.seed_hold_h <= 24 and b.n1_ready <= b.inoculated, b.id
+    # The reactor's next batch only once its last is harvested.
+    for asset in ("BR-01", "BR-02", "BR-03", "BR-04"):
+        mine = sorted((b for b in batches if b.reactor == asset), key=lambda b: b.inoculated)
+        assert all(y.inoculated >= (x.harvest[1] or x.ended) for x, y in itertools.pairwise(mine)), asset
+    # The centrifuge never starts a harvest past its trip limit, and plans the bearing change past
+    # 4.5 mm/s before its next harvest.
+    cf = year.stations["CF-01"]
+    harvests = sorted(b.harvest for b in batches if b.harvest[0])
+    for (hs, he), nxt in itertools.zip_longest(harvests, harvests[1:], fillvalue=(t1, t1)):
+        vibration = 1.9 + 6.0 * cf.sev("bearing", hs) ** 1.5
+        assert vibration < sim.VIBRATION_TRIP
+        if vibration > sim.VIBRATION_PLAN and nxt[0] < t1:
+            assert any(s.code == "PL-BRG" and he <= s.start < nxt[0] for s in cf.stops), hs
+    # A lot is filled once QC has released its drug substance, straight into the lyophiliser.
+    for lot in year.lots:
+        assert lot.fill[0] >= max(lot.batch.bulk_tested, lot.batch.bulk_end + 7 * DAY), lot.id
+        assert lot.lyo[0] - lot.fill[0] < 2 * 3600, lot.id
+        if lot.tested < t1:
+            assert (lot.status == "rejected") == (round(lot.moisture, 2) > 2.0), lot.id
+    assert any(lot.status == "rejected" for lot in year.lots)  # a leaking lyophiliser's lots
+    # A month's report for every month, and batches still in testing at the year's end say so.
+    assert len(list((out / "documents").glob("MR-*.md"))) == 12
+    rows = {r["batch"]: r for r in csv.DictReader(io.StringIO((out / "batch-records" / "batches.csv").read_text()))}
+    for b in batches:
+        if b.bulk_id and b.bulk_tested >= t1:
+            assert rows[b.id]["status"] == "drug substance in testing", b.id
+
+
+def test_every_capa_answers_its_deviations_cause(built: Built) -> None:
+    out, year, _, _ = built
+    devs = {d.id: d for d in year.deviations}
+    for r in csv.DictReader(io.StringIO((out / "qms" / "capa.csv").read_text())):
+        d = devs[r["deviation"]]
+        if "moisture" in d.title:
+            assert "lyophiliser" in r["action"], d.id
+        elif "aggregates" in d.description:
+            assert "CEX" in r["action"], d.id
+        elif "host cell protein" in d.description:
+            assert "viability" in r["action"], d.id
+        elif "endotoxin" in d.description:
+            assert "endotoxin" in r["action"], d.id
+        elif "seal failed" in d.title:
+            assert "seal" in r["action"], d.id
+
+
 def test_every_lost_batch_has_a_critical_deviation_and_a_capa(built: Built) -> None:
     _, year, _, _ = built
     for b in year.batches:
@@ -99,7 +158,7 @@ def test_every_lost_batch_has_a_critical_deviation_and_a_capa(built: Built) -> N
             devs = [d for d in year.deviations if d.lot == b.id]
             assert devs and devs[0].classification == "critical" and devs[0].capa, b.id
     rows = list(csv.DictReader(io.StringIO((built[0] / "qms" / "capa.csv").read_text())))
-    raised = {d.id for d in year.deviations if d.capa}
+    raised = {d.id for d in year.deviations if d.capa and d.opened < END.timestamp()}
     assert {r["deviation"] for r in rows} == raised
 
 

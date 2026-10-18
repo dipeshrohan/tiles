@@ -243,6 +243,7 @@ def production(year: sim.Year) -> list[list[Any]]:
 PARTS = {
     "DT-SEAL": "agitator mechanical seal kit",
     "DT-CEN": "centrifuge spindle bearing set",
+    "PL-BRG": "centrifuge spindle bearing set",
     "DT-COL": "CEX column repack (labour and resin top-up)",
     "PL-COL": "CEX column repack (labour and resin top-up)",
     "DT-UF": "UF/DF cassette set",
@@ -265,7 +266,11 @@ def work_orders(year: sim.Year) -> list[list[Any]]:
     rows = []
     for i, m in enumerate(jobs):
         sh = shift_at(year, starts, m.start)
-        part = PARTS.get(m.code, "") if m.kind != "PM" or m.code in ("PL-RSN", "PL-COL", "PL-UF", "PL-FLT") else ""
+        part = (
+            PARTS.get(m.code, "")
+            if m.kind != "PM" or m.code in ("PL-RSN", "PL-COL", "PL-UF", "PL-FLT", "PL-BRG")
+            else ""
+        )
         if m.kind == "INSP" and m.code == "DT-SEAL":
             part = PARTS["DT-SEAL"]
         reported, started = m.start, m.start
@@ -330,17 +335,36 @@ def planned_stops(year: sim.Year) -> list[list[Any]]:
     return sorted(rows, key=lambda r: (r[1], r[0]))
 
 
-CAPA_ACTIONS = {
-    "seal": ("Replace agitator seals when their barrier fluid loss passes 3 mL/h, and trend it per batch", "Upstream"),
-    "contamination": ("Review sampling aseptic technique and the seal condition before each inoculation", "Upstream"),
-    "WFI": ("Clean the still's heat exchanger every quarter; alarm the loop at 1.0 µS/cm", "Utilities"),
-    "pressure cascade": ("Change the AHU final filters at 450 Pa, not only every six months", "Utilities"),
-    "inactivation": ("Titrate the acid by pH, not by weight; check each titrant lot's strength", "Downstream"),
-    "integrity": ("Train installers on the virus filter's housing; add a pre-use integrity test", "Downstream"),
-    "out of specification": ("Repack the CEX column when its asymmetry passes 1.6; trend HMW per lot", "Downstream"),
-    "moisture": ("Leak-test the lyophiliser before every cycle and stop above 20 µbar·L/s", "Fill-finish"),
-    "settle plate": ("Retrain on interventions at the needles; review the room pressure alarms", "Fill-finish"),
-}
+# The action each deviation's CAPA takes, by the first words of its title and cause that match.
+CAPA_ACTIONS = (
+    (
+        "moisture",
+        "Leak-test the lyophiliser before every cycle and trend its leak rate from cycle to cycle",
+        "Fill-finish",
+    ),
+    ("bed had compressed", "Repack the CEX column when its asymmetry passes 1.6; trend HMW per lot", "Downstream"),
+    ("viability at harvest", "Harvest by viability as well as by day, and capture within 24 h of harvest", "Upstream"),
+    ("endotoxin", "Test each buffer lot for endotoxin before it is used", "Downstream"),
+    (
+        "contamination",
+        "Review sampling aseptic technique, and check the seal's barrier fluid loss before each inoculation",
+        "Upstream",
+    ),
+    (
+        "seal",
+        "Trend each seal's barrier fluid loss through the batch; replace it at 2 mL/h, not 3, at the turnaround",
+        "Upstream",
+    ),
+    ("WFI", "Clean the still's heat exchanger every quarter; alarm the loop at 1.0 µS/cm", "Utilities"),
+    (
+        "pressure cascade",
+        "Change the AHU final filters within the shift once they pass 450 Pa; alarm at 400 Pa",
+        "Utilities",
+    ),
+    ("inactivation", "Titrate the acid by pH, not by weight; check each titrant lot's strength", "Downstream"),
+    ("integrity", "Train installers on the virus filter's housing; add a pre-use integrity test", "Downstream"),
+    ("settle plate", "Retrain on interventions at the needles; review the room pressure alarms", "Fill-finish"),
+)
 
 
 def capa(year: sim.Year) -> list[list[Any]]:
@@ -348,11 +372,11 @@ def capa(year: sim.Year) -> list[list[Any]]:
     t1 = END.timestamp()
     n = 0
     for d in year.deviations:
-        if not d.capa:
+        if not d.capa or d.opened >= t1:
             continue
         n += 1
-        key = next((k for k in CAPA_ACTIONS if k.lower() in (d.title + " " + d.root_cause).lower()), "seal")
-        action, area = CAPA_ACTIONS[key]
+        words = (d.title + " " + d.root_cause).lower()
+        action, area = next((a, area) for k, a, area in CAPA_ACTIONS if k.lower() in words)
         r = random.Random(f"{SEED}/capa/{d.id}")
         due = d.opened + 60 * 86400
         closed = d.opened + r.uniform(30, 75) * 86400
@@ -365,6 +389,11 @@ def capa(year: sim.Year) -> list[list[Any]]:
             ]
         )  # fmt: skip
     return rows
+
+
+def status(b: sim.Batch) -> str:
+    """The batch's status at the year's end: its drug substance lot is in testing until QC's results."""
+    return "drug substance in testing" if b.bulk_id and b.bulk_tested >= END.timestamp() else b.status
 
 
 def write_committed(out: Path, year: sim.Year, stats: Stats) -> dict[str, int]:
@@ -464,7 +493,7 @@ def write_committed(out: Path, year: sim.Year, stats: Stats) -> dict[str, int]:
             (
                 b.id, b.reactor, b.vial, local(b.seed_start), b.wb, b.sb, round(b.transfer_vcd, 2),
                 round(b.transfer_viability, 1), round(b.seed_hold_h, 1), local(b.inoculated),
-                local(b.ended) if b.ended < t1 else "", b.status, b.lost, round(max(b.vcd), 1),
+                local(b.ended) if b.ended < t1 else "", status(b), b.lost, round(max(b.vcd), 1),
                 round(b.harvest_vcd, 2) if b.harvest[0] else "", round(b.harvest_viability, 1) if b.harvest[0] else "",
                 round(b.harvest_titre, 2) if b.harvest[0] else "", round(b.harvest_volume_l, 0) if b.harvest[0] else "",
                 round(b.harvest_mass_g, 0) if b.harvest[0] else "", round(b.harvest_delay_h, 1) if b.harvest[0] else "",
