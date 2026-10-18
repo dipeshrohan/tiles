@@ -1,7 +1,7 @@
 # Copy to terraform.tfvars (docs/install.md, step 3). Secrets (database_url, smtp_password,
 # anthropic_api_key) go in TF_VAR_… variables from your secret store, never here.
 kube_context = "plant-cluster"
-image_tag    = "0.1.0"
+image_tag    = "1.0.0"
 url          = "https://tiles.plant.example.com"
 api_url      = "https://tiles-api.plant.example.com"
 oidc = {
