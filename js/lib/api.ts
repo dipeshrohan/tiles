@@ -760,6 +760,76 @@ export interface TemplateGrid {
   cooldown: number[];
   flat_spread: number[];
 }
+// The registry's models (T3.01), as GET /sites/{id}/models lists them.
+export interface ModelPort {
+  name: string;
+  unit: string;
+  description: string;
+  per: 'sample' | 'window';
+}
+export interface ModelParam {
+  name: string;
+  unit: string;
+  default: number;
+  min: number | null;
+  max: number | null;
+  description: string;
+}
+export interface ModelInfo {
+  key: string;
+  version: string;
+  name: string;
+  kind: 'virtual-sensor' | 'design';
+  domain: string;
+  source: string;
+  description: string;
+  inputs: ModelPort[];
+  outputs: ModelPort[];
+  params: ModelParam[];
+}
+// Setpoint recommendations (T11.02) and their limits (T11.04).
+export interface RecommendationLimit {
+  model: string;
+  param: string;
+  unit: string;
+  min: number;
+  max: number;
+  set_by: string;
+  set_at: string;
+}
+export type RecommendationStatus = 'proposed' | 'approved' | 'rejected' | 'applied';
+export interface RecommendIn {
+  model: string;
+  objective: string;
+  settable: string[];
+  state?: Record<string, number>;
+  signals?: Record<string, string>; // {param: signal id}: the live state
+  at?: string;
+  steps?: number;
+  asset?: string;
+}
+export interface Recommendation {
+  number: number;
+  model: string;
+  version: string;
+  objective: string;
+  asset: string | null;
+  state: Record<string, number>;
+  sources: Record<string, { signal_id: string; tag: string; at: string; readings: number }>;
+  proposal: Record<string, number>;
+  limits: Record<string, { min: number; max: number }>;
+  expected: { now: Record<string, number | null>; proposed: Record<string, number | null> };
+  status: RecommendationStatus;
+  proposed_by: string;
+  proposed_at: string;
+  decided_by: string | null;
+  decided_at: string | null;
+  decision_note: string;
+  applied_by: string | null;
+  applied_at: string | null;
+  applied_note: string;
+  mine: boolean;
+}
 export interface DetectorTemplateIn {
   name: string;
   machine_kind: string;
@@ -1725,6 +1795,38 @@ export function createApiClient(options: ApiOptions) {
         'GET',
         `/sites/${encodeURIComponent(siteId)}/timeline?${new URLSearchParams({ machine, from, to }).toString()}`,
       ),
+    models: (siteId: string) => request<ModelInfo[]>('GET', `/sites/${encodeURIComponent(siteId)}/models`),
+    recommendationLimits: (siteId: string, model: string) =>
+      request<RecommendationLimit[]>(
+        'GET',
+        `/sites/${encodeURIComponent(siteId)}/recommendation-limits?model=${encodeURIComponent(model)}`,
+      ),
+    setRecommendationLimit: (siteId: string, model: string, param: string, min: number, max: number) =>
+      request<RecommendationLimit>(
+        'PUT',
+        `/sites/${encodeURIComponent(siteId)}/recommendation-limits/${encodeURIComponent(model)}/${encodeURIComponent(param)}`,
+        { min, max },
+      ),
+    removeRecommendationLimit: (siteId: string, model: string, param: string) =>
+      request<void>(
+        'DELETE',
+        `/sites/${encodeURIComponent(siteId)}/recommendation-limits/${encodeURIComponent(model)}/${encodeURIComponent(param)}`,
+      ),
+    recommendations: (siteId: string, asset: string, show: 'open' | 'all' = 'all') =>
+      request<Recommendation[]>(
+        'GET',
+        `/sites/${encodeURIComponent(siteId)}/recommendations?${new URLSearchParams({ show, asset }).toString()}`,
+      ),
+    recommend: (siteId: string, body: RecommendIn) =>
+      request<Recommendation>('POST', `/sites/${encodeURIComponent(siteId)}/recommendations`, body),
+    decideRecommendation: (siteId: string, number: number, decision: 'approve' | 'reject', note = '') =>
+      request<Recommendation>('POST', `/sites/${encodeURIComponent(siteId)}/recommendations/${number}/${decision}`, {
+        note,
+      }),
+    recommendationApplied: (siteId: string, number: number, note = '') =>
+      request<Recommendation>('POST', `/sites/${encodeURIComponent(siteId)}/recommendations/${number}/applied`, {
+        note,
+      }),
     detectorTemplates: (siteId: string) =>
       request<DetectorTemplate[]>('GET', `/sites/${encodeURIComponent(siteId)}/detector-templates`),
     addDetectorTemplate: (siteId: string, body: DetectorTemplateIn) =>

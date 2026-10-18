@@ -154,6 +154,12 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
     threshold: 2200,
     readings: 29,
   });
+  // A machine with its setpoint recommendations card (T11.02): a limit set, one recommendation waiting.
+  fake.commitAs(
+    'maria',
+    [{ kind: 'addNode', node: { id: 'dc-rec', type: 'Machine', label: 'Die-caster R', props: { asset: 'DC-R' } } }],
+    'Die-caster R',
+  );
   // Feedback for the admins' list in Settings (U4.09).
   fake.appFeedback.push({
     id: 1,
@@ -195,6 +201,21 @@ test('pages with the API’s data on them pass the accessibility rules, charts i
       await settled(page);
       await check(route);
     }
+    // A machine's setpoint recommendations: its limits, the form, one waiting for approval (T11.02).
+    await page.evaluate(() => (location.hash = '#/plant/dc-rec'));
+    await page.waitForSelector('[data-recs] [data-rec-limits]');
+    if (!fake.recommendationLimits().length) {
+      // The first colour scheme sets them up; the second sees the same.
+      await page.fill('#rec-limits [name="min:die_temp_set"]', '222');
+      await page.fill('#rec-limits [name="max:die_temp_set"]', '242');
+      await page.click('[data-limit-save="die_temp_set"]');
+      await page.waitForSelector('[data-rec-new]');
+      await page.click('[data-rec-new] summary');
+      await page.click('#rec-form button[type=submit]');
+    } else await page.click('[data-rec-new] summary');
+    await page.waitForSelector('[data-recs] tr[data-rec="1"]');
+    await page.waitForSelector('#toast:not(.show)', { state: 'attached', timeout: 10000 });
+    await check('machine, setpoint recommendations');
     // Home by role (U5.01): an admin's cards, then customising them.
     await page.evaluate(() => (location.hash = '#/'));
     await page.waitForSelector('#view [data-card="agents"] .home-figure, #view [data-card="agents"] .empty');

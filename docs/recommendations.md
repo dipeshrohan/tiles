@@ -13,6 +13,7 @@ recommendation is a record people act on, and nothing in Tiles sends a setpoint 
 - [Making a recommendation](#making-a-recommendation)
 - [Approving and applying](#approving-and-applying)
 - [The guard rails](#the-guard-rails)
+- [On the Plant page](#on-the-plant-page)
 - [The API](#the-api)
 
 ## Limits
@@ -68,6 +69,15 @@ No recommendation outside a limit is ever kept or approved:
   `recommendation.no_limit`), and the recommendation stays proposed for someone to reject.
 
 `api/tests/test_recommendations.py` refuses each of these.
+
+## On the Plant page
+
+A machine's page has a **Setpoint recommendations** card (`js/views/recommendations.ts`, logic in
+`js/lib/recommendations.ts`): the machine's recommendations, open ones first, each with what it
+changes, within which limit, and what the model expected; engineers set the limits, ask for one
+(the state typed or read from the machine's linked signals), approve someone else's, reject or
+withdraw one and mark an approved one as applied. The [user guide](guides/user.md#setpoint-recommendations)
+says how.
 
 ## The API
 

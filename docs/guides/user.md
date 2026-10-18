@@ -592,6 +592,21 @@ For each machine of that kind, Tiles replays the signal's history with every com
 
 The results list each machine: **Made**, with the stops, the share warned of and the false warnings per day; **Already there** when it has the detector; or what is missing (**No signal node**, **No linked tag**, **No readings**). **Download report** saves the detector's backtest as Markdown: every setting tried and how each scored. Applying the template again makes only the detectors still missing. Removing a template keeps the detectors made from it.
 
+### Setpoint recommendations
+
+On a machine's page (API mode), **Setpoint recommendations** suggests settings that lower scrap. A recommendation sweeps a process model, such as the porosity model, over the machine's state, within the limits engineers set. Someone other than the engineer who asked for it approves it, then the line sets it by hand. Tiles never writes to the machine.
+
+1. **Limits** (engineers): give each setting a recommendation may change its **Minimum** and **Maximum**, then **Save limit**. A setting without a limit is never recommended. **Remove limit** takes it away.
+2. **Recommend a setting** (engineers):
+   - choose what to **Lower** (the chance a part is scrap, say);
+   - tick up to two **Settings to change**: those with a limit;
+   - give the machine's state: type a value, or choose a signal to read it from (its median over the last hour; a signal with no reading in that hour is refused). A value left empty is the model's default.
+   - **Recommend**. Tiles tries values across each setting's limits and proposes the one that lowers it most, changing nothing that doesn't help. If nothing inside the limits does better, it says so.
+3. **Approve** (another engineer) or **Reject**; the engineer who asked for it can **Withdraw** it. A limit tightened or removed after the recommendation was made refuses approving one outside it.
+4. Once the line has set it, **Mark as applied**.
+
+Each recommendation shows what it changes (from, to, and the limit it was made within), what the model expected now and with it, and who did each step. Every step is in the audit log.
+
 ---
 
 ## Warning performance
