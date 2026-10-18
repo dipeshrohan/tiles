@@ -8,7 +8,7 @@ import itertools
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from tiles_api.sample_plant.plant import END, START, ZONE
+from tiles_api.sample_plant.die_casting.plant import END, START, ZONE
 
 SHIFTS = (("N", 22), ("E", 6), ("L", 14))  # night (from the evening before), early, late
 CREWS = ("A", "B", "C")

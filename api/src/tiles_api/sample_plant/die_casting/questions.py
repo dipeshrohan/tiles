@@ -18,11 +18,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from tiles_api import correlate
-from tiles_api.sample_plant import simulate as sim
-from tiles_api.sample_plant.plant import CELLS, PILOT, ZONE, Cell
+from tiles_api.sample_plant.die_casting import simulate as sim
+from tiles_api.sample_plant.die_casting.plant import CELLS, PILOT, ZONE, Cell
 
 if TYPE_CHECKING:
-    from tiles_api.sample_plant.generate import Year
+    from tiles_api.sample_plant.die_casting.generate import Year
 
 VARIABLES = (
     "cycle_time",
@@ -608,7 +608,7 @@ def document_questions(year: "Year") -> list[Question]:
         Question(f"doc-{k}", q, ["search_documents"], facts, plan=[("search_documents", {"query": query})])
         for k, q, query, facts in DOCUMENT_QUESTIONS
     ]
-    from tiles_api.sample_plant import documents
+    from tiles_api.sample_plant.die_casting import documents
 
     for k, text in list(documents.lessons(year).items())[:4]:
         first = text.splitlines()[0]
@@ -710,7 +710,7 @@ def all_questions(year: "Year") -> list[Question]:
 
 
 def write(out: Path, year: "Year") -> dict[str, int]:
-    from tiles_api.sample_plant.generate import write_csv
+    from tiles_api.sample_plant.die_casting.generate import write_csv
 
     qs = all_questions(year)
     n = write_csv(

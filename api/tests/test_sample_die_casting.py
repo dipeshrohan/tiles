@@ -1,6 +1,6 @@
-"""The sample plant (data/sample-plant): its files are what the generator makes, its year behaves
-like a die-casting plant's, its physics is the plunger model's, and its copilot questions are
-answered by the tools from the data, once it is loaded into a site."""
+"""The die-casting sample plant (data/sample-plants/die-casting): its files are what the generator
+makes, its year behaves like a die-casting plant's, its physics is the plunger model's, and its
+copilot questions are answered by the tools from the data, once it is loaded into a site."""
 
 import csv
 import io
@@ -21,11 +21,11 @@ from tiles_api import evaluation, grounding, ontology, ontology_io
 from tiles_api.assistant import Turn
 from tiles_api.evaluation import Case
 from tiles_api.models.plunger import PlungerFriction
-from tiles_api.sample_plant import generate, questions, simulate
+from tiles_api.sample_plant.die_casting import generate, questions, simulate
+from tiles_api.sample_plant.die_casting.plant import PILOT, ZONE
 from tiles_api.sample_plant.load import Loader, event_readings, historian_readings
-from tiles_api.sample_plant.plant import PILOT, ZONE
 
-DATA = Path(__file__).resolve().parents[2] / "data" / "sample-plant"
+DATA = Path(__file__).resolve().parents[2] / "data" / "sample-plants" / "die-casting"
 
 
 @pytest.fixture(scope="module")
@@ -45,9 +45,11 @@ def test_the_committed_files_are_what_the_generator_makes(built: tuple[Path, gen
         and p.parts[len(DATA.parts)] not in ("generated",)
         and p.name not in ("manifest.json", "README.md")
     )
-    assert made == kept, "run `uv run tiles-sample-plant generate` and commit data/sample-plant"
+    assert made == kept, (
+        "run `uv run tiles-sample-plant generate die-casting` and commit data/sample-plants/die-casting"
+    )
     stale = [str(p) for p in made if (out / p).read_bytes() != (DATA / p).read_bytes()]
-    assert stale == [], "run `uv run tiles-sample-plant generate` and commit data/sample-plant"
+    assert stale == [], "run `uv run tiles-sample-plant generate die-casting` and commit data/sample-plants/die-casting"
     new, old = json.loads((out / "manifest.json").read_text()), json.loads((DATA / "manifest.json").read_text())
     assert {k: v for k, v in new.items() if k != "generated"} == {k: v for k, v in old.items() if k != "generated"}
 

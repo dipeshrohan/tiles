@@ -5,11 +5,11 @@
 - the signal catalogue;
 - planned codes and stops;
 - documents;
-- the X-ray tables, as batch tables.
+- the batch tables its manifest names (the die-casting plant's X-ray results).
 
-The historian, X-ray and shot-curve files come from `tiles-sample-plant generate --all`; without
-them the readings and X-ray tables are left out, and everything else still loads. The copilot's
-question set is asked with `tiles-evaluate --cases data/sample-plant/copilot/questions.csv --site …
+The readings and batch tables under `generated/` come from `tiles-sample-plant generate <plant> --all`;
+without them they are left out, and everything else still loads. A plant's copilot question set is
+asked with `tiles-evaluate --cases data/sample-plants/<plant>/copilot/questions.csv --site …
 --as …` once the plant is loaded without a time shift.
 
 `--shift-to-now` moves every time on by whole weeks, so that the year ends in the week before
@@ -30,11 +30,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from tiles_api.sample_plant.plant import END, PLANNED_CODES
-
 BATCH = 10_000  # readings a request (POST …/imports/{id}/samples takes at most 10,000)
 ROWS = 5_000  # batch-table rows a request
-TEXT_COLUMNS = ("shot_id", "time", "asset", "product", "defect", "result")
 
 
 # An httpx-shaped client: the API's TestClient, or HttpClient below (get, post, patch and put with
@@ -110,10 +107,21 @@ def _ok(res: Response, what: str) -> Any:
     return res.json() if res.content else None
 
 
-def shift_to_now(now: datetime) -> timedelta:
-    """Whole weeks that move the year's end to the last week before `now`."""
-    weeks = math.floor((now - END) / timedelta(weeks=1))
+def year_end(root: Path) -> datetime:
+    """When the plant's year ends (its manifest's `to`)."""
+    return datetime.fromisoformat(json.loads((root / "manifest.json").read_text())["to"])
+
+
+def shift_to_now(now: datetime, end: datetime) -> timedelta:
+    """Whole weeks that move a year ending at `end` to the last week before `now`."""
+    weeks = math.floor((now - end) / timedelta(weeks=1))
     return timedelta(weeks=max(0, weeks))
+
+
+def planned_codes(root: Path) -> list[str]:
+    """The MES's planned-downtime codes (mes/reason-codes.csv)."""
+    with (root / "mes" / "reason-codes.csv").open(encoding="utf-8") as f:
+        return [r["code"] for r in csv.DictReader(f) if r["kind"] == "downtime" and r["planned"] == "yes"]
 
 
 def _at(text: str, shift: timedelta) -> str:
@@ -145,6 +153,8 @@ def event_readings(root: Path) -> Iterator[Reading]:
         for row in csv.DictReader(f):
             if row["planned"] != "yes":
                 yield f"mes.{_key(row['asset'])}.downtime", row["start"], row["code"]
+    if not (root / "mes" / "scrap.csv").exists():  # a plant that scraps batches, not parts
+        return
     with (root / "mes" / "scrap.csv").open(encoding="utf-8") as f:
         for row in csv.DictReader(f):
             yield f"mes.{_key(row['asset'])}.scrap", row["time"], row["code"]
@@ -157,6 +167,7 @@ class Loader:
     who: dict[str, str]  # the engineer's headers
     shift: timedelta = timedelta(0)
     say: Callable[[str], None] = lambda _m: None
+    has: set[str] | None = None  # the site's batch tables, once asked
 
     def url(self, path: str) -> str:
         return f"/sites/{self.site}{path}"
@@ -248,7 +259,7 @@ class Loader:
 
     def planned(self, root: Path) -> int:
         _ok(
-            self.api.put(self.url("/planned-codes"), json={"codes": list(PLANNED_CODES)}, headers=self.who),
+            self.api.put(self.url("/planned-codes"), json={"codes": planned_codes(root)}, headers=self.who),
             "the planned codes",
         )
         n = 0
@@ -286,7 +297,12 @@ class Loader:
     def dataset(self, name: str, description: str, rows: list[dict[str, Any]]) -> None:
         if not rows:
             return
-        columns = [{"name": k, "kind": "text" if k in TEXT_COLUMNS else "number"} for k in rows[0]]
+        if self.has is None:
+            self.has = {d["name"] for d in _ok(self.api.get(self.url("/datasets"), headers=self.who), "the datasets")}
+        if name in self.has:  # loaded before: a load can be run again after it stopped
+            self.say(f"{name}: there already")
+            return
+        columns = [{"name": k, "kind": "text" if isinstance(v, str) else "number"} for k, v in rows[0].items()]
         d = _ok(
             self.api.post(
                 self.url("/datasets"),
@@ -304,18 +320,17 @@ class Loader:
             )
         self.say(f"{name}: {len(rows):,} rows")
 
-    def xray_tables(self, root: Path) -> int:
+    def tables(self, root: Path) -> int:
+        """The batch tables the manifest names (`tables`: file, name, description, text columns)
+        whose files were generated."""
         n = 0
-        for path in sorted((root / "generated" / "quality").glob("*.csv.gz")):
-            key, month = path.name.removesuffix(".csv.gz").split("-", 1)
-            asset = f"DC-{key[2:]}"
-            with gzip.open(path, "rt", encoding="utf-8") as f:
-                rows = [{k: (v if k in TEXT_COLUMNS else float(v)) for k, v in r.items()} for r in csv.DictReader(f)]
-            self.dataset(
-                f"X-ray results {asset} {month}",
-                f"Every shot of {asset} in {month}: its process values and X-ray result",
-                rows,
-            )
+        for path, t in json.loads((root / "manifest.json").read_text()).get("tables", {}).items():
+            if not (root / path).exists():
+                continue
+            text = set(t["text"])
+            with gzip.open(root / path, "rt", encoding="utf-8") as f:
+                rows = [{k: (v if k in text else float(v)) for k, v in r.items()} for r in csv.DictReader(f)]
+            self.dataset(t["name"], t["description"], rows)
             n += 1
         return n
 
@@ -340,14 +355,24 @@ def load(
     ld.planned(root)
     ld.documents(root)
     if readings:
-        ld.xray_tables(root)
+        ld.tables(root)
 
 
 def main(args: Any) -> None:
     api = HttpClient(args.api)
     who = {"Authorization": f"Bearer {args.token}"} if args.token else {"X-Tiles-User": getattr(args, "as")}
-    shift = shift_to_now(datetime.now(UTC)) if args.shift_to_now else timedelta(0)
+    shift = shift_to_now(datetime.now(UTC), year_end(args.root)) if args.shift_to_now else timedelta(0)
     load(api, args.site, who, args.root, shift=shift, readings=not args.no_readings)
 
 
-__all__ = ["HttpClient", "LoadError", "Loader", "event_readings", "historian_readings", "load", "shift_to_now"]
+__all__ = [
+    "HttpClient",
+    "LoadError",
+    "Loader",
+    "event_readings",
+    "historian_readings",
+    "load",
+    "planned_codes",
+    "shift_to_now",
+    "year_end",
+]

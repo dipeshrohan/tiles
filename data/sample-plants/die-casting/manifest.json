@@ -5,7 +5,7 @@
   "seed": "aldermoor-kesselbach-2026",
   "committed": {
     "baseline.md": 6,
-    "calendar/planned-stops.csv": 485,
+    "calendar/planned-stops.csv": 483,
     "calendar/shifts.csv": 793,
     "cmms/work-orders.csv": 2815,
     "copilot/questions.csv": 136,
@@ -17,7 +17,7 @@
     "mes/production.csv": 4758,
     "mes/reason-codes.csv": 28,
     "mes/scrap.csv": 51480,
-    "mes/stops.csv": 3996,
+    "mes/stops.csv": 3994,
     "plant/costs.csv": 16,
     "plant/equipment.csv": 53,
     "plant/ontology.json": 207,
@@ -639,6 +639,584 @@
     "2026-05-09T05:08:58+02:00",
     "2026-05-24T05:08:58+02:00"
   ],
+  "tables": {
+    "generated/quality/dc01-2025-10.csv.gz": {
+      "name": "X-ray results DC-01 2025-10",
+      "description": "Every shot of DC-01 in 2025-10: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2025-10.csv.gz": {
+      "name": "X-ray results DC-02 2025-10",
+      "description": "Every shot of DC-02 in 2025-10: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2025-10.csv.gz": {
+      "name": "X-ray results DC-03 2025-10",
+      "description": "Every shot of DC-03 in 2025-10: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2025-10.csv.gz": {
+      "name": "X-ray results DC-04 2025-10",
+      "description": "Every shot of DC-04 in 2025-10: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2025-11.csv.gz": {
+      "name": "X-ray results DC-01 2025-11",
+      "description": "Every shot of DC-01 in 2025-11: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2025-11.csv.gz": {
+      "name": "X-ray results DC-02 2025-11",
+      "description": "Every shot of DC-02 in 2025-11: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2025-11.csv.gz": {
+      "name": "X-ray results DC-03 2025-11",
+      "description": "Every shot of DC-03 in 2025-11: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2025-11.csv.gz": {
+      "name": "X-ray results DC-04 2025-11",
+      "description": "Every shot of DC-04 in 2025-11: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2025-12.csv.gz": {
+      "name": "X-ray results DC-01 2025-12",
+      "description": "Every shot of DC-01 in 2025-12: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2025-12.csv.gz": {
+      "name": "X-ray results DC-02 2025-12",
+      "description": "Every shot of DC-02 in 2025-12: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2025-12.csv.gz": {
+      "name": "X-ray results DC-03 2025-12",
+      "description": "Every shot of DC-03 in 2025-12: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2025-12.csv.gz": {
+      "name": "X-ray results DC-04 2025-12",
+      "description": "Every shot of DC-04 in 2025-12: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-01.csv.gz": {
+      "name": "X-ray results DC-01 2026-01",
+      "description": "Every shot of DC-01 in 2026-01: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-01.csv.gz": {
+      "name": "X-ray results DC-02 2026-01",
+      "description": "Every shot of DC-02 in 2026-01: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-01.csv.gz": {
+      "name": "X-ray results DC-03 2026-01",
+      "description": "Every shot of DC-03 in 2026-01: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-01.csv.gz": {
+      "name": "X-ray results DC-04 2026-01",
+      "description": "Every shot of DC-04 in 2026-01: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-02.csv.gz": {
+      "name": "X-ray results DC-01 2026-02",
+      "description": "Every shot of DC-01 in 2026-02: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-02.csv.gz": {
+      "name": "X-ray results DC-02 2026-02",
+      "description": "Every shot of DC-02 in 2026-02: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-02.csv.gz": {
+      "name": "X-ray results DC-03 2026-02",
+      "description": "Every shot of DC-03 in 2026-02: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-02.csv.gz": {
+      "name": "X-ray results DC-04 2026-02",
+      "description": "Every shot of DC-04 in 2026-02: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-03.csv.gz": {
+      "name": "X-ray results DC-01 2026-03",
+      "description": "Every shot of DC-01 in 2026-03: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-03.csv.gz": {
+      "name": "X-ray results DC-02 2026-03",
+      "description": "Every shot of DC-02 in 2026-03: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-03.csv.gz": {
+      "name": "X-ray results DC-03 2026-03",
+      "description": "Every shot of DC-03 in 2026-03: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-03.csv.gz": {
+      "name": "X-ray results DC-04 2026-03",
+      "description": "Every shot of DC-04 in 2026-03: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-04.csv.gz": {
+      "name": "X-ray results DC-01 2026-04",
+      "description": "Every shot of DC-01 in 2026-04: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-04.csv.gz": {
+      "name": "X-ray results DC-02 2026-04",
+      "description": "Every shot of DC-02 in 2026-04: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-04.csv.gz": {
+      "name": "X-ray results DC-03 2026-04",
+      "description": "Every shot of DC-03 in 2026-04: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-04.csv.gz": {
+      "name": "X-ray results DC-04 2026-04",
+      "description": "Every shot of DC-04 in 2026-04: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-05.csv.gz": {
+      "name": "X-ray results DC-01 2026-05",
+      "description": "Every shot of DC-01 in 2026-05: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-05.csv.gz": {
+      "name": "X-ray results DC-02 2026-05",
+      "description": "Every shot of DC-02 in 2026-05: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-05.csv.gz": {
+      "name": "X-ray results DC-03 2026-05",
+      "description": "Every shot of DC-03 in 2026-05: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-05.csv.gz": {
+      "name": "X-ray results DC-04 2026-05",
+      "description": "Every shot of DC-04 in 2026-05: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-06.csv.gz": {
+      "name": "X-ray results DC-01 2026-06",
+      "description": "Every shot of DC-01 in 2026-06: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-06.csv.gz": {
+      "name": "X-ray results DC-02 2026-06",
+      "description": "Every shot of DC-02 in 2026-06: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-06.csv.gz": {
+      "name": "X-ray results DC-03 2026-06",
+      "description": "Every shot of DC-03 in 2026-06: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-06.csv.gz": {
+      "name": "X-ray results DC-04 2026-06",
+      "description": "Every shot of DC-04 in 2026-06: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-07.csv.gz": {
+      "name": "X-ray results DC-01 2026-07",
+      "description": "Every shot of DC-01 in 2026-07: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-07.csv.gz": {
+      "name": "X-ray results DC-02 2026-07",
+      "description": "Every shot of DC-02 in 2026-07: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-07.csv.gz": {
+      "name": "X-ray results DC-03 2026-07",
+      "description": "Every shot of DC-03 in 2026-07: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-07.csv.gz": {
+      "name": "X-ray results DC-04 2026-07",
+      "description": "Every shot of DC-04 in 2026-07: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-08.csv.gz": {
+      "name": "X-ray results DC-01 2026-08",
+      "description": "Every shot of DC-01 in 2026-08: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-08.csv.gz": {
+      "name": "X-ray results DC-02 2026-08",
+      "description": "Every shot of DC-02 in 2026-08: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-08.csv.gz": {
+      "name": "X-ray results DC-03 2026-08",
+      "description": "Every shot of DC-03 in 2026-08: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-08.csv.gz": {
+      "name": "X-ray results DC-04 2026-08",
+      "description": "Every shot of DC-04 in 2026-08: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-09.csv.gz": {
+      "name": "X-ray results DC-01 2026-09",
+      "description": "Every shot of DC-01 in 2026-09: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-09.csv.gz": {
+      "name": "X-ray results DC-02 2026-09",
+      "description": "Every shot of DC-02 in 2026-09: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-09.csv.gz": {
+      "name": "X-ray results DC-03 2026-09",
+      "description": "Every shot of DC-03 in 2026-09: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-09.csv.gz": {
+      "name": "X-ray results DC-04 2026-09",
+      "description": "Every shot of DC-04 in 2026-09: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    }
+  },
   "shots": {
     "DC-01": 187338,
     "DC-02": 189190,

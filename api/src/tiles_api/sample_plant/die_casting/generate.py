@@ -1,7 +1,7 @@
 """Writes the sample plant's files: what a partner hands over at the assessment (T2.16), made from
 a year's simulation (simulate.py).
 
-The files under the output directory (data/sample-plant/ in the repository) are small and kept in
+The files under the output directory (data/sample-plants/die-casting/ in the repository) are small and kept in
 Git: the plant model, the tag list, the MES's stops, scrap and production, the shift calendar, the
 CMMS's work orders, the lab's hydrogen tests, costs, documents, the copilot's question set and the
 ground truth. The historian export, the per-shot quality table and the shot curves are large; they
@@ -25,9 +25,9 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from tiles_api.sample_plant import calendar as cal
-from tiles_api.sample_plant import simulate as sim
-from tiles_api.sample_plant.plant import (
+from tiles_api.sample_plant.die_casting import calendar as cal
+from tiles_api.sample_plant.die_casting import simulate as sim
+from tiles_api.sample_plant.die_casting.plant import (
     CELLS,
     CODES,
     COSTS,
@@ -592,7 +592,7 @@ def planned_stops(year: Year) -> list[list[Any]]:
 
 def write_committed(out: Path, year: Year) -> dict[str, int]:
     n: dict[str, int] = {}
-    from tiles_api.sample_plant import documents
+    from tiles_api.sample_plant.die_casting import documents
 
     nodes, edges = ontology()
     known = {nd["id"] for nd in nodes}
@@ -937,10 +937,10 @@ def baseline(year: Year) -> str:
         sections.append(f"## {title}\n\n" + "\n".join(table))
     return (
         "# Baseline metrics\n\n"
-        "Made by `tiles-sample-plant generate` from the simulated year: each cell's unplanned stops (a stop\n"
-        "continued into the next shift counts once; its hours count in full), scrapped parts and their costs\n"
-        "at controlling's figures (plant/costs.csv). The MES export (mes/stops.csv) holds the same stops\n"
-        "with its known errors (README: Known gaps).\n\n" + "\n\n".join(sections) + "\n"
+        "Made by `tiles-sample-plant generate die-casting` from the simulated year: each cell's unplanned\n"
+        "stops (a stop continued into the next shift counts once; its hours count in full), scrapped parts\n"
+        "and their costs at controlling's figures (plant/costs.csv). The MES export (mes/stops.csv) holds\n"
+        "the same stops with its known errors (README: Known gaps).\n\n" + "\n\n".join(sections) + "\n"
     )
 
 
@@ -951,7 +951,7 @@ def generate(out: Path, big: bool = False) -> dict[str, Any]:
 
 def build(out: Path, big: bool = False) -> tuple[Year, dict[str, Any]]:
     """`generate`, also giving the year it simulated (the tests read it)."""
-    from tiles_api.sample_plant import documents, questions
+    from tiles_api.sample_plant.die_casting import documents, questions
 
     year = simulate(out, big)
     counts = write_committed(out, year)
@@ -967,11 +967,28 @@ def build(out: Path, big: bool = False) -> tuple[Year, dict[str, Any]]:
         "committed": dict(sorted(counts.items())),
         "generated": dict(sorted(year.files.items())) if big else previous.get("generated", {}),
         "trace_window": [local(year.trace_window[0]), local(year.trace_window[1])],
+        "tables": tables(),
         "shots": {a: r.shots for a, r in year.cells.items()},
         "parts": {a: r.parts for a, r in year.cells.items()},
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     return year, manifest
+
+
+def tables() -> dict[str, dict[str, Any]]:
+    """The batch tables `--all` writes, for the loader: one a Line 2 cell and month."""
+    out = {}
+    month = START
+    while month < END:
+        m = month.strftime("%Y-%m")
+        for c in PILOT:
+            out[f"generated/quality/{c.key}-{m}.csv.gz"] = {
+                "name": f"X-ray results {c.asset} {m}",
+                "description": f"Every shot of {c.asset} in {m}: its process values and X-ray result",
+                "text": ["shot_id", "time", "asset", "product", "defect", "result"],
+            }
+        month = month.replace(year=month.year + month.month // 12, month=month.month % 12 + 1)
+    return out
 
 
 def day_range(day: str) -> tuple[datetime, datetime]:

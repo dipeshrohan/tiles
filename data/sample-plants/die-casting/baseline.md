@@ -1,9 +1,9 @@
 # Baseline metrics
 
-Made by `tiles-sample-plant generate` from the simulated year: each cell's unplanned stops (a stop
-continued into the next shift counts once; its hours count in full), scrapped parts and their costs
-at controlling's figures (plant/costs.csv). The MES export (mes/stops.csv) holds the same stops
-with its known errors (README: Known gaps).
+Made by `tiles-sample-plant generate die-casting` from the simulated year: each cell's unplanned
+stops (a stop continued into the next shift counts once; its hours count in full), scrapped parts
+and their costs at controlling's figures (plant/costs.csv). The MES export (mes/stops.csv) holds
+the same stops with its known errors (README: Known gaps).
 
 ## The year
 

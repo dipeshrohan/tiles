@@ -1,11 +1,11 @@
-# The sample plant: a year of a die-casting plant
+# Die casting: a year of Aldermoor Castings' Kesselbach plant
 
 A complete, made-up plant to build and test Tiles on before a partner's data arrives: what a
-design partner hands over at the assessment ([T2.16](../../docs/pilot/assessment.md)), for a year.
+design partner hands over at the assessment ([T2.16](../../../docs/pilot/assessment.md)), for a year.
 Aldermoor Castings and its Kesselbach plant don't exist; the equipment is named by the makers of
 such machines, as a plant's asset register would name it.
 
-The year is simulated shot by shot (`api/src/tiles_api/sample_plant/`), so every reading follows
+The year is simulated shot by shot (`api/src/tiles_api/sample_plant/die_casting/`), so every reading follows
 from the state of the machines: plunger tips wear and score, accumulators lose their precharge,
 dies scale up and run hot, vacuum filters clog, spray nozzles block, heater elements age. Each
 breakdown shows in its signals beforehand, the way it would at a real plant, and the ground truth
@@ -45,13 +45,13 @@ December, German public holidays, and the Christmas and summer shutdowns.
 
 ## The files
 
-Everything here is made by `uv run tiles-sample-plant generate` (from `api/`), except this README;
-`api/tests/test_sample_plant.py` fails when a file is not what the generator makes. The large files
+Everything here is made by `uv run tiles-sample-plant generate die-casting` (from `api/`), except this README;
+`api/tests/test_sample_die_casting.py` fails when a file is not what the generator makes. The large files
 are made with `--all` (below).
 
 | File | What | In Tiles |
 | --- | --- | --- |
-| [plant/ontology.json](plant/ontology.json) | The plant model: enterprise, site, areas, lines, cells, machines, PLCs, signals, processes, materials, documents and the plunger virtual sensor, mapped to ISA-95 ([data model](../../docs/data-model.md)) | Ontology import |
+| [plant/ontology.json](plant/ontology.json) | The plant model: enterprise, site, areas, lines, cells, machines, PLCs, signals, processes, materials, documents and the plunger virtual sensor, mapped to ISA-95 ([data model](../../../docs/data-model.md)) | Ontology import |
 | [plant/tags.csv](plant/tags.csv) | Every tag: unit, rate, description, machine, what it measures, expected range, stuck limit, wear limit | The signal catalogue |
 | [plant/equipment.csv](plant/equipment.csv) | The asset register | |
 | [plant/products.csv](plant/products.csv), [plant/costs.csv](plant/costs.csv) | Products, and controlling's costs of a stop hour and a scrapped part | The ROI report's figures |
@@ -70,7 +70,7 @@ are made with `--all` (below).
 
 ## Data-landscape map
 
-As the assessment's [map](../../docs/pilot/assessment.md#data-landscape-map) has it.
+As the assessment's [map](../../../docs/pilot/assessment.md#data-landscape-map) has it.
 
 | Source | System and version | Machines | Signals (count, examples) | Rate | History | Access path | Owner | Tiles connector |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -138,7 +138,7 @@ cell's own pressure reflects.
 
 ```sh
 cd api
-uv run tiles-sample-plant generate --all
+uv run tiles-sample-plant generate die-casting --all
 ```
 
 This writes `generated/` (about 100 MB, not in Git) in about five minutes:
@@ -157,7 +157,7 @@ be checked against the one recorded.
 With the API running (`uv run tiles-api`) and a site whose engineer you are:
 
 ```sh
-uv run tiles-sample-plant load --site <site id> --as <engineer's email>
+uv run tiles-sample-plant load die-casting --site <site id> --as <engineer's email>
 ```
 
 This loads:
@@ -171,12 +171,13 @@ This loads:
 6. **Documents:** every document, for search.
 7. **The X-ray tables:** one batch table per cell and month (`X-ray results DC-01 2026-05`).
 
+Everything takes about 20 minutes against a local API (the readings 15, the X-ray tables 2).
 `--no-readings` leaves out the historian and X-ray files (everything else loads in about a minute);
 `--token` signs in with an access token instead of the API's development sign-in. `--shift-to-now`
 moves every time on by whole weeks, so the year ends last week and the pages' "last 30 days" find it;
 weekdays and shifts stay as they were, but the question set's dates no longer hold.
 
-From there, the [user guide](../../docs/guides/user.md) applies:
+From there, the [user guide](../../../docs/guides/user.md) applies:
 - **Plant:** Line 2's Coverage card lists what each machine has.
 - **Detector templates:** a template for `friction` on `die-caster` machines backtests DC-01 to DC-04's
   slow-phase pressure against their DT-PLG stops.
@@ -187,7 +188,7 @@ From there, the [user guide](../../docs/guides/user.md) applies:
 ## Asking the copilot's questions
 
 [copilot/questions.csv](copilot/questions.csv) is a partner set in the form of
-[the guide](../../docs/pilot/copilot-questions.md):
+[the guide](../../../docs/pilot/copilot-questions.md):
 - **The plant model:** its equipment and the gaps in it.
 - **Signals:** what each one is and its unit.
 - **Readings:** May 2026's highs, lows and means on the days that matter.
@@ -205,7 +206,7 @@ The test loads that data into a site and has an oracle answer every question fro
 give, through the grounding check. To ask Claude, load the plant without `--shift-to-now`, then:
 
 ```sh
-uv run tiles-evaluate --cases ../data/sample-plant/copilot/questions.csv --site <site id> --as <engineer's email>
+uv run tiles-evaluate --cases ../data/sample-plants/die-casting/copilot/questions.csv --site <site id> --as <engineer's email>
 ```
 
 ## What it is for

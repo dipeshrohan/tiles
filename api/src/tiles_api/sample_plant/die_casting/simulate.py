@@ -28,8 +28,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
-from tiles_api.sample_plant import calendar as cal
-from tiles_api.sample_plant.plant import (
+from tiles_api.sample_plant.die_casting import calendar as cal
+from tiles_api.sample_plant.die_casting.plant import (
     CELLS,
     END,
     PRODUCT,
@@ -588,7 +588,8 @@ class CellSim:
     def _stop(self, start: float, end: float, code: str, planned: bool, text: str, episode: str | None = None) -> None:
         if end - start < MIN_STOP_S and not planned:
             return
-        self.res.stops.append(Stop(self.c.asset, start, end, code, planned, text, episode))
+        if end - start >= 60:  # a planned stop the shift's end cut to nothing isn't logged (its work still counts)
+            self.res.stops.append(Stop(self.c.asset, start, end, code, planned, text, episode))
         self._advance(end, "stop")
 
     def _breakdown(self, t: float, dur: float, code: str, text: str, ep: Episode | None, component: str) -> float:

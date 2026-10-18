@@ -28,7 +28,7 @@ sources become edge-agent connectors or imports. The events become the baseline 
 | 3–4 | Review with the plant manager and line owners; sign-off | PM, the plant's sponsor |
 
 To rehearse it, or to try Tiles on a whole year before a partner's data arrives, the
-[sample plant](../../data/sample-plant/README.md) has every item of the checklist below for a
+[sample plant](../../data/sample-plants/README.md) has every item of the checklist below for a
 made-up die-casting plant, with what really happened.
 
 Rules of thumb:

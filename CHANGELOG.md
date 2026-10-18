@@ -21,7 +21,7 @@ The first version: everything up to the pilot. Not yet tagged.
   - a signal catalogue with data-quality checks;
   - a data explorer;
   - suggested tag mappings;
-  - **a sample plant** (`data/sample-plant/`, `tiles-sample-plant`): a year of a made-up die-casting plant, complete as a partner hands it over (its plant model, tags, historian readings, MES stops, scrap and production, shift calendar, CMMS work orders, lab tests, X-ray results, costs, SOPs and reports), simulated shot by shot so each breakdown shows in its signals first, with the ground truth and 100+ copilot questions answerable from it, and loaded into a site through the API.
+  - **a sample plant** (`data/sample-plants/`, `tiles-sample-plant`): a year of a made-up die-casting plant, complete as a partner hands it over (its plant model, tags, historian readings, MES stops, scrap and production, shift calendar, CMMS work orders, lab tests, X-ray results, costs, SOPs and reports), simulated shot by shot so each breakdown shows in its signals first, with the ground truth and 100+ copilot questions answerable from it, and loaded into a site through the API.
 - **Models and warnings:**
   - a model registry and a model runner that writes derived signals;
   - an organisation's own models, computed by its service and registered with their spec and an https endpoint on a host the deployment allows; they are tried, bound, run and swept like the built-in ones, every call checked against the spec, the endpoint's token sealed; or from a GitHub repository at a commit, the code kept and run only in a sandbox: a new process per evaluation, the standard library only, within limits, in a pod that reaches nothing (T4.15);

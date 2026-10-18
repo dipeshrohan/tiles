@@ -10,11 +10,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from tiles_api.sample_plant import simulate as sim
-from tiles_api.sample_plant.plant import CELLS, CODES, COSTS, PILOT, PRODUCTS, ZONE
+from tiles_api.sample_plant.die_casting import simulate as sim
+from tiles_api.sample_plant.die_casting.plant import CELLS, CODES, COSTS, PILOT, PRODUCTS, ZONE
 
 if TYPE_CHECKING:
-    from tiles_api.sample_plant.generate import Year
+    from tiles_api.sample_plant.die_casting.generate import Year
 
 
 def die_ranges() -> str:

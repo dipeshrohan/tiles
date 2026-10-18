@@ -13,4 +13,4 @@ e2e/visual/output/
 js/i18n/en.json.lock
 
 # The sample plant's large files (tiles-sample-plant generate --all)
-data/sample-plant/generated/
+data/sample-plants/*/generated/
