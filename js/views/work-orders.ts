@@ -23,6 +23,7 @@ import {
   tabs,
 } from '../lib/ui.ts';
 import {
+  ACTION_NAMED,
   actionsFor,
   priorityLabel,
   sourceText,
@@ -39,6 +40,7 @@ interface Ui {
 const uiState = (ctx: Context) => ctx.ui<Ui>('work-orders', { show: 'open' });
 
 interface Draft {
+  site: string | null; // the site it is drafted on (set when the page first shows it)
   from: 'warning' | 'component' | 'manual';
   id: string; // the warning's or the component's signal's
   title: string;
@@ -56,10 +58,21 @@ const siteId = (ctx: Context): string | null => ctx.ontology.site?.id ?? null;
 const listKey = (ctx: Context): string => `${siteId(ctx) ?? ''}|${uiState(ctx).show}`;
 const canEdit = (ctx: Context): boolean => ctx.ontology.role === 'engineer' || ctx.ontology.role === 'admin';
 
-// Others approve and close them meanwhile: each visit asks afresh.
+// Others approve and close them meanwhile: each visit asks afresh. A draft left unsent goes.
 onNavigate((hash) => {
-  if (routeOf(hash) !== 'work-orders') listing = null;
+  if (routeOf(hash) !== 'work-orders') {
+    listing = null;
+    draft = null;
+  }
 });
+
+// The draft, if it is this site's: one from a link belongs to the site shown when it opened.
+function draftHere(ctx: Context): Draft | null {
+  if (!draft) return null;
+  const site = siteId(ctx);
+  if (draft.site === null && site) draft.site = site;
+  return draft.site === site ? draft : null;
+}
 
 async function load(ctx: Context): Promise<void> {
   const site = siteId(ctx);
@@ -87,8 +100,8 @@ const PRIORITIES = (): [WorkOrder['priority'], string][] =>
   (['high', 'medium', 'low'] as const).map((p) => [p, priorityLabel(p)]);
 
 function draftCard(ctx: Context): string {
-  if (!draft) return '';
-  const d = draft;
+  const d = draftHere(ctx);
+  if (!d) return '';
   if (!canEdit(ctx))
     return card(`<p class="small soft">${esc(t('workOrders.draft.readOnly'))}</p>`, { attrs: { 'data-draft': '' } });
   const from =
@@ -124,7 +137,7 @@ const ACTION_LABEL: Record<Action, () => string> = {
   cancel: () => t('workOrders.action.cancel'),
 };
 
-function statusCell(o: WorkOrder): string {
+function statusCell(o: WorkOrder, canEditNow: boolean): string {
   const who =
     o.status === 'draft'
       ? t('workOrders.by.drafted', { name: o.drafted_by, when: dateTime(o.drafted_at) })
@@ -137,7 +150,11 @@ function statusCell(o: WorkOrder): string {
             : '';
   const tone = o.status === 'draft' ? 'warn' : o.status === 'cancelled' ? '' : 'good';
   const note = o.outcome_note ? ` <span class="small soft">${esc(o.outcome_note)}</span>` : '';
-  return `${badge(statusLabel(o.status), tone)}${who ? `<div class="small soft">${esc(who)}</div>` : ''}${note}`;
+  const again =
+    o.export_ref && o.status !== 'cancelled' && canEditNow
+      ? `<div class="no-print">${button(t('workOrders.again'), { size: 'sm', variant: 'ghost', attrs: { 'data-work-orders-again': o.export_ref, 'aria-label': t('workOrders.againNamed', { file: o.export_ref }) } })}</div>`
+      : '';
+  return `${badge(statusLabel(o.status), tone)}${who ? `<div class="small soft">${esc(who)}</div>` : ''}${note}${again}`;
 }
 
 function listCard(ctx: Context): string {
@@ -179,7 +196,11 @@ function listCard(ctx: Context): string {
           button(ACTION_LABEL[a](), {
             size: 'sm',
             variant: a === 'approve' ? 'primary' : a === 'cancel' ? 'ghost' : undefined,
-            attrs: { 'data-work-order-act': a, 'data-number': String(o.number) },
+            attrs: {
+              'data-work-order-act': a,
+              'data-number': String(o.number),
+              'aria-label': t(ACTION_NAMED[a], { number: o.number }),
+            },
           }),
         )
         .join('');
@@ -192,7 +213,7 @@ function listCard(ctx: Context): string {
         <td><b>${esc(o.title)}</b><div class="small soft">${esc([o.asset, sourceText(o)].filter(Boolean).join(' · '))}</div>${o.description ? `<div class="small">${esc(o.description)}</div>` : ''}</td>
         <td>${esc(priorityLabel(o.priority))}</td>
         <td class="nowrap">${o.due_at ? esc(dateTime(o.due_at)) : '–'}</td>
-        <td>${statusCell(o)}</td>
+        <td>${statusCell(o, canEdit(ctx))}</td>
         <td class="no-print"><div class="row gap-1 wrap">${actions}</div>${own}</td>
       </tr>`;
     })
@@ -240,6 +261,7 @@ const view: View = {
       const id = params.get('id') ?? '';
       if ((from === 'warning' || from === 'component') && id)
         draft = {
+          site: null,
           from,
           id,
           title: (params.get('title') ?? '').slice(0, 200),
@@ -250,7 +272,8 @@ const view: View = {
         };
     },
     write(ctx) {
-      const d = draft && draft.from !== 'manual' ? draft : null;
+      const here = draftHere(ctx);
+      const d = here && here.from !== 'manual' ? here : null;
       return {
         show: uiState(ctx).show === 'open' ? null : uiState(ctx).show,
         from: d?.from,
@@ -276,7 +299,16 @@ const view: View = {
       ctx.rerender();
     });
     onAll(root, '[data-draft-manual]', 'click', () => {
-      draft = { from: 'manual', id: '', title: '', description: '', priority: 'medium', due: '', asset: '' };
+      draft = {
+        site: siteId(ctx),
+        from: 'manual',
+        id: '',
+        title: '',
+        description: '',
+        priority: 'medium',
+        due: '',
+        asset: '',
+      };
       ctx.rerender();
     });
     onAll(root, '[data-draft-discard]', 'click', () => {
@@ -285,8 +317,9 @@ const view: View = {
     });
     onSubmit(root, '#work-order-form', (form) => {
       const site = siteId(ctx);
-      if (!site || !ctx.api || !draft) return;
-      const d = (draft = readDraft(form, draft));
+      const here = draftHere(ctx);
+      if (!site || !ctx.api || !here) return;
+      const d = (draft = readDraft(form, here));
       const body: WorkOrderIn = {
         source: d.from === 'warning' ? 'warning' : d.from === 'component' ? 'remaining_life' : 'manual',
         warning_id: d.from === 'warning' ? d.id : null,
@@ -318,6 +351,7 @@ const view: View = {
           title: t('workOrders.cancel.title', { number: n }),
           body: t('workOrders.cancel.body'),
           confirm: t('workOrders.action.cancel'),
+          cancel: t('workOrders.cancel.keep'),
           tone: 'danger',
         });
         if (!sure) return;
@@ -333,6 +367,15 @@ const view: View = {
           ctx.toast(t('workOrders.changed', { number: o.number, status: statusLabel(o.status) }));
           reload(ctx);
         },
+        () => undefined, // the client showed why
+      );
+    });
+    onAction(root, '[data-work-orders-again]', (el) => {
+      const site = siteId(ctx);
+      const file = el.dataset.workOrdersAgain;
+      if (!site || !ctx.api || !file) return;
+      return ctx.api.workOrders.export(site, file).then(
+        (out) => download(out.name, out.csv, 'text/csv'),
         () => undefined, // the client showed why
       );
     });

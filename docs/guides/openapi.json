@@ -11816,6 +11816,25 @@
         "title": "WorkOrderExport",
         "type": "object"
       },
+      "WorkOrderExportIn": {
+        "properties": {
+          "again": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Again"
+          }
+        },
+        "title": "WorkOrderExportIn",
+        "type": "object"
+      },
       "WorkOrderIn": {
         "properties": {
           "asset": {
@@ -23115,7 +23134,7 @@
     },
     "/sites/{site_id}/work-orders/export": {
       "post": {
-        "description": "Every approved work order as one CSV file for the CMMS, each then marked exported with the\nfile's name (engineers and admins). Audited.",
+        "description": "Every approved work order as one CSV file for the CMMS, each then marked exported with the\nfile's name (engineers and admins); or, with `again`, an earlier export's file once more (its\nwork orders as they were sent, whatever they are now, but cancelled ones). Audited.",
         "operationId": "export_sites__site_id__work_orders_export_post",
         "parameters": [
           {
@@ -23129,6 +23148,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/WorkOrderExportIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -23212,7 +23248,7 @@
     },
     "/sites/{site_id}/work-orders/{number}/approve": {
       "post": {
-        "description": "Approves a draft for export (engineers and admins; not its drafter, unless an admin). Audited.",
+        "description": "Approves a draft for export (engineers and admins; not its drafter). Audited.",
         "operationId": "approve_sites__site_id__work_orders__number__approve_post",
         "parameters": [
           {

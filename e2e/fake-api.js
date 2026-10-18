@@ -1689,6 +1689,13 @@ export function createFakeApi({
           return send(201, shownOrder(o));
         }
         if (rest === '/export' && req.method === 'POST') {
+          const { again } = await body(req);
+          if (again) {
+            const made = workOrderExports.find((x) => x.name === again);
+            return made
+              ? send(200, made)
+              : send(404, { detail: `No export ${again}`, code: 'work_order.no_export', params: { file: again } });
+          }
           const approved = workOrders.filter((o) => o.status === 'approved');
           if (!approved.length)
             return send(409, {
@@ -1710,7 +1717,7 @@ export function createFakeApi({
         if (!o) return send(404, { detail: 'No such work order', code: 'work_order.not_found', params: {} });
         const b = await body(req);
         if (step[2] === 'approve') {
-          if (o.drafted_by_id === user && role !== 'admin')
+          if (o.drafted_by_id === user)
             return send(403, {
               detail: 'Someone other than its drafter approves it',
               code: 'work_order.own_draft',

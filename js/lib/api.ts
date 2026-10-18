@@ -1705,10 +1705,12 @@ export function createApiClient(options: ApiOptions) {
         request<WorkOrder>('POST', `/sites/${encodeURIComponent(siteId)}/work-orders/${n}/cancel`, { note }),
       outcome: (siteId: string, n: number, outcome: 'done' | 'not_needed', note = '') =>
         request<WorkOrder>('POST', `/sites/${encodeURIComponent(siteId)}/work-orders/${n}/outcome`, { outcome, note }),
-      export: (siteId: string) =>
+      // Every approved one, or `again` an earlier export's file once more.
+      export: (siteId: string, again?: string) =>
         request<{ name: string; numbers: number[]; csv: string }>(
           'POST',
           `/sites/${encodeURIComponent(siteId)}/work-orders/export`,
+          again ? { again } : {},
         ),
     },
     timeline: (siteId: string, machine: string, from: string, to: string) =>

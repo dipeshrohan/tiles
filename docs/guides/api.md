@@ -2151,11 +2151,13 @@ Drafts a work order from a warning, a component's remaining life or by hand (eng
 
 **Who:** engineer. **Answers:** 200, 422.
 
-Every approved work order as one CSV file for the CMMS, each then marked exported with the file's name (engineers and admins). Audited.
+Every approved work order as one CSV file for the CMMS, each then marked exported with the file's name (engineers and admins); or, with `again`, an earlier export's file once more (its work orders as they were sent, whatever they are now, but cancelled ones). Audited.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|
 | `site_id` | path | uuid | yes |
+
+**Body:** WorkOrderExportIn (see [openapi.json](openapi.json)).
 
 ### `GET /sites/{site_id}/work-orders/{number}`
 
@@ -2172,7 +2174,7 @@ One work order.
 
 **Who:** engineer. **Answers:** 200, 422.
 
-Approves a draft for export (engineers and admins; not its drafter, unless an admin). Audited.
+Approves a draft for export (engineers and admins; not its drafter). Audited.
 
 | Parameter | In | Type | Required |
 |---|---|---|---|

@@ -1,7 +1,7 @@
 """Work orders out (T9.02): a warning or a component's remaining life drafts a work order for the
-plant's CMMS, numbered per site (`work_order_numbers`). A person approves it (not the one who drafted
-it, unless an admin), it is exported (CSV first; a CMMS API later), and its outcome is recorded.
-Tiles only sends work orders out; it never reads or changes the CMMS.
+plant's CMMS, numbered per site (`work_order_numbers`). Someone who didn't draft it approves it
+(admins included, as change requests are reviewed), it is exported (CSV first; a CMMS API later),
+and its outcome is recorded. Tiles only sends work orders out; it never reads or changes the CMMS.
 
 Revision ID: 0042
 Revises: 0041
@@ -43,6 +43,7 @@ CREATE TABLE work_orders (
     drafted_by_id uuid REFERENCES users (id) ON DELETE SET NULL,
     drafted_by    text NOT NULL,
     drafted_at    timestamptz NOT NULL DEFAULT now(),
+    approved_by_id uuid REFERENCES users (id) ON DELETE SET NULL,
     approved_by   text,
     approved_at   timestamptz,
     exported_at   timestamptz,

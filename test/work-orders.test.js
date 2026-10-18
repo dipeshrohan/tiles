@@ -6,7 +6,7 @@ describe('work orders (T9.02)', () => {
   it('lets engineers and admins act, and someone else approve a draft', () => {
     expect(actionsFor({ status: 'draft', mine: false }, 'engineer')).toEqual(['approve', 'cancel']);
     expect(actionsFor({ status: 'draft', mine: true }, 'engineer')).toEqual(['cancel']);
-    expect(actionsFor({ status: 'draft', mine: true }, 'admin')).toEqual(['approve', 'cancel']);
+    expect(actionsFor({ status: 'draft', mine: true }, 'admin')).toEqual(['cancel']); // admins too
     expect(actionsFor({ status: 'approved', mine: true }, 'engineer')).toEqual(['done', 'not_needed', 'cancel']);
     expect(actionsFor({ status: 'exported', mine: false }, 'admin')).toEqual(['done', 'not_needed', 'cancel']);
     expect(actionsFor({ status: 'done', mine: false }, 'admin')).toEqual([]);

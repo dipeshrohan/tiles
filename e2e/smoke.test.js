@@ -3747,7 +3747,7 @@ test('a warning drafts a work order that someone else approves, exports as CSV a
   assert.equal(await a.page.locator('#work-order-form').count(), 0);
   const row = await a.page.locator('[data-work-orders] tbody tr').innerText();
   assert.match(row, /Check dc1\.friction[\s\S]*From a warning on dc1\.friction[\s\S]*High[\s\S]*Draft/);
-  assert.match(row, /Someone else approves your draft\./);
+  assert.match(row, /You drafted it: someone else approves it\./);
   assert.equal(await a.page.locator('[data-work-order-act=approve]').count(), 0); // not its drafter
   assert.deepEqual(
     [fake.workOrders[0].source, fake.workOrders[0].warning_id, fake.workOrders[0].priority],
@@ -3760,6 +3760,10 @@ test('a warning drafts a work order that someone else approves, exports as CSV a
   const [file] = await Promise.all([b.page.waitForEvent('download'), b.page.click('[data-work-orders-export]')]);
   assert.equal(file.suggestedFilename(), 'tiles-work-orders-1.csv');
   await b.page.waitForSelector('[data-work-orders] tbody tr:has-text("In tiles-work-orders-1.csv")');
+  // A lost download comes again.
+  const [again] = await Promise.all([b.page.waitForEvent('download'), b.page.click('[data-work-orders-again]')]);
+  assert.equal(again.suggestedFilename(), 'tiles-work-orders-1.csv');
+  assert.equal(await b.page.getAttribute('[data-work-order-act=done]', 'aria-label'), 'Mark work order 1 done');
   await b.page.click('[data-work-order-act=done]');
   await b.page.waitForSelector('[data-work-orders]:has-text("No work orders here")');
   await b.page.click('[data-work-orders-show=done]');

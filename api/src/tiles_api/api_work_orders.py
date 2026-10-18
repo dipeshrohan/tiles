@@ -7,8 +7,8 @@ framework); an API connection to SAP PM or Maximo comes once the partner's IT al
 
 A draft names its machine by the MES's asset name: the warning's detector's asset, or the machine
 whose Signal node the component's tag is linked to (coverage.asset_of), else the signal's own asset.
-Someone other than its drafter approves it (an admin may approve their own), as change requests
-are reviewed. One open work order per warning: a second draft from it names the first.
+Someone other than its drafter approves it, admins included, as change requests are reviewed, so
+two people see every work order. One open work order per warning: a second draft from it names the first.
 
 Lifecycle: draft → approved → exported → done; draft, approved or exported → cancelled.
 """
@@ -23,7 +23,7 @@ from fastapi import APIRouter, Query, status
 from pydantic import AwareDatetime, BaseModel, Field, model_validator
 
 from tiles_api import coverage, ontology_store
-from tiles_api.api_ontology import ROLE_RANK, Ctx, Editor, SiteContext
+from tiles_api.api_ontology import Ctx, Editor, SiteContext
 from tiles_api.errors import Problem
 from tiles_api.store import one
 
@@ -32,6 +32,7 @@ router = APIRouter(tags=["work orders"])
 Status = Literal["draft", "approved", "exported", "done", "cancelled"]
 OPEN: tuple[Status, ...] = ("draft", "approved", "exported")
 MAX_LIST = 500
+MAX_ASSET = 100  # characters, as the MES's asset names are kept
 
 # The CSV's columns, in order: what a CMMS's import needs to raise a notification or work order.
 CSV_COLUMNS = (
@@ -107,7 +108,11 @@ class WorkOrder(BaseModel):
     outcome: Literal["done", "not_needed"] | None
     outcome_note: str
     closed_at: datetime | None
-    mine: bool  # drafted by the person asking: they can't approve it (but an admin can)
+    mine: bool  # drafted by the person asking: someone else approves it
+
+
+class WorkOrderExportIn(BaseModel):
+    again: Annotated[str, Field(min_length=1, max_length=100)] | None = None  # an earlier export's name
 
 
 class WorkOrderExport(BaseModel):
@@ -178,40 +183,45 @@ def get_work_order(ctx: Ctx, number: int) -> dict[str, Any]:
     return _out(ctx, _get(ctx, number))
 
 
+def _fit(asset: Any) -> str | None:
+    """An asset name the work order can keep: 1 to 100 characters, else none."""
+    text = str(asset).strip() if asset else ""
+    return text if 0 < len(text) <= MAX_ASSET else None
+
+
+def _machine_asset(ctx: SiteContext, signal_id: uuid.UUID) -> str | None:
+    """The asset of the machine whose Signal node the tag is linked to, else the signal's own."""
+    signal = ctx.conn.execute(
+        "SELECT node_id, asset FROM signals WHERE site_id = %s AND id = %s", [ctx.site_id, signal_id]
+    ).fetchone()
+    if signal is None:
+        raise Problem(status.HTTP_404_NOT_FOUND, "signal.not_found", "No such signal on this site")
+    if signal["node_id"]:
+        graph = ontology_store.load_head(ctx.conn, ctx.site_id)
+        index = coverage.Index(graph)
+        machine = next(
+            (m for m in coverage.machines_under(index, None) if signal["node_id"] in coverage.signal_nodes(index, m)),
+            None,
+        )
+        if machine and (found := _fit(coverage.asset_of(graph, machine))):
+            return found
+    return _fit(signal["asset"])
+
+
 def _asset_of(ctx: SiteContext, body: WorkOrderIn) -> str | None:
-    """The machine's asset: the warning's detector's, the machine of the component's Signal node, or
-    the signal's own; or the one given by hand."""
+    """The machine's asset: the warning's detector's, else the machine of its signal; the machine of
+    the component's signal; or the one given by hand."""
     if body.warning_id is not None:
         found = ctx.conn.execute(
-            "SELECT d.asset FROM warnings w JOIN detectors d ON d.id = w.detector_id"
+            "SELECT d.asset, w.signal_id FROM warnings w JOIN detectors d ON d.id = w.detector_id"
             " WHERE w.site_id = %s AND w.id = %s",
             [ctx.site_id, body.warning_id],
         ).fetchone()
         if found is None:
             raise Problem(status.HTTP_404_NOT_FOUND, "warning.not_found", "No such warning")
-        if found["asset"]:
-            return str(found["asset"])
+        return _fit(found["asset"]) or _machine_asset(ctx, found["signal_id"])
     if body.signal_id is not None:
-        signal = ctx.conn.execute(
-            "SELECT node_id, asset FROM signals WHERE site_id = %s AND id = %s", [ctx.site_id, body.signal_id]
-        ).fetchone()
-        if signal is None:
-            raise Problem(status.HTTP_404_NOT_FOUND, "signal.not_found", "No such signal on this site")
-        if signal["node_id"]:
-            graph = ontology_store.load_head(ctx.conn, ctx.site_id)
-            index = coverage.Index(graph)
-            machine = next(
-                (
-                    m
-                    for m in coverage.machines_under(index, None)
-                    if signal["node_id"] in coverage.signal_nodes(index, m)
-                ),
-                None,
-            )
-            if machine:
-                return coverage.asset_of(graph, machine)
-        if signal["asset"]:
-            return str(signal["asset"])
+        return _machine_asset(ctx, body.signal_id)
     return body.asset
 
 
@@ -274,19 +284,19 @@ def _audited(row: dict[str, Any]) -> dict[str, Any]:
 
 @router.post("/sites/{site_id}/work-orders/{number}/approve", response_model=WorkOrder)
 def approve(ctx: Editor, number: int, body: WorkOrderNote) -> dict[str, Any]:
-    """Approves a draft for export (engineers and admins; not its drafter, unless an admin). Audited."""
+    """Approves a draft for export (engineers and admins; not its drafter). Audited."""
     row = _get(ctx, number, lock=True)
     _expect(row, "draft")
-    if row["drafted_by_id"] == ctx.user.id and ROLE_RANK.get(ctx.user.role, -1) < ROLE_RANK["admin"]:
+    if row["drafted_by_id"] == ctx.user.id:
         raise Problem(
             status.HTTP_403_FORBIDDEN,
             "work_order.own_draft",
-            "Someone other than its drafter approves a work order (or an admin)",
+            "You drafted this work order, so someone else approves it: ask another engineer",
         )
     ctx.conn.execute(
-        "UPDATE work_orders SET status = 'approved', approved_by = %s, approved_at = clock_timestamp()"
-        " WHERE site_id = %s AND number = %s",
-        [ctx.user.name, ctx.site_id, number],
+        "UPDATE work_orders SET status = 'approved', approved_by_id = %s, approved_by = %s,"
+        " approved_at = clock_timestamp() WHERE site_id = %s AND number = %s",
+        [ctx.user.id, ctx.user.name, ctx.site_id, number],
     )
     ctx.audit("work_order.approve", "work_order", str(number), before={"status": "draft"}, after={"note": body.note})
     return _out(ctx, _get(ctx, number))
@@ -336,16 +346,30 @@ def _cell(value: Any) -> str:
 
 
 @router.post("/sites/{site_id}/work-orders/export", response_model=WorkOrderExport)
-def export(ctx: Editor) -> dict[str, Any]:
+def export(ctx: Editor, body: WorkOrderExportIn | None = None) -> dict[str, Any]:
     """Every approved work order as one CSV file for the CMMS, each then marked exported with the
-    file's name (engineers and admins). Audited."""
-    rows = ctx.conn.execute(
-        SELECT + " AND o.status = 'approved' ORDER BY o.number FOR UPDATE OF o", {"site": ctx.site_id}
-    ).fetchall()
-    if not rows:
-        raise Problem(status.HTTP_409_CONFLICT, "work_order.none_approved", "No approved work order to export")
-    now = datetime.now(UTC)
-    name = f"tiles-work-orders-{now:%Y%m%d-%H%M%S}.csv"
+    file's name (engineers and admins); or, with `again`, an earlier export's file once more (its
+    work orders as they were sent, whatever they are now, but cancelled ones). Audited."""
+    again = body.again if body else None
+    if again:
+        rows = ctx.conn.execute(
+            SELECT + " AND o.export_ref = %(ref)s AND o.status <> 'cancelled' ORDER BY o.number",
+            {"site": ctx.site_id, "ref": again},
+        ).fetchall()
+        if not rows:
+            raise Problem(
+                status.HTTP_404_NOT_FOUND, "work_order.no_export", f"No export {again} on this site", file=again
+            )
+        name = again
+    else:
+        rows = ctx.conn.execute(
+            SELECT + " AND o.status = 'approved' ORDER BY o.number FOR UPDATE OF o", {"site": ctx.site_id}
+        ).fetchall()
+        if not rows:
+            raise Problem(status.HTTP_409_CONFLICT, "work_order.none_approved", "No approved work order to export")
+        # Named to the millisecond, with its first work order's number: two exports never share a name.
+        now = datetime.now(UTC)
+        name = f"tiles-work-orders-{now:%Y%m%d-%H%M%S}-{now.microsecond // 1000:03d}-{rows[0]['number']}.csv"
     out = io.StringIO()
     writer = csv.writer(out, lineterminator="\r\n")
     writer.writerow(CSV_COLUMNS)
@@ -368,10 +392,16 @@ def export(ctx: Editor) -> dict[str, Any]:
             )
         )
     numbers = [r["number"] for r in rows]
-    ctx.conn.execute(
-        "UPDATE work_orders SET status = 'exported', exported_at = clock_timestamp(), export_ref = %s"
-        " WHERE site_id = %s AND number = ANY(%s)",
-        [name, ctx.site_id, numbers],
+    if not again:
+        ctx.conn.execute(
+            "UPDATE work_orders SET status = 'exported', exported_at = clock_timestamp(), export_ref = %s"
+            " WHERE site_id = %s AND number = ANY(%s)",
+            [name, ctx.site_id, numbers],
+        )
+    ctx.audit(
+        "work_order.export_again" if again else "work_order.export",
+        "site",
+        str(ctx.site_id),
+        after={"file": name, "numbers": numbers},
     )
-    ctx.audit("work_order.export", "site", str(ctx.site_id), after={"file": name, "numbers": numbers})
     return {"name": name, "numbers": numbers, "csv": out.getvalue()}

@@ -661,8 +661,8 @@ Below that, the avoided cost is broken down:
 **Work orders** (API mode, in Operations) turns what Tiles finds into planned maintenance in your maintenance system (CMMS). Tiles only sends work orders out: it never reads or changes the CMMS.
 
 1. **Draft.** On a warning, **Draft a work order** opens a draft for its machine; on a machine's **Remaining life**, a component heading for its wear limit has one too. **Draft by hand** drafts one for any machine. Write what to do, the details, the priority and when it is due, then **Draft it**. A warning has one open work order at a time. The machine is named as the MES names it: the detector's asset, or the machine of the component's signal.
-2. **Approve.** Someone other than its drafter approves a draft (an admin may approve their own), so every work order is seen by two people.
-3. **Export.** **Export approved as CSV** downloads every approved work order as one file for the CMMS's import (most take one: SAP PM through a mass upload, Maximo through its integration framework), and marks them exported with the file's name. A cell that a spreadsheet would run as a formula starts with a quote.
+2. **Approve.** Someone other than its drafter approves a draft (admins too), so every work order is seen by two people.
+3. **Export.** **Export approved as CSV** downloads every approved work order as one file for the CMMS's import (most take one: SAP PM through a mass upload, Maximo through its integration framework), and marks them exported with the file's name. If the download was lost, **Download again** on any of them gives the same file. A cell that a spreadsheet would run as a formula starts with a quote.
 4. **Close.** When the work is done, **Mark done**; when it turned out not to be needed, **Not needed**. **Cancel work order** takes back one not done yet (cancel it in the CMMS too if it was exported).
 
 Engineers and admins draft, approve, export and close work orders; everyone sees them. Each step is in the audit log.

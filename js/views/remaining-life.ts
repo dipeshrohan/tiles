@@ -98,7 +98,11 @@ export function lifeCard(ctx: Context, place: string, onMachine = false): string
                   c.signal_id,
                   t('workOrders.titleFor.component', { component: c.component, machine: c.machine_label }),
                 ),
-                { size: 'sm', variant: 'ghost' },
+                {
+                  size: 'sm',
+                  variant: 'ghost',
+                  attrs: { 'aria-label': t('workOrders.draftNamed', { component: c.component }) },
+                },
               )
             : ''
         }</td>`
