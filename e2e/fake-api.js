@@ -284,6 +284,9 @@ export function createFakeApi({
   const members = new Set(); // users who have visited the site
   // Warnings (T3.07), like the API: raised by a test (as a detector would), then worked by people.
   const warnings = []; // newest first: the API's fields, plus `activity`
+  // Similar past warnings (T10.02): what followed each (by id) and the batch tables, as a test sets them.
+  let similarFollowed = {};
+  let similarDatasets = [];
   // Notifications (T3.09): each user's preferences, the site's Teams channel, and messages to list.
   const notifyPrefs = new Map(); // email -> { on_raised, on_assigned }
   let teams = { url: null, on_raised: true };
@@ -2248,6 +2251,36 @@ export function createFakeApi({
         const offset = Number(q.get('offset') ?? 0);
         return send(200, list.slice(offset, offset + Number(q.get('limit') ?? 100)));
       }
+      // Similar past warnings (T10.02): the earlier ones on its signal, each 90% alike; what followed
+      // and the batch tables to correlate are what a test sets.
+      const like = path.match(/^\/([^/]+)\/similar$/);
+      if (like && req.method === 'GET') {
+        const w = warnings.find((x) => x.id === like[1]);
+        if (!w) return send(404, { detail: 'No such warning' });
+        const earlier = warnings.filter((x) => x.signal_id === w.signal_id && x.started_at < w.started_at);
+        const similar = earlier.map((x) => ({
+          ...shown(x),
+          asset: null,
+          score: 0.9,
+          shared: ['signal', 'detector', 'side'],
+          severity: 2,
+          hours: 1,
+          followed: similarFollowed[x.id] ?? null,
+        }));
+        const outcomes = { true_alarm: 0, false_alarm: 0, unknown: 0, open: 0 };
+        for (const x of similar) outcomes[x.outcome ?? 'open']++;
+        return send(200, {
+          warning_id: w.id,
+          asset: null,
+          severity: 2,
+          hours: 1,
+          compared: earlier.length,
+          similar,
+          outcomes,
+          followed: similar.filter((x) => x.followed).length,
+          datasets: similarDatasets,
+        });
+      }
       const m = path.match(/^\/([^/]+)(?:\/(acknowledge|assignee|resolve|reopen|comments))?$/);
       const w = m && warnings.find((x) => x.id === m[1]);
       if (!w) return send(404, { detail: 'No such warning' });
@@ -2594,6 +2627,11 @@ export function createFakeApi({
       remainingLife = out;
     },
     lifeQueries: () => [...lifeQueries],
+    // Lets a test set what followed past warnings (by id) and the batch tables suggested (T10.02).
+    setSimilar({ followed = {}, datasets = [] }) {
+      similarFollowed = followed;
+      similarDatasets = datasets;
+    },
     // Lets a test set the machine timeline the API answers with (T10.01), and read what was asked.
     setTimeline(out) {
       timeline = out;

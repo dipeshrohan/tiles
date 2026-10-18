@@ -491,6 +491,12 @@ Every step and comment is kept in **Activity**, with who did it and when. Open *
 
 After a step, **Next warning** opens the next one in the list, so you can work through them in turn.
 
+### Similar past warnings
+
+Under a warning's chart, **Similar past warnings** lists the earlier warnings most like it (API mode): on the same signal, from the same detector or for the same machine, that went about as far past their threshold for about as long. **Match** says how alike each is. For each you see how it was resolved (with its note) and **What followed**: the machine's first stop, scrap or other event within a day of it, or nothing. The line above sums them up, so you can see at a glance whether warnings like this one have been true alarms and what came after them. Open one to read it.
+
+**In the correlation finder** links the batch tables that name the warning's machine or tag (in their name or description, a column named as the tag, or a row naming the machine), to look for what separates the bad batches.
+
 **Triage by keyboard:** **j** and **k** open the next and previous warning, **a** acknowledges the one open, **s** assigns it to you, **r** goes to its **Outcome** (choose with the arrow keys, then **Resolve**), and **n** opens the next warning after a step. To act on many at once, tick them in the list: **Acknowledge** or **Assign to me** does them all.
 
 Tips:

@@ -397,7 +397,7 @@ The second plan, [ROADMAP-2.md](ROADMAP-2.md): three times the pilot plant's ret
 
 - [x] `T10.01` [#345](https://github.com/dipeshrohan/tiles/issues/345) **Machine timeline** · FE+BE · 5d
   *Done when:* a machine's page shows its warnings, events, changes and readings on one axis.
-- [ ] `T10.02` [#346](https://github.com/dipeshrohan/tiles/issues/346) **Similar past warnings** · ML+FE · 4d
+- [x] `T10.02` [#346](https://github.com/dipeshrohan/tiles/issues/346) **Similar past warnings** · ML+FE · 4d
   *Done when:* a warning shows its most similar past warnings and how each was resolved.
 - [x] `T10.03` [#347](https://github.com/dipeshrohan/tiles/issues/347) **Copilot root-cause tool** · BE · 4d · T10.01
   *Done when:* root-cause cases are added to the evaluation set and pass the gate, grounded.

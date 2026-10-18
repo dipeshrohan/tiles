@@ -3673,6 +3673,52 @@ function raiseFrictionWarnings(fake) {
   return { out, over };
 }
 
+test('a warning shows its similar past warnings, how they ended and what followed, and batch tables to correlate (T10.02)', async (t) => {
+  const fake = createFakeApi();
+  const apiUrl = await fake.listen();
+  t.after(() => fake.close());
+  const { out } = raiseFrictionWarnings(fake);
+  const day = 86_400_000;
+  const before = fake.raiseWarning('dc1.friction', [], {
+    started_at: new Date(Date.now() - 3 * day).toISOString(),
+    last_at: new Date(Date.now() - 3 * day + 600_000).toISOString(),
+    ended_at: new Date(Date.now() - 3 * day + 660_000).toISOString(),
+    peak: 3400,
+    baseline: 1800,
+    threshold: 2200,
+    readings: 10,
+    resolved_at: new Date(Date.now() - 2 * day).toISOString(),
+    outcome: 'true_alarm',
+    resolution_note: 'Plunger seized',
+  });
+  fake.setSimilar({
+    followed: { [before]: { kind: 'downtime', code: 'DT-SEIZURE', at: new Date().toISOString(), hours_after: 2.5 } },
+    datasets: [{ id: 'ds-1', name: 'DC-01 batches', why: 'name' }],
+  });
+  const { page, errors } = await openAs(t, apiUrl, null, 'warnings');
+  await page.evaluate((id) => (location.hash = `#/warnings?show=all&warning=${id}`), out);
+  await page.waitForSelector('[data-similar] table');
+  assert.match(
+    await page.locator('[data-similar] > p').first().innerText(),
+    /The most similar: 1 true, 0 false, 0 open or unknown; an event followed 1\./,
+  );
+  const row = await page.locator('[data-similar] tbody tr').innerText();
+  assert.match(
+    row,
+    /dc1-friction-detector dc1\.friction\s+90%\s+True alarm Plunger seized\s+Stop DT-SEIZURE 2 h 30 min later/,
+  );
+  assert.equal(await page.getAttribute('[data-similar] tbody a', 'href'), `#/warnings?show=all&warning=${before}`);
+  // The batch table that names the machine opens in the correlation finder.
+  const open = page.locator('[data-similar] a:has-text("Open DC-01 batches")');
+  assert.equal(await open.getAttribute('href'), '#/correlate?dataset=ds-1');
+  // The past warning opens in its place, with nothing earlier like it (and no batch table, here).
+  fake.setSimilar({});
+  await page.click('[data-similar] tbody a');
+  await page.waitForSelector('[data-similar] p:has-text("No earlier warning on this signal, detector or machine.")');
+  assert.match(await page.locator('[data-similar]').innerText(), /No batch table names dc1\.friction yet\./);
+  assert.deepEqual(errors, []);
+});
+
 test('the notification centre: a review asked of me reaches my bell within a minute, then is read (U5.07)', async (t) => {
   const fake = createFakeApi();
   const apiUrl = await fake.listen();

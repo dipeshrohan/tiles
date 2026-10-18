@@ -3755,6 +3755,40 @@
         "title": "FindingOut",
         "type": "object"
       },
+      "Followed": {
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "hours_after": {
+            "title": "Hours After",
+            "type": "number"
+          },
+          "kind": {
+            "enum": [
+              "downtime",
+              "scrap",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "code",
+          "at",
+          "hours_after"
+        ],
+        "title": "Followed",
+        "type": "object"
+      },
       "GithubModelIn": {
         "additionalProperties": false,
         "properties": {
@@ -8775,6 +8809,216 @@
         "title": "SignalPatch",
         "type": "object"
       },
+      "Similar": {
+        "properties": {
+          "asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
+          "compared": {
+            "title": "Compared",
+            "type": "integer"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/SuggestedDataset"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "followed": {
+            "title": "Followed",
+            "type": "integer"
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "number"
+          },
+          "outcomes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Outcomes",
+            "type": "object"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "number"
+          },
+          "similar": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarWarning"
+            },
+            "title": "Similar",
+            "type": "array"
+          },
+          "warning_id": {
+            "format": "uuid",
+            "title": "Warning Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "warning_id",
+          "asset",
+          "severity",
+          "hours",
+          "compared",
+          "similar",
+          "outcomes",
+          "followed",
+          "datasets"
+        ],
+        "title": "Similar",
+        "type": "object"
+      },
+      "SimilarWarning": {
+        "properties": {
+          "asset": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Asset"
+          },
+          "detector": {
+            "title": "Detector",
+            "type": "string"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "followed": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Followed"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "hours": {
+            "title": "Hours",
+            "type": "number"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "outcome": {
+            "anyOf": [
+              {
+                "enum": [
+                  "true_alarm",
+                  "false_alarm",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome"
+          },
+          "resolution_note": {
+            "title": "Resolution Note",
+            "type": "string"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "score": {
+            "title": "Score",
+            "type": "number"
+          },
+          "severity": {
+            "title": "Severity",
+            "type": "number"
+          },
+          "shared": {
+            "items": {
+              "enum": [
+                "signal",
+                "detector",
+                "asset",
+                "side"
+              ],
+              "type": "string"
+            },
+            "title": "Shared",
+            "type": "array"
+          },
+          "signal_tag": {
+            "title": "Signal Tag",
+            "type": "string"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "raised",
+              "acknowledged",
+              "resolved"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "detector",
+          "signal_tag",
+          "asset",
+          "started_at",
+          "ended_at",
+          "status",
+          "outcome",
+          "resolution_note",
+          "resolved_at",
+          "score",
+          "shared",
+          "severity",
+          "hours",
+          "followed"
+        ],
+        "title": "SimilarWarning",
+        "type": "object"
+      },
       "Site": {
         "properties": {
           "id": {
@@ -9073,6 +9317,35 @@
           "stored"
         ],
         "title": "Stored",
+        "type": "object"
+      },
+      "SuggestedDataset": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "why": {
+            "enum": [
+              "name",
+              "column",
+              "value"
+            ],
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "why"
+        ],
+        "title": "SuggestedDataset",
         "type": "object"
       },
       "SuggestionOut": {
@@ -22251,6 +22524,72 @@
           }
         },
         "summary": "Resolve",
+        "tags": [
+          "warnings"
+        ]
+      }
+    },
+    "/sites/{site_id}/warnings/{warning_id}/similar": {
+      "get": {
+        "description": "The earlier warnings most like this one (same signal, detector or asset; how far past its\nthreshold and how long), with how each was resolved and the first event of its asset in the 24\nhours after it; and the batch tables that name its asset or tag, for the correlation finder.",
+        "operationId": "similar_warnings_sites__site_id__warnings__warning_id__similar_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "warning_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Warning Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 5,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Similar"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Similar Warnings",
         "tags": [
           "warnings"
         ]
