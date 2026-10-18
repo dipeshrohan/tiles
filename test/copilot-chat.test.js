@@ -109,6 +109,10 @@ test('an answer builds up from its events', () => {
     [[4, 'events', false]],
   );
   assert.equal(a.done, true);
+  // A result's start comes with its event, so its evidence link shows while the answer is written.
+  let b = applyEvent(emptyAnswer(), 'tool_use', { id: 't2', name: 'root_cause', input: { machine: 'DC-01' }, n: 1 });
+  b = applyEvent(b, 'tool_result', { id: 't2', is_error: false, preview: '{"machine": "dc-01", "label": "DC-01"}' });
+  assert.equal(evidenceLink(b.tools[0]).href, '#/plant/dc-01');
   const failed = applyEvent(emptyAnswer(), 'error', { detail: 'The copilot could not answer' });
   assert.deepEqual([failed.error, failed.done], ['The copilot could not answer', true]);
   // With its code, in the catalogue's words (U6.01).

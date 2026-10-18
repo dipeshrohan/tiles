@@ -106,6 +106,8 @@ def test_tool_calls_run_and_their_results_go_back_to_the_model() -> None:
     ]
     assert events[3].data == {"id": "t1", "name": "echo", "input": {"say": "press 9"}, "n": 1}
     assert events[4].data["is_error"] is False
+    # The result's start goes with it, for the page's evidence link (the full result goes to the model).
+    assert events[4].data["preview"] == events[5].data["content"][0]["content"].split("\n", 1)[1][:300]
     result = events[5].data
     assert result["role"] == "user"
     # Each result is numbered for citing, with its tool and input, then what it gave.
