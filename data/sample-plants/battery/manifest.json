@@ -1,0 +1,230 @@
+{
+  "plant": "Kestrel Energy, Varnhem cell plant (made up)",
+  "from": "2025-10-01T00:00:00+02:00",
+  "to": "2026-10-01T00:00:00+02:00",
+  "seed": "kestrel-varnhem-2026",
+  "committed": {
+    "baseline.md": 1,
+    "calendar/planned-stops.csv": 529,
+    "calendar/shifts.csv": 706,
+    "cmms/work-orders.csv": 1247,
+    "copilot/questions.csv": 107,
+    "documents": 33,
+    "ground-truth/episodes.csv": 47,
+    "ground-truth/quality-model.json": 5,
+    "ground-truth/quirks.csv": 8,
+    "lab/moisture.csv": 21300,
+    "lab/peel.csv": 2663,
+    "lab/weld-pull.csv": 1382,
+    "mes/batches.csv": 2664,
+    "mes/coils.csv": 5325,
+    "mes/production.csv": 706,
+    "mes/reason-codes.csv": 32,
+    "mes/rolls.csv": 21300,
+    "mes/scrap.csv": 13335,
+    "mes/stops.csv": 1953,
+    "plant/costs.csv": 35,
+    "plant/equipment.csv": 29,
+    "plant/ontology.json": 165,
+    "plant/people.csv": 14,
+    "plant/products.csv": 1,
+    "plant/tags.csv": 111
+  },
+  "generated": {},
+  "tables": {
+    "generated/tables/cells-2025-10.csv.gz": {
+      "name": "Cells 2025-10",
+      "description": "Every KX60 cell stacked in 2025-10: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2025-11.csv.gz": {
+      "name": "Cells 2025-11",
+      "description": "Every KX60 cell stacked in 2025-11: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2025-12.csv.gz": {
+      "name": "Cells 2025-12",
+      "description": "Every KX60 cell stacked in 2025-12: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-01.csv.gz": {
+      "name": "Cells 2026-01",
+      "description": "Every KX60 cell stacked in 2026-01: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-02.csv.gz": {
+      "name": "Cells 2026-02",
+      "description": "Every KX60 cell stacked in 2026-02: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-03.csv.gz": {
+      "name": "Cells 2026-03",
+      "description": "Every KX60 cell stacked in 2026-03: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-04.csv.gz": {
+      "name": "Cells 2026-04",
+      "description": "Every KX60 cell stacked in 2026-04: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-05.csv.gz": {
+      "name": "Cells 2026-05",
+      "description": "Every KX60 cell stacked in 2026-05: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-06.csv.gz": {
+      "name": "Cells 2026-06",
+      "description": "Every KX60 cell stacked in 2026-06: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-07.csv.gz": {
+      "name": "Cells 2026-07",
+      "description": "Every KX60 cell stacked in 2026-07: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-08.csv.gz": {
+      "name": "Cells 2026-08",
+      "description": "Every KX60 cell stacked in 2026-08: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    },
+    "generated/tables/cells-2026-09.csv.gz": {
+      "name": "Cells 2026-09",
+      "description": "Every KX60 cell stacked in 2026-09: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+      "text": [
+        "cell_id",
+        "stacked",
+        "stacker",
+        "cathode_coil",
+        "cathode_roll",
+        "anode_coil",
+        "anode_roll",
+        "rack",
+        "grade",
+        "scrap"
+      ]
+    }
+  },
+  "cells": 692262,
+  "coils": 5325
+}
