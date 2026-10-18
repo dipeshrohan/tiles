@@ -1,0 +1,5 @@
+product,name,alloy,weight_kg,cavities,cycle_s,scrap_cost_eur
+TH-410,Transmission housing TH-410,AlSi9Cu3(Fe),9.8,1,112.0,48.0
+EM-220,E-motor housing EM-220,AlSi10MnMg,6.1,1,94.0,36.0
+CV-90,Gearbox cover CV-90,AlSi9Cu3(Fe),2.7,2,76.0,14.0
+BR-35,Mounting bracket BR-35,AlSi9Cu3(Fe),1.2,2,58.0,6.0

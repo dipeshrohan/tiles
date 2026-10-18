@@ -75,6 +75,8 @@ def test_numbers_and_names_no_cited_result_holds_are_named() -> None:
 def test_numbers_inside_tags_lists_and_citations_are_not_claims() -> None:
     report = check("Welder W-03 on press9 [1]:\n1. `w03.cathode_power` [1]\n2) rising [1]")
     assert (report.grounded, report.unsupported_numbers) == (True, [])
+    # Nor the digits of a code: DC-04 is no 4, EM-220 no 20 (a number never starts inside another).
+    assert check("DC-04 casts EM-220 and CV-90, W-03 and W-07 too [1].").unsupported_numbers == []
     # The question's own numbers can be said back.
     assert check("Over the last 48 hours it rose [1].", "Did it rise in 48 hours?").grounded
 

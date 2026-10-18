@@ -1,0 +1,1228 @@
+{
+  "plant": "Aldermoor Castings, Kesselbach plant (made up)",
+  "from": "2025-10-01T00:00:00+02:00",
+  "to": "2026-10-01T00:00:00+02:00",
+  "seed": "aldermoor-kesselbach-2026",
+  "committed": {
+    "baseline.md": 6,
+    "calendar/planned-stops.csv": 483,
+    "calendar/shifts.csv": 793,
+    "cmms/work-orders.csv": 2800,
+    "copilot/questions.csv": 128,
+    "documents": 32,
+    "ground-truth/episodes.csv": 121,
+    "ground-truth/process-model.json": 9,
+    "ground-truth/quirks.csv": 8,
+    "lab/hydrogen.csv": 1586,
+    "mes/production.csv": 4758,
+    "mes/reason-codes.csv": 28,
+    "mes/scrap.csv": 52522,
+    "mes/stops.csv": 3999,
+    "plant/costs.csv": 16,
+    "plant/equipment.csv": 53,
+    "plant/ontology.json": 207,
+    "plant/people.csv": 11,
+    "plant/products.csv": 4,
+    "plant/tags.csv": 111
+  },
+  "generated": {
+    "historian/2025-09/line2-dc01.csv.gz": {
+      "rows": 168,
+      "sha256": "7f0cab6671e441b88ec0ae678cdbd2229d0491126c300c890953586d96b2494f"
+    },
+    "historian/2025-09/line2-dc02.csv.gz": {
+      "rows": 168,
+      "sha256": "1ea5934df7deaf0f08707912f0a281b5ebb306a08c03ce0d1e2b91cc2f89d03e"
+    },
+    "historian/2025-09/line2-dc03.csv.gz": {
+      "rows": 168,
+      "sha256": "2101610cdcaf1a470f857efebd47a8b00855de73a173e515370174bdffaa71e5"
+    },
+    "historian/2025-09/line2-dc04.csv.gz": {
+      "rows": 168,
+      "sha256": "2e1fdc91caa7ad3979a9b356e94ba0afbc55e4a43908a95bc35a3af1b14d821e"
+    },
+    "historian/2025-09/site.csv.gz": {
+      "rows": 120,
+      "sha256": "47cede11c7306a56e2cdc303f34781d7c2853507e60b8b5d1330e24c2af44a3a"
+    },
+    "historian/2025-10/lab.csv.gz": {
+      "rows": 147,
+      "sha256": "c2276c6296c9cf6995c89a6dd226e75ea7ba23a5a66790c4a64e3db4ec2c718f"
+    },
+    "historian/2025-10/line1-dc05.csv.gz": {
+      "rows": 12896,
+      "sha256": "e0f0b3b3022278a9b4278c6f646a5e8c80468b49fbf5a76466bd255ee3e053c1"
+    },
+    "historian/2025-10/line1-dc06.csv.gz": {
+      "rows": 12620,
+      "sha256": "5d48a8a46b30099ab2b08d98f296efb7d9c2595d6893f15e01b9c72dcf3e9237"
+    },
+    "historian/2025-10/line2-dc01.csv.gz": {
+      "rows": 265200,
+      "sha256": "0519ce6600ce796921e71e7306076b17ba97b12d27c3f62fb8f38ca5a05ff99b"
+    },
+    "historian/2025-10/line2-dc02.csv.gz": {
+      "rows": 268356,
+      "sha256": "5976548e810afdab6bf784971909e3dcb30484ad27e20b5b5e8da8391861b691"
+    },
+    "historian/2025-10/line2-dc03.csv.gz": {
+      "rows": 312072,
+      "sha256": "07a34c4efc78f6c99c4ebdf420ffeddc930732788a6691a0912a305ba757e3c6"
+    },
+    "historian/2025-10/line2-dc04.csv.gz": {
+      "rows": 345720,
+      "sha256": "dc373f4040757b690b51bf11032cbb6900e068ee6cd1f073ce2e909396d41448"
+    },
+    "historian/2025-10/site.csv.gz": {
+      "rows": 44640,
+      "sha256": "76b922c95a468d6fcff0bea08c26b7f8b83c36693d875a2bdb37b591001983b6"
+    },
+    "historian/2025-11/lab.csv.gz": {
+      "rows": 140,
+      "sha256": "23648c2e4e0b7759d02f85afe082ffce5e6b52b2959a6832b6c97714abbc4157"
+    },
+    "historian/2025-11/line1-dc05.csv.gz": {
+      "rows": 12430,
+      "sha256": "9b4d697add3d35b9afc2f678e66a1b427ff41c4261aed98e092e2350a1abcbf1"
+    },
+    "historian/2025-11/line1-dc06.csv.gz": {
+      "rows": 12216,
+      "sha256": "9dc8353ad9089bcfe74b74ca4c9df11c4d5352aa7e285e1c05877ef22170b58b"
+    },
+    "historian/2025-11/line2-dc01.csv.gz": {
+      "rows": 259644,
+      "sha256": "223b7255f6d60d877faf61ecb8269456d88fab6d0ba478d19293c41f8c81b258"
+    },
+    "historian/2025-11/line2-dc02.csv.gz": {
+      "rows": 259020,
+      "sha256": "2d055843bda96d599048a97c8cf376a058fe8ed3f6ccf210e25ac1abc0a84347"
+    },
+    "historian/2025-11/line2-dc03.csv.gz": {
+      "rows": 301152,
+      "sha256": "bc270de2341f1a2245364761f31c72447a8fd13964c54345ab4e7b95a409e643"
+    },
+    "historian/2025-11/line2-dc04.csv.gz": {
+      "rows": 325044,
+      "sha256": "9562fd943c10610bdc0d4526ca02d071579d2e50112a8c3ccef4cadbda75f394"
+    },
+    "historian/2025-11/site.csv.gz": {
+      "rows": 43200,
+      "sha256": "786850ed152dcd5f0ce7921fbf5c0f76096dc63f0cfb0505e27dfff2cfc0d649"
+    },
+    "historian/2025-12/lab.csv.gz": {
+      "rows": 101,
+      "sha256": "e0f5e78db1fcb12dd55d40f66e9d257ea0905a593c1ef37fb6d16d68dcafe266"
+    },
+    "historian/2025-12/line1-dc05.csv.gz": {
+      "rows": 8638,
+      "sha256": "67ef682997ac22cbc2fa6edd143c70fe766051e8164f29b8e2f43240896be69a"
+    },
+    "historian/2025-12/line1-dc06.csv.gz": {
+      "rows": 8508,
+      "sha256": "b3bb73ea383a731510132024c13771843adb732d7a04207302c1a05d39c3f821"
+    },
+    "historian/2025-12/line2-dc01.csv.gz": {
+      "rows": 204312,
+      "sha256": "3858c7da44d4e1180e503623383ac5d80e0614b503e69c8ac31a2411cf6a739b"
+    },
+    "historian/2025-12/line2-dc02.csv.gz": {
+      "rows": 207756,
+      "sha256": "adfb4adca604d25eb391bfe07c94aad12c26297907cde042b09cc155c5650779"
+    },
+    "historian/2025-12/line2-dc03.csv.gz": {
+      "rows": 234888,
+      "sha256": "c975dbb11d78b2dcc746317d6373efd2c6999ae276e20e1e75f2e2367711aa82"
+    },
+    "historian/2025-12/line2-dc04.csv.gz": {
+      "rows": 246840,
+      "sha256": "6bb3258c097845852bfaffa53f74b5a0b4c2e8bf837286b6d5a89c20fb79647d"
+    },
+    "historian/2025-12/site.csv.gz": {
+      "rows": 44640,
+      "sha256": "98da5acab53bbed06c565edbb28f73287686052b04d2d4e7566afa55f579774f"
+    },
+    "historian/2026-01/lab.csv.gz": {
+      "rows": 136,
+      "sha256": "85d5b8bb4aa9c9d68646445cc20887d5614d751a01a27bebc00d5e86fccefe1e"
+    },
+    "historian/2026-01/line1-dc05.csv.gz": {
+      "rows": 12200,
+      "sha256": "a8f09adc45b83224bffbba2e7c7286bd532ff1961e98962d96aa685f24cc73d3"
+    },
+    "historian/2026-01/line1-dc06.csv.gz": {
+      "rows": 11610,
+      "sha256": "85f5dd5de31b81ca71bb045c9afd5d0cba5f3b067881b7296360e59f06b1d27f"
+    },
+    "historian/2026-01/line2-dc01.csv.gz": {
+      "rows": 259236,
+      "sha256": "e3dd0d979e51dc63c60af44de320140f6280008c1a9a9d01a644b94795a4d03b"
+    },
+    "historian/2026-01/line2-dc02.csv.gz": {
+      "rows": 255216,
+      "sha256": "27c05da26a45b5c54c59852eafed439fdca09a04059dc823ebda41057700f0ea"
+    },
+    "historian/2026-01/line2-dc03.csv.gz": {
+      "rows": 292752,
+      "sha256": "a644d428a6816c813aac68268a20a82757a0d5a62dd6ea5081dd7a9df26f787a"
+    },
+    "historian/2026-01/line2-dc04.csv.gz": {
+      "rows": 317496,
+      "sha256": "4f9a429173abb701fdedec424650575755be56fc28c0ea0e986b37d0f0f2a149"
+    },
+    "historian/2026-01/site.csv.gz": {
+      "rows": 44640,
+      "sha256": "d70cbe8da3df3aeee91b835c2aa19c643b25a89282cf5c9b45eb025baf9e1f23"
+    },
+    "historian/2026-02/lab.csv.gz": {
+      "rows": 136,
+      "sha256": "b15a4d5534163c05a5e23a8e6c3d27374eb423588f55a18ab4ced8f4a8882c8f"
+    },
+    "historian/2026-02/line1-dc05.csv.gz": {
+      "rows": 11620,
+      "sha256": "ce7390e09737ea4c5917a3fe8c4d04f5ecd624ea4a01b70f6176a437b3eb470f"
+    },
+    "historian/2026-02/line1-dc06.csv.gz": {
+      "rows": 11788,
+      "sha256": "1e1da91649b1b0b04b57003f5046422feee6be7de8b8ec12a3637033b81abcfd"
+    },
+    "historian/2026-02/line2-dc01.csv.gz": {
+      "rows": 245436,
+      "sha256": "46ff91bca87cff97c836bcc5fef172c9e7f9978915ad69249a7b4a2f85601512"
+    },
+    "historian/2026-02/line2-dc02.csv.gz": {
+      "rows": 252924,
+      "sha256": "531f0fc489751c3412964faa1b98cb6395fdb1daf8f9944edea3038bd795168b"
+    },
+    "historian/2026-02/line2-dc03.csv.gz": {
+      "rows": 262848,
+      "sha256": "62c2c4f62d3d4a3b1a029a3b09ccf45747d273cf4cde5c472a5490875165e9b1"
+    },
+    "historian/2026-02/line2-dc04.csv.gz": {
+      "rows": 302172,
+      "sha256": "cc396a23fb5122a76f42b841dc7491d8e7c0aed4b41aec575e9df868fea57d30"
+    },
+    "historian/2026-02/site.csv.gz": {
+      "rows": 40320,
+      "sha256": "2bf8457b864feaafd5cea34ac9275fe0bc901009426de1fccf4678562db370ff"
+    },
+    "historian/2026-03/lab.csv.gz": {
+      "rows": 149,
+      "sha256": "714a323eda0ea742341f31ebc2868c2ec3eed4065c5f8b326022e8480d106f1c"
+    },
+    "historian/2026-03/line1-dc05.csv.gz": {
+      "rows": 13156,
+      "sha256": "1417aab0f5da14f0c87df7506b18bddee5d4593c60e2ff5584eb99b27312bfe8"
+    },
+    "historian/2026-03/line1-dc06.csv.gz": {
+      "rows": 13204,
+      "sha256": "2bf6364b09b0f2141cb8c4b0c041805d151c27db59213e6abfa70e92c291cc8b"
+    },
+    "historian/2026-03/line2-dc01.csv.gz": {
+      "rows": 275316,
+      "sha256": "476f49c17031f19c2d763f2db9e4dd429c7f8adff66a2da33a2fc575dc0b9187"
+    },
+    "historian/2026-03/line2-dc02.csv.gz": {
+      "rows": 276660,
+      "sha256": "a654419c656df0596c7519e4e1cc41c77de94e0ae26897e35e35e635837b11e4"
+    },
+    "historian/2026-03/line2-dc03.csv.gz": {
+      "rows": 308280,
+      "sha256": "d398ca72ddd36c0cbcdb6eec04efc482680aba9fb5d3ebeafb79c5482ef4a4bf"
+    },
+    "historian/2026-03/line2-dc04.csv.gz": {
+      "rows": 339132,
+      "sha256": "902099381268f26d11fdf2488fa6559ba07acb7f8051a0d05ac97e16eb604385"
+    },
+    "historian/2026-03/site.csv.gz": {
+      "rows": 44640,
+      "sha256": "43fc760ac0a7cbee6189d28dd160677eb7b0dabef95e996903cad5f86a898c26"
+    },
+    "historian/2026-04/lab.csv.gz": {
+      "rows": 135,
+      "sha256": "a1dec2008c1329f65ebd0d72579a1b215f8e6d03b88f9e50cef0bf70f94f9210"
+    },
+    "historian/2026-04/line1-dc05.csv.gz": {
+      "rows": 11816,
+      "sha256": "c011f66b35288a795461051e50fe2fb32c0bb9fc8bcccbda27c3301710d7d760"
+    },
+    "historian/2026-04/line1-dc06.csv.gz": {
+      "rows": 11622,
+      "sha256": "d627a7103885cfe00ce94376c59c44395d86913505a20669ceee49d7d252e7b2"
+    },
+    "historian/2026-04/line2-dc01.csv.gz": {
+      "rows": 247008,
+      "sha256": "eaaf65d6bb6e540056beaff1080f7e2560c047d214951ca2944437f63aa5aa8f"
+    },
+    "historian/2026-04/line2-dc02.csv.gz": {
+      "rows": 248892,
+      "sha256": "600a0d1e73f719d2c8292e62d7aa365716a846fe94ebf2a0f49df2e4a61b1f1a"
+    },
+    "historian/2026-04/line2-dc03.csv.gz": {
+      "rows": 289932,
+      "sha256": "a0fd5aad2853e4df9345385964fd4aed115f02d2a455e363f0cbc43f370b7275"
+    },
+    "historian/2026-04/line2-dc04.csv.gz": {
+      "rows": 306624,
+      "sha256": "efd63f2ebc07cc2ea228d416527a946fb1c26b7308cea9164669394c7f17351f"
+    },
+    "historian/2026-04/site.csv.gz": {
+      "rows": 43200,
+      "sha256": "b1a36f997c1cf49e03a58d4116ff27cc838663366dfced74c1eb59727f82dd42"
+    },
+    "historian/2026-05/lab.csv.gz": {
+      "rows": 129,
+      "sha256": "49cc8aeaf7fbf615915fc88f53f9b010a62f12ac2c13ecbbe5ce3d44e4137824"
+    },
+    "historian/2026-05/line1-dc05.csv.gz": {
+      "rows": 11424,
+      "sha256": "66b9df135330ea888b0b91a4c2ec2077f002dae850a896a7ed428421b800f04e"
+    },
+    "historian/2026-05/line1-dc06.csv.gz": {
+      "rows": 10962,
+      "sha256": "1c7a45dce5dc4b6bce43d5b655ec73786161b7cb7d0abab89831af660d33b25f"
+    },
+    "historian/2026-05/line2-dc01.csv.gz": {
+      "rows": 244788,
+      "sha256": "8d0ebbd12bd495465dcc2e540d36ff44fd188e9c6cb8b8c2ad9d5217a081ed88"
+    },
+    "historian/2026-05/line2-dc02.csv.gz": {
+      "rows": 246828,
+      "sha256": "89d793216f9178f70f4bd1963573648a5b8941bf63742076ce63edf9b8c71175"
+    },
+    "historian/2026-05/line2-dc03.csv.gz": {
+      "rows": 281868,
+      "sha256": "6a846bbbc7b2ce336b41b7c3b21c680ef396cef031ec6ef042d435999d3f1766"
+    },
+    "historian/2026-05/line2-dc04.csv.gz": {
+      "rows": 309360,
+      "sha256": "98c5cee2d7e4fb5bde292a7a798a0472e088ed48b7659e113cd1955e566f560e"
+    },
+    "historian/2026-05/site.csv.gz": {
+      "rows": 44640,
+      "sha256": "4cdc6329f197a334ae97829d276518cc8d7bff2a6209ac3a02975bcfae0161c0"
+    },
+    "historian/2026-06/lab.csv.gz": {
+      "rows": 148,
+      "sha256": "f0f5a9239f340655f8d20657b08bd125b4606afb5854a1365e5c2a7743f46891"
+    },
+    "historian/2026-06/line1-dc05.csv.gz": {
+      "rows": 13054,
+      "sha256": "ad8464bf5c06fc25cad81f799c8b11def2bf26949e69c75f2c559d9ac0f5e818"
+    },
+    "historian/2026-06/line1-dc06.csv.gz": {
+      "rows": 12896,
+      "sha256": "50b2fb95f7f5ed2bf2268d5cb794f868dd2ee8512d623db539dab3d731dd6ec8"
+    },
+    "historian/2026-06/line2-dc01.csv.gz": {
+      "rows": 269628,
+      "sha256": "3a922034694879edf8783f997f8a8995d638c8593becdd84f586d7b83437af0d"
+    },
+    "historian/2026-06/line2-dc02.csv.gz": {
+      "rows": 271356,
+      "sha256": "6ab5e11c3b949d66c12d41233a5a348b38d62e81b00f9a7c5140553c61e1a7d3"
+    },
+    "historian/2026-06/line2-dc03.csv.gz": {
+      "rows": 309780,
+      "sha256": "945045c81d9fd85aa844e7c518db6c813a42b4c449137a121389c733c8b1398e"
+    },
+    "historian/2026-06/line2-dc04.csv.gz": {
+      "rows": 333732,
+      "sha256": "7ac994bb4e60cf670add90a7efa0858ecc5ce2596481072f00ee962358782a0b"
+    },
+    "historian/2026-06/site.csv.gz": {
+      "rows": 43200,
+      "sha256": "965bcf6779cdac7115d685f9ddcf954143972f3aa1f39380c47fd77bc2f59829"
+    },
+    "historian/2026-07/lab.csv.gz": {
+      "rows": 146,
+      "sha256": "76ee0bc8f2bce89fe2114fb9d8f0cef520bfab725fdfa5335d7c97f5406ffd09"
+    },
+    "historian/2026-07/line1-dc05.csv.gz": {
+      "rows": 12674,
+      "sha256": "c6d49f7abc738e6d65879da433f0c5b7fa8547448e0c86b68e50f6412d2bad7b"
+    },
+    "historian/2026-07/line1-dc06.csv.gz": {
+      "rows": 12566,
+      "sha256": "c15a5174a11ef3fcf95da9b92ae3e5b2c06c8849a2c6f309ea38db2ea8dfbd26"
+    },
+    "historian/2026-07/line2-dc01.csv.gz": {
+      "rows": 273768,
+      "sha256": "0166d8c66735754369b68b8dedda82f6f5683c72c820ee4cea1fb9c7473056d2"
+    },
+    "historian/2026-07/line2-dc02.csv.gz": {
+      "rows": 271512,
+      "sha256": "38e0bf527dadc30cd2e62d1c1869645bc9742c34025287d1a9f268f9feb7c3aa"
+    },
+    "historian/2026-07/line2-dc03.csv.gz": {
+      "rows": 313692,
+      "sha256": "5d8c4f336231c2392e9c9d1a3d651efee8935df93ceabe4b7ccc429da7611c05"
+    },
+    "historian/2026-07/line2-dc04.csv.gz": {
+      "rows": 330468,
+      "sha256": "f5ba5d8f0c6ca674120f98ce288ca24db92236d915c3e2630554d2f1876b5e3c"
+    },
+    "historian/2026-07/site.csv.gz": {
+      "rows": 44640,
+      "sha256": "09f972bb3743e80624488059e34f139c6999fe870c949385952623d4812a8240"
+    },
+    "historian/2026-08/lab.csv.gz": {
+      "rows": 72,
+      "sha256": "21d818ccec5c008a8ef4067b4a7671ecf39337164a0521a8bc27e401cc6a1ed3"
+    },
+    "historian/2026-08/line1-dc05.csv.gz": {
+      "rows": 6314,
+      "sha256": "731fdab7c87fbf264c6bd1995a34fb5d2e0d64c3ac38e17a83e3cdf184df8e0d"
+    },
+    "historian/2026-08/line1-dc06.csv.gz": {
+      "rows": 6256,
+      "sha256": "c988c57cea20d5f0115a0cb6eace462e76729d20e3b63ed62ef4496297216066"
+    },
+    "historian/2026-08/line2-dc01.csv.gz": {
+      "rows": 163416,
+      "sha256": "da146fde7ace49844c633c0f3d2930028bd017bdb54e06ac4e9a963493abc45a"
+    },
+    "historian/2026-08/line2-dc02.csv.gz": {
+      "rows": 165096,
+      "sha256": "c84db4bd8d5e8b6386bb2fee27d836ce0d37b67a6b2091e770741f7418143f37"
+    },
+    "historian/2026-08/line2-dc03.csv.gz": {
+      "rows": 182760,
+      "sha256": "70cf4a2c473e29a578606e9871b5f5ff2b05969a4296b259aaa73874b97d20b4"
+    },
+    "historian/2026-08/line2-dc04.csv.gz": {
+      "rows": 186228,
+      "sha256": "cefdeb4a68f571bba6bb537affebefa4e313e8c8c21b00e5c2736aea91525dfb"
+    },
+    "historian/2026-08/site.csv.gz": {
+      "rows": 44640,
+      "sha256": "c33431f7346102194ed7a901b7f7c865436a12430fed81bd5f222230bc88c8f5"
+    },
+    "historian/2026-09/lab.csv.gz": {
+      "rows": 147,
+      "sha256": "eb2939184aa407a1958145a0c465c5a6cd54fbeb1f855395a8aae5b67c36fb7a"
+    },
+    "historian/2026-09/line1-dc05.csv.gz": {
+      "rows": 12782,
+      "sha256": "9d3faa8debafee0be857796593e8e44b1aec1f9e2c49a804a92a97ba50b85445"
+    },
+    "historian/2026-09/line1-dc06.csv.gz": {
+      "rows": 12562,
+      "sha256": "87f704c7674bde8ed30ca4d20c7f084865cedf7b8f67ad7ec1a29b9ae51258d6"
+    },
+    "historian/2026-09/line2-dc01.csv.gz": {
+      "rows": 269544,
+      "sha256": "4a808a0c935240465254d383238705c7996d76542b7130f9383053154da34ebc"
+    },
+    "historian/2026-09/line2-dc02.csv.gz": {
+      "rows": 273588,
+      "sha256": "923b511579d434d1c56375f64529f6a633b8e69550566c94274e3b8056f9c6b7"
+    },
+    "historian/2026-09/line2-dc03.csv.gz": {
+      "rows": 311652,
+      "sha256": "d42b1bd08b602d569d58af7ee0a06727d09ef8437882c6540627f2160bc41afa"
+    },
+    "historian/2026-09/line2-dc04.csv.gz": {
+      "rows": 343140,
+      "sha256": "1e600911230304d80c0e78c0ebdb156605da664f975f3e4eebd592b0a392da0a"
+    },
+    "historian/2026-09/site.csv.gz": {
+      "rows": 43080,
+      "sha256": "23db3e83a1050fe346498360b64030b30f3de1e2ddb9ef99b6ca49a7c71f5534"
+    },
+    "quality/dc01-2025-10.csv.gz": {
+      "rows": 16860,
+      "sha256": "38610af4dc56e4fccb8f1eab13d5886c61111f53d46d76e2c018bd7a65a8087f"
+    },
+    "quality/dc01-2025-11.csv.gz": {
+      "rows": 16629,
+      "sha256": "e23a33ecf508cff797a6d88947030f79af2896fb48986c1dc0987a214f5e23b1"
+    },
+    "quality/dc01-2025-12.csv.gz": {
+      "rows": 11818,
+      "sha256": "be614de8c59e07fb97efd1c7a44967c60db46e64698e383455a56958733fefe8"
+    },
+    "quality/dc01-2026-01.csv.gz": {
+      "rows": 16395,
+      "sha256": "c68e80f58548b838fc73543dcfa65c578c94c993e32b49a1cc01e6b57e0cf966"
+    },
+    "quality/dc01-2026-02.csv.gz": {
+      "rows": 15749,
+      "sha256": "2e05abbd3b9af350d0416188af24132ed005b752dc703f3b6d8f3b32c3d6bdb8"
+    },
+    "quality/dc01-2026-03.csv.gz": {
+      "rows": 17670,
+      "sha256": "dd1d56ec56248b847a88d84e888b52423735db3b1d6887aa1bb5ac3c635865d4"
+    },
+    "quality/dc01-2026-04.csv.gz": {
+      "rows": 15609,
+      "sha256": "06234979e5be2024d585947a08776f310be4e24e1779439f075730900e7a5cb4"
+    },
+    "quality/dc01-2026-05.csv.gz": {
+      "rows": 15129,
+      "sha256": "3d31d2c974752ba5f508591594191165af3ecae1f50d2730e99b096403c84e9b"
+    },
+    "quality/dc01-2026-06.csv.gz": {
+      "rows": 17427,
+      "sha256": "be022b6f47d9de5618a7e2db2ee0de10a1a9a27495b4a223833f405f88bb1d74"
+    },
+    "quality/dc01-2026-07.csv.gz": {
+      "rows": 17605,
+      "sha256": "44b53b5a0ced24e196ef394dc1619446ae5ae64badfcd7708a6a4c9a11229798"
+    },
+    "quality/dc01-2026-08.csv.gz": {
+      "rows": 8411,
+      "sha256": "16e0e5d649fa81520432716327e3ac834588200cf7360fe978219505141bb1bd"
+    },
+    "quality/dc01-2026-09.csv.gz": {
+      "rows": 17500,
+      "sha256": "a54847709399b9597bf6049861a7b74124189406c8e04a16e6d6b5ae1de49313"
+    },
+    "quality/dc02-2025-10.csv.gz": {
+      "rows": 17123,
+      "sha256": "4d9dfdf9c520467857b7bf15c1a2d28edbc9705883200dbd604ecbfa47a2bf4f"
+    },
+    "quality/dc02-2025-11.csv.gz": {
+      "rows": 16545,
+      "sha256": "2a1a5154ce24971c42d1c25216b521b9d85d3e8c596c62847633c599eeb083b9"
+    },
+    "quality/dc02-2025-12.csv.gz": {
+      "rows": 12137,
+      "sha256": "8052989357d373e4c2082546c42c81d682a31736c25fccd701349c2b4691cc2a"
+    },
+    "quality/dc02-2026-01.csv.gz": {
+      "rows": 16060,
+      "sha256": "655e379675d69941855e3315ec39354f1eaf11a2d16ef304f02f8bddfffaee00"
+    },
+    "quality/dc02-2026-02.csv.gz": {
+      "rows": 16373,
+      "sha256": "0fe21f444fb6a046c74c39326c39711d307e3af9123389239114527be610f7eb"
+    },
+    "quality/dc02-2026-03.csv.gz": {
+      "rows": 17782,
+      "sha256": "5b68869b8db301076db063a22eddce5292bb47699c1bc72c177a322270dd60db"
+    },
+    "quality/dc02-2026-04.csv.gz": {
+      "rows": 15766,
+      "sha256": "ecff204458beaadee42ea6df08211559fff88b514f9b25b1e72b399926898b7f"
+    },
+    "quality/dc02-2026-05.csv.gz": {
+      "rows": 15297,
+      "sha256": "19cc51c023aa5d35f9ffb29eeeac6def2bf78d44e4b320998cb67a4151b48991"
+    },
+    "quality/dc02-2026-06.csv.gz": {
+      "rows": 17617,
+      "sha256": "525bd6e1c1b0591d8ba365fe0afc9d3829abd08e81d35c0a0c77811c0b0e71aa"
+    },
+    "quality/dc02-2026-07.csv.gz": {
+      "rows": 17374,
+      "sha256": "9739e3dd6b606c991242d108ff2b52ae461f53276ae9ac73e797f2a86835f3e5"
+    },
+    "quality/dc02-2026-08.csv.gz": {
+      "rows": 8549,
+      "sha256": "a834833c9e14445602d11db0c384ede0aab710f29b36fa54beb3b5b310a7acf0"
+    },
+    "quality/dc02-2026-09.csv.gz": {
+      "rows": 17838,
+      "sha256": "b971da589179b4df59f1146d2033e05f72ba68fa3be38016c5aed5f37e613dd8"
+    },
+    "quality/dc03-2025-10.csv.gz": {
+      "rows": 20765,
+      "sha256": "5fbf5e414e1abe968ff25b38b23ad223962c45e6855e74fa77e507219bf4b09a"
+    },
+    "quality/dc03-2025-11.csv.gz": {
+      "rows": 20051,
+      "sha256": "5a04991ff5f43bef3b3408ca06b9455e174338cb5f4d7246bc950b1622705bf6"
+    },
+    "quality/dc03-2025-12.csv.gz": {
+      "rows": 14404,
+      "sha256": "f510fde4c427f61a4c10715e3623c80083c6a57d2c80ba74a8f8c9a63803412f"
+    },
+    "quality/dc03-2026-01.csv.gz": {
+      "rows": 19188,
+      "sha256": "9a834f902e8b51b777cacc40a5a8fc78c5e8cc1e3774124f68a516b0009001da"
+    },
+    "quality/dc03-2026-02.csv.gz": {
+      "rows": 19438,
+      "sha256": "3cea06c49909395796f07eb46391ff471cc7df3af222e70c47bda70ef29d3d35"
+    },
+    "quality/dc03-2026-03.csv.gz": {
+      "rows": 20406,
+      "sha256": "0b84e384b7d6b708fe216c26f2a2d626a62a93b59ab180ea08abf89e60114021"
+    },
+    "quality/dc03-2026-04.csv.gz": {
+      "rows": 19197,
+      "sha256": "9075293d8018ceab12c1fa96fd24070d8a1b130d47a2134c21efb709d6082edd"
+    },
+    "quality/dc03-2026-05.csv.gz": {
+      "rows": 18220,
+      "sha256": "d322dff0876446564c48b1f2fc1929855c3f889fb602071b35143f28e8807626"
+    },
+    "quality/dc03-2026-06.csv.gz": {
+      "rows": 20759,
+      "sha256": "83f2c30953db8fa837543014e08ba16612fa8ed044747e3cb5fd86f6ed82df06"
+    },
+    "quality/dc03-2026-07.csv.gz": {
+      "rows": 20933,
+      "sha256": "bb949def23cd36651c5286119d662a2a8c232c9f75b48695c93a446ee8d47e95"
+    },
+    "quality/dc03-2026-08.csv.gz": {
+      "rows": 10037,
+      "sha256": "0e9630d4742386023e96e1952b694fa25040bd07c9066b7b1a7d06875f82d385"
+    },
+    "quality/dc03-2026-09.csv.gz": {
+      "rows": 21007,
+      "sha256": "41e67dfd52a6a63a54c95bb4ffec9875b6e591ab7b681c5fef1f2dddfb5596d5"
+    },
+    "quality/dc04-2025-10.csv.gz": {
+      "rows": 23564,
+      "sha256": "60257dfb041417a8311a930545cf8cfd8b9ff74ee0c0c63b905d999495d8bff4"
+    },
+    "quality/dc04-2025-11.csv.gz": {
+      "rows": 22047,
+      "sha256": "37f73b808d9e811d6c7d27dae1b97ad20e7220db8d4130f0bb42b940feccc0ea"
+    },
+    "quality/dc04-2025-12.csv.gz": {
+      "rows": 15400,
+      "sha256": "b7779452536b0221f31915087ed21a0179f04eddde4598a506145748bab54934"
+    },
+    "quality/dc04-2026-01.csv.gz": {
+      "rows": 21250,
+      "sha256": "e75eb5e84b8b1727fe778b8db7f1866454a66303f8fc8d92fdc9a86288ec25b4"
+    },
+    "quality/dc04-2026-02.csv.gz": {
+      "rows": 20477,
+      "sha256": "eb2e64b03e8f7f674a19fc6065258a5740a6165ae4550468a8abb0846676a2c9"
+    },
+    "quality/dc04-2026-03.csv.gz": {
+      "rows": 22958,
+      "sha256": "8d9938e58541843557454dcce5de25c7cb4c3fa4ef5a0dcb3806f98328d1058a"
+    },
+    "quality/dc04-2026-04.csv.gz": {
+      "rows": 20607,
+      "sha256": "804a0364cd7dfc8ae50d474129a39c3789891c0807374b01b844c42b312a2388"
+    },
+    "quality/dc04-2026-05.csv.gz": {
+      "rows": 20500,
+      "sha256": "5b84588acebd4bedf4abc017430ab712cd17a89f1cd29c77c626fbd2e4bf45fd"
+    },
+    "quality/dc04-2026-06.csv.gz": {
+      "rows": 22748,
+      "sha256": "9f7a07fb2b4ccd0f3af2b0a71897d47933ea61a070128de434dd32593e1029fe"
+    },
+    "quality/dc04-2026-07.csv.gz": {
+      "rows": 22331,
+      "sha256": "f88ccdcd1d4df4f9777218e7ff77f21d0c2a25aed4df5775d1b97e079fbcfff3"
+    },
+    "quality/dc04-2026-08.csv.gz": {
+      "rows": 10330,
+      "sha256": "9a7a210fdcf39afc02be92db9523feb7a25f382dcecd7d44a0d750390989e90b"
+    },
+    "quality/dc04-2026-09.csv.gz": {
+      "rows": 23645,
+      "sha256": "b27344c4f22409e91a70f5ab9553615549948a16b8eb7191d0929b63e031f403"
+    },
+    "traces/dc01-shots.csv.gz": {
+      "rows": 1736400,
+      "sha256": "d059e17e9301e81cb60b2505856917fc6dde26a248a567c97cdcc1d93ea33ae6"
+    }
+  },
+  "trace_window": [
+    "2026-05-12T20:10:06+02:00",
+    "2026-05-27T20:10:06+02:00"
+  ],
+  "tables": {
+    "generated/quality/dc01-2025-10.csv.gz": {
+      "name": "X-ray results DC-01 2025-10",
+      "description": "Every shot of DC-01 in 2025-10: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2025-10.csv.gz": {
+      "name": "X-ray results DC-02 2025-10",
+      "description": "Every shot of DC-02 in 2025-10: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2025-10.csv.gz": {
+      "name": "X-ray results DC-03 2025-10",
+      "description": "Every shot of DC-03 in 2025-10: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2025-10.csv.gz": {
+      "name": "X-ray results DC-04 2025-10",
+      "description": "Every shot of DC-04 in 2025-10: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2025-11.csv.gz": {
+      "name": "X-ray results DC-01 2025-11",
+      "description": "Every shot of DC-01 in 2025-11: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2025-11.csv.gz": {
+      "name": "X-ray results DC-02 2025-11",
+      "description": "Every shot of DC-02 in 2025-11: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2025-11.csv.gz": {
+      "name": "X-ray results DC-03 2025-11",
+      "description": "Every shot of DC-03 in 2025-11: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2025-11.csv.gz": {
+      "name": "X-ray results DC-04 2025-11",
+      "description": "Every shot of DC-04 in 2025-11: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2025-12.csv.gz": {
+      "name": "X-ray results DC-01 2025-12",
+      "description": "Every shot of DC-01 in 2025-12: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2025-12.csv.gz": {
+      "name": "X-ray results DC-02 2025-12",
+      "description": "Every shot of DC-02 in 2025-12: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2025-12.csv.gz": {
+      "name": "X-ray results DC-03 2025-12",
+      "description": "Every shot of DC-03 in 2025-12: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2025-12.csv.gz": {
+      "name": "X-ray results DC-04 2025-12",
+      "description": "Every shot of DC-04 in 2025-12: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-01.csv.gz": {
+      "name": "X-ray results DC-01 2026-01",
+      "description": "Every shot of DC-01 in 2026-01: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-01.csv.gz": {
+      "name": "X-ray results DC-02 2026-01",
+      "description": "Every shot of DC-02 in 2026-01: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-01.csv.gz": {
+      "name": "X-ray results DC-03 2026-01",
+      "description": "Every shot of DC-03 in 2026-01: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-01.csv.gz": {
+      "name": "X-ray results DC-04 2026-01",
+      "description": "Every shot of DC-04 in 2026-01: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-02.csv.gz": {
+      "name": "X-ray results DC-01 2026-02",
+      "description": "Every shot of DC-01 in 2026-02: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-02.csv.gz": {
+      "name": "X-ray results DC-02 2026-02",
+      "description": "Every shot of DC-02 in 2026-02: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-02.csv.gz": {
+      "name": "X-ray results DC-03 2026-02",
+      "description": "Every shot of DC-03 in 2026-02: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-02.csv.gz": {
+      "name": "X-ray results DC-04 2026-02",
+      "description": "Every shot of DC-04 in 2026-02: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-03.csv.gz": {
+      "name": "X-ray results DC-01 2026-03",
+      "description": "Every shot of DC-01 in 2026-03: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-03.csv.gz": {
+      "name": "X-ray results DC-02 2026-03",
+      "description": "Every shot of DC-02 in 2026-03: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-03.csv.gz": {
+      "name": "X-ray results DC-03 2026-03",
+      "description": "Every shot of DC-03 in 2026-03: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-03.csv.gz": {
+      "name": "X-ray results DC-04 2026-03",
+      "description": "Every shot of DC-04 in 2026-03: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-04.csv.gz": {
+      "name": "X-ray results DC-01 2026-04",
+      "description": "Every shot of DC-01 in 2026-04: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-04.csv.gz": {
+      "name": "X-ray results DC-02 2026-04",
+      "description": "Every shot of DC-02 in 2026-04: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-04.csv.gz": {
+      "name": "X-ray results DC-03 2026-04",
+      "description": "Every shot of DC-03 in 2026-04: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-04.csv.gz": {
+      "name": "X-ray results DC-04 2026-04",
+      "description": "Every shot of DC-04 in 2026-04: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-05.csv.gz": {
+      "name": "X-ray results DC-01 2026-05",
+      "description": "Every shot of DC-01 in 2026-05: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-05.csv.gz": {
+      "name": "X-ray results DC-02 2026-05",
+      "description": "Every shot of DC-02 in 2026-05: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-05.csv.gz": {
+      "name": "X-ray results DC-03 2026-05",
+      "description": "Every shot of DC-03 in 2026-05: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-05.csv.gz": {
+      "name": "X-ray results DC-04 2026-05",
+      "description": "Every shot of DC-04 in 2026-05: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-06.csv.gz": {
+      "name": "X-ray results DC-01 2026-06",
+      "description": "Every shot of DC-01 in 2026-06: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-06.csv.gz": {
+      "name": "X-ray results DC-02 2026-06",
+      "description": "Every shot of DC-02 in 2026-06: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-06.csv.gz": {
+      "name": "X-ray results DC-03 2026-06",
+      "description": "Every shot of DC-03 in 2026-06: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-06.csv.gz": {
+      "name": "X-ray results DC-04 2026-06",
+      "description": "Every shot of DC-04 in 2026-06: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-07.csv.gz": {
+      "name": "X-ray results DC-01 2026-07",
+      "description": "Every shot of DC-01 in 2026-07: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-07.csv.gz": {
+      "name": "X-ray results DC-02 2026-07",
+      "description": "Every shot of DC-02 in 2026-07: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-07.csv.gz": {
+      "name": "X-ray results DC-03 2026-07",
+      "description": "Every shot of DC-03 in 2026-07: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-07.csv.gz": {
+      "name": "X-ray results DC-04 2026-07",
+      "description": "Every shot of DC-04 in 2026-07: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-08.csv.gz": {
+      "name": "X-ray results DC-01 2026-08",
+      "description": "Every shot of DC-01 in 2026-08: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-08.csv.gz": {
+      "name": "X-ray results DC-02 2026-08",
+      "description": "Every shot of DC-02 in 2026-08: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-08.csv.gz": {
+      "name": "X-ray results DC-03 2026-08",
+      "description": "Every shot of DC-03 in 2026-08: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-08.csv.gz": {
+      "name": "X-ray results DC-04 2026-08",
+      "description": "Every shot of DC-04 in 2026-08: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc01-2026-09.csv.gz": {
+      "name": "X-ray results DC-01 2026-09",
+      "description": "Every shot of DC-01 in 2026-09: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc02-2026-09.csv.gz": {
+      "name": "X-ray results DC-02 2026-09",
+      "description": "Every shot of DC-02 in 2026-09: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc03-2026-09.csv.gz": {
+      "name": "X-ray results DC-03 2026-09",
+      "description": "Every shot of DC-03 in 2026-09: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    },
+    "generated/quality/dc04-2026-09.csv.gz": {
+      "name": "X-ray results DC-04 2026-09",
+      "description": "Every shot of DC-04 in 2026-09: its process values and X-ray result",
+      "text": [
+        "shot_id",
+        "time",
+        "asset",
+        "product",
+        "defect",
+        "result"
+      ]
+    }
+  },
+  "shots": {
+    "DC-01": 186802,
+    "DC-02": 188461,
+    "DC-03": 224405,
+    "DC-04": 245857,
+    "DC-05": 354327,
+    "DC-06": 309278
+  },
+  "parts": {
+    "DC-01": 186802,
+    "DC-02": 188461,
+    "DC-03": 224405,
+    "DC-04": 374030,
+    "DC-05": 708654,
+    "DC-06": 618556
+  }
+}

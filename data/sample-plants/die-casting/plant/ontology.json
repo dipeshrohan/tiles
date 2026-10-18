@@ -1,0 +1,3763 @@
+{
+  "format": "tiles-ontology",
+  "version": 1,
+  "nodes": [
+    {
+      "id": "aldermoor",
+      "type": "Enterprise",
+      "label": "Aldermoor Castings",
+      "props": {}
+    },
+    {
+      "id": "kesselbach",
+      "type": "Site",
+      "label": "Kesselbach plant",
+      "props": {
+        "location": "Kesselbach, Germany",
+        "timezone": "Europe/Berlin"
+      }
+    },
+    {
+      "id": "melting",
+      "type": "Workcenter",
+      "label": "Melting",
+      "props": {}
+    },
+    {
+      "id": "die-casting",
+      "type": "Workcenter",
+      "label": "Die casting",
+      "props": {}
+    },
+    {
+      "id": "finishing",
+      "type": "Workcenter",
+      "label": "Finishing",
+      "props": {}
+    },
+    {
+      "id": "machining",
+      "type": "Workcenter",
+      "label": "Machining",
+      "props": {}
+    },
+    {
+      "id": "quality-lab",
+      "type": "Workcenter",
+      "label": "Quality lab",
+      "props": {}
+    },
+    {
+      "id": "utilities",
+      "type": "Workcenter",
+      "label": "Utilities",
+      "props": {}
+    },
+    {
+      "id": "mat-alsi9cu3",
+      "type": "Material",
+      "label": "AlSi9Cu3(Fe) melt",
+      "props": {
+        "standard": "EN AC-46000"
+      }
+    },
+    {
+      "id": "mat-alsi10mnmg",
+      "type": "Material",
+      "label": "AlSi10MnMg melt",
+      "props": {
+        "standard": "EN AC-43500"
+      }
+    },
+    {
+      "id": "proc-hpdc",
+      "type": "Process",
+      "label": "High-pressure die casting",
+      "props": {}
+    },
+    {
+      "id": "proc-melting",
+      "type": "Process",
+      "label": "Melting and degassing",
+      "props": {}
+    },
+    {
+      "id": "mf-01",
+      "type": "Machine",
+      "label": "Tower melting furnace MF-01",
+      "props": {
+        "vendor": "StrikoWestofen",
+        "model": "StrikoMelter 2000",
+        "kind": "melting-furnace",
+        "asset": "MF-01",
+        "year": 2018
+      }
+    },
+    {
+      "id": "mf-02",
+      "type": "Machine",
+      "label": "Tower melting furnace MF-02",
+      "props": {
+        "vendor": "StrikoWestofen",
+        "model": "StrikoMelter 1500",
+        "kind": "melting-furnace",
+        "asset": "MF-02",
+        "year": 2012
+      }
+    },
+    {
+      "id": "dg-01",
+      "type": "Machine",
+      "label": "Degassing station DG-01",
+      "props": {
+        "vendor": "Foseco",
+        "model": "MDU",
+        "kind": "degassing",
+        "asset": "DG-01",
+        "year": 2018
+      }
+    },
+    {
+      "id": "plc-melting",
+      "type": "PLC",
+      "label": "PLC Melting",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "sig-mf01-melt-temp",
+      "type": "Signal",
+      "label": "MF-01 melt temperature at tapping",
+      "props": {
+        "unit": "°C",
+        "tag": "mf01.melt_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-mf01-gas-flow",
+      "type": "Signal",
+      "label": "MF-01 natural gas flow",
+      "props": {
+        "unit": "m³/h",
+        "tag": "mf01.gas_flow",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-lab-hydrogen",
+      "type": "Signal",
+      "label": "Hydrogen in the melt after degassing (density index test, DG-01)",
+      "props": {
+        "unit": "ml/100g",
+        "tag": "lab.hydrogen",
+        "measure": "content"
+      }
+    },
+    {
+      "id": "line-1",
+      "type": "Line",
+      "label": "Die-casting line 1",
+      "props": {}
+    },
+    {
+      "id": "line-2",
+      "type": "Line",
+      "label": "Die-casting line 2",
+      "props": {}
+    },
+    {
+      "id": "cell-dc01",
+      "type": "Cell",
+      "label": "Cell DC-01",
+      "props": {}
+    },
+    {
+      "id": "dc-01",
+      "type": "Machine",
+      "label": "DC-01 die-casting machine",
+      "props": {
+        "vendor": "Bühler",
+        "model": "Carat 220",
+        "kind": "die-caster",
+        "asset": "DC-01",
+        "year": 2019,
+        "locking_force_kn": 22000,
+        "products": "TH-410"
+      }
+    },
+    {
+      "id": "plc-dc01",
+      "type": "PLC",
+      "label": "PLC DC-01",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "hf-01",
+      "type": "Machine",
+      "label": "Holding furnace HF-01",
+      "props": {
+        "vendor": "StrikoWestofen",
+        "model": "StrikoDos 700",
+        "kind": "holding-furnace",
+        "asset": "HF-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "sr-01",
+      "type": "Machine",
+      "label": "Spray robot SR-01",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "M-20iD",
+        "kind": "spray-robot",
+        "asset": "SR-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "er-01",
+      "type": "Machine",
+      "label": "Extraction robot ER-01",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "R-2000iC",
+        "kind": "extraction-robot",
+        "asset": "ER-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "tp-01",
+      "type": "Machine",
+      "label": "Trim press TP-01",
+      "props": {
+        "vendor": "Schuler",
+        "model": "TP 250",
+        "kind": "trim-press",
+        "asset": "TP-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "vu-01",
+      "type": "Machine",
+      "label": "Vacuum unit VU-01",
+      "props": {
+        "vendor": "Fondarex",
+        "model": "Evacuator",
+        "kind": "vacuum-unit",
+        "asset": "VU-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "sig-dc01-cycle-time",
+      "type": "Signal",
+      "label": "DC-01 cycle time",
+      "props": {
+        "unit": "s",
+        "tag": "dc01.cycle_time",
+        "measure": "cycle"
+      }
+    },
+    {
+      "id": "sig-dc01-shot-speed-1st",
+      "type": "Signal",
+      "label": "DC-01 first-phase (slow) shot speed",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc01.shot_speed_1st",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc01-shot-speed-2nd",
+      "type": "Signal",
+      "label": "DC-01 second-phase (fast) shot speed",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc01.shot_speed_2nd",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc01-fill-time",
+      "type": "Signal",
+      "label": "DC-01 cavity fill time",
+      "props": {
+        "unit": "ms",
+        "tag": "dc01.fill_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-dc01-intensification-pressure",
+      "type": "Signal",
+      "label": "DC-01 metal pressure at intensification",
+      "props": {
+        "unit": "bar",
+        "tag": "dc01.intensification_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc01-pressure-buildup-time",
+      "type": "Signal",
+      "label": "DC-01 intensification pressure build-up time",
+      "props": {
+        "unit": "ms",
+        "tag": "dc01.pressure_buildup_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-dc01-biscuit-length",
+      "type": "Signal",
+      "label": "DC-01 biscuit length",
+      "props": {
+        "unit": "mm",
+        "tag": "dc01.biscuit_length",
+        "measure": "length"
+      }
+    },
+    {
+      "id": "sig-dc01-vacuum-level",
+      "type": "Signal",
+      "label": "DC-01 cavity vacuum at the shot (absolute)",
+      "props": {
+        "unit": "mbar",
+        "tag": "dc01.vacuum_level",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-dc01-die-temp-fixed",
+      "type": "Signal",
+      "label": "DC-01 fixed die half before spraying",
+      "props": {
+        "unit": "°C",
+        "tag": "dc01.die_temp_fixed",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc01-die-temp-moving",
+      "type": "Signal",
+      "label": "DC-01 moving die half before spraying",
+      "props": {
+        "unit": "°C",
+        "tag": "dc01.die_temp_moving",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc01-plunger-pressure-1st",
+      "type": "Signal",
+      "label": "DC-01 shot cylinder pressure in the slow phase: rises with plunger friction",
+      "props": {
+        "unit": "bar",
+        "tag": "dc01.plunger_pressure_1st",
+        "measure": "friction"
+      }
+    },
+    {
+      "id": "sig-dc01-spray-pressure",
+      "type": "Signal",
+      "label": "DC-01 spray robot manifold pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "dc01.spray_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc01-hydraulic-oil-temp",
+      "type": "Signal",
+      "label": "DC-01 hydraulic oil tank temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dc01.hydraulic_oil_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc01-accumulator-pressure",
+      "type": "Signal",
+      "label": "DC-01 shot accumulator pressure, recharged",
+      "props": {
+        "unit": "bar",
+        "tag": "dc01.accumulator_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc01-cooling-flow-fixed",
+      "type": "Signal",
+      "label": "DC-01 die cooling flow, fixed half",
+      "props": {
+        "unit": "l/min",
+        "tag": "dc01.cooling_flow_fixed",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-dc01-cooling-flow-moving",
+      "type": "Signal",
+      "label": "DC-01 die cooling flow, moving half",
+      "props": {
+        "unit": "l/min",
+        "tag": "dc01.cooling_flow_moving",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-dc01-tcu-oil-temp",
+      "type": "Signal",
+      "label": "DC-01 thermal control unit oil temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dc01.tcu_oil_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-hf01-bath-temp",
+      "type": "Signal",
+      "label": "HF-01 metal bath temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "hf01.bath_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-hf01-heater-power",
+      "type": "Signal",
+      "label": "HF-01 heater power",
+      "props": {
+        "unit": "kW",
+        "tag": "hf01.heater_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "cell-dc02",
+      "type": "Cell",
+      "label": "Cell DC-02",
+      "props": {}
+    },
+    {
+      "id": "dc-02",
+      "type": "Machine",
+      "label": "DC-02 die-casting machine",
+      "props": {
+        "vendor": "Bühler",
+        "model": "Carat 220",
+        "kind": "die-caster",
+        "asset": "DC-02",
+        "year": 2019,
+        "locking_force_kn": 22000,
+        "products": "TH-410"
+      }
+    },
+    {
+      "id": "plc-dc02",
+      "type": "PLC",
+      "label": "PLC DC-02",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "hf-02",
+      "type": "Machine",
+      "label": "Holding furnace HF-02",
+      "props": {
+        "vendor": "StrikoWestofen",
+        "model": "StrikoDos 700",
+        "kind": "holding-furnace",
+        "asset": "HF-02",
+        "year": 2019
+      }
+    },
+    {
+      "id": "sr-02",
+      "type": "Machine",
+      "label": "Spray robot SR-02",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "M-20iD",
+        "kind": "spray-robot",
+        "asset": "SR-02",
+        "year": 2019
+      }
+    },
+    {
+      "id": "er-02",
+      "type": "Machine",
+      "label": "Extraction robot ER-02",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "R-2000iC",
+        "kind": "extraction-robot",
+        "asset": "ER-02",
+        "year": 2019
+      }
+    },
+    {
+      "id": "tp-02",
+      "type": "Machine",
+      "label": "Trim press TP-02",
+      "props": {
+        "vendor": "Schuler",
+        "model": "TP 250",
+        "kind": "trim-press",
+        "asset": "TP-02",
+        "year": 2019
+      }
+    },
+    {
+      "id": "vu-02",
+      "type": "Machine",
+      "label": "Vacuum unit VU-02",
+      "props": {
+        "vendor": "Fondarex",
+        "model": "Evacuator",
+        "kind": "vacuum-unit",
+        "asset": "VU-02",
+        "year": 2019
+      }
+    },
+    {
+      "id": "sig-dc02-cycle-time",
+      "type": "Signal",
+      "label": "DC-02 cycle time",
+      "props": {
+        "unit": "s",
+        "tag": "dc02.cycle_time",
+        "measure": "cycle"
+      }
+    },
+    {
+      "id": "sig-dc02-shot-speed-1st",
+      "type": "Signal",
+      "label": "DC-02 first-phase (slow) shot speed",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc02.shot_speed_1st",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc02-shot-speed-2nd",
+      "type": "Signal",
+      "label": "DC-02 second-phase (fast) shot speed",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc02.shot_speed_2nd",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc02-fill-time",
+      "type": "Signal",
+      "label": "DC-02 cavity fill time",
+      "props": {
+        "unit": "ms",
+        "tag": "dc02.fill_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-dc02-intensification-pressure",
+      "type": "Signal",
+      "label": "DC-02 metal pressure at intensification",
+      "props": {
+        "unit": "bar",
+        "tag": "dc02.intensification_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc02-pressure-buildup-time",
+      "type": "Signal",
+      "label": "DC-02 intensification pressure build-up time",
+      "props": {
+        "unit": "ms",
+        "tag": "dc02.pressure_buildup_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-dc02-biscuit-length",
+      "type": "Signal",
+      "label": "DC-02 biscuit length",
+      "props": {
+        "unit": "mm",
+        "tag": "dc02.biscuit_length",
+        "measure": "length"
+      }
+    },
+    {
+      "id": "sig-dc02-vacuum-level",
+      "type": "Signal",
+      "label": "DC-02 cavity vacuum at the shot (absolute)",
+      "props": {
+        "unit": "mbar",
+        "tag": "dc02.vacuum_level",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-dc02-die-temp-fixed",
+      "type": "Signal",
+      "label": "DC-02 fixed die half before spraying",
+      "props": {
+        "unit": "°C",
+        "tag": "dc02.die_temp_fixed",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc02-die-temp-moving",
+      "type": "Signal",
+      "label": "DC-02 moving die half before spraying",
+      "props": {
+        "unit": "°C",
+        "tag": "dc02.die_temp_moving",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc02-plunger-pressure-1st",
+      "type": "Signal",
+      "label": "DC-02 shot cylinder pressure in the slow phase: rises with plunger friction",
+      "props": {
+        "unit": "bar",
+        "tag": "dc02.plunger_pressure_1st",
+        "measure": "friction"
+      }
+    },
+    {
+      "id": "sig-dc02-spray-pressure",
+      "type": "Signal",
+      "label": "DC-02 spray robot manifold pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "dc02.spray_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc02-hydraulic-oil-temp",
+      "type": "Signal",
+      "label": "DC-02 hydraulic oil tank temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dc02.hydraulic_oil_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc02-accumulator-pressure",
+      "type": "Signal",
+      "label": "DC-02 shot accumulator pressure, recharged",
+      "props": {
+        "unit": "bar",
+        "tag": "dc02.accumulator_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc02-cooling-flow-fixed",
+      "type": "Signal",
+      "label": "DC-02 die cooling flow, fixed half",
+      "props": {
+        "unit": "l/min",
+        "tag": "dc02.cooling_flow_fixed",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-dc02-cooling-flow-moving",
+      "type": "Signal",
+      "label": "DC-02 die cooling flow, moving half",
+      "props": {
+        "unit": "l/min",
+        "tag": "dc02.cooling_flow_moving",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-dc02-tcu-oil-temp",
+      "type": "Signal",
+      "label": "DC-02 thermal control unit oil temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dc02.tcu_oil_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-hf02-bath-temp",
+      "type": "Signal",
+      "label": "HF-02 metal bath temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "hf02.bath_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-hf02-heater-power",
+      "type": "Signal",
+      "label": "HF-02 heater power",
+      "props": {
+        "unit": "kW",
+        "tag": "hf02.heater_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "cell-dc03",
+      "type": "Cell",
+      "label": "Cell DC-03",
+      "props": {}
+    },
+    {
+      "id": "dc-03",
+      "type": "Machine",
+      "label": "DC-03 die-casting machine",
+      "props": {
+        "vendor": "Bühler",
+        "model": "Carat 160",
+        "kind": "die-caster",
+        "asset": "DC-03",
+        "year": 2021,
+        "locking_force_kn": 16000,
+        "products": "EM-220"
+      }
+    },
+    {
+      "id": "plc-dc03",
+      "type": "PLC",
+      "label": "PLC DC-03",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "hf-03",
+      "type": "Machine",
+      "label": "Holding furnace HF-03",
+      "props": {
+        "vendor": "StrikoWestofen",
+        "model": "StrikoDos 700",
+        "kind": "holding-furnace",
+        "asset": "HF-03",
+        "year": 2021
+      }
+    },
+    {
+      "id": "sr-03",
+      "type": "Machine",
+      "label": "Spray robot SR-03",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "M-20iD",
+        "kind": "spray-robot",
+        "asset": "SR-03",
+        "year": 2021
+      }
+    },
+    {
+      "id": "er-03",
+      "type": "Machine",
+      "label": "Extraction robot ER-03",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "R-2000iC",
+        "kind": "extraction-robot",
+        "asset": "ER-03",
+        "year": 2021
+      }
+    },
+    {
+      "id": "tp-03",
+      "type": "Machine",
+      "label": "Trim press TP-03",
+      "props": {
+        "vendor": "Schuler",
+        "model": "TP 250",
+        "kind": "trim-press",
+        "asset": "TP-03",
+        "year": 2021
+      }
+    },
+    {
+      "id": "vu-03",
+      "type": "Machine",
+      "label": "Vacuum unit VU-03",
+      "props": {
+        "vendor": "Fondarex",
+        "model": "Evacuator",
+        "kind": "vacuum-unit",
+        "asset": "VU-03",
+        "year": 2021
+      }
+    },
+    {
+      "id": "sig-dc03-cycle-time",
+      "type": "Signal",
+      "label": "DC-03 cycle time",
+      "props": {
+        "unit": "s",
+        "tag": "dc03.cycle_time",
+        "measure": "cycle"
+      }
+    },
+    {
+      "id": "sig-dc03-shot-speed-1st",
+      "type": "Signal",
+      "label": "DC-03 first-phase (slow) shot speed",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc03.shot_speed_1st",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc03-shot-speed-2nd",
+      "type": "Signal",
+      "label": "DC-03 second-phase (fast) shot speed",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc03.shot_speed_2nd",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc03-fill-time",
+      "type": "Signal",
+      "label": "DC-03 cavity fill time",
+      "props": {
+        "unit": "ms",
+        "tag": "dc03.fill_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-dc03-intensification-pressure",
+      "type": "Signal",
+      "label": "DC-03 metal pressure at intensification",
+      "props": {
+        "unit": "bar",
+        "tag": "dc03.intensification_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc03-pressure-buildup-time",
+      "type": "Signal",
+      "label": "DC-03 intensification pressure build-up time",
+      "props": {
+        "unit": "ms",
+        "tag": "dc03.pressure_buildup_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-dc03-biscuit-length",
+      "type": "Signal",
+      "label": "DC-03 biscuit length",
+      "props": {
+        "unit": "mm",
+        "tag": "dc03.biscuit_length",
+        "measure": "length"
+      }
+    },
+    {
+      "id": "sig-dc03-vacuum-level",
+      "type": "Signal",
+      "label": "DC-03 cavity vacuum at the shot (absolute)",
+      "props": {
+        "unit": "mbar",
+        "tag": "dc03.vacuum_level",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-dc03-die-temp-fixed",
+      "type": "Signal",
+      "label": "DC-03 fixed die half before spraying",
+      "props": {
+        "unit": "°C",
+        "tag": "dc03.die_temp_fixed",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc03-die-temp-moving",
+      "type": "Signal",
+      "label": "DC-03 moving die half before spraying",
+      "props": {
+        "unit": "°C",
+        "tag": "dc03.die_temp_moving",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc03-plunger-pressure-1st",
+      "type": "Signal",
+      "label": "DC-03 shot cylinder pressure in the slow phase: rises with plunger friction",
+      "props": {
+        "unit": "bar",
+        "tag": "dc03.plunger_pressure_1st",
+        "measure": "friction"
+      }
+    },
+    {
+      "id": "sig-dc03-spray-pressure",
+      "type": "Signal",
+      "label": "DC-03 spray robot manifold pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "dc03.spray_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc03-hydraulic-oil-temp",
+      "type": "Signal",
+      "label": "DC-03 hydraulic oil tank temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dc03.hydraulic_oil_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc03-accumulator-pressure",
+      "type": "Signal",
+      "label": "DC-03 shot accumulator pressure, recharged",
+      "props": {
+        "unit": "bar",
+        "tag": "dc03.accumulator_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc03-cooling-flow-fixed",
+      "type": "Signal",
+      "label": "DC-03 die cooling flow, fixed half",
+      "props": {
+        "unit": "l/min",
+        "tag": "dc03.cooling_flow_fixed",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-dc03-cooling-flow-moving",
+      "type": "Signal",
+      "label": "DC-03 die cooling flow, moving half",
+      "props": {
+        "unit": "l/min",
+        "tag": "dc03.cooling_flow_moving",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-dc03-tcu-oil-temp",
+      "type": "Signal",
+      "label": "DC-03 thermal control unit oil temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dc03.tcu_oil_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-hf03-bath-temp",
+      "type": "Signal",
+      "label": "HF-03 metal bath temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "hf03.bath_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-hf03-heater-power",
+      "type": "Signal",
+      "label": "HF-03 heater power",
+      "props": {
+        "unit": "kW",
+        "tag": "hf03.heater_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "cell-dc04",
+      "type": "Cell",
+      "label": "Cell DC-04",
+      "props": {}
+    },
+    {
+      "id": "dc-04",
+      "type": "Machine",
+      "label": "DC-04 die-casting machine",
+      "props": {
+        "vendor": "Idra",
+        "model": "OL 1600 S",
+        "kind": "die-caster",
+        "asset": "DC-04",
+        "year": 2017,
+        "locking_force_kn": 16000,
+        "products": "EM-220, CV-90"
+      }
+    },
+    {
+      "id": "plc-dc04",
+      "type": "PLC",
+      "label": "PLC DC-04",
+      "props": {
+        "protocol": "OPC UA",
+        "model": "Siemens S7-1500"
+      }
+    },
+    {
+      "id": "hf-04",
+      "type": "Machine",
+      "label": "Holding furnace HF-04",
+      "props": {
+        "vendor": "StrikoWestofen",
+        "model": "StrikoDos 700",
+        "kind": "holding-furnace",
+        "asset": "HF-04",
+        "year": 2017
+      }
+    },
+    {
+      "id": "sr-04",
+      "type": "Machine",
+      "label": "Spray robot SR-04",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "M-20iD",
+        "kind": "spray-robot",
+        "asset": "SR-04",
+        "year": 2017
+      }
+    },
+    {
+      "id": "er-04",
+      "type": "Machine",
+      "label": "Extraction robot ER-04",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "R-2000iC",
+        "kind": "extraction-robot",
+        "asset": "ER-04",
+        "year": 2017
+      }
+    },
+    {
+      "id": "tp-04",
+      "type": "Machine",
+      "label": "Trim press TP-04",
+      "props": {
+        "vendor": "Schuler",
+        "model": "TP 250",
+        "kind": "trim-press",
+        "asset": "TP-04",
+        "year": 2017
+      }
+    },
+    {
+      "id": "vu-04",
+      "type": "Machine",
+      "label": "Vacuum unit VU-04",
+      "props": {
+        "vendor": "Fondarex",
+        "model": "Evacuator",
+        "kind": "vacuum-unit",
+        "asset": "VU-04",
+        "year": 2017
+      }
+    },
+    {
+      "id": "sig-dc04-cycle-time",
+      "type": "Signal",
+      "label": "DC-04 cycle time",
+      "props": {
+        "unit": "s",
+        "tag": "dc04.cycle_time",
+        "measure": "cycle"
+      }
+    },
+    {
+      "id": "sig-dc04-shot-speed-1st",
+      "type": "Signal",
+      "label": "DC-04 first-phase (slow) shot speed",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc04.shot_speed_1st",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc04-shot-speed-2nd",
+      "type": "Signal",
+      "label": "DC-04 second-phase (fast) shot speed",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc04.shot_speed_2nd",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc04-fill-time",
+      "type": "Signal",
+      "label": "DC-04 cavity fill time",
+      "props": {
+        "unit": "ms",
+        "tag": "dc04.fill_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-dc04-intensification-pressure",
+      "type": "Signal",
+      "label": "DC-04 metal pressure at intensification",
+      "props": {
+        "unit": "bar",
+        "tag": "dc04.intensification_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc04-pressure-buildup-time",
+      "type": "Signal",
+      "label": "DC-04 intensification pressure build-up time",
+      "props": {
+        "unit": "ms",
+        "tag": "dc04.pressure_buildup_time",
+        "measure": "time"
+      }
+    },
+    {
+      "id": "sig-dc04-biscuit-length",
+      "type": "Signal",
+      "label": "DC-04 biscuit length",
+      "props": {
+        "unit": "mm",
+        "tag": "dc04.biscuit_length",
+        "measure": "length"
+      }
+    },
+    {
+      "id": "sig-dc04-vacuum-level",
+      "type": "Signal",
+      "label": "DC-04 cavity vacuum at the shot (absolute)",
+      "props": {
+        "unit": "mbar",
+        "tag": "dc04.vacuum_level",
+        "measure": "vacuum"
+      }
+    },
+    {
+      "id": "sig-dc04-die-temp-fixed",
+      "type": "Signal",
+      "label": "DC-04 fixed die half before spraying",
+      "props": {
+        "unit": "°C",
+        "tag": "dc04.die_temp_fixed",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc04-die-temp-moving",
+      "type": "Signal",
+      "label": "DC-04 moving die half before spraying",
+      "props": {
+        "unit": "°C",
+        "tag": "dc04.die_temp_moving",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc04-plunger-pressure-1st",
+      "type": "Signal",
+      "label": "DC-04 shot cylinder pressure in the slow phase: rises with plunger friction",
+      "props": {
+        "unit": "bar",
+        "tag": "dc04.plunger_pressure_1st",
+        "measure": "friction"
+      }
+    },
+    {
+      "id": "sig-dc04-spray-pressure",
+      "type": "Signal",
+      "label": "DC-04 spray robot manifold pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "dc04.spray_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc04-hydraulic-oil-temp",
+      "type": "Signal",
+      "label": "DC-04 hydraulic oil tank temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dc04.hydraulic_oil_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc04-accumulator-pressure",
+      "type": "Signal",
+      "label": "DC-04 shot accumulator pressure, recharged",
+      "props": {
+        "unit": "bar",
+        "tag": "dc04.accumulator_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc04-cooling-flow-fixed",
+      "type": "Signal",
+      "label": "DC-04 die cooling flow, fixed half",
+      "props": {
+        "unit": "l/min",
+        "tag": "dc04.cooling_flow_fixed",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-dc04-cooling-flow-moving",
+      "type": "Signal",
+      "label": "DC-04 die cooling flow, moving half",
+      "props": {
+        "unit": "l/min",
+        "tag": "dc04.cooling_flow_moving",
+        "measure": "flow"
+      }
+    },
+    {
+      "id": "sig-dc04-tcu-oil-temp",
+      "type": "Signal",
+      "label": "DC-04 thermal control unit oil temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "dc04.tcu_oil_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-hf04-bath-temp",
+      "type": "Signal",
+      "label": "HF-04 metal bath temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "hf04.bath_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-hf04-heater-power",
+      "type": "Signal",
+      "label": "HF-04 heater power",
+      "props": {
+        "unit": "kW",
+        "tag": "hf04.heater_power",
+        "measure": "power"
+      }
+    },
+    {
+      "id": "cell-dc05",
+      "type": "Cell",
+      "label": "Cell DC-05",
+      "props": {}
+    },
+    {
+      "id": "dc-05",
+      "type": "Machine",
+      "label": "DC-05 die-casting machine",
+      "props": {
+        "vendor": "Idra",
+        "model": "OL 800",
+        "kind": "die-caster",
+        "asset": "DC-05",
+        "year": 2009,
+        "locking_force_kn": 8000,
+        "products": "BR-35"
+      }
+    },
+    {
+      "id": "plc-dc05",
+      "type": "PLC",
+      "label": "PLC DC-05",
+      "props": {
+        "protocol": "MQTT",
+        "model": "Siemens S7-300"
+      }
+    },
+    {
+      "id": "hf-05",
+      "type": "Machine",
+      "label": "Holding furnace HF-05",
+      "props": {
+        "vendor": "Meltec",
+        "model": "DH 450",
+        "kind": "holding-furnace",
+        "asset": "HF-05",
+        "year": 2009
+      }
+    },
+    {
+      "id": "sr-05",
+      "type": "Machine",
+      "label": "Spray robot SR-05",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "M-20iD",
+        "kind": "spray-robot",
+        "asset": "SR-05",
+        "year": 2009
+      }
+    },
+    {
+      "id": "er-05",
+      "type": "Machine",
+      "label": "Extraction robot ER-05",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "R-2000iC",
+        "kind": "extraction-robot",
+        "asset": "ER-05",
+        "year": 2009
+      }
+    },
+    {
+      "id": "tp-05",
+      "type": "Machine",
+      "label": "Trim press TP-05",
+      "props": {
+        "vendor": "Schuler",
+        "model": "TP 250",
+        "kind": "trim-press",
+        "asset": "TP-05",
+        "year": 2009
+      }
+    },
+    {
+      "id": "vu-05",
+      "type": "Machine",
+      "label": "Vacuum unit VU-05",
+      "props": {
+        "vendor": "Fondarex",
+        "model": "Evacuator",
+        "kind": "vacuum-unit",
+        "asset": "VU-05",
+        "year": 2009
+      }
+    },
+    {
+      "id": "sig-dc05-cycle-time",
+      "type": "Signal",
+      "label": "DC-05 cycle time, 5-minute average",
+      "props": {
+        "unit": "s",
+        "tag": "dc05.cycle_time",
+        "measure": "cycle"
+      }
+    },
+    {
+      "id": "sig-dc05-die-temp-fixed",
+      "type": "Signal",
+      "label": "DC-05 fixed die half, 5-minute average",
+      "props": {
+        "unit": "°C",
+        "tag": "dc05.die_temp_fixed",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "cell-dc06",
+      "type": "Cell",
+      "label": "Cell DC-06",
+      "props": {}
+    },
+    {
+      "id": "dc-06",
+      "type": "Machine",
+      "label": "DC-06 die-casting machine",
+      "props": {
+        "vendor": "Idra",
+        "model": "OL 800",
+        "kind": "die-caster",
+        "asset": "DC-06",
+        "year": 2010,
+        "locking_force_kn": 8000,
+        "products": "BR-35, CV-90"
+      }
+    },
+    {
+      "id": "plc-dc06",
+      "type": "PLC",
+      "label": "PLC DC-06",
+      "props": {
+        "protocol": "MQTT",
+        "model": "Siemens S7-300"
+      }
+    },
+    {
+      "id": "hf-06",
+      "type": "Machine",
+      "label": "Holding furnace HF-06",
+      "props": {
+        "vendor": "Meltec",
+        "model": "DH 450",
+        "kind": "holding-furnace",
+        "asset": "HF-06",
+        "year": 2010
+      }
+    },
+    {
+      "id": "sr-06",
+      "type": "Machine",
+      "label": "Spray robot SR-06",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "M-20iD",
+        "kind": "spray-robot",
+        "asset": "SR-06",
+        "year": 2010
+      }
+    },
+    {
+      "id": "er-06",
+      "type": "Machine",
+      "label": "Extraction robot ER-06",
+      "props": {
+        "vendor": "Fanuc",
+        "model": "R-2000iC",
+        "kind": "extraction-robot",
+        "asset": "ER-06",
+        "year": 2010
+      }
+    },
+    {
+      "id": "tp-06",
+      "type": "Machine",
+      "label": "Trim press TP-06",
+      "props": {
+        "vendor": "Schuler",
+        "model": "TP 250",
+        "kind": "trim-press",
+        "asset": "TP-06",
+        "year": 2010
+      }
+    },
+    {
+      "id": "vu-06",
+      "type": "Machine",
+      "label": "Vacuum unit VU-06",
+      "props": {
+        "vendor": "Fondarex",
+        "model": "Evacuator",
+        "kind": "vacuum-unit",
+        "asset": "VU-06",
+        "year": 2010
+      }
+    },
+    {
+      "id": "sig-dc06-cycle-time",
+      "type": "Signal",
+      "label": "DC-06 cycle time, 5-minute average",
+      "props": {
+        "unit": "s",
+        "tag": "dc06.cycle_time",
+        "measure": "cycle"
+      }
+    },
+    {
+      "id": "sig-dc06-die-temp-fixed",
+      "type": "Signal",
+      "label": "DC-06 fixed die half, 5-minute average",
+      "props": {
+        "unit": "°C",
+        "tag": "dc06.die_temp_fixed",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-dc01-shot-v",
+      "type": "Signal",
+      "label": "DC-01 plunger velocity through the shot (shot monitoring)",
+      "props": {
+        "unit": "m/s",
+        "tag": "dc01.shot.v",
+        "measure": "speed"
+      }
+    },
+    {
+      "id": "sig-dc01-shot-ph",
+      "type": "Signal",
+      "label": "DC-01 shot cylinder (hydraulic) pressure through the shot",
+      "props": {
+        "unit": "bar",
+        "tag": "dc01.shot.ph",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-dc01-shot-pm",
+      "type": "Signal",
+      "label": "DC-01 metal pressure through the shot",
+      "props": {
+        "unit": "bar",
+        "tag": "dc01.shot.pm",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "fettling-line",
+      "type": "Line",
+      "label": "Fettling line",
+      "props": {}
+    },
+    {
+      "id": "sb-01",
+      "type": "Machine",
+      "label": "Shot blast SB-01",
+      "props": {
+        "vendor": "Rösler",
+        "model": "RHBE",
+        "kind": "shot-blast",
+        "asset": "SB-01",
+        "year": 2016
+      }
+    },
+    {
+      "id": "ft-01",
+      "type": "Machine",
+      "label": "Fettling cell FT-01",
+      "props": {
+        "vendor": "Kuka",
+        "model": "KR 210",
+        "kind": "fettling",
+        "asset": "FT-01",
+        "year": 2020
+      }
+    },
+    {
+      "id": "im-01",
+      "type": "Machine",
+      "label": "Impregnation plant IM-01",
+      "props": {
+        "vendor": "Maldaner",
+        "model": "VAC 10",
+        "kind": "impregnation",
+        "asset": "IM-01",
+        "year": 2014
+      }
+    },
+    {
+      "id": "machining-line",
+      "type": "Line",
+      "label": "Machining line",
+      "props": {}
+    },
+    {
+      "id": "cnc-01",
+      "type": "Machine",
+      "label": "Machining centre CNC-01",
+      "props": {
+        "vendor": "Heller",
+        "model": "H 5000",
+        "kind": "machining-centre",
+        "asset": "CNC-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "cnc-02",
+      "type": "Machine",
+      "label": "Machining centre CNC-02",
+      "props": {
+        "vendor": "Heller",
+        "model": "H 5000",
+        "kind": "machining-centre",
+        "asset": "CNC-02",
+        "year": 2019
+      }
+    },
+    {
+      "id": "cnc-03",
+      "type": "Machine",
+      "label": "Machining centre CNC-03",
+      "props": {
+        "vendor": "Grob",
+        "model": "G550",
+        "kind": "machining-centre",
+        "asset": "CNC-03",
+        "year": 2021
+      }
+    },
+    {
+      "id": "cnc-04",
+      "type": "Machine",
+      "label": "Machining centre CNC-04",
+      "props": {
+        "vendor": "Grob",
+        "model": "G550",
+        "kind": "machining-centre",
+        "asset": "CNC-04",
+        "year": 2021
+      }
+    },
+    {
+      "id": "ws-01",
+      "type": "Machine",
+      "label": "Washer WS-01",
+      "props": {
+        "vendor": "Dürr",
+        "model": "Ecoclean 81C",
+        "kind": "washer",
+        "asset": "WS-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "lt-01",
+      "type": "Machine",
+      "label": "Leak tester LT-01",
+      "props": {
+        "vendor": "ATEQ",
+        "model": "F620",
+        "kind": "leak-tester",
+        "asset": "LT-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "xr-01",
+      "type": "Machine",
+      "label": "X-ray inspection XR-01",
+      "props": {
+        "vendor": "Yxlon",
+        "model": "MU56 TB",
+        "kind": "x-ray",
+        "asset": "XR-01",
+        "year": 2019
+      }
+    },
+    {
+      "id": "xr-02",
+      "type": "Machine",
+      "label": "X-ray inspection XR-02",
+      "props": {
+        "vendor": "Yxlon",
+        "model": "MU56 TB",
+        "kind": "x-ray",
+        "asset": "XR-02",
+        "year": 2021
+      }
+    },
+    {
+      "id": "cmm-01",
+      "type": "Machine",
+      "label": "Coordinate measuring machine CMM-01",
+      "props": {
+        "vendor": "Zeiss",
+        "model": "Contura",
+        "kind": "cmm",
+        "asset": "CMM-01",
+        "year": 2018
+      }
+    },
+    {
+      "id": "plc-utilities",
+      "type": "PLC",
+      "label": "PLC Utilities",
+      "props": {
+        "protocol": "Modbus TCP",
+        "model": "Wago 750"
+      }
+    },
+    {
+      "id": "cp-01",
+      "type": "Machine",
+      "label": "Air compressor CP-01",
+      "props": {
+        "vendor": "Kaeser",
+        "model": "CSD 125",
+        "kind": "compressor",
+        "asset": "CP-01",
+        "year": 2015
+      }
+    },
+    {
+      "id": "ct-01",
+      "type": "Machine",
+      "label": "Cooling tower CT-01",
+      "props": {
+        "vendor": "Baltimore Aircoil",
+        "model": "VXT",
+        "kind": "cooling-tower",
+        "asset": "CT-01",
+        "year": 2011
+      }
+    },
+    {
+      "id": "sig-ct01-supply-temp",
+      "type": "Signal",
+      "label": "Cooling water supply temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "ct01.supply_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "sig-cp01-header-pressure",
+      "type": "Signal",
+      "label": "Compressed air header pressure",
+      "props": {
+        "unit": "bar",
+        "tag": "cp01.header_pressure",
+        "measure": "pressure"
+      }
+    },
+    {
+      "id": "sig-hall-ambient-temp",
+      "type": "Signal",
+      "label": "Die-casting hall air temperature",
+      "props": {
+        "unit": "°C",
+        "tag": "hall.ambient_temp",
+        "measure": "temperature"
+      }
+    },
+    {
+      "id": "cp-02",
+      "type": "Machine",
+      "label": "Air compressor CP-02 (spare)",
+      "props": {
+        "vendor": "Kaeser",
+        "kind": "compressor",
+        "asset": "CP-02"
+      }
+    },
+    {
+      "id": "sc-01",
+      "type": "Machine",
+      "label": "Scrap conveyor SC-01",
+      "props": {
+        "kind": "conveyor",
+        "asset": "SC-01"
+      }
+    },
+    {
+      "id": "model-plunger",
+      "type": "Model",
+      "label": "Plunger friction virtual sensor",
+      "props": {
+        "key": "plunger-friction",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "id": "doc-sop-dc-01",
+      "type": "Document",
+      "label": "SOP-DC-01: Start-up of a die-casting cell after a stop",
+      "props": {
+        "number": "SOP-DC-01"
+      }
+    },
+    {
+      "id": "doc-sop-dc-04",
+      "type": "Document",
+      "label": "SOP-DC-04: Plunger tip and shot sleeve: inspection and change",
+      "props": {
+        "number": "SOP-DC-04"
+      }
+    },
+    {
+      "id": "doc-sop-dc-07",
+      "type": "Document",
+      "label": "SOP-DC-07: Vacuum system: filter change and leak test",
+      "props": {
+        "number": "SOP-DC-07"
+      }
+    },
+    {
+      "id": "doc-sop-dc-09",
+      "type": "Document",
+      "label": "SOP-DC-09: Die cooling: flow limits and descaling",
+      "props": {
+        "number": "SOP-DC-09"
+      }
+    },
+    {
+      "id": "doc-sop-dc-11",
+      "type": "Document",
+      "label": "SOP-DC-11: Spray robot: nozzle cleaning",
+      "props": {
+        "number": "SOP-DC-11"
+      }
+    },
+    {
+      "id": "doc-sop-ml-02",
+      "type": "Document",
+      "label": "SOP-ML-02: Melt treatment: degassing and the hydrogen test",
+      "props": {
+        "number": "SOP-ML-02"
+      }
+    },
+    {
+      "id": "doc-sop-hf-03",
+      "type": "Document",
+      "label": "SOP-HF-03: Holding furnace: temperatures and heater checks",
+      "props": {
+        "number": "SOP-HF-03"
+      }
+    },
+    {
+      "id": "doc-sop-qa-05",
+      "type": "Document",
+      "label": "SOP-QA-05: X-ray inspection and porosity grades",
+      "props": {
+        "number": "SOP-QA-05"
+      }
+    },
+    {
+      "id": "doc-mh-hyd-01",
+      "type": "Document",
+      "label": "MH-HYD-01: Maintenance handbook: hydraulics of the die-casting machines",
+      "props": {
+        "number": "MH-HYD-01"
+      }
+    },
+    {
+      "id": "doc-plant-overview",
+      "type": "Document",
+      "label": "Kesselbach plant overview",
+      "props": {
+        "number": "PLANT-OVERVIEW"
+      }
+    },
+    {
+      "id": "doc-ll-2025-01",
+      "type": "Document",
+      "label": "Lessons learned: die cooling, moving half on DC-01, 28 October 2025",
+      "props": {
+        "number": "LL-2025-01"
+      }
+    },
+    {
+      "id": "doc-ll-2025-02",
+      "type": "Document",
+      "label": "Lessons learned: plunger tip and shot sleeve on DC-01, 14 November 2025",
+      "props": {
+        "number": "LL-2025-02"
+      }
+    },
+    {
+      "id": "doc-ll-2025-03",
+      "type": "Document",
+      "label": "Lessons learned: die cooling, moving half on DC-01, 08 December 2025",
+      "props": {
+        "number": "LL-2025-03"
+      }
+    },
+    {
+      "id": "doc-ll-2026-01",
+      "type": "Document",
+      "label": "Lessons learned: holding furnace heater element on DC-03, 04 March 2026",
+      "props": {
+        "number": "LL-2026-01"
+      }
+    },
+    {
+      "id": "doc-ll-2026-02",
+      "type": "Document",
+      "label": "Lessons learned: holding furnace heater element on DC-01, 09 March 2026",
+      "props": {
+        "number": "LL-2026-02"
+      }
+    },
+    {
+      "id": "doc-ll-2026-03",
+      "type": "Document",
+      "label": "Lessons learned: die cooling, moving half on DC-03, 14 March 2026",
+      "props": {
+        "number": "LL-2026-03"
+      }
+    },
+    {
+      "id": "doc-ll-2026-04",
+      "type": "Document",
+      "label": "Lessons learned: die cooling, moving half on DC-01, 08 April 2026",
+      "props": {
+        "number": "LL-2026-04"
+      }
+    },
+    {
+      "id": "doc-ll-2026-05",
+      "type": "Document",
+      "label": "Lessons learned: plunger tip and shot sleeve on DC-02, 15 April 2026",
+      "props": {
+        "number": "LL-2026-05"
+      }
+    },
+    {
+      "id": "doc-ll-2026-06",
+      "type": "Document",
+      "label": "Lessons learned: holding furnace heater element on DC-02, 24 April 2026",
+      "props": {
+        "number": "LL-2026-06"
+      }
+    },
+    {
+      "id": "doc-ll-2026-07",
+      "type": "Document",
+      "label": "Lessons learned: plunger tip and shot sleeve on DC-04, 24 April 2026",
+      "props": {
+        "number": "LL-2026-07"
+      }
+    },
+    {
+      "id": "doc-mr-2025-10",
+      "type": "Document",
+      "label": "Maintenance report, October 2025",
+      "props": {
+        "number": "MR-2025-10"
+      }
+    },
+    {
+      "id": "doc-mr-2025-11",
+      "type": "Document",
+      "label": "Maintenance report, November 2025",
+      "props": {
+        "number": "MR-2025-11"
+      }
+    },
+    {
+      "id": "doc-mr-2025-12",
+      "type": "Document",
+      "label": "Maintenance report, December 2025",
+      "props": {
+        "number": "MR-2025-12"
+      }
+    },
+    {
+      "id": "doc-mr-2026-01",
+      "type": "Document",
+      "label": "Maintenance report, January 2026",
+      "props": {
+        "number": "MR-2026-01"
+      }
+    },
+    {
+      "id": "doc-mr-2026-02",
+      "type": "Document",
+      "label": "Maintenance report, February 2026",
+      "props": {
+        "number": "MR-2026-02"
+      }
+    },
+    {
+      "id": "doc-mr-2026-03",
+      "type": "Document",
+      "label": "Maintenance report, March 2026",
+      "props": {
+        "number": "MR-2026-03"
+      }
+    },
+    {
+      "id": "doc-mr-2026-04",
+      "type": "Document",
+      "label": "Maintenance report, April 2026",
+      "props": {
+        "number": "MR-2026-04"
+      }
+    },
+    {
+      "id": "doc-mr-2026-05",
+      "type": "Document",
+      "label": "Maintenance report, May 2026",
+      "props": {
+        "number": "MR-2026-05"
+      }
+    },
+    {
+      "id": "doc-mr-2026-06",
+      "type": "Document",
+      "label": "Maintenance report, June 2026",
+      "props": {
+        "number": "MR-2026-06"
+      }
+    },
+    {
+      "id": "doc-mr-2026-07",
+      "type": "Document",
+      "label": "Maintenance report, July 2026",
+      "props": {
+        "number": "MR-2026-07"
+      }
+    },
+    {
+      "id": "doc-mr-2026-08",
+      "type": "Document",
+      "label": "Maintenance report, August 2026",
+      "props": {
+        "number": "MR-2026-08"
+      }
+    },
+    {
+      "id": "doc-mr-2026-09",
+      "type": "Document",
+      "label": "Maintenance report, September 2026",
+      "props": {
+        "number": "MR-2026-09"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "aldermoor-contains-kesselbach",
+      "from": "aldermoor",
+      "rel": "contains",
+      "to": "kesselbach"
+    },
+    {
+      "id": "kesselbach-contains-melting",
+      "from": "kesselbach",
+      "rel": "contains",
+      "to": "melting"
+    },
+    {
+      "id": "kesselbach-contains-die-casting",
+      "from": "kesselbach",
+      "rel": "contains",
+      "to": "die-casting"
+    },
+    {
+      "id": "kesselbach-contains-finishing",
+      "from": "kesselbach",
+      "rel": "contains",
+      "to": "finishing"
+    },
+    {
+      "id": "kesselbach-contains-machining",
+      "from": "kesselbach",
+      "rel": "contains",
+      "to": "machining"
+    },
+    {
+      "id": "kesselbach-contains-quality-lab",
+      "from": "kesselbach",
+      "rel": "contains",
+      "to": "quality-lab"
+    },
+    {
+      "id": "kesselbach-contains-utilities",
+      "from": "kesselbach",
+      "rel": "contains",
+      "to": "utilities"
+    },
+    {
+      "id": "proc-hpdc-consumes-mat-alsi9cu3",
+      "from": "proc-hpdc",
+      "rel": "consumes",
+      "to": "mat-alsi9cu3"
+    },
+    {
+      "id": "proc-hpdc-consumes-mat-alsi10mnmg",
+      "from": "proc-hpdc",
+      "rel": "consumes",
+      "to": "mat-alsi10mnmg"
+    },
+    {
+      "id": "proc-melting-consumes-mat-alsi9cu3",
+      "from": "proc-melting",
+      "rel": "consumes",
+      "to": "mat-alsi9cu3"
+    },
+    {
+      "id": "proc-melting-consumes-mat-alsi10mnmg",
+      "from": "proc-melting",
+      "rel": "consumes",
+      "to": "mat-alsi10mnmg"
+    },
+    {
+      "id": "melting-contains-mf-01",
+      "from": "melting",
+      "rel": "contains",
+      "to": "mf-01"
+    },
+    {
+      "id": "mf-01-runs-proc-melting",
+      "from": "mf-01",
+      "rel": "runs",
+      "to": "proc-melting"
+    },
+    {
+      "id": "melting-contains-mf-02",
+      "from": "melting",
+      "rel": "contains",
+      "to": "mf-02"
+    },
+    {
+      "id": "mf-02-runs-proc-melting",
+      "from": "mf-02",
+      "rel": "runs",
+      "to": "proc-melting"
+    },
+    {
+      "id": "melting-contains-dg-01",
+      "from": "melting",
+      "rel": "contains",
+      "to": "dg-01"
+    },
+    {
+      "id": "dg-01-runs-proc-melting",
+      "from": "dg-01",
+      "rel": "runs",
+      "to": "proc-melting"
+    },
+    {
+      "id": "mf-01-controlledBy-plc-melting",
+      "from": "mf-01",
+      "rel": "controlledBy",
+      "to": "plc-melting"
+    },
+    {
+      "id": "dg-01-controlledBy-plc-melting",
+      "from": "dg-01",
+      "rel": "controlledBy",
+      "to": "plc-melting"
+    },
+    {
+      "id": "plc-melting-emits-sig-mf01-melt-temp",
+      "from": "plc-melting",
+      "rel": "emits",
+      "to": "sig-mf01-melt-temp"
+    },
+    {
+      "id": "plc-melting-emits-sig-mf01-gas-flow",
+      "from": "plc-melting",
+      "rel": "emits",
+      "to": "sig-mf01-gas-flow"
+    },
+    {
+      "id": "plc-melting-emits-sig-lab-hydrogen",
+      "from": "plc-melting",
+      "rel": "emits",
+      "to": "sig-lab-hydrogen"
+    },
+    {
+      "id": "die-casting-contains-line-1",
+      "from": "die-casting",
+      "rel": "contains",
+      "to": "line-1"
+    },
+    {
+      "id": "die-casting-contains-line-2",
+      "from": "die-casting",
+      "rel": "contains",
+      "to": "line-2"
+    },
+    {
+      "id": "line-2-contains-cell-dc01",
+      "from": "line-2",
+      "rel": "contains",
+      "to": "cell-dc01"
+    },
+    {
+      "id": "cell-dc01-contains-dc-01",
+      "from": "cell-dc01",
+      "rel": "contains",
+      "to": "dc-01"
+    },
+    {
+      "id": "dc-01-runs-proc-hpdc",
+      "from": "dc-01",
+      "rel": "runs",
+      "to": "proc-hpdc"
+    },
+    {
+      "id": "dc-01-controlledBy-plc-dc01",
+      "from": "dc-01",
+      "rel": "controlledBy",
+      "to": "plc-dc01"
+    },
+    {
+      "id": "cell-dc01-contains-hf-01",
+      "from": "cell-dc01",
+      "rel": "contains",
+      "to": "hf-01"
+    },
+    {
+      "id": "hf-01-controlledBy-plc-dc01",
+      "from": "hf-01",
+      "rel": "controlledBy",
+      "to": "plc-dc01"
+    },
+    {
+      "id": "cell-dc01-contains-sr-01",
+      "from": "cell-dc01",
+      "rel": "contains",
+      "to": "sr-01"
+    },
+    {
+      "id": "cell-dc01-contains-er-01",
+      "from": "cell-dc01",
+      "rel": "contains",
+      "to": "er-01"
+    },
+    {
+      "id": "cell-dc01-contains-tp-01",
+      "from": "cell-dc01",
+      "rel": "contains",
+      "to": "tp-01"
+    },
+    {
+      "id": "cell-dc01-contains-vu-01",
+      "from": "cell-dc01",
+      "rel": "contains",
+      "to": "vu-01"
+    },
+    {
+      "id": "vu-01-controlledBy-plc-dc01",
+      "from": "vu-01",
+      "rel": "controlledBy",
+      "to": "plc-dc01"
+    },
+    {
+      "id": "hf-01-feeds-dc-01",
+      "from": "hf-01",
+      "rel": "feeds",
+      "to": "dc-01"
+    },
+    {
+      "id": "dc-01-feeds-tp-01",
+      "from": "dc-01",
+      "rel": "feeds",
+      "to": "tp-01"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-cycle-time",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-cycle-time"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-shot-speed-1st",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-shot-speed-1st"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-shot-speed-2nd",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-shot-speed-2nd"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-fill-time",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-fill-time"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-intensification-pressure",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-intensification-pressure"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-pressure-buildup-time",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-pressure-buildup-time"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-biscuit-length",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-biscuit-length"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-vacuum-level",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-vacuum-level"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-die-temp-fixed",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-die-temp-fixed"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-die-temp-moving",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-die-temp-moving"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-plunger-pressure-1st",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-plunger-pressure-1st"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-spray-pressure",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-spray-pressure"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-hydraulic-oil-temp",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-hydraulic-oil-temp"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-accumulator-pressure",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-accumulator-pressure"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-cooling-flow-fixed",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-cooling-flow-fixed"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-cooling-flow-moving",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-cooling-flow-moving"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-tcu-oil-temp",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-tcu-oil-temp"
+    },
+    {
+      "id": "plc-dc01-emits-sig-hf01-bath-temp",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-hf01-bath-temp"
+    },
+    {
+      "id": "plc-dc01-emits-sig-hf01-heater-power",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-hf01-heater-power"
+    },
+    {
+      "id": "mf-01-feeds-hf-01",
+      "from": "mf-01",
+      "rel": "feeds",
+      "to": "hf-01"
+    },
+    {
+      "id": "line-2-contains-cell-dc02",
+      "from": "line-2",
+      "rel": "contains",
+      "to": "cell-dc02"
+    },
+    {
+      "id": "cell-dc02-contains-dc-02",
+      "from": "cell-dc02",
+      "rel": "contains",
+      "to": "dc-02"
+    },
+    {
+      "id": "dc-02-runs-proc-hpdc",
+      "from": "dc-02",
+      "rel": "runs",
+      "to": "proc-hpdc"
+    },
+    {
+      "id": "dc-02-controlledBy-plc-dc02",
+      "from": "dc-02",
+      "rel": "controlledBy",
+      "to": "plc-dc02"
+    },
+    {
+      "id": "cell-dc02-contains-hf-02",
+      "from": "cell-dc02",
+      "rel": "contains",
+      "to": "hf-02"
+    },
+    {
+      "id": "hf-02-controlledBy-plc-dc02",
+      "from": "hf-02",
+      "rel": "controlledBy",
+      "to": "plc-dc02"
+    },
+    {
+      "id": "cell-dc02-contains-sr-02",
+      "from": "cell-dc02",
+      "rel": "contains",
+      "to": "sr-02"
+    },
+    {
+      "id": "cell-dc02-contains-er-02",
+      "from": "cell-dc02",
+      "rel": "contains",
+      "to": "er-02"
+    },
+    {
+      "id": "cell-dc02-contains-tp-02",
+      "from": "cell-dc02",
+      "rel": "contains",
+      "to": "tp-02"
+    },
+    {
+      "id": "cell-dc02-contains-vu-02",
+      "from": "cell-dc02",
+      "rel": "contains",
+      "to": "vu-02"
+    },
+    {
+      "id": "vu-02-controlledBy-plc-dc02",
+      "from": "vu-02",
+      "rel": "controlledBy",
+      "to": "plc-dc02"
+    },
+    {
+      "id": "hf-02-feeds-dc-02",
+      "from": "hf-02",
+      "rel": "feeds",
+      "to": "dc-02"
+    },
+    {
+      "id": "dc-02-feeds-tp-02",
+      "from": "dc-02",
+      "rel": "feeds",
+      "to": "tp-02"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-cycle-time",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-cycle-time"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-shot-speed-1st",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-shot-speed-1st"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-shot-speed-2nd",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-shot-speed-2nd"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-fill-time",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-fill-time"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-intensification-pressure",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-intensification-pressure"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-pressure-buildup-time",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-pressure-buildup-time"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-biscuit-length",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-biscuit-length"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-vacuum-level",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-vacuum-level"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-die-temp-fixed",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-die-temp-fixed"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-die-temp-moving",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-die-temp-moving"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-plunger-pressure-1st",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-plunger-pressure-1st"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-spray-pressure",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-spray-pressure"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-hydraulic-oil-temp",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-hydraulic-oil-temp"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-accumulator-pressure",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-accumulator-pressure"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-cooling-flow-fixed",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-cooling-flow-fixed"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-cooling-flow-moving",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-cooling-flow-moving"
+    },
+    {
+      "id": "plc-dc02-emits-sig-dc02-tcu-oil-temp",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-dc02-tcu-oil-temp"
+    },
+    {
+      "id": "plc-dc02-emits-sig-hf02-bath-temp",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-hf02-bath-temp"
+    },
+    {
+      "id": "plc-dc02-emits-sig-hf02-heater-power",
+      "from": "plc-dc02",
+      "rel": "emits",
+      "to": "sig-hf02-heater-power"
+    },
+    {
+      "id": "mf-01-feeds-hf-02",
+      "from": "mf-01",
+      "rel": "feeds",
+      "to": "hf-02"
+    },
+    {
+      "id": "line-2-contains-cell-dc03",
+      "from": "line-2",
+      "rel": "contains",
+      "to": "cell-dc03"
+    },
+    {
+      "id": "cell-dc03-contains-dc-03",
+      "from": "cell-dc03",
+      "rel": "contains",
+      "to": "dc-03"
+    },
+    {
+      "id": "dc-03-runs-proc-hpdc",
+      "from": "dc-03",
+      "rel": "runs",
+      "to": "proc-hpdc"
+    },
+    {
+      "id": "dc-03-controlledBy-plc-dc03",
+      "from": "dc-03",
+      "rel": "controlledBy",
+      "to": "plc-dc03"
+    },
+    {
+      "id": "cell-dc03-contains-hf-03",
+      "from": "cell-dc03",
+      "rel": "contains",
+      "to": "hf-03"
+    },
+    {
+      "id": "hf-03-controlledBy-plc-dc03",
+      "from": "hf-03",
+      "rel": "controlledBy",
+      "to": "plc-dc03"
+    },
+    {
+      "id": "cell-dc03-contains-sr-03",
+      "from": "cell-dc03",
+      "rel": "contains",
+      "to": "sr-03"
+    },
+    {
+      "id": "cell-dc03-contains-er-03",
+      "from": "cell-dc03",
+      "rel": "contains",
+      "to": "er-03"
+    },
+    {
+      "id": "cell-dc03-contains-tp-03",
+      "from": "cell-dc03",
+      "rel": "contains",
+      "to": "tp-03"
+    },
+    {
+      "id": "cell-dc03-contains-vu-03",
+      "from": "cell-dc03",
+      "rel": "contains",
+      "to": "vu-03"
+    },
+    {
+      "id": "vu-03-controlledBy-plc-dc03",
+      "from": "vu-03",
+      "rel": "controlledBy",
+      "to": "plc-dc03"
+    },
+    {
+      "id": "hf-03-feeds-dc-03",
+      "from": "hf-03",
+      "rel": "feeds",
+      "to": "dc-03"
+    },
+    {
+      "id": "dc-03-feeds-tp-03",
+      "from": "dc-03",
+      "rel": "feeds",
+      "to": "tp-03"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-cycle-time",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-cycle-time"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-shot-speed-1st",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-shot-speed-1st"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-shot-speed-2nd",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-shot-speed-2nd"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-fill-time",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-fill-time"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-intensification-pressure",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-intensification-pressure"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-pressure-buildup-time",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-pressure-buildup-time"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-biscuit-length",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-biscuit-length"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-vacuum-level",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-vacuum-level"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-die-temp-fixed",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-die-temp-fixed"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-die-temp-moving",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-die-temp-moving"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-plunger-pressure-1st",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-plunger-pressure-1st"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-spray-pressure",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-spray-pressure"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-hydraulic-oil-temp",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-hydraulic-oil-temp"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-accumulator-pressure",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-accumulator-pressure"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-cooling-flow-fixed",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-cooling-flow-fixed"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-cooling-flow-moving",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-cooling-flow-moving"
+    },
+    {
+      "id": "plc-dc03-emits-sig-dc03-tcu-oil-temp",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-dc03-tcu-oil-temp"
+    },
+    {
+      "id": "plc-dc03-emits-sig-hf03-bath-temp",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-hf03-bath-temp"
+    },
+    {
+      "id": "plc-dc03-emits-sig-hf03-heater-power",
+      "from": "plc-dc03",
+      "rel": "emits",
+      "to": "sig-hf03-heater-power"
+    },
+    {
+      "id": "mf-01-feeds-hf-03",
+      "from": "mf-01",
+      "rel": "feeds",
+      "to": "hf-03"
+    },
+    {
+      "id": "line-2-contains-cell-dc04",
+      "from": "line-2",
+      "rel": "contains",
+      "to": "cell-dc04"
+    },
+    {
+      "id": "cell-dc04-contains-dc-04",
+      "from": "cell-dc04",
+      "rel": "contains",
+      "to": "dc-04"
+    },
+    {
+      "id": "dc-04-runs-proc-hpdc",
+      "from": "dc-04",
+      "rel": "runs",
+      "to": "proc-hpdc"
+    },
+    {
+      "id": "dc-04-controlledBy-plc-dc04",
+      "from": "dc-04",
+      "rel": "controlledBy",
+      "to": "plc-dc04"
+    },
+    {
+      "id": "cell-dc04-contains-hf-04",
+      "from": "cell-dc04",
+      "rel": "contains",
+      "to": "hf-04"
+    },
+    {
+      "id": "hf-04-controlledBy-plc-dc04",
+      "from": "hf-04",
+      "rel": "controlledBy",
+      "to": "plc-dc04"
+    },
+    {
+      "id": "cell-dc04-contains-sr-04",
+      "from": "cell-dc04",
+      "rel": "contains",
+      "to": "sr-04"
+    },
+    {
+      "id": "cell-dc04-contains-er-04",
+      "from": "cell-dc04",
+      "rel": "contains",
+      "to": "er-04"
+    },
+    {
+      "id": "cell-dc04-contains-tp-04",
+      "from": "cell-dc04",
+      "rel": "contains",
+      "to": "tp-04"
+    },
+    {
+      "id": "cell-dc04-contains-vu-04",
+      "from": "cell-dc04",
+      "rel": "contains",
+      "to": "vu-04"
+    },
+    {
+      "id": "vu-04-controlledBy-plc-dc04",
+      "from": "vu-04",
+      "rel": "controlledBy",
+      "to": "plc-dc04"
+    },
+    {
+      "id": "hf-04-feeds-dc-04",
+      "from": "hf-04",
+      "rel": "feeds",
+      "to": "dc-04"
+    },
+    {
+      "id": "dc-04-feeds-tp-04",
+      "from": "dc-04",
+      "rel": "feeds",
+      "to": "tp-04"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-cycle-time",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-cycle-time"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-shot-speed-1st",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-shot-speed-1st"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-shot-speed-2nd",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-shot-speed-2nd"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-fill-time",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-fill-time"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-intensification-pressure",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-intensification-pressure"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-pressure-buildup-time",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-pressure-buildup-time"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-biscuit-length",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-biscuit-length"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-vacuum-level",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-vacuum-level"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-die-temp-fixed",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-die-temp-fixed"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-die-temp-moving",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-die-temp-moving"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-plunger-pressure-1st",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-plunger-pressure-1st"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-spray-pressure",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-spray-pressure"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-hydraulic-oil-temp",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-hydraulic-oil-temp"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-accumulator-pressure",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-accumulator-pressure"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-cooling-flow-fixed",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-cooling-flow-fixed"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-cooling-flow-moving",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-cooling-flow-moving"
+    },
+    {
+      "id": "plc-dc04-emits-sig-dc04-tcu-oil-temp",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-dc04-tcu-oil-temp"
+    },
+    {
+      "id": "plc-dc04-emits-sig-hf04-bath-temp",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-hf04-bath-temp"
+    },
+    {
+      "id": "plc-dc04-emits-sig-hf04-heater-power",
+      "from": "plc-dc04",
+      "rel": "emits",
+      "to": "sig-hf04-heater-power"
+    },
+    {
+      "id": "mf-01-feeds-hf-04",
+      "from": "mf-01",
+      "rel": "feeds",
+      "to": "hf-04"
+    },
+    {
+      "id": "line-1-contains-cell-dc05",
+      "from": "line-1",
+      "rel": "contains",
+      "to": "cell-dc05"
+    },
+    {
+      "id": "cell-dc05-contains-dc-05",
+      "from": "cell-dc05",
+      "rel": "contains",
+      "to": "dc-05"
+    },
+    {
+      "id": "dc-05-runs-proc-hpdc",
+      "from": "dc-05",
+      "rel": "runs",
+      "to": "proc-hpdc"
+    },
+    {
+      "id": "dc-05-controlledBy-plc-dc05",
+      "from": "dc-05",
+      "rel": "controlledBy",
+      "to": "plc-dc05"
+    },
+    {
+      "id": "cell-dc05-contains-hf-05",
+      "from": "cell-dc05",
+      "rel": "contains",
+      "to": "hf-05"
+    },
+    {
+      "id": "hf-05-controlledBy-plc-dc05",
+      "from": "hf-05",
+      "rel": "controlledBy",
+      "to": "plc-dc05"
+    },
+    {
+      "id": "cell-dc05-contains-sr-05",
+      "from": "cell-dc05",
+      "rel": "contains",
+      "to": "sr-05"
+    },
+    {
+      "id": "cell-dc05-contains-er-05",
+      "from": "cell-dc05",
+      "rel": "contains",
+      "to": "er-05"
+    },
+    {
+      "id": "cell-dc05-contains-tp-05",
+      "from": "cell-dc05",
+      "rel": "contains",
+      "to": "tp-05"
+    },
+    {
+      "id": "cell-dc05-contains-vu-05",
+      "from": "cell-dc05",
+      "rel": "contains",
+      "to": "vu-05"
+    },
+    {
+      "id": "vu-05-controlledBy-plc-dc05",
+      "from": "vu-05",
+      "rel": "controlledBy",
+      "to": "plc-dc05"
+    },
+    {
+      "id": "hf-05-feeds-dc-05",
+      "from": "hf-05",
+      "rel": "feeds",
+      "to": "dc-05"
+    },
+    {
+      "id": "dc-05-feeds-tp-05",
+      "from": "dc-05",
+      "rel": "feeds",
+      "to": "tp-05"
+    },
+    {
+      "id": "plc-dc05-emits-sig-dc05-cycle-time",
+      "from": "plc-dc05",
+      "rel": "emits",
+      "to": "sig-dc05-cycle-time"
+    },
+    {
+      "id": "plc-dc05-emits-sig-dc05-die-temp-fixed",
+      "from": "plc-dc05",
+      "rel": "emits",
+      "to": "sig-dc05-die-temp-fixed"
+    },
+    {
+      "id": "mf-02-feeds-hf-05",
+      "from": "mf-02",
+      "rel": "feeds",
+      "to": "hf-05"
+    },
+    {
+      "id": "line-1-contains-cell-dc06",
+      "from": "line-1",
+      "rel": "contains",
+      "to": "cell-dc06"
+    },
+    {
+      "id": "cell-dc06-contains-dc-06",
+      "from": "cell-dc06",
+      "rel": "contains",
+      "to": "dc-06"
+    },
+    {
+      "id": "dc-06-runs-proc-hpdc",
+      "from": "dc-06",
+      "rel": "runs",
+      "to": "proc-hpdc"
+    },
+    {
+      "id": "dc-06-controlledBy-plc-dc06",
+      "from": "dc-06",
+      "rel": "controlledBy",
+      "to": "plc-dc06"
+    },
+    {
+      "id": "cell-dc06-contains-hf-06",
+      "from": "cell-dc06",
+      "rel": "contains",
+      "to": "hf-06"
+    },
+    {
+      "id": "hf-06-controlledBy-plc-dc06",
+      "from": "hf-06",
+      "rel": "controlledBy",
+      "to": "plc-dc06"
+    },
+    {
+      "id": "cell-dc06-contains-sr-06",
+      "from": "cell-dc06",
+      "rel": "contains",
+      "to": "sr-06"
+    },
+    {
+      "id": "cell-dc06-contains-er-06",
+      "from": "cell-dc06",
+      "rel": "contains",
+      "to": "er-06"
+    },
+    {
+      "id": "cell-dc06-contains-tp-06",
+      "from": "cell-dc06",
+      "rel": "contains",
+      "to": "tp-06"
+    },
+    {
+      "id": "cell-dc06-contains-vu-06",
+      "from": "cell-dc06",
+      "rel": "contains",
+      "to": "vu-06"
+    },
+    {
+      "id": "vu-06-controlledBy-plc-dc06",
+      "from": "vu-06",
+      "rel": "controlledBy",
+      "to": "plc-dc06"
+    },
+    {
+      "id": "hf-06-feeds-dc-06",
+      "from": "hf-06",
+      "rel": "feeds",
+      "to": "dc-06"
+    },
+    {
+      "id": "dc-06-feeds-tp-06",
+      "from": "dc-06",
+      "rel": "feeds",
+      "to": "tp-06"
+    },
+    {
+      "id": "plc-dc06-emits-sig-dc06-cycle-time",
+      "from": "plc-dc06",
+      "rel": "emits",
+      "to": "sig-dc06-cycle-time"
+    },
+    {
+      "id": "plc-dc06-emits-sig-dc06-die-temp-fixed",
+      "from": "plc-dc06",
+      "rel": "emits",
+      "to": "sig-dc06-die-temp-fixed"
+    },
+    {
+      "id": "mf-02-feeds-hf-06",
+      "from": "mf-02",
+      "rel": "feeds",
+      "to": "hf-06"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-shot-v",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-shot-v"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-shot-ph",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-shot-ph"
+    },
+    {
+      "id": "plc-dc01-emits-sig-dc01-shot-pm",
+      "from": "plc-dc01",
+      "rel": "emits",
+      "to": "sig-dc01-shot-pm"
+    },
+    {
+      "id": "finishing-contains-fettling-line",
+      "from": "finishing",
+      "rel": "contains",
+      "to": "fettling-line"
+    },
+    {
+      "id": "fettling-line-contains-sb-01",
+      "from": "fettling-line",
+      "rel": "contains",
+      "to": "sb-01"
+    },
+    {
+      "id": "fettling-line-contains-ft-01",
+      "from": "fettling-line",
+      "rel": "contains",
+      "to": "ft-01"
+    },
+    {
+      "id": "fettling-line-contains-im-01",
+      "from": "fettling-line",
+      "rel": "contains",
+      "to": "im-01"
+    },
+    {
+      "id": "machining-contains-machining-line",
+      "from": "machining",
+      "rel": "contains",
+      "to": "machining-line"
+    },
+    {
+      "id": "machining-line-contains-cnc-01",
+      "from": "machining-line",
+      "rel": "contains",
+      "to": "cnc-01"
+    },
+    {
+      "id": "machining-line-contains-cnc-02",
+      "from": "machining-line",
+      "rel": "contains",
+      "to": "cnc-02"
+    },
+    {
+      "id": "machining-line-contains-cnc-03",
+      "from": "machining-line",
+      "rel": "contains",
+      "to": "cnc-03"
+    },
+    {
+      "id": "machining-line-contains-cnc-04",
+      "from": "machining-line",
+      "rel": "contains",
+      "to": "cnc-04"
+    },
+    {
+      "id": "machining-line-contains-ws-01",
+      "from": "machining-line",
+      "rel": "contains",
+      "to": "ws-01"
+    },
+    {
+      "id": "machining-line-contains-lt-01",
+      "from": "machining-line",
+      "rel": "contains",
+      "to": "lt-01"
+    },
+    {
+      "id": "quality-lab-contains-xr-01",
+      "from": "quality-lab",
+      "rel": "contains",
+      "to": "xr-01"
+    },
+    {
+      "id": "quality-lab-contains-xr-02",
+      "from": "quality-lab",
+      "rel": "contains",
+      "to": "xr-02"
+    },
+    {
+      "id": "quality-lab-contains-cmm-01",
+      "from": "quality-lab",
+      "rel": "contains",
+      "to": "cmm-01"
+    },
+    {
+      "id": "utilities-contains-cp-01",
+      "from": "utilities",
+      "rel": "contains",
+      "to": "cp-01"
+    },
+    {
+      "id": "cp-01-controlledBy-plc-utilities",
+      "from": "cp-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "utilities-contains-ct-01",
+      "from": "utilities",
+      "rel": "contains",
+      "to": "ct-01"
+    },
+    {
+      "id": "ct-01-controlledBy-plc-utilities",
+      "from": "ct-01",
+      "rel": "controlledBy",
+      "to": "plc-utilities"
+    },
+    {
+      "id": "plc-utilities-emits-sig-ct01-supply-temp",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-ct01-supply-temp"
+    },
+    {
+      "id": "plc-utilities-emits-sig-cp01-header-pressure",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-cp01-header-pressure"
+    },
+    {
+      "id": "plc-utilities-emits-sig-hall-ambient-temp",
+      "from": "plc-utilities",
+      "rel": "emits",
+      "to": "sig-hall-ambient-temp"
+    },
+    {
+      "id": "tp-01-feeds-fettling-line",
+      "from": "tp-01",
+      "rel": "feeds",
+      "to": "fettling-line"
+    },
+    {
+      "id": "fettling-line-feeds-machining-line",
+      "from": "fettling-line",
+      "rel": "feeds",
+      "to": "machining-line"
+    },
+    {
+      "id": "line-2-contains-sc-01",
+      "from": "line-2",
+      "rel": "contains",
+      "to": "sc-01"
+    },
+    {
+      "id": "model-plunger-reads-sig-dc01-shot-v",
+      "from": "model-plunger",
+      "rel": "reads",
+      "to": "sig-dc01-shot-v"
+    },
+    {
+      "id": "model-plunger-reads-sig-dc01-shot-ph",
+      "from": "model-plunger",
+      "rel": "reads",
+      "to": "sig-dc01-shot-ph"
+    },
+    {
+      "id": "model-plunger-reads-sig-dc01-shot-pm",
+      "from": "model-plunger",
+      "rel": "reads",
+      "to": "sig-dc01-shot-pm"
+    },
+    {
+      "id": "model-plunger-monitors-dc-01",
+      "from": "model-plunger",
+      "rel": "monitors",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-sop-dc-01-describes-dc-01",
+      "from": "doc-sop-dc-01",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-sop-dc-01-describes-dc-02",
+      "from": "doc-sop-dc-01",
+      "rel": "describes",
+      "to": "dc-02"
+    },
+    {
+      "id": "doc-sop-dc-01-describes-dc-03",
+      "from": "doc-sop-dc-01",
+      "rel": "describes",
+      "to": "dc-03"
+    },
+    {
+      "id": "doc-sop-dc-01-describes-dc-04",
+      "from": "doc-sop-dc-01",
+      "rel": "describes",
+      "to": "dc-04"
+    },
+    {
+      "id": "doc-sop-dc-01-describes-dc-05",
+      "from": "doc-sop-dc-01",
+      "rel": "describes",
+      "to": "dc-05"
+    },
+    {
+      "id": "doc-sop-dc-01-describes-dc-06",
+      "from": "doc-sop-dc-01",
+      "rel": "describes",
+      "to": "dc-06"
+    },
+    {
+      "id": "doc-sop-dc-04-describes-dc-01",
+      "from": "doc-sop-dc-04",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-sop-dc-04-describes-dc-02",
+      "from": "doc-sop-dc-04",
+      "rel": "describes",
+      "to": "dc-02"
+    },
+    {
+      "id": "doc-sop-dc-04-describes-dc-03",
+      "from": "doc-sop-dc-04",
+      "rel": "describes",
+      "to": "dc-03"
+    },
+    {
+      "id": "doc-sop-dc-04-describes-dc-04",
+      "from": "doc-sop-dc-04",
+      "rel": "describes",
+      "to": "dc-04"
+    },
+    {
+      "id": "doc-sop-dc-04-describes-dc-05",
+      "from": "doc-sop-dc-04",
+      "rel": "describes",
+      "to": "dc-05"
+    },
+    {
+      "id": "doc-sop-dc-04-describes-dc-06",
+      "from": "doc-sop-dc-04",
+      "rel": "describes",
+      "to": "dc-06"
+    },
+    {
+      "id": "doc-sop-dc-07-describes-vu-01",
+      "from": "doc-sop-dc-07",
+      "rel": "describes",
+      "to": "vu-01"
+    },
+    {
+      "id": "doc-sop-dc-07-describes-vu-02",
+      "from": "doc-sop-dc-07",
+      "rel": "describes",
+      "to": "vu-02"
+    },
+    {
+      "id": "doc-sop-dc-07-describes-vu-03",
+      "from": "doc-sop-dc-07",
+      "rel": "describes",
+      "to": "vu-03"
+    },
+    {
+      "id": "doc-sop-dc-07-describes-vu-04",
+      "from": "doc-sop-dc-07",
+      "rel": "describes",
+      "to": "vu-04"
+    },
+    {
+      "id": "doc-sop-dc-07-describes-vu-05",
+      "from": "doc-sop-dc-07",
+      "rel": "describes",
+      "to": "vu-05"
+    },
+    {
+      "id": "doc-sop-dc-07-describes-vu-06",
+      "from": "doc-sop-dc-07",
+      "rel": "describes",
+      "to": "vu-06"
+    },
+    {
+      "id": "doc-sop-dc-09-describes-dc-01",
+      "from": "doc-sop-dc-09",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-sop-dc-09-describes-dc-02",
+      "from": "doc-sop-dc-09",
+      "rel": "describes",
+      "to": "dc-02"
+    },
+    {
+      "id": "doc-sop-dc-09-describes-dc-03",
+      "from": "doc-sop-dc-09",
+      "rel": "describes",
+      "to": "dc-03"
+    },
+    {
+      "id": "doc-sop-dc-09-describes-dc-04",
+      "from": "doc-sop-dc-09",
+      "rel": "describes",
+      "to": "dc-04"
+    },
+    {
+      "id": "doc-sop-dc-11-describes-sr-01",
+      "from": "doc-sop-dc-11",
+      "rel": "describes",
+      "to": "sr-01"
+    },
+    {
+      "id": "doc-sop-dc-11-describes-sr-02",
+      "from": "doc-sop-dc-11",
+      "rel": "describes",
+      "to": "sr-02"
+    },
+    {
+      "id": "doc-sop-dc-11-describes-sr-03",
+      "from": "doc-sop-dc-11",
+      "rel": "describes",
+      "to": "sr-03"
+    },
+    {
+      "id": "doc-sop-dc-11-describes-sr-04",
+      "from": "doc-sop-dc-11",
+      "rel": "describes",
+      "to": "sr-04"
+    },
+    {
+      "id": "doc-sop-dc-11-describes-sr-05",
+      "from": "doc-sop-dc-11",
+      "rel": "describes",
+      "to": "sr-05"
+    },
+    {
+      "id": "doc-sop-dc-11-describes-sr-06",
+      "from": "doc-sop-dc-11",
+      "rel": "describes",
+      "to": "sr-06"
+    },
+    {
+      "id": "doc-sop-ml-02-describes-mf-01",
+      "from": "doc-sop-ml-02",
+      "rel": "describes",
+      "to": "mf-01"
+    },
+    {
+      "id": "doc-sop-ml-02-describes-mf-02",
+      "from": "doc-sop-ml-02",
+      "rel": "describes",
+      "to": "mf-02"
+    },
+    {
+      "id": "doc-sop-ml-02-describes-dg-01",
+      "from": "doc-sop-ml-02",
+      "rel": "describes",
+      "to": "dg-01"
+    },
+    {
+      "id": "doc-sop-hf-03-describes-hf-01",
+      "from": "doc-sop-hf-03",
+      "rel": "describes",
+      "to": "hf-01"
+    },
+    {
+      "id": "doc-sop-hf-03-describes-hf-02",
+      "from": "doc-sop-hf-03",
+      "rel": "describes",
+      "to": "hf-02"
+    },
+    {
+      "id": "doc-sop-hf-03-describes-hf-03",
+      "from": "doc-sop-hf-03",
+      "rel": "describes",
+      "to": "hf-03"
+    },
+    {
+      "id": "doc-sop-hf-03-describes-hf-04",
+      "from": "doc-sop-hf-03",
+      "rel": "describes",
+      "to": "hf-04"
+    },
+    {
+      "id": "doc-sop-hf-03-describes-hf-05",
+      "from": "doc-sop-hf-03",
+      "rel": "describes",
+      "to": "hf-05"
+    },
+    {
+      "id": "doc-sop-hf-03-describes-hf-06",
+      "from": "doc-sop-hf-03",
+      "rel": "describes",
+      "to": "hf-06"
+    },
+    {
+      "id": "doc-sop-qa-05-describes-xr-01",
+      "from": "doc-sop-qa-05",
+      "rel": "describes",
+      "to": "xr-01"
+    },
+    {
+      "id": "doc-sop-qa-05-describes-xr-02",
+      "from": "doc-sop-qa-05",
+      "rel": "describes",
+      "to": "xr-02"
+    },
+    {
+      "id": "doc-mh-hyd-01-describes-dc-01",
+      "from": "doc-mh-hyd-01",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-mh-hyd-01-describes-dc-02",
+      "from": "doc-mh-hyd-01",
+      "rel": "describes",
+      "to": "dc-02"
+    },
+    {
+      "id": "doc-mh-hyd-01-describes-dc-03",
+      "from": "doc-mh-hyd-01",
+      "rel": "describes",
+      "to": "dc-03"
+    },
+    {
+      "id": "doc-mh-hyd-01-describes-dc-04",
+      "from": "doc-mh-hyd-01",
+      "rel": "describes",
+      "to": "dc-04"
+    },
+    {
+      "id": "doc-mh-hyd-01-describes-dc-05",
+      "from": "doc-mh-hyd-01",
+      "rel": "describes",
+      "to": "dc-05"
+    },
+    {
+      "id": "doc-mh-hyd-01-describes-dc-06",
+      "from": "doc-mh-hyd-01",
+      "rel": "describes",
+      "to": "dc-06"
+    },
+    {
+      "id": "doc-plant-overview-describes-kesselbach",
+      "from": "doc-plant-overview",
+      "rel": "describes",
+      "to": "kesselbach"
+    },
+    {
+      "id": "doc-ll-2025-01-describes-dc-01",
+      "from": "doc-ll-2025-01",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-ll-2025-02-describes-dc-01",
+      "from": "doc-ll-2025-02",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-ll-2025-03-describes-dc-01",
+      "from": "doc-ll-2025-03",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-ll-2026-01-describes-dc-03",
+      "from": "doc-ll-2026-01",
+      "rel": "describes",
+      "to": "dc-03"
+    },
+    {
+      "id": "doc-ll-2026-02-describes-dc-01",
+      "from": "doc-ll-2026-02",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-ll-2026-03-describes-dc-03",
+      "from": "doc-ll-2026-03",
+      "rel": "describes",
+      "to": "dc-03"
+    },
+    {
+      "id": "doc-ll-2026-04-describes-dc-01",
+      "from": "doc-ll-2026-04",
+      "rel": "describes",
+      "to": "dc-01"
+    },
+    {
+      "id": "doc-ll-2026-05-describes-dc-02",
+      "from": "doc-ll-2026-05",
+      "rel": "describes",
+      "to": "dc-02"
+    },
+    {
+      "id": "doc-ll-2026-06-describes-dc-02",
+      "from": "doc-ll-2026-06",
+      "rel": "describes",
+      "to": "dc-02"
+    },
+    {
+      "id": "doc-ll-2026-07-describes-dc-04",
+      "from": "doc-ll-2026-07",
+      "rel": "describes",
+      "to": "dc-04"
+    },
+    {
+      "id": "doc-mr-2025-10-describes-die-casting",
+      "from": "doc-mr-2025-10",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2025-11-describes-die-casting",
+      "from": "doc-mr-2025-11",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2025-12-describes-die-casting",
+      "from": "doc-mr-2025-12",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-01-describes-die-casting",
+      "from": "doc-mr-2026-01",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-02-describes-die-casting",
+      "from": "doc-mr-2026-02",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-03-describes-die-casting",
+      "from": "doc-mr-2026-03",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-04-describes-die-casting",
+      "from": "doc-mr-2026-04",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-05-describes-die-casting",
+      "from": "doc-mr-2026-05",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-06-describes-die-casting",
+      "from": "doc-mr-2026-06",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-07-describes-die-casting",
+      "from": "doc-mr-2026-07",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-08-describes-die-casting",
+      "from": "doc-mr-2026-08",
+      "rel": "describes",
+      "to": "die-casting"
+    },
+    {
+      "id": "doc-mr-2026-09-describes-die-casting",
+      "from": "doc-mr-2026-09",
+      "rel": "describes",
+      "to": "die-casting"
+    }
+  ]
+}

@@ -27,6 +27,10 @@ sources become edge-agent connectors or imports. The events become the baseline 
 | 2–3 | Score the opportunities; draft the problem statement and baseline | PM, TL |
 | 3–4 | Review with the plant manager and line owners; sign-off | PM, the plant's sponsor |
 
+To rehearse it, or to try Tiles on a whole year before a partner's data arrives, the
+[sample plant](../../data/sample-plants/README.md) has every item of the checklist below for a
+made-up die-casting plant, with what really happened.
+
 Rules of thumb:
 
 - **Ask for artefacts, not opinions.** A downtime log export beats an estimate of downtime.
