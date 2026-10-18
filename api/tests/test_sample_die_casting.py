@@ -10,7 +10,7 @@ import json
 import math
 import statistics
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -24,7 +24,7 @@ from tiles_api.models.plunger import PlungerFriction
 from tiles_api.sample_plant import common
 from tiles_api.sample_plant.die_casting import failure_backtest, generate, process_fit, questions, simulate
 from tiles_api.sample_plant.die_casting.plant import PILOT, ZONE
-from tiles_api.sample_plant.load import historian_readings
+from tiles_api.sample_plant.load import Loader, historian_readings
 
 DATA = Path(__file__).resolve().parents[2] / "data" / "sample-plants" / "die-casting"
 
@@ -75,6 +75,48 @@ def test_the_process_model_meets_its_error_on_held_out_shots_and_its_files_are_c
     assert fitted.held_out.shots > 300_000
     stale = [n for n, text in process_fit.files(fitted).items() if (DATA / "process-model" / n).read_text() != text]
     assert stale == [], "run `uv run tiles-sample-plant fit die-casting` and commit data/sample-plants/die-casting"
+
+
+def test_a_failure_mode_model_goes_live_and_its_warning_reaches_the_inbox(
+    api: TestClient,  # noqa: F811
+    site: str,  # noqa: F811
+) -> None:
+    # T8.05: DC-04's accumulator readings from April to its stop on 13 May, loaded into a site; the
+    # loader binds what backtests/bindings.json says it can (only DC-04's accumulator here), runs
+    # it and its detector, and the warning is in the inbox before the stop, as in the backtest.
+    cell = next(c for c in PILOT if c.asset == "DC-04")
+    tags = {"dc04.pressure_buildup_time", "dc04.accumulator_pressure"}
+    start, stop = datetime(2026, 4, 1, tzinfo=ZONE), datetime(2026, 5, 13, 8, 46, tzinfo=ZONE)
+    source = failure_backtest.readings(tags, [cell])
+    loader = Loader(api, site, ENG)
+    loader.readings(
+        "DC-04's accumulator",
+        (
+            (tag, common.iso(t), v)
+            for tag in sorted(tags)
+            for t, v in zip(*source[tag], strict=True)
+            if start.timestamp() <= t < stop.timestamp()
+        ),
+    )
+    assert loader.failure_models(DATA) == 1
+    bound = api.get(f"/sites/{site}/model-bindings", headers=ENG).json()
+    assert [(b["name"], b["model"], b["window"]) for b in bound] == [
+        ("dc04-accumulator-charge", "accumulator-charge", {"kind": "fixed", "seconds": 3600})
+    ]
+    detectors = api.get(f"/sites/{site}/detectors", headers=ENG).json()
+    assert [(d["name"], d["signal_tag"], d["asset"]) for d in detectors] == [
+        ("dc04-accumulator-charge", "dc04-accumulator-charge.sag", "DC-04")
+    ]
+    warnings = api.get(f"/sites/{site}/warnings", headers=ENG).json()
+    started = [datetime.fromisoformat(w["started_at"]) for w in warnings]
+    assert any(stop - timedelta(days=14) < s <= stop for s in started), started
+    first = warnings[-1]
+    assert first["status"] == "raised" and first["detector"] == "dc04-accumulator-charge"
+    acked = api.post(f"/sites/{site}/warnings/{first['id']}/acknowledge", json={}, headers=ENG)
+    assert acked.status_code == 200 and acked.json()["status"] == "acknowledged"  # the workflow takes it
+    # Loaded again: nothing bound twice, no new warnings.
+    assert loader.failure_models(DATA) == 0
+    assert len(api.get(f"/sites/{site}/warnings", headers=ENG).json()) == len(warnings)
 
 
 def test_the_year_runs_like_a_die_casting_plant(built: tuple[Path, generate.Year]) -> None:

@@ -1,0 +1,298 @@
+[
+  {
+    "name": "dc01-accumulator-charge",
+    "model": "accumulator-charge",
+    "version": "1.0.0",
+    "inputs": {
+      "buildup": "dc01.pressure_buildup_time",
+      "pressure": "dc01.accumulator_pressure"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc01-accumulator-charge.sag",
+      "asset": "DC-01",
+      "window": 120,
+      "k": 3.0,
+      "persist": 3,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    }
+  },
+  {
+    "name": "dc02-accumulator-charge",
+    "model": "accumulator-charge",
+    "version": "1.0.0",
+    "inputs": {
+      "buildup": "dc02.pressure_buildup_time",
+      "pressure": "dc02.accumulator_pressure"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc02-accumulator-charge.sag",
+      "asset": "DC-02",
+      "window": 120,
+      "k": 3.0,
+      "persist": 3,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    }
+  },
+  {
+    "name": "dc03-accumulator-charge",
+    "model": "accumulator-charge",
+    "version": "1.0.0",
+    "inputs": {
+      "buildup": "dc03.pressure_buildup_time",
+      "pressure": "dc03.accumulator_pressure"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc03-accumulator-charge.sag",
+      "asset": "DC-03",
+      "window": 120,
+      "k": 3.0,
+      "persist": 3,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    }
+  },
+  {
+    "name": "dc04-accumulator-charge",
+    "model": "accumulator-charge",
+    "version": "1.0.0",
+    "inputs": {
+      "buildup": "dc04.pressure_buildup_time",
+      "pressure": "dc04.accumulator_pressure"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc04-accumulator-charge.sag",
+      "asset": "DC-04",
+      "window": 120,
+      "k": 3.0,
+      "persist": 3,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    }
+  },
+  {
+    "name": "dc01-furnace-heater",
+    "model": "furnace-heater",
+    "version": "1.0.0",
+    "inputs": {
+      "power": "hf01.heater_power",
+      "bath": "hf01.bath_temp",
+      "cycle": "dc01.cycle_time"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc01-furnace-heater.heater_excess",
+      "asset": "DC-01",
+      "window": 240,
+      "k": 3.0,
+      "persist": 2,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    }
+  },
+  {
+    "name": "dc02-furnace-heater",
+    "model": "furnace-heater",
+    "version": "1.0.0",
+    "inputs": {
+      "power": "hf02.heater_power",
+      "bath": "hf02.bath_temp",
+      "cycle": "dc02.cycle_time"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc02-furnace-heater.heater_excess",
+      "asset": "DC-02",
+      "window": 240,
+      "k": 3.0,
+      "persist": 2,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    }
+  },
+  {
+    "name": "dc03-furnace-heater",
+    "model": "furnace-heater",
+    "version": "1.0.0",
+    "inputs": {
+      "power": "hf03.heater_power",
+      "bath": "hf03.bath_temp",
+      "cycle": "dc03.cycle_time"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc03-furnace-heater.heater_excess",
+      "asset": "DC-03",
+      "window": 240,
+      "k": 3.0,
+      "persist": 2,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    }
+  },
+  {
+    "name": "dc04-furnace-heater",
+    "model": "furnace-heater",
+    "version": "1.0.0",
+    "inputs": {
+      "power": "hf04.heater_power",
+      "bath": "hf04.bath_temp",
+      "cycle": "dc04.cycle_time"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc04-furnace-heater.heater_excess",
+      "asset": "DC-04",
+      "window": 240,
+      "k": 3.0,
+      "persist": 2,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 1.0
+    }
+  },
+  {
+    "name": "dc01-die-cooling",
+    "model": "die-cooling",
+    "version": "1.0.0",
+    "inputs": {
+      "die_temp": "dc01.die_temp_moving",
+      "fixed_temp": "dc01.die_temp_fixed",
+      "flow": "dc01.cooling_flow_moving"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc01-die-cooling.over_limit",
+      "asset": "DC-01",
+      "window": 120,
+      "k": 1.0,
+      "persist": 4,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 0.01
+    }
+  },
+  {
+    "name": "dc02-die-cooling",
+    "model": "die-cooling",
+    "version": "1.0.0",
+    "inputs": {
+      "die_temp": "dc02.die_temp_moving",
+      "fixed_temp": "dc02.die_temp_fixed",
+      "flow": "dc02.cooling_flow_moving"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc02-die-cooling.over_limit",
+      "asset": "DC-02",
+      "window": 120,
+      "k": 1.0,
+      "persist": 4,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 0.01
+    }
+  },
+  {
+    "name": "dc03-die-cooling",
+    "model": "die-cooling",
+    "version": "1.0.0",
+    "inputs": {
+      "die_temp": "dc03.die_temp_moving",
+      "fixed_temp": "dc03.die_temp_fixed",
+      "flow": "dc03.cooling_flow_moving"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc03-die-cooling.over_limit",
+      "asset": "DC-03",
+      "window": 120,
+      "k": 1.0,
+      "persist": 4,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 0.01
+    }
+  },
+  {
+    "name": "dc04-die-cooling",
+    "model": "die-cooling",
+    "version": "1.0.0",
+    "inputs": {
+      "die_temp": "dc04.die_temp_moving",
+      "fixed_temp": "dc04.die_temp_fixed",
+      "flow": "dc04.cooling_flow_moving"
+    },
+    "window": {
+      "kind": "fixed",
+      "seconds": 3600.0
+    },
+    "align_seconds": 300,
+    "detector": {
+      "signal": "dc04-die-cooling.over_limit",
+      "asset": "DC-04",
+      "window": 120,
+      "k": 1.0,
+      "persist": 4,
+      "direction": "above",
+      "cooldown": 0,
+      "flat_spread": 0.01
+    }
+  }
+]
