@@ -29,7 +29,13 @@ class Oracle:
         case = self.by_question[grounding.text_of(messages[0])]
         plan = self.plans.get(case.id, [])
         if len(messages) == 1 and plan:
-            yield Turn([{"type": "tool_use", "id": f"t{n}", "name": name, "input": args} for n, (name, args) in enumerate(plan)], "tool_use")
+            yield Turn(
+                [
+                    {"type": "tool_use", "id": f"t{n}", "name": name, "input": args}
+                    for n, (name, args) in enumerate(plan)
+                ],
+                "tool_use",
+            )
             return
         if not plan:
             yield Turn([{"type": "text", "text": f"{grounding.DECLINE}."}], "end_turn")
@@ -48,11 +54,21 @@ def windows(rows: Iterable[dict[str, str]]) -> dict[str, list[tuple[float, float
         for item in filter(None, (x.strip() for x in r["data"].split(";"))):
             tag, span = item.split("@")
             a, b = span.split("/")
-            out.setdefault(tag, []).append((datetime.fromisoformat(a).timestamp(), datetime.fromisoformat(b).timestamp()))
+            out.setdefault(tag, []).append(
+                (datetime.fromisoformat(a).timestamp(), datetime.fromisoformat(b).timestamp())
+            )
     return out
 
 
-def answer_all(api: TestClient, site: str, who: dict[str, str], database_url: str, out: Path, capture: common.Capture, tables: dict[str, str]) -> evaluation.Summary:
+def answer_all(
+    api: TestClient,
+    site: str,
+    who: dict[str, str],
+    database_url: str,
+    out: Path,
+    capture: common.Capture,
+    tables: dict[str, str],
+) -> evaluation.Summary:
     """Loads into the site what the plant's question set reads (the plant model, the readings its
     plans name, the month's MES events, the catalogue, documents, planned stops and the month's batch
     tables, `tables` naming each by its capture key), checks a second load adds nothing, and asks every
@@ -77,4 +93,6 @@ def answer_all(api: TestClient, site: str, who: dict[str, str], database_url: st
     for key, name in tables.items():
         loader.dataset(name, "", capture.quality[key])
     cases = evaluation.read_csv(text)
-    return evaluation.run(Oracle(cases, plans), None, database_url, cases, on=evaluation.OnSite(site, who["X-Tiles-User"]))
+    return evaluation.run(
+        Oracle(cases, plans), None, database_url, cases, on=evaluation.OnSite(site, who["X-Tiles-User"])
+    )

@@ -151,7 +151,10 @@ def tables() -> dict[str, dict[str, Any]]:
         m = month.strftime("%Y-%m")
         out[f"generated/tables/cells-{m}.csv.gz"] = {
             "name": f"Cells {m}",
-            "description": f"Every {CELL} cell stacked in {m}: its genealogy (coils, rolls, stacker, rack), process values and end-of-line results",
+            "description": (
+                f"Every {CELL} cell stacked in {m}: its genealogy (coils, rolls, stacker, rack), process values"
+                " and end-of-line results"
+            ),
             "text": list(TEXT),
         }
         month = month.replace(year=month.year + month.month // 12, month=month.month % 12 + 1)
@@ -247,8 +250,9 @@ def production(year: sim.Year) -> list[list[Any]]:
     for i, sh in enumerate(year.shifts):
         rows.append(
             [
-                sh.day.isoformat(), sh.name, sh.crew, count[(i, "coils_C")], count[(i, "coils_A")], count[(i, "stacked")],
-                count[(i, "filled")], count[(i, "formed")], count[(i, "grade_A")], count[(i, "grade_B")], count[(i, "grade_NG")],
+                sh.day.isoformat(), sh.name, sh.crew, count[(i, "coils_C")], count[(i, "coils_A")],
+                count[(i, "stacked")], count[(i, "filled")], count[(i, "formed")], count[(i, "grade_A")],
+                count[(i, "grade_B")], count[(i, "grade_NG")],
             ]
         )  # fmt: skip
     return rows
@@ -287,8 +291,9 @@ def work_orders(year: sim.Year) -> list[list[Any]]:
         kind = {"CM": "Corrective", "PM": "Preventive", "INSP": "Condition-based"}[m.kind]
         rows.append(
             [
-                f"WO-{datetime.fromtimestamp(m.start, ZONE):%y}-{i + 1:05d}", kind, m.asset, m.component, m.code, local(reported),
-                local(started), local(m.end), round(hours, 2), TECHNICIAN[sh.crew], part, PART_COSTS.get(part, 0.0), m.text, m.episode or "",
+                f"WO-{datetime.fromtimestamp(m.start, ZONE):%y}-{i + 1:05d}", kind, m.asset, m.component, m.code,
+                local(reported), local(started), local(m.end), round(hours, 2), TECHNICIAN[sh.crew], part,
+                PART_COSTS.get(part, 0.0), m.text, m.episode or "",
             ]
         )  # fmt: skip
     return rows
@@ -463,10 +468,18 @@ def write_committed(out: Path, year: sim.Year, stats: Stats) -> dict[str, int]:
     )
     n["mes/coils.csv"] = write_csv(
         out / "mes" / "coils.csv",
-        ("coil", "side", "batch", "coated_start", "coated_end", "calendered_end", "slit_end", "dried_end", "loading_mg_cm2", "loading_cv_pct", "streaks", "residual_solvent_ppm", "peel_n_m", "thickness_um", "thickness_sd_um", "scrapped"),
         (
-            (c.id, "cathode" if c.side == "C" else "anode", c.batch, local(c.coated[0]), local(c.coated[1]), local(c.calendered[1]), local(c.slit[1]), local(c.dried[1]),
-             round(c.loading, 3), round(c.loading_cv, 2), c.streaks, round(c.residual, 0), round(c.peel, 1), round(c.thickness, 1), round(c.thickness_sd, 2), c.scrapped)
+            "coil", "side", "batch", "coated_start", "coated_end", "calendered_end", "slit_end", "dried_end",
+            "loading_mg_cm2", "loading_cv_pct", "streaks", "residual_solvent_ppm", "peel_n_m", "thickness_um",
+            "thickness_sd_um", "scrapped",
+        ),
+        (
+            (
+                c.id, "cathode" if c.side == "C" else "anode", c.batch, local(c.coated[0]), local(c.coated[1]),
+                local(c.calendered[1]), local(c.slit[1]), local(c.dried[1]), round(c.loading, 3),
+                round(c.loading_cv, 2), c.streaks, round(c.residual, 0), round(c.peel, 1), round(c.thickness, 1),
+                round(c.thickness_sd, 2), c.scrapped,
+            )
             for c in year.coils
         ),
     )  # fmt: skip
@@ -617,7 +630,8 @@ def baseline(year: sim.Year) -> str:
         stops = [s for s in st.stops if not s.planned and not s.comment.endswith("(continued)")]
         hours = sum(s.end - s.start for s in st.stops if not s.planned) / 3600
         rows.append(
-            f"| {m.asset} | {len(stops):,} | {len(stops) / months:.1f} | {hours:,.0f} | {hours * m.downtime_cost_eur_h:,.0f} |"
+            f"| {m.asset} | {len(stops):,} | {len(stops) / months:.1f} | {hours:,.0f}"
+            f" | {hours * m.downtime_cost_eur_h:,.0f} |"
         )
     grades = Counter(c.grade for c in tested)
     scrap = Counter(c.scrap for c in year.cells if c.scrap)
@@ -630,9 +644,11 @@ def baseline(year: sim.Year) -> str:
         "Made by `tiles-sample-plant generate battery` from the simulated year: each machine's unplanned\n"
         "stops (a stop continued into the next shift counts once; its hours in full) and their cost at\n"
         "controlling's figures (plant/costs.csv), and the cells' yield.\n\n"
-        "## Stops\n\n| Machine | Unplanned stops | A month | Hours | Cost of the hours (EUR) |\n| --- | --- | --- | --- | --- |\n"
+        "## Stops\n\n| Machine | Unplanned stops | A month | Hours | Cost of the hours (EUR) |\n"
+        "| --- | --- | --- | --- | --- |\n"
         + "\n".join(rows)
-        + f"\n\n## Cells\n\n{len(year.cells):,} cells stacked; {len(tested):,} tested: {grades['A']:,} grade A, {grades['B']:,} grade B, {grades['NG']:,} NG.\n\n"
+        + f"\n\n## Cells\n\n{len(year.cells):,} cells stacked; {len(tested):,} tested: {grades['A']:,} grade A,"
+        f" {grades['B']:,} grade B, {grades['NG']:,} NG.\n\n"
         "| Scrap | Cells | Of those stacked | Cost (EUR) |\n| --- | --- | --- | --- |\n" + yield_rows + "\n"
     )
 

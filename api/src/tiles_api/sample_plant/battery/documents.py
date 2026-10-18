@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tiles_api.sample_plant.battery import simulate as sim
 from tiles_api.sample_plant.battery.plant import BY_ASSET, CODES, MACHINES, PART_COSTS, ZONE
-from tiles_api.sample_plant.common import Stats
+from tiles_api.sample_plant.common import Stats, Stop
 
 SOPS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "SOP-EL-01": (
@@ -183,11 +183,11 @@ def monthly_reports(year: sim.Year) -> dict[str, str]:
             if not s.planned:
                 by_month[_month(s.start)].append((s.asset, s.start, s.end, s.code, s.comment, s.episode))
     cells: dict[str, Counter[str]] = defaultdict(Counter)
-    for c in year.cells:
-        m = _month(c.stacked)
-        cells[m]["stacked"] += 1
-        if c.scrap:
-            cells[m]["scrap"] += 1
+    for cell in year.cells:
+        key = _month(cell.stacked)
+        cells[key]["stacked"] += 1
+        if cell.scrap:
+            cells[key]["scrap"] += 1
     out = {}
     for month in sorted(by_month):
         title = datetime.strptime(month, "%Y-%m").strftime("%B %Y")
@@ -201,7 +201,8 @@ def monthly_reports(year: sim.Year) -> dict[str, str]:
             rows.append(f"| {m.asset} | {len(mine)} | {hours:.1f} | {', '.join(f'{k} ({v})' for k, v in top)} |")
         notes = (
             "\n".join(
-                f"- {datetime.fromtimestamp(x[1], ZONE):%d %B, %H:%M}: {x[0]} {CODES[x[3]].description.lower()} ({x[4]})."
+                f"- {datetime.fromtimestamp(x[1], ZONE):%d %B, %H:%M}: {x[0]}"
+                f" {CODES[x[3]].description.lower()} ({x[4]})."
                 for x in sorted(by_month[month], key=lambda x: x[1])
                 if x[5] and not x[4].endswith("(continued)")
             )
@@ -261,7 +262,7 @@ FIRST = {
 def lessons(year: sim.Year, stats: Stats) -> dict[str, str]:
     failed = [e for st in year.stations.values() for e in st.episodes if e.failed_at]
     hours: dict[str, float] = defaultdict(float)
-    first_stop = {}
+    first_stop: dict[str, Stop] = {}
     for st in year.stations.values():
         for s in st.stops:
             if s.episode:
@@ -288,11 +289,12 @@ def lessons(year: sim.Year, stats: Stats) -> dict[str, str]:
             else f"`{tag}` was not logged then."
         )
         cost = hours[e.id] * machine.downtime_cost_eur_h
+        what = CODES[mode.code].description.lower()
         out[
             f"LL-{when:%Y}-{numbers[when.year]:02d}"
         ] = f"""# Lessons learned: {mode.component.lower()} on {s.asset}, {when:%d %B %Y}
 
-**What happened:** {s.asset} stopped at {when:%H:%M} on {when:%A %d %B %Y} ({mode.code}: {CODES[mode.code].description.lower()}).
+**What happened:** {s.asset} stopped at {when:%H:%M} on {when:%A %d %B %Y} ({mode.code}: {what}).
 The MES logged: "{s.comment}". It was down {hours[e.id]:.1f} hours, about {cost:,.0f} EUR of lost contribution.
 
 **What the data showed:** the problem started around {datetime.fromtimestamp(e.onset, ZONE):%d %B}. {signal}

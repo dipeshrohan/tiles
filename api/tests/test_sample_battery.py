@@ -6,6 +6,7 @@ moisture), and its copilot questions are answered by the tools once it is loaded
 import bisect
 import csv
 import io
+import itertools
 import json
 import statistics
 from collections import Counter
@@ -37,7 +38,11 @@ def built(tmp_path_factory: pytest.TempPathFactory) -> Built:
 def test_the_committed_files_are_what_the_generator_makes(built: Built) -> None:
     out = built[0]
     made = sorted(p.relative_to(out) for p in out.rglob("*") if p.is_file() and p.name != "manifest.json")
-    kept = sorted(p.relative_to(DATA) for p in DATA.rglob("*") if p.is_file() and p.parts[len(DATA.parts)] != "generated" and p.name not in ("manifest.json", "README.md"))
+    kept = sorted(
+        p.relative_to(DATA)
+        for p in DATA.rglob("*")
+        if p.is_file() and p.parts[len(DATA.parts)] != "generated" and p.name not in ("manifest.json", "README.md")
+    )
     assert made == kept, "run `uv run tiles-sample-plant generate battery` and commit data/sample-plants/battery"
     stale = [str(p) for p in made if (out / p).read_bytes() != (DATA / p).read_bytes()]
     assert stale == [], "run `uv run tiles-sample-plant generate battery` and commit data/sample-plants/battery"
@@ -58,7 +63,7 @@ def test_the_year_runs_like_a_cell_plant(built: Built) -> None:
     for asset in ("CT-C1", "CT-A1", "ST-01", "ST-02", "UW-01", "EF-01"):
         st = year.stations[asset]
         stops = sorted((s.start, s.end) for s in st.stops)
-        assert all(b[0] >= a[1] - 1e-6 for a, b in zip(stops, stops[1:], strict=False)), asset  # no overlap
+        assert all(b[0] >= a[1] - 1e-6 for a, b in itertools.pairwise(stops)), asset  # no overlap
     # No coil is coated, and no cell stacked, while its machine is stopped.
     for asset, times in (
         ("CT-C1", [c.coated[0] for c in year.coils if c.side == "C"]),
@@ -123,7 +128,17 @@ def test_the_plant_model_imports_with_its_known_gap() -> None:
 def test_the_questions_are_a_set_tiles_evaluate_can_score() -> None:
     cases = evaluation.read_csv((DATA / "copilot" / "questions.csv").read_text())
     assert len(cases) >= 100 and sum(c.decline for c in cases) >= 8
-    assert {t for c in cases for t in c.tools} >= {"graph_query", "find_signals", "time_series", "events", "wear_check", "root_cause", "search_documents", "correlate", "ontology_health"}
+    assert {t for c in cases for t in c.tools} >= {
+        "graph_query",
+        "find_signals",
+        "time_series",
+        "events",
+        "wear_check",
+        "root_cause",
+        "search_documents",
+        "correlate",
+        "ontology_health",
+    }
 
 
 def test_every_question_is_answered_from_the_loaded_plant(
@@ -135,5 +150,7 @@ def test_every_question_is_answered_from_the_loaded_plant(
     out, _, _, capture = built
     month = datetime.fromtimestamp(capture.start, ZONE)
     summary = answer_all(api, site, ENG, database_url, out, capture, {"cells": f"Cells {month:%Y-%m}"})
-    failed = [(r.case, r.missing, r.wrong, r.problems, r.error) for r in summary.results if not r.correct or not r.grounded]
+    failed = [
+        (r.case, r.missing, r.wrong, r.problems, r.error) for r in summary.results if not r.correct or not r.grounded
+    ]
     assert failed == [], json.dumps(failed, indent=1)

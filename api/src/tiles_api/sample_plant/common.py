@@ -83,7 +83,7 @@ def write_csv(path: Path, header: Iterable[str], rows: Iterable[Iterable[Any]]) 
 
 def read_json(path: Path) -> dict[str, Any]:
     """A JSON file's object, or an empty one if there is no file."""
-    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}  # type: ignore[no-any-return]
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
 def write_json(path: Path, body: Any) -> None:
@@ -306,7 +306,11 @@ def borderline(v: float, places: int) -> bool:
 def write_questions(path: Path, questions: list[Question]) -> int:
     """The set as `tiles-evaluate --cases` reads it, with `plan` and `data` for the test; ids unique."""
     seen: set[str] = set()
-    unique = [q for q in questions if not (q.id in seen or seen.add(q.id))]  # type: ignore[func-returns-value]
+    unique = []
+    for q in questions:
+        if q.id not in seen:
+            seen.add(q.id)
+            unique.append(q)
     return write_csv(
         path,
         ("id", "question", "tools", "facts", "absent", "decline", "notes", "plan", "data"),
@@ -503,7 +507,7 @@ class Station:
             if i >= len(self.w.intervals) or t >= self.end:
                 self.t = self.end
                 return self.end, self.end
-            a, b = self.w.intervals[i]
+            a = self.w.intervals[i][0]
             if t < a:
                 t = a
             # Planned and imposed stops that began while it waited, or begin now.

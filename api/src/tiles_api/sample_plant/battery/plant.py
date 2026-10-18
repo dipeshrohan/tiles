@@ -6,6 +6,7 @@ Kestrel Energy and its Varnhem plant are made up. The equipment is named by make
 machines, as a plant's asset register would name it.
 """
 
+import itertools
 from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -196,20 +197,21 @@ ASSEMBLY = (
         1400.0,
     ),
 )
-FORMATION = tuple(
-    Machine(
-        f"FM-{i:02d}",
-        f"Formation rack FM-{i:02d}",
-        "formation-rack",
-        "Chroma",
-        "17208M",
-        2022,
-        "Formation and aging",
-        "PLC Formation",
-        150.0,
-    )
-    for i in range(1, 5)
-) + (
+FORMATION = (
+    *(
+        Machine(
+            f"FM-{i:02d}",
+            f"Formation rack FM-{i:02d}",
+            "formation-rack",
+            "Chroma",
+            "17208M",
+            2022,
+            "Formation and aging",
+            "PLC Formation",
+            150.0,
+        )
+        for i in range(1, 5)
+    ),
     Machine(
         "AG-01", "Aging room AG-01", "aging-room", "Weiss", "WK3", 2022, "Formation and aging", "PLC Formation", 0.0
     ),
@@ -703,7 +705,7 @@ def ontology() -> tuple[list[dict[str, object]], list[dict[str, str]]]:
             f"vd-{side.lower()}1",
             f"nt-{side.lower()}1",
         ]
-        for a, b in zip(chain, chain[1:], strict=False):
+        for a, b in itertools.pairwise(chain):
             edge(a, "feeds", b)
         edge(chain[-1], "feeds", "st-01")
         edge(chain[-1], "feeds", "st-02")
@@ -739,10 +741,10 @@ def ontology() -> tuple[list[dict[str, object]], list[dict[str, str]]]:
         "separator": node("mat-separator", "Material", "Ceramic-coated PE separator, 12 µm"),
         "electrolyte": node("mat-electrolyte", "Material", "Electrolyte, LiPF6 in carbonates"),
     }
-    for m in ("nmc", "graphite", "foil-al", "foil-cu"):
-        edge(processes["coating"], "consumes", mats[m])
-    for m in ("separator", "electrolyte"):
-        edge(processes["assembly"], "consumes", mats[m])
+    for mat in ("nmc", "graphite", "foil-al", "foil-cu"):
+        edge(processes["coating"], "consumes", mats[mat])
+    for mat in ("separator", "electrolyte"):
+        edge(processes["assembly"], "consumes", mats[mat])
     # A known gap of the model: a spare oven nobody connected.
     node("vd-c2", "Machine", "Vacuum oven VD-C2 (spare)", vendor="Memmert", kind="vacuum-oven", asset="VD-C2")
     return nodes, edges

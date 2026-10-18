@@ -433,7 +433,12 @@ DOCUMENT_QUESTIONS = (
     ("blade-interval", "How often are the slitter blades changed?", "blades changed every km", ["150"]),
     ("burr-limit", "At what burr height is a roll scrapped?", "roll scrapped burr", ["15"]),
     ("burr-k", "Why do burrs matter if a roll passes?", "burrs pierce the separator", ["K-value | self-discharge"]),
-    ("dew-stop", "What happens when the dry room's dew point rises too high?", "dew point assembly stops", ["DT-DRM | assembly stops"]),
+    (
+        "dew-stop",
+        "What happens when the dry room's dew point rises too high?",
+        "dew point assembly stops",
+        ["DT-DRM | assembly stops"],
+    ),
     (
         "wheel-limit",
         "What pressure drop means the desiccant wheel must be regenerated?",

@@ -4,6 +4,7 @@ week's summer maintenance. Times are the plant's (Europe/Stockholm): the night s
 change in are an hour longer or shorter.
 """
 
+import itertools
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
@@ -63,7 +64,7 @@ def gaps(intervals: list[tuple[float, float]]) -> list[tuple[float, float, str]]
     """The time without shifts, with why (a shutdown, or the year's first and last hours)."""
     out = []
     edges = [(START.timestamp(), START.timestamp()), *intervals, (END.timestamp(), END.timestamp())]
-    for (_, a), (b, _) in zip(edges, edges[1:], strict=False):
+    for (_, a), (b, _) in itertools.pairwise(edges):
         if b - a < 60:
             continue
         why = next((w for s, e, w in SHUTDOWNS if s.timestamp() <= a < e.timestamp()), "No shift planned")

@@ -49,9 +49,13 @@ HOUR = 3600.0
 
 # The cell's quality model (the ground truth behind the end-of-line test, for the process model).
 QUALITY = {
-    "capacity_ah": "60.9 * cathode_loading / 22.0 - 0.012 * max(0, moisture_ppm - 200) - 0.35 * max(0, 245 - fill_g) - noise(0.22)",
+    "capacity_ah": (
+        "60.9 * cathode_loading / 22.0 - 0.012 * max(0, moisture_ppm - 200) - 0.35 * max(0, 245 - fill_g) - noise(0.22)"
+    ),
     "dcir_mohm": "0.78 + 0.25 * weld_weakness + 0.0006 * max(0, moisture_ppm - 200) + noise(0.025)",
-    "k_value_mv_day": "0.07 + 0.0004 * max(0, moisture_ppm - 200) + noise(0.015), plus 0.4 to 3.0 when a micro-short forms",
+    "k_value_mv_day": (
+        "0.07 + 0.0004 * max(0, moisture_ppm - 200) + noise(0.015), plus 0.4 to 3.0 when a micro-short forms"
+    ),
     "micro_short_chance": "0.002 + 0.25 / (1 + exp(-(burr_um - 13) / 1.2)) + 0.03 * max(0, overhang_mm - 0.5)",
     "grade": "A: capacity >= 60.0, DCIR <= 0.90, K <= 0.20; B: capacity >= 58.8, DCIR <= 0.95, K <= 0.25; else NG",
 }
@@ -758,7 +762,7 @@ class Plant:
                 continue
             # Tab welding
             horn = uw.sev("horn", end)
-            ws, we = uw.run(end + 60, 30)
+            _, we = uw.run(end + 60, 30)
             if we >= self.t1:
                 break
             self.welds += 1
@@ -781,7 +785,7 @@ class Plant:
                 continue
             # Electrolyte filling
             pump = ef.sev("pump", we)
-            fs, fe = ef.run(we + 60, 35)
+            _, fe = ef.run(we + 60, 35)
             if fe >= self.t1:
                 break
             cell.filled = fe
@@ -867,7 +871,7 @@ class Plant:
         eol = self.station("EOL-01", random_stops=STATION_STOPS, planned=monthly_pm(self.shifts, 28, 4))
         aging_done = sorted((c for c in cells if c.rack and not c.scrap), key=lambda c: c.formed[1])
         for cell in aging_done:
-            start, end = eol.run(cell.formed[1] + 10 * DAY, 20)
+            _, end = eol.run(cell.formed[1] + 10 * DAY, 20)
             if end >= self.t1:
                 break
             cell.tested = end
