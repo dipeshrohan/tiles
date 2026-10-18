@@ -34,6 +34,7 @@ PLANS: dict[str, list[tuple[str, dict[str, Any]]]] = {
     "open-warnings": [("events", {})],
     "warning-signal": [("events", {})],
     "downtime-codes": [("events", {"kind": "events", "asset": "DC-01"})],
+    "root-cause-latest": [("root_cause", {"machine": "DC-01"})],
     "sop-plunger-tip": [("search_documents", {"query": "replace plunger tip"})],
     "sop-pressure-range": [("search_documents", {"query": "hydraulic pressure start-up"})],
 }
