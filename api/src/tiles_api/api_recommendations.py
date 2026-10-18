@@ -64,6 +64,44 @@ class RecommendIn(BaseModel):
     at: AwareDatetime | None = None  # the live state's time (now)
     steps: Annotated[int, Field(ge=2, le=41)] = 11
     asset: Annotated[str, Field(min_length=1, max_length=100)] | None = None  # the machine, as the MES names it
+    # What measures the outcome once it is applied (T11.03), and how many days after to judge it.
+    outcome_signal: uuid.UUID | None = None
+    outcome_days: Annotated[int, Field(ge=1, le=90)] = 7
+
+
+class OutcomeIn(BaseModel):
+    signal_id: uuid.UUID | None = None  # None: judged on the machine's events alone
+    days: Annotated[int, Field(ge=1, le=90)] = 7
+
+
+class Measured(BaseModel):
+    mean: float | None  # None: no readings
+    readings: int
+
+
+class EventRates(BaseModel):
+    scrap: float  # events a day
+    downtime: float  # unplanned stops a day
+    days: float  # the window's length
+
+
+class Outcome(BaseModel):
+    number: int
+    status: Status
+    applied_at: datetime | None
+    days: int
+    state: Literal["not_applied", "collecting", "complete"]
+    objective: str
+    expected_now: float | None
+    expected_proposed: float | None
+    expected_change: float | None  # relative: (proposed - now) / now
+    signal_tag: str | None
+    before: Measured | None
+    after: Measured | None
+    measured_change: float | None  # relative, like expected_change
+    asset: str | None
+    events_before: EventRates | None
+    events_after: EventRates | None
 
 
 class DecisionIn(BaseModel):
@@ -102,6 +140,9 @@ class Recommendation(BaseModel):
     applied_by: str | None
     applied_at: datetime | None
     applied_note: str
+    outcome_signal_id: uuid.UUID | None
+    outcome_signal_tag: str | None
+    outcome_days: int
     mine: bool  # proposed by the person asking: someone else decides it
 
 
@@ -218,6 +259,17 @@ def remove_limit(ctx: Editor, model: str, param: str) -> None:
 # ---- recommendations (T11.02) ----------------------------------------------------------------
 
 
+def _signal_of_site(ctx: SiteContext, signal_id: uuid.UUID) -> str:
+    """The signal's tag; 422 when it isn't one of this site's."""
+    row = ctx.conn.execute(
+        "SELECT tag FROM signals WHERE site_id = %s AND id = %s", [ctx.site_id, signal_id]
+    ).fetchone()
+    if row is None:
+        raise Problem(status.HTTP_422_UNPROCESSABLE_CONTENT, "signal.not_on_site", "Not a signal of this site")
+    tag: str = row["tag"]
+    return tag
+
+
 def _live(ctx: SiteContext, signals: dict[str, uuid.UUID], at: datetime) -> dict[str, dict[str, Any]]:
     """Each parameter's signal: the median of its readings over the hour before `at`."""
     out: dict[str, dict[str, Any]] = {}
@@ -268,7 +320,10 @@ def _refuse_breaches(found: list[str], limits: dict[str, recommend.Limit]) -> No
         )
 
 
-SELECT = "SELECT * FROM recommendations WHERE site_id = %(site)s"
+SELECT = (
+    "SELECT r.*, (SELECT tag FROM signals g WHERE g.id = r.outcome_signal_id) AS outcome_signal_tag"
+    " FROM recommendations r WHERE r.site_id = %(site)s"
+)
 
 
 def _out(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
@@ -277,7 +332,7 @@ def _out(ctx: SiteContext, row: dict[str, Any]) -> dict[str, Any]:
 
 def get(ctx: SiteContext, number: int, lock: bool = False) -> dict[str, Any]:
     row: dict[str, Any] | None = ctx.conn.execute(
-        SELECT + " AND number = %(n)s" + (" FOR UPDATE" if lock else ""), {"site": ctx.site_id, "n": number}
+        SELECT + " AND r.number = %(n)s" + (" FOR UPDATE OF r" if lock else ""), {"site": ctx.site_id, "n": number}
     ).fetchone()
     if row is None:
         raise Problem(
@@ -302,7 +357,9 @@ def _expect(row: dict[str, Any], *allowed: Status) -> None:
 
 def _audited(row: dict[str, Any]) -> dict[str, Any]:
     keys = ("number", "status", "model", "version", "objective", "asset", "state", "proposal", "limits", "expected")
-    return {k: row[k] for k in keys}
+    out = {k: row[k] for k in keys}
+    signal = row.get("outcome_signal_id")
+    return out | {"outcome_signal_id": str(signal) if signal else None, "outcome_days": row.get("outcome_days")}
 
 
 @router.get("/sites/{site_id}/recommendations", response_model=list[Recommendation])
@@ -315,8 +372,8 @@ def list_recommendations(
     applied) by default, all, or those with one status; of one machine with `asset`."""
     statuses = ["proposed", "approved"] if show == "open" else None if show == "all" else [show]
     rows = ctx.conn.execute(
-        SELECT + " AND (%(statuses)s::text[] IS NULL OR status = ANY(%(statuses)s))"
-        " AND (%(asset)s::text IS NULL OR asset = %(asset)s) ORDER BY number DESC LIMIT %(limit)s",
+        SELECT + " AND (%(statuses)s::text[] IS NULL OR r.status = ANY(%(statuses)s))"
+        " AND (%(asset)s::text IS NULL OR r.asset = %(asset)s) ORDER BY r.number DESC LIMIT %(limit)s",
         {"site": ctx.site_id, "statuses": statuses, "asset": asset, "limit": MAX_LIST},
     ).fetchall()
     return [_out(ctx, r) for r in rows]
@@ -345,6 +402,8 @@ def propose(ctx: Editor, body: RecommendIn, request: Request) -> dict[str, Any]:
             f"{spec.key} has no parameter {', '.join(unknown)}",
             param=", ".join(unknown),
         )
+    if body.outcome_signal is not None:
+        _signal_of_site(ctx, body.outcome_signal)
     limits = limits_of(ctx, spec.key)
     settable = {p: limits[p] for p in body.settable if p in limits}
     _refuse_breaches([p for p in body.settable if p not in limits], limits)
@@ -381,8 +440,8 @@ def propose(ctx: Editor, body: RecommendIn, request: Request) -> dict[str, Any]:
     ctx.conn.execute(
         """
         INSERT INTO recommendations (site_id, number, model, version, objective, asset, state, sources, proposal,
-                                     limits, expected, proposed_by_id, proposed_by)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                     limits, expected, proposed_by_id, proposed_by, outcome_signal_id, outcome_days)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """,
         [
             ctx.site_id,
@@ -398,6 +457,8 @@ def propose(ctx: Editor, body: RecommendIn, request: Request) -> dict[str, Any]:
             Jsonb({"now": swept.now, "proposed": swept.proposed}),
             ctx.user.id,
             ctx.user.name,
+            body.outcome_signal,
+            body.outcome_days,
         ],
     )
     row = get(ctx, number)
@@ -473,5 +534,113 @@ def applied(ctx: Editor, number: int, body: AppliedIn) -> dict[str, Any]:
         str(number),
         before={"status": row["status"]},
         after={"status": "applied", "applied_at": at.isoformat(), "note": body.note},
+    )
+    return _out(ctx, get(ctx, number))
+
+
+# ---- outcomes (T11.03) -----------------------------------------------------------------------
+
+
+def relative(before: float | None, after: float | None) -> float | None:
+    """How much `after` differs from `before`, as a share of `before`; None without both, or from 0."""
+    if before is None or after is None or before == 0:
+        return None
+    return (after - before) / abs(before)
+
+
+def _measured(ctx: SiteContext, signal_id: uuid.UUID, start: datetime, end: datetime) -> dict[str, Any]:
+    row = one(
+        ctx.conn.execute(
+            "SELECT avg(value) AS mean, count(*) AS readings FROM site_samples"
+            " WHERE signal_id = %s AND value IS NOT NULL AND at >= %s AND at < %s",
+            [signal_id, start, end],
+        ).fetchone()
+    )
+    return {"mean": None if row["mean"] is None else float(row["mean"]), "readings": int(row["readings"])}
+
+
+def _rates(ctx: SiteContext, asset: str, start: datetime, end: datetime) -> dict[str, float]:
+    """The asset's scrap events and unplanned stops a day (planned downtime left out, T7.03)."""
+    rows = ctx.conn.execute(
+        """
+        SELECT g.event_kind AS kind, count(*) AS n
+        FROM site_samples s JOIN signals g ON g.id = s.signal_id
+        WHERE g.site_id = %(site)s AND g.asset = %(asset)s AND g.event_kind IN ('scrap', 'downtime')
+          AND s.at >= %(start)s AND s.at < %(end)s
+          AND coalesce(s.value <> 0, s.value_bool, s.value_text <> '')
+          AND NOT (g.event_kind = 'downtime'
+                   AND tiles_planned(g.site_id, g.asset, s.at,
+                                     coalesce(s.value_text, s.value::text, s.value_bool::text)))
+        GROUP BY g.event_kind
+        """,
+        {"site": ctx.site_id, "asset": asset, "start": start, "end": end},
+    ).fetchall()
+    days = max((end - start).total_seconds() / 86400, 1e-9)
+    counts = {r["kind"]: int(r["n"]) for r in rows}
+    return {"scrap": counts.get("scrap", 0) / days, "downtime": counts.get("downtime", 0) / days, "days": days}
+
+
+@router.get("/sites/{site_id}/recommendations/{number}/outcome", response_model=Outcome)
+def outcome(ctx: Ctx, number: int) -> dict[str, Any]:
+    """What followed an applied recommendation against what the model expected: its outcome
+    signal's mean, and the machine's scrap events and unplanned stops a day, over the days before it
+    was applied and the days after (up to now: `collecting` until they have all passed)."""
+    row = get(ctx, number)
+    expected = row["expected"]
+    now_value = expected["now"].get(row["objective"])
+    proposed_value = expected["proposed"].get(row["objective"])
+    out: dict[str, Any] = {
+        "number": row["number"],
+        "status": row["status"],
+        "applied_at": row["applied_at"],
+        "days": row["outcome_days"],
+        "state": "not_applied",
+        "objective": row["objective"],
+        "expected_now": now_value,
+        "expected_proposed": proposed_value,
+        "expected_change": relative(now_value, proposed_value),
+        "signal_tag": row["outcome_signal_tag"],
+        "before": None,
+        "after": None,
+        "measured_change": None,
+        "asset": row["asset"],
+        "events_before": None,
+        "events_after": None,
+    }
+    applied_at = row["applied_at"]
+    if row["status"] != "applied" or applied_at is None:
+        return out
+    span = timedelta(days=row["outcome_days"])
+    now = datetime.now(UTC)
+    end = min(applied_at + span, now)
+    out["state"] = "complete" if now >= applied_at + span else "collecting"
+    if row["outcome_signal_id"] is not None:
+        before = _measured(ctx, row["outcome_signal_id"], applied_at - span, applied_at)
+        after = _measured(ctx, row["outcome_signal_id"], applied_at, end)
+        out |= {"before": before, "after": after, "measured_change": relative(before["mean"], after["mean"])}
+    if row["asset"] and end > applied_at:
+        out["events_before"] = _rates(ctx, row["asset"], applied_at - span, applied_at)
+        out["events_after"] = _rates(ctx, row["asset"], applied_at, end)
+    return out
+
+
+@router.put("/sites/{site_id}/recommendations/{number}/outcome", response_model=Recommendation)
+def set_outcome(ctx: Editor, number: int, body: OutcomeIn) -> dict[str, Any]:
+    """Sets the signal that measures a recommendation's outcome, and the days to judge it over
+    (engineers), at any step. Audited."""
+    row = get(ctx, number, lock=True)
+    if body.signal_id is not None:
+        _signal_of_site(ctx, body.signal_id)
+    ctx.conn.execute(
+        "UPDATE recommendations SET outcome_signal_id = %s, outcome_days = %s WHERE id = %s",
+        [body.signal_id, body.days, row["id"]],
+    )
+    before = {"signal_id": str(row["outcome_signal_id"]) if row["outcome_signal_id"] else None}
+    ctx.audit(
+        "recommendation.outcome",
+        "recommendation",
+        str(number),
+        before=before | {"days": row["outcome_days"]},
+        after={"signal_id": str(body.signal_id) if body.signal_id else None, "days": body.days},
     )
     return _out(ctx, get(ctx, number))

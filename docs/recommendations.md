@@ -13,6 +13,7 @@ recommendation is a record people act on, and nothing in Tiles sends a setpoint 
 - [Making a recommendation](#making-a-recommendation)
 - [Approving and applying](#approving-and-applying)
 - [The guard rails](#the-guard-rails)
+- [Outcomes](#outcomes)
 - [On the Plant page](#on-the-plant-page)
 - [The API](#the-api)
 
@@ -55,8 +56,7 @@ Proposed → approved → applied, or proposed → rejected:
 - **Reject:** any engineer, its proposer too (withdrawing it), with a note
   (`recommendation.reject`).
 - **Applied:** once the line has set it by hand, an engineer says so, with the time (not before
-  its approval) and a note (`recommendation.applied`). What followed against what was expected is
-  T11.03.
+  its approval) and a note (`recommendation.applied`). What followed is its outcome, below.
 
 ## The guard rails
 
@@ -70,13 +70,31 @@ No recommendation outside a limit is ever kept or approved:
 
 `api/tests/test_recommendations.py` refuses each of these.
 
+## Outcomes
+
+What followed an applied recommendation, against what the model expected (T11.03,
+[#351](https://github.com/dipeshrohan/tiles/issues/351)), is worked out when it is read
+(`GET …/recommendations/{n}/outcome`), over the days before it was applied and the days after
+(7 by default, 1 to 90):
+
+- **expected:** the objective now and with the proposal, and its relative change;
+- **measured:** the mean of the signal that measures the outcome (a porosity reading, a scrap
+  rate), named when the recommendation is made or later (`PUT …/recommendations/{n}/outcome`,
+  engineers, audited as `recommendation.outcome`), before and after, with its readings and its
+  relative change;
+- **the machine's events:** its scrap events and unplanned stops a day before and after (planned
+  downtime left out, as on Warning performance).
+
+Until the days after have all passed it is **collecting**; then **complete**. A recommendation not
+yet applied shows only what was expected.
+
 ## On the Plant page
 
 A machine's page has a **Setpoint recommendations** card (`js/views/recommendations.ts`, logic in
 `js/lib/recommendations.ts`): the machine's recommendations, open ones first, each with what it
 changes, within which limit, and what the model expected; engineers set the limits, ask for one
 (the state typed or read from the machine's linked signals), approve someone else's, reject or
-withdraw one and mark an approved one as applied. The [user guide](guides/user.md#setpoint-recommendations)
+withdraw one and mark an approved one as applied; an applied one shows what followed. The [user guide](guides/user.md#setpoint-recommendations)
 says how.
 
 ## The API
@@ -92,6 +110,8 @@ says how.
 | `POST /sites/{id}/recommendations/{n}/approve` | engineers, not its proposer | approve |
 | `POST /sites/{id}/recommendations/{n}/reject` | engineers | reject |
 | `POST /sites/{id}/recommendations/{n}/applied` | engineers | the line applied it |
+| `GET /sites/{id}/recommendations/{n}/outcome` | any member | what followed, against what was expected |
+| `PUT /sites/{id}/recommendations/{n}/outcome` | engineers | the outcome's signal and days |
 
 The code is `api/src/tiles_api/api_recommendations.py` (migration 0044), with the sweep and the
 guard rail in `recommend.py`; [the API reference](guides/api.md) has each endpoint.

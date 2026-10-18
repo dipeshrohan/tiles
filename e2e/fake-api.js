@@ -1841,6 +1841,31 @@ export function createFakeApi({
               .reverse(),
           );
         }
+        const outcomeOf = /^\/sites\/[^/]+\/recommendations\/(\d+)\/outcome$/.exec(url.pathname);
+        if (outcomeOf && req.method === 'GET') {
+          const r = recs.find((x) => x.number === Number(outcomeOf[1]));
+          if (!r) return send(404, { detail: 'No such recommendation', code: 'recommendation.not_found', params: {} });
+          const now = r.expected.now[r.objective];
+          const proposed = r.expected.proposed[r.objective];
+          return send(200, {
+            number: r.number,
+            status: r.status,
+            applied_at: r.applied_at,
+            days: r.outcome_days ?? 7,
+            state: r.status === 'applied' ? (r.outcome_state ?? 'collecting') : 'not_applied',
+            objective: r.objective,
+            expected_now: now,
+            expected_proposed: proposed,
+            expected_change: (proposed - now) / now,
+            signal_tag: r.outcome_signal_tag ?? null,
+            before: r.outcome_before ?? null,
+            after: r.outcome_after ?? null,
+            measured_change: r.outcome_change ?? null,
+            asset: r.asset,
+            events_before: r.events_before ?? null,
+            events_after: r.events_after ?? null,
+          });
+        }
         if (role === 'viewer') return send(403, { detail: 'Needs the engineer role' });
         if (url.pathname === `/sites/${site.id}/recommendations` && req.method === 'POST') {
           const b = await body(req);
@@ -1876,6 +1901,9 @@ export function createFakeApi({
             applied_by: null,
             applied_at: null,
             applied_note: '',
+            outcome_signal_id: b.outcome_signal ?? null,
+            outcome_signal_tag: null,
+            outcome_days: b.outcome_days ?? 7,
             request: b,
           };
           recs.push(rec);
