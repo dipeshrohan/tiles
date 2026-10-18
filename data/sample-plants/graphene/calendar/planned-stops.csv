@@ -1,0 +1,508 @@
+asset,start,end,reason,code
+,2025-10-01T00:00:00+01:00,2025-10-01T06:00:00+01:00,No shift planned,PL-SHD
+EP-01,2025-10-01T07:00:00+01:00,2025-10-01T13:00:00+01:00,Monthly maintenance and polishing bath renewal,PL-PM
+CVD-01,2025-10-02T07:00:00+01:00,2025-10-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2025-10-02T07:00:00+01:00,2025-10-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2025-10-02T07:00:00+01:00,2025-10-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2025-10-02T07:00:00+01:00,2025-10-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+SC-01,2025-10-02T07:00:00+01:00,2025-10-02T11:00:00+01:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+,2025-10-04T06:00:00+01:00,2025-10-06T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-10-06T06:00:00+01:00,2025-10-06T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-10-06T06:00:00+01:00,2025-10-06T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-10-06T06:00:00+01:00,2025-10-06T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-10-06T06:00:00+01:00,2025-10-06T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2025-10-06T06:30:00+01:00,2025-10-06T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-01,2025-10-06T09:00:00+01:00,2025-10-06T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-02,2025-10-07T07:00:00+01:00,2025-10-07T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2025-10-08T22:30:00+01:00,2025-10-09T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2025-10-10T06:30:00+01:00,2025-10-10T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-03,2025-10-10T07:00:00+01:00,2025-10-10T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+,2025-10-11T06:00:00+01:00,2025-10-13T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-10-13T06:00:00+01:00,2025-10-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-10-13T06:00:00+01:00,2025-10-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-10-13T06:00:00+01:00,2025-10-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-10-13T06:00:00+01:00,2025-10-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-10-13T09:00:00+01:00,2025-10-13T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2025-10-14T22:30:00+01:00,2025-10-15T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2025-10-16T22:30:00+01:00,2025-10-17T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2025-10-18T06:00:00+01:00,2025-10-20T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-10-20T06:00:00+01:00,2025-10-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-10-20T06:00:00+01:00,2025-10-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-10-20T06:00:00+01:00,2025-10-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-10-20T06:00:00+01:00,2025-10-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2025-10-20T07:00:00+01:00,2025-10-20T13:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2025-10-20T07:00:00+01:00,2025-10-20T13:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-01,2025-10-20T22:30:00+01:00,2025-10-21T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+IN-01,2025-10-22T07:00:00+01:00,2025-10-22T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2025-10-23T06:30:00+01:00,2025-10-23T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+SP-01,2025-10-23T07:00:00+01:00,2025-10-23T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-01,2025-10-24T14:30:00+01:00,2025-10-24T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2025-10-25T06:00:00+01:00,2025-10-27T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-10-27T06:00:00+00:00,2025-10-27T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-10-27T06:00:00+00:00,2025-10-27T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-10-27T06:00:00+00:00,2025-10-27T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-10-27T06:00:00+00:00,2025-10-27T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2025-10-29T22:30:00+00:00,2025-10-30T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2025-10-30T22:30:00+00:00,2025-10-31T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2025-11-01T06:00:00+00:00,2025-11-03T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-11-03T06:00:00+00:00,2025-11-03T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-11-03T06:00:00+00:00,2025-11-03T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-11-03T06:00:00+00:00,2025-11-03T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-11-03T06:00:00+00:00,2025-11-03T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+EP-01,2025-11-03T07:00:00+00:00,2025-11-03T13:00:00+00:00,Monthly maintenance and polishing bath renewal,PL-PM
+SC-01,2025-11-03T07:00:00+00:00,2025-11-03T11:00:00+00:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+CVD-01,2025-11-03T09:00:00+00:00,2025-11-03T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2025-11-03T09:00:00+00:00,2025-11-03T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2025-11-03T09:00:00+00:00,2025-11-03T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2025-11-03T09:00:00+00:00,2025-11-03T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-01,2025-11-04T07:00:00+00:00,2025-11-04T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2025-11-04T22:30:00+00:00,2025-11-05T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2025-11-06T22:30:00+00:00,2025-11-07T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-02,2025-11-07T07:00:00+00:00,2025-11-07T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+,2025-11-08T06:00:00+00:00,2025-11-10T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-11-10T06:00:00+00:00,2025-11-10T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-11-10T06:00:00+00:00,2025-11-10T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-11-10T06:00:00+00:00,2025-11-10T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-11-10T06:00:00+00:00,2025-11-10T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2025-11-10T06:30:00+00:00,2025-11-10T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-03,2025-11-10T09:00:00+00:00,2025-11-10T17:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-04,2025-11-13T07:00:00+00:00,2025-11-13T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2025-11-13T14:30:00+00:00,2025-11-13T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2025-11-14T14:30:00+00:00,2025-11-14T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2025-11-15T06:00:00+00:00,2025-11-17T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-11-17T06:00:00+00:00,2025-11-17T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-11-17T06:00:00+00:00,2025-11-17T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-11-17T06:00:00+00:00,2025-11-17T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-11-17T06:00:00+00:00,2025-11-17T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2025-11-18T07:00:00+00:00,2025-11-18T13:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-01,2025-11-19T14:30:00+00:00,2025-11-19T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2025-11-20T07:00:00+00:00,2025-11-20T13:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-02,2025-11-20T22:30:00+00:00,2025-11-21T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2025-11-22T06:00:00+00:00,2025-11-24T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-11-24T06:00:00+00:00,2025-11-24T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-11-24T06:00:00+00:00,2025-11-24T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-11-24T06:00:00+00:00,2025-11-24T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-11-24T06:00:00+00:00,2025-11-24T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+IN-01,2025-11-24T07:00:00+00:00,2025-11-24T11:00:00+00:00,Monthly planned maintenance,PL-PM
+SP-01,2025-11-24T07:00:00+00:00,2025-11-24T11:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-01,2025-11-25T14:30:00+00:00,2025-11-25T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2025-11-27T06:30:00+00:00,2025-11-27T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2025-11-28T22:30:00+00:00,2025-11-29T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2025-11-29T06:00:00+00:00,2025-12-01T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-12-01T06:00:00+00:00,2025-12-01T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-12-01T06:00:00+00:00,2025-12-01T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-12-01T06:00:00+00:00,2025-12-01T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-12-01T06:00:00+00:00,2025-12-01T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+EP-01,2025-12-01T07:00:00+00:00,2025-12-01T13:00:00+00:00,Monthly maintenance and polishing bath renewal,PL-PM
+CVD-01,2025-12-02T07:00:00+00:00,2025-12-02T11:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2025-12-02T07:00:00+00:00,2025-12-02T11:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2025-12-02T07:00:00+00:00,2025-12-02T11:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2025-12-02T07:00:00+00:00,2025-12-02T11:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+SC-01,2025-12-02T07:00:00+00:00,2025-12-02T11:00:00+00:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+TL-02,2025-12-03T14:30:00+00:00,2025-12-03T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-01,2025-12-04T07:00:00+00:00,2025-12-04T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2025-12-05T22:30:00+00:00,2025-12-06T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2025-12-06T06:00:00+00:00,2025-12-08T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-12-08T06:00:00+00:00,2025-12-08T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-12-08T06:00:00+00:00,2025-12-08T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-12-08T06:00:00+00:00,2025-12-08T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-12-08T06:00:00+00:00,2025-12-08T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-12-08T09:00:00+00:00,2025-12-08T17:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2025-12-09T22:30:00+00:00,2025-12-10T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-03,2025-12-10T07:00:00+00:00,2025-12-10T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2025-12-12T22:30:00+00:00,2025-12-13T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2025-12-13T06:00:00+00:00,2025-12-15T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2025-12-15T06:00:00+00:00,2025-12-15T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2025-12-15T06:00:00+00:00,2025-12-15T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2025-12-15T06:00:00+00:00,2025-12-15T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-12-15T06:00:00+00:00,2025-12-15T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2025-12-15T09:00:00+00:00,2025-12-15T17:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2025-12-15T14:30:00+00:00,2025-12-15T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2025-12-18T07:00:00+00:00,2025-12-18T13:00:00+00:00,Monthly planned maintenance,PL-PM
+,2025-12-19T06:00:00+00:00,2026-01-05T06:00:00+00:00,Christmas shutdown,PL-SHD
+CVD-01,2026-01-05T06:00:00+00:00,2026-01-05T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-01-05T06:00:00+00:00,2026-01-05T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-01-05T06:00:00+00:00,2026-01-05T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-01-05T06:00:00+00:00,2026-01-05T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-01-05T06:30:00+00:00,2026-01-05T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+EP-01,2026-01-05T07:00:00+00:00,2026-01-05T13:00:00+00:00,Monthly maintenance and polishing bath renewal,PL-PM
+SC-01,2026-01-05T07:00:00+00:00,2026-01-05T11:00:00+00:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+CVD-01,2026-01-05T09:00:00+00:00,2026-01-05T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-01-05T09:00:00+00:00,2026-01-05T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-01-05T09:00:00+00:00,2026-01-05T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-01-05T09:00:00+00:00,2026-01-05T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-01,2026-01-05T13:00:00+00:00,2026-01-05T21:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-01-05T22:30:00+00:00,2026-01-06T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-02,2026-01-07T07:00:00+00:00,2026-01-07T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-01-09T06:30:00+00:00,2026-01-09T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-01-10T06:00:00+00:00,2026-01-12T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-01-12T06:00:00+00:00,2026-01-12T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-01-12T06:00:00+00:00,2026-01-12T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-01-12T06:00:00+00:00,2026-01-12T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-01-12T06:00:00+00:00,2026-01-12T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2026-01-12T06:30:00+00:00,2026-01-12T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-03,2026-01-12T09:00:00+00:00,2026-01-12T17:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-04,2026-01-13T07:00:00+00:00,2026-01-13T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-01-15T22:30:00+00:00,2026-01-16T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-01-16T14:30:00+00:00,2026-01-16T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-01-17T06:00:00+00:00,2026-01-19T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-01-19T06:00:00+00:00,2026-01-19T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-01-19T06:00:00+00:00,2026-01-19T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-01-19T06:00:00+00:00,2026-01-19T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-01-19T06:00:00+00:00,2026-01-19T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-01-19T07:00:00+00:00,2026-01-19T13:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-02,2026-01-20T07:00:00+00:00,2026-01-20T13:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-01,2026-01-22T06:30:00+00:00,2026-01-22T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+IN-01,2026-01-22T07:00:00+00:00,2026-01-22T11:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-02,2026-01-22T22:30:00+00:00,2026-01-23T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+SP-01,2026-01-23T07:00:00+00:00,2026-01-23T11:00:00+00:00,Monthly planned maintenance,PL-PM
+,2026-01-24T06:00:00+00:00,2026-01-26T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-01-26T06:00:00+00:00,2026-01-26T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-01-26T06:00:00+00:00,2026-01-26T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-01-26T06:00:00+00:00,2026-01-26T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-01-26T06:00:00+00:00,2026-01-26T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-01-28T22:30:00+00:00,2026-01-29T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-01-29T06:30:00+00:00,2026-01-29T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-01-31T06:00:00+00:00,2026-02-02T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-02-02T06:00:00+00:00,2026-02-02T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-02-02T06:00:00+00:00,2026-02-02T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-02-02T06:00:00+00:00,2026-02-02T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-02-02T06:00:00+00:00,2026-02-02T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+EP-01,2026-02-02T07:00:00+00:00,2026-02-02T13:00:00+00:00,Monthly maintenance and polishing bath renewal,PL-PM
+SC-01,2026-02-02T07:00:00+00:00,2026-02-02T11:00:00+00:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+CVD-01,2026-02-02T09:00:00+00:00,2026-02-02T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-02-02T09:00:00+00:00,2026-02-02T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-02-02T09:00:00+00:00,2026-02-02T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-02-02T09:00:00+00:00,2026-02-02T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+TL-01,2026-02-03T22:30:00+00:00,2026-02-04T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-01,2026-02-04T07:00:00+00:00,2026-02-04T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-02-04T14:30:00+00:00,2026-02-04T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-02-07T06:00:00+00:00,2026-02-09T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-02-09T06:00:00+00:00,2026-02-09T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-02-09T06:00:00+00:00,2026-02-09T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-02-09T06:00:00+00:00,2026-02-09T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-02-09T06:00:00+00:00,2026-02-09T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-02-09T09:00:00+00:00,2026-02-09T17:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-03,2026-02-10T07:00:00+00:00,2026-02-10T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-02-10T14:30:00+00:00,2026-02-10T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-02-10T22:30:00+00:00,2026-02-11T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-04,2026-02-13T07:00:00+00:00,2026-02-13T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-02-13T22:30:00+00:00,2026-02-14T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-02-14T06:00:00+00:00,2026-02-16T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-02-16T06:00:00+00:00,2026-02-16T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-02-16T06:00:00+00:00,2026-02-16T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-02-16T06:00:00+00:00,2026-02-16T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-02-16T06:00:00+00:00,2026-02-16T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2026-02-17T14:30:00+00:00,2026-02-17T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-02-18T07:00:00+00:00,2026-02-18T13:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-01,2026-02-19T22:30:00+00:00,2026-02-20T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-02-20T07:00:00+00:00,2026-02-20T13:00:00+00:00,Monthly planned maintenance,PL-PM
+,2026-02-21T06:00:00+00:00,2026-02-23T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-02-23T06:00:00+00:00,2026-02-23T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-02-23T06:00:00+00:00,2026-02-23T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-02-23T06:00:00+00:00,2026-02-23T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-02-23T06:00:00+00:00,2026-02-23T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2026-02-23T06:30:00+00:00,2026-02-23T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+IN-01,2026-02-23T07:00:00+00:00,2026-02-23T11:00:00+00:00,Monthly planned maintenance,PL-PM
+SP-01,2026-02-23T07:00:00+00:00,2026-02-23T11:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-01,2026-02-25T22:30:00+00:00,2026-02-26T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-02-27T14:30:00+00:00,2026-02-27T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-02-28T06:00:00+00:00,2026-03-02T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-03-02T06:00:00+00:00,2026-03-02T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-03-02T06:00:00+00:00,2026-03-02T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-03-02T06:00:00+00:00,2026-03-02T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-03-02T06:00:00+00:00,2026-03-02T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+EP-01,2026-03-02T07:00:00+00:00,2026-03-02T13:00:00+00:00,Monthly maintenance and polishing bath renewal,PL-PM
+SC-01,2026-03-02T07:00:00+00:00,2026-03-02T11:00:00+00:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+CVD-01,2026-03-02T09:00:00+00:00,2026-03-02T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-03-02T09:00:00+00:00,2026-03-02T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-03-02T09:00:00+00:00,2026-03-02T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-03-02T09:00:00+00:00,2026-03-02T13:00:00+00:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+TL-01,2026-03-04T06:30:00+00:00,2026-03-04T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-01,2026-03-04T07:00:00+00:00,2026-03-04T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-03-06T14:30:00+00:00,2026-03-06T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-03-07T06:00:00+00:00,2026-03-09T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-03-09T06:00:00+00:00,2026-03-09T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-03-09T06:00:00+00:00,2026-03-09T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-03-09T06:00:00+00:00,2026-03-09T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-03-09T06:00:00+00:00,2026-03-09T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-03-09T09:00:00+00:00,2026-03-09T17:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-03,2026-03-10T07:00:00+00:00,2026-03-10T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-03-10T14:30:00+00:00,2026-03-10T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-03-13T06:30:00+00:00,2026-03-13T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+CVD-04,2026-03-13T07:00:00+00:00,2026-03-13T15:00:00+00:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-03-13T22:30:00+00:00,2026-03-14T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-03-14T06:00:00+00:00,2026-03-16T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-03-16T06:00:00+00:00,2026-03-16T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-03-16T06:00:00+00:00,2026-03-16T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-03-16T06:00:00+00:00,2026-03-16T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-03-16T06:00:00+00:00,2026-03-16T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-03-18T07:00:00+00:00,2026-03-18T13:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-02,2026-03-19T14:30:00+00:00,2026-03-19T17:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-03-19T22:30:00+00:00,2026-03-20T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-03-20T07:00:00+00:00,2026-03-20T13:00:00+00:00,Monthly planned maintenance,PL-PM
+,2026-03-21T06:00:00+00:00,2026-03-23T06:00:00+00:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-03-23T06:00:00+00:00,2026-03-23T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-03-23T06:00:00+00:00,2026-03-23T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-03-23T06:00:00+00:00,2026-03-23T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-03-23T06:00:00+00:00,2026-03-23T09:00:00+00:00,"Weekly tube bake-out, as the week starts",PL-BAK
+IN-01,2026-03-23T07:00:00+00:00,2026-03-23T11:00:00+00:00,Monthly planned maintenance,PL-PM
+SP-01,2026-03-23T07:00:00+00:00,2026-03-23T11:00:00+00:00,Monthly planned maintenance,PL-PM
+TL-02,2026-03-26T06:30:00+00:00,2026-03-26T09:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-03-26T22:30:00+00:00,2026-03-27T01:00:00+00:00,Etch bath change at 55 g/L,PL-BTH
+,2026-03-28T06:00:00+00:00,2026-03-30T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-03-30T06:00:00+01:00,2026-03-30T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-03-30T06:00:00+01:00,2026-03-30T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-03-30T06:00:00+01:00,2026-03-30T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-03-30T06:00:00+01:00,2026-03-30T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2026-03-31T22:30:00+01:00,2026-04-01T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+EP-01,2026-04-01T07:00:00+01:00,2026-04-01T13:00:00+01:00,Monthly maintenance and polishing bath renewal,PL-PM
+TL-01,2026-04-02T06:30:00+01:00,2026-04-02T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-01,2026-04-02T07:00:00+01:00,2026-04-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-04-02T07:00:00+01:00,2026-04-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-04-02T07:00:00+01:00,2026-04-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-04-02T07:00:00+01:00,2026-04-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+SC-01,2026-04-02T07:00:00+01:00,2026-04-02T11:00:00+01:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+,2026-04-03T06:00:00+01:00,2026-04-07T06:00:00+01:00,Good Friday,PL-SHD
+CVD-01,2026-04-07T07:00:00+01:00,2026-04-07T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-02,2026-04-07T07:00:00+01:00,2026-04-07T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-04-09T22:30:00+01:00,2026-04-10T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-03,2026-04-10T07:00:00+01:00,2026-04-10T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-04-10T14:30:00+01:00,2026-04-10T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-04-11T06:00:00+01:00,2026-04-13T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-04-13T06:00:00+01:00,2026-04-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-04-13T06:00:00+01:00,2026-04-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-04-13T06:00:00+01:00,2026-04-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-04-13T06:00:00+01:00,2026-04-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-04-13T09:00:00+01:00,2026-04-13T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-04-16T06:30:00+01:00,2026-04-16T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-04-16T22:30:00+01:00,2026-04-17T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-04-18T06:00:00+01:00,2026-04-20T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-04-20T06:00:00+01:00,2026-04-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-04-20T06:00:00+01:00,2026-04-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-04-20T06:00:00+01:00,2026-04-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-04-20T06:00:00+01:00,2026-04-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-04-20T07:00:00+01:00,2026-04-20T13:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-04-20T07:00:00+01:00,2026-04-20T13:00:00+01:00,Monthly planned maintenance,PL-PM
+IN-01,2026-04-22T07:00:00+01:00,2026-04-22T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-01,2026-04-22T22:30:00+01:00,2026-04-23T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-04-22T22:30:00+01:00,2026-04-23T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+SP-01,2026-04-23T07:00:00+01:00,2026-04-23T11:00:00+01:00,Monthly planned maintenance,PL-PM
+,2026-04-25T06:00:00+01:00,2026-04-27T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-04-27T06:00:00+01:00,2026-04-27T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-04-27T06:00:00+01:00,2026-04-27T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-04-27T06:00:00+01:00,2026-04-27T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-04-27T06:00:00+01:00,2026-04-27T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-04-28T22:30:00+01:00,2026-04-29T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-04-28T22:30:00+01:00,2026-04-29T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+EP-01,2026-05-01T07:00:00+01:00,2026-05-01T13:00:00+01:00,Monthly maintenance and polishing bath renewal,PL-PM
+,2026-05-02T06:00:00+01:00,2026-05-05T06:00:00+01:00,Early May bank holiday,PL-SHD
+CVD-01,2026-05-05T07:00:00+01:00,2026-05-05T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-05-05T07:00:00+01:00,2026-05-05T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-05-05T07:00:00+01:00,2026-05-05T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-05-05T07:00:00+01:00,2026-05-05T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+SC-01,2026-05-05T07:00:00+01:00,2026-05-05T11:00:00+01:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+CVD-01,2026-05-05T11:00:00+01:00,2026-05-05T19:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-05-06T14:30:00+01:00,2026-05-06T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-05-06T14:30:00+01:00,2026-05-06T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-02,2026-05-07T07:00:00+01:00,2026-05-07T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+,2026-05-09T06:00:00+01:00,2026-05-11T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-05-11T06:00:00+01:00,2026-05-11T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-05-11T06:00:00+01:00,2026-05-11T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-05-11T06:00:00+01:00,2026-05-11T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-05-11T06:00:00+01:00,2026-05-11T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-05-11T09:00:00+01:00,2026-05-11T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-05-12T14:30:00+01:00,2026-05-12T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-05-13T06:30:00+01:00,2026-05-13T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-04,2026-05-13T07:00:00+01:00,2026-05-13T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+,2026-05-16T06:00:00+01:00,2026-05-18T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-05-18T06:00:00+01:00,2026-05-18T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-05-18T06:00:00+01:00,2026-05-18T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-05-18T06:00:00+01:00,2026-05-18T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-05-18T06:00:00+01:00,2026-05-18T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-05-18T07:00:00+01:00,2026-05-18T13:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-05-18T14:30:00+01:00,2026-05-18T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-05-19T22:30:00+01:00,2026-05-20T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-05-20T07:00:00+01:00,2026-05-20T13:00:00+01:00,Monthly planned maintenance,PL-PM
+IN-01,2026-05-22T07:00:00+01:00,2026-05-22T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-05-22T22:30:00+01:00,2026-05-23T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-05-23T06:00:00+01:00,2026-05-26T06:00:00+01:00,Spring bank holiday,PL-SHD
+TL-01,2026-05-26T06:30:00+01:00,2026-05-26T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+SP-01,2026-05-26T07:00:00+01:00,2026-05-26T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-05-29T14:30:00+01:00,2026-05-29T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-05-30T06:00:00+01:00,2026-06-01T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-06-01T06:00:00+01:00,2026-06-01T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-06-01T06:00:00+01:00,2026-06-01T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-06-01T06:00:00+01:00,2026-06-01T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-06-01T06:00:00+01:00,2026-06-01T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-06-01T06:30:00+01:00,2026-06-01T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+EP-01,2026-06-01T07:00:00+01:00,2026-06-01T13:00:00+01:00,Monthly maintenance and polishing bath renewal,PL-PM
+CVD-01,2026-06-02T07:00:00+01:00,2026-06-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-06-02T07:00:00+01:00,2026-06-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-06-02T07:00:00+01:00,2026-06-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-06-02T07:00:00+01:00,2026-06-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+SC-01,2026-06-02T07:00:00+01:00,2026-06-02T11:00:00+01:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+CVD-01,2026-06-04T07:00:00+01:00,2026-06-04T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-06-05T14:30:00+01:00,2026-06-05T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-06-05T22:30:00+01:00,2026-06-06T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-06-06T06:00:00+01:00,2026-06-08T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-06-08T06:00:00+01:00,2026-06-08T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-06-08T06:00:00+01:00,2026-06-08T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-06-08T06:00:00+01:00,2026-06-08T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-06-08T06:00:00+01:00,2026-06-08T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-06-08T09:00:00+01:00,2026-06-08T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-03,2026-06-10T07:00:00+01:00,2026-06-10T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-06-11T22:30:00+01:00,2026-06-12T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-06-12T14:30:00+01:00,2026-06-12T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-06-13T06:00:00+01:00,2026-06-15T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-06-15T06:00:00+01:00,2026-06-15T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-06-15T06:00:00+01:00,2026-06-15T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-06-15T06:00:00+01:00,2026-06-15T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-06-15T06:00:00+01:00,2026-06-15T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-06-15T09:00:00+01:00,2026-06-15T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-06-17T22:30:00+01:00,2026-06-18T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-06-18T07:00:00+01:00,2026-06-18T13:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-01,2026-06-18T22:30:00+01:00,2026-06-19T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-06-20T06:00:00+01:00,2026-06-22T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-06-22T06:00:00+01:00,2026-06-22T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-06-22T06:00:00+01:00,2026-06-22T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-06-22T06:00:00+01:00,2026-06-22T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-06-22T06:00:00+01:00,2026-06-22T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+IN-01,2026-06-22T07:00:00+01:00,2026-06-22T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-06-22T07:00:00+01:00,2026-06-22T13:00:00+01:00,Monthly planned maintenance,PL-PM
+SP-01,2026-06-23T07:00:00+01:00,2026-06-23T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-06-23T14:30:00+01:00,2026-06-23T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-06-25T06:30:00+01:00,2026-06-25T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-06-27T06:00:00+01:00,2026-06-29T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-06-29T06:00:00+01:00,2026-06-29T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-06-29T06:00:00+01:00,2026-06-29T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-06-29T06:00:00+01:00,2026-06-29T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-06-29T06:00:00+01:00,2026-06-29T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2026-06-29T14:30:00+01:00,2026-06-29T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-07-01T06:30:00+01:00,2026-07-01T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+EP-01,2026-07-01T07:00:00+01:00,2026-07-01T13:00:00+01:00,Monthly maintenance and polishing bath renewal,PL-PM
+CVD-01,2026-07-02T07:00:00+01:00,2026-07-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-07-02T07:00:00+01:00,2026-07-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-07-02T07:00:00+01:00,2026-07-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-07-02T07:00:00+01:00,2026-07-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+SC-01,2026-07-02T07:00:00+01:00,2026-07-02T11:00:00+01:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+,2026-07-04T06:00:00+01:00,2026-07-06T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-07-06T06:00:00+01:00,2026-07-06T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-07-06T06:00:00+01:00,2026-07-06T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-07-06T06:00:00+01:00,2026-07-06T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-07-06T06:00:00+01:00,2026-07-06T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-01,2026-07-06T09:00:00+01:00,2026-07-06T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-07-06T14:30:00+01:00,2026-07-06T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-02,2026-07-07T07:00:00+01:00,2026-07-07T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-07-08T22:30:00+01:00,2026-07-09T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-03,2026-07-10T07:00:00+01:00,2026-07-10T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-07-10T14:30:00+01:00,2026-07-10T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-07-11T06:00:00+01:00,2026-07-13T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-07-13T06:00:00+01:00,2026-07-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-07-13T06:00:00+01:00,2026-07-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-07-13T06:00:00+01:00,2026-07-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-07-13T06:00:00+01:00,2026-07-13T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-07-13T09:00:00+01:00,2026-07-13T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-07-15T22:30:00+01:00,2026-07-16T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-07-16T14:30:00+01:00,2026-07-16T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-07-18T06:00:00+01:00,2026-07-20T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-07-20T06:00:00+01:00,2026-07-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-07-20T06:00:00+01:00,2026-07-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-07-20T06:00:00+01:00,2026-07-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-07-20T06:00:00+01:00,2026-07-20T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-07-20T07:00:00+01:00,2026-07-20T13:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-07-20T07:00:00+01:00,2026-07-20T13:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-01,2026-07-21T14:30:00+01:00,2026-07-21T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+IN-01,2026-07-22T07:00:00+01:00,2026-07-22T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-07-22T22:30:00+01:00,2026-07-23T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+SP-01,2026-07-23T07:00:00+01:00,2026-07-23T11:00:00+01:00,Monthly planned maintenance,PL-PM
+,2026-07-25T06:00:00+01:00,2026-07-27T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-07-27T06:00:00+01:00,2026-07-27T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-07-27T06:00:00+01:00,2026-07-27T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-07-27T06:00:00+01:00,2026-07-27T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-07-27T06:00:00+01:00,2026-07-27T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-07-27T06:30:00+01:00,2026-07-27T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-07-28T14:30:00+01:00,2026-07-28T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-07-31T14:30:00+01:00,2026-07-31T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-08-01T06:00:00+01:00,2026-08-10T06:00:00+01:00,Summer shutdown,PL-SHD
+CVD-01,2026-08-10T06:00:00+01:00,2026-08-10T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-08-10T06:00:00+01:00,2026-08-10T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-08-10T06:00:00+01:00,2026-08-10T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-08-10T06:00:00+01:00,2026-08-10T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2026-08-10T06:30:00+01:00,2026-08-10T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+EP-01,2026-08-10T07:00:00+01:00,2026-08-10T13:00:00+01:00,Monthly maintenance and polishing bath renewal,PL-PM
+SC-01,2026-08-10T07:00:00+01:00,2026-08-10T11:00:00+01:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+CVD-01,2026-08-10T09:00:00+01:00,2026-08-10T13:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-08-10T09:00:00+01:00,2026-08-10T13:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-08-10T09:00:00+01:00,2026-08-10T13:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-08-10T09:00:00+01:00,2026-08-10T13:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-01,2026-08-10T13:00:00+01:00,2026-08-10T21:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-02,2026-08-10T13:00:00+01:00,2026-08-10T21:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-03,2026-08-10T13:00:00+01:00,2026-08-10T21:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+CVD-04,2026-08-13T07:00:00+01:00,2026-08-13T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-08-13T22:30:00+01:00,2026-08-14T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-08-15T06:00:00+01:00,2026-08-17T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-08-17T06:00:00+01:00,2026-08-17T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-08-17T06:00:00+01:00,2026-08-17T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-08-17T06:00:00+01:00,2026-08-17T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-08-17T06:00:00+01:00,2026-08-17T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-08-18T07:00:00+01:00,2026-08-18T13:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-02,2026-08-18T14:30:00+01:00,2026-08-18T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-08-19T14:30:00+01:00,2026-08-19T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-08-20T07:00:00+01:00,2026-08-20T13:00:00+01:00,Monthly planned maintenance,PL-PM
+,2026-08-22T06:00:00+01:00,2026-08-24T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-08-24T06:00:00+01:00,2026-08-24T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-08-24T06:00:00+01:00,2026-08-24T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-08-24T06:00:00+01:00,2026-08-24T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-08-24T06:00:00+01:00,2026-08-24T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2026-08-24T06:30:00+01:00,2026-08-24T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+IN-01,2026-08-24T07:00:00+01:00,2026-08-24T11:00:00+01:00,Monthly planned maintenance,PL-PM
+SP-01,2026-08-24T07:00:00+01:00,2026-08-24T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-01,2026-08-25T22:30:00+01:00,2026-08-26T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-08-28T14:30:00+01:00,2026-08-28T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-08-29T06:00:00+01:00,2026-09-01T06:00:00+01:00,Summer bank holiday,PL-SHD
+EP-01,2026-09-01T07:00:00+01:00,2026-09-01T13:00:00+01:00,Monthly maintenance and polishing bath renewal,PL-PM
+TL-01,2026-09-02T06:30:00+01:00,2026-09-02T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-01,2026-09-02T07:00:00+01:00,2026-09-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-02,2026-09-02T07:00:00+01:00,2026-09-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-03,2026-09-02T07:00:00+01:00,2026-09-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+CVD-04,2026-09-02T07:00:00+01:00,2026-09-02T11:00:00+01:00,Monthly scrubber check: CVD hall stopped,PL-EXH
+SC-01,2026-09-02T07:00:00+01:00,2026-09-02T11:00:00+01:00,"Monthly scrubber check: packing, nozzles, pumps",PL-PM
+CVD-01,2026-09-04T07:00:00+01:00,2026-09-04T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+,2026-09-05T06:00:00+01:00,2026-09-07T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-09-07T06:00:00+01:00,2026-09-07T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-09-07T06:00:00+01:00,2026-09-07T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-09-07T06:00:00+01:00,2026-09-07T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-09-07T06:00:00+01:00,2026-09-07T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-09-07T09:00:00+01:00,2026-09-07T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-09-07T14:30:00+01:00,2026-09-07T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-09-08T22:30:00+01:00,2026-09-09T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+CVD-03,2026-09-10T07:00:00+01:00,2026-09-10T15:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-02,2026-09-11T06:30:00+01:00,2026-09-11T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-09-12T06:00:00+01:00,2026-09-14T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-09-14T06:00:00+01:00,2026-09-14T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-09-14T06:00:00+01:00,2026-09-14T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-09-14T06:00:00+01:00,2026-09-14T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-09-14T06:00:00+01:00,2026-09-14T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-09-14T09:00:00+01:00,2026-09-14T17:00:00+01:00,"Monthly maintenance: leak test, MFC calibration",PL-PM
+TL-01,2026-09-15T22:30:00+01:00,2026-09-16T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-09-16T22:30:00+01:00,2026-09-17T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-01,2026-09-18T07:00:00+01:00,2026-09-18T13:00:00+01:00,Monthly planned maintenance,PL-PM
+,2026-09-19T06:00:00+01:00,2026-09-21T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-09-21T06:00:00+01:00,2026-09-21T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-09-21T06:00:00+01:00,2026-09-21T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-09-21T06:00:00+01:00,2026-09-21T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-09-21T06:00:00+01:00,2026-09-21T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-02,2026-09-21T07:00:00+01:00,2026-09-21T13:00:00+01:00,Monthly planned maintenance,PL-PM
+IN-01,2026-09-22T07:00:00+01:00,2026-09-22T11:00:00+01:00,Monthly planned maintenance,PL-PM
+TL-01,2026-09-22T14:30:00+01:00,2026-09-22T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-09-22T22:30:00+01:00,2026-09-23T01:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+SP-01,2026-09-23T07:00:00+01:00,2026-09-23T11:00:00+01:00,Monthly planned maintenance,PL-PM
+,2026-09-26T06:00:00+01:00,2026-09-28T06:00:00+01:00,Weekend: no shift planned,PL-SHD
+CVD-01,2026-09-28T06:00:00+01:00,2026-09-28T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-02,2026-09-28T06:00:00+01:00,2026-09-28T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-03,2026-09-28T06:00:00+01:00,2026-09-28T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+CVD-04,2026-09-28T06:00:00+01:00,2026-09-28T09:00:00+01:00,"Weekly tube bake-out, as the week starts",PL-BAK
+TL-01,2026-09-28T06:30:00+01:00,2026-09-28T09:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+TL-02,2026-09-29T14:30:00+01:00,2026-09-29T17:00:00+01:00,Etch bath change at 55 g/L,PL-BTH
+,2026-09-30T22:00:00+01:00,2026-10-01T00:00:00+01:00,No shift planned,PL-SHD
